@@ -30,6 +30,10 @@ const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
 // double-tap on a room. Optional too: missing, the map is as it always was.
 const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: atlas_screen failed to load", err); return null; });
+// The scene row under the map and in Live Aboard (scene_row.js). Optional:
+// missing, the map is as it always was, with no row.
+const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: scene_row failed to load", err); return null; });
 
 // ── What a tier is shown ─────────────────────────────────────────────────────
 // Below `bright` — PadSpan HA with no key, PadSpan Bright with no key — the
@@ -3321,6 +3325,8 @@ function _forestLoad(){
 
 // How long Whole house's "Yes, change the whole house" stays armed untouched.
 export const WH_ARM_MS = 10000;
+// The scene row's counts sent once a page load (the row shown).
+const _sceneCounted = new Set();
 
 // ── The poll's map card, kept (host.keepCard: the sidebar's 5 s tick) ───────
 // The sidebar builds its page afresh every poll; the map card under it (its
@@ -3336,7 +3342,8 @@ export const WH_ARM_MS = 10000;
 // the tier, the layout, the floor, the spacing, an alert, the legend, another
 // map) builds a new card, as before. The Mapping tab hands no keepCard.
 const _CARD_DATA = new Set(["lightsByEid", "byRoom", "hiddenEids", "hiddenEidsMap", "ambient", "states", "entities", "config",
-  "regIds", "emergency", "floodLatches", "model", "floors", "view", "lightsLoading", "shownAt", "keepTable", "keepFocused", "keepCard"]);
+  "regIds", "emergency", "floodLatches", "model", "floors", "view", "lightsLoading", "shownAt", "keepTable", "keepFocused", "keepCard",
+  "scenes"]);
 function _cardSig(host, extra){
   return JSON.stringify([host, extra], (k, v) => (_CARD_DATA.has(k) ? undefined
     : typeof v === "function" ? "fn" : v instanceof Set ? [...v].sort() : v));
@@ -3575,6 +3582,92 @@ export function buildLightsMapCard(hostIn){
   }
   const la3dPaints = [];
   let la3dCloseDrawer = null;
+
+  // ── The scene row (scene_row.js) ─────────────────────────────────────────
+  // host.scenes is the sidebar's {slot, states, entities, admin, kiosk,
+  // callService, setMany, openHa, toast, rerender, telemetry}: Home
+  // Assistant's scenes and the one-floor Whole house presets (PadSpan Pro's,
+  // as the bar is), each a small map under the flat map and in Live Aboard.
+  // A tap runs it or turns its lights off through the host's own calls (the
+  // map's: setMany, Home Assistant's services, applyWholeHouse).
+  // openDrawer: the rail's drawers (the sidebar's layout); whFocus: the Whole house bar, a preset chosen.
+  let openDrawer = null, whFocus = null;
+  const scenesModel = (h) => {
+    const sc = SCENES && h.scenes;
+    if (!sc) return null;
+    const states = sc.states || {}, lbe = h.lightsByEid || {};
+    const isLight = (eid) => (lbe[eid] ? inWholeHousePresets(lbe[eid]) : /^(light|fan)\./.test(eid));
+    const isOn = (eid) => {
+      const st = states[eid];
+      if (!st || st.state === "unavailable" || st.state === "unknown") return null;
+      return effectiveState(eid, st.state).state === "on";
+    };
+    const floorOf = (eid) => { const f = lightFloorId(lbe[eid] || { entity_id: eid }, h.model); return f ? SCENES.canonFloor(f, floors) : null; };
+    const presets = tierAtLeast(h.tier, "pro") && typeof h.onWholeHouseApply === "function" ? h.wholeHousePresets || [] : [];
+    const admin = sc.admin === true, kiosk = sc.kiosk === true;
+    return { tiles: SCENES.sceneTiles({ states, entities: sc.entities, model: h.model, floors, presets, isLight, isOn, floorOf }),
+             admin, kiosk, editPresets: !!whFocus, count: sceneCount,
+             act: (t) => sceneAct(t), edit: (t, row) => sceneEdit(t, row),
+             add: admin && !kiosk ? (from) => sceneNew(from) : null };
+  };
+  let scenesMemo = null;
+  const scenesNow = () => (scenesMemo && scenesMemo.h === host ? scenesMemo.m : (scenesMemo = { h: host, m: scenesModel(host) }).m);
+  // Counted only while the host's opt-in report is on (its telemetry); the row shown once a page load.
+  const sceneCount = (name, once) => {
+    const sc = host.scenes;
+    if (!sc || typeof sc.telemetry !== "function" || (once && _sceneCounted.has(name))) return;
+    if (once) _sceneCounted.add(name);
+    try { sc.telemetry(name); } catch (_) { /* the report is never the error */ }
+  };
+  const sceneHa = (path) => { const sc = host.scenes; return sc && typeof sc.openHa === "function" ? sc.openHa(path) : SCENES.openHaPage(path); };
+  const sceneToast = (m, err) => { const sc = host.scenes; if (sc && typeof sc.toast === "function") sc.toast(m, err); };
+  // "Toggles, on if mixed, then off" (Garry, 2026-11-05).
+  const sceneAct = (t) => {
+    const sc = host.scenes;
+    if (!sc || !t) return;
+    const off = SCENES.tapOf(t.state) === "off", kind = t.kind === "preset" ? "preset" : "scene";
+    sceneCount(`house3d_show:scene_${off ? "off" : "run"}:${kind}`);
+    const later = () => { if (typeof sc.rerender === "function") setTimeout(() => sc.rerender(), 900); };
+    if (off) { Promise.resolve(sc.setMany(t.offEids, false)).catch(() => sceneToast(`Couldn't turn ${t.name} off`, true)); return; }
+    if (t.kind === "preset") {
+      Promise.resolve(typeof host.onWholeHouseApply === "function" ? host.onWholeHouseApply(t.preset) : null)
+        .then((r) => { if (r && ((r.problems || []).length || r.skipped || r.failed)) sceneToast(`${t.name}: ${wholeHouseText(r)}`); later(); })
+        .catch(() => sceneToast(`Couldn't run ${t.name}`, true));
+      return;
+    }
+    Promise.resolve(sc.callService("scene", "turn_on", { entity_id: t.eid })).then(later).catch(() => sceneToast(`Couldn't run ${t.name}`, true));
+  };
+  const sceneNew = (from) => {
+    const sc = host.scenes;
+    if (!sc || sc.admin !== true || sc.kiosk === true) return;
+    sceneCount(`house3d_show:scene_new:${from === "show" ? "show" : "row"}`);
+    sceneHa(SCENES.NEW_SCENE_PATH);
+  };
+  // ✎: a scene in Home Assistant's editor (an administrator's, never on a
+  // wall), one not made there says so first; a preset on this page's bar.
+  const sceneEdit = (t, row) => {
+    const sc = host.scenes;
+    if (!sc || !t) return;
+    if (t.kind === "preset") {
+      sceneCount("house3d_show:scene_edit:preset");
+      if (openDrawer) openDrawer("presets");
+      if (whFocus) whFocus(t.name);
+      return;
+    }
+    if (sc.admin !== true || sc.kiosk === true) return;
+    if (t.id) { sceneCount("house3d_show:scene_edit:scene"); sceneHa(SCENES.sceneEditPath(t.id)); return; }
+    const say = `${t.name} wasn't made in Home Assistant's scene editor (it comes from YAML or another integration), so it is changed where it was made.`;
+    const go = () => { sceneCount("house3d_show:scene_edit:yaml"); sceneHa(SCENES.SCENE_LIST_PATH); };
+    if (row && typeof row.note === "function") row.note(say, "Scene list ›", go); else go();
+  };
+  // Under the flat map; hidden there too where this screen's ⋯ list hid it
+  // in Live Aboard (its pref, show_<screen>).
+  const sceneRow = SCENES && host.scenes ? SCENES.createSceneRow({ doc: document, place: "atlas" }) : null;
+  const sceneFlatHidden = () => {
+    if (!h3) return false;
+    try { const o = JSON.parse(_laPrefs.get(`show_${h3.slot}`) || "{}"); return !!(o && o.scenes === false); } catch (_) { return false; }
+  };
+  const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
   // while it shows (fn gets its slot); false while the flat map shows.
   // Still loading, the flat map is what shows: its own controls act on it.
@@ -3700,7 +3793,9 @@ export function buildLightsMapCard(hostIn){
           settings3d: h3.settings, admin: h3.admin === true, saveSetting: typeof h3.saveSetting === "function" ? h3.saveSetting : null,
           // The ⋯ list's links and "Set it up" (live_aboard_show.js LINK_WORDS):
           // the host's way to that part of Settings or Mapping, or none.
-          goTo: typeof h3.goTo === "function" ? h3.goTo : null,
+          goTo: typeof h3.goTo === "function" ? h3.goTo : null, kiosk: h3.kiosk === true,
+          // The scene row on its bottom bar (scene_row.js): the same tiles and taps as under the flat map.
+          scenes: scenesNow(),
           onZoom: (pct) => { if (la3dZoomLbl && la3dOn()) la3dZoomLbl.textContent = `${pct}%`; },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
@@ -4661,6 +4756,26 @@ export function buildLightsMapCard(hostIn){
     }
     whBar.appendChild(whStatus);
     presetBars.push({ key: "house", label: "Whole house", node: whBar });
+    // A preset's ✎ on the scene row: this bar, that preset chosen and its
+    // name typed in, so Set keeps the house as it is now under it.
+    // Kept on the view (view.whPick) for the card the open drawer builds next.
+    const whPicked = (name, said) => {
+      if (!whp.some((x) => x.name === name)) return false;
+      whSel.value = name;
+      whSel.dispatchEvent(new Event("change"));
+      view.whPick = name;
+      const nameIn = whBar.querySelector("input.lv-preset-name");
+      if (nameIn) nameIn.value = name;
+      if (said) whFlash("Set the lights as you want them, then Set to keep them under this name", 9000);
+      return true;
+    };
+    whSel.addEventListener("change", () => { if (whSel.value !== view.whPick) view.whPick = null; });
+    if (view.whPick) whPicked(view.whPick, true);
+    whFocus = (name) => {
+      if (!whPicked(name, true)) return false;
+      if (!DISPLAY && whBar.scrollIntoView) whBar.scrollIntoView({ block: "nearest" });
+      return true;
+    };
   }
   // Classic: each bar is its own full-width row. v2 with both present:
   // ONE row, side by side — Look on the left, Whole house on the right
@@ -4829,6 +4944,7 @@ export function buildLightsMapCard(hostIn){
       for (const k of Object.keys(drawers)) drawers[k].classList.toggle("open", k === view.drawer);
       for (const b of drawerBtns) b.classList.toggle("on", b._drawer === view.drawer);
     };
+    openDrawer = (name) => { if (drawers[name] && view.drawer !== name) setDrawer(name); return !!drawers[name]; };
     const railBtn = (icon, title, onclick) => el("button", { class: "lv-railbtn", title, onclick }, icon);
     for (const [name, icon, title] of [["layers", "☰", "Floors and device types"],
                                         ["presets", "★", "Presets — looks and whole house"],
@@ -4874,6 +4990,8 @@ export function buildLightsMapCard(hostIn){
   }
   mapCard.appendChild(isoDiv);
   if (scr) mapCard.appendChild(scr.anchor);
+  // The scene row under the map (scene_row.js): Live Aboard draws its own.
+  if (sceneRow) { mapCard.appendChild(sceneRow.el); sceneRow.update(scenesFlat(host)); }
   // The shapes as drawn: with Live Aboard's kinds once its file has been read.
   const legendOf = (h, h3x) => {
     const abLegend = _AB && abFile && h3x ? _AB.fileData(abSlot) : null;
@@ -4922,6 +5040,7 @@ export function buildLightsMapCard(hostIn){
         if (nb.key !== layer.key && !(act && layer.node.contains(act))) { layer.node.parentNode.replaceChild(nb.node, layer.node); layer = nb; }
       }
       if (scr) scr.paint();
+      if (sceneRow) sceneRow.update(scenesFlat(host));
       // A new drawing (the zoom or the codes changed it whole) empties the
       // stage for a moment, and the browser takes the pan back to 0,0: put
       // it back where it was, as a new card does (view.scrollLeft below).

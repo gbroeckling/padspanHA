@@ -186,7 +186,8 @@ await tryCase("button: ⋯ beside the compass, clear of it, and the list opens g
   const groups = qa(".la3d-sgrp").map(g => g.getAttribute("aria-label"));
   const keys = qa(".la3d-srow").map(r => r.getAttribute("data-show"));
   const alarm = tick("alarms");
-  const want = SHOW.SHOW_ITEMS.filter(it => !it.later).map(it => it.key);
+  // This host hands in no scenes (Mapping's, say): no Scene row line (tests/js/scene_row.mjs has the sidebar's).
+  const want = SHOW.SHOW_ITEMS.filter(it => !it.later && it.key !== "scenes").map(it => it.key);
   check("button: ⋯ beside the compass, clear of it, and the list opens grouped with the alarms ticked and greyed",
     b && compass && b.parentNode === compass.parentNode && b.textContent === "⋯" && b.getAttribute("aria-expanded") === "true"
     && S().show.menu.open && groups.length === SHOW.SHOW_GROUPS.length && want.every(k => keys.includes(k)) && !keys.includes("scenes")

@@ -25,6 +25,9 @@
 //                else an administrator turns it on there
 //   hidden       not drawn at all, costing nothing; the view draws again
 //                only when the list changes, never on a poll because of it
+//   a wall       (?kiosk=1) nothing in the list leaves the page: a line not
+//                set up says where to set it up from another screen
+//                (2026-11-07: a link there left the wall on the main panel)
 //
 // The view (live_aboard.js) works out what each tick hides and what is ready;
 // this file holds the list, the prefs, the opt-in report's words and the
@@ -47,6 +50,10 @@ export const SHOW_ITEMS = [
   { key: "glow", group: "lights", words: "Light glow", hint: "The pool, glow and wash a light that is on throws (the bulbs stay)" },
   { key: "strips", group: "lights", words: "LED strips", hint: "Strips, coves, valances, under-cabinet and TV lights", link: "place" },
   { key: "fans", group: "lights", words: "Ceiling fans", hint: "Fans and their blades", link: "place" },
+  // The scene row under the map (scene_row.js): on wherever the house has a
+  // scene or a one-floor preset; not set up, the line opens Home Assistant's
+  // new-scene editor (an administrator's, never on a wall).
+  { key: "scenes", group: "lights", words: "Scene row", hint: "The lighting scenes under the map: tap one to run it, again to turn it off", link: "scene_new" },
   { key: "motion_sensors", group: "motion", words: "Motion sensors", hint: "The sensors on the walls and their markers", link: "place" },
   { key: "motion_rooms", group: "motion", words: "Motion in rooms", hint: "A room's floor glowing after motion, and the Motion chip" },
   { key: "motion_reach", group: "motion", words: "Motion reach", hint: "The patch of floor a sensor sees, shown on a trigger or a tap" },
@@ -56,7 +63,7 @@ export const SHOW_ITEMS = [
   { key: "windows", group: "openings", words: "Windows", hint: "Every pane; the opening stays", link: "walls" },
   { key: "covers", group: "openings", words: "Garage doors and gates", hint: "Doors that follow a cover in Home Assistant", link: "walls" },
   { key: "locks", group: "openings", words: "Locks", hint: "Lock markers, and an unlocked door's red glow", link: "place" },
-  { key: "railings", group: "openings", words: "Railings", hint: "Deck rails and the rails on open edges", link: "walls" },
+  { key: "railings", group: "openings", words: "Railings", hint: "Deck rails, stair rails and the rails on open edges", link: "walls" },
   { key: "radios", group: "tracked", words: "Receivers (radios)", hint: "The Bluetooth receivers (scanners) where they are placed", link: "receivers" },
   // People and tags are switched for the house in Views ▾ while Live Aboard is on (settings.js says so): no Settings link.
   { key: "tags", group: "tracked", words: "Beacons and tags", hint: "Every tag PadSpan places, with its name" },
@@ -73,9 +80,6 @@ export const SHOW_ITEMS = [
   { key: "rain", group: "look", words: "Rain and snow", hint: "Rain and snow falling round the house", link: "weather" },
   { key: "theme", group: "look", words: "Theme colours", hint: "Off: the Classic look on this screen", link: "showcase" },
   { key: "forest", group: "look", words: "West Coast Forest trees", hint: "The trees round the house", link: "showcase" },
-  // The scene row (a later piece): hideable per screen from here once it is
-  // wired. Until then it is not listed (`later`); the view's rows() leave it out.
-  { key: "scenes", group: "look", words: "Scene row", hint: "The row of lighting scenes under the map", later: true },
 ];
 const BY_KEY = new Map(SHOW_ITEMS.map(it => [it.key, it]));
 /** The lines a person can tick (not the alarms, not a line still to come). */
@@ -91,6 +95,8 @@ export const LINK_WORDS = {
   weather: ["Settings", "Settings → Atlas → Outdoor weather"],
   showcase: ["Mapping", "Mapping → Atlas → Showcase options"],
   atlas: ["Settings", "Settings → Atlas"],
+  // Home Assistant's own scene editor (scene_row.js SCENE_PLACE), not a PadSpan page.
+  scene_new: ["Home Assistant", "Home Assistant → Settings → Automations & scenes → Scenes"],
 };
 /** Where each is, for the host's goTo({view, tab, part}): the panel's own
  *  screen, its tab, and the card on it (settings.js data-focus-part). */
@@ -106,11 +112,15 @@ export const GO_TO = {
 // Counts only, never a name, a room or an address: the list opened, each line
 // hidden or shown again (by its key), a "not set up" line seen (once per page
 // load) and followed, someone sent to where people or tags are switched on,
-// and Back to house defaults.
+// and Back to house defaults. And the scene row's (scene_row.js SCENE_EVENTS,
+// the same words): the row shown, a scene run or turned off, a new scene or
+// an edit opened.
 export const SHOW_EVENTS = ["house3d_show:opened", "house3d_show:reset",
   ...SHOW_KEYS.flatMap(k => [`house3d_show:hide:${k}`, `house3d_show:show:${k}`]),
   ...SHOW_KEYS.flatMap(k => [`house3d_show:setup_seen:${k}`, `house3d_show:setup_go:${k}`]),
-  "house3d_show:permission:people", "house3d_show:permission:tags"];
+  "house3d_show:permission:people", "house3d_show:permission:tags",
+  ...["row:atlas", "row:aboard", "run:scene", "run:preset", "off:scene", "off:preset", "new:row", "new:show", "new:settings",
+      "edit:scene", "edit:yaml", "edit:preset"].map(w => `house3d_show:scene_${w}`)];
 
 /** The pref this screen keeps its ticks in. */
 export const prefKey = (slotKey) => `show_${slotKey}`;
@@ -166,8 +176,9 @@ export function rowsOf(on, ready){
 /** What a line says when its feature isn't ready in this house: its words,
  *  where "Set it up" goes, and, for people and tags (an administrator's),
  *  the permission path. canGo: the host can open that place (not in Basic,
- *  where the line names it instead). */
-export function setupLine(key, admin, canGo = true, why = null){
+ *  where the line names it instead); kiosk: a wall, told to set it up from
+ *  another screen. */
+export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
   const it = BY_KEY.get(key);
   const name = it ? it.words : key;
   if (key === "people" || key === "tags") {
@@ -180,19 +191,26 @@ export function setupLine(key, admin, canGo = true, why = null){
     motion_sensors: "No motion sensors are placed yet.", motion_rooms: "No motion sensors are placed yet.", motion_reach: "No motion sensors are placed yet.",
     readouts: "No temperature or air sensors are placed yet.", locks: "No locks are placed yet.",
     doors: "No doors are drawn yet.", windows: "No windows are drawn yet.", covers: "No door follows a garage door or gate yet.",
-    railings: "No deck rails yet.", radios: "No receivers are placed yet.", furniture: "No furniture yet.",
+    railings: "No deck or stair rails yet.", radios: "No receivers are placed yet.", furniture: "No furniture yet.",
     devices: "No furniture is a device yet.", stairs: "No stairs yet.", room_names: "No rooms are drawn yet.",
     room_outlines: "No rooms are drawn yet.", rain: "Rain and snow aren't set up yet: they need a weather source.",
     theme: "No theme is on yet.", forest: "The trees come with the West Coast Forest theme.",
     floor_outlines: "Floor outlines come with the Atlas's look.",
     trails: "Trails follow people and tags: turn one of them on first.",
     trails_live: "Trails need live data (Traceback's last half hour).",
+    scenes: "No lighting scenes yet: a Home Assistant scene with a placed light, or a Whole house preset that lights one floor.",
   };
   const said = typeof why === "string" && why ? why : SAYS[key] || `${name} isn't set up yet.`;
   const go = it && it.link && key !== "trails" ? it.link : null;
-  const text = !go ? said : !admin ? `${said} An administrator sets it up in ${LINK_WORDS[go][1]}.`
-    : canGo ? `${said} Set it up?` : `${said} It's set up in ${LINK_WORDS[go][1]}.`;
-  return { text, go: admin && canGo ? go : null, perm: null, button: admin && canGo && go ? "Yes ›" : null };
+  // Where, in words: a PadSpan page is named as one, for a wall's "from another screen".
+  const where = go ? (go === "scene_new" ? LINK_WORDS[go][1] : `PadSpan → ${LINK_WORDS[go][1]}`) : "";
+  const make = key === "scenes";
+  const text = !go ? said
+    : kiosk ? `${said} ${make ? "Make one" : "Set it up"} from another screen, in ${where}.`
+    : !admin ? `${said} An administrator ${make ? "makes scenes" : "sets it up"} in ${LINK_WORDS[go][1]}.`
+    : canGo ? `${said} ${make ? "Make one?" : "Set it up?"}` : `${said} It's ${make ? "done" : "set up"} in ${LINK_WORDS[go][1]}.`;
+  const can = admin && canGo && !kiosk;
+  return { text, go: can ? go : null, perm: null, button: can && go ? "Yes ›" : null };
 }
 
 // ── the dropdown ─────────────────────────────────────────────────────────────

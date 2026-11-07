@@ -86,7 +86,7 @@ def test_each_show_word_counts_and_never_a_name() -> None:
         assert T.bump(h, name), name
         assert len(name) <= 64 and re.fullmatch(r"house3d_show:[a-z_]+(:[a-z_]+)?", name), name
     for bad in ("house3d_show:hide:light.kitchen", "house3d_show:hide:Kitchen", "house3d_show:hide:", "house3d_show:hide:alarms",
-                "house3d_show:hide:scenes", "house3d_show:opened:main", "house3d_show:permission:alex"):
+                "house3d_show:scene_run:kitchen", "house3d_show:opened:main", "house3d_show:permission:alex"):
         assert not T.bump(h, bad), bad
     T.assert_shareable(T.build_payload(h))
 
@@ -105,7 +105,7 @@ def test_the_install_base_names_every_line() -> None:
 
 def test_both_hosts_hand_over_a_way_to_settings_and_mapping_but_not_in_basic() -> None:
     lp = _code(_WWW / "lights_panel.js")
-    assert "goTo: this._basicMode() ? null : (t)=>{" in lp and "/padspan-ha?${q.toString()}" in lp
+    assert "goTo: this._basicMode() || kiosk ? null : (t)=>{" in lp and "/padspan-ha?${q.toString()}" in lp
     mp = _code(_VIEWS / "maps.js")
     assert "const la3dGoTo = !FOCUS.expertLinks(ctx.state) ? null : (t) => {" in mp and "goTo: la3dGoTo," in mp
     assert "ctx.state._settingsPart = t.part || null;" in mp

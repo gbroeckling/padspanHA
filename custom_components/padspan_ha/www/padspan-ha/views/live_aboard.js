@@ -103,6 +103,10 @@ const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).sea
 // draws, item by item (optional: missing, everything shows as it was).
 const SHOW = await import(`./live_aboard_show.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_show failed to load", err); return null; });
+// The scene row (scene_row.js): the host's scenes and one-floor presets as
+// small maps along the top of the bottom bar (optional: missing, no row).
+const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: scene_row failed to load", err); return null; });
 // The director (live_aboard_director.js): on the sidebar, the camera flies to
 // a doorbell, door or alarm that went off (optional: missing, nothing does).
 const DIRECTOR = await import(`./live_aboard_director.js${new URL(import.meta.url).search}`)
@@ -339,8 +343,9 @@ const CSS = `
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint
 // gives way to the view's own, and on a narrow screen the emergency pill
-// folds to its icon, clear of the house.
-const CSS_SHOWING = `.lv-legend{display:none}`;
+// folds to its icon, clear of the house. The flat map's scene row gives way
+// to the view's own (scene_row.js).
+const CSS_SHOWING = `.lv-legend{display:none}.psc-atlas{display:none}`;
 // Covering the panel (the map alone, full screen): the Vacation banner and
 // the emergency lighting dial stay on top, the dial in the cover's corner.
 const COVER_TOP_Z = COVER_Z + 1;
@@ -594,6 +599,8 @@ function createSlot(slotKey){
   // house's own, showHouse); houseP: the card's data before the list hid
   // anything (what is ready is worked out from it).
   let showMenu = null, showOn = null, showHouse = {}, houseP = null;
+  // scene_row.js: the scene row on the bottom bar (sceneRow), from the host's p.scenes.
+  let sceneRow = null;
   // live_aboard_storey.js: each storey's floor and roof (storeyL); roofWant:
   // the roof is showing or on its way (the walls under it stand).
   let storeyL = null, roofWant = false;
@@ -668,6 +675,8 @@ function createSlot(slotKey){
     director = null;
     try { if (showMenu) showMenu.dispose(); } catch (_) { /* gone with the view */ }
     showMenu = null; showOn = null; houseP = null;
+    try { if (sceneRow) sceneRow.dispose(); } catch (_) { /* gone with the view */ }
+    sceneRow = null;
     try { if (fpsUi) fpsUi.dispose(); } catch (_) { /* gone with the view */ }
     fpsUi = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
@@ -792,6 +801,11 @@ function createSlot(slotKey){
     planSeg.setAttribute("data-la3d-plan", "");
     planSeg.style.display = "none";
     left.appendChild(planSeg);
+    // The scene row: its own line along the top of the bar, over the controls.
+    if (SCENES) {
+      sceneRow = SCENES.createSceneRow({ doc: document, place: "aboard", guard });
+      bar.insertBefore(sceneRow.el, bar.firstChild);
+    }
     root.appendChild(bar);
     // The map alone: one small button brings the bars back.
     soloBtn = d("button", "la3d-solo");
@@ -1810,6 +1824,8 @@ function createSlot(slotKey){
     if (!STOREY || !STOREY.isStairs(p) || !house) return p.recipe;
     const r = STOREY.stairReach(house.canon ? house.canon(p.floor_id) : p.floor_id, p.recipe.params && p.recipe.params.to_floor, house.floors,
                                 STOREY.footprint(p));
+    // The ⋯ list's Railings hides a stair's rails too, its spindles and posts with them (the steps stay).
+    if (!shownHere("railings")) return { ...p.recipe, height_m: r.rise, params: { ...(p.recipe.params || {}), rails_shown: false } };
     return { ...p.recipe, height_m: r.rise };
   }
   /** A band just inside each room's outline (EDGE_IN to EDGE_IN + EDGE_W in
@@ -3605,7 +3621,7 @@ function createSlot(slotKey){
     const r0 = root.getBoundingClientRect();
     // A wall's bars fade when nobody is there: they don't get to shrink the house.
     const wall = onWallPage(root), rot = wall ? root.getRootNode().host.getAttribute("data-wall-rotate") : null;
-    for (const el of root.querySelectorAll(wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
+    for (const el of root.querySelectorAll(wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip, .psc-row" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
       const r = el.getBoundingClientRect && el.getBoundingClientRect();
       if (!r || !(r.height > 0) || !(r.width > 0) || getComputedStyle(el).visibility === "hidden") continue;
       // A wall turned by its link: these are the turned boxes, the page's top along a side of the screen.
@@ -4932,7 +4948,8 @@ function createSlot(slotKey){
       lights: !n.light, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
       readouts: !n.readout, locks: !n.lock && !openings.some(({ P }) => P.open && P.open.lock),
       doors: !has("door"), windows: !has("window"), covers: !openings.some(({ P }) => P.open && P.open.cover),
-      railings: !walls.some(P => P.els.some(e => !e.cuttable)),
+      railings: !walls.some(P => P.els.some(e => !e.cuttable))
+        && !pieces.some(q => STOREY && STOREY.isStairs(q) && q.recipe.params && q.recipe.params.rail && q.recipe.params.rail !== "none"),
       radios: !Object.keys((p.model && p.model.scanner_positions_m) || {}).length,
       tags: s ? s.atlas_3d_tags !== true : !onObj(p.tags), people: s ? s.atlas_3d_people !== true : !onObj(p.people),
       trails: !(TRAILS && (onObj(p.people) || onObj(p.tags)) && onObj(p.trails) && typeof p.trails.read === "function"),
@@ -4941,9 +4958,13 @@ function createSlot(slotKey){
       floor_outlines: !look, roof: !STOREY, rain: !weatherReady(p),
       theme: !(p.look3d === "atlas" || p.look3d === "studio" || (LOOKS && p.showcase3d === true && p.showcase && p.showcase.key && p.showcase.key !== "classic")),
       forest: !(look && look.on && look.theme === "west_coast_forest"),
+      scenes: !scenesOf(p).tiles.length,
     };
-    const canGo = typeof p.goTo === "function";
-    for (const [k, v] of Object.entries(not)) if (v) out[k] = SHOW.setupLine(k, admin, canGo);
+    const canGo = typeof p.goTo === "function", kiosk = p.kiosk === true;
+    for (const [k, v] of Object.entries(not)) {
+      // A new scene is made in Home Assistant, through the row's own way there (an administrator's, never a wall's).
+      if (v) out[k] = SHOW.setupLine(k, admin, k === "scenes" ? typeof scenesOf(p).add === "function" : canGo, null, kiosk);
+    }
     // People or tags on with no history to read (sample data): trails wait on that, not on them.
     if (out.trails && (onObj(p.people) || onObj(p.tags))) out.trails = SHOW.setupLine("trails", admin, canGo, SHOW.setupLine("trails_live", admin).text);
     return out;
@@ -4953,7 +4974,10 @@ function createSlot(slotKey){
     const on = { ...(showOn || {}) }, ready = showReady();
     for (const k of Object.keys(ready)) on[k] = false;              // not set up: never ticked
     const groups = SHOW.rowsOf(on, ready);
+    // The scene row only where the host hands in scenes (the sidebar's Atlas), and its link only to make the first one.
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "scenes" || !!(houseP && houseP.scenes));
     for (const g of groups) for (const r of g.rows) {
+      if (r.key === "scenes" && !ready.scenes) r.link = null;
       if (ready[r.key]) continue;
       if ((r.key === "forest" || r.key === "floor_outlines") && on[r.key] && !on.theme) r.hint = "Comes back with Theme colours";
       if (r.key === "trails" && on.trails && !on.people && !on.tags) r.hint = "Comes back with People or Beacons and tags";
@@ -5006,6 +5030,25 @@ function createSlot(slotKey){
     showSend(`house3d_show:setup_go:${key}`);
     showGo(line.go);
   }
+  /** What the host hands in for the scene row (p.scenes: lights_map.js), or nothing. */
+  function scenesOf(p){
+    const sc = p && p.scenes && typeof p.scenes === "object" ? p.scenes : null;
+    return sc && Array.isArray(sc.tiles) ? sc : { tiles: [] };
+  }
+  /** The scene row as this screen shows it: hidden from the ⋯ list, or while
+   *  Edit, Furnish or the Plans tool's map has the view. A preset's ✎ opens
+   *  the Atlas's Whole house bar, so the map alone gives way to it first. */
+  function syncScenes(){
+    if (!sceneRow) return;
+    const sc = scenesOf(houseP);
+    sceneRow.update({ ...sc,
+      count: (name, once) => showSend(name, once),
+      edit: (t, row) => {
+        if (t && t.kind === "preset") { if (fsOn) leaveFull(); if (bare) setBare(false, true); }
+        if (typeof sc.edit === "function") sc.edit(t, row);
+      } });
+    sceneRow.hide(!(showOn ? showOn.scenes !== false : true) || showSuspended());
+  }
   /** In the Views menu just opened, the people or tags switch stands out. */
   function markSwitch(which){
     const words = which === "people" ? "Show people" : "Show tags & scanners";
@@ -5014,8 +5057,10 @@ function createSlot(slotKey){
     b.style.outline = "2px solid #fbbf24"; b.style.background = "rgba(251,191,36,.14)";
     try { b.focus({ preventScroll: true }); } catch (_) { /* no focus here */ }
   }
-  /** The host's way to Settings or Mapping (p.goTo(where)); false where it has none. */
+  /** The host's way to Settings or Mapping (p.goTo(where)); false where it has none.
+   *  A new scene: the scene row's own way to Home Assistant's editor. */
   function showGo(where){
+    if (where === "scene_new") { const sc = scenesOf(houseP); if (typeof sc.add !== "function") return false; sc.add("show"); return true; }
     const g = houseP && typeof houseP.goTo === "function" ? houseP.goTo : null, t = SHOW.GO_TO[where];
     if (!g || !t) return false;
     try { g({ ...t, where: String(where) }); return true; } catch (_) { return false; }
@@ -5054,6 +5099,7 @@ function createSlot(slotKey){
     if (motionL) motionL.recheck();
     if (codes && codes.recheck) codes.recheck();
     if (showMenu) showMenu.mark();
+    syncScenes();
     requestRender();
   }
 
@@ -5119,6 +5165,7 @@ function createSlot(slotKey){
     houseP = p;
     if (SHOW && p) p = showP(p);
     lastP = p;
+    syncScenes();
     applyLook(p);
     const setting = HOUSE.qualitySetting(p.quality);
     // This card's records and api: a press acts through the newest.
@@ -5389,6 +5436,8 @@ function createSlot(slotKey){
                               walls: floorsUi.flatMap(F => F.pieces.filter(P => P.els.some(e => e.leaf || !e.cuttable)).map(P => ({ kind: P.pc.kind, cover: !!(P.open && P.open.cover),
                                 drawn: P.els.filter(e => e.leaf || !e.cuttable).some(e => { e.mesh.getMatrixAt(e.i, _m); return _m.elements.slice(0, 11).some(v => v !== 0); }) }))),
                               plates: floorsUi.filter(F => F.plate).map(F => F.plate.visible), edges: floorsUi.filter(F => F.edges).map(F => F.edges.visible) } : null,
+               // The scene row: shown or not, its tiles ([key, state, kind]), its ✎s, + New scene, its note.
+               scenes: sceneRow ? sceneRow.state() : null,
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
                marks: marks ? marks.state() : [], codes: codes ? codes.state() : null, classF, zoomPct: zoomPctNow(),
                chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),

@@ -958,6 +958,8 @@ function buildStairs(K, S, p, C){
       }
     }
   }
+  // Railings hidden on this screen (Live Aboard's ⋯ list, p.rails_shown false): no rail, spindle or post.
+  if (p && p.rails_shown === false) return;
   for (const [a, b] of L0.rails) {
     K.rod(a, b, L0.balusters.length ? 0.025 : 0.02, rail);
     if (!L0.balusters.length) for (const q of [a, b]) K.rod([q[0], q[1] - STAIR_RAIL_M, q[2]], q, 0.015, rail);

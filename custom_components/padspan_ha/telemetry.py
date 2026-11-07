@@ -496,6 +496,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
     "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
     "live_aboard_show",                             # Live Aboard's ⋯ list: what this screen shows
+    "scene_row",                                    # the scene row under the Atlas and in Live Aboard
     "live_aboard_panel",                            # Live Aboard on the wall panel: its home view, Follow, the People chip
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
@@ -634,8 +635,13 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 # the list opened; each line hidden or shown again (by its key); Back to house
 # defaults; a "not set up" line seen (once per page load) and followed; someone
 # sent to where people or tags are switched on for the house. Counts only.
+# And the scene row's (2026-11-07, views/scene_row.js SCENE_EVENTS): the row
+# shown on the flat Atlas or in Live Aboard (once per page load), a scene run
+# or turned off (a Home Assistant scene or a Whole house preset), a new scene
+# opened in Home Assistant (from the row, the ⋯ list or Settings) and an edit
+# opened (a scene, one not made in the editor, a preset). Never a name.
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
-    "lights", "glow", "strips", "fans", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
+    "lights", "glow", "strips", "fans", "scenes", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
     "furniture", "devices", "stairs", "room_names", "room_outlines", "floor_outlines", "roof",
     "rain", "theme", "forest",
@@ -643,6 +649,8 @@ HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
 HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
     {"house3d_show:opened", "house3d_show:reset", "house3d_show:permission:people", "house3d_show:permission:tags"}
     | {f"house3d_show:{a}:{k}" for a in ("hide", "show", "setup_seen", "setup_go") for k in HOUSE3D_SHOW_ITEMS}
+    | {f"house3d_show:scene_{w}" for w in ("row:atlas", "row:aboard", "run:scene", "run:preset", "off:scene", "off:preset",
+                                           "new:row", "new:show", "new:settings", "edit:scene", "edit:yaml", "edit:preset")}
 )
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"}

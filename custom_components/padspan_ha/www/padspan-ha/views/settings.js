@@ -4713,6 +4713,33 @@ function _settingsUI(ctx, el){
   return wrap;
 }
 
+// Scenes (2026-11-07, views/scene_row.js): the row under the Atlas is made of
+// Home Assistant's scenes and the one-floor Whole house presets; a new scene
+// is made in Home Assistant's own editor, which is an administrator's.
+function _atlasScenesLine(ctx, el){
+  const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+  const box = el("div",{"data-focus-part":"scenes",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  box.appendChild(el("div",{style:"color:#e2e8f0;font-size:14px"},"Scenes"));
+  box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 8px;line-height:1.5"},
+    "The row of small maps under the Atlas (and in Live Aboard) shows Home Assistant's scenes that set a placed light, and the Whole house presets that light one floor. Tap one to run it, tap it again to turn its lights off. A screen can hide the row in Live Aboard's \u22ef list."));
+  if (!admin) {
+    box.appendChild(el("div",{style:"font-size:12px;color:#94a3b8"},"An administrator makes scenes in Home Assistant."));
+    return box;
+  }
+  // Home Assistant's own page, as the panel opens one (rooms.js): its router, else a plain load.
+  const open = (path, word) => {
+    if (word && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(word);
+    try { history.pushState(null, "", path); window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } })); }
+    catch (_) { try { window.location.assign(path); } catch (__) { /* stays here */ } }
+  };
+  const mk = el("button",{class:"btn inline","data-scene-new":"settings"},"+ New scene in Home Assistant \u203a");
+  mk.addEventListener("click", ()=>open("/config/scene/edit/new", "house3d_show:scene_new:settings"));
+  const all = el("button",{class:"btn inline"},"All scenes \u203a");
+  all.addEventListener("click", ()=>open("/config/scene/dashboard", null));
+  box.appendChild(el("div",{style:"display:flex;align-items:center;flex-wrap:wrap;gap:6px"},[mk, all]));
+  return box;
+}
+
 // ── Atlas tab ────────────────────────────────────────────────────────────────
 // The Atlas and Live Aboard settings, moved out of UI Structure as they were
 // (2026-10-30): the same cards, rows, keys and saves.
@@ -4852,6 +4879,7 @@ function _settingsAtlas(ctx, el){
     }
   });
   }
+  lightsCard.appendChild(_atlasScenesLine(ctx, el));
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
   // all, and whatever is stored is kept for when a key comes back.

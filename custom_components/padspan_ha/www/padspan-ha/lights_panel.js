@@ -946,6 +946,11 @@ class PadSpanLightsApp extends HTMLElement {
     // Door/window/lock click-to-control (Garry, 2026-09-22) — same gate as
     // maps.js's own barrierHit (_isPro there): Bright or Pro, never free.
     const paid=["bright","pro"].includes(String(this.state._tier||"").toLowerCase());
+    // A wall (?kiosk=1): nothing on it may lead off this page (the ⋯ list's
+    // links, the scene row's + New scene and ✎); what is set up elsewhere
+    // says where, from another screen.
+    let kiosk=false;
+    try{ kiosk=new URLSearchParams(location.search).get("kiosk")==="1"; }catch(_){}
 
     const host={
       el,
@@ -1035,6 +1040,27 @@ class PadSpanLightsApp extends HTMLElement {
         this.state._vacationModeResumed = !!res?.settings?.vacation_mode_pattern_for;
         this._render();
         return true;
+      },
+      // The scene row under the map and in Live Aboard (views/scene_row.js):
+      // Home Assistant's scenes and the one-floor Whole house presets above.
+      // A tap goes through this panel's own calls (Home Assistant's services,
+      // _setMany, the presets' Apply); + New scene and ✎ open Home
+      // Assistant's scene editor, an administrator's, never on a wall.
+      scenes: {
+        slot: "atlas", states: this._hass?.states || {}, entities: this._hass?.entities || null,
+        admin: !!this._hass?.user?.is_admin, kiosk,
+        callService: (d, svc, data)=>this._hass.callService(d, svc, data),
+        setMany: (eids, on)=>this._setMany(eids, on),
+        openHa: (path)=>{
+          try { history.pushState(null, "", path); window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } })); }
+          catch (_) { try { window.location.assign(path); } catch (__) { /* stays here */ } }
+        },
+        toast: (m, e)=>this._toast(m, e),
+        rerender: ()=>this._render(),
+        telemetry: (name)=>{
+          if(!this.state._telemetryOn || !this._hass) return;
+          Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
+        },
       },
       vacationModeEnabled: !!this.state._vacationModeEnabled,
       vacationModeResumed: !!this.state._vacationModeResumed,
@@ -1155,12 +1181,14 @@ class PadSpanLightsApp extends HTMLElement {
         },
         // The ⋯ list's links and "Set it up" (live_aboard_show.js GO_TO):
         // the PadSpan panel on that tab, its card scrolled to (panel.js reads
-        // ?view=, ?tab= and ?part=). Not in Basic, where those are expert screens.
-        goTo: this._basicMode() ? null : (t)=>{
+        // ?view=, ?tab= and ?part=). Not in Basic, where those are expert
+        // screens, and never on a wall (kiosk), which would be left there.
+        goTo: this._basicMode() || kiosk ? null : (t)=>{
           const q = new URLSearchParams({ view: String(t.view), tab: String(t.tab) });
           if (t.part) q.set("part", String(t.part));
           try { window.location.assign(`/padspan-ha?${q.toString()}`); } catch (_) { /* stays here */ }
         },
+        kiosk,
         // Furniture that is a device (P5): renames followed through the
         // registry already read above, and the emergency lights while a
         // test runs (the status this panel already keeps).
