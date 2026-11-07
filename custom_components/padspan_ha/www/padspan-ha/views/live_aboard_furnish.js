@@ -253,7 +253,9 @@ export function createPieceLayer(ctx){
       return [...drawn.entries()].map(([id, D]) => ({ id, floor: D.F ? D.F.fl.id : null, shown: !!(D.F && D.F.group.visible),
         at: D.root.position.toArray().map(v => Math.round(v * 1000) / 1000), yaw: Math.round(D.root.rotation.y * 1000) / 1000,
         box: !!(D.body && D.body.own), blob: !!(D.blob && D.blob.visible), shadows: !!(D.body && D.body.g.children.some(o => o.castShadow)),
-        h: D.body && D.body.g.userData && D.body.g.userData.size ? D.body.g.userData.size.h : null }));
+        h: D.body && D.body.g.userData && D.body.g.userData.size ? D.body.g.userData.size.h : null,
+        // A stair drawn without its rails (the ⋯ list's Railings off on this screen).
+        noRails: !!(D.body && D.body.g.userData && D.body.g.userData.recipe && (D.body.g.userData.recipe.params || {}).rails_shown === false) }));
     },
     dispose(){
       for (const id of [...drawn.keys()]) remove(id);
