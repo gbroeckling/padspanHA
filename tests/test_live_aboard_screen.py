@@ -118,7 +118,8 @@ def test_the_flat_atlas_is_untouched_while_live_aboard_is_away() -> None:
     hint) is in a sheet inside its own element: in the page only while it
     shows. styles.css and the renderer know nothing of it."""
     la = _js(_VIEWS / "live_aboard.js")
-    assert "const CSS_SHOWING = `.lv-legend{display:none}`;" in la
+    # The flat map's scene row too (scene_row.js): Live Aboard draws its own.
+    assert "const CSS_SHOWING = `.lv-legend{display:none}.psc-atlas{display:none}`;" in la
     assert "showCss.textContent = CSS_SHOWING;" in la and "root.appendChild(showCss);" in la
     assert 'panelCss.textContent = mapOnly ? CSS_PANEL : "";' in la
     css = (_WWW / "styles.css").read_text(encoding="utf-8")

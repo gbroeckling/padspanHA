@@ -312,7 +312,8 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
     assert "if ((liveMs || more || wallSoft()) && !pending)" in src, "and only while it is soft: no frames at rest"
     assert 'if (step.use !== "high") wallMoves = wallCapped = false;' in src, "on Low nothing waits to go sharp"
     assert "HOUSE.wallNextTry(quality.setting, quality.measured)" in src
-    assert 'wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar"' in src
+    # The scene row keeps its room on a wall (scene_row.js): it is what is tapped there.
+    assert 'wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip, .psc-row" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar"' in src
     assert "if (wall && !narrow) out.top = Math.max(out.top, WALL_CHIPS_PX * wallUiOf(root));" in src, "the framing doesn't depend on the moment"
     assert 'rot === "90" ? r0.right - r.right : rot === "270" ? r.left - r0.left : r.top - r0.top' in src, "a turned wall's chips measured along the page"
     assert "turnBy(-2 * Math.PI * dx / h);" in src and "turnBy(Math.PI / 2);" in src, "a wall framed whole turns about the house's middle"
