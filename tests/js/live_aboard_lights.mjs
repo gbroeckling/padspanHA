@@ -184,6 +184,31 @@ tryCase("strip: on the wall of its room it runs along, at any distance, never mi
   check("strip: on the wall of its room it runs along, at any distance, never mid-room", ok && !bad.length,
     { far: far.bulbs[0], mid: mid.bulbs[0], ns: ns.bulbs[0], bad: bad.slice(0, 4) });
 });
+tryCase("strip: on a deck rail it ends where the rail does, never on past its end or its corner", () => {
+  // The deck's east rail runs x = 9, y 0 to 5. A 6.65 m WLED strip on it
+  // (Garry's deck), and a 2 m one hung off its south end, ran on past the
+  // glass as a second top rail in the air (Garry's wall, 2026-11-05).
+  const lights = {
+    "light.long": { l: dev("light.long", "WLED-SoundReactive", WLED), at: { x_m: 9.1, y_m: 2.5, ...along(665, ALONG_Y) } },
+    "light.end": { l: dev("light.end", "Deck LED strip"), at: { x_m: 9.1, y_m: 4.6, ...along(200, ALONG_Y) } },
+    "light.short": { l: dev("light.short", "Deck LED strip"), at: { x_m: 9.1, y_m: 2, ...along(100, ALONG_Y) } },
+  };
+  const t = house(lights), out = {};
+  let ok = true;
+  for (const eid of Object.keys(lights)) {
+    const P = t.parts(eid), b = P.bulbs[0], lo = b.y - b.sx / 2, hi = b.y + b.sx / 2;
+    // The glow on the deck under it no longer than it is.
+    const glow = P.washes.filter(w => w.fixed).map(w => Math.hypot(w.a[0], w.a[2]));
+    out[eid] = { kind: P.kind, x: b.x, y: b.y, len: b.sx, h: b.h, ends: [lo, hi], glow };
+    ok = ok && P.kind === "strip" && Math.abs(b.x - 9) < 0.06 && near(b.h, H.RAIL_H + 0.03)
+      && lo >= -0.025 - 1e-6 && hi <= 5.025 + 1e-6 && glow.every(g => g <= b.sx / 2 + 1e-6);
+  }
+  // The whole rail long, the one off the end from where it was to the rail's
+  // end, the short one as it was.
+  const L = out["light.long"], E = out["light.end"], S = out["light.short"];
+  ok = ok && near(L.len, 5.05, 1e-6) && near(E.ends[0], 3.6, 1e-6) && near(E.ends[1], 5.025, 1e-6) && near(S.len, 1, 1e-6) && near(S.y, 2, 1e-6);
+  check("strip: on a deck rail it ends where the rail does, never on past its end or its corner", ok, out);
+});
 
 // ── ring: pots, a cove, a deck ───────────────────────────────────────────────
 tryCase("ring: a perimeter named pots is separate pots in from the walls, one per corner, no bar", () => {

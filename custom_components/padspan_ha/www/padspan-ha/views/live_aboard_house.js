@@ -1252,6 +1252,16 @@ export function nearestWall(pieces, x, y, maxD, rails = false, align = null){
   const off = pc.thick / 2 + 0.012;
   return { x: px + n[0] * off, y: py + n[1] * off, n, dir: unit([pc.x1 - pc.x0, pc.y1 - pc.y0]), rail: pc.kind === "rail", pc };
 }
+/** A light `len` long centred at (x, y) along the deck rail it is on
+ *  (nearestWall's w): the part of it on the rail as drawn (drawnSpan, its
+ *  corners included), so it ends where the rail does. */
+export function onRail(w, x, y, len){
+  const S = drawnSpan(w.pc), d = w.dir, s = (x - S.mx) * d[0] + (y - S.my) * d[1];
+  const lo = Math.max(-S.len / 2, s - len / 2), hi = Math.min(S.len / 2, s + len / 2);
+  if (hi - lo < 0.05) return { x, y, len: Math.min(len, 0.05) };
+  const m = (lo + hi) / 2 - s;
+  return { x: x + d[0] * m, y: y + d[1] * m, len: hi - lo };
+}
 /** The wall of `room` a light inside it runs along, at any distance: the
  *  nearest running `align`'s way, else the nearest. Where on it: square
  *  across from (x, y), on the room's side (as nearestWall gives it). */
@@ -1438,6 +1448,10 @@ export function fixtureParts(L, ctx){
         h = kind === "kick" ? 0.1 : snap.rail ? RAIL_H + 0.03 : where === "none" ? ceil - 0.15 : 2.2;
       } else h = kind === "kick" ? 0.1 : 0.05;                 // nothing to hang it on: a ground strip
       if (w) { dir = w.dir; cx = w.x; cy = w.y; n = w.n; if (!w.rail) P.wall = w.pc; }
+      // On a deck rail, no further than the rail itself: a strip longer than
+      // its run, or hanging off its end, ran on past the glass and round no
+      // corner, a second top rail out in the air (Garry's wall, 2026-11-05).
+      if (w && w.rail) ({ x: cx, y: cy, len } = onRail(w, cx, cy, len));
       dir = dir || unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
       n = n || perp(dir);
       const hideOff = kind !== "strip" && kind !== "valance";  // tape under a cabinet, at the floor, behind a TV: unseen when off
