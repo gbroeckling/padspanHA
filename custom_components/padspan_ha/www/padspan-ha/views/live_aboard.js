@@ -5028,7 +5028,8 @@ function createSlot(slotKey){
       toggle: (key) => toggleShow(key),
       setup: (r) => showSetup(r.key, r.setup),
       go: (where) => showGo(where),
-      canGo: () => !!(houseP && typeof houseP.goTo === "function"),
+      // Settings and Mapping are an administrator's: anyone else gets no links (each line says who sets it up).
+      canGo: () => !!(houseP && typeof houseP.goTo === "function" && houseP.admin === true),
       reset: () => resetShow(),
       opened: () => showSend("house3d_show:opened"),
       seen: (groups) => { for (const g of groups) for (const r of g.rows) if (r.setup && !r.setup.perm) showSend(`house3d_show:setup_seen:${r.key}`, true); },

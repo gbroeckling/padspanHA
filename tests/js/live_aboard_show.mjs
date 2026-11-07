@@ -404,11 +404,12 @@ await tryCase("people: anyone else is told an administrator turns it on, and not
   click(more()); await settle();
   const line = setupOf("people") ? setupOf("people").textContent : "";
   const btn = setupOf("people") ? setupOf("people").querySelector("button") : "none";
+  const links = qa(".la3d-slink").length;
   click(tick("people")); await settle();
   const toast = q(".la3d-toast");
   H.admin = true; H.settings = SET(); poll(); await settle();
   check("people: anyone else is told an administrator turns it on, and nothing opens",
-    /an administrator turns them on \(Views ▾ → Show people\)/.test(line) && !btn && toast && /administrator/.test(toast.textContent)
+    /an administrator turns them on \(Views ▾ → Show people\)/.test(line) && !btn && links === 0 && toast && /administrator/.test(toast.textContent)
     && !q(".la3d-menu"), { line, toast: toast && toast.textContent });
 });
 
