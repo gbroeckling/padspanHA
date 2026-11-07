@@ -12,8 +12,9 @@
 //             what falls on a deck lands on it (the highest first), and with
 //             the deck's floor hidden, on what is below; seeded, the same
 //   budget    Low a few thousand at most, High more; a small house fewer
-//   layers    light rain a slow near-vertical drizzle, heavy rain faster on a
-//             17° wind with splashes, snow swaying, heavy snow settling
+//   layers    rain fast thin streaks, never dots: light on an 8° slant, heavy
+//             denser and faster on a 17° wind with splashes; snow slow,
+//             swaying, exactly as it was; heavy snow settling
 //   decision  the flat Atlas's own: decideAtlasWeather through holdVisual (a
 //             reading that vanishes holds what showed for two minutes);
 //             Outdoor weather off is nothing
@@ -136,17 +137,28 @@ await tryCase("budget: Low a few thousand at most, High more; a small house fewe
     && NAMES.every(n => W.countFor(tiny, n, "high") < B.high[n] && W.countFor(tiny, n, "high") >= Math.round(B.high[n] * 0.3))
     && NAMES.every(n => W.countFor(A, n, "low") <= B.low[n]), { low, high });
 });
-await tryCase("layers: a slow near-vertical drizzle; a faster 17° downpour with splashes; snow sways; heavy snow settles", async () => {
-  const L = W.LAYERS;
-  check("layers: a slow near-vertical drizzle; a faster 17° downpour with splashes; snow sways; heavy snow settles",
-    L.drizzle.angle === 3 && L.downpour.angle === 17 && L.drizzle.speed < L.downpour.speed && L.flurry.sway > 0 && L.blizzard.sway > 0
-    && L.flurry.speed < L.drizzle.speed
+await tryCase("layers: rain is fast thin streaks on a slant, heavier denser and faster; snow slow soft flakes, as it was", async () => {
+  const L = W.LAYERS, B = W.BUDGET;
+  // Rain reads as rain at a glance (Garry, 2026-11-06: "rain falls to
+  // slowly … too big. Looks a lot like snow"): many times faster than snow,
+  // a hair wide, a streak on screen however far (never a dot), slanted more
+  // than snow falls; heavy rain faster and denser still. Snow unchanged.
+  const rain = ["drizzle", "downpour"].map(n => L[n]);
+  check("layers: rain is fast thin streaks on a slant, heavier denser and faster; snow slow soft flakes, as it was",
+    L.drizzle.angle === 8 && L.downpour.angle === 17 && L.drizzle.angle > L.flurry.angle
+    && L.drizzle.speed >= 12 * L.flurry.speed && L.downpour.speed > L.drizzle.speed && L.downpour.speed >= 12 * L.blizzard.speed
+    && rain.every(r => r.width <= 1.2 && r.len <= 0.75 && r.minLen >= 5 * r.width)
+    && B.low.downpour > B.low.drizzle && B.high.downpour > B.high.drizzle && B.low.drizzle >= B.low.flurry && B.high.drizzle >= B.high.flurry
+    && JSON.stringify(L.flurry) === JSON.stringify({ kind: "snow", angle: 3, speed: 0.85, size: 0.09, sway: 0.28, op: 0.92 })
+    && JSON.stringify(L.blizzard) === JSON.stringify({ kind: "snow", angle: 9, speed: 1.3, size: 0.07, sway: 0.38, op: 0.85 })
+    && B.low.flurry === 1400 && B.low.blizzard === 1600 && B.high.flurry === 3000 && B.high.blizzard === 4500
     && JSON.stringify(W.layersFor({ kind: "rain", heavy: false })) === '["drizzle"]'
     && JSON.stringify(W.layersFor({ kind: "rain", heavy: true })) === '["downpour","splash"]'
     && JSON.stringify(W.layersFor({ kind: "snow", heavy: false })) === '["flurry"]'
     && JSON.stringify(W.layersFor({ kind: "snow", heavy: true, rim: true })) === '["flurry","blizzard","settle"]'
     && JSON.stringify(W.layersFor({ kind: "off" })) === "[]" && JSON.stringify(W.layersFor(null)) === "[]"
-    && W.CAPS_FPS.rain.low === 30 && W.CAPS_FPS.rain.high === 60 && W.CAPS_FPS.snow.low === 30 && W.CAPS_FPS.snow.high === 30);
+    && W.CAPS_FPS.rain.low === 30 && W.CAPS_FPS.rain.high === 60 && W.CAPS_FPS.snow.low === 30 && W.CAPS_FPS.snow.high === 30,
+    { drizzle: L.drizzle, downpour: L.downpour, budget: B });
 });
 
 // ── decision ────────────────────────────────────────────────────────────────

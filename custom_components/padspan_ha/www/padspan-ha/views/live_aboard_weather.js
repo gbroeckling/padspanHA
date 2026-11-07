@@ -10,9 +10,11 @@
 // and onto decks and patios, never inside an indoor room and never under a
 // roof, and never drawn over the house on screen, not even a drop that falls
 // outside it in front of a sofa or a wall (as the flat Atlas keeps its rain
-// off the floors). Light rain is a sparse, slow, near-vertical drizzle;
-// heavy rain a denser, faster sheet on a 17° wind with splashes on the
-// ground; light snow slow flakes swaying gently; heavy snow denser, and on a
+// off the floors). Rain is thin short streaks falling fast, slanted a
+// little along their fall, never a dot (Garry, 2026-11-06: "rain falls to
+// slowly … looks a lot like snow"): light rain on an 8° wind; heavy rain
+// denser and faster still, on 17°, with splashes on the ground; light snow
+// slow flakes swaying gently; heavy snow denser, and on a
 // snowfall warning a white layer builds over ~8 s on the roof line, the
 // decks and the ground hugging the house.
 //
@@ -45,20 +47,23 @@ const CAP_H = 0.06, SETTLE_OP = 0.85, APRON_OP = 0.6, APRON_PAD = 2.4, APRON_BLU
 const DOWN_H = 2;                    // m: every wall down, what still stands in a room (people, a wardrobe) is under it
 const SNOW_SHADE = 0.86;             // settled snow: the weather's colour a little greyer, never a glare
 
-/** The layers. rain: speed m/s, len the streak (m), width (CSS px), op the
- *  streak's brightest alpha at strength 1. snow: size the flake (m), sway its
- *  gentle side-to-side (m). angle: the wind, degrees off vertical. */
+/** The layers. rain: speed m/s, len the streak (m), width (CSS px), minLen
+ *  the shortest a streak is drawn on screen (CSS px: a far drop stays a
+ *  streak, never a dot), op the streak's brightest alpha at strength 1.
+ *  snow: size the flake (m), sway its gentle side-to-side (m). angle: the
+ *  wind, degrees off vertical. */
 export const LAYERS = Object.freeze({
-  drizzle:  Object.freeze({ kind: "rain", angle: 3,  speed: 5.5, len: 0.55, width: 2.0, op: 0.6 }),
-  downpour: Object.freeze({ kind: "rain", angle: 17, speed: 11,  len: 1.05, width: 1.7, op: 0.5 }),
+  drizzle:  Object.freeze({ kind: "rain", angle: 8,  speed: 14, len: 0.45, width: 1.0, minLen: 7,  op: 0.7 }),
+  downpour: Object.freeze({ kind: "rain", angle: 17, speed: 21, len: 0.7,  width: 1.1, minLen: 10, op: 0.6 }),
   splash:   Object.freeze({ kind: "rain", angle: 0,  op: 0.7 }),
   flurry:   Object.freeze({ kind: "snow", angle: 3,  speed: 0.85, size: 0.09, sway: 0.28, op: 0.92 }),
   blizzard: Object.freeze({ kind: "snow", angle: 9,  speed: 1.3,  size: 0.07, sway: 0.38, op: 0.85 }),
 });
-/** Particles per layer by quality: Low a few thousand at most. */
+/** Particles per layer by quality: Low a few thousand at most. A streak is
+ *  a hair, so rain has more of them than it had for the wider, longer ones. */
 export const BUDGET = Object.freeze({
-  low:  Object.freeze({ drizzle: 900,  downpour: 3000, splash: 100, flurry: 1400, blizzard: 1600 }),
-  high: Object.freeze({ drizzle: 2200, downpour: 7500, splash: 300, flurry: 3000, blizzard: 4500 }),
+  low:  Object.freeze({ drizzle: 1500, downpour: 3300, splash: 100, flurry: 1400, blizzard: 1600 }),
+  high: Object.freeze({ drizzle: 3600, downpour: 10500, splash: 300, flurry: 3000, blizzard: 4500 }),
 });
 /** The view's live clock while it shows (ms between frames). The view draws
  *  a frame once (liveMs - 4) ms have passed since the last, so 19 keeps rain
@@ -229,12 +234,13 @@ export function roofLine(walls, rooms, shown = () => true){
 }
 
 // ── The shaders: the GPU moves everything ────────────────────────────────────
-// A drop: a streak from its tail (nothing) to its head (brightest), as wide
-// on screen as the layer says, falling from the top to where it lands and
-// draining into it. The wind carries it: it lands at its own spot, so the
-// top of its fall is up-wind of it.
+// A drop: a streak from its tail (faint) to its head (brightest), as wide
+// on screen as the layer says and never shorter than uMinLen (a far drop is
+// drawn longer up its own fall, not as a dot), falling from the top to where
+// it lands and draining into it. The wind carries it: it lands at its own
+// spot, so the top of its fall is up-wind of it.
 const RAIN_VS = `
-uniform float uTime, uTop, uSpeed, uLen, uWidth, uOpacity;
+uniform float uTime, uTop, uSpeed, uLen, uWidth, uMinLen, uOpacity;
 uniform vec2 uView, uWind;
 attribute vec4 aDrop;
 attribute vec3 aVar;
@@ -252,10 +258,10 @@ void main(){
   vec2 d = (cH.xy / cH.w - cT.xy / cT.w) * uView;
   float dl = length(d);
   vec2 n = dl > 0.001 ? vec2(-d.y, d.x) / dl : vec2(1.0, 0.0);
-  vec4 c = mix(cT, cH, position.y);
+  vec4 c = mix(cH + (cT - cH) * max(1.0, uMinLen / max(dl, 0.001)), cH, position.y);
   c.xy += n * position.x * uWidth / uView * c.w;
   gl_Position = c;
-  vA = uOpacity * aVar.z * position.y * step(0.002, yT - yH);
+  vA = uOpacity * aVar.z * (0.2 + 0.8 * position.y) * step(0.002, yT - yH) * step(0.001, dl);
 }`;
 const FLAT_FS = `
 uniform vec3 uColor;
@@ -396,7 +402,7 @@ export function createWeather(THREE, host){
         transparent: true, depthWrite: false, side: THREE.DoubleSide, ...dry });
       obj = new THREE.Mesh(g, mat);
     } else if (spec.kind === "rain") {
-      Object.assign(u, { uSpeed: { value: spec.speed }, uLen: { value: spec.len }, uWidth: { value: spec.width }, uView: { value: new THREE.Vector2(1, 1) } });
+      Object.assign(u, { uSpeed: { value: spec.speed }, uLen: { value: spec.len }, uWidth: { value: spec.width }, uMinLen: { value: spec.minLen }, uView: { value: new THREE.Vector2(1, 1) } });
       mat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: RAIN_VS, fragmentShader: FLAT_FS,
         transparent: true, depthWrite: false, side: THREE.DoubleSide, ...dry });
       obj = new THREE.Mesh(g, mat);
@@ -602,7 +608,7 @@ export function createWeather(THREE, host){
       }
       u.uTime.value = time;
       u.uOpacity.value = spec.op * strength * k * (name === "splash" && still ? 0 : 1);
-      if (u.uView) { u.uView.value.copy(_view); u.uWidth.value = spec.width * dpr; }
+      if (u.uView) { u.uView.value.copy(_view); u.uWidth.value = spec.width * dpr; u.uMinLen.value = spec.minLen * dpr; }
       if (u.uScale) { u.uScale.value = scale; u.uMinPx.value = 2 * dpr; u.uMaxPx.value = 16 * dpr; }
     }
   }

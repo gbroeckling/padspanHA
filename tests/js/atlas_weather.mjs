@@ -696,6 +696,22 @@ tryCase("tiles: made once per colour, the same every time", () => {
   check("tiles: made once per colour, the same every time", a === b && a !== c && ids === "r0,r1,r2,r3,s0,s1,s2,s3" && r1 === r2
     && a.r0.startsWith('url("data:image/svg+xml,') && c.s0.includes(encodeURIComponent("#dceeff")), ids);
 });
+tryCase("tiles: rain is many hairline streaks falling fast, snow slow soft flakes as it was", () => {
+  // Garry, 2026-11-06: rain "falls to slowly … looks a lot like snow". Its
+  // speed is a tile's height a loop (px/s); snow's tiles are unchanged.
+  const R = WX.RAIN_LAYERS, S = WX.SNOW_LAYERS, pxs = (L) => L.h / L.dur;
+  const slowestRain = Math.min(...R.map(pxs)), fastestSnow = Math.max(...S.map(pxs));
+  const heavy = R.filter(L => L.tier === "heavy"), base = R.find(L => L.tier === "base");
+  check("tiles: rain is many hairline streaks falling fast, snow slow soft flakes as it was",
+    slowestRain >= 400 && slowestRain >= 10 * fastestSnow && heavy.every(L => pxs(L) > pxs(base))
+    && R.every(L => L.width <= 1.2 && L.len >= 8 * L.width) && base.n >= 50 && base.len <= 20
+    && JSON.stringify(S) === JSON.stringify([
+      { id: "s0", tier: "base",  w: 240, h: 240, n: 34, rad: 1.3, op: 0.5,  blur: 0.35, dur: 26, sway: [7, 10] },
+      { id: "s1", tier: "base",  w: 300, h: 300, n: 20, rad: 2.1, op: 0.6,  blur: 0.6,  dur: 17, sway: [5.5, 16] },
+      { id: "s2", tier: "heavy", w: 260, h: 260, n: 40, rad: 1.1, op: 0.4,  blur: 0.4,  dur: 21, sway: [6.3, 12] },
+      { id: "s3", tier: "heavy", w: 380, h: 380, n: 9,  rad: 2.8, op: 0.5,  blur: 1.3,  dur: 10, sway: [4.2, 24] }]),
+    { rain: R.map(L => [L.id, Math.round(pxs(L)), L.width, L.len, L.n]), snowFastest: fastestSnow });
+});
 tryCase("colour: Classic white, Cinematic Glass blue-white", () => {
   const a = WX.weatherColourOf(ISO.SHOWCASE_THEMES.classic), b = WX.weatherColourOf(ISO.SHOWCASE_THEMES.cinematic_glass);
   check("colour: Classic white, Cinematic Glass blue-white", a === "#fff" && b === "#dceeff" && WX.weatherColourOf(null) === "#fff", { a, b });
@@ -821,7 +837,7 @@ tryCase("overlay: heavier = more layers fading in, off = a fade then nothing", (
   slot.attach(stage, p(T0 + 26000, wx("sunny")));
   const gone = overlayIn(stage) === null;
   check("overlay: heavier = more layers fading in, off = a fade then nothing", light === 1 && heavy === 4 && fadingIn === 3
-    && /lv-wx-wind 6s/.test(wind) && windFrom === "3deg" && windTo === "17deg" && fadingOut === 4 && stillThere && gone,
+    && /lv-wx-wind 6s/.test(wind) && windFrom === "8deg" && windTo === "17deg" && fadingOut === 4 && stillThere && gone,
     { light, heavy, fadingIn, wind, windFrom, windTo, fadingOut, stillThere, gone });
 });
 tryCase("overlay: snow has its rim only on a snowfall warning", () => {

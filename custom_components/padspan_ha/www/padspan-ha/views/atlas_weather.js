@@ -577,11 +577,14 @@ const BAKE = STRENGTH_MAX;
 // Light rain and light snow must read from across the room on the wall
 // panel: at the first spec's 11% drizzle Garry took a working overlay for
 // a broken one (2026-10-04). Still one calm layer; heavy stays well above it.
+// Rain is hairline streaks, short and many, falling fast on a slant; snow
+// slow soft dots (Garry, 2026-11-06: rain "falls to slowly … looks a lot
+// like snow"). A tile is drawn once, so more streaks cost nothing per frame.
 export const RAIN_LAYERS = [
-  { id: "r0", tier: "base",  w: 240, h: 280, n: 30, len: 24, op: 0.24, width: 1.4, dur: 1.25 },   // drizzle, ~3°
-  { id: "r1", tier: "heavy", w: 200, h: 240, n: 44, len: 26, op: 0.16, width: 1,   dur: 0.8 },    // far sheet
-  { id: "r2", tier: "heavy", w: 260, h: 300, n: 26, len: 40, op: 0.24, width: 1.2, dur: 0.6 },    // mid
-  { id: "r3", tier: "heavy", w: 320, h: 360, n: 12, len: 64, op: 0.32, width: 1.6, dur: 0.42 },   // near streaks
+  { id: "r0", tier: "base",  w: 240, h: 280, n: 52, len: 16, op: 0.4,  width: 1,   dur: 0.62 },   // drizzle, ~8°
+  { id: "r1", tier: "heavy", w: 200, h: 240, n: 70, len: 18, op: 0.26, width: 1,   dur: 0.46 },   // far sheet
+  { id: "r2", tier: "heavy", w: 260, h: 300, n: 42, len: 28, op: 0.34, width: 1,   dur: 0.36 },   // mid
+  { id: "r3", tier: "heavy", w: 320, h: 360, n: 20, len: 44, op: 0.42, width: 1.2, dur: 0.26 },   // near streaks
 ];
 export const SNOW_LAYERS = [
   { id: "s0", tier: "base",  w: 240, h: 240, n: 34, rad: 1.3, op: 0.5,  blur: 0.35, dur: 26, sway: [7, 10] },
@@ -640,8 +643,8 @@ export function weatherTiles(colour){
 const OFF = Object.freeze({ kind: "off", heavy: false, rim: false });
 const FADE_IN_S = 3, FADE_OUT_S = 2.5, WIND_S = 6, RIM_S = 8, HAZE_S = 4;
 const RIPPLES_LIGHT = 4, RIPPLES_HEAVY = 20;
-// Wind: near-vertical when light, 17° in heavy rain.
-const angleOf = (v) => (v.kind === "snow" ? (v.heavy ? 9 : 3) : v.kind === "rain" ? (v.heavy ? 17 : 3) : 3);
+// Wind: light rain a slant of 8° (snow near-vertical), 17° in heavy rain.
+const angleOf = (v) => (v.kind === "snow" ? (v.heavy ? 9 : 3) : v.kind === "rain" ? (v.heavy ? 17 : 8) : 3);
 const layerOn = (L, v) => v.kind === L.kind && (L.tier === "base" || v.heavy);
 const same = (a, b) => a.kind === b.kind && !!a.heavy === !!b.heavy && !!a.rim === !!b.rim;
 
