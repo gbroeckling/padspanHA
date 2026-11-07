@@ -836,7 +836,7 @@ export function stairFlights(S, p){
   // the floor reached, in its opening, as a real one does.
   const Rr = plain ? R - 0.03 : Infinity;
   const nos = 0.03;
-  for (const [i, F] of flights.entries()) {
+  for (const F of flights) {
     const y0 = F.b + r + STAIR_RAIL_M, y1 = F.top + STAIR_RAIL_M, t1 = F.L - nos;
     const tEnd = y1 > Rr ? Math.max(nos, nos + (t1 - nos) * (Rr - y0) / Math.max(1e-6, y1 - y0)) : t1;
     if (y0 >= Rr || F.L < 0.1) continue;
@@ -854,9 +854,11 @@ export function stairFlights(S, p){
         const q = F.at(t, off), yb = F.b + (j + 1) * r;
         balusters.push([[q[0], yb, q[1]], [q[0], yAt(t), q[1]], 0.011]);
       }
-      // (Posts 7 cm square, set in so they stay inside the footprint.)
+      // (Posts 7 cm square, set in so they stay inside the footprint.) A
+      // flight after a landing has its own at its foot too: its rail starts
+      // a riser above the landing's, and no rail ends in the air.
       const pa = F.at(0.045, off), te = Math.min(tEnd, F.L - 0.045), pe = F.at(te, off);
-      if (i === 0) balusters.push([[pa[0], F.b, pa[1]], [pa[0], Math.min(Rr, yAt(0.045) + 0.08), pa[1]], 0.035]);
+      balusters.push([[pa[0], F.b, pa[1]], [pa[0], Math.min(Rr, yAt(0.045) + 0.08), pa[1]], 0.035]);
       balusters.push([[pe[0], F.b + (te / F.L) * (F.top - F.b), pe[1]], [pe[0], Math.min(Rr, yAt(te) + 0.08), pe[1]], 0.035]);
     }
   }
@@ -877,9 +879,21 @@ export function stairFlights(S, p){
           rails.push([[ex, yR, otherZ], [ex, yR, ez]], [[other, yR, ez], [ex, yR, ez]]);
           balusters.push([[ex, Lg.h, ez], [ex, Math.min(Rr, yR + 0.08), ez], 0.035]);
         }
-        for (const [a, b] of rails.slice(-(shape === "u" ? 1 : 2))) {
+        const mine = rails.slice(-(shape === "u" ? 1 : 2));
+        for (const [a, b] of mine) {
           const len = Math.hypot(b[0] - a[0], b[2] - a[2]), k = Math.max(1, Math.round(len / 0.12));
           for (let j = 1; j < k; j++) balusters.push([[a[0] + (b[0] - a[0]) * j / k, Lg.h, a[2] + (b[2] - a[2]) * j / k], [a[0] + (b[0] - a[0]) * j / k, yR, a[2] + (b[2] - a[2]) * j / k], 0.011]);
+        }
+        // Each end meets a post, as the corner's does: a flight's post at
+        // its head or foot, a few cm on (the rail runs on to it, the post
+        // rises to it), else one of its own. The rail stopped short of the
+        // flight's post, a riser above its top, a loose end in the air.
+        for (const R of mine) for (const k of [0, 1]) {
+          const q = R[k], near = balusters.filter(B => B[2] >= 0.03).map(B => ({ B, d: Math.hypot(B[0][0] - q[0], B[0][2] - q[2]) })).sort((u, v) => u.d - v.d)[0];
+          if (near && near.d <= 0.15) {
+            R[k] = [near.B[0][0], q[1], near.B[0][2]];
+            near.B[1] = [near.B[1][0], Math.max(near.B[1][1], Math.min(Rr, yR + 0.08)), near.B[1][2]];
+          } else balusters.push([[q[0], Lg.h, q[2]], [q[0], Math.min(Rr, yR + 0.08), q[2]], 0.035]);
         }
       }
     }

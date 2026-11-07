@@ -705,4 +705,22 @@ tryCase("build: a new stair has no rail until chosen, auto draws as before, and 
   }
 });
 
+// Every top rail ends in a post that reaches it: a landing's rail ran on
+// from no post, a riser above the flight's, a loose end in the air (the
+// rail check, 2026-11-07). The single bar has its own rod at each end.
+tryCase("build: every stair rail ends in a post that reaches it, at a landing too", () => {
+  const name = "build: every stair rail ends in a post that reaches it, at a landing too", bad = [];
+  for (const shape of F.STAIR_SHAPES) for (const style of F.STAIR_STYLES) for (const rail of ["both", "inner", "outer", "auto"])
+    for (const turn of ["left", "right"]) for (const S of [{ w: 2.6, d: 2.4, h: 2.8 }, { w: 1, d: 3, h: 2.8 }, { w: 4.09, d: 1.91, h: 2.3 }]) {
+      const L0 = F.stairFlights(S, { shape, style, rail, turn, rail_style: "balustrade" });
+      if (L0.plain) continue;
+      const posts = L0.balusters.filter(b => b[2] >= 0.03);
+      for (const [a, b] of L0.rails) for (const q of [a, b]) {
+        const ok = posts.some(([p0, p1, rad]) => Math.abs(p0[0] - q[0]) <= rad + 1e-6 && Math.abs(p0[2] - q[2]) <= rad + 1e-6 && q[1] >= p0[1] - 1e-6 && q[1] <= p1[1] + 1e-6);
+        if (!ok) bad.push({ shape, style, rail, turn, S, q: q.map(v => +v.toFixed(3)) });
+      }
+    }
+  check(name, bad.length === 0, { n: bad.length, first: bad.slice(0, 4) });
+});
+
 console.log(JSON.stringify({ cases, failures, stats }));
