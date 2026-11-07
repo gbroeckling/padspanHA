@@ -1822,24 +1822,26 @@ function createSlot(slotKey){
     g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3));
     return g;
   }
-  /** The Atlas's look: a faint line in each plate's colour round the plate
-   *  (its floors' rooms, padded as the flat plate is), at its floor's level,
-   *  as the Atlas outlines its plates (HOUSE.floorBadges: its colours). */
-  const PLATE_PAD = 0.6, PLATE_OP = 0.5;
+  /** The Atlas's look: a faint line in each plate's colour round the plate,
+   *  at its floor's level, as the Atlas outlines its plates (HOUSE.floorBadges:
+   *  its colours). It follows the storey's own floor (its rooms, halls filled
+   *  in: live_aboard_storey.js plateOutlines), a little way out past the
+   *  outside walls. The flat plate's rectangle round all the rooms drew
+   *  long lines in the air and out over the yard, well past the house (Garry,
+   *  2026-11-06: "lines around floor, something not quite right"). */
+  const PLATE_PAD = 0.3, PLATE_OP = 0.5;
   function platesOf(h){
     let badges = [];
     try { badges = HOUSE.floorBadges(lastP && lastP.model, lastP && lastP.floors, h); } catch (_) { badges = []; }
     for (const b of badges) {
-      const F = floorsUi.find(q => q.fl === b.floor), on = h.floors.filter(f => !f.outdoor && Math.abs(f.elev - b.floor.elev) < 0.05);
-      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const r of h.rooms) if (on.includes(r.floor)) for (const p of r.pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
-      if (!F || !Number.isFinite(x0)) continue;
-      const P = PLATE_PAD, y = b.floor.elev + 0.006;
-      const g = new THREE.BufferGeometry().setFromPoints([[x0 - P, y0 - P], [x1 + P, y0 - P], [x1 + P, y1 + P], [x0 - P, y1 + P]]
-        .map(([x, z]) => new THREE.Vector3(x, y, z)));
+      const F = floorsUi.find(q => q.fl === b.floor), loops = storeyL ? storeyL.plates(b.floor.id, PLATE_PAD) : [];
+      if (!F || !loops.length) continue;
+      const y = b.floor.elev + 0.006, pts = [];
+      for (const L of loops) L.forEach((p, i) => { const q = L[(i + 1) % L.length]; pts.push(new THREE.Vector3(p[0], y, p[1]), new THREE.Vector3(q[0], y, q[1])); });
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
       const m = new THREE.LineBasicMaterial({ color: b.color, transparent: true, opacity: PLATE_OP, depthWrite: false });
       shellRes.push(g, m);
-      F.plate = new THREE.LineLoop(g, m);
+      F.plate = new THREE.LineSegments(g, m);
       F.plate.userData.n = b.n;
       F.group.add(F.plate);
     }
@@ -5113,6 +5115,9 @@ function createSlot(slotKey){
                edit: editor ? editor.state() : null,
                // P8: the look as drawn, and rain and snow.
                look: scene ? { key: lookKey, atlas: atlas ? { on: atlas.on, theme: atlas.theme, plates: floorsUi.filter(F => F.plate).map(F => F.plate.userData.n),
+                                                         // Each plate's line as drawn: its floor, whether it hides with it, its points (x, y, z).
+                                                         plateLines: floorsUi.filter(F => F.plate).map(F => ({ n: F.plate.userData.n, floor: F.fl.id,
+                                                           withFloor: F.plate.parent === F.group, pts: Array.from(F.plate.geometry.attributes.position.array) })),
                                                          edges: floorsUi.filter(F => F.edges).map(F => (F.edges.visible ? F.edges.material.opacity : 0)) } : null,
                                bg: "#" + scene.background.getHexString(), fog: "#" + scene.fog.color.getHexString(),
                                sky: "#" + hemi.color.getHexString(), skyI: hemi.intensity, glow: theme3d ? theme3d.glow : 1,

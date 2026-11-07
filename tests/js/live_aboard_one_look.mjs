@@ -226,6 +226,41 @@ await tryCase("floors: each floor's number in its plate's colour, each plate its
   await settle();
 });
 
+// An L-shaped Main over a plain Basement: each plate's line follows its own
+// floor's rooms, a little way out, at that floor's level, in its floor's
+// group (it hides with the floor); never the rectangle round them, whose
+// far corner stood out over the yard (Garry's wall, 2026-11-06).
+await tryCase("floors: each plate's line follows its floor's rooms, at its level, with its floor", async () => {
+  const L = { ...MODEL, room_geometry_m: { Rec: rect("basement", 0, 0, 6, 5), "Living room": rect("main", 0, 0, 4.5, 5), Den: rect("main", 4.6, 0, 9, 2) },
+              light_positions_m: {} };
+  const slot = await view("ol-plate-lines", { model: L, floors: L.floors, look3d: "atlas", atlasLook: AT("hygge") });
+  const lines = (S(slot).look.atlas && S(slot).look.atlas.plateLines) || [];
+  const roomsOf = (fid) => Object.values(L.room_geometry_m).filter(r => r.floor_id === fid).map(r => r.points_m);
+  const segD = (px, py, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(px - a[0] - t * dx, py - a[1] - t * dy); };
+  const inP = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const a = P[i], b = P[j];
+    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const dist = (x, y, P) => (inP(x, y, P) ? 0 : Math.min(...P.map((a, i) => segD(x, y, a, P[(i + 1) % P.length]))));
+  const per = lines.map(l => {
+    const fid = l.floor === "basement" ? "basement" : "main", rooms = roomsOf(fid), xs = [], ys = [], zs = [];
+    for (let i = 0; i < l.pts.length; i += 3) { xs.push(l.pts[i]); ys.push(l.pts[i + 1]); zs.push(l.pts[i + 2]); }
+    const far = Math.max(...xs.map((x, i) => Math.min(...rooms.map(P => dist(x, zs[i], P)))));
+    const all = rooms.flat();
+    const box = [Math.min(...xs) - Math.min(...all.map(p => p[0])), Math.max(...xs) - Math.max(...all.map(p => p[0])),
+                 Math.min(...zs) - Math.min(...all.map(p => p[1])), Math.max(...zs) - Math.max(...all.map(p => p[1]))];
+    return { n: l.n, floor: l.floor, withFloor: l.withFloor, y: [Math.min(...ys), Math.max(...ys)], far: Number(far.toFixed(3)), box: box.map(v => Number(v.toFixed(3))) };
+  });
+  const b = per.find(q => q.floor === "basement"), m = per.find(q => q.floor === "main");
+  check("floors: each plate's line follows its floor's rooms, at its level, with its floor",
+    per.length === 2 && b && m && per.every(q => q.withFloor && q.y[1] - q.y[0] < 1e-6
+      // Never further from a room than the pad round a corner, and out past every side of them.
+      && q.far <= 0.3 * Math.SQRT2 + 0.15 && q.box[0] < -0.15 && q.box[1] > 0.15 && q.box[2] < -0.15 && q.box[3] > 0.15)
+    && m.y[0] > b.y[0] + 2,
+    per);
+  LA.releaseLiveAboardSlot("ol-plate-lines");
+  await settle();
+});
+
 // ── readouts ────────────────────────────────────────────────────────────────
 await tryCase("readouts: the chip says what the Atlas says, the air in its room sheet's words", async () => {
   const slot = await view("ol-read", { look3d: "atlas", atlasLook: AT("hygge") });

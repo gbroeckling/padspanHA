@@ -393,6 +393,17 @@ export function houseModel(h, cuts = null){
   }
   return { axis, grid: { u0: g.u0, v0: g.v0, nx: g.nx, ny: g.ny, cell: g.cell }, frame, storeys: out };
 }
+/** The line round the storey that floor `floorId` is part of: its floor's
+ *  outline (its rooms, halls filled in, as the floor under it is drawn),
+ *  `pad` metres out, the outside of each part only, in plan metres. The
+ *  Atlas look's plate line (live_aboard.js platesOf): it follows the house,
+ *  not the rectangle round it. */
+export function plateOutlines(model, floorId, pad = 0){
+  const s = model && model.grid ? model.storeys.find(q => q.floors.includes(floorId)) : null;
+  if (!s) return [];
+  const g = { ...model.frame, ...model.grid }, r = Math.max(0, Math.round(pad / g.cell));
+  return loopsOf(r > 0 ? sweep(s.cells, g, r, true) : s.cells, g).filter(l => l.area > 0).map(l => l.pts);
+}
 /** Is plan point (x, y) under a roof shown over storey `s` or one above it,
  *  or over a lower storey that rises well above it (a mezzanine in a hall)? */
 export function underRoof(model, x, y, elev){
@@ -750,6 +761,8 @@ export function createStoreyLayer(ctx){
     roofs(){ return (k ?? 0) >= 0.5 ? roofs.map(R => R.mesh).filter(m => m.parent && m.parent.visible) : []; },
     /** How dark it is (0 day, 1 night: the view's nightK). */
     night(n){ nightK = Math.max(0, Math.min(1, Number(n) || 0)); for (const m of Object.values(mats)) glow(m); },
+    /** The line round floor `floorId`'s storey, `pad` metres out (plateOutlines). */
+    plates(floorId, pad){ return plateOutlines(model, floorId, pad); },
     /** The highest storey's height (null: none). */
     topElev(){ return model && model.storeys.length ? model.storeys[model.storeys.length - 1].elev : null; },
     get moving(){ return moving; },
