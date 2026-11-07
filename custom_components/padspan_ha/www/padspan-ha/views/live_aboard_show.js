@@ -68,7 +68,7 @@ export const SHOW_ITEMS = [
   { key: "stairs", group: "house", words: "Stairs", hint: "The flights (the opening in the floor stays)", link: "furnish" },
   { key: "room_names", group: "house", words: "Room names", hint: "Each room's name on its floor", link: "rooms" },
   { key: "room_outlines", group: "house", words: "Room outlines", hint: "The coloured line round each room", link: "rooms" },
-  { key: "floor_outlines", group: "house", words: "Floor outlines", hint: "The faint line round each floor", link: "live_aboard" },
+  { key: "floor_outlines", group: "house", words: "Floor outlines", hint: "The faint line round each floor", link: "la3d" },
   { key: "roof", group: "house", words: "Roof", hint: "The roof, seen from outside (the Roof button too)" },
   { key: "rain", group: "look", words: "Rain and snow", hint: "Rain and snow falling round the house", link: "weather" },
   { key: "theme", group: "look", words: "Theme colours", hint: "Off: the Classic look on this screen", link: "showcase" },
@@ -87,7 +87,7 @@ export const LINK_WORDS = {
   rooms: ["Mapping", "Mapping → Edit, where rooms are drawn and named"],
   receivers: ["Mapping", "Mapping → Edit, where receivers are placed"],
   furnish: ["Mapping", "Mapping → Furnish"],
-  live_aboard: ["Settings", "Settings → Atlas → Live Aboard"],
+  la3d: ["Settings", "Settings → Atlas → Live Aboard"],
   weather: ["Settings", "Settings → Atlas → Outdoor weather"],
   showcase: ["Mapping", "Mapping → Atlas → Showcase options"],
   atlas: ["Settings", "Settings → Atlas"],
@@ -98,7 +98,7 @@ export const GO_TO = {
   place: { view: "maps", tab: "lights" }, showcase: { view: "maps", tab: "lights" },
   walls: { view: "maps", tab: "edit" }, rooms: { view: "maps", tab: "edit" }, receivers: { view: "maps", tab: "edit" },
   furnish: { view: "maps", tab: "furnish" },
-  live_aboard: { view: "settings", tab: "atlas", part: "la3d" }, weather: { view: "settings", tab: "atlas", part: "atlas_weather" },
+  la3d: { view: "settings", tab: "atlas", part: "la3d" }, weather: { view: "settings", tab: "atlas", part: "atlas_weather" },
   atlas: { view: "settings", tab: "atlas" },
 };
 

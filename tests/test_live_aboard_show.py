@@ -107,7 +107,8 @@ def test_both_hosts_hand_over_a_way_to_settings_and_mapping_but_not_in_basic() -
     lp = _code(_WWW / "lights_panel.js")
     assert "goTo: this._basicMode() ? null : (t)=>{" in lp and "/padspan-ha?${q.toString()}" in lp
     mp = _code(_VIEWS / "maps.js")
-    assert "goTo: FOCUS.expertLinks(ctx.state) ? (t) => {" in mp and "ctx.state._settingsPart = t.part || null;" in mp
+    assert "const la3dGoTo = !FOCUS.expertLinks(ctx.state) ? null : (t) => {" in mp and "goTo: la3dGoTo," in mp
+    assert "ctx.state._settingsPart = t.part || null;" in mp
     lm = _code(_VIEWS / "lights_map.js")
     assert 'goTo: typeof h3.goTo === "function" ? h3.goTo : null,' in lm
     pj = _code(_WWW / "panel.js")

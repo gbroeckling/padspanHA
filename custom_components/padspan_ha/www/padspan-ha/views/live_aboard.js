@@ -4749,7 +4749,8 @@ function createSlot(slotKey){
    *  look, Showcase on and that theme (below Pro, Showcase is off). Never the
    *  view's failure: trees that cannot be drawn are simply not drawn. */
   function syncForest(){
-    const want = !!atlas && atlas.on && atlas.theme === "west_coast_forest" && !forestFailed && shownHere("forest");
+    const want = !!atlas && atlas.on && atlas.theme === "west_coast_forest" && !forestFailed;
+    if (!shownHere("forest")) { dropForest(false); return; }   // hidden on this screen (the ⋯ list)
     if (!want) { dropForest(false); return; }
     if (!FOREST) {
       if (!forestImport) {
