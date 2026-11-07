@@ -22,6 +22,10 @@
   <url><loc>https://padspan.traks.ca/guides/phone-room-presence/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/guides/get-started/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://padspan.traks.ca/guides/get-started/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://padspan.traks.ca/guides/room-presence-automations/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://padspan.traks.ca/guides/room-presence-automations/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://padspan.traks.ca/guides/bermuda-vs-neonplan/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://padspan.traks.ca/guides/bermuda-vs-neonplan/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/guides/bluetooth-tags/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://padspan.traks.ca/guides/bluetooth-tags/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/guides/floor-plans/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>

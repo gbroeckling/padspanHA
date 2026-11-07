@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automationen mit Anwesenheit pro Raum in Home Assistant: 8 Rezepte zum Einfügen | PadSpan HA</title>
+<meta name="description" content="Was Home Assistant kann, wenn es den Raum kennt: Licht, das anbleibt, während du still sitzt, Heizung nur dort, wo sie genutzt wird, Ansagen in deinem Raum und Musik, die mit dir mitgeht. Acht auf Home Assistant 2026.11.0 getestete Rezepte und die Regeln, damit sie nicht falsch auslösen.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/room-presence-automations/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/room-presence-automations/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/room-presence-automations/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/room-presence-automations/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Was kann Home Assistant, wenn es den Raum kennt?">
+<meta property="og:description" content="Acht Rezepte für Anwesenheit pro Raum, fertig zum Einfügen und auf Home Assistant 2026.11.0 getestet: Licht, Heizung, Ansagen, Musik und Tracker, dazu die Regeln, damit sie nicht falsch auslösen.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/room-presence-automations/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:30px 0 6px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/room-presence-automations/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Was kann Home Assistant, wenn es den Raum kennt?</h1>
+<p class="lead">Ein Bewegungsmelder weiß, dass sich etwas bewegt hat. Anwesenheit pro Raum weiß, in welchem Raum jedes Handy, jede Uhr und jeder Tracker ist, auch wenn du still sitzt. Hier sind acht Rezepte, die das nutzen, fertig zum Einfügen, und vier Regeln, damit sie nicht falsch auslösen. Jedes einzelne Rezept haben wir auf einem frisch installierten Home Assistant 2026.11.0 mit simulierten Raumwechseln laufen lassen.</p>
+
+<h2>Womit du arbeitest</h2>
+<p>In PadSpan bekommt ein Gerät seine Home-Assistant-Entitäten, sobald du ihm einen Namen gibst. <a href="/guides/phone-room-presence/de/">In welchem Raum ist mein Handy?</a> zeigt das für Handys und Uhren, <a href="/guides/bluetooth-tags/de/">Welcher Bluetooth-Tracker funktioniert?</a> für Tracker. Für ein Handy namens „Alex Handy“ bekommst du:</p>
+<ul>
+  <li><code>sensor.alex_handy_area</code>: den Raum, <code>not_home</code>, sobald das Handy fünf Minuten lang nicht gehört wurde, oder <code>unknown</code>, solange es keinen Raum hat. Das Attribut <code>room_confidence</code> sagt, wie sicher sich PadSpan ist. Fast jedes Rezept hier liest diesen Sensor.</li>
+  <li><code>device_tracker.alex_handy</code>: denselben Raum, als Geräte-Tracker, den du einer Person zuordnen kannst. Ohne Raum steht er auf <code>unknown</code>, oder auf <code>home</code> oder <code>not_home</code>, wenn du die GPS Bridge eingerichtet hast.</li>
+  <li><code>sensor.alex_handy_distance</code>: die Entfernung zum nächsten Scanner in Metern.</li>
+</ul>
+<p>Ohne Grundriss ergibt sich jeder Raum aus dem Home-Assistant-Bereich des Scanners, der das Gerät am besten hört, der Zustand ist also der Name des Bereichs. Auf einem Grundriss ist es der Name des Raums, den du gezeichnet hast, normalerweise ebenfalls ein Bereich. Deshalb kann eine einzige Automation das ganze Haus abdecken (Rezept 4). Räume, die es nur in PadSpan gibt (<b>+ Add room</b>, das Layout Standalone, ein importierter Plan), behalten ihre eigenen Namen, und Rezept 4 überspringt sie, außer der Name gehört auch zu einem Bereich.</p>
+<p>Die fünf Minuten änderst du unter <b>Settings → Tracking → Rooms and timing → Home/Away Timeout</b>. Diese Pfade in Settings, Manage und Mapping gibt es im Modus Advanced, der Voreinstellung. Siehst du Basic, nimm den Modus-Knopf oben rechts.</p>
+<p>Du nutzt Bermuda? Sein Area-Sensor enthält ebenfalls den Namen des Bereichs, die Raum-Rezepte funktionieren also auch damit, wenn du die Entitäts-IDs änderst. Hat Bermuda für ein Gerät keinen Bereich, steht der Sensor auf <code>unknown</code>, nicht auf <code>not_home</code>, und Rezept 4 löst beim ersten Raum nach einer Empfangslücke nicht aus.</p>
+
+<h2>Vier Regeln, die dir einen Abend Fehlersuche ersparen</h2>
+<ol>
+  <li><b>Lies den Raum aus dem Area-Sensor, nicht aus der Person.</b> Eine Person übernimmt den Zustand ihres stärksten Geräte-Trackers. Die Companion-App schlägt einen Raum immer, ein Router nur, solange er das Handy verbunden sieht. In beiden Fällen steht bei <code>person.alex</code> nur <code>home</code>. Meldet der Router das Handy als weg, zeigt die Person den Zustand des Trackers, der sich zuletzt gemeldet hat, meist PadSpans Raum, und das noch ein paar Minuten, nachdem du gegangen bist. Ist PadSpans Tracker der einzige an der Person, ist ihr Zustand der Raum selbst. Alles, was auf <code>home</code> wartet, übersieht sie dann, und ohne GPS Bridge zählt auch <code>zone.home</code> sie nicht mehr mit. Das alles haben wir auf 2026.11.0 geprüft. Um zu Hause von unterwegs zu unterscheiden, nimm die Companion-App. Hast du nur einen Router, ordne PadSpans Tracker der Person nicht zu.</li>
+  <li><b>Schreib den Raum genau so, wie er im Zustand steht.</b> Bei Zuständen zählt die Groß- und Kleinschreibung: <code>Wohnzimmer</code> ist nicht <code>wohnzimmer</code>. Schau unter <a href="https://my.home-assistant.io/redirect/developer_states/">Einstellungen → Werkzeuge → Zustände</a> nach.</li>
+  <li><b>Gib PadSpan Zeit.</b> In der Voreinstellung prüft PadSpan alle 5 Sekunden, glättet die Messwerte jedes Scanners, und ein neuer Raum muss eine Abstimmung gewinnen. Ein Wechsel zeigt sich also frühestens nach 10 bis 15 Sekunden und oft deutlich später. Deinen eigenen Wert siehst du, wenn du die Seite <b>Zustände</b> offen lässt und von einem Raum in den anderen gehst. Was sofort passieren muss, überlässt du einem Bewegungsmelder. Nutze <code>for:</code>, damit ein Gang durch die Tür nicht alles auslöst. Springt ein Gerät ständig zwischen Räumen, hilft <a href="/guides/room-flapping/de/">Warum springt mein Handy zwischen den Räumen?</a></li>
+  <li><b>Öffne damit nichts.</b> Ein auf der Arbeitsplatte vergessenes Handy zählt weiter als jemand in der Küche, und die feste Kennung eines Beacons lässt sich kopieren. Dinge ausschalten, abschließen und die Heizung regeln ist in Ordnung. Schließ aber keine Tür auf, öffne kein Garagentor und schalte keine Alarmanlage ab, nur weil Bluetooth jemanden hört.</li>
+</ol>
+
+<h2>Die Rezepte</h2>
+<p>Für eine Automation gehst du zu <b>Einstellungen → Automationen &amp; Szenen → Automation erstellen → Neue Automation erstellen</b>, öffnest das <b>⋮</b>-Menü, wählst <b>In YAML bearbeiten</b> und fügst sie anstelle des Vorhandenen ein. Ersetz die Namen durch deine eigenen und speichere. Rezept 1 ist anders: Es kommt in die <code>configuration.yaml</code>, danach ist ein Neustart nötig. <b>Aktionen ausführen</b> im Editor überspringt Auslöser und Bedingungen. Die Rezepte 3, 4 und 6 lesen den Auslöser aber, also testest du sie, indem du von Raum zu Raum gehst.</p>
+
+<h3>1. Ein Raumsensor, der weiß, dass du noch da bist</h3>
+<p>Bewegungsmelder schalten das Licht aus, während jemand ein Buch liest. Dieser Sensor bleibt an, solange sich etwas bewegt oder ein Handy im Raum ist, und geht erst zwei Minuten danach aus. Leg einen pro Raum an. Das Büro hat hier keinen Bewegungsmelder und richtet sich nur nach den Handys.</p>
+<pre><code>template:
+  - binary_sensor:
+      - name: Wohnzimmer belegt
+        device_class: occupancy
+        delay_off: "00:02:00"
+        state: &gt;
+          {{ is_state('binary_sensor.wohnzimmer_bewegung', 'on')
+             or ['sensor.alex_handy_area', 'sensor.sam_handy_area']
+                | map('states') | select('eq', 'Wohnzimmer')
+                | list | count &gt; 0 }}
+      - name: Büro belegt
+        device_class: occupancy
+        delay_off: "00:02:00"
+        state: &gt;
+          {{ ['sensor.alex_handy_area', 'sensor.sam_handy_area']
+             | map('states') | select('eq', 'Büro')
+             | list | count &gt; 0 }}</code></pre>
+<p>Ein auf dem Sofa vergessenes Handy hält den Raum belegt. Besuch ohne Handy oder Tracker zählt nur, solange er sich bewegt. Hast du schon einen Abschnitt <code>template:</code>, füg die Sensoren dort ein.</p>
+
+<h3>2. Licht aus, wenn der Raum wirklich leer ist</h3>
+<p>Deine übliche Licht-aus-Automation mit einem besseren Auslöser. Mit <code>from: "on"</code> zählt es nicht, wenn der Sensor beim Start von <code>unknown</code> kommt, und die zwei Minuten aus Rezept 1 geben PadSpan nach einem Neustart Zeit, den Raum wiederzufinden.</p>
+<pre><code>alias: Licht im Wohnzimmer aus, wenn es wirklich leer ist
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.wohnzimmer_belegt
+    from: "on"
+    to: "off"
+actions:
+  - action: light.turn_off
+    target:
+      area_id: wohnzimmer</code></pre>
+
+<h3>3. Nur die Räume heizen, die du nutzt</h3>
+<p>Nach zehn Minuten im Raum wird die Heizung hochgedreht, ein Durchgehen zählt also nicht. Steht der Raum eine halbe Stunde leer, wird sie wieder runtergedreht. Das Rezept nutzt den Büro-Sensor aus Rezept 1. Die Temperaturen sind in °C. Ein Neustart während der halben Stunde bricht das Warten ab, die Heizung bleibt dann hochgedreht, bis der Raum das nächste Mal leer wird.</p>
+<pre><code>alias: Büro nur heizen, solange es genutzt wird
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.buro_belegt
+    from: "off"
+    to: "on"
+    for: "00:10:00"
+    id: genutzt
+  - trigger: state
+    entity_id: binary_sensor.buro_belegt
+    from: "on"
+    to: "off"
+    for: "00:30:00"
+    id: leer
+actions:
+  - action: climate.set_temperature
+    target:
+      entity_id: climate.buro
+    data:
+      temperature: "{{ 21 if trigger.id == 'genutzt' else 17 }}"</code></pre>
+
+<h3>4. Licht an in dem Raum, den du betrittst</h3>
+<p>Eine einzige Automation für alle Räume im Haus, denn der Raum ist der Name eines Home-Assistant-Bereichs. Sie hinkt dir deutlich hinterher, nimm sie also nur dort, wo es keinen Bewegungsmelder gibt und ein spätes Licht trotzdem hilft. Ein Raum, der kein Bereich ist, wird übersprungen, und <code>not_home</code> ist kein Raum, beim Verlassen des Hauses passiert also nichts.</p>
+<pre><code>alias: Licht an in dem Raum, den Alex betritt, wenn es dunkel ist
+triggers:
+  - trigger: state
+    entity_id: sensor.alex_handy_area
+    not_from: [unknown, unavailable]
+    not_to: [unknown, unavailable, not_home]
+    for: "00:00:10"
+conditions:
+  - condition: state
+    entity_id: sun.sun
+    state: below_horizon
+  - condition: template
+    value_template: "{{ area_id(trigger.to_state.state) is not none }}"
+actions:
+  - action: light.turn_on
+    target:
+      area_id: "{{ area_id(trigger.to_state.state) }}"</code></pre>
+
+<h3>5. Sag es in dem Raum, in dem du bist</h3>
+<p>Die Waschmaschine ist fertig, und nur der Raum, in dem du bist, muss es hören. Das klappt mit jedem Auslöser. Ersetz <code>tts.piper</code> durch deine eigene Text-to-Speech-Entität und nimm deine eigenen Lautsprecher. Ist Alex in keinem Raum der Liste, hört es die Küche.</p>
+<pre><code>alias: Sag es in dem Raum, in dem Alex ist
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.waschmaschine_lauft
+    from: "on"
+    to: "off"
+variables:
+  lautsprecher:
+    Küche: media_player.kuche
+    Wohnzimmer: media_player.wohnzimmer
+    Schlafzimmer: media_player.schlafzimmer
+  ziel: &gt;
+    {{ lautsprecher.get(states('sensor.alex_handy_area'), 'media_player.kuche') }}
+actions:
+  - action: tts.speak
+    target:
+      entity_id: tts.piper
+    data:
+      media_player_entity_id: "{{ ziel }}"
+      message: Die Waschmaschine ist fertig.</code></pre>
+
+<h3>6. Musik, die mit dir mitgeht</h3>
+<p>Geh von der Küche ins Büro, und die Musik kommt mit, auch wenn du durch einen Raum ohne Lautsprecher gehst. Die Automation verschiebt, was auf diesen Lautsprechern läuft: Hört gerade jemand anderes zu, ist die Musik für ihn weg. Dafür brauchst du Lautsprecher, die sich in Home Assistant gruppieren lassen. Was passiert, wenn der erste Lautsprecher die Gruppe verlässt, ist von Marke zu Marke verschieden, also probier <code>media_player.join</code> und <code>media_player.unjoin</code> erst von Hand unter <a href="https://my.home-assistant.io/redirect/developer_services/">Einstellungen → Werkzeuge → Aktionen</a> aus. Hört die Musik auf, sobald der erste Lautsprecher die Gruppe verlässt, lösch den Schritt mit <code>unjoin</code>, dann spielt sie ab da in beiden Räumen.</p>
+<pre><code>alias: Musik geht mit Alex mit
+triggers:
+  - trigger: state
+    entity_id: sensor.alex_handy_area
+    not_from: [unknown, unavailable, not_home]
+    not_to: [unknown, unavailable, not_home]
+    for: "00:00:20"
+variables:
+  lautsprecher:
+    Küche: media_player.kuche
+    Büro: media_player.buro
+  neu: "{{ lautsprecher.get(trigger.to_state.state) }}"
+  alt: &gt;
+    {% set spielt = lautsprecher.values() | reject('eq', neu)
+       | select('is_state', 'playing') | first | default(none) %}
+    {{ (state_attr(spielt, 'group_members') or [spielt]) | first
+       if spielt else none }}
+conditions:
+  - condition: template
+    value_template: &gt;
+      {{ alt is not none and neu is not none
+         and neu not in (state_attr(alt, 'group_members') or []) }}
+actions:
+  - action: media_player.join
+    target:
+      entity_id: "{{ alt }}"
+    data:
+      group_members:
+        - "{{ neu }}"
+  - action: media_player.unjoin
+    target:
+      entity_id: "{{ alt }}"</code></pre>
+
+<h3>7. Gute Nacht, sobald alle im Schlafzimmer sind</h3>
+<p>Beide Handys zehn Minuten im Schlafzimmer, spät am Abend: Der Rest des Hauses geht aus, und die Tür wird abgeschlossen. Der zweite Auslöser erwischt Handys, die um 21:30 Uhr schon im Schlafzimmer am Ladekabel hängen. Lädt ein Handy woanders, löst die Automation einfach nie aus. Nimm dann eine Uhr oder lass diese Person weg.</p>
+<pre><code>alias: Gute Nacht, sobald alle im Schlafzimmer sind
+triggers:
+  - trigger: template
+    value_template: &gt;
+      {{ is_state('sensor.alex_handy_area', 'Schlafzimmer')
+         and is_state('sensor.sam_handy_area', 'Schlafzimmer') }}
+    for: "00:10:00"
+  - trigger: time
+    at: "21:30:00"
+conditions:
+  - condition: time
+    after: "21:30:00"
+    before: "03:00:00"
+  - condition: state
+    entity_id:
+      - sensor.alex_handy_area
+      - sensor.sam_handy_area
+    state: Schlafzimmer
+    for: "00:10:00"
+actions:
+  - action: light.turn_off
+    target:
+      area_id:
+        - wohnzimmer
+        - kuche
+  - action: lock.lock
+    target:
+      entity_id: lock.haustur</code></pre>
+<figure>
+  <img src="/demo/media/recipe-goodnight-trace-de.jpg" alt="Die Trace-Ansicht von Home Assistant für das Gute-Nacht-Rezept: Auslöser, Bedingungen, das Licht geht aus, die Tür wird abgeschlossen." width="1650" height="960" loading="lazy">
+  <figcaption>Rezept 7 beim Auslösen auf unserem Testsystem mit Home Assistant 2026.11.0, in der Trace-Ansicht: Auslöser, Bedingungen, Licht aus, Tür abgeschlossen. Die Wartezeit steht auf 20 Sekunden, weil wir die Wartezeiten für den Test verkürzt haben. Die Uhrzeit ist die unseres Browsers; der Testserver lief auf Tokioter Zeit, dort war es Nacht.</figcaption>
+</figure>
+
+<h3>8. Sag mir, wo der Hund hin ist</h3>
+<p>Derselbe Auslöser funktioniert für einen Tracker am Halsband oder an einer Tasche. <a href="/guides/bluetooth-tags/de/">Welcher Bluetooth-Tracker funktioniert?</a> sagt, was du kaufen solltest, und hat eine Automation für den Fall, dass du ohne Schlüssel gehst.</p>
+<pre><code>alias: Der Hund ist in die Garage gegangen
+triggers:
+  - trigger: state
+    entity_id: sensor.hund_area
+    to: Garage
+    for: "00:00:30"
+actions:
+  - action: notify.mobile_app_alex_handy
+    data:
+      message: Der Hund ist in der Garage.</code></pre>
+
+<h2>Weniger YAML? Einiges davon macht PadSpan selbst</h2>
+<ul>
+  <li><b>Follow → Movement Alerts</b> gibt dir per Handy oder E-Mail Bescheid, wenn ein Tracker den Raum wechselt, nach Hause kommt oder das Haus verlässt.</li>
+  <li><b>Settings → Tracking → Home Assistant and integrations → Automations</b> hat einfache Regeln: Wenn ein benanntes Gerät ankommt oder geht, wird ein Licht, ein Schalter oder ein Skript ein- oder ausgeschaltet oder eine Szene aktiviert.</li>
+  <li><b>Ereignisse für eigene Automationen:</b> <code>padspan_device_arrived</code> (mit <code>label</code> und <code>room</code>) und <code>padspan_device_departed</code> (mit <code>label</code>), für benannte Geräte.</li>
+  <li><b>Assist</b> beantwortet auf Englisch „which room is Alex in“, sobald du die Sätze aus <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.224/docs/GETTING_STARTED.md#ask-assist-where-someone-is">Getting Started</a> (englisch) einträgst.</li>
+</ul>
+<p>Drei weitere Funktionen sind aus, bis du sie einschaltest:</p>
+<ul>
+  <li><b>Sub-zones</b> unterteilen einen Raum: das Sofa, das Bett, der Schreibtisch. Eine namens Sofa bekommt <code>binary_sensor.padspan_sofa_occupied</code> und <code>sensor.padspan_sofa_who</code>. Sie arbeiten mit der Position eines Geräts auf dem Plan; dafür brauchst du einen vermessenen Grundriss und entweder mindestens drei platzierte Scanner, die es hören, oder eine Kalibrierung und mindestens zwei. Mach eine Sub-zone größer als deine typische Positionsabweichung. Sobald du ein Kalibrierungsmodell berechnet hast, zeigt dir Calibration sie als <b>Est. Accuracy</b>. Dieser Wert fällt besser aus als im Alltag, plan also etwas Reserve ein. Setz den Haken unter <b>Manage → HA Entities → Entity Publishing Controls</b> und zeichne sie dann unter <b>Mapping → Edit → Sub-zones</b>.</li>
+  <li><b>Eine Personenzählung:</b> <code>sensor.padspan_occupancy_occupancy</code> schätzt, wie viele Menschen im Gebäude sind, und zählt dabei nie Geräte. Das Attribut <code>rooms</code> enthält die Hinweise je Raum. Du schaltest sie auf derselben Seite ein, danach muss die Integration neu geladen werden.</li>
+  <li><b>Guest tags:</b> <code>binary_sensor.padspan_guest_home</code> ist an, solange im Haus ein Tracker gehört wird, den du einem Gast geliehen hast, der zugestimmt hat, ihn zu tragen. Einschalten kannst du sie unter <b>Settings → Tracking → Phones and guest tags</b>.</li>
+</ul>
+
+<h2>Kostenlos, und was Pro zusätzlich bietet</h2>
+<p>Alles auf dieser Seite ist kostenlos: die Entitäten, die Ereignisse, Movement Alerts, die einfachen Regeln, Sub-zones, die Personenzählung und Guest tags. PadSpan Pro bietet zusätzlich: jedes Licht und Gerät genau an seinem Platz auf dem Atlas, der Touchscreen-Karte des ganzen Hauses; Live Aboard, dein Haus in 3D, wie bei den Sims (noch experimentell), mit Furnish. Du kannst Pro 90 Tage lang komplett kostenlos testen, ohne Kreditkarte. Für die Testphase brauchst du eine E-Mail-Adresse; der freiwillige Nutzungsbericht muss eingeschaltet sein und bleibt es bis zum Ende der Testphase.</p>
+
+<p style="font-size:13px;color:var(--mut)">So haben wir getestet: Am 5. November 2026 haben wir diese Rezepte unverändert in ein frisch installiertes Home Assistant 2026.11.0 geladen und sie dann mit einem Dreißigstel ihrer Wartezeiten laufen lassen. Die Sensoren und Geräte-Tracker haben wir stellvertretend für PadSpan, einen Router und die Companion-App von Hand gesetzt. Lichter, Lautsprecher, Schlösser und Heizung kamen unter ihren eigenen Namen aus der Demo-Integration von Home Assistant. Rezept 5 rief <code>tts.demo_say</code> der Demo auf statt <code>tts.speak</code>, und in Rezept 8 stand eine Benachrichtigungsgruppe für das Handy. Damit es für die Rezepte 4 und 7 Nacht war, lief der Testserver auf Tokioter Zeit, und für den Zeit-Auslöser von Rezept 7 haben wir <code>at</code> auf wenige Sekunden später gesetzt. Das zeigt, dass die Automationen funktionieren, nicht, wie schnell oder wie gut deine Scanner ein Handy einem Raum zuordnen oder wie sich deine Lautsprecher in einer Gruppe verhalten. Quellen: der <a href="https://github.com/home-assistant/core/blob/2026.11.0/homeassistant/components/person/entity.py">Personen-Code</a> von Home Assistant 2026.11.0, Bermudas <a href="https://github.com/agittins/bermuda/blob/main/custom_components/bermuda/sensor.py">Area-Sensor</a> und PadSpans <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.224/custom_components/padspan_ha/sensor.py">Sensoren</a> in 0.38.224, der aktuellen stabilen Version. Steht hier etwas Veraltetes? <a href="https://github.com/gbroeckling/padspanHA/issues">Öffne ein Issue</a>, dann wird es korrigiert.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/?hl=de">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan installieren</a>
+</div>
+<p style="font-size:13px;color:var(--mut)">Der Knopf zum Installieren öffnet PadSpan unter <b>Einstellungen → Marketplace</b>, vor Home Assistant 2026.11 in HACS.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · Bermuda ist ein unabhängiges Open-Source-Projekt seiner Autoren · Die Sims ist eine Marke von Electronic Arts. PadSpan ist mit ihnen nicht verbunden.</p>
+</div></footer>
+</body>
+</html>
