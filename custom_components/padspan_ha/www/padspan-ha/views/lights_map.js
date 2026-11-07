@@ -3662,7 +3662,14 @@ export function buildLightsMapCard(hostIn){
   };
   // Under the flat map; hidden there too where this screen's ⋯ list hid it
   // in Live Aboard (its pref, show_<screen>).
-  const sceneRow = SCENES && host.scenes ? SCENES.createSceneRow({ doc: document, place: "atlas" }) : null;
+  // On the sidebar (not a wall, whose card is the screen) it waits at the
+  // screen's foot while the map runs on below it, clear of the rail and ⛶.
+  const sceneRow = SCENES && host.scenes ? SCENES.createSceneRow({ doc: document, place: "atlas",
+    pinRect: DISPLAY && !WALL ? () => {
+      if (mapCard.classList.contains("lv-alone")) return null;
+      const r = mapCard.getBoundingClientRect(), vh = window.innerHeight || r.bottom;
+      return r.top > vh - 160 ? null : { left: r.left + (view.railHidden ? 8 : 52), right: r.right - 64, bottom: Math.min(vh, r.bottom) };
+    } : null }) : null;
   const sceneFlatHidden = () => {
     if (!h3) return false;
     try { const o = JSON.parse(_laPrefs.get(`show_${h3.slot}`) || "{}"); return !!(o && o.scenes === false); } catch (_) { return false; }

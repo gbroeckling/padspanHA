@@ -167,12 +167,16 @@ export function colourOfAttrs(a){
 
 /**
  * The mini map: a floor's rooms and its lights fitted into w × h (px), plan
- * view as the floor plans are drawn (x right, y down), the same scale both
- * ways. rooms: [[[x, y], …], …] (metres); lights: [{x, y, …}] (metres, the
+ * view as the floor plans are drawn (x right, y down; turned a quarter when
+ * turn, for a house taller than it is wide), the same scale both ways. rooms: [[[x, y], …], …] (metres); lights: [{x, y, …}] (metres, the
  * rest kept). → {w, h, k (px a metre), rooms: [d], lights: [{…, x, y} in px]}.
  * With no rooms the lights alone set the frame.
  */
-export function miniMap(rooms, lights, { w = 128, h = 76, pad = 6 } = {}){
+export function miniMap(rooms, lights, { w = 140, h = 80, pad = 6, turn = false } = {}){
+  // Turned a quarter (turn): x ← y, y ← −x, the house's long side along the tile.
+  const T = (p) => (turn ? [Number(p[1]), -Number(p[0])] : [Number(p[0]), Number(p[1])]);
+  rooms = (rooms || []).map(P => (Array.isArray(P) ? P.map(T) : P));
+  lights = (lights || []).map(l => { const [x, y] = T([l.x, l.y]); return { ...l, x, y }; });
   const polys = (rooms || []).filter(P => Array.isArray(P) && P.length >= 3);
   const pts = polys.length ? polys.flat() : (lights || []).map(l => [l.x, l.y]);
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -207,8 +211,8 @@ export function miniMapSvg(m){
   if (rooms) {
     // The outline: every room stroked wide underneath, the rooms over it, so
     // only the floor's outside edge (and a hall between rooms) shows it.
-    s += `<path d="${rooms}" fill="#5f8f78" stroke="#5f8f78" stroke-width="4" stroke-linejoin="round"/>`;
-    s += `<path d="${rooms}" fill="#16271d" stroke="#2f4d3d" stroke-width="1" stroke-linejoin="round"/>`;
+    s += `<path d="${rooms}" fill="#8fc5a8" stroke="#8fc5a8" stroke-width="3.5" stroke-linejoin="round"/>`;
+    s += `<path d="${rooms}" fill="#22392c" stroke="#4d7a63" stroke-width="1" stroke-linejoin="round"/>`;
   }
   for (const l of m.lights) if (!l.mine) s += `<circle cx="${l.x}" cy="${l.y}" r="1.7" fill="#8aa396" fill-opacity=".5"/>`;
   for (const l of m.lights) {
@@ -251,7 +255,13 @@ export function sceneTiles(h){
     lamps.get(f).push({ eid, x: Number(p.x_m), y: Number(p.y_m) });
   }
   const many = new Set([...rooms.keys()].filter(f => f)).size > 1;
-  const size = (h && h.size) || {};
+  // One way round for the whole house, so every floor reads alike: its long side along the tile.
+  let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  for (const list of rooms.values()) for (const P of list) for (const p of P) {
+    const x = Number(p[0]), y = Number(p[1]);
+    if (Number.isFinite(x) && Number.isFinite(y)) { bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y); }
+  }
+  const size = { ...((h && h.size) || {}), turn: Number.isFinite(bx0) && (by1 - by0) > (bx1 - bx0) * 1.15 };
   const out = [];
   for (const s of list) {
     const fl = floorsOfLights(s.lights, floorOf, floors);
@@ -291,15 +301,15 @@ const CSS = `
 .psc-scroll{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;
   scrollbar-color:rgba(120,190,155,.4) transparent;touch-action:pan-x;scroll-snap-type:x proximity}
 .psc-track{display:flex;gap:8px;width:max-content;margin:0 auto;padding:2px}
-.psc-tile{position:relative;flex:none;width:144px;box-sizing:border-box;border-radius:12px;background:rgba(6,14,9,.9);
+.psc-tile{position:relative;flex:none;width:156px;box-sizing:border-box;border-radius:12px;background:rgba(6,14,9,.9);
   border:2px solid rgba(120,190,155,.22);box-shadow:0 4px 14px rgba(0,0,0,.35);scroll-snap-align:start}
 .psc-tile[data-state="on"]{border-color:#52b788;background:rgba(10,32,20,.94)}
 .psc-tile[data-state="mixed"]{border-color:rgba(251,191,36,.75)}
-.psc-tile button{all:unset;box-sizing:border-box;cursor:pointer}
+:where(.psc-tile) button{all:unset;box-sizing:border-box;cursor:pointer}
 .psc-go{display:flex;flex-direction:column;width:100%;padding:6px 6px 5px;border-radius:10px}
 .psc-go:hover{background:rgba(82,183,136,.10)}
 .psc-go:focus-visible,.psc-edit:focus-visible,.psc-new:focus-visible{outline:2px solid #52b788;outline-offset:1px}
-.psc-map{display:block;height:76px;border-radius:7px;background:#0a1510;overflow:hidden}
+.psc-map{display:block;height:80px;border-radius:7px;background:#0a1510;overflow:hidden}
 .psc-map svg{display:block;width:100%;height:100%}
 .psc-line{display:flex;align-items:center;gap:6px;margin-top:5px;min-width:0}
 .psc-dot{flex:none;width:10px;height:10px;border-radius:50%;box-sizing:border-box;border:2px solid #64748b}
@@ -309,7 +319,7 @@ const CSS = `
 .psc-word{flex:none;font-size:11px;font-weight:600;color:#94a3b8}
 .psc-tile[data-state="on"] .psc-word{color:#a7f3d0}
 .psc-tile[data-state="mixed"] .psc-word{color:#fde68a}
-.psc-floor{position:absolute;left:11px;top:63px;max-width:110px;padding:1px 6px;border-radius:6px;background:rgba(6,14,9,.82);
+.psc-floor{position:absolute;left:11px;top:67px;max-width:122px;padding:1px 6px;border-radius:6px;background:rgba(6,14,9,.82);
   font-size:10.5px;font-weight:600;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .psc-mark{position:absolute;left:11px;top:11px;padding:1px 6px;border-radius:6px;background:#7c3aed;color:#f5f3ff;
   font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;pointer-events:none}
@@ -331,12 +341,19 @@ button.psc-new:hover{background:rgba(45,106,79,.5);border-color:#52b788}
 .psc-note button{all:unset;box-sizing:border-box;cursor:pointer;flex:none;padding:5px 10px;border-radius:8px;font-weight:700;white-space:nowrap}
 .psc-note .psc-ok{color:#071008;background:#fbbf24}
 .psc-note .psc-x{color:#94a3b8}
-/* Under the flat Atlas: beside the sidebar's rail, as the map is. */
+/* Under the flat Atlas: beside the sidebar's rail, as the map is. A map
+   taller than the screen: the row waits at the bottom of the screen (pinned,
+   clear of ⛶ in the corner) until its own place scrolls into view, and a
+   touch beside its tiles is the map's. The map alone: the row steps aside. */
 .lv-mapcard > .psc-atlas{margin:8px 0 6px}
-.lv-mapcard.lv-display > .psc-atlas{margin:8px 0 8px 44px;padding:0 8px}
-.lv-mapcard.lv-display > .lv-rail.hidden ~ .psc-atlas{margin-left:0}
-.lv-mapcard.lv-display.lv-wall > .psc-atlas{flex:none;zoom:var(--wall-ctl,var(--wall-ui,1));margin:6px 0 8px 44px}
-.lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .psc-atlas{margin-left:0}
+.lv-mapcard.lv-display > .psc-atlas{margin:4px 64px 8px 52px}
+.lv-mapcard.lv-display > .lv-rail.hidden ~ .psc-atlas{margin-left:8px}
+.lv-mapcard.lv-display.lv-wall > .psc-atlas{flex:none;zoom:var(--wall-ctl,var(--wall-ui,1));margin:6px 8px 8px 52px}
+.lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .psc-atlas{margin-left:8px}
+.lv-mapcard.lv-alone > .psc-atlas{display:none}
+.psc-in.psc-pinned{position:fixed;z-index:6;pointer-events:none}
+.psc-in.psc-pinned .psc-scroll{pointer-events:auto;width:max-content;max-width:100%;margin:0 auto}
+.psc-in.psc-pinned .psc-note{pointer-events:auto}
 /* In Live Aboard: its own line along the top of the bottom bar, over the controls, never on them. */
 .la3d-bar > .psc-aboard{flex:1 0 100%;order:-1;min-width:0;pointer-events:none}
 .la3d-bar > .psc-aboard .psc-track > *,.la3d-bar > .psc-aboard .psc-note{pointer-events:auto}
@@ -349,7 +366,8 @@ button.psc-new:hover{background:rgba(45,106,79,.5);border-color:#52b788}
 
 /**
  * The row, in either place. o = {doc, place ("atlas" | "aboard"), guard(fn)
- * (the view's own, or none)}. update(m) draws it from m = {tiles, admin,
+ * (the view's own, or none), pinRect() (where it may wait at the screen's
+ * foot while its place is below the screen, or none)}. update(m) draws it from m = {tiles, admin,
  * kiosk, editPresets (a preset's ✎ is offered), act(tile), edit(tile, row)
  * (row: this row, for its note), add(from), count(name, once)}: each tile is built again only when what it
  * shows changed. Hidden (no tiles, or hide(true)): nothing is drawn.
@@ -365,14 +383,45 @@ export function createSceneRow(o){
   const css = d("style");
   css.textContent = CSS;
   el.appendChild(css);
+  const inner = d("div", "psc-in");
   const noteBox = d("div", "psc-note");
   noteBox.hidden = true;
   noteBox.style.display = "none";
-  el.appendChild(noteBox);
+  inner.appendChild(noteBox);
   const scroll = d("div", "psc-scroll");
   const track = d("div", "psc-track");
   scroll.appendChild(track);
-  el.appendChild(scroll);
+  inner.appendChild(scroll);
+  el.appendChild(inner);
+  // Pinned (o.pinRect: where on screen it may wait, {left, right, bottom}):
+  // while its own place is below the screen, the tiles wait at the screen's
+  // foot; its place keeps their height, so nothing under it moves.
+  let pinned = false, io = null;
+  const unpin = () => {
+    if (!pinned) return;
+    pinned = false;
+    inner.classList.remove("psc-pinned");
+    for (const k of ["left", "width", "bottom"]) inner.style[k] = "";
+    el.style.minHeight = "";
+  };
+  const pinAt = () => {
+    const r = typeof o.pinRect === "function" ? o.pinRect() : null;
+    if (!r) { unpin(); return; }
+    if (!pinned) { el.style.minHeight = `${inner.offsetHeight}px`; inner.classList.add("psc-pinned"); pinned = true; }
+    const vh = (doc.defaultView && doc.defaultView.innerHeight) || r.bottom;
+    Object.assign(inner.style, { left: `${Math.round(r.left)}px`, width: `${Math.max(0, Math.round(r.right - r.left))}px`,
+                                 bottom: `${Math.max(0, Math.round(vh - r.bottom + 8))}px` });
+  };
+  if (typeof o.pinRect === "function" && typeof IntersectionObserver !== "undefined") {
+    io = new IntersectionObserver(guard((entries) => {
+      if (!el.isConnected) { unpin(); io.disconnect(); if (win && win.removeEventListener) win.removeEventListener("resize", onResize); return; }
+      const e = entries[entries.length - 1], vb = e.rootBounds ? e.rootBounds.bottom : ((doc.defaultView && doc.defaultView.innerHeight) || 0);
+      if (!e.isIntersecting && e.boundingClientRect.top >= vb && !el.hidden) pinAt(); else unpin();
+    }));
+    io.observe(el);
+  }
+  const win = doc.defaultView || null, onResize = guard(() => { if (pinned) pinAt(); });
+  if (io && win && win.addEventListener) win.addEventListener("resize", onResize);
   el.hidden = true;
   const stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
   // In Live Aboard a press here is the row's, never the camera's.
@@ -521,7 +570,10 @@ export function createSceneRow(o){
                edits: [...track.querySelectorAll(".psc-edit")].length, add: newNode ? newNode.getAttribute("data-scene-new") : null,
                note: noteBox.hidden ? null : noteBox.textContent };
     },
-    dispose(){ if (noteT) clearTimeout(noteT); try { el.remove(); } catch (_) { /* gone with its place */ } },
+    dispose(){
+      if (noteT) clearTimeout(noteT);
+      if (io) { io.disconnect(); if (win && win.removeEventListener) win.removeEventListener("resize", onResize); }
+      try { el.remove(); } catch (_) { /* gone with its place */ } },
   };
   return api;
 }
