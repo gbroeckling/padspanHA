@@ -10451,6 +10451,22 @@ function _lightsTab(ctx, maps, active) {
         ctx.actions.renderRooms();
         return true;
       },
+      // The ⋯ list's links and "Set it up" (live_aboard_show.js GO_TO): that
+      // Settings card (scrolled to) or Mapping tab. Not in Basic (expert screens).
+      goTo: FOCUS.expertLinks(ctx.state) ? (t) => {
+        if (t.view === "settings") {
+          ctx.state._settingsPart = t.part || null;
+          FOCUS.openFocus(ctx, { view: "settings", tab: t.tab, part: t.part || "", title: "" });
+          return;
+        }
+        // Already here (Mapping → Atlas): Showcase and the devices are in the bar and on the flat map.
+        if (t.tab === "lights" && ctx.state.mapsTab === "lights") {
+          ctx.toast(t.where === "showcase" ? "Showcase and its theme are in the bar above the map (✦ Showcase)."
+            : "Devices are placed on the flat map: switch Map / 3D to Map.");
+          return;
+        }
+        if (ctx.actions.setMapsTab) ctx.actions.setMapsTab(t.tab); else { ctx.state.mapsTab = t.tab; ctx.actions.renderRooms(); }
+      } : null,
       // The 3D file (doors and windows drawn in 3D, heights): read when the
       // 3D view shows, never on the poll.
       load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),

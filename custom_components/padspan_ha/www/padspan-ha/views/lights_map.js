@@ -3698,6 +3698,9 @@ export function buildLightsMapCard(hostIn){
           // read there (who carries what, the return to the home view), and
           // Show people / Show tags & scanners from inside the view (admins).
           settings3d: h3.settings, admin: h3.admin === true, saveSetting: typeof h3.saveSetting === "function" ? h3.saveSetting : null,
+          // The ⋯ list's links and "Set it up" (live_aboard_show.js LINK_WORDS):
+          // the host's way to that part of Settings or Mapping, or none.
+          goTo: typeof h3.goTo === "function" ? h3.goTo : null,
           onZoom: (pct) => { if (la3dZoomLbl && la3dOn()) la3dZoomLbl.textContent = `${pct}%`; },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }

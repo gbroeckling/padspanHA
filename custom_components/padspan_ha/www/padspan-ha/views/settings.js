@@ -159,6 +159,13 @@ export function render(ctx){
   root.appendChild(tabBar);
 
   root.appendChild(_tabBody(activeTab));
+  // A link that named a card (?part=, Live Aboard's ⋯ list): scrolled to once, on this draw.
+  const wantPart = ctx.state._settingsPart;
+  if (wantPart) {
+    ctx.state._settingsPart = null;
+    const n = FOCUS.pickPart(root, wantPart);
+    if (n) setTimeout(() => { try { n.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (_) { /* gone */ } }, 80);
+  }
   return root;
 }
 

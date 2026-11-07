@@ -495,6 +495,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_marks",                            # Live Aboard: the Atlas's leak sensors, locks, codes and class chips
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
     "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
+    "live_aboard_show",                             # Live Aboard's ⋯ list: what this screen shows
     "live_aboard_panel",                            # Live Aboard on the wall panel: its home view, Follow, the People chip
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
@@ -628,12 +629,28 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
     | {f"stairs_outcome:{k}" for k in ("all_ok", "some_landing", "some_nofloor")}
     | {f"stairs_shape:{k}" for k in STAIR_SHAPES} | {f"stairs_style:{k}" for k in STAIR_STYLES}
 )
+# Live Aboard's ⋯ list, "Show on this screen" (2026-11-07, views/live_aboard_show.js
+# SHOW_EVENTS, held equal by tests/test_live_aboard_show.py), counted each time:
+# the list opened; each line hidden or shown again (by its key); Back to house
+# defaults; a "not set up" line seen (once per page load) and followed; someone
+# sent to where people or tags are switched on for the house. Counts only.
+HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
+    "lights", "glow", "strips", "fans", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
+    "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
+    "furniture", "devices", "stairs", "room_names", "room_outlines", "floor_outlines", "roof",
+    "rain", "theme", "forest",
+)
+HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
+    {"house3d_show:opened", "house3d_show:reset", "house3d_show:permission:people", "house3d_show:permission:tags"}
+    | {f"house3d_show:{a}:{k}" for a in ("hide", "show", "setup_seen", "setup_go") for k in HOUSE3D_SHOW_ITEMS}
+)
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"}
     | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
     | {f"house3d_wall_draw:{k}" for k in ("high", "high_still", "high_capped", "low")}
     | {f"house3d_fallback_size:{b}" for b in HOUSE_SIZE_BANDS}
     | STAIR_USE_EVENTS
+    | HOUSE3D_SHOW_EVENTS
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or

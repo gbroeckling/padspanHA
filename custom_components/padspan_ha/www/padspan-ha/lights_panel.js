@@ -1153,6 +1153,14 @@ class PadSpanLightsApp extends HTMLElement {
           this._render();
           return true;
         },
+        // The ⋯ list's links and "Set it up" (live_aboard_show.js GO_TO):
+        // the PadSpan panel on that tab, its card scrolled to (panel.js reads
+        // ?view=, ?tab= and ?part=). Not in Basic, where those are expert screens.
+        goTo: this._basicMode() ? null : (t)=>{
+          const q = new URLSearchParams({ view: String(t.view), tab: String(t.tab) });
+          if (t.part) q.set("part", String(t.part));
+          try { window.location.assign(`/padspan-ha?${q.toString()}`); } catch (_) { /* stays here */ }
+        },
         // Furniture that is a device (P5): renames followed through the
         // registry already read above, and the emergency lights while a
         // test runs (the status this panel already keeps).

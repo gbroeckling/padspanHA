@@ -339,7 +339,7 @@ export function scannerCard(addr, model, z, radios){
 /** What is drawn now, Live Aboard's and the flat Atlas's alike (the sidebar's
  *  Show people and Show tags & scanners): d = {model, looks (the 3D file's
  *  devices), figures, snapshot, states, people, tags, carries (settings.
- *  atlas_3d_carries)}. Each {key, kind: "scanner" | "beacon" | "person",
+ *  atlas_3d_carries), scanners (Live Aboard's ⋯ list)}. Each {key, kind: "scanner" | "beacon" | "person",
  *  floor_id, x, y, z, ...}; a pinned tag pinned: true, someone known only by
  *  their room dim: true (and person: who they are, for their card). */
 export function wantedOf(d){
@@ -348,9 +348,11 @@ export function wantedOf(d){
   const lookOf = (k) => (looks[k] && looks[k].recipe && typeof looks[k].recipe === "object" ? looks[k].recipe : null);
   const radios = (d.snapshot && d.snapshot.ble && d.snapshot.ble.radios) || null;
   const sp = d.model && d.model.scanner_positions_m && typeof d.model.scanner_positions_m === "object" ? d.model.scanner_positions_m : {};
+  // d.scanners (Live Aboard's ⋯ list, this screen): true every placed scanner,
+  // false none; unset, those with a look, and every one with tags on.
   for (const [addr, s] of Object.entries(sp)) {
     const r = lookOf(addr), x = fin(s && s.x_m), y = fin(s && s.y_m);
-    if ((!r && !d.tags) || x === null || y === null) continue;
+    if (d.scanners === false || (!r && !d.tags && d.scanners !== true) || x === null || y === null) continue;
     const z = fin(s.z_m) ?? SCANNER_Z;
     out.push({ key: "scanner:" + addr, kind: "scanner", recipe: r, floor_id: s.floor_id, x, y, z, centre: true,
                card: scannerCard(addr, d.model, z, radios) });

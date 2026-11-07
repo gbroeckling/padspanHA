@@ -99,6 +99,10 @@ const RAISED = await import(`./live_aboard_raised.js${new URL(import.meta.url).s
 // the People chip, the two switches in Views ▾ (optional: missing, as it was).
 const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_panel failed to load", err); return null; });
+// The ⋯ list, "Show on this screen" (live_aboard_show.js): what this screen
+// draws, item by item (optional: missing, everything shows as it was).
+const SHOW = await import(`./live_aboard_show.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_show failed to load", err); return null; });
 // The director (live_aboard_director.js): on the sidebar, the camera flies to
 // a doorbell, door or alarm that went off (optional: missing, nothing does).
 const DIRECTOR = await import(`./live_aboard_director.js${new URL(import.meta.url).search}`)
@@ -255,7 +259,7 @@ const CSS = `
   color:#f59e0b;background:rgba(245,158,11,.12)}
 @keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
-.la3d-hud{position:absolute;left:72px;top:10px;z-index:3;max-width:calc(100% - 84px)}
+.la3d-hud{position:absolute;left:122px;top:10px;z-index:3;max-width:calc(100% - 134px)}
 .la3d-hud .lv-hoverhud{position:static}
 .la3d-side{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
 .la3d-side:last-child{justify-content:flex-end;margin-left:auto}
@@ -585,6 +589,11 @@ function createSlot(slotKey){
   let panel = null;
   // live_aboard_director.js: the flight to what went off, its card, and back.
   let director = null;
+  // live_aboard_show.js: the ⋯ list (showMenu); what each line is on this
+  // screen (showOn, resolved on every update: this screen's ticks over the
+  // house's own, showHouse); houseP: the card's data before the list hid
+  // anything (what is ready is worked out from it).
+  let showMenu = null, showOn = null, showHouse = {}, houseP = null;
   // live_aboard_storey.js: each storey's floor and roof (storeyL); roofWant:
   // the roof is showing or on its way (the walls under it stand).
   let storeyL = null, roofWant = false;
@@ -657,6 +666,8 @@ function createSlot(slotKey){
     panel = null;
     try { if (director) director.dispose(); } catch (_) { /* gone with the view */ }
     director = null;
+    try { if (showMenu) showMenu.dispose(); } catch (_) { /* gone with the view */ }
+    showMenu = null; showOn = null; houseP = null;
     try { if (fpsUi) fpsUi.dispose(); } catch (_) { /* gone with the view */ }
     fpsUi = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
@@ -767,6 +778,7 @@ function createSlot(slotKey){
       ...ANGLES.map(([t, , n]) => ({ text: t, act: () => preset(n, true) })),
       ...(floorSteps ? [null, ...floorItems()] : []), null, ...viewItems()])]]);
     abtn.classList.add("la3d-n");
+    abtn.setAttribute("data-la3d-view", "");
     const full = seg(null, [["", "", () => toggleFull()]]);
     full.setAttribute("data-la3d-full", "");
     fullBtns = [...full.querySelectorAll("button")];
@@ -842,6 +854,8 @@ function createSlot(slotKey){
     root.appendChild(compass);
     compassEl = compass;
     rose = compass.querySelector(".la3d-rose");
+    // ⋯ beside it: what this screen shows (live_aboard_show.js).
+    if (SHOW) showMenu = makeShowMenu();
     // Shown on release of a spin: nothing is saved until Save.
     pill = d("span", "lv-zoomseg la3d-north");
     pill.setAttribute("role", "group");
@@ -1149,7 +1163,7 @@ function createSlot(slotKey){
     const o = P.open, e = o && o.leaf;
     if (!o || !o.wet || !o.wetOn || !e) return;
     const z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1, hgt = z1 - e.z0;
-    o.wet.matrix.copy(hgt < 0.005 ? ZERO : compose(P.mx, F.fl.elev + e.z0 - 0.02, P.my, P.yaw, P.len + 0.08, hgt + 0.05, e.thick + 0.08));
+    o.wet.matrix.copy(hgt < 0.005 || goneHere(P, e) ? ZERO : compose(P.mx, F.fl.elev + e.z0 - 0.02, P.my, P.yaw, P.len + 0.08, hgt + 0.05, e.thick + 0.08));
     o.wet.matrixWorldNeedsUpdate = true;
   }
   /** Fly to a wet window: its floor shown, framed with a little of the room. */
@@ -1184,6 +1198,8 @@ function createSlot(slotKey){
             { text: "Save this view", act: () => saveView() },
             ...(trailsOffered() ? [{ text: `Trails, last 30 min: ${prefGet(PREF_TRAILS) === "1" ? "On" : "Off"}`, on: prefGet(PREF_TRAILS) === "1",
                                      title: "Where each person and tag went in the last half hour (this screen only)", act: () => toggleTrails() }] : []),
+            ...(showMenu ? [{ text: "Show on this screen ⋯", title: "Pick what this screen shows: lights, sensors, people, rain… (the ⋯ beside the compass)",
+                              act: () => showMenu.open() }] : []),
             ...(panel ? panel.menuItems() : [])];
   }
   // The frame-rate readout: off unless this browser turned it on (Settings
@@ -1225,6 +1241,7 @@ function createSlot(slotKey){
 
   // ── a menu over the bar (Views, and the narrow screen's Walls and View) ───
   function closeMenu(){
+    if (showMenu) showMenu.close();
     if (menuOff) menuOff();
     menuOff = null;
     if (menuEl && menuEl.parentNode) menuEl.parentNode.removeChild(menuEl);
@@ -1843,6 +1860,7 @@ function createSlot(slotKey){
       shellRes.push(g, m);
       F.plate = new THREE.LineSegments(g, m);
       F.plate.userData.n = b.n;
+      F.plate.visible = shownHere("floor_outlines");
       F.group.add(F.plate);
     }
   }
@@ -1852,7 +1870,7 @@ function createSlot(slotKey){
     const k = nightK;
     for (const F of floorsUi) {
       if (F.lift) { F.lift.material.opacity = NIGHT_FLOOR * k; F.lift.visible = k > 0.01; }
-      if (F.edges) { F.edges.material.opacity = atlas ? Math.max(atlas.lineOp, NIGHT_EDGE * k) : NIGHT_EDGE * k; F.edges.visible = !!atlas || k > 0.01; }
+      if (F.edges) { F.edges.material.opacity = atlas ? Math.max(atlas.lineOp, NIGHT_EDGE * k) : NIGHT_EDGE * k; F.edges.visible = (!!atlas || k > 0.01) && shownHere("room_outlines"); }
     }
     topGlow.value = NIGHT_TOP * k;
     if (storeyL) storeyL.night(k);                           // the roof keeps a little of its colour
@@ -2118,7 +2136,7 @@ function createSlot(slotKey){
       let z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
       if (F.clip !== undefined && F.clip !== null && z1 > F.clip + 0.3) z1 = Math.max(e.z0, F.clip);   // applyTop: under the hidden floors
       const hgt = z1 - e.z0;
-      e.mesh.setMatrixAt(e.i, hgt < 0.005 ? ZERO : P.open && e === P.open.leaf ? (P.open.slots ? ZERO : leafMatrix(F, P, e.z0, hgt, e.thick))
+      e.mesh.setMatrixAt(e.i, hgt < 0.005 || goneHere(P, e) ? ZERO : P.open && e === P.open.leaf ? (P.open.slots ? ZERO : leafMatrix(F, P, e.z0, hgt, e.thick))
         : compose(P.mx, F.fl.elev + e.z0, P.my, P.yaw, P.len, hgt, e.thick));
       e.mesh.instanceMatrix.needsUpdate = true;
     }
@@ -2241,8 +2259,8 @@ function createSlot(slotKey){
   function placePanels(F, P, cut){
     const o = P.open, im = F.panels;
     if (!im || !o.slots) return;
-    const a = o.at * o.at * (3 - 2 * o.at), list = panelsOf(F, P, a);
-    for (let i = 0; i < o.slots[1]; i++) im.setMatrixAt(o.slots[0] + i, list[i] ? panelMatrix(F, P, list[i], cut) : ZERO);
+    const a = o.at * o.at * (3 - 2 * o.at), list = panelsOf(F, P, a), gone = !!o.leaf && goneHere(P, o.leaf);
+    for (let i = 0; i < o.slots[1]; i++) im.setMatrixAt(o.slots[0] + i, list[i] && !gone ? panelMatrix(F, P, list[i], cut) : ZERO);
     im.instanceMatrix.needsUpdate = true;
   }
   // A door linked to a cover follows it (live_aboard_storey.js coverAt): its
@@ -2293,7 +2311,7 @@ function createSlot(slotKey){
   // set on the frame (animateLive); nothing while locked.
   function placeFlash(F, P, cut){
     const o = P.open, e = o.leaf || o.span, m = o.flash;
-    if (o.state !== "unlocked" && o.lockState !== "unlocked") m.matrix.copy(ZERO);
+    if ((o.state !== "unlocked" && o.lockState !== "unlocked") || !shownHere("locks")) m.matrix.copy(ZERO);
     else {
       const z1 = cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
       m.matrix.copy(compose(P.mx, F.fl.elev + e.z0 - 0.01, P.my, P.yaw, P.len + 0.04, z1 - e.z0 + 0.03, e.thick + 0.05));
@@ -2489,7 +2507,8 @@ function createSlot(slotKey){
   const OFF_LEAN = 0.6, _c2 = new THREE.Color();
   function offColour(c){ return atlas ? c.lerp(_c2.set(atlas.offFill), OFF_LEAN) : c; }
   function paintLight(L){
-    const F = L.F, k = L.look, on = k.on, hidden = !!(L.wall && L.wall.cut) || !!L.swap, glow = theme3d ? theme3d.glow : 1;
+    // The ⋯ list's Light glow off: the bulbs only, no pool, glow or wash.
+    const F = L.F, k = L.look, on = k.on, hidden = !!(L.wall && L.wall.cut) || !!L.swap, glow = (theme3d ? theme3d.glow : 1) * (shownHere("glow") ? 1 : 0);
     const c = new THREE.Color().setRGB(k.rgb[0], k.rgb[1], k.rgb[2], THREE.SRGBColorSpace);
     L.color = c; L.f = k.f;
     const core = on ? c.clone().lerp(_white, 0.35).multiplyScalar(0.55 + 0.45 * k.f) : null;
@@ -2567,7 +2586,7 @@ function createSlot(slotKey){
   function assignLamps(){
     lampsDirty = false;
     lampTarget.copy(cam.target);
-    const n = profileOf().lamps;
+    const n = shownHere("glow") ? profileOf().lamps : 0;    // Light glow off (the ⋯ list): no lamp lights the rooms
     // A fixture with a piece of its own (P5) lights from the piece's bulb.
     const cands = lights.filter(L => L.look && L.look.on && L.kf > 0 && L.F.group.visible && !L.swap)
       .map(L => ({ pos: L.lamp, color: L.color, k: L.f * L.kf * (dimOf(L.eid) ? MARKS.DIM_K : 1) }))
@@ -2590,7 +2609,7 @@ function createSlot(slotKey){
   function syncDevices(p, vd){
     if (!devices) return;
     const em = Array.isArray(p.emergency) && p.emergency.length ? new Set(p.emergency.map(String)) : null;
-    let changed = devices.sync(vd.pieces, { states: p.states || {}, regIds: p.regIds || null, entities: p.entities || null, lbe, emergency: em,
+    let changed = devices.sync(piecesNow(vd.pieces), { states: p.states || {}, regIds: p.regIds || null, entities: p.entities || null, lbe, emergency: em,
                                             dim: classF ? dimOf : null, dimK: MARKS ? MARKS.DIM_K : 1 });
     for (const L of lights) {
       const s = devices.has(L.eid, L.drawn === "fan" || (L.l && L.l.isFan) ? "spin" : "glow");
@@ -2632,7 +2651,7 @@ function createSlot(slotKey){
     if (!tr) { trailData = null; trailAt = 0; trailLoad = null; }
     else readTrails(tr);
     if (tracked.sync({ model: p.model, looks: vd.devices, figures: vd.figures, snapshot: pp ? peopleSnap : null,
-                       states: p.states || {}, people: on(p.people), tags: on(p.tags),
+                       states: p.states || {}, people: on(p.people), tags: on(p.tags), scanners: p.scanners,
                        carries: p.settings3d ? p.settings3d.atlas_3d_carries : null, trails: tr ? trailData : null }, rebuilt)) requestRender();
     if (panel) panel.peopleChanged();
     peopleClock();
@@ -2966,7 +2985,7 @@ function createSlot(slotKey){
     if (motionL && house && motionL.sync({ lbe, states: lastP && lastP.states, entities: lastP && lastP.entities, now, haStarted,
                                            t: performance.now(), cls: classF, night: nightK, ground: house.ground })) changed = true;
     // Another class picked on the chips: the Motion chip stands down with motion.
-    if (mchip && motionL) mchip.update(classF && classF !== "motion" ? [] : motionL.rooms(narrow ? 2 : 3));
+    if (mchip && motionL) mchip.update((classF && classF !== "motion") || !shownHere("motion_rooms") ? [] : motionL.rooms(narrow ? 2 : 3));
     for (const T of tints) {
       // The room shows its most telling sensor: active before quiet, the
       // latest quiet one; the worst air.
@@ -3121,7 +3140,7 @@ function createSlot(slotKey){
             if (!underRoof(F, _v2) && !behind(_v2, occ, F)) { lbl.position.copy(_v2); u.behind = false; break; }
           }
         }
-        lbl.visible = !quiet && !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
+        lbl.visible = !quiet && shownHere("room_names") && !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
         u.px = lbl.visible ? hPx : 0;
         lbl.scale.set(wPx * k, hPx * k, 1);
       });
@@ -3278,7 +3297,7 @@ function createSlot(slotKey){
       if (o.userData && o.userData.spec) o.material = mat(o.userData.spec);
     });
     for (const F of floorsUi) if (F.ao) F.ao.visible = !!Q.ao;
-    if (layer) layer.sync(viewData().pieces);              // furniture's finishes and shadows go with the profile
+    if (layer) layer.sync(piecesNow(viewData().pieces));              // furniture's finishes and shadows go with the profile
     if (lastP) { syncDevices(lastP, viewData()); syncTracked(lastP, viewData(), false); }
     for (const L of lights) if (L.spin) L.spin.rps = (L.spin.base || 0) * fanK(name);   // a running fan's speed goes with the profile
     if (studio) studio.profile();
@@ -3902,7 +3921,8 @@ function createSlot(slotKey){
       });
     }
     openings.forEach(({ F, P }, i) => {
-      if (!F.group.visible || !(P.open.cover ? !!(lastP && lastP.states && lastP.states[P.open.eid]) : HOUSE.openingPressable(lbe[P.open.eid]))) return;
+      if (!F.group.visible || (P.open.leaf && goneHere(P, P.open.leaf))
+          || !(P.open.cover ? !!(lastP && lastP.states && lastP.states[P.open.eid]) : HOUSE.openingPressable(lbe[P.open.eid]))) return;
       const q = openingQuad(F, P), poly = q.map(v => screenPt(v, rect));
       if (!poly.every(Boolean) || !nearPoly(clientX, clientY, poly, 6)) return;
       const at = q[0].clone().add(q[2]).multiplyScalar(0.5);
@@ -4729,7 +4749,7 @@ function createSlot(slotKey){
    *  look, Showcase on and that theme (below Pro, Showcase is off). Never the
    *  view's failure: trees that cannot be drawn are simply not drawn. */
   function syncForest(){
-    const want = !!atlas && atlas.on && atlas.theme === "west_coast_forest" && !forestFailed;
+    const want = !!atlas && atlas.on && atlas.theme === "west_coast_forest" && !forestFailed && shownHere("forest");
     if (!want) { dropForest(false); return; }
     if (!FOREST) {
       if (!forestImport) {
@@ -4816,6 +4836,219 @@ function createSlot(slotKey){
     }
   }
 
+  // ── the ⋯ list: what this screen shows (live_aboard_show.js) ──────────────
+  // Each line is this screen's (prefs), over the house's own; hidden is not
+  // drawn at all. Most of it is a filter over the card's data, as the Plans
+  // tool's quietOf is: a light, strip, fan, readout or lock left out the way
+  // the Atlas's hidden lights are (built again once, when the list changes,
+  // never on a poll), rain and snow, the theme, the codes, people and tags.
+  // The rest is drawn by its own layer and asked of it as it draws (shownHere):
+  // the glow, motion's parts, doors and windows, railings, names, outlines,
+  // the trees, furniture. Edit and Furnish show everything (they work on it).
+  const shownHere = (key) => !showOn || showSuspended() || showOn[key] !== false;
+  const showSuspended = () => !!((editor && editor.active) || furnishOn || quiet);
+  const showOver = () => (SHOW ? SHOW.readShown(prefGet(SHOW.prefKey(slotKey))) : {});
+  const onObj = (x) => !!(x && typeof x === "object");
+  /** The house's own for each line, from the card's data before the list. */
+  function showHouseOf(p){
+    const s = p.settings3d && typeof p.settings3d === "object" ? p.settings3d : null;
+    const vd = viewData(), looks = (vd && vd.devices) || {}, sp = (p.model && p.model.scanner_positions_m) || {};
+    const looked = Object.keys(sp).some(a => looks[a] && looks[a].recipe && typeof looks[a].recipe === "object");
+    const people = s ? s.atlas_3d_people === true && onObj(p.people) : onObj(p.people);
+    const tags = s ? s.atlas_3d_tags === true && onObj(p.tags) : onObj(p.tags);
+    return { people, tags, radios: tags || looked, rain: p.weather3d !== false, codes: onObj(p.codes),
+             trails: prefGet(PREF_TRAILS) === "1", roof: roofPick() !== "off" };
+  }
+  /** The eids the list leaves out (lights, strips, fans, readouts, locks: never an alarm). */
+  function showHidden(p, on){
+    const out = new Set();
+    if (on.lights && on.strips && on.fans && on.readouts && on.locks) return out;
+    const pos = (p.model && p.model.light_positions_m) || {}, lb = p.lightsByEid || {}, zs = (viewData() || {}).lights || {};
+    const shapes = (p.shapeOverrides && typeof p.shapeOverrides === "object") ? p.shapeOverrides : {};
+    const LINE = { light: "lights", strip: "strips", fan: "fans", readout: "readouts", lock: "locks" };
+    for (const eid of Object.keys(pos)) {
+      const k = HOUSE.showKindOf(lb[eid], pos[eid], zs[eid], shapes[eid]);
+      if (k && LINE[k] && !on[LINE[k]]) out.add(eid);
+    }
+    return out;
+  }
+  /** The card's data as this screen shows it. */
+  function showP(p){
+    showHouse = showHouseOf(p);
+    showOn = SHOW.resolveShown(showOver(), showHouse);
+    if (showSuspended()) return p;
+    const on = showOn, q = { ...p }, hide = showHidden(p, on);
+    if (hide.size) { const h0 = p.hidden; q.hidden = { has: (eid) => hide.has(eid) || !!(h0 && typeof h0.has === "function" && h0.has(eid)) }; }
+    q.weather3d = on.rain;
+    q.codes = on.codes ? (onObj(p.codes) ? p.codes : { showcase: !!(p.atlasLook && p.atlasLook.on) }) : null;
+    if (!on.theme) { q.look3d = "own"; q.showcase3d = false; }
+    if (!on.people) q.people = null;
+    if (!on.tags) q.tags = null;
+    // Receivers: as the house draws them until this screen says (then every placed one, or none).
+    const over = showOver();
+    if (typeof over.radios === "boolean") q.scanners = over.radios;
+    return q;
+  }
+  /** The furniture as this screen shows it: furniture, devices in it, stairs (their opening stays). */
+  function piecesNow(pieces){
+    if (!showOn || showSuspended() || (showOn.furniture && showOn.devices && showOn.stairs)) return pieces;
+    const out = {};
+    for (const [id, q] of Object.entries(pieces || {})) {
+      const stairs = !!(STOREY && STOREY.isStairs(q)), dev = !!(q && typeof q.entity_id === "string" && q.entity_id);
+      if (stairs ? showOn.stairs : dev ? showOn.devices : showOn.furniture) out[id] = q;
+    }
+    return out;
+  }
+  /** A wall piece's part the list hides: a door's or a window's leaf, a garage door's, a railing. */
+  function goneHere(P, e){
+    if (!showOn || showSuspended()) return false;
+    const k = P.pc.kind, cover = !!(P.open && P.open.cover);
+    if (e.leaf) return k === "door" ? !shownHere(cover ? "covers" : "doors") : k === "window" ? !shownHere("windows") : false;
+    return !e.cuttable && (k === "rail" || k === "open") && !shownHere("railings");
+  }
+  /** Is a weather source set up (Settings → Atlas → Outdoor weather, and something to read)? */
+  function weatherReady(p){
+    const w = p && p.weather && p.weather.settings ? p.weather : null;
+    if (!w || !AW) return false;
+    const s = AW.weatherSettingsFrom(w.settings);
+    return s.enabled && !!(s.rainEntity || s.conditionEntity || s.warningEntity || AW.firstWeatherEntity(w.states || (p && p.states) || {}));
+  }
+  /** What this house has ready, line by line: {key: setupLine} for each that is not. */
+  function showReady(){
+    const p = houseP, out = {};
+    if (!p || !SHOW) return out;
+    const s = p.settings3d && typeof p.settings3d === "object" ? p.settings3d : null;
+    const pos = (p.model && p.model.light_positions_m) || {}, lb = p.lightsByEid || {}, vd = viewData() || {}, zs = vd.lights || {};
+    const n = {};
+    for (const eid of Object.keys(pos)) { const k = HOUSE.showKindOf(lb[eid], pos[eid], zs[eid], (p.shapeOverrides || {})[eid]); if (k) n[k] = (n[k] || 0) + 1; }
+    const pieces = Object.values(vd.pieces || {}).filter(q => q && q.recipe);
+    const stairs = pieces.filter(q => STOREY && STOREY.isStairs(q)).length, dev = pieces.filter(q => !(STOREY && STOREY.isStairs(q)) && typeof q.entity_id === "string" && q.entity_id).length;
+    const walls = floorsUi.flatMap(F => F.pieces);
+    const has = (kind) => walls.some(P => P.pc.kind === kind);
+    const look = p.look3d === "atlas" ? (LOOKS ? LOOKS.atlasLook(p.atlasLook) : null) : null;
+    const admin = p.admin === true;
+    const not = {
+      lights: !n.light, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
+      readouts: !n.readout, locks: !n.lock && !openings.some(({ P }) => P.open && P.open.lock),
+      doors: !has("door"), windows: !has("window"), covers: !openings.some(({ P }) => P.open && P.open.cover),
+      railings: !walls.some(P => P.els.some(e => !e.cuttable)),
+      radios: !Object.keys((p.model && p.model.scanner_positions_m) || {}).length,
+      tags: s ? s.atlas_3d_tags !== true : !onObj(p.tags), people: s ? s.atlas_3d_people !== true : !onObj(p.people),
+      trails: !(TRAILS && (onObj(p.people) || onObj(p.tags)) && onObj(p.trails) && typeof p.trails.read === "function"),
+      furniture: !(pieces.length - stairs - dev), devices: !dev, stairs: !stairs,
+      room_names: !(house && house.rooms.length), room_outlines: !(house && house.rooms.length),
+      floor_outlines: !look, roof: !STOREY, rain: !weatherReady(p),
+      theme: !(p.look3d === "atlas" || p.look3d === "studio" || (LOOKS && p.showcase3d === true && p.showcase && p.showcase.key && p.showcase.key !== "classic")),
+      forest: !(look && look.on && look.theme === "west_coast_forest"),
+    };
+    const canGo = typeof p.goTo === "function";
+    for (const [k, v] of Object.entries(not)) if (v) out[k] = SHOW.setupLine(k, admin, canGo);
+    return out;
+  }
+  /** The list's lines now: ticks, set-up lines, and a line waiting on another. */
+  function showRows(){
+    const on = { ...(showOn || {}) }, ready = showReady();
+    for (const k of Object.keys(ready)) on[k] = false;              // not set up: never ticked
+    const groups = SHOW.rowsOf(on, ready);
+    for (const g of groups) for (const r of g.rows) {
+      if (ready[r.key]) continue;
+      if ((r.key === "forest" || r.key === "floor_outlines") && on[r.key] && !on.theme) r.hint = "Comes back with Theme colours";
+      if (r.key === "trails" && on.trails && !on.people && !on.tags) r.hint = "Comes back with People or Beacons and tags";
+    }
+    return groups;
+  }
+  const showSend = (name, once) => (once ? HOUSE.countHouse3dOnce(name, send) : HOUSE.countHouse3d ? HOUSE.countHouse3d(name, send) : false);
+  /** A line ticked or unticked. Trails and the roof keep their own prefs (the Views menu's and the Roof button's). */
+  function toggleShow(key){
+    const ready = showReady();
+    if (ready[key]) {
+      // People or tags off for the house: the way to their switch (Garry: "send them to the screen where they can get permission").
+      if (ready[key].perm) { showSetup(key, ready[key]); return; }
+      if (showMenu) showMenu.paint();
+      return;
+    }
+    const was = shownHere(key);
+    if (key === "trails") toggleTrails();
+    else if (key === "roof") setRoof(was ? "off" : "auto");
+    else prefSet(SHOW.prefKey(slotKey), JSON.stringify(SHOW.withTick(showOver(), key, !was, showHouse[key] !== false)));
+    showSend(`house3d_show:${was ? "hide" : "show"}:${key}`);
+    applyShow();
+  }
+  /** Back to house defaults, on this screen. */
+  function resetShow(){
+    prefSet(SHOW.prefKey(slotKey), "{}");
+    if (prefGet(PREF_TRAILS) === "1") toggleTrails();
+    if (roofPick() === "off") setRoof("auto");
+    showSend("house3d_show:reset");
+    applyShow();
+  }
+  /** Has this screen changed anything from the house's own? */
+  function showChanged(){ return Object.keys(showOver()).length > 0 || prefGet(PREF_TRAILS) === "1" || roofPick() === "off"; }
+  /** A "not set up" line's button: where it is set up, or (people, tags) their switch. */
+  function showSetup(key, line){
+    if (line.perm) {
+      showSend(`house3d_show:permission:${line.perm}`);
+      if (showMenu) showMenu.close();
+      if (houseP && houseP.admin === true) {
+        // The switch is Views ▾ → Show people (or tags) while Live Aboard is on (settings.js says so too).
+        const seg = bar ? bar.querySelector(narrow ? "[data-la3d-view]" : "[data-la3d-saved]") : null, b = seg ? seg.querySelector("button") : null;
+        if (b) {
+          if (typeof b.click === "function") b.click(); else b.dispatchEvent({ type: "click", detail: 1, stopPropagation(){}, preventDefault(){} });
+          markSwitch(line.perm);
+        }
+      } else toast(line.text);
+      return;
+    }
+    if (!line.go) return;
+    showSend(`house3d_show:setup_go:${key}`);
+    showGo(line.go);
+  }
+  /** In the Views menu just opened, the people or tags switch stands out. */
+  function markSwitch(which){
+    const words = which === "people" ? "Show people" : "Show tags & scanners";
+    const b = menuEl ? [...menuEl.querySelectorAll("button")].find(x => x.textContent.startsWith(words)) : null;
+    if (!b) return;
+    b.style.outline = "2px solid #fbbf24"; b.style.background = "rgba(251,191,36,.14)";
+    try { b.focus({ preventScroll: true }); } catch (_) { /* no focus here */ }
+  }
+  /** The host's way to Settings or Mapping (p.goTo(where)); false where it has none. */
+  function showGo(where){
+    const g = houseP && typeof houseP.goTo === "function" ? houseP.goTo : null, t = SHOW.GO_TO[where];
+    if (!g || !t) return false;
+    try { g({ ...t, where: String(where) }); return true; } catch (_) { return false; }
+  }
+  function makeShowMenu(){
+    return SHOW.createShowMenu({
+      root, guard,
+      rows: () => showRows(),
+      changed: () => showChanged(),
+      toggle: (key) => toggleShow(key),
+      setup: (r) => showSetup(r.key, r.setup),
+      go: (where) => showGo(where),
+      canGo: () => !!(houseP && typeof houseP.goTo === "function"),
+      reset: () => resetShow(),
+      opened: () => showSend("house3d_show:opened"),
+      seen: (groups) => { for (const g of groups) for (const r of g.rows) if (r.setup && !r.setup.perm) showSend(`house3d_show:setup_seen:${r.key}`, true); },
+      onOpen: () => { closeMenu(); if (use) use.clear(); },
+    });
+  }
+  /** The list changed: drawn again from the card's data (only what it touches
+   *  is built again), and what each layer asks as it draws, asked again. */
+  function applyShow(){
+    for (const L of lights) L.key = null;
+    lampsDirty = true;
+    redraw();
+    for (const F of floorsUi) {
+      for (const P of F.pieces) placePiece(F, P, !!P.cut);
+      if (F.plate) F.plate.visible = shownHere("floor_outlines");
+    }
+    paintNight();
+    if (motionL) motionL.recheck();
+    if (codes && codes.recheck) codes.recheck();
+    if (showMenu) showMenu.mark();
+    requestRender();
+  }
+
   // ── the slot ──────────────────────────────────────────────────────────────
   // The Plans tool's vetting map: only the plan, the house and its pins. Nothing
   // live is drawn (no lights, sensors, readouts, names, people or weather, and
@@ -4874,6 +5107,9 @@ function createSlot(slotKey){
     if (quiet && p) p = quietOf(p);
     // A room raised above its floor is drawn as a level of its own (HOUSE.splitLevels).
     if (p && p.model && HOUSE.splitLevels) p = { ...p, model: HOUSE.splitLevels(p.model) };
+    // The ⋯ list: what this screen shows (showP), from the house's own (houseP).
+    houseP = p;
+    if (SHOW && p) p = showP(p);
     lastP = p;
     applyLook(p);
     const setting = HOUSE.qualitySetting(p.quality);
@@ -4915,8 +5151,9 @@ function createSlot(slotKey){
       requestRender();
     }
     // Furniture (P2): each piece on its floor, from the draft while editing.
-    if (layer && layer.sync(vd.pieces, rebuilt)) requestRender();
+    if (layer && layer.sync(piecesNow(vd.pieces), rebuilt)) requestRender();
     syncDevices(p, vd);
+    if (motionL && motionL.show && motionL.show({ sensor: shownHere("motion_sensors"), room: shownHere("motion_rooms"), reach: shownHere("motion_reach") })) requestRender();
     syncTracked(p, vd, rebuilt);
     paintLights(p.lightsByEid);
     paintWindows();
@@ -4982,7 +5219,9 @@ function createSlot(slotKey){
      *  label: the zoom against the whole-house fit, on every change),
      *  settings3d (the settings: who carries what, going back home), admin
      *  and saveSetting(key, value) → Promise (Show people / Show tags &
-     *  scanners from Views ▾; live_aboard_panel.js)}. */
+     *  scanners from Views ▾; live_aboard_panel.js), goTo(where) (the ⋯
+     *  list's links: a key of live_aboard_show.js LINK_WORDS, opened by the
+     *  host; none, no links)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
@@ -5136,6 +5375,12 @@ function createSlot(slotKey){
                // P6: scanners, beacons and people as drawn, and how often the snapshot was read.
                tracked: tracked ? tracked.state() : [], peopleReads, trails: tracked && tracked.trails ? tracked.trails() : [], trailReads, panel: panel ? panel.state() : null,
                director: director ? director.state() : null,
+               // The ⋯ list: each line on this screen, the house's own, the list as drawn,
+               // and each door's, window's and rail's parts: drawn or not.
+               show: SHOW ? { on: showOn ? { ...showOn } : null, house: { ...showHouse }, menu: showMenu ? showMenu.state() : null,
+                              walls: floorsUi.flatMap(F => F.pieces.filter(P => P.els.some(e => e.leaf || !e.cuttable)).map(P => ({ kind: P.pc.kind, cover: !!(P.open && P.open.cover),
+                                drawn: P.els.filter(e => e.leaf || !e.cuttable).some(e => { e.mesh.getMatrixAt(e.i, _m); return _m.elements.slice(0, 11).some(v => v !== 0); }) }))),
+                              plates: floorsUi.filter(F => F.plate).map(F => F.plate.visible), edges: floorsUi.filter(F => F.edges).map(F => F.edges.visible) } : null,
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
                marks: marks ? marks.state() : [], codes: codes ? codes.state() : null, classF, zoomPct: zoomPctNow(),
                chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),

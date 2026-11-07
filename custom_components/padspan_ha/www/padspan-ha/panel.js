@@ -1044,6 +1044,11 @@ class PadSpanHaApp extends HTMLElement {
       if (reqView === "maps" && reqTab && /^[a-z]+$/.test(reqTab)) this.state.mapsTab = reqTab;
       // ?view=calibration&tab=tune opens that Calibration tab (Results otherwise).
       if (reqView === "calibration" && reqTab && /^[a-z]+$/.test(reqTab)) this.state._calibTabRequest = reqTab;
+      // ?view=settings&tab=atlas&part=atlas_weather (Live Aboard's ⋯ list):
+      // that Settings tab, scrolled to the card marked data-focus-part.
+      if (reqView === "settings" && reqTab && /^[a-z]+$/.test(reqTab)) this.state._settingsTab = reqTab;
+      const reqPart = q.get("part");
+      if (reqView === "settings" && reqPart && /^[a-z0-9_]+$/.test(reqPart)) this.state._settingsPart = reqPart;
       const reqLight = q.get("light");
       if (reqLight && /^(light|fan|binary_sensor|sensor)\.[a-z0-9_]+$/.test(reqLight)) {
         this.state.maps._selLight = { eid: reqLight, mapId: null };

@@ -680,6 +680,15 @@ const W_SURFACE = {
 };
 // Add data via plans (telemetry.PLAN_AI_EVENTS, experimental): the kinds it suggests.
 const W_PLAN_KIND = { stairs: "stairs", railing: "a railing hint", light: "a light" };
+// Live Aboard's ⋯ list: each line's plain name (views/live_aboard_show.js SHOW_ITEMS).
+const W_SHOW_LINE = {
+  lights: "lights", glow: "light glow", strips: "LED strips", fans: "ceiling fans", motion_sensors: "motion sensors",
+  motion_rooms: "motion in rooms", motion_reach: "motion reach", readouts: "temperature and air", doors: "doors", windows: "windows",
+  covers: "garage doors and gates", locks: "locks", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
+  trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", stairs: "stairs",
+  room_names: "room names", room_outlines: "room outlines", floor_outlines: "floor outlines", roof: "the roof",
+  rain: "rain and snow", theme: "theme colours", forest: "forest trees",
+};
 const W_EVENT = {
   stale_receivers_listed: "Opened the stale-receiver list (Mapping › 3D Stack)",
   status_dot_open: "Opened Health from the top bar's status dot",
@@ -884,6 +893,18 @@ function word(kind, k) {
       if (a === "stairs_shape") return `Stairs shaped ${{ straight: "straight", l: "L", u: "U", l2: "with two landings", l3: "with three landings" }[b] || b}`;
       if (a === "stairs_style") return `Stairs: ${{ closed: "closed", open: "open risers", treads: "treads only", floating: "floating (on a spine)" }[b] || b}`;
       if (a === "stair_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to read a floor plan`;
+      if (a === "house3d_show") {
+        // Live Aboard's ⋯ list, "Show on this screen" (views/live_aboard_show.js).
+        const line = W_SHOW_LINE[c] || tidy(c || "");
+        if (b === "opened") return "Live Aboard: opened Show on this screen (⋯)";
+        if (b === "reset") return "Live Aboard: Show on this screen put back to the house's defaults";
+        if (b === "hide") return `Live Aboard: hid ${line} on a screen`;
+        if (b === "show") return `Live Aboard: showed ${line} again on a screen`;
+        if (b === "setup_seen") return `Live Aboard: saw "${line} isn't set up yet"`;
+        if (b === "setup_go") return `Live Aboard: followed "set it up" for ${line}`;
+        if (b === "permission") return `Live Aboard: sent to where ${c === "tags" ? "tags" : "people"} are turned on for the house`;
+        return tidy(key);
+      }
       if (a === "house3d_fallback_size") return `3D house fell back, in a house of ${{ lt20: "under 20", "20_60": "20–60", "60_150": "60–150", gt150: "over 150" }[b] || b} rooms`;
       if (a === "tip_shown" || a === "tip_opened" || a === "tip_hidden") {
         const tip = { floor_heights: "floor heights", receiver_heights: "receiver heights", scale: "a real-world scale", all: "all of them" }[b] || b;

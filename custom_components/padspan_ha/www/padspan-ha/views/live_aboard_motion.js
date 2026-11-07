@@ -392,6 +392,11 @@ export function createMotionLayer(ctx){
   let pairsOf = null, pairsN = -1, pairsAt = null;           // the pairs, for the registry (and states) they came from
   // near: the fill's strength at room scale (the band and the marker carry it there).
   let camKey = null, last = null, night = 0, near = 1;
+  // What Live Aboard's ⋯ list shows on this screen: the sensor (its model,
+  // marker and line), motion in its room (the glow, the band, the ring), its
+  // reach (the coverage fan). Hidden is not drawn and can't be tapped; the
+  // Motion chip still reads the rooms (the view decides whether it shows).
+  let parts = { sensor: true, room: true, reach: true };
   const seen = new Map();                    // eid -> {state, last_changed} last seen, and the half's
   const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _ray = new THREE.Raycaster();
   /** Is world point v under a floor that shows, from camera c? A lit marker
@@ -595,7 +600,9 @@ export function createMotionLayer(ctx){
       S.aim = aimOf(S.mx, S.my, room, rot, S.ceiling ? null : S.face) || S.face;
       S.range = S.model === "presence" ? rangeOf(S.eid, h.states, h.entities) : null;
       S.cover = coverOf(S.model, S.ceiling, S.range);
-      S.group.add(model(S));
+      S.body = model(S);
+      S.body.visible = parts.sensor;
+      S.group.add(S.body);
       // The marker: drawn over everything, a size you can read.
       const c = document.createElement("canvas");
       c.width = 128; c.height = 128;
@@ -647,11 +654,11 @@ export function createMotionLayer(ctx){
     P.glow = g;
     const n = Math.min(1, Math.max(0, night));
     const fill0 = GLOW.fill[0] + (GLOW.fill[1] - GLOW.fill[0]) * n, band0 = GLOW.band[0] + (GLOW.band[1] - GLOW.band[0]) * n;
-    const k = g ? g.k * dk : 0;
+    const k = g && parts.room ? g.k * dk : 0;
     const fill = !g ? 0 : g.steady ? fill0 * GLOW.steadyFill * k : fill0 * k;
     const band = !g ? 0 : g.steady ? band0 * GLOW.steadyBand * k : band0 * k;
     const line = g && g.steady ? GLOW.line * k : 0;
-    const key = JSON.stringify([g ? [g.color, g.steady, g.stuck] : null, fill, band, line, P.ground]);
+    const key = JSON.stringify([g ? [g.color, g.steady, g.stuck] : null, fill, band, line, P.ground, parts.room]);
     if (key === P.key) return false;
     P.key = key;
     if (g) { P.u.uColor.value.set(g.color); if (P.band) P.band.u.uColor.value.set(g.color); }
@@ -667,7 +674,7 @@ export function createMotionLayer(ctx){
     let any = P.u.uFill.value > 0;
     P.sensors.forEach((S, i) => {
       const R = P.u.uRing.value[i], Fv = P.u.uFan.value[i], D = P.u.uFanDir.value[i];
-      if (S.ringT !== null && t - S.ringT < RING.ms && shown(S)) {
+      if (S.ringT !== null && t - S.ringT < RING.ms && shown(S) && parts.room) {
         const r = ringAt((t - S.ringT) / RING.ms, S.rMax);
         R.set(S.mx, S.my, r.r, r.a * (S.dim ? DIM : 1));
         P.u.uRingW.value[i] = r.w;
@@ -675,7 +682,7 @@ export function createMotionLayer(ctx){
       let fa = 0;
       if (S.flashT !== null && t - S.flashT < FLASH.ms) { const q = (t - S.flashT) / FLASH.ms; fa = FLASH.a * (1 - q * q) * (S.dim ? DIM : 1); }
       if ((lens && !S.dim) || focusEid === S.eid) fa = Math.max(fa, COVER_A);
-      if (fa > 0 && S.cover) {
+      if (fa > 0 && S.cover && parts.reach) {
         Fv.set(S.mx, S.my, S.cover.m, fa);
         D.set(S.aim[0], S.aim[1], Math.cos(S.cover.deg / 2 * Math.PI / 180), S.cover.circle ? 1 : 0);
       } else Fv.set(0, 0, 0, 0);
@@ -748,7 +755,7 @@ export function createMotionLayer(ctx){
       for (const S of sensors) {
         const L = S.look || markerLook(null);
         // ☰ Motion picked: every motion sensor shows, whatever its age.
-        let on = shown(S) && (!!room || L.wide || lens);
+        let on = parts.sensor && shown(S) && (!!room || L.wide || lens);
         if (on && again) {
           // Whether it shows goes by its true spot, wherever its marker stands on its line.
           _p.copy(S.home).project(c);
@@ -777,6 +784,17 @@ export function createMotionLayer(ctx){
     },
     /** Walls or floors changed: what hides a marker is worked out again. */
     recheck(){ camKey = null; },
+    /** What the ⋯ list shows ({sensor, room, reach}); true when that changed
+     *  (drawn again on the next sync and size). */
+    show(o){
+      const n = { sensor: !o || o.sensor !== false, room: !o || o.room !== false, reach: !o || o.reach !== false };
+      if (n.sensor === parts.sensor && n.room === parts.room && n.reach === parts.reach) return false;
+      parts = n;
+      camKey = null;
+      for (const S of sensors) if (S.body) S.body.visible = parts.sensor;
+      for (const P of patches) { P.key = null; paintPatch(P, { now: Date.now() }); stepPatch(P, last === null ? 0 : last); }
+      return true;
+    },
     /** What a press can land on: a marker that shows, not faded. */
     pickable(){ return sensors.filter(S => S.shownNow && !S.dim).map(S => ({ eid: S.eid, v: S.at })); },
     /** Is a sensor with a line here at all (live_aboard_raised.js)? */
@@ -843,7 +861,7 @@ export function createMotionLayer(ctx){
     },
     state(){
       return {
-        lens, focus: focusEid, night,
+        lens, focus: focusEid, night, parts: { ...parts },
         sensors: sensors.map(S => ({ eid: S.eid, model: S.model, half: S.half, ceiling: S.ceiling, room: S.room ? S.room.name : null,
           at: [S.at.x, S.at.y, S.at.z].map(v => Math.round(v * 1000) / 1000), home: [S.home.x, S.home.y, S.home.z].map(v => Math.round(v * 1000) / 1000), mount: [S.mx, S.my].map(v => Math.round(v * 1000) / 1000),
           aim: S.aim.map(v => Math.round(v * 1000) / 1000), cover: S.cover, range: S.range, own: S.own, give: S.give,
