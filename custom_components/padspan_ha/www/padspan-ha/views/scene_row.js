@@ -316,12 +316,15 @@ const CSS = `
 .psc-go:focus-visible,.psc-edit:focus-visible,.psc-new:focus-visible{outline:2px solid #52b788;outline-offset:1px}
 .psc-map{display:block;height:80px;border-radius:7px;background:#0a1510;overflow:hidden}
 .psc-map svg{display:block;width:100%;height:100%}
-.psc-line{display:flex;align-items:center;gap:6px;margin-top:5px;min-width:0}
+/* The name has the line's width less its dot; the state word sits beside it
+   when both fit, else under it on the right ("Kitchen bright" / "Part on"),
+   so only a name longer than the tile is cut (the tooltip names it in full). */
+.psc-line{display:flex;flex-wrap:wrap;align-items:center;gap:1px 6px;margin-top:5px;min-width:0}
 .psc-dot{flex:none;width:10px;height:10px;border-radius:50%;box-sizing:border-box;border:2px solid #64748b}
 .psc-tile[data-state="on"] .psc-dot{background:#52b788;border-color:#52b788}
 .psc-tile[data-state="mixed"] .psc-dot{border-color:#fbbf24;background:linear-gradient(90deg,#fbbf24 50%,transparent 50%)}
-.psc-name{flex:1;min-width:0;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.psc-word{flex:none;font-size:11px;font-weight:600;color:#94a3b8}
+.psc-name{flex:0 1 auto;min-width:0;max-width:calc(100% - 16px);font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.psc-word{flex:none;margin-left:auto;font-size:11px;font-weight:600;color:#94a3b8}
 .psc-tile[data-state="on"] .psc-word{color:#a7f3d0}
 .psc-tile[data-state="mixed"] .psc-word{color:#fde68a}
 .psc-floor{position:absolute;left:11px;top:67px;max-width:122px;padding:1px 6px;border-radius:6px;background:rgba(6,14,9,.82);

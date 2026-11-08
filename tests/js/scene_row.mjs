@@ -212,6 +212,24 @@ await tryCase("row: a tap acts once, ✎ for administrators only and never on a 
     { s0, s1, s2, did, counted, kioskText });
   row.dispose();
 });
+await tryCase("row: the name has the tile's width; the state word goes under it rather than cut it, and the tooltip names it in full", async () => {
+  // "Kitchen bright" beside "Part on" showed "Kitchen bri…" (2026-11-07). The
+  // line wraps: the word drops under the name, right-aligned, when both don't
+  // fit; the name never wraps away from its dot (its width is the line's less
+  // the dot), and only a name longer than the tile is cut.
+  const row = SC.createSceneRow({ doc: document, place: "aboard" });
+  document.body.appendChild(row.el);
+  row.update({ tiles: tilesNow(), admin: true, kiosk: false, editPresets: true, act: () => {}, edit: () => {}, add: () => {}, count: () => {} });
+  const css = row.el.querySelector("style").textContent;
+  const rule = (sel) => { const m = new RegExp(`(?:^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\{([^}]*)\\}`).exec(css); return m ? m[1] : ""; };
+  const line = rule(".psc-line"), name = rule(".psc-name"), word = rule(".psc-word");
+  const tile = row.el.querySelectorAll(".psc-tile").find(n => n.getAttribute("data-scene") === "scene.evening");
+  const full = tile.querySelector(".psc-go").title;
+  check("row: the name has the tile's width; the state word goes under it rather than cut it, and the tooltip names it in full",
+    /flex-wrap:wrap/.test(line) && !/(?:^|;)flex:1(?:;|$)/.test(name) && /max-width:calc\(100% - 16px\)/.test(name) && /text-overflow:ellipsis/.test(name)
+    && /margin-left:auto/.test(word) && /flex:none/.test(word) && full.includes("Evening"), { line, name, word, full });
+  row.dispose();
+});
 await tryCase("row: a note says why with one button, and goes away", async () => {
   const row = SC.createSceneRow({ doc: document, place: "atlas" });
   let went = 0;
