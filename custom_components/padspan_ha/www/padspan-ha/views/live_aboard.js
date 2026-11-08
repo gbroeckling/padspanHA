@@ -1434,7 +1434,9 @@ function createSlot(slotKey){
     storeyL = STOREY ? STOREY.createStoreyLayer({ THREE, lit: (g, spec, c, r) => lit(g, spec, c, r), slabT: HOUSE.SLAB_T,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     raisedL = RAISED ? RAISED.createRaisedLayer({ THREE, camera: () => camera, size: () => [canvas.clientWidth || 0, canvas.clientHeight || 0],
-      any: () => !!((motionL && motionL.anyRaised()) || (tracked && tracked.tagCount)), raised: raisedNow, texts: wordsNow, ready: shouldDraw,
+      any: () => !!((motionL && motionL.anyRaised()) || (tracked && tracked.tagCount))
+        || floorsUi.reduce((n, F) => n + (F.group.visible ? F.labels.length : 0), chips.length) > 1,
+      raised: raisedNow, texts: wordsNow, words: wordUnits, ready: shouldDraw,
       busy: () => !!cam.fly || !!quality.measuring || dirty, movedAt: () => camMovedAt, off: () => raisedOff,
       quality: () => (profileOf().pbr ? "high" : "low"), settled: recheckCovers,
       draw: () => { liveMs = liveRate(performance.now()); requestRender(); } }) : null;
@@ -3173,6 +3175,7 @@ function createSlot(slotKey){
         lbl.visible = !quiet && shownHere("room_names") && !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
         u.px = lbl.visible ? hPx : 0;
         lbl.scale.set(wPx * k, hPx * k, 1);
+        lbl.center.set(0.5, 0.5 + (u.dy || 0) / hPx);         // moved clear of another word (wordUnits)
       });
     }
     for (const C of chips) {
@@ -3182,12 +3185,20 @@ function createSlot(slotKey){
       const hPx = Math.max(READ_PX[0] * wallK, Math.min(READ_PX[1] * wallK, READ_H / mpp)) * READ_C / (READ_C - 8);
       C.sprite.scale.set(hPx * READ_W / READ_C * k, hPx * k, 1);
       C.px = hPx;
-      // Under the room's name (or where the name would be), clear of it.
-      const nameH = C.label ? Math.max(C.label.userData.px, 18) : 0;
-      C.sprite.center.set(0.5, C.label ? 0.5 + (nameH / 2 + 2 + hPx / 2) / hPx : 0.5);
+      centreChip(C);
       if (persp && !C.label) C.behind = underRoof(C.F, C.sprite.position) || behind(C.sprite.position, above(C.F), C.F);
       C.sprite.visible = !quiet && !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
     }
+  }
+  /** Where a chip sits on its spot: under its room's name (or where the name
+   *  would be), clear of it; moved with its name, or alone where no name
+   *  shows (wordUnits). */
+  function centreChip(C){
+    const hPx = C.px;
+    if (!hPx) return;
+    const nameH = C.label ? Math.max(C.label.userData.px, 18) : 0;
+    const dy = (C.label && C.label.visible ? C.label.userData.dy : C.dy) || 0;
+    C.sprite.center.set(0.5, (C.label ? 0.5 + (nameH / 2 + 2 + hPx / 2) / hPx : 0.5) + dy / hPx);
   }
   /** Does a floor show above this one? */
   function floorAbove(F){ return floorsUi.some(G => G !== F && G.group.visible && !G.fl.outdoor && G.fl.elev > F.fl.elev + 0.5); }
@@ -3210,10 +3221,34 @@ function createSlot(slotKey){
     const out = [];
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
-      F.labels.forEach((l, i) => { if (l.visible) out.push({ sprite: l, tw: 1 - 28 / (l.userData.aspect * 68), th: l.userData.letters, owner: null, id: `name ${F.rooms[i].name}` }); });
+      F.labels.forEach((l, i) => { if (l.visible) out.push({ ...nameWord(l), owner: null, id: `name ${F.rooms[i].name}` }); });
     }
-    for (const C of chips) if (C.F.group.visible && C.sprite.visible) out.push({ sprite: C.sprite, tw: C.pillW, th: (READ_C - 8) / READ_C, owner: null, id: `chip ${C.text}` });
+    for (const C of chips) if (C.F.group.visible && C.sprite.visible) out.push({ ...chipWord(C), owner: null, id: `chip ${C.text}` });
     for (const L of [codes, marks, tracked, devices]) if (L && L.texts) out.push(...L.texts());
+    return out;
+  }
+  /** How much of a name's or a chip's sprite its words fill. */
+  const nameWord = (l) => ({ sprite: l, tw: 1 - 28 / (l.userData.aspect * 68), th: l.userData.letters });
+  const chipWord = (C) => ({ sprite: C.sprite, tw: C.pillW, th: (READ_C - 8) / READ_C });
+  /** The rooms' names, each with the chip under it, then each chip with no
+   *  name showing over it: on each other, they move apart on screen
+   *  (live_aboard_raised.js spreadWords), the later one in this order moving. */
+  function wordUnits(){
+    const out = [];
+    for (const F of floorsUi) {
+      if (!F.group.visible) continue;
+      F.labels.forEach((l, i) => {
+        if (!l.visible) return;
+        const C = chips.find(x => x.label === l && x.sprite.visible), u = l.userData;
+        out.push({ id: `name ${F.fl.id} ${F.rooms[i].name}`, h: u.px, dy: u.dy || 0, parts: C ? [nameWord(l), chipWord(C)] : [nameWord(l)],
+                   set: (dy) => { u.dy = dy; if (u.px) l.center.set(0.5, 0.5 + dy / u.px); if (C) centreChip(C); } });
+      });
+    }
+    chips.forEach((C, i) => {
+      if (!C.F.group.visible || !C.sprite.visible || (C.label && C.label.visible)) return;
+      out.push({ id: `chip ${i} ${C.room ? C.room.name : C.name}`, h: C.px, dy: C.dy || 0, parts: [chipWord(C)],
+                 set: (dy) => { C.dy = dy; centreChip(C); } });
+    });
     return out;
   }
   /** Under the roof while it shows: a name, a chip (live_aboard_storey.js). */

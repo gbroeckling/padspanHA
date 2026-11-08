@@ -37,7 +37,7 @@ def raised() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix", ["pick:", "steps:", "clears:", "real:", "still:", "rest:", "none:"])
+@pytest.mark.parametrize("prefix", ["pick:", "steps:", "clears:", "real:", "still:", "rest:", "none:", "spread:", "words:"])
 def test_the_raised_harness_covers_each_part(raised, prefix) -> None:
     got = [k for k in raised["cases"] if k.startswith(prefix)]
     assert got, prefix

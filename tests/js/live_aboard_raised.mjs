@@ -15,7 +15,14 @@
 //   still     while the camera moves nothing is worked out; once it stops, once
 //   rest      at rest: no timer and no frame; a poll that changes nothing moves
 //             nothing, and draws nothing of its own
-//   none      with nothing on a line, not even the timer
+//   none      with nothing on a line and the words apart, a stop is looked at
+//             once and nothing moves; with nothing at all, not even the timer
+//   spread    names and chips on each other: the first stays, the next moves
+//             up or down to the nearest clear spot; it stays where it clears,
+//             and goes home once nothing is in its way
+//   words     a room's name with an outdoor chip on it ("Pantry" on "Entry
+//             outside"): once the camera stops they stand apart, both shown,
+//             neither moving while the camera moves
 //
 // usage: live_aboard_raised.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -69,12 +76,22 @@ const MODEL = (positions) => ({
 });
 const WITH = MODEL({ "binary_sensor.kitchen_presence": { x_m: 3.5, y_m: 3.5, floor_id: "main" } });
 const WITHOUT = MODEL({ "light.kitchen": { x_m: 3, y_m: 2, floor_id: "main" } });
+// A pantry with an outdoor temperature sensor just past its wall: the chip
+// outside ("Entry outside 21°") stands where the room's name does.
+const CROWD = {
+  floors: [{ id: "main", name: "Main", level: 0 }],
+  floor_elevations: { main: 0 },
+  room_geometry_m: { Pantry: rect("main", 0, 0, 3, 1) },
+  light_positions_m: { "sensor.entry_outside_temperature": { x_m: 1.5, y_m: 1.25, floor_id: "main" } },
+};
 const iso = (ms) => new Date(ms).toISOString();
 const NOW = Date.now();
 const STATES = () => ({
   "sun.sun": { entity_id: "sun.sun", state: "above_horizon", attributes: { azimuth: 160, elevation: 40 } },
   "light.kitchen": { entity_id: "light.kitchen", state: "on", last_changed: iso(NOW - 6e5), attributes: { friendly_name: "Kitchen light", brightness: 200 } },
   "binary_sensor.kitchen_presence": { entity_id: "binary_sensor.kitchen_presence", state: "on", last_changed: iso(NOW - 6e4), attributes: { friendly_name: "Kitchen presence", device_class: "occupancy" } },
+  "sensor.entry_outside_temperature": { entity_id: "sensor.entry_outside_temperature", state: "21.5", last_changed: iso(NOW - 6e4), last_updated: iso(NOW - 6e4),
+    attributes: { friendly_name: "Entry outside temperature", device_class: "temperature", unit_of_measurement: "°C" } },
 });
 const AREAS = { "binary_sensor.kitchen_presence": "Kitchen", "light.kitchen": "Kitchen" };
 const records = (states) => Object.fromEntries(LM.gatherLights(states, AREAS, {}, "pro", {}, {}, {}, {}, Date.now()).map(l => [l.entity_id, l]));
@@ -200,15 +217,62 @@ await tryCase("rest: no timer and no frame; a poll that changes nothing moves no
     && b.runs === a.runs && b.moves === a.moves && JSON.stringify(item().lift) === lift0 && !b.armed && !b.easing,
     { atRest, quiet, a: { runs: a.runs, moves: a.moves }, b: { runs: b.runs, moves: b.moves, armed: b.armed, easing: b.easing }, lift0, lift1: item().lift });
 });
-await tryCase("none: with nothing on a line, not even the timer", async () => {
+await tryCase("none: with nothing on a line and the words apart, a stop is looked at once and nothing moves", async () => {
   const bare = await newSlot("raised-none", WITHOUT);
-  const c = bare._state().cam;
+  const c = bare._state().cam, runs0 = bare._state().raised.runs;
   bare._look(c.theta + 0.5, 0.8, [3.5, 0, 3.5], 12);
-  const r = bare._state().raised;
   attach(bare, WITHOUT);
-  const r2 = bare._state().raised;
+  await later(RA.LIFT.restMs + 80, 8); await later(1000, 8);
+  const r = bare._state().raised, frames = bare._state().frames;
+  await later(5000, 8);
+  check("none: with nothing on a line and the words apart, a stop is looked at once and nothing moves",
+    r.items.length === 0 && r.runs === runs0 + 1 && r.moves === 0 && !r.armed && !r.easing && r.words.length === 2 && r.words.every(w => w.dy === 0)
+    && bare._state().frames === frames && pendingFrames() === 0, { r, runs0 });
+  LA.releaseLiveAboardSlot("raised-none");
+});
+await tryCase("none: with one word and nothing on a line, not even the timer", async () => {
+  const one = await newSlot("raised-one", { ...WITHOUT, room_geometry_m: { Kitchen: WITHOUT.room_geometry_m.Kitchen } });
+  const c = one._state().cam, runs0 = one._state().raised.runs;
+  one._look(c.theta + 0.5, 0.8, [3.5, 0, 3.5], 12);
+  const r = one._state().raised;
   await later(1000, 8);
-  check("none: with nothing on a line, not even the timer", !r.armed && !r2.armed && bare._state().raised.runs === 0 && r.items.length === 0, { r, r2 });
+  check("none: with one word and nothing on a line, not even the timer", !r.armed && one._state().raised.runs === runs0 && r.items.length === 0, { r, runs0 });
+  LA.releaseLiveAboardSlot("raised-one");
+});
+
+// ── names and chips apart ───────────────────────────────────────────────────
+await tryCase("spread: the first stays, the next moves to the nearest clear spot; it stays where it clears, and goes home", async () => {
+  const name = box(100, 100, 160, 116), on = box(120, 104, 220, 120), away = box(300, 100, 360, 116);
+  const U = (b, dy = 0, h = 20) => ({ parts: [b], dy, h });
+  const a = RA.spreadWords([U(name), U(on), U(away)]);
+  const step = 20 * RA.SPREAD.step;
+  // moved down 12 px, it clears by 3 + 6 more: it stays there, though 1 step nearer would clear by a hair
+  const held = RA.spreadWords([U(name), U(box(120, 124, 220, 140), 20)]);
+  const home = RA.spreadWords([U(box(400, 100, 460, 116)), U(box(120, 124, 220, 140), 20)]);   // nothing in its way now
+  const shifted = (b, dy) => box(b.x0, b.y0 + dy, b.x1, b.y1 + dy);
+  const clear = (dys) => RA.costOf([shifted(on, dys[1])], [shifted(name, dys[0])], RA.LIFT.pad) === 0;
+  check("spread: the first stays, the next moves to the nearest clear spot; it stays where it clears, and goes home",
+    a[0] === 0 && a[2] === 0 && a[1] !== 0 && clear(a) && Math.abs(a[1]) <= RA.SPREAD.steps * step
+    && !RA.spreadWords([U(name), U(on)]).some((d, i) => i && Math.abs(d) < Math.abs(a[1]))
+    && held[0] === 0 && held[1] === 20 && home[1] === 0, { a, held, home, step });
+});
+await tryCase("words: a room's name and an outdoor chip on it stand apart once the camera stops, both shown, still while it moves", async () => {
+  const s = await newSlot("raised-words", CROWD);
+  const look = (t = 0) => s._look(0.3 + t, 0.0015, [1.5, 0, 0.8], 60);
+  s._raised.disable(true);
+  look();
+  await settle(14);
+  const before = s._raised.overlaps().crowd;
+  s._raised.disable(false);
+  await later(RA.LIFT.restMs + 80, 8); await later(600, 8); await later(600, 8);
+  const after = s._raised.overlaps().crowd, w = s._state().raised.words, st = s._state();
+  const shown = st.names.filter(n => n.room === "Pantry" && n.shown).length === 1 && st.chips.filter(c => c.room === null && c.shown).length === 1;
+  const dys = JSON.stringify(s._state().raised.words), runs0 = s._state().raised.runs, during = [];
+  for (let i = 1; i <= 6; i++) { look(i * 0.05); await later(60, 6); during.push(JSON.stringify(s._state().raised.words)); }
+  const still = during.every(d => d === dys) && s._state().raised.runs === runs0;
+  check("words: a room's name and an outdoor chip on it stand apart once the camera stops, both shown, still while it moves",
+    before.length > 0 && after.length === 0 && shown && w.some(x => x.dy !== 0) && still, { before, after, w, shown, still, during });
+  LA.releaseLiveAboardSlot("raised-words");
 });
 
 console.log(JSON.stringify({ cases, failures }));

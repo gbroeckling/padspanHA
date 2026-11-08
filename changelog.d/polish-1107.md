@@ -2,3 +2,4 @@
 
 ### Fixed
 - **Menus open over the Vacation Mode banner.** While Vacation Mode was on, its banner in the middle of the screen sat on top of Live Aboard's ⋯ "Show on this screen" list and the Views ▾ menu, so on a wall half the list was hidden behind it. An open list or menu now sits over the banner; close it and the banner is on top again, Options and Disable working as before.
+- **Room names and outdoor chips no longer sit on each other in Live Aboard.** A room's name and a chip beside it (an outdoor sensor's "Entry outside 21°" over "Pantry", say) could be drawn one on top of the other, so neither could be read. Once the house stops turning, a name or chip that lies on another now moves up or down just enough to stand clear; both stay shown, nothing jumps about while you turn the house, and it goes back to its own place once the way is clear.
