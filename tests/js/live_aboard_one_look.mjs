@@ -291,15 +291,17 @@ await tryCase("safety: covering the panel, the Vacation banner and the emergency
   for (let i = 0; i < 3; i++) cv.dispatchEvent(ev("wheel", 400, 300, { deltaY: -160 }));
   await settle();
   const st = S(slot).screen, during = cssOf(), z = Number(slot.element.style.zIndex);
-  const vac = /\.lv-vacation\{z-index:(\d+)\}/.exec(during), emerg = /\.lv-emerg\{position:fixed;z-index:(\d+);top:\d+px;right:\d+px\}/.exec(during);
+  // (The cover's own rule, at the start of its style: the view's always-there
+  // rule for an open menu, :host([data-la3d-menu]) … > .lv-vacation, is another.)
+  const vac = /(?:^|\n)\.lv-vacation\{z-index:(\d+)\}/.exec(during), emerg = /\.lv-emerg\{position:fixed;z-index:(\d+);top:\d+px;right:\d+px\}/.exec(during);
   // Out again (Escape): back as it was.
   for (const fn of [...(lists.window.keydown || [])]) fn({ type: "keydown", key: "Escape" });
   await settle();
   const after = cssOf();
   check("safety: covering the panel, the Vacation banner and the emergency dial rise above it",
     st.cover && z === 45 && vac && emerg && Number(vac[1]) > z && Number(emerg[1]) > z
-    && !/lv-vacation\{z-index/.test(before) && !/lv-emerg\{position:fixed/.test(before)
-    && !S(slot).screen.cover && !/lv-vacation\{z-index/.test(after) && !/lv-emerg\{position:fixed/.test(after),
+    && !/(?:^|\n)\.lv-vacation\{z-index/.test(before) && !/lv-emerg\{position:fixed/.test(before)
+    && !S(slot).screen.cover && !/(?:^|\n)\.lv-vacation\{z-index/.test(after) && !/lv-emerg\{position:fixed/.test(after),
     { st, z, vac: vac && vac[0], emerg: emerg && emerg[0], after: S(slot).screen.cover });
   LA.releaseLiveAboardSlot("ol-cover");
   await settle();
