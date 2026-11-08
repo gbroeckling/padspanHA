@@ -1523,10 +1523,11 @@ class PadSpanLightsApp extends HTMLElement {
         /* Nobody at the wall: the controls floating over the map and the 3D
            house fade away (they come back with a touch, a mouse or a key),
            so a big wall shows the house, not its buttons. */
-        :host([data-wall]) .la3d-bar, :host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-hud,
+        /* The ⋯ beside the compass goes and comes back with it. */
+        :host([data-wall]) .la3d-bar, :host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-more, :host([data-wall]) .la3d-hud,
         :host([data-wall]) .lv-alone-anchor > button{transition:opacity .6s ease}
         :host([data-wall]:not([data-wall-active])) .la3d-bar, :host([data-wall]:not([data-wall-active])) .la3d-compass,
-        :host([data-wall]:not([data-wall-active])) .la3d-hud,
+        :host([data-wall]:not([data-wall-active])) .la3d-more, :host([data-wall]:not([data-wall-active])) .la3d-hud,
         :host([data-wall]:not([data-wall-active])) .lv-alone-anchor > button{opacity:0;pointer-events:none}
       </style>
       <div id="content"></div>
@@ -1603,7 +1604,7 @@ class PadSpanLightsApp extends HTMLElement {
       // it: a light, the 3D house) it does nothing else. Anywhere else (the
       // rail, a light, the map, all still showing) it works as a tap. A mouse
       // has already woken it by moving.
-      const FADED = ".la3d-bar, .la3d-compass, .la3d-hud, .lv-alone-anchor > button";
+      const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .lv-alone-anchor > button";
       const onFaded = (x, y)=>[...(this.shadowRoot ? this.shadowRoot.querySelectorAll(FADED) : [])].some(el=>{
         const r = el.getBoundingClientRect();
         return r.width > 0 && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8;
