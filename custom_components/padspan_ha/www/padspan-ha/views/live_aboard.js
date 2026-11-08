@@ -339,7 +339,11 @@ const CSS = `
 :host([data-wall]) .la3d-bar,:host([data-wall]) .la3d-compass,:host([data-wall]) .la3d-north,
 :host([data-wall]) .la3d-menu,:host([data-wall]) .la3d-toast,:host([data-wall]) .la3d-solo,:host([data-wall]) .la3d-corner,
 :host([data-wall]) .la3d-dircard,:host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}
-:host([data-wall]) .la3d-tip{display:none}`;
+:host([data-wall]) .la3d-tip{display:none}
+/* Vacation Mode's banner (styles.css .lv-vacation) is pinned dead centre over
+   the map. While the ⋯ list or a menu is open (the panel's element carries
+   data-la3d-menu) it steps under them, and is on top again once they close. */
+:host([data-la3d-menu]) .lv-mapcard > .lv-vacation{z-index:4}`;
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint
 // gives way to the view's own, and on a narrow screen the emergency pill
@@ -1260,6 +1264,15 @@ function createSlot(slotKey){
     menuOff = null;
     if (menuEl && menuEl.parentNode) menuEl.parentNode.removeChild(menuEl);
     menuEl = null;
+    markMenus();
+  }
+  /** The panel's element says whether the ⋯ list or a menu is open, so
+   *  Vacation Mode's banner steps under it (the CSS's data-la3d-menu). */
+  function markMenus(open = !!(menuEl || (showMenu && showMenu.isOpen))){
+    const h = hostEl();
+    if (!h || !h.setAttribute) return;
+    if (open) h.setAttribute("data-la3d-menu", "");
+    else h.removeAttribute("data-la3d-menu");
   }
   /** items: {text, act, on?, del?, dot? (a floor's activity), title?} or
    *  null (a line between). A second tap on its button closes it. */
@@ -1302,6 +1315,7 @@ function createSlot(slotKey){
     m.style.left = `${Math.max(8, Math.min(ar.left - rr.left, rr.width - 8 - mw)) / k}px`;
     m.style.bottom = `${Math.max(8, rr.bottom - ar.top + 6) / k}px`;
     menuEl = m;
+    markMenus();
     const away = guard((e) => { const path = e.composedPath ? e.composedPath() : []; if (!path.includes(m) && !path.includes(anchor)) closeMenu(); });
     const esc = guard((e) => { if (e.key === "Escape") closeMenu(); });
     window.addEventListener("pointerdown", away, true);
@@ -5078,7 +5092,8 @@ function createSlot(slotKey){
       reset: () => resetShow(),
       opened: () => showSend("house3d_show:opened"),
       seen: (groups) => { for (const g of groups) for (const r of g.rows) if (r.setup && !r.setup.perm) showSend(`house3d_show:setup_seen:${r.key}`, true); },
-      onOpen: () => { closeMenu(); if (use) use.clear(); },
+      onOpen: () => { closeMenu(); if (use) use.clear(); markMenus(true); },
+      onClose: () => markMenus(),
     });
   }
   /** The list changed: drawn again from the card's data (only what it touches

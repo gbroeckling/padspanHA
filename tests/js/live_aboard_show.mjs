@@ -210,6 +210,29 @@ await tryCase("button: the list closes on ✕, Escape, a tap elsewhere, and the 
   const home = !S().show.menu.open;
   check("button: the list closes on ✕, Escape, a tap elsewhere, and the flight home", x && esc && away && home, { x, esc, away, home });
 });
+await tryCase("button: an open list or menu sits over Vacation Mode's banner, which is on top again once it closes", async () => {
+  // The banner (styles.css .lv-vacation) is pinned dead centre above the map
+  // (z 40); while the list or Views ▾ is open the panel's element says so,
+  // and the view's own rule puts the banner under its menus.
+  const marked = () => host.hasAttribute("data-la3d-menu");
+  const was = marked();
+  click(more()); await settle();
+  const list = marked();
+  click(q(".la3d-sx")); await settle();
+  const listShut = !marked();
+  const views = qa("button").find(b => (b.textContent || "").startsWith("Views"));
+  click(views); await settle();
+  const menu = marked() && S().screen.menu;
+  click(views); await settle();
+  const menuShut = !marked() && !S().screen.menu;
+  const css = qa("style").map(s => s.textContent).join("\n");
+  const z = (re) => { const m = re.exec(css); return m ? Number(m[1]) : null; };
+  const bannerZ = z(/:host\(\[data-la3d-menu\]\) \.lv-mapcard > \.lv-vacation\{z-index:(\d+)\}/);
+  const menuZ = z(/\.la3d-menu\{position:absolute;z-index:(\d+)/), showZ = z(/\.la3d-show\{position:absolute;[^}]*?z-index:(\d+)/);
+  check("button: an open list or menu sits over Vacation Mode's banner, which is on top again once it closes",
+    !was && list && listShut && views && menu && menuShut && bannerZ !== null && bannerZ < menuZ && bannerZ < showZ,
+    { was, list, listShut, views: !!views, menu, menuShut, bannerZ, menuZ, showZ });
+});
 
 // ── a tick is this screen's ─────────────────────────────────────────────────
 await tryCase("prefs: a tick is this screen's; back at the house's own it is forgotten; nothing of the house is written", async () => {
