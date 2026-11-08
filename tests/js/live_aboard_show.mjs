@@ -473,5 +473,20 @@ await tryCase("rest: with lines hidden a poll rebuilds nothing, and at rest no f
     && s.frames - f0 <= 4 && pendingFrames() === 0, { w0, w1, frames: s.frames - f0, liveMs: s.liveMs });
 });
 
+// ── a screen opened with ticks of its own ───────────────────────────────────
+await tryCase("button: a screen opened with ticks of its own wears the dot from the start, in the accent, plainly", async () => {
+  // Garry's wall, 2026-11-07: three lines unticked there, and no dot after a reload.
+  store.set("show_show-c", JSON.stringify({ room_names: false, room_outlines: false, floor_outlines: false }));
+  const a = slot;
+  await open("show-c");
+  const dot = S().show.menu.changed && more().classList.contains("la3d-changed");
+  const css = qa("style").map(s => s.textContent).join("\n");
+  const m = /\.la3d-more\.la3d-changed::after\{[^}]*?width:(\d+)px;height:(\d+)px;[^}]*?background:var\(--accent,#52b788\)/.exec(css);
+  LA.releaseLiveAboardSlot("show-c");
+  slot = a;
+  check("button: a screen opened with ticks of its own wears the dot from the start, in the accent, plainly",
+    dot && m && Number(m[1]) >= 14 && Number(m[2]) >= 14, { dot, css: m && m[0] });
+});
+
 LA.releaseLiveAboardSlot("show-a");
 console.log(JSON.stringify({ cases, failures, lists: { events: SHOW.SHOW_EVENTS, keys: SHOW.SHOW_KEYS } }));

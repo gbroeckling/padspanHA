@@ -220,8 +220,8 @@ const CSS = `
   letter-spacing:1px;background:rgba(6,14,9,.86);border:1px solid rgba(120,190,155,.26);box-shadow:0 4px 14px rgba(0,0,0,.35);
   transition:opacity .25s ease,visibility .25s}
 .la3d-more:hover,.la3d-more:focus-visible,.la3d-more[aria-expanded="true"]{background:rgba(45,106,79,.92);border-color:#52b788}
-.la3d-more.la3d-changed::after{content:"";position:absolute;right:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#fbbf24;
-  border:2px solid rgba(6,14,9,.95)}
+.la3d-more.la3d-changed::after{content:"";position:absolute;right:-3px;top:-3px;width:14px;height:14px;border-radius:50%;background:var(--accent,#52b788);
+  border:2px solid rgba(6,14,9,.95);box-shadow:0 0 6px var(--accent,#52b788)}
 .la3d.la3d-bare .la3d-more,.la3d.la3d-bare .la3d-show{opacity:0;visibility:hidden;pointer-events:none}
 .la3d-show{position:absolute;left:10px;top:66px;z-index:5;box-sizing:border-box;width:min(640px,calc(100% - 20px));
   max-height:calc(100% - 132px);display:flex;flex-direction:column;border-radius:14px;background:rgba(6,14,9,.96);

@@ -5222,6 +5222,7 @@ function createSlot(slotKey){
     // The ⋯ list: what this screen shows (showP), from the house's own (houseP).
     houseP = p;
     if (SHOW && p) p = showP(p);
+    if (showMenu) showMenu.mark();                         // the dot from the first draw (a screen opened with ticks of its own)
     lastP = p;
     syncScenes();
     applyLook(p);
