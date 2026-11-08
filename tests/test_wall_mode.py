@@ -319,7 +319,12 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
     assert "turnBy(-2 * Math.PI * dx / h);" in src and "turnBy(Math.PI / 2);" in src, "a wall framed whole turns about the house's middle"
     assert src.count("turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);") == 2, "the compass too"
     assert "wallPivot.top !== topElev" in src, "worked out when it turns: a saved home never ran a fit"
-    assert "if (pad.H && onWallPage(root)) {" in src, "every other screen frames the house as before"
+    assert "if (banded(pad)) {" in src
+    # Off a wall, only a short screen with the scene row on the bar is framed in the band (the
+    # house's front ran under the row, 2026-11-07): every other screen frames the house as before.
+    assert ("const banded = (pad) => !!pad.H && (onWallPage(root)\n"
+            '    || (!!bar && bar.classList.contains("psc-has") && 1 - 2 * Math.max(pad.top, pad.bottom) / pad.H < 0.6));') in src
+    assert "Math.max(0.6, 1 - 2 * Math.max(pad.top, pad.bottom) / pad.H)" in src, "elsewhere, still never under 60% of the view"
 
 
 def test_a_motion_sensors_reach_is_soft_light_with_no_hard_edge():

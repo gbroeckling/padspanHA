@@ -3404,17 +3404,17 @@ function createSlot(slotKey){
   // +y), phi tilts down from straight above. Drag turns it; right-drag, or
   // two fingers, pans along the ground; the wheel, or a pinch, zooms about the
   // point under the cursor or between the fingers.
-  /** Turn the camera. A wall framed whole fills its band with the camera's
+  /** Turn the camera. A wall (or a short screen) framed whole fills its band with the camera's
    *  middle off the house's (frameFor), so unless it is zoomed in it turns
    *  about the middle of what shows, however it got there (a saved home, a
    *  floor, Whole house), or the house would swing off the screen. */
   function turnBy(d){
-    if (onWallPage(root) && (!wallPivot || wallPivot.top !== topElev)) {
-      const pts = visiblePoints(), m = new THREE.Box3().setFromPoints(pts).getCenter(new THREE.Vector3());
-      wallPivot = { top: topElev, x: m.x, z: m.z, r: frameFor(cam.theta, cam.phi, pts).radius };
+    if (!wallPivot || wallPivot.top !== topElev) {
+      const pts = onWallPage(root) || banded(uiPad()) ? visiblePoints() : null, m = pts ? new THREE.Box3().setFromPoints(pts).getCenter(new THREE.Vector3()) : null;
+      wallPivot = pts ? { top: topElev, x: m.x, z: m.z, r: frameFor(cam.theta, cam.phi, pts).radius } : { top: topElev, r: null };
     }
     cam.theta += d;
-    if (!onWallPage(root) || cam.radius < wallPivot.r * 0.9) return;
+    if (wallPivot.r === null || cam.radius < wallPivot.r * 0.9) return;
     const c = Math.cos(d), s = Math.sin(d), x = cam.target.x - wallPivot.x, z = cam.target.z - wallPivot.z;
     cam.target.x = wallPivot.x + x * c + z * s;
     cam.target.z = wallPivot.z - x * s + z * c;
@@ -3686,7 +3686,14 @@ function createSlot(slotKey){
   }
   const WALL_CLEAR = 0.05;                                   // a wall's house keeps this clear of the screen's edge (of half the screen)
   const WALL_CHIPS_PX = 82;                                  // the chip row's room at the top of a wall, before --wall-ui
-  let wallPivot = null;                                      // a wall: the middle of what shows, and its whole-house radius (turnBy)
+  let wallPivot = null;                                      // a wall (or a short screen's band): the middle of what shows, and its whole-house radius (turnBy)
+  /** The house fits the band between what covers the top and the bottom,
+   *  moved into it: on a wall, and on a short screen with the scene row on
+   *  the bar, where the band the larger of the two leaves on both sides is
+   *  under 60% of the view (held at 60%, the house's front ran under the
+   *  row). Else it stays in the middle of the view, as ever. */
+  const banded = (pad) => !!pad.H && (onWallPage(root)
+    || (!!bar && bar.classList.contains("psc-has") && 1 - 2 * Math.max(pad.top, pad.bottom) / pad.H < 0.6));
   function frameFor(theta, phi, pts){
     const keep = { p: camera.position.clone(), q: camera.quaternion.clone() };
     const dir = new THREE.Vector3(Math.sin(phi) * Math.sin(theta), Math.cos(phi), Math.sin(phi) * Math.cos(theta));
@@ -3709,10 +3716,11 @@ function createSlot(slotKey){
       const o = q.clone().sub(c), z = o.dot(dir);
       need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / (tv * fr) * vk);   // sides: 8% clear (4% ran a narrow screen's house to its edge)
     }
-    // A wall: the house as large as the screen lets it be, in the band what stays on show leaves.
-    if (pad.H && onWallPage(root)) {
+    // A wall, or a short screen: the house as large as the screen lets it be, in the band what stays on show leaves.
+    if (banded(pad)) {
       const f = HOUSE.fillBand(pts.map((q) => { const o = q.clone().sub(c); return [o.dot(right), o.dot(up), o.dot(dir)]; }), th, tv,
-                               1 - 2 * pad.top / pad.H - WALL_CLEAR, -1 + 2 * pad.bottom / pad.H + WALL_CLEAR, 1 - WALL_CLEAR);
+                               1 - 2 * pad.top / pad.H - WALL_CLEAR, -1 + 2 * pad.bottom / pad.H + WALL_CLEAR,
+                               onWallPage(root) ? 1 - WALL_CLEAR : 1 / 1.08);   // sides as above, off a wall
       if (Number.isFinite(f.x + f.y + f.r)) {
         c.addScaledVector(right, f.x).addScaledVector(up, f.y);
         need = Math.max(2, f.r);

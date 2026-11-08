@@ -343,6 +343,39 @@ await tryCase("aboard: on a wall nothing leads off the page: set-up lines say wh
     && buttons === 0 && links === 0 && !foot && st.shown && st.edits === 1 && st.add === "kiosk", { sc, rain, buttons, links, foot, st });
   H.kiosk = false; H.goTo = true; poll(); await settle();
 });
+await tryCase("aboard: on a short screen Fit leaves room for the row: the whole house shows above it, as large as the band lets it", async () => {
+  // A short screen that isn't a wall: 1000 x 420, the bar with the scene row
+  // over its bottom 150 px. The band the bar leaves on both sides would be
+  // a quarter of the view; held at 60% of it, the house's front ran under the row.
+  const W = 1000, H0 = 420, barTop = 270, el = slot.element, cv = el.querySelector("canvas");
+  // (The DOM shim reads only a selector list's first selector: here, all of them, as a browser does.)
+  const qsa = el.querySelectorAll;
+  el.querySelectorAll = function(sel){ return [...new Set(String(sel).split(",").flatMap(x => qsa.call(this, x.trim())))]; };
+  const rectOf = (l, t, w, h) => () => ({ x: l, y: t, left: l, top: t, width: w, height: h, right: l + w, bottom: t + h });
+  for (const n of [el, cv]) { n.clientWidth = W; n.clientHeight = H0; n.getBoundingClientRect = rectOf(0, 0, W, H0); }
+  for (const n of qa(".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip")) n.getBoundingClientRect = rectOf(0, 0, 0, 0);
+  q(".la3d-bar").getBoundingClientRect = rectOf(0, barTop, W, H0 - barTop);
+  poll(); await settle(10);
+  const fitBtn = qa("button").find(b => b.textContent === "Fit");
+  click(fitBtn); await settle();
+  const c = S().cam, top = S().topElev;
+  const cam = new THREE.PerspectiveCamera(40, W / H0, 0.1, 500);
+  const s = Math.sin(c.phi);
+  cam.position.set(c.target[0] + c.radius * s * Math.sin(c.theta), c.target[1] + c.radius * Math.cos(c.phi), c.target[2] + c.radius * s * Math.cos(c.theta));
+  cam.lookAt(new THREE.Vector3(...c.target)); cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+  const elev = { main: 0, up: 2.8 }, ys = [];
+  for (const [, g] of Object.entries(MODEL.room_geometry_m)) {
+    const e = elev[g.floor_id];
+    if (top !== null && top !== undefined && e > top + 1e-3) continue;
+    for (const [x, y] of g.points_m) for (const h of [e, e + 2.4]) ys.push((1 - new THREE.Vector3(x, h, y).project(cam).y) / 2 * H0);
+  }
+  const low = Math.max(...ys), high = Math.min(...ys);
+  check("aboard: on a short screen Fit leaves room for the row: the whole house shows above it, as large as the band lets it",
+    fitBtn && low < barTop && high > 0 && (low - high) >= 0.55 * barTop, { low, high, barTop, cam: c, top });
+  for (const n of [el, cv, q(".la3d-bar"), ...qa(".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip")]) { delete n.getBoundingClientRect; n.clientWidth = 800; n.clientHeight = 600; }
+  el.querySelectorAll = qsa;
+  poll(); await settle(10);
+});
 await tryCase("rails: Railings takes the stair's rails too, and stair rails make the line ready", async () => {
   await openList();
   const ready = !setupOf("railings") && /stair rails/.test(srow("railings").textContent);
