@@ -841,6 +841,22 @@ def test_the_server_keeps_no_ip_no_agent_and_nothing_of_the_report():
     assert "padspan-testers" not in (_ROOT / "server" / "telemetry.php").read_text(encoding="utf-8")
 
 
+def test_the_tester_key_reads_the_secret_where_the_licence_server_keeps_it():
+    # On 2026-10-30 the licence server's ADMIN_SECRET moved out of license/index.php
+    # into private/license-config.php. tester.php kept reading index.php, found
+    # nothing, and the next sign-up (2026-11-07) got "Tester key needs you", no key.
+    src = _php()
+    m = re.search(r"function licence_secret\(\) \{(.*?)\n\}", src, re.S)
+    assert m, "licence_secret() is gone from tester.php"
+    places = re.findall(r"__DIR__ \. '([^']+)'", m.group(1))
+    assert places == ["/../../../private/license-config.php", "/../../license/index.php"], places
+    rx = re.search(r'preg_match\("/(.+?)/", \$src, \$m\)', m.group(1))
+    hit = rx and re.search(rx.group(1), "<?php\nconst ADMIN_SECRET='x';\n")
+    assert hit and hit.group(1) == "x", "the pattern no longer reads private/license-config.php's line"
+    code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("//"))
+    assert "$secret = licence_secret();" in code
+
+
 def test_what_the_integration_sends_the_server_takes_whole(monkeypatch, server):
     h = _house()
     _wire(monkeypatch, _via(server))
