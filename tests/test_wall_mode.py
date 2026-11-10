@@ -290,7 +290,7 @@ def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
     # Review, 2026-10-21: the rail, drawers and lights stay showing on a faded
     # wall, so a first tap on them must work; only one where a faded control was is eaten.
     lp = _src("lights_panel.js")
-    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .lv-alone-anchor > button";' in lp
+    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .lv-alone-anchor > button";' in lp
     assert "if(!onFaded(e.clientX, e.clientY)) return;" in lp
     assert '"translate"];' in _src("views/live_aboard.js"), "leaving full screen clears the wall's shift on the 3D view"
 
@@ -302,6 +302,13 @@ def test_the_more_button_fades_and_comes_back_with_the_compass():
     lp = _src("lights_panel.js")
     assert ":host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-more," in lp, "it fades as slowly"
     assert ":host([data-wall]:not([data-wall-active])) .la3d-more," in lp, "gone while nobody is at the wall"
+
+def test_the_motion_chip_fades_and_comes_back_with_the_other_controls():
+    # Garry's wall, 2026-11-09: nobody there for 30 s, the bars, the compass and
+    # the ⋯ faded but the Motion chip stayed on its own.
+    lp = _src("lights_panel.js")
+    assert ":host([data-wall]) .la3d-mchip, :host([data-wall]) .la3d-mkey," in lp, "it fades as slowly"
+    assert ":host([data-wall]:not([data-wall-active])) .la3d-mchip, :host([data-wall]:not([data-wall-active])) .la3d-mkey," in lp, "gone while nobody is there"
 
 def test_the_atlas_page_runs_without_the_wall_module():
     # The 15-hour review's load-risk check: an optional module must not take the page with it.
