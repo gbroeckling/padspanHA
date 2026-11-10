@@ -125,6 +125,8 @@ OUTPUT_TOKENS = 400
 # Claude Opus 5.5 run, ~100 KB pictures, thinking low, and a few tiny checks)
 # for the key Home Assistant uses: CALIBRATION = that figure ÷ this
 # estimate for the same day, kept within CALIBRATION_RANGE.
+# 2026-11-10: the Console came in about 17 % under this estimate for the
+# reads up to then; Garry keeps 1.0 on purpose, as a buffer.
 CALIBRATION = 1.0
 CALIBRATION_RANGE = (0.2, 5.0)
 
