@@ -1099,17 +1099,18 @@ class Runner:
         """Neither answer could be used."""
         self._err("bad_answer")
 
-    async def ask(self, prompt: str, raw: bytes) -> Any:
+    async def ask(self, prompt: str, raw: bytes, size: tuple[int, int] | None = None) -> Any:
         """One read inside the budget and the per-read cap; None on a failure
         (counted by reason). Two timeouts in a row end the session; a failure
-        in HALTS ends the reads. The backup AI Task only where BACKUP."""
+        in HALTS ends the reads. The backup AI Task only where BACKUP.
+        `size`: the picture's, as its executor job measured it (the estimate)."""
         sess = self.sess
         eid = str(self.ai.get("ai_task") or "")
         t0 = time.monotonic()
         sess["reads"] = int(sess.get("reads") or 0) + 1
         if "est_usd" in sess:                            # the line-up's own estimate of its reads (ai_usage's formula)
             try:
-                usd = U.estimate_usd(U.price_of(U.model_of(self.hass, eid)), U.picture_size(raw), len(prompt))
+                usd = U.estimate_usd(U.price_of(U.model_of(self.hass, eid)), size, len(prompt))
                 sess["est_usd"] = round(float(sess.get("est_usd") or 0.0) + (usd or 0.0), 5)
             except Exception:  # noqa: BLE001 — the estimate never stops a read
                 pass
@@ -1151,10 +1152,10 @@ class Runner:
             U.unusable(self.hass, by)
         return answer
 
-    async def read(self, prompt: str, raw: bytes, parse) -> Any:
+    async def read(self, prompt: str, raw: bytes, parse, size: tuple[int, int] | None = None) -> Any:
         """One read, parsed, and once more on an answer that can't be parsed
         (parse → None): the design's one retry. None when nothing came of it."""
-        answer = await self.ask(prompt, raw)
+        answer = await self.ask(prompt, raw, size)
         if answer is None:
             return None
         got = parse(answer)
@@ -1162,7 +1163,7 @@ class Runner:
             self.unusable(answer)
         if got is None and not self.stop_here():
             self.retried()
-            answer = await self.ask(prompt, raw)
+            answer = await self.ask(prompt, raw, size)
             if answer is None:
                 return None
             got = parse(answer)
@@ -2898,7 +2899,7 @@ class LineupRunner(Runner):
         k = w / W if W else 1.0
         pl["frame"] = [w, h]
         _bump(self.hass, "plan_build_read:s1_plan")
-        got = await self.read(READ_A_PROMPT.format(w=w, h=h), raw, lambda a: parse_read_a(a, w, h, k))
+        got = await self.read(READ_A_PROMPT.format(w=w, h=h), raw, lambda a: parse_read_a(a, w, h, k), (w, h))
         if got is None:
             return
         try:
@@ -2939,7 +2940,8 @@ class LineupRunner(Runner):
                 d["read"] = True
                 continue
             _bump(self.hass, "plan_build_read:s1_dimension")
-            got = await self.read(READ_B_PROMPT.format(w=w, h=h, way="across" if d["axis"] == "x" else "down"), raw, lambda a: parse_read_b(a, w, h))
+            got = await self.read(READ_B_PROMPT.format(w=w, h=h, way="across" if d["axis"] == "x" else "down"), raw,
+                                  lambda a: parse_read_b(a, w, h), (w, h))
             if self.halt and got is None:
                 return                                   # read again on Resume
             d["read"] = True

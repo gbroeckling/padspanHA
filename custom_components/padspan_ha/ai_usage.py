@@ -29,6 +29,7 @@ coarse bands only (the report's usage key, telemetry.AI_USAGE_EVENTS).
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import struct
@@ -176,6 +177,18 @@ def estimate_usd(price: tuple[float, float] | None, size: tuple[int, int] | None
     return (tokens_in * price[0] + OUTPUT_TOKENS * price[1]) / 1_000_000 * min(hi, max(lo, CALIBRATION))
 
 
+JPEG_SCAN_MAX = 256 * 1024            # a JPEG's frame header is looked for this far in, no further (review R6)
+
+
+def prompt_chars(instructions: Any, structure: Any) -> int:
+    """The characters a read's prompt sends (its words and its structure).
+    Never raises: it is counted in ask()'s finally, over the AI's answer."""
+    try:
+        return len(str(instructions or "")) + (len(json.dumps(structure, default=str)) if structure else 0)
+    except Exception:  # noqa: BLE001
+        return len(str(instructions or ""))
+
+
 def picture_size(raw: bytes) -> tuple[int, int] | None:
     """A JPEG's, PNG's or WebP's width and height from its header, or None."""
     try:
@@ -194,8 +207,8 @@ def picture_size(raw: bytes) -> tuple[int, int] | None:
                 return 1 + int.from_bytes(raw[24:27], "little"), 1 + int.from_bytes(raw[27:30], "little")
             return None
         if raw[:2] == b"\xff\xd8":
-            i = 2
-            while i + 9 < len(raw):
+            i, end = 2, min(len(raw), JPEG_SCAN_MAX)       # the frame header is near the start; never a walk through the whole file
+            while i + 9 < end:
                 if raw[i] != 0xFF:
                     i += 1
                     continue

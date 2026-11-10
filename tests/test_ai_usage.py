@@ -166,6 +166,41 @@ def test_the_picture_size_comes_from_the_header(fmt):
     assert U.picture_size(b"not a picture") is None and U.picture_size(b"\xff\xd8\xff") is None
 
 
+def test_a_crafted_jpeg_is_never_walked_to_its_end():
+    """Review R6: no frame header in the first 256 KB of 2 MB of markers: given up there."""
+    assert U.picture_size(b"\xff\xd8" + b"\x00" * (2 * 1024 * 1024)) is None
+    late =b"\xff\xd8" + b"\x00" * (U.JPEG_SCAN_MAX + 10) + b"\xff\xc0\x00\x11\x08\x01\x00\x02\x00"
+    assert U.picture_size(late) is None
+
+
+def test_the_trackers_count_runs_off_the_loop_and_never_replaces_the_answer(house, tmp_path, monkeypatch):
+    """Review R6: the picture's size is read in the executor job that writes
+    it; whatever the count's inputs do, ask() answers with the AI's answer."""
+    h = house.h
+    h.config.media_dirs = {"local": str(tmp_path)}
+    h.services.async_call = _Ai("the answer")
+    where, inside = [], {"n": 0}
+    run = h.async_add_executor_job
+
+    async def executor(fn, *args):
+        inside["n"] += 1
+        try:
+            return await run(fn, *args)
+        finally:
+            inside["n"] -= 1
+    h.async_add_executor_job = executor
+    real = U.picture_size
+    monkeypatch.setattr(U, "picture_size", lambda raw: where.append(inside["n"] > 0) or real(raw))
+    assert _run(P.ask(h, _CLAUDE, "Read the plan.", None, _jpeg(800, 600), "image/jpeg", "PadSpan plans")) == "the answer"
+    assert where == [True] and _row(h)["megapixels"] == pytest.approx(0.48)
+    # A size reader that raises, and a structure that can't be written out: still the answer, still counted.
+    monkeypatch.setattr(U, "picture_size", lambda raw: 1 / 0)
+    loop: dict = {}
+    loop["self"] = loop
+    assert _run(P.ask(h, _CLAUDE, "Read the plan.", loop, _jpeg(800, 600), "image/jpeg", "PadSpan plans")) == "the answer"
+    assert _row(h)["reads"] == 2 and U.prompt_chars("Read the plan.", loop) == len("Read the plan.")
+
+
 # ═══ counting ════════════════════════════════════════════════════════════════
 
 class _Ai:
