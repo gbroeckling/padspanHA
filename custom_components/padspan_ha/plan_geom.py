@@ -864,3 +864,246 @@ def shift_of(new_t: dict, frac: tuple[float, float], stored_m: tuple[float, floa
     """Where a click made on the picture at `frac` lands under the new
     placement, against where it is stored in metres (design 3.6)."""
     return Shift(stored_m=(float(stored_m[0]), float(stored_m[1])), click_m=placement_metres(new_t, float(frac[0]), float(frac[1])))
+
+
+# ── Room outlines (Stage 2, design section 5) ────────────────────────────────
+# Polygons in fabric metres, [[x, y], ...]. Overlaps on a 5 cm raster (the
+# research's own scoring grid), merges as one clean polygon. Pillow only.
+
+GRID_M = 0.05                   # the raster's cell (the 2026-11-10 test scored rooms on it)
+CLOSE_M = (0.35, 0.6, 1.0)      # a merge closes gaps up to the first of these that makes one shape: neighbouring rooms are a
+                                # wall apart (0.1-0.3 m); a thick foundation wall or a skipped hall needs more (his basement)
+SIMPLIFY_M = 0.04               # a merged outline's corners kept to within this
+
+
+def area(p: Any) -> float:
+    """A polygon's area, m² (shoelace; either winding)."""
+    n = len(p or [])
+    return abs(sum(p[i][0] * p[i - 1][1] - p[i - 1][0] * p[i][1] for i in range(n))) / 2 if n >= 3 else 0.0
+
+
+def centroid(p: Any) -> tuple[float, float]:
+    """The middle of a polygon's corners (enough to say where a room is)."""
+    return (sum(v[0] for v in p) / len(p), sum(v[1] for v in p) / len(p)) if p else (0.0, 0.0)
+
+
+def inside(x: float, y: float, p: Any) -> bool:
+    """Ray casting, as the room lookups do (model_store.beacon_room_from_geometry)."""
+    c, n = False, len(p or [])
+    for i in range(n):
+        (x1, y1), (x2, y2) = p[i - 1][:2], p[i][:2]
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+            c = not c
+    return c
+
+
+def _box(polys: list, pad: float) -> tuple[float, float, float, float]:
+    xs = [v[0] for p in polys for v in p]
+    ys = [v[1] for p in polys for v in p]
+    return min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad
+
+
+def _raster(polys: list, box: tuple[float, float, float, float]) -> list:
+    """Each polygon filled on its own 8-bit picture of the box, 255 inside."""
+    from PIL import Image, ImageDraw  # noqa: PLC0415
+    x0, y0, x1, y1 = box
+    w, h = max(1, int((x1 - x0) / GRID_M) + 1), max(1, int((y1 - y0) / GRID_M) + 1)
+    out = []
+    for p in polys:
+        im = Image.new("L", (w, h), 0)
+        if p and len(p) >= 3:
+            ImageDraw.Draw(im).polygon([((x - x0) / GRID_M, (y - y0) / GRID_M) for x, y in p], fill=255)
+        out.append(im)
+    return out
+
+
+def overlap(p: Any, q: Any) -> tuple[float, float, float]:
+    """(cells of p, cells of q, cells in both), on one raster."""
+    if len(p or []) < 3 or len(q or []) < 3:
+        return 0.0, 0.0, 0.0
+    bp, bq = _box([p], 0.0), _box([q], 0.0)
+    if bp[0] > bq[2] or bq[0] > bp[2] or bp[1] > bq[3] or bq[1] > bp[3]:    # apart: no raster needed
+        return area(p) / GRID_M ** 2, area(q) / GRID_M ** 2, 0.0
+    from PIL import ImageChops  # noqa: PLC0415
+    a, b = _raster([p, q], _box([p, q], GRID_M))
+    return float(a.histogram()[255]), float(b.histogram()[255]), float(ImageChops.multiply(a, b).histogram()[255])
+
+
+def union_iou(a: Any, b: Any) -> float:
+    """Intersection over union of two sets of outlines, each taken as the
+    union of its own (the test scored a room read as several printed rooms so)."""
+    a = [p for p in a or [] if len(p or []) >= 3]
+    b = [p for p in b or [] if len(p or []) >= 3]
+    if not a or not b:
+        return 0.0
+    from PIL import ImageChops  # noqa: PLC0415
+    ims = _raster(a + b, _box(a + b, GRID_M))
+    ua, ub = ims[0], ims[len(a)]
+    for im in ims[1:len(a)]:
+        ua = ImageChops.lighter(ua, im)
+    for im in ims[len(a) + 1:]:
+        ub = ImageChops.lighter(ub, im)
+    both, either = ImageChops.multiply(ua, ub).histogram()[255], ImageChops.lighter(ua, ub).histogram()[255]
+    return both / either if either else 0.0
+
+
+def poly_iou(p: Any, q: Any) -> float:
+    """Intersection over union of two outlines."""
+    na, nb, both = overlap(p, q)
+    return both / (na + nb - both) if na + nb - both > 0 else 0.0
+
+
+def share_inside(p: Any, q: Any) -> float:
+    """How much of p lies inside q, 0-1."""
+    na, _nb, both = overlap(p, q)
+    return both / na if na else 0.0
+
+
+def _trace(mask: Any, box: tuple[float, float, float, float]) -> list[list[float]]:
+    """The outer boundary of a filled 0/255 picture, in metres: every cell
+    side between inside and out, chained clockwise on the picture (the inside
+    on the right), the loop of most area kept."""
+    w, h = mask.size
+    px = mask.tobytes()
+
+    def on(x: int, y: int) -> bool:
+        return 0 <= x < w and 0 <= y < h and px[y * w + x] == 255
+
+    nxt: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for y in range(h):
+        row = y * w
+        for x in range(w):
+            if px[row + x] != 255:
+                continue
+            if not on(x, y - 1):
+                nxt.setdefault((x, y), []).append((x + 1, y))
+            if not on(x + 1, y):
+                nxt.setdefault((x + 1, y), []).append((x + 1, y + 1))
+            if not on(x, y + 1):
+                nxt.setdefault((x + 1, y + 1), []).append((x, y + 1))
+            if not on(x - 1, y):
+                nxt.setdefault((x, y + 1), []).append((x, y))
+    loops = []
+    while nxt:
+        start = next(iter(nxt))
+        loop, at, came = [start], start, None
+        while True:
+            outs = nxt.get(at)
+            if not outs:
+                break
+            if len(outs) > 1 and came is not None:        # two cells touching at a corner: the right turn keeps them apart
+                dx, dy = at[0] - came[0], at[1] - came[1]
+                outs.sort(key=lambda o: 0 if (o[0] - at[0], o[1] - at[1]) == (-dy, dx) else 1)
+            to = outs.pop(0)
+            if not outs:
+                del nxt[at]
+            came, at = at, to
+            if at == start:
+                break
+            loop.append(at)
+        if len(loop) >= 4:
+            loops.append(loop)
+    if not loops:
+        return []
+    best = max(loops, key=area)
+    return [[box[0] + (cx - 0.5) * GRID_M, box[1] + (cy - 0.5) * GRID_M] for cx, cy in best]   # a filled cell is centred on its point
+
+
+def _seg_dist(p: Any, a: Any, b: Any) -> float:
+    vx, vy = b[0] - a[0], b[1] - a[1]
+    L = vx * vx + vy * vy
+    t = 0.0 if L == 0 else max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L))
+    return math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy)
+
+
+def _dp(pts: list, tol: float) -> list:
+    """Douglas-Peucker on an open run (its ends kept)."""
+    if len(pts) < 3:
+        return pts
+    far, at = -1.0, 0
+    for i in range(1, len(pts) - 1):
+        d = _seg_dist(pts[i], pts[0], pts[-1])
+        if d > far:
+            far, at = d, i
+    if far <= tol:
+        return [pts[0], pts[-1]]
+    return _dp(pts[:at + 1], tol)[:-1] + _dp(pts[at:], tol)
+
+
+def simplify(p: Any, tol: float = SIMPLIFY_M) -> list[list[float]]:
+    """A closed outline with its stair-steps and needless corners taken out:
+    split at the two corners furthest apart, each half Douglas-Peucker'd."""
+    pts = [[float(v[0]), float(v[1])] for i, v in enumerate(p) if i == 0 or math.dist(v[:2], p[i - 1][:2]) > 1e-9]
+    if len(pts) > 1 and math.dist(pts[0], pts[-1]) <= 1e-9:
+        pts.pop()
+    if len(pts) > 3:
+        j = max(range(len(pts)), key=lambda i: math.dist(pts[0], pts[i]))
+        out = _dp(pts[:j + 1], tol)[:-1] + _dp(pts[j:] + [pts[0]], tol)[:-1]
+        pts = out if len(out) >= 3 else pts
+    return [[round(x, 3), round(y, 3)] for x, y in pts]
+
+
+def merge_outline(polys: Any, close_m: Any = CLOSE_M) -> tuple[list[list[float]], int]:
+    """Several outlines as ONE clean polygon (design 5: a merged room is one
+    shape): raster at GRID_M, union, closed over gaps up to the first of
+    close_m that leaves one piece, with a square kernel (square corners stay
+    square), holes filled, the outer boundary traced and simplified.
+    (outline, how many pieces it was after the widest closing; more than 1:
+    some parts didn't reach the largest, which alone is kept). One polygon
+    in: itself, tidied."""
+    polys = [p for p in polys or [] if len(p or []) >= 3 and area(p) > 0]
+    if not polys:
+        return [], 0
+    if len(polys) == 1:
+        return simplify(polys[0], 0.0), 1
+    out: tuple[list[list[float]], int] = ([], 0)
+    for c in (close_m if isinstance(close_m, (list, tuple)) else (close_m,)):
+        out = _merged(polys, float(c))
+        if out[1] <= 1:
+            break
+    return out
+
+
+def _merged(polys: list, close_m: float) -> tuple[list[list[float]], int]:
+    from PIL import ImageChops, ImageDraw, ImageFilter  # noqa: PLC0415
+    r = max(1, math.ceil(close_m / 2 / GRID_M - 1e-9))
+    box = _box(polys, (r + 3) * GRID_M)
+    ims = _raster(polys, box)
+    u = ims[0]
+    for im in ims[1:]:
+        u = ImageChops.lighter(u, im)
+    u = u.filter(ImageFilter.MaxFilter(2 * r + 1)).filter(ImageFilter.MinFilter(2 * r + 1))
+    u = u.point(lambda v: 255 if v >= 128 else 0)
+    ImageDraw.floodfill(u, (0, 0), 100)                  # the outside is what a fill from the corner reaches
+    u = u.point(lambda v: 0 if v == 100 else 255)          # the rest, holes too, is inside
+    sizes, label = {}, 1
+    while label < 250:                                     # each piece filled with its own number
+        bb = u.point(lambda v: 255 if v == 255 else 0).getbbox()
+        if not bb:
+            break
+        row = u.crop((bb[0], bb[1], bb[2], bb[1] + 1)).tobytes()
+        ImageDraw.floodfill(u, (bb[0] + row.index(255), bb[1]), label)
+        sizes[label] = u.histogram()[label]
+        label += 1
+    if not sizes:
+        return [], 0
+    keep = max(sizes, key=lambda k: sizes[k])
+    return simplify(_trace(u.point(lambda v: 255 if v == keep else 0), box)), len(sizes)
+
+
+def nearest_edge(p: Any, x: float, y: float) -> dict[str, Any] | None:
+    """The point of a polygon's boundary nearest (x, y): {d, at, u (the edge's
+    direction), t (metres along the edge), length}."""
+    best = None
+    for i in range(len(p or [])):
+        a, b = p[i - 1], p[i]
+        vx, vy = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(vx, vy)
+        if L < 1e-9:
+            continue
+        t = max(0.0, min(L, ((x - a[0]) * vx + (y - a[1]) * vy) / L))
+        q = (a[0] + vx / L * t, a[1] + vy / L * t)
+        d = math.hypot(x - q[0], y - q[1])
+        if best is None or d < best["d"]:
+            best = {"d": d, "at": q, "u": (vx / L, vy / L), "t": t, "length": L}
+    return best

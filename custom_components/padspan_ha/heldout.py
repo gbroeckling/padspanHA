@@ -386,8 +386,11 @@ def evaluate(points: list[dict[str, Any]], *,
              room_at: Callable[[float, float, str], str] | None = None,
              site: SpatialSite | None = None,
              source_area: dict[str, str] | None = None,
-             radius_m: float = HELDOUT_RADIUS_M) -> dict[str, Any] | None:
-    """Held-out scores for k-NN and (given a site) the spatial solve."""
+             radius_m: float = HELDOUT_RADIUS_M,
+             floor_id: str | None = None) -> dict[str, Any] | None:
+    """Held-out scores for k-NN and (given a site) the spatial solve.
+    `floor_id`: test spots only from that floor, every point still held in
+    (the rooms gate of Build from plans scores one floor's rooms)."""
     from .calibration_store import KNN_K, CalibrationStore  # noqa: PLC0415
     pts = [p for p in points if p.get("x_m") is not None and p.get("y_m") is not None]
     if len(pts) < KNN_K + 1:
@@ -407,6 +410,8 @@ def evaluate(points: list[dict[str, Any]], *,
                 continue
             seen_dev.add(dev)
         spots.append(i)
+    if floor_id is not None:
+        spots = [i for i in spots if str(pts[i].get("floor_id") or "") == floor_id]
     tests = sample_spots(pts, spots)
     source_area = source_area or {}
     terms = site.fit_terms(pts, excluded) if site else None
