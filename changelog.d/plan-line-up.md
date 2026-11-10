@@ -11,3 +11,4 @@
 
 ### Fixed
 - **A refile you undid can be saved again.** Saving or undoing a refile changed what the line-up takes as the plan's picture, so the refile, and anything else proposed on that plan, showed as changed and couldn't be accepted again. A plan now counts as a new picture only when its picture itself changes, not when its floor, rooms or scanners are saved. One side effect, once: suggestions that plan reading made before this update show as changed, and finds you had marked as wrong may be suggested once more; read the plan again.
+- **Resume after a save (experimental).** A line-up that stopped short (out of time, credit or reach) and then had a proposal saved or undone refused Resume as "a plan was moved in Mapping", and couldn't be resumed again. Its own saves and undos no longer count as a plan moved by hand.

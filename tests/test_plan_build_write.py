@@ -309,6 +309,33 @@ def test_undo_takes_every_save_of_the_session_back_and_leaves_a_plan_moved_since
     assert _undo(h, conn)["error"] == "nothing_to_undo"
 
 
+@pytest.mark.parametrize("item", ["place_m2", "refile_r1"])
+def test_a_session_that_stopped_short_still_resumes_after_its_own_save_and_undo(monkeypatch, tmp_path, disk, item):
+    """Review B1: a session stopped short (out of time) with proposals for the
+    plans it read; one is saved, then Resume. The tool's own save is not "a
+    plan was moved in Mapping": Resume reads on, and the saved item stays
+    saved. The same after an Undo of it."""
+    from tests.test_plan_build import _resume
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    for pl in store.lineup("pb_t")["plans"]:                                                 # read on the real stores' records
+        pl["place_sig"] = A.plan_now(h, pl["map_id"])["place_sig"]
+    assert A.plans_moved(h, copy.deepcopy(store.lineup("pb_t"))) == set()
+    store.lineup("pb_t").update(status="out_of_time", error=None)
+    assert A.lineup_public(store.lineup("pb_t"), "pb_t")["resumable"] is True
+    out = _commit(h, conn, [item])
+    assert out["ok"] is True, out
+    assert A.lineup_public(store.lineup("pb_t"), "pb_t")["resumable"] is True
+    out, s = _resume(h, conn, store)
+    assert out == {"session": "pb_t"}, out
+    assert s["status"] != "cancelled" and "plan_changed" not in _stops(h)
+    assert s["items"][item]["state"] == "committed"
+    s.update(status="out_of_time", error=None)
+    assert _undo(h, conn)["ok"] is True
+    out, s = _resume(h, conn, store)
+    assert out == {"session": "pb_t"}, out
+    assert s["status"] != "cancelled" and "plan_changed" not in _stops(h)
+
+
 # ═══ refusals: nothing written, each stop named and counted ═════════════════
 
 def _refused(h, conn, mdl, ms, cal, disk, out, code, stop=None):

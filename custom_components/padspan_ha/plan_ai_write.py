@@ -819,9 +819,28 @@ def _fitted_to(hass: HomeAssistant, store: A.PlanAiStore, anchor_id: str) -> lis
     return out
 
 
-def _landed(store: A.PlanAiStore, bid: str, b: dict[str, Any], at: float) -> None:
+def _resign(hass: HomeAssistant, store: A.PlanAiStore, b: dict[str, Any]) -> None:
+    """The batch's plans as its own writes left them, signed again on its
+    session (review B1): a save or an undo moves a plan's placement (a refile
+    its floor), and the session's guard and Resume must not take the
+    line-up's own write for a plan moved in Mapping. Only a plan still where
+    the batch put it: a hand move since stays a change. The reads are in the
+    picture's own pixels, so the line-up's own move doesn't make them stale."""
+    sess = store.lineup(b.get("session"))
+    if sess is None:
+        return
+    landed = {e["map_id"] for e in b.get("items") or [] if _at(_live(hass, e["map_id"]), e["after"], e["kind"])}
+    for pl in sess.get("plans") or []:
+        now = A.plan_now(hass, pl["map_id"]) if pl.get("map_id") in landed else None
+        if now is not None:
+            pl["place_sig"], pl["floor_id"] = now["place_sig"], now["floor_id"]
+
+
+def _landed(hass: HomeAssistant, store: A.PlanAiStore, bid: str, b: dict[str, Any], at: float) -> None:
     """A batch whose writes all landed: its items say so (a commit's committed,
-    an undo's undone, and the saves it undid spent)."""
+    an undo's undone, and the saves it undid spent), and its plans are signed
+    again on the session."""
+    _resign(hass, store, b)
     sess = store.lineup(b.get("session"))
     items = (sess or {}).get("items") or {}
     for e in b.get("items") or []:
@@ -866,7 +885,7 @@ async def settle_lineups(hass: HomeAssistant, store: A.PlanAiStore) -> bool:
                     await _write_side(hass, e, "after")
             b.pop("pending", None)
             await _rederive(hass, {e["map_id"] for e in entries if e["kind"] != "refile"})
-            _landed(store, bid, b, float(p.get("at") or time.time()))
+            _landed(hass, store, bid, b, float(p.get("at") or time.time()))
             A._bump(hass, "plan_build_settled:finished")  # noqa: SLF001
             continue
         kept = True
@@ -902,7 +921,7 @@ def _stood(hass: HomeAssistant, store: A.PlanAiStore, bid: str, b: dict[str, Any
     b["stood"] = True
     sess = store.lineup(b.get("session"))
     if not b.get("undo_of"):
-        _landed(store, bid, b, at)
+        _landed(hass, store, bid, b, at)
     else:
         covered = {(e.get("of"), e["item_id"]) for e in stand}
         for of in b["undo_of"]:
@@ -911,6 +930,7 @@ def _stood(hass: HomeAssistant, store: A.PlanAiStore, bid: str, b: dict[str, Any
                 ob["items"] = [e for e in ob.get("items") or [] if (of, e["item_id"]) not in covered]
                 if not ob["items"]:
                     ob["undone_at"] = at
+        _resign(hass, store, b)
         items = (sess or {}).get("items") or {}
         for e in stand:
             if isinstance(items.get(e["item_id"]), dict):
@@ -1102,6 +1122,7 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
         it["verdict"] = {"v": "accepted", "group": bool(group), "at": at, "batch": bid, "why": None, "was": (it.get("verdict") or {}).get("was")}
         it.pop("refused", None)
     sess.setdefault("batches", []).append(bid)
+    _resign(hass, store, batch)
     sess["rev"] = int(sess.get("rev") or 0) + 1
     await _save(store)
     _invalidate(hass)
@@ -1204,7 +1225,7 @@ async def lineup_undo(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> di
 
     ub = batches[ubid]
     ub.pop("pending", None)
-    _landed(store, ubid, ub, at)
+    _landed(hass, store, ubid, ub, at)
     await _save(store)
     _invalidate(hass)
     _LOGGER.info("PadSpan plan line-up (experimental): undid session %s, %d plan(s) back, %d left (backup %s)", sid, len(u_items), len(skipped), backup_id)
