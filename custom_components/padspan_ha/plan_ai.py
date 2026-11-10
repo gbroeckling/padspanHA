@@ -3775,7 +3775,7 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
             pieces = max(pieces, m) if k < S2_READS else pieces
         if not any(outs[:S2_READS]):
             continue
-        agree = round(G.union_iou(raw[0], raw[1]), 3) if all(outs) else None      # the test's measure: each read's printed rooms as one
+        agree = round(G.union_iou(raw[0], raw[1]), 3) if all(outs[:S2_READS]) else None   # the test's measure; a third read never changes it
         mine = [p for p in labelled if p["room"] == n]
         spots_all = [sum(1 for p in mine if G.inside(float(p["x_m"]), float(p["y_m"]), o)) if o else -1 for o in outs]
         spots = spots_all[:S2_READS]

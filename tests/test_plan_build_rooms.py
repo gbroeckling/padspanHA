@@ -912,8 +912,12 @@ def test_a_third_read_on_one_plan_of_two_leaves_the_other_alone(monkeypatch, tmp
     sess, snap, prop = _proposal(h)
     other = copy.deepcopy(sess["plans"][0])
     other["map_id"] = "g2"
-    sess["plans"][0]["reads"].append(A.parse_rooms_read(_read(1), *_SIZE))
+    r3 = _read(1)
+    r3["rooms"] = [x for x in r3["rooms"] if x["name"] != "DEN"]          # read 3 doesn't see the Den
+    sess["plans"][0]["reads"].append(A.parse_rooms_read(r3, *_SIZE))
     sess["plans"].append(other)
     sess["edits"]["third"] = ["Shop"]
     prop = A.rooms_proposal(sess, snap, {}, h.data[DOMAIN][DATA_CALIBRATION].list_points(), [])
     assert prop["rooms"]["Shop"]["picked_by"] == "two_of_three" and prop["rooms"]["Shop"]["ready"]
+    den = prop["rooms"]["Den"]
+    assert den["ready"] and den["agree"] >= A.S2_AGREE and den["flags"] == [] and den["default"]   # a room read 3 didn't see keeps its two reads (dry run)
