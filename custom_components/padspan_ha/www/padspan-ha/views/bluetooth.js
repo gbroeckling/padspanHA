@@ -2861,22 +2861,12 @@ function renderEsphomeConfigs(ctx) {
           "often doubling effective coverage per scanner."
         ),
       ]),
-      (() => {
-        const linkBtn = document.createElement("a");
-        linkBtn.href = "https://www.aliexpress.com/item/1005003443721023.html";
-        linkBtn.target = "_blank";
-        linkBtn.rel = "noopener noreferrer";
-        linkBtn.className = "btn tiny";
-        linkBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;gap:4px;flex-shrink:0;color:var(--bt-ok);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1)";
-        linkBtn.textContent = "Example on AliExpress";
-        return linkBtn;
-      })(),
     ]),
     el("div", { class: "bt-notes" }, [
       el("div", { class: "bt-note" }, "Look for boards with an IPEX/U.FL connector (most ESP32-S3 and ESP32 boards have one)"),
       el("div", { class: "bt-note" }, "A simple 2.4 GHz antenna with IPEX connector is all you need — no soldering required"),
       el("div", { class: "bt-note ok" }, "Connector types (IPEX, U.FL) vary between boards — verify your board's connector before ordering"),
-      el("div", { class: "bt-note" }, "Tested and working, but this is a third-party link provided as an example only"),
+      el("div", { class: "bt-note" }, "Any 2.4 GHz antenna with the connector your board uses will do"),
     ]),
   ]) : null;
 
@@ -3008,14 +2998,6 @@ button:
       });
     });
 
-    const linkBtn = document.createElement("a");
-    linkBtn.href = "https://www.aliexpress.com/item/1005009310322353.html";
-    linkBtn.target = "_blank";
-    linkBtn.rel = "noopener noreferrer";
-    linkBtn.className = "btn tiny";
-    linkBtn.className = "btn tiny bt-btn-accent";
-    linkBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;gap:4px";
-    linkBtn.textContent = "View on AliExpress";
 
     return el("div", { class: "bt-panel", style: "border-color:rgba(82,183,136,.4);background:rgba(82,183,136,.05)" }, [
       el("div", { style: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap" }, [
@@ -3026,10 +3008,10 @@ button:
           ]),
           el("div", { class: "muted", style: "font-size:12px;line-height:1.6;max-width:600px" },
             "ESP32-S3 with W5500 Ethernet in a compact 3D-printed case. Wired connection means zero WiFi contention — the BLE radio runs at full duty. " +
-            "Affordable, reliable, and field-tested with PadSpan. Just flash the config below and plug in."
+            "Any ESP32-S3 board with a W5500 Ethernet chip works the same way. Check its pins against the config below before flashing."
           ),
         ]),
-        el("div", { style: "display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap" }, [linkBtn, showBtn, copyBtn]),
+        el("div", { style: "display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap" }, [showBtn, copyBtn]),
       ]),
       el("div", { class: "bt-notes" }, [
         el("div", { class: "bt-note" }, "ESP32-S3 + W5500 Ethernet — no WiFi needed, maximum BLE scan duty"),
