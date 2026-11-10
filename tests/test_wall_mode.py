@@ -290,7 +290,7 @@ def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
     # Review, 2026-10-21: the rail, drawers and lights stay showing on a faded
     # wall, so a first tap on them must work; only one where a faded control was is eaten.
     lp = _src("lights_panel.js")
-    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .lv-alone-anchor > button";' in lp
+    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .psc-atlas .psc-scroll, .lv-alone-anchor > button";' in lp
     assert "if(!onFaded(e.clientX, e.clientY)) return;" in lp
     assert '"translate"];' in _src("views/live_aboard.js"), "leaving full screen clears the wall's shift on the 3D view"
 
@@ -309,6 +309,23 @@ def test_the_motion_chip_fades_and_comes_back_with_the_other_controls():
     lp = _src("lights_panel.js")
     assert ":host([data-wall]) .la3d-mchip, :host([data-wall]) .la3d-mkey," in lp, "it fades as slowly"
     assert ":host([data-wall]:not([data-wall-active])) .la3d-mchip, :host([data-wall]:not([data-wall-active])) .la3d-mkey," in lp, "gone while nobody is there"
+
+def test_the_flat_maps_scene_row_lies_over_the_cards_foot_and_fades():
+    """Garry's wall, 2026-11-09 (BUG_LOG: "too much space since 0.38.225"): the
+    scene row sat in the map's height-limited column under it, so the map lost
+    ~136 px x --wall-ctl. On a wall it lies over the card's foot (the card is
+    position:relative), so the map keeps the whole height (560 -> 700 px on his
+    house at 1280x720), and it fades with the other controls."""
+    sr = _src("views/scene_row.js")
+    assert (".lv-mapcard.lv-display.lv-wall > .psc-atlas{position:absolute;left:0;right:0;bottom:0;z-index:3;pointer-events:none;\n"
+            "  zoom:var(--wall-ctl,var(--wall-ui,1));margin:6px 64px 8px 52px}") in sr
+    assert ".lv-mapcard.lv-display.lv-wall > .psc-atlas .psc-scroll{pointer-events:auto;" in sr, "a touch beside the tiles is the map's"
+    assert ".lv-mapcard.lv-display{padding:0;overflow:hidden;position:relative;" in _src("styles.css")
+    lp = _src("lights_panel.js")
+    assert ":host([data-wall]) .la3d-mchip, :host([data-wall]) .la3d-mkey, :host([data-wall]) .psc-atlas," in lp
+    assert ":host([data-wall]:not([data-wall-active])) .psc-atlas,\n" in lp
+    assert ":host([data-wall]:not([data-wall-active])) .psc-atlas *{pointer-events:none}" in lp, "its tiles can't be tapped unseen"
+
 
 def test_the_atlas_page_runs_without_the_wall_module():
     # The 15-hour review's load-risk check: an optional module must not take the page with it.

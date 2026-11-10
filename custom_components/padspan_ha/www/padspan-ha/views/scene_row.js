@@ -356,7 +356,14 @@ button.psc-new:hover{background:rgba(45,106,79,.5);border-color:#52b788}
 .lv-mapcard > .psc-atlas{margin:8px 0 6px}
 .lv-mapcard.lv-display > .psc-atlas{margin:4px 64px 8px 52px}
 .lv-mapcard.lv-display > .lv-rail.hidden ~ .psc-atlas{margin-left:8px}
-.lv-mapcard.lv-display.lv-wall > .psc-atlas{flex:none;zoom:var(--wall-ctl,var(--wall-ui,1));margin:6px 8px 8px 52px}
+/* A wall: over the card's foot, not under the map, so the map keeps the whole
+   screen's height (in the map's column it took ~13% of it, 2026-11-09); it fades
+   with the other controls (lights_panel.js), clear of ⛶ in the corner, and a
+   touch beside its tiles is the map's. */
+.lv-mapcard.lv-display.lv-wall > .psc-atlas{position:absolute;left:0;right:0;bottom:0;z-index:3;pointer-events:none;
+  zoom:var(--wall-ctl,var(--wall-ui,1));margin:6px 64px 8px 52px}
+.lv-mapcard.lv-display.lv-wall > .psc-atlas .psc-scroll{pointer-events:auto;width:max-content;max-width:100%;margin:0 auto}
+.lv-mapcard.lv-display.lv-wall > .psc-atlas .psc-note{pointer-events:auto}
 .lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .psc-atlas{margin-left:8px}
 .lv-mapcard.lv-alone > .psc-atlas{display:none}
 .psc-in.psc-pinned{position:fixed;z-index:6;pointer-events:none}
