@@ -163,9 +163,23 @@ function licence_call($action, $fields, $secret) {
     return is_array($d) ? $d : null;
 }
 function licence_secret() {
-    // private/license-config.php since 2026-10-30 (license/index.php only
-    // requires it now), and index.php itself before that.
-    foreach (array(__DIR__ . '/../../../private/license-config.php', __DIR__ . '/../../license/index.php') as $f) {
+    // Loaded the way the licence server loads it: private/license-config.php
+    // since 2026-10-30 (license/index.php only requires it now), so any PHP form
+    // of the constant works. The file's text, and index.php where it was before,
+    // are the fallbacks. tester_selfcheck() below says each night if all fail.
+    $cfg = __DIR__ . '/../../../private/license-config.php';
+    if (!defined('ADMIN_SECRET') && is_readable($cfg)) {
+        // In its own scope, its output dropped and any exception or syntax error in
+        // it caught, so a stray byte or a typo there never reaches a reply or quotes
+        // the secret (a fatal error still stops it; the nightly self-check says so).
+        ob_start();
+        try { (static function ($f) { include_once $f; })($cfg); } catch (\Throwable $e) { }
+        ob_end_clean();
+    }
+    if (defined('ADMIN_SECRET') && is_string(constant('ADMIN_SECRET')) && constant('ADMIN_SECRET') !== '') {
+        return constant('ADMIN_SECRET');
+    }
+    foreach (array($cfg, __DIR__ . '/../../license/index.php') as $f) {
         $src = @file_get_contents($f);
         if ($src && preg_match("/ADMIN_SECRET\s*=\s*'([^']+)'/", $src, $m)) { return $m[1]; }
     }
@@ -240,7 +254,45 @@ function tester_key($email, $dir, $max_per_day) {
         tester_note('Tester key needs you', "A new tester signed up; the licence server refused or failed the key.\n" . $hand);
     }
 }
+// `php tester.php selfcheck`: the nightly pull (server/pull_padspan_telemetry.sh)
+// runs it on this server as www-data; the web never reaches it (PHP_SAPI is
+// 'cli' only on the command line). Can a key go out right now, and what does
+// each tester hold? One JSON line of yes/no, a count and each tester_id's key
+// status (keyed, pro, none, noemail, error), never an address, a key or the secret.
+// Exit 0 when the key path works, 1 when it does not, 2 on a wrong argument.
+function tester_selfcheck($dir, $args) {
+    if (!isset($args[1]) || $args[1] !== 'selfcheck') { fwrite(STDERR, "usage: php tester.php selfcheck\n"); return 2; }
+    $secret = licence_secret();
+    $lookup = false;
+    if ($secret !== '') {
+        // An address that can hold nothing: an answer proves the lookup works.
+        $probe = licence_call('staff_lookup', array('email' => 'selfcheck@padspan.invalid', 'secret' => $secret), $secret);
+        $lookup = $probe && !empty($probe['ok']) && isset($probe['licenses']) && is_array($probe['licenses']);
+    }
+    $db = json_decode((string)@file_get_contents($dir . '/testers.json'), true);
+    $testers = (is_array($db) && isset($db['testers']) && is_array($db['testers'])) ? $db['testers'] : array();
+    $status = array();
+    foreach ($testers as $id => $rec) {
+        $email = (is_array($rec) && isset($rec['contact']['email']) && is_string($rec['contact']['email'])) ? $rec['contact']['email'] : '';
+        if ($email === '') { $status[$id] = 'noemail'; continue; }
+        $look = $lookup ? licence_call('staff_lookup', array('email' => $email, 'secret' => $secret), $secret) : null;
+        if (!$look || empty($look['ok']) || !isset($look['licenses']) || !is_array($look['licenses'])) { $status[$id] = 'error'; continue; }
+        $s = 'none';
+        foreach ($look['licenses'] as $l) {
+            $plan = isset($l['plan']) ? (string)$l['plan'] : '';
+            if ($plan === 'tester' || $plan === 'lifetime') { $s = 'keyed'; break; }
+            if ($plan === 'pro' && empty($l['expired'])) { $s = 'pro'; }
+        }
+        $status[$id] = $s;
+    }
+    $ok = $secret !== '' && $lookup && !in_array('error', $status, true);
+    echo json_encode(array('ok' => $ok, 'secret' => $secret !== '', 'lookup' => $lookup, 'testers' => count($testers),
+        'status' => $status ? $status : new stdClass())) . "\n";
+    return $ok ? 0 : 1;
+}
 
+// The nightly self-check (tester_selfcheck above); a web request never takes this branch.
+if (PHP_SAPI === 'cli' && !isset($_SERVER['REQUEST_METHOD'])) { exit(tester_selfcheck($DIR, isset($argv) ? $argv : array())); }
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { reply(405, 'method', 'POST only.'); }

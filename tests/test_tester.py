@@ -31,6 +31,7 @@ import asyncio
 import copy
 import inspect
 import json
+import os
 import re
 import subprocess
 import sys
@@ -850,11 +851,52 @@ def test_the_tester_key_reads_the_secret_where_the_licence_server_keeps_it():
     assert m, "licence_secret() is gone from tester.php"
     places = re.findall(r"__DIR__ \. '([^']+)'", m.group(1))
     assert places == ["/../../../private/license-config.php", "/../../license/index.php"], places
-    rx = re.search(r'preg_match\("/(.+?)/", \$src, \$m\)', m.group(1))
+    # Loaded the way the licence server loads it, before any reading of text, and
+    # quietly, in this order: output caught, the config in its own scope with any
+    # exception caught, the output dropped, and only then the constant read.
+    body = "\n".join(ln for ln in m.group(1).splitlines() if not ln.lstrip().startswith("//"))
+    steps = ("if (!defined('ADMIN_SECRET') && is_readable($cfg)) {", "ob_start();",
+             "try { (static function ($f) { include_once $f; })($cfg); } catch (\\Throwable $e) { }",
+             "ob_end_clean();", "if (defined('ADMIN_SECRET')", "foreach (array($cfg")
+    at = [body.find(step) for step in steps]
+    assert -1 not in at and at == sorted(at), dict(zip(steps, at))
+    rx = re.search(r'preg_match\("/(.+?)/", \$src, \$m\)', body)
     hit = rx and re.search(rx.group(1), "<?php\nconst ADMIN_SECRET='x';\n")
     assert hit and hit.group(1) == "x", "the pattern no longer reads private/license-config.php's line"
     code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("//"))
     assert "$secret = licence_secret();" in code
+
+
+def test_the_self_check_runs_only_on_the_command_line_and_names_no_one():
+    # The nightly pull runs `php tester.php selfcheck` as www-data; a web request
+    # (PHP_SAPI fpm-fcgi) never reaches it, and its one line carries yes/no, a
+    # count and statuses by tester_id - never an address, a key or the secret.
+    src = _php()
+    code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("//"))
+    cli = ("if (PHP_SAPI === 'cli' && !isset($_SERVER['REQUEST_METHOD'])) "
+           "{ exit(tester_selfcheck($DIR, isset($argv) ? $argv : array())); }")
+    assert code.count("tester_selfcheck(") == 2, "tester_selfcheck() is called from somewhere else too"
+    assert code.index(cli) < code.index("header('Content-Type: application/json');")
+    m = re.search(r"function tester_selfcheck\(\$dir, \$args\) \{(.*?)\n\}", code, re.S)
+    assert m, "tester_selfcheck() is gone from tester.php"
+    fn = m.group(1)
+    assert "$args[1] !== 'selfcheck'" in fn and fn.count("echo ") == 1
+    said = re.search(r"echo json_encode\(array\((.*?)\)\) \. \"\\n\";", fn, re.S)
+    assert said and set(re.findall(r"'(\w+)' =>", said.group(1))) == {"ok", "secret", "lookup", "testers", "status"}
+    assert "$email" not in said.group(1) and "'secret' => $secret !== ''," in said.group(1), "the line could carry the secret"
+    assert set(re.findall(r"\$status\[([^\]]*)\]", fn)) == {"$id"}, "statuses keyed by something other than tester_id"
+    # And a status is only ever one of the fixed words, never something from the record.
+    assert set(re.findall(r"\$status\[\$id\] = ([^;]+);", fn)) == {"'noemail'", "'error'", "$s"}
+    assert set(re.findall(r"\$s = ([^;]+);", fn)) == {"'none'", "'keyed'", "'pro'"}
+    assert fn.count("$status[") == 3 and len(re.findall(r"\$s\b", fn)) == 4, "a status is written some other way"
+    # Ok means the key path works; a tester waiting or on paid Pro doesn't make it fail.
+    assert "$ok = $secret !== '' && $lookup && !in_array('error', $status, true);" in fn
+    assert "if ($plan === 'pro' && empty($l['expired'])) { $s = 'pro'; }" in fn, "an expired Pro must read as no key"
+    # The statuses it can give are the ones the pull knows how to say.
+    given = set(re.findall(r"\$(?:s|status\[\$id\]) = '(\w+)';", fn))
+    assert given == {"none", "keyed", "pro", "noemail", "error"}, given
+    known = re.search(r"KEY = \{(.*?)\}", _notice_script(), re.S)
+    assert known and set(re.findall(r'"(\w+)":', known.group(1))) | {"error"} == given
 
 
 def test_what_the_integration_sends_the_server_takes_whole(monkeypatch, server):
@@ -980,7 +1022,7 @@ def _notice_script() -> str:
     return src.split("<<'TESTERS_PY'\n", 1)[1].split("\nTESTERS_PY\n", 1)[0]
 
 
-def _notice(tmp_path, new, prev=None):
+def _notice(tmp_path, new, prev=None, check=None):
     (tmp_path / "new.json").write_text(json.dumps(new) if not isinstance(new, str) else new, encoding="utf-8")
     prev_path = tmp_path / "prev.json"
     if prev is not None:
@@ -988,8 +1030,22 @@ def _notice(tmp_path, new, prev=None):
     elif prev_path.exists():
         prev_path.unlink()
     (tmp_path / "notice.py").write_text(_notice_script(), encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if k != "K_CHECK"}
+    if check is not None:              # the self-check's answer arrives in the environment, as in the pull
+        env["K_CHECK"] = check if isinstance(check, str) else json.dumps(check)
     return subprocess.run([sys.executable, str(tmp_path / "notice.py"), str(prev_path), str(tmp_path / "new.json")],
-                          capture_output=True, text=True, encoding="utf-8", timeout=60)
+                          capture_output=True, text=True, encoding="utf-8", timeout=60, env=env)
+
+
+def _keys_warning(tmp_path, check) -> str:
+    """The pull's KEYS_PY: what it would tell Garry about the self-check's answer."""
+    script = _pull().split("<<'KEYS_PY'\n", 1)[1].split("\nKEYS_PY\n", 1)[0]
+    (tmp_path / "keys.py").write_text(script, encoding="utf-8")
+    env = {**os.environ, "K_CHECK": check if isinstance(check, str) else json.dumps(check)}
+    out = subprocess.run([sys.executable, str(tmp_path / "keys.py")],
+                         capture_output=True, text=True, encoding="utf-8", timeout=60, env=env)
+    assert out.returncode == 0, out.stderr
+    return out.stdout.strip()
 
 
 def _rec(email, interests, version="0.38.85"):
@@ -1013,6 +1069,51 @@ def test_the_pull_names_only_new_sign_ups_and_only_email_interests_version(tmp_p
     assert _notice(tmp_path, new, prev=new).stdout.strip() == "", "no new id, yet a message"
 
 
+def test_the_pull_says_whether_each_new_testers_key_went_out(tmp_path):
+    a, b, c, d = (f"{n}{n}{n}{n}{n}{n}{n}{n}-{n}{n}{n}{n}-4{n}{n}{n}-8{n}{n}{n}-{n * 12}" for n in "3456")
+    new = {"testers": {a: _rec("a@example.com", ["wled"]), b: _rec("b@example.com", []),
+                       c: _rec("c@example.com", []), d: _rec("d@example.com", [])}}
+    check = {"ok": True, "secret": True, "lookup": True, "testers": 4,
+             "status": {a: "keyed", b: "none", c: "pro"}}
+    msg = _notice(tmp_path, new, check=check).stdout.strip()
+    assert "- a@example.com | wled | PadSpan 0.38.85 | has a key" in msg
+    assert "- b@example.com | none ticked | PadSpan 0.38.85 | NO KEY yet" in msg
+    assert "- c@example.com | none ticked | PadSpan 0.38.85 | has paid Pro, decide by hand" in msg
+    assert "- d@example.com | none ticked | PadSpan 0.38.85 | key not checked" in msg
+    for tid in (a, b, c, d):
+        assert tid not in msg, "a tester_id went into the Telegram message"
+    # A PHP notice or a byte-order mark before the answer still reads.
+    noisy = "PHP Notice: something\n\ufeff" + json.dumps(check) + "\nPHP Notice: after it"
+    assert "| NO KEY yet" in _notice(tmp_path, new, check=noisy).stdout
+    # A self-check that never answered, or answered oddly: the notice still goes,
+    # and each line says its key was not checked.
+    for odd in ("", "[]", json.dumps({**check, "status": {a: ["keyed"], b: {"x": 1}, c: 7}})):
+        out = _notice(tmp_path, new, check=odd)
+        assert out.returncode == 0 and out.stdout.count("| key not checked") == 4, (odd, out.stdout, out.stderr)
+
+
+def test_the_pull_warns_every_night_while_no_key_can_go_out(tmp_path):
+    good = {"ok": True, "secret": True, "lookup": True, "testers": 2, "status": {"x": "keyed", "y": "none"}}
+    assert _keys_warning(tmp_path, good) == "", "a working key path still warned"
+    assert "cannot read the licence secret" in _keys_warning(tmp_path, {**good, "ok": False, "secret": False})
+    assert "did not answer" in _keys_warning(tmp_path, {**good, "ok": False, "lookup": False})
+    assert "1 tester lookup failed" in _keys_warning(tmp_path, {**good, "ok": False, "status": {"x": "error"}})
+    for junk in ("", "PHP Fatal error: ...", "[]"):
+        assert "did not run" in _keys_warning(tmp_path, junk), junk
+    # An old tester.php answers the command line as a web request ("POST only"): that
+    # is "did not run", never a false "cannot read the licence secret".
+    old = _keys_warning(tmp_path, {"ok": False, "why": "method", "error": "POST only."})
+    assert "did not run" in old and "new tester.php deployed" in old
+    # A PHP notice or a byte-order mark before or after the answer is no reason to warn.
+    assert _keys_warning(tmp_path, "PHP Warning: x\n\ufeff" + json.dumps(good)) == ""
+    assert _keys_warning(tmp_path, json.dumps(good) + "\nPHP Notice: after it\n") == ""
+    src = _pull()
+    assert 'tg "[WARN] PadSpan tester keys $(ts): $k_warn"' in src
+    assert ') || k_warn="the key check here failed - see the pull log"' in src
+    # Said every night it's broken, whether or not anyone new signed up.
+    assert src.index('tg "[WARN] PadSpan tester keys') < src.index("if new_msg=$(")
+
+
 def test_the_pull_keeps_one_message_within_telegrams_limit(tmp_path):
     many = {"testers": {f"00000000-0000-4000-8000-{i:012d}": _rec(f"person{i}@example.com", ["wled", "floors", "bermuda"])
                         for i in range(150)}}
@@ -1033,7 +1134,16 @@ def test_the_pull_is_read_only_private_and_uses_the_existing_telegram_sender():
     assert 'T_SRC="/var/www/clients/client1/web10/private/padspan-testers/testers.json"' in block
     assert "--delete" not in block and "rm -f -- '$SRC" not in block and "sudo rm" not in block, "the pull touches the colo"
     assert 'chmod 700 "$T_DEST"' in block and 'chmod 600 "$T_DEST/.testers.json.new"' in block
-    assert 'tg "$new_msg"' in block and block.count("tg ") <= 4
+    assert 'tg "$new_msg"' in block and block.count("tg ") <= 5
+    # The key check only asks: tester.php's self-check, as www-data, and nothing else.
+    # Bounded, and a failing check never stops the rest of the pull (set -e).
+    assert 'T_PHP="/var/www/clients/client1/web10/web/padspan/api/tester.php"' in block
+    assert "\"sudo -n runuser -u www-data -- php '$T_PHP' selfcheck\" 2>>\"$LOG\" | tail -c 65536) || k_rc=$?" in block
+    assert "k_rc=0\n        k_check=$(timeout 600 ssh -n " in block, "without k_rc=0, set -u stops the pull on a good night"
+    assert "-o ServerAliveInterval=15 -o ServerAliveCountMax=4" in block
+    assert '[ "$k_rc" -eq 0 ] || echo "$(ts) tester keys: self-check exit $k_rc' in block
+    # The answer holds every tester_id: it goes in the environment, never on a command line.
+    assert block.count('K_CHECK="$k_check" python3 - ') == 2 and '"$k_check" 2>>' not in block
     assert "CHAT=8841564535" in src, "the Telegram sender is no longer Garry's chat only"
     # The copy here is replaced whole each night, never accumulated.
     assert 'mv -f "$T_DEST/.testers.json.new" "$T_DEST/testers.json"' in block
