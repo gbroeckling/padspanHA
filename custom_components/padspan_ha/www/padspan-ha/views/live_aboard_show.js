@@ -264,7 +264,19 @@ const CSS = `
 .la3d-show .la3d-sreset{background:rgba(82,183,136,.18);border:1px solid rgba(82,183,136,.45)}
 .la3d-show .la3d-sreset[aria-disabled="true"]{opacity:.45;cursor:default}
 .la3d-show .la3d-sset{margin-left:auto;color:#7dd3fc}
-:host([data-wall]) .la3d-more,:host([data-wall]) .la3d-show{zoom:var(--wall-ctl,var(--wall-ui,1))}`;
+:host([data-wall]) .la3d-more,:host([data-wall]) .la3d-show{zoom:var(--wall-ctl,var(--wall-ui,1))}
+/* A wall (Garry, 2026-11-09: "fits the wall"): the whole list on the screen
+   with no scrolling. As wide and tall as the screen lets it be (over the
+   bottom bar while it is open), up to four columns;
+   each line its plain name (what it hides stays in its tooltip), a line not
+   set up its one short note under it; the rows stay finger-sized. */
+:host([data-wall]) .la3d-show{width:min(1240px,calc(100% - 20px));max-height:calc(100% - 76px)}
+:host([data-wall]) .la3d-show .la3d-sbody{columns:4 230px}
+:host([data-wall]) .la3d-show .la3d-sgrp{break-inside:auto;padding:0 0 4px}
+:host([data-wall]) .la3d-show .la3d-sgrp > i{break-after:avoid}
+:host([data-wall]) .la3d-show .la3d-srow,:host([data-wall]) .la3d-show .la3d-setup{break-inside:avoid}
+:host([data-wall]) .la3d-show .la3d-snote{display:none}
+:host([data-wall]) .la3d-show .la3d-setup{break-before:avoid;margin:-2px 4px 4px 36px;padding:3px 3px 3px 8px;font-size:11.5px;line-height:1.25}`;
 
 /**
  * The ⋯ button and its list, in the view's element. v = {

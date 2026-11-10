@@ -135,3 +135,17 @@ def test_the_help_says_where_the_list_is_in_every_language() -> None:
     for lang in ("de", "fr", "nl"):
         data = json.loads((_WWW / "i18n" / lang / "help.json").read_text(encoding="utf-8"))
         assert m.group(1) in data and data[m.group(1)].startswith("⋯"), lang
+
+
+def test_on_a_wall_the_whole_list_fits_the_screen_without_scrolling() -> None:
+    """Garry's wall (1280x720 at 1.5, touch), 2026-11-09, "fits the wall": the
+    list scrolled 1248 px of lines in a 475 px box. On a wall it is as wide and
+    tall as the screen lets it be, up to four columns, plain names only (a line
+    not set up keeps its one note under it), rows still 40 px for a finger.
+    Measured on his data: 519 px of lines in a 519 px box."""
+    show = _js(_VIEWS / "live_aboard_show.js")
+    assert ":host([data-wall]) .la3d-show{width:min(1240px,calc(100% - 20px));max-height:calc(100% - 76px)}" in show
+    assert ":host([data-wall]) .la3d-show .la3d-sbody{columns:4 230px}" in show
+    assert ":host([data-wall]) .la3d-show .la3d-snote{display:none}" in show
+    assert ":host([data-wall]) .la3d-show .la3d-setup{break-before:avoid;" in show, "a note stays with its line"
+    assert ".la3d-show .la3d-stick{flex:1;min-width:0;display:flex;align-items:center;gap:10px;min-height:40px;" in show, "finger-sized rows"
