@@ -450,10 +450,12 @@ def unusable(hass: HomeAssistant, eid: str | None, answer: Any = None) -> str:
     return reason
 
 
-def refused(hass: HomeAssistant, reason: str, eid: str | None = None) -> None:
-    """A read refused before it was sent (no_ai, no_fallback): a stop, no read."""
+async def refused(hass: HomeAssistant, reason: str, eid: str | None = None) -> None:
+    """A read refused before it was sent (no_ai, no_fallback): a stop, no read.
+    The stored months are read first: a refusal can be the first AI event
+    after a restart, and a save before that would empty them (review B2)."""
     try:
-        u = usage(hass)
+        u = await async_ready(hass)
         month, _day = month_now()
         _stop(hass, u.entity(month, str(eid or "")), reason)
         u.save()

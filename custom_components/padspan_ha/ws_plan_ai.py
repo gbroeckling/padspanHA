@@ -150,7 +150,7 @@ async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
         ai = P.ai_task(hass, with_backup=True)
         if not ai.get("ready"):
             A._bump(hass, "plan_ai_error:no_ai_task")  # noqa: SLF001
-            U.refused(hass, "no_ai", ai.get("ai_task"))
+            await U.refused(hass, "no_ai", ai.get("ai_task"))
             connection.send_error(msg["id"], P.NO_AI_CODE, ai.get("message", ""))
             return
         by_id = {p["map_id"]: p for p in A.plans(hass)}

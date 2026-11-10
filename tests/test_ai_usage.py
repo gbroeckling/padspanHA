@@ -312,15 +312,33 @@ def test_unusable_answers_and_refused_reads_are_stops_with_a_reason(house):
     assert U.unusable(h, _CLAUDE, "I'm sorry, I can't help with reading this plan.") == "refusal"
     assert U.unusable(h, _CLAUDE, "[[12, 40, 300]] maybe") == "bad_answer"
     assert U.unusable(h, _CLAUDE, {"kind": None}) == "bad_answer"
-    U.refused(h, "no_ai", "")
-    U.refused(h, "no_fallback", _CLAUDE)
-    U.refused(h, "not_a_reason", _CLAUDE)                     # never a new name: counted as error
+    _run(U.refused(h, "no_ai", ""))
+    _run(U.refused(h, "no_fallback", _CLAUDE))
+    _run(U.refused(h, "not_a_reason", _CLAUDE))                    # never a new name: counted as error
     assert _row(h)["stops"] == {"refusal": 1, "bad_answer": 2, "no_fallback": 1, "error": 1} and _row(h)["reads"] == 1
     assert _row(h, "")["stops"] == {"no_ai": 1} and _row(h, "")["reads"] == 0
     assert set(U.STOP_WORDS) == set(U.STOP_REASONS)
     stops = U.summary(h, U.usage(h))["stops"]
     assert [s["reason"] for s in stops] == ["refusal", "bad_answer", "no_ai", "no_fallback", "error"]
     assert stops[0] == {"reason": "refusal", "n": 1, "words": "the AI declined"}
+
+
+def test_a_refusal_before_the_first_read_keeps_the_stored_months(house):
+    """Review B2: Home Assistant restarts, and its first AI event is a refusal
+    (no AI Task chosen, or its entity not back yet). The month's reads, the
+    estimate and the warned marker on disk stay; the refusal is added to them."""
+    h = house.h
+    _run(U.async_ready(h))
+    for _ in range(5):
+        _read(h)
+    U.usage(h).data["warned"]["2026-11"] = 50
+    U.usage(h).save()
+    h.data[DOMAIN].pop(U.DATA_AI_USAGE)                       # the restart: a new tracker, not read yet
+    _run(U.refused(h, "no_ai", ""))
+    on_disk = _Store.saved[U.STORE_KEY]
+    assert on_disk["months"]["2026-11"][_CLAUDE]["reads"] == 5
+    assert on_disk["months"]["2026-11"][""]["stops"] == {"no_ai": 1}
+    assert on_disk["warned"] == {"2026-11": 50}
 
 
 def test_the_callers_count_their_stops(monkeypatch):
@@ -498,7 +516,7 @@ def test_the_report_identifies_nothing(monkeypatch):
         U.note_read(h, _CLAUDE, "PadSpan plans", size=(1123, 794), prompt_chars=1234 + i, secs=4.7, sent=True,
                     reason="timeout" if i % 50 == 0 else None)
     U.unusable(h, _CLAUDE, "I'm sorry, I can't read 12 Oak St, Squamish")
-    U.refused(h, "no_ai", "ai_task.garrys_office")
+    _run(U.refused(h, "no_ai", "ai_task.garrys_office"))
     clock["now"] = datetime(2026, 12, 2, 8, 0)
     U.summary(h, U.usage(h))                                            # November ends: its bands go
     payload = T.build_payload(h)
@@ -524,7 +542,7 @@ def test_off_counts_nothing(monkeypatch):
     h = _hass()
     h.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] = False
     U.note_read(h, _CLAUDE, "PadSpan plans", size=(10, 10), prompt_chars=5, secs=1, sent=True, reason="timeout")
-    U.refused(h, "no_ai")
+    _run(U.refused(h, "no_ai"))
     assert not h.data[DOMAIN].get(T._DATA_COUNTERS)                     # noqa: SLF001
 
 

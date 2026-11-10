@@ -321,7 +321,7 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
         return
     if not ai["ready"]:
         _bump(hass, "stair_read:no_ai_task")
-        U.refused(hass, "no_ai", ai.get("ai_task"))
+        await U.refused(hass, "no_ai", ai.get("ai_task"))
         connection.send_error(msg["id"], P.NO_AI_CODE, ai["message"])
         return
     model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)

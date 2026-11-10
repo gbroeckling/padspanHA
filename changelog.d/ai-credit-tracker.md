@@ -5,3 +5,6 @@
 - **Your monthly credit, and a warning.** Type your monthly credit to see "of your $200 monthly credit". It is empty until you type one. "Warn me" is off until you choose 50, 75 or 90 %. Then one Home Assistant notice comes, once a month, when the estimate passes that share.
 - **Why a read stopped.** Reads that didn't finish are listed by why: "3 reads stopped: out of credit". The other reasons are couldn't be reached, no answer in time, the AI declined, an answer PadSpan couldn't use, and no AI Task that can do it. This covers photos, the stair finder and Add data via plans.
 - **In the usage report, if you have it on:** counts and rough bands only. That is reads per feature, by maker, stops by reason, last month's reads and estimate in bands, and the warning's share. The AI Task, its model, the amount you typed and any exact figure are never in it. The counts themselves stay on this Home Assistant: they are not in backups, and a Factory Reset empties them.
+
+### Fixed
+- **A read turned down right after a restart no longer empties the month.** When the first AI event after Home Assistant started was a read turned down for want of an AI Task, the month's reads, its estimate and the warning's marker were written over. They are now read back first.

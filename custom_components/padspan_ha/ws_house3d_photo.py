@@ -1041,7 +1041,7 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
         return
     if not ai["ready"]:
         _bump(hass, "photo_read:no_ai_task")
-        U.refused(hass, "no_ai", ai.get("ai_task"))
+        await U.refused(hass, "no_ai", ai.get("ai_task"))
         connection.send_error(msg["id"], NO_AI_CODE, ai["message"])
         return
     try:
