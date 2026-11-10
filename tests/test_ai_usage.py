@@ -109,16 +109,16 @@ def _read(h, eid=_CLAUDE, *, size=(1024, 768), chars=2000, reason=None, sent=Tru
 def test_the_formula_by_hand_and_the_one_calibration_constant():
     # Section 9: min(w×h÷750, 4784) + chars÷4 + 300 in, 400 out, at Opus 5.5's $4 / $20.
     usd = U.estimate_usd((4.0, 20.0), (1024, 768), 2000)
-    assert usd == pytest.approx(((1024 * 768 / 750 + 500 + 300) * 4 + 400 * 20) / 1e6 * U.CALIBRATION)
-    assert 0.011 < usd < 0.016                        # "≈ $0.015 a read" (design), less the Console's correction
+    assert usd == pytest.approx(((1024 * 768 / 750 + 500 + 300) * 4 + 400 * 20) / 1e6)
+    assert 0.014 < usd < 0.016                        # "≈ $0.015 a read" (design, today's run)
     big = U.estimate_usd((4.0, 20.0), (2560, 1600), 0)
-    assert big == pytest.approx(((4784 + 300) * 4 + 400 * 20) / 1e6 * U.CALIBRATION), "a picture's tokens are capped"
+    assert big == pytest.approx(((4784 + 300) * 4 + 400 * 20) / 1e6), "a picture's tokens are capped"
     assert U.estimate_usd(None, (1024, 768), 2000) is None
-    assert U.estimate_usd((4.0, 20.0), None, 0) == pytest.approx((300 * 4 + 400 * 20) / 1e6 * U.CALIBRATION)
-    # The calibration is from the Console's figure (2026-11-10: $3.40 ÷ $4.08), and is clamped.
-    assert U.CALIBRATION == 0.83 and U.CALIBRATION_RANGE == (0.2, 5.0)
+    assert U.estimate_usd((4.0, 20.0), None, 0) == pytest.approx((300 * 4 + 400 * 20) / 1e6)
+    # The calibration is 1.0 until a Console figure is read, and is clamped.
+    assert U.CALIBRATION == 1.0 and U.CALIBRATION_RANGE == (0.2, 5.0)
     src = Path(U.__file__).read_text(encoding="utf-8")
-    assert src.count("\nCALIBRATION = ") == 1 and "THE ONE PLACE" in src and "2026-11-10" in src
+    assert src.count("\nCALIBRATION = ") == 1 and "THE ONE PLACE" in src and "2026-11-09" in src
 
 
 @pytest.mark.parametrize("model,price", [

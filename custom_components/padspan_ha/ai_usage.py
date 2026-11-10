@@ -119,13 +119,13 @@ PICTURE_TOKENS_MAX = 4784
 PROMPT_CHARS_PER_TOKEN = 4
 HA_OVERHEAD_TOKENS = 300
 OUTPUT_TOKENS = 400
-# CALIBRATION: the Console's dollars ÷ this estimate, for the same reads;
-# THE ONE PLACE TO ADJUST. Set 2026-11-10 from Garry's Console figure for the key
-# Home Assistant uses: $3.40 for every read up to then (2026-11-09: the
-# 175-read Claude Opus 5.5 run, the picture-size check, the Stage 1 dry run,
-# the rooms test; 282 reads), against this estimate's $4.08 for the same reads.
-# Kept within CALIBRATION_RANGE.
-CALIBRATION = 0.83
+# CALIBRATION: the Console's dollars ÷ this estimate, for the same reads. 1.0
+# is the token math alone: no Console figure has been read yet. THE ONE PLACE
+# TO ADJUST once Garry reads the Console's figure for 2026-11-09 (the 175-read
+# Claude Opus 5.5 run, ~100 KB pictures, thinking low, and a few tiny checks)
+# for the key Home Assistant uses: CALIBRATION = that figure ÷ this
+# estimate for the same day, kept within CALIBRATION_RANGE.
+CALIBRATION = 1.0
 CALIBRATION_RANGE = (0.2, 5.0)
 
 # US dollars per million tokens (input, output) by family and version, from
