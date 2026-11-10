@@ -85,9 +85,11 @@ fi
 # REPLACED each night, never accumulated, so a sign-up withdrawn there is gone
 # from here by the next pull. When the new copy holds tester_ids the previous
 # one did not: ONE Telegram message to Garry (the tg() above, CHAT only) —
-# how many, and for each the email, interests and PadSpan version. Nothing
-# else from the record goes into the message. ---
+# how many, and for each the email, interests, PadSpan version and whether its
+# key went out (tester.php's self-check, below). Nothing else from the record
+# goes into the message. ---
 T_SRC="/var/www/clients/client1/web10/private/padspan-testers/testers.json"
+T_PHP="/var/www/clients/client1/web10/web/padspan/api/tester.php"
 T_DEST="/mnt/storage/knowledge/padspan-testers"
 (umask 077; mkdir -p "$T_DEST")
 chmod 700 "$T_DEST"
@@ -103,9 +105,67 @@ else
             -e "ssh -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new" \
             "$SRC_HOST:$T_SRC" "$T_DEST/.testers.json.new" >>"$LOG" 2>&1; then
         chmod 600 "$T_DEST/.testers.json.new"
-        if new_msg=$(python3 - "$T_DEST/testers.json" "$T_DEST/.testers.json.new" 2>>"$LOG" <<'TESTERS_PY'
-import json, sys
+        # --- Can a tester key go out, and did each new tester get one? tester.php's
+        # own self-check, run on the colo as www-data (tester_selfcheck): one JSON
+        # line of yes/no and each tester_id's key status, no address, key or
+        # secret. From 2026-10-30 to 11-09 no key could go out (the licence secret
+        # had moved) and nothing said so. Now a broken key path is said here every
+        # night until it is fixed, and each new sign-up's line says if its key went. ---
+        # Bounded: a stalled link must not hold up the rest of the pull. The answer
+        # goes to Python in the environment, not on a command line `ps` shows: a
+        # tester_id is all it takes to change or withdraw that sign-up.
+        k_rc=0
+        k_check=$(timeout 600 ssh -n -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+                  "$SRC_HOST" "sudo -n runuser -u www-data -- php '$T_PHP' selfcheck" 2>>"$LOG" | tail -c 65536) || k_rc=$?
+        [ "$k_rc" -eq 0 ] || echo "$(ts) tester keys: self-check exit $k_rc (1: the key path is broken, or sudo refused; 124: timed out; 255: ssh failed or PHP died - see the lines above)" >>"$LOG"
+        k_warn=$(K_CHECK="$k_check" python3 - 2>>"$LOG" <<'KEYS_PY'
+import json, os
+# The answer is the last line that parses as the self-check's JSON, less any
+# byte-order mark: a PHP notice before or after it must not read as "did not run".
+c = None
+for ln in reversed(os.environ.get("K_CHECK", "").splitlines()):
+    try:
+        got = json.loads(ln.strip().lstrip("\ufeff"))
+    except Exception:
+        continue
+    if isinstance(got, dict) and {"ok", "secret", "lookup", "status"} <= set(got):
+        c = got
+        break
+if c is None:
+    print("the self-check did not run on the colo, or said nothing readable (is the new tester.php deployed?) - see the pull log")
+elif c.get("secret") is not True:
+    print("tester.php cannot read the licence secret (has private/license-config.php moved?) - new testers get NO key")
+elif c.get("lookup") is not True:
+    print("the licence server did not answer tester.php's lookup - new testers get NO key")
+elif c.get("ok") is not True:
+    st = c.get("status") if isinstance(c.get("status"), dict) else {}
+    n = sum(1 for s in st.values() if s == "error")
+    print(f"{n} tester lookup{'' if n == 1 else 's'} failed, so {'that' if n == 1 else 'those'} key{'' if n == 1 else 's'} could not be checked")
+KEYS_PY
+        ) || k_warn="the key check here failed - see the pull log"
+        if [ -n "$k_warn" ]; then
+            echo "$(ts) WARN: tester keys: $k_warn" >>"$LOG"
+            tg "[WARN] PadSpan tester keys $(ts): $k_warn" || true
+        fi
+        if new_msg=$(K_CHECK="$k_check" python3 - "$T_DEST/testers.json" "$T_DEST/.testers.json.new" 2>>"$LOG" <<'TESTERS_PY'
+import json, os, sys
 prev_path, new_path = sys.argv[1], sys.argv[2]
+# The self-check's answer (KEYS_PY above), when given: each tester_id's key
+# status. Whatever it holds, it never stops the sign-up notice.
+check = None
+if "K_CHECK" in os.environ:
+    check = {}
+    for ln in reversed(os.environ["K_CHECK"].splitlines()):    # as KEYS_PY reads it
+        try:
+            got = json.loads(ln.strip().lstrip("\ufeff"))
+        except Exception:
+            continue
+        if isinstance(got, dict) and {"ok", "secret", "lookup", "status"} <= set(got):
+            check = got
+            break
+status = check.get("status") if isinstance(check, dict) and isinstance(check.get("status"), dict) else {}
+KEY = {"keyed": "has a key", "pro": "has paid Pro, decide by hand", "none": "NO KEY yet",
+       "noemail": "no email on the record"}
 with open(new_path, encoding="utf-8") as fh:
     new = json.load(fh)                 # a torn or corrupt copy raises: it is not kept
 testers = new.get("testers") if isinstance(new, dict) else None
@@ -126,7 +186,11 @@ if fresh:
         contact = rec.get("contact") if isinstance(rec.get("contact"), dict) else {}
         email = str(contact.get("email") or "?")[:254]
         interests = ", ".join(str(i) for i in (rec.get("interests") or [])) or "none ticked"
-        lines.append(f"- {email} | {interests} | PadSpan {str(rec.get('version') or '?')[:32]}")
+        line = f"- {email} | {interests} | PadSpan {str(rec.get('version') or '?')[:32]}"
+        if check is not None:
+            s = status.get(tid)
+            line += " | " + (KEY.get(s, "key not checked") if isinstance(s, str) else "key not checked")
+        lines.append(line)
     # One Telegram message holds 4096 characters.
     body, shown = head, 0
     for line in lines:
