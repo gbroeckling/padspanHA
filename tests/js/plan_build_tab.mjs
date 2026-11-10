@@ -6,9 +6,11 @@
 // in views/live_aboard_plans.js, RUN: the tab shows only when the server says
 // the line-up is on, the floor picker and its plans, a session's proposals with
 // their overlays, what each would shift, stops in words with Resume, the two
-// kinds of question, verdicts written at the click, Accept and Save refused by
-// the server and said, and every part of the tab saying experimental. A
-// synthetic session; no house's data. The pytest wrapper is tests/test_plan_build.py.
+// kinds of question, verdicts written at the click, Accept saving one item and
+// the floor's Save only the items that shift nothing, a refusal said in its
+// words, Undo this line-up session, Show me the dimension, a refile by hand,
+// and every part of the tab saying experimental. A synthetic session; no
+// house's data. The pytest wrapper is tests/test_plan_build.py.
 //
 // Run:  node tests/js/plan_build_tab.mjs <repo-root>
 import { pathToFileURL } from "node:url";
@@ -33,7 +35,8 @@ const attr = (n, k) => (n.getAttribute ? n.getAttribute(k) : (n.attributes || {}
 const CORNERS = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
 const ITEMS = {
   place_m2: { kind: "place", map_id: "m2", name: "Scan", state: "open", verdict: null, held: null, max_move_m: 1.42, scale_change: 0.08,
-    corners_now_m: CORNERS(1, 0, 9, 7), corners_new_m: CORNERS(0, 0, 10, 8), evidence: { anchor: "m1", anchor_name: "Shop plan", corr: 0.91, seed: "stairs", tilt_deg: -0.4 },
+    corners_now_m: CORNERS(1, 0, 9, 7), corners_new_m: CORNERS(0, 0, 10, 8), evidence: { anchor: "m1", anchor_name: "Shop plan", corr: 0.91, seed: "stairs", tilt_deg: -0.4,
+      ppm_printed: [90.9, 90.8], ppm_now: [100.0, 107.1], ppm_new: [90.9, 90.8] },
     flags: [{ what: "calibration", id: "cp_1", stored_m: [3, 3], click_m: [3.4, 3.2], moved_m: 0.45, room_now: "Den", room_click: "Shop" },
             { what: "room_trace", id: "Den", label: "Den", moved_m: 0.6 }], others: { n: 2, names: ["Lamp", "Fan"] } },
   refile_m3: { kind: "refile", map_id: "m3", name: "Upstairs", state: "open", verdict: null, proposal: { to_floor_id: "upper", why: { title: null, rooms: ["OFFICE", "STUDIO"] } },
@@ -43,7 +46,9 @@ const ITEMS = {
 };
 const SESSION = (over = {}) => ({ id: "pb_1", rev: 4, stage: "s1", floor_id: "basement", status: "out_of_time", error: null, reads: 7, reused: 0, est_usd: 0.08, spent_s: 64, budget_s: 600,
   plans: [{ map_id: "m1", name: "Shop plan", size_px: [1000, 800], corners_m: CORNERS(0, 0, 10, 8), role: "anchor" },
-          { map_id: "m2", name: "Scan", size_px: [900, 750], corners_m: CORNERS(1, 0, 9, 7), role: "plan" },
+          { map_id: "m2", name: "Scan", size_px: [900, 750], corners_m: CORNERS(1, 0, 9, 7), role: "plan",
+            dims: [{ axis: "x", text: "3 m + 2.5 m + 2.5 m", box: [40, 630, 770, 665], ticks_px: [[42, 654], [769, 649]], span_px: 727.1, ppm: 90.89, parse_m: 8, ok: true, source: "ai" },
+                   { axis: "y", text: "12'-0\"", box: [860, 40, 890, 700], ok: false, why: "unconfirmed" }] },
           { map_id: "m3", name: "Upstairs", size_px: [640, 480], corners_m: CORNERS(0, 0, 6, 4), role: "other_floor" }],
   questions: [{ id: "q1", kind: "confirm_dimension", map_id: "m2", name: "Scan", state: "open", axis: "x", box: [40, 630, 770, 665], ticks_px: [[42, 654], [769, 649]], ai: { text: "3 m + 2.5 m + 2.5 m", metres: 8 } },
               { id: "q2", kind: "tap_corners", map_id: "m2", other_map_id: "m1", name: "Scan", other_name: "Shop plan", state: "open" }],
@@ -88,9 +93,21 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   let sess = SESSION();
   const M = mount({ ...BASE, plan_build_info: INFO(true), plan_build_status: () => ({ session: sess, running: null }),
     plan_build_verdict: (m) => { const it = sess.items[m.item_id]; if (m.v === "back") { it.state = "open"; it.verdict = null; } else { it.state = m.v; it.verdict = { v: m.v, why: m.why || null }; } sess.rev++; return { rev: sess.rev, item: it }; },
-    plan_build_commit: Object.assign(new Error("Line up plans (experimental): saving line-ups isn't built yet. Nothing was changed; your verdicts are kept."), { code: "not_yet" }),
+    // The first save of the placement is refused by the calibration preflight (nothing written); the next goes in.
+    plan_build_commit: (m) => {
+      if (m.items.includes("place_m2") && !commits.refusedOnce) { commits.refusedOnce = true; sess.rev++;
+        return { ok: false, code: "points_out_of_range", rev: sess.rev, items: ["place_m2"],
+                 message: "Line up plans (experimental): 1 of 1 calibration points on Scan would fall off its picture, so nothing was saved. Mark it wrong, or line the plan up by hand in Mapping → Align." }; }
+      for (const id of m.items) sess.items[id].state = "committed";
+      sess.rev++; return { ok: true, rev: sess.rev, batch: "lb_1", backup_id: "bk_1", session: sess };
+    },
+    plan_build_undo: () => { for (const it of Object.values(sess.items)) if (it.state === "committed") it.state = "undone"; sess.rev++; return { ok: true, undone: 2, skipped: [], session: sess }; },
+    plan_build_refile: (m) => { sess.items[`refile_${m.map_id}`] = { kind: "refile", map_id: m.map_id, name: "Scan", state: "refused", by_hand: true, proposal: { to_floor_id: m.to_floor_id, why: { title: null, rooms: [] } },
+      to_name: "Main", drawn: { rooms: 1, calibration: 1 }, flags: [], others: { n: 0, names: [] } }; sess.rev++;
+      return { ok: false, code: "refile_refused", message: "Line up plans (experimental): This plan shows another floor, but things are drawn on it. Move it by hand in Mapping → 3D Stack if you're sure.", rev: sess.rev, item_id: `refile_${m.map_id}`, session: sess }; },
     plan_build_answer: (m) => { sess = { ...sess, questions: sess.questions.map(q => (q.id === m.question_id ? { ...q, state: "answered", answer: m.answer } : q)) }; return { session: sess }; },
     plan_build_resume: { session: "pb_1" } });
+  const commits = {};
   M.tool.show(true); await settle();
   const tab = button(M.sheet, "Line up plans (experimental)");
   check("on: the tab is offered beside Add data via plans", !!tab && !!button(M.sheet, "Add data via plans"), text(M.sheet));
@@ -121,11 +138,50 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("verdict: taken back", !!button(M.sheet, "Take that back"), text(M.sheet));
   await click(button(M.sheet, "Take that back"));
   check("verdict: back to open", sess.items.place_m2.state === "open" && M.sent("plan_build_verdict")[1]?.v === "back", JSON.stringify(sess.items.place_m2));
-  // Save goes to the server, which refuses until the writes are built: said, nothing else.
-  const save = button(M.sheet, "Save line-up for Basement (experimental): 1 plan, 1 refile");
-  check("save: names the floor and what it holds", !!save, buttons(M.sheet).map(b => text(b)));
+  // Show me the dimension: the printed dimension the proposal stands on, on its picture.
+  const canvases = () => all(M.sheet).filter(n => tag(n) === "CANVAS").length;
+  const before = canvases();
+  await click(button(M.sheet, "Show me the dimension"));
+  check("dimension: shown on the plan, measured between its ticks", canvases() === before + 1 && t().includes("The printed dimensions this proposal stands on (experimental)")
+    && t().includes("Scan (this plan): “3 m + 2.5 m + 2.5 m” = 8.000 m across; 727 px between its ticks, so 90.9 px a metre.")
+    && t().includes("Pixels a metre, across / down: printed 90.9 / 90.8; as placed now 100.0 / 107.1; as proposed 90.9 / 90.8."), t());
+  check("dimension: an unconfirmed reading isn't shown as used", !t().includes("12'-0"), t());
+  await click(button(M.sheet, "Hide the dimension"));
+  // The floor's Save takes only what shifts nothing drawn on a plan (form q8); the rest one by one.
+  const save = button(M.sheet, "Save line-up for Basement (experimental): 1 refile");
+  check("save: names the floor and only what shifts nothing", !!save && t().includes("1 proposal would shift what is drawn on its plan: accept it one by one."), buttons(M.sheet).map(b => text(b)));
   await click(save);
-  check("save: refused by the server and said", M.sent("plan_build_commit")[0]?.items.sort().join() === "place_m2,refile_m3" && t().includes("saving line-ups isn't built yet. Nothing was changed"), t());
+  const sv = M.sent("plan_build_commit")[0];
+  check("save: the group goes to the server as a group", sv && sv.group === true && sv.items.join() === "refile_m3" && sv.rev === 6, JSON.stringify(sv));
+  check("save: saved, said on its card and in a hint", t().includes("Saved (experimental). A backup was taken first; Undo this line-up session takes it back.")
+    && M.hints.some(([h]) => h.startsWith("Line up plans (experimental): saved it.")), t());
+  // Accept one by one: refused by the calibration preflight first, said in its words, nothing else; then saved.
+  await click(button(M.sheet, "Accept: 2 things drawn here would sit elsewhere"));
+  const one = M.sent("plan_build_commit")[1];
+  check("accept: one item, not a group", one && one.items.join() === "place_m2" && !one.group, JSON.stringify(one));
+  check("accept: a refusal is said in plain words", t().includes("Line up plans (experimental): 1 of 1 calibration points on Scan would fall off its picture, so nothing was saved.")
+    && sess.items.place_m2.state === "open", t());
+  await click(button(M.sheet, "Accept: 2 things drawn here would sit elsewhere"));
+  check("accept: saved the second time", sess.items.place_m2.state === "committed" && M.sent("plan_build_commit").length === 3 && !t().includes("would fall off its picture"), t());
+  check("accept: a saved item takes no verdict", !button(M.sheet, "Accept: 2 things drawn here would sit elsewhere"), buttons(M.sheet).map(b => text(b)));
+  // Undo this line-up session: asked once, then the whole session.
+  await click(button(M.sheet, "Undo this line-up session (experimental)"));
+  check("undo: asked first, saying what it does", t().includes("Put every plan this session saved back where it was? A backup is taken first; a plan you moved by hand since is left as it is.")
+    && !M.sent("plan_build_undo").length, t());
+  await click(button(M.sheet, "Undo it (experimental)"));
+  check("undo: the session taken back, said", M.sent("plan_build_undo")[0]?.session === "pb_1" && t().includes("Undone: it is back where it was. Accept saves it again.")
+    && M.hints.some(([h]) => h === "Line up plans (experimental): 2 plans put back where they were."), t());
+  check("undo: an undone item can be saved again", !!button(M.sheet, "Accept: 2 things drawn here would sit elsewhere") && !button(M.sheet, "Undo this line-up session (experimental)"), buttons(M.sheet).map(b => text(b)));
+  // A refile by hand, refused for a plan with things drawn on it.
+  await click(button(M.sheet, "Scan isn't Basement? (experimental)"));
+  await click(button(M.sheet, "Main"));
+  const rf = M.sent("plan_build_refile")[0];
+  check("refile by hand: the plan and the floor, to the server", rf && rf.map_id === "m2" && rf.to_floor_id === "main", JSON.stringify(rf));
+  check("refile by hand: refused and said", t().includes("This plan shows another floor, but things are drawn on it.") && t().includes("You say it shows Main")
+    && t().includes("are drawn on this plan; move it by hand in Mapping → 3D Stack if you're sure."), t());
+  const parts2 = all(M.sheet).filter(n => attr(n, "data-plan-build") !== undefined && attr(n, "data-plan-build") !== null);
+  const quiet2 = parts2.filter(n => !/experimental/i.test(text(n)));
+  check("experimental: still every part after saving and undoing", quiet2.length === 0, quiet2.map(n => text(n).slice(0, 80)));
   // The little help: Yes on the dimension.
   await click(button(M.sheet, "Yes"));
   check("answer: yes sent, no new read asked for", M.sent("plan_build_answer")[0]?.answer === "yes" && !M.sent("plan_build_start").length, JSON.stringify(M.sent("plan_build_answer")));
@@ -146,7 +202,8 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("picker: the measured plan is said to be never moved", t().includes("Measured · your measured plan (never moved)"), t());
   await click(button(M.sheet, "Basement · 2 plans"));
   check("picker: what is drawn on each plan", t().includes("Scan — rooms traced: 1, calibration points: 1") && t().includes("Shop plan — nothing drawn on it"), t());
-  check("picker: which AI reads them and that nothing is saved", t().includes("Claude Opus 5.5 reads them: the plans leave the house for Anthropic.") && t().includes("this version proposes only"), t());
+  check("picker: which AI reads them and when anything is saved", t().includes("Claude Opus 5.5 reads them: the plans leave the house for Anthropic.")
+    && t().includes("Nothing is saved until you accept a proposal: a backup is taken before each save, and one undo takes the whole session back."), t());
   await click(button(M.sheet, "Line up Basement (experimental)"));
   const st = M.sent("plan_build_start")[0];
   check("start: the floor and its ticked plans", st && st.floor_id === "basement" && st.map_ids.sort().join() === "m1,m2", JSON.stringify(st));

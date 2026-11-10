@@ -1157,11 +1157,11 @@ export function createPlans(ctx){
   }
 
   // ── ghosts: the real builders, outside the draft ──────────────────────────
-  const dashMat = () => new THREE.MeshBasicMaterial({ color: DASH_COL, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
-  function dashMesh(tris, y){
+  const dashMat = (colour = DASH_COL) => new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+  function dashMesh(tris, y, colour){
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(tris, 3));
-    const m = new THREE.Mesh(geo, dashMat());
+    const m = new THREE.Mesh(geo, dashMat(colour));
     m.position.y = y; m.renderOrder = 8; m.frustumCulled = false;
     return m;
   }
@@ -1969,22 +1969,38 @@ export function createPlans(ctx){
   // The Plans tool's second tab, drawn only when the server says it is on
   // (plan_build_info: the master switch, Build from plans, and Claude Opus 5.5
   // or newer as the AI Task). One floor at a time: Claude reads the text, the
-  // server measures; each proposal is a card with a 2D overlay drawn from the
-  // signed picture links and the server's corners in metres (anchor blue,
-  // proposed red, purple where they agree). Verdicts are written at the click;
-  // Accept and Save go to plan_build_commit, which refuses until the writes
-  // are built (Stage 1b), and says so. Every control here says experimental.
+  // server measures. Each proposal is shown on the vetting map, the 3D view
+  // the Plans tool already uses (no new screen): the plan as a ghost where the
+  // proposal puts it (red) over the plan it is fitted to (blue), purple where
+  // the drawings agree, its outline now (grey) and proposed (amber), every flag
+  // an arrow from where a thing is stored to where its click would land. With no
+  // 3D view, or "As a list", the same items are cards with a 2D overlay drawn
+  // from the signed picture links and the server's corners. Verdicts are
+  // written at the click; Accept saves that one item (plan_build_commit, the one
+  // writer, a backup first); the floor's Save saves only the items that shift
+  // nothing drawn on a plan; Undo this line-up session takes every save back.
+  // Every control here says experimental (tests/js/plan_build_tab.mjs scans it).
   let mode = "add", lu = null, luSess = null, luFloor = null, luPoll = null, luBusy = false, luErr = "", luWrongFor = null, luTyped = null;
   let luNow = false;                                   // the overlays show where each plan is now, not the proposal
+  let luCur = null, luList = false, luDimFor = null, luRefileFor = null, luAskUndo = false, luFade = 0.8;
+  let luAwake = false, luKey = null, luTok = 0, luFly = false;
+  const luMeshes = [];
   const luPicked = new Set(), luTaps = new Map(), tints = new Map();
   const LU_PREFIX = "Line up plans (experimental): ";
   const LU_BANNER = "Experimental. Claude reads the text; PadSpan measures. Matches and scales can still be wrong; look at each overlay before you accept.";
   const LU_RESUMABLE = new Set(["out_of_time", "no_credit", "failed", "cancelled"]);
   const LU_WRONG = [["wrong_match", "Wrong match"], ["wrong_scale", "Wrong scale"], ["wrong_floor", "Wrong floor"], ["cant_tell", "Can't tell"]];
+  const LU_ORDER = { place: 0, refile: 1, anchor_scale: 2 };
+  const LU_TAKES = new Set(["open", "undone"]);        // what Accept saves (an undone item can be saved again)
   const pct = (v) => (num(v) === null ? "?" : `${(Math.round(v * 1000) / 10).toFixed(1)} %`);
+  const f1 = (v) => (num(v) === null ? "?" : v.toFixed(1));
   const luCall = (type, extra) => call(type, extra).catch((e) => { throw Object.assign(new Error(String((e && e.message) || e)), { code: e && e.code }); });
   const luPlan = (mid) => ((luSess && luSess.plans) || []).find(p => p.map_id === mid) || null;
   const luFloorName = (fid) => { const f = ((lu && lu.floors) || []).find(x => x.id === fid); return f ? f.name || fid : floorName(fid); };
+  const luItems = () => Object.entries((luSess && luSess.items) || {}).sort((a, b) => ((LU_ORDER[a[1].kind] ?? 9) - (LU_ORDER[b[1].kind] ?? 9)) || String(a[1].name).localeCompare(String(b[1].name)));
+  const luAcceptable = (it) => LU_TAKES.has(it.state) || (it.state === "not_now" && it.kind === "anchor_scale" && !it.verdict);
+  const luShifts = (it) => (it.flags || []).length > 0;
+  const luMapWanted = () => mapCan() && !luList && !!luSess && luSess.status !== "running" && luItems().length > 0;
   async function luInfo(){
     try { lu = await luCall("plan_build_info"); } catch (_) { lu = null; }
     if (!lu || !lu.on) { lu = null; if (mode === "lineup") mode = "add"; }
@@ -2011,7 +2027,7 @@ export function createPlans(ctx){
     if (lu && lu.running) { luPollStart(lu.running); luBusy = false; return; }
     const last = ((lu && lu.floors) || []).map(f => f.last).filter(Boolean).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
     if (last && last.session) { try { luSess = (await luCall("plan_build_status", { session: last.session })).session; luFloor = luSess && luSess.floor_id; } catch (e) { luErr = String(e.message || e); } }
-    luBusy = false; redraw();
+    luBusy = false; luKey = null; luFly = true; redraw();
   }
   function luPick(fid){
     luFloor = fid; luSess = null; luPicked.clear();
@@ -2032,7 +2048,7 @@ export function createPlans(ctx){
       try {
         const r = await luCall("plan_build_status", { session: sid });
         luSess = r.session; luFloor = luSess && luSess.floor_id;
-        if (luSess && luSess.status !== "running") luPollStop();
+        if (luSess && luSess.status !== "running") { luPollStop(); luKey = null; luFly = true; }
       } catch (e) { luErr = String(e.message || e); luPollStop(); }
       redraw();
     });
@@ -2040,22 +2056,46 @@ export function createPlans(ctx){
     tick();
   }
   function luPollStop(){ if (luPoll) { clearInterval(luPoll); luPoll = null; } }
+  async function luReload(){
+    try { const r = await luCall("plan_build_status", { session: luSess.id }); if (r && r.session) luSess = r.session; } catch (_) { /* what is shown stays */ }
+  }
   async function luDo(type, extra, after){
     if (luBusy || !luSess) return;
     luBusy = true; luErr = ""; redraw();
     try { const r = await luCall(type, { session: luSess.id, ...(extra || {}) }); if (after) after(r); }
     catch (e) {
-      if (e.code === "rev_mismatch") { try { luSess = (await luCall("plan_build_status", { session: luSess.id })).session; } catch (_) { /* kept */ } }
+      if (e.code === "rev_mismatch") await luReload();
       luErr = LU_PREFIX + String(e.message || e).replace(LU_PREFIX, "");
     }
     luBusy = false; redraw();
   }
+  /** A save, an undo or a refile: an ok: false answer is a refusal (nothing written), said in its words. */
+  async function luWrite(type, extra, done){
+    if (luBusy || !luSess) return;
+    luBusy = true; luErr = ""; luAskUndo = false; redraw();
+    try {
+      const r = (await luCall(type, { session: luSess.id, ...(extra || {}) })) || {};
+      if (r.session) luSess = r.session;
+      if (r.ok === false) { luErr = LU_PREFIX + String(r.message || r.code || "").replace(LU_PREFIX, ""); if (!r.session) await luReload(); }
+      else if (done) done(r);
+    } catch (e) {
+      if (e.code === "rev_mismatch") await luReload();
+      luErr = LU_PREFIX + String(e.message || e).replace(LU_PREFIX, "");
+    }
+    luKey = null; luBusy = false; redraw();
+  }
   const luVerdict = (id, v, why) => luDo("plan_build_verdict", { rev: luSess.rev, item_id: id, v, ...(why ? { why } : null) }, (r) => {
-    luSess.rev = r.rev; luSess.items[id] = r.item; luWrongFor = null;
+    luSess.rev = r.rev; luSess.items[id] = r.item; luWrongFor = null; luKey = null;
     ctx.hint(v === "back" ? "Taken back." : v === "wrong" ? "Noted: wrong. Nothing in your house changes." : "Not now, then.");
   });
-  const luCommit = (ids) => luDo("plan_build_commit", { rev: luSess.rev, items: ids }, () => {});
-  const luAnswer = (q, answer) => luDo("plan_build_answer", { question_id: q.id, answer }, (r) => { luSess = r.session; luTaps.delete(q.id); luTyped = null; });
+  const luSave = (ids, group) => luWrite("plan_build_commit", { rev: luSess.rev, items: ids, ...(group ? { group: true } : null) }, () =>
+    ctx.hint(`${LU_PREFIX}saved ${ids.length === 1 ? "it" : `${ids.length} items`}. A backup was taken first; Undo this line-up session takes it back.`));
+  const luUndo = () => luWrite("plan_build_undo", {}, (r) => {
+    const n = r.undone || 0, k = (r.skipped || []).length;
+    ctx.hint(`${LU_PREFIX}${n} plan${n === 1 ? "" : "s"} put back where ${n === 1 ? "it was" : "they were"}${k ? `; ${k} moved by hand since ${k === 1 ? "was" : "were"} left as ${k === 1 ? "it is" : "they are"}` : ""}.`);
+  });
+  const luRefile = (mid, fid) => { luRefileFor = null; return luWrite("plan_build_refile", { rev: luSess.rev, map_id: mid, to_floor_id: fid }, (r) => { if (r.item_id) luCur = r.item_id; }); };
+  const luAnswer = (q, answer) => luDo("plan_build_answer", { question_id: q.id, answer }, (r) => { luSess = r.session; luTaps.delete(q.id); luTyped = null; luKey = null; });
 
   // -- pictures: the plan's ink in one colour, kept per link and colour ------
   function tinted(url, rgb, done){
@@ -2098,30 +2138,36 @@ export function createPlans(ctx){
     g.save(); g.strokeStyle = colour; g.lineWidth = 2; g.setLineDash(dash);
     g.beginPath(); corners.map(toPx).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke(); g.restore();
   }
-  /** The overlay of one item: the anchor in blue, this plan in red at the proposal (or where it is now), outlines, and each flag's arrow. */
+  /** What an item shows, on the 3D map or on a card: the plan it is fitted to (blue), this plan
+   *  where the proposal puts it (red; where it is now with "now"), the outlines, the flags. */
+  function luParts(it){
+    const anchorId = it.kind === "place" ? (it.evidence || {}).anchor : null, anchor = anchorId ? luPlan(anchorId) : null, pl = luPlan(it.map_id);
+    const now = it.corners_now_m || (pl && pl.corners_m) || null, next = it.kind === "refile" ? null : it.corners_new_m || null;
+    return { anchor, now, next, blueMid: anchor ? anchor.map_id : it.kind === "anchor_scale" ? it.map_id : null,
+             blueAt: anchor ? anchor.corners_m : it.kind === "anchor_scale" ? now : null, redAt: luNow || !next ? now : next };
+  }
+  /** The overlay of one item on a card (no 3D view, or the list): the same drawing, flat. */
   function overlay(c, it){
-    const anchorId = it.kind === "place" ? (it.evidence || {}).anchor : null, anchor = anchorId ? luPlan(anchorId) : null;
-    const all = [...(it.corners_now_m || []), ...(it.corners_new_m || []), ...((anchor && anchor.corners_m) || [])];
+    const p = luParts(it);
+    const all = [...(p.now || []), ...(p.next || []), ...(p.blueAt || [])];
     if (!all.length) return;
-    const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+    const xs = all.map(q => q[0]), ys = all.map(q => q[1]);
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
     c.height = Math.round(Math.min(720, Math.max(200, c.width * (y1 - y0) / Math.max(0.1, x1 - x0))));   // the plans' own shape
     const paintIt = () => {
       const g = c.getContext("2d");
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.fillStyle = "#ffffff"; g.fillRect(0, 0, c.width, c.height);
-      const mine = luNow ? it.corners_now_m : it.corners_new_m;
       const k = Math.min((c.width - 16) / Math.max(0.1, x1 - x0), (c.height - 16) / Math.max(0.1, y1 - y0));
       const toPx = ([x, y]) => [8 + (x - x0) * k, 8 + (y - y0) * k];
-      const ua = anchor && urls ? urls[anchor.map_id] : null, um = urls ? urls[it.map_id] : null;
-      const blue = ua ? tinted(ua, [37, 99, 235], paintIt) : (it.kind === "anchor_scale" && um ? tinted(um, [37, 99, 235], paintIt) : null);
-      const red = um ? tinted(um, [220, 38, 38], paintIt) : null;
-      if (blue) drawAt(g, blue, anchor ? anchor.corners_m : it.corners_now_m, toPx);
+      const blue = p.blueMid && urls && urls[p.blueMid] ? tinted(urls[p.blueMid], [37, 99, 235], paintIt) : null;
+      const red = urls && urls[it.map_id] ? tinted(urls[it.map_id], [220, 38, 38], paintIt) : null;
+      if (blue) drawAt(g, blue, p.blueAt, toPx);
       g.globalCompositeOperation = "multiply";
-      if (red) drawAt(g, red, mine, toPx);
+      if (red) drawAt(g, red, p.redAt, toPx);
       g.globalCompositeOperation = "source-over";
-      outline(g, it.corners_now_m, toPx, "#64748b", [6, 4]);
-      outline(g, it.corners_new_m, toPx, "#f59e0b", [10, 4]);
+      outline(g, p.now, toPx, "#64748b", [6, 4]);
+      outline(g, p.next, toPx, "#f59e0b", [10, 4]);
       for (const f of it.flags || []) {
         if (!f.stored_m || !f.click_m) continue;
         const [ax, ay] = toPx(f.stored_m), [bx, by] = toPx(f.click_m);
@@ -2132,7 +2178,7 @@ export function createPlans(ctx){
     };
     paintIt();
   }
-  /** A question's picture: the dimension's crop with its ticks, or a whole plan to tap on. */
+  /** A picture's crop: a question's dimension with its ticks, a dimension measured on a proposal, or a whole plan to tap on. */
   function questionPic(c, q, mid, onTap){
     const url = urls && urls[mid];
     if (!url) return;
@@ -2150,6 +2196,11 @@ export function createPlans(ctx){
       g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
       g.drawImage(img, sx, sy, sw, sh, 0, 0, sw * k, sh * k);
       const at = (x, y) => [(x * kx - sx) * k, (y * ky - sy) * k];
+      if (q.kind === "confirm_dimension" && Array.isArray(q.box) && q.mark) {   // the dimension line as read, highlighted
+        const [a, b] = [at(q.box[0], q.box[1]), at(q.box[2], q.box[3])];
+        g.fillStyle = "rgba(251,191,36,.28)"; g.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+        g.strokeStyle = "#f59e0b"; g.lineWidth = 1.5; g.setLineDash([5, 3]); g.strokeRect(a[0], a[1], b[0] - a[0], b[1] - a[1]); g.setLineDash([]);
+      }
       g.strokeStyle = "#16a34a"; g.lineWidth = 2;
       if (q.kind === "confirm_dimension" && Array.isArray(q.ticks_px) && q.ticks_px.length === 2) {
         const [a, b] = q.ticks_px.map(p => at(p[0], p[1]));
@@ -2169,16 +2220,93 @@ export function createPlans(ctx){
     img.src = url;
   }
 
+  // -- on the vetting map (the Live Aboard view the Plans tool already uses) --
+  function luDrop(){
+    luTok++;
+    for (const m of luMeshes.splice(0)) { if (m.material && m.material.map) { m.material.map.dispose(); texLive--; } dropMesh(m); }
+  }
+  function luSleep(){
+    if (!luAwake) return;
+    luAwake = false; luKey = null;
+    luDrop();
+    if (ctx.quiet) ctx.quiet(false);
+    if (ctx.render) ctx.render();
+  }
+  function luPlane(canvas, cs, y, opacity){
+    const tex = new THREE.CanvasTexture(canvas);
+    if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    texLive++;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array([cs[0][0], y, cs[0][1], cs[1][0], y, cs[1][1], cs[2][0], y, cs[2][1], cs[3][0], y, cs[3][1]]), 3));
+    geo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array([0, 1, 1, 1, 1, 0, 0, 0]), 2));
+    geo.setIndex([0, 2, 1, 0, 3, 2]);
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+    m.renderOrder = 2; m.frustumCulled = false;
+    return m;
+  }
+  /** The item on the map: two pictures at most (one on a phone: Now / Proposed is its blink), the outlines, the flags' arrows. */
+  function luBuild(it, F){
+    const tok = luTok, y = F.fl.elev, p = luParts(it), add = (m) => { luMeshes.push(m); group.add(m); };
+    const later = () => { if (tok === luTok && luAwake) { luKey = null; luSync(); } };
+    if (p.blueMid && p.blueAt && urls && urls[p.blueMid] && !touchy()) {
+      const c = tinted(urls[p.blueMid], [37, 99, 235], later);
+      if (c) add(luPlane(c, p.blueAt, y + 0.03, 0.7));
+    }
+    if (p.redAt && urls && urls[it.map_id]) {
+      const c = tinted(urls[it.map_id], [220, 38, 38], later);
+      if (c) { const m = luPlane(c, p.redAt, y + 0.036, luFade); m.renderOrder = 3; m.userData.proposed = true; add(m); }
+    }
+    if (p.now) add(dashMesh(dashTriangles(p.now, true, 0.4, 0.25, 0.1), y + 0.05, "#cbd5e1"));
+    if (p.next) add(dashMesh(dashTriangles(p.next, true, 0.6, 0.25, 0.12), y + 0.055, DASH_COL));
+    for (const f of it.flags || []) {
+      if (!f.stored_m || !f.click_m) continue;
+      const col = f.what === "calibration" ? "#a855f7" : "#14b8a6", ring = [];
+      for (let i = 0; i < 12; i++) ring.push([f.stored_m[0] + Math.cos(i * Math.PI / 6) * 0.2, f.stored_m[1] + Math.sin(i * Math.PI / 6) * 0.2]);
+      add(dashMesh(dashTriangles([f.stored_m, f.click_m], false, 0.15, 0.08, 0.08), y + 0.06, col));
+      add(dashMesh(dashTriangles(ring, true, 0.08, 0.03, 0.07), y + 0.06, col));
+    }
+  }
+  function luFlyTo(it, F){
+    if (!ctx.flySpot) return;
+    const p = luParts(it), pts = [...(p.blueAt || []), ...(p.redAt || []), ...(p.now || [])];
+    if (!pts.length) return;
+    const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    ctx.flySpot(F, (x0 + x1) / 2, (y0 + y1) / 2, Math.max(x1 - x0, y1 - y0) + 2, padNow());
+  }
+  function luSync(){
+    if (!mapCan() || !luSess) return;
+    const sc = ctx.scene();
+    if (!sc) return;
+    if (!group) { group = new THREE.Group(); group.name = "plan-ai"; }
+    if (group.parent !== sc) sc.add(group);
+    const list = luItems(), F = floorUi(luSess.floor_id);
+    if (!list.some(([id]) => id === luCur)) luCur = (list.find(([, it]) => luAcceptable(it)) || list[0] || [null])[0];
+    if (!luAwake) {
+      luAwake = true; luFly = true; luKey = null;
+      if (ctx.quiet) ctx.quiet(true);
+      if (touchy() && ctx.root.scrollIntoView) { try { ctx.root.scrollIntoView({ block: "start" }); } catch (_) { /* it stays where it is */ } }
+    }
+    const it = luCur ? luSess.items[luCur] : null;
+    if (luFly && F && ctx.setTopFloor && (ctx.currentFloor ? ctx.currentFloor() : null) !== F) ctx.setTopFloor(String(F.fl.id));
+    const key = it && F ? JSON.stringify([luCur, it.state, luNow, F.fl.elev, !!urls, touchy(), it.corners_new_m]) : "";
+    if (key !== luKey) { luDrop(); luKey = key; if (it && F) { try { luBuild(it, F); } catch (_) { /* a plan that won't draw: its card still says it all */ } } }
+    for (const m of luMeshes) if (m.userData && m.userData.proposed) m.material.opacity = luFade;
+    if (luFly && it && F) { luFly = false; requestAnimationFrame(guard(() => { if (luAwake) luFlyTo(it, F); })); }
+    if (ctx.render) ctx.render();
+  }
+
   // -- the tab ---------------------------------------------------------------
   function luSection(cls){ const s = d("div", cls || "pl-row"); s.setAttribute("data-plan-build", ""); return s; }
-  function paintLineup(){
+  function paintLineup(onMap){
     luTabs();
     head("Line up plans", "Claude reads one floor's plans; PadSpan measures and lines them up. Experimental.");
     sheet.appendChild(d("div", "pl-ban", LU_BANNER));
-    if (luErr) sheet.appendChild(d("div", "pl-note pl-bad", luErr));
+    if (luErr) { const e = d("div", "pl-note pl-bad", luErr); e.setAttribute("role", "alert"); sheet.appendChild(e); }
     if (luBusy && !luSess) { sheet.appendChild(d("div", "pl-note", "Looking…")); return; }
     if (luSess && luSess.status === "running") return paintLuProgress();
-    if (luSess) return paintLuSession();
+    if (luSess) return paintLuSession(onMap);
     paintLuPicker();
   }
   function paintLuPicker(){
@@ -2207,7 +2335,8 @@ export function createPlans(ctx){
       l.appendChild(d("span", null, `${p.name || "a plan"}${p.gauge ? " · your measured plan (never moved)" : ""} — ${bits.length ? bits.join(", ") : "nothing drawn on it"}`));
       sheet.appendChild(l);
     }
-    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them: the plans leave the house for Anthropic. About 5 reads a plan; under a dollar a floor. Nothing is saved: this version proposes only.`));
+    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them: the plans leave the house for Anthropic. About 5 reads a plan; under a dollar a floor. `
+      + "Nothing is saved until you accept a proposal: a backup is taken before each save, and one undo takes the whole session back."));
     const acts = d("div", "pl-acts");
     acts.setAttribute("data-plan-build", "start");
     const go = btn(`Line up ${f.name || f.id} (experimental)`, "Claude reads; PadSpan measures; you check every proposal", () => luStart(), "go");
@@ -2227,18 +2356,20 @@ export function createPlans(ctx){
   }
   function luSummary(){
     const s = luSess, items = Object.values(s.items || {});
-    const n = (k) => items.filter(i => i.kind === k).length;
+    const n = (k) => items.filter(i => i.kind === k).length, saved = items.filter(i => i.state === "committed").length;
     const word = { done: "done", needs_help: "needs your help", cancelled: "stopped", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit" }[s.status] || s.status;
     const cost = num(s.est_usd) !== null ? `, about $${s.est_usd.toFixed(2)} (estimate)` : "";
     return `${luFloorName(s.floor_id)}: ${word}. ${s.reads || 0} reads${s.reused ? `, ${s.reused} plan${s.reused === 1 ? "" : "s"} reused` : ""}${cost}, in ${mins(s.spent_s)}. `
       + `${n("place")} placement${n("place") === 1 ? "" : "s"}, ${n("refile")} refile${n("refile") === 1 ? "" : "s"}${n("anchor_scale") ? ", the anchor's own scale" : ""}.`
+      + (saved ? ` ${saved} saved.` : "")
       + (s.cross_floor ? ` Its stairs sit ${m1(s.cross_floor.stairs_m)} m from ${luFloorName(s.cross_floor.floor_id)}'s.` : "");
   }
-  function paintLuSession(){
+  function paintLuSession(onMap){
     sheet.appendChild(d("div", "pl-sum", luSummary()));
     const stops = (luSess.stops || []).filter(x => x.reason !== "help_unanswered" || (luSess.questions || []).some(q => q.state === "open"));
     if (stops.length) {
       const box = luSection("pl-note");
+      box.appendChild(d("div", "pl-sub", "Where it stopped (experimental):"));
       for (const st of stops.slice(-6)) box.appendChild(d("div", null, `${st.say}${st.next ? ` ${st.next}` : ""}`));
       if (LU_RESUMABLE.has(luSess.status)) {
         const b = btn("Resume (experimental)", "Reads what is left; what was read is kept", () => luDo("plan_build_resume", {}, (r) => luPollStart(r.session)));
@@ -2248,24 +2379,74 @@ export function createPlans(ctx){
       sheet.appendChild(box);
     }
     for (const q of (luSess.questions || []).filter(q => q.state === "open")) paintLuQuestion(q);
-    const items = Object.entries(luSess.items || {});
-    const order = { place: 0, refile: 1, anchor_scale: 2 };
-    items.sort((a, b) => (order[a[1].kind] - order[b[1].kind]) || String(a[1].name).localeCompare(String(b[1].name)));
+    const items = luItems();
     if (items.length) sheet.appendChild(d("h5", null, "Proposals (experimental)"));
-    for (const [id, it] of items) paintLuItem(id, it);
+    if (onMap && items.length) {
+      const at = Math.max(0, items.findIndex(([id]) => id === luCur));
+      const nav = d("div", "pl-q");
+      nav.setAttribute("data-plan-build", "nav");
+      const go = (k) => { luCur = items[(at + k + items.length) % items.length][0]; luDimFor = null; luWrongFor = null; luFly = true; luKey = null; redraw(); };
+      nav.append(d("span", "pl-title", `${at + 1} of ${items.length} on the map (experimental)`), btn("‹", "The one before", () => go(-1)), btn("›", "The next one", () => go(1)));
+      sheet.appendChild(nav);
+      paintLuItem(items[at][0], items[at][1], true);
+    } else for (const [id, it] of items) paintLuItem(id, it, false);
     if (!items.length && luSess.status === "done") sheet.appendChild(d("div", "pl-note", "Nothing to propose on this floor."));
+    paintLuRefile();
+    paintLuFoot(onMap, items);
+  }
+  /** "This plan isn't Basement?": a refile by hand (design 2), only for a plan with nothing drawn on it; the server says so when not. */
+  function paintLuRefile(){
+    const others = ((lu && lu.floors) || []).filter(f => f.id !== luSess.floor_id);
+    const has = new Set(Object.values(luSess.items || {}).filter(it => it.kind === "refile").map(it => it.map_id));
+    const plans = (luSess.plans || []).filter(p => p.role !== "gauge" && !has.has(p.map_id));
+    if (!plans.length || !others.length) return;
+    const box = luSection("pl-row pl-lu");
+    box.setAttribute("data-plan-build", "refile");
+    box.appendChild(d("div", "pl-sub", "A plan filed on the wrong floor? Say which floor it shows: a refile, checked and saved like any proposal. Only a plan with nothing drawn on it can move here (experimental)."));
+    const here = luFloorName(luSess.floor_id);
+    for (const p of plans) {
+      const a = d("div", "pl-acts");
+      if (luRefileFor === p.map_id) {
+        a.appendChild(d("span", "pl-sub", `${p.name || "This plan"} shows:`));
+        for (const f of others) a.appendChild(btn(f.name || f.id, `A refile of ${p.name || "this plan"} to ${f.name || f.id}`, () => luRefile(p.map_id, f.id)));
+        a.appendChild(btn("Cancel", "Leave it on " + here, () => { luRefileFor = null; redraw(); }));
+      } else a.appendChild(btn(`${p.name || "This plan"} isn't ${here}? (experimental)`, "Say which floor it shows", () => { luRefileFor = p.map_id; redraw(); }));
+      for (const b of a.querySelectorAll("button")) b.disabled = luBusy;
+      box.appendChild(a);
+    }
+    sheet.appendChild(box);
+  }
+  function paintLuFoot(onMap, items){
     const foot = d("div", "pl-foot");
     foot.setAttribute("data-plan-build", "foot");
-    const open = items.filter(([, it]) => it.state === "open" && (it.kind === "place" || it.kind === "refile"));
-    if (open.length) {
-      const np = open.filter(([, it]) => it.kind === "place").length, nr = open.length - np;
-      const save = btn(`Save line-up for ${luFloorName(luSess.floor_id)} (experimental): ${np} plan${np === 1 ? "" : "s"}${nr ? `, ${nr} refile${nr === 1 ? "" : "s"}` : ""}`,
-        "Saving line-ups comes in the next version: nothing is written yet", () => luCommit(open.map(([id]) => id)), "go");
+    const open = items.filter(([, it]) => LU_TAKES.has(it.state) && (it.kind === "place" || it.kind === "refile"));
+    const calm = open.filter(([, it]) => !luShifts(it)), loud = open.length - calm.length;
+    if (calm.length) {
+      const np = calm.filter(([, it]) => it.kind === "place").length, nr = calm.length - np;
+      const save = btn(`Save line-up for ${luFloorName(luSess.floor_id)} (experimental): ${[np ? `${np} plan${np === 1 ? "" : "s"}` : "", nr ? `${nr} refile${nr === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ")}`,
+        "Saves the proposals that shift nothing drawn on their plans, together; a backup is taken first", () => luSave(calm.map(([id]) => id), true), "go");
       save.disabled = luBusy;
       foot.appendChild(save);
     }
-    foot.appendChild(btn(luNow ? "Show the proposals (experimental)" : "Show where they are now (experimental)", "The overlays: now or proposed", () => { luNow = !luNow; redraw(); }));
-    foot.appendChild(btn("Line up again (experimental)", "Pick a floor and read it again", () => { luSess = null; luInfo().then(() => redraw()); }));
+    if (loud) foot.appendChild(d("div", "pl-note", `${loud} proposal${loud === 1 ? "" : "s"} would shift what is drawn on ${loud === 1 ? "its plan" : "their plans"}: accept ${loud === 1 ? "it" : "them"} one by one.`));
+    if (items.some(([, it]) => it.state === "committed")) {
+      if (luAskUndo) {
+        foot.appendChild(d("div", "pl-note", "Put every plan this session saved back where it was? A backup is taken first; a plan you moved by hand since is left as it is."));
+        const yes = btn("Undo it (experimental)", "Takes the whole line-up session back", () => luUndo(), "go");
+        yes.disabled = luBusy;
+        foot.append(yes, btn("Cancel", "Keep what was saved", () => { luAskUndo = false; redraw(); }));
+      } else foot.appendChild(btn("Undo this line-up session (experimental)", "Puts every plan this session saved back where it was", () => { luAskUndo = true; redraw(); }));
+    }
+    foot.appendChild(btn(luNow ? "Show the proposals (experimental)" : "Show where they are now (experimental)", "The overlays: now or proposed", () => { luNow = !luNow; luKey = null; redraw(); }));
+    if (onMap) {
+      const r = d("input");
+      r.type = "range"; r.min = "0.15"; r.max = "1"; r.step = "0.05"; r.value = String(luFade);
+      r.title = "How strongly the proposed plan shows (experimental)"; r.setAttribute("aria-label", r.title);
+      r.addEventListener("input", guard(() => { luFade = Number(r.value); for (const m of luMeshes) if (m.userData && m.userData.proposed) m.material.opacity = luFade; if (ctx.render) ctx.render(); }));
+      foot.appendChild(r);
+    }
+    if (mapCan()) foot.appendChild(btn(luList ? "On the map (experimental)" : "As a list (experimental)", luList ? "Each proposal on the 3D view" : "The same proposals as cards", () => { luList = !luList; luKey = null; luFly = true; redraw(); }));
+    foot.appendChild(btn("Line up again (experimental)", "Pick a floor and read it again", () => { luSess = null; luKey = null; luInfo().then(() => redraw()); }));
     sheet.appendChild(foot);
   }
   function paintLuQuestion(q){
@@ -2319,16 +2500,48 @@ export function createPlans(ctx){
     if (f.what === "room_trace") return `${f.label || "A room"} was traced on this plan; its outline in the house stays where it is. The trace would sit up to ${m} m off.`;
     return `${f.label || "A device"} drawn on this plan would land ${m} m from where it is stored. This tool never moves it: Mapping moves it.`;
   }
-  function paintLuItem(id, it){
+  /** The printed dimensions a proposal stands on: this plan's (and the plan it is fitted to), measured between their ticks. */
+  function luDims(it){
+    const out = [], add = (mid, role) => {
+      const pl = luPlan(mid);
+      for (const x of ((pl && pl.dims) || []).filter(x => x.ok && Array.isArray(x.box)).slice(0, 2)) out.push({ mid, name: (pl && pl.name) || "a plan", role, d: x });
+    };
+    if (it.kind !== "refile") add(it.map_id, "this plan");
+    const a = it.kind === "place" ? (it.evidence || {}).anchor : null;
+    if (a) add(a, "the plan it is fitted to");
+    return out;
+  }
+  function paintLuDims(t, it){
+    const list = luDims(it), ev = it.evidence || {}, box = d("div");
+    box.setAttribute("data-plan-build", "dimension");
+    box.appendChild(d("div", "pl-sub", "The printed dimensions this proposal stands on (experimental). Amber: the dimension line as read; green: between the ticks PadSpan found."));
+    for (const x of list) {
+      const c = d("canvas"); c.width = 460; c.height = 110; c.style.width = "100%"; c.style.height = "auto"; c.style.background = "#fff"; c.style.borderRadius = "6px"; c.style.marginTop = "4px";
+      box.appendChild(c);
+      questionPic(c, { id: `dim_${x.mid}`, kind: "confirm_dimension", box: x.d.box, ticks_px: x.d.ticks_px, map_id: x.mid, mark: true }, x.mid);
+      const m = num(x.d.parse_m) ?? num(x.d.metres);
+      box.appendChild(d("div", "pl-sub", `${x.name} (${x.role}): “${x.d.text || "?"}” = ${m === null ? "?" : m.toFixed(3)} m ${x.d.axis === "y" ? "down" : "across"}; `
+        + `${num(x.d.span_px) === null ? "?" : Math.round(x.d.span_px)} px between its ticks, so ${f1(x.d.ppm)} px a metre${x.d.source === "person" ? " (as you typed it)" : ""}.`));
+    }
+    const pp = ev.ppm_printed || [], pn = ev.ppm_now || [], pw = ev.ppm_new || [];
+    if (pp.some(v => num(v) !== null)) box.appendChild(d("div", "pl-sub", `Pixels a metre, across / down: printed ${f1(pp[0])} / ${f1(pp[1])}; as placed now ${f1(pn[0])} / ${f1(pn[1])}; as proposed ${f1(pw[0])} / ${f1(pw[1])}.`));
+    if (!list.length) box.appendChild(d("div", "pl-sub", "No printed dimension could be measured on this plan: its placement comes from the picture match alone."));
+    t.appendChild(box);
+  }
+  function paintLuItem(id, it, onMap){
     const box = luSection("pl-row pl-lu");
     box.setAttribute("data-plan-build", `item:${it.kind}`);
-    if (it.kind !== "refile") {
+    if (it.kind !== "refile" && !onMap) {
       const c = d("canvas"); c.width = 480; c.height = 320;
       box.appendChild(c);
       overlay(c, it);
-      box.appendChild(d("div", "pl-lu-key", it.kind === "place" ? `Blue: ${(it.evidence || {}).anchor_name || "the anchor"}. Red: this plan ${luNow ? "where it is now" : "as proposed"}; purple where they agree. Grey dashes: now; amber: proposed.`
-        : `Blue: this plan now. Red: at its own printed scale. Grey dashes: now; amber: proposed.`));
     }
+    const anchorName = (it.evidence || {}).anchor_name || "the anchor";
+    if (it.kind !== "refile") box.appendChild(d("div", "pl-lu-key", onMap
+      ? (it.kind === "place" ? `On the map: blue is ${anchorName}, red this plan ${luNow ? "where it is now" : "as proposed"}; purple where they agree. Grey dashes: now; amber: proposed; arrows: where a click would land.`
+        : "On the map: blue is this plan now, red at its own printed scale. Grey dashes: now; amber: proposed.")
+      : (it.kind === "place" ? `Blue: ${anchorName}. Red: this plan ${luNow ? "where it is now" : "as proposed"}; purple where they agree. Grey dashes: now; amber: proposed.`
+        : "Blue: this plan now. Red: at its own printed scale. Grey dashes: now; amber: proposed.")));
     const t = d("div", "pl-txt");
     const head_ = d("div");
     head_.append(d("span", null, `${{ place: "Placement", refile: "Refile", anchor_scale: "The anchor's own scale" }[it.kind] || it.kind} · ${it.name || "a plan"}`),
@@ -2336,6 +2549,9 @@ export function createPlans(ctx){
     t.appendChild(head_);
     const ev = it.evidence || {};
     const lines = [];
+    if (it.state === "committed") lines.push("Saved (experimental). A backup was taken first; Undo this line-up session takes it back.");
+    if (it.state === "undone") lines.push("Undone: it is back where it was. Accept saves it again.");
+    if (it.refused && it.refused.why === "points_out_of_range" && it.state !== "committed") lines.push(`Not saved: ${it.refused.off} of ${it.refused.owned} calibration points on this plan would fall off its picture.`);
     if (it.kind === "place") {
       if (it.state === "same") lines.push(`Already lined up: no corner would move more than ${Math.max(1, Math.round((num(it.max_move_m) || 0) * 100))} cm. Nothing to change.`);
       else lines.push(`Moves up to ${m1(it.max_move_m)} m; scale changes ${pct(it.scale_change)}.`);
@@ -2346,26 +2562,28 @@ export function createPlans(ctx){
       lines.push(`The plan the others are lined up to: by its own printed dimensions ${pct(Math.abs(e[0] || 0))} off across, ${pct(Math.abs(e[1] || 0))} down. ${it.state === "info" ? "Under 3 %: information only." : "3 % or more: Not now unless you choose it."}`);
     } else {
       const why = (it.proposal || {}).why || {};
-      lines.push(`It shows ${it.to_name || "another floor"}${why.title ? ` (“${why.title}”)` : ""}${(why.rooms || []).length ? `: ${why.rooms.join(", ")}` : ""}. Then line it up on ${it.to_name || "that floor"}.`);
+      lines.push(`${it.by_hand ? "You say it" : "It"} shows ${it.to_name || "another floor"}${why.title ? ` (“${why.title}”)` : ""}${(why.rooms || []).length ? `: ${why.rooms.join(", ")}` : ""}. Then line it up on ${it.to_name || "that floor"}.`);
       if (it.state === "refused") { const dr = it.drawn || {}; lines.push(`${[dr.rooms ? `${dr.rooms} rooms traced` : "", dr.calibration ? `${dr.calibration} calibration points` : "", (dr.receivers || 0) + (dr.beacons || 0) + (dr.lights || 0) ? "devices" : ""].filter(Boolean).join(" and ")} are drawn on this plan; move it by hand in Mapping → 3D Stack if you're sure.`); }
     }
-    for (const f of it.flags || []) lines.push(flagLine(f));
-    if ((it.others || {}).n) lines.push(`${it.others.n} other device${it.others.n === 1 ? "" : "s"} on this floor lie under this plan; check them against the corrected picture.`);
+    if (it.state !== "committed") for (const f of it.flags || []) lines.push(flagLine(f));
+    if ((it.others || {}).n && it.state !== "committed") lines.push(`${it.others.n} other device${it.others.n === 1 ? "" : "s"} on this floor lie under this plan; check them against the corrected picture.`);
     if (it.state === "stale") lines.push("The plan moved or changed since this was read: line the floor up again.");
     for (const ln of lines) t.appendChild(d("div", "pl-sub", ln));
     const a = d("div", "pl-acts");
-    if (it.state === "open" || (it.state === "not_now" && it.kind === "anchor_scale" && !it.verdict)) {
+    if (luAcceptable(it)) {
       const nf = (it.flags || []).length;
-      a.appendChild(btn(nf ? `Accept: ${nf} thing${nf === 1 ? "" : "s"} drawn here would sit elsewhere` : "Accept", "Saving comes in the next version: nothing is written yet", () => luCommit([id]), "go"));
+      a.appendChild(btn(nf ? `Accept: ${nf} thing${nf === 1 ? "" : "s"} drawn here would sit elsewhere` : "Accept", "Saves this one (experimental): a backup first; Undo this line-up session takes it back", () => luSave([id], false), "go"));
     }
     if (["open", "same", "info"].includes(it.state)) a.appendChild(btn("Not now", "Leave it (noted at once)", () => luVerdict(id, "not_now")));
-    if (["open", "same", "info", "not_now"].includes(it.state)) {
+    if (["open", "same", "info", "not_now", "undone"].includes(it.state)) {
       if (luWrongFor === id) { for (const [k, w] of LU_WRONG) a.appendChild(btn(w, `Mark it wrong: ${w.toLowerCase()}`, () => luVerdict(id, "wrong", k), "why")); }
       else a.appendChild(btn("Wrong", "Mark it wrong, with one reason (noted at once)", () => { luWrongFor = id; redraw(); }));
     }
-    if (it.verdict) a.appendChild(btn("Take that back", "Back as it was", () => luVerdict(id, "back")));
+    if (it.verdict && ["not_now", "wrong"].includes(it.state)) a.appendChild(btn("Take that back", "Back as it was", () => luVerdict(id, "back")));
+    if (it.kind !== "refile" && luDims(it).length) a.appendChild(btn(luDimFor === id ? "Hide the dimension" : "Show me the dimension", "The printed dimensions it stands on, on the plan (experimental)", () => { luDimFor = luDimFor === id ? null : id; redraw(); }));
     for (const b of a.querySelectorAll("button")) if (!b.disabled) b.disabled = luBusy;
     t.appendChild(a);
+    if (luDimFor === id) paintLuDims(t, it);
     box.appendChild(t);
     sheet.appendChild(box);
   }
@@ -2384,7 +2602,17 @@ export function createPlans(ctx){
     if (view === "ignored") { mapSleep(); paintIgnored(); return true; }
     if (step === "loading") { mapSleep(); head("Add data via plans"); sheet.appendChild(d("div", "pl-note", "Looking for your plans…")); return true; }
     if (step === "sample") { mapSleep(); head("Add data via plans"); sheet.appendChild(d("div", "pl-note", "Sample mode shows a sample house: switch to Live mode to read your own plans.")); return true; }
-    if (mode === "lineup" && lu) { mapSleep(); sheet.classList.remove("map"); paintLineup(); return true; }
+    if (mode === "lineup" && lu) {
+      // The proposals on the vetting map when there is one (the 3D view), else as cards.
+      mapSleep();
+      const luMap = luMapWanted();
+      sheet.classList.toggle("map", luMap);
+      if (!luMap) luSleep();
+      paintLineup(luMap);
+      if (luMap) luSync();
+      return true;
+    }
+    luSleep();
     if (step === "progress") { mapSleep(); luTabs(); paintProgress(); return true; }
     if (onMap) { paintMap(); paintFocus(); syncMap(); return true; }
     mapSleep();
@@ -2401,7 +2629,7 @@ export function createPlans(ctx){
       if (on === shownNow) return;
       shownNow = on;
       if (on) { view = "list"; failing = null; listAsked = false; cur = null; card = "item"; urls = null; mode = "add"; open(); luInfo().then(() => redraw()); }
-      else { stopPoll(); luPollStop(); sheet.classList.remove("plans"); sheet.classList.remove("map"); mapSleep(); pics.clear(); tints.clear(); }
+      else { stopPoll(); luPollStop(); sheet.classList.remove("plans"); sheet.classList.remove("map"); mapSleep(); luSleep(); pics.clear(); tints.clear(); }
     },
     /** The sheet's content for the step we are at; true: there is one. */
     sheet: () => paint(),
@@ -2415,11 +2643,13 @@ export function createPlans(ctx){
       return { cur, card, moving, onMap: mapAwake, floor: floorSeen, pins: [...pins.values()].map(p => ({ id: p.id, n: Number(p.el.dataset.n), state: p.el.dataset.state })),
                ghosts: [...ghosts.keys()], plan: planNow ? planNow.map_id : null, planShown: !!(planMesh && planMesh.visible), opacity, textures: texLive, verdicts: vCount, fade,
                lineup: { on: !!(lu && lu.on), mode, floor: luFloor, session: luSess ? luSess.id : null, status: luSess ? luSess.status : null,
-                         items: luSess ? Object.keys(luSess.items || {}) : [] } };
+                         items: luSess ? Object.keys(luSess.items || {}) : [], cur: luCur, onMap: luAwake, meshes: luMeshes.length } };
     },
+    /** Line up plans on the map: show this item (the harness and its screenshots). */
+    lineupItem(id){ luCur = id; luDimFor = null; luFly = true; luKey = null; redraw(); },
     /** Line up plans (experimental): straight to its tab, on a floor (the harness and Settings' link). */
     lineup(fid){ mode = "lineup"; if (fid) luFloor = fid; luOpen().then(() => { if (fid && !luSess) luPick(fid); }); },
-    dispose(){ stopPoll(); luPollStop(); shownNow = false; mapSleep(); keysTo(false); try { style.remove(); pinsEl.remove(); } catch (_) { /* gone with its root */ } },
+    dispose(){ stopPoll(); luPollStop(); shownNow = false; mapSleep(); luSleep(); keysTo(false); try { style.remove(); pinsEl.remove(); } catch (_) { /* gone with its root */ } },
   };
 }
 

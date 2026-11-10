@@ -504,3 +504,23 @@ def test_saves_and_undos_report_counts_only(monkeypatch, tmp_path, disk):
     for s in ("Scan", "Shop", "basement", "Basement", "pb_t", "lb_", "bk_", "m1\"", "Den", "AA:BB"):
         assert s not in text, s
     assert not re.search(r"\d\.\d", json.dumps(payload["usage"]))
+
+# ═══ Settings → AI keeps the undo; the help says it ══════════════════════════
+
+def test_settings_keeps_the_undo_reachable_when_the_ai_stops_qualifying():
+    src = (_ROOT / "www" / "padspan-ha" / "views" / "settings.js").read_text(encoding="utf-8")
+    row = src[src.index("function _planBuildRow("):src.index("function _planAiLastRow(")]
+    assert "const undo = info && info.master && info.undo ? info.undo : null;" in row and 'box.style.display = ok || undo ? "" : "none";' in row
+    assert "if (!ok) { if (undo) box.appendChild(undoRow(undo, false)); return; }" in row          # drawn while locked
+    assert 'wsCall("padspan_ha/plan_build_undo", { session: u.session })' in row and row.count("Undo this line-up session (experimental)") >= 2
+    assert "In this version it proposes only" not in row
+
+
+def test_the_help_topic_says_experimental_and_is_in_the_manual():
+    help_src = (_ROOT / "www" / "padspan-ha" / "help_content.js").read_text(encoding="utf-8")
+    topic = help_src[help_src.index("  plan_build: {"):help_src.index("  settings_atlas: {")]
+    assert "(experimental)" in topic and "Undo this line-up session" in topic and "Show me the dimension" in topic and "the last six are kept" in topic
+    assert '"plans_ai", "plan_build"' in (_ROOT / "www" / "padspan-ha" / "views" / "training.js").read_text(encoding="utf-8")
+    for lang in ("de", "fr", "nl"):
+        data = json.loads((_ROOT / "www" / "padspan-ha" / "i18n" / lang / "help.json").read_text(encoding="utf-8"))
+        assert "Line up plans — Claude lines up your floor plans (experimental)" in data
