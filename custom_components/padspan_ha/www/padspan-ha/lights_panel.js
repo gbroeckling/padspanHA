@@ -1609,7 +1609,7 @@ class PadSpanLightsApp extends HTMLElement {
       // it: a light, the 3D house) it does nothing else. Anywhere else (the
       // rail, a light, the map, all still showing) it works as a tap. A mouse
       // has already woken it by moving.
-      const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .psc-atlas .psc-scroll, .lv-alone-anchor > button";
+      const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .la3d-mkey, .psc-atlas .psc-scroll, .lv-alone-anchor > button";
       const onFaded = (x, y)=>[...(this.shadowRoot ? this.shadowRoot.querySelectorAll(FADED) : [])].some(el=>{
         const r = el.getBoundingClientRect();
         return r.width > 0 && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8;

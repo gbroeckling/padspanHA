@@ -290,8 +290,14 @@ def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
     # Review, 2026-10-21: the rail, drawers and lights stay showing on a faded
     # wall, so a first tap on them must work; only one where a faded control was is eaten.
     lp = _src("lights_panel.js")
-    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .psc-atlas .psc-scroll, .lv-alone-anchor > button";' in lp
+    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .la3d-mkey, .psc-atlas .psc-scroll, .lv-alone-anchor > button";' in lp
     assert "if(!onFaded(e.clientX, e.clientY)) return;" in lp
+    # Review B8: every control the wall fades is in FADED (or a part of it that takes taps is), so a tap where it was only wakes the wall.
+    fade = lp[lp.index(":host([data-wall]:not([data-wall-active])) .la3d-bar"):]
+    fade = fade[:fade.index("{opacity:0;pointer-events:none}")]
+    faded = [x.strip().replace(":host([data-wall]:not([data-wall-active])) ", "") for x in fade.split(",")]
+    eaten = [x.strip() for x in re.search(r'const FADED = "([^"]+)"', lp).group(1).split(",")]
+    assert ".la3d-mkey" in faded and all(any(f == x or f.startswith(x + " ") for f in eaten) for x in faded), (faded, eaten)
     assert '"translate"];' in _src("views/live_aboard.js"), "leaving full screen clears the wall's shift on the 3D view"
 
 
