@@ -589,6 +589,30 @@ def test_a_resumed_session_reads_only_with_the_ai_it_started_with(monkeypatch, t
     assert s2["status"] == "cancelled" and s2["error"] == "ai_changed" and _stops(s2) == ["ai_changed"] and s2["reads"] == 0
 
 
+def test_the_picker_shows_the_trackers_own_estimate_and_every_refusal_says_experimental(monkeypatch, tmp_path, disk):
+    """Review R5: no "under a dollar a floor", the AI credit tracker's
+    estimate per plan instead. Review R4: the shared refusals reach the tab
+    and Settings with the line-up's prefix."""
+    h, conn, ai = _house(monkeypatch, tmp_path)
+    plans = {p["map_id"]: p for p in _call(W.ws_plan_build_info, h, conn)["floors"][0]["plans"]}
+    price = U.price_of("opus 5.5")
+    want = U.estimate_usd(price, (1000, 800), len(A.READ_A_PROMPT)) + sum(
+        A.S1_DIMS_PER_AXIS * U.estimate_usd(price, (side, 200), len(A.READ_B_PROMPT)) for side in (1000, 800))
+    assert plans["a1"]["est_usd"] == [round(want, 4), round(2 * want, 4)] and 0 < want < 0.2
+    monkeypatch.setattr(U, "model_of", lambda hass, eid: "a model with no price")
+    assert all(p["est_usd"] is None for p in _call(W.ws_plan_build_info, h, conn)["floors"][0]["plans"])
+    h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_enabled"] = False                 # Live Aboard off
+    for fn, kw in ((W.ws_plan_build_status, {"session": "pb_t"}), (W.ws_plan_build_cancel, {"session": "pb_t"}),
+                   (W.ws_plan_build_start, {"floor_id": "basement"})):
+        out = _call(fn, h, conn, **kw)
+        assert out["error"] and out["message"].startswith("Line up plans (experimental): "), (fn.__name__, out)
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_plans_enabled"] = False                 # the master switch off: the undo says so, experimental
+    out = _call(W.ws_plan_build_undo, h, conn, session="pb_t")
+    assert out["error"] == "ai_plans_off" and out["message"].startswith("Line up plans (experimental): ")
+    # Add data via plans keeps its own words.
+    assert not _call(W.ws_plan_ai_status, h, conn)["message"].startswith("Line up plans")
+
+
 def test_locked_no_scale_and_not_placed_are_refused_at_start(monkeypatch, tmp_path, disk):
     h, conn, ai = _house(monkeypatch, tmp_path, sources=("Claude Sonnet 5.5",))
     out = _call(W.ws_plan_build_start, h, conn, floor_id="basement")

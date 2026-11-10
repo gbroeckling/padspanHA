@@ -57,7 +57,8 @@ const SESSION = (over = {}) => ({ id: "pb_1", rev: 4, stage: "s1", floor_id: "ba
           { reason: "help_unanswered", at: 2, say: "A question is waiting for you.", next: "Answer it, or Skip." }],
   cross_floor: { floor_id: "main", stairs_m: 0.34 }, resumable: true, ...over });
 const INFO = (on = true) => ({ unlock: { ok: on, why: on ? "ok" : "below_opus_5_5", display: "Claude Opus 5.5" }, master: true, switch: on, on, running: null, start_blocked: null,
-  floors: [{ id: "basement", name: "Basement", plans: [{ map_id: "m1", name: "Shop plan", drawn: { rooms: 0, calibration: 0 }, gauge: false }, { map_id: "m2", name: "Scan", drawn: { rooms: 1, calibration: 1 } }],
+  floors: [{ id: "basement", name: "Basement", plans: [{ map_id: "m1", name: "Shop plan", drawn: { rooms: 0, calibration: 0 }, gauge: false, est_usd: [0.05, 0.1] },
+                                                        { map_id: "m2", name: "Scan", drawn: { rooms: 1, calibration: 1 }, est_usd: [0.06, 0.12] }],
              last: { session: "pb_1", at: 5, status: "needs_help" } }, { id: "main", name: "Main", plans: [{ map_id: "g1", name: "Measured", gauge: true, drawn: {} }], last: null }],
   stall: { month: {}, words: {} } });
 
@@ -138,6 +139,7 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("verdict: taken back", !!button(M.sheet, "Take that back"), text(M.sheet));
   await click(button(M.sheet, "Take that back"));
   check("verdict: back to open", sess.items.place_m2.state === "open" && M.sent("plan_build_verdict")[1]?.v === "back", JSON.stringify(sess.items.place_m2));
+  check("verdict: each hint says experimental (review R4)", M.hints.length >= 2 && M.hints.every(([h]) => h.startsWith("Line up plans (experimental): ")), M.hints);
   // Show me the dimension: the printed dimension the proposal stands on, on its picture.
   const canvases = () => all(M.sheet).filter(n => tag(n) === "CANVAS").length;
   const before = canvases();
@@ -204,6 +206,14 @@ for (const [name, over, words, resume] of [
   check(`stopped, ${name}: said, Resume ${resume ? "offered" : "not offered"}`, text(M.sheet).includes(words) && !!button(M.sheet, "Resume (experimental)") === resume, text(M.sheet));
   M.tool.dispose();
 }
+// ── a refusal from the server while opening a session says experimental (review R4) ──
+{
+  const M = mount({ ...BASE, plan_build_info: INFO(true), plan_build_status: () => new Error("Live Aboard is off: turn it on in Settings.") });
+  M.tool.show(true); await settle();
+  await click(button(M.sheet, "Line up plans (experimental)"));
+  check("status refused: said with experimental", text(M.sheet).includes("Line up plans (experimental): Live Aboard is off: turn it on in Settings."), text(M.sheet));
+  M.tool.dispose();
+}
 // ── the floor picker ─────────────────────────────────────────────────────────
 {
   const info = INFO(true);
@@ -219,6 +229,8 @@ for (const [name, over, words, resume] of [
   check("picker: what is drawn on each plan", t().includes("Scan — rooms traced: 1, calibration points: 1") && t().includes("Shop plan — nothing drawn on it"), t());
   check("picker: which AI reads them and when anything is saved", t().includes("Claude Opus 5.5 reads them: the plans leave the house for Anthropic.")
     && t().includes("Nothing is saved until you accept a proposal: a backup is taken before each save, and one undo takes the whole session back."), t());
+  check("picker: the tracker's own estimate for the ticked plans, no promise (review R5)",
+    t().includes("About 5 reads a plan; about $0.11–$0.22 for these 2 plans (estimate, experimental).") && !t().includes("under a dollar"), t());
   await click(button(M.sheet, "Line up Basement (experimental)"));
   const st = M.sent("plan_build_start")[0];
   check("start: the floor and its ticked plans", st && st.floor_id === "basement" && st.map_ids.sort().join() === "m1,m2", JSON.stringify(st));

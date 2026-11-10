@@ -1993,6 +1993,7 @@ export function createPlans(ctx){
   const LU_TAKES = new Set(["open", "undone"]);        // what Accept saves (an undone item can be saved again)
   const pct = (v) => (num(v) === null ? "?" : `${(Math.round(v * 1000) / 10).toFixed(1)} %`);
   const f1 = (v) => (num(v) === null ? "?" : v.toFixed(1));
+  const luSaid = (e) => LU_PREFIX + String((e && e.message) || e).replace(LU_PREFIX, "");   // every message of the tab says experimental (design 7)
   const luCall = (type, extra) => call(type, extra).catch((e) => { throw Object.assign(new Error(String((e && e.message) || e)), { code: e && e.code }); });
   const luPlan = (mid) => ((luSess && luSess.plans) || []).find(p => p.map_id === mid) || null;
   const luFloorName = (fid) => { const f = ((lu && lu.floors) || []).find(x => x.id === fid); return f ? f.name || fid : floorName(fid); };
@@ -2025,7 +2026,7 @@ export function createPlans(ctx){
     loadUrls();
     if (lu && lu.running) { luPollStart(lu.running); luBusy = false; return; }
     const last = ((lu && lu.floors) || []).map(f => f.last).filter(Boolean).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
-    if (last && last.session) { try { luSess = (await luCall("plan_build_status", { session: last.session })).session; luFloor = luSess && luSess.floor_id; } catch (e) { luErr = String(e.message || e); } }
+    if (last && last.session) { try { luSess = (await luCall("plan_build_status", { session: last.session })).session; luFloor = luSess && luSess.floor_id; } catch (e) { luErr = luSaid(e); } }
     luBusy = false; luKey = null; luFly = true; redraw();
   }
   function luPick(fid){
@@ -2048,7 +2049,7 @@ export function createPlans(ctx){
         const r = await luCall("plan_build_status", { session: sid });
         luSess = r.session; luFloor = luSess && luSess.floor_id;
         if (luSess && luSess.status !== "running") { luPollStop(); luKey = null; luFly = true; }
-      } catch (e) { luErr = String(e.message || e); luPollStop(); }
+      } catch (e) { luErr = luSaid(e); luPollStop(); }
       redraw();
     });
     luPoll = setInterval(tick, POLL_MS);
@@ -2085,7 +2086,7 @@ export function createPlans(ctx){
   }
   const luVerdict = (id, v, why) => luDo("plan_build_verdict", { rev: luSess.rev, item_id: id, v, ...(why ? { why } : null) }, (r) => {
     luSess.rev = r.rev; luSess.items[id] = r.item; luWrongFor = null; luKey = null;
-    ctx.hint(v === "back" ? "Taken back." : v === "wrong" ? "Noted: wrong. Nothing in your house changes." : "Not now, then.");
+    ctx.hint(LU_PREFIX + (v === "back" ? "taken back." : v === "wrong" ? "noted: wrong. Nothing in your house changes." : "not now, then."));
   });
   const luSave = (ids, group) => luWrite("plan_build_commit", { rev: luSess.rev, items: ids, ...(group ? { group: true } : null) }, () =>
     ctx.hint(`${LU_PREFIX}saved ${ids.length === 1 ? "it" : `${ids.length} items`}. A backup was taken first; Undo this line-up session takes it back.`));
@@ -2337,7 +2338,12 @@ export function createPlans(ctx){
       l.appendChild(d("span", null, `${p.name || "a plan"}${p.gauge ? " · your measured plan (never moved)" : ""} — ${bits.length ? bits.join(", ") : "nothing drawn on it"}`));
       sheet.appendChild(l);
     }
-    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them: the plans leave the house for Anthropic. About 5 reads a plan; under a dollar a floor. `
+    // The AI credit tracker's own estimate for the ticked plans (plan_ai.plan_estimate): every read once, to every read twice.
+    const ticked = (f.plans || []).filter(p => luPicked.has(p.map_id)), priced = ticked.filter(p => Array.isArray(p.est_usd));
+    const est = !ticked.length ? "tick the plans to read" : priced.length === ticked.length
+      ? `about $${priced.reduce((s, p) => s + p.est_usd[0], 0).toFixed(2)}–$${priced.reduce((s, p) => s + p.est_usd[1], 0).toFixed(2)} for ${ticked.length === 1 ? "this plan" : `these ${ticked.length} plans`} (estimate, experimental)`
+      : "no price is known for this model";
+    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them: the plans leave the house for Anthropic. About 5 reads a plan; ${est}. `
       + "Nothing is saved until you accept a proposal: a backup is taken before each save, and one undo takes the whole session back."));
     const acts = d("div", "pl-acts");
     acts.setAttribute("data-plan-build", "start");

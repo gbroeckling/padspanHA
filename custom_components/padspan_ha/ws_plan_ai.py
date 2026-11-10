@@ -68,16 +68,17 @@ from .ws_house3d_stairs import NOT_PLACED_CODE, PLANS_OFF_CODE, PLANS_OFF_MESSAG
 REV_CODE = C.REV_CODE
 
 
-async def _refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore | None:
-    """The gates every command shares; the store when they pass."""
+async def _refused(hass: HomeAssistant, connection, msg, prefix: str = "") -> A.PlanAiStore | None:
+    """The gates every command shares; the store when they pass. `prefix`:
+    the line-up's (experimental, design 7) before each refusal."""
     if not house3d_on(hass):
-        connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
+        connection.send_error(msg["id"], OFF_CODE, prefix + OFF_MESSAGE)
         return None
     if not _tier_at_least(hass, "pro"):
-        connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
+        connection.send_error(msg["id"], OFF_CODE, prefix + PRO_MESSAGE)
         return None
     if not A.enabled(hass):
-        connection.send_error(msg["id"], PLANS_OFF_CODE, PLANS_OFF_MESSAGE)
+        connection.send_error(msg["id"], PLANS_OFF_CODE, prefix + PLANS_OFF_MESSAGE)
         return None
     return await A.async_get_store(hass)
 
@@ -424,7 +425,7 @@ async def _settled(hass: HomeAssistant, store: A.PlanAiStore) -> None:
 
 async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore | None:
     """The gates every line-up command shares (design 4); the store when they pass."""
-    store = await _refused(hass, connection, msg)
+    store = await _refused(hass, connection, msg, PREFIX)
     if store is None:
         return None
     await _settled(hass, store)
@@ -448,7 +449,8 @@ def _floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> list[dict[
         last = max(((sid, s) for sid, s in (store.data.get("lineups") or {}).items() if isinstance(s, dict) and s.get("floor_id") == f["id"]),
                    key=lambda t: float(t[1].get("started_at") or 0), default=None)
         out.append({"id": f["id"], "name": f.get("name"), "plans": [{"map_id": m, "name": snap["plans"][m]["name"], "drawn": snap["plans"][m]["drawn"],
-                                                                     "gauge": m == snap["gauge_map"], "refs": snap["plans"][m]["refs"]} for m in mids],
+                                                                     "gauge": m == snap["gauge_map"], "refs": snap["plans"][m]["refs"],
+                                                                     "est_usd": A.plan_estimate(hass, snap["plans"][m]["size"])} for m in mids],
                     "last": {"session": last[0], "at": last[1].get("finished_at") or last[1].get("started_at"), "status": last[1].get("status")} if last else None})
     return out
 
@@ -562,7 +564,7 @@ async def ws_plan_build_status(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_cancel(hass: HomeAssistant, connection, msg) -> None:
-    store = await _refused(hass, connection, msg)
+    store = await _refused(hass, connection, msg, PREFIX)
     if store is None:
         return
     job = A.running(hass)
@@ -785,7 +787,7 @@ async def ws_plan_build_undo(hass: HomeAssistant, connection, msg) -> None:
     Build from plans off, below Pro or with Live Aboard off (form q3): only
     the master switch, under which Settings → AI shows it, and an administrator."""
     if not A.enabled(hass):
-        connection.send_error(msg["id"], PLANS_OFF_CODE, PLANS_OFF_MESSAGE)
+        connection.send_error(msg["id"], PLANS_OFF_CODE, PREFIX + PLANS_OFF_MESSAGE)
         return
     store = await A.async_get_store(hass)
     await _settled(hass, store)

@@ -576,3 +576,25 @@ def test_the_settings_line_and_its_controls():
     assert "ctx.hass.user.is_admin) card.appendChild(_aiUsageRow(ctx, el, save))" in src
     cmd = (_CC / "ai_usage.py").read_text(encoding="utf-8")
     assert "@websocket_api.require_admin" in cmd[cmd.index('"padspan_ha/ai_usage_get"'):]
+
+
+def test_the_settings_line_runs(tmp_path):
+    """Review R2, R3: tests/js/settings_ai_usage.mjs runs the row as settings.js has it."""
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    root = Path(__file__).resolve().parents[1]
+    r = subprocess.run([node, str(root / "tests" / "js" / "settings_ai_usage.mjs"), str(root).replace("\\", "/")],
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, r.stderr[-2000:]
+    got = json.loads(r.stdout.strip().splitlines()[-1])
+    assert len(got) == 4 and not {k: v for k, v in got.items() if not v["ok"]}, got
+
+
+def test_sample_mode_reads_the_month_and_never_says_read_only():
+    """Review R3: ai_usage_get is a read, so Sample mode answers it (with the sample house's empty answer) and doesn't refuse it."""
+    panel = (_WWW / "panel.js").read_text(encoding="utf-8")
+    reads = panel[panel.index("const READS = new Set("):panel.index('.split(" ").map(t => "padspan_ha/" + t));')]
+    assert " ai_usage_get " in reads

@@ -2779,6 +2779,24 @@ def new_lineup(u: dict, snap: dict, floor_id: str, map_ids: list[str], earlier: 
             "progress": {"plan": 0, "of": len(plans_), "name": "", "step": "plan"}}
 
 
+def plan_estimate(hass: HomeAssistant, size: list[int]) -> list[float] | None:
+    """What lining one plan up may cost on the main AI Task, by the AI credit
+    tracker's own formula (ai_usage.estimate_usd): its whole read at the size
+    it is sent (S1_PICTURE_PX, S1_PICTURE_MP) and S1_DIMS_PER_AXIS dimension
+    crops an axis (the plan's length along the line, at most S1_CROP_PX, a
+    band of about 200 px across it); [every read once, every read twice (its
+    one retry)], in US dollars. None: no price is known for the model."""
+    price = U.price_of(U.model_of(hass, str(unlock(hass).get("ai_task") or "")))
+    w, h = (int(v or 0) for v in (list(size or []) + [0, 0])[:2])
+    if price is None or not w or not h:
+        return None
+    k = min(1.0, S1_PICTURE_PX / max(w, h), math.sqrt(S1_PICTURE_MP * 1e6 / (w * h)))
+    usd = U.estimate_usd(price, (round(w * k), round(h * k)), len(READ_A_PROMPT)) or 0.0
+    for side in (w, h):
+        usd += S1_DIMS_PER_AXIS * (U.estimate_usd(price, (min(side, S1_CROP_PX), 200), len(READ_B_PROMPT)) or 0.0)
+    return [round(usd, 4), round(2 * usd, 4)]
+
+
 def _dims_to_read(read_a: dict) -> list[dict]:
     """The dimensions to read closely: the longest S1_DIMS_PER_AXIS on each
     axis (design 3.3), by the line as traced in the picture (line_px; the

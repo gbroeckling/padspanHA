@@ -4568,8 +4568,9 @@ function _aiUsageRow(ctx, el, save){
     let text;
     if (claude) {
       text = `Claude reads this month: ${u.claude_reads}`;
-      if (u.claude_usd == null) text += " (no price known for this model)";
-      else text += `, about ${money(u.claude_usd)}` + (credit > 0 ? ` of your $${credit} monthly credit` : "");
+      // A priced model with nothing priced yet this month (the 1st, or only failed reads) is $0.00, not "no price known".
+      if (u.claude_usd == null && !u.main_priced) text += " (no price known for this model)";
+      else text += `, about ${money(u.claude_usd || 0)}` + (credit > 0 ? ` of your $${credit} monthly credit` : "");
     } else {
       text = `AI reads this month: ${u.reads}`;
     }
@@ -4591,7 +4592,7 @@ function _aiUsageRow(ctx, el, save){
     }
     controls.style.display = claude ? "flex" : "none";
   }
-  function load(){ ctx.actions.wsCall("padspan_ha/ai_usage_get").then(show).catch(() => show(null)); }
+  function load(){ ctx.actions.wsCall("padspan_ha/ai_usage_get").then(u => show(u && u.month ? u : null)).catch(() => show(null)); }   // Sample mode's {}: nothing
   load();
   return box;
 }
@@ -4656,7 +4657,7 @@ function _planBuildRow(ctx, el, save, settings){
           const n = (r && r.undone) || 0, k = ((r && r.skipped) || []).length;
           ctx.toast(`Line up plans (experimental): ${n} plan${n === 1 ? "" : "s"} put back where ${n === 1 ? "it was" : "they were"}${k ? `; ${k} moved by hand since left as ${k === 1 ? "it is" : "they are"}` : ""}.`);
           undoSaid = ""; ask();
-        }).catch((e)=>{ askUndo = false; undoSaid = `Line up plans (experimental): ${String((e && e.message) || e)}`; ask(); });
+        }).catch((e)=>{ askUndo = false; undoSaid = `Line up plans (experimental): ${String((e && e.message) || e).replace("Line up plans (experimental): ", "")}`; ask(); });
       });
       no.addEventListener("click", ()=>{ askUndo = false; ask(); });
       row.appendChild(el("div",{style:"color:#fde68a;margin-top:2px"}, "Put every plan this session saved back where it was?"));
