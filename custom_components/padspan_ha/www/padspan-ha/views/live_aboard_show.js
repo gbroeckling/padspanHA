@@ -268,7 +268,7 @@ const CSS = `
 /* A wall (Garry, 2026-11-09: "fits the wall"): the whole list on the screen
    with no scrolling. As wide and tall as the screen lets it be (over the
    bottom bar while it is open), up to four columns;
-   each line its plain name (what it hides stays in its tooltip), a line not
+   each line its plain name (no hint under it), a line not
    set up its one short note under it; the rows stay finger-sized. */
 :host([data-wall]) .la3d-show{width:min(1240px,calc(100% - 20px));max-height:calc(100% - 76px)}
 :host([data-wall]) .la3d-show .la3d-sbody{columns:4 230px}

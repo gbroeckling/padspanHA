@@ -356,7 +356,12 @@ const COVER_TOP_Z = COVER_Z + 1;
 // With the dial in the corner, ☰ (bring the bars back) sits under it, never
 // beneath it: a tap meant for ☰ must not open, or start, the emergency test.
 const DIAL_CLEAR = 14 + 72 + 12;
-const coverCss = (c, dial) => `.lv-vacation{z-index:${COVER_TOP_Z}}
+// A list or menu open over the cover: the banner stays over the map, but not
+// over the list (the list is in the cover's own layer, so the banner can't be
+// put between them): where they overlap, the list's box is cut out of it,
+// for the eye and for a tap.
+const coverCss = (c, dial, cut) => `.lv-vacation{z-index:${COVER_TOP_Z}}
+:host([data-la3d-menu]) .lv-mapcard > .lv-vacation.lv-vacation{z-index:${COVER_TOP_Z}${cut ? `;clip-path:${cut}` : ""}}
 .lv-emerg{position:fixed;z-index:${COVER_TOP_Z};top:${Math.round(c.top + 14)}px;right:${Math.round(Math.max(0, (window.innerWidth || 0) - c.left - c.width) + 14)}px}${
   dial ? `
 .la3d .la3d-solo{top:${DIAL_CLEAR}px}` : ""}`;
@@ -914,7 +919,17 @@ function createSlot(slotKey){
     const c = coverRect();
     Object.assign(root.style, { left: `${c.left}px`, top: `${c.top}px`, width: `${c.width}px`, height: `${c.height}px` });
     const rn = root.getRootNode ? root.getRootNode() : null, scope = rn && rn.querySelector ? rn : document;
-    if (coverStyle) coverStyle.textContent = coverCss(c, !!scope.querySelector(".lv-emerg"));
+    const vac = menuOpen() ? scope.querySelector(".lv-mapcard > .lv-vacation") : null;
+    if (coverStyle) coverStyle.textContent = coverCss(c, !!scope.querySelector(".lv-emerg"), vac ? cutOut(vac, root.querySelectorAll(".la3d-show, .la3d-menu")) : null);
+  }
+  /** `el`'s clip-path with each of `over`'s boxes cut out of it (even-odd), or null when none overlaps it. */
+  function cutOut(el, over){
+    const b = el.getBoundingClientRect(), px = (v) => `${Math.round(v)}px`;
+    const holes = [...over].map(n => n.getBoundingClientRect())
+      .filter(r => r.width > 0 && r.left < b.right && r.right > b.left && r.top < b.bottom && r.bottom > b.top)
+      .map(r => { const x0 = px(r.left - b.left), y0 = px(r.top - b.top), x1 = px(r.right - b.left), y1 = px(r.bottom - b.top);
+                  return `, ${x0} ${y0}, ${x1} ${y0}, ${x1} ${y1}, ${x0} ${y1}, ${x0} ${y0}, 0 0`; });
+    return holes.length ? `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0${holes.join("")})` : null;
   }
   const COVER_KEYS = ["position", "margin", "borderRadius", "border", "zIndex", "maxWidth", "left", "top", "width", "height",
                       "translate"];   // a wall's burn-in shift moves the full screen; back in the card, the card's own does
@@ -1268,12 +1283,14 @@ function createSlot(slotKey){
   }
   /** The panel's element says whether the ⋯ list or a menu is open, so
    *  Vacation Mode's banner steps under it (the CSS's data-la3d-menu). */
-  function markMenus(open = !!(menuEl || (showMenu && showMenu.isOpen))){
+  function markMenus(open = menuOpen()){
     const h = hostEl();
     if (!h || !h.setAttribute) return;
     if (open) h.setAttribute("data-la3d-menu", "");
     else h.removeAttribute("data-la3d-menu");
+    layCover();
   }
+  function menuOpen(){ return !!(menuEl || (showMenu && showMenu.isOpen)); }
   /** items: {text, act, on?, del?, dot? (a floor's activity), title?} or
    *  null (a line between). A second tap on its button closes it. */
   function openMenu(anchor, items){
@@ -5140,7 +5157,7 @@ function createSlot(slotKey){
       // Settings and Mapping are an administrator's: anyone else gets no links (each line says who sets it up).
       canGo: () => !!(houseP && typeof houseP.goTo === "function" && houseP.admin === true),
       reset: () => resetShow(),
-      opened: () => showSend("house3d_show:opened"),
+      opened: () => { showSend("house3d_show:opened"); layCover(); },   // drawn now: the banner cut round it
       seen: (groups) => { for (const g of groups) for (const r of g.rows) if (r.setup && !r.setup.perm) showSend(`house3d_show:setup_seen:${r.key}`, true); },
       onOpen: () => { closeMenu(); if (use) use.clear(); markMenus(true); },
       onClose: () => markMenus(),

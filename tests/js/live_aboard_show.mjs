@@ -234,6 +234,26 @@ await tryCase("button: an open list or menu sits over Vacation Mode's banner, wh
     { was, list, listShut, views: !!views, menu, menuShut, bannerZ, menuZ, showZ });
 });
 
+await tryCase("button: in full screen an open list leaves Vacation Mode's banner over the map, not behind it", async () => {
+  // Full screen, the view covers the panel (z COVER_Z) in its own layer, so
+  // the banner's "under the menus" z 4 put it behind the map (Garry, 2026-11-09).
+  // While covered it stays over the map; the list's box is cut out of it.
+  host.requestFullscreen = function(){ document.fullscreenElement = this; fire("document", "fullscreenchange", {}); return Promise.resolve(); };
+  document.exitFullscreen = () => { document.fullscreenElement = null; fire("document", "fullscreenchange", {}); return Promise.resolve(); };
+  document.fullscreenEnabled = true;
+  click(q("[data-la3d-full]").querySelector("button")); await settle(2);
+  const cover = S().screen.cover, coverZ = Number(slot.element.style.zIndex);
+  click(more()); await settle();
+  const css = qa("style").map(s => s.textContent).join("\n");
+  const m = /:host\(\[data-la3d-menu\]\) \.lv-mapcard > \.lv-vacation\.lv-vacation\{z-index:(\d+)/.exec(css);
+  click(q(".la3d-sx")); await settle();
+  document.fullscreenElement = null; fire("document", "fullscreenchange", {}); await settle(2);
+  const out = !S().screen.cover && !/\.lv-vacation\.lv-vacation/.test(qa("style").map(s => s.textContent).join("\n"));
+  delete host.requestFullscreen; delete document.exitFullscreen;
+  check("button: in full screen an open list leaves Vacation Mode's banner over the map, not behind it",
+    cover && m && Number(m[1]) > coverZ && out, { cover, coverZ, bannerZ: m && Number(m[1]), out });
+});
+
 // ── a tick is this screen's ─────────────────────────────────────────────────
 await tryCase("prefs: a tick is this screen's; back at the house's own it is forgotten; nothing of the house is written", async () => {
   click(more()); await settle();
