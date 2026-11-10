@@ -5,7 +5,8 @@
 // Settings → AI, the AI credit tracker's line (views/settings.js _aiUsageRow),
 // RUN on the DOM shim: a priced Claude model with nothing priced yet this
 // month says $0.00, not "no price known" (review R2); an unknown model says so;
-// Sample mode's empty answer shows nothing (review R3). The function is taken
+// Sample mode's empty answer shows nothing (review R3); a house with no AI
+// Task and no reads this month shows nothing (review B4). The function is taken
 // from settings.js as it is and run with a fake ctx. The pytest wrapper is
 // tests/test_ai_usage.py.
 //
@@ -55,6 +56,15 @@ const MONTH = { month: "2026-11", main_maker: "claude", claude_reads: 0, reads: 
 {
   const box = await row({});
   check("Sample mode's empty answer: nothing shown", box.style.display === "none" && !text(box).includes("undefined"), text(box));
+}
+{
+  // What ai_usage.summary answers for a house that never chose an AI Task and never read (review B4).
+  const none = { month: "2026-11", main_maker: null, main_priced: false, claude_reads: 0, claude_usd: null, reads: 0, stops: [],
+                 credit_usd: 0, warn_pct: 0, warned: false, estimate: { calibration: 1, calibrated: false } };
+  const box = await row(none);
+  check("no AI Task and no reads this month: nothing shown", box.style.display === "none", text(box));
+  const read = await row({ ...none, reads: 4 });
+  check("no AI Task now, but reads this month: shown", read.style.display !== "none" && text(read).includes("AI reads this month: 4"), text(read));
 }
 
 console.log(JSON.stringify(results));

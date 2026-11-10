@@ -597,7 +597,7 @@ def test_the_settings_line_and_its_controls():
 
 
 def test_the_settings_line_runs(tmp_path):
-    """Review R2, R3: tests/js/settings_ai_usage.mjs runs the row as settings.js has it."""
+    """Review R2, R3, B4: tests/js/settings_ai_usage.mjs runs the row as settings.js has it."""
     import shutil
     import subprocess
     node = shutil.which("node")
@@ -608,7 +608,7 @@ def test_the_settings_line_runs(tmp_path):
                        capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, r.stderr[-2000:]
     got = json.loads(r.stdout.strip().splitlines()[-1])
-    assert len(got) == 4 and not {k: v for k, v in got.items() if not v["ok"]}, got
+    assert len(got) == 6 and not {k: v for k, v in got.items() if not v["ok"]}, got
 
 
 def test_sample_mode_reads_the_month_and_never_says_read_only():

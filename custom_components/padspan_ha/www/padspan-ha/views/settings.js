@@ -4592,7 +4592,8 @@ function _aiUsageRow(ctx, el, save){
     }
     controls.style.display = claude ? "flex" : "none";
   }
-  function load(){ ctx.actions.wsCall("padspan_ha/ai_usage_get").then(u => show(u && u.month ? u : null)).catch(() => show(null)); }   // Sample mode's {}: nothing
+  // Sample mode's {}: nothing. No AI Task and no reads this month: nothing either (a house that never uses AI, review B4).
+  function load(){ ctx.actions.wsCall("padspan_ha/ai_usage_get").then(u => show(u && u.month && (u.main_maker || u.reads) ? u : null)).catch(() => show(null)); }
   load();
   return box;
 }
