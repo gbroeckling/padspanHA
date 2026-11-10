@@ -1051,24 +1051,72 @@ def merge_outline(polys: Any, close_m: Any = CLOSE_M) -> tuple[list[list[float]]
     (outline, how many pieces it was after the widest closing; more than 1:
     some parts didn't reach the largest, which alone is kept). One polygon
     in: itself, tidied."""
-    polys = [p for p in polys or [] if len(p or []) >= 3 and area(p) > 0]
+    polys = [p for p in polys or [] if len(p or []) >= 3 and (area(p) > 0 or not _simple(p))]   # a bow-tie's halves may cancel out
     if not polys:
         return [], 0
-    if len(polys) == 1:
+    if len(polys) == 1 and _simple(polys[0]):
         return simplify(polys[0], 0.0), 1
+    # A one-part room whose corners cross (a bow-tie) goes through the raster too (review B7). The raster is laid
+    # along the walls (their main direction), so a rotated plan's rectangle stays four corners, not a stair (B6).
+    a = _wall_angle(polys)
+    turn = abs(a) > 1e-4
+    if turn:
+        cx, cy = centroid([v for p in polys for v in p])
+        polys = [[[round(x, 3), round(y, 3)] for x, y in _rotate(p, -a, cx, cy)] for p in polys]   # a side's ends on one row of cells
     out: tuple[list[list[float]], int] = ([], 0)
     for c in (close_m if isinstance(close_m, (list, tuple)) else (close_m,)):
         out = _merged(polys, float(c))
         if out[1] <= 1:
             break
+    if turn:
+        out = ([[round(x, 3), round(y, 3)] for x, y in _rotate(out[0], a, cx, cy)], out[1])
     return out
+
+
+def _simple(p: Any) -> bool:
+    """No two sides of the outline cross (a bow-tie's do)."""
+    n = len(p)
+
+    def ccw(a: Any, b: Any, c: Any) -> float:
+        return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0])
+    for i in range(n):
+        a, b = p[i - 1], p[i]
+        for j in range(i + 1, n):
+            if j == i + 1 or (i == 0 and j == n - 1):
+                continue                                   # neighbours share a corner
+            c, d = p[j - 1], p[j]
+            if ccw(a, b, c) * ccw(a, b, d) < 0 and ccw(c, d, a) * ccw(c, d, b) < 0:
+                return False
+    return True
+
+
+def _wall_angle(polys: list) -> float:
+    """The walls' main direction, -45..45 degrees in radians: each side's angle
+    taken four times over (so a side and one square to it agree), weighted by
+    its length."""
+    sx = sy = 0.0
+    for p in polys:
+        for i in range(len(p)):
+            dx, dy = p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]
+            L = math.hypot(dx, dy)
+            if L > 0:
+                t = 4 * math.atan2(dy, dx)
+                sx, sy = sx + L * math.cos(t), sy + L * math.sin(t)
+    return math.atan2(sy, sx) / 4 if sx or sy else 0.0
+
+
+def _rotate(p: Any, a: float, cx: float, cy: float) -> list[list[float]]:
+    c, s = math.cos(a), math.sin(a)
+    return [[cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c] for x, y, *_ in p]
 
 
 def _merged(polys: list, close_m: float) -> tuple[list[list[float]], int]:
     from PIL import ImageChops, ImageDraw, ImageFilter  # noqa: PLC0415
     r = max(1, math.ceil(close_m / 2 / GRID_M - 1e-9))
     box = _box(polys, (r + 3) * GRID_M)
-    ims = _raster(polys, box)
+    # Pillow cuts a corner's position down to whole cells: drawn half a cell on, a side lands on its nearest cell
+    # (within half a cell either way, as on the cells' own grid), never up to a cell and a half out (review B6).
+    ims = _raster(polys, (box[0] - GRID_M / 2, box[1] - GRID_M / 2, box[2], box[3]))
     u = ims[0]
     for im in ims[1:]:
         u = ImageChops.lighter(u, im)

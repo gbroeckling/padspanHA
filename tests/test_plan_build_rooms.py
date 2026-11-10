@@ -1084,3 +1084,51 @@ def test_the_rooms_tab_merge_works_off_the_event_loop_and_says_a_delete_that_fai
     out = _call(WF.ws_fabric_rooms_merge, h, conn, floor_id="main", keep="Den", rooms=["Shop"])
     assert "merge_outline" in ran
     assert out["ok"] is False and out["removed"] == [] and out["failed"] == ["Shop"] and "Shop couldn't be deleted" in out["message"]
+
+
+def _turn(p, deg):
+    import math
+    c, s = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+    return [[x * c - y * s, x * s + y * c] for x, y in p]
+
+
+def _crosses(p) -> bool:
+    def ccw(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0])
+    n = len(p)
+    return any(ccw(p[i - 1], p[i], p[j - 1]) * ccw(p[i - 1], p[i], p[j]) < 0 and ccw(p[j - 1], p[j], p[i - 1]) * ccw(p[j - 1], p[j], p[i]) < 0
+               for i in range(n) for j in range(i + 2, n) if not (i == 0 and j == n - 1))
+
+
+def test_a_merge_on_a_rotated_plan_keeps_square_corners_within_5_cm():
+    """Review B6: on a plan turned a few degrees, a merged rectangle stays four corners (the raster is laid along the
+    walls), and every saved corner is within one 5 cm cell of the true corner along each wall (and the millimetre a
+    turned corner is rounded to); an L stays six. Was: 10 corners at 5 degrees, 24 at 15, up to 7.8 cm off."""
+    def off(saved, true, deg):                      # along each wall: the corners turned back square
+        return max(min(max(abs(v[0] - q[0]), abs(v[1] - q[1])) for q in true) for v in _turn(saved, -deg))
+    for deg in (0.5, 1, 5, 15, 30, 44):
+        out, pieces = G.merge_outline([_turn(_box(0, 0, 5, 4), deg), _turn(_box(5.2, 0, 9, 4), deg)])
+        saved = G.simplify(out, A.S2_SIMPLIFY_M)
+        assert pieces == 1 and len(saved) == 4, (deg, saved)
+        assert off(saved, _box(0, 0, 9, 4), deg) <= 0.052, (deg, saved)
+    for deg, (w1, h1, w2, h2) in ((4.0, (5.39, 5.06, 1.77, 3.48)), (13.5, (4.61, 5.15, 1.28, 1.14)), (22.8, (5.37, 2.91, 1.82, 4.53))):
+        out, _n = G.merge_outline([_turn(_box(0, 0, w1, h1), deg), _turn(_box(w1 + 0.15, 0, w1 + 0.15 + w2, h2), deg)])
+        saved = G.simplify(out, A.S2_SIMPLIFY_M)
+        x2, step = w1 + 0.15 + w2, (w1 if h1 > h2 else w1 + 0.15)
+        assert len(saved) == 6 and not _crosses(saved), (deg, saved)
+        assert off(saved, [[0, 0], [x2, 0], [x2, h2], [step, h2], [step, h1], [0, h1]], deg) <= 0.052, (deg, saved)
+
+
+def test_a_one_part_room_whose_corners_cross_is_cleaned_up(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review B7: a read with a room's corners out of order (a bow-tie) goes through the clean-up too: one outline
+    whose sides don't cross. A room read in order is kept as read."""
+    for bow in ([[0, 0], [4, 3], [4, 0], [0, 3]], [[0, 0], [4, 3], [4, 0], [0, 2]]):      # its halves cancelling out, or not
+        out, pieces = G.merge_outline([bow])
+        assert _crosses(bow) and pieces >= 1 and len(out) >= 3 and not _crosses(out) and G.area(out) > 2.5, (bow, out)   # halves meeting at a point: the larger, said as apart
+    assert G.merge_outline([_box(0, 0, 4, 3)])[0] == [[0, 0], [4, 0], [4, 3], [0, 3]]
+    h, _conn, _ai = _house(monkeypatch, tmp_path, disk)
+    reads = [_read(1), _read(2)]
+    for r in reads:
+        r["rooms"][0]["corners"] = [[100, 100], [400, 450], [400, 100], [100, 350]]       # the Den's corners crossed
+    _s, _snap, prop = _proposal(h, reads)
+    assert not _crosses(prop["rooms"]["Den"]["outline_m"]) and len(prop["rooms"]["Den"]["outline_m"]) >= 3
