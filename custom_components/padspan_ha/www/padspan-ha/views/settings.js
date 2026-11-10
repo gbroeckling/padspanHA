@@ -4144,7 +4144,8 @@ function _settingsAI(ctx, el){
   }
   aiSel.value = aiCur;
   let aiLast = aiCur;
-  aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) { aiLast = want; syncBackup(); } }); });
+  let pbRefresh = null;            // Build from plans: the row asks the server again when the AI Task changes
+  aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) { aiLast = want; syncBackup(); if (pbRefresh) pbRefresh(); } }); });
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},
     [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, "AI Task"), aiSel]));
   card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:6px"}, aiIds.length
@@ -4208,7 +4209,7 @@ function _settingsAI(ctx, el){
   feats.appendChild(master);
   const under = el("div",{"data-ai-plans-under":"",style:`margin-left:22px;display:${settings.ai_plans_enabled === true ? "" : "none"}`});
   masterCb.addEventListener("change", ()=>{ const want = masterCb.checked; under.style.display = want ? "" : "none";
-    save("ai_plans_enabled", want, ()=>{ masterCb.checked = !want; under.style.display = !want ? "" : "none"; }); });
+    save("ai_plans_enabled", want, ()=>{ masterCb.checked = !want; under.style.display = !want ? "" : "none"; }).then(ok=>{ if (ok && want && pbRefresh) pbRefresh(); }); });
   under.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
     "Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor " +
     "plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then " +
@@ -4221,6 +4222,9 @@ function _settingsAI(ctx, el){
       "In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists " +
       "what it finds for you to check, item by item. What you keep goes into your 3D house when you press Save, and one undo takes a whole session back."),
   ]));
+  // Build from plans (experimental; replaces "Rooms and walls… coming soon"): drawn only when the server says
+  // Claude Opus 5.5 or newer is the AI Task (padspan_ha/plan_build_info); the panel never decides that itself.
+  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) { const pb = _planBuildRow(ctx, el, save, settings); under.appendChild(pb); pbRefresh = pb._refresh; }
   // The last session's undo (admins; ws_plan_ai.plan_ai_undo): what changed since is left, and said. Asked here in the page.
   if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin && settings.ai_plans_enabled === true) under.appendChild(_planAiLastRow(ctx, el));
   feats.appendChild(under);
@@ -4228,8 +4232,6 @@ function _settingsAI(ctx, el){
     "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
     "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
     settings.ai_photos_enabled !== false, false));
-  feats.appendChild(sw("", "Rooms and walls from a floor plan picture",
-    "Traces the rooms and walls of a floor plan image for you, as a first guess to check before it is kept.", false, true));
   feats.appendChild(sw("", "Ask your voice assistant where someone is",
     "Lets an AI voice assistant in Home Assistant ask PadSpan which room someone is in, in your own words.", false, true));
   feats.appendChild(note);
@@ -4594,6 +4596,43 @@ function _aiUsageRow(ctx, el, save){
   return box;
 }
 
+/** Settings → AI: Build from plans: advanced plan alignment (Claude, experimental). Off for everyone; drawn
+ *  only when the server's unlock rule passes (plan_ai.unlock: Claude Opus 5.5 or newer through Home Assistant's
+ *  Anthropic integration) and the master switch is on; asked again after the AI Task changes (`_refresh`). */
+function _planBuildRow(ctx, el, save, settings){
+  const box = el("div",{"data-ai-plan-build":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
+  let on = settings.ai_plan_build_enabled === true;
+  const chip = () => el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
+  const show = (info) => {
+    box.innerHTML = "";
+    const ok = !!(info && info.master && info.unlock && info.unlock.ok);
+    box.style.display = ok ? "" : "none";
+    if (!ok) return;
+    const label = el("label",{style:"display:flex;align-items:flex-start;gap:10px;cursor:pointer"});
+    const cb = el("input",{type:"checkbox", style:"margin-top:3px", "data-ai-plan-build-switch":""});
+    cb.checked = on;
+    cb.addEventListener("change", ()=>{ const want = cb.checked; save("ai_plan_build_enabled", want, ()=>{ cb.checked = !want; }).then(ok2=>{ if (ok2) on = want; }); });
+    label.appendChild(cb);
+    label.appendChild(el("div",{},[
+      el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["Build from plans: advanced plan alignment (Claude, experimental)", chip()]),
+      el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
+        "Claude reads your floor plans and lines them up to each other and to your house. You check every change on a map before anything is saved; " +
+        "a backup is taken before each save and one undo takes a session back. It never changes calibration or anything placed in metres. " +
+        "Needs Claude Opus 5.5 or newer as your AI Task. In this version it proposes only: saving comes later. In Live Aboard: Edit → Plans → Line up plans."),
+      el("div",{style:"font-size:11px;color:#a7f3d0;margin-top:2px"}, `Reads with ${info.unlock.display || "Claude"}. The plans leave the house for Anthropic.`),
+    ]));
+    box.appendChild(label);
+    // The stall watch (design 14): this house's own stops, said here, not only in the usage report.
+    const month = (info.stall && info.stall.month) || {}, words = (info.stall && info.stall.words) || {};
+    const keys = Object.keys(month).filter(k => month[k] > 0).sort((a, b) => month[b] - month[a]);
+    if (keys.length) box.appendChild(el("div",{"data-ai-plan-build-stops":"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:4px 0 0 24px"},
+      "Line-up stops this month (experimental): " + keys.slice(0, 4).map(k => `${String(words[k] || k).replace(/\.$/, "")} (×${month[k]})`).join(" · ")));
+  };
+  const ask = () => ctx.actions.wsCall("padspan_ha/plan_build_info").then(show).catch(() => show(null));
+  box._refresh = ask;
+  if (settings.ai_plans_enabled === true) ask();
+  return box;
+}
 function _planAiLastRow(ctx, el){
   const box = el("div",{"data-ai-plans-last":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
   const show = (u) => {

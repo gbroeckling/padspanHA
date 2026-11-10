@@ -680,3 +680,36 @@ def test_the_panel_lists_the_two_reads_in_sample_mode():
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     reads = panel[panel.index("const READS = new Set("):panel.index('.split(" ").map(t => "padspan_ha/" + t));')]
     assert "plan_build_info" in reads and "plan_build_status" in reads and "plan_build_start" not in reads
+
+
+# ═══ the tab, run (tests/js/plan_build_tab.mjs) ══════════════════════════════
+
+@pytest.fixture(scope="module")
+def tab() -> dict:
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    root = Path(__file__).resolve().parents[1]
+    r = subprocess.run([node, str(root / "tests" / "js" / "plan_build_tab.mjs"), str(root).replace("\\", "/")],
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, r.stderr[-2000:]
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def test_the_line_up_tab_runs(tab):
+    assert len(tab) >= 25, sorted(tab)
+    bad = {k: v for k, v in tab.items() if not v["ok"]}
+    assert not bad, json.dumps(bad, indent=2, ensure_ascii=False)
+
+
+def test_the_settings_row_replaces_coming_soon_and_asks_the_server():
+    src = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    assert "Rooms and walls from a floor plan picture" not in src
+    row = src[src.index("function _planBuildRow("):src.index("function _planAiLastRow(")]
+    assert "Build from plans: advanced plan alignment (Claude, experimental)" in row and "EXPERIMENTAL" in row
+    assert 'wsCall("padspan_ha/plan_build_info")' in row and "info.unlock && info.unlock.ok" in row and "info.master" in row
+    assert '"ai_plan_build_enabled"' in row
+    ai = src[src.index('aiSel.addEventListener("change"'):][:400]
+    assert "pbRefresh" in ai                                                   # asked again when the AI Task changes

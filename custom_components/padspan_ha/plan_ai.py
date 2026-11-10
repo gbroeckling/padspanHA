@@ -2348,6 +2348,8 @@ class LocalSteps:
             else:
                 pl["ppm"] = {"x": None, "y": None, "n_x": 0, "n_y": 0, "x_state": "none", "y_state": "none"}
             pl["health"] = plan_health(pl, snap["plans"].get(pl["map_id"], {}).get("t") or {})
+            if (snap["plans"].get(pl["map_id"]) or {}).get("t"):
+                pl["corners_m"] = G.corners(snap["plans"][pl["map_id"]]["t"])     # where its picture lies now, for the overlays
             se = pl["health"].get("shape_err")
             if se is not None:
                 self.bump(f"plan_build_shape_err:{_scale_band(se * 100)}")
