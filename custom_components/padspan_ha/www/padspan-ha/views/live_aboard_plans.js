@@ -2003,17 +2003,19 @@ export function createPlans(ctx){
   const luMapWanted = () => mapCan() && !luList && !!luSess && luSess.status !== "running" && luItems().length > 0;
   async function luInfo(){
     try { lu = await luCall("plan_build_info"); } catch (_) { lu = null; }
-    if (!lu || !lu.on) { lu = null; if (mode === "lineup") mode = "add"; }
+    if (!lu || !lu.on) { lu = null; if (mode === "lineup" || mode === "rooms") mode = "add"; }
     return lu;
   }
   function luTabs(){
     if (!lu || !lu.on) return;
     const row = d("div", "pl-choose");
     row.setAttribute("data-plan-build", "tabs");
-    for (const [m, word] of [["add", "Add data via plans"], ["lineup", "Line up plans (experimental)"]]) {
-      const b = btn(word, m === "lineup" ? "Claude reads one floor's plans and PadSpan lines them up (experimental)" : "Stairs, railings and lights from your plans", () => {
-        mode = m; luErr = "";
-        if (m === "lineup" && !luSess) luOpen(); else redraw();
+    const tabs = [["add", "Add data via plans"], ["lineup", "Line up plans (experimental)"], ...(lu.rooms ? [["rooms", "Rooms from plans (experimental)"]] : [])];
+    for (const [m, word] of tabs) {
+      const b = btn(word, m === "lineup" ? "Claude reads one floor's plans and PadSpan lines them up (experimental)"
+        : m === "rooms" ? "Claude reads a lined-up floor's rooms, doors, windows and stairs (experimental)" : "Stairs, railings and lights from your plans", () => {
+        mode = m; luErr = ""; rbErr = "";
+        if (m === "lineup" && !luSess) luOpen(); else if (m === "rooms" && !rbSess) rbOpen(); else redraw();
       });
       b.setAttribute("aria-pressed", String(mode === m));
       row.appendChild(b);
@@ -2598,6 +2600,484 @@ export function createPlans(ctx){
     sheet.appendChild(box);
   }
 
+  // ── Rooms from plans (Build from plans, Stage 2, experimental) ───────────
+  // The Plans tool's third tab (design 5): on a floor whose line-up has ended,
+  // Claude reads each lined-up plan twice for its rooms, doors, windows and
+  // stairs together; the server proposes the person's own rooms by overlap
+  // (never by name), the extra spaces, the doors and windows both reads found
+  // (one read only: "maybe", unticked) and the stairs. A flat floor map (and,
+  // with a 3D view, the same outlines on it) shows them; a tap selects rooms
+  // and spaces to merge. Everything ticked is saved by one "Accept all for this
+  // floor" (plan_build_rooms_commit: one backup, one undo), after the rooms gate.
+  // Every control here says experimental (tests/js/plan_build_rooms.mjs scans it).
+  let rbSess = null, rbFloor = null, rbPoll = null, rbBusy = false, rbErr = "", rbAreas = [], rbUndo = null, rbAskUndo = false;
+  let rbGate = null, rbGateKey = "", rbBoth = null, rbNameFor = null, rbAwake = false, rbKey = null, rbFly = false, rbTok = 0;
+  const rbPicked = new Set(), rbTicks = new Set(), rbSel = new Set(), rbMeshes = [];
+  const RB_PREFIX = "Rooms from plans (experimental): ";
+  const RB_BANNER = "Experimental. Claude reads each plan twice; where the two reads differ, or an outline is far from yours, look closely. "
+    + "Nothing is saved until Accept all: a backup is taken first, and one undo takes it all back.";
+  const RB_COL = { his: "#94a3b8", ready: "#22c55e", look: "#f59e0b", space: "#fb923c", sel: "#3b82f6", r1: "#06b6d4", r2: "#d946ef", door: "#ef4444", window: "#60a5fa", stairs: "#f97316" };
+  const rbSaid = (e) => RB_PREFIX + String((e && e.message) || e).replace(RB_PREFIX, "");
+  const rbProp = () => (rbSess && rbSess.proposal) || null;
+  const rbSaved = (id) => !!(rbSess && rbSess.saved && rbSess.saved[id]);
+  const rbInfo = (fid) => ((lu && lu.rooms) || {})[fid] || null;
+  const rbArea = (pts) => { let a = 0; for (let i = 0; i < (pts || []).length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a) / 2; };
+  const rbInside = (x, y, p) => inPolygon(x, y, p);
+  const rbSpaceShown = (s) => !s.merged_into;
+  const rbMapWanted = () => mapCan() && !!rbProp() && rbSess.status !== "running";
+  /** What a session proposes, ticked by default: every room, a new room once named, doors, windows and stairs both reads found. */
+  function rbDefaults(){
+    rbTicks.clear();
+    const p = rbProp();
+    if (!p) return;
+    for (const r of Object.values(p.rooms || {})) if (r.default !== false && !rbSaved(r.id)) rbTicks.add(r.id);
+    for (const s of Object.values(p.spaces || {})) if (s.new && rbSpaceShown(s) && !rbSaved(s.id)) rbTicks.add(s.id);
+    for (const o of Object.values(p.openings || {})) if (o.default && !rbSaved(o.id)) rbTicks.add(o.id);
+    for (const s of Object.values(p.stairs || {})) if (s.default && !rbSaved(s.id)) rbTicks.add(s.id);
+  }
+  function rbTake(r, fresh){
+    if (!r) return;
+    const was = rbSess && rbSess.id;
+    if ("session" in r) rbSess = r.session;
+    if (r.areas) rbAreas = r.areas;
+    if ("undo" in r) rbUndo = r.undo;
+    if (rbSess) rbFloor = rbSess.floor_id;
+    if (fresh || !rbSess || rbSess.id !== was) { rbDefaults(); rbSel.clear(); }
+    else {                                                      // after an edit: what is new is ticked as offered, what went is dropped
+      const p = rbProp() || {};
+      const have = new Set([...Object.keys(p.openings || {}), ...Object.keys(p.stairs || {}), ...Object.values(p.rooms || {}).map(x => x.id),
+        ...Object.values(p.spaces || {}).filter(rbSpaceShown).map(x => x.id)]);
+      for (const id of [...rbTicks]) if (!have.has(id) || rbSaved(id)) rbTicks.delete(id);
+      for (const r2 of Object.values(p.rooms || {})) if (!rbSaved(r2.id) && !rbSel.has(r2.id) && r2.default !== false && !rbTicks.has(r2.id) && r2.flags && r2.flags.includes("merge_only")) rbTicks.add(r2.id);
+      for (const s of Object.values(p.spaces || {})) if (s.new && rbSpaceShown(s) && !rbSaved(s.id)) rbTicks.add(s.id);
+      for (const id of [...rbSel]) if (!have.has(id)) rbSel.delete(id);
+    }
+    rbGateKey = "";
+  }
+  async function rbOpen(){
+    rbBusy = true; redraw();
+    await luInfo();
+    loadUrls();
+    if (lu && lu.rooms_running) { rbPollStart(lu.rooms_running); rbBusy = false; return; }
+    const last = Object.values((lu && lu.rooms) || {}).map(f => f.last).filter(Boolean).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+    if (last && last.session && !rbSess) { try { rbTake(await luCall("plan_build_rooms_status", { session: last.session }), true); } catch (e) { rbErr = rbSaid(e); } }
+    rbBusy = false; rbKey = null; rbFly = true; redraw();
+  }
+  function rbPick(fid){
+    rbFloor = fid; rbSess = null; rbPicked.clear(); rbErr = "";
+    for (const p of ((rbInfo(fid) || {}).plans || [])) rbPicked.add(p.map_id);
+    redraw();
+  }
+  async function rbStart(){
+    if (rbBusy || !rbFloor) return;
+    rbBusy = true; rbErr = ""; redraw();
+    try { const r = await luCall("plan_build_rooms_start", { floor_id: rbFloor, map_ids: [...rbPicked] }); rbPollStart(r.session); }
+    catch (e) { rbErr = rbSaid(e); }
+    rbBusy = false; redraw();
+  }
+  function rbPollStart(sid){
+    rbPollStop();
+    const tick = guard(async () => {
+      try {
+        const r = await luCall("plan_build_rooms_status", { session: sid });
+        rbTake(r, true);
+        if (rbSess && rbSess.status !== "running") { rbPollStop(); rbKey = null; rbFly = true; }
+      } catch (e) { rbErr = rbSaid(e); rbPollStop(); }
+      redraw();
+    });
+    rbPoll = setInterval(tick, POLL_MS);
+    tick();
+  }
+  function rbPollStop(){ if (rbPoll) { clearInterval(rbPoll); rbPoll = null; } }
+  async function rbReload(){ try { rbTake(await luCall("plan_build_rooms_status", { session: rbSess.id }), false); } catch (_) { /* what is shown stays */ } }
+  async function rbEdit(op, extra, after){
+    if (rbBusy || !rbSess) return;
+    rbBusy = true; rbErr = ""; redraw();
+    try { rbTake(await luCall("plan_build_rooms_edit", { session: rbSess.id, rev: rbSess.rev, op, ...extra }), false); if (after) after(); }
+    catch (e) { if (e.code === "rev_mismatch") await rbReload(); rbErr = rbSaid(e); }
+    rbBusy = false; rbKey = null; redraw();
+  }
+  /** The rooms gate for the ticks as they are (plan_build_rooms_check), asked once a change of ticks or edits. */
+  function rbCheck(){
+    const p = rbProp();
+    if (!p || !rbSess || rbSess.status === "running") return;
+    const ids = [...rbTicks].filter(i => i.startsWith("room:") || i.startsWith("space:")).sort();
+    const key = `${rbSess.id}|${rbSess.rev}|${ids.join(",")}`;
+    if (key === rbGateKey) return;
+    rbGateKey = key;
+    luCall("plan_build_rooms_check", { session: rbSess.id, items: ids }).then((r) => { if (rbGateKey === key) { rbGate = r.gate; redraw(); } }).catch(() => { /* Save checks it again */ });
+  }
+  /** A new stair's piece, as Add data via plans builds one (the 3D view's builders); null with no 3D view. */
+  function rbFinals(ids){
+    const out = {}, p = rbProp();
+    for (const id of ids) {
+      const s = id.startsWith("stairs:") ? p.stairs[id] : null;
+      if (!s || s.relation === "correction") continue;
+      const piece = ctx.stairPiece ? ctx.stairPiece(s.geom, s.floor_id, PIECE_LABEL) : null;
+      if (piece) out[id] = ctx.DRAFT && ctx.DRAFT.planFinal ? ctx.DRAFT.planFinal(piece) : piece;
+    }
+    return out;
+  }
+  async function rbWrite(type, extra, done){
+    if (rbBusy || !rbSess) return;
+    rbBusy = true; rbErr = ""; rbAskUndo = false; redraw();
+    try {
+      const r = (await luCall(type, { session: rbSess.id, ...(extra || {}) })) || {};
+      rbTake(r, r.ok !== false);
+      if (r.gate) rbGate = r.gate;
+      if (r.ok === false) rbErr = RB_PREFIX + String(r.message || r.code || "").replace(RB_PREFIX, "");
+      else if (done) done(r);
+    } catch (e) {
+      if (e.code === "rev_mismatch") await rbReload();
+      rbErr = rbSaid(e);
+    }
+    rbKey = null; rbBusy = false; redraw();
+  }
+  const rbSave = () => { const ids = [...rbTicks]; return rbWrite("plan_build_rooms_commit", { rev: rbSess.rev, items: ids, finals: rbFinals(ids) }, () =>
+    ctx.hint(`${RB_PREFIX}saved ${ids.length} item${ids.length === 1 ? "" : "s"} in one save. A backup was taken first; Undo takes it all back.`)); };
+  const rbUndoIt = () => rbWrite("plan_build_rooms_undo", {}, (r) => {
+    const k = (r.skipped || []).length;
+    ctx.hint(`${RB_PREFIX}${r.undone || 0} put back${k ? `; ${k} changed since ${k === 1 ? "was" : "were"} left as ${k === 1 ? "it is" : "they are"}` : ""}.`);
+  });
+
+  // -- the flat floor map: his outlines, the proposal, the selection ---------
+  function rbShapes(){
+    const p = rbProp() || {}, out = [];
+    for (const r of Object.values(p.rooms || {})) {
+      out.push({ id: r.id, kind: "his", pts: r.now_m });
+      out.push({ id: r.id, kind: rbBoth === r.room ? "dim" : (r.ready && !(r.flags || []).includes("big_change") ? "ready" : "look"), pts: r.outline_m, name: r.room });
+      if (rbBoth === r.room) (r.reads_m || []).forEach((q, i) => { if (q) out.push({ id: r.id, kind: i ? "r2" : "r1", pts: q }); });
+    }
+    for (const s of Object.values(p.spaces || {})) if (rbSpaceShown(s)) out.push({ id: s.id, kind: "space", pts: s.outline_m, name: s.new || s.name });
+    return out;
+  }
+  function rbHit(x, y){
+    const hits = rbShapes().filter(s => (s.kind === "ready" || s.kind === "look" || s.kind === "space" || s.kind === "dim") && rbInside(x, y, s.pts));
+    hits.sort((a, b) => rbArea(a.pts) - rbArea(b.pts));
+    return hits.length ? hits[0].id : null;
+  }
+  function rbToggleSel(id){ if (!id) return; if (rbSel.has(id)) rbSel.delete(id); else rbSel.add(id); rbKey = null; redraw(); }
+  function rbCanvas(){
+    const c = d("canvas"), shapes = rbShapes(), p = rbProp() || {};
+    c.setAttribute("data-plan-build", "rooms-map");
+    c.width = 480; c.height = 320; c.style.width = "100%"; c.style.height = "auto"; c.style.background = "#0b1510"; c.style.borderRadius = "8px"; c.style.cursor = "pointer";
+    const all = shapes.flatMap(s => s.pts || []);
+    if (!all.length) return c;
+    const xs = all.map(q => q[0]), ys = all.map(q => q[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    c.height = Math.round(Math.min(560, Math.max(220, c.width * (y1 - y0) / Math.max(0.1, x1 - x0))));
+    const k = Math.min((c.width - 20) / Math.max(0.1, x1 - x0), (c.height - 20) / Math.max(0.1, y1 - y0));
+    const toPx = ([x, y]) => [10 + (x - x0) * k, 10 + (y - y0) * k];
+    const g = c.getContext && c.getContext("2d");
+    if (g) {
+      const poly = (pts, stroke, dash, fill, w = 2) => {
+        if (!pts || pts.length < 3) return;
+        g.beginPath(); pts.map(toPx).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath();
+        if (fill) { g.fillStyle = fill; g.fill(); }
+        g.strokeStyle = stroke; g.lineWidth = w; g.setLineDash(dash); g.stroke(); g.setLineDash([]);
+      };
+      for (const s of shapes) {
+        const sel = rbSel.has(s.id);
+        if (s.kind === "his") poly(s.pts, RB_COL.his, [5, 4], null, 1.5);
+        else if (s.kind === "r1" || s.kind === "r2") poly(s.pts, RB_COL[s.kind], [8, 4], null, 2);
+        else poly(s.pts, sel ? RB_COL.sel : RB_COL[s.kind === "dim" ? "look" : s.kind] || RB_COL.look, s.kind === "dim" ? [2, 4] : [],
+          sel ? "rgba(59,130,246,.25)" : s.kind === "space" ? "rgba(251,146,60,.12)" : "rgba(34,197,94,.07)", sel ? 3 : 2);
+      }
+      for (const o of Object.values(p.openings || {})) {
+        if (!o.a_m || !o.b_m) continue;
+        const [a, b] = [toPx(o.a_m), toPx(o.b_m)];
+        g.strokeStyle = o.cls === "window" ? RB_COL.window : RB_COL.door; g.lineWidth = rbTicks.has(o.id) ? 4 : 2; g.setLineDash(rbTicks.has(o.id) ? [] : [3, 3]);
+        g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); g.setLineDash([]);
+      }
+      for (const s of Object.values(p.stairs || {})) {
+        const q = s.geom || {}, [cx, cy] = toPx([q.x_m, q.y_m]), r = Math.max(4, Math.min(q.width_m || 1, q.depth_m || 1) * k / 2);
+        g.strokeStyle = RB_COL.stairs; g.lineWidth = rbTicks.has(s.id) ? 3 : 1.5; g.strokeRect(cx - r, cy - r, 2 * r, 2 * r);
+      }
+      g.font = "11px system-ui"; g.fillStyle = "#e2e8f0";
+      for (const s of shapes) if (s.name && (s.kind === "ready" || s.kind === "look" || s.kind === "space")) {
+        const xs2 = s.pts.map(q => q[0]), ys2 = s.pts.map(q => q[1]), [tx, ty] = toPx([(Math.min(...xs2) + Math.max(...xs2)) / 2, (Math.min(...ys2) + Math.max(...ys2)) / 2]);
+        g.fillText(s.name.slice(0, 18), tx - 24, ty + 4);
+      }
+    }
+    c.onclick = guard((e) => { const r = c.getBoundingClientRect(), px = (e.clientX - r.left) * c.width / (r.width || c.width), py = (e.clientY - r.top) * c.height / (r.height || c.height);
+      rbToggleSel(rbHit(x0 + (px - 10) / k, y0 + (py - 10) / k)); });
+    return c;
+  }
+
+  // -- on the 3D view: the same outlines, at the floor ------------------------
+  function rbDrop(){ rbTok++; for (const m of rbMeshes.splice(0)) dropMesh(m); }
+  function rbSleep(){ if (!rbAwake) return; rbAwake = false; rbKey = null; rbDrop(); if (ctx.quiet) ctx.quiet(false); if (ctx.render) ctx.render(); }
+  function rbSync(){
+    if (!mapCan() || !rbProp()) return;
+    const sc = ctx.scene();
+    if (!sc) return;
+    if (!group) { group = new THREE.Group(); group.name = "plan-ai"; }
+    if (group.parent !== sc) sc.add(group);
+    const F = floorUi(rbSess.floor_id);
+    if (!rbAwake) { rbAwake = true; rbFly = true; rbKey = null; if (ctx.quiet) ctx.quiet(true); }
+    if (rbFly && F && ctx.setTopFloor && (ctx.currentFloor ? ctx.currentFloor() : null) !== F) ctx.setTopFloor(String(F.fl.id));
+    const key = F ? JSON.stringify([rbSess.id, rbSess.rev, [...rbSel], [...rbTicks], rbBoth, F.fl.elev]) : "";
+    if (key !== rbKey) {
+      rbDrop(); rbKey = key;
+      if (F) {
+        const y = F.fl.elev, add = (pts, col, h, closed = true) => { if (pts && pts.length >= 2) { const m = dashMesh(dashTriangles(pts, closed, closed ? 0.5 : 2, closed ? 0.2 : 0.01, 0.1), y + h, col); rbMeshes.push(m); group.add(m); } };
+        for (const s of rbShapes()) add(s.pts, rbSel.has(s.id) ? RB_COL.sel : RB_COL[s.kind === "dim" ? "look" : s.kind] || RB_COL.look, s.kind === "his" ? 0.04 : 0.06);
+        for (const o of Object.values(rbProp().openings || {})) if (o.a_m && rbTicks.has(o.id)) add([o.a_m, o.b_m], o.cls === "window" ? RB_COL.window : RB_COL.door, 0.08, false);
+      }
+    }
+    if (rbFly && F && ctx.flySpot) {
+      rbFly = false;
+      const pts = rbShapes().flatMap(s => s.pts || []);
+      if (pts.length) { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+        requestAnimationFrame(guard(() => { if (rbAwake) ctx.flySpot(F, (Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2, Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) + 2, padNow()); })); }
+    }
+    if (ctx.render) ctx.render();
+  }
+
+  // -- the tab ---------------------------------------------------------------
+  function paintRooms(){
+    luTabs();
+    head("Rooms from plans", "Claude reads a lined-up floor: rooms, doors, windows and stairs together. Experimental.");
+    sheet.appendChild(d("div", "pl-ban", RB_BANNER));
+    if (rbErr) { const e = d("div", "pl-note pl-bad", rbErr); e.setAttribute("role", "alert"); sheet.appendChild(e); }
+    if (rbBusy && !rbSess) { sheet.appendChild(d("div", "pl-note", "Looking…")); return; }
+    if (rbSess && rbSess.status === "running") return paintRbProgress();
+    if (rbSess) return paintRbSession();
+    paintRbPicker();
+  }
+  function paintRbPicker(){
+    const floors = (lu && lu.floors) || [];
+    sheet.appendChild(d("h5", null, "Which floor (experimental)"));
+    const chips = d("div", "pl-choose");
+    chips.setAttribute("data-plan-build", "rooms-floors");
+    for (const f of floors) {
+      const ri = rbInfo(f.id) || {}, n = (ri.plans || []).length;
+      const b = btn(`${f.name || f.id} · ${ri.ready ? `${n} plan${n === 1 ? "" : "s"} lined up` : "line it up first"}`, ri.ready ? "Read its rooms" : "Its line-up hasn't ended, or a plan moved since", () => rbPick(f.id));
+      b.setAttribute("aria-pressed", String(rbFloor === f.id));
+      chips.appendChild(b);
+    }
+    sheet.appendChild(chips);
+    const f = floors.find(x => x.id === rbFloor), ri = f ? rbInfo(f.id) : null;
+    if (!f) { sheet.appendChild(d("div", "pl-note", "Pick a floor. Only a floor whose plans are lined up (Line up plans, experimental) can be read for rooms.")); return; }
+    if (!ri || !ri.ready) {
+      sheet.appendChild(d("div", "pl-note", `${luFloorName(f.id)}: this floor's plans aren't lined up yet, or one was moved since. Line up plans (experimental) first, then come back.`));
+      const a = d("div", "pl-acts");
+      a.setAttribute("data-plan-build", "rooms-lineup-first");
+      a.appendChild(btn("Line up plans (experimental)", "Open the line-up tab on this floor", () => { mode = "lineup"; luFloor = f.id; luOpen().then(() => { if (!luSess) luPick(f.id); }); }));
+      sheet.appendChild(a);
+      return;
+    }
+    for (const p of ri.plans || []) {
+      const l = d("label", "pl-tick");
+      l.setAttribute("data-plan-build", "rooms-plan");
+      const cb = d("input"); cb.type = "checkbox"; cb.checked = rbPicked.has(p.map_id);
+      cb.addEventListener("change", () => { if (cb.checked) rbPicked.add(p.map_id); else rbPicked.delete(p.map_id); redraw(); });
+      l.appendChild(cb);
+      if (urls && urls[p.map_id]) { const im = d("img"); im.src = urls[p.map_id]; im.alt = ""; l.appendChild(im); }
+      l.appendChild(d("span", null, `${p.name || "a plan"} — lined up`));
+      sheet.appendChild(l);
+    }
+    for (const o of ri.others || []) sheet.appendChild(d("div", "pl-note", `${o.name || "A plan"}: ${o.why === "moved" ? "moved since its line-up" : o.why === "gone" ? "no longer on this floor" : "not lined up"}, so it isn't read. Experimental.`));
+    const ticked = (ri.plans || []).filter(p => rbPicked.has(p.map_id)), priced = ticked.filter(p => num(p.est_usd) !== null);
+    const est = !ticked.length ? "tick the plans to read" : priced.length === ticked.length ? `about $${priced.reduce((s, p) => s + p.est_usd, 0).toFixed(2)} for ${ticked.length === 1 ? "this plan" : `these ${ticked.length} plans`} (estimate, experimental)` : "no price is known for this model";
+    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them, twice each: the plans leave the house for Anthropic. ${est}. `
+      + "Nothing is saved until you accept: one save for the floor, a backup first, one undo."));
+    const acts = d("div", "pl-acts");
+    acts.setAttribute("data-plan-build", "rooms-start");
+    const go = btn(`Read rooms on ${f.name || f.id} (experimental)`, "Claude reads each ticked plan twice; you check everything before it is saved", () => rbStart(), "go");
+    go.disabled = rbBusy || !rbPicked.size || !!(lu && lu.start_blocked);
+    acts.appendChild(go);
+    sheet.appendChild(acts);
+  }
+  function paintRbProgress(){
+    const pr = rbSess.progress || {};
+    sheet.appendChild(d("div", "pl-sum", `${pr.step === "measure" ? "Working out the rooms" : `Reading ${pr.name || "a plan"}, ${pr.step || "read 1"}`} (${pr.plan || 0} of ${pr.of || 0})… experimental.`));
+    sheet.appendChild(d("div", "pl-note", `${rbSess.reads || 0} reads so far, ${mins(rbSess.spent_s)} of ${mins(rbSess.budget_s)}.`));
+    const acts = d("div", "pl-acts");
+    acts.setAttribute("data-plan-build", "rooms-cancel");
+    acts.appendChild(btn("Stop (experimental)", "Stops after the read in flight; what was read is kept", () => luCall("plan_build_cancel", { session: rbSess.id }).then(r => ctx.hint(r.message)).catch(() => {})));
+    sheet.appendChild(acts);
+  }
+  function rbTick(id, label, sub, opts = {}){
+    const l = d("label", "pl-tick");
+    l.setAttribute("data-plan-build-item", id.split(":")[0]);            // a row under its section's heading, which says experimental
+    const cb = d("input"); cb.type = "checkbox"; cb.checked = rbTicks.has(id); cb.disabled = !!opts.off || rbSaved(id) || rbBusy;
+    cb.addEventListener("change", () => { if (cb.checked) rbTicks.add(id); else rbTicks.delete(id); rbKey = null; redraw(); });
+    l.appendChild(cb);
+    const t = d("span", "pl-txt");
+    t.appendChild(d("div", null, rbSaved(id) ? `${label} · saved` : label));
+    for (const s of sub || []) if (s) t.appendChild(d("div", "pl-sub", s));
+    l.appendChild(t);
+    return l;
+  }
+  function paintRbSession(){
+    const s = rbSess, p = rbProp() || {}, rooms = Object.values(p.rooms || {}), spaces = Object.values(p.spaces || {}).filter(rbSpaceShown);
+    const ops = Object.values(p.openings || {}), stairs = Object.values(p.stairs || {});
+    const word = { done: "done", cancelled: "stopped", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit" }[s.status] || s.status;
+    const cost = num(s.est_usd) !== null ? `, about $${s.est_usd.toFixed(2)} (estimate)` : "";
+    sheet.appendChild(d("div", "pl-sum", `${luFloorName(s.floor_id)}: ${word}. ${s.reads || 0} reads${cost}. ${rooms.length} room${rooms.length === 1 ? "" : "s"} `
+      + `(${rooms.filter(r => r.ready && !(r.flags || []).includes("big_change")).length} ready, ${rooms.filter(r => !r.ready || (r.flags || []).includes("big_change")).length} to look at), `
+      + `${spaces.length} extra space${spaces.length === 1 ? "" : "s"}, ${ops.filter(o => o.cls === "door").length} doors, ${ops.filter(o => o.cls === "window").length} windows, ${stairs.length} stair${stairs.length === 1 ? "" : "s"}.`));
+    const stops = (s.stops || []).slice(-4);
+    if (stops.length || s.resumable) {
+      const box = luSection("pl-note");
+      box.setAttribute("data-plan-build", "rooms-stops");
+      box.appendChild(d("div", "pl-sub", "Where it stopped (experimental):"));
+      for (const st of stops) box.appendChild(d("div", null, `${st.say}${st.next ? ` ${st.next}` : ""}`));
+      if (s.resumable) {
+        const b = btn("Resume (experimental)", "Reads what is left; what was read is kept", async () => {
+          try { const r = await luCall("plan_build_rooms_resume", { session: s.id }); rbPollStart(r.session); } catch (e) { rbErr = rbSaid(e); redraw(); }
+        });
+        b.disabled = rbBusy; box.appendChild(b);
+      }
+      sheet.appendChild(box);
+    }
+    if (!p.rooms) { paintRbFoot(); return; }
+    // The map, and what is selected on it.
+    const mapBox = luSection("pl-row pl-lu");
+    mapBox.appendChild(rbCanvas());
+    mapBox.appendChild(d("div", "pl-lu-key", "Grey dashes: your rooms now. Green: proposed, the reads agree; amber: look closely; orange: extra spaces; blue: selected. "
+      + "Red: doors, light blue: windows, orange squares: stairs (dotted: not ticked). Tap a room or a space to select it. Experimental."));
+    const sel = [...rbSel];
+    const bar = d("div", "pl-acts");
+    bar.setAttribute("data-plan-build", "rooms-merge");
+    if (sel.length) {
+      const names = sel.map(id => id.startsWith("room:") ? id.slice(5) : ((p.spaces || {})[id] || {}).name || id);
+      bar.appendChild(d("span", "pl-sub", `Selected: ${names.join(", ")}.`));
+      const m = btn(`Merge selected into one (experimental)`, "One clean outline; at most one of your rooms in it, never two", () => rbEdit("merge", { parts: sel }, () => rbSel.clear()), "go");
+      m.disabled = rbBusy || sel.length < 2 || sel.filter(i => i.startsWith("room:")).length > 1;
+      bar.append(m, btn("Clear", "Select nothing", () => { rbSel.clear(); rbKey = null; redraw(); }));
+      if (sel.filter(i => i.startsWith("room:")).length > 1) bar.appendChild(d("div", "pl-sub", "Two of your rooms can't be merged here: that would remove one. Merge spaces into one room."));
+    } else bar.appendChild(d("span", "pl-sub", "Extra spaces that belong to a room: select them with the room on the map, then Merge selected (experimental)."));
+    mapBox.appendChild(bar);
+    sheet.appendChild(mapBox);
+    paintRbGate();
+    paintRbRooms(rooms, p);
+    paintRbSpaces(spaces, p);
+    paintRbOpenings(ops);
+    paintRbStairs(stairs);
+    paintRbFoot();
+  }
+  function paintRbGate(){
+    rbCheck();
+    const g = rbGate, line = d("div", "pl-note");
+    line.setAttribute("data-plan-build", "rooms-gate");
+    if (!g || g.now === null || g.now === undefined) line.textContent = "Rooms right on your calibration spots: working it out… (experimental)";
+    else {
+      const f = (v) => `${Math.round(v * 10) / 10} %`;
+      line.textContent = g.scored ? `Rooms right on your calibration spots: ${f(g.now)} now, ${f(g.with)} with these (${g.spots} spots). Experimental.`
+        : `Only ${g.spots} calibration spot${g.spots === 1 ? "" : "s"} on this floor: too few to judge (${g.inside_now} inside their room now, ${g.inside_with} with these). Experimental.`;
+      if (g.held_out && g.held_out.now !== null) line.textContent += ` Held-out check, for information: ${g.held_out.now} % now, ${g.held_out.with} % with these.`;
+      if (g.blocked) { line.classList.add("pl-bad"); line.textContent += ` Save is refused: that drops more than 2 points. Untick or fix the rooms marked "look closely".`; }
+    }
+    sheet.appendChild(line);
+  }
+  function paintRbRooms(rooms, p){
+    sheet.appendChild(d("h5", null, "Rooms (experimental)"));
+    for (const r of rooms.sort((a, b) => Number(a.ready) - Number(b.ready) || a.room.localeCompare(b.room))) {
+      const fl = r.flags || [], sub = [];
+      if (fl.includes("merge_only")) sub.push("Not on these plans: its outline now, with what you merged into it.");
+      else if (r.ready) sub.push(`Both reads agree (${(r.agree || 0).toFixed(2)}).`);
+      else sub.push(fl.includes("one_read") ? "Only one read found it: look closely." : `Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Show both reads to compare.`);
+      if (fl.includes("big_change")) sub.push(`Far from your outline (overlap ${(r.iou_now || 0).toFixed(2)}, ${m1(r.area_now)} → ${m1(r.area_new)} m²): an open side or a judgement line may have moved.`);
+      else if (!fl.includes("merge_only")) sub.push(`Overlap with your outline ${(r.iou_now || 0).toFixed(2)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`);
+      if (fl.includes("apart")) sub.push("Some of its printed rooms didn't join the rest: only the largest part is used.");
+      if (!fl.includes("merge_only") && (r.spots || [])[2]) sub.push(`Using read ${r.pick}${r.picked_by === "person" ? " (your pick)" : ""}: it keeps ${Math.max(0, r.spots[r.pick - 1])} of ${r.spots[2]} calibration spots inside it.`);
+      if ((r.cal || {}).leaving) sub.push(`${r.cal.leaving} calibration spot${r.cal.leaving === 1 ? "" : "s"} would fall outside it; ${r.cal.leaving === 1 ? "it keeps its" : "they keep their"} room label.`);
+      if ((r.merged || []).length) sub.push(`Merged in: ${r.merged.map(id => ((p.spaces || {})[id] || {}).name || id).join(", ")}.`);
+      const row = rbTick(r.id, r.room, sub);
+      const a = d("div", "pl-acts");
+      if (!fl.includes("merge_only") && (r.reads_m || []).every(Boolean)) {
+        a.appendChild(btn(rbBoth === r.room ? "Hide both reads" : "Show both reads", "Read 1 cyan, read 2 magenta, on the map (experimental)", () => { rbBoth = rbBoth === r.room ? null : r.room; rbKey = null; redraw(); }));
+        a.appendChild(btn(`Use read ${r.pick === 1 ? 2 : 1}`, "Use the other read's outline for this room (experimental)", () => rbEdit("pick", { room: r.room, read: r.pick === 1 ? 2 : 1 })));
+      }
+      for (const m of ((rbSess.edits || {}).merges || []).filter(m => m.into === r.id)) a.appendChild(btn("Separate (experimental)", "Take this merge back", () => rbEdit("separate", { merge: m.id })));
+      a.appendChild(btn(rbSel.has(r.id) ? "Selected" : "Select", "Select it on the map, to merge", () => rbToggleSel(r.id)));
+      for (const b of a.querySelectorAll("button")) b.disabled = rbBusy || rbSaved(r.id);
+      row.lastChild.appendChild(a);
+      sheet.appendChild(row);
+    }
+    if ((p.unseen || []).length) sheet.appendChild(d("div", "pl-note", `Not on these plans, left as they are: ${p.unseen.join(", ")}. Experimental.`));
+  }
+  function paintRbSpaces(spaces, p){
+    if (!spaces.length) return;
+    sheet.appendChild(d("h5", null, "Extra spaces (experimental)"));
+    sheet.appendChild(d("div", "pl-note", "Printed spaces inside none of your rooms. Merge one into a room, add it as a new room with a name you pick, or leave it out (the default)."));
+    const his = Object.keys(p.rooms || {}).concat(p.unseen || []).sort();
+    for (const sp of spaces) {
+      const sub = [`${m1(rbArea(sp.outline_m))} m² · ${sp.reads.length > 1 ? "both reads" : "one read only"}`];
+      if (sp.new) sub.push(`New room: ${sp.new}. Ticked to save.`);
+      const row = sp.new ? rbTick(sp.id, `${sp.name} → ${sp.new}`, sub) : (() => { const b = luSection("pl-row"); b.setAttribute("data-plan-build-item", "space"); const t = d("div", "pl-txt"); t.appendChild(d("div", null, sp.name)); t.appendChild(d("div", "pl-sub", sub[0] + " · left out")); b.appendChild(t); return b; })();
+      const holder = sp.new ? row.lastChild : row.firstChild;
+      const a = d("div", "pl-acts");
+      const pick = d("select");
+      pick.appendChild(d("option", null, "Merge into…"));
+      for (const n of his) { const o = d("option", null, n); o.value = n; pick.appendChild(o); }
+      pick.addEventListener("change", guard(() => { if (pick.value && pick.value !== "Merge into…") rbEdit("merge", { parts: [`room:${pick.value}`, sp.id] }); }));
+      pick.title = "Merge it into one of your rooms (experimental)"; pick.disabled = rbBusy;
+      a.appendChild(pick);
+      if (rbNameFor === sp.id) {
+        const inp = d("input"); inp.type = "text"; inp.placeholder = "room name"; inp.maxLength = 40; inp.style.width = "120px";
+        const list = d("select");
+        list.appendChild(d("option", null, "Home Assistant areas…"));
+        for (const n of rbAreas) { const o = d("option", null, n); o.value = n; list.appendChild(o); }
+        list.addEventListener("change", () => { if (list.value && list.value !== "Home Assistant areas…") inp.value = list.value; });
+        a.append(list, inp, btn("Use it", "Add it as a new room with this name (experimental)", () => { const v = inp.value.trim(); if (v) rbEdit("space", { space: sp.id, name: v }, () => { rbNameFor = null; rbTicks.add(sp.id); }); }, "go"),
+          btn("Cancel", "Leave it as it is", () => { rbNameFor = null; redraw(); }));
+      } else if (!sp.new) a.appendChild(btn("Add as a new room (experimental)", "You pick its name: a Home Assistant area or your own", () => { rbNameFor = sp.id; redraw(); }));
+      if (sp.new) a.appendChild(btn("Leave out", "Not a room after all", () => rbEdit("space", { space: sp.id, name: "" }, () => rbTicks.delete(sp.id))));
+      if (sp.merge) a.appendChild(btn("Separate (experimental)", "Take this merge back", () => rbEdit("separate", { merge: sp.merge })));
+      a.appendChild(btn(rbSel.has(sp.id) ? "Selected" : "Select", "Select it on the map, to merge", () => rbToggleSel(sp.id)));
+      for (const b of a.querySelectorAll("button")) b.disabled = b.disabled || rbBusy || rbSaved(sp.id);
+      holder.appendChild(a);
+      sheet.appendChild(row);
+    }
+  }
+  function paintRbOpenings(ops){
+    if (!ops.length) return;
+    sheet.appendChild(d("h5", null, "Doors and windows (experimental)"));
+    const n = (f) => ops.filter(f).length;
+    sheet.appendChild(d("div", "pl-note", `Proposed when both reads found it: ${n(o => o.cls === "door" && o.reads > 1)} doors, ${n(o => o.cls === "window" && o.reads > 1)} windows. `
+      + `Found by one read only ("maybe", not ticked): ${n(o => o.reads === 1)}. Already in your house, left as is: ${n(o => o.existing)}. Not on a wall of your rooms: ${n(o => !o.placed)}.`));
+    const what = (o) => o.cls === "window" ? `Window${o.rooms.length ? ` in ${o.rooms[0]}` : ""}` : `${o.kind === "doorway" ? "Doorway" : "Door"}${o.rooms.length > 1 ? ` between ${o.rooms[0]} and ${o.rooms[1]}` : o.rooms.length ? ` of ${o.rooms[0]}` : ""}${o.type ? ` (${o.type})` : ""}`;
+    for (const o of ops.sort((a, b) => (b.reads - a.reads) || a.id.localeCompare(b.id))) {
+      const off = !o.placed || !!o.existing;
+      sheet.appendChild(rbTick(o.id, what(o), [o.existing ? "Already in your house: left as is." : !o.placed ? "Not on a wall of your rooms: not offered." : o.reads > 1 ? "Both reads." : "Maybe: one read only."], { off }));
+    }
+  }
+  function paintRbStairs(stairs){
+    if (!stairs.length) return;
+    sheet.appendChild(d("h5", null, "Stairs (experimental)"));
+    for (const s of stairs) {
+      const rel = { new: "new", correction: `moves the stair you have by ${m1(s.distance_m)} m`, duplicate: "already in your house: left as is", stacked: "a second staircase here? Not ticked" }[s.relation] || s.relation;
+      const off = s.relation === "duplicate", need = (s.relation === "new" || s.relation === "stacked") && !ctx.stairPiece;
+      sheet.appendChild(rbTick(s.id, `Stairs${s.room ? ` in ${s.room}` : ""}${s.geom && s.geom.says ? `, ${s.geom.says}` : ""} · ${floorName(s.floor_id)}`,
+        [`${rel}.${s.reads > 1 ? "" : " Maybe: one read only."}`, need ? "A new stair is built in the 3D view: open Live Aboard to save it." : ""], { off: off || need }));
+    }
+  }
+  function paintRbFoot(){
+    const foot = d("div", "pl-foot");
+    foot.setAttribute("data-plan-build", "rooms-foot");
+    const ids = [...rbTicks].filter(id => !rbSaved(id)), c = (pre) => ids.filter(i => i.startsWith(pre)).length;
+    if (rbProp() && ids.length) {
+      const save = btn(`Accept all for ${luFloorName(rbSess.floor_id)} (experimental): ${[c("room:") ? `${c("room:")} rooms` : "", c("space:") ? `${c("space:")} new` : "", c("door:") ? `${c("door:")} doors` : "",
+        c("window:") ? `${c("window:")} windows` : "", c("stairs:") ? `${c("stairs:")} stairs` : ""].filter(Boolean).join(", ")}`,
+      "Everything ticked, in one save: a backup is taken first, and one undo takes it all back", () => rbSave(), "go");
+      save.disabled = rbBusy || !!(rbGate && rbGate.blocked);
+      foot.appendChild(save);
+    }
+    if (rbSess.saved && Object.keys(rbSess.saved).length) {
+      if (rbAskUndo) {
+        foot.appendChild(d("div", "pl-note", "Put every room, door, window and stair this session saved back as it was? A backup is taken first; anything you changed since is left as it is."));
+        const yes = btn("Undo it (experimental)", "Takes the whole rooms session back", () => rbUndoIt(), "go");
+        yes.disabled = rbBusy;
+        foot.append(yes, btn("Cancel", "Keep what was saved", () => { rbAskUndo = false; redraw(); }));
+      } else foot.appendChild(btn("Undo this rooms session (experimental)", "Puts back everything this session saved", () => { rbAskUndo = true; redraw(); }));
+    }
+    foot.appendChild(btn("Read again (experimental)", "Pick a floor and read it again", () => { rbSess = null; rbKey = null; rbSel.clear(); rbGate = null; rbSleep(); luInfo().then(() => redraw()); }));
+    sheet.appendChild(foot);
+  }
+
   /** Keep mine, or the AI's position where the AI placed it too: where the keyboard starts on the first correction. */
   function paintFocus(){
     if (focusBtn && !focusBtn.disabled) { try { focusBtn.focus({ preventScroll: true }); } catch (_) { /* no matter */ } }
@@ -2612,6 +3092,16 @@ export function createPlans(ctx){
     if (view === "ignored") { mapSleep(); paintIgnored(); return true; }
     if (step === "loading") { mapSleep(); head("Add data via plans"); sheet.appendChild(d("div", "pl-note", "Looking for your plans…")); return true; }
     if (step === "sample") { mapSleep(); head("Add data via plans"); sheet.appendChild(d("div", "pl-note", "Sample mode shows a sample house: switch to Live mode to read your own plans.")); return true; }
+    if (mode === "rooms" && lu) {
+      // Rooms from plans: its outlines on the 3D view when there is one, the flat map and the lists on the sheet.
+      mapSleep(); luSleep();
+      const rbMap = rbMapWanted();
+      if (!rbMap) rbSleep();
+      paintRooms();
+      if (rbMap) rbSync();
+      return true;
+    }
+    rbSleep();
     if (mode === "lineup" && lu) {
       // The proposals on the vetting map when there is one (the 3D view), else as cards.
       mapSleep();
@@ -2639,7 +3129,7 @@ export function createPlans(ctx){
       if (on === shownNow) return;
       shownNow = on;
       if (on) { view = "list"; failing = null; listAsked = false; cur = null; card = "item"; urls = null; mode = "add"; open(); luInfo().then(() => redraw()); }
-      else { stopPoll(); luPollStop(); sheet.classList.remove("plans"); sheet.classList.remove("map"); mapSleep(); luSleep(); pics.clear(); tints.clear(); }
+      else { stopPoll(); luPollStop(); rbPollStop(); sheet.classList.remove("plans"); sheet.classList.remove("map"); mapSleep(); luSleep(); rbSleep(); pics.clear(); tints.clear(); }
     },
     /** The sheet's content for the step we are at; true: there is one. */
     sheet: () => paint(),
@@ -2653,13 +3143,20 @@ export function createPlans(ctx){
       return { cur, card, moving, onMap: mapAwake, floor: floorSeen, pins: [...pins.values()].map(p => ({ id: p.id, n: Number(p.el.dataset.n), state: p.el.dataset.state })),
                ghosts: [...ghosts.keys()], plan: planNow ? planNow.map_id : null, planShown: !!(planMesh && planMesh.visible), opacity, textures: texLive, verdicts: vCount, fade,
                lineup: { on: !!(lu && lu.on), mode, floor: luFloor, session: luSess ? luSess.id : null, status: luSess ? luSess.status : null,
-                         items: luSess ? Object.keys(luSess.items || {}) : [], cur: luCur, onMap: luAwake, meshes: luMeshes.length } };
+                         items: luSess ? Object.keys(luSess.items || {}) : [], cur: luCur, onMap: luAwake, meshes: luMeshes.length },
+               rooms: { floor: rbFloor, session: rbSess ? rbSess.id : null, status: rbSess ? rbSess.status : null, ticks: [...rbTicks].sort(), selected: [...rbSel],
+                        gate: rbGate, onMap: rbAwake, meshes: rbMeshes.length } };
     },
     /** Line up plans on the map: show this item (the harness and its screenshots). */
     lineupItem(id){ luCur = id; luDimFor = null; luFly = true; luKey = null; redraw(); },
     /** Line up plans (experimental): straight to its tab, on a floor (the harness and Settings' link). */
     lineup(fid){ mode = "lineup"; if (fid) luFloor = fid; luOpen().then(() => { if (fid && !luSess) luPick(fid); }); },
-    dispose(){ stopPoll(); luPollStop(); shownNow = false; mapSleep(); luSleep(); keysTo(false); try { style.remove(); pinsEl.remove(); } catch (_) { /* gone with its root */ } },
+    /** Rooms from plans (experimental): straight to its tab, on a floor (the harness and its screenshots). */
+    rooms(fid){ mode = "rooms"; rbOpen().then(() => { if (fid && !rbSess) rbPick(fid); }); },
+    /** Rooms from plans: select a room or space as a tap on the map does, show both reads of a room (the harness). */
+    roomsSelect(id){ rbToggleSel(id); },
+    roomsBoth(room){ rbBoth = room; rbKey = null; redraw(); },
+    dispose(){ stopPoll(); luPollStop(); rbPollStop(); shownNow = false; mapSleep(); luSleep(); rbSleep(); keysTo(false); try { style.remove(); pinsEl.remove(); } catch (_) { /* gone with its root */ } },
   };
 }
 
