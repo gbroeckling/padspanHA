@@ -849,19 +849,6 @@ def scale_only(t: dict, size: tuple[int, int], ppm: tuple[float | None, float | 
     return _tidy(new)
 
 
-def to_frac(t: dict, x: float, y: float) -> tuple[float, float] | None:
-    """Metres to a fraction of the picture under placement t (the inverse of placement_metres)."""
-    o = placement_metres(t, 0, 0)
-    ex, ey = placement_metres(t, 1, 0), placement_metres(t, 0, 1)
-    a, b = ex[0] - o[0], ey[0] - o[0]
-    c, d = ex[1] - o[1], ey[1] - o[1]
-    det = a * d - b * c
-    if abs(det) < 1e-12:
-        return None
-    X, Y = x - o[0], y - o[1]
-    return (d * X - b * Y) / det, (-c * X + a * Y) / det
-
-
 @dataclass
 class Shift:
     """What one stored picture position does under a new placement."""

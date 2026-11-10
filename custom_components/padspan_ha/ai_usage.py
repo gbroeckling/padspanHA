@@ -76,7 +76,18 @@ STOP_WORDS: dict[str, str] = {
 # The Anthropic error a key with no credit gives (Garry's, 2026-11-09: "Your
 # credit balance is too low to access the Anthropic API").
 CREDIT_WORDS = re.compile(r"credit balance|out of credit|insufficient credit|purchase credits", re.I)
-# The refusal words the research harness uses (PadspanResearch planai_ha/run_ha.py REFUSAL).
+# Home Assistant's Anthropic integration (2026.6+; read in 2026.7.4's entity.py,
+# ai_task.py and strings.json): the API's stop_reason "refusal" is raised as
+# HomeAssistantError(translation_key="api_refusal"), "Potential policy violation
+# detected."; every API error as translation_key "api_error", "Anthropic API
+# error: {message}." (a credit error carries the API's own words, CREDIT_WORDS);
+# an answer that isn't the JSON asked for as "json_parse_error". Its old "Sorry,
+# I had a problem talking to Anthropic" wording is gone, and an error is never
+# a refusal by its words.
+REFUSAL_KEYS = frozenset({"api_refusal"})
+REFUSAL_ERROR_WORDS = re.compile(r"policy violation", re.I)
+BAD_ANSWER_KEYS = frozenset({"json_parse_error", "response_not_found"})
+# The refusal words the research harness uses (PadspanResearch planai_ha/run_ha.py REFUSAL): for an answer's text only.
 REFUSAL_WORDS = re.compile(r"\b(i can'?t|i cannot|i'?m unable|i am unable|i'?m sorry|sorry, |unable to (help|assist|analy[sz]e|process)|"
                            r"can'?t (help|assist) with|not able to)\b", re.I)
 # What a read was for, by the task_name ask() is given.
@@ -224,18 +235,28 @@ def credit_band(usd: float | None) -> str:
 
 
 def stop_reason(err: BaseException, *, no_media: bool, unreachable: bool) -> str:
-    """The one STOP_REASONS name for a read that raised."""
+    """The one STOP_REASONS name for a read that raised: a refusal only when
+    the integration says the model refused (REFUSAL_KEYS, or its words for
+    it), never because an error's text says sorry."""
     if no_media:
         return "no_media"
     if isinstance(err, TimeoutError):
         return "timeout"
     if unreachable:
         return "unreachable"
+    keys, e = set(), err
+    for _ in range(5):                                   # the error, and what it was raised from
+        if e is None:
+            break
+        keys.add(getattr(e, "translation_key", None))
+        e = e.__cause__ or e.__context__
     text = str(err)
+    if keys & REFUSAL_KEYS or REFUSAL_ERROR_WORDS.search(text):
+        return "refusal"
     if CREDIT_WORDS.search(text):
         return "no_credit"
-    if REFUSAL_WORDS.search(text) or re.search(r"\brefus", text, re.I):
-        return "refusal"
+    if keys & BAD_ANSWER_KEYS:
+        return "bad_answer"
     return "error"
 
 

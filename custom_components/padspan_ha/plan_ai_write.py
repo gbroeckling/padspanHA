@@ -760,13 +760,18 @@ def _floor_name(snap: dict, fid: Any) -> str:
 def _preflight(snap: dict, map_id: str, new_t: dict) -> tuple[int, int]:
     """async_reanchor_map's calibration test, run in memory on the proposal
     before anything is written (design 3.8.1): (points on the plan, of them
-    off its picture). The reanchor runs it again at the write."""
+    off its picture), through the reanchor's own metres-to-picture rule
+    (ModelStore.metres_to_map_frac) on the proposed placement. The reanchor
+    runs it again at the write."""
+    from types import SimpleNamespace  # noqa: PLC0415
+    from .model_store import ModelStore  # noqa: PLC0415
+    proposed = SimpleNamespace(data={"map_transforms": {map_id: new_t}})
     owned = bad = 0
     for p in snap["calibration"]:
         if p.get("map_id") != map_id or p.get("x_m") is None:
             continue
         try:
-            fr = G.to_frac(new_t, float(p["x_m"]), float(p["y_m"]))
+            fr = ModelStore.metres_to_map_frac(proposed, float(p["x_m"]), float(p["y_m"]), map_id)
         except (TypeError, ValueError, KeyError):
             continue
         owned += 1

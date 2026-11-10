@@ -434,11 +434,22 @@ def test_a_second_session_reuses_read_a_and_only_ask_reaches_the_ai(monkeypatch,
     for mod in (A, W):
         src = inspect.getsource(mod)
         assert "generate_data" not in src and "services.async_call" not in src
+    # One plan reader (design 15, review S8): the line-up has no ask or read of its own, only Runner's, never with the backup.
+    assert "ask" not in vars(A.LineupRunner) and "read" not in vars(A.LineupRunner) and A.LineupRunner.BACKUP is False
     line_up = inspect.getsource(A.LineupRunner)
-    assert "P.ask(" in line_up and "ask_ai" not in line_up
+    assert "P.ask" not in line_up and "ask_ai" not in line_up and "_obj_of" not in inspect.getsource(A)
+    assert inspect.getsource(A).count("json.loads(answer[a:b + 1])") == 1 and not hasattr(G, "to_frac")
 
 
 # ═══ every stop: reached, said, counted, and the house unchanged ═════════════
+
+class _HaError(Exception):
+    """homeassistant.exceptions.HomeAssistantError as the Anthropic integration raises it (translation_key)."""
+
+    def __init__(self, text, key=None):
+        super().__init__(text)
+        self.translation_key = key
+
 
 def _stops(sess) -> list[str]:
     return [s["reason"] for s in sess.get("stops") or []]
@@ -448,6 +459,8 @@ def _stops(sess) -> list[str]:
     ("unreachable", lambda: ConnectionRefusedError(111, "refused"), "failed"),
     ("no_credit", lambda: RuntimeError("Your credit balance is too low to access the Anthropic API"), "no_credit"),
     ("out_of_time", lambda: TimeoutError(), "out_of_time"),
+    ("refusal", lambda: _HaError("Potential policy violation detected.", key="api_refusal"), "failed"),          # review R1: HA 2026.7.4's refusal
+    ("bad_answer", lambda: _HaError("Sorry, I had a problem talking to Anthropic: Overloaded"), "failed"),        # an error, never a refusal
 ])
 def test_a_read_that_cannot_happen_stops_with_its_reason_and_keeps_what_was_read(monkeypatch, tmp_path, disk, reason, fail, status):
     h, conn, ai = _house(monkeypatch, tmp_path, fail=fail)

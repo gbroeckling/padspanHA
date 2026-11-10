@@ -180,7 +180,50 @@ class _Ai:
 
 
 class HomeAssistantError(Exception):
-    """homeassistant.exceptions.HomeAssistantError, as the Anthropic integration raises it."""
+    """homeassistant.exceptions.HomeAssistantError, as the Anthropic integration raises it:
+    with a translation key, its text is the message from the integration's strings.json."""
+
+    def __init__(self, *args, translation_domain=None, translation_key=None, translation_placeholders=None):
+        self.translation_domain, self.translation_key = translation_domain, translation_key
+        if translation_key and not args:
+            args = (_ANTHROPIC_2026_7_4[translation_key].format(**(translation_placeholders or {})),)
+        super().__init__(*args)
+
+
+# Home Assistant 2026.7.4, homeassistant/components/anthropic/strings.json "exceptions" (read through gh, 2026-11-09):
+# entity.py raises api_refusal on the API's stop_reason "refusal", api_error for every APIConnectionError and AnthropicError,
+# api_authentication_error for a bad key; ai_task.py json_parse_error for an answer that isn't the JSON asked for.
+_ANTHROPIC_2026_7_4 = {"api_refusal": "Potential policy violation detected.", "api_error": "Anthropic API error: {message}.",
+                       "api_authentication_error": "Authentication error with Anthropic API: {message}. Reauthentication required.",
+                       "json_parse_error": "Error with Claude structured response."}
+
+
+def _anthropic(key, message=None, cause=None):
+    err = HomeAssistantError(translation_domain="anthropic", translation_key=key, translation_placeholders={"message": message} if message else None)
+    err.__cause__ = cause
+    return err
+
+
+@pytest.mark.parametrize("err,reason", [
+    (_anthropic("api_refusal"), "refusal"),                                                       # a real refusal
+    (HomeAssistantError("Potential policy violation detected."), "refusal"),                     # its words, the key lost on the way
+    (_anthropic("api_error", "Overloaded"), "error"),                                            # 529
+    (_anthropic("api_error", "rate_limit_error: Number of request tokens has exceeded your per-minute rate limit"), "error"),   # 429
+    (_anthropic("api_error", "Internal server error"), "error"),                                 # 500
+    (HomeAssistantError("Sorry, I had a problem talking to Anthropic: Overloaded"), "error"),   # the old wording: an error, never a refusal
+    (_anthropic("api_error", "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."),
+     "no_credit"),
+    (_anthropic("api_authentication_error", "invalid x-api-key"), "error"),
+    (_anthropic("json_parse_error"), "bad_answer"),
+    (RuntimeError("wrapped", ), "error"),
+])
+def test_home_assistants_anthropic_errors_are_told_apart(err, reason):
+    """Review R1: an API error is an error (or out of credit), a refusal is the integration's own refusal."""
+    assert U.stop_reason(err, no_media=False, unreachable=False) == reason
+    wrapped = RuntimeError("the AI Task failed")
+    wrapped.__cause__ = err
+    if reason == "refusal" and getattr(err, "translation_key", None):
+        assert U.stop_reason(wrapped, no_media=False, unreachable=False) == "refusal"           # raised from it
 
 
 def test_one_record_per_ask_answered_or_failed_each_with_its_reason(house, tmp_path):
@@ -191,7 +234,7 @@ def test_one_record_per_ask_answered_or_failed_each_with_its_reason(house, tmp_p
     pic = _jpeg(800, 600)
     cases = [("an answer", None), (TimeoutError(), "timeout"), (ConnectionRefusedError(111, "refused"), "unreachable"),
              (HomeAssistantError("Error talking to API: Your credit balance is too low to access the Anthropic API."), "no_credit"),
-             (HomeAssistantError("Sorry, I can't help with that."), "refusal"), (RuntimeError("boom"), "error")]
+             (_anthropic("api_refusal"), "refusal"), (RuntimeError("boom"), "error")]
     for answer, _reason in cases:
         h.services.async_call = _Ai(answer)
         try:
@@ -252,7 +295,7 @@ def test_the_callers_count_their_stops(monkeypatch):
     assert "U.unusable(hass, by)" in src["ws_house3d_photo.py"]
     assert 'U.refused(hass, "no_ai", ai.get("ai_task"))' in src["ws_house3d_stairs.py"] and "U.unusable(hass, by, answer)" in src["ws_house3d_stairs.py"]
     assert 'U.refused(hass, "no_ai", ai.get("ai_task"))' in src["ws_plan_ai.py"]
-    assert src["plan_ai.py"].count("U.unusable(") == 5            # the plan AI's read (3) and the line-up's (2: the answer and its retry)
+    assert src["plan_ai.py"].count("U.unusable(") == 3            # one read path (review S8): no answer, Runner.unusable, the line-up's counting of it
     # ask() is still the one generate_data call, and every call goes through the counter.
     calls = [p.name for p in _CC.glob("*.py") if '"ai_task", "generate_data"' in p.read_text(encoding="utf-8")]
     assert calls == ["ws_house3d_photo.py"]

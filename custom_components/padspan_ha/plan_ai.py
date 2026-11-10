@@ -921,18 +921,25 @@ def crop_answer(answer: Any, w: int, h: int, min_frac: float = CROP_MIN_FRAC) ->
     return True, (x1, y1, x2, y2)
 
 
-def rail_of(answer: Any) -> tuple[bool, str | None]:
-    """The railing answer as (drawn, side): side in left|right|both or None."""
-    obj = None
+def json_object(answer: Any) -> dict | None:
+    """The answer's JSON object: itself, or the first {...} in its text."""
     if isinstance(answer, dict):
-        obj = answer
-    elif isinstance(answer, str):
+        return answer
+    if isinstance(answer, str):
         a, b = answer.find("{"), answer.rfind("}")
         if 0 <= a < b:
             try:
-                obj = json.loads(answer[a:b + 1])
+                v = json.loads(answer[a:b + 1])
             except ValueError:
-                obj = None
+                return None
+            return v if isinstance(v, dict) else None
+    return None
+
+
+def rail_of(answer: Any) -> tuple[bool, str | None]:
+    """The railing answer as (drawn, side): side in left|right|both or None."""
+    obj = json_object(answer)
+    if isinstance(answer, str):
         if obj is None:
             yes = bool(re.search(r"\byes\b", answer, re.I)) and not re.search(r"\bno\b", answer, re.I)
             return yes, None
@@ -998,10 +1005,17 @@ def new_session(ai: dict, plans_: list[dict], kinds: list[str], frame: str, fixt
 
 
 class Runner:
-    """One session's reads and conflation, written to the store as it goes."""
+    """One session's reads and conflation, written to the store as it goes.
+    The one plan reader (design 15): ask and read below are the only path to
+    the AI for the plan AI and the line-up; what differs is said here."""
+
+    TASK = "PadSpan plans"                # what ai_usage counts these reads as
+    BACKUP = True                         # the backup AI Task when the main one is away (ask_ai); the line-up never (design 8)
+    HALTS: tuple[str, ...] = ()           # a failure that ends this run's reads
 
     def __init__(self, hass: HomeAssistant, store: PlanAiStore, job: Job, ai: dict[str, Any]) -> None:
         self.hass, self.store, self.job, self.ai = hass, store, job, ai
+        self.halt: str | None = None        # a failure in HALTS met: no more reads this run
         self.t0 = time.monotonic()
         self.consecutive_timeouts = 0
         self.cut_short = False              # the budget ran out before a read this session wanted
@@ -1062,16 +1076,49 @@ class Runner:
             return True
         return False
 
+    def read_cap(self) -> float:
+        """One read's time at most."""
+        return PLAN_READ_LOCAL_S if self.ai.get("local") is True else P.PHOTO_TIMEOUT_S
+
+    def count_secs(self, band: str) -> None:
+        """How long a read took (PHOTO_SECS bands)."""
+        _bump(self.hass, f"plan_ai_read_secs:{band}")
+
+    def failed(self, err: BaseException) -> str:
+        """The error a read that raised is counted under."""
+        return "unreachable" if P.unreachable(err) else "bad_answer"
+
+    def unusable(self, answer: Any) -> None:
+        """An answer that couldn't be used: for the AI credit tracker."""
+        U.unusable(self.hass, getattr(self, "last_by", None) or self.ai.get("ai_task"), answer)
+
+    def retried(self) -> None:
+        """The one retry of an answer that couldn't be used is under way."""
+
+    def gave_up(self) -> None:
+        """Neither answer could be used."""
+        self._err("bad_answer")
+
     async def ask(self, prompt: str, raw: bytes) -> Any:
         """One read inside the budget and the per-read cap; None on a failure
-        (counted by reason). Two timeouts in a row end the session."""
+        (counted by reason). Two timeouts in a row end the session; a failure
+        in HALTS ends the reads. The backup AI Task only where BACKUP."""
         sess = self.sess
-        cap = PLAN_READ_LOCAL_S if self.ai.get("local") is True else P.PHOTO_TIMEOUT_S
+        eid = str(self.ai.get("ai_task") or "")
         t0 = time.monotonic()
         sess["reads"] = int(sess.get("reads") or 0) + 1
+        if "est_usd" in sess:                            # the line-up's own estimate of its reads (ai_usage's formula)
+            try:
+                usd = U.estimate_usd(U.price_of(U.model_of(self.hass, eid)), U.picture_size(raw), len(prompt))
+                sess["est_usd"] = round(float(sess.get("est_usd") or 0.0) + (usd or 0.0), 5)
+            except Exception:  # noqa: BLE001 — the estimate never stops a read
+                pass
+        timeout_s = max(1.0, min(self.read_cap(), self.left()))
         try:
-            answer, by = await P.ask_ai(self.hass, self.ai, prompt, None, raw, "image/jpeg", task_name="PadSpan plans",
-                                        count=False, timeout_s=max(1.0, min(cap, self.left())))
+            if self.BACKUP:
+                answer, by = await P.ask_ai(self.hass, self.ai, prompt, None, raw, "image/jpeg", task_name=self.TASK, count=False, timeout_s=timeout_s)
+            else:
+                answer, by = await P.ask(self.hass, eid, prompt, None, raw, "image/jpeg", task_name=self.TASK, timeout_s=timeout_s), eid
         except TimeoutError:
             sess["timeouts"] = int(sess.get("timeouts") or 0) + 1
             self.consecutive_timeouts += 1
@@ -1079,13 +1126,16 @@ class Runner:
             return None
         except P._NoMedia:  # noqa: SLF001
             self._err("no_media")
+            self.halt = "no_media" if "no_media" in self.HALTS else self.halt
             return None
         except Exception as err:  # noqa: BLE001 — any failure of the AI Task is one read lost
-            _LOGGER.warning("PadSpan plans: the AI Task %s couldn't read a plan: %s", self.ai.get("ai_task"), P._why(err))  # noqa: SLF001
-            self._err("unreachable" if P.unreachable(err) else "bad_answer")
+            _LOGGER.warning("PadSpan plans: the AI Task %s couldn't read a plan: %s", eid, P._why(err))  # noqa: SLF001
+            why = self.failed(err)
+            self._err(why)
+            self.halt = why if why in self.HALTS else self.halt
             return None
         finally:
-            _bump(self.hass, P._secs_event(time.monotonic() - t0).replace("photo_secs:", "plan_ai_read_secs:"))  # noqa: SLF001
+            self.count_secs(P._secs_event(time.monotonic() - t0).partition(":")[2])  # noqa: SLF001
         self.consecutive_timeouts = 0
         if self.first_read_s is None:
             self.first_read_s = time.monotonic() - t0
@@ -1108,17 +1158,18 @@ class Runner:
         if answer is None:
             return None
         got = parse(answer)
-        if got is None:                                  # each answer that couldn't be used, for the AI credit tracker
-            U.unusable(self.hass, getattr(self, "last_by", None) or self.ai.get("ai_task"), answer)
+        if got is None:                                  # each answer that couldn't be used
+            self.unusable(answer)
         if got is None and not self.stop_here():
+            self.retried()
             answer = await self.ask(prompt, raw)
             if answer is None:
                 return None
             got = parse(answer)
             if got is None:
-                U.unusable(self.hass, getattr(self, "last_by", None) or self.ai.get("ai_task"), answer)
+                self.unusable(answer)
         if got is None:
-            self._err("bad_answer")
+            self.gave_up()
         return got
 
     async def read_plan(self, pl: dict, i: int) -> list[dict]:
@@ -1996,21 +2047,6 @@ def drawn_total(drawn: dict[str, int]) -> int:
 
 # ── Reading the answers ──────────────────────────────────────────────────────
 
-def _obj_of(answer: Any) -> dict | None:
-    """The answer's JSON object: itself, or the first {...} in its text."""
-    if isinstance(answer, dict):
-        return answer
-    if isinstance(answer, str):
-        a, b = answer.find("{"), answer.rfind("}")
-        if 0 <= a < b:
-            try:
-                v = json.loads(answer[a:b + 1])
-            except ValueError:
-                return None
-            return v if isinstance(v, dict) else None
-    return None
-
-
 def _box(v: Any, w: int, h: int, k: float) -> list[float] | None:
     """A box in the sent frame, checked against it and turned into the
     picture's own pixels (÷ k, the sent size over the picture's)."""
@@ -2036,7 +2072,7 @@ def parse_read_a(answer: Any, w: int, h: int, k: float = 1.0) -> dict[str, Any] 
     the title and room names cut to 40 characters, the floor word from its
     closed list, boxes and corners in the picture's own pixels. None when it
     isn't the object asked for."""
-    o = _obj_of(answer)
+    o = json_object(answer)
     if o is None or not any(key in o for key in ("dimensions", "rooms", "outline", "stairs")):
         return None
     floor = str(o.get("floor") or "unknown").strip().lower()
@@ -2065,7 +2101,7 @@ def parse_read_b(answer: Any, w: int, h: int) -> dict[str, Any] | None:
     """Read B reduced: the printed text (24 characters), Claude's metres, the
     chain's segments' texts, the two ends in the crop's pixels. None when
     there is no text or length to check."""
-    o = _obj_of(answer)
+    o = json_object(answer)
     if o is None:
         return None
     text = _short(o.get("text"), 24)
@@ -2763,14 +2799,18 @@ def _dims_to_read(read_a: dict) -> list[dict]:
 
 
 class LineupRunner(Runner):
-    """One floor's line-up: the reads (Runner.read and its one retry; asked of
-    the main AI Task only, through ws_house3d_photo.ask, never the backup:
-    design 8), then the local steps in the executor."""
+    """One floor's line-up: the reads (Runner's ask and read, the plan AI's
+    one path, asked of the main AI Task only, never the backup: design 8;
+    a credit, reach or media failure halts them), then the local steps in
+    the executor."""
+
+    TASK = TASK_NAME
+    BACKUP = False
+    HALTS = ("no_media", "no_credit", "unreachable")
 
     def __init__(self, hass: HomeAssistant, store: PlanAiStore, job: Job, eid: str) -> None:
         super().__init__(hass, store, job, {"ai_task": eid, "local": False})
         self.eid = eid
-        self.halt: str | None = None        # no_credit, unreachable or no_media: no more reads this run
         self.last_by = eid
 
     @property
@@ -2825,61 +2865,25 @@ class LineupRunner(Runner):
             return True
         return False
 
-    async def ask(self, prompt: str, raw: bytes) -> Any:
-        """One read of the main AI Task, inside the budget and S1_READ_S. A
-        credit, reach or media failure halts the reads: no fallback (design 8)."""
-        sess = self.sess
-        t0 = time.monotonic()
-        sess["reads"] = int(sess.get("reads") or 0) + 1
-        try:
-            usd = U.estimate_usd(U.price_of(U.model_of(self.hass, self.eid)), U.picture_size(raw), len(prompt))
-            sess["est_usd"] = round(float(sess.get("est_usd") or 0.0) + (usd or 0.0), 5)
-        except Exception:  # noqa: BLE001 — the estimate never stops a read
-            pass
-        try:
-            answer = await P.ask(self.hass, self.eid, prompt, None, raw, "image/jpeg", task_name=TASK_NAME,
-                                 timeout_s=max(1.0, min(S1_READ_S, self.left())))
-        except TimeoutError:
-            sess["timeouts"] = int(sess.get("timeouts") or 0) + 1
-            self.consecutive_timeouts += 1
-            self._err("timeout")
-            return None
-        except P._NoMedia:  # noqa: SLF001
-            self._err("no_media")
-            self.halt = "no_media"
-            return None
-        except Exception as err:  # noqa: BLE001
-            if U.CREDIT_WORDS.search(str(err)):
-                self._err("no_credit")
-                self.halt = "no_credit"
-            elif P.unreachable(err):
-                self._err("unreachable")
-                self.halt = "unreachable"
-            else:
-                self._err("refusal" if U.REFUSAL_WORDS.search(str(err)) else "bad_answer")
-            _LOGGER.warning("PadSpan plan line-up: the AI Task %s couldn't read a plan: %s", self.eid, P._why(err))  # noqa: SLF001
-            return None
-        finally:
-            _bump(self.hass, f"plan_build_read_secs:{P._secs_event(time.monotonic() - t0).partition(':')[2]}")  # noqa: SLF001
-        self.consecutive_timeouts = 0
-        return answer
+    def read_cap(self) -> float:
+        return S1_READ_S
 
-    async def read(self, prompt: str, raw: bytes, parse) -> Any:
-        """Runner.read's one retry on an answer that can't be used, counted as such."""
-        answer = await self.ask(prompt, raw)
-        if answer is None:
-            return None
-        got = parse(answer)
-        if got is None:
-            self._err("refusal" if U.unusable(self.hass, self.eid, answer) == "refusal" else "bad_answer")
-            if self.stop_here():
-                return None
-            _bump(self.hass, "plan_build_read:s1_retry")
-            answer = await self.ask(prompt, raw)
-            got = parse(answer) if answer is not None else None
-            if got is None and answer is not None:
-                self._err("refusal" if U.unusable(self.hass, self.eid, answer) == "refusal" else "bad_answer")
-        return got
+    def count_secs(self, band: str) -> None:
+        _bump(self.hass, f"plan_build_read_secs:{band}")
+
+    def failed(self, err: BaseException) -> str:
+        """ai_usage's one reading of an AI Task's error (credit, reach, a refusal); any other error is an answer lost."""
+        why = U.stop_reason(err, no_media=False, unreachable=P.unreachable(err))
+        return why if why in ("no_credit", "unreachable", "refusal") else "bad_answer"
+
+    def unusable(self, answer: Any) -> None:
+        self._err("refusal" if U.unusable(self.hass, self.eid, answer) == "refusal" else "bad_answer")
+
+    def retried(self) -> None:
+        _bump(self.hass, "plan_build_read:s1_retry")
+
+    def gave_up(self) -> None:
+        """Each answer was counted already (unusable)."""
 
     async def read_whole(self, pl: dict, i: int, fp) -> None:
         """Read A of one plan, and the outline-vs-ink check (design 3.2)."""
