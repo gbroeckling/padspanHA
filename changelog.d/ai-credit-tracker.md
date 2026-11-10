@@ -8,4 +8,4 @@
 
 ### Fixed
 - **A read turned down right after a restart no longer empties the month.** When the first AI event after Home Assistant started was a read turned down for want of an AI Task, the month's reads, its estimate and the warning's marker were written over. They are now read back first.
-- **The estimate reads your Claude model the way the plan line-up's unlock does.** One place in PadSpan now reads which Claude model your AI Task runs, for both, so a name like "Claude Opus 10" is the same model to each (a model with no known price still shows no dollar figure).
+- **The estimate reads your Claude model the way the plan line-up's unlock (experimental) does.** One place in PadSpan now reads which Claude model your AI Task runs, for both, so a name like "Claude Opus 10" is the same model to each (a model with no known price still shows no dollar figure).
