@@ -138,7 +138,7 @@ def _house(monkeypatch, tmp_path, disk, *, reads=None, fail=None, lined=True, ho
     h.jobs = []                                            # the started job, run by the test (_finish)
     h.async_create_background_task = lambda coro, name: (h.jobs.append(coro), SimpleNamespace(done=lambda: True))[1]
     h.data[DOMAIN].pop(DATA_PLAN_AI, None)
-    h.data[DOMAIN].pop("house3d_store", None)
+    h.data[DOMAIN].pop("house3d", None)                    # DATA_HOUSE3D: read from the file seeded above
     if lined:
         _line_up(h)
     disk.writes.clear()
@@ -351,7 +351,8 @@ def test_doors_go_on_the_wall_between_windows_on_an_edge_maybe_and_already_there
     have = {"openings": {"door_0a0b0c0d": {"kind": "door", "floor_id": "main", "a_m": [4.1, 2.6], "b_m": [4.1, 3.4], "head_m": 2.03, "hinge": "left", "swing": "in"}}}
     _s, _snap, prop = _proposal(h, house=have)
     inner = next(o for o in prop["openings"].values() if o["between"] == ["DEN", "SHOP"])
-    assert inner["existing"] == {"id": "door_0a0b0c0d", "what": "opening"} and not inner["default"] and not C._offered(prop, inner["id"])  # noqa: SLF001
+    assert inner["existing"]["id"] == "door_0a0b0c0d" and inner["existing"]["what"] == "opening" and inner["relation"] == "correction"
+    assert not inner["default"] and C._offered(prop, inner["id"])          # noqa: SLF001 — a correction of the one there, offered unticked (Garry, 2026-11-10)
     barrier = [{"id": "bar_1", "name": "Front door", "material": "wood", "floor_id": "main", "points_m": [[1.0, 2.2], [1.0, 2.8]]}]
     snap = A.house_snapshot(h)
     p2 = A.rooms_proposal({**_s, "floor_id": "main"}, snap, {}, [], barrier)
@@ -359,7 +360,8 @@ def test_doors_go_on_the_wall_between_windows_on_an_edge_maybe_and_already_there
     assert win["existing"] is None                                        # a door barrier is no window
     barrier[0]["name"] = "Den window"
     p2 = A.rooms_proposal({**_s, "floor_id": "main"}, snap, {}, [], barrier)
-    assert next(o for o in p2["openings"].values() if o["cls"] == "window")["existing"] == {"id": "bar_1", "what": "barrier"}
+    win = next(o for o in p2["openings"].values() if o["cls"] == "window")
+    assert win["existing"] == {"id": "bar_1", "what": "barrier"} and win["relation"] == "already_there" and not C._offered(p2, win["id"])  # noqa: SLF001 — a signal wall: left
 
 
 def test_stairs_are_matched_against_the_3d_house(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -687,3 +689,52 @@ def test_the_panel_lists_the_rooms_reads_in_sample_mode():
     panel = (_ROOT / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
     reads = panel[panel.index("const READS = new Set("):panel.index('.split(" ").map(t => "padspan_ha/" + t));')]
     assert "plan_build_rooms_status" in reads and "plan_build_rooms_check" in reads and "plan_build_rooms_commit" not in reads
+
+
+# ═══ a door already in the 3D house: a correction, never a second one (Garry, 2026-11-10) ═══
+
+_HAVE = {"door_0a0b0c0d": {"kind": "door", "floor_id": "main", "a_m": [4.1, 2.4], "b_m": [4.1, 3.2], "head_m": 2.1, "hinge": "right", "swing": "out", "type": "sliding"}}
+
+
+def test_a_door_already_there_is_corrected_and_undo_puts_it_back(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk, house3d={"openings": copy.deepcopy(_HAVE)})
+    s = _read_floor(h, conn)
+    fix = next(i for i, o in s["proposal"]["openings"].items() if (o.get("existing") or {}).get("id") == "door_0a0b0c0d")
+    o = s["proposal"]["openings"][fix]
+    assert o["relation"] == "correction" and not o["default"]
+    out = _commit(h, conn, s, [fix])
+    assert out["ok"] is True, out
+    f = _house3d(tmp_path)
+    assert list(f["openings"]) == ["door_0a0b0c0d"]                                      # never a second one
+    e = f["openings"]["door_0a0b0c0d"]
+    assert e["a_m"] == o["a_m"] and e["b_m"] == o["b_m"] and (e["hinge"], e["swing"], e["type"], e["head_m"]) == ("right", "out", "sliding", 2.1)
+    batch = h.data[DOMAIN][DATA_PLAN_AI].data["room_batches"][out["batch"]]
+    assert batch["items"][0]["before"] == _HAVE["door_0a0b0c0d"]                         # its before, in the ledger
+    u = _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
+    assert u["undone"] == 1 and _house3d(tmp_path)["openings"] == _HAVE
+
+
+def test_a_door_changed_since_the_read_is_refused(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk, house3d={"openings": copy.deepcopy(_HAVE)})
+    s = _read_floor(h, conn)
+    fix = next(i for i, o in s["proposal"]["openings"].items() if (o.get("existing") or {}).get("id") == "door_0a0b0c0d")
+    house = _run(H.async_get_store(h))
+    moved = copy.deepcopy(house.data)
+    moved["openings"]["door_0a0b0c0d"]["hinge"] = "left"                               # a hand edit since the read
+    assert _run(house.async_write(moved))
+    out = _commit(h, conn, s, [fix])
+    assert out["ok"] is False and out["code"] == "changed_since" and out["changed"] == [fix]
+    assert _house3d(tmp_path)["openings"]["door_0a0b0c0d"] == {**_HAVE["door_0a0b0c0d"], "hinge": "left"} and _backups(tmp_path) == []
+
+
+def test_an_undo_leaves_a_door_changed_since_the_save(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk, house3d={"openings": copy.deepcopy(_HAVE)})
+    s = _read_floor(h, conn)
+    fix = next(i for i, o in s["proposal"]["openings"].items() if (o.get("existing") or {}).get("id") == "door_0a0b0c0d")
+    assert _commit(h, conn, s, [fix])["ok"] is True
+    house = _run(H.async_get_store(h))
+    moved = copy.deepcopy(house.data)
+    moved["openings"]["door_0a0b0c0d"]["swing"] = "in"
+    assert _run(house.async_write(moved))
+    u = _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
+    assert u["undone"] == 0 and u["skipped"] == [{"item_id": fix, "why": "changed"}] and _house3d(tmp_path)["openings"]["door_0a0b0c0d"]["swing"] == "in"

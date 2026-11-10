@@ -3039,11 +3039,13 @@ export function createPlans(ctx){
     sheet.appendChild(d("h5", null, "Doors and windows (experimental)"));
     const n = (f) => ops.filter(f).length;
     sheet.appendChild(d("div", "pl-note", `Proposed when both reads found it: ${n(o => o.cls === "door" && o.reads > 1)} doors, ${n(o => o.cls === "window" && o.reads > 1)} windows. `
-      + `Found by one read only ("maybe", not ticked): ${n(o => o.reads === 1)}. Already in your house, left as is: ${n(o => o.existing)}. Not on a wall of your rooms: ${n(o => !o.placed)}.`));
+      + `Found by one read only ("maybe", not ticked): ${n(o => o.reads === 1)}. Already in your house, offered as a correction (not ticked): ${n(o => o.existing && o.existing.what === "opening")}. `
+      + `On your map as a barrier, left as is: ${n(o => o.existing && o.existing.what !== "opening")}. Not on a wall of your rooms: ${n(o => !o.placed)}.`));
     const what = (o) => o.cls === "window" ? `Window${o.rooms.length ? ` in ${o.rooms[0]}` : ""}` : `${o.kind === "doorway" ? "Doorway" : "Door"}${o.rooms.length > 1 ? ` between ${o.rooms[0]} and ${o.rooms[1]}` : o.rooms.length ? ` of ${o.rooms[0]}` : ""}${o.type ? ` (${o.type})` : ""}`;
     for (const o of ops.sort((a, b) => (b.reads - a.reads) || a.id.localeCompare(b.id))) {
-      const off = !o.placed || !!o.existing;
-      sheet.appendChild(rbTick(o.id, what(o), [o.existing ? "Already in your house: left as is." : !o.placed ? "Not on a wall of your rooms: not offered." : o.reads > 1 ? "Both reads." : "Maybe: one read only."], { off }));
+      const fix = !!(o.existing && o.existing.what === "opening"), off = !o.placed || (!!o.existing && !fix);
+      sheet.appendChild(rbTick(o.id, what(o), [fix ? "Already in your house: a correction moves or resizes yours to the one read. Not ticked." : o.existing ? "Drawn on your map as a barrier: left as is."
+        : !o.placed ? "Not on a wall of your rooms: not offered." : o.reads > 1 ? "Both reads." : "Maybe: one read only."], { off }));
     }
   }
   function paintRbStairs(stairs){

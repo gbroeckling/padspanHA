@@ -1424,7 +1424,7 @@ def _offered(prop: dict, iid: str) -> bool:
         return bool(s.get("new")) and not s.get("merged_into")
     if kind in ("door", "window"):
         o = (prop.get("openings") or {}).get(iid) or {}
-        return bool(o.get("placed")) and not o.get("existing")
+        return bool(o.get("placed")) and (not o.get("existing") or (o["existing"].get("what") == "opening" and bool(o["existing"].get("entry"))))
     if kind == "stairs":
         return ((prop.get("stairs") or {}).get(iid) or {}).get("relation") in ("new", "correction", "stacked")
     return False
@@ -1579,6 +1579,12 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
     for iid in ids:
         if iid.startswith(("door:", "window:")):
             o = prop["openings"][iid]
+            ex = o.get("existing")
+            if ex:                                       # a correction: the opening already there (unchanged since the read: recheck), moved or resized to the read one
+                live = live_open.get(ex["id"])
+                house_entries.append({"item_id": iid, "kind": "opening", "target": f"openings/{ex['id']}", "before": copy.deepcopy(live),
+                                      "after": {**copy.deepcopy(live), "a_m": list(o["a_m"]), "b_m": list(o["b_m"])}})
+                continue
             oid = _mint({**live_open, **dict.fromkeys(minted)}, {"window": "win", "door": "door", "doorway": "doorway"}[o["kind"]])
             minted.add(oid)
             house_entries.append({"item_id": iid, "kind": "opening", "target": f"openings/{oid}", "before": None, "after": _opening_entry(o)})

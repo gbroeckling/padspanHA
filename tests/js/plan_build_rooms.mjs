@@ -52,7 +52,7 @@ const PROPOSAL = () => ({
   openings: {
     "door:1": { id: "door:1", kind: "door", type: null, cls: "door", reads: 2, floor_id: "main", between: ["DEN", "SHOP"], placed: true, a_m: [4.1, 2.6], b_m: [4.1, 3.4], rooms: ["Den", "Shop"], existing: null, default: true },
     "door:2": { id: "door:2", kind: "doorway", type: null, cls: "door", reads: 1, floor_id: "main", between: ["STORE", "NOOK"], placed: true, a_m: [2.55, 5.4], b_m: [2.55, 6.3], rooms: ["STORE", "NOOK"], existing: null, default: false },
-    "door:3": { id: "door:3", kind: "door", type: "sliding", cls: "door", reads: 2, floor_id: "main", between: ["SHOP", "outside"], placed: true, a_m: [5.6, 4.5], b_m: [6.4, 4.5], rooms: ["Shop"], existing: { id: "door_00000001", what: "opening" }, default: false },
+    "door:3": { id: "door:3", kind: "door", type: "sliding", cls: "door", reads: 2, floor_id: "main", between: ["SHOP", "outside"], placed: true, a_m: [5.6, 4.5], b_m: [6.4, 4.5], rooms: ["Shop"], existing: { id: "door_00000001", what: "opening", entry: { kind: "door", floor_id: "main", a_m: [5.5, 4.5], b_m: [6.3, 4.5], head_m: 2.03, hinge: "left", swing: "in" } }, relation: "correction", default: false },
     "window:1": { id: "window:1", kind: "window", type: null, cls: "window", reads: 2, floor_id: "main", between: ["DEN"], placed: true, a_m: [1, 1.9], b_m: [1, 3.1], rooms: ["Den"], existing: null, default: true },
   },
   stairs: { "stairs:1": { id: "stairs:1", floor_id: "main", geom: { x_m: 1.9, y_m: 2.25, rotation: 0, width_m: 0.8, depth_m: 1.5, shape: "straight", says: "UP" }, room: "DEN", reads: 2, relation: "new", default: true } },
@@ -161,7 +161,8 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
     && t().includes("Held-out check, for information: 6 % now, 4 % with these."), t());
   const ck = M.sent("plan_build_rooms_check")[0];
   check("gate: asked for the ticked rooms", ck && ck.items.join() === "room:Den,room:Kitchen,room:Shop", JSON.stringify(ck));
-  check("openings: counts, maybes and the one already there", t().includes("Proposed when both reads found it: 2 doors, 1 windows. Found by one read only (\"maybe\", not ticked): 1. Already in your house, left as is: 1."), t());
+  check("openings: counts, maybes and the one already there, a correction", t().includes("Proposed when both reads found it: 2 doors, 1 windows. Found by one read only (\"maybe\", not ticked): 1. Already in your house, offered as a correction (not ticked): 1.")
+    && t().includes("Already in your house: a correction moves or resizes yours to the one read. Not ticked."), t());
   const ticks = () => M.tool.state().rooms.ticks;
   check("ticks: rooms, both-read doors and windows, the stair; not the maybe, not the existing one", ticks().join() === "door:1,room:Den,room:Kitchen,room:Shop,stairs:1,window:1", ticks());
   // Both reads, and the other read picked.

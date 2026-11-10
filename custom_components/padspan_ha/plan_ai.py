@@ -3680,7 +3680,8 @@ def existing_openings(house: dict | None, barriers: list, floor_id: str) -> list
     for oid, e in ((house or {}).get("openings") or {}).items():
         if isinstance(e, dict) and H_OPENING.match(str(oid)) and str(e.get("floor_id")) == floor_id and e.get("a_m") and e.get("b_m"):
             a, b = e["a_m"], e["b_m"]
-            out.append({"id": str(oid), "what": "opening", "cls": _cls(str(e.get("kind"))), "at": ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), "line": [a, b]})
+            out.append({"id": str(oid), "what": "opening", "cls": _cls(str(e.get("kind"))), "at": ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), "line": [a, b],
+                        "entry": copy.deepcopy(e)})
     for b in barriers or []:
         if isinstance(b, dict) and str(b.get("floor_id")) == floor_id and len(b.get("points_m") or []) >= 2:
             k = _barrier_kind(b)
@@ -3700,7 +3701,7 @@ def _near_existing(o: dict, have: list[dict]) -> dict | None:
         line = e["line"]
         d = min(G._seg_dist(o["at"], line[i - 1], line[i]) for i in range(1, len(line)))  # noqa: SLF001
         if d <= S2_SAME_M:
-            return {"id": e["id"], "what": e["what"]}
+            return {"id": e["id"], "what": e["what"], **({"entry": e["entry"]} if e.get("entry") else {})}
     return None
 
 
@@ -3887,7 +3888,12 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
             item["at"] = [round(sn["at"][0], 3), round(sn["at"][1], 3)]
             item["rooms"] = [(w[5:] if w.startswith("room:") else spaces[w]["name"]) for w in sn["room"]]
             item["existing"] = _near_existing({"cls": f["cls"], "at": sn["at"]}, have)
-        item["default"] = nreads == S2_READS and item["placed"] and item["existing"] is None
+        # One already in the 3D house within S2_SAME_M: a correction of it (moved or resized to the read one), offered
+        # unticked, as a correction of a stair the person placed is (Garry, 2026-11-10); never a second one, never a
+        # delete. One drawn on the map as a barrier is a signal wall, which this tool doesn't write: left as it is.
+        ex = item["existing"]
+        item["relation"] = "new" if ex is None else "correction" if ex["what"] == "opening" else "already_there"
+        item["default"] = nreads == S2_READS and item["placed"] and ex is None
         openings[oid] = item
 
     # Stairs: the stair finder's own box-to-metres, matched against the 3D house's stairs.
