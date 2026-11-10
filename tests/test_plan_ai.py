@@ -568,8 +568,8 @@ def test_the_budget_running_out_inside_the_last_plan_is_out_of_time_not_done(mon
     def spend(runner, job):
         real = runner.ask
 
-        async def ask(prompt, raw):
-            out = await real(prompt, raw)
+        async def ask(prompt, raw, *size):
+            out = await real(prompt, raw, *size)
             runner.t0 -= A.PLAN_BUDGET_S                          # the whole read happens, then nothing is left for a crop
             return out
         runner.ask = ask
@@ -789,8 +789,8 @@ def test_the_budget_running_out_in_the_reads_says_where_and_counts_it(monkeypatc
         def before(runner, job):
             real = runner.ask
 
-            async def ask(prompt, raw):
-                out = await real(prompt, raw)
+            async def ask(prompt, raw, *size):
+                out = await real(prompt, raw, *size)
                 if ("crop of a floor plan" in prompt) == (which == "railing"):
                     runner.t0 -= A.PLAN_BUDGET_S
                 return out
