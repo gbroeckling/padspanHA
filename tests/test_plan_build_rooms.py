@@ -284,6 +284,12 @@ def test_two_reads_flag_the_room_they_differ_on_and_the_spots_pick_the_read(monk
     den, shop = prop["rooms"]["Den"], prop["rooms"]["Shop"]
     assert den["ready"] and den["agree"] >= A.S2_AGREE and den["flags"] == []
     assert not shop["ready"] and shop["agree"] < A.S2_AGREE and "reads_differ" in shop["flags"]
+    apart = [_read(1), _read(2)]
+    for r in apart:                                  # the Den read as two printed rooms 1.5 m apart: they can't join
+        r["rooms"][0]["corners"] = _box(100, 100, 160, 450)
+        r["rooms"].append({"name": "DEN 2", "corners": _box(320, 100, 400, 450)})
+    _s2, _snap2, p2 = _proposal(h, apart)
+    assert "apart" in p2["rooms"]["Den"]["flags"] and not p2["rooms"]["Den"]["ready"]
     assert shop["spots"] == [1, 0, 1] and shop["pick"] == 1 and shop["picked_by"] == "spots"     # read 1 keeps the Shop's spot inside it
     assert shop["reads_m"][0] and shop["reads_m"][1]                                          # both outlines shown
     sess["edits"]["picks"]["Shop"] = 2                                                        # the person picks read 2
@@ -368,7 +374,15 @@ def test_stairs_are_matched_against_the_3d_house(monkeypatch, tmp_path, disk):  
     assert st["relation"] == "duplicate" and not st["default"] and not C._offered(prop, st["id"])      # noqa: SLF001 — already there
     _s, _snap, prop = _proposal(h, house={"pieces": {"fur_00000001": {**piece, "x_m": 3.4}}})
     st = next(iter(prop["stairs"].values()))
-    assert st["relation"] == "correction" and st["target"] == "fur_00000001" and st["default"]
+    assert st["relation"] == "correction" and st["target"] == "fur_00000001" and st["hand"] and not st["default"]    # placed by hand: offered, not ticked
+    _s, _snap, prop = _proposal(h, house={"pieces": {"fur_00000001": {**piece, "x_m": 3.4, "label": "Stairs (from the plan)"}}})
+    assert next(iter(prop["stairs"].values()))["default"]                                                           # an AI-placed one: ticked
+    down = [_read(1), _read(2)]
+    for r in down:
+        r["stairs"][0]["says"] = "DOWN"
+    _s, _snap, prop = _proposal(h, down)
+    st = next(iter(prop["stairs"].values()))
+    assert st["relation"] == "other_floor" and st["floor_id"] == "basement" and not st["default"] and not C._offered(prop, st["id"])  # noqa: SLF001
 
 
 def test_the_gate_scores_containment_and_refuses_a_drop_past_two_points():

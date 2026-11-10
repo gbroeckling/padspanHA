@@ -3048,8 +3048,9 @@ export function createPlans(ctx){
     if (!stairs.length) return;
     sheet.appendChild(d("h5", null, "Stairs (experimental)"));
     for (const s of stairs) {
-      const rel = { new: "new", correction: `moves the stair you have by ${m1(s.distance_m)} m`, duplicate: "already in your house: left as is", stacked: "a second staircase here? Not ticked" }[s.relation] || s.relation;
-      const off = s.relation === "duplicate", need = (s.relation === "new" || s.relation === "stacked") && !ctx.stairPiece;
+      const rel = { new: "new", correction: `moves the stair you have by ${m1(s.distance_m)} m${s.hand ? "; you placed that one, so it isn't ticked" : ""}`, duplicate: "already in your house: left as is",
+        stacked: "a second staircase here? Not ticked", other_floor: `it climbs from ${floorName(s.floor_id)}: read that floor for it` }[s.relation] || s.relation;
+      const off = s.relation === "duplicate" || s.relation === "other_floor", need = (s.relation === "new" || s.relation === "stacked") && !ctx.stairPiece;
       sheet.appendChild(rbTick(s.id, `Stairs${s.room ? ` in ${s.room}` : ""}${s.geom && s.geom.says ? `, ${s.geom.says}` : ""} · ${floorName(s.floor_id)}`,
         [`${rel}.${s.reads > 1 ? "" : " Maybe: one read only."}`, need ? "A new stair is built in the 3D view: open Live Aboard to save it." : ""], { off: off || need }));
     }

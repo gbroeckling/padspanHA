@@ -3777,7 +3777,8 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
         if pieces > 1:
             flags.append("apart")
         rooms[n] = {"id": f"room:{n}", "room": n, "now_m": now, "reads_m": outs, "parts": names, "agree": agree,
-                    "ready": agree is not None and agree >= S2_AGREE, "pick": pick + 1, "picked_by": picked_by, "spots": spots + [len(mine)],
+                    # Parts that didn't join: the outline is only the largest of them, not what was read (dry run, Entry): not ready.
+                    "ready": agree is not None and agree >= S2_AGREE and pieces <= 1, "pick": pick + 1, "picked_by": picked_by, "spots": spots + [len(mine)],
                     "base_m": outs[pick], "merged": [], "flags": flags}
     unseen = sorted(n for n in his if n not in rooms)
 
@@ -3913,14 +3914,19 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
         sfid = floor_of_find(floors, f["plan_floor"], f.get("says") or "")
         if sfid is None:
             continue
-        rel = classify(sfid, floor_step(floors, sfid, 1), f["x_m"], f["y_m"], stairs_now, matched)
+        if sfid != fid:                             # a DOWN flight read here is the floor below's: read with that floor, never from here
+            rel = {"relation": "other_floor", "target": None, "target_snap": None, "distance_m": None}
+        else:
+            rel = classify(sfid, floor_step(floors, sfid, 1), f["x_m"], f["y_m"], stairs_now, matched)
         if rel.get("target") and rel["relation"] in ("correction", "duplicate"):
             matched.add(rel["target"])
         geom = {k: f[k] for k in ("x_m", "y_m", "rotation", "width_m", "depth_m", "shape", "says")}
         sid = f"stairs:{i + 1}"
         stairs[sid] = {"id": sid, "floor_id": sfid, "geom": geom, "room": f.get("room"), "reads": nreads, "relation": rel["relation"],
                        "target": rel.get("target"), "target_snap": rel.get("target_snap"), "distance_m": rel.get("distance_m"),
-                       "default": nreads == S2_READS and rel["relation"] in ("new", "correction")}
+                       "hand": rel.get("hand"),
+                       # A correction of a stair the person placed is offered, not ticked (the plan AI's Keep mine first).
+                       "default": nreads == S2_READS and (rel["relation"] == "new" or (rel["relation"] == "correction" and not rel.get("hand")))}
     return {"rooms": rooms, "unseen": unseen, "spaces": spaces, "openings": openings, "stairs": stairs, "labelled": len(labelled)}
 
 
