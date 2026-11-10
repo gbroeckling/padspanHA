@@ -1988,7 +1988,6 @@ export function createPlans(ctx){
   const luPicked = new Set(), luTaps = new Map(), tints = new Map();
   const LU_PREFIX = "Line up plans (experimental): ";
   const LU_BANNER = "Experimental. Claude reads the text; PadSpan measures. Matches and scales can still be wrong; look at each overlay before you accept.";
-  const LU_RESUMABLE = new Set(["out_of_time", "no_credit", "failed", "cancelled"]);
   const LU_WRONG = [["wrong_match", "Wrong match"], ["wrong_scale", "Wrong scale"], ["wrong_floor", "Wrong floor"], ["cant_tell", "Can't tell"]];
   const LU_ORDER = { place: 0, refile: 1, anchor_scale: 2 };
   const LU_TAKES = new Set(["open", "undone"]);        // what Accept saves (an undone item can be saved again)
@@ -2367,11 +2366,11 @@ export function createPlans(ctx){
   function paintLuSession(onMap){
     sheet.appendChild(d("div", "pl-sum", luSummary()));
     const stops = (luSess.stops || []).filter(x => x.reason !== "help_unanswered" || (luSess.questions || []).some(q => q.state === "open"));
-    if (stops.length) {
+    if (stops.length || luSess.resumable) {            // the server says whether Resume can carry it on (a plan moved under it: line up again)
       const box = luSection("pl-note");
       box.appendChild(d("div", "pl-sub", "Where it stopped (experimental):"));
       for (const st of stops.slice(-6)) box.appendChild(d("div", null, `${st.say}${st.next ? ` ${st.next}` : ""}`));
-      if (LU_RESUMABLE.has(luSess.status)) {
+      if (luSess.resumable) {
         const b = btn("Resume (experimental)", "Reads what is left; what was read is kept", () => luDo("plan_build_resume", {}, (r) => luPollStart(r.session)));
         b.disabled = luBusy;
         box.appendChild(b);

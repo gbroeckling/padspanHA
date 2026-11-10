@@ -185,14 +185,17 @@ def sweep_restart(data: dict[str, Any], keep: str | None = None) -> int:
     return n
 
 
-def sweep_lineups(data: dict[str, Any], keep: str | None = None) -> int:
+def sweep_lineups(data: dict[str, Any], keep: str | None = None, hass: HomeAssistant | None = None) -> int:
     """sweep_restart for line-ups: one still marked running with no job
     behind it failed (restart); its reads stay, and Resume reads the rest. One
-    waiting for the person's help has no job behind it by design: it stays."""
+    waiting for the person's help has no job behind it by design: it stays.
+    `hass`: the stop is noted and counted too (design 14: the card says why)."""
     n = 0
     for sid, sess in (data.get("lineups") or {}).items():
         if isinstance(sess, dict) and sess.get("status") == "running" and sid != keep:
             sess.update(status="failed", error="restart", finished_at=time.time(), rev=int(sess.get("rev") or 0) + 1)
+            if hass is not None:
+                note_stop(hass, data, sess, "restart")
             n += 1
     return n
 
@@ -225,7 +228,7 @@ class PlanAiStore:
     async def async_sweep(self, keep: str | None = None) -> None:
         """sweep_restart, counted and saved when it found any."""
         swept = sweep_restart(self._data, keep) if writable(self._data) else 0
-        lined = sweep_lineups(self._data, keep) if writable(self._data) else 0
+        lined = sweep_lineups(self._data, keep, self.hass) if writable(self._data) else 0
         if swept:
             for _ in range(swept):
                 _bump(self.hass, "plan_ai_session:failed")
@@ -1738,6 +1741,18 @@ STOPS: dict[str, tuple[str, str]] = {
                     "Try again; or restore the backup taken before it in Manage → Data → Backup & Restore."),                                        # 1b
     "floor_gone": ("The floor this plan was to move to isn't in Home Assistant any more, so nothing was saved.",
         "Refile it by hand to a floor that exists, or line the floor up again."),
+    "plan_changed": ("A plan was moved, changed or removed in Mapping while this session read it, so what was read no longer fits it.",
+        "Line the floor up again."),
+    "ai_changed": ("Your AI Task changed since this session started; a session is read by one AI only.",
+        "Line the floor up again."),
+    "restart": ("Home Assistant restarted while this session was reading. What was read is kept.",
+        "Resume reads the rest."),
+    "bad_answer": ("Claude's answers couldn't be used for this floor's plans. What was read is kept.",
+        "Resume tries again; if it keeps happening, line the plans up by hand in Mapping → Align."),
+    "refusal": ("Claude declined to read this floor's plans. What was read is kept.",
+        "Resume tries again; if it keeps declining, line the plans up by hand in Mapping → Align."),
+    "error": ("Something went wrong in PadSpan while lining up this floor; nothing in your house was changed. What was read is kept.",
+        "Resume tries again; Home Assistant's log says what went wrong."),
     "room_gate": ("These rooms and walls would place your calibration spots worse.", "Look at the rooms flagged."),                         # s2
 }
 STOPS_LATER: tuple[str, ...] = ("room_gate",)
@@ -1746,6 +1761,8 @@ WAIT_BANDS: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
 WRONG_WHY: tuple[str, ...] = ("wrong_match", "wrong_scale", "wrong_floor", "cant_tell")
 ITEM_KINDS: tuple[str, ...] = ("place", "refile", "anchor_scale")
 LINEUP_STATUS: tuple[str, ...] = ("running", "needs_help", "done", "cancelled", "failed", "out_of_time", "no_credit")
+LINEUP_RESUMABLE: tuple[str, ...] = ("out_of_time", "no_credit", "failed", "cancelled")   # what Resume carries on
+LINEUP_NOT_RESUMABLE: tuple[str, ...] = ("plan_changed", "plan_gone", "ai_changed")       # unless it stopped for this: line up again
 
 READ_A_PROMPT = (
     "This floor plan image is {w} by {h} pixels; give every position in those pixels, (0, 0) at the top left. Return JSON only: "
@@ -2767,8 +2784,11 @@ class LineupRunner(Runner):
             return "user"
         if not enabled(self.hass) or not build_switch(self.hass):
             return "switch_off"
-        if not unlock(self.hass).get("ok"):
+        u = unlock(self.hass)
+        if not u.get("ok"):
             return "locked"
+        if u.get("ai_task") != self.eid:              # the session's own AI Task, still the main one and still qualifying: else closed
+            return "ai_changed"
         if not house3d_on(self.hass):
             return "house3d_off"
         if not _tier_at_least(self.hass, "pro"):
@@ -2984,11 +3004,7 @@ class LineupRunner(Runner):
             errs = sess.get("errors") or {}
             status, why = "failed", max(errs, key=lambda k: errs[k]) if errs else "bad_answer"
         sess.update(status=status, error=why, finished_at=time.time())
-        stop = {"cancelled": "cancelled", "no_credit": "no_credit", "out_of_time": "out_of_time", "needs_help": "help_unanswered"}.get(status)
-        if status == "failed" and why in ("unreachable", "no_media"):
-            stop = why
-        if status == "cancelled" and why in ("locked",):
-            stop = "locked"
+        stop = ending_stop(status, why)
         if stop:
             note_stop(self.hass, self.store.data, sess, stop)
         sess["progress"] = {"plan": n, "of": n, "name": "", "step": "done"}
@@ -3000,6 +3016,38 @@ class LineupRunner(Runner):
             _bump(self.hass, f"plan_build_credit_run:s1_{'lt0_10' if usd < 0.10 else '0_10_0_50' if usd < 0.5 else '0_50_2' if usd < 2 else 'gt2'}")
         count_items(self.hass, sess)
         await self._save()
+
+
+def ending_stop(status: str, why: str | None) -> str | None:
+    """The named stop a session's ending is (design 14: every failed or
+    stopped session says why on its card), or None for done."""
+    if status == "cancelled":
+        return {"locked": "locked", "plan_changed": "plan_changed", "plan_gone": "plan_changed", "ai_changed": "ai_changed"}.get(str(why), "cancelled")
+    if status == "failed":
+        return {"timeout": "out_of_time", "suspect_frame": "bad_answer"}.get(str(why)) or (why if why in STOPS else "error")
+    return {"no_credit": "no_credit", "out_of_time": "out_of_time", "needs_help": "help_unanswered"}.get(status)
+
+
+def resumable(sess: dict[str, Any] | None) -> bool:
+    """Whether Resume can carry a session on: it stopped short, and not
+    because a plan changed under it or its AI Task did (those line up again)."""
+    return bool(sess) and sess.get("status") in LINEUP_RESUMABLE and sess.get("error") not in LINEUP_NOT_RESUMABLE
+
+
+def resume_refused(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any] | None) -> str | None:
+    """Why Resume can't carry this session on: not_open, or a named stop;
+    None when it can. Checked before a start is spent: a plan moved or the
+    AI Task changed since it stopped (fail closed) means lining the floor up
+    again, said once on the session, never a run that stops at once."""
+    if not resumable(sess):
+        return ending_stop("cancelled", sess.get("error")) if sess and sess.get("error") in LINEUP_NOT_RESUMABLE else "not_open"
+    u = unlock(hass)
+    why = "ai_changed" if u.get("ok") and u.get("ai_task") != sess.get("ai_task") else "plan_changed" if plans_moved(hass, sess) else None
+    if why is None:
+        return None
+    sess.update(status="cancelled", error=why, rev=int(sess.get("rev") or 0) + 1)
+    note_stop(hass, store.data, sess, why)
+    return why
 
 
 def count_items(hass: HomeAssistant, sess: dict[str, Any]) -> None:
@@ -3042,7 +3090,7 @@ def resume_lineup(hass: HomeAssistant, store: PlanAiStore, sid: str) -> str:
     sess["resumes"] = int(sess.get("resumes") or 0) + 1
     if sess["resumes"] > S1_RESUMES_STRESS:
         _bump(hass, "plan_build_stress:resumes")
-    stop_resolved(hass, sess, ("out_of_time", "no_credit", "unreachable", "no_media", "cancelled"))
+    stop_resolved(hass, sess, ("out_of_time", "no_credit", "unreachable", "no_media", "cancelled", "restart", "bad_answer", "refusal", "error"))
     # A resume gets a whole budget of its own; the time spent before is kept apart.
     sess["spent_earlier"] = round(float(sess.get("spent_earlier") or 0.0) + float(sess.get("spent_s") or 0.0), 1)
     sess.update(status="running", error=None, finished_at=None, spent_s=0.0, spent_before=0.0, budget_s=S1_BUDGET_S)
@@ -3147,7 +3195,7 @@ def lineup_public(sess: dict[str, Any] | None, sid: str | None) -> dict[str, Any
     if not sess:
         return None
     return {"id": sid, **{k: v for k, v in sess.items() if k not in ("references", "spent_before")},
-            "stops": [stop_words(r) for r in sess.get("stops") or []]}
+            "stops": [stop_words(r) for r in sess.get("stops") or []], "resumable": resumable(sess)}
 
 
 def stall_summary(store: PlanAiStore) -> dict[str, Any]:

@@ -583,8 +583,13 @@ async def ws_plan_build_resume(hass: HomeAssistant, connection, msg) -> None:
         return
     async with store.lock:
         sess = store.lineup(msg["session"])
-        if sess is None or sess.get("status") not in ("out_of_time", "no_credit", "failed", "cancelled"):
+        stop = A.resume_refused(hass, store, sess)
+        if stop == "not_open":
             connection.send_error(msg["id"], "not_open", PREFIX + "that session has nothing to resume.")
+            return
+        if stop:                                       # a plan or the AI changed under it: said, and no start spent
+            await store.async_save()
+            connection.send_error(msg["id"], stop, PREFIX + " ".join(A.STOPS[stop]))
             return
         why = A.start_allowed(hass)
         if why == "already_running":

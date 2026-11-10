@@ -477,6 +477,105 @@ def test_cancelled_and_resumed(monkeypatch, tmp_path, disk):
     _unchanged(h, disk)
 
 
+def _fresh(tmp_path, name):
+    """Another house, its own pictures and no plan store yet (the disk fixture keeps one storage root)."""
+    (tmp_path / ".storage" / PLAN_AI_STORE_KEY).unlink(missing_ok=True)
+    (tmp_path / name).mkdir()
+    return tmp_path / name
+
+
+def _resume(h, conn, store):
+    """Resume pressed, its job run to its end (as the background task would)."""
+    captured = []
+    h.async_create_background_task = lambda coro, name: (captured.append(coro), SimpleNamespace(done=lambda: True))[1]
+    out = _call(W.ws_plan_build_resume, h, conn, session="pb_t")
+    while captured:
+        _run(captured.pop())
+    return out, store.lineup("pb_t")
+
+
+def test_a_plan_moved_mid_read_stops_by_name_and_resume_never_loops_or_spends_starts(monkeypatch, tmp_path, disk):
+    """Review S1: a plan moved in Align while the line-up read. The run says
+    so, with the way on (line up again), and Resume is refused before it
+    spends a start, every time."""
+    h, conn, ai = _house(monkeypatch, tmp_path)
+
+    def move(runner, job):
+        h.data[DOMAIN][DATA_MODEL].map_transform("m1")["origin_x_m"] += 1.0
+    store, sess = _session(h, before=move)
+    assert sess["status"] == "cancelled" and sess["error"] == "plan_changed" and _stops(sess) == ["plan_changed"]
+    pub = A.lineup_public(sess, "pb_t")
+    assert pub["resumable"] is False and pub["stops"][-1]["next"] == "Line the floor up again."
+    reads = sess["reads"]
+    for _ in range(3):
+        out, s = _resume(h, conn, store)
+        assert out["error"] == "plan_changed" and "Line the floor up again." in out["message"] and "experimental" in out["message"]
+        assert s["reads"] == reads and s["status"] == "cancelled"
+    assert h.data[DOMAIN].get(A._DATA_STARTS, []) == [] and A.start_allowed(h) is None          # noqa: SLF001 — no start spent
+    assert _stops(store.lineup("pb_t")) == ["plan_changed"]                                    # said once, not a fresh failure each press
+
+
+def test_a_plan_moved_after_a_stop_is_found_before_resume_starts(monkeypatch, tmp_path, disk):
+    h, conn, ai = _house(monkeypatch, tmp_path, fail=lambda: TimeoutError())
+    store, sess = _session(h)
+    assert sess["status"] == "out_of_time" and A.lineup_public(sess, "pb_t")["resumable"] is True
+    h.data[DOMAIN][DATA_MODEL].map_transform("m1")["origin_x_m"] += 1.0
+    out, s = _resume(h, conn, store)
+    assert out["error"] == "plan_changed" and s["status"] == "cancelled" and _stops(s)[-1] == "plan_changed"
+    assert h.data[DOMAIN].get(A._DATA_STARTS, []) == [] and _counters(h)["plan_build_stop:plan_changed"] == 1   # noqa: SLF001
+
+
+def test_every_failed_session_says_why_and_offers_resume(monkeypatch, tmp_path, disk):
+    """Review S2: a restart mid-read, answers that can't be used, an unexpected error."""
+    h, conn, ai = _house(monkeypatch, tmp_path)
+    store, sess = _session(h)
+    store.data["lineups"]["pb_r"] = {**sess, "status": "running", "stops": []}               # its job gone with the restart
+    h.data[DOMAIN][A._DATA_JOB] = None                                                        # noqa: SLF001
+    st = _call(W.ws_plan_build_status, h, conn, session="pb_r")["session"]
+    assert st["status"] == "failed" and st["error"] == "restart" and st["resumable"] is True
+    assert st["stops"][-1]["reason"] == "restart" and st["stops"][-1]["say"] and st["stops"][-1]["next"] == "Resume reads the rest."
+
+    async def gibberish(domain, service, data, blocking=False, return_response=False):
+        return {"data": "Here is the plan, as you asked."}
+    h2, conn2, _ai = _house(monkeypatch, _fresh(tmp_path, "b"))
+    h2.services.async_call = gibberish
+    store2, s2 = _session(h2)
+    assert s2["status"] == "failed" and s2["error"] == "bad_answer" and _stops(s2)[-1] == "bad_answer"
+    assert A.lineup_public(s2, "pb_t")["resumable"] is True and _counters(h2)["plan_build_stop:bad_answer"] == 1
+
+    h3, conn3, _ai = _house(monkeypatch, _fresh(tmp_path, "c"))
+
+    async def broken(self, files=None):
+        raise RuntimeError("a bug")
+    monkeypatch.setattr(A.LineupRunner, "local", broken)
+    store3, s3 = _session(h3)
+    assert s3["status"] == "failed" and s3["error"] == "error" and _stops(s3)[-1] == "error"
+    words = A.lineup_public(s3, "pb_t")["stops"][-1]
+    assert "nothing in your house was changed" in words["say"] and words["next"]
+    assert A.lineup_public(s3, "pb_t")["resumable"] is True
+
+
+def test_a_resumed_session_reads_only_with_the_ai_it_started_with(monkeypatch, tmp_path, disk):
+    """Review S9: the main AI Task moved to another qualifying Claude since
+    the session started: Resume is refused by name (fail closed), and a run
+    whose AI Task changes under it stops at the next read."""
+    h, conn, ai = _house(monkeypatch, tmp_path, fail=lambda: TimeoutError())
+    store, sess = _session(h)
+    assert sess["status"] == "out_of_time"
+    h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = "ai_task.claude_two"
+    assert A.unlock(h)["ok"] is True
+    out, s = _resume(h, conn, store)
+    assert out["error"] == "ai_changed" and s["status"] == "cancelled" and _stops(s)[-1] == "ai_changed"
+    assert s["reads"] == sess["reads"] and h.data[DOMAIN].get(A._DATA_STARTS, []) == []      # noqa: SLF001
+
+    h2, conn2, _ai = _house(monkeypatch, _fresh(tmp_path, "b"))
+
+    def switch(runner, job):
+        h2.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = "ai_task.claude_two"
+    store2, s2 = _session(h2, before=switch)
+    assert s2["status"] == "cancelled" and s2["error"] == "ai_changed" and _stops(s2) == ["ai_changed"] and s2["reads"] == 0
+
+
 def test_locked_no_scale_and_not_placed_are_refused_at_start(monkeypatch, tmp_path, disk):
     h, conn, ai = _house(monkeypatch, tmp_path, sources=("Claude Sonnet 5.5",))
     out = _call(W.ws_plan_build_start, h, conn, floor_id="basement")

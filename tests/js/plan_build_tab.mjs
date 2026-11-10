@@ -55,7 +55,7 @@ const SESSION = (over = {}) => ({ id: "pb_1", rev: 4, stage: "s1", floor_id: "ba
   items: JSON.parse(JSON.stringify(ITEMS)),
   stops: [{ reason: "out_of_time", at: 1, say: "The session ran out of time. What was read is kept.", next: "Resume reads the rest." },
           { reason: "help_unanswered", at: 2, say: "A question is waiting for you.", next: "Answer it, or Skip." }],
-  cross_floor: { floor_id: "main", stairs_m: 0.34 }, ...over });
+  cross_floor: { floor_id: "main", stairs_m: 0.34 }, resumable: true, ...over });
 const INFO = (on = true) => ({ unlock: { ok: on, why: on ? "ok" : "below_opus_5_5", display: "Claude Opus 5.5" }, master: true, switch: on, on, running: null, start_blocked: null,
   floors: [{ id: "basement", name: "Basement", plans: [{ map_id: "m1", name: "Shop plan", drawn: { rooms: 0, calibration: 0 }, gauge: false }, { map_id: "m2", name: "Scan", drawn: { rooms: 1, calibration: 1 } }],
              last: { session: "pb_1", at: 5, status: "needs_help" } }, { id: "main", name: "Main", plans: [{ map_id: "g1", name: "Measured", gauge: true, drawn: {} }], last: null }],
@@ -187,6 +187,21 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("answer: yes sent, no new read asked for", M.sent("plan_build_answer")[0]?.answer === "yes" && !M.sent("plan_build_start").length, JSON.stringify(M.sent("plan_build_answer")));
   await click(button(M.sheet, "Resume (experimental)"));
   check("resume: sent for the session", M.sent("plan_build_resume")[0]?.session === "pb_1", JSON.stringify(M.sent("plan_build_resume")));
+  M.tool.dispose();
+}
+// ── how a session stopped: Resume where it can go on, never where it can't (review S1, S2) ──
+for (const [name, over, words, resume] of [
+  ["a restart mid-read", { status: "failed", error: "restart", questions: [], stops: [{ reason: "restart", at: 1, say: "Home Assistant restarted while this session was reading. What was read is kept.", next: "Resume reads the rest." }] },
+   "Home Assistant restarted while this session was reading. What was read is kept. Resume reads the rest.", true],
+  ["an old failed session with no stop recorded", { status: "failed", error: "restart", questions: [], stops: [] }, "Where it stopped (experimental):", true],
+  ["a plan moved while read", { status: "cancelled", error: "plan_changed", questions: [], resumable: false,
+    stops: [{ reason: "plan_changed", at: 1, say: "A plan was moved, changed or removed in Mapping while this session read it, so what was read no longer fits it.", next: "Line the floor up again." }] },
+   "so what was read no longer fits it. Line the floor up again.", false],
+]) {
+  const M = mount({ ...BASE, plan_build_info: INFO(true), plan_build_status: { session: SESSION(over), running: null } });
+  M.tool.show(true); await settle();
+  await click(button(M.sheet, "Line up plans (experimental)"));
+  check(`stopped, ${name}: said, Resume ${resume ? "offered" : "not offered"}`, text(M.sheet).includes(words) && !!button(M.sheet, "Resume (experimental)") === resume, text(M.sheet));
   M.tool.dispose();
 }
 // ── the floor picker ─────────────────────────────────────────────────────────
