@@ -3713,7 +3713,8 @@ def _read_finds(sess: dict, k: int) -> dict[str, list[dict]]:
     """Read k of every plan in metres: rooms, doors and windows, stairs."""
     out: dict[str, list[dict]] = {"rooms": [], "openings": [], "stairs": []}
     for n, pl in enumerate(sess.get("plans") or []):
-        r = (pl.get("reads") or [None] * S2_READS)[k]
+        reads = pl.get("reads") or []
+        r = reads[k] if k < len(reads) else None          # a third read exists only on the plans read again
         if not r:
             continue
         t, size = pl["t"], pl["size_px"]

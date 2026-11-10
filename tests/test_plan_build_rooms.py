@@ -904,3 +904,16 @@ def test_a_plan_moved_since_the_read_refuses_the_save(monkeypatch, tmp_path, dis
     out = _commit(h, conn, s, ["room:Den"])
     assert out["ok"] is False and out["code"] == "changed_since" and out["session"]["stops"][-1]["reason"] == "plan_changed"
     assert _fab_rooms(h) == was and _backups(tmp_path) == []
+
+
+def test_a_third_read_on_one_plan_of_two_leaves_the_other_alone(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Read again reads only the plans the room was seen on; a floor's other plan keeps its two reads (dry run: Main, Upper)."""
+    h, _conn, _ai = _house(monkeypatch, tmp_path, disk)
+    sess, snap, prop = _proposal(h)
+    other = copy.deepcopy(sess["plans"][0])
+    other["map_id"] = "g2"
+    sess["plans"][0]["reads"].append(A.parse_rooms_read(_read(1), *_SIZE))
+    sess["plans"].append(other)
+    sess["edits"]["third"] = ["Shop"]
+    prop = A.rooms_proposal(sess, snap, {}, h.data[DOMAIN][DATA_CALIBRATION].list_points(), [])
+    assert prop["rooms"]["Shop"]["picked_by"] == "two_of_three" and prop["rooms"]["Shop"]["ready"]
