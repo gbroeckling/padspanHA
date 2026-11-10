@@ -54,6 +54,7 @@ Experimental and off by default. Administrator only. Plans go only to the chosen
 2. **Doors and windows in the first build:** real suggestions (recommended), or layout only with no AI read yet.
 3. **Room corrections in the first build:** list only (recommended), or write rooms too.
 4. **Ship:** beta as soon as Part 1 passes review, then Part 2 (recommended), or both together.
+5. **Where plan reading runs for Pro (a privacy question, added Nov 9):** in the house as now, so a plan picture never leaves it, or on PadSpan's server, so the reading pipeline and its prompts don't ship in the integration. On the server, a plan picture leaves the house, and an outage stops plan reading.
 
 ## How to build it
 

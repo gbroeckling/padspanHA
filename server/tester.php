@@ -148,7 +148,7 @@ function with_store($dir, $mutate) {
 // can collect keys by script. Past that, or on any failure, the developer is
 // emailed to decide by hand. The developer is told about every key sent.
 // Never makes the sign-up fail. The admin secret is read from the licence
-// server's own file at the moment it is needed, never copied anywhere.
+// server's private config at the moment it is needed, never copied anywhere.
 function tester_note($subject, $body) {
     @mail('garry@bcmail.net', '[PadSpan] ' . $subject, $body,
         "From: PadSpan <hello@traks.ca>\r\nContent-Type: text/plain; charset=UTF-8", '-f hello@traks.ca');
@@ -161,6 +161,15 @@ function licence_call($action, $fields, $secret) {
     curl_close($ch);
     $d = is_string($out) ? json_decode(ltrim($out, "\xEF\xBB\xBF"), true) : null;
     return is_array($d) ? $d : null;
+}
+function licence_secret() {
+    // private/license-config.php since 2026-10-30 (license/index.php only
+    // requires it now), and index.php itself before that.
+    foreach (array(__DIR__ . '/../../../private/license-config.php', __DIR__ . '/../../license/index.php') as $f) {
+        $src = @file_get_contents($f);
+        if ($src && preg_match("/ADMIN_SECRET\s*=\s*'([^']+)'/", $src, $m)) { return $m[1]; }
+    }
+    return '';
 }
 // The list is full: switch the tester offer off in private/padspan-offers.json,
 // the same switch pro_invites.py flips, so panels from 0.38.133 stop offering
@@ -192,8 +201,7 @@ function tester_key($email, $dir, $max_per_day) {
     if (is_array($offers) && isset($offers['tester']) && $offers['tester'] === false) {
         tester_note('Tester signed up (offer off)', "A new tester signed up while the tester offer is switched off, so no key went out.\n" . $hand); return;
     }
-    $src = @file_get_contents(__DIR__ . '/../../license/index.php');
-    $secret = ($src && preg_match("/ADMIN_SECRET\s*=\s*'([^']+)'/", $src, $m)) ? $m[1] : '';
+    $secret = licence_secret();
     if ($secret === '') { tester_note('Tester key needs you', "A new tester signed up; the licence secret could not be read.\n" . $hand); return; }
     $look = licence_call('staff_lookup', array('email' => $email, 'secret' => $secret), $secret);
     if (!$look || empty($look['ok']) || !isset($look['licenses']) || !is_array($look['licenses'])) {
