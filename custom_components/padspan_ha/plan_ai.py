@@ -41,7 +41,9 @@ floor for its printed text, dimension strings, stairs and outside corners;
 plan_geom.py measures (ticks, pixels per metre, tilt, the fit of one plan on
 another); the proposals (a placement per plan, a refile for a plan of another
 floor) are kept in this store's "lineups" section with what each would shift.
-Nothing here writes a placement. Design: PadspanResearch/plan-build-design-2026-11.md.
+Nothing here writes a placement: saving an accepted proposal and undoing a
+session is plan_ai_write.py, the one writer (Stage 1b), with its ledger in this
+store's "lineup_batches". Design: PadspanResearch/plan-build-design-2026-11.md.
 
 The store's Home Assistant version stays 1 forever; shape changes go through
 the data's own "schema" field, read the tolerant way (house3d_store.py).
@@ -145,7 +147,7 @@ _LIGHT_LABELS = ("light", "lights", "light fixture", "light fixtures", "ceiling 
 # ── The store ────────────────────────────────────────────────────────────────
 
 def empty() -> dict[str, Any]:
-    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}, "lineups": {}, "stall": {}}
+    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}, "lineups": {}, "stall": {}, "lineup_batches": {}}
 
 
 def writable(data: Any) -> bool:
@@ -162,7 +164,7 @@ def normalise(raw: Any) -> dict[str, Any]:
     out = dict(raw)
     out.setdefault("schema", SCHEMA)
     if writable(out):
-        for k in ("sessions", "batches", "rejects", "lineups", "stall"):
+        for k in ("sessions", "batches", "rejects", "lineups", "stall", "lineup_batches"):
             if not isinstance(out.get(k), dict):
                 out[k] = {}
     return out
@@ -275,7 +277,8 @@ class PlanAiStore:
     def trim(self) -> None:
         """The caps: the oldest sessions, batches, rejects and line-ups over them go."""
         for key, cap, when in (("sessions", MAX_SESSIONS, "started_at"), ("batches", MAX_BATCHES, "committed_at"),
-                               ("rejects", MAX_REJECTS, "at"), ("lineups", MAX_LINEUPS, "started_at")):
+                               ("rejects", MAX_REJECTS, "at"), ("lineups", MAX_LINEUPS, "started_at"),
+                               ("lineup_batches", MAX_BATCHES, "committed_at")):
             d = self._data.get(key) or {}
             if len(d) > cap:
                 order = sorted(d, key=lambda k: float((d[k] or {}).get(when) or 0) if isinstance(d[k], dict) else 0)
@@ -1694,14 +1697,17 @@ S1_CROP_PX, S1_TEXT_MIN_PX = 2048, 14         # a dimension's crop: full resolut
 S1_RESUMES_STRESS = 2        # Resume pressed more than this in one session: a stress signal (design 14)
 S1_QUICK_ABANDON_S = 60      # a run left within this of a stop: a stress signal (design 14)
 S1_ABANDON_DAYS = 14         # proposals with no verdict this long: abandoned (design 10)
+S1_BACKUPS_KEPT = 6          # safety backups kept in the line-up's own slot, one before each save and undo: enough that a
+                             # session's first save still has its "before" after five more (form q10)
 MAX_LINEUPS = 10             # sessions kept (design 4)
 PIXEL_FRAME = "pixel"        # Claude answers in the picture's own pixels (design 3.2)
 TASK_NAME = "PadSpan plan build"   # ai_usage counts these reads as plan_build
 
 # Every stop has a name, what happened and the one thing that gets it moving
 # again (design 14). Counted per session, per month (this store's "stall") and
-# in the opt-in report (plan_build_stop:<reason>). The four marked 1b and s2
-# are reached by the writes and by Stage 2; named here so the block is whole.
+# in the opt-in report (plan_build_stop:<reason>). The ones marked 1b are
+# reached by the writes (plan_ai_write.py); room_gate by Stage 2, named here so
+# the block is whole.
 STOPS: dict[str, tuple[str, str]] = {
     "locked": ("Line up plans needs Claude Opus 5.5 or newer as your AI Task.", "Choose one in Settings → AI."),
     "unreachable": ("Claude couldn't be reached; nothing was changed. What was read is kept.", "Resume when it's back."),
@@ -1723,11 +1729,14 @@ STOPS: dict[str, tuple[str, str]] = {
     "cancelled": ("The session was stopped. What was read is kept.", "Resume reads the rest."),
     "abandoned": ("The proposals were left without a verdict.", "Line up the floor again when you're ready."),
     "group_refused": ("Some items change calibration, devices or traced rooms, so they are accepted one by one.", "Accept them one at a time."),   # 1b
-    "preflight_blocked": ("Most of this plan's calibration points would fall off its picture.", "Check the item; it isn't saved."),            # 1b
+    "preflight_blocked": ("Most of this plan's calibration points would fall off its picture, so nothing was saved.",
+                          "Mark it wrong, or line the plan up by hand in Mapping → Align."),                                                  # 1b
     "backup_failed": ("The safety backup couldn't be made, so nothing was saved.", "Try again; check Home Assistant's storage."),          # 1b
+    "undo_failed": ("The undo couldn't be written, so nothing was changed: the line-up is still as saved.",
+                    "Try again; or restore the backup taken before it in Manage → Data → Backup & Restore."),                                        # 1b
     "room_gate": ("These rooms and walls would place your calibration spots worse.", "Look at the rooms flagged."),                         # s2
 }
-STOPS_LATER: tuple[str, ...] = ("group_refused", "preflight_blocked", "backup_failed", "room_gate")
+STOPS_LATER: tuple[str, ...] = ("room_gate",)
 STRESS: tuple[str, ...] = ("repeat", "help_over", "resumes", "quick_abandon")
 WAIT_BANDS: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
 WRONG_WHY: tuple[str, ...] = ("wrong_match", "wrong_scale", "wrong_floor", "cant_tell")
@@ -2547,6 +2556,7 @@ class LocalSteps:
         it["evidence"] = {"anchor": anchor["map_id"], "anchor_name": anchor.get("name") or "", "corr": round(fit.corr, 3), "seed": fit.seed,
                           "overlap": round(fit.overlap, 2), "fit_secs": fit.secs, "ratio_fit": [round(fit.sx, 4), round(fit.sy, 4)],
                           "ratio_dims": pl.get("ratio_dims")}
+        it["anchor_now"] = dict(snap["plans"][anchor["map_id"]]["t"])     # composed on this: a save checks it is still so
         self._place_fields(it, pl, now_t, new_t)
         if self._doubts(pl, it["scale_change"], fitted=True):
             return None
@@ -3146,3 +3156,93 @@ def stall_summary(store: PlanAiStore) -> dict[str, Any]:
         for k, v in (m or {}).items():
             total[k] = total.get(k, 0) + int(v or 0)
     return {"month": dict(month), "all": total, "words": {k: STOPS[k][0] for k in set(month) | set(total) if k in STOPS}}
+
+
+# ── Saving, the reading side (Stage 1b) ──────────────────────────────────────
+# What a save (plan_ai_write.lineup_commit) and the status check agree on. The
+# writes themselves are plan_ai_write.py's; nothing here writes.
+
+def placement_of(t: Any) -> dict[str, float] | None:
+    """A placement's six numbers as the store keeps them (origin and scale to
+    0.1 mm, turn and lean to 1 µrad, as the Align editor's commit stores them), an absent
+    lean read as 0.0 (the same placement bit for bit: model_store's note), so
+    two records compare as placements. None: not a placement."""
+    if not isinstance(t, dict) or not t.get("scale_x_m") or not t.get("scale_y_m"):
+        return None
+    try:
+        return {k: round(float(t.get(k) or 0.0), 6 if k in ("rotation_rad", "shear_rad") else 4) for k in G.FIELDS}
+    except (TypeError, ValueError):
+        return None
+
+
+def item_now(snap: dict, sess: dict, it: dict) -> str | None:
+    """Whether an item still stands on the house as it is now: None, or why
+    not: gone (the plan isn't placed any more), picture (its picture changed),
+    moved (its placement or its floor changed), anchor (the plan it was fitted
+    to moved). Placements compare as placements, so an undo that put a plan
+    back makes its item good again (design 12: applied, undone, applied again)."""
+    p = snap["plans"].get(it.get("map_id"))
+    if p is None or placement_of(p.get("t")) is None:
+        return "gone"
+    if p["image_sig"] != it.get("image_sig"):
+        return "picture"
+    if p["floor_id"] != sess.get("floor_id"):
+        return "moved"
+    if it.get("kind") == "refile":
+        return None
+    if placement_of(p["t"]) != placement_of(it.get("now")):
+        return "moved"
+    anchor = (it.get("evidence") or {}).get("anchor")
+    if anchor:
+        a = snap["plans"].get(anchor)
+        if a is None:
+            return "anchor"
+        if isinstance(it.get("anchor_now"), dict):
+            if placement_of(a.get("t")) != placement_of(it["anchor_now"]):
+                return "anchor"
+        else:                                          # an item from before anchor_now was kept: the signature it was read with
+            pl = next((x for x in sess.get("plans") or [] if x.get("map_id") == anchor), None)
+            if pl is None or pl.get("place_sig") != a.get("place_sig"):
+                return "anchor"
+    return None
+
+
+def refile_by_hand(sess: dict, snap: dict, map_id: str, to_floor_id: str) -> tuple[str, dict | None]:
+    """The person says a plan shows another floor (design 2, "By hand"): the
+    same item a suggested refile is, under the same rules. (word, item): ok;
+    refile_refused with the item (things are drawn on it, it says what);
+    measured_plan_protected; not_found; invalid (not an indoor floor, or its own)."""
+    pl = next((p for p in sess.get("plans") or [] if p.get("map_id") == map_id), None)
+    sp = snap["plans"].get(map_id)
+    floors = {f["id"]: f for f in snap["floors"]}          # indoor only: never to or from Outside
+    if pl is None or sp is None or sp["floor_id"] != sess.get("floor_id"):
+        return "not_found", None
+    if map_id == snap["gauge_map"]:
+        return "measured_plan_protected", None
+    if to_floor_id not in floors or to_floor_id == sess.get("floor_id"):
+        return "invalid", None
+    it = {"kind": "refile", "map_id": map_id, "name": pl.get("name") or "", "image_sig": sp["image_sig"], "target_place_sig": sp["place_sig"],
+          "state": "open", "verdict": None, "held": None, "by_hand": True,
+          "proposal": {"to_floor_id": to_floor_id, "why": {"title": None, "rooms": []}}, "to_name": floors[to_floor_id].get("name"),
+          "drawn": dict(sp["drawn"]), "flags": [], "others": {"n": 0, "names": []}}
+    if drawn_total(sp["drawn"]):
+        it["state"] = "refused"
+        return "refile_refused", it
+    return "ok", it
+
+
+def lineup_undo_info(store: PlanAiStore, sid: str | None = None) -> dict[str, Any] | None:
+    """The newest line-up session with saves still to undo (or that session):
+    {session, floor_id, items, saves, at}; None when there is none. Answered
+    whatever the AI Task (form q3: Settings → AI keeps the undo reachable)."""
+    by: dict[str, dict[str, Any]] = {}
+    for b in (store.data.get("lineup_batches") or {}).values():
+        if not isinstance(b, dict) or b.get("undo_of") or b.get("undone_at") or b.get("pending") or not b.get("session"):
+            continue
+        if sid and b["session"] != sid:
+            continue
+        s = by.setdefault(b["session"], {"session": b["session"], "floor_id": b.get("floor_id"), "items": 0, "saves": 0, "at": 0.0})
+        s["items"] += len(b.get("items") or [])
+        s["saves"] += 1
+        s["at"] = max(s["at"], float(b.get("committed_at") or 0))
+    return max(by.values(), key=lambda s: s["at"], default=None)

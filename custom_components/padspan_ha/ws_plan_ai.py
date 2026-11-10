@@ -38,8 +38,12 @@ plan_build_info, which Settings asks to know whether to draw the row.
 - plan_build_answer: the little help (confirm a dimension, tap a corner on two
   plans); reruns the local steps, no new read.
 - plan_build_verdict: Not now, Wrong (one reason), back; written at the click.
-- plan_build_commit: refuses (not_yet) until Stage 1b's writes are built.
-None of them writes a placement, a floor, calibration or any metres.
+- plan_build_refile: "This plan isn't Basement?": a refile item by hand, under
+  the suggested refile's rules (only a plan with nothing drawn on it).
+- plan_build_commit: save accepted items (one at a time, or a group that shifts
+  nothing drawn on a plan) and plan_build_undo: take a whole session back,
+  allowed whatever the AI Task. Both through plan_ai_write.py, the one writer;
+  nothing here writes a placement, a floor, calibration or any metres itself.
 """
 
 from __future__ import annotations
@@ -55,7 +59,7 @@ from . import ai_usage as U
 from . import plan_ai as A
 from . import plan_ai_write as C
 from . import ws_house3d_photo as P
-from .const import DATA_MAPS, DOMAIN
+from .const import DATA_MAPS, DATA_MODEL, DOMAIN
 from .house3d_store import enabled as house3d_on
 from .ws_common import _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESSAGE
@@ -399,12 +403,23 @@ WS_COMMANDS = (ws_plan_ai_plans, ws_plan_ai_start, ws_plan_ai_status, ws_plan_ai
 
 # ══ Build from plans: line up (Stage 1; experimental) ═══════════════════════
 # plan_build_info answers an administrator even while locked (Settings asks it
-# to know whether to draw the row); every other command refuses while the master
-# switch, this switch, Claude's unlock, Live Aboard or Pro is missing. Nothing
-# here writes a placement: plan_build_commit refuses until the writes are built.
+# to know whether to draw the row, and the undo it keeps reachable), and so does
+# plan_build_undo under the master switch (form q3); every other command refuses
+# while the master switch, this switch, Claude's unlock, Live Aboard or Pro is
+# missing. The saves and the undo are plan_ai_write.py's (the one writer).
 
-LOCKED_CODE, BUILD_OFF_CODE, NOT_YET_CODE = "plan_build_locked", "plan_build_off", "not_yet"
-PREFIX = "Line up plans (experimental): "
+LOCKED_CODE, BUILD_OFF_CODE = "plan_build_locked", "plan_build_off"
+PREFIX = C.LP
+
+
+async def _settled(hass: HomeAssistant, store: A.PlanAiStore) -> None:
+    """A save or an undo cut short is finished or put back before anything else
+    looks at the line-ups (plan_ai_write.settle_lineups), under the store's lock."""
+    if not any(isinstance(b, dict) and b.get("pending") for b in (store.data.get("lineup_batches") or {}).values()):
+        return
+    async with store.lock:
+        if await C.settle_lineups(hass, store):
+            await store.async_save()
 
 
 async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore | None:
@@ -412,6 +427,7 @@ async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore 
     store = await _refused(hass, connection, msg)
     if store is None:
         return None
+    await _settled(hass, store)
     if not A.build_switch(hass):
         connection.send_error(msg["id"], BUILD_OFF_CODE, PREFIX + "it is off: turn it on in Settings → AI.")
         return None
@@ -448,11 +464,19 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
     on_master = A.enabled(hass)
     out: dict[str, Any] = {"unlock": {k: u.get(k) for k in ("ok", "why", "display")}, "master": on_master,
                            "switch": A.build_switch(hass), "on": on_master and A.build_switch(hass) and bool(u.get("ok")),
-                           "floors": [], "stall": None, "running": None}
+                           "floors": [], "stall": None, "running": None, "undo": None}
     if on_master:
         A._bump_once(hass, f"plan_build_unlock:{A.unlock_event(u)}")  # noqa: SLF001
         if u.get("ok"):
             A._bump_once(hass, "plan_build_setting:shown")  # noqa: SLF001
+        # The last session's undo, whatever the AI Task (form q3), after a restart too.
+        store = await A.async_get_store(hass)
+        await _settled(hass, store)
+        und = A.lineup_undo_info(store)
+        if und:
+            model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+            names = {str(f.get("id")): f.get("name") for f in (model.floors() if model is not None else [])}
+            out["undo"] = {**und, "floor_name": names.get(str(und.get("floor_id"))) or und.get("floor_id")}
     if out["on"] and house3d_on(hass) and _tier_at_least(hass, "pro"):
         store = await A.async_get_store(hass)
         if A.sweep_abandoned(hass, store):
@@ -524,9 +548,7 @@ async def ws_plan_build_status(hass: HomeAssistant, connection, msg) -> None:
         snap = A.house_snapshot(hass)
         changed = False
         for it in (sess.get("items") or {}).values():
-            p = snap["plans"].get(it.get("map_id"))
-            if it.get("state") in ("open", "same", "info", "not_now", "refused") and (
-                    p is None or p["image_sig"] != it.get("image_sig") or p["place_sig"] != it.get("target_place_sig")):
+            if it.get("state") in ("open", "same", "info", "not_now", "refused", "undone") and A.item_now(snap, sess, it):
                 it["state"] = "stale"
                 A._bump(hass, f"plan_build_item:{it['kind']}_stale")  # noqa: SLF001
                 changed = True
@@ -633,6 +655,9 @@ async def ws_plan_build_verdict(hass: HomeAssistant, connection, msg) -> None:
         if it.get("state") in ("stale", "refused"):
             connection.send_error(msg["id"], "not_open", PREFIX + "that item can't be judged now.")
             return
+        if it.get("state") == "committed":
+            connection.send_error(msg["id"], "not_open", PREFIX + "that item is saved: Undo this line-up session takes it back.")
+            return
         v = msg["v"]
         if v == "back":
             was = (it.get("verdict") or {}).get("was") or "open"
@@ -652,21 +677,103 @@ async def ws_plan_build_verdict(hass: HomeAssistant, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_refile",
+    vol.Required("session"): str,
+    vol.Required("rev"): int,
+    vol.Required("map_id"): str,
+    vol.Required("to_floor_id"): str,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_refile(hass: HomeAssistant, connection, msg) -> None:
+    """"This plan isn't Basement?" (design 2, by hand): the same refile item a
+    suggestion makes, under the same rules, accepted and saved like any other.
+    A plan with things drawn on it is refused and says what; nothing is written."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        sess = store.lineup(msg["session"])
+        if sess is None:
+            connection.send_error(msg["id"], "not_found", PREFIX + "that session isn't here any more.")
+            return
+        if int(sess.get("rev") or 0) != msg["rev"]:
+            connection.send_error(msg["id"], REV_CODE, PREFIX + "the session changed since you looked: it is reloaded.")
+            return
+        word, it = A.refile_by_hand(sess, A.house_snapshot(hass), msg["map_id"], msg["to_floor_id"])
+        if word in ("not_found", "invalid"):
+            connection.send_error(msg["id"], word, PREFIX + ("that plan isn't on this floor any more." if word == "not_found" else "pick another indoor floor."))
+            return
+        if word == "measured_plan_protected":
+            A.note_stop(hass, store.data, sess, word, msg["map_id"])
+            sess["rev"] = int(sess.get("rev") or 0) + 1
+            await store.async_save()
+            connection.send_result(msg["id"], {"ok": False, "code": word, "message": PREFIX + " ".join(A.STOPS[word]), "rev": sess["rev"]})
+            return
+        A._bump(hass, "plan_build_refile:by_hand")  # noqa: SLF001
+        iid = f"refile_{msg['map_id']}"
+        sess.setdefault("items", {})[iid] = it
+        if word == "refile_refused":
+            A._bump(hass, "plan_build_refile:refused_drawn")  # noqa: SLF001
+            A.note_stop(hass, store.data, sess, word, msg["map_id"])
+        else:
+            A._bump(hass, "plan_build_item:refile_shown")  # noqa: SLF001
+        sess["rev"] = int(sess.get("rev") or 0) + 1
+        await store.async_save()
+    connection.send_result(msg["id"], {"ok": word == "ok", "code": word, "message": PREFIX + " ".join(A.STOPS["refile_refused"]) if word != "ok" else "",
+                                       "rev": sess["rev"], "item_id": iid, "item": it, "session": A.lineup_public(sess, msg["session"])})
+
+
+async def _lineup_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, what) -> None:
+    """A line-up save or undo (plan_ai_write.py) with the plan store's lock held
+    throughout. A refusal with a list is an ok: false answer (the session's new
+    rev with it); any other, a websocket error. Nothing was written either way."""
+    try:
+        async with store.lock:
+            answer = await what()
+    except C.Refused as err:
+        if err.extra is None:
+            connection.send_error(msg["id"], err.code, err.message)
+        else:
+            connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message, **err.extra})
+        return
+    sid = msg["session"]
+    connection.send_result(msg["id"], {**answer, "session": A.lineup_public(store.lineup(sid), sid)})
+
+
+@websocket_api.websocket_command({
     "type": "padspan_ha/plan_build_commit",
     vol.Required("session"): str,
     vol.Required("rev"): int,
     vol.Required("items"): [str],
+    vol.Optional("group", default=False): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_commit(hass: HomeAssistant, connection, msg) -> None:
-    """Saving a line-up is the next piece (Stage 1b: backup, ledger, undo,
-    reviewed apart). Until then nothing is written, and it says so."""
+    """Save accepted items (design 3.8): one at a time, or `group` for items
+    that shift nothing drawn on their plans (form q8). A backup first; the
+    placement through the Align editor's own writer; nothing else."""
     store = await _build_refused(hass, connection, msg)
     if store is None:
         return
-    connection.send_error(msg["id"], NOT_YET_CODE, PREFIX + "saving line-ups isn't built yet. Nothing was changed; your verdicts are kept.")
+    await _lineup_write(hass, connection, msg, store, lambda: C.lineup_commit(hass, store, msg["session"], msg["rev"], msg["items"], bool(msg.get("group"))))
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_undo", vol.Required("session"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_undo(hass: HomeAssistant, connection, msg) -> None:
+    """Undo a whole line-up session (design 3.8). Allowed while locked, with
+    Build from plans off, below Pro or with Live Aboard off (form q3): only
+    the master switch, under which Settings → AI shows it, and an administrator."""
+    if not A.enabled(hass):
+        connection.send_error(msg["id"], PLANS_OFF_CODE, PLANS_OFF_MESSAGE)
+        return
+    store = await A.async_get_store(hass)
+    await _settled(hass, store)
+    await _lineup_write(hass, connection, msg, store, lambda: C.lineup_undo(hass, store, msg["session"]))
 
 
 WS_COMMANDS = WS_COMMANDS + (ws_plan_build_info, ws_plan_build_start, ws_plan_build_status, ws_plan_build_cancel, ws_plan_build_resume,
-                             ws_plan_build_answer, ws_plan_build_verdict, ws_plan_build_commit)
+                             ws_plan_build_answer, ws_plan_build_verdict, ws_plan_build_refile, ws_plan_build_commit, ws_plan_build_undo)

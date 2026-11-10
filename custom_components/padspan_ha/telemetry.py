@@ -795,19 +795,27 @@ PLAN_BUILD_FIT: tuple[str, ...] = ("lt70", "70_85", "85_95", "ge95", "ratio_disa
 PLAN_BUILD_SEED: tuple[str, ...] = ("stairs", "search", "taps")
 PLAN_BUILD_FIT_SECS: tuple[str, ...] = ("lt5", "5_20", "20_60", "capped")
 PLAN_BUILD_PCT: tuple[str, ...] = ("lt1", "1_3", "3_10", "gt10")
-# Stage 1a counts what it shows and the verdicts it takes; accepting, refiling
-# by hand and undoing come with the writes (1b), and their values with them.
-PLAN_BUILD_REFILE: tuple[str, ...] = ("suggested", "refused_drawn", "wrong")
+# Stage 1a counts what it shows and the verdicts it takes; Stage 1b what is
+# accepted (one by one or as a group), refiled by hand, undone, and how a save
+# went (its checks, the calibration preflight, a save healed after a restart).
+PLAN_BUILD_REFILE: tuple[str, ...] = ("suggested", "by_hand", "refused_drawn", "accepted", "wrong", "undone")
 PLAN_BUILD_HELP: tuple[str, ...] = ("dimension_shown", "dimension_yes", "dimension_typed", "dimension_skipped", "taps_shown", "taps_done",
                                     "taps_skipped", "gave_up")
 PLAN_BUILD_ITEM_KINDS: tuple[str, ...] = ("place", "refile", "anchor_scale")
-PLAN_BUILD_ITEM: tuple[str, ...] = ("shown", "not_now", "wrong", "stale")
+PLAN_BUILD_ITEM: tuple[str, ...] = ("shown", "accepted", "accepted_group", "not_now", "wrong", "undone", "stale")
 PLAN_BUILD_WRONG: tuple[str, ...] = ("wrong_match", "wrong_scale", "wrong_floor", "cant_tell")
 PLAN_BUILD_M: tuple[str, ...] = ("lt0_3", "0_3_1", "1_3", "gt3")
 PLAN_BUILD_FLAGS: tuple[str, ...] = ("calibration", "device", "room_trace")
 PLAN_BUILD_STOPS: tuple[str, ...] = ("locked", "unreachable", "no_credit", "out_of_time", "no_media", "help_unanswered", "help_limit",
                                      "refile_refused", "measured_plan_protected", "anchor_error", "no_anchor", "no_metre_scale", "not_placed",
-                                     "fit_rejected", "cancelled", "abandoned", "group_refused", "preflight_blocked", "backup_failed", "room_gate")
+                                     "fit_rejected", "cancelled", "abandoned", "group_refused", "preflight_blocked", "backup_failed", "undo_failed",
+                                     "room_gate")
+PLAN_BUILD_SHOWN_ACCEPTED: tuple[str, ...] = ("shown", "accepted")
+PLAN_BUILD_COMMIT: tuple[str, ...] = ("done", "changed_since", "points_out_of_range", "measured_plan_protected", "refile_refused", "group_refused",
+                                      "backup_failed", "save_failed", "rolled_back")
+PLAN_BUILD_PREFLIGHT: tuple[str, ...] = ("checked", "blocked")
+PLAN_BUILD_UNDO: tuple[str, ...] = ("session", "item_skipped", "failed")
+PLAN_BUILD_SETTLED: tuple[str, ...] = ("finished", "put_back")
 PLAN_BUILD_STRESS: tuple[str, ...] = ("repeat", "help_over", "resumes", "quick_abandon")
 PLAN_BUILD_WAIT: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
 PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
@@ -825,8 +833,10 @@ PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
     | {f"plan_build_refile:{k}" for k in PLAN_BUILD_REFILE} | {f"plan_build_help:{k}" for k in PLAN_BUILD_HELP}
     | {f"plan_build_item:{i}_{k}" for i in PLAN_BUILD_ITEM_KINDS for k in PLAN_BUILD_ITEM}
     | {f"plan_build_wrong_why:{k}" for k in PLAN_BUILD_WRONG}
-    | {f"plan_build_move:shown_{k}" for k in PLAN_BUILD_M}
-    | {f"plan_build_scale_change:shown_{k}" for k in PLAN_BUILD_PCT}
+    | {f"plan_build_move:{s}_{k}" for s in PLAN_BUILD_SHOWN_ACCEPTED for k in PLAN_BUILD_M}
+    | {f"plan_build_scale_change:{s}_{k}" for s in PLAN_BUILD_SHOWN_ACCEPTED for k in PLAN_BUILD_PCT}
+    | {f"plan_build_commit:{k}" for k in PLAN_BUILD_COMMIT} | {f"plan_build_preflight:{k}" for k in PLAN_BUILD_PREFLIGHT}
+    | {f"plan_build_undo:{k}" for k in PLAN_BUILD_UNDO} | {f"plan_build_settled:{k}" for k in PLAN_BUILD_SETTLED}
     | {f"plan_build_flags:{k}" for k in PLAN_BUILD_FLAGS} | {f"plan_build_flag_move:{k}" for k in PLAN_BUILD_M}
     | {f"plan_build_stop:{k}" for k in PLAN_BUILD_STOPS} | {f"plan_build_stress:{k}" for k in PLAN_BUILD_STRESS}
     | {f"plan_build_wait:{k}" for k in PLAN_BUILD_WAIT})

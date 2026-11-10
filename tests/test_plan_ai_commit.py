@@ -307,7 +307,9 @@ def test_the_plan_ais_one_writer_is_one_module(monkeypatch, tmp_path, disk):
         src = inspect.getsource(mod)
         for word in ("apply_edit", "house.async_write", ".async_write(", "async_remap_from_metres"):
             assert word not in src, (mod.__name__, word)
-    src = inspect.getsource(C)
+    # The line-up's two writes live in the same module, apart (test_plan_build_write.py holds them to it);
+    # the 3D part of it reaches nothing else.
+    src = inspect.getsource(C).split("# ══ Build from plans: line up (Stage 1b", 1)[0]
     assert src.count("H.apply_edit(") == 1 and src.count("house.async_write(") == 2
     for word in ("DATA_FABRIC", "DATA_MAPS", "async_spatial_update", "async_remap_from_metres", "async_set_", "fabric_rf_barrier", "CALIBRATION", "DATA_SETTINGS", "model."):
         assert word not in src, word

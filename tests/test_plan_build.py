@@ -589,15 +589,14 @@ def test_the_thresholds_live_in_one_block_with_their_reasons():
 
 # ═══ verdicts and the stub that refuses to save ══════════════════════════════
 
-def test_verdicts_are_written_and_commit_refuses_until_the_writes_are_built(monkeypatch, tmp_path, disk):
+def test_verdicts_are_written_at_the_click_and_write_nothing(monkeypatch, tmp_path, disk):
+    """Saving and undoing are tests/test_plan_build_write.py's."""
     h, conn, ai = _house(monkeypatch, tmp_path)
     store, sess = _session(h)
     out = _call(W.ws_plan_build_verdict, h, conn, session="pb_t", rev=sess["rev"], item_id="place_m1", v="wrong", why="wrong_scale")
     assert out["item"]["state"] == "wrong" and out["item"]["verdict"]["why"] == "wrong_scale"
     out = _call(W.ws_plan_build_verdict, h, conn, session="pb_t", rev=out["rev"], item_id="place_m1", v="back")
     assert out["item"]["state"] == "open"
-    out = _call(W.ws_plan_build_commit, h, conn, session="pb_t", rev=out["rev"], items=["place_m1"])
-    assert out["error"] == W.NOT_YET_CODE and "experimental" in out["message"] and "Nothing was changed" in out["message"]
     c = _counters(h)
     assert c["plan_build_item:place_wrong"] == 1 and c["plan_build_wrong_why:wrong_scale"] == 1
     _unchanged(h, disk)
@@ -611,13 +610,14 @@ def test_nothing_in_the_line_up_writes_the_house():
                       "async_get_store as house", "House3dStore", "calibration_store", ".async_write("):
         assert forbidden not in s1, forbidden
     w = inspect.getsource(W)
-    assert "async_reanchor_map" not in w and "async_update_map" not in w
+    assert "async_reanchor_map" not in w and "async_update_map" not in w and "async_set_map_floor" not in w
 
 
 # ═══ the opt-in report ═══════════════════════════════════════════════════════
 
 def test_the_family_is_closed_each_name_has_a_call_site_and_a_plain_name():
-    src = inspect.getsource(A) + inspect.getsource(W) + (_ROOT / "ws_settings.py").read_text(encoding="utf-8")
+    from custom_components.padspan_ha import plan_ai_write as C
+    src = inspect.getsource(A) + inspect.getsource(W) + inspect.getsource(C) + (_ROOT / "ws_settings.py").read_text(encoding="utf-8")
     for e in T.PLAN_BUILD_EVENTS:
         assert T.event_allowed(e) and len(e) <= 64, e
         fam = e.partition(":")[0]

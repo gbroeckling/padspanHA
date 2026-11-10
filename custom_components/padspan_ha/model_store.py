@@ -2052,6 +2052,27 @@ class ModelStore:
             "owned": owned, "out_of_range": owned_bad,
         }
 
+    async def async_set_map_floor(self, map_id: str, floor_id: str) -> bool:
+        """Refile a placed map's record onto another storey: the WHOLE stored
+        record copied, only `floor_id` changed, through the one mutator.
+
+        Not `_put_map_transform(map_id, {"floor_id": to})`: that carries only
+        `_CARRIED_FIELDS` onto the new record and would drop `origin_anchored`
+        (the write-once pose flag) with everything else it does not list. The
+        placement itself is untouched: floors share one footprint. The maps
+        store's own `floor_id` is the caller's (maps_store.async_update_map);
+        this is the transform's copy of it. False when the map isn't placed.
+        Used by the plan line-up's refile (plan_ai_write.py, experimental).
+        """
+        old = (self.data.get("map_transforms") or {}).get(str(map_id))
+        if not isinstance(old, dict):
+            return False
+        new_t = dict(old)
+        new_t["floor_id"] = str(floor_id)
+        self._put_map_transform(map_id, new_t)
+        await self.store.async_save(self.data)
+        return True
+
     def has_floor(self, floor_id: str) -> bool:
         """True if `floor_id` is one of the stored floors."""
         fid = str(floor_id or "")

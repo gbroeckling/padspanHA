@@ -137,7 +137,7 @@ async def _backup_exists(hass: HomeAssistant, backup_id: str) -> bool:
 
 
 async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *, mark_absent: bool = False,
-                       slot: str | None = None, exact: bool = False) -> str | None:
+                       slot: str | None = None, exact: bool = False, slot_keep: int = 1) -> str | None:
     """Snapshot the named stores into the normal backup list before a
     destructive operation, and return the backup id.
 
@@ -150,7 +150,10 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
 
     `slot`: one kept apart from the shared cap, replacing that slot's last one
     and nobody else's. `exact`: a restore takes Live Aboard's file as it stands
-    here, furniture or none (house3d_store.async_restore_data).
+    here, furniture or none (house3d_store.async_restore_data). `slot_keep`:
+    how many of that slot's are kept, the oldest dropped first (the plan
+    line-up keeps six, so the state before a session's first save survives
+    its later saves; plan-build design 13, question 10).
     """
     import os as _os  # noqa: PLC0415
     from homeassistant.helpers.storage import Store as _St  # noqa: PLC0415
@@ -178,7 +181,9 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
         async with _backups_lock(hass):
             bk = await _load_backups(hass)
             if slot:
-                bk["backups"] = [b for b in bk.get("backups") or [] if b.get("slot") != slot]
+                mine = [b for b in bk.get("backups") or [] if b.get("slot") == slot]
+                drop = {id(b) for b in mine[:max(0, len(mine) - max(1, int(slot_keep)) + 1)]}
+                bk["backups"] = [b for b in bk.get("backups") or [] if id(b) not in drop]
             bk.setdefault("backups", []).append({
                 "id": backup_id,
                 "created_at": dt_util.utcnow().replace(microsecond=0).isoformat(),
