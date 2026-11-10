@@ -42,7 +42,7 @@ const PROPOSAL = () => ({
     Den: { id: "room:Den", room: "Den", now_m: box(1, 1, 4, 4.5), reads_m: [box(1, 1, 4, 4.5), box(1, 1, 4, 4.5)], parts: [["DEN"], ["DEN"]], agree: 0.98, ready: true, pick: 1,
       picked_by: "spots", spots: [2, 2, 2], outline_m: box(1, 1, 4, 4.5), merged: [], flags: [], iou_now: 0.99, area_now: 10.5, area_new: 10.5, cal: { labelled: 2, leave: [], leaving: 0 }, default: true },
     Shop: { id: "room:Shop", room: "Shop", now_m: box(4.2, 1, 9, 4.5), reads_m: [box(4.2, 1, 9, 4.5), box(4.2, 1, 9, 3)], parts: [["SHOP"], ["SHOP"]], agree: 0.57, ready: false, pick: 1,
-      picked_by: "spots", spots: [1, 0, 1], outline_m: box(4.2, 1, 9, 4.5), merged: [], flags: ["reads_differ"], iou_now: 1.0, area_now: 16.8, area_new: 16.8, cal: { labelled: 1, leave: [], leaving: 0 }, default: true },
+      picked_by: "spots", spots: [1, 0, 1], outline_m: box(4.2, 1, 9, 4.5), merged: [], flags: ["reads_differ"], iou_now: 1.0, area_now: 16.8, area_new: 16.8, cal: { labelled: 1, leave: [], leaving: 0 }, default: false },
     Kitchen: { id: "room:Kitchen", room: "Kitchen", now_m: box(9.2, 1, 12, 3), reads_m: [box(9.2, 1, 12, 4.5), box(9.2, 1, 12, 4.5)], parts: [["KITCHEN"], ["KITCHEN"]], agree: 0.99, ready: true, pick: 1,
       picked_by: "spots", spots: [4, 4, 4], outline_m: box(9.2, 1, 12, 4.5), merged: [], flags: [], iou_now: 0.57, area_now: 5.6, area_new: 9.8, cal: { labelled: 4, leave: ["cp_9"], leaving: 1 }, default: true },
   },
@@ -176,11 +176,13 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   check("score: the floor's spots for information, never a refusal", t().includes("For information: calibration spots inside their room, 96.9 % now, 96.3 % with what is ticked (324 spots). Each room below says its own.")
     && t().includes("Held-out check: 6 % now, 4 % with these.") && !t().includes("refused"), t());
   const ck = M.sent("plan_build_rooms_check")[0];
-  check("gate: asked for the ticked rooms", ck && ck.items.join() === "room:Den,room:Kitchen,room:Shop", JSON.stringify(ck));
+  check("gate: asked for the ticked rooms", ck && ck.items.join() === "room:Den,room:Kitchen", JSON.stringify(ck));
   check("openings: counts, maybes and the one already there, a correction", t().includes("Proposed when both reads found it: 2 doors, 1 windows. Found by one read only (\"maybe\", not ticked): 1. Already in your house, offered as a correction (not ticked): 1.")
     && t().includes("Already in your house: a correction moves or resizes yours to the one read. Not ticked."), t());
   const ticks = () => M.tool.state().rooms.ticks;
-  check("ticks: rooms, both-read doors and windows, the stair; not the maybe, not the existing one", ticks().join() === "door:1,room:Den,room:Kitchen,room:Shop,stairs:1,window:1", ticks());
+  check("ticks: rooms the reads agree on, both-read doors and windows, the stair; not the room whose reads differ, not the maybe, not the existing one",
+    ticks().join() === "door:1,room:Den,room:Kitchen,stairs:1,window:1", ticks());
+  check("ticks: the room whose reads differ says it isn't ticked (Garry, by form, 2026-11-10)", t().includes("Look closely: the two reads differ (0.57). Not ticked: show both reads to compare, read it again, or tick it to use it."), t());
   // Keep mine / Use Claude's on a room whose spots would leave it.
   await click(button(M.sheet, "Keep mine"));
   check("choice: keep mine unticks the room", !ticks().includes("room:Kitchen"), ticks());
@@ -217,10 +219,10 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   check("new room: the name sent, the space ticked", nm && nm.space === "space:2" && nm.name === "Mudroom" && ticks().includes("space:2") && t().includes("NOOK → Mudroom"), JSON.stringify(nm));
   // Accept all: every tick in one save; a data-safety refusal (changed since) is said, and Save stays offered.
   const accept = () => button(M.sheet, "Accept all for Main (experimental)");
-  check("accept all: names what it saves", !!accept() && text(accept()).includes("3 rooms, 1 new, 1 doors, 1 windows, 1 stairs"), buttons(M.sheet).map(b => text(b)));
+  check("accept all: names what it saves", !!accept() && text(accept()).includes("2 rooms, 1 new, 1 doors, 1 windows, 1 stairs"), buttons(M.sheet).map(b => text(b)));
   await click(accept());
   const c1 = M.sent("plan_build_rooms_commit")[0];
-  check("accept all: one save with every tick and the new stair's piece", c1 && c1.items.length === 7 && c1.finals["stairs:1"] && c1.finals["stairs:1"].x_m === 1.9 && c1.rev === sess.rev - 1, JSON.stringify(c1));
+  check("accept all: one save with every tick and the new stair's piece", c1 && c1.items.length === 6 && !c1.items.includes("room:Shop") && c1.finals["stairs:1"] && c1.finals["stairs:1"].x_m === 1.9 && c1.rev === sess.rev - 1, JSON.stringify(c1));
   check("accept all: a change since the read is said in its words; Save is never held back by the score", t().includes("Rooms from plans (experimental): A room, a door or a stair was changed in your house since Claude read the plans")
     && !accept().disabled, t());
   M.tool.roomsBoth(null); await settle();
@@ -232,7 +234,7 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   kb.checked = false; kb.dispatchEvent(new Event("change")); await settle();
   check("untick: the gate is asked again", M.sent("plan_build_rooms_check").length >= 2, M.sent("plan_build_rooms_check").length);
   await click(accept());
-  check("accept all: saved, said once, the items marked", M.sent("plan_build_rooms_commit").length === 2 && M.hints.some(([h]) => h.startsWith("Rooms from plans (experimental): saved 6 items in one save."))
+  check("accept all: saved, said once, the items marked", M.sent("plan_build_rooms_commit").length === 2 && M.hints.some(([h]) => h.startsWith("Rooms from plans (experimental): saved 5 items in one save."))
     && t().includes("Den · saved"), [M.hints, M.sent("plan_build_rooms_commit").map(c => c.items)]);
   // Undo: asked first, then the whole session.
   await click(button(M.sheet, "Undo this rooms session (experimental)"));

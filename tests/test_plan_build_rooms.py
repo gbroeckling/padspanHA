@@ -302,12 +302,21 @@ def test_two_reads_flag_the_room_they_differ_on_and_the_spots_pick_the_read(monk
 def test_agreeing_reads_are_trusted_over_the_outline_he_drew(monkeypatch, tmp_path, disk):  # noqa: F811
     """Garry, 2026-11-10: "My kitchen open edge is wrong, trust the ai results on this one": a room both reads
     agree on is ready, however far it is from his outline; only reads that disagree flag a room. A spot that
-    would fall outside it is said on the room (spots_out), and the room stays ticked: his choice."""
-    h, _conn, _ai = _house(monkeypatch, tmp_path, disk)
+    would fall outside it is said on the room (spots_out), and the room stays ticked: his choice. Half or more of
+    its spots out: unticked, the count said (Garry, by form, 2026-11-10)."""
+    inside = [{"id": f"cp_i{i}", "map_id": "g1", "x_m": 6.0 + i, "y_m": 2.0, "floor_id": "main", "room": "Shop", "scanner_readings": []} for i in range(2)]
+    h, _conn, _ai = _house(monkeypatch, tmp_path, disk, points=_points() + inside)
     r = _read(1, shop_px=_box(420, 100, 900, 250))
     _s, _snap, prop = _proposal(h, (r, copy.deepcopy(r)))
     shop = prop["rooms"]["Shop"]
     assert shop["ready"] and shop["flags"] == ["spots_out"] and shop["cal"]["leaving"] == 1 and shop["iou_now"] < 0.5 and shop["default"]
+    assert shop["cal"]["labelled"] == 3 and shop["cal"]["most"] is False                      # 1 of 3 out: still ticked
+    A.count_rooms(h, prop)
+    assert _counters(h)["plan_build_agree:spots_out"] == 1                                    # counted (review B11)
+    h.data[DOMAIN][DATA_CALIBRATION] = SimpleNamespace(list_points=lambda: _points() + inside[:1])
+    _s, _snap, prop = _proposal(h, (r, copy.deepcopy(r)))
+    shop = prop["rooms"]["Shop"]
+    assert shop["ready"] and shop["cal"]["leaving"] == 1 and shop["cal"]["labelled"] == 2 and shop["cal"]["most"] and not shop["default"]   # 1 of 2: unticked
 
 
 def test_merges_new_rooms_and_never_two_of_his_rooms(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -781,6 +790,8 @@ def test_read_again_makes_a_third_read_and_two_out_of_three_decide(monkeypatch, 
     assert set(s2["proposal"]["spaces"]) == set(s["proposal"]["spaces"])                       # a third read adds no extra spaces
     c = _counters(h)
     assert c["plan_build_run:s2_read_again"] == 1 and c["ai_reads_kind:plan_build"] == 3 and c["plan_build_read:s2_plan"] == 3   # the credit tracker counts it
+    assert c["plan_build_agree:two_of_three"] == 1 and "plan_build_agree:three_differ" not in c                                 # what it decided, counted (review B11)
+    assert c["plan_build_item:room_shown"] == 2                                                                                  # the rooms shown once, not again
     # The person can still choose read 1, 2 or 3 by hand.
     s3 = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s2["rev"], op="pick", room="Shop", read=3)["session"]
     assert s3["proposal"]["rooms"]["Shop"]["pick"] == 3 and s3["proposal"]["rooms"]["Shop"]["picked_by"] == "person"
@@ -795,7 +806,9 @@ def test_read_again_that_differs_again_stays_flagged(monkeypatch, tmp_path, disk
     _call(W.ws_plan_build_rooms_read_again, h, conn, session=s["id"], rev=s["rev"], room="Shop")
     _finish(h)
     shop = _call(W.ws_plan_build_rooms_status, h, conn, session=s["id"])["session"]["proposal"]["rooms"]["Shop"]
-    assert not shop["ready"] and "three_differ" in shop["flags"] and shop["default"] and shop["picked_by"] == "spots"
+    assert not shop["ready"] and "three_differ" in shop["flags"] and not shop["default"] and shop["picked_by"] == "spots"   # unticked (Garry, by form)
+    c = _counters(h)
+    assert c["plan_build_agree:three_differ"] == 1 and "plan_build_agree:two_of_three" not in c                                 # review B11
 
 
 def test_a_proposed_outline_is_simplified_before_it_is_shown_or_saved(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -883,6 +896,9 @@ def test_the_old_rooms_tab_has_merge_and_corner_tools():
     src = (_ROOT / "www" / "padspan-ha" / "views" / "maps.js").read_text(encoding="utf-8")
     tab = src[src.index("function _roomsTab("):]
     assert 'wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others })' in tab and "if (!confirm(`Merge " in tab
+    merge = tab[tab.index('wsCall("padspan_ha/fabric_rooms_merge"'):tab.index('"Merge into one")')]
+    assert "_roomsAfterMerge(mapState._roomsDraft, mapState._roomsOrig, keep, others, res);" in merge     # review B5: the open draft kept,
+    assert "_roomsDraftFloorId" not in merge                                                             # never rebuilt from the store
     assert "g.points_m = _roomCornerAdd(g.points_m, i);" in tab and "g.points_m = _roomCornerDrop(g.points_m, idx);" in tab and '"dblclick"' in tab
     node = shutil.which("node")
     if not node:
@@ -892,7 +908,7 @@ def test_the_old_rooms_tab_has_merge_and_corner_tools():
     assert r.returncode == 0, r.stderr[-2000:]
     res = json.loads(r.stdout.strip().splitlines()[-1])
     bad = {k: v for k, v in res.items() if not v["ok"]}
-    assert len(res) >= 9 and not bad, bad
+    assert len(res) >= 13 and not bad, bad
 
 
 def test_a_plan_moved_since_the_read_refuses_the_save(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -921,3 +937,150 @@ def test_a_third_read_on_one_plan_of_two_leaves_the_other_alone(monkeypatch, tmp
     assert prop["rooms"]["Shop"]["picked_by"] == "two_of_three" and prop["rooms"]["Shop"]["ready"]
     den = prop["rooms"]["Den"]
     assert den["ready"] and den["agree"] >= A.S2_AGREE and den["flags"] == [] and den["default"]   # a room read 3 didn't see keeps its two reads (dry run)
+
+
+# ═══ review 2026-11-10 (B1-B13) ══════════════════════════════════════════════
+
+def _space_named(prop: dict, printed: str) -> str:
+    return next(k for k, v in prop["spaces"].items() if v["name"] == printed)
+
+
+def test_undo_of_a_new_room_under_an_area_name_keeps_the_areas_settings(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review B1: a space saved as a new room under a name that already had settings (a Home Assistant area with its
+    floor, colour, height and adjacency, no outline yet): undo takes away only the shape the save added."""
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    mdl = h.data[DOMAIN][DATA_MODEL]
+    meta = {"floor_id": "upper", "color": "#abcdef", "height_m": 2.4}
+    mdl.data["room_meta"]["Hallway"] = copy.deepcopy(meta)
+    mdl.data["room_adjacency"]["Hallway"] = ["Den"]
+    mdl.data["scanners"]["CC:DD"] = {"room": "Hallway"}                    # put there before the save: not "in use since"
+    _run(mdl.store.async_save(mdl.data))
+    s = _read_floor(h, conn)
+    sp = _space_named(s["proposal"], "STORE")
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="space", space=sp, name="Hallway")["session"]
+    out = _commit(h, conn, s, [sp])
+    assert out["ok"] is True, out
+    assert "Hallway" in _fab_rooms(h) and mdl.data["room_meta"]["Hallway"]["floor_id"] == "main"
+    u = _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
+    assert u["undone"] == 1 and u["skipped"] == [], u
+    assert "Hallway" not in _fab_rooms(h)                                  # the shape the save added is gone
+    assert mdl.data["room_meta"]["Hallway"] == meta and mdl.data["room_adjacency"]["Hallway"] == ["Den"]   # the settings as they were
+    assert mdl.data["scanners"]["CC:DD"] == {"room": "Hallway"}
+    # A name that had nothing before is taken away whole, as before.
+    s = _call(W.ws_plan_build_rooms_status, h, conn, session=s["id"])["session"]
+    sp = _space_named(s["proposal"], "NOOK")
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="space", space=sp, name="Nook room")["session"]
+    assert _commit(h, conn, s, [sp])["ok"] is True and "Nook room" in mdl.data["room_meta"]
+    _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
+    assert "Nook room" not in mdl.data["room_meta"] and "Nook room" not in mdl.data["room_adjacency"] and "Nook room" not in _fab_rooms(h)
+
+
+def test_a_space_keeps_its_id_its_name_and_saved_when_his_rooms_change(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review B3: a space's id comes from the read, never from its place in the list of the spaces loose now; a name
+    given to it, and "saved", stay on it after a room is drawn again by hand."""
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    s = _read_floor(h, conn)
+    nook = _space_named(s["proposal"], "NOOK")
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="space", space=nook, name="Nook room")["session"]
+    fab = h.data[DOMAIN][DATA_FABRIC]
+    # Mapping -> Rooms: the Shop is drawn small (the printed SHOP is now a space of its own, above the others), then
+    # the Den grows over STORE (it is now part of a room of his). Any edit works the proposal out again on the house as it is.
+    _run(fab.async_correct_room("main", "Shop", {"type": "poly", "points_m": _box(7, 1, 9, 2)}))
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="pick", room="Den", read=2)["session"]
+    sp = s["proposal"]["spaces"]
+    assert sp[nook]["name"] == "NOOK" and sp[nook]["new"] == "Nook room" and len(sp) == 3
+    assert [v["name"] for v in sp.values() if v.get("new")] == ["NOOK"]
+    _run(fab.async_correct_room("main", "Den", {"type": "poly", "points_m": [[1, 1], [4, 1], [4, 4.5], [2.55, 4.5], [2.55, 7.2], [1, 7.2]]}))
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="pick", room="Den", read=1)["session"]
+    sp = s["proposal"]["spaces"]
+    assert sp[nook]["name"] == "NOOK" and sp[nook]["new"] == "Nook room" and "STORE" not in [v["name"] for v in sp.values()]
+    assert [v["name"] for v in sp.values() if v.get("new")] == ["NOOK"] and "SHOP" in [v["name"] for v in sp.values()]
+    out = _commit(h, conn, s, [nook])
+    assert out["ok"] is True and out["saved"] == [nook] and "Nook room" in _fab_rooms(h)
+    s = out["session"]
+    assert s["saved"] == {nook: out["batch"]}
+    shop_space = _space_named(s["proposal"], "SHOP")
+    assert shop_space not in s["saved"] and nook not in s["proposal"]["spaces"]       # NOOK is a room now; the SHOP space is still to save
+
+
+def test_a_second_save_works_and_one_undo_takes_both_back_target_by_target(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review B3 and B12: after a save the proposal is worked out again, so the next save of what isn't saved yet
+    goes through without a new read; two saves touching one room undo cleanly (the newest `after` checked, the
+    oldest `before` written back)."""
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    before = _fab_rooms(h)
+    s = _read_floor(h, conn)
+    store_ = _space_named(s["proposal"], "STORE")
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="space", space=store_, name="Store room")["session"]
+    out = _commit(h, conn, s, [store_])
+    assert out["ok"] is True
+    s = out["session"]
+    assert "Store room" in s["proposal"]["rooms"]                                  # worked out again: the new room is one of his now
+    nook = _space_named(s["proposal"], "NOOK")
+    r = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="merge", parts=["room:Store room", nook])
+    assert "session" in r, r
+    s = r["session"]
+    out2 = _commit(h, conn, s, ["room:Store room", "room:Den"])
+    assert out2["ok"] is True, out2                                                # no "read the floor again"
+    assert G.area(_fab_rooms(h)["Store room"]["points_m"]) > 2.5 * 2.3
+    u = _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
+    assert u["skipped"] == [] and u["undone"] == 2, u
+    assert _fab_rooms(h).keys() == before.keys() and _fab_rooms(h)["Den"]["points_m"] == before["Den"]["points_m"]
+    assert "Store room" not in h.data[DOMAIN][DATA_MODEL].data["room_meta"]
+    s = u["session"]
+    assert s["saved"] == {} and store_ in s["proposal"]["spaces"]                  # worked out again after the undo too
+
+
+def test_a_merge_of_a_space_that_doesnt_touch_is_refused_and_said(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review B8: a space merged into a room it doesn't touch isn't hidden with the room unchanged: the edit is
+    refused with its reason, and nothing changes."""
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    s = _read_floor(h, conn)
+    nook = _space_named(s["proposal"], "NOOK")
+    r = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="merge", parts=["room:Garage", nook])
+    assert r["error"] == "apart" and "don't touch" in r["message"]
+    s2 = _call(W.ws_plan_build_rooms_status, h, conn, session=s["id"])["session"]
+    assert s2["edits"]["merges"] == [] and s2["rev"] == s["rev"] and not s2["proposal"]["spaces"][nook]["merged_into"]
+    assert "Garage" not in s2["proposal"]["rooms"] and s2["proposal"]["unseen"] == ["Garage"]
+    # The pure proposal never applies one: the merge stays listed as apart.
+    sess, snap, _p = _proposal(h)
+    sess["edits"]["merges"] = [{"id": 1, "into": "room:Den", "parts": ["space:nothere"]}, {"id": 2, "into": "room:Garage", "parts": [nook]}]
+    prop = A.rooms_proposal(sess, snap, {}, [], [])
+    assert prop["apart"] == [2] and not prop["spaces"][nook]["merged_into"]
+
+
+def test_a_door_between_two_printed_rooms_inside_one_of_his_is_not_put_on_his_outer_wall(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review B9: both printed rooms a door joins lie in one of his rooms (a suite): the wall between them isn't one of
+    his, and the nearest edge of the room may be its outer wall. The door is left unplaced, not snapped there."""
+    h, _conn, _ai = _house(monkeypatch, tmp_path, disk)
+    reads = []
+    for k in (1, 2):
+        r = _read(k)
+        r["rooms"][0] = {"name": "DEN A", "corners": _box(100, 100, 400, 250)}
+        r["rooms"].append({"name": "DEN B", "corners": _box(100, 260, 400, 450)})
+        r["doors"] = [{"at": [110, 255], "between": ["DEN A", "DEN B"], "kind": "hinged"}]
+        reads.append(r)
+    _s, _snap, prop = _proposal(h, reads)
+    door = next(o for o in prop["openings"].values() if o["between"] == ["DEN A", "DEN B"])
+    assert door["placed"] is False and door["a_m"] is None and not door["default"]
+
+
+def test_the_rooms_tab_merge_works_off_the_event_loop_and_says_a_delete_that_failed(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review B4 and B10: Mapping -> Rooms's merge rasterises in the executor; a delete that fails is said."""
+    from custom_components.padspan_ha import ws_fabric as WF
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    ran = []
+    real = h.async_add_executor_job
+
+    async def ex(fn, *args):
+        ran.append(getattr(fn, "__name__", ""))
+        return await real(fn, *args)
+    h.async_add_executor_job = ex
+    mdl = h.data[DOMAIN][DATA_MODEL]
+
+    async def no_remove(room):
+        return {"ok": False, "error": "store_failed"}
+    monkeypatch.setattr(mdl, "async_remove_room", no_remove)
+    out = _call(WF.ws_fabric_rooms_merge, h, conn, floor_id="main", keep="Den", rooms=["Shop"])
+    assert "merge_outline" in ran
+    assert out["ok"] is False and out["removed"] == [] and out["failed"] == ["Shop"] and "Shop couldn't be deleted" in out["message"]

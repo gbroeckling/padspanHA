@@ -959,7 +959,8 @@ async def ws_plan_build_rooms_resume(hass: HomeAssistant, connection, msg) -> No
 
 _EDIT_WORDS = {"not_found": "that isn't in the proposal any more.", "invalid": "pick two or more rooms or spaces.",
                "two_rooms": "two of your rooms can't be merged here: that would remove one. Merge spaces into one room.",
-               "depends": "a later merge took this one in: separate that one first."}
+               "depends": "a later merge took this one in: separate that one first.",
+               "apart": "those don't touch (more than a metre apart), so they can't be one outline: nothing was merged. Merge only what touches."}
 
 
 @websocket_api.websocket_command({
@@ -1007,11 +1008,17 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
             return
         snap, house, points, barriers = await A.rooms_inputs(hass)
         try:
-            sess["proposal"] = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
+            prop = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
         except Exception:  # noqa: BLE001 — an edit that can't be worked out is taken back
             sess["edits"] = was
             connection.send_error(msg["id"], "invalid", RP + "that edit couldn't be worked out, so it was taken back.")
             return
+        new_merge = (sess["edits"].get("merges") or [{}])[-1].get("id") if msg["op"] == "merge" else None
+        if new_merge is not None and new_merge in (prop.get("apart") or []):
+            sess["edits"] = was                    # a choice, not a silent drop: said, and nothing changes (review B8)
+            connection.send_error(msg["id"], "apart", RP + _EDIT_WORDS["apart"])
+            return
+        sess["proposal"] = prop
         if msg["op"] == "separate":
             A._bump(hass, "plan_build_merge:separated")  # noqa: SLF001
         sess["rev"] = int(sess.get("rev") or 0) + 1

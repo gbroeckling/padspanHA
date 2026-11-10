@@ -2625,7 +2625,7 @@ export function createPlans(ctx){
   const rbInside = (x, y, p) => inPolygon(x, y, p);
   const rbSpaceShown = (s) => !s.merged_into;
   const rbMapWanted = () => mapCan() && !!rbProp() && rbSess.status !== "running";
-  /** What a session proposes, ticked by default: every room, a new room once named, doors, windows and stairs both reads found. */
+  /** What a session proposes, ticked by default (the server's `default`): a room the reads agree on, a new room once named, doors, windows and stairs both reads found. */
   function rbDefaults(){
     rbTicks.clear();
     const p = rbProp();
@@ -2994,13 +2994,13 @@ export function createPlans(ctx){
       else if (r.third && r.third.decided && r.ready) sub.push(`Read again: two of three reads agree (${Math.max(...(r.third.agree || [0])).toFixed(2)}).`);
       else if (r.ready) sub.push(`Both reads agree (${(r.agree || 0).toFixed(2)}).`);
       else if (fl.includes("one_read")) sub.push("Only one read found it: not ticked; tick it to use it.");
-      else if (fl.includes("three_differ")) sub.push("Look closely: read again, and all three reads differ. Pick the one that fits, or keep yours.");
-      else if (fl.includes("reads_differ")) sub.push(`Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Show both reads to compare, or read it again.`);
+      else if (fl.includes("three_differ")) sub.push("Look closely: read again, and all three reads differ. Not ticked: pick the one that fits and tick it, or keep yours.");
+      else if (fl.includes("reads_differ")) sub.push(`Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Not ticked: show both reads to compare, read it again, or tick it to use it.`);
       else sub.push(`Look closely: both reads agree (${(r.agree || 0).toFixed(2)}), but its printed rooms didn't join into one shape. Not ticked: merge, or tick it to use it.`);
       if (!fl.includes("merge_only")) sub.push(`Overlap with your outline ${(r.iou_now || 0).toFixed(2)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`);
       if (fl.includes("apart")) sub.push("Some of its printed rooms didn't join the rest: only the largest part is used.");
       if (!fl.includes("merge_only") && (r.spots || [])[2]) sub.push(`Using read ${r.pick}${r.picked_by === "person" ? " (your pick)" : ""}: it keeps ${Math.max(0, r.spots[r.pick - 1])} of ${r.spots[2]} calibration spots inside it.`);
-      if ((r.cal || {}).leaving) sub.push(`${r.cal.leaving} of your ${r.cal.labelled} spots would fall outside it; ${r.cal.leaving === 1 ? "it keeps its" : "they keep their"} room label. Your choice: keep yours, or use Claude's.`);
+      if ((r.cal || {}).leaving) sub.push(`${r.cal.leaving} of your ${r.cal.labelled} spots would fall outside it${r.cal.most ? " (half or more: not ticked)" : ""}; ${r.cal.leaving === 1 ? "it keeps its" : "they keep their"} room label. Your choice: keep yours, or use Claude's.`);
       if ((r.merged || []).length) sub.push(`Merged in: ${r.merged.map(id => ((p.spaces || {})[id] || {}).name || id).join(", ")}.`);
       const row = rbTick(r.id, r.room, sub);
       const a = d("div", "pl-acts");

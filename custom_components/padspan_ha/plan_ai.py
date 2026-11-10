@@ -3656,6 +3656,8 @@ def _snap_opening(o: dict, outlines: dict[str, list], names: dict[str, str]) -> 
         return e if e and e["d"] <= S2_SNAP_M else None
 
     joins = [k for k in dict.fromkeys(want) if k in pool]
+    if o["cls"] == "door" and len(want) >= 2 and len(set(want)) == 1:
+        return None                                # both printed rooms inside one of his (a suite): its wall isn't one of his; never the outer wall (review B9)
     if o["cls"] == "door" and len(joins) < 2 and "outside" not in [str(n).lower() for n in o.get("names") or []]:
         near = sorted((e["d"], k) for k in pool if (e := edge(k)))
         joins = list(dict.fromkeys(joins + [k for _d, k in near]))[:2]
@@ -3816,35 +3818,52 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
         else:
             g.append(f)
     groups.sort(key=lambda g: (round(G.centroid(g[0]["poly"])[1], 1), round(G.centroid(g[0]["poly"])[0], 1)))
-    for i, g in enumerate(groups):
-        sid = f"space:{i + 1}"
-        spaces[sid] = {"id": sid, "name": g[0]["name"], "outline_m": G.simplify(g[0]["poly"], 0.0), "reads": sorted({f["read"] + 1 for f in g}),
-                       "merged_into": None, "new": None, "parts": [sid]}
+    for g in groups:
+        # Its id comes from the read (plan, read, printed name, shape of the group's largest), never from its place in
+        # the list: which spaces are loose depends on his rooms as they are now, and a name, a merge, a tick or "saved"
+        # must stay on the same space after he edits a room (review B3).
+        f0 = g[0]
+        key = json.dumps([sess["plans"][f0["plan"]]["map_id"], f0["read"], f0["name"], [[round(v, 2) for v in p] for p in f0["poly"]]])
+        sid = "space:" + hashlib.sha1(key.encode()).hexdigest()[:8]
+        while sid in spaces:
+            sid += "x"
+        spaces[sid] = {"id": sid, "name": f0["name"], "outline_m": G.merge_outline([f0["poly"]])[0] or G.simplify(f0["poly"], 0.0),
+                       "reads": sorted({f["read"] + 1 for f in g}), "merged_into": None, "new": None, "parts": [sid]}
         for f in g:
             owner[f["read"]][(f["plan"], f["name"])] = sid
 
-    # The person's merges, in order: into one of his rooms, or spaces into one space.
+    # The person's merges, in order: into one of his rooms, or spaces into one space. One whose parts don't touch
+    # (more than a merge closes) isn't made: listed in `apart`, so the edit is refused with its reason (review B8).
+    apart: list[int] = []
     for m in edits.get("merges") or []:
         ids = [i for i in m.get("parts") or [] if i in spaces and spaces[i]["merged_into"] is None]
         into = m.get("into")
         if into:
             n = str(into)[5:] if str(into).startswith("room:") else None
-            if n in his and n not in rooms:                # one of his rooms the plans didn't show: its outline now, grown
+            base = rooms[n]["base_m"] if n in rooms else his.get(n) if n else None
+            if base is None or not ids:
+                continue
+            out, pieces = G.merge_outline([base] + [spaces[i]["outline_m"] for i in ids])
+            if pieces > 1:
+                apart.append(int(m.get("id") or 0))
+                continue
+            if n not in rooms:                             # one of his rooms the plans didn't show: its outline now, grown
                 rooms[n] = {"id": into, "room": n, "now_m": his[n], "reads_m": [None] * S2_READS, "parts": [[] for _ in range(S2_READS)],
                             "agree": None, "ready": False, "pick": 1, "picked_by": "merge", "spots": [-1] * S2_READS + [0],
                             "base_m": his[n], "merged": [], "flags": ["merge_only"]}
                 if n in unseen:
                     unseen.remove(n)
-            r = rooms.get(n) if n else None
-            if r is None or not ids:
-                continue
-            r["base_m"], _n = G.merge_outline([r["base_m"]] + [spaces[i]["outline_m"] for i in ids])
+            r = rooms[n]
+            r["base_m"] = out
             r["merged"] += ids
             for i in ids:
                 spaces[i]["merged_into"] = into
         elif len(ids) >= 2:
             sid = f"space:m{m['id']}"
-            out, _n = G.merge_outline([spaces[i]["outline_m"] for i in ids])
+            out, pieces = G.merge_outline([spaces[i]["outline_m"] for i in ids])
+            if pieces > 1:
+                apart.append(int(m.get("id") or 0))
+                continue
             spaces[sid] = {"id": sid, "name": " + ".join(spaces[i]["name"] for i in ids)[:S2_NAME_MAX], "outline_m": out,
                            "reads": sorted({r for i in ids for r in spaces[i]["reads"]}), "merged_into": None, "new": None,
                            "parts": [p for i in ids for p in spaces[i]["parts"]], "merge": m["id"]}
@@ -3869,7 +3888,11 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
         r["cal"] = {"labelled": len(mine), "leave": leave[:50], "leaving": len(leave)}
         if leave:                                    # information and a choice (keep mine, use Claude's), never a refusal (Garry, 2026-11-10)
             r["flags"].append("spots_out")
-        r["default"] = not ({"apart", "one_read"} & set(r["flags"]))
+        # Ticked by default (Garry, by form, 2026-11-10): a room the reads agree on, or one of his grown by a merge; not one
+        # whose reads still differ (three_differ too), not one whose parts don't join, and not one that would push half or
+        # more of its labelled spots out (Keep mine first, the count said).
+        r["cal"]["most"] = bool(leave) and 2 * len(leave) >= len(mine)
+        r["default"] = (r["ready"] or "merge_only" in r["flags"]) and not r["cal"]["most"]
 
     # Doors and windows: both reads within S2_SAME_M proposed, one read a maybe; on a wall, never twice.
     outlines = {**{r["id"]: r["outline_m"] for r in rooms.values()},
@@ -3957,7 +3980,7 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
                        "hand": rel.get("hand"), "other_floor": sfid != fid,
                        # A correction of a stair the person placed is offered, not ticked (the plan AI's Keep mine first); so is one of another floor.
                        "default": nreads == S2_READS and sfid == fid and (rel["relation"] == "new" or (rel["relation"] == "correction" and not rel.get("hand")))}
-    return {"rooms": rooms, "unseen": unseen, "spaces": spaces, "openings": openings, "stairs": stairs, "labelled": len(labelled)}
+    return {"rooms": rooms, "unseen": unseen, "spaces": spaces, "openings": openings, "stairs": stairs, "labelled": len(labelled), "apart": apart}
 
 
 def floor_order_of(snap: dict) -> list[dict]:
@@ -4221,6 +4244,7 @@ class RoomsRunner(LineupRunner):
                 status, why = "failed", self.halt
             if status != "cancelled":
                 await self.propose()
+                count_rooms(self.hass, self.sess.get("proposal"), self.sess["third_for"]["room"])
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("PadSpan rooms from plans: reading again stopped: %s", P._why(err))  # noqa: SLF001
             status, why = "failed", "error"
@@ -4275,14 +4299,20 @@ async def rooms_inputs(hass: HomeAssistant) -> tuple[dict, dict, list, list]:
     return snap, house, points, barriers
 
 
-def count_rooms(hass: HomeAssistant, prop: dict | None) -> None:
-    """What a proposal showed, by kind (design 10)."""
+def count_rooms(hass: HomeAssistant, prop: dict | None, room: str | None = None) -> None:
+    """What a proposal showed, by kind (design 10). `room`: after Read again,
+    only what the third read made of that room (two_of_three, three_differ)."""
     if not prop:
+        return
+    if room is not None:
+        third = ((prop.get("rooms") or {}).get(room) or {}).get("third")
+        if third:
+            _bump(hass, f"plan_build_agree:{'two_of_three' if third.get('decided') else 'three_differ'}")
         return
     for r in (prop.get("rooms") or {}).values():
         _bump(hass, "plan_build_item:room_shown")
         _bump(hass, f"plan_build_agree:{'ready' if r.get('ready') else 'differ'}")
-        for f in ("apart",):
+        for f in ("apart", "spots_out"):
             if f in r.get("flags") or []:
                 _bump(hass, f"plan_build_agree:{f}")
     for s in (prop.get("spaces") or {}).values():

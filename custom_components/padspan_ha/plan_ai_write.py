@@ -1276,7 +1276,7 @@ async def lineup_undo(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> di
 # goes back to `before`, what changed since is left and said. Never a rename,
 # never a deleted room of the person's, never a calibration point, a barrier, a
 # placement or anything in metres but these outlines, openings and stairs
-# (tests/test_plan_build_rooms_write.py scans for it).
+# (tests/test_plan_build_rooms.py scans for it).
 
 from .const import DATA_FABRIC, FABRIC_STORE_KEY  # noqa: E402
 
@@ -1335,6 +1335,20 @@ async def _write_room(hass: HomeAssistant, e: dict[str, Any], side: str) -> str 
         return "no_fabric"
     want, room, fl = e.get(side), e["room"], e["floor_id"]
     try:
+        had = e.get("meta_before") or {}
+        if want is None and (had.get("room_meta") is not None or had.get("adjacency") is not None):
+            # A new room under a name that already had settings (a Home Assistant area with its floor, colour,
+            # height, adjacency): only the shape the save added goes; the settings come back as they were (review B1).
+            res = await fab.async_remove_room(room)
+            if not res.get("ok"):
+                return str(res.get("error") or "remove_failed")
+            for key, was in (("room_meta", had.get("room_meta")), ("room_adjacency", had.get("adjacency"))):
+                if was is None:
+                    (mdl.data.get(key) or {}).pop(room, None)
+                else:
+                    mdl.data.setdefault(key, {})[room] = copy.deepcopy(was)
+            await mdl.store.async_save(mdl.data)
+            return None
         if want is None:
             res = await mdl.async_remove_room(room)
             return None if res.get("ok") else str(res.get("error") or "remove_failed")
@@ -1490,7 +1504,8 @@ def _rooms_landed(store: A.PlanAiStore, bid: str, b: dict[str, Any], at: float) 
     saved = (sess or {}).setdefault("saved", {})
     for e in b.get("items") or []:
         if b.get("undo_of"):
-            saved.pop(e["item_id"], None)
+            for iid in e.get("item_ids") or [e["item_id"]]:
+                saved.pop(iid, None)
         else:
             saved[e["item_id"]] = bid
     for of in b.get("undo_of") or []:
@@ -1620,8 +1635,14 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
                                  "after": {"type": "poly", "points_m": [[round(x, 3), round(y, 3)] for x, y in r["outline_m"]]}})
         elif iid.startswith("space:"):
             s = prop["spaces"][iid]
+            mdata = getattr(hass.data.get(DOMAIN, {}).get(DATA_MODEL), "data", None) or {}
             room_entries.append({"item_id": iid, "kind": "room_new", "room": s["new"], "floor_id": fid, "before": None,
-                                 "after": {"type": "poly", "points_m": [[round(x, 3), round(y, 3)] for x, y in s["outline_m"]]}})
+                                 "after": {"type": "poly", "points_m": [[round(x, 3), round(y, 3)] for x, y in s["outline_m"]]},
+                                 # What the name had before the save (an area's settings, the scanners in it): undo puts it back (review B1).
+                                 "meta_before": {"room_meta": copy.deepcopy((mdata.get("room_meta") or {}).get(s["new"])),
+                                                 "adjacency": copy.deepcopy((mdata.get("room_adjacency") or {}).get(s["new"])),
+                                                 "scanners": sorted(k for k, v in (mdata.get("scanners") or {}).items()
+                                                                    if isinstance(v, dict) and v.get("room") == s["new"])}})
 
     # 2. The room score on this floor's calibration spots: kept with the save and counted, never a refusal (Garry, 2026-11-10:
     #    accuracy is information and a choice per room; a wrong save costs one undo, a refusal costs the tool).
@@ -1664,9 +1685,11 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
                                           "couldn't write it all; what was written is put back the next time Rooms from plans opens. ")
                      + "Try again; check Home Assistant's storage.", None, "save_failed")
 
-    # 6. The mark off; what was saved is said and counted.
+    # 6. The mark off; what was saved is said and counted. The proposal is worked out again on the house as it is now,
+    #    so a second save of what isn't saved yet is checked against it, not refused as changed (review B12).
     batch.pop("pending", None)
     _rooms_landed(store, bid, batch, at)
+    await _repropose(hass, sess)
     await _save(store)
     _invalidate(hass)
     _LOGGER.info("PadSpan rooms from plans (experimental): saved %d item(s) of session %s (backup %s)", len(entries), sid, backup_id)
@@ -1679,6 +1702,19 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
         A._bump(hass, "plan_build_merge:new_room")  # noqa: SLF001
     A._bump(hass, "plan_build_commit:done")  # noqa: SLF001
     return {"ok": True, "rev": sess["rev"], "batch": bid, "backup_id": backup_id, "gate": gate, "saved": ids, "undo": A.rooms_undo_info(store, sid)}
+
+
+async def _repropose(hass: HomeAssistant, sess: dict | None) -> None:
+    """A session's proposal worked out again on the house as it is (after a
+    save or an undo). One that can't be worked out keeps the one it had."""
+    if not sess or not sess.get("proposal"):
+        return
+    _invalidate(hass)
+    try:
+        snap, house_now, points, barriers = await A.rooms_inputs(hass)
+        sess["proposal"] = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(sess), snap, house_now, points, barriers)
+    except Exception as err:  # noqa: BLE001 — what was saved stands; the next save checks against a fresh one anyway
+        _LOGGER.warning("PadSpan rooms from plans: the proposal couldn't be worked out again: %s", P._why(err))  # noqa: SLF001
 
 
 def _excluded(hass: HomeAssistant) -> frozenset:
@@ -1721,13 +1757,22 @@ async def rooms_undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3d
     scanners = (getattr(mdl, "data", None) or {}).get("scanners") or {}
     todo: list[dict] = []
     skipped: list[dict] = []
+    # One undo per target (review B3): two saves of the session may touch one room, door or stair. The newest `after`
+    # is checked against the house as it is; the oldest `before` is written back.
+    targets: dict[tuple, list[tuple[str, dict]]] = {}
     for bid, b in mine:
         for e in reversed(b.get("items") or []):
-            in_use = e["kind"] == "room_new" and any(isinstance(v, dict) and v.get("room") == e["room"] for v in scanners.values())
-            if _at_side(hass, house.data, e, "after") and not in_use:
-                todo.append({**copy.deepcopy(e), "before": copy.deepcopy(e["after"]), "after": copy.deepcopy(e["before"]), "of": bid})
-            else:
-                skipped.append({"item_id": e["item_id"], "why": "in_use" if in_use else "changed"})
+            targets.setdefault(("room", e["room"]) if e["kind"] in ROOM_KINDS else ("house", e["target"]), []).append((bid, e))
+    for got in targets.values():
+        (bid, newest), (_obid, oldest) = got[0], got[-1]
+        had = set((oldest.get("meta_before") or {}).get("scanners") or [])
+        in_use = oldest["kind"] == "room_new" and any(isinstance(v, dict) and v.get("room") == oldest["room"] and k not in had
+                                                      for k, v in scanners.items())
+        if _at_side(hass, house.data, newest, "after") and not in_use:
+            todo.append({**copy.deepcopy(oldest), "item_id": newest["item_id"], "item_ids": [e["item_id"] for _b, e in got],
+                         "before": copy.deepcopy(newest["after"]), "after": copy.deepcopy(oldest["before"]), "of": bid})
+        else:
+            skipped += [{"item_id": e["item_id"], "why": "in_use" if in_use else "changed"} for _b, e in got]
     at = time.time()
     if not todo:                                          # everything changed since: nothing can go back, so the saves are spent
         for _bid, b in mine:
@@ -1769,6 +1814,7 @@ async def rooms_undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3d
     ub = batches[ubid]
     ub.pop("pending", None)
     _rooms_landed(store, ubid, ub, at)
+    await _repropose(hass, store.rooms_session(sid))
     await _save(store)
     _invalidate(hass)
     _LOGGER.info("PadSpan rooms from plans (experimental): undid session %s, %d item(s) back, %d left (backup %s)", sid, len(todo), len(skipped), backup_id)
