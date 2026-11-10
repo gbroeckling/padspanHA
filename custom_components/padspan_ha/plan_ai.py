@@ -330,6 +330,20 @@ def image_sig(m: dict) -> str:
     return re.sub(r"[^a-zA-Z0-9]", "", str(image.get("sha256") or m.get("updated") or ""))[:32]
 
 
+def legacy_image_sig(m: dict) -> str:
+    """The picture's signature as PadSpan stored it before the sha256 came
+    first (0.38.220 on): the map's `updated` first. Still the same picture
+    while it matches: the record hasn't been saved since (review B3)."""
+    image = m.get("image") or {}
+    return re.sub(r"[^a-zA-Z0-9]", "", str(m.get("updated") or image.get("sha256") or ""))[:32]
+
+
+def same_picture(stored: Any, now: dict) -> bool:
+    """A stored picture signature against a plan as it is now (its
+    image_sig, and the old formula's image_sig_was)."""
+    return stored in (now.get("image_sig"), now.get("image_sig_was"))
+
+
 def place_sig(t: Any) -> str:
     """The placement's version: a hash of the whole transform record. A
     re-placement writes the record and never bumps `updated`, so this is
@@ -361,7 +375,7 @@ def plans(hass: HomeAssistant) -> list[dict[str, Any]]:
             continue
         out.append({**pl, "floor_id": pl["floor_id"] or DEFAULT_FLOOR_ID, "corners_m": [[round(c[0], 3), round(c[1], 3)] for c in corners],
                     "refs": len((t or {}).get("reference_measurements") or []),
-                    "image_sig": image_sig(m), "place_sig": place_sig(t)})
+                    "image_sig": image_sig(m), "image_sig_was": legacy_image_sig(m), "place_sig": place_sig(t)})
     return out
 
 
@@ -379,7 +393,7 @@ def plans_moved(hass: HomeAssistant, sess: dict[str, Any]) -> set[str]:
     their ids."""
     for pl in sess.get("plans") or []:
         now = plan_now(hass, pl["map_id"])
-        if now is None or now["image_sig"] != pl["image_sig"] or now["place_sig"] != pl["place_sig"]:
+        if now is None or not same_picture(pl["image_sig"], now) or now["place_sig"] != pl["place_sig"]:
             pl["changed"] = True
     return {pl["map_id"] for pl in sess.get("plans") or [] if pl.get("changed")}
 
@@ -851,14 +865,16 @@ def reject_key(kind: str, map_id: str, isig: str, psig: str, x: float, y: float)
     return f"{kind}|{map_id}|{isig}|{psig}|{x:.1f}|{y:.1f}"
 
 
-def remembered_reject(rejects: dict, kind: str, map_id: str, isig: str, psig: str, x: float, y: float) -> str | None:
+def remembered_reject(rejects: dict, kind: str, map_id: str, isig: str | tuple, psig: str, x: float, y: float) -> str | None:
     """The key of a live reject of this kind within REJECT_M on this plan
     version, or None. After a re-placement the placement hash differs and
-    the old reject no longer matches: it expires by itself."""
+    the old reject no longer matches: it expires by itself. `isig`: the
+    picture's signature, or it and the old formula's (legacy_image_sig)."""
+    isigs = (isig,) if isinstance(isig, str) else tuple(isig)
     for key, r in (rejects or {}).items():
         if not isinstance(r, dict) or r.get("kind") != kind or r.get("map_id") != map_id:
             continue
-        if r.get("image_sig") != isig or r.get("place_sig") != psig:
+        if r.get("image_sig") not in isigs or r.get("place_sig") != psig:
             continue
         try:
             if math.hypot(float(r["x_m"]) - x, float(r["y_m"]) - y) <= REJECT_M:
@@ -1001,7 +1017,7 @@ def new_session(ai: dict, plans_: list[dict], kinds: list[str], frame: str, fixt
             "plans": [{"map_id": p["map_id"], "name": p.get("name") or "", "floor_id": p["floor_id"],
                        "kinds": [k for k in kinds if k != "light" or fx.get(p["map_id"]) == "yes"],
                        "fixtures_drawn": {"yes": True, "no": False}.get(fx.get(p["map_id"], "")) if "light" in kinds else None, "refs": int(p.get("refs") or 0),
-                       "image_sig": p["image_sig"], "place_sig": p["place_sig"], "frame": None, "suspect": False,
+                       "image_sig": p["image_sig"], "image_sig_was": p.get("image_sig_was"), "place_sig": p["place_sig"], "frame": None, "suspect": False,
                        "read": False, "answered": False, "changed": False} for p in plans_],
             "finds": [], "light_finds": [], "suggestions": {}, "batch": None, "backup_id": None}
 
@@ -1061,7 +1077,7 @@ class Runner:
             now = plan_now(self.hass, pl["map_id"])
             if now is None:
                 return "plan_gone"
-            if now["image_sig"] != pl["image_sig"] or now["place_sig"] != pl["place_sig"]:
+            if not same_picture(pl["image_sig"], now) or now["place_sig"] != pl["place_sig"]:
                 return "plan_changed"
         return None
 
@@ -1393,7 +1409,7 @@ class Runner:
             sug = {"id": sid, "kind": "light", "map_id": f["map_id"], "floor_id": f["floor_id"], "box_px": f["box_px"], "frame": f["frame"],
                    "seen_on": f["seen_on"], "reads": f["reads"], "geom": {"x_m": f["x_m"], "y_m": f["y_m"], "symbol": symbol}, "match": match,
                    "state": "queued", "verdict": None, "piece_id": None}
-            rk = remembered_reject(rejects, "light", f["map_id"], pl.get("image_sig") or "", pl.get("place_sig") or "", f["x_m"], f["y_m"])
+            rk = remembered_reject(rejects, "light", f["map_id"], (pl.get("image_sig") or "", pl.get("image_sig_was") or ""), pl.get("place_sig") or "", f["x_m"], f["y_m"])
             if match["relation"] == "duplicate":
                 sug["state"] = "duplicate"
                 if symbol != "unknown":            # a mark nobody read a symbol from isn't "already there"
@@ -1463,7 +1479,7 @@ class Runner:
             sug = {"id": sid, "kind": "stairs", "map_id": f["map_id"], "floor_id": f["floor_id"], "box_px": f["box_px"],
                    "frame": f["frame"], "seen_on": f["seen_on"], "reads": f["reads"], "geom": geom, "match": match,
                    "state": "queued", "verdict": None, "piece_id": None, "says": f.get("says") or ""}
-            rk = remembered_reject(rejects, "stairs", f["map_id"], pl.get("image_sig") or "", pl.get("place_sig") or "", f["x_m"], f["y_m"])
+            rk = remembered_reject(rejects, "stairs", f["map_id"], (pl.get("image_sig") or "", pl.get("image_sig_was") or ""), pl.get("place_sig") or "", f["x_m"], f["y_m"])
             if match["relation"] == "duplicate":
                 sug["state"] = "duplicate"
                 _bump(self.hass, "plan_ai_duplicate:stairs")
@@ -1487,7 +1503,7 @@ class Runner:
                     "match": {"target": on["id"] if on else None, "distance_m": None, "relation": rel, "near": [], "held": match["held"],
                               "target_snap": target_snap(on) if on else None, "have": on["rail"] if on else None},
                     "state": "queued", "verdict": None, "piece_id": None}
-            rk = remembered_reject(rejects, "railing", f["map_id"], pl.get("image_sig") or "", pl.get("place_sig") or "", geom["x_m"], geom["y_m"])
+            rk = remembered_reject(rejects, "railing", f["map_id"], (pl.get("image_sig") or "", pl.get("image_sig_was") or ""), pl.get("place_sig") or "", geom["x_m"], geom["y_m"])
             if rel == "duplicate":
                 hint["state"] = "duplicate"
                 _bump(self.hass, "plan_ai_duplicate:railing")
@@ -2029,7 +2045,7 @@ def house_snapshot(hass: HomeAssistant) -> dict[str, Any]:
         plans_[mid] = {"name": str(m.get("name") or "")[:80], "floor_id": str(m.get("floor_id") or ""),
                        "size": [int(image.get("width") or 0), int(image.get("height") or 0)],
                        "t": {k: t.get(k) for k in G.FIELDS if t.get(k) is not None}, "refs": len(t.get("reference_measurements") or []),
-                       "image_sig": image_sig(m), "place_sig": place_sig(t),
+                       "image_sig": image_sig(m), "image_sig_was": legacy_image_sig(m), "place_sig": place_sig(t),
                        "room_bounds": {str(k): (v or {}).get("points") or [] for k, v in (m.get("room_bounds") or {}).items() if isinstance(v, dict)},
                        "receivers": [r for r in m.get("receivers") or [] if isinstance(r, dict)],
                        "beacons": [b for b in m.get("beacons") or [] if isinstance(b, dict)],
@@ -2874,7 +2890,7 @@ class LineupRunner(Runner):
             now = plan_now(self.hass, pl["map_id"])
             if now is None:
                 return "plan_gone"
-            if now["image_sig"] != pl["image_sig"] or now["place_sig"] != pl["place_sig"]:
+            if not same_picture(pl["image_sig"], now) or now["place_sig"] != pl["place_sig"]:
                 return "plan_changed"
         return None
 
@@ -3319,7 +3335,7 @@ def item_now(snap: dict, sess: dict, it: dict) -> str | None:
     p = snap["plans"].get(it.get("map_id"))
     if p is None or placement_of(p.get("t")) is None:
         return "gone"
-    if p["image_sig"] != it.get("image_sig"):
+    if not same_picture(it.get("image_sig"), p):
         return "picture"
     if p["floor_id"] != sess.get("floor_id"):
         return "moved"

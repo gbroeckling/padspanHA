@@ -1075,6 +1075,35 @@ def test_a_reject_is_remembered_on_the_same_plan_version_expires_with_a_re_place
     assert _call(W.ws_plan_ai_reject_forget, h, conn, key=key) == {"ok": False}
 
 
+def test_what_was_stored_under_the_old_picture_signature_still_matches_until_the_record_is_saved(monkeypatch, tmp_path, disk):
+    """Review B3: the picture's signature was its map's `updated` stamp
+    (0.38.220 on); now it is the picture's sha256. A reject or a session
+    stored under the old one still matches while that stamp hasn't moved (the
+    record unsaved since, so the picture can't have changed): no Wrong is
+    forgotten and no open suggestion turns changed on upgrade."""
+    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
+    store, sess, sid = _run(_session(h, ("m1",), ("stairs",)))
+    [sug_id] = sess["suggestions"]
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=sess["rev"], sug_id=sug_id, v="failure", why="nothing_there")
+    [key] = store.data["rejects"]
+    old = "20261102T100000"                                       # "2026-11-02T10:00:00", as the old signature had it
+    m1 = h.data[DOMAIN][DATA_MAPS].get_map("m1")
+    assert A.image_sig(m1) == "abc" and A.legacy_image_sig(m1) == old
+    store.data["rejects"][key]["image_sig"] = old                 # both as an earlier PadSpan stored them
+    for pl in sess["plans"]:
+        pl["image_sig"] = old
+    out = _call(W.ws_plan_ai_status, h, conn, session=sid)
+    assert not any(p["changed"] for p in out["session"]["plans"]) and "stale" not in {s["state"] for s in out["session"]["suggestions"].values()}
+    store, sess2, _sid = _run(_session(h, ("m1",), ("stairs",)))
+    [sug] = sess2["suggestions"].values()
+    assert sug["state"] == "failure" and sug["verdict"]["remembered"] is True and sug["verdict"]["reject"] == key
+    # The record saved since: its stamp moved, so the old signature vouches for nothing.
+    m1["updated"] = "2026-11-10T08:00:00"
+    store, sess3, _sid = _run(_session(h, ("m1",), ("stairs",)))
+    [sug] = sess3["suggestions"].values()
+    assert sug["state"] == "queued"
+
+
 def test_status_marks_a_changed_plan_or_target_stale(monkeypatch, tmp_path, disk):
     counted = []
     monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
