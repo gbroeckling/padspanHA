@@ -292,11 +292,14 @@ def test_two_reads_flag_the_room_they_differ_on_and_the_spots_pick_the_read(monk
     assert prop2["rooms"]["Shop"]["cal"]["leaving"] == 1 and prop2["rooms"]["Shop"]["cal"]["leave"] == ["cp_3"]   # flagged, never relabelled
 
 
-def test_a_proposal_far_from_his_outline_is_flagged_even_when_the_reads_agree(monkeypatch, tmp_path, disk):  # noqa: F811
+def test_agreeing_reads_are_trusted_over_the_outline_he_drew(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Garry, 2026-11-10: "My kitchen open edge is wrong, trust the ai results on this one": a room both reads
+    agree on is ready, however far it is from his outline; only reads that disagree flag a room."""
     h, _conn, _ai = _house(monkeypatch, tmp_path, disk)
     r = _read(1, shop_px=_box(420, 100, 900, 250))
     _s, _snap, prop = _proposal(h, (r, copy.deepcopy(r)))
-    assert prop["rooms"]["Shop"]["ready"] and "big_change" in prop["rooms"]["Shop"]["flags"]     # the test's open kitchen: agreed, and wrong
+    shop = prop["rooms"]["Shop"]
+    assert shop["ready"] and shop["flags"] == [] and shop["iou_now"] < 0.5 and shop["default"]
 
 
 def test_merges_new_rooms_and_never_two_of_his_rooms(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -640,7 +643,7 @@ def test_every_rooms_stop_has_words_and_a_report_name():
         what, way = A.STOPS[k]
         assert what and way and f"plan_build_stop:{k}" in PLAN_BUILD_EVENTS
     for e in ("plan_build_run:s2_started", "plan_build_item:room_accepted", "plan_build_item:door_maybe", "plan_build_heldout:blocked",
-              "plan_build_agree:big_change", "plan_build_merge:separated", "plan_build_read_fail:s2_no_credit"):
+              "plan_build_agree:apart", "plan_build_merge:separated", "plan_build_read_fail:s2_no_credit"):
         assert e in PLAN_BUILD_EVENTS, e
 
 

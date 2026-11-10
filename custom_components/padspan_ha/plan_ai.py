@@ -3412,8 +3412,6 @@ S2_SAME_SPACE = 0.5          # two printed spaces outside every room this alike 
 S2_SAME_M = 0.5              # a door or window this close to another is the same one (the test scored within 0.5 m)
 S2_SNAP_M = 0.6              # a door or window this close to an outline's edge is put on it; further: not offered
 S2_STAIR_SAME_M = 1.0        # two reads' stairs this close are one (plan_ai.DUP_M)
-S2_BIG_CHANGE = 0.75         # a proposed outline overlapping the person's own less than this (IoU) is flagged "look closely": the
-                             # test's one wrong room both reads agreed on (an open kitchen side, 0.69) is the only one it flags there
 S2_WIDTH_M = {"door": 0.8, "doorway": 0.9, "window": 1.2}     # the read gives only a centre
 S2_MIN_M = {"door": 0.6, "doorway": 0.6, "window": 0.3}       # house3d_store's DOOR_MIN_M and WINDOW_MIN_M
 S2_DOOR_HEAD_M, S2_WINDOW_SILL_M, S2_WINDOW_HEAD_M = 2.03, 0.9, 2.1   # the 3D editor's defaults (live_aboard_draft.js)
@@ -3832,12 +3830,12 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
         if nm and s["merged_into"] is None:
             s["new"] = nm
 
-    # Each room's outline, how far it is from the person's, what it does to the calibration spots.
+    # Each room's outline, how far it is from the person's (said, never a flag: where the two reads agree the
+    # reading is trusted over the outline he drew; Garry, 2026-11-10: "My kitchen open edge is wrong, trust the
+    # ai results on this one"), what it does to the calibration spots.
     for n, r in rooms.items():
         r["outline_m"] = r.pop("base_m")
         r["iou_now"] = round(G.poly_iou(r["outline_m"], r["now_m"]), 3)
-        if r["iou_now"] < S2_BIG_CHANGE and "merge_only" not in r["flags"]:
-            r["flags"].append("big_change")
         r["area_now"], r["area_new"] = round(G.area(r["now_m"]), 1), round(G.area(r["outline_m"]), 1)
         mine = [p for p in labelled if p["room"] == n]
         leave = [str(p.get("id")) for p in mine if G.inside(float(p["x_m"]), float(p["y_m"]), r["now_m"])
@@ -4182,7 +4180,7 @@ def count_rooms(hass: HomeAssistant, prop: dict | None) -> None:
     for r in (prop.get("rooms") or {}).values():
         _bump(hass, "plan_build_item:room_shown")
         _bump(hass, f"plan_build_agree:{'ready' if r.get('ready') else 'differ'}")
-        for f in ("big_change", "apart"):
+        for f in ("apart",):
             if f in r.get("flags") or []:
                 _bump(hass, f"plan_build_agree:{f}")
     for s in (prop.get("spaces") or {}).values():

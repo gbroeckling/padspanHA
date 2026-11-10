@@ -822,10 +822,10 @@ PLAN_BUILD_STRESS: tuple[str, ...] = ("repeat", "help_over", "resumes", "quick_a
 PLAN_BUILD_WAIT: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
 # Stage 2 (rooms, doors, windows and stairs read together; design section 5):
 # the rooms gate on the calibration spots, whether a room's two reads agreed
-# (or its outline is far from the person's, or its parts didn't join), and
+# (or its parts didn't join), and
 # what the person merged. Its items use plan_build_item's kinds above.
 PLAN_BUILD_HELDOUT: tuple[str, ...] = ("up", "same", "down", "blocked", "unscored")
-PLAN_BUILD_AGREE: tuple[str, ...] = ("ready", "differ", "big_change", "apart")
+PLAN_BUILD_AGREE: tuple[str, ...] = ("ready", "differ", "apart")
 PLAN_BUILD_MERGE: tuple[str, ...] = ("into_room", "together", "new_room", "separated")
 PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
     {f"plan_build_setting:{k}" for k in PLAN_BUILD_SETTING} | {f"plan_build_unlock:{k}" for k in PLAN_BUILD_UNLOCK}

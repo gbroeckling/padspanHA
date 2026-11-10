@@ -42,7 +42,7 @@ const PROPOSAL = () => ({
     Shop: { id: "room:Shop", room: "Shop", now_m: box(4.2, 1, 9, 4.5), reads_m: [box(4.2, 1, 9, 4.5), box(4.2, 1, 9, 3)], parts: [["SHOP"], ["SHOP"]], agree: 0.57, ready: false, pick: 1,
       picked_by: "spots", spots: [1, 0, 1], outline_m: box(4.2, 1, 9, 4.5), merged: [], flags: ["reads_differ"], iou_now: 1.0, area_now: 16.8, area_new: 16.8, cal: { labelled: 1, leave: [], leaving: 0 }, default: true },
     Kitchen: { id: "room:Kitchen", room: "Kitchen", now_m: box(9.2, 1, 12, 3), reads_m: [box(9.2, 1, 12, 4.5), box(9.2, 1, 12, 4.5)], parts: [["KITCHEN"], ["KITCHEN"]], agree: 0.99, ready: true, pick: 1,
-      picked_by: "spots", spots: [4, 4, 4], outline_m: box(9.2, 1, 12, 4.5), merged: [], flags: ["big_change"], iou_now: 0.57, area_now: 5.6, area_new: 9.8, cal: { labelled: 4, leave: ["cp_9"], leaving: 1 }, default: true },
+      picked_by: "spots", spots: [4, 4, 4], outline_m: box(9.2, 1, 12, 4.5), merged: [], flags: [], iou_now: 0.57, area_now: 5.6, area_new: 9.8, cal: { labelled: 4, leave: ["cp_9"], leaving: 1 }, default: true },
   },
   unseen: ["Garage"],
   spaces: {
@@ -149,10 +149,10 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   await click(button(M.sheet, "Rooms from plans (experimental)"));
   const t = () => text(M.sheet);
   check("session: opens on the floor's last session, in numbers", M.sent("plan_build_rooms_status")[0]?.session === "rb_1"
-    && t().includes("Main: done. 2 reads, about $0.04 (estimate). 3 rooms (1 ready, 2 to look at), 2 extra spaces, 3 doors, 1 windows, 1 stair."), t());
-  check("banner: what it may get wrong", t().includes("Claude reads each plan twice; where the two reads differ, or an outline is far from yours, look closely."), t());
-  check("rooms: ready, the reads differing, far from yours", t().includes("Both reads agree (0.98).") && t().includes("Look closely: the two reads differ (0.57).")
-    && t().includes("Far from your outline (overlap 0.57, 5.6 → 9.8 m²): an open side or a judgement line may have moved."), t());
+    && t().includes("Main: done. 2 reads, about $0.04 (estimate). 3 rooms (2 ready, 1 to look at), 2 extra spaces, 3 doors, 1 windows, 1 stair."), t());
+  check("banner: what it may get wrong", t().includes("Claude reads each plan twice; where the two reads agree, that outline is proposed even if yours differs. Where they differ, look closely."), t());
+  check("rooms: ready, the reads differing; agreeing reads trusted over the outline drawn (Garry, 2026-11-10)", t().includes("Both reads agree (0.98).") && t().includes("Look closely: the two reads differ (0.57).")
+    && t().includes("Both reads agree (0.99).Overlap with your outline 0.57; 5.6 → 9.8 m².") && !t().includes("Far from your outline"), t());
   check("rooms: the spot pick and the spots that would leave, never relabelled", t().includes("Using read 1: it keeps 1 of 1 calibration spots inside it.")
     && t().includes("1 calibration spot would fall outside it; it keeps its room label."), t());
   check("rooms: the ones the plans don't show, left", t().includes("Not on these plans, left as they are: Garage."), t());

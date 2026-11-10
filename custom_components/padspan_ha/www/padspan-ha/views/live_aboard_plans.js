@@ -2614,7 +2614,7 @@ export function createPlans(ctx){
   let rbGate = null, rbGateKey = "", rbBoth = null, rbNameFor = null, rbAwake = false, rbKey = null, rbFly = false, rbTok = 0;
   const rbPicked = new Set(), rbTicks = new Set(), rbSel = new Set(), rbMeshes = [];
   const RB_PREFIX = "Rooms from plans (experimental): ";
-  const RB_BANNER = "Experimental. Claude reads each plan twice; where the two reads differ, or an outline is far from yours, look closely. "
+  const RB_BANNER = "Experimental. Claude reads each plan twice; where the two reads agree, that outline is proposed even if yours differs. Where they differ, look closely. "
     + "Nothing is saved until Accept all: a backup is taken first, and one undo takes it all back.";
   const RB_COL = { his: "#94a3b8", ready: "#22c55e", look: "#f59e0b", space: "#fb923c", sel: "#3b82f6", r1: "#06b6d4", r2: "#d946ef", door: "#ef4444", window: "#60a5fa", stairs: "#f97316" };
   const rbSaid = (e) => RB_PREFIX + String((e && e.message) || e).replace(RB_PREFIX, "");
@@ -2745,7 +2745,7 @@ export function createPlans(ctx){
     const p = rbProp() || {}, out = [];
     for (const r of Object.values(p.rooms || {})) {
       out.push({ id: r.id, kind: "his", pts: r.now_m });
-      out.push({ id: r.id, kind: rbBoth === r.room ? "dim" : (r.ready && !(r.flags || []).includes("big_change") ? "ready" : "look"), pts: r.outline_m, name: r.room });
+      out.push({ id: r.id, kind: rbBoth === r.room ? "dim" : (r.ready ? "ready" : "look"), pts: r.outline_m, name: r.room });
       if (rbBoth === r.room) (r.reads_m || []).forEach((q, i) => { if (q) out.push({ id: r.id, kind: i ? "r2" : "r1", pts: q }); });
     }
     for (const s of Object.values(p.spaces || {})) if (rbSpaceShown(s)) out.push({ id: s.id, kind: "space", pts: s.outline_m, name: s.new || s.name });
@@ -2916,7 +2916,7 @@ export function createPlans(ctx){
     const word = { done: "done", cancelled: "stopped", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit" }[s.status] || s.status;
     const cost = num(s.est_usd) !== null ? `, about $${s.est_usd.toFixed(2)} (estimate)` : "";
     sheet.appendChild(d("div", "pl-sum", `${luFloorName(s.floor_id)}: ${word}. ${s.reads || 0} reads${cost}. ${rooms.length} room${rooms.length === 1 ? "" : "s"} `
-      + `(${rooms.filter(r => r.ready && !(r.flags || []).includes("big_change")).length} ready, ${rooms.filter(r => !r.ready || (r.flags || []).includes("big_change")).length} to look at), `
+      + `(${rooms.filter(r => r.ready).length} ready, ${rooms.filter(r => !r.ready).length} to look at), `
       + `${spaces.length} extra space${spaces.length === 1 ? "" : "s"}, ${ops.filter(o => o.cls === "door").length} doors, ${ops.filter(o => o.cls === "window").length} windows, ${stairs.length} stair${stairs.length === 1 ? "" : "s"}.`));
     const stops = (s.stops || []).slice(-4);
     if (stops.length || s.resumable) {
@@ -2979,8 +2979,7 @@ export function createPlans(ctx){
       if (fl.includes("merge_only")) sub.push("Not on these plans: its outline now, with what you merged into it.");
       else if (r.ready) sub.push(`Both reads agree (${(r.agree || 0).toFixed(2)}).`);
       else sub.push(fl.includes("one_read") ? "Only one read found it: look closely." : `Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Show both reads to compare.`);
-      if (fl.includes("big_change")) sub.push(`Far from your outline (overlap ${(r.iou_now || 0).toFixed(2)}, ${m1(r.area_now)} → ${m1(r.area_new)} m²): an open side or a judgement line may have moved.`);
-      else if (!fl.includes("merge_only")) sub.push(`Overlap with your outline ${(r.iou_now || 0).toFixed(2)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`);
+      if (!fl.includes("merge_only")) sub.push(`Overlap with your outline ${(r.iou_now || 0).toFixed(2)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`);
       if (fl.includes("apart")) sub.push("Some of its printed rooms didn't join the rest: only the largest part is used.");
       if (!fl.includes("merge_only") && (r.spots || [])[2]) sub.push(`Using read ${r.pick}${r.picked_by === "person" ? " (your pick)" : ""}: it keeps ${Math.max(0, r.spots[r.pick - 1])} of ${r.spots[2]} calibration spots inside it.`);
       if ((r.cal || {}).leaving) sub.push(`${r.cal.leaving} calibration spot${r.cal.leaving === 1 ? "" : "s"} would fall outside it; ${r.cal.leaving === 1 ? "it keeps its" : "they keep their"} room label.`);
