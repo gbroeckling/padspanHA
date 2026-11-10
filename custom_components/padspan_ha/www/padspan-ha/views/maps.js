@@ -10424,6 +10424,19 @@ function _lightsTab(ctx, maps, active) {
       states: ctx.hass?.states || {}, entities: ctx.hass?.entities,
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
+    // The scene row under the map and in Live Aboard (views/scene_row.js), as
+    // on the sidebar Atlas: the same tiles, taps and rules (lights_map.js),
+    // through this page's own calls; + New scene and ✎ open Home Assistant's
+    // scene editor, an administrator's. Hidden by this screen's ⋯ list.
+    scenes: {
+      slot: "builder", states: ctx.hass?.states || {}, entities: ctx.hass?.entities || null,
+      admin: !!ctx.hass?.user?.is_admin, kiosk: !!ctx.state.kioskMode,
+      callService: (d, svc, data) => ctx.hass.callService(d, svc, data),
+      setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
+      toast: (m, e) => ctx.toast(m, e),
+      rerender: () => ctx.actions.renderRooms(),
+      telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
+    },
     // The 3D house: the same Map / 3D switch the Atlas sidebar draws (its own
     // slot and its own remembered choice), only while the setting is on and
     // the tier is Pro.

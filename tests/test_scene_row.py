@@ -107,6 +107,19 @@ def test_the_sidebar_hands_in_scenes_and_keeps_a_wall_on_its_page() -> None:
     assert 'tierAtLeast(h.tier, "pro") && typeof h.onWholeHouseApply === "function"' in lm
 
 
+def test_mapping_atlas_hands_in_scenes_too() -> None:
+    """Garry, 2026-11-09: the scene row under Mapping → Atlas as well (it was
+    only on the sidebar Atlas and in Live Aboard). The same row and rules
+    (lights_map.js); Mapping's own calls and its own ⋯ list (slot "builder")."""
+    mp = _code(_VIEWS / "maps.js")
+    assert "scenes: {" in mp and 'slot: "builder", states: ctx.hass?.states || {}, entities: ctx.hass?.entities || null,' in mp
+    assert "admin: !!ctx.hass?.user?.is_admin, kiosk: !!ctx.state.kioskMode," in mp
+    assert "callService: (d, svc, data) => ctx.hass.callService(d, svc, data)," in mp
+    assert "setMany: (eids, on) => setManyStates(ctx.hass, eids, on, {" in mp
+    assert "telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); }," in mp
+    assert "createSceneRow" not in mp and "sceneTiles" not in mp, "no second row: lights_map.js draws it from the host"
+
+
 def test_the_row_asks_nothing_of_home_assistant_itself() -> None:
     code = _code(_VIEWS / "scene_row.js")
     assert "import(" not in code and not re.search(r"^\s*import\s", code, re.M)
