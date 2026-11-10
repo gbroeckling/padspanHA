@@ -1736,6 +1736,8 @@ STOPS: dict[str, tuple[str, str]] = {
                              "Line the floor up again."),                                                                                    # 1b
     "undo_failed": ("The undo couldn't be written, so nothing was changed: the line-up is still as saved.",
                     "Try again; or restore the backup taken before it in Manage → Data → Backup & Restore."),                                        # 1b
+    "floor_gone": ("The floor this plan was to move to isn't in Home Assistant any more, so nothing was saved.",
+        "Refile it by hand to a floor that exists, or line the floor up again."),
     "room_gate": ("These rooms and walls would place your calibration spots worse.", "Look at the rooms flagged."),                         # s2
 }
 STOPS_LATER: tuple[str, ...] = ("room_gate",)
@@ -3181,8 +3183,9 @@ def item_now(snap: dict, sess: dict, it: dict) -> str | None:
     """Whether an item still stands on the house as it is now: None, or why
     not: gone (the plan isn't placed any more), picture (its picture changed),
     moved (its placement or its floor changed), anchor (the plan it was fitted
-    to moved). Placements compare as placements, so an undo that put a plan
-    back makes its item good again (design 12: applied, undone, applied again)."""
+    to moved), floor_gone (a refile's floor isn't in the house any more).
+    Placements compare as placements, so an undo that put a plan back makes
+    its item good again (design 12: applied, undone, applied again)."""
     p = snap["plans"].get(it.get("map_id"))
     if p is None or placement_of(p.get("t")) is None:
         return "gone"
@@ -3190,8 +3193,9 @@ def item_now(snap: dict, sess: dict, it: dict) -> str | None:
         return "picture"
     if p["floor_id"] != sess.get("floor_id"):
         return "moved"
-    if it.get("kind") == "refile":
-        return None
+    if it.get("kind") == "refile":                 # the floor it goes to must still be one of the house's (design 2, step 1)
+        to = (it.get("proposal") or {}).get("to_floor_id")
+        return None if any(f["id"] == to for f in snap["floors"]) else "floor_gone"
     if placement_of(p["t"]) != placement_of(it.get("now")):
         return "moved"
     anchor = (it.get("evidence") or {}).get("anchor")

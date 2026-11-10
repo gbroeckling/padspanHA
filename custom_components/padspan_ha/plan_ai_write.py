@@ -666,19 +666,51 @@ async def _write_place(hass: HomeAssistant, map_id: str, to_t: dict[str, Any], p
     return None
 
 
+def _storey(hass: HomeAssistant, floor_id: str, map_id: str) -> tuple[int | None, float | None]:
+    """The stack level and storey height a map filed on this floor should
+    carry, as Mapping → 3D Stack's floor select gives them: the level the
+    floor's other maps share, else Home Assistant's level for the floor; the
+    height the other maps share. The readers take a floor's storey from its
+    maps' stack (traceback.js, radio_map.js, calibration.js, the 3D Stack
+    slabs). None: nothing to go on, the map's own is kept."""
+    mdl, ms, _cal = _house_stores(hass)
+    others = [m.get("stack") or {} for m in (ms.list_maps() if ms is not None else [])
+              if str(m.get("floor_id") or "") == floor_id and m.get("id") != map_id]
+    levels = {s["z_level"] for s in others if isinstance(s.get("z_level"), int)}
+    heights = {s["ceiling_height_m"] for s in others if isinstance(s.get("ceiling_height_m"), (int, float))}
+    ha = next((f.get("level") for f in (mdl.floors() if mdl is not None else []) if f.get("id") == floor_id), None)
+    level = next(iter(levels)) if len(levels) == 1 else ha if isinstance(ha, int) else None
+    return (None if level is None else max(0, min(20, int(level)))), (next(iter(heights)) if len(heights) == 1 else None)
+
+
 async def _write_refile(hass: HomeAssistant, map_id: str, side: dict[str, Any]) -> str | None:
-    """THE refile write: the map's floor (maps_store.async_update_map, and the
-    legacy stack copy when the map has one, which radio_map.js still reads
-    first) and the placement record's (ModelStore.async_set_map_floor, the
-    whole record kept). The placement stays: floors share one footprint."""
+    """THE refile write: the map's floor and its storey in the stack (level
+    and height), in one maps_store.async_update_map (with the legacy stack
+    copy of the floor when the map has one, which radio_map.js still reads
+    first), and the placement record's floor (ModelStore.async_set_map_floor,
+    the whole record kept). The placement stays: floors share one footprint."""
     mdl, ms, _cal = _house_stores(hass)
     if mdl is None or ms is None or ms.get_map(map_id) is None:
         return "gone"
-    extra = {"stack": {"floor_id": side["stack_floor"]}} if side.get("stack_floor") else {}
+    stack = {k: side[s] for k, s in (("floor_id", "stack_floor"), ("z_level", "stack_level"), ("ceiling_height_m", "stack_height"))
+             if side.get(s) is not None}
+    extra = {"stack": stack} if stack else {}
     await ms.async_update_map(map_id, floor_id=side["floor_id"], **extra)
     if not await mdl.async_set_map_floor(map_id, side.get("t_floor") or side["floor_id"]):
         return "not_placed"
     return None
+
+
+def _refile_whole(hass: HomeAssistant, e: dict[str, Any]) -> bool:
+    """A refile at its `after` in every copy: the placement record's floor
+    (presence_coordinator reads it to pick the map a position is drawn on)
+    and the stack's, not only the maps record's that _at compares."""
+    mdl, ms, _cal = _house_stores(hass)
+    m, t, a = (ms.get_map(e["map_id"]) if ms is not None else None) or {}, (mdl.map_transform(e["map_id"]) if mdl is not None else None) or {}, e["after"]
+    stk = m.get("stack") or {}
+    return (t.get("floor_id") == (a.get("t_floor") or a["floor_id"])
+            and all(a.get(s) is None or stk.get(k) == a[s] for k, s in (("floor_id", "stack_floor"), ("z_level", "stack_level"),
+                                                                       ("ceiling_height_m", "stack_height"))))
 
 
 async def _write_side(hass: HomeAssistant, e: dict[str, Any], side: str, pins: dict[str, Any] | None = None,
@@ -748,11 +780,15 @@ def _ledger_entry(hass: HomeAssistant, iid: str, it: dict[str, Any]) -> dict[str
     mdl, ms, cal = _house_stores(hass)
     mid = it["map_id"]
     m, t = ms.get_map(mid), mdl.map_transform(mid) or {}
+    stk = m.get("stack") or {}
     before: dict[str, Any] = {"t": {k: t[k] for k in G.FIELDS if k in t}, "floor_id": str(m.get("floor_id") or ""),
-                              "t_floor": t.get("floor_id"), "stack_floor": (m.get("stack") or {}).get("floor_id")}
+                              "t_floor": t.get("floor_id"), "stack_floor": stk.get("floor_id"),
+                              "stack_level": stk.get("z_level"), "stack_height": stk.get("ceiling_height_m")}
     if it["kind"] == "refile":
         to = it["proposal"]["to_floor_id"]
-        after = {"t": dict(before["t"]), "floor_id": to, "t_floor": to, "stack_floor": to if before["stack_floor"] else None}
+        level, height = _storey(hass, to, mid)
+        after = {"t": dict(before["t"]), "floor_id": to, "t_floor": to, "stack_floor": to if before["stack_floor"] else None,
+                 "stack_level": before["stack_level"] if level is None else level, "stack_height": before["stack_height"] if height is None else height}
     else:
         after = {"t": {k: it["proposal"][k] for k in G.FIELDS if k in it["proposal"]}, "floor_id": before["floor_id"],
                  "t_floor": before["t_floor"], "stack_floor": before["stack_floor"]}
@@ -802,6 +838,9 @@ async def settle_lineups(hass: HomeAssistant, store: A.PlanAiStore) -> bool:
         entries = b.get("items") or []
         lives = [_live(hass, e["map_id"]) for e in entries]
         if entries and all(_at(lv, e["after"], e["kind"]) for lv, e in zip(lives, entries)):
+            for e in entries:                          # a refile cut between its writes: the placement record's floor too (presence reads it)
+                if e["kind"] == "refile" and not _refile_whole(hass, e):
+                    await _write_side(hass, e, "after")
             b.pop("pending", None)
             await _rederive(hass, {e["map_id"] for e in entries if e["kind"] != "refile"})
             _landed(store, bid, b, float(p.get("at") or time.time()))
@@ -898,6 +937,10 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
                 if it.get("state") != "stale":
                     it["state"] = "stale"
                     A._bump(hass, f"plan_build_item:{it['kind']}_stale")  # noqa: SLF001
+            gone = next((c for c in changed if c["why"] == "floor_gone"), None)
+            if gone:
+                await refuse("floor_gone", LP + " ".join(A.STOPS["floor_gone"]), "floor_gone", items[gone["item_id"]]["map_id"], "changed_since",
+                             {"changed": changed})
             if during:
                 await refuse("changed_since", LP + " ".join(A.STOPS["changed_while_saving"]), "changed_while_saving", None, "changed_since",
                              {"changed": changed})

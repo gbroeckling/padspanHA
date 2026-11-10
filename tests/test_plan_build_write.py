@@ -191,6 +191,93 @@ def test_a_group_saves_only_what_shifts_nothing_and_a_refile_keeps_the_record(mo
     assert {k: v for k, v in ms.get_map("r1").items() if k != "updated"} == {k: v for k, v in was["maps"][2].items() if k != "updated"}
 
 
+# An Upper plan already stacked where the readers put Upper (his Electrical-2 and -4: z_level 2).
+_U1 = {"id": "u1", "name": "Electrical-2", "floor_id": "upper", "image": {"filename": "other.png", "width": 640, "height": 480, "sha256": "u1"},
+       "updated": "2026-11-09", "room_bounds": {}, "receivers": [], "beacons": [], "lights": [], "_t": dict(_T_MOVING)}
+
+
+def _storeys(ms, mdl) -> dict:
+    """What the panel's level readers make of the maps: traceback.js:104-133
+    (sorted by z_level, a floor's first map sets its Z), radio_map.js:803 and
+    maps.js:7548/7723 (a floor's or level's first map gives its level and
+    height), calibration.js:5732 (the floor named from a map's level)."""
+    maps = sorted(ms.list_maps(), key=lambda m: (m.get("stack") or {}).get("z_level") or 0)
+    floor_z, levels_of, height_at = {}, {}, {}
+    for m in maps:
+        stk = m.get("stack") or {}
+        fid = str(stk.get("floor_id") or m.get("floor_id"))
+        floor_z.setdefault(fid, stk.get("z_level") or 0)
+        levels_of.setdefault(m["floor_id"], set()).add(stk.get("z_level") or 0)
+        height_at.setdefault(stk.get("z_level") or 0, set()).add(stk.get("ceiling_height_m"))
+    named = {m["id"]: next((f["id"] for f in mdl.data["floors"] if f.get("level") == ((m.get("stack") or {}).get("z_level") or 0)), None) for m in maps}
+    return {"floor_z": floor_z, "levels_of": levels_of, "height_at": height_at, "named": named,
+            "t_floor": {m["id"]: (mdl.data["map_transforms"].get(m["id"]) or {}).get("floor_id") for m in maps}}
+
+
+@pytest.mark.parametrize("upper_has_plans", [True, False])
+def test_a_refile_moves_the_plan_to_its_new_storey_in_every_reader_and_undo_brings_it_back(monkeypatch, tmp_path, disk, upper_has_plans):
+    """Review M2, his "Screenshot 2026-03-16": filed on Basement at stack
+    level 0, it shows Upper (level 2). The refile writes the floor, the
+    stack's floor, level and height in one update, so every reader puts it
+    on Upper's slab; the undo puts them all back."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk, extra=(_M2, _U1) if upper_has_plans else (_M2,))
+    ms.get_map("r1")["stack"] = {"z_level": 0, "ceiling_height_m": 2.4, "floor_id": "basement"}
+    if upper_has_plans:
+        ms.get_map("u1")["stack"] = {"z_level": 2, "ceiling_height_m": 2.7}
+    _run(ms.store.async_save(ms.data))
+    assert next(f["level"] for f in mdl.data["floors"] if f["id"] == "upper") == 2
+    was, before = _house_now(mdl, ms, cal), _storeys(ms, mdl)
+    assert before["named"]["r1"] == "basement"
+    out = _commit(h, conn, ["refile_r1"])
+    assert out["ok"] is True
+    stk = ms.get_map("r1")["stack"]
+    assert stk == {"z_level": 2, "ceiling_height_m": 2.7 if upper_has_plans else 2.4, "floor_id": "upper"}
+    now = _storeys(ms, mdl)
+    assert now["floor_z"]["upper"] == 2 and now["levels_of"]["upper"] == {2} and now["named"]["r1"] == "upper"
+    assert now["t_floor"]["r1"] == "upper" and len(now["height_at"][2]) == 1                  # one height for Upper's slab
+    assert now["levels_of"]["basement"] == {0} and now["floor_z"]["basement"] == 0             # the basement's own storey untouched
+    out = _undo(h, conn)
+    assert out["ok"] is True and out["undone"] == 1
+    assert _storeys(ms, mdl) == before
+    assert {k: v for k, v in ms.get_map("r1").items() if k != "updated"} == {k: v for k, v in was["maps"][2].items() if k != "updated"}
+    assert _house_now(mdl, ms, cal)["t"] == was["t"]
+
+
+def test_a_refile_to_a_floor_removed_since_is_refused_by_name(monkeypatch, tmp_path, disk):
+    """Review S5: Upper deleted in Home Assistant after the proposal."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    mdl.data["floors"] = [f for f in mdl.data["floors"] if f["id"] != "upper"]
+    was = _house_now(mdl, ms, cal)
+    out = _commit(h, conn, ["refile_r1"])
+    _refused(h, conn, mdl, ms, cal, disk, out, "floor_gone", "floor_gone")
+    assert out["changed"] == [{"item_id": "refile_r1", "why": "floor_gone"}]
+    assert ms.get_map("r1")["floor_id"] == "basement" and _house_now(mdl, ms, cal) == was and _backups(tmp_path) == []
+    st = _call(W.ws_plan_build_status, h, conn, session="pb_t")["session"]
+    assert st["items"]["refile_r1"]["state"] == "stale"
+
+
+def test_a_refile_cut_between_its_two_writes_settles_with_both_floor_records_agreeing(monkeypatch, tmp_path, disk):
+    """Review S6: the restart fell after the maps record and before the
+    placement record's floor (presence_coordinator.py reads that one)."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    real = mdl.async_set_map_floor
+
+    async def cut(map_id, floor_id):
+        raise asyncio.CancelledError
+    monkeypatch.setattr(mdl, "async_set_map_floor", cut)
+    with pytest.raises(asyncio.CancelledError):
+        _run(C.lineup_commit(h, store, "pb_t", _rev(h), ["refile_r1"], False))
+    monkeypatch.setattr(mdl, "async_set_map_floor", real)
+    assert ms.get_map("r1")["floor_id"] == "upper" and mdl.data["map_transforms"]["r1"]["floor_id"] == "basement"
+    _restart(h)
+    st = _call(W.ws_plan_build_status, h, conn, session="pb_t")["session"]
+    assert st["items"]["refile_r1"]["state"] == "committed"
+    assert ms.get_map("r1")["floor_id"] == "upper" and mdl.data["map_transforms"]["r1"]["floor_id"] == "upper"
+    assert ms.get_map("r1")["stack"]["z_level"] == 2
+    assert _undo(h, conn)["undone"] == 1
+    assert ms.get_map("r1")["floor_id"] == "basement" and mdl.data["map_transforms"]["r1"]["floor_id"] == "basement"
+
+
 def test_undo_takes_every_save_of_the_session_back_and_leaves_a_plan_moved_since(monkeypatch, tmp_path, disk):
     h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
     was = _house_now(mdl, ms, cal)
