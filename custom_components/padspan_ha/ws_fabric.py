@@ -592,6 +592,65 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command(
     {
+        "type": "padspan_ha/fabric_rooms_merge",
+        "floor_id": str,
+        "keep": str,
+        "rooms": [str],
+    }
+)
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_fabric_rooms_merge(hass: HomeAssistant, connection, msg) -> None:
+    """Merge rooms into one (the Rooms tab, 2026-11-10): `keep`'s outline
+    becomes one clean polygon round it and `rooms` (plan_geom.merge_outline,
+    the same pure function Rooms from plans merges with: one code path),
+    saved through the room editor's own correction; then each of `rooms` is
+    deleted as the editor's Delete does (shape, meta, adjacency, scanner
+    assignments). A safety backup first (fabric and model), refused without
+    one. Polygons only; every room on this floor. Calibration labels are
+    never changed."""
+    from . import plan_geom  # noqa: PLC0415
+    from .const import FABRIC_STORE_KEY, MODEL_STORE_KEY  # noqa: PLC0415
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not fab or not mdl:
+        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        return
+    floor_id = (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID
+    keep = (msg.get("keep") or "").strip()
+    others = [r for r in dict.fromkeys(str(x).strip() for x in msg.get("rooms") or []) if r and r != keep]
+    geo = mdl.room_geometry_m()
+    names = [keep, *others]
+    if not keep or not others:
+        connection.send_error(msg["id"], "invalid", "Pick two or more rooms to merge.")
+        return
+    bad = [r for r in names if not isinstance(geo.get(r), dict) or str(geo[r].get("floor_id")) != floor_id
+           or geo[r].get("type", "poly") != "poly" or len(geo[r].get("points_m") or []) < 3]
+    if bad:
+        connection.send_error(msg["id"], "invalid", f"Only outlined rooms on this floor merge: {', '.join(bad)}")
+        return
+    outline, pieces = plan_geom.merge_outline([geo[r]["points_m"] for r in names])
+    outline = plan_geom.simplify(outline, 0.05)
+    if pieces > 1 or len(outline) < 3:
+        connection.send_error(msg["id"], "apart", "These rooms don't touch (more than a metre apart), so they can't be one outline. Move them together first.")
+        return
+    backup = await _auto_backup(hass, f"Before merging rooms: {', '.join(names)}", [FABRIC_STORE_KEY, MODEL_STORE_KEY], slot="room_merge", slot_keep=3)
+    if not backup:
+        connection.send_error(msg["id"], "backup_failed", "The safety backup couldn't be made, so nothing was merged.")
+        return
+    res = await fab.async_correct_room(floor_id, keep, {"type": "poly", "points_m": outline})
+    if not res.get("ok"):
+        connection.send_error(msg["id"], res.get("error", "failed"), str(res))
+        return
+    for r in others:
+        await mdl.async_remove_room(r)
+    _bump(hass, "room_merged")
+    _invalidate_snapshot_cache(hass)
+    connection.send_result(msg["id"], {"ok": True, "room": keep, "removed": others, "points_m": outline, "backup_id": backup})
+
+
+@websocket_api.websocket_command(
+    {
         "type": "padspan_ha/fabric_truth_candidates",
         "floor_id": str,
     }

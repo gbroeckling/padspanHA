@@ -289,7 +289,8 @@ def test_two_reads_flag_the_room_they_differ_on_and_the_spots_pick_the_read(monk
         r["rooms"][0]["corners"] = _box(100, 100, 160, 450)
         r["rooms"].append({"name": "DEN 2", "corners": _box(320, 100, 400, 450)})
     _s2, _snap2, p2 = _proposal(h, apart)
-    assert "apart" in p2["rooms"]["Den"]["flags"] and not p2["rooms"]["Den"]["ready"]
+    assert "apart" in p2["rooms"]["Den"]["flags"] and not p2["rooms"]["Den"]["ready"] and not p2["rooms"]["Den"]["default"]   # offered, unticked
+    assert C._offered(p2, "room:Den")                                                              # noqa: SLF001 — the person may tick it
     assert shop["spots"] == [1, 0, 1] and shop["pick"] == 1 and shop["picked_by"] == "spots"     # read 1 keeps the Shop's spot inside it
     assert shop["reads_m"][0] and shop["reads_m"][1]                                          # both outlines shown
     sess["edits"]["picks"]["Shop"] = 2                                                        # the person picks read 2
@@ -300,12 +301,13 @@ def test_two_reads_flag_the_room_they_differ_on_and_the_spots_pick_the_read(monk
 
 def test_agreeing_reads_are_trusted_over_the_outline_he_drew(monkeypatch, tmp_path, disk):  # noqa: F811
     """Garry, 2026-11-10: "My kitchen open edge is wrong, trust the ai results on this one": a room both reads
-    agree on is ready, however far it is from his outline; only reads that disagree flag a room."""
+    agree on is ready, however far it is from his outline; only reads that disagree flag a room. A spot that
+    would fall outside it is said on the room (spots_out), and the room stays ticked: his choice."""
     h, _conn, _ai = _house(monkeypatch, tmp_path, disk)
     r = _read(1, shop_px=_box(420, 100, 900, 250))
     _s, _snap, prop = _proposal(h, (r, copy.deepcopy(r)))
     shop = prop["rooms"]["Shop"]
-    assert shop["ready"] and shop["flags"] == [] and shop["iou_now"] < 0.5 and shop["default"]
+    assert shop["ready"] and shop["flags"] == ["spots_out"] and shop["cal"]["leaving"] == 1 and shop["iou_now"] < 0.5 and shop["default"]
 
 
 def test_merges_new_rooms_and_never_two_of_his_rooms(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -384,38 +386,54 @@ def test_stairs_are_matched_against_the_3d_house(monkeypatch, tmp_path, disk):  
         r["stairs"][0]["says"] = "DOWN"
     _s, _snap, prop = _proposal(h, down)
     st = next(iter(prop["stairs"].values()))
-    assert st["relation"] == "other_floor" and st["floor_id"] == "basement" and not st["default"] and not C._offered(prop, st["id"])  # noqa: SLF001
+    # A flight down climbs from the floor below: offered, unticked, a choice (Garry, 2026-11-10), not hidden.
+    assert st["other_floor"] and st["floor_id"] == "basement" and st["relation"] == "new" and not st["default"] and C._offered(prop, st["id"])  # noqa: SLF001
 
 
-def test_the_gate_scores_containment_and_refuses_a_drop_past_two_points():
+def test_the_room_score_is_information_never_a_refusal():
+    """Garry, 2026-11-10: the whole-floor 2-point refusal is gone; the score is shown, each room says its own spots."""
     rooms = {"Den": {"floor_id": "main", "points_m": _DEN}, "Shop": {"floor_id": "main", "points_m": _SHOP}}
     pts = _points(extra_shop=12)
     g = A.rooms_gate(pts, "main", rooms, {"Shop": _box(4.2, 1, 9, 3)})
-    assert g["scored"] and g["spots"] == 15 and g["now"] == 100.0 and g["with"] < 98 and g["blocked"] and A.gate_event(g) == "blocked"
+    assert g["scored"] and g["spots"] == 15 and g["now"] == 100.0 and g["with"] < 98 and "blocked" not in g and A.gate_event(g) == "down"
     g = A.rooms_gate(pts, "main", rooms, {"Shop": _box(4.2, 1, 9, 4.6)})
-    assert not g["blocked"] and A.gate_event(g) == "same"
+    assert A.gate_event(g) == "same"
     few = A.rooms_gate(_points(), "main", rooms, {"Shop": _box(4.2, 1, 9, 3)})         # 3 labelled spots: shown, not judged
-    assert not few["scored"] and not few["blocked"] and few["with"] < few["now"] and A.gate_event(few) == "unscored"
+    assert not few["scored"] and few["with"] < few["now"] and A.gate_event(few) == "unscored"
 
 
 # ═══ the precondition, the session, the commands ═════════════════════════════
 
-def test_a_floor_whose_line_up_is_open_or_moved_is_refused_by_name(monkeypatch, tmp_path, disk):  # noqa: F811
+def test_an_unfinished_line_up_is_a_note_and_only_a_floor_with_no_placed_plan_is_refused(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Garry, 2026-11-10: the line-up is a note, not a block: the plans are read where they sit now."""
     h, conn, ai = _house(monkeypatch, tmp_path, disk, lined=False)
     store = _run(A.async_get_store(h))
-    assert A.rooms_ready(store, A.house_snapshot(h), "main")["why_more"] == "no_lineup"
-    r = _call(W.ws_plan_build_rooms_start, h, conn, floor_id="main")
-    assert r["error"] == "not_lined_up" and "experimental" in r["message"] and "Line up plans" in r["message"]
+    r = A.rooms_ready(store, A.house_snapshot(h), "main")
+    assert r["ok"] and r["plans"] == ["g1"] and r["suggest"] == ["g1"] and r["note"] == "no_lineup" and not r["lined_up"]
     _line_up(h, status="needs_help")
-    assert A.rooms_ready(store, A.house_snapshot(h), "main")["why_more"] == "lineup_open"
+    assert A.rooms_ready(store, A.house_snapshot(h), "main")["note"] == "lineup_open"
     _line_up(h, role="plan")                                                       # ended, but this plan wasn't lined up
-    assert not A.rooms_ready(store, A.house_snapshot(h), "main")["ok"]
+    r = A.rooms_ready(store, A.house_snapshot(h), "main")
+    assert r["ok"] and r["note"] == "not_lined_up" and r["others"] == [{"map_id": "g1", "name": "Measured", "why": "not_lined_up"}]
     _line_up(h)
-    assert A.rooms_ready(store, A.house_snapshot(h), "main")["ok"]
-    h.data[DOMAIN][DATA_MODEL].data["map_transforms"]["g1"]["scale_x_m"] = 10.5      # moved since its line-up
-    ready = A.rooms_ready(store, A.house_snapshot(h), "main")
-    assert not ready["ok"] and ready["others"] == [{"map_id": "g1", "name": "Measured", "why": "moved"}]
-    assert ai.calls == [] and _counters(h)["plan_build_stop:not_lined_up"] == 1
+    r = A.rooms_ready(store, A.house_snapshot(h), "main")
+    assert r["ok"] and r["lined_up"] and r["note"] is None
+    h.data[DOMAIN][DATA_MODEL].data["map_transforms"]["g1"]["scale_x_m"] = 10.5      # moved since its line-up: read where it is now, said
+    r = A.rooms_ready(store, A.house_snapshot(h), "main")
+    assert r["ok"] and r["note"] == "moved" and r["suggest"] == ["g1"]
+    store.data["lineups"]["pb_l"]["items"] = {"refile_g1": {"kind": "refile", "state": "open"}}   # the line-up says it shows another floor
+    r = A.rooms_ready(store, A.house_snapshot(h), "main")
+    assert r["ok"] and r["plans"] == ["g1"] and r["suggest"] == [] and r["others"][0]["why"] == "other_floor"
+    # The start reads where the plans sit now, says the note, and refuses only a floor with no plan placed in metres.
+    store.data["lineups"]["pb_l"]["items"] = {}
+    out = _call(W.ws_plan_build_rooms_start, h, conn, floor_id="main")
+    assert "session" in out and store.rooms_session(out["session"])["lineup_note"] == "moved"
+    for c in h.jobs:
+        c.close()
+    h.jobs.clear()
+    h.data[DOMAIN].pop(A._DATA_STARTS, None)                                        # noqa: SLF001
+    out = _call(W.ws_plan_build_rooms_start, h, conn, floor_id="upper")
+    assert out["error"] == "map_not_placed" and "experimental" in out["message"] and _counters(h)["plan_build_stop:not_placed"] == 1
 
 
 def test_a_floor_is_read_twice_a_plan_and_nothing_is_written(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -545,17 +563,16 @@ def test_an_undo_leaves_what_changed_since_and_a_room_in_use(monkeypatch, tmp_pa
     assert rooms["Den"]["points_m"] == _box(1, 1, 3, 3) and rooms["Shop"]["points_m"] == _SHOP and "Store" in rooms
 
 
-def test_the_gate_refuses_and_nothing_is_written(monkeypatch, tmp_path, disk):  # noqa: F811
+def test_a_save_that_lowers_the_score_goes_through_and_is_counted(monkeypatch, tmp_path, disk):  # noqa: F811
+    """No floor refusal any more: the person saw each room's own spots and chose; a backup and one undo stand behind it."""
     h, conn, _ai = _house(monkeypatch, tmp_path, disk, points=_points(extra_shop=12))
     s = _read_floor(h, conn)
     s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="pick", room="Shop", read=2)["session"]
-    was = _fab_rooms(h)
+    shop = s["proposal"]["rooms"]["Shop"]
+    assert "spots_out" in shop["flags"] and shop["cal"]["leaving"] == 13
     out = _commit(h, conn, s, ["room:Den", "room:Shop"])
-    assert out["ok"] is False and out["code"] == "room_gate" and out["gate"]["blocked"] and "experimental" in out["message"]
-    assert _fab_rooms(h) == was and _backups(tmp_path) == [] and out["session"]["stops"][-1]["reason"] == "room_gate"
-    assert _counters(h)["plan_build_stop:room_gate"] == 1 and _counters(h)["plan_build_heldout:blocked"] == 1
-    out = _commit(h, conn, out["session"], ["room:Den"])                                   # untick the Shop: it goes
-    assert out["ok"] is True
+    assert out["ok"] is True and out["gate"]["with"] < out["gate"]["now"] - 2 and len(_backups(tmp_path)) == 1
+    assert _counters(h)["plan_build_heldout:down"] == 1 and "plan_build_stop:room_gate" not in _counters(h)
 
 
 def test_a_room_changed_since_the_read_refuses_the_save(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -655,12 +672,14 @@ def test_nothing_in_the_rooms_reading_writes_the_house():
 
 def test_every_rooms_stop_has_words_and_a_report_name():
     from custom_components.padspan_ha.telemetry import PLAN_BUILD_EVENTS
-    for k in ("not_lined_up", "rooms_changed", "name_taken", "room_gate"):
+    for k in ("not_placed", "rooms_changed", "name_taken", "plan_changed"):
         what, way = A.STOPS[k]
         assert what and way and f"plan_build_stop:{k}" in PLAN_BUILD_EVENTS
-    for e in ("plan_build_run:s2_started", "plan_build_item:room_accepted", "plan_build_item:door_maybe", "plan_build_heldout:blocked",
-              "plan_build_agree:apart", "plan_build_merge:separated", "plan_build_read_fail:s2_no_credit"):
+    for e in ("plan_build_run:s2_started", "plan_build_run:s2_read_again", "plan_build_item:room_accepted", "plan_build_item:door_maybe",
+              "plan_build_heldout:down", "plan_build_agree:apart", "plan_build_agree:spots_out", "plan_build_agree:two_of_three",
+              "plan_build_merge:separated", "plan_build_read_fail:s2_no_credit"):
         assert e in PLAN_BUILD_EVENTS, e
+    assert "plan_build_heldout:blocked" not in PLAN_BUILD_EVENTS and "not_lined_up" not in A.STOPS
 
 
 # ═══ the tab, run (tests/js/plan_build_rooms.mjs) ════════════════════════════
@@ -738,3 +757,150 @@ def test_an_undo_leaves_a_door_changed_since_the_save(monkeypatch, tmp_path, dis
     assert _run(house.async_write(moved))
     u = _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
     assert u["undone"] == 0 and u["skipped"] == [{"item_id": fix, "why": "changed"}] and _house3d(tmp_path)["openings"]["door_0a0b0c0d"]["swing"] == "in"
+
+
+# ═══ Read again: a third read, two out of three (Garry, 2026-11-10) ═══════════
+
+def test_read_again_makes_a_third_read_and_two_out_of_three_decide(monkeypatch, tmp_path, disk):  # noqa: F811
+    r3 = _read(1)
+    r3["rooms"][1]["corners"] = _box(420, 100, 900, 445)              # read 3 sides with read 1 on the Shop
+    h, conn, ai = _house(monkeypatch, tmp_path, disk)
+    s = _read_floor(h, conn)
+    assert "reads_differ" in s["proposal"]["rooms"]["Shop"]["flags"] and s["proposal"]["rooms"]["Shop"]["plans"] == ["g1"]
+    r = _call(W.ws_plan_build_rooms_read_again, h, conn, session=s["id"], rev=s["rev"], room="Den")
+    assert r["error"] == "not_flagged"                                  # only a room whose reads differ
+    ai.reads[1] = r3                                                    # the third call answers read 3 (an odd call)
+    r = _call(W.ws_plan_build_rooms_read_again, h, conn, session=s["id"], rev=s["rev"], room="Shop")
+    assert r["session"]["status"] == "running"
+    _finish(h)
+    s2 = _call(W.ws_plan_build_rooms_status, h, conn, session=s["id"])["session"]
+    shop = s2["proposal"]["rooms"]["Shop"]
+    assert s2["status"] == "done" and len(ai.calls) == 3 and ai.calls[2][2]["instructions"] == A.rooms_prompt(*_SIZE)      # the same reader, the same prompt
+    assert shop["ready"] and shop["picked_by"] == "two_of_three" and shop["pick"] == 1 and shop["third"]["decided"] and shop["third"]["agree"][0] >= A.S2_AGREE
+    assert "reads_differ" not in shop["flags"] and s2["plans"][0]["read"] == [True, True, True]
+    assert set(s2["proposal"]["spaces"]) == set(s["proposal"]["spaces"])                       # a third read adds no extra spaces
+    c = _counters(h)
+    assert c["plan_build_run:s2_read_again"] == 1 and c["ai_reads_kind:plan_build"] == 3 and c["plan_build_read:s2_plan"] == 3   # the credit tracker counts it
+    # The person can still choose read 1, 2 or 3 by hand.
+    s3 = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s2["rev"], op="pick", room="Shop", read=3)["session"]
+    assert s3["proposal"]["rooms"]["Shop"]["pick"] == 3 and s3["proposal"]["rooms"]["Shop"]["picked_by"] == "person"
+
+
+def test_read_again_that_differs_again_stays_flagged(monkeypatch, tmp_path, disk):  # noqa: F811
+    r3 = _read(1)
+    r3["rooms"][1]["corners"] = _box(420, 100, 700, 200)               # a third, different again
+    h, conn, ai = _house(monkeypatch, tmp_path, disk)
+    s = _read_floor(h, conn)
+    ai.reads[1] = r3
+    _call(W.ws_plan_build_rooms_read_again, h, conn, session=s["id"], rev=s["rev"], room="Shop")
+    _finish(h)
+    shop = _call(W.ws_plan_build_rooms_status, h, conn, session=s["id"])["session"]["proposal"]["rooms"]["Shop"]
+    assert not shop["ready"] and "three_differ" in shop["flags"] and shop["default"] and shop["picked_by"] == "spots"
+
+
+def test_a_proposed_outline_is_simplified_before_it_is_shown_or_saved(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, _conn, _ai = _house(monkeypatch, tmp_path, disk)
+    jag = [[100, 100], [250, 102], [400, 100], [401, 270], [400, 450], [250, 448], [100, 450], [102, 270]]
+    reads = [_read(1), _read(2)]
+    for r in reads:
+        r["rooms"][0]["corners"] = jag
+    _s, _snap, prop = _proposal(h, reads)
+    den = prop["rooms"]["Den"]["outline_m"]
+    assert len(den) == 4 and all(min(G._seg_dist([x / 100, y / 100], den[i - 1], den[i]) for i in range(4)) <= A.S2_SIMPLIFY_M for x, y in jag)  # noqa: SLF001
+
+
+def test_saved_outlines_keep_the_corners_a_person_would_draw():
+    """A traced or merged outline is simplified on the way: no corner moves more than 5 cm (Garry, 2026-11-10)."""
+    jag = [[0, 0], [2, 0.01], [4, -0.01], [6, 0], [6, 1.5], [6.02, 3], [6, 4], [3, 4.02], [0, 4], [0.01, 2]]
+    out = G.simplify(jag, A.S2_SIMPLIFY_M)
+    assert len(out) == 4 and all(min(G._seg_dist(p, out[i - 1], out[i]) for i in range(len(out))) <= 0.05 for p in jag)  # noqa: SLF001
+    merged, _n = G.merge_outline([_box(0, 0, 3, 3), _box(3.2, 0, 6, 3)])
+    assert len(G.simplify(merged, A.S2_SIMPLIFY_M)) == 4
+
+
+# ═══ AI rooms stay editable in the old tools (Garry, 2026-11-10) ══════════════
+
+def test_ai_rooms_doors_and_stairs_edit_in_the_old_tools_like_hand_drawn_ones(monkeypatch, tmp_path, disk):  # noqa: F811
+    from custom_components.padspan_ha import ws_fabric as WF
+    from custom_components.padspan_ha import ws_house3d as WH
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    s = _read_floor(h, conn)
+    sp = list(s["proposal"]["spaces"])
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="merge", parts=sp)["session"]
+    s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="space", space="space:m1", name="Store room")["session"]
+    door = next(i for i, o in s["proposal"]["openings"].items() if o["default"] and o["kind"] == "door")
+    stair = next(iter(s["proposal"]["stairs"]))
+    assert _commit(h, conn, s, ["room:Shop", "space:m1", door, stair], {stair: _STAIR_FINAL})["ok"] is True
+    rec = _fab_rooms(h)["Store room"]
+    assert set(rec) >= {"type", "points_m", "floor_id", "committed_by"} and rec["committed_by"] == "correction"   # no AI-only marker on a room
+    # The room editor: move a corner, add one, remove one; rename means a new room by the same path; delete through the normal path.
+    pts = [list(p) for p in rec["points_m"]]
+    pts[0] = [pts[0][0] - 0.2, pts[0][1]]
+    pts.insert(1, [(pts[0][0] + pts[1][0]) / 2, pts[0][1] - 0.1])
+    out = _call(WF.ws_fabric_correct_room, h, conn, floor_id="main", room="Store room", geometry={"type": "poly", "points_m": pts})
+    assert out.get("ok") is True and _fab_rooms(h)["Store room"]["points_m"][1] == [round(pts[1][0], 3), round(pts[1][1], 3)]
+    out = _call(WF.ws_fabric_correct_room, h, conn, floor_id="main", room="Shop", geometry={"type": "poly", "points_m": _SHOP[:3]})
+    assert out.get("ok") is True and len(_fab_rooms(h)["Shop"]["points_m"]) == 3
+    out = _call(WF.ws_fabric_room_remove, h, conn, room="Store room")
+    assert out.get("ok") is True and "Store room" not in _fab_rooms(h) and "Store room" not in h.data[DOMAIN][DATA_MODEL].data["room_meta"]
+    # The 3D editor: the AI door moved and resized, the AI stair moved, by the ordinary Save (house3d_edit).
+    f = _house3d(tmp_path)
+    did, d = next(iter(f["openings"].items()))
+    pid, pc = next(iter(f["pieces"].items()))
+    house = _run(H.async_get_store(h))
+    new = H.apply_edit(house.data, {"openings": {did: {**{k: d[k] for k in ("kind", "floor_id", "head_m", "hinge", "swing")}, "a_m": [4.1, 2.0], "b_m": [4.1, 3.0]}},
+                                    "pieces": {pid: {**{k: pc[k] for k in H._PIECE_OWNED if k in pc and k != "updated_at"}, "x_m": 2.5}}})   # noqa: SLF001
+    assert _run(house.async_write(new))
+    f = _house3d(tmp_path)
+    assert f["openings"][did]["b_m"] == [4.1, 3.0] and f["pieces"][pid]["x_m"] == 2.5 and f["pieces"][pid]["plan_ai"]["batch"]   # its note rides along, unread
+    assert WH  # the editor's own module imports with these entries in the file
+
+
+def test_the_old_rooms_tab_merges_rooms_with_the_same_function(monkeypatch, tmp_path, disk):  # noqa: F811
+    from custom_components.padspan_ha import ws_fabric as WF
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    calls = []
+    real = G.merge_outline
+    monkeypatch.setattr(G, "merge_outline", lambda polys, *a, **k: (calls.append(len(polys)), real(polys, *a, **k))[1])
+    h.data[DOMAIN][DATA_MODEL].data["scanners"]["AA:BB"] = {"room": "Shop"}
+    out = _call(WF.ws_fabric_rooms_merge, h, conn, floor_id="main", keep="Den", rooms=["Shop"])
+    assert out["ok"] is True and out["removed"] == ["Shop"] and calls == [2] and out["backup_id"]
+    rooms = _fab_rooms(h)
+    assert "Shop" not in rooms and len(rooms["Den"]["points_m"]) == 4
+    xs = sorted({p[0] for p in rooms["Den"]["points_m"]})
+    assert xs[0] == pytest.approx(1, abs=0.05) and xs[-1] == pytest.approx(9, abs=0.05)              # across the 0.2 m wall: one outline
+    assert "AA:BB" not in h.data[DOMAIN][DATA_MODEL].data["scanners"] and len(_backups(tmp_path)) == 1  # as Delete does; a backup first
+    assert _call(WF.ws_fabric_rooms_merge, h, conn, floor_id="main", keep="Den", rooms=["Garage"])["error"] == "apart"    # 15 m away: refused, nothing written
+    assert "Garage" in _fab_rooms(h)
+    assert _call(WF.ws_fabric_rooms_merge, h, conn, floor_id="main", keep="Den", rooms=[])["error"] == "invalid"
+
+
+def test_the_old_rooms_tab_has_merge_and_corner_tools():
+    """Mapping → Rooms (views/maps.js): Merge into one (the server's merge, asked first), a corner added at a side's "+",
+    a corner removed by double-click; the pure parts run in tests/js/rooms_tab_cleanup.mjs."""
+    import shutil
+    import subprocess
+    src = (_ROOT / "www" / "padspan-ha" / "views" / "maps.js").read_text(encoding="utf-8")
+    tab = src[src.index("function _roomsTab("):]
+    assert 'wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others })' in tab and "if (!confirm(`Merge " in tab
+    assert "g.points_m = _roomCornerAdd(g.points_m, i);" in tab and "g.points_m = _roomCornerDrop(g.points_m, idx);" in tab and '"dblclick"' in tab
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    r = subprocess.run([node, str(Path(__file__).parent / "js" / "rooms_tab_cleanup.mjs"), str(_ROOT / "www" / "padspan-ha" / "views")],
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, r.stderr[-2000:]
+    res = json.loads(r.stdout.strip().splitlines()[-1])
+    bad = {k: v for k, v in res.items() if not v["ok"]}
+    assert len(res) >= 9 and not bad, bad
+
+
+def test_a_plan_moved_since_the_read_refuses_the_save(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Data safety stays a hard stop: the metres were read through the placement the plan had."""
+    h, conn, _ai = _house(monkeypatch, tmp_path, disk)
+    s = _read_floor(h, conn)
+    h.data[DOMAIN][DATA_MODEL].data["map_transforms"]["g1"]["origin_x_m"] = 0.5
+    was = _fab_rooms(h)
+    out = _commit(h, conn, s, ["room:Den"])
+    assert out["ok"] is False and out["code"] == "changed_since" and out["session"]["stops"][-1]["reason"] == "plan_changed"
+    assert _fab_rooms(h) == was and _backups(tmp_path) == []

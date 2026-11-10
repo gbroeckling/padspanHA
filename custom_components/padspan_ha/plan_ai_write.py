@@ -1550,9 +1550,10 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
     async def recheck(during: bool) -> tuple[dict, list, dict]:
         """The plans, the line-up and every item against the house as it is now."""
         snap, _house_now, points, _barriers, now = await fresh()
-        ready = A.rooms_ready(store, snap, fid)
-        if not ready["ok"] or any(pl["map_id"] not in ready["plans"] for pl in sess.get("plans") or []):
-            await refuse("not_lined_up", RP + " ".join(A.STOPS["not_lined_up"]), "not_lined_up", "changed_since")
+        if A.plans_moved(hass, sess):                 # a plan moved or changed since the read: its metres are not what was read
+            changed = [i for i in ids if i.startswith(("room:", "space:", "door:", "window:", "stairs:"))]
+            sess["stale"] = changed
+            await refuse("changed_since", RP + " ".join(A.STOPS["plan_changed"]), "plan_changed", "changed_since", {"changed": changed})
         changed = [i for i in ids if _writes_of(now, i) != _writes_of(prop, i)]
         names = [i for i in ids if i.startswith("space:") and str(prop["spaces"][i]["new"]).lower() in {n.lower() for n in snap["rooms"]}]
         if names:
@@ -1622,13 +1623,11 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
             room_entries.append({"item_id": iid, "kind": "room_new", "room": s["new"], "floor_id": fid, "before": None,
                                  "after": {"type": "poly", "points_m": [[round(x, 3), round(y, 3)] for x, y in s["outline_m"]]}})
 
-    # 2. The gate: the room score on this floor's calibration spots must not drop past S2_GATE_PP.
+    # 2. The room score on this floor's calibration spots: kept with the save and counted, never a refusal (Garry, 2026-11-10:
+    #    accuracy is information and a choice per room; a wrong save costs one undo, a refusal costs the tool).
     gate = await hass.async_add_executor_job(A.rooms_gate, points, fid, snap["rooms"], A.chosen_outlines(prop, ids), _excluded(hass))
     sess["gate"] = gate
     A._bump(hass, f"plan_build_heldout:{A.gate_event(gate)}")  # noqa: SLF001
-    if gate.get("blocked"):
-        await refuse("room_gate", RP + f"rooms right on your calibration spots: {gate['now']:.0f} % now, {gate['with']:.0f} % with these. "
-                     + " ".join(A.STOPS["room_gate"]), "room_gate", "room_gate", {"gate": gate})
 
     # 3. One backup, in its own slot.
     backup_id = await _auto_backup_rooms(hass, f"Before rooms from plans (experimental): {_floor_name(snap, fid)}")

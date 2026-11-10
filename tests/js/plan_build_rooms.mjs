@@ -33,6 +33,8 @@ const buttons = (sheet) => all(sheet).filter(n => tag(n) === "BUTTON");
 const button = (sheet, label) => buttons(sheet).find(b => text(b) === label || text(b).startsWith(label)) || null;
 const click = async (b) => { if (!b) return false; b.dispatchEvent(new Event("click", { bubbles: true })); await settle(); return true; };
 const attr = (n, k) => (n.getAttribute ? n.getAttribute(k) : (n.attributes || {})[k]);
+/** The button `label` on the row whose text starts with `row`. */
+const rowButton = (sheet, row, label) => { const r = all(sheet).find(n => tag(n) === "LABEL" && text(n).startsWith(row)); return r ? buttons(r).find(b => text(b) === label) || null : null; };
 const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
 const PROPOSAL = () => ({
@@ -61,9 +63,11 @@ const PROPOSAL = () => ({
 const SESSION = (over = {}) => ({ id: "rb_1", rev: 3, stage: "s2", floor_id: "main", status: "done", error: null, reads: 2, est_usd: 0.04, spent_s: 20, budget_s: 600,
   plans: [{ map_id: "g1", name: "Measured", read: [true, true] }], stops: [], resumable: false, edits: { merges: [], spaces: {}, picks: {} }, saved: {}, proposal: PROPOSAL(), ...over });
 const INFO = (over = {}) => ({ unlock: { ok: true, why: "ok", display: "Claude Opus 5.5" }, master: true, switch: true, on: true, running: null, start_blocked: null,
-  floors: [{ id: "basement", name: "Basement", plans: [], last: null }, { id: "main", name: "Main", plans: [], last: null }],
-  rooms: { basement: { ready: false, why: "lineup_open", plans: [], others: [], last: null },
-           main: { ready: true, why: "ok", plans: [{ map_id: "g1", name: "Measured", est_usd: 0.035 }], others: [{ map_id: "m9", name: "Valance", why: "not_lined_up" }], last: null } },
+  floors: [{ id: "basement", name: "Basement", plans: [], last: null }, { id: "main", name: "Main", plans: [], last: null }, { id: "upper", name: "Upper", plans: [], last: null }],
+  rooms: { basement: { ready: true, why: "ok", note: "lineup_open", lined_up: false, plans: [{ map_id: "b1", name: "Old scan", est_usd: 0.03, lineup: "not_lined_up", tick: true },
+                                                                                       { map_id: "b2", name: "Upstairs scan", est_usd: 0.03, lineup: "other_floor", tick: false }], others: [], last: null },
+           main: { ready: true, why: "ok", note: null, lined_up: true, plans: [{ map_id: "g1", name: "Measured", est_usd: 0.035, lineup: "lined_up", tick: true }], others: [], last: null },
+           upper: { ready: false, why: "not_placed", note: "no_lineup", lined_up: false, plans: [], others: [], last: null } },
   stall: { month: {}, words: {} }, ...over });
 const GATE = (over = {}) => ({ how: "containment", now: 96.9, with: 96.3, spots: 324, inside_now: 314, inside_with: 312, blocked: false, scored: true, held_out: { now: 6, with: 4, spots: 47 }, ...over });
 
@@ -105,18 +109,25 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   check("tab: offered beside the other two", !!tab && !!button(M.sheet, "Line up plans (experimental)") && !!button(M.sheet, "Add data via plans"), buttons(M.sheet).map(b => text(b)));
   await click(tab);
   const t = () => text(M.sheet);
-  check("picker: each floor says whether it is lined up", !!button(M.sheet, "Main · 1 plan lined up") && !!button(M.sheet, "Basement · line it up first"), buttons(M.sheet).map(b => text(b)));
-  await click(button(M.sheet, "Basement · line it up first"));
-  check("picker: a floor not lined up says why and points to Line up plans", t().includes("this floor's plans aren't lined up yet, or one was moved since. Line up plans (experimental) first")
-    && !!button(M.sheet, "Line up plans (experimental)") && !button(M.sheet, "Read rooms on Basement (experimental)"), t());
+  check("picker: each floor, lined up or not; only a floor with no plan placed can't be read", !!button(M.sheet, "Main · 1 plan lined up") && !!button(M.sheet, "Basement · 2 plans")
+    && !!button(M.sheet, "Upper · no plan placed"), buttons(M.sheet).map(b => text(b)));
+  await click(button(M.sheet, "Upper · no plan placed"));
+  check("picker: no plan placed: said, nothing to start", t().includes("no plan is placed on this floor yet, so there is nothing to read.") && !button(M.sheet, "Read rooms on Upper (experimental)"), t());
+  await click(button(M.sheet, "Basement · 2 plans"));
+  check("picker: an unfinished line-up is a note with the way to finish it, not a block (Garry, 2026-11-10)",
+    t().includes("Line-up not finished on this floor: outlines follow your plans as placed now. Finish the line-up for a closer fit.") && !!button(M.sheet, "Finish the line-up (experimental)")
+    && !!button(M.sheet, "Read rooms on Basement (experimental)"), t());
+  check("picker: each plan says what the line-up says of it; one showing another floor is unticked", t().includes("Old scan — not lined up: read where it sits now")
+    && t().includes("Upstairs scan — the line-up says it shows another floor: not ticked"), t());
   await click(button(M.sheet, "Main · 1 plan lined up"));
-  check("picker: the lined-up plan, the one left out and why", t().includes("Measured — lined up") && t().includes("Valance: not lined up, so it isn't read."), t());
+  check("picker: a lined-up plan says so, no note", t().includes("Measured — lined up") && !t().includes("Line-up not finished"), t());
   check("picker: two reads a plan, the estimate, nothing saved before accepting", t().includes("Claude Opus 5.5 reads them, twice each") && t().includes("about $0.04 for this plan (estimate, experimental)")
     && t().includes("Nothing is saved until you accept: one save for the floor, a backup first, one undo."), t());
-  await click(button(M.sheet, "Read rooms on Main (experimental)"));
+  await click(button(M.sheet, "Basement · 2 plans"));
+  await click(button(M.sheet, "Read rooms on Basement (experimental)"));
   const st = M.sent("plan_build_rooms_start")[0];
-  check("start: the floor and its ticked plans", st && st.floor_id === "main" && st.map_ids.join() === "g1", JSON.stringify(st));
-  check("progress: which read, and Stop", t().includes("Reading Measured, read 2 (1 of 1)… experimental.") && !!button(M.sheet, "Stop (experimental)"), t());
+  check("start: the plans ticked, the other floor's left out", st && st.floor_id === "basement" && st.map_ids.join() === "b1", JSON.stringify(st));
+  check("progress: which read, and Stop", t().includes("Reading Measured, read 2 (1 of 1)… experimental.") && !!button(M.sheet, "Stop (experimental)"), t());   // the status answer's
   M.tool.dispose();
 }
 // ── a session: the rooms, the map, merges, the gate, Accept all, Undo ───────
@@ -136,10 +147,15 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
       if (m.op === "separate") { sess.proposal.spaces["space:1"].merged_into = null; sess.proposal.rooms.Den.merged = []; sess.edits.merges = []; }
       return { session: sess, areas: ["Storage", "Mudroom"] };
     },
+    plan_build_rooms_read_again: (m) => {
+      sess = JSON.parse(JSON.stringify(sess)); sess.rev++;
+      const r = sess.proposal.rooms[m.room]; r.ready = true; r.picked_by = "two_of_three"; r.third = { agree: [0.93, 0.55], decided: true }; r.flags = []; r.reads_m.push(r.reads_m[0]);
+      return { session: sess, areas: ["Storage", "Mudroom"] };
+    },
     plan_build_rooms_commit: (m) => {
-      if (!commits.refused) { commits.refused = true; gate = GATE({ with: 80, blocked: true }); sess = { ...sess, rev: sess.rev + 1, stops: [{ reason: "room_gate", say: "These rooms and walls would place your calibration spots worse.", next: "Look at the rooms flagged." }] };
-        return { ok: false, code: "room_gate", message: "Rooms from plans (experimental): rooms right on your calibration spots: 97 % now, 80 % with these. These rooms and walls would place your calibration spots worse.",
-                 gate: GATE({ with: 80, blocked: true }), rev: sess.rev, session: sess }; }
+      if (!commits.refused) { commits.refused = true; sess = { ...sess, rev: sess.rev + 1, stops: [{ reason: "rooms_changed", say: "A room, a door or a stair was changed in your house since Claude read the plans, so nothing was saved.", next: "Read the floor again." }] };
+        return { ok: false, code: "changed_since", changed: ["room:Shop"], message: "Rooms from plans (experimental): A room, a door or a stair was changed in your house since Claude read the plans, so nothing was saved. Read the floor again.",
+                 rev: sess.rev, session: sess }; }
       sess = { ...sess, rev: sess.rev + 1, saved: Object.fromEntries(m.items.map(i => [i, "rb_b1"])), stops: [] };
       return { ok: true, batch: "rb_b1", backup_id: "bk_1", saved: m.items, session: sess, undo: { session: "rb_1", items: m.items.length } };
     },
@@ -153,24 +169,34 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   check("banner: what it may get wrong", t().includes("Claude reads each plan twice; where the two reads agree, that outline is proposed even if yours differs. Where they differ, look closely."), t());
   check("rooms: ready, the reads differing; agreeing reads trusted over the outline drawn (Garry, 2026-11-10)", t().includes("Both reads agree (0.98).") && t().includes("Look closely: the two reads differ (0.57).")
     && t().includes("Both reads agree (0.99).Overlap with your outline 0.57; 5.6 → 9.8 m².") && !t().includes("Far from your outline"), t());
-  check("rooms: the spot pick and the spots that would leave, never relabelled", t().includes("Using read 1: it keeps 1 of 1 calibration spots inside it.")
-    && t().includes("1 calibration spot would fall outside it; it keeps its room label."), t());
+  check("rooms: the spot pick and the spots that would leave, never relabelled, and the choice", t().includes("Using read 1: it keeps 1 of 1 calibration spots inside it.")
+    && t().includes("1 of your 4 spots would fall outside it; it keeps its room label. Your choice: keep yours, or use Claude's.") && !!button(M.sheet, "Keep mine") && !!button(M.sheet, "Use Claude's"), t());
   check("rooms: the ones the plans don't show, left", t().includes("Not on these plans, left as they are: Garage."), t());
   check("map: a flat floor map with its key", all(M.sheet).some(n => tag(n) === "CANVAS" && attr(n, "data-plan-build") === "rooms-map") && t().includes("Tap a room or a space to select it."), t());
-  check("gate: the room score now and with these, and the held-out one for information", t().includes("Rooms right on your calibration spots: 96.9 % now, 96.3 % with these (324 spots). Experimental.")
-    && t().includes("Held-out check, for information: 6 % now, 4 % with these."), t());
+  check("score: the floor's spots for information, never a refusal", t().includes("For information: calibration spots inside their room, 96.9 % now, 96.3 % with what is ticked (324 spots). Each room below says its own.")
+    && t().includes("Held-out check: 6 % now, 4 % with these.") && !t().includes("refused"), t());
   const ck = M.sent("plan_build_rooms_check")[0];
   check("gate: asked for the ticked rooms", ck && ck.items.join() === "room:Den,room:Kitchen,room:Shop", JSON.stringify(ck));
   check("openings: counts, maybes and the one already there, a correction", t().includes("Proposed when both reads found it: 2 doors, 1 windows. Found by one read only (\"maybe\", not ticked): 1. Already in your house, offered as a correction (not ticked): 1.")
     && t().includes("Already in your house: a correction moves or resizes yours to the one read. Not ticked."), t());
   const ticks = () => M.tool.state().rooms.ticks;
   check("ticks: rooms, both-read doors and windows, the stair; not the maybe, not the existing one", ticks().join() === "door:1,room:Den,room:Kitchen,room:Shop,stairs:1,window:1", ticks());
+  // Keep mine / Use Claude's on a room whose spots would leave it.
+  await click(button(M.sheet, "Keep mine"));
+  check("choice: keep mine unticks the room", !ticks().includes("room:Kitchen"), ticks());
+  await click(button(M.sheet, "Use Claude's"));
+  check("choice: use Claude's ticks it again", ticks().includes("room:Kitchen"), ticks());
+  // Read again on the flagged room: a third read, two of three decide.
+  await click(button(M.sheet, "Read again (experimental)"));
+  const ra = M.sent("plan_build_rooms_read_again")[0];
+  check("read again: sent for the flagged room with the rev", ra && ra.room === "Shop" && ra.rev === 3, JSON.stringify(ra));
+  check("read again: two of three said, the third read offered", t().includes("Read again: two of three reads agree (0.93).") && !!button(M.sheet, "Use read 3"), t());
   // Both reads, and the other read picked.
   await click(button(M.sheet, "Show both reads"));
   check("both reads: shown on the map", M.tool.state().rooms && t().includes("Hide both reads"), t());
-  await click(button(M.sheet, "Use read 2"));
+  await click(rowButton(M.sheet, "Shop", "Use read 2"));
   const pk = edits.find(e => e.op === "pick");
-  check("pick: read 2 for the room, sent with the rev", pk && pk.room === "Shop" && pk.read === 2 && pk.rev === 3, JSON.stringify(pk));
+  check("pick: read 2 for the room, sent with the rev", pk && pk.room === "Shop" && pk.read === 2 && pk.rev === 4, JSON.stringify(pk));
   check("pick: said", t().includes("Using read 2 (your pick)"), t());
   // Merge on the map: two of his rooms refused; a space into a room.
   M.tool.roomsSelect("room:Den"); M.tool.roomsSelect("room:Shop"); await settle();
@@ -189,20 +215,19 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   await click(button(M.sheet, "Use it"));
   const nm = edits.find(e => e.op === "space");
   check("new room: the name sent, the space ticked", nm && nm.space === "space:2" && nm.name === "Mudroom" && ticks().includes("space:2") && t().includes("NOOK → Mudroom"), JSON.stringify(nm));
-  // Accept all: every tick in one save; a refusal by the gate is said.
+  // Accept all: every tick in one save; a data-safety refusal (changed since) is said, and Save stays offered.
   const accept = () => button(M.sheet, "Accept all for Main (experimental)");
   check("accept all: names what it saves", !!accept() && text(accept()).includes("3 rooms, 1 new, 1 doors, 1 windows, 1 stairs"), buttons(M.sheet).map(b => text(b)));
   await click(accept());
   const c1 = M.sent("plan_build_rooms_commit")[0];
   check("accept all: one save with every tick and the new stair's piece", c1 && c1.items.length === 7 && c1.finals["stairs:1"] && c1.finals["stairs:1"].x_m === 1.9 && c1.rev === sess.rev - 1, JSON.stringify(c1));
-  check("accept all: the gate's refusal is said, and Save waits", t().includes("Rooms from plans (experimental): rooms right on your calibration spots: 97 % now, 80 % with these.")
-    && t().includes("Save is refused: that drops more than 2 points.") && accept().disabled, t());
-  gate = GATE();
+  check("accept all: a change since the read is said in its words; Save is never held back by the score", t().includes("Rooms from plans (experimental): A room, a door or a stair was changed in your house since Claude read the plans")
+    && !accept().disabled, t());
   M.tool.roomsBoth(null); await settle();
   const parts = all(M.sheet).filter(n => attr(n, "data-plan-build") !== undefined && attr(n, "data-plan-build") !== null && attr(n, "data-plan-build") !== "rooms-map");
   const quiet = parts.filter(n => !/experimental/i.test(text(n)));
   check("experimental: every part of the tab says so", parts.length >= 5 && quiet.length === 0, [parts.length, quiet.map(n => text(n).slice(0, 90))]);
-  // The gate cleared (a tick changed): saved.
+  // A tick changed: the score is asked again; then saved.
   const kb = all(M.sheet).find(n => tag(n) === "INPUT" && n.type === "checkbox" && n.parentNode && text(n.parentNode).startsWith("Kitchen"));
   kb.checked = false; kb.dispatchEvent(new Event("change")); await settle();
   check("untick: the gate is asked again", M.sent("plan_build_rooms_check").length >= 2, M.sent("plan_build_rooms_check").length);

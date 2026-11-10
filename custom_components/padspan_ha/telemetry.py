@@ -161,7 +161,7 @@ EVENTS: frozenset[str] = frozenset({
     # vacuum's map imported / a walker point accepted into calibration.
     "room_hold_used", "vacuum_imported", "vacuum_point_accepted",
     "light_placed", "light_removed", "wall_placed", "wall_removed",
-    "room_committed", "irk_added", "irk_add_refused", "irk_validate",
+    "room_committed", "room_merged", "irk_added", "irk_add_refused", "irk_validate",
     "calibration_point_added", "capture_started", "forensics_query",
     "showcase_on", "showcase_forest_default", "backup_created", "backup_restored", "factory_reset",
     "bright_import",
@@ -783,7 +783,8 @@ AI_USAGE_EVENTS: frozenset[str] = frozenset(
 PLAN_BUILD_STAGE: tuple[str, ...] = ("s1", "s2")
 PLAN_BUILD_SETTING: tuple[str, ...] = ("shown", "on", "off")
 PLAN_BUILD_UNLOCK: tuple[str, ...] = ("opus", "fable", "other", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree", "no_ai_task")
-PLAN_BUILD_RUN: tuple[str, ...] = ("started", "finished", "needs_help", "resumed", "cancelled", "failed", "out_of_time", "no_credit", "abandoned")
+PLAN_BUILD_RUN: tuple[str, ...] = ("started", "finished", "needs_help", "resumed", "cancelled", "failed", "out_of_time", "no_credit", "abandoned",
+                                   "read_again")
 PLAN_BUILD_RUN_SECS: tuple[str, ...] = ("lt1m", "1_3m", "3_10m", "gt10m")
 PLAN_BUILD_PLAN_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "gt6")
 PLAN_BUILD_CREDIT: tuple[str, ...] = ("lt0_10", "0_10_0_50", "0_50_2", "gt2")
@@ -811,10 +812,10 @@ PLAN_BUILD_STOPS: tuple[str, ...] = ("locked", "unreachable", "no_credit", "out_
                                      "refile_refused", "measured_plan_protected", "anchor_error", "no_anchor", "no_metre_scale", "not_placed",
                                      "fit_rejected", "cancelled", "abandoned", "group_refused", "preflight_blocked", "backup_failed", "undo_failed",
                                      "changed_while_saving", "floor_gone", "plan_changed", "ai_changed", "restart", "bad_answer", "refusal", "error", "anchor_after_fit", "save_stands", "undo_stands", "room_gate",
-                                     "not_lined_up", "rooms_changed", "name_taken")
+                                     "rooms_changed", "name_taken")
 PLAN_BUILD_SHOWN_ACCEPTED: tuple[str, ...] = ("shown", "accepted")
 PLAN_BUILD_COMMIT: tuple[str, ...] = ("done", "changed_since", "points_out_of_range", "measured_plan_protected", "refile_refused", "group_refused",
-                                      "backup_failed", "save_failed", "rolled_back", "anchor_after_fit", "room_gate")
+                                      "backup_failed", "save_failed", "rolled_back", "anchor_after_fit")
 PLAN_BUILD_PREFLIGHT: tuple[str, ...] = ("checked", "blocked")
 PLAN_BUILD_UNDO: tuple[str, ...] = ("session", "item_skipped", "failed")
 PLAN_BUILD_SETTLED: tuple[str, ...] = ("finished", "put_back", "stood")
@@ -824,8 +825,8 @@ PLAN_BUILD_WAIT: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
 # the rooms gate on the calibration spots, whether a room's two reads agreed
 # (or its parts didn't join), and
 # what the person merged. Its items use plan_build_item's kinds above.
-PLAN_BUILD_HELDOUT: tuple[str, ...] = ("up", "same", "down", "blocked", "unscored")
-PLAN_BUILD_AGREE: tuple[str, ...] = ("ready", "differ", "apart")
+PLAN_BUILD_HELDOUT: tuple[str, ...] = ("up", "same", "down", "unscored")
+PLAN_BUILD_AGREE: tuple[str, ...] = ("ready", "differ", "apart", "spots_out", "two_of_three", "three_differ")
 PLAN_BUILD_MERGE: tuple[str, ...] = ("into_room", "together", "new_room", "separated")
 PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
     {f"plan_build_setting:{k}" for k in PLAN_BUILD_SETTING} | {f"plan_build_unlock:{k}" for k in PLAN_BUILD_UNLOCK}

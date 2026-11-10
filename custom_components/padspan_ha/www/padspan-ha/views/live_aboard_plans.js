@@ -2665,9 +2665,24 @@ export function createPlans(ctx){
   }
   function rbPick(fid){
     rbFloor = fid; rbSess = null; rbPicked.clear(); rbErr = "";
-    for (const p of ((rbInfo(fid) || {}).plans || [])) rbPicked.add(p.map_id);
+    for (const p of ((rbInfo(fid) || {}).plans || [])) if (p.tick !== false) rbPicked.add(p.map_id);
     redraw();
   }
+  /** The line-up's note (Garry, 2026-11-10: a note, not a block), with the way to finish it. */
+  const RB_NOTE = { no_lineup: "This floor hasn't been lined up", lineup_open: "Line-up not finished on this floor", moved: "A plan moved since this floor's line-up",
+                    not_lined_up: "Not every plan on this floor is lined up" };
+  function rbLineupNote(fid, note){
+    if (!note) return;
+    const box = luSection("pl-note");
+    box.setAttribute("data-plan-build", "rooms-lineup-note");
+    box.appendChild(d("div", null, `${RB_NOTE[note] || RB_NOTE.lineup_open}: outlines follow your plans as placed now. Finish the line-up for a closer fit. Experimental.`));
+    const a = d("div", "pl-acts");
+    a.appendChild(btn("Finish the line-up (experimental)", "Open Line up plans on this floor", () => { mode = "lineup"; luFloor = fid; luOpen().then(() => { if (!luSess) luPick(fid); }); }));
+    box.appendChild(a);
+    sheet.appendChild(box);
+  }
+  /** Read again: a third read of the plans a flagged room was read on; two of three decide it. */
+  const rbReadAgain = (room) => rbWrite("plan_build_rooms_read_again", { rev: rbSess.rev, room }, () => { if (rbSess && rbSess.status === "running") rbPollStart(rbSess.id); });
   async function rbStart(){
     if (rbBusy || !rbFloor) return;
     rbBusy = true; rbErr = ""; redraw();
@@ -2852,21 +2867,21 @@ export function createPlans(ctx){
     chips.setAttribute("data-plan-build", "rooms-floors");
     for (const f of floors) {
       const ri = rbInfo(f.id) || {}, n = (ri.plans || []).length;
-      const b = btn(`${f.name || f.id} · ${ri.ready ? `${n} plan${n === 1 ? "" : "s"} lined up` : "line it up first"}`, ri.ready ? "Read its rooms" : "Its line-up hasn't ended, or a plan moved since", () => rbPick(f.id));
+      const b = btn(`${f.name || f.id} · ${ri.ready ? `${n} plan${n === 1 ? "" : "s"}${ri.lined_up ? " lined up" : ""}` : "no plan placed"}`,
+        ri.ready ? "Read its rooms" : "Place a plan on this floor in Mapping first", () => rbPick(f.id));
       b.setAttribute("aria-pressed", String(rbFloor === f.id));
       chips.appendChild(b);
     }
     sheet.appendChild(chips);
     const f = floors.find(x => x.id === rbFloor), ri = f ? rbInfo(f.id) : null;
-    if (!f) { sheet.appendChild(d("div", "pl-note", "Pick a floor. Only a floor whose plans are lined up (Line up plans, experimental) can be read for rooms.")); return; }
-    if (!ri || !ri.ready) {
-      sheet.appendChild(d("div", "pl-note", `${luFloorName(f.id)}: this floor's plans aren't lined up yet, or one was moved since. Line up plans (experimental) first, then come back.`));
-      const a = d("div", "pl-acts");
-      a.setAttribute("data-plan-build", "rooms-lineup-first");
-      a.appendChild(btn("Line up plans (experimental)", "Open the line-up tab on this floor", () => { mode = "lineup"; luFloor = f.id; luOpen().then(() => { if (!luSess) luPick(f.id); }); }));
-      sheet.appendChild(a);
+    if (!f) { sheet.appendChild(d("div", "pl-note", "Pick a floor. Its plans are read where they are placed now; a floor lined up first fits closer.")); return; }
+    if (!ri || !ri.ready) {                              // the one stop here: nothing placed in metres to read
+      sheet.appendChild(d("div", "pl-note", `${luFloorName(f.id)}: no plan is placed on this floor yet, so there is nothing to read. Place one in Mapping → 3D Stack first. Experimental.`));
       return;
     }
+    rbLineupNote(f.id, ri.note);
+    const LINE = { lined_up: "lined up", not_lined_up: "not lined up: read where it sits now", moved: "moved since its line-up: read where it sits now",
+                   other_floor: "the line-up says it shows another floor: not ticked" };
     for (const p of ri.plans || []) {
       const l = d("label", "pl-tick");
       l.setAttribute("data-plan-build", "rooms-plan");
@@ -2874,10 +2889,9 @@ export function createPlans(ctx){
       cb.addEventListener("change", () => { if (cb.checked) rbPicked.add(p.map_id); else rbPicked.delete(p.map_id); redraw(); });
       l.appendChild(cb);
       if (urls && urls[p.map_id]) { const im = d("img"); im.src = urls[p.map_id]; im.alt = ""; l.appendChild(im); }
-      l.appendChild(d("span", null, `${p.name || "a plan"} — lined up`));
+      l.appendChild(d("span", null, `${p.name || "a plan"} — ${LINE[p.lineup] || LINE.not_lined_up}`));
       sheet.appendChild(l);
     }
-    for (const o of ri.others || []) sheet.appendChild(d("div", "pl-note", `${o.name || "A plan"}: ${o.why === "moved" ? "moved since its line-up" : o.why === "gone" ? "no longer on this floor" : "not lined up"}, so it isn't read. Experimental.`));
     const ticked = (ri.plans || []).filter(p => rbPicked.has(p.map_id)), priced = ticked.filter(p => num(p.est_usd) !== null);
     const est = !ticked.length ? "tick the plans to read" : priced.length === ticked.length ? `about $${priced.reduce((s, p) => s + p.est_usd, 0).toFixed(2)} for ${ticked.length === 1 ? "this plan" : `these ${ticked.length} plans`} (estimate, experimental)` : "no price is known for this model";
     sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them, twice each: the plans leave the house for Anthropic. ${est}. `
@@ -2891,7 +2905,7 @@ export function createPlans(ctx){
   }
   function paintRbProgress(){
     const pr = rbSess.progress || {};
-    sheet.appendChild(d("div", "pl-sum", `${pr.step === "measure" ? "Working out the rooms" : `Reading ${pr.name || "a plan"}, ${pr.step || "read 1"}`} (${pr.plan || 0} of ${pr.of || 0})… experimental.`));
+    sheet.appendChild(d("div", "pl-sum", `${pr.step === "measure" ? "Working out the rooms" : pr.step === "read 3" && rbSess.third_for ? `Reading ${rbSess.third_for.room} again, a third read` : `Reading ${pr.name || "a plan"}, ${pr.step || "read 1"}`} (${pr.plan || 0} of ${pr.of || 0})… experimental.`));
     sheet.appendChild(d("div", "pl-note", `${rbSess.reads || 0} reads so far, ${mins(rbSess.spent_s)} of ${mins(rbSess.budget_s)}.`));
     const acts = d("div", "pl-acts");
     acts.setAttribute("data-plan-build", "rooms-cancel");
@@ -2918,6 +2932,7 @@ export function createPlans(ctx){
     sheet.appendChild(d("div", "pl-sum", `${luFloorName(s.floor_id)}: ${word}. ${s.reads || 0} reads${cost}. ${rooms.length} room${rooms.length === 1 ? "" : "s"} `
       + `(${rooms.filter(r => r.ready).length} ready, ${rooms.filter(r => !r.ready).length} to look at), `
       + `${spaces.length} extra space${spaces.length === 1 ? "" : "s"}, ${ops.filter(o => o.cls === "door").length} doors, ${ops.filter(o => o.cls === "window").length} windows, ${stairs.length} stair${stairs.length === 1 ? "" : "s"}.`));
+    rbLineupNote(s.floor_id, s.lineup_note);
     const stops = (s.stops || []).slice(-4);
     if (stops.length || s.resumable) {
       const box = luSection("pl-note");
@@ -2965,10 +2980,9 @@ export function createPlans(ctx){
     if (!g || g.now === null || g.now === undefined) line.textContent = "Rooms right on your calibration spots: working it out… (experimental)";
     else {
       const f = (v) => `${Math.round(v * 10) / 10} %`;
-      line.textContent = g.scored ? `Rooms right on your calibration spots: ${f(g.now)} now, ${f(g.with)} with these (${g.spots} spots). Experimental.`
+      line.textContent = g.scored ? `For information: calibration spots inside their room, ${f(g.now)} now, ${f(g.with)} with what is ticked (${g.spots} spots). Each room below says its own. Experimental.`
         : `Only ${g.spots} calibration spot${g.spots === 1 ? "" : "s"} on this floor: too few to judge (${g.inside_now} inside their room now, ${g.inside_with} with these). Experimental.`;
-      if (g.held_out && g.held_out.now !== null) line.textContent += ` Held-out check, for information: ${g.held_out.now} % now, ${g.held_out.with} % with these.`;
-      if (g.blocked) { line.classList.add("pl-bad"); line.textContent += ` Save is refused: that drops more than 2 points. Untick or fix the rooms marked "look closely".`; }
+      if (g.held_out && g.held_out.now !== null) line.textContent += ` Held-out check: ${g.held_out.now} % now, ${g.held_out.with} % with these.`;
     }
     sheet.appendChild(line);
   }
@@ -2977,20 +2991,28 @@ export function createPlans(ctx){
     for (const r of rooms.sort((a, b) => Number(a.ready) - Number(b.ready) || a.room.localeCompare(b.room))) {
       const fl = r.flags || [], sub = [];
       if (fl.includes("merge_only")) sub.push("Not on these plans: its outline now, with what you merged into it.");
+      else if (r.third && r.third.decided && r.ready) sub.push(`Read again: two of three reads agree (${Math.max(...(r.third.agree || [0])).toFixed(2)}).`);
       else if (r.ready) sub.push(`Both reads agree (${(r.agree || 0).toFixed(2)}).`);
-      else if (fl.includes("one_read")) sub.push("Only one read found it: look closely.");
-      else if (fl.includes("reads_differ")) sub.push(`Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Show both reads to compare.`);
-      else sub.push(`Look closely: both reads agree (${(r.agree || 0).toFixed(2)}), but its printed rooms didn't join into one shape.`);
+      else if (fl.includes("one_read")) sub.push("Only one read found it: not ticked; tick it to use it.");
+      else if (fl.includes("three_differ")) sub.push("Look closely: read again, and all three reads differ. Pick the one that fits, or keep yours.");
+      else if (fl.includes("reads_differ")) sub.push(`Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Show both reads to compare, or read it again.`);
+      else sub.push(`Look closely: both reads agree (${(r.agree || 0).toFixed(2)}), but its printed rooms didn't join into one shape. Not ticked: merge, or tick it to use it.`);
       if (!fl.includes("merge_only")) sub.push(`Overlap with your outline ${(r.iou_now || 0).toFixed(2)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`);
       if (fl.includes("apart")) sub.push("Some of its printed rooms didn't join the rest: only the largest part is used.");
       if (!fl.includes("merge_only") && (r.spots || [])[2]) sub.push(`Using read ${r.pick}${r.picked_by === "person" ? " (your pick)" : ""}: it keeps ${Math.max(0, r.spots[r.pick - 1])} of ${r.spots[2]} calibration spots inside it.`);
-      if ((r.cal || {}).leaving) sub.push(`${r.cal.leaving} calibration spot${r.cal.leaving === 1 ? "" : "s"} would fall outside it; ${r.cal.leaving === 1 ? "it keeps its" : "they keep their"} room label.`);
+      if ((r.cal || {}).leaving) sub.push(`${r.cal.leaving} of your ${r.cal.labelled} spots would fall outside it; ${r.cal.leaving === 1 ? "it keeps its" : "they keep their"} room label. Your choice: keep yours, or use Claude's.`);
       if ((r.merged || []).length) sub.push(`Merged in: ${r.merged.map(id => ((p.spaces || {})[id] || {}).name || id).join(", ")}.`);
       const row = rbTick(r.id, r.room, sub);
       const a = d("div", "pl-acts");
       if (!fl.includes("merge_only") && (r.reads_m || []).every(Boolean)) {
         a.appendChild(btn(rbBoth === r.room ? "Hide both reads" : "Show both reads", "Read 1 cyan, read 2 magenta, on the map (experimental)", () => { rbBoth = rbBoth === r.room ? null : r.room; rbKey = null; redraw(); }));
-        a.appendChild(btn(`Use read ${r.pick === 1 ? 2 : 1}`, "Use the other read's outline for this room (experimental)", () => rbEdit("pick", { room: r.room, read: r.pick === 1 ? 2 : 1 })));
+        for (const k of [1, 2, 3].filter(k => k !== r.pick && (r.reads_m || [])[k - 1])) a.appendChild(btn(`Use read ${k}`, "Use that read's outline for this room (experimental)", () => rbEdit("pick", { room: r.room, read: k })));
+        if (fl.includes("reads_differ") || fl.includes("three_differ")) a.appendChild(btn("Read again (experimental)",
+          `A third read of ${(r.plans || []).length === 1 ? "its plan" : `its ${(r.plans || []).length} plans`}, the whole plan again (crops cut rooms off in the test); two of three decide`, () => rbReadAgain(r.room)));
+      }
+      if ((r.cal || {}).leaving) {
+        a.appendChild(btn("Keep mine", "Leave your outline as it is (untick)", () => { rbTicks.delete(r.id); rbKey = null; redraw(); }, rbTicks.has(r.id) ? "" : "go"));
+        a.appendChild(btn("Use Claude's", "Save Claude's outline anyway (tick)", () => { rbTicks.add(r.id); rbKey = null; redraw(); }, rbTicks.has(r.id) ? "go" : ""));
       }
       for (const m of ((rbSess.edits || {}).merges || []).filter(m => m.into === r.id)) a.appendChild(btn("Separate (experimental)", "Take this merge back", () => rbEdit("separate", { merge: m.id })));
       a.appendChild(btn(rbSel.has(r.id) ? "Selected" : "Select", "Select it on the map, to merge", () => rbToggleSel(r.id)));
@@ -3052,9 +3074,9 @@ export function createPlans(ctx){
     if (!stairs.length) return;
     sheet.appendChild(d("h5", null, "Stairs (experimental)"));
     for (const s of stairs) {
-      const rel = { new: "new", correction: `moves the stair you have by ${m1(s.distance_m)} m${s.hand ? "; you placed that one, so it isn't ticked" : ""}`, duplicate: "already in your house: left as is",
-        stacked: "a second staircase here? Not ticked", other_floor: `it climbs from ${floorName(s.floor_id)}: read that floor for it` }[s.relation] || s.relation;
-      const off = s.relation === "duplicate" || s.relation === "other_floor", need = (s.relation === "new" || s.relation === "stacked") && !ctx.stairPiece;
+      const rel = ({ new: "new", correction: `moves the stair you have by ${m1(s.distance_m)} m${s.hand ? "; you placed that one, so it isn't ticked" : ""}`, duplicate: "already in your house: left as is",
+        stacked: "a second staircase here? Not ticked" }[s.relation] || s.relation) + (s.other_floor ? `; it climbs from ${floorName(s.floor_id)}, best read with that floor, so it isn't ticked` : "");
+      const off = s.relation === "duplicate", need = (s.relation === "new" || s.relation === "stacked") && !ctx.stairPiece;
       sheet.appendChild(rbTick(s.id, `Stairs${s.room ? ` in ${s.room}` : ""}${s.geom && s.geom.says ? `, ${s.geom.says}` : ""} · ${floorName(s.floor_id)}`,
         [`${rel}.${s.reads > 1 ? "" : " Maybe: one read only."}`, need ? "A new stair is built in the 3D view: open Live Aboard to save it." : ""], { off: off || need }));
     }
@@ -3067,7 +3089,7 @@ export function createPlans(ctx){
       const save = btn(`Accept all for ${luFloorName(rbSess.floor_id)} (experimental): ${[c("room:") ? `${c("room:")} rooms` : "", c("space:") ? `${c("space:")} new` : "", c("door:") ? `${c("door:")} doors` : "",
         c("window:") ? `${c("window:")} windows` : "", c("stairs:") ? `${c("stairs:")} stairs` : ""].filter(Boolean).join(", ")}`,
       "Everything ticked, in one save: a backup is taken first, and one undo takes it all back", () => rbSave(), "go");
-      save.disabled = rbBusy || !!(rbGate && rbGate.blocked);
+      save.disabled = rbBusy;
       foot.appendChild(save);
     }
     if (rbSess.saved && Object.keys(rbSess.saved).length) {
