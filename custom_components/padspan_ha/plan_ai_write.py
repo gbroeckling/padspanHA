@@ -719,9 +719,20 @@ async def _write_side(hass: HomeAssistant, e: dict[str, Any], side: str, pins: d
     `from_side`: written only while the plan is still at that side of the
     entry, else "changed" and nothing written (the Align editor, 3D Stack or
     the Rooms tab don't take the plan store's lock, so a hand save can land
-    between the checks and the writes: it is never written over)."""
+    between the checks and the writes: it is never written over). A save's
+    entry from its before also needs the anchor its placement was composed
+    on where it was ("changed"), and a refile a plan with nothing drawn on
+    it ("refile_refused"), read fresh (review B7)."""
     if from_side is not None and not _at(_live(hass, e["map_id"]), e[from_side], e.get("kind")):
         return "changed"
+    if from_side == "before" and isinstance(e.get("anchor"), dict):
+        live = _live(hass, e["anchor"]["map_id"])
+        if live is None or live["t"] != A.placement_of(e["anchor"]["t"]):
+            return "changed"
+    if from_side == "before" and e.get("empty"):
+        drawn = (A.house_snapshot(hass)["plans"].get(e["map_id"]) or {}).get("drawn")
+        if drawn is None or A.drawn_total(drawn):
+            return "refile_refused"
     try:
         if e.get("kind") == "refile":
             return await _write_refile(hass, e["map_id"], e[side])
@@ -799,8 +810,14 @@ def _ledger_entry(hass: HomeAssistant, iid: str, it: dict[str, Any]) -> dict[str
                  "t_floor": before["t_floor"], "stack_floor": before["stack_floor"]}
     points = [p for p in ((cal.data.get("points") or []) if cal is not None and isinstance(getattr(cal, "data", None), dict) else [])
               if isinstance(p, dict) and p.get("map_id") == mid]
-    return {"item_id": iid, "kind": it["kind"], "map_id": mid, "name": it.get("name") or "", "before": before, "after": after,
-            "pins_before": _pins(m), "cal_before": {str(p.get("id")): [p.get("x_frac"), p.get("y_frac")] for p in points}}
+    entry = {"item_id": iid, "kind": it["kind"], "map_id": mid, "name": it.get("name") or "", "before": before, "after": after,
+             "pins_before": _pins(m), "cal_before": {str(p.get("id")): [p.get("x_frac"), p.get("y_frac")] for p in points}}
+    anchor = (it.get("evidence") or {}).get("anchor")
+    if it["kind"] == "place" and anchor and isinstance(it.get("anchor_now"), dict):
+        entry["anchor"] = {"map_id": anchor, "t": it["anchor_now"]}      # checked again at its write (_write_side, review B7)
+    if it["kind"] == "refile":
+        entry["empty"] = True                                            # a refile only of a plan with nothing drawn on it, at its write too
+    return entry
 
 
 def _fitted_to(hass: HomeAssistant, store: A.PlanAiStore, anchor_id: str) -> list[str]:
@@ -1111,6 +1128,10 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
             A._bump(hass, "plan_build_preflight:blocked")  # noqa: SLF001
         if failed == "changed":
             await refuse("changed_since", LP + " ".join(A.STOPS["changed_while_saving"]), "changed_while_saving", None, "changed_since")
+        if failed == "refile_refused":                 # something was drawn on the plan since the last check
+            items[e["item_id"]]["state"] = "refused"
+            await refuse("refile_refused", LP + " ".join(A.STOPS["refile_refused"]), "refile_refused", e["map_id"], "refile_refused",
+                         {"items": [e["item_id"]]})
         await refuse("save_failed", LP + ("couldn't write the line-up, so what was written is put back: nothing was changed. " if put_back else
                                           "couldn't write the line-up; what was written is put back the next time Line up plans opens. ")
                      + "Try again; check Home Assistant's storage.", "preflight_blocked" if failed == "points_out_of_range" else None, None, "save_failed")

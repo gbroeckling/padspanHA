@@ -478,6 +478,39 @@ def test_an_align_save_during_the_backup_is_never_written_over(monkeypatch, tmp_
     assert store.data["lineup_batches"] == {} and store.lineup("pb_t")["items"]["place_m1"]["state"] == "stale"
 
 
+@pytest.mark.parametrize("hand", ["anchor_moved", "drawn_on_refile"])
+def test_a_hand_change_after_the_last_check_to_the_anchor_or_a_refiled_plan_is_never_written_over(monkeypatch, tmp_path, disk, hand):
+    """Review B7: after the last check, while the ledger is saved, the anchor
+    Scan was fitted to is moved in Align, or a scanner is placed on the plan
+    about to be refiled. The write is refused, said, and the hand change stands."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    was = _house_now(mdl, ms, cal)
+    item = {"anchor_moved": "place_m1", "drawn_on_refile": "refile_r1"}[hand]
+    assert hand != "anchor_moved" or store.lineup("pb_t")["items"]["place_m1"]["anchor_now"]
+    real = store.async_checked_save
+
+    async def then_by_hand():
+        ok = await real()
+        if hand == "anchor_moved":
+            await mdl.async_reanchor_map("a1", ms.get_map("a1"), cal, origin_x_m=mdl.data["map_transforms"]["a1"]["origin_x_m"] + 0.5)
+        else:
+            await ms.async_update_map("r1", receivers=[{"id": "scanner_x", "x": 0.5, "y": 0.5}])
+        return ok
+    monkeypatch.setattr(store, "async_checked_save", then_by_hand)
+    out = _commit(h, conn, [item])
+    assert out["ok"] is False and "experimental" in out["message"], out
+    if hand == "anchor_moved":
+        assert out["code"] == "changed_since" and _stops(h)[-1] == "changed_while_saving"
+        assert mdl.data["map_transforms"]["m1"] == was["t"]["m1"]                                 # Scan not written on the old anchor
+        assert mdl.data["map_transforms"]["a1"]["origin_x_m"] == pytest.approx(was["t"]["a1"]["origin_x_m"] + 0.5)
+    else:
+        assert out["code"] == "refile_refused" and _stops(h)[-1] == "refile_refused"
+        assert A.STOPS["refile_refused"][0] in out["message"]
+        assert ms.get_map("r1")["floor_id"] == "basement" and mdl.data["map_transforms"]["r1"]["floor_id"] == "basement"
+        assert [r["id"] for r in ms.get_map("r1")["receivers"]] == ["scanner_x"]                 # the hand change stands
+    assert all(not b.get("pending") for b in store.data["lineup_batches"].values())
+
+
 @pytest.mark.parametrize("hand_moves", ["second", "first_after_write"])
 def test_a_hand_change_between_two_writes_is_never_written_over(monkeypatch, tmp_path, disk, hand_moves):
     """Review M1, the gaps after the ledger: a plan changed by hand before its
