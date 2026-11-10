@@ -1753,6 +1753,12 @@ STOPS: dict[str, tuple[str, str]] = {
         "Resume tries again; if it keeps declining, line the plans up by hand in Mapping → Align."),
     "error": ("Something went wrong in PadSpan while lining up this floor; nothing in your house was changed. What was read is kept.",
         "Resume tries again; Home Assistant's log says what went wrong."),
+    "anchor_after_fit": ("Changing its scale now would leave them off their drawings, so nothing was saved.",
+        "Undo this line-up session first, then save the anchor's scale on its own and line the floor up again."),
+    "save_stands": ("A save of this line-up was cut short (Home Assistant stopped) and couldn't be put back, so it stands as saved.",
+        "Look at the plans it saved; Undo this line-up session takes them back."),
+    "undo_stands": ("An undo of this line-up was cut short (Home Assistant stopped) and couldn't be put back; the plans it reached are back where they were.",
+        "Undo this line-up session takes the rest back."),
     "room_gate": ("These rooms and walls would place your calibration spots worse.", "Look at the rooms flagged."),                         # s2
 }
 STOPS_LATER: tuple[str, ...] = ("room_gate",)

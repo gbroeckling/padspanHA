@@ -798,6 +798,22 @@ def _ledger_entry(hass: HomeAssistant, iid: str, it: dict[str, Any]) -> dict[str
             "pins_before": _pins(m), "cal_before": {str(p.get("id")): [p.get("x_frac"), p.get("y_frac")] for p in points}}
 
 
+def _fitted_to(hass: HomeAssistant, store: A.PlanAiStore, anchor_id: str) -> list[str]:
+    """The saved placements, not undone, that were fitted to this plan and
+    still sit where their save put them: composed on the anchor's placement,
+    they would come off their drawings if its scale changed under them."""
+    out: list[str] = []
+    for b in (store.data.get("lineup_batches") or {}).values():
+        if not isinstance(b, dict) or b.get("undo_of") or b.get("undone_at") or b.get("pending"):
+            continue
+        items = (store.lineup(b.get("session")) or {}).get("items") or {}
+        for e in b.get("items") or []:
+            it = items.get(e.get("item_id")) or {}
+            if e.get("kind") == "place" and (it.get("evidence") or {}).get("anchor") == anchor_id and _at(_live(hass, e["map_id"]), e["after"], "place"):
+                out.append(e.get("name") or e["map_id"])
+    return out
+
+
 def _landed(store: A.PlanAiStore, bid: str, b: dict[str, Any], at: float) -> None:
     """A batch whose writes all landed: its items say so (a commit's committed,
     an undo's undone, and the saves it undid spent)."""
@@ -824,8 +840,10 @@ async def settle_lineups(hass: HomeAssistant, store: A.PlanAiStore) -> bool:
     are made again in case the cut fell between the placement and the pin
     files. Otherwise it never happened: each plan at its `after` is put back
     to its `before` (its pins exactly), and the batch goes. A put-back that
-    can't be written leaves the batch pending, for next time. In memory; the
-    caller saves when it returns True."""
+    can't be written (the reanchor's preflight refuses the old placement, say)
+    is settled once, never retried: the plans it couldn't put back stand as
+    saved, the batch keeps only them, Undo takes them back, and the session
+    says so by a named stop. In memory; the caller saves when it returns True."""
     if not A.writable(store.data):
         return False
     batches = store.data.get("lineup_batches") or {}
@@ -856,7 +874,47 @@ async def settle_lineups(hass: HomeAssistant, store: A.PlanAiStore) -> bool:
             batches.pop(bid, None)
             _invalidate(hass)
             A._bump(hass, "plan_build_settled:put_back")  # noqa: SLF001
+            continue
+        _stood(hass, store, bid, b, float(p.get("at") or time.time()))
     return settled
+
+
+def _stood(hass: HomeAssistant, store: A.PlanAiStore, bid: str, b: dict[str, Any], at: float) -> None:
+    """A batch cut short whose put-back couldn't be written: it stands for
+    the plans still at its `after` (the others are back at `before`), its
+    mark off, and it is said once (save_stands or undo_stands). A save that
+    stands is undone like any other; an undo that stands leaves the rest of
+    the saves it was undoing to the next Undo."""
+    batches = store.data.get("lineup_batches") or {}
+    stand = [e for e in b.get("items") or [] if _at(_live(hass, e["map_id"]), e["after"], e["kind"])]
+    if not stand:                                      # nothing of it is left in the house after all: it never happened
+        batches.pop(bid, None)
+        _invalidate(hass)
+        A._bump(hass, "plan_build_settled:put_back")  # noqa: SLF001
+        return
+    b["items"] = stand
+    b.pop("pending", None)
+    b["stood"] = True
+    sess = store.lineup(b.get("session"))
+    if not b.get("undo_of"):
+        _landed(store, bid, b, at)
+    else:
+        covered = {(e.get("of"), e["item_id"]) for e in stand}
+        for of in b["undo_of"]:
+            ob = batches.get(of)
+            if isinstance(ob, dict):                   # what this undo reached is taken out of the save; the rest stays to undo
+                ob["items"] = [e for e in ob.get("items") or [] if (of, e["item_id"]) not in covered]
+                if not ob["items"]:
+                    ob["undone_at"] = at
+        items = (sess or {}).get("items") or {}
+        for e in stand:
+            if isinstance(items.get(e["item_id"]), dict):
+                items[e["item_id"]]["state"] = "undone"
+    _stop(hass, store, sess, "undo_stands" if b.get("undo_of") else "save_stands")
+    _invalidate(hass)
+    _LOGGER.warning("PadSpan plan line-up (experimental): a %s cut short couldn't be put back; %d plan(s) stand as it left them",
+                    "undo" if b.get("undo_of") else "save", len(stand))
+    A._bump(hass, "plan_build_settled:stood")  # noqa: SLF001
 
 
 async def _backup(hass: HomeAssistant, note: str) -> str | None:
@@ -964,6 +1022,11 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
     scaled = {it["map_id"] for _, it in wanted if it["kind"] == "anchor_scale"}
     if any(it["kind"] == "place" and (it.get("evidence") or {}).get("anchor") in scaled for _, it in wanted):
         raise Refused("invalid", LP + "save the anchor's own scale on its own: the plans fitted to it are lined up again after.", {"rev": sess.get("rev")})
+    for iid, it in wanted:                             # a saved plan fitted to this anchor would be left off its drawing (review S4)
+        fitted = _fitted_to(hass, store, it["map_id"]) if it["kind"] == "anchor_scale" else []
+        if fitted:
+            await refuse("anchor_after_fit", LP + f"{', '.join(fitted)} {'is' if len(fitted) == 1 else 'are'} saved lined up to this plan as it is. "
+                         + " ".join(A.STOPS["anchor_after_fit"]), "anchor_after_fit", it["map_id"], "anchor_after_fit", {"items": [iid]})
     for iid, it in wanted:
         if it["kind"] == "refile":
             continue

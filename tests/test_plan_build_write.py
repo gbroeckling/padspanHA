@@ -509,6 +509,72 @@ def test_a_restart_in_the_middle_of_a_save_finishes_it_or_takes_it_back(monkeypa
         assert _undo(h, conn)["undone"] == 2 and _house_now(mdl, ms, cal)["t"] == was["t"]
 
 
+@pytest.mark.parametrize("what", ["save", "undo"])
+def test_a_cut_short_batch_that_cannot_be_put_back_is_settled_once_and_said(monkeypatch, tmp_path, disk, what):
+    """Review S7: the put-back after a restart is refused (the reanchor's
+    preflight, say). Settled once: what couldn't be put back stands, the
+    session says so, Undo still takes it back; no retry on every command."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    was = _house_now(mdl, ms, cal)
+    if what == "undo":
+        assert _commit(h, conn, ["place_m2", "refile_r1"], group=True)["ok"]
+    real, n = C._write_side, {"n": 0}                                                          # noqa: SLF001
+
+    async def cut_short(hass, e, side, pins=None, from_side=None):
+        got = await real(hass, e, side, pins, from_side)
+        raise asyncio.CancelledError                                                          # after the first write
+    monkeypatch.setattr(C, "_write_side", cut_short)
+    with pytest.raises(asyncio.CancelledError):
+        _run(C.lineup_commit(h, store, "pb_t", _rev(h), ["place_m2", "refile_r1"], True) if what == "save" else C.lineup_undo(h, store, "pb_t"))
+    monkeypatch.setattr(C, "_write_side", real)
+    tries = {"n": 0}
+    kind = "_write_place" if what == "save" else "_write_refile"
+    stuck = getattr(C, kind)
+
+    async def refused(*a, **k):
+        tries["n"] += 1
+        return "points_out_of_range"
+    monkeypatch.setattr(C, kind, refused)
+    _restart(h)
+    for _ in range(3):                                                                        # every command after: settled the first time only
+        st = _call(W.ws_plan_build_status, h, conn, session="pb_t")["session"]
+    store = h.data[DOMAIN][DATA_PLAN_AI]
+    assert tries["n"] == 1 and all(not b.get("pending") for b in store.data["lineup_batches"].values())
+    stop = st["stops"][-1]
+    assert stop["reason"] == f"{what}_stands" and stop["say"] and "Undo this line-up session" in stop["next"]
+    assert _counters(h)["plan_build_settled:stood"] == 1 and _counters(h)[f"plan_build_stop:{what}_stands"] == 1
+    if what == "save":                                                                        # m2 written, couldn't be put back: it stands, saved
+        assert st["items"]["place_m2"]["state"] == "committed" and st["items"]["refile_r1"]["state"] == "open"
+        assert A.lineup_undo_info(store)["items"] == 1
+    else:                                                                                     # r1 undone, couldn't be redone: m2 still to undo
+        (ub,) = [b for b in store.data["lineup_batches"].values() if b.get("undo_of")]
+        (sb,) = [b for b in store.data["lineup_batches"].values() if not b.get("undo_of")]
+        assert ub["stood"] and [e["item_id"] for e in ub["items"]] == ["refile_r1"] and [e["item_id"] for e in sb["items"]] == ["place_m2"]
+        assert st["items"]["place_m2"]["state"] == "committed" and not sb.get("undone_at")
+        assert ms.get_map("r1")["floor_id"] == "basement" and A.lineup_undo_info(store)["items"] == 1
+    monkeypatch.setattr(C, kind, stuck)
+    assert _undo(h, conn)["undone"] == 1
+    assert _house_now(mdl, ms, cal)["t"] == was["t"] and ms.get_map("r1")["floor_id"] == "basement" and A.lineup_undo_info(store) is None
+
+
+def test_the_anchors_scale_is_refused_while_a_plan_saved_lined_up_to_it_stands(monkeypatch, tmp_path, disk):
+    """Review S4: the Furnace placement saved first, then the anchor's own
+    scale accepted: it would leave the saved plan off its drawing."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    items = store.lineup("pb_t")["items"]
+    items["anchor_a1"]["state"] = "not_now"                                                   # as a 3 % error or more leaves it (form q7)
+    assert items["anchor_a1"]["state"] == "not_now" and items["place_m1"]["evidence"]["anchor"] == "a1"
+    assert _commit(h, conn, ["place_m1"])["ok"] is True
+    saved = _house_now(mdl, ms, cal)
+    disk.writes.clear()
+    out = _commit(h, conn, ["anchor_a1"])
+    _refused(h, conn, mdl, ms, cal, disk, out, "anchor_after_fit", "anchor_after_fit")
+    assert out["message"].startswith("Line up plans (experimental): Scan is saved lined up to this plan as it is.")
+    assert _house_now(mdl, ms, cal) == saved and _counters(h)["plan_build_commit:anchor_after_fit"] == 1
+    assert _undo(h, conn)["ok"] is True                                                       # the plans lined up to it taken back: then it may
+    assert _commit(h, conn, ["anchor_a1"])["ok"] is True
+
+
 def test_an_undo_that_fails_changes_nothing_and_says_so(monkeypatch, tmp_path, disk):
     h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
     assert _commit(h, conn, ["place_m2", "refile_r1"], group=True)["ok"]

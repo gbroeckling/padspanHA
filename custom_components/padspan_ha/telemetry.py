@@ -809,13 +809,13 @@ PLAN_BUILD_FLAGS: tuple[str, ...] = ("calibration", "device", "room_trace")
 PLAN_BUILD_STOPS: tuple[str, ...] = ("locked", "unreachable", "no_credit", "out_of_time", "no_media", "help_unanswered", "help_limit",
                                      "refile_refused", "measured_plan_protected", "anchor_error", "no_anchor", "no_metre_scale", "not_placed",
                                      "fit_rejected", "cancelled", "abandoned", "group_refused", "preflight_blocked", "backup_failed", "undo_failed",
-                                     "changed_while_saving", "floor_gone", "plan_changed", "ai_changed", "restart", "bad_answer", "refusal", "error", "room_gate")
+                                     "changed_while_saving", "floor_gone", "plan_changed", "ai_changed", "restart", "bad_answer", "refusal", "error", "anchor_after_fit", "save_stands", "undo_stands", "room_gate")
 PLAN_BUILD_SHOWN_ACCEPTED: tuple[str, ...] = ("shown", "accepted")
 PLAN_BUILD_COMMIT: tuple[str, ...] = ("done", "changed_since", "points_out_of_range", "measured_plan_protected", "refile_refused", "group_refused",
-                                      "backup_failed", "save_failed", "rolled_back")
+                                      "backup_failed", "save_failed", "rolled_back", "anchor_after_fit")
 PLAN_BUILD_PREFLIGHT: tuple[str, ...] = ("checked", "blocked")
 PLAN_BUILD_UNDO: tuple[str, ...] = ("session", "item_skipped", "failed")
-PLAN_BUILD_SETTLED: tuple[str, ...] = ("finished", "put_back")
+PLAN_BUILD_SETTLED: tuple[str, ...] = ("finished", "put_back", "stood")
 PLAN_BUILD_STRESS: tuple[str, ...] = ("repeat", "help_over", "resumes", "quick_abandon")
 PLAN_BUILD_WAIT: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
 PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
