@@ -2978,7 +2978,9 @@ export function createPlans(ctx){
       const fl = r.flags || [], sub = [];
       if (fl.includes("merge_only")) sub.push("Not on these plans: its outline now, with what you merged into it.");
       else if (r.ready) sub.push(`Both reads agree (${(r.agree || 0).toFixed(2)}).`);
-      else sub.push(fl.includes("one_read") ? "Only one read found it: look closely." : `Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Show both reads to compare.`);
+      else if (fl.includes("one_read")) sub.push("Only one read found it: look closely.");
+      else if (fl.includes("reads_differ")) sub.push(`Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Show both reads to compare.`);
+      else sub.push(`Look closely: both reads agree (${(r.agree || 0).toFixed(2)}), but its printed rooms didn't join into one shape.`);
       if (!fl.includes("merge_only")) sub.push(`Overlap with your outline ${(r.iou_now || 0).toFixed(2)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`);
       if (fl.includes("apart")) sub.push("Some of its printed rooms didn't join the rest: only the largest part is used.");
       if (!fl.includes("merge_only") && (r.spots || [])[2]) sub.push(`Using read ${r.pick}${r.picked_by === "person" ? " (your pick)" : ""}: it keeps ${Math.max(0, r.spots[r.pick - 1])} of ${r.spots[2]} calibration spots inside it.`);
