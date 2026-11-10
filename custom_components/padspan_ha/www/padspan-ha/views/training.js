@@ -1893,7 +1893,7 @@ const MANUAL_SECTIONS = [
     helpKeys: ["settings", "settings_colors", "settings_presence", "settings_tracking_rooms", "settings_tracking_phones",
                "guest_tags", "settings_tracking_shown", "settings_tracking_positioning", "settings_tracking_receivers",
                "settings_tracking_performance", "settings_tracking_integrations", "settings_tracking_privacy",
-               "settings_features", "settings_tiers", "settings_ai", "plans_ai", "plan_build", "settings_atlas", "settings_ui", "settings_manage"],
+               "settings_features", "settings_tiers", "settings_ai", "plans_ai", "plan_build", "plan_build_rooms", "settings_atlas", "settings_ui", "settings_manage"],
   },
   {
     id: "help_zones",

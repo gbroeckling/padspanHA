@@ -4610,8 +4610,9 @@ function _planBuildRow(ctx, el, save, settings){
     const ok = !!(info && info.master && info.unlock && info.unlock.ok);
     // The last line-up's undo stays here whatever the AI Task (form q3): a session can always be taken back.
     const undo = info && info.master && info.undo ? info.undo : null;
-    box.style.display = ok || undo ? "" : "none";
-    if (!ok) { if (undo) box.appendChild(undoRow(undo, false)); return; }
+    const rundo = info && info.master && info.rooms_undo ? info.rooms_undo : null;   // Rooms from plans' too (Stage 2)
+    box.style.display = ok || undo || rundo ? "" : "none";
+    if (!ok) { if (undo) box.appendChild(undoRow(undo, false)); if (rundo) box.appendChild(undoRow(rundo, false, true)); return; }
     const label = el("label",{style:"display:flex;align-items:flex-start;gap:10px;cursor:pointer"});
     const cb = el("input",{type:"checkbox", style:"margin-top:3px", "data-ai-plan-build-switch":""});
     cb.checked = on;
@@ -4622,7 +4623,8 @@ function _planBuildRow(ctx, el, save, settings){
       el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
         "Claude reads your floor plans and lines them up to each other and to your house. You check every change on a map before anything is saved; " +
         "a backup is taken before each save and one undo takes a session back. It never changes calibration or anything placed in metres. " +
-        "Needs Claude Opus 5.5 or newer as your AI Task. In Live Aboard: Edit → Plans → Line up plans."),
+        "Needs Claude Opus 5.5 or newer as your AI Task. In Live Aboard: Edit → Plans → Line up plans; then, on a lined-up floor, Rooms from plans " +
+        "reads its rooms, doors, windows and stairs, saved together with one backup and one undo."),
       el("div",{style:"font-size:11px;color:#a7f3d0;margin-top:2px"}, `Reads with ${info.unlock.display || "Claude"}. The plans leave the house for Anthropic.`),
     ]));
     box.appendChild(label);
@@ -4632,39 +4634,51 @@ function _planBuildRow(ctx, el, save, settings){
     if (keys.length) box.appendChild(el("div",{"data-ai-plan-build-stops":"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:4px 0 0 24px"},
       "Line-up stops this month (experimental): " + keys.slice(0, 4).map(k => `${String(words[k] || k).replace(/\.$/, "")} (×${month[k]})`).join(" · ")));
     if (undo) { const r = undoRow(undo, true); r.style.margin = "6px 0 0 24px"; box.appendChild(r); }
+    if (rundo) { const r = undoRow(rundo, true, true); r.style.margin = "6px 0 0 24px"; box.appendChild(r); }
   };
   // Undo this line-up session (experimental): asked once, then the whole session; said in plain words either way.
-  let askUndo = false, undoSaid = "";
-  function undoRow(u, unlocked){
-    const row = el("div",{"data-ai-plan-build-undo":"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px 0"});
-    const when = u.at ? new Date(u.at * 1000).toLocaleDateString() : "";
-    row.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;font-weight:600"}, ["Undo this line-up session (experimental)", chip()]));
-    row.appendChild(el("div",{}, `The last plan line-up saved on ${u.floor_name || "a floor"}${when ? ` (${when})` : ""}: ${u.items} plan${u.items === 1 ? "" : "s"} moved or refiled. ` +
-      "Undo puts every one back where it was; a backup is taken first, and a plan you moved by hand since is left as it is." +
-      (unlocked ? "" : " Line up plans is hidden while your AI Task isn't Claude Opus 5.5 or newer; this undo stays here.")));
+  // `rooms`: the same for Rooms from plans (Stage 2): its own words, session and command (UNDO_OF).
+  const UNDO_OF = {
+    lineup: { title: "Undo this line-up session (experimental)", cmd: "padspan_ha/plan_build_undo", prefix: "Line up plans (experimental): ", tool: "Line up plans",
+      what: (u) => `The last plan line-up saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} plan${u.items === 1 ? "" : "s"} moved or refiled. ` +
+        "Undo puts every one back where it was; a backup is taken first, and a plan you moved by hand since is left as it is.",
+      sure: "Put every plan this session saved back where it was?",
+      done: (n, k) => `${n} plan${n === 1 ? "" : "s"} put back where ${n === 1 ? "it was" : "they were"}${k ? `; ${k} moved by hand since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
+    rooms: { title: "Undo this rooms session (experimental)", cmd: "padspan_ha/plan_build_rooms_undo", prefix: "Rooms from plans (experimental): ", tool: "Rooms from plans",
+      what: (u) => `The last rooms from plans saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} item${u.items === 1 ? "" : "s"} (rooms, doors, windows, stairs). ` +
+        "Undo puts every one back as it was; a backup is taken first, and anything you changed since is left as it is.",
+      sure: "Put every room, door, window and stair this session saved back as it was?",
+      done: (n, k) => `${n} put back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
+  };
+  const asking = { lineup: false, rooms: false }, said = { lineup: "", rooms: "" };
+  function undoRow(u, unlocked, rooms = false){
+    const kind = rooms ? "rooms" : "lineup", K = UNDO_OF[kind];
+    const row = el("div",{[rooms ? "data-ai-plan-build-rooms-undo" : "data-ai-plan-build-undo"]:"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px 0"});
+    const when = u.at ? ` (${new Date(u.at * 1000).toLocaleDateString()})` : "";
+    row.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;font-weight:600"}, [K.title, chip()]));
+    row.appendChild(el("div",{}, K.what({ ...u, when }) + (unlocked ? "" : ` ${K.tool} is hidden while your AI Task isn't Claude Opus 5.5 or newer; this undo stays here.`)));
     const bs = { style:"margin:4px 6px 0 0;padding:4px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#e2e8f0;font-size:11px;cursor:pointer" };
-    if (!askUndo) {
-      const b = el("button",{...bs, type:"button", "data-ai-plan-build-undo-ask":""}, "Undo this line-up session (experimental)");
-      b.addEventListener("click", ()=>{ askUndo = true; undoSaid = ""; ask(); });
+    if (!asking[kind]) {
+      const b = el("button",{...bs, type:"button", "data-ai-plan-build-undo-ask":""}, K.title);
+      b.addEventListener("click", ()=>{ asking[kind] = true; said[kind] = ""; ask(); });
       row.appendChild(b);
     } else {
       const yes = el("button",{...bs, type:"button", "data-ai-plan-build-undo-go":"", style: bs.style + ";background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"}, "Undo it (experimental)");
       const no = el("button",{...bs, type:"button"}, "Cancel");
       yes.addEventListener("click", ()=>{
         yes.disabled = true;
-        ctx.actions.wsCall("padspan_ha/plan_build_undo", { session: u.session }).then((r)=>{
-          askUndo = false;
-          if (r && r.ok === false) { undoSaid = String(r.message || r.code || ""); ask(); return; }
-          const n = (r && r.undone) || 0, k = ((r && r.skipped) || []).length;
-          ctx.toast(`Line up plans (experimental): ${n} plan${n === 1 ? "" : "s"} put back where ${n === 1 ? "it was" : "they were"}${k ? `; ${k} moved by hand since left as ${k === 1 ? "it is" : "they are"}` : ""}.`);
-          undoSaid = ""; ask();
-        }).catch((e)=>{ askUndo = false; undoSaid = `Line up plans (experimental): ${String((e && e.message) || e).replace("Line up plans (experimental): ", "")}`; ask(); });
+        ctx.actions.wsCall(K.cmd, { session: u.session }).then((r)=>{
+          asking[kind] = false;
+          if (r && r.ok === false) { said[kind] = String(r.message || r.code || ""); ask(); return; }
+          ctx.toast(K.prefix + K.done((r && r.undone) || 0, ((r && r.skipped) || []).length));
+          said[kind] = ""; ask();
+        }).catch((e)=>{ asking[kind] = false; said[kind] = K.prefix + String((e && e.message) || e).replace(K.prefix, ""); ask(); });
       });
-      no.addEventListener("click", ()=>{ askUndo = false; ask(); });
-      row.appendChild(el("div",{style:"color:#fde68a;margin-top:2px"}, "Put every plan this session saved back where it was?"));
+      no.addEventListener("click", ()=>{ asking[kind] = false; ask(); });
+      row.appendChild(el("div",{style:"color:#fde68a;margin-top:2px"}, K.sure));
       row.appendChild(yes); row.appendChild(no);
     }
-    if (undoSaid) row.appendChild(el("div",{role:"alert", style:"color:#fca5a5;margin-top:2px"}, undoSaid));
+    if (said[kind]) row.appendChild(el("div",{role:"alert", style:"color:#fca5a5;margin-top:2px"}, said[kind]));
     return row;
   }
   const ask = () => ctx.actions.wsCall("padspan_ha/plan_build_info").then(show).catch(() => show(null));

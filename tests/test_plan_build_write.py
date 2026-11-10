@@ -844,9 +844,11 @@ def test_saves_and_undos_report_counts_only(monkeypatch, tmp_path, disk):
 def test_settings_keeps_the_undo_reachable_when_the_ai_stops_qualifying():
     src = (_ROOT / "www" / "padspan-ha" / "views" / "settings.js").read_text(encoding="utf-8")
     row = src[src.index("function _planBuildRow("):src.index("function _planAiLastRow(")]
-    assert "const undo = info && info.master && info.undo ? info.undo : null;" in row and 'box.style.display = ok || undo ? "" : "none";' in row
-    assert "if (!ok) { if (undo) box.appendChild(undoRow(undo, false)); return; }" in row          # drawn while locked
-    assert 'wsCall("padspan_ha/plan_build_undo", { session: u.session })' in row and row.count("Undo this line-up session (experimental)") >= 2
+    assert "const undo = info && info.master && info.undo ? info.undo : null;" in row and 'box.style.display = ok || undo || rundo ? "" : "none";' in row
+    assert "if (!ok) { if (undo) box.appendChild(undoRow(undo, false)); if (rundo) box.appendChild(undoRow(rundo, false, true)); return; }" in row   # drawn while locked
+    assert 'cmd: "padspan_ha/plan_build_rooms_undo"' in row and 'title: "Undo this rooms session (experimental)"' in row   # Stage 2's too, the same row
+    assert 'cmd: "padspan_ha/plan_build_undo"' in row and "ctx.actions.wsCall(K.cmd, { session: u.session })" in row
+    assert 'title: "Undo this line-up session (experimental)"' in row and "K.title)" in row
     assert "In this version it proposes only" not in row
 
 

@@ -812,6 +812,18 @@ export function helpTexts() { return {
       t("Every stop says why and what gets it moving again: Claude out of credit or unreachable (no other AI is used instead), out of time (Resume), a question waiting, a plan with things drawn on it, the calibration check, a backup that couldn't be made. Stops are counted on this Home Assistant; with the usage report on, only counts go in it."),
     ],
   },
+  plan_build_rooms: {
+    title: t("Rooms from plans — Claude reads rooms, doors, windows and stairs (experimental)"),
+    body: [
+      t("Live Aboard → Edit → Plans → Rooms from plans (experimental; administrators; PadSpan Pro). It is there with Line up plans: the same switch in Settings → AI, and Claude Opus 5.5 or newer as your main AI Task. A floor can be read once its line-up has ended and no plan on it has moved since; a plan that isn't lined up is left out."),
+      t("Claude reads each lined-up plan twice, the whole plan each time, for its rooms, doors, windows and stairs together. The plans leave the house for Anthropic: two reads a plan, and the estimate is shown before you start."),
+      t("Your rooms are matched by where they lie, never by their printed names: the printed rooms inside one of yours become its proposed outline, joined into one shape. Your rooms are never renamed or removed; those the plans don't show are listed and left as they are. Where the two reads differ, or an outline is far from yours, the room says \"look closely\": Show both reads draws both, and you can use the other read. Calibration spots that would fall outside their room are listed; their labels never change."),
+      t("Printed spaces inside none of your rooms are extra spaces: merge one into a room, add it as a new room with a name you pick (your Home Assistant areas are offered), or leave it out, which is the default. On the map, tap rooms and spaces, then Merge selected joins them into one outline; two of your own rooms can't be merged, as that would remove one. Separate takes a merge back."),
+      t("Doors and windows that both reads found are ticked and put on the wall they belong to; one that only one read found is a maybe and isn't ticked; one already in your house is left as it is. Stairs are matched against the 3D house's: new, a correction of where one stands, or already there."),
+      t("Accept all for this floor saves everything ticked in one save. First it checks the rooms against your calibration spots, now and with these: on a floor with 10 or more spots, Save is refused if they drop more than 2 points. Then it takes one safety backup (the last six are kept) and writes the rooms, doors, windows and stairs. Undo this rooms session, here and in Settings → AI, puts them all back; anything you changed since is left as it is, and the undo says so. Signal walls and open edges aren't read."),
+      t("Every stop says why and what gets it moving again: the floor isn't lined up, Claude is out of credit or unreachable (Resume), something in your house changed since the read, a name is already a room, or the calibration check. With the usage report on, only counts go in it."),
+    ],
+  },
   settings_atlas: {
     title: t("Atlas — The house map, Live Aboard and wall screens"),
     body: [
