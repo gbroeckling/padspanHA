@@ -274,6 +274,59 @@ def test_a_plan_changed_since_is_stale_and_nothing_is_saved(monkeypatch, tmp_pat
     assert st["items"]["place_m1"]["state"] == "stale" and st["items"]["place_m2"]["state"] == "open"
 
 
+def test_an_align_save_during_the_backup_is_never_written_over(monkeypatch, tmp_path, disk):
+    """Review M1: the person's own Align save lands while the line-up's backup
+    is written (the event loop is free there). The save is refused, named, and
+    the hand placement stands."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    real, hand = C._backup, {}                                                                # noqa: SLF001
+
+    async def slow_backup(hass, note):
+        bid = await real(hass, note)
+        t = dict(mdl.data["map_transforms"]["m1"])                                            # ws_fabric_map_reanchor's writer, no plan-store lock
+        res = await mdl.async_reanchor_map("m1", ms.get_map("m1"), cal, origin_x_m=t["origin_x_m"] + 0.5, origin_y_m=t["origin_y_m"],
+                                           rotation_rad=t.get("rotation_rad", 0.0), scale_x_m=t["scale_x_m"], scale_y_m=t["scale_y_m"])
+        hand.update(ok=res.get("ok"), t=A.placement_of(mdl.data["map_transforms"]["m1"]))
+        return bid
+    monkeypatch.setattr(C, "_backup", slow_backup)
+    out = _commit(h, conn, ["place_m1"])
+    assert hand["ok"] is True
+    assert out["ok"] is False and out["code"] == "changed_since" and out["changed"] == [{"item_id": "place_m1", "why": "moved"}]
+    assert "experimental" in out["message"] and A.STOPS["changed_while_saving"][0] in out["message"]
+    assert A.placement_of(mdl.data["map_transforms"]["m1"]) == hand["t"]                      # the hand save stands
+    assert _stops(h)[-1] == "changed_while_saving" and _counters(h)["plan_build_stop:changed_while_saving"] == 1
+    assert store.data["lineup_batches"] == {} and store.lineup("pb_t")["items"]["place_m1"]["state"] == "stale"
+
+
+@pytest.mark.parametrize("hand_moves", ["second", "first_after_write"])
+def test_a_hand_change_between_two_writes_is_never_written_over(monkeypatch, tmp_path, disk, hand_moves):
+    """Review M1, the gaps after the ledger: a plan changed by hand before its
+    own write is not written; a plan written and then changed by hand isn't
+    put back over the change."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    was = _house_now(mdl, ms, cal)
+    real = C._write_place                                                                     # noqa: SLF001
+
+    async def then_by_hand(hass, map_id, to_t, pins=None):
+        got = await real(hass, map_id, to_t, pins)
+        if map_id == "m2" and not pins:
+            if hand_moves == "second":                                                        # 3D Stack files r1 on Main meanwhile
+                await ms.async_update_map("r1", floor_id="main")
+            else:                                                                             # Align moves m2 again, and r1 changes too
+                await mdl.async_reanchor_map("m2", ms.get_map("m2"), cal, origin_x_m=3.3)
+                await ms.async_update_map("r1", floor_id="main")
+        return got
+    monkeypatch.setattr(C, "_write_place", then_by_hand)
+    out = _commit(h, conn, ["place_m2", "refile_r1"], group=True)
+    assert out["ok"] is False and out["code"] == "changed_since" and _stops(h)[-1] == "changed_while_saving"
+    assert ms.get_map("r1")["floor_id"] == "main" and mdl.data["map_transforms"]["r1"]["floor_id"] == "basement"   # r1 not refiled over it
+    if hand_moves == "second":
+        assert mdl.data["map_transforms"]["m2"] == was["t"]["m2"]                             # m2 put back: still as the save left it
+    else:
+        assert mdl.data["map_transforms"]["m2"]["origin_x_m"] == 3.3                          # the hand move stands
+    assert all(not b.get("pending") for b in store.data["lineup_batches"].values())
+
+
 def test_no_backup_no_save_and_no_undo(monkeypatch, tmp_path, disk):
     h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
     was = _house_now(mdl, ms, cal)
@@ -341,8 +394,8 @@ def test_a_restart_in_the_middle_of_a_save_finishes_it_or_takes_it_back(monkeypa
     prop = store.lineup("pb_t")["items"]["place_m2"]["proposal"]
     real, n = C._write_side, {"n": 0}                                                          # noqa: SLF001
 
-    async def cut_short(hass, e, side, pins=None):
-        got = await real(hass, e, side, pins)
+    async def cut_short(hass, e, side, pins=None, from_side=None):
+        got = await real(hass, e, side, pins, from_side)
         n["n"] += 1
         if cut == "after_first_write" or n["n"] == 2:
             raise asyncio.CancelledError                                                      # Home Assistant stopping: nothing after this runs

@@ -809,7 +809,7 @@ PLAN_BUILD_FLAGS: tuple[str, ...] = ("calibration", "device", "room_trace")
 PLAN_BUILD_STOPS: tuple[str, ...] = ("locked", "unreachable", "no_credit", "out_of_time", "no_media", "help_unanswered", "help_limit",
                                      "refile_refused", "measured_plan_protected", "anchor_error", "no_anchor", "no_metre_scale", "not_placed",
                                      "fit_rejected", "cancelled", "abandoned", "group_refused", "preflight_blocked", "backup_failed", "undo_failed",
-                                     "room_gate")
+                                     "changed_while_saving", "room_gate")
 PLAN_BUILD_SHOWN_ACCEPTED: tuple[str, ...] = ("shown", "accepted")
 PLAN_BUILD_COMMIT: tuple[str, ...] = ("done", "changed_since", "points_out_of_range", "measured_plan_protected", "refile_refused", "group_refused",
                                       "backup_failed", "save_failed", "rolled_back")

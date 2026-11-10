@@ -1732,6 +1732,8 @@ STOPS: dict[str, tuple[str, str]] = {
     "preflight_blocked": ("Most of this plan's calibration points would fall off its picture, so nothing was saved.",
                           "Mark it wrong, or line the plan up by hand in Mapping → Align."),                                                  # 1b
     "backup_failed": ("The safety backup couldn't be made, so nothing was saved.", "Try again; check Home Assistant's storage."),          # 1b
+    "changed_while_saving": ("A plan was changed in Mapping while this save was under way, so nothing of the line-up was written over it.",
+                             "Line the floor up again."),                                                                                    # 1b
     "undo_failed": ("The undo couldn't be written, so nothing was changed: the line-up is still as saved.",
                     "Try again; or restore the backup taken before it in Manage → Data → Backup & Restore."),                                        # 1b
     "room_gate": ("These rooms and walls would place your calibration spots worse.", "Look at the rooms flagged."),                         # s2

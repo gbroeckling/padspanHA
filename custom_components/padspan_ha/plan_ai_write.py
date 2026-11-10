@@ -681,8 +681,15 @@ async def _write_refile(hass: HomeAssistant, map_id: str, side: dict[str, Any]) 
     return None
 
 
-async def _write_side(hass: HomeAssistant, e: dict[str, Any], side: str, pins: dict[str, Any] | None = None) -> str | None:
-    """One ledger entry taken to its before or its after; never raises."""
+async def _write_side(hass: HomeAssistant, e: dict[str, Any], side: str, pins: dict[str, Any] | None = None,
+                      from_side: str | None = None) -> str | None:
+    """One ledger entry taken to its before or its after; never raises.
+    `from_side`: written only while the plan is still at that side of the
+    entry, else "changed" and nothing written (the Align editor, 3D Stack or
+    the Rooms tab don't take the plan store's lock, so a hand save can land
+    between the checks and the writes: it is never written over)."""
+    if from_side is not None and not _at(_live(hass, e["map_id"]), e[from_side], e.get("kind")):
+        return "changed"
     try:
         if e.get("kind") == "refile":
             return await _write_refile(hass, e["map_id"], e[side])
@@ -868,34 +875,45 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
         await _save(store)
         raise Refused(code, message, {**(extra or {}), "rev": sess.get("rev")})
 
+    flags_now: dict[str, list] = {}
+
+    async def recheck(snap: dict, during: bool) -> None:
+        """Each item against the house as it is: its plan, picture, placement,
+        floor, anchor and flags, a refile's plan still clean. `during`: again
+        after the backup, which leaves the event loop free for the Align
+        editor's own save; a change then is its own named stop (design 14)."""
+        changed: list[dict[str, str]] = []
+        for iid, it in wanted:
+            why = A.item_now(snap, sess, it)
+            if why is None and it["kind"] != "refile":
+                flags_now[iid], _others = A.effects(snap, it["map_id"], it["proposal"])
+                seen = {(f["what"], f["id"]) for f in it.get("flags") or []}
+                if any((f["what"], f["id"]) not in seen for f in flags_now[iid]):
+                    why = "new_flag"                       # something drawn on the plan since the person looked
+            if why:
+                changed.append({"item_id": iid, "why": why})
+        if changed:
+            for c in changed:
+                it = items[c["item_id"]]
+                if it.get("state") != "stale":
+                    it["state"] = "stale"
+                    A._bump(hass, f"plan_build_item:{it['kind']}_stale")  # noqa: SLF001
+            if during:
+                await refuse("changed_since", LP + " ".join(A.STOPS["changed_while_saving"]), "changed_while_saving", None, "changed_since",
+                             {"changed": changed})
+            await refuse("changed_since", LP + "the plan changed since you looked (moved, a new picture, or something drawn on it). "
+                         "Nothing was saved: line the floor up again.", None, None, "changed_since", {"changed": changed})
+        for iid, it in wanted:
+            if it["kind"] == "refile" and A.drawn_total(snap["plans"][it["map_id"]]["drawn"]):
+                it["state"] = "refused"
+                await refuse("refile_refused", LP + " ".join(A.STOPS["refile_refused"]), "refile_refused", it["map_id"], "refile_refused", {"items": [iid]})
+
     # 1. Check everything; write nothing if any check fails.
     for iid, it in wanted:
         if it["map_id"] == snap["gauge_map"]:
             await refuse("measured_plan_protected", LP + " ".join(A.STOPS["measured_plan_protected"]), "measured_plan_protected", it["map_id"],
                          "measured_plan_protected", {"items": [iid]})
-    changed: list[dict[str, str]] = []
-    flags_now: dict[str, list] = {}
-    for iid, it in wanted:
-        why = A.item_now(snap, sess, it)
-        if why is None and it["kind"] != "refile":
-            flags_now[iid], _others = A.effects(snap, it["map_id"], it["proposal"])
-            seen = {(f["what"], f["id"]) for f in it.get("flags") or []}
-            if any((f["what"], f["id"]) not in seen for f in flags_now[iid]):
-                why = "new_flag"                       # something drawn on the plan since the person looked
-        if why:
-            changed.append({"item_id": iid, "why": why})
-    if changed:
-        for c in changed:
-            it = items[c["item_id"]]
-            if it.get("state") != "stale":
-                it["state"] = "stale"
-                A._bump(hass, f"plan_build_item:{it['kind']}_stale")  # noqa: SLF001
-        await refuse("changed_since", LP + "the plan changed since you looked (moved, a new picture, or something drawn on it). "
-                     "Nothing was saved: line the floor up again.", None, None, "changed_since", {"changed": changed})
-    for iid, it in wanted:
-        if it["kind"] == "refile" and A.drawn_total(snap["plans"][it["map_id"]]["drawn"]):
-            it["state"] = "refused"
-            await refuse("refile_refused", LP + " ".join(A.STOPS["refile_refused"]), "refile_refused", it["map_id"], "refile_refused", {"items": [iid]})
+    await recheck(snap, False)
     if group:
         shifting = [iid for iid, it in wanted if it.get("flags") or flags_now.get(iid)]
         if shifting:
@@ -919,6 +937,8 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
     backup_id = await _backup(hass, f"Before plan line-up (experimental): {_floor_name(snap, sess.get('floor_id'))}")
     if not backup_id:
         await refuse("backup_failed", LP + " ".join(A.STOPS["backup_failed"]), "backup_failed", None, "backup_failed")
+    # The backup awaited: a hand save may have landed meanwhile. The checks again, on the house as it is now.
+    await recheck(A.house_snapshot(hass), True)
 
     # 3. The ledger, pending, from the stores as they are now (under the lock).
     snap_store = copy.deepcopy(store.data)
@@ -938,15 +958,15 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
     done: list[dict] = []
     failed: str | None = None
     for e in entries:
-        failed = await _write_side(hass, e, "after")
+        failed = await _write_side(hass, e, "after", from_side="before")     # still where the ledger found it, or not written
         if failed:
             break
         e["pins_after"] = _pins(_house_stores(hass)[1].get_map(e["map_id"]))
         done.append(e)
     if failed:
         put_back = True
-        for e in reversed(done):
-            if await _write_side(hass, e, "before", e.get("pins_before") if e["kind"] != "refile" else None):
+        for e in reversed(done):                       # only a plan still as this save left it: a hand save since stands
+            if await _write_side(hass, e, "before", e.get("pins_before") if e["kind"] != "refile" else None, from_side="after") not in (None, "changed"):
                 put_back = False
         if put_back:
             await _put_back(store, snap_store)         # the batch never happened
@@ -958,6 +978,8 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
         sess = store.lineup(sid) or sess
         if failed == "points_out_of_range":
             A._bump(hass, "plan_build_preflight:blocked")  # noqa: SLF001
+        if failed == "changed":
+            await refuse("changed_since", LP + " ".join(A.STOPS["changed_while_saving"]), "changed_while_saving", None, "changed_since")
         await refuse("save_failed", LP + ("couldn't write the line-up, so what was written is put back: nothing was changed. " if put_back else
                                           "couldn't write the line-up; what was written is put back the next time Line up plans opens. ")
                      + "Try again; check Home Assistant's storage.", "preflight_blocked" if failed == "points_out_of_range" else None, None, "save_failed")
@@ -1055,14 +1077,14 @@ async def lineup_undo(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> di
     done: list[dict] = []
     failed = None
     for u in u_items:
-        failed = await _write_side(hass, u, "after", u.get("pins_restore"))
+        failed = await _write_side(hass, u, "after", u.get("pins_restore"), from_side="before")
         if failed:
             break
         done.append(u)
     if failed:
         put_back = True
         for u in reversed(done):
-            if await _write_side(hass, u, "before", u.get("pins_before") if u["kind"] != "refile" else None):
+            if await _write_side(hass, u, "before", u.get("pins_before") if u["kind"] != "refile" else None, from_side="after") not in (None, "changed"):
                 put_back = False
         if put_back:
             await _put_back(store, snap_store)
