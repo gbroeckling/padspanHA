@@ -2259,7 +2259,7 @@ export function createPlans(ctx){
     }
     if (p.now) add(dashMesh(dashTriangles(p.now, true, 0.4, 0.25, 0.1), y + 0.05, "#cbd5e1"));
     if (p.next) add(dashMesh(dashTriangles(p.next, true, 0.6, 0.25, 0.12), y + 0.055, DASH_COL));
-    for (const f of it.flags || []) {
+    for (const f of it.state === "committed" ? [] : it.flags || []) {          // saved: what it shifted is drawn from metres again
       if (!f.stored_m || !f.click_m) continue;
       const col = f.what === "calibration" ? "#a855f7" : "#14b8a6", ring = [];
       for (let i = 0; i < 12; i++) ring.push([f.stored_m[0] + Math.cos(i * Math.PI / 6) * 0.2, f.stored_m[1] + Math.sin(i * Math.PI / 6) * 0.2]);
@@ -2516,7 +2516,9 @@ export function createPlans(ctx){
     box.setAttribute("data-plan-build", "dimension");
     box.appendChild(d("div", "pl-sub", "The printed dimensions this proposal stands on (experimental). Amber: the dimension line as read; green: between the ticks PadSpan found."));
     for (const x of list) {
-      const c = d("canvas"); c.width = 460; c.height = 110; c.style.width = "100%"; c.style.height = "auto"; c.style.background = "#fff"; c.style.borderRadius = "6px"; c.style.marginTop = "4px";
+      const tall = x.d.axis === "y", c = d("canvas");             // a dimension down the page gets a tall crop, not a sliver
+      c.width = tall ? 200 : 460; c.height = tall ? 340 : 110; c.style.width = tall ? "auto" : "100%"; c.style.maxWidth = "100%"; c.style.height = "auto";
+      c.style.display = "block"; c.style.background = "#fff"; c.style.borderRadius = "6px"; c.style.marginTop = "4px";
       box.appendChild(c);
       questionPic(c, { id: `dim_${x.mid}`, kind: "confirm_dimension", box: x.d.box, ticks_px: x.d.ticks_px, map_id: x.mid, mark: true }, x.mid);
       const m = num(x.d.parse_m) ?? num(x.d.metres);
