@@ -780,7 +780,7 @@ AI_USAGE_EVENTS: frozenset[str] = frozenset(
 # title, a room, a floor, an AI Task, a map id, a coordinate, a size, a credit
 # amount or a price. The stall watch (section 14): every stop by its one named
 # reason (plan_ai.STOPS), the stress signals and how long a person waited.
-PLAN_BUILD_STAGE: tuple[str, ...] = ("s1",)
+PLAN_BUILD_STAGE: tuple[str, ...] = ("s1", "s2")
 PLAN_BUILD_SETTING: tuple[str, ...] = ("shown", "on", "off")
 PLAN_BUILD_UNLOCK: tuple[str, ...] = ("opus", "fable", "other", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree", "no_ai_task")
 PLAN_BUILD_RUN: tuple[str, ...] = ("started", "finished", "needs_help", "resumed", "cancelled", "failed", "out_of_time", "no_credit", "abandoned")
@@ -788,6 +788,7 @@ PLAN_BUILD_RUN_SECS: tuple[str, ...] = ("lt1m", "1_3m", "3_10m", "gt10m")
 PLAN_BUILD_PLAN_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "gt6")
 PLAN_BUILD_CREDIT: tuple[str, ...] = ("lt0_10", "0_10_0_50", "0_50_2", "gt2")
 PLAN_BUILD_READ: tuple[str, ...] = ("plan", "dimension", "retry", "reused")
+PLAN_BUILD_READ_S2: tuple[str, ...] = ("plan", "retry")          # Stage 2 reads each plan whole, twice: no dimension crops, nothing reused
 PLAN_BUILD_READ_FAIL: tuple[str, ...] = ("timeout", "refusal", "bad_answer", "unreachable", "no_credit", "no_media", "suspect_frame", "backup_used")
 PLAN_BUILD_ANCHOR: tuple[str, ...] = ("gauge", "evidence", "none")
 PLAN_BUILD_DIMS: tuple[str, ...] = ("agree", "disagree", "single", "none", "parse_mismatch")
@@ -801,30 +802,38 @@ PLAN_BUILD_PCT: tuple[str, ...] = ("lt1", "1_3", "3_10", "gt10")
 PLAN_BUILD_REFILE: tuple[str, ...] = ("suggested", "by_hand", "refused_drawn", "accepted", "wrong", "undone")
 PLAN_BUILD_HELP: tuple[str, ...] = ("dimension_shown", "dimension_yes", "dimension_typed", "dimension_skipped", "taps_shown", "taps_done",
                                     "taps_skipped", "gave_up")
-PLAN_BUILD_ITEM_KINDS: tuple[str, ...] = ("place", "refile", "anchor_scale")
-PLAN_BUILD_ITEM: tuple[str, ...] = ("shown", "accepted", "accepted_group", "not_now", "wrong", "undone", "stale")
+PLAN_BUILD_ITEM_KINDS: tuple[str, ...] = ("place", "refile", "anchor_scale", "room", "space", "door", "window", "stairs")
+PLAN_BUILD_ITEM: tuple[str, ...] = ("shown", "accepted", "accepted_group", "not_now", "wrong", "undone", "stale", "maybe")
 PLAN_BUILD_WRONG: tuple[str, ...] = ("wrong_match", "wrong_scale", "wrong_floor", "cant_tell")
 PLAN_BUILD_M: tuple[str, ...] = ("lt0_3", "0_3_1", "1_3", "gt3")
 PLAN_BUILD_FLAGS: tuple[str, ...] = ("calibration", "device", "room_trace")
 PLAN_BUILD_STOPS: tuple[str, ...] = ("locked", "unreachable", "no_credit", "out_of_time", "no_media", "help_unanswered", "help_limit",
                                      "refile_refused", "measured_plan_protected", "anchor_error", "no_anchor", "no_metre_scale", "not_placed",
                                      "fit_rejected", "cancelled", "abandoned", "group_refused", "preflight_blocked", "backup_failed", "undo_failed",
-                                     "changed_while_saving", "floor_gone", "plan_changed", "ai_changed", "restart", "bad_answer", "refusal", "error", "anchor_after_fit", "save_stands", "undo_stands", "room_gate")
+                                     "changed_while_saving", "floor_gone", "plan_changed", "ai_changed", "restart", "bad_answer", "refusal", "error", "anchor_after_fit", "save_stands", "undo_stands", "room_gate",
+                                     "not_lined_up", "rooms_changed", "name_taken")
 PLAN_BUILD_SHOWN_ACCEPTED: tuple[str, ...] = ("shown", "accepted")
 PLAN_BUILD_COMMIT: tuple[str, ...] = ("done", "changed_since", "points_out_of_range", "measured_plan_protected", "refile_refused", "group_refused",
-                                      "backup_failed", "save_failed", "rolled_back", "anchor_after_fit")
+                                      "backup_failed", "save_failed", "rolled_back", "anchor_after_fit", "room_gate")
 PLAN_BUILD_PREFLIGHT: tuple[str, ...] = ("checked", "blocked")
 PLAN_BUILD_UNDO: tuple[str, ...] = ("session", "item_skipped", "failed")
 PLAN_BUILD_SETTLED: tuple[str, ...] = ("finished", "put_back", "stood")
 PLAN_BUILD_STRESS: tuple[str, ...] = ("repeat", "help_over", "resumes", "quick_abandon")
 PLAN_BUILD_WAIT: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
+# Stage 2 (rooms, doors, windows and stairs read together; design section 5):
+# the rooms gate on the calibration spots, whether a room's two reads agreed
+# (or its outline is far from the person's, or its parts didn't join), and
+# what the person merged. Its items use plan_build_item's kinds above.
+PLAN_BUILD_HELDOUT: tuple[str, ...] = ("up", "same", "down", "blocked", "unscored")
+PLAN_BUILD_AGREE: tuple[str, ...] = ("ready", "differ", "big_change", "apart")
+PLAN_BUILD_MERGE: tuple[str, ...] = ("into_room", "together", "new_room", "separated")
 PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
     {f"plan_build_setting:{k}" for k in PLAN_BUILD_SETTING} | {f"plan_build_unlock:{k}" for k in PLAN_BUILD_UNLOCK}
     | {f"plan_build_run:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_RUN}
     | {f"plan_build_run_secs:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_RUN_SECS}
     | {f"plan_build_plans:{k}" for k in PLAN_BUILD_PLAN_BANDS}
     | {f"plan_build_credit_run:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_CREDIT}
-    | {f"plan_build_read:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_READ}
+    | {f"plan_build_read:s1_{k}" for k in PLAN_BUILD_READ} | {f"plan_build_read:s2_{k}" for k in PLAN_BUILD_READ_S2}
     | {f"plan_build_read_fail:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_READ_FAIL}
     | {f"plan_build_read_secs:{k}" for k in PHOTO_SECS}
     | {f"plan_build_anchor:{k}" for k in PLAN_BUILD_ANCHOR} | {f"plan_build_dims:{k}" for k in PLAN_BUILD_DIMS}
@@ -839,7 +848,9 @@ PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
     | {f"plan_build_undo:{k}" for k in PLAN_BUILD_UNDO} | {f"plan_build_settled:{k}" for k in PLAN_BUILD_SETTLED}
     | {f"plan_build_flags:{k}" for k in PLAN_BUILD_FLAGS} | {f"plan_build_flag_move:{k}" for k in PLAN_BUILD_M}
     | {f"plan_build_stop:{k}" for k in PLAN_BUILD_STOPS} | {f"plan_build_stress:{k}" for k in PLAN_BUILD_STRESS}
-    | {f"plan_build_wait:{k}" for k in PLAN_BUILD_WAIT})
+    | {f"plan_build_wait:{k}" for k in PLAN_BUILD_WAIT}
+    | {f"plan_build_heldout:{k}" for k in PLAN_BUILD_HELDOUT} | {f"plan_build_agree:{k}" for k in PLAN_BUILD_AGREE}
+    | {f"plan_build_merge:{k}" for k in PLAN_BUILD_MERGE})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.

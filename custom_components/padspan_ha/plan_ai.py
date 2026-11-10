@@ -148,7 +148,7 @@ _LIGHT_LABELS = ("light", "lights", "light fixture", "light fixtures", "ceiling 
 # ── The store ────────────────────────────────────────────────────────────────
 
 def empty() -> dict[str, Any]:
-    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}, "lineups": {}, "stall": {}, "lineup_batches": {}}
+    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}, "lineups": {}, "stall": {}, "lineup_batches": {}, "rooms": {}, "room_batches": {}}
 
 
 def writable(data: Any) -> bool:
@@ -165,7 +165,7 @@ def normalise(raw: Any) -> dict[str, Any]:
     out = dict(raw)
     out.setdefault("schema", SCHEMA)
     if writable(out):
-        for k in ("sessions", "batches", "rejects", "lineups", "stall", "lineup_batches"):
+        for k in ("sessions", "batches", "rejects", "lineups", "stall", "lineup_batches", "rooms", "room_batches"):
             if not isinstance(out.get(k), dict):
                 out[k] = {}
     return out
@@ -192,7 +192,7 @@ def sweep_lineups(data: dict[str, Any], keep: str | None = None, hass: HomeAssis
     waiting for the person's help has no job behind it by design: it stays.
     `hass`: the stop is noted and counted too (design 14: the card says why)."""
     n = 0
-    for sid, sess in (data.get("lineups") or {}).items():
+    for sid, sess in [*(data.get("lineups") or {}).items(), *(data.get("rooms") or {}).items()]:   # the rooms sessions (Stage 2) too
         if isinstance(sess, dict) and sess.get("status") == "running" and sid != keep:
             sess.update(status="failed", error="restart", finished_at=time.time(), rev=int(sess.get("rev") or 0) + 1)
             if hass is not None:
@@ -278,11 +278,17 @@ class PlanAiStore:
         s = (self._data.get("lineups") or {}).get(sid) if sid else None
         return s if isinstance(s, dict) else None
 
+    def rooms_session(self, sid: str | None) -> dict[str, Any] | None:
+        """A rooms session by id (Stage 2), or None."""
+        s = (self._data.get("rooms") or {}).get(sid) if sid else None
+        return s if isinstance(s, dict) else None
+
     def trim(self) -> None:
         """The caps: the oldest sessions, batches, rejects and line-ups over them go."""
         for key, cap, when in (("sessions", MAX_SESSIONS, "started_at"), ("batches", MAX_BATCHES, "committed_at"),
                                ("rejects", MAX_REJECTS, "at"), ("lineups", MAX_LINEUPS, "started_at"),
-                               ("lineup_batches", MAX_BATCHES, "committed_at")):
+                               ("lineup_batches", MAX_BATCHES, "committed_at"), ("rooms", MAX_ROOM_SESSIONS, "started_at"),
+                               ("room_batches", MAX_BATCHES, "committed_at")):
             d = self._data.get(key) or {}
             if len(d) > cap:
                 order = sorted(d, key=lambda k: float((d[k] or {}).get(when) or 0) if isinstance(d[k], dict) else 0)
@@ -2861,7 +2867,7 @@ class LineupRunner(Runner):
         Pro, and every plan as it was (design 3.9)."""
         from .house3d_store import enabled as house3d_on  # noqa: PLC0415
         from .ws_common import _tier_at_least  # noqa: PLC0415
-        if self.job.cancel or self.store.lineup(self.job.sid) is None:
+        if self.job.cancel or not self.sess:             # gone: a restore or a reset took the session (a rooms session too)
             return "user"
         if not enabled(self.hass) or not build_switch(self.hass):
             return "switch_off"
@@ -3386,3 +3392,871 @@ def lineup_undo_info(store: PlanAiStore, sid: str | None = None) -> dict[str, An
         s["saves"] += 1
         s["at"] = max(s["at"], float(b.get("committed_at") or 0))
     return max(by.values(), key=lambda s: s["at"], default=None)
+
+
+# ══ Build from plans: rooms, doors, windows and stairs (Stage 2; experimental) ══
+# Design: PadspanResearch/plan-build-design-2026-11.md, section 5 (Stage 2 as
+# built, 2026-11-10), from the read-only test of that day (rooms-stage2-test-
+# 2026-11-10.md, "All at once"): one whole-plan read gives the rooms, doors,
+# windows and stairs together, and two reads of each plan tell the weak rooms
+# apart. Reads go through Runner.ask/read (the one plan reader); the proposal
+# is pure (rooms_proposal); nothing here writes the house: the one write and
+# its undo are plan_ai_write.py's (rooms_commit, rooms_undo, settle_rooms).
+
+# ── The numbers that can stop or hold it back (design 14), each with why ─────
+S2_READS = 2                 # reads of each plan: where the two disagree, the room is weak (test, 2026-11-10)
+S2_PICTURE_PX, S2_PICTURE_MP = 1568, 1.15     # as tested (the research harness's Anthropic limit); Stage 1's size wasn't tried
+S2_INSIDE = 0.60             # a printed space this much inside one of the person's rooms is part of it (the test's rule)
+S2_AGREE = 0.85              # the two reads' outlines of a room this alike: ready (every weak room of the test was under it)
+S2_SAME_SPACE = 0.5          # two printed spaces outside every room this alike (IoU) are one
+S2_SAME_M = 0.5              # a door or window this close to another is the same one (the test scored within 0.5 m)
+S2_SNAP_M = 0.6              # a door or window this close to an outline's edge is put on it; further: not offered
+S2_STAIR_SAME_M = 1.0        # two reads' stairs this close are one (plan_ai.DUP_M)
+S2_BIG_CHANGE = 0.75         # a proposed outline overlapping the person's own less than this (IoU) is flagged "look closely": the
+                             # test's one wrong room both reads agreed on (an open kitchen side, 0.69) is the only one it flags there
+S2_WIDTH_M = {"door": 0.8, "doorway": 0.9, "window": 1.2}     # the read gives only a centre
+S2_MIN_M = {"door": 0.6, "doorway": 0.6, "window": 0.3}       # house3d_store's DOOR_MIN_M and WINDOW_MIN_M
+S2_DOOR_HEAD_M, S2_WINDOW_SILL_M, S2_WINDOW_HEAD_M = 2.03, 0.9, 2.1   # the 3D editor's defaults (live_aboard_draft.js)
+S2_GATE_PP = 2               # Save refuses when the room score on the calibration spots drops more than this (form q12)
+S2_GATE_SPOTS = 10           # fewer labelled spots on the floor: the containment check stands in (heldout.MIN_VERDICT_SPOTS)
+S2_NAME_MAX = 40             # a new room's name, at most
+MAX_ROOM_SESSIONS = 10       # sessions kept
+S2_DOOR_TYPES = {"sliding": "sliding", "pocket": "pocket", "bifold": "bifold"}   # the read's kind kept as the door's type
+S2_LABEL = "Stairs (from the plan)"                                               # plan_ai_write.PIECE_LABEL
+
+STOPS.update({
+    "not_lined_up": ("This floor's plans aren't lined up yet, or one was moved since.", "Line up plans (experimental) first, then come back."),
+    "rooms_changed": ("A room, a door or a stair was changed in your house since Claude read the plans, so nothing was saved.",
+                      "Read the floor again."),
+    "name_taken": ("That name is already a room in your house.", "Pick another name, or merge the space into that room."),
+})
+
+ROOMS_SCHEMA = ('{"rooms": [{"name": "...", "corners": [[x, y], ...]}], '
+                '"doors": [{"at": [x, y], "between": ["room", "room or outside"], "kind": "hinged|sliding|pocket|bifold|opening"}], '
+                '"windows": [{"at": [x, y], "room": "..."}], '
+                '"stairs": [{"box": [x1, y1, x2, y2], "room": "...", "says": "UP|DOWN|none"}]}')
+
+
+def rooms_prompt(w: int, h: int) -> str:
+    """The tested all-at-once prompt, word for word (run_joint_s2.prompt_joint,
+    look_first False). A change must be tested again before it ships
+    (tests/test_plan_build_rooms.py pins it)."""
+    return (f'This floor plan picture is {w} by {h} pixels. Read it the way an architect would, as one drawing: the walls '
+            '(thick lines, outside and inside), the doors (a gap in a wall, usually with a thin quarter-circle swing arc; '
+            'also sliding, pocket and folding doors, and plain cased openings), the windows (thin parallel lines set in an '
+            'outside wall), the stairs (a run of many short parallel tread lines, often with an arrow and UP or DN), the '
+            'fixtures (counters, tubs, toilets, appliances) and the printed room names. Door swing arcs, stair treads, '
+            'fixtures, dimension lines and text are not walls. Then give:\n'
+            '- rooms: every room or named space, traced along the inside faces of its walls, corners in order around the '
+            'room. A door or opening sits in its wall, so the outline runs straight across it. Where a space is open to '
+            'another with no wall between, follow the line the opening makes. A staircase belongs to the room or hall it '
+            'stands in, so that outline includes it.\n'
+            '- doors: the centre of each door or opening, and the two rooms it joins ("outside" for an outside door).\n'
+            '- windows: the centre of each window and its room.\n'
+            '- stairs: the box around each staircase, the room it is in, and UP or DOWN as printed.\n'
+            'Use pixels of this picture. Ignore the title block, notes and dimension text. Output only JSON: ' + ROOMS_SCHEMA)
+
+
+def last_json(answer: Any) -> dict | None:
+    """The answer's LAST JSON object holding what was asked (Claude sometimes
+    corrects itself: "Let me reconsider…" and a second, cleaner JSON). A dict
+    answer is itself."""
+    if isinstance(answer, dict):
+        return answer
+    s, out, i = answer if isinstance(answer, str) else "", None, 0
+    dec = json.JSONDecoder()
+    while i < len(s):
+        j = s.find("{", i)
+        if j < 0:
+            break
+        try:
+            v, end = dec.raw_decode(s, j)
+        except ValueError:
+            i = j + 1
+            continue
+        if isinstance(v, dict) and any(k in v for k in ("rooms", "doors", "windows", "stairs")):
+            out = v
+        i = end
+    return out
+
+
+def _pt(v: Any, w: int, h: int, k: float) -> list[float] | None:
+    """A point in the sent frame, checked against it, in the picture's own pixels."""
+    if not isinstance(v, (list, tuple)) or len(v) != 2:
+        return None
+    x, y = S._num(v[0]), S._num(v[1])  # noqa: SLF001
+    e = S.PAST_EDGE_FRAC
+    if x is None or y is None or not (-e * w <= x <= (1 + e) * w and -e * h <= y <= (1 + e) * h):
+        return None
+    return [round(min(max(x, 0.0), float(w)) / k, 1), round(min(max(y, 0.0), float(h)) / k, 1)]
+
+
+def parse_rooms_read(answer: Any, w: int, h: int, k: float = 1.0) -> dict[str, Any] | None:
+    """One read reduced to numbers, short names (40 characters) and closed
+    words, in the picture's own pixels (÷ k, the sent size over the
+    picture's). None when it isn't the object asked for."""
+    o = last_json(answer)
+    if o is None:
+        return None
+    rooms = []
+    for r in (o.get("rooms") or [])[:60]:
+        if not isinstance(r, dict):
+            continue
+        pts = [p for p in (_pt(c, w, h, k) for c in (r.get("corners") or [])[:80]) if p]
+        if len(pts) >= 3 and G.area(pts) > 0:
+            rooms.append({"name": _short(r.get("name")) or "?", "px": pts})
+    doors = []
+    for d in (o.get("doors") or [])[:80]:
+        at = _pt(d.get("at"), w, h, k) if isinstance(d, dict) else None
+        if at:
+            kind = str(d.get("kind") or "hinged").strip().lower()
+            between = [_short(b) or "?" for b in (d.get("between") or [])[:2]] if isinstance(d.get("between"), list) else []
+            doors.append({"px": at, "kind": kind if kind in ("hinged", "sliding", "pocket", "bifold", "opening") else "hinged", "between": between})
+    windows = []
+    for d in (o.get("windows") or [])[:120]:
+        at = _pt(d.get("at"), w, h, k) if isinstance(d, dict) else None
+        if at:
+            windows.append({"px": at, "room": _short(d.get("room"))})
+    stairs = []
+    for d in (o.get("stairs") or [])[:8]:
+        box = _box(d.get("box"), w, h, k) if isinstance(d, dict) else None
+        if box:
+            says = str(d.get("says") or "").strip().upper()
+            stairs.append({"box": box, "room": _short(d.get("room")), "says": "DOWN" if says in ("DN", "DOWN") else "UP" if says == "UP" else ""})
+    return {"rooms": rooms, "doors": doors, "windows": windows, "stairs": stairs}
+
+
+# ── Which plans are lined up (the precondition, design 5) ───────────────────
+
+def rooms_ready(store: PlanAiStore, snap: dict, floor_id: str) -> dict[str, Any]:
+    """Whether a floor can be read for rooms: its newest line-up ended and
+    nothing moved since. {ok, why, lineup, plans: [lined-up map ids], others:
+    [{map_id, name, why}]}. Lined up: the gauge, the anchor (or the plan the
+    others were fitted to), a plan whose placement was saved or found already
+    lined up; each still at the placement its line-up left it."""
+    out: dict[str, Any] = {"ok": False, "why": "not_lined_up", "lineup": None, "plans": [], "others": []}
+    lus = [(sid, s) for sid, s in (store.data.get("lineups") or {}).items() if isinstance(s, dict) and s.get("floor_id") == floor_id]
+    if not lus:
+        out["why_more"] = "no_lineup"
+        return out
+    sid, sess = max(lus, key=lambda t: float(t[1].get("started_at") or 0))
+    out["lineup"] = sid
+    if sess.get("status") != "done":
+        out["why_more"] = "lineup_open"
+        return out
+    items = sess.get("items") or {}
+    for pl in sess.get("plans") or []:
+        mid, now = pl.get("map_id"), snap["plans"].get(pl.get("map_id"))
+        it = items.get(f"place_{mid}") or {}
+        lined = pl.get("role") in ("gauge", "anchor", "reference") or it.get("state") in ("committed", "same")
+        why = None
+        if now is None or now.get("floor_id") != floor_id:
+            why = "gone"
+        elif not lined:
+            why = "not_lined_up"
+        elif not same_picture(pl.get("image_sig"), now) or now.get("place_sig") != pl.get("place_sig"):
+            why = "moved"
+        if why:
+            out["others"].append({"map_id": mid, "name": pl.get("name") or "", "why": why})
+        else:
+            out["plans"].append(mid)
+    out["ok"] = bool(out["plans"])
+    out["why"] = "ok" if out["ok"] else "not_lined_up"
+    return out
+
+
+def rooms_estimate(hass: HomeAssistant, sizes: list[list[int]]) -> float | None:
+    """What S2_READS reads of each plan may cost on the main AI Task, by the
+    AI credit tracker's formula; None: no price known for the model."""
+    price = U.price_of(U.model_of(hass, str(unlock(hass).get("ai_task") or "")))
+    if price is None:
+        return None
+    usd = 0.0
+    for size in sizes:
+        w, h = (int(v or 0) for v in (list(size or []) + [0, 0])[:2])
+        if w and h:
+            k = min(1.0, S2_PICTURE_PX / max(w, h), math.sqrt(S2_PICTURE_MP * 1e6 / (w * h)))
+            usd += S2_READS * (U.estimate_usd(price, (round(w * k), round(h * k)), len(rooms_prompt(w, h))) or 0.0)
+    return round(usd, 4)
+
+
+def new_rooms_session(u: dict, snap: dict, floor_id: str, ready: dict, map_ids: list[str]) -> dict[str, Any]:
+    """A rooms session about to run, in this store's "rooms"."""
+    plans_ = []
+    for mid in map_ids:
+        p = snap["plans"][mid]
+        plans_.append({"map_id": mid, "name": p["name"], "floor_id": p["floor_id"], "image_sig": p["image_sig"], "place_sig": p["place_sig"],
+                       "size_px": list(p["size"]), "t": dict(p["t"]), "reads": [None] * S2_READS})
+    return {"rev": 1, "stage": "s2", "floor_id": floor_id, "lineup": ready.get("lineup"), "started_at": time.time(), "finished_at": None,
+            "status": "running", "error": None, "ai_task": u.get("ai_task"),
+            "model": {"family": u.get("family"), "version": u.get("version"), "display": u.get("display")}, "frame": PIXEL_FRAME,
+            "budget_s": S1_BUDGET_S, "spent_s": 0.0, "spent_before": 0.0, "reads": 0, "timeouts": 0, "errors": {}, "est_usd": 0.0,
+            "resumes": 0, "plans": plans_, "stops": [], "edits": {"merges": [], "spaces": {}, "picks": {}}, "proposal": None,
+            "progress": {"plan": 0, "of": len(plans_), "name": "", "step": "read 1"}}
+
+
+# ── The proposal (pure; design 5) ───────────────────────────────────────────
+
+def _barrier_kind(b: dict) -> str:
+    """What the 3D view draws a barrier as (live_aboard_house.js barrierKind)."""
+    m, n = str(b.get("material") or "").lower(), str(b.get("name") or "")
+    if m == "open":
+        return "open"
+    if m == "glass" or re.search(r"window", n, re.I):
+        return "window"
+    if re.search(r"\b(door|gate)\b", n, re.I) or "door" in str(b.get("linked_entity_id") or "").lower():
+        return "door"
+    return "wall"
+
+
+def _cls(kind: str) -> str:
+    return "window" if kind == "window" else "door"
+
+
+def _to_m(t: dict, size: list, px: list) -> list[float]:
+    return [round(v, 3) for v in placement_metres(t, px[0] / size[0], px[1] / size[1])]
+
+
+def _cluster(found: list[dict], near: Callable[[dict, dict], bool]) -> list[list[dict]]:
+    """Greedy: each find joins the first group it is near, from another plan."""
+    groups: list[list[dict]] = []
+    for f in found:
+        g = next((g for g in groups if all(o["plan"] != f["plan"] for o in g) and near(g[0], f)), None)
+        if g is None:
+            groups.append([f])
+        else:
+            g.append(f)
+    return groups
+
+
+def _pair(a: list[dict], b: list[dict], tol: float) -> tuple[list[tuple[dict, dict]], list[dict]]:
+    """Read 1's and read 2's finds paired greedily, nearest first, within tol: (pairs, the rest)."""
+    cand = sorted((math.dist(x["at"], y["at"]), i, j) for i, x in enumerate(a) for j, y in enumerate(b) if x["cls"] == y["cls"])
+    ua, ub, pairs = set(), set(), []
+    for d, i, j in cand:
+        if d <= tol and i not in ua and j not in ub:
+            ua.add(i)
+            ub.add(j)
+            pairs.append((a[i], b[j]))
+    return pairs, [x for i, x in enumerate(a) if i not in ua] + [y for j, y in enumerate(b) if j not in ub]
+
+
+def _snap_opening(o: dict, outlines: dict[str, list], names: dict[str, str]) -> dict[str, Any] | None:
+    """A door onto the wall between the two outlines it joins (the middle of
+    the nearest points on both faces), an outside door or a window onto its
+    outline's nearest edge, within S2_SNAP_M; None: on no wall."""
+    x, y = o["at"]
+    want = [names.get(n) for n in o.get("names") or [] if names.get(n)]
+    pool = {k: v for k, v in outlines.items() if v}
+
+    def edge(k: str) -> dict | None:
+        e = G.nearest_edge(pool[k], x, y)
+        return e if e and e["d"] <= S2_SNAP_M else None
+
+    joins = [k for k in dict.fromkeys(want) if k in pool]
+    if o["cls"] == "door" and len(joins) < 2 and "outside" not in [str(n).lower() for n in o.get("names") or []]:
+        near = sorted((e["d"], k) for k in pool if (e := edge(k)))
+        joins = list(dict.fromkeys(joins + [k for _d, k in near]))[:2]
+    if o["cls"] == "door" and len(joins) >= 2:
+        ea, eb = edge(joins[0]), edge(joins[1])
+        if ea and eb:
+            mid = ((ea["at"][0] + eb["at"][0]) / 2, (ea["at"][1] + eb["at"][1]) / 2)
+            return {"at": mid, "u": ea["u"], "room": [joins[0], joins[1]], "length": ea["length"]}
+    cands = joins or list(pool)
+    best = min(((e["d"], k, e) for k in cands if (e := edge(k))), default=None, key=lambda t: t[0])
+    if best is None:
+        return None
+    _d, k, e = best
+    return {"at": e["at"], "u": e["u"], "room": [k], "length": e["length"]}
+
+
+def _ends(at: tuple, u: tuple, kind: str, length: float) -> tuple[list[float], list[float]]:
+    w = max(S2_MIN_M[kind], min(S2_WIDTH_M[kind], length))
+    return ([round(at[0] - u[0] * w / 2, 3), round(at[1] - u[1] * w / 2, 3)], [round(at[0] + u[0] * w / 2, 3), round(at[1] + u[1] * w / 2, 3)])
+
+
+def existing_openings(house: dict | None, barriers: list, floor_id: str) -> list[dict]:
+    """The doors and windows already in the house on a floor: the 3D file's
+    own (added in 3D) and the barriers the 3D view draws as one."""
+    out = []
+    for oid, e in ((house or {}).get("openings") or {}).items():
+        if isinstance(e, dict) and H_OPENING.match(str(oid)) and str(e.get("floor_id")) == floor_id and e.get("a_m") and e.get("b_m"):
+            a, b = e["a_m"], e["b_m"]
+            out.append({"id": str(oid), "what": "opening", "cls": _cls(str(e.get("kind"))), "at": ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), "line": [a, b]})
+    for b in barriers or []:
+        if isinstance(b, dict) and str(b.get("floor_id")) == floor_id and len(b.get("points_m") or []) >= 2:
+            k = _barrier_kind(b)
+            if k in ("door", "window"):
+                pts = b["points_m"]
+                out.append({"id": str(b.get("id") or ""), "what": "barrier", "cls": k, "at": tuple(G.centroid(pts)), "line": pts})
+    return out
+
+
+H_OPENING = re.compile(r"^(win|door|doorway)_[0-9a-f]{8}$")    # house3d_store.OPENING_ID
+
+
+def _near_existing(o: dict, have: list[dict]) -> dict | None:
+    for e in have:
+        if e["cls"] != o["cls"]:
+            continue
+        line = e["line"]
+        d = min(G._seg_dist(o["at"], line[i - 1], line[i]) for i in range(1, len(line)))  # noqa: SLF001
+        if d <= S2_SAME_M:
+            return {"id": e["id"], "what": e["what"]}
+    return None
+
+
+def _read_finds(sess: dict, k: int) -> dict[str, list[dict]]:
+    """Read k of every plan in metres: rooms, doors and windows, stairs."""
+    out: dict[str, list[dict]] = {"rooms": [], "openings": [], "stairs": []}
+    for n, pl in enumerate(sess.get("plans") or []):
+        r = (pl.get("reads") or [None] * S2_READS)[k]
+        if not r:
+            continue
+        t, size = pl["t"], pl["size_px"]
+        for room in r.get("rooms") or []:
+            out["rooms"].append({"plan": n, "name": room["name"], "poly": [_to_m(t, size, p) for p in room["px"]]})
+        for d in r.get("doors") or []:
+            kind = "doorway" if d.get("kind") == "opening" else "door"
+            out["openings"].append({"plan": n, "cls": "door", "kind": kind, "type": S2_DOOR_TYPES.get(d.get("kind")),
+                                    "at": tuple(_to_m(t, size, d["px"])), "names": d.get("between") or []})
+        for d in r.get("windows") or []:
+            out["openings"].append({"plan": n, "cls": "window", "kind": "window", "type": None, "at": tuple(_to_m(t, size, d["px"])),
+                                    "names": [d.get("room")] if d.get("room") else []})
+        for s in r.get("stairs") or []:
+            got = S.stairs_from_answer([{"bbox_2d": s["box"], "says": s.get("says")}], size[0], size[1],
+                                       lambda fx, fy, t=t: placement_metres(t, fx, fy))
+            if got:
+                out["stairs"].append({**got[0], "plan": n, "plan_floor": pl["floor_id"], "room": s.get("room"), "box_px": s["box"]})
+    return out
+
+
+def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict], barriers: list | None = None) -> dict[str, Any]:
+    """Everything the session proposes, from its reads and the person's edits,
+    against the house as it is (design 5). Pure; run in the executor."""
+    fid = sess["floor_id"]
+    edits = sess.get("edits") or {}
+    his = {n: r["points_m"] for n, r in snap["rooms"].items() if r.get("floor_id") == fid and len(r.get("points_m") or []) >= 3}
+    reads = [_read_finds(sess, k) for k in range(S2_READS)]
+    labelled = [p for p in points if str(p.get("floor_id")) == fid and p.get("room") in his and p.get("x_m") is not None]
+
+    # Rooms by overlap into his rooms, never by name; what lies in none is an extra space.
+    parts: list[dict[str, list]] = [{n: [] for n in his} for _ in range(S2_READS)]
+    loose: list[dict] = []
+    owner: list[dict[tuple[int, str], str]] = [{} for _ in range(S2_READS)]
+    for k, rd in enumerate(reads):
+        for f in rd["rooms"]:
+            shares = [(G.share_inside(f["poly"], q), n) for n, q in his.items()]
+            best = max(shares, default=(0.0, None))
+            if best[0] >= S2_INSIDE:
+                parts[k][best[1]].append(f)
+                owner[k][(f["plan"], f["name"])] = best[1]
+            else:
+                loose.append({**f, "read": k})
+    rooms: dict[str, dict] = {}
+    for n, now in his.items():
+        outs, names, raw, pieces = [], [], [], 0
+        for k in range(S2_READS):
+            uniq: dict[str, dict] = {}
+            for f in parts[k][n]:                       # one copy a printed name (overlapping plans read a room twice): the larger
+                if f["name"] not in uniq or G.area(f["poly"]) > G.area(uniq[f["name"]]["poly"]):
+                    uniq[f["name"]] = f
+            o, m = G.merge_outline([f["poly"] for f in uniq.values()]) if uniq else ([], 0)
+            outs.append(o or None)
+            names.append(sorted(uniq))
+            raw.append([f["poly"] for f in uniq.values()])
+            pieces = max(pieces, m)
+        if not any(outs):
+            continue
+        agree = round(G.union_iou(raw[0], raw[1]), 3) if all(outs) else None      # the test's measure: each read's printed rooms as one
+        mine = [p for p in labelled if p["room"] == n]
+        spots = [sum(1 for p in mine if G.inside(float(p["x_m"]), float(p["y_m"]), o)) if o else -1 for o in outs]
+        pick = 0 if spots[0] >= spots[1] else 1
+        picked_by = "spots"
+        if str(edits.get("picks", {}).get(n)) in ("1", "2") and outs[int(edits["picks"][n]) - 1]:
+            pick, picked_by = int(edits["picks"][n]) - 1, "person"
+        flags = [] if agree is not None and agree >= S2_AGREE else ["one_read" if agree is None else "reads_differ"]
+        if pieces > 1:
+            flags.append("apart")
+        rooms[n] = {"id": f"room:{n}", "room": n, "now_m": now, "reads_m": outs, "parts": names, "agree": agree,
+                    "ready": agree is not None and agree >= S2_AGREE, "pick": pick + 1, "picked_by": picked_by, "spots": spots + [len(mine)],
+                    "base_m": outs[pick], "merged": [], "flags": flags}
+    unseen = sorted(n for n in his if n not in rooms)
+
+    # Extra spaces: the same printed space read twice, or on two plans, is one.
+    spaces: dict[str, dict] = {}
+    groups: list[list[dict]] = []
+    for f in sorted(loose, key=lambda f: -G.area(f["poly"])):
+        g = next((g for g in groups if G.poly_iou(g[0]["poly"], f["poly"]) >= S2_SAME_SPACE), None)
+        if g is None:
+            groups.append([f])
+        else:
+            g.append(f)
+    groups.sort(key=lambda g: (round(G.centroid(g[0]["poly"])[1], 1), round(G.centroid(g[0]["poly"])[0], 1)))
+    for i, g in enumerate(groups):
+        sid = f"space:{i + 1}"
+        spaces[sid] = {"id": sid, "name": g[0]["name"], "outline_m": G.simplify(g[0]["poly"], 0.0), "reads": sorted({f["read"] + 1 for f in g}),
+                       "merged_into": None, "new": None, "parts": [sid]}
+        for f in g:
+            owner[f["read"]][(f["plan"], f["name"])] = sid
+
+    # The person's merges, in order: into one of his rooms, or spaces into one space.
+    for m in edits.get("merges") or []:
+        ids = [i for i in m.get("parts") or [] if i in spaces and spaces[i]["merged_into"] is None]
+        into = m.get("into")
+        if into:
+            n = str(into)[5:] if str(into).startswith("room:") else None
+            if n in his and n not in rooms:                # one of his rooms the plans didn't show: its outline now, grown
+                rooms[n] = {"id": into, "room": n, "now_m": his[n], "reads_m": [None] * S2_READS, "parts": [[] for _ in range(S2_READS)],
+                            "agree": None, "ready": False, "pick": 1, "picked_by": "merge", "spots": [-1] * S2_READS + [0],
+                            "base_m": his[n], "merged": [], "flags": ["merge_only"]}
+                if n in unseen:
+                    unseen.remove(n)
+            r = rooms.get(n) if n else None
+            if r is None or not ids:
+                continue
+            r["base_m"], _n = G.merge_outline([r["base_m"]] + [spaces[i]["outline_m"] for i in ids])
+            r["merged"] += ids
+            for i in ids:
+                spaces[i]["merged_into"] = into
+        elif len(ids) >= 2:
+            sid = f"space:m{m['id']}"
+            out, _n = G.merge_outline([spaces[i]["outline_m"] for i in ids])
+            spaces[sid] = {"id": sid, "name": " + ".join(spaces[i]["name"] for i in ids)[:S2_NAME_MAX], "outline_m": out,
+                           "reads": sorted({r for i in ids for r in spaces[i]["reads"]}), "merged_into": None, "new": None,
+                           "parts": [p for i in ids for p in spaces[i]["parts"]], "merge": m["id"]}
+            for i in ids:
+                spaces[i]["merged_into"] = sid
+    for sid, s in spaces.items():
+        nm = (edits.get("spaces") or {}).get(sid, {}).get("new")
+        if nm and s["merged_into"] is None:
+            s["new"] = nm
+
+    # Each room's outline, how far it is from the person's, what it does to the calibration spots.
+    for n, r in rooms.items():
+        r["outline_m"] = r.pop("base_m")
+        r["iou_now"] = round(G.poly_iou(r["outline_m"], r["now_m"]), 3)
+        if r["iou_now"] < S2_BIG_CHANGE and "merge_only" not in r["flags"]:
+            r["flags"].append("big_change")
+        r["area_now"], r["area_new"] = round(G.area(r["now_m"]), 1), round(G.area(r["outline_m"]), 1)
+        mine = [p for p in labelled if p["room"] == n]
+        leave = [str(p.get("id")) for p in mine if G.inside(float(p["x_m"]), float(p["y_m"]), r["now_m"])
+                 and not G.inside(float(p["x_m"]), float(p["y_m"]), r["outline_m"])]
+        r["cal"] = {"labelled": len(mine), "leave": leave[:50], "leaving": len(leave)}
+        r["default"] = True
+
+    # Doors and windows: both reads within S2_SAME_M proposed, one read a maybe; on a wall, never twice.
+    outlines = {**{r["id"]: r["outline_m"] for r in rooms.values()},
+                **{f"room:{n}": q for n, q in his.items() if f"room:{n}" not in {r["id"] for r in rooms.values()}},
+                **{s["id"]: s["outline_m"] for s in spaces.values() if s["merged_into"] is None}}
+    room_of = {}
+    for k in range(S2_READS):
+        for (plan, name), who in owner[k].items():
+            w = who if who.startswith("space:") else f"room:{who}"
+            while w.startswith("space:") and spaces.get(w, {}).get("merged_into"):
+                w = spaces[w]["merged_into"]
+            room_of[(k, plan, name)] = w
+    per_read = []
+    for k, rd in enumerate(reads):
+        mine = []
+        for grp in _cluster(rd["openings"], lambda a, b: a["cls"] == b["cls"] and math.dist(a["at"], b["at"]) <= S2_SAME_M):
+            f = grp[0]
+            mine.append({**f, "at": tuple(sum(o["at"][i] for o in grp) / len(grp) for i in (0, 1)), "read": k,
+                         "names": f.get("names") or [], "lookup": {n: room_of.get((k, f["plan"], n)) for n in f.get("names") or []}})
+        per_read.append(mine)
+    pairs, singles = _pair(per_read[0], per_read[1] if S2_READS > 1 else [], S2_SAME_M)
+    have = existing_openings(house, barriers or [], fid)
+    openings: dict[str, dict] = {}
+    found = [((a["at"][0] + b["at"][0]) / 2, (a["at"][1] + b["at"][1]) / 2, a, 2) for a, b in pairs] + [(s["at"][0], s["at"][1], s, 1) for s in singles]
+    found.sort(key=lambda t: (t[2]["cls"], round(t[1], 1), round(t[0], 1)))
+    n_door = n_win = 0
+    for x, y, f, nreads in found:
+        o = {"cls": f["cls"], "at": (x, y), "names": f["names"]}
+        names = {nm: v for nm, v in f["lookup"].items() if v}
+        sn = _snap_opening(o, outlines, names)
+        if f["cls"] == "window":
+            n_win += 1
+            oid = f"window:{n_win}"
+        else:
+            n_door += 1
+            oid = f"door:{n_door}"
+        item = {"id": oid, "kind": f["kind"], "type": f.get("type"), "cls": f["cls"], "reads": nreads, "floor_id": fid,
+                "at_read": [round(x, 3), round(y, 3)], "between": f["names"][:2], "placed": sn is not None, "a_m": None, "b_m": None,
+                "rooms": [], "existing": None}
+        if sn:
+            item["a_m"], item["b_m"] = _ends(sn["at"], sn["u"], f["kind"], sn["length"])
+            item["at"] = [round(sn["at"][0], 3), round(sn["at"][1], 3)]
+            item["rooms"] = [(w[5:] if w.startswith("room:") else spaces[w]["name"]) for w in sn["room"]]
+            item["existing"] = _near_existing({"cls": f["cls"], "at": sn["at"]}, have)
+        item["default"] = nreads == S2_READS and item["placed"] and item["existing"] is None
+        openings[oid] = item
+
+    # Stairs: the stair finder's own box-to-metres, matched against the 3D house's stairs.
+    floors = floor_order_of(snap)
+    stairs_now = stair_pieces(house)
+    per = []
+    for rd in reads:
+        g = _cluster(rd["stairs"], lambda a, b: _overlap(a, b) or math.dist((a["x_m"], a["y_m"]), (b["x_m"], b["y_m"])) <= S2_STAIR_SAME_M)
+        per.append([grp[0] for grp in g])
+    st_pairs, st_single = [], []
+    used: set[int] = set()
+    for a in per[0]:
+        j = min(((math.dist((a["x_m"], a["y_m"]), (b["x_m"], b["y_m"])), j) for j, b in enumerate(per[1] if S2_READS > 1 else []) if j not in used),
+                default=None)
+        if j is not None and j[0] <= S2_STAIR_SAME_M:
+            used.add(j[1])
+            st_pairs.append(a)
+        else:
+            st_single.append(a)
+    st_single += [b for j, b in enumerate(per[1] if S2_READS > 1 else []) if j not in used]
+    stairs: dict[str, dict] = {}
+    matched: set[str] = set()
+    for i, (f, nreads) in enumerate([(f, S2_READS) for f in st_pairs] + [(f, 1) for f in st_single]):
+        sfid = floor_of_find(floors, f["plan_floor"], f.get("says") or "")
+        if sfid is None:
+            continue
+        rel = classify(sfid, floor_step(floors, sfid, 1), f["x_m"], f["y_m"], stairs_now, matched)
+        if rel.get("target") and rel["relation"] in ("correction", "duplicate"):
+            matched.add(rel["target"])
+        geom = {k: f[k] for k in ("x_m", "y_m", "rotation", "width_m", "depth_m", "shape", "says")}
+        sid = f"stairs:{i + 1}"
+        stairs[sid] = {"id": sid, "floor_id": sfid, "geom": geom, "room": f.get("room"), "reads": nreads, "relation": rel["relation"],
+                       "target": rel.get("target"), "target_snap": rel.get("target_snap"), "distance_m": rel.get("distance_m"),
+                       "default": nreads == S2_READS and rel["relation"] in ("new", "correction")}
+    return {"rooms": rooms, "unseen": unseen, "spaces": spaces, "openings": openings, "stairs": stairs, "labelled": len(labelled)}
+
+
+def floor_order_of(snap: dict) -> list[dict]:
+    """The indoor floors, lowest first, as the snapshot has them."""
+    return [{"id": f["id"], "elev": f.get("elev", 0.0)} for f in snap.get("floors") or []]
+
+
+# ── The gate (design 5, form q12) ────────────────────────────────────────────
+
+def _room_lookup(rooms: dict[str, dict]) -> Callable[[float, float, str], str]:
+    """model_store.beacon_room_from_geometry over these rooms: the first one a point is inside."""
+    def at(x: float, y: float, fl: str) -> str:
+        for n, g in rooms.items():
+            if str(g.get("floor_id")) == str(fl) and len(g.get("points_m") or []) >= 3 and G.inside(x, y, g["points_m"]):
+                return n
+        return ""
+    return at
+
+
+def rooms_with(rooms_now: dict[str, dict], floor_id: str, outlines: dict[str, list]) -> dict[str, dict]:
+    """The house's rooms with these outlines in place (a new name added on the floor)."""
+    out = {n: dict(g) for n, g in rooms_now.items()}
+    for n, pts in outlines.items():
+        out[n] = {**out.get(n, {}), "floor_id": floor_id, "points_m": pts}
+    return out
+
+
+def rooms_gate(points: list[dict], floor_id: str, rooms_now: dict[str, dict], outlines: dict[str, list], excluded: Any = frozenset()) -> dict[str, Any]:
+    """The room score on the floor's calibration spots, now and with these
+    outlines: the share of the spots labelled with a room that lie inside
+    it (the 2026-11-10 test's measure: 98 % with his outlines, 97 % with
+    Claude's). Save is refused when it drops more than S2_GATE_PP points on
+    a floor with at least S2_GATE_SPOTS labelled spots; under that it is
+    shown, unscored. The held-out k-NN score (heldout.evaluate, this floor's
+    spots) is shown beside it, never gating: on his house it reads 4-7 %
+    rooms right either way, noise for a 2-point rule (dry run, 2026-11-10).
+    {now, with, spots, inside_now, inside_with, blocked, scored, held_out}.
+    Pure; run in the executor."""
+    from . import heldout  # noqa: PLC0415
+    new = rooms_with(rooms_now, floor_id, outlines)
+    out: dict[str, Any] = {"how": "containment", "now": None, "with": None, "spots": 0, "inside_now": 0, "inside_with": 0,
+                           "blocked": False, "scored": False, "held_out": None}
+    mine = [p for p in points if str(p.get("floor_id")) == floor_id and p.get("room") in new and p.get("x_m") is not None]
+    if mine:
+        now = sum(1 for p in mine if p["room"] in rooms_now and G.inside(float(p["x_m"]), float(p["y_m"]), rooms_now[p["room"]].get("points_m") or []))
+        wth = sum(1 for p in mine if G.inside(float(p["x_m"]), float(p["y_m"]), new[p["room"]].get("points_m") or []))
+        out.update(now=round(100 * now / len(mine), 1), spots=len(mine), inside_now=now, inside_with=wth, scored=len(mine) >= S2_GATE_SPOTS)
+        out["with"] = round(100 * wth / len(mine), 1)
+        out["blocked"] = out["scored"] and 100 * (now - wth) / len(mine) > S2_GATE_PP
+    try:
+        a = heldout.evaluate(points, excluded=frozenset(excluded or ()), room_at=_room_lookup(rooms_now), floor_id=floor_id)
+        b = heldout.evaluate(points, excluded=frozenset(excluded or ()), room_at=_room_lookup(new), floor_id=floor_id) if a else None
+        ka, kb = (a or {}).get("knn") or {}, (b or {}).get("knn") or {}
+        if ka.get("rooms_right_pc") is not None and kb.get("rooms_right_pc") is not None:
+            out["held_out"] = {"now": ka["rooms_right_pc"], "with": kb["rooms_right_pc"], "spots": ka.get("room_spots")}
+    except Exception:  # noqa: BLE001 — shown only; a score that can't be made is left out
+        pass
+    return out
+
+
+def gate_event(g: dict) -> str:
+    if g.get("now") is None or g.get("with") is None or not g.get("scored"):
+        return "unscored"
+    if g.get("blocked"):
+        return "blocked"
+    return "up" if g["with"] > g["now"] else "down" if g["with"] < g["now"] else "same"
+
+
+def chosen_outlines(prop: dict, ids: list[str]) -> dict[str, list]:
+    """The outlines a save of these items writes: {room name: outline}."""
+    out: dict[str, list] = {}
+    for iid in ids:
+        if iid.startswith("room:") and iid[5:] in prop["rooms"]:
+            out[iid[5:]] = prop["rooms"][iid[5:]]["outline_m"]
+        elif iid.startswith("space:") and iid in prop["spaces"] and prop["spaces"][iid].get("new"):
+            out[prop["spaces"][iid]["new"]] = prop["spaces"][iid]["outline_m"]
+    return out
+
+
+def apply_rooms_edit(sess: dict, snap: dict, op: str, args: dict) -> str:
+    """A person's edit of the proposal (design 5): merge, separate, space (a
+    new room's name, or leave out), pick (read 1 or 2). "ok" or a refusal
+    word: not_found, invalid, two_rooms, depends, name_taken."""
+    edits = sess.setdefault("edits", {"merges": [], "spaces": {}, "picks": {}})
+    prop = sess.get("proposal") or {}
+    rooms, spaces = prop.get("rooms") or {}, prop.get("spaces") or {}
+    if op == "merge":
+        ids = list(dict.fromkeys(args.get("parts") or []))
+        rms = [i for i in ids if i.startswith("room:")]
+        sps = [i for i in ids if i.startswith("space:")]
+        if len(ids) < 2 or len(rms) + len(sps) != len(ids):
+            return "invalid"
+        if len(rms) > 1:
+            return "two_rooms"                     # merging two of the person's rooms would delete one: never
+        his = {n for n, r in snap["rooms"].items() if r.get("floor_id") == sess.get("floor_id")}
+        if any(i[5:] not in rooms and i[5:] not in his for i in rms) or any(i not in spaces or spaces[i].get("merged_into") for i in sps):
+            return "not_found"
+        n = 1 + max((int(m.get("id") or 0) for m in edits["merges"]), default=0)
+        edits["merges"].append({"id": n, "into": rms[0] if rms else None, "parts": sps})
+        for i in sps:
+            edits["spaces"].pop(i, None)
+        return "ok"
+    if op == "separate":
+        mid = int(args.get("merge") or 0)
+        m = next((m for m in edits["merges"] if int(m.get("id") or 0) == mid), None)
+        if m is None:
+            return "not_found"
+        if any(f"space:m{mid}" in (o.get("parts") or []) for o in edits["merges"]):
+            return "depends"                       # a later merge took this one in: separate that first
+        edits["merges"].remove(m)
+        edits["spaces"].pop(f"space:m{mid}", None)
+        return "ok"
+    if op == "space":
+        sid = str(args.get("space") or "")
+        if sid not in spaces or spaces[sid].get("merged_into"):
+            return "not_found"
+        name = " ".join(str(args.get("name") or "").split())[:S2_NAME_MAX]
+        if not name:
+            edits["spaces"].pop(sid, None)
+            return "ok"
+        taken = {n.lower() for n in snap["rooms"]} | {str(v.get("new") or "").lower() for k, v in edits["spaces"].items() if k != sid}
+        if name.lower() in taken:
+            return "name_taken"
+        edits["spaces"][sid] = {"new": name}
+        return "ok"
+    if op == "pick":
+        room = str(args.get("room") or "")
+        if room not in rooms or args.get("read") not in (1, 2) or not (rooms[room].get("reads_m") or [None, None])[args["read"] - 1]:
+            return "not_found"
+        edits["picks"][room] = args["read"]
+        return "ok"
+    return "invalid"
+
+
+class RoomsRunner(LineupRunner):
+    """One floor's rooms read: S2_READS reads of each lined-up plan (Runner's
+    ask and read, the main AI Task only, never the backup), then the proposal
+    in the executor. The guard adds: the line-up it stands on unchanged."""
+
+    @property
+    def sess(self) -> dict[str, Any]:
+        return self.store.rooms_session(self.job.sid) or {}
+
+    def _err(self, reason: str) -> None:
+        e = self.sess.setdefault("errors", {})
+        e[reason] = int(e.get(reason) or 0) + 1
+        _bump(self.hass, f"plan_build_read_fail:s2_{reason}")
+
+    def retried(self) -> None:
+        _bump(self.hass, "plan_build_read:s2_retry")
+
+    async def read_rooms(self, pl: dict, i: int, k: int, fp) -> None:
+        """One read of one plan; what it gave is kept on the plan."""
+        sess = self.sess
+        sess["progress"] = {"plan": i + 1, "of": len(sess.get("plans") or []), "name": pl.get("name") or "", "step": f"read {k + 1}"}
+        await self._save()
+        try:
+            raw, w, h = await self.hass.async_add_executor_job(lambda: S.shrink(fp, S2_PICTURE_PX, S2_PICTURE_MP, framed=False))
+        except Exception:  # noqa: BLE001 — a picture that won't open: the AI was never asked
+            self._err("no_media")
+            return
+        W = int(pl["size_px"][0]) or w
+        kk = w / W if W else 1.0
+        _bump(self.hass, "plan_build_read:s2_plan")
+        got = await self.read(rooms_prompt(w, h), raw, lambda a: parse_rooms_read(a, w, h, kk), (w, h))
+        if got is not None:
+            pl["reads"][k] = got
+            pl["frame"] = [w, h]
+        await self._save()
+
+    async def propose(self) -> None:
+        """The proposal, in the executor, on the house as it is."""
+        sess = self.store.rooms_session(self.job.sid)
+        if sess is None:
+            return
+        snap, house, points, barriers = await rooms_inputs(self.hass)
+        sess["proposal"] = await self.hass.async_add_executor_job(rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
+
+    async def run(self) -> None:  # noqa: C901 — one session's order
+        sess = self.sess
+        resumed = int(sess.get("resumes") or 0) > 0
+        _bump(self.hass, f"plan_build_run:s2_{'resumed' if resumed else 'started'}")
+        n = len(sess.get("plans") or [])
+        reads0, usd0 = int(sess.get("reads") or 0), float(sess.get("est_usd") or 0.0)
+        status, why = "done", None
+        try:
+            await self._save()
+            files = await self.files_of()
+            for i, pl in enumerate(sess.get("plans") or []):
+                for k in range(S2_READS):
+                    if (pl.get("reads") or [None] * S2_READS)[k] is not None:
+                        continue
+                    if self.stop_here():
+                        break
+                    if files.get(pl["map_id"]) is None:
+                        self._err("no_media")
+                        break
+                    await self.read_rooms(pl, i, k, files[pl["map_id"]])
+            why = self.guard()
+            if why:
+                status = "cancelled"
+            elif self.halt == "no_credit":
+                status = "no_credit"
+            elif self.halt in ("unreachable", "no_media"):
+                status, why = "failed", self.halt
+            elif self.consecutive_timeouts >= 2 or self.cut_short:
+                status = "out_of_time"
+            sess = self.sess
+            if status != "cancelled" and any(r for pl in sess.get("plans") or [] for r in pl.get("reads") or []):
+                sess["progress"] = {"plan": n, "of": n, "name": "", "step": "measure"}
+                await self._save()
+                await self.propose()
+        except Exception as err:  # noqa: BLE001 — the session fails; nothing else is touched
+            _LOGGER.warning("PadSpan rooms from plans: the session stopped: %s", P._why(err))  # noqa: SLF001
+            status, why = "failed", "error"
+        sess = self.sess
+        if status == "done" and not any(r for pl in sess.get("plans") or [] for r in pl.get("reads") or []):
+            errs = sess.get("errors") or {}
+            status, why = "failed", max(errs, key=lambda k: errs[k]) if errs else "bad_answer"
+        sess.update(status=status, error=why, finished_at=time.time())
+        stop = ending_stop(status, why)
+        if stop:
+            note_stop(self.hass, self.store.data, sess, stop)
+        sess["progress"] = {"plan": n, "of": n, "name": "", "step": "done"}
+        _bump(self.hass, f"plan_build_run:s2_{'finished' if status == 'done' else status}")
+        secs = float(sess.get("spent_s") or 0.0)
+        _bump(self.hass, f"plan_build_run_secs:s2_{'lt1m' if secs < 60 else '1_3m' if secs < 180 else '3_10m' if secs < 600 else 'gt10m'}")
+        usd = float(sess.get("est_usd") or 0.0) - usd0
+        if int(sess.get("reads") or 0) > reads0:
+            _bump(self.hass, f"plan_build_credit_run:s2_{'lt0_10' if usd < 0.10 else '0_10_0_50' if usd < 0.5 else '0_50_2' if usd < 2 else 'gt2'}")
+        count_rooms(self.hass, sess.get("proposal"))
+        await self._save()
+
+
+async def rooms_inputs(hass: HomeAssistant) -> tuple[dict, dict, list, list]:
+    """What the proposal reads, taken on the event loop: the snapshot, the 3D
+    file (empty when it can't be read), every calibration point, the barriers."""
+    from .const import DATA_CALIBRATION  # noqa: PLC0415
+    from .house3d_store import async_get_store as house_store  # noqa: PLC0415
+    snap = house_snapshot(hass)
+    try:
+        house = copy.deepcopy((await house_store(hass)).data)
+    except Exception:  # noqa: BLE001 — unreadable: nothing is matched against it, and Save refuses (plan_ai_write)
+        house = {}
+    dom = hass.data.get(DOMAIN, {})
+    cal, model = dom.get(DATA_CALIBRATION), dom.get(DATA_MODEL)
+    points = [dict(p) for p in (cal.list_points() if cal is not None and hasattr(cal, "list_points") else []) if isinstance(p, dict)]
+    barriers = list(model.rf_barriers_m() if model is not None and hasattr(model, "rf_barriers_m") else [])
+    return snap, house, points, barriers
+
+
+def count_rooms(hass: HomeAssistant, prop: dict | None) -> None:
+    """What a proposal showed, by kind (design 10)."""
+    if not prop:
+        return
+    for r in (prop.get("rooms") or {}).values():
+        _bump(hass, "plan_build_item:room_shown")
+        _bump(hass, f"plan_build_agree:{'ready' if r.get('ready') else 'differ'}")
+        for f in ("big_change", "apart"):
+            if f in r.get("flags") or []:
+                _bump(hass, f"plan_build_agree:{f}")
+    for s in (prop.get("spaces") or {}).values():
+        if not s.get("merge"):
+            _bump(hass, "plan_build_item:space_shown")
+    for o in (prop.get("openings") or {}).values():
+        _bump(hass, f"plan_build_item:{o['cls']}_{'shown' if o.get('default') else 'maybe'}")
+    for s in (prop.get("stairs") or {}).values():
+        _bump(hass, f"plan_build_item:stairs_{'shown' if s.get('default') else 'maybe'}")
+
+
+def start_rooms(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any], sid: str | None = None) -> str:
+    """Keep a rooms session and start its job in the plan AI's one job slot."""
+    sid = sid or "rb_" + secrets.token_hex(4)
+    dom = hass.data.setdefault(DOMAIN, {})
+    now = time.monotonic()
+    dom[_DATA_STARTS] = [t for t in dom.get(_DATA_STARTS, []) if now - t < 86400] + [now]
+    store.data.setdefault("rooms", {})[sid] = sess
+    store.trim()
+    job = Job(sid)
+    dom[_DATA_JOB] = job
+    job.task = hass.async_create_background_task(RoomsRunner(hass, store, job, str(sess.get("ai_task") or "")).run(), "padspan_ha plan_build rooms")
+    return sid
+
+
+def resume_rooms(hass: HomeAssistant, store: PlanAiStore, sid: str) -> str:
+    """Resume a rooms session that stopped short: what was read stays."""
+    sess = store.rooms_session(sid) or {}
+    sess["resumes"] = int(sess.get("resumes") or 0) + 1
+    if sess["resumes"] > S1_RESUMES_STRESS:
+        _bump(hass, "plan_build_stress:resumes")
+    stop_resolved(hass, sess, ("out_of_time", "no_credit", "unreachable", "no_media", "cancelled", "restart", "bad_answer", "refusal", "error"))
+    sess["spent_earlier"] = round(float(sess.get("spent_earlier") or 0.0) + float(sess.get("spent_s") or 0.0), 1)
+    sess.update(status="running", error=None, finished_at=None, spent_s=0.0, spent_before=0.0, budget_s=S1_BUDGET_S)
+    return start_rooms(hass, store, sess, sid)
+
+
+def rooms_resume_refused(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any] | None) -> str | None:
+    """resume_refused for a rooms session."""
+    if not resumable(sess):
+        return ending_stop("cancelled", sess.get("error")) if sess and sess.get("error") in LINEUP_NOT_RESUMABLE else "not_open"
+    u = unlock(hass)
+    why = "ai_changed" if u.get("ok") and u.get("ai_task") != sess.get("ai_task") else "plan_changed" if plans_moved(hass, sess) else None
+    if why is None:
+        return None
+    sess.update(status="cancelled", error=why, rev=int(sess.get("rev") or 0) + 1)
+    note_stop(hass, store.data, sess, why)
+    return why
+
+
+def rooms_public(sess: dict[str, Any] | None, sid: str | None) -> dict[str, Any] | None:
+    """A rooms session as the screen sees it: the reads left out (they are in
+    the proposal), every stop in words."""
+    if not sess:
+        return None
+    return {"id": sid, **{k: v for k, v in sess.items() if k not in ("spent_before",)},
+            "plans": [{k: v for k, v in pl.items() if k != "reads"} | {"read": [r is not None for r in pl.get("reads") or []]}
+                      for pl in sess.get("plans") or []],
+            "stops": [stop_words(r) for r in sess.get("stops") or []], "resumable": resumable(sess)}
+
+
+def rooms_undo_info(store: PlanAiStore, sid: str | None = None) -> dict[str, Any] | None:
+    """The newest rooms session with saves still to undo (or that session)."""
+    best = None
+    for b in (store.data.get("room_batches") or {}).values():
+        if not isinstance(b, dict) or b.get("undo_of") or b.get("undone_at") or b.get("pending") or not b.get("session"):
+            continue
+        if sid and b["session"] != sid:
+            continue
+        if best is None or float(b.get("committed_at") or 0) > float(best.get("committed_at") or 0):
+            best = b
+    if best is None:
+        return None
+    mine = [b for b in (store.data.get("room_batches") or {}).values() if isinstance(b, dict) and b.get("session") == best["session"]
+            and not b.get("undo_of") and not b.get("undone_at") and not b.get("pending")]
+    return {"session": best["session"], "floor_id": best.get("floor_id"), "items": sum(len(b.get("items") or []) for b in mine),
+            "saves": len(mine), "at": max(float(b.get("committed_at") or 0) for b in mine)}

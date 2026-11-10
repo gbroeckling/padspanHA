@@ -821,7 +821,7 @@ def test_verdicts_are_written_at_the_click_and_write_nothing(monkeypatch, tmp_pa
 
 def test_nothing_in_the_line_up_writes_the_house():
     src = inspect.getsource(A)
-    s1 = src[src.index("# ══ Build from plans: line up"):]
+    s1 = src[src.index("# ══ Build from plans: line up"):src.index("# ══ Build from plans: rooms, doors, windows and stairs")]   # Stage 2: test_plan_build_rooms.py
     for forbidden in ("async_reanchor_map", "fabric_correct_room", "async_set_rf_barrier_m", "fabric_map_transform_set",
                       "async_ensure_world_gauge", "async_update_map", "_put_map_transform", "async_set_map_floor",
                       "async_get_store as house", "House3dStore", "calibration_store", ".async_write("):

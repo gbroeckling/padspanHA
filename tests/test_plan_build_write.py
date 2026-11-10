@@ -762,12 +762,13 @@ def _line_up_calls() -> tuple[dict[str, int], list[str], list[str]]:
     import ast
     src = inspect.getsource(C)
     start = src[:src.index("# ══ Build from plans: line up (Stage 1b")].count("\n") + 1
+    end = src[:src.index("# ══ Build from plans: rooms, doors, windows and stairs")].count("\n") + 1   # Stage 2's writes: test_plan_build_rooms.py
     tree = ast.parse(src)
     calls: dict[str, int] = {}
     chains: list[str] = []
     stored: list[str] = []
     for node in ast.walk(tree):
-        if getattr(node, "lineno", 0) < start:
+        if not start <= getattr(node, "lineno", 0) < end:
             continue
         if isinstance(node, ast.Call):
             f = node.func
