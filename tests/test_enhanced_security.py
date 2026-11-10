@@ -47,7 +47,7 @@ GATED = {
     "ws_fabric": "fabric_scanner_remove fabric_light_position_set fabric_light_height_set fabric_light_remove "
                  "fabric_beacon_position_set fabric_beacon_height_set fabric_beacon_remove fabric_room_add "
                  "fabric_room_remove fabric_sync_mode_set fabric_scanner_position_set fabric_scanner_z_set "
-                 "fabric_floor_elevations_set fabric_correct_room fabric_rooms_reconcile fabric_rf_barrier_set "
+                 "fabric_floor_elevations_set fabric_correct_room fabric_rooms_merge fabric_rooms_reconcile fabric_rf_barrier_set "
                  "fabric_rf_barrier_remove fabric_rf_barrier_rails_stamp fabric_open_edges_apply fabric_resync",
     "ws_follow": "follow_alert_save follow_alert_delete room_tag_purge_missing",
     "ws_guests": "guests_get",      # guest tags (0.38.178): names of guests; the rest is admin only
