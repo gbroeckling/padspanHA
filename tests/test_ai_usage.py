@@ -252,7 +252,7 @@ def test_the_callers_count_their_stops(monkeypatch):
     assert "U.unusable(hass, by)" in src["ws_house3d_photo.py"]
     assert 'U.refused(hass, "no_ai", ai.get("ai_task"))' in src["ws_house3d_stairs.py"] and "U.unusable(hass, by, answer)" in src["ws_house3d_stairs.py"]
     assert 'U.refused(hass, "no_ai", ai.get("ai_task"))' in src["ws_plan_ai.py"]
-    assert src["plan_ai.py"].count("U.unusable(") == 3
+    assert src["plan_ai.py"].count("U.unusable(") == 5            # the plan AI's read (3) and the line-up's (2: the answer and its retry)
     # ask() is still the one generate_data call, and every call goes through the counter.
     calls = [p.name for p in _CC.glob("*.py") if '"ai_task", "generate_data"' in p.read_text(encoding="utf-8")]
     assert calls == ["ws_house3d_photo.py"]

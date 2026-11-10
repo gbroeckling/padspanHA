@@ -28,6 +28,18 @@ map-building research) is off, while Live Aboard is off, and below Pro.
 
 Only plan_ai_commit and plan_ai_undo write the 3D file, and nothing here writes
 the map or calibration.
+
+Build from plans: line up (Stage 1, experimental; plan_ai.py's line-up): every
+command an administrator's, refusing while the master switch, Build from plans,
+Claude's unlock (Opus 5.5 or newer), Live Aboard or Pro is missing, except
+plan_build_info, which Settings asks to know whether to draw the row.
+- plan_build_info / plan_build_start {floor_id, map_ids} / plan_build_status /
+  plan_build_cancel / plan_build_resume: one floor's session.
+- plan_build_answer: the little help (confirm a dimension, tap a corner on two
+  plans); reruns the local steps, no new read.
+- plan_build_verdict: Not now, Wrong (one reason), back; written at the click.
+- plan_build_commit: refuses (not_yet) until Stage 1b's writes are built.
+None of them writes a placement, a floor, calibration or any metres.
 """
 
 from __future__ import annotations
@@ -383,3 +395,278 @@ async def ws_plan_ai_undo(hass: HomeAssistant, connection, msg) -> None:
 
 WS_COMMANDS = (ws_plan_ai_plans, ws_plan_ai_start, ws_plan_ai_status, ws_plan_ai_cancel, ws_plan_ai_verdict,
                ws_plan_ai_rejects_get, ws_plan_ai_reject_forget, ws_plan_ai_sessions_get, ws_plan_ai_commit, ws_plan_ai_undo)
+
+
+# ══ Build from plans: line up (Stage 1; experimental) ═══════════════════════
+# plan_build_info answers an administrator even while locked (Settings asks it
+# to know whether to draw the row); every other command refuses while the master
+# switch, this switch, Claude's unlock, Live Aboard or Pro is missing. Nothing
+# here writes a placement: plan_build_commit refuses until the writes are built.
+
+LOCKED_CODE, BUILD_OFF_CODE, NOT_YET_CODE = "plan_build_locked", "plan_build_off", "not_yet"
+PREFIX = "Line up plans (experimental): "
+
+
+async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore | None:
+    """The gates every line-up command shares (design 4); the store when they pass."""
+    store = await _refused(hass, connection, msg)
+    if store is None:
+        return None
+    if not A.build_switch(hass):
+        connection.send_error(msg["id"], BUILD_OFF_CODE, PREFIX + "it is off: turn it on in Settings → AI.")
+        return None
+    u = A.unlock(hass)
+    if not u.get("ok"):
+        A.note_stop(hass, store.data, None, "locked")
+        await store.async_save()
+        connection.send_error(msg["id"], LOCKED_CODE, PREFIX + A.STOPS["locked"][0] + " " + A.STOPS["locked"][1])
+        return None
+    return store
+
+
+def _floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> list[dict[str, Any]]:
+    """Each indoor floor, lowest first, with its plans and its last line-up."""
+    out = []
+    for f in snap["floors"]:
+        mids = A.floor_plans(snap, f["id"])
+        last = max(((sid, s) for sid, s in (store.data.get("lineups") or {}).items() if isinstance(s, dict) and s.get("floor_id") == f["id"]),
+                   key=lambda t: float(t[1].get("started_at") or 0), default=None)
+        out.append({"id": f["id"], "name": f.get("name"), "plans": [{"map_id": m, "name": snap["plans"][m]["name"], "drawn": snap["plans"][m]["drawn"],
+                                                                     "gauge": m == snap["gauge_map"], "refs": snap["plans"][m]["refs"]} for m in mids],
+                    "last": {"session": last[0], "at": last[1].get("finished_at") or last[1].get("started_at"), "status": last[1].get("status")} if last else None})
+    return out
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_info"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
+    """Whether the line-up can be offered here (design 1): the unlock, the
+    switch and the effective rule, the floors with their plans, this house's
+    stops (design 14). Answers while locked: the row is drawn only when ok."""
+    u = A.unlock(hass)
+    on_master = A.enabled(hass)
+    out: dict[str, Any] = {"unlock": {k: u.get(k) for k in ("ok", "why", "display")}, "master": on_master,
+                           "switch": A.build_switch(hass), "on": on_master and A.build_switch(hass) and bool(u.get("ok")),
+                           "floors": [], "stall": None, "running": None}
+    if on_master:
+        A._bump_once(hass, f"plan_build_unlock:{A.unlock_event(u)}")  # noqa: SLF001
+        if u.get("ok"):
+            A._bump_once(hass, "plan_build_setting:shown")  # noqa: SLF001
+    if out["on"] and house3d_on(hass) and _tier_at_least(hass, "pro"):
+        store = await A.async_get_store(hass)
+        if A.sweep_abandoned(hass, store):
+            await store.async_save()
+        snap = A.house_snapshot(hass)
+        job = A.running(hass)
+        out.update(floors=_floors(hass, store, snap), stall=A.stall_summary(store), gauge=snap["gauge"],
+                   running=job.sid if job and store.lineup(job.sid) else None, start_blocked=A.start_allowed(hass))
+    connection.send_result(msg["id"], out)
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_start",
+    vol.Required("floor_id"): str,
+    vol.Optional("map_ids"): [str],
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_start(hass: HomeAssistant, connection, msg) -> None:
+    """One floor's line-up (design 3.1's preconditions; one AI job per house,
+    one a minute, ten a day). It answers at once; the job runs on the server."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        why = A.start_allowed(hass)
+        if why:
+            connection.send_error(msg["id"], why, PREFIX + {"already_running": "a session is already reading your plans.",
+                                                            "too_soon": "a session started less than a minute ago.",
+                                                            "daily_cap": f"at most {A.STARTS_A_DAY} sessions a day."}[why])
+            return
+        snap = A.house_snapshot(hass)
+        if not snap["gauge"]:
+            A.note_stop(hass, store.data, None, "no_metre_scale")
+            await store.async_save()
+            connection.send_error(msg["id"], "no_metre_scale", PREFIX + " ".join(A.STOPS["no_metre_scale"]))
+            return
+        on_floor = A.floor_plans(snap, msg["floor_id"])
+        want = [m for m in (msg.get("map_ids") or on_floor) if m in on_floor]
+        if not on_floor or not want:
+            A.note_stop(hass, store.data, None, "not_placed")
+            await store.async_save()
+            connection.send_error(msg["id"], NOT_PLACED_CODE, PREFIX + " ".join(A.STOPS["not_placed"]))
+            return
+        u = A.unlock(hass)
+        sess = A.new_lineup(u, snap, msg["floor_id"], want, A.earlier_reads(store))
+        sid = A.start_lineup(hass, store, sess)
+        await store.async_save()
+    connection.send_result(msg["id"], {"session": sid})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_status", vol.Optional("session"): vol.Any(str, None)})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_status(hass: HomeAssistant, connection, msg) -> None:
+    """A line-up (by id, or the newest), its plans' and items' signatures
+    checked: an item whose plan moved or changed since is stale."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    job = A.running(hass)
+    await store.async_sweep(job.sid if job else None)
+    sid = msg.get("session")
+    if not sid:
+        sid = max(((k, s) for k, s in (store.data.get("lineups") or {}).items() if isinstance(s, dict)),
+                  key=lambda t: float(t[1].get("started_at") or 0), default=(None, None))[0]
+    sess = store.lineup(sid)
+    if sess is not None and sess.get("status") != "running":
+        snap = A.house_snapshot(hass)
+        changed = False
+        for it in (sess.get("items") or {}).values():
+            p = snap["plans"].get(it.get("map_id"))
+            if it.get("state") in ("open", "same", "info", "not_now", "refused") and (
+                    p is None or p["image_sig"] != it.get("image_sig") or p["place_sig"] != it.get("target_place_sig")):
+                it["state"] = "stale"
+                A._bump(hass, f"plan_build_item:{it['kind']}_stale")  # noqa: SLF001
+                changed = True
+        if changed:
+            sess["rev"] = int(sess.get("rev") or 0) + 1
+            await store.async_save()
+    connection.send_result(msg["id"], {"session": A.lineup_public(sess, sid), "running": job.sid if job else None})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_cancel", vol.Required("session"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_cancel(hass: HomeAssistant, connection, msg) -> None:
+    store = await _refused(hass, connection, msg)
+    if store is None:
+        return
+    job = A.running(hass)
+    if job is None or job.sid != msg["session"]:
+        connection.send_result(msg["id"], {"ok": False, "message": PREFIX + "that session isn't running."})
+        return
+    job.cancel = True
+    connection.send_result(msg["id"], {"ok": True, "message": PREFIX + "stopping after the read in flight. What was read so far is kept; Resume reads the rest."})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_resume", vol.Required("session"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_resume(hass: HomeAssistant, connection, msg) -> None:
+    """A session that stopped short reads the rest (design 8, 14)."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        sess = store.lineup(msg["session"])
+        if sess is None or sess.get("status") not in ("out_of_time", "no_credit", "failed", "cancelled"):
+            connection.send_error(msg["id"], "not_open", PREFIX + "that session has nothing to resume.")
+            return
+        why = A.start_allowed(hass)
+        if why == "already_running":
+            connection.send_error(msg["id"], why, PREFIX + "a session is already reading your plans.")
+            return
+        A.resume_lineup(hass, store, msg["session"])
+        await store.async_save()
+    connection.send_result(msg["id"], {"session": msg["session"]})
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_answer",
+    vol.Required("session"): str,
+    vol.Required("question_id"): str,
+    vol.Required("answer"): vol.Any("yes", "skip", {vol.Required("metres"): vol.Coerce(float)}, {vol.Required("taps"): [[vol.Coerce(float)]]}),
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_answer(hass: HomeAssistant, connection, msg) -> None:
+    """The little help (design 3.5): the answer reruns the local steps only, no new read."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    if A.running(hass) is not None:
+        connection.send_error(msg["id"], "already_running", PREFIX + "wait for the reading to finish.")
+        return
+    async with store.lock:
+        sess = store.lineup(msg["session"])
+        if sess is None:
+            connection.send_error(msg["id"], "not_found", PREFIX + "that session isn't here any more.")
+            return
+        word = A.apply_answer(sess, msg["question_id"], msg["answer"])
+        if word in ("not_open", "bad_answer"):
+            connection.send_error(msg["id"], word, PREFIX + ("that question isn't open." if word == "not_open" else "that answer can't be used."))
+            return
+        A._bump(hass, f"plan_build_help:{word}")  # noqa: SLF001
+        A.stop_resolved(hass, sess, ("help_unanswered", "fit_rejected"))
+        await A.answer_locally(hass, store, msg["session"])
+        await store.async_save()
+    connection.send_result(msg["id"], {"session": A.lineup_public(store.lineup(msg["session"]), msg["session"])})
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_verdict",
+    vol.Required("session"): str,
+    vol.Required("rev"): int,
+    vol.Required("item_id"): str,
+    vol.Required("v"): vol.In(("not_now", "wrong", "back")),
+    vol.Optional("why"): vol.Any(vol.In(A.WRONG_WHY), None),
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_verdict(hass: HomeAssistant, connection, msg) -> None:
+    """Not now, Wrong (one reason) or back: written at the click; they
+    describe the AI, not the house (design 4)."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        sess = store.lineup(msg["session"])
+        it = ((sess or {}).get("items") or {}).get(msg["item_id"])
+        if not isinstance(it, dict):
+            connection.send_error(msg["id"], "not_found", PREFIX + "that item isn't here any more.")
+            return
+        if int(sess.get("rev") or 0) != msg["rev"]:
+            connection.send_error(msg["id"], REV_CODE, PREFIX + "the session changed since you looked: it is reloaded.")
+            return
+        if it.get("state") in ("stale", "refused"):
+            connection.send_error(msg["id"], "not_open", PREFIX + "that item can't be judged now.")
+            return
+        v = msg["v"]
+        if v == "back":
+            was = (it.get("verdict") or {}).get("was") or "open"
+            it["state"], it["verdict"] = was, None
+        else:
+            why = msg.get("why") or ("cant_tell" if v == "wrong" else None)
+            it["verdict"] = {"v": v, "why": why, "at": time.time(), "was": (it.get("verdict") or {}).get("was") or it.get("state")}
+            it["state"] = v
+            A._bump(hass, f"plan_build_item:{it['kind']}_{v}")  # noqa: SLF001
+            if v == "wrong":
+                A._bump(hass, f"plan_build_wrong_why:{why}")  # noqa: SLF001
+                if it["kind"] == "refile":
+                    A._bump(hass, "plan_build_refile:wrong")  # noqa: SLF001
+        sess["rev"] = int(sess.get("rev") or 0) + 1
+        await store.async_save()
+    connection.send_result(msg["id"], {"rev": sess["rev"], "item": it})
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_commit",
+    vol.Required("session"): str,
+    vol.Required("rev"): int,
+    vol.Required("items"): [str],
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_commit(hass: HomeAssistant, connection, msg) -> None:
+    """Saving a line-up is the next piece (Stage 1b: backup, ledger, undo,
+    reviewed apart). Until then nothing is written, and it says so."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    connection.send_error(msg["id"], NOT_YET_CODE, PREFIX + "saving line-ups isn't built yet. Nothing was changed; your verdicts are kept.")
+
+
+WS_COMMANDS = WS_COMMANDS + (ws_plan_build_info, ws_plan_build_start, ws_plan_build_status, ws_plan_build_cancel, ws_plan_build_resume,
+                             ws_plan_build_answer, ws_plan_build_verdict, ws_plan_build_commit)

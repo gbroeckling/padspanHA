@@ -774,6 +774,62 @@ AI_USAGE_EVENTS: frozenset[str] = frozenset(
     {f"ai_reads_kind:{k}" for k in _AI_KINDS} | {f"ai_reads_maker:{k}" for k in _AI_MAKERS}
     | {f"ai_reads_fail:{k}" for k in _AI_STOPS} | {f"ai_reads_month:{k}" for k in _AI_READS_BANDS}
     | {f"ai_credit_month:{k}" for k in _AI_CREDIT_BANDS} | {f"ai_credit_warn:{k}" for k in _AI_WARN})
+# Build from plans: advanced plan alignment (plan_ai.py's line-up; Claude,
+# experimental, 2026-11; design PadspanResearch plan-build-design-2026-11.md
+# section 10, Stage 1 here). Counts and closed words only: never a plan, a
+# title, a room, a floor, an AI Task, a map id, a coordinate, a size, a credit
+# amount or a price. The stall watch (section 14): every stop by its one named
+# reason (plan_ai.STOPS), the stress signals and how long a person waited.
+PLAN_BUILD_STAGE: tuple[str, ...] = ("s1",)
+PLAN_BUILD_SETTING: tuple[str, ...] = ("shown", "on", "off")
+PLAN_BUILD_UNLOCK: tuple[str, ...] = ("opus", "fable", "other", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree", "no_ai_task")
+PLAN_BUILD_RUN: tuple[str, ...] = ("started", "finished", "needs_help", "resumed", "cancelled", "failed", "out_of_time", "no_credit", "abandoned")
+PLAN_BUILD_RUN_SECS: tuple[str, ...] = ("lt1m", "1_3m", "3_10m", "gt10m")
+PLAN_BUILD_PLAN_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "gt6")
+PLAN_BUILD_CREDIT: tuple[str, ...] = ("lt0_10", "0_10_0_50", "0_50_2", "gt2")
+PLAN_BUILD_READ: tuple[str, ...] = ("plan", "dimension", "retry", "reused")
+PLAN_BUILD_READ_FAIL: tuple[str, ...] = ("timeout", "refusal", "bad_answer", "unreachable", "no_credit", "no_media", "suspect_frame", "backup_used")
+PLAN_BUILD_ANCHOR: tuple[str, ...] = ("gauge", "evidence", "none")
+PLAN_BUILD_DIMS: tuple[str, ...] = ("agree", "disagree", "single", "none", "parse_mismatch")
+PLAN_BUILD_FIT: tuple[str, ...] = ("lt70", "70_85", "85_95", "ge95", "ratio_disagree")
+PLAN_BUILD_SEED: tuple[str, ...] = ("stairs", "search", "taps")
+PLAN_BUILD_FIT_SECS: tuple[str, ...] = ("lt5", "5_20", "20_60", "capped")
+PLAN_BUILD_PCT: tuple[str, ...] = ("lt1", "1_3", "3_10", "gt10")
+# Stage 1a counts what it shows and the verdicts it takes; accepting, refiling
+# by hand and undoing come with the writes (1b), and their values with them.
+PLAN_BUILD_REFILE: tuple[str, ...] = ("suggested", "refused_drawn", "wrong")
+PLAN_BUILD_HELP: tuple[str, ...] = ("dimension_shown", "dimension_yes", "dimension_typed", "dimension_skipped", "taps_shown", "taps_done",
+                                    "taps_skipped", "gave_up")
+PLAN_BUILD_ITEM_KINDS: tuple[str, ...] = ("place", "refile", "anchor_scale")
+PLAN_BUILD_ITEM: tuple[str, ...] = ("shown", "not_now", "wrong", "stale")
+PLAN_BUILD_WRONG: tuple[str, ...] = ("wrong_match", "wrong_scale", "wrong_floor", "cant_tell")
+PLAN_BUILD_M: tuple[str, ...] = ("lt0_3", "0_3_1", "1_3", "gt3")
+PLAN_BUILD_FLAGS: tuple[str, ...] = ("calibration", "device", "room_trace")
+PLAN_BUILD_STOPS: tuple[str, ...] = ("locked", "unreachable", "no_credit", "out_of_time", "no_media", "help_unanswered", "help_limit",
+                                     "refile_refused", "measured_plan_protected", "anchor_error", "no_anchor", "no_metre_scale", "not_placed",
+                                     "fit_rejected", "cancelled", "abandoned", "group_refused", "preflight_blocked", "backup_failed", "room_gate")
+PLAN_BUILD_STRESS: tuple[str, ...] = ("repeat", "help_over", "resumes", "quick_abandon")
+PLAN_BUILD_WAIT: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
+PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
+    {f"plan_build_setting:{k}" for k in PLAN_BUILD_SETTING} | {f"plan_build_unlock:{k}" for k in PLAN_BUILD_UNLOCK}
+    | {f"plan_build_run:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_RUN}
+    | {f"plan_build_run_secs:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_RUN_SECS}
+    | {f"plan_build_plans:{k}" for k in PLAN_BUILD_PLAN_BANDS}
+    | {f"plan_build_credit_run:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_CREDIT}
+    | {f"plan_build_read:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_READ}
+    | {f"plan_build_read_fail:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_READ_FAIL}
+    | {f"plan_build_read_secs:{k}" for k in PHOTO_SECS}
+    | {f"plan_build_anchor:{k}" for k in PLAN_BUILD_ANCHOR} | {f"plan_build_dims:{k}" for k in PLAN_BUILD_DIMS}
+    | {f"plan_build_fit:{k}" for k in PLAN_BUILD_FIT} | {f"plan_build_seed:{k}" for k in PLAN_BUILD_SEED}
+    | {f"plan_build_fit_secs:{k}" for k in PLAN_BUILD_FIT_SECS} | {f"plan_build_shape_err:{k}" for k in PLAN_BUILD_PCT}
+    | {f"plan_build_refile:{k}" for k in PLAN_BUILD_REFILE} | {f"plan_build_help:{k}" for k in PLAN_BUILD_HELP}
+    | {f"plan_build_item:{i}_{k}" for i in PLAN_BUILD_ITEM_KINDS for k in PLAN_BUILD_ITEM}
+    | {f"plan_build_wrong_why:{k}" for k in PLAN_BUILD_WRONG}
+    | {f"plan_build_move:shown_{k}" for k in PLAN_BUILD_M}
+    | {f"plan_build_scale_change:shown_{k}" for k in PLAN_BUILD_PCT}
+    | {f"plan_build_flags:{k}" for k in PLAN_BUILD_FLAGS} | {f"plan_build_flag_move:{k}" for k in PLAN_BUILD_M}
+    | {f"plan_build_stop:{k}" for k in PLAN_BUILD_STOPS} | {f"plan_build_stress:{k}" for k in PLAN_BUILD_STRESS}
+    | {f"plan_build_wait:{k}" for k in PLAN_BUILD_WAIT})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -938,6 +994,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "atlas_3d_ai_task_backup_entity": "ai_backup",
     # AI map-building research (experimental, 2026-11): on only; an untouched house sends what it always did.
     "ai_plans_enabled": "ai_plans",
+    # Build from plans: advanced plan alignment (Claude, experimental, 2026-11): on only.
+    "ai_plan_build_enabled": "ai_plan_build",
     # 0.38.178: several wall screens (Settings → Optimize for scale).
     "optimize_for_scale": "scale",
     "guest_tags_enabled": "guest_tags",
@@ -1246,7 +1304,7 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
-            or name in PLAN_AI_EVENTS or name in AI_USAGE_EVENTS
+            or name in PLAN_AI_EVENTS or name in AI_USAGE_EVENTS or name in PLAN_BUILD_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS)
 

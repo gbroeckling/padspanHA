@@ -35,6 +35,14 @@ is stored, and the model's text is never stored, shown or logged.
 
 Design: PadspanResearch/plan-ai-design-2026-11.md (sections 2, 3, 4, 7, 8).
 
+Build from plans: line up (Stage 1, at the end of this file): with Claude
+Opus 5.5 or newer as the AI Task, the same reader reads each plan of one
+floor for its printed text, dimension strings, stairs and outside corners;
+plan_geom.py measures (ticks, pixels per metre, tilt, the fit of one plan on
+another); the proposals (a placement per plan, a refile for a plan of another
+floor) are kept in this store's "lineups" section with what each would shift.
+Nothing here writes a placement. Design: PadspanResearch/plan-build-design-2026-11.md.
+
 The store's Home Assistant version stays 1 forever; shape changes go through
 the data's own "schema" field, read the tolerant way (house3d_store.py).
 """
@@ -42,6 +50,7 @@ the data's own "schema" field, read the tolerant way (house3d_store.py).
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 import logging
@@ -49,14 +58,16 @@ import math
 import re
 import secrets
 import time
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_MAPS, DATA_MODEL, DATA_PLAN_AI, DATA_SETTINGS, DEFAULT_FLOOR_ID, DOMAIN, OUTSIDE_FLOOR_ID, PLAN_AI_STORE_KEY
 from . import ai_usage as U
+from . import plan_geom as G
 from . import ws_house3d_photo as P
 from . import ws_house3d_stairs as S
+from .fabric_truth import placement_metres
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,7 +145,7 @@ _LIGHT_LABELS = ("light", "lights", "light fixture", "light fixtures", "ceiling 
 # ── The store ────────────────────────────────────────────────────────────────
 
 def empty() -> dict[str, Any]:
-    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}}
+    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}, "lineups": {}, "stall": {}}
 
 
 def writable(data: Any) -> bool:
@@ -151,7 +162,7 @@ def normalise(raw: Any) -> dict[str, Any]:
     out = dict(raw)
     out.setdefault("schema", SCHEMA)
     if writable(out):
-        for k in ("sessions", "batches", "rejects"):
+        for k in ("sessions", "batches", "rejects", "lineups", "stall"):
             if not isinstance(out.get(k), dict):
                 out[k] = {}
     return out
@@ -168,6 +179,18 @@ def sweep_restart(data: dict[str, Any], keep: str | None = None) -> int:
             sess.update(status="failed", error="restart", finished_at=time.time(), rev=int(sess.get("rev") or 0) + 1)
             sess.pop("finds", None)
             sess.pop("light_finds", None)
+            n += 1
+    return n
+
+
+def sweep_lineups(data: dict[str, Any], keep: str | None = None) -> int:
+    """sweep_restart for line-ups: one still marked running with no job
+    behind it failed (restart); its reads stay, and Resume reads the rest. One
+    waiting for the person's help has no job behind it by design: it stays."""
+    n = 0
+    for sid, sess in (data.get("lineups") or {}).items():
+        if isinstance(sess, dict) and sess.get("status") == "running" and sid != keep:
+            sess.update(status="failed", error="restart", finished_at=time.time(), rev=int(sess.get("rev") or 0) + 1)
             n += 1
     return n
 
@@ -200,10 +223,14 @@ class PlanAiStore:
     async def async_sweep(self, keep: str | None = None) -> None:
         """sweep_restart, counted and saved when it found any."""
         swept = sweep_restart(self._data, keep) if writable(self._data) else 0
+        lined = sweep_lineups(self._data, keep) if writable(self._data) else 0
         if swept:
             for _ in range(swept):
                 _bump(self.hass, "plan_ai_session:failed")
                 _bump(self.hass, "plan_ai_cancel_why:restart")
+        for _ in range(lined):
+            _bump(self.hass, "plan_build_run:s1_failed")
+        if swept or lined:
             await self.async_save()
 
     async def async_save(self) -> bool:
@@ -240,10 +267,15 @@ class PlanAiStore:
                      key=lambda s: float(s.get("started_at") or 0), default=None)
         return latest
 
+    def lineup(self, sid: str | None) -> dict[str, Any] | None:
+        """A line-up session by id (Stage 1), or None."""
+        s = (self._data.get("lineups") or {}).get(sid) if sid else None
+        return s if isinstance(s, dict) else None
+
     def trim(self) -> None:
-        """The caps: the oldest sessions, batches and rejects over them go."""
+        """The caps: the oldest sessions, batches, rejects and line-ups over them go."""
         for key, cap, when in (("sessions", MAX_SESSIONS, "started_at"), ("batches", MAX_BATCHES, "committed_at"),
-                               ("rejects", MAX_REJECTS, "at")):
+                               ("rejects", MAX_REJECTS, "at"), ("lineups", MAX_LINEUPS, "started_at")):
             d = self._data.get(key) or {}
             if len(d) > cap:
                 order = sorted(d, key=lambda k: float((d[k] or {}).get(when) or 0) if isinstance(d[k], dict) else 0)
@@ -1627,3 +1659,1488 @@ def last_batch(store: PlanAiStore, sid: str | None = None) -> dict[str, Any] | N
         if best is None or float(b.get("committed_at") or 0) > float(batches[best].get("committed_at") or 0):
             best = bid
     return batch_summary(batches, best) if best else None
+
+
+# ══ Build from plans: line up (Stage 1; experimental) ═══════════════════════
+# Design: PadspanResearch/plan-build-design-2026-11.md, sections 1-4, 8, 10, 14,
+# 15. Claude reads the printed text; plan_geom.py measures; nothing here writes
+# a placement (the writes are Stage 1b, reviewed apart).
+
+# ── The numbers that can stop or hold it back, in one block (design 14) ─────
+# Each was chosen for the reason beside it; the stall counters can move them,
+# and a change goes to Garry by form first.
+S1_BUDGET_S = 600            # one session's reads, all told (design 8)
+S1_READ_S = 90               # one read (design 8; the worst of 175 reads through HA was 19.9 s)
+S1_HELP_MAX = 3              # questions a floor (design 3.5); past it a plan is left out
+S1_PLANS_MAX = 12            # plans a floor (design 4)
+S1_DIMS_PER_AXIS = 2         # dimension strings read closely, per axis per plan (design 3.3)
+S1_DIMS_AGREE = 0.015        # two readings of one axis agree within this (design 3.4.3)
+S1_PARSE_AGREE = 0.005       # PadSpan's reading of the text and Claude's metres (design 3.4.1)
+S1_SINGLE_CHANGE = 0.03      # one reading alone may change a plan's scale this much before it is confirmed (design 3.5)
+S1_BIG_CHANGE = 0.10         # any change of scale over this is confirmed (the basement's 27 % would ask; design 3.5)
+S1_ANCHOR_SHAPE = 0.03       # an anchor's two axes agree within this (design 3.1)
+S1_ANCHOR_SCALE = 0.05       # and each is within this of its printed dimensions (design 3.1)
+S1_ANCHOR_SMALL = 0.03       # an anchor's own error under this is information; from it an item, Not now by default (form q7)
+S1_SAME_M = 0.10             # a proposal moving no corner further than this: "already lined up" (the acceptance tolerance)
+S1_FLAG_M = 0.30             # a click landing this far from its stored metres is flagged (design 3.6)
+S1_OUTLINE_ON_INK = 0.5      # under this share of the AI's outline on drawn walls, its positions are suspect. Design 3.2 had the
+                             # outline's box against the ink's box (IoU < 0.7); on Garry's Screenshot 03-14 that misfired at 0.43
+                             # (patio and dimensions outside the walls are ink too), while on-ink read 0.54-0.87 right and
+                             # 0.16-0.40 shifted or in a 0-1000 frame (dry run, 2026-11-09). The box IoU is still recorded.
+S1_PICTURE_PX, S1_PICTURE_MP = 2560, 3.5      # what Claude is sent (design 3.2; Stage 0b: 4.1 MP was shrunk by the API)
+S1_CROP_PX, S1_TEXT_MIN_PX = 2048, 14         # a dimension's crop: full resolution, no longer than this, 2× when its text is small.
+                                              # Design 3.2 said 1024; the crop now runs the plan's whole length along the line
+                                              # (a thin band, ~200 picture tokens), and a tall plan's text shrank at 1024.
+S1_RESUMES_STRESS = 2        # Resume pressed more than this in one session: a stress signal (design 14)
+S1_QUICK_ABANDON_S = 60      # a run left within this of a stop: a stress signal (design 14)
+S1_ABANDON_DAYS = 14         # proposals with no verdict this long: abandoned (design 10)
+MAX_LINEUPS = 10             # sessions kept (design 4)
+PIXEL_FRAME = "pixel"        # Claude answers in the picture's own pixels (design 3.2)
+TASK_NAME = "PadSpan plan build"   # ai_usage counts these reads as plan_build
+
+# Every stop has a name, what happened and the one thing that gets it moving
+# again (design 14). Counted per session, per month (this store's "stall") and
+# in the opt-in report (plan_build_stop:<reason>). The four marked 1b and s2
+# are reached by the writes and by Stage 2; named here so the block is whole.
+STOPS: dict[str, tuple[str, str]] = {
+    "locked": ("Line up plans needs Claude Opus 5.5 or newer as your AI Task.", "Choose one in Settings → AI."),
+    "unreachable": ("Claude couldn't be reached; nothing was changed. What was read is kept.", "Resume when it's back."),
+    "no_credit": ("Your Claude account is out of credit; no other AI is used for this. What was read is kept.",
+                  "Add credit in the Anthropic Console, then Resume."),
+    "out_of_time": ("The session ran out of time. What was read is kept.", "Resume reads the rest."),
+    "no_media": ("Home Assistant's media folder couldn't take the plan for Claude.", "Check the media folder, then Resume."),
+    "help_unanswered": ("A question is waiting for you.", "Answer it, or Skip."),
+    "help_limit": ("This plan couldn't be lined up within three questions.", "Mapping → Align does it by hand."),
+    "refile_refused": ("This plan shows another floor, but things are drawn on it.", "Move it by hand in Mapping → 3D Stack if you're sure."),
+    "measured_plan_protected": ("Your measured plan sets the house's metre scale, so it is never moved here.",
+                                "Measure it again in Mapping if it is wrong."),
+    "anchor_error": ("The plan the others are lined up to disagrees with its own printed dimensions by 3 % or more.",
+                     "Look at its item before you accept anything."),
+    "no_anchor": ("No plan on this floor agrees with its own printed dimensions.", "Look closely at every item, or measure one plan in Mapping."),
+    "no_metre_scale": ("Your house has no metre scale yet.", "Measure one plan first in Mapping."),
+    "not_placed": ("A plan isn't placed on its floor yet.", "Place it in Mapping → 3D Stack first."),
+    "fit_rejected": ("The match and the printed dimensions didn't agree for this plan.", "Tap the same corner on both plans."),
+    "cancelled": ("The session was stopped. What was read is kept.", "Resume reads the rest."),
+    "abandoned": ("The proposals were left without a verdict.", "Line up the floor again when you're ready."),
+    "group_refused": ("Some items change calibration, devices or traced rooms, so they are accepted one by one.", "Accept them one at a time."),   # 1b
+    "preflight_blocked": ("Most of this plan's calibration points would fall off its picture.", "Check the item; it isn't saved."),            # 1b
+    "backup_failed": ("The safety backup couldn't be made, so nothing was saved.", "Try again; check Home Assistant's storage."),          # 1b
+    "room_gate": ("These rooms and walls would place your calibration spots worse.", "Look at the rooms flagged."),                         # s2
+}
+STOPS_LATER: tuple[str, ...] = ("group_refused", "preflight_blocked", "backup_failed", "room_gate")
+STRESS: tuple[str, ...] = ("repeat", "help_over", "resumes", "quick_abandon")
+WAIT_BANDS: tuple[str, ...] = ("lt1m", "1_10m", "10_60m", "gt1h")
+WRONG_WHY: tuple[str, ...] = ("wrong_match", "wrong_scale", "wrong_floor", "cant_tell")
+ITEM_KINDS: tuple[str, ...] = ("place", "refile", "anchor_scale")
+LINEUP_STATUS: tuple[str, ...] = ("running", "needs_help", "done", "cancelled", "failed", "out_of_time", "no_credit")
+
+READ_A_PROMPT = (
+    "This floor plan image is {w} by {h} pixels; give every position in those pixels, (0, 0) at the top left. Return JSON only: "
+    "{{\"title\": the drawing's printed title or null, \"floor\": \"basement|ground|main|upper|second|third|attic|unknown\", "
+    "\"rooms\": [{{\"name\": as printed, \"box\": [x1, y1, x2, y2]}}], \"stairs\": [{{\"box\": [x1, y1, x2, y2]}}], "
+    "\"outline\": [[x, y], ...] the outside corners of the building's outer walls, clockwise, "
+    "\"dimensions\": [{{\"text\": exactly as printed; where one dimension line is a chain of segments, every segment in order joined with \" + \", "
+    "\"axis\": \"x\" for a line running across or \"y\" for one running down, \"box\": [x1, y1, x2, y2] around the whole dimension line with its text}}]}}. "
+    "At most 12 dimensions: the lines that span the most of the building first (overall and chained lines outside the walls), short room dimensions last.")
+READ_B_PROMPT = (
+    "This is a crop of a floor plan, {w} by {h} pixels, around one dimension line running {way} through the middle of the crop. "
+    "Return JSON only: {{\"text\": the dimension exactly as printed, \"metres\": the whole line's length in metres, "
+    "\"chain\": [each segment's text in order] if this one line is a chain of segments, "
+    "\"ends\": [[x, y], [x, y]] where the whole line starts and ends (its first and last tick marks, arrowheads or dots)}}.")
+FLOOR_WORDS: tuple[str, ...] = ("basement", "ground", "main", "upper", "second", "third", "attic", "unknown")
+# Words that say which floor a drawing shows (design 2): a floor whose name or id holds one of a group's words owns the group.
+_FLOOR_GROUPS: tuple[frozenset[str], ...] = (frozenset({"basement", "lower", "cellar"}), frozenset({"main", "ground", "first"}),
+                                             frozenset({"upper", "second", "top"}), frozenset({"third", "attic", "loft"}))
+_ROOM_STOP = frozenset({"room", "rm", "the", "of", "and", "area", "space", "open", "to", "below", "above", "new", "existing"})
+
+
+# ── Who may use it: the unlock rule (design 1, form q2) ──────────────────────
+PLAN_BUILD_MIN: dict[str, tuple[int, int]] = {"opus": (5, 5), "fable": (5, 0), "mythos": (5, 0)}
+_CLAUDE_MODEL = re.compile(r"claude-?(opus|fable|mythos|sonnet|haiku)-(\d+)(?:-(\d{1,2}))?(?!\d)")
+
+
+def claude_model(text: Any) -> tuple[str, tuple[int, int]] | None:
+    """A Claude model's family and version from one name ("Claude Opus 5.5",
+    "claude-opus-5-5", "claude-opus-5-5-20261201", "Claude Opus 6"), or None:
+    lower-cased, "_ . space" made "-", then the design's pattern. Fails on
+    "claude-opus-latest" and the old "claude-3-5-sonnet" order."""
+    s = re.sub(r"[_.\s]+", "-", str(text or "").strip().lower())
+    m = _CLAUDE_MODEL.search(s)
+    if not m:
+        return None
+    return m.group(1), (int(m.group(2)), int(m.group(3) or 0))
+
+
+def unlock_rule(platform: str | None, sources: list[str]) -> dict[str, Any]:
+    """The pure rule: {ok, why, display, family}. Anthropic's integration only;
+    every source that names a Claude model must read as one and qualify (Opus
+    5.5 or newer, any Fable or Mythos; Sonnet and Haiku never, a family not
+    listed never); sources disagreeing, or none readable: locked. Fails closed."""
+    if platform != "anthropic":
+        return {"ok": False, "why": "not_anthropic", "display": None, "family": None}
+    read: list[tuple[str, tuple[int, int]]] = []
+    for src in sources:
+        if not isinstance(src, str) or not src.strip():
+            continue
+        got = claude_model(src)
+        if got is None:
+            if "claude" in src.lower():               # names Claude, but no model PadSpan can read: closed
+                return {"ok": False, "why": "unknown_model", "display": None, "family": None}
+            continue
+        read.append(got)
+    if not read:
+        return {"ok": False, "why": "unknown_model", "display": None, "family": None}
+    if len(set(read)) > 1:
+        return {"ok": False, "why": "sources_disagree", "display": None, "family": None}
+    fam, ver = read[0]
+    display = f"Claude {fam.capitalize()} {ver[0]}.{ver[1]}"
+    want = PLAN_BUILD_MIN.get(fam)
+    if want is None or ver < want:
+        return {"ok": False, "why": "below_opus_5_5", "display": display, "family": fam}
+    return {"ok": True, "why": "ok", "display": display, "family": fam, "version": list(ver)}
+
+
+def model_sources(hass: HomeAssistant, eid: str) -> list[str]:
+    """Every name of the model behind an AI Task that can be read (design 1.3):
+    the integration sub-entry's chat_model (Anthropic's), and its device's
+    model and model id; the registry reads of _model_text."""
+    out: list[str] = []
+    try:
+        from homeassistant.helpers import device_registry as dr, entity_registry as er  # noqa: PLC0415
+        ent = er.async_get(hass).async_get(eid)
+        entry = hass.config_entries.async_get_entry(getattr(ent, "config_entry_id", None))
+        sub = (getattr(entry, "subentries", None) or {}).get(getattr(ent, "config_subentry_id", None))
+        chat = (getattr(sub, "data", None) or {}).get("chat_model") if sub is not None else None
+        if isinstance(chat, str):
+            out.append(chat)
+        dev = dr.async_get(hass).async_get(getattr(ent, "device_id", None))
+        out += [v for v in (getattr(dev, k, None) for k in ("model", "model_id")) if isinstance(v, str)]
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def unlock(hass: HomeAssistant) -> dict[str, Any]:
+    """unlock_rule on the main AI Task (the backup never counts): {ok, why,
+    display}; why no_ai_task when none is chosen."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    eid = str(((st.data if st else {}) or {}).get("atlas_3d_ai_task_entity") or "").strip()
+    if not eid.startswith("ai_task."):
+        return {"ok": False, "why": "no_ai_task", "display": None, "family": None}
+    return {**unlock_rule(P._platform(hass, eid), model_sources(hass, eid)), "ai_task": eid}  # noqa: SLF001
+
+
+def build_switch(hass: HomeAssistant) -> bool:
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    return ((st.data if st else {}) or {}).get("ai_plan_build_enabled") is True
+
+
+def build_on(hass: HomeAssistant) -> bool:
+    """The effective rule (design 1): the master switch, this switch, and Claude unlocked."""
+    return enabled(hass) and build_switch(hass) and bool(unlock(hass).get("ok"))
+
+
+def unlock_event(u: dict[str, Any]) -> str:
+    """The tier only, never a version (design 10)."""
+    if u.get("ok"):
+        return "opus" if u.get("family") == "opus" else "fable" if u.get("family") == "fable" else "other"
+    return str(u.get("why") or "unknown_model")
+
+
+# ── The stall watch (design 14) ──────────────────────────────────────────────
+
+def _month() -> str:
+    return time.strftime("%Y-%m", time.localtime())
+
+
+def _band_s(s: float) -> str:
+    return "lt1m" if s < 60 else "1_10m" if s < 600 else "10_60m" if s < 3600 else "gt1h"
+
+
+def _band_m(m: float) -> str:
+    return "lt0_3" if m < 0.3 else "0_3_1" if m < 1 else "1_3" if m < 3 else "gt3"
+
+
+def _scale_band(pct: float) -> str:
+    return "lt1" if pct < 1 else "1_3" if pct < 3 else "3_10" if pct < 10 else "gt10"
+
+
+def _bump_once(hass: HomeAssistant, event: str) -> None:
+    """Counted once a report window (the counters empty on each take)."""
+    try:
+        from .telemetry import _DATA_COUNTERS  # noqa: PLC0415
+        if int((hass.data.get(DOMAIN, {}).get(_DATA_COUNTERS) or {}).get(event) or 0) > 0:
+            return
+    except Exception:  # noqa: BLE001
+        pass
+    _bump(hass, event)
+
+
+def note_stop(hass: HomeAssistant, data: dict[str, Any], sess: dict[str, Any] | None, reason: str, map_id: str | None = None) -> dict[str, Any]:
+    """One stop: kept on the session (with its plan), counted for the month in
+    this store and in the opt-in report; the same reason twice in a session is
+    a stress signal. The record, as the screen says it."""
+    reason = reason if reason in STOPS else "cancelled"
+    rec = {"reason": reason, "at": time.time(), **({"map_id": map_id} if map_id else {})}
+    if sess is not None:
+        stops = sess.setdefault("stops", [])
+        if sum(1 for s in stops if s.get("reason") == reason) == 1:
+            _bump(hass, "plan_build_stress:repeat")
+        stops.append(rec)
+        del stops[:-50]
+    stall = data.setdefault("stall", {})
+    month = stall.setdefault(_month(), {})
+    month[reason] = int(month.get(reason) or 0) + 1
+    for old in sorted(stall)[:-13]:
+        stall.pop(old, None)
+    _bump(hass, f"plan_build_stop:{reason}")
+    return rec
+
+
+def stop_resolved(hass: HomeAssistant, sess: dict[str, Any], reasons: tuple[str, ...]) -> None:
+    """The person moved on from the newest open stop of these reasons: how long they waited."""
+    for rec in reversed(sess.get("stops") or []):
+        if rec.get("reason") in reasons and "waited_s" not in rec:
+            rec["waited_s"] = round(max(0.0, time.time() - float(rec.get("at") or time.time())), 1)
+            _bump(hass, f"plan_build_wait:{_band_s(rec['waited_s'])}")
+            return
+
+
+def stop_words(rec: dict[str, Any]) -> dict[str, Any]:
+    what, way = STOPS.get(str(rec.get("reason")), ("", ""))
+    return {**rec, "say": what, "next": way}
+
+
+# ── What the house holds, read once for the local steps ──────────────────────
+
+def house_snapshot(hass: HomeAssistant) -> dict[str, Any]:
+    """The plans, placements, drawn things, calibration points, rooms and
+    device positions the line-up looks at, as plain data (the local steps
+    are pure). Read only."""
+    from .const import DATA_CALIBRATION  # noqa: PLC0415
+    from .fabric_truth import metre_gauge  # noqa: PLC0415
+    dom = hass.data.get(DOMAIN, {})
+    model, maps, cal = dom.get(DATA_MODEL), dom.get(DATA_MAPS), dom.get(DATA_CALIBRATION)
+    names = {str(f.get("id") or ""): str(f.get("name") or f.get("id") or "") for f in (model.floors() if model is not None else [])}
+    floors = [{**f, "name": names.get(f["id"], f["id"])} for f in floor_order(model)]
+    gauge = metre_gauge(model) if model is not None else None
+    points = []
+    for p in (cal.list_points() if cal is not None and hasattr(cal, "list_points") else []):
+        if isinstance(p, dict) and p.get("map_id"):
+            points.append({k: p.get(k) for k in ("id", "map_id", "x_frac", "y_frac", "x_m", "y_m", "floor_id", "room")})
+    plans_: dict[str, Any] = {}
+    for m in (maps.list_maps() if maps is not None else []):
+        mid = str(m.get("id") or "")
+        t = model.map_transform(mid) if model is not None else None
+        image = m.get("image") or {}
+        if not mid or not isinstance(t, dict):
+            continue
+        cal_n = sum(1 for p in points if p["map_id"] == mid)
+        plans_[mid] = {"name": str(m.get("name") or "")[:80], "floor_id": str(m.get("floor_id") or ""),
+                       "size": [int(image.get("width") or 0), int(image.get("height") or 0)],
+                       "t": {k: t.get(k) for k in G.FIELDS if t.get(k) is not None}, "refs": len(t.get("reference_measurements") or []),
+                       "image_sig": image_sig(m), "place_sig": place_sig(t),
+                       "room_bounds": {str(k): (v or {}).get("points") or [] for k, v in (m.get("room_bounds") or {}).items() if isinstance(v, dict)},
+                       "receivers": [r for r in m.get("receivers") or [] if isinstance(r, dict)],
+                       "beacons": [b for b in m.get("beacons") or [] if isinstance(b, dict)],
+                       "lights": [li for li in m.get("lights") or [] if isinstance(li, dict)],
+                       "drawn": {"rooms": len(m.get("room_bounds") or {}), "calibration": cal_n, "receivers": len(m.get("receivers") or []),
+                                 "beacons": len(m.get("beacons") or []), "lights": len(m.get("lights") or [])}}
+    return {"floors": floors, "gauge_map": (gauge or {}).get("source_map_id"), "gauge": bool(gauge), "plans": plans_, "calibration": points,
+            "rooms": {str(k): {"floor_id": str(v.get("floor_id") or ""), "points_m": v.get("points_m") or []}
+                      for k, v in (model.room_geometry_m() if model is not None else {}).items() if isinstance(v, dict)},
+            "scanners": dict(model.scanner_positions_m() if model is not None else {}),
+            "beacons": dict(model.beacon_positions_m() if model is not None else {}),
+            "lights": dict(model.light_positions_m() if model is not None else {})}
+
+
+def drawn_total(drawn: dict[str, int]) -> int:
+    return sum(int(v or 0) for v in (drawn or {}).values())
+
+
+# ── Reading the answers ──────────────────────────────────────────────────────
+
+def _obj_of(answer: Any) -> dict | None:
+    """The answer's JSON object: itself, or the first {...} in its text."""
+    if isinstance(answer, dict):
+        return answer
+    if isinstance(answer, str):
+        a, b = answer.find("{"), answer.rfind("}")
+        if 0 <= a < b:
+            try:
+                v = json.loads(answer[a:b + 1])
+            except ValueError:
+                return None
+            return v if isinstance(v, dict) else None
+    return None
+
+
+def _box(v: Any, w: int, h: int, k: float) -> list[float] | None:
+    """A box in the sent frame, checked against it and turned into the
+    picture's own pixels (÷ k, the sent size over the picture's)."""
+    if not isinstance(v, (list, tuple)) or len(v) != 4:
+        return None
+    xs = [S._num(x) for x in v]  # noqa: SLF001
+    if any(x is None for x in xs):
+        return None
+    x1, x2, y1, y2 = min(xs[0], xs[2]), max(xs[0], xs[2]), min(xs[1], xs[3]), max(xs[1], xs[3])
+    e = S.PAST_EDGE_FRAC
+    if x1 < -e * w or y1 < -e * h or x2 > (1 + e) * w or y2 > (1 + e) * h or x2 - x1 < 1 or y2 - y1 < 1:
+        return None
+    return [round(max(0.0, x1) / k, 1), round(max(0.0, y1) / k, 1), round(min(float(w), x2) / k, 1), round(min(float(h), y2) / k, 1)]
+
+
+def _short(v: Any, n: int = 40) -> str | None:
+    s = " ".join(str(v).split())[:n] if isinstance(v, str) else None
+    return s or None
+
+
+def parse_read_a(answer: Any, w: int, h: int, k: float = 1.0) -> dict[str, Any] | None:
+    """Read A reduced to numbers, closed words and short names (design 3.3):
+    the title and room names cut to 40 characters, the floor word from its
+    closed list, boxes and corners in the picture's own pixels. None when it
+    isn't the object asked for."""
+    o = _obj_of(answer)
+    if o is None or not any(key in o for key in ("dimensions", "rooms", "outline", "stairs")):
+        return None
+    floor = str(o.get("floor") or "unknown").strip().lower()
+    rooms = []
+    for r in (o.get("rooms") or [])[:40]:
+        if isinstance(r, dict) and _short(r.get("name")):
+            rooms.append({"name": _short(r.get("name")), "box": _box(r.get("box"), w, h, k)})
+    stairs = [b for b in (_box(s.get("box") if isinstance(s, dict) else s, w, h, k) for s in (o.get("stairs") or [])[:8]) if b]
+    outline = []
+    for p in (o.get("outline") or [])[:40]:
+        if isinstance(p, (list, tuple)) and len(p) == 2 and all(S._num(x) is not None for x in p):  # noqa: SLF001
+            outline.append([round(S._num(p[0]) / k, 1), round(S._num(p[1]) / k, 1)])  # noqa: SLF001
+    dims = []
+    for d in (o.get("dimensions") or [])[:12]:
+        if not isinstance(d, dict):
+            continue
+        axis = str(d.get("axis") or "").strip().lower()
+        box = _box(d.get("box"), w, h, k)
+        if axis in ("x", "y") and box:
+            dims.append({"text": _short(d.get("text"), 24), "axis": axis, "box": box})
+    return {"title": _short(o.get("title")), "floor_word": floor if floor in FLOOR_WORDS else "unknown",
+            "rooms": rooms, "stairs": stairs, "outline": outline, "dims": dims, "suspect": False}
+
+
+def parse_read_b(answer: Any, w: int, h: int) -> dict[str, Any] | None:
+    """Read B reduced: the printed text (24 characters), Claude's metres, the
+    chain's segments' texts, the two ends in the crop's pixels. None when
+    there is no text or length to check."""
+    o = _obj_of(answer)
+    if o is None:
+        return None
+    text = _short(o.get("text"), 24)
+    metres = S._num(o.get("metres"))  # noqa: SLF001
+    chain = [_short(c, 24) for c in (o.get("chain") or []) if _short(c, 24)][:24] if isinstance(o.get("chain"), list) else []
+    ends = None
+    e = o.get("ends")
+    if isinstance(e, list) and len(e) == 2 and all(isinstance(p, (list, tuple)) and len(p) == 2 for p in e):
+        pts = [[S._num(p[0]), S._num(p[1])] for p in e]  # noqa: SLF001
+        if all(v is not None for p in pts for v in p) and all(-0.05 * w <= p[0] <= 1.05 * w and -0.05 * h <= p[1] <= 1.05 * h for p in pts):
+            ends = pts
+    if metres is None or metres <= 0 or not (text or chain):
+        return None
+    return {"text": text, "metres": round(metres, 4), "chain": chain, "ends": ends}
+
+
+# ── Pictures and crops (executor) ────────────────────────────────────────────
+
+def picture(path) -> tuple[bytes, int, int, int, int]:
+    """The whole plan for read A: ws_house3d_stairs.shrink in the pixel
+    frame, at most S1_PICTURE_PX and S1_PICTURE_MP; and the picture's own size."""
+    from PIL import Image  # noqa: PLC0415
+    raw, w, h = S.shrink(path, S1_PICTURE_PX, S1_PICTURE_MP, framed=False)
+    with Image.open(path) as im:
+        W, H = im.size
+    return raw, w, h, W, H
+
+
+def dim_crop(path, box: list[float], axis: str) -> tuple[bytes, int, int, tuple[float, float, float, float]]:
+    """The crop round one dimension line for read B: the plan's whole width
+    (or height) along the line, so a chain is seen end to end (read A's boxes
+    stop short: dry run, 2026-11-09), a band across it; full resolution, the
+    long side at most S1_CROP_PX, twice the size when the line's box is under
+    S1_TEXT_MIN_PX across (small text); and how its pixels map back:
+    (x0, y0, kx, ky), picture = (x0 + u / kx, y0 + v / ky)."""
+    from PIL import Image  # noqa: PLC0415
+    import io  # noqa: PLC0415
+    with Image.open(path) as im:
+        im = im.convert("RGB")
+        W, H = im.size
+        x1, y1, x2, y2 = box
+        across = (y2 - y1) if axis == "x" else (x2 - x1)
+        pc = max(24.0, across)
+        cx0, cx1 = (0, W) if axis == "x" else (x1 - pc, x2 + pc)
+        cy0, cy1 = (y1 - pc, y2 + pc) if axis == "x" else (0, H)
+        cx0, cy0, cx1, cy1 = max(0, int(cx0)), max(0, int(cy0)), min(W, int(math.ceil(cx1))), min(H, int(math.ceil(cy1)))
+        part = im.crop((cx0, cy0, max(cx0 + 8, cx1), max(cy0 + 8, cy1)))
+        k = 1.0
+        if max(part.size) > S1_CROP_PX:
+            k = S1_CROP_PX / max(part.size)
+        elif across < S1_TEXT_MIN_PX:
+            k = min(2.0, S1_CROP_PX / max(part.size))
+        if k != 1.0:
+            part = part.resize((max(1, round(part.width * k)), max(1, round(part.height * k))), Image.LANCZOS)
+        buf = io.BytesIO()
+        part.save(buf, "JPEG", quality=92)
+        return buf.getvalue(), part.size[0], part.size[1], (float(cx0), float(cy0), part.width / max(1, cx1 - cx0), part.height / max(1, cy1 - cy0))
+
+
+def open_grey(path) -> Any:
+    from PIL import Image  # noqa: PLC0415
+    with Image.open(path) as im:
+        return G.grey(im)
+
+
+# ── The local steps (design 3.4-3.6): no AI, no store ────────────────────────
+
+def _ppm_axis(readings: list[dict], axis: str) -> dict[str, Any]:
+    """One axis's printed pixels per metre: two or more agreeing (median),
+    single, disagree, or none."""
+    vals = sorted(r["ppm"] for r in readings if r.get("axis") == axis and r.get("ok") and r.get("ppm"))
+    if not vals:
+        return {"ppm": None, "n": 0, "state": "none"}
+    if len(vals) == 1:
+        return {"ppm": vals[0], "n": 1, "state": "single"}
+    mid = len(vals) // 2
+    med = vals[mid] if len(vals) % 2 else (vals[mid - 1] + vals[mid]) / 2
+    if all(G.agrees(v, med, S1_DIMS_AGREE) for v in vals):
+        return {"ppm": round(med, 4), "n": len(vals), "state": "agree"}
+    return {"ppm": None, "n": len(vals), "state": "disagree"}
+
+
+def plan_health(pl: dict, t: dict) -> dict[str, Any]:
+    """How far the placement is from the plan's own printed dimensions (design 3.4.5)."""
+    w, h = pl["size_px"]
+    now = (w / float(t["scale_x_m"]), h / float(t["scale_y_m"])) if t.get("scale_x_m") and t.get("scale_y_m") else (None, None)
+    px, py = (pl.get("ppm") or {}).get("x"), (pl.get("ppm") or {}).get("y")
+    ex = now[0] / px - 1 if px and now[0] else None
+    ey = now[1] / py - 1 if py and now[1] else None
+    shape = abs(ex - ey) if ex is not None and ey is not None else None
+    return {"scale_err_x": None if ex is None else round(ex, 4), "scale_err_y": None if ey is None else round(ey, 4),
+            "shape_err": None if shape is None else round(shape, 4), "ppm_now": [None if v is None else round(v, 3) for v in now]}
+
+
+def _words(s: Any) -> set[str]:
+    return {w for w in re.findall(r"[a-z]+", str(s or "").lower()) if w not in _ROOM_STOP and len(w) > 2}
+
+
+def floor_evidence(read_a: dict, floors: list[dict], rooms: dict[str, dict]) -> dict[str, dict[str, Any]]:
+    """Per floor: whether the title or the floor word names it, and which of
+    the plan's room names belong to it (case-insensitive word overlap with its
+    rooms; design 2)."""
+    out = {}
+    title_words = _words(read_a.get("title"))
+    fw = read_a.get("floor_word") or "unknown"
+    for f in floors:
+        own = _words(f.get("name")) | _words(f.get("id"))
+        group = next((g for g in _FLOOR_GROUPS if g & own), frozenset(own))
+        named = bool(title_words & group) or fw in group
+        theirs = [_words(n) for n, r in rooms.items() if r.get("floor_id") == f["id"]]
+        hits = [r["name"] for r in read_a.get("rooms") or [] if any(_words(r["name"]) & t for t in theirs if t)]
+        out[f["id"]] = {"named": named, "rooms": hits[:6]}
+    return out
+
+
+def refile_candidates(sess: dict, snap: dict) -> dict[str, dict]:
+    """Plans whose read says they show another floor (design 2): that floor
+    named, or two of its rooms, and nothing pointing at their own. Never the
+    gauge plan, never to or from Outside (Outside isn't among the floors)."""
+    fid, out, floors = sess["floor_id"], {}, snap["floors"]
+    for pl in sess["plans"]:
+        ra = pl.get("read_a")
+        if ra is None or pl["map_id"] == snap["gauge_map"]:
+            continue
+        ev = floor_evidence(ra, floors, snap["rooms"])
+        own = ev.get(fid) or {}
+        if own.get("named") or own.get("rooms"):
+            continue
+        # A floor the drawing names outranks room names (a closet or a deck is on most floors).
+        named = [f for f in floors if f["id"] != fid and (ev.get(f["id"]) or {}).get("named")]
+        roomy = [f for f in floors if f["id"] != fid and len((ev.get(f["id"]) or {}).get("rooms") or []) >= 2]
+        to = named or roomy
+        if len(to) != 1:
+            continue
+        out[pl["map_id"]] = {"to_floor_id": to[0]["id"], "to_name": to[0].get("name"), "title": ra.get("title"),
+                             "rooms": (ev[to[0]["id"]].get("rooms") or [r["name"] for r in ra.get("rooms") or []])[:8],
+                             "named": bool(ev[to[0]["id"]]["named"])}
+    return out
+
+
+def _poly_in(x: float, y: float, pts: list) -> bool:
+    c = False
+    for i in range(len(pts)):
+        (xi, yi), (xj, yj) = pts[i], pts[i - 1]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+            c = not c
+    return c
+
+
+def _room_at(snap: dict, fid: str, x: float, y: float) -> str | None:
+    for name, r in snap["rooms"].items():
+        if r["floor_id"] == fid and len(r["points_m"]) >= 3 and _poly_in(x, y, r["points_m"]):
+            return name
+    return None
+
+
+def effects(snap: dict, map_id: str, new_t: dict) -> tuple[list[dict], dict[str, Any]]:
+    """What a placement change would shift (design 3.6): each calibration
+    point, scanner, beacon and light drawn on the plan whose click would land
+    S1_FLAG_M or more from where it is stored, each traced room whose trace
+    would sit that far from its outline; and the other devices on the floor
+    under the plan (a count and names). Nothing is moved, ever."""
+    pl = snap["plans"][map_id]
+    fid = pl["floor_id"]
+    flags: list[dict] = []
+
+    def flag(what: str, ident: Any, frac: tuple, stored: tuple, label: Any = None) -> None:
+        if None in frac or None in stored:
+            return
+        sh = G.shift_of(new_t, frac, stored)
+        if sh.moved_m >= S1_FLAG_M:
+            flags.append({"what": what, "id": str(ident), "label": _short(label, 40), "stored_m": [round(v, 3) for v in sh.stored_m],
+                          "click_m": [round(v, 3) for v in sh.click_m], "moved_m": round(sh.moved_m, 2),
+                          "room_now": _room_at(snap, fid, *sh.stored_m), "room_click": _room_at(snap, fid, *sh.click_m)})
+
+    for p in snap["calibration"]:
+        if p["map_id"] == map_id:
+            flag("calibration", p["id"], (p.get("x_frac"), p.get("y_frac")), (p.get("x_m"), p.get("y_m")), p.get("room"))
+    on_plan = set()
+    for r in pl["receivers"]:
+        pos = snap["scanners"].get(r.get("source")) or {}
+        on_plan.add(str(r.get("source")))
+        flag("receiver", r.get("source"), (r.get("x"), r.get("y")), (pos.get("x_m"), pos.get("y_m")), r.get("label"))
+    for b in pl["beacons"]:
+        pos = snap["beacons"].get(b.get("key")) or {}
+        on_plan.add(str(b.get("key")))
+        flag("beacon", b.get("key"), (b.get("x"), b.get("y")), (pos.get("x_m"), pos.get("y_m")), b.get("label"))
+    for li in pl["lights"]:
+        pos = snap["lights"].get(li.get("entity_id")) or {}
+        on_plan.add(str(li.get("entity_id")))
+        flag("light", li.get("entity_id"), (li.get("x"), li.get("y")), (pos.get("x_m"), pos.get("y_m")), li.get("label"))
+    for name, fracs in pl["room_bounds"].items():
+        room = snap["rooms"].get(name)
+        good = [f for f in fracs if isinstance(f, (list, tuple)) and len(f) == 2]
+        if not room or room["floor_id"] != fid or not good or not room["points_m"]:
+            continue
+        trace = [placement_metres(new_t, float(f[0]), float(f[1])) for f in good]
+        far = max(min(math.dist(a, b) for b in room["points_m"]) for a in trace)
+        if far >= S1_FLAG_M:
+            flags.append({"what": "room_trace", "id": name, "label": _short(name), "moved_m": round(far, 2)})
+    corners = G.corners(new_t)
+    others = []
+    for table in (snap["scanners"], snap["beacons"], snap["lights"]):
+        for ident, pos in table.items():
+            if str(ident) in on_plan or not isinstance(pos, dict) or str(pos.get("floor_id") or "") != fid:
+                continue
+            x, y = S._num(pos.get("x_m")), S._num(pos.get("y_m"))  # noqa: SLF001
+            if x is not None and y is not None and _poly_in(x, y, corners):
+                others.append(_short(pos.get("label") or ident, 40))
+    return flags, {"n": len(others), "names": others[:20]}
+
+
+def _keep_point(snap: dict, map_id: str) -> tuple[float, float]:
+    """The middle of what is drawn on a plan, as a fraction of its picture
+    (its traced rooms and calibration points), else the picture's middle (design 3.4.9)."""
+    pl = snap["plans"][map_id]
+    pts = [(float(f[0]), float(f[1])) for fr in pl["room_bounds"].values() for f in fr if isinstance(f, (list, tuple)) and len(f) == 2]
+    pts += [(float(p["x_frac"]), float(p["y_frac"])) for p in snap["calibration"] if p["map_id"] == map_id and p.get("x_frac") is not None]
+    if not pts:
+        return 0.5, 0.5
+    return sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+
+
+class LocalSteps:
+    """The local steps of one floor's session, run in the executor on what was
+    read: no AI, no store. `grey(map_id)` opens a plan's picture as grey;
+    `bump(event)` counts; `cancel()` asks whether to stop. The stops it meets
+    are left in .stops for the event loop to note."""
+
+    def __init__(self, sess: dict, snap: dict, grey: Callable[[str], Any], bump: Callable[[str], None],
+                 cancel: Callable[[], bool] = lambda: False) -> None:
+        self.sess, self.snap, self.grey, self.bump, self.cancel = sess, snap, grey, bump, cancel
+        self.stops: list[tuple[str, str | None]] = []
+        self._pics: dict[str, Any] = {}
+
+    def pic(self, mid: str) -> Any:
+        if mid not in self._pics:
+            self._pics[mid] = self.grey(mid)
+        return self._pics[mid]
+
+    # -- the printed dimensions ----------------------------------------------
+    def measure(self, pl: dict) -> None:
+        """Each dimension read closely → its ticks and pixels per metre (its
+        text parsed here must agree with Claude's metres, or it is held); then
+        the plan's two axes."""
+        if pl.get("tilt_rad") is None:
+            try:
+                pl["tilt_rad"] = round(G.scan_tilt(self.pic(pl["map_id"])), 6)
+            except Exception:  # noqa: BLE001
+                pl["tilt_rad"] = 0.0
+        # PadSpan's own reading of what is printed must agree with Claude's metres:
+        # the text (a chain joined by +), else the chain's segments summed.
+        todo: list[tuple[dict, float, list[float]]] = []
+        for d in pl.get("dims") or []:
+            if d.get("done") or not d.get("box") or d.get("source") in ("skipped", "set_aside") or not d.get("metres"):
+                continue
+            d["done"] = True
+            segs: list[Any] = []
+            if d.get("source") == "person":
+                m = float(d["metres"])
+            else:
+                claude = float(d["metres"])
+                parsed, chain_sum = G.parse_length(d.get("text")), G.chain_length(d.get("chain"))
+                m = parsed if G.agrees(parsed, claude, S1_PARSE_AGREE) else chain_sum if G.agrees(chain_sum, claude, S1_PARSE_AGREE) else None
+                if m is None:
+                    d.update(ok=False, why="parse_mismatch", parse_m=parsed if parsed is not None else chain_sum)
+                    self.bump("plan_build_dims:parse_mismatch")
+                    continue
+                # The segments, for finding the inner ticks: only a chain that sums to the length.
+                if G.agrees(chain_sum, m, S1_PARSE_AGREE):
+                    segs = list(d.get("chain") or [])
+                elif "+" in str(d.get("text") or ""):
+                    segs = str(d["text"]).split("+")
+            d["parse_m"] = round(m, 5)
+            seg_m = [G.parse_length(c) for c in segs]
+            # A chain of three or more: two segments have one inner tick, matched by chance too easily (Garry's main floor, 2026-11-09).
+            todo.append((d, m, seg_m if len(seg_m) >= 3 and all(v is not None for v in seg_m) else []))
+        # Chains first: a chain's ticks are found by its own segments. A single
+        # line's ends sit among wall faces drawn double, so its ticks are picked
+        # to agree with the plan's chains (same axis, else the other: square
+        # pixels); with no chain to agree with, it stays a guess and isn't used.
+        for d, m, seg_m in sorted(todo, key=lambda t: 0 if t[2] else 1):
+            box = list(d["box"])
+            if d.get("ends_px"):                          # the line runs as far as the closer read saw it
+                k = 0 if d["axis"] == "x" else 1
+                e = sorted(float(p[k]) for p in d["ends_px"])
+                box[k], box[k + 2] = min(box[k], e[0]), max(box[k + 2], e[1])
+            chained = [o["ppm"] for o in pl.get("dims") or [] if o.get("ok") and o.get("chain_hits") and o is not d]
+            same = [o["ppm"] for o in pl.get("dims") or [] if o.get("ok") and o.get("chain_hits") and o.get("axis") == d["axis"] and o is not d]
+            ref = same or chained
+            expect = sorted(ref)[len(ref) // 2] * m if ref and not seg_m else None
+            try:
+                ticks = G.dimension_ticks(self.pic(pl["map_id"]), box, d["axis"], ends=d.get("ends_px"), tilt=float(pl.get("tilt_rad") or 0.0),
+                                          chain=seg_m or None, expect_span=expect)
+            except Exception:  # noqa: BLE001
+                ticks = None
+            if ticks is None:
+                d.update(ok=False, why="no_ticks")
+                continue
+            ppm = round(ticks.span / m, 4)
+            if not seg_m and expect is None and d.get("source") != "person":
+                d.update(ok=False, why="unconfirmed", ppm_guess=ppm, ticks_px=ticks.ends_px)
+                continue
+            d.update(ok=True, why=None, ticks_px=ticks.ends_px, span_px=ticks.span, ppm=ppm, chain_hits=ticks.matched)
+        ax, ay = _ppm_axis(pl.get("dims") or [], "x"), _ppm_axis(pl.get("dims") or [], "y")
+        pl["ppm"] = {"x": ax["ppm"], "y": ay["ppm"], "n_x": ax["n"], "n_y": ay["n"], "x_state": ax["state"], "y_state": ay["state"]}
+
+    # -- the session ---------------------------------------------------------
+    def run(self) -> None:
+        sess, snap = self.sess, self.snap
+        for pl in sess["plans"]:
+            if pl.get("read_a") is not None:
+                self.measure(pl)
+                for axis in ("x", "y"):
+                    self.bump(f"plan_build_dims:{pl['ppm'][axis + '_state']}")
+            else:
+                pl["ppm"] = {"x": None, "y": None, "n_x": 0, "n_y": 0, "x_state": "none", "y_state": "none"}
+            pl["health"] = plan_health(pl, snap["plans"].get(pl["map_id"], {}).get("t") or {})
+            se = pl["health"].get("shape_err")
+            if se is not None:
+                self.bump(f"plan_build_shape_err:{_scale_band(se * 100)}")
+        # A plan of another floor is not lined up here: it is offered a refile.
+        refiles = self.refiles()
+        by = {pl["map_id"]: pl for pl in sess["plans"]}
+        work = [pl for pl in sess["plans"] if pl["map_id"] not in refiles]
+        anchor = self.choose_anchor(work)
+        sess["anchor"] = anchor["map_id"] if anchor else None
+        items: dict[str, dict] = {}
+        for mid, ev in refiles.items():
+            by[mid]["role"] = "other_floor"
+            items[f"refile_{mid}"] = self.refile_item(by[mid], ev)
+        for pl in work:
+            pl["role"] = "gauge" if pl["map_id"] == snap["gauge_map"] else ("anchor" if pl is anchor else "plan")
+        if anchor is not None and anchor["role"] == "anchor":
+            it = self.anchor_item(anchor)
+            if it:
+                items[f"anchor_{anchor['map_id']}"] = it
+        if anchor is not None and anchor["role"] == "gauge":
+            # Said only on two readings agreeing: one reading against a measured plan is the reading's doubt, not the plan's.
+            h = anchor.get("health") or {}
+            errs = [abs(h[f"scale_err_{k}"]) for k in ("x", "y") if h.get(f"scale_err_{k}") is not None and anchor["ppm"].get(f"{k}_state") == "agree"]
+            if errs and max(errs) >= S1_ANCHOR_SMALL:
+                self.stops.append(("measured_plan_protected", anchor["map_id"]))
+        # No anchor: the plans are fitted to the one with the most drawn on it,
+        # which keeps where it is, and every item is held "look closely" (design 3.1.3).
+        ref = anchor
+        if anchor is None and len(work) > 1:
+            ref = max(work, key=lambda p: drawn_total(snap["plans"][p["map_id"]]["drawn"]))
+            ref["role"] = "reference"
+        for pl in work:
+            if pl is ref or pl["role"] == "gauge" or self.cancel():
+                continue
+            it = self.place_item(pl, ref, held=anchor is None)
+            if it:
+                items[f"place_{pl['map_id']}"] = it
+        if anchor is None and work:
+            self.stops.append(("no_anchor", None))
+        sess["cross_floor"] = self.cross_floor(anchor)
+        # A verdict already given stays with its item while the item is the same.
+        old = sess.get("items") or {}
+        for iid, it in items.items():
+            was = old.get(iid)
+            if isinstance(was, dict) and was.get("verdict") and was.get("proposal") == it.get("proposal"):
+                it["state"], it["verdict"] = was["state"], was["verdict"]
+        sess["items"] = items
+
+    def choose_anchor(self, work: list[dict]) -> dict | None:
+        """The gauge plan when it is on this floor; else the plan whose own
+        printed dimensions agree best with its placement (design 3.1)."""
+        g = next((pl for pl in work if pl["map_id"] == self.snap["gauge_map"]), None)
+        if g is not None:
+            self.bump("plan_build_anchor:gauge")
+            return g
+        ok = []
+        for pl in work:
+            h = pl.get("health") or {}
+            ex, ey, se = h.get("scale_err_x"), h.get("scale_err_y"), h.get("shape_err")
+            if se is None or se > S1_ANCHOR_SHAPE or abs(ex) > S1_ANCHOR_SCALE or abs(ey) > S1_ANCHOR_SCALE:
+                continue
+            ok.append(pl)
+        if not ok:
+            self.bump("plan_build_anchor:none")
+            return None
+        sp = self.snap["plans"]
+        ok.sort(key=lambda pl: (round(pl["health"]["shape_err"], 3), -int(sp[pl["map_id"]]["refs"]), -int(sp[pl["map_id"]]["drawn"]["calibration"])))
+        self.bump("plan_build_anchor:evidence")
+        return ok[0]
+
+    def _base_item(self, kind: str, pl: dict) -> dict[str, Any]:
+        sp = self.snap["plans"][pl["map_id"]]
+        return {"kind": kind, "map_id": pl["map_id"], "name": pl.get("name") or "", "image_sig": sp["image_sig"],
+                "target_place_sig": sp["place_sig"], "state": "open", "verdict": None, "held": None}
+
+    def _place_fields(self, it: dict, pl: dict, now_t: dict, new_t: dict) -> dict:
+        w, h = pl["size_px"]
+        it.update(proposal=new_t, now={k: now_t.get(k) for k in G.FIELDS if now_t.get(k) is not None},
+                  corners_now_m=G.corners(now_t), corners_new_m=G.corners(new_t), max_move_m=round(G.max_move(now_t, new_t), 3))
+        ch = [abs(float(new_t[k]) / float(now_t[k]) - 1) for k in ("scale_x_m", "scale_y_m") if now_t.get(k)]
+        it["scale_change"] = round(max(ch), 4) if ch else 0.0
+        it["flags"], it["others"] = effects(self.snap, pl["map_id"], new_t)
+        it["evidence"] = {**(it.get("evidence") or {}), "ppm_printed": [pl["ppm"].get("x"), pl["ppm"].get("y")],
+                          "ppm_now": pl["health"].get("ppm_now"),
+                          "ppm_new": [round(w / float(new_t["scale_x_m"]), 3), round(h / float(new_t["scale_y_m"]), 3)],
+                          "tilt_deg": round(math.degrees(float(pl.get("tilt_rad") or 0.0)), 2)}
+        if it["max_move_m"] < S1_SAME_M:
+            it["state"] = "same"
+        return it
+
+    def anchor_item(self, pl: dict) -> dict | None:
+        """The anchor's own printed-dimension error (form q7): under
+        S1_ANCHOR_SMALL information only; from it an item, Not now by default."""
+        h = pl.get("health") or {}
+        errs = [abs(v) for v in (h.get("scale_err_x"), h.get("scale_err_y")) if v is not None]
+        if not errs:
+            return None
+        sp = self.snap["plans"][pl["map_id"]]
+        new_t = G.scale_only(sp["t"], tuple(pl["size_px"]), (pl["ppm"].get("x"), pl["ppm"].get("y")), _keep_point(self.snap, pl["map_id"]))
+        if new_t is None:
+            return None
+        it = self._place_fields(self._base_item("anchor_scale", pl), pl, sp["t"], new_t)
+        it["evidence"]["seed"] = "dims"
+        it["evidence"]["scale_err"] = [h.get("scale_err_x"), h.get("scale_err_y")]
+        if max(errs) < S1_ANCHOR_SMALL:
+            it["state"] = "info"
+        else:
+            it["state"] = "not_now"
+            self.stops.append(("anchor_error", pl["map_id"]))
+        return it
+
+    def _questions(self) -> list[dict]:
+        return self.sess.setdefault("questions", [])
+
+    def _ask(self, kind: str, pl: dict, **extra: Any) -> dict | None:
+        """A question, unless one like it is there already, or the floor's
+        S1_HELP_MAX are used (then the plan is left out, and said)."""
+        qs = self._questions()
+        same = next((q for q in qs if q["kind"] == kind and q["map_id"] == pl["map_id"] and q.get("axis") == extra.get("axis")
+                     and q["state"] in ("open", "answered")), None)
+        if same is not None:
+            return same
+        if len(qs) >= S1_HELP_MAX:
+            self.bump("plan_build_help:gave_up")
+            self.bump("plan_build_stress:help_over")
+            self.stops.append(("help_limit", pl["map_id"]))
+            pl["left_out"] = True
+            return None
+        q = {"id": f"q{len(qs) + 1}", "kind": kind, "map_id": pl["map_id"], "name": pl.get("name") or "", "state": "open",
+             "answer": None, "asked_at": time.time(), **extra}
+        qs.append(q)
+        self.bump("plan_build_help:dimension_shown" if kind == "confirm_dimension" else "plan_build_help:taps_shown")
+        return q
+
+    def _confirm(self, pl: dict, axis: str) -> dict | None:
+        """The dimension to confirm on one axis: its longest reading."""
+        cand = [d for d in pl.get("dims") or [] if d.get("axis") == axis and d.get("box") and d.get("source") not in ("skipped", "set_aside")]
+        if not cand:
+            return None
+        d = max(cand, key=lambda d: (d["box"][2] - d["box"][0]) if axis == "x" else (d["box"][3] - d["box"][1]))
+        if d.get("confirmed"):
+            return None
+        return self._ask("confirm_dimension", pl, axis=axis, dim=pl["dims"].index(d), box=d.get("box"),
+                         ticks_px=d.get("ticks_px"), ai={"text": d.get("text"), "metres": d.get("metres")})
+
+    def _doubts(self, pl: dict, scale_change: float | None = None, fitted: bool = False) -> bool:
+        """The dimension doubts of design 3.5 on this plan; True when a
+        question about it is open. A reading PadSpan and Claude disagree on is
+        asked about only when its axis has no other reading to go on. One
+        reading that would change the scale by S1_SINGLE_CHANGE is asked about
+        only where it sets the proposal (a scale-only one): a fitted plan's
+        scale comes from the fit, which its readings only check."""
+        open_q = False
+        for axis in ("x", "y"):
+            st = pl["ppm"].get(axis + "_state")
+            mism = st == "none" and any(d.get("why") == "parse_mismatch" for d in pl.get("dims") or [] if d.get("axis") == axis)
+            err = (pl.get("health") or {}).get("scale_err_" + axis)
+            single_big = not fitted and st == "single" and err is not None and abs(err) > S1_SINGLE_CHANGE
+            if st == "disagree" or mism or single_big:
+                q = self._confirm(pl, axis)
+                open_q = open_q or bool(q and q["state"] == "open")
+        if scale_change is not None and scale_change > S1_BIG_CHANGE:
+            for axis in ("x", "y"):
+                if pl["ppm"].get(axis):
+                    q = self._confirm(pl, axis)
+                    open_q = open_q or bool(q and q["state"] == "open")
+        return open_q
+
+    def place_item(self, pl: dict, anchor: dict | None, held: bool = False) -> dict | None:
+        """One plan fitted onto the anchor (design 3.4.6-7), or, with nothing
+        to fit it to, set to its printed scale about the middle of what is
+        drawn on it (3.4.9). `held`: there is no anchor on this floor, so the
+        item says look closely. None while a question about it is open or it
+        is left out."""
+        snap = self.snap
+        now_t = snap["plans"][pl["map_id"]]["t"]
+        if pl.get("read_a") is None or pl.get("left_out"):
+            return None
+        it = self._base_item("place", pl)
+        it["held"] = "no_anchor" if held else None
+        if anchor is None:
+            if not (pl["ppm"].get("x") or pl["ppm"].get("y")) or self._doubts(pl):
+                return None
+            new_t = G.scale_only(now_t, tuple(pl["size_px"]), (pl["ppm"].get("x"), pl["ppm"].get("y")), _keep_point(snap, pl["map_id"]))
+            it["evidence"] = {"seed": "dims", "anchor": None}
+            return self._place_fields(it, pl, now_t, new_t) if new_t else None
+        if self._doubts(pl, fitted=True):
+            return None
+        fit = self.fit(pl, anchor)
+        if fit is None:
+            return None
+        new_t = G.compose(snap["plans"][anchor["map_id"]]["t"], tuple(anchor["size_px"]), tuple(pl["size_px"]), fit)
+        if new_t is None:
+            return None
+        it["evidence"] = {"anchor": anchor["map_id"], "anchor_name": anchor.get("name") or "", "corr": round(fit.corr, 3), "seed": fit.seed,
+                          "overlap": round(fit.overlap, 2), "fit_secs": fit.secs, "ratio_fit": [round(fit.sx, 4), round(fit.sy, 4)],
+                          "ratio_dims": pl.get("ratio_dims")}
+        self._place_fields(it, pl, now_t, new_t)
+        if self._doubts(pl, it["scale_change"], fitted=True):
+            return None
+        return it
+
+    def fit(self, pl: dict, anchor: dict) -> G.Fit | None:
+        """Seeds in the design's order: the person's taps when given, else the
+        stairs paired, else the coarse search; the first fit accepted wins. Not
+        accepted: the person is asked to tap the same corner on both."""
+        a, m = anchor, pl
+        sp = self.snap["plans"]
+        ratio = [a["ppm"].get(k) / m["ppm"].get(k) if a["ppm"].get(k) and m["ppm"].get(k) else None for k in ("x", "y")]
+        pl["ratio_dims"] = [None if r is None else round(r, 4) for r in ratio]
+        placed_m = (m["size_px"][0] / float(sp[m["map_id"]]["t"]["scale_x_m"]), m["size_px"][1] / float(sp[m["map_id"]]["t"]["scale_y_m"]))
+        placed_a = (a["size_px"][0] / float(sp[a["map_id"]]["t"]["scale_x_m"]), a["size_px"][1] / float(sp[a["map_id"]]["t"]["scale_y_m"]))
+        scale0 = tuple(ratio[i] or ratio[1 - i] or placed_a[i] / placed_m[i] for i in (0, 1))
+        checked = any(r is not None for r in ratio)
+        taps = next((q for q in self._questions() if q["kind"] == "tap_corners" and q["map_id"] == m["map_id"] and q["state"] == "answered"), None)
+        seeds: list[Callable[[], G.Fit | None]] = []
+        if taps:
+            seeds.append(lambda: G.taps_start((taps.get("answer") or {}).get("taps") or [], (tuple(m["size_px"]), tuple(a["size_px"]))))
+        else:
+            if not (m.get("read_a") or {}).get("suspect") and not (a.get("read_a") or {}).get("suspect"):
+                seeds.append(lambda: G.stairs_start((m.get("read_a") or {}).get("stairs") or [], (a.get("read_a") or {}).get("stairs") or [], scale0))
+            seeds.append(lambda: G.search_start(self.pic(m["map_id"]), self.pic(a["map_id"]), scale0, cancel=self.cancel))
+        best, why, t0 = None, "low_corr", time.monotonic()
+        for seed in seeds:
+            left = G.FIT_SECS - (time.monotonic() - t0)
+            if left <= 1 or self.cancel():
+                break
+            start = seed()
+            if start is None:
+                continue
+            f = G.register(self.pic(m["map_id"]), self.pic(a["map_id"]), start, scale0, cancel=self.cancel, secs=left)
+            f.overlap = G.overlap_share(f, tuple(m["size_px"]), tuple(a["size_px"]))
+            w = G.accepted(f, (ratio[0], ratio[1]), f.overlap)
+            if w is None and not checked and f.seed != "taps":
+                w = "ratio_disagree"                     # no printed dimension to check it by: only the person's taps stand in
+            self.bump(f"plan_build_fit:{'ge95' if f.corr >= 0.95 else '85_95' if f.corr >= 0.85 else '70_85' if f.corr >= 0.70 else 'lt70'}")
+            if w == "ratio_disagree":
+                self.bump("plan_build_fit:ratio_disagree")
+            self.bump(f"plan_build_fit_secs:{'capped' if f.stopped == 'capped' else 'lt5' if f.secs < 5 else '5_20' if f.secs < 20 else '20_60'}")
+            if w is None:
+                self.bump(f"plan_build_seed:{f.seed}")
+                pl.pop("fit_fail", None)
+                return f
+            if best is None or f.corr > best.corr:
+                best, why = f, w
+        pl["fit_fail"] = {"why": why, "corr": round(best.corr, 3) if best else None}
+        if taps:
+            taps["state"] = "failed"
+        self.stops.append(("fit_rejected", m["map_id"]))
+        self._ask("tap_corners", m, other_map_id=a["map_id"], other_name=a.get("name") or "")
+        return None
+
+    def refiles(self) -> dict[str, dict]:
+        return refile_candidates(self.sess, self.snap)
+
+    def refile_item(self, pl: dict, ev: dict) -> dict:
+        """A refile, for a plan with nothing drawn on it; one with things on it
+        is refused and says what (design 2, form q5)."""
+        it = self._base_item("refile", pl)
+        drawn = self.snap["plans"][pl["map_id"]]["drawn"]
+        it.update(proposal={"to_floor_id": ev["to_floor_id"], "why": {"title": ev.get("title"), "rooms": ev.get("rooms")}},
+                  to_name=ev.get("to_name"), drawn=drawn, flags=[], others={"n": 0, "names": []})
+        self.bump("plan_build_refile:suggested")
+        if drawn_total(drawn):
+            it["state"] = "refused"
+            self.bump("plan_build_refile:refused_drawn")
+            self.stops.append(("refile_refused", pl["map_id"]))
+        return it
+
+    def cross_floor(self, anchor: dict | None) -> dict | None:
+        """Information only (design 3.4.8): the anchor's stairs against the
+        stairs of a plan on the floor above or below that was read before (its
+        read A reused, no new read), through both placements."""
+        if anchor is None or not (anchor.get("read_a") or {}).get("stairs"):
+            return None
+        ids = [f["id"] for f in self.snap["floors"]]
+        fid = self.sess["floor_id"]
+        if fid not in ids:
+            return None
+        i = ids.index(fid)
+        ours = [self._stair_m(anchor["map_id"], b, anchor["size_px"]) for b in anchor["read_a"]["stairs"]]
+        for other in [ids[j] for j in (i + 1, i - 1) if 0 <= j < len(ids)]:
+            for ref in self.sess.get("references") or []:
+                if ref.get("floor_id") != other or not ref.get("stairs") or ref["map_id"] not in self.snap["plans"]:
+                    continue
+                theirs = [self._stair_m(ref["map_id"], b, ref["size_px"]) for b in ref["stairs"]]
+                d = min((math.dist(p, q) for p in ours for q in theirs), default=None)
+                if d is not None:
+                    return {"floor_id": other, "map_id": ref["map_id"], "stairs_m": round(d, 2)}
+        return None
+
+    def _stair_m(self, mid: str, box: list, size: list) -> tuple[float, float]:
+        return placement_metres(self.snap["plans"][mid]["t"], (box[0] + box[2]) / 2 / size[0], (box[1] + box[3]) / 2 / size[1])
+
+
+# ── The session and its job ──────────────────────────────────────────────────
+
+def floor_plans(snap: dict, floor_id: str) -> list[str]:
+    """The placed plans filed on a floor (never Outside), at most S1_PLANS_MAX."""
+    if str(floor_id).lower() in (OUTSIDE_FLOOR_ID, "outside"):
+        return []
+    return [mid for mid, p in snap["plans"].items() if p["floor_id"] == floor_id and p["size"][0] and p["size"][1]][:S1_PLANS_MAX]
+
+
+def earlier_reads(store: PlanAiStore) -> dict[str, dict]:
+    """Read A (and the closer reads) of every plan in kept line-ups, keyed by
+    map id and picture signature, newest kept: reused with no new read."""
+    out: dict[str, dict] = {}
+    for sess in sorted((s for s in (store.data.get("lineups") or {}).values() if isinstance(s, dict)), key=lambda s: float(s.get("started_at") or 0)):
+        for pl in sess.get("plans") or []:
+            if pl.get("read_a") is not None:
+                out[f"{pl['map_id']}|{pl['image_sig']}"] = {
+                    "map_id": pl["map_id"], "read_a": pl["read_a"], "floor_id": pl.get("floor_id"), "size_px": pl.get("size_px"),
+                    "dims": pl.get("dims") if pl.get("dims_read") else None, "dims_read": bool(pl.get("dims_read")), "tilt_rad": pl.get("tilt_rad")}
+    return out
+
+
+def _fresh_dims(dims: Any) -> list[dict]:
+    """A reused plan's close reads, without what the last session measured from them (measured again here)."""
+    keep = ("axis", "text", "box", "source", "read", "metres", "chain", "ends_px")
+    return [{k: d[k] for k in keep if k in d} for d in dims or [] if isinstance(d, dict) and d.get("source") in ("ai", None)]
+
+
+def new_lineup(u: dict, snap: dict, floor_id: str, map_ids: list[str], earlier: dict[str, dict]) -> dict[str, Any]:
+    """A line-up session about to run (design 4's shape, in this store's
+    "lineups"). `earlier`: earlier_reads, reused where the picture is the same."""
+    plans_ = []
+    for mid in map_ids:
+        p = snap["plans"][mid]
+        prior = earlier.get(f"{mid}|{p['image_sig']}")
+        plans_.append({"map_id": mid, "name": p["name"], "floor_id": p["floor_id"], "image_sig": p["image_sig"], "place_sig": p["place_sig"],
+                       "size_px": list(p["size"]), "role": "plan", "drawn": dict(p["drawn"]), "refs": p["refs"],
+                       "read_a": copy.deepcopy(prior["read_a"]) if prior else None, "reused": bool(prior),
+                       "dims": _fresh_dims(prior.get("dims")) if prior and prior.get("dims_read") else [],
+                       "dims_read": bool(prior and prior.get("dims_read")), "tilt_rad": prior.get("tilt_rad") if prior else None,
+                       "ppm": {}, "health": {}})
+        if prior and not prior.get("dims_read") and prior.get("read_a"):
+            plans_[-1]["dims"] = _dims_to_read(prior["read_a"])
+    return {"rev": 1, "stage": "s1", "floor_id": floor_id, "started_at": time.time(), "finished_at": None, "status": "running", "error": None,
+            "ai_task": u.get("ai_task"), "model": {"family": u.get("family"), "version": u.get("version"), "display": u.get("display")},
+            "frame": PIXEL_FRAME, "budget_s": S1_BUDGET_S, "spent_s": 0.0, "spent_before": 0.0, "reads": 0, "reused": 0, "timeouts": 0,
+            "errors": {}, "est_usd": 0.0, "resumes": 0, "plans": plans_, "questions": [], "items": {}, "stops": [], "references": [],
+            "progress": {"plan": 0, "of": len(plans_), "name": "", "step": "plan"}}
+
+
+def _dims_to_read(read_a: dict) -> list[dict]:
+    """The dimensions to read closely: the longest S1_DIMS_PER_AXIS on each
+    axis (design 3.3), by the line as traced in the picture (line_px; the
+    AI's boxes stop short), else by its box; a chain before a single line of
+    the same length."""
+    out = []
+    for axis in ("x", "y"):
+        mine = [d for d in read_a.get("dims") or [] if d["axis"] == axis]
+        mine.sort(key=lambda d: (-(d.get("line_px") or ((d["box"][2] - d["box"][0]) if axis == "x" else (d["box"][3] - d["box"][1]))),
+                                 "+" not in str(d.get("text") or "")))
+        picked: list[dict] = []
+        for d in mine:                                    # one reading a drawn line: boxes on the same line are one
+            k = 1 if axis == "x" else 0
+            mid = (d["box"][k] + d["box"][k + 2]) / 2
+            if all(abs(mid - (o["box"][k] + o["box"][k + 2]) / 2) > 8 for o in picked):
+                picked.append(d)
+        out += [{"axis": axis, "text": d.get("text"), "box": d["box"], "source": "ai"} for d in picked[:S1_DIMS_PER_AXIS]]
+    return out
+
+
+class LineupRunner(Runner):
+    """One floor's line-up: the reads (Runner.read and its one retry; asked of
+    the main AI Task only, through ws_house3d_photo.ask, never the backup:
+    design 8), then the local steps in the executor."""
+
+    def __init__(self, hass: HomeAssistant, store: PlanAiStore, job: Job, eid: str) -> None:
+        super().__init__(hass, store, job, {"ai_task": eid, "local": False})
+        self.eid = eid
+        self.halt: str | None = None        # no_credit, unreachable or no_media: no more reads this run
+        self.last_by = eid
+
+    @property
+    def sess(self) -> dict[str, Any]:
+        return self.store.lineup(self.job.sid) or {}
+
+    def left(self) -> float:
+        return S1_BUDGET_S - float(self.sess.get("spent_before") or 0.0) - (time.monotonic() - self.t0)
+
+    def _err(self, reason: str) -> None:
+        e = self.sess.setdefault("errors", {})
+        e[reason] = int(e.get(reason) or 0) + 1
+        _bump(self.hass, f"plan_build_read_fail:s1_{reason}")
+
+    async def _save(self) -> None:
+        sess = self.sess
+        sess["rev"] = int(sess.get("rev") or 0) + 1
+        sess["spent_s"] = round(float(sess.get("spent_before") or 0.0) + time.monotonic() - self.t0, 1)
+        await self.store.async_save()
+
+    def guard(self) -> str | None:
+        """At every read boundary: the switches, Claude unlocked, Live Aboard,
+        Pro, and every plan as it was (design 3.9)."""
+        from .house3d_store import enabled as house3d_on  # noqa: PLC0415
+        from .ws_common import _tier_at_least  # noqa: PLC0415
+        if self.job.cancel or self.store.lineup(self.job.sid) is None:
+            return "user"
+        if not enabled(self.hass) or not build_switch(self.hass):
+            return "switch_off"
+        if not unlock(self.hass).get("ok"):
+            return "locked"
+        if not house3d_on(self.hass):
+            return "house3d_off"
+        if not _tier_at_least(self.hass, "pro"):
+            return "licence"
+        for pl in self.sess.get("plans") or []:
+            now = plan_now(self.hass, pl["map_id"])
+            if now is None:
+                return "plan_gone"
+            if now["image_sig"] != pl["image_sig"] or now["place_sig"] != pl["place_sig"]:
+                return "plan_changed"
+        return None
+
+    def stop_here(self) -> bool:
+        if self.halt or self.guard() or self.consecutive_timeouts >= 2:
+            return True
+        if self.left() < 5:
+            self.cut_short = True
+            return True
+        return False
+
+    async def ask(self, prompt: str, raw: bytes) -> Any:
+        """One read of the main AI Task, inside the budget and S1_READ_S. A
+        credit, reach or media failure halts the reads: no fallback (design 8)."""
+        sess = self.sess
+        t0 = time.monotonic()
+        sess["reads"] = int(sess.get("reads") or 0) + 1
+        try:
+            usd = U.estimate_usd(U.price_of(U.model_of(self.hass, self.eid)), U.picture_size(raw), len(prompt))
+            sess["est_usd"] = round(float(sess.get("est_usd") or 0.0) + (usd or 0.0), 5)
+        except Exception:  # noqa: BLE001 — the estimate never stops a read
+            pass
+        try:
+            answer = await P.ask(self.hass, self.eid, prompt, None, raw, "image/jpeg", task_name=TASK_NAME,
+                                 timeout_s=max(1.0, min(S1_READ_S, self.left())))
+        except TimeoutError:
+            sess["timeouts"] = int(sess.get("timeouts") or 0) + 1
+            self.consecutive_timeouts += 1
+            self._err("timeout")
+            return None
+        except P._NoMedia:  # noqa: SLF001
+            self._err("no_media")
+            self.halt = "no_media"
+            return None
+        except Exception as err:  # noqa: BLE001
+            if U.CREDIT_WORDS.search(str(err)):
+                self._err("no_credit")
+                self.halt = "no_credit"
+            elif P.unreachable(err):
+                self._err("unreachable")
+                self.halt = "unreachable"
+            else:
+                self._err("refusal" if U.REFUSAL_WORDS.search(str(err)) else "bad_answer")
+            _LOGGER.warning("PadSpan plan line-up: the AI Task %s couldn't read a plan: %s", self.eid, P._why(err))  # noqa: SLF001
+            return None
+        finally:
+            _bump(self.hass, f"plan_build_read_secs:{P._secs_event(time.monotonic() - t0).partition(':')[2]}")  # noqa: SLF001
+        self.consecutive_timeouts = 0
+        return answer
+
+    async def read(self, prompt: str, raw: bytes, parse) -> Any:
+        """Runner.read's one retry on an answer that can't be used, counted as such."""
+        answer = await self.ask(prompt, raw)
+        if answer is None:
+            return None
+        got = parse(answer)
+        if got is None:
+            self._err("refusal" if U.unusable(self.hass, self.eid, answer) == "refusal" else "bad_answer")
+            if self.stop_here():
+                return None
+            _bump(self.hass, "plan_build_read:s1_retry")
+            answer = await self.ask(prompt, raw)
+            got = parse(answer) if answer is not None else None
+            if got is None and answer is not None:
+                self._err("refusal" if U.unusable(self.hass, self.eid, answer) == "refusal" else "bad_answer")
+        return got
+
+    async def read_whole(self, pl: dict, i: int, fp) -> None:
+        """Read A of one plan, and the outline-vs-ink check (design 3.2)."""
+        sess = self.sess
+        sess["progress"] = {"plan": i + 1, "of": len(sess.get("plans") or []), "name": pl.get("name") or "", "step": "plan"}
+        await self._save()
+        try:
+            raw, w, h, W, H = await self.hass.async_add_executor_job(picture, fp)
+        except Exception:  # noqa: BLE001 — a picture that won't open: the AI was never asked
+            self._err("no_media")
+            return
+        k = w / W if W else 1.0
+        pl["frame"] = [w, h]
+        _bump(self.hass, "plan_build_read:s1_plan")
+        got = await self.read(READ_A_PROMPT.format(w=w, h=h), raw, lambda a: parse_read_a(a, w, h, k))
+        if got is None:
+            return
+        try:
+            def check(outline=got["outline"]):
+                g = open_grey(fp)
+                tilt = G.scan_tilt(g)
+                for d in got["dims"]:                     # each line as long as it is drawn, for choosing which to read closely
+                    d["line_px"] = G.line_extent(g, d["box"], d["axis"], tilt)
+                pl["tilt_rad"] = round(tilt, 6)
+                return G.ink_bbox(g), G.outline_on_ink(g, outline)
+            ink = await self.hass.async_add_executor_job(check)
+            ink = ink if ink[0] else None
+        except Exception:  # noqa: BLE001
+            ink = None
+        if ink and len(got["outline"]) >= 3:
+            xs, ys = [p[0] for p in got["outline"]], [p[1] for p in got["outline"]]
+            got["outline_iou"] = round(G.iou([min(xs), min(ys), max(xs), max(ys)], list(ink[0])), 3)
+            got["outline_on_ink"] = round(ink[1], 3)
+            if got["outline_on_ink"] < S1_OUTLINE_ON_INK:
+                got["suspect"] = True
+                self._err("suspect_frame")
+        pl["read_a"] = got
+        pl["dims"] = [] if got["suspect"] else _dims_to_read(got)
+        await self._save()
+
+    async def read_dims(self, pl: dict, i: int, fp) -> None:
+        """Read B of each chosen dimension: its text, metres, chain and ends."""
+        sess = self.sess
+        for d in pl.get("dims") or []:
+            if d.get("read") or d.get("source") != "ai":
+                continue
+            if self.stop_here():
+                return
+            sess["progress"] = {"plan": i + 1, "of": len(sess.get("plans") or []), "name": pl.get("name") or "", "step": "dimension"}
+            try:
+                raw, w, h, (x0, y0, kx, ky) = await self.hass.async_add_executor_job(dim_crop, fp, d["box"], d["axis"])
+            except Exception:  # noqa: BLE001
+                d["read"] = True
+                continue
+            _bump(self.hass, "plan_build_read:s1_dimension")
+            got = await self.read(READ_B_PROMPT.format(w=w, h=h, way="across" if d["axis"] == "x" else "down"), raw, lambda a: parse_read_b(a, w, h))
+            if self.halt and got is None:
+                return                                   # read again on Resume
+            d["read"] = True
+            if got is not None:
+                d.update(text=got["text"] or d.get("text"), metres=got["metres"], chain=got["chain"],
+                         ends_px=[[round(x0 + p[0] / kx, 1), round(y0 + p[1] / ky, 1)] for p in got["ends"]] if got["ends"] else None)
+            await self._save()
+        pl["dims_read"] = all(d.get("read") or d.get("source") != "ai" for d in pl.get("dims") or [])
+
+    async def files_of(self) -> dict[str, Any]:
+        maps = self.hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+        out = {}
+        for pl in self.sess.get("plans") or []:
+            m = maps.get_map(pl["map_id"]) if maps is not None else None
+            out[pl["map_id"]] = await self.hass.async_add_executor_job(
+                lambda m=m: maps.image_file(str(((m or {}).get("image") or {}).get("filename") or ""), must_exist=True)) if m else None
+        return out
+
+    async def local(self, files: dict[str, Any] | None = None) -> list[tuple[str, str | None]]:
+        """The local steps in the executor, on a snapshot of the house; the stops they met."""
+        files = files if files is not None else await self.files_of()
+        snap = house_snapshot(self.hass)
+        steps = LocalSteps(self.sess, snap, lambda mid: open_grey(files[mid]), lambda e: _bump(self.hass, e), lambda: bool(self.job.cancel))
+        await self.hass.async_add_executor_job(steps.run)
+        return steps.stops
+
+    async def run(self) -> None:  # noqa: C901 — one session's order, as the design lists it
+        sess = self.sess
+        resumed = int(sess.get("resumes") or 0) > 0
+        _bump(self.hass, f"plan_build_run:s1_{'resumed' if resumed else 'started'}")
+        n = len(sess.get("plans") or [])
+        if not resumed:
+            _bump(self.hass, f"plan_build_plans:{_band(n, ((1, '1'), (3, '2_3'), (6, '4_6')), 'gt6')}")
+        reads0, usd0 = int(sess.get("reads") or 0), float(sess.get("est_usd") or 0.0)
+        status, why = "done", None
+        try:
+            await self._save()
+            files = await self.files_of()
+            for i, pl in enumerate(sess.get("plans") or []):
+                if pl.get("read_a") is not None:
+                    if pl.pop("reused", False):
+                        sess["reused"] = int(sess.get("reused") or 0) + 1
+                        _bump(self.hass, "plan_build_read:s1_reused")
+                    continue
+                if self.stop_here():
+                    break
+                if files.get(pl["map_id"]) is None:
+                    self._err("no_media")
+                    continue
+                await self.read_whole(pl, i, files[pl["map_id"]])
+            # A plan that shows another floor is offered a refile, not measured: no closer reads.
+            other = refile_candidates(sess, house_snapshot(self.hass))
+            for i, pl in enumerate(sess.get("plans") or []):
+                if pl["map_id"] in other:
+                    continue
+                if pl.get("read_a") is not None and not pl.get("dims_read") and files.get(pl["map_id"]) is not None and not self.stop_here():
+                    await self.read_dims(pl, i, files[pl["map_id"]])
+            why = self.guard()
+            if why:
+                status = "cancelled"
+            elif self.halt == "no_credit":
+                status = "no_credit"
+            elif self.halt in ("unreachable", "no_media"):
+                status, why = "failed", self.halt
+            elif self.consecutive_timeouts >= 2 or self.cut_short:
+                status = "out_of_time"
+            # Other floors' plans read before: their stairs, for the cross-floor look (no new read).
+            sess["references"] = [{"map_id": r["map_id"], "floor_id": r["floor_id"], "stairs": r["read_a"].get("stairs"), "size_px": r["size_px"]}
+                                  for r in earlier_reads(self.store).values() if r.get("floor_id") != sess.get("floor_id")]
+            if status != "cancelled":
+                sess["progress"] = {"plan": n, "of": n, "name": "", "step": "measure"}
+                await self._save()
+                for reason, mid in await self.local(files):
+                    note_stop(self.hass, self.store.data, self.sess, reason, mid)
+        except Exception as err:  # noqa: BLE001 — the session fails; nothing else is touched
+            _LOGGER.warning("PadSpan plan line-up: the session stopped: %s", P._why(err))  # noqa: SLF001
+            status, why = "failed", "error"
+        sess = self.sess
+        if status == "done" and any(q.get("state") == "open" for q in sess.get("questions") or []):
+            status = "needs_help"
+        if status == "done" and not any(pl.get("read_a") for pl in sess.get("plans") or []):
+            errs = sess.get("errors") or {}
+            status, why = "failed", max(errs, key=lambda k: errs[k]) if errs else "bad_answer"
+        sess.update(status=status, error=why, finished_at=time.time())
+        stop = {"cancelled": "cancelled", "no_credit": "no_credit", "out_of_time": "out_of_time", "needs_help": "help_unanswered"}.get(status)
+        if status == "failed" and why in ("unreachable", "no_media"):
+            stop = why
+        if status == "cancelled" and why in ("locked",):
+            stop = "locked"
+        if stop:
+            note_stop(self.hass, self.store.data, sess, stop)
+        sess["progress"] = {"plan": n, "of": n, "name": "", "step": "done"}
+        _bump(self.hass, f"plan_build_run:s1_{'finished' if status == 'done' else status}")
+        secs = float(sess.get("spent_s") or 0.0)
+        _bump(self.hass, f"plan_build_run_secs:s1_{'lt1m' if secs < 60 else '1_3m' if secs < 180 else '3_10m' if secs < 600 else 'gt10m'}")
+        usd = float(sess.get("est_usd") or 0.0) - usd0
+        if int(sess.get("reads") or 0) > reads0:
+            _bump(self.hass, f"plan_build_credit_run:s1_{'lt0_10' if usd < 0.10 else '0_10_0_50' if usd < 0.5 else '0_50_2' if usd < 2 else 'gt2'}")
+        count_items(self.hass, sess)
+        await self._save()
+
+
+def count_items(hass: HomeAssistant, sess: dict[str, Any]) -> None:
+    """The proposals shown, by kind, how far they move and what they would shift (design 10)."""
+    for it in (sess.get("items") or {}).values():
+        _bump(hass, f"plan_build_item:{it['kind']}_shown")
+        if it.get("max_move_m") is not None:
+            _bump(hass, f"plan_build_move:shown_{_band_m(float(it['max_move_m']))}")
+            _bump(hass, f"plan_build_scale_change:shown_{_scale_band(float(it.get('scale_change') or 0) * 100)}")
+        kinds = {f["what"] for f in it.get("flags") or []}
+        for k in ("calibration", "room_trace"):
+            if k in kinds:
+                _bump(hass, f"plan_build_flags:{k}")
+        if kinds & {"receiver", "beacon", "light"}:
+            _bump(hass, "plan_build_flags:device")
+        for f in it.get("flags") or []:
+            if f["what"] == "calibration":
+                _bump(hass, f"plan_build_flag_move:{_band_m(float(f['moved_m']))}")
+
+
+def start_lineup(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any], sid: str | None = None) -> str:
+    """Keep a line-up session and start its job, in the plan AI's one job slot
+    (one AI job per house). Nothing here waits."""
+    sid = sid or "pb_" + secrets.token_hex(4)
+    dom = hass.data.setdefault(DOMAIN, {})
+    now = time.monotonic()
+    dom[_DATA_STARTS] = [t for t in dom.get(_DATA_STARTS, []) if now - t < 86400] + [now]
+    store.data.setdefault("lineups", {})[sid] = sess
+    store.trim()
+    job = Job(sid)
+    dom[_DATA_JOB] = job
+    job.task = hass.async_create_background_task(LineupRunner(hass, store, job, str(sess.get("ai_task") or "")).run(), "padspan_ha plan_build")
+    return sid
+
+
+def resume_lineup(hass: HomeAssistant, store: PlanAiStore, sid: str) -> str:
+    """Resume a session that stopped short (out of time, credit, reach, a
+    restart): what was read stays; the rest is read; the local steps run again."""
+    sess = store.lineup(sid) or {}
+    sess["resumes"] = int(sess.get("resumes") or 0) + 1
+    if sess["resumes"] > S1_RESUMES_STRESS:
+        _bump(hass, "plan_build_stress:resumes")
+    stop_resolved(hass, sess, ("out_of_time", "no_credit", "unreachable", "no_media", "cancelled"))
+    # A resume gets a whole budget of its own; the time spent before is kept apart.
+    sess["spent_earlier"] = round(float(sess.get("spent_earlier") or 0.0) + float(sess.get("spent_s") or 0.0), 1)
+    sess.update(status="running", error=None, finished_at=None, spent_s=0.0, spent_before=0.0, budget_s=S1_BUDGET_S)
+    return start_lineup(hass, store, sess, sid)
+
+
+async def answer_locally(hass: HomeAssistant, store: PlanAiStore, sid: str) -> None:
+    """An answer reruns the local steps only, no new read (design 3.5)."""
+    sess = store.lineup(sid) or {}
+    runner = LineupRunner(hass, store, Job(sid), str(sess.get("ai_task") or ""))
+    for reason, mid in await runner.local():
+        note_stop(hass, store.data, store.lineup(sid), reason, mid)
+    sess = store.lineup(sid) or {}
+    open_q = any(q.get("state") == "open" for q in sess.get("questions") or [])
+    sess["status"] = "needs_help" if open_q else "done"
+    sess["rev"] = int(sess.get("rev") or 0) + 1
+
+
+def apply_answer(sess: dict[str, Any], qid: str, answer: Any) -> str:
+    """A person's answer on its question: yes, {metres}, {taps} or skip. The
+    help counter's word (dimension_yes, dimension_typed, …), else a refusal
+    word (not_open, bad_answer)."""
+    q = next((q for q in sess.get("questions") or [] if q.get("id") == qid), None)
+    if q is None or q.get("state") != "open":
+        return "not_open"
+    pl = next((p for p in sess.get("plans") or [] if p["map_id"] == q["map_id"]), None)
+    if pl is None:
+        return "not_open"
+    if q["kind"] == "confirm_dimension":
+        dims = pl.get("dims") or []
+        d = dims[int(q.get("dim") or 0)] if int(q.get("dim") or 0) < len(dims) else None
+        if answer == "skip":
+            q.update(state="skipped", answer="skip")
+            if d is not None:
+                d.update(source="skipped", ok=False, done=True, why="skipped")
+            return "dimension_skipped"
+        if d is None:
+            return "not_open"
+        for o in dims:                                # the person's word on this axis: the other readings of it are set aside
+            if o is not d and o.get("axis") == d.get("axis") and o.get("source") == "ai":
+                o.update(source="set_aside", ok=False, done=True, why="set_aside")
+        if answer == "yes":
+            q.update(state="answered", answer="yes")
+            d.update(confirmed=True, done=False)
+            if d.get("why") == "parse_mismatch":
+                d.update(source="person")             # Claude's metres, as the person confirmed them
+            return "dimension_yes"
+        metres = S._num((answer or {}).get("metres")) if isinstance(answer, dict) else None  # noqa: SLF001
+        if metres is None or not 0.1 <= metres <= 200:
+            return "bad_answer"
+        q.update(state="answered", answer={"metres": round(metres, 4)})
+        d.update(source="person", metres=round(metres, 4), chain=[], confirmed=True, done=False, text=f"{round(metres, 3)} m")
+        return "dimension_typed"
+    if q["kind"] == "tap_corners":
+        if answer == "skip":
+            q.update(state="skipped", answer="skip")
+            pl["left_out"] = True
+            return "taps_skipped"
+        taps = (answer or {}).get("taps") if isinstance(answer, dict) else None
+        try:
+            ok = isinstance(taps, list) and len(taps) == 4 and all(0 <= float(t[0]) <= 1 and 0 <= float(t[1]) <= 1 for t in taps)
+        except (TypeError, ValueError, IndexError):
+            ok = False
+        if not ok:
+            return "bad_answer"
+        q.update(state="answered", answer={"taps": [[round(float(t[0]), 4), round(float(t[1]), 4)] for t in taps]})
+        return "taps_done"
+    return "not_open"
+
+
+def sweep_abandoned(hass: HomeAssistant, store: PlanAiStore, now: float | None = None) -> int:
+    """Line-ups that ended with proposals and no verdict for S1_ABANDON_DAYS,
+    or that a newer one on the same floor replaced: abandoned, counted once
+    with the last stop's reason kept (design 10, 14)."""
+    now = time.time() if now is None else now
+    lineups = store.data.get("lineups") or {}
+    latest: dict[Any, float] = {}
+    for s in lineups.values():
+        if isinstance(s, dict):
+            latest[s.get("floor_id")] = max(latest.get(s.get("floor_id"), 0.0), float(s.get("started_at") or 0))
+    n = 0
+    for s in lineups.values():
+        if not isinstance(s, dict) or s.get("abandoned") or s.get("status") not in ("done", "needs_help"):
+            continue
+        items = [i for i in (s.get("items") or {}).values() if isinstance(i, dict) and i.get("state") == "open"]
+        if not items or any(i.get("verdict") for i in (s.get("items") or {}).values() if isinstance(i, dict)):
+            continue
+        replaced = float(s.get("started_at") or 0) < latest.get(s.get("floor_id"), 0.0)
+        if replaced or now - float(s.get("finished_at") or now) > S1_ABANDON_DAYS * 86400:
+            last = (s.get("stops") or [{}])[-1]
+            s["abandoned"] = {"at": now, "last_stop": last.get("reason")}
+            _bump(hass, "plan_build_run:s1_abandoned")
+            if replaced and last.get("at") and now - float(last["at"]) < S1_QUICK_ABANDON_S:
+                _bump(hass, "plan_build_stress:quick_abandon")
+            note_stop(hass, store.data, s, "abandoned")
+            n += 1
+    return n
+
+
+def lineup_public(sess: dict[str, Any] | None, sid: str | None) -> dict[str, Any] | None:
+    """A line-up as the screen sees it, every stop in words."""
+    if not sess:
+        return None
+    return {"id": sid, **{k: v for k, v in sess.items() if k not in ("references", "spent_before")},
+            "stops": [stop_words(r) for r in sess.get("stops") or []]}
+
+
+def stall_summary(store: PlanAiStore) -> dict[str, Any]:
+    """This house's stops, this month and over the months kept (design 14:
+    shown to Garry in the house, not only in the report)."""
+    stall = store.data.get("stall") or {}
+    month = stall.get(_month()) or {}
+    total: dict[str, int] = {}
+    for m in stall.values():
+        for k, v in (m or {}).items():
+            total[k] = total.get(k, 0) + int(v or 0)
+    return {"month": dict(month), "all": total, "words": {k: STOPS[k][0] for k in set(month) | set(total) if k in STOPS}}

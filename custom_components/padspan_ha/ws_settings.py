@@ -576,6 +576,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("ai_credit_warn_pct"): vol.Any(int, float, str, None),
         vol.Optional("ai_stairs_enabled"): bool,
         vol.Optional("ai_plans_enabled"): bool,
+        vol.Optional("ai_plan_build_enabled"): bool,
         vol.Optional("atlas_3d_library"): bool,
         vol.Optional("atlas_3d_weather"): bool,
         vol.Optional("atlas_3d_showcase"): bool,
@@ -774,7 +775,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 await async_runs_opted_out(hass)
         if ("atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg or "ai_photos_enabled" in msg
                 or "ai_stairs_enabled" in msg or "ai_plans_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg
-                or "ai_credit_month_usd" in msg or "ai_credit_warn_pct" in msg):
+                or "ai_credit_month_usd" in msg or "ai_credit_warn_pct" in msg or "ai_plan_build_enabled" in msg):
             # Live Aboard's shared library and a cloud AI Task reading photos
             # both let data leave the house: an administrator's call, like the
             # usage report above.
@@ -976,6 +977,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "ai_credit_month_usd" in msg:
             from .ai_usage import CREDIT_MAX_USD  # noqa: PLC0415
             payload["ai_credit_month_usd"] = _clamped(msg["ai_credit_month_usd"], 0.01, CREDIT_MAX_USD, 0, zero_ok=True)
+        if "ai_plan_build_enabled" in msg and bool(msg["ai_plan_build_enabled"]) != (((st.data if st is not None else {}) or {}).get("ai_plan_build_enabled") is True):
+            # Build from plans (experimental): the switch changed (design 10).
+            from .telemetry import bump as _t_bump  # noqa: PLC0415
+            _t_bump(hass, f"plan_build_setting:{'on' if msg['ai_plan_build_enabled'] else 'off'}")
         if "ai_credit_warn_pct" in msg:
             from .ai_usage import WARN_PCTS  # noqa: PLC0415
             _pct = int(_clamped(msg["ai_credit_warn_pct"], 0, 100, 0))
@@ -1277,7 +1282,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
                     "atlas_weather_enabled", "atlas_alert_pulse", "atlas_heatmap_enabled",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
-                    "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled",
+                    "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled", "ai_plan_build_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
                     "tags_phone_autolink_enabled", "quiet_mode", "light_theme", "day_theme", "theme_follow_sun", "wall_pixel_shift", "wall_fully",
                     "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",

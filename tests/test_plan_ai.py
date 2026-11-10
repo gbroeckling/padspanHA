@@ -206,8 +206,8 @@ def test_every_command_refuses_while_the_switch_live_aboard_or_pro_is_off(monkey
 
 def test_every_command_is_an_administrators_registered_and_a_read_in_sample_mode():
     src = (_ROOT / "ws_plan_ai.py").read_text(encoding="utf-8")
-    names = re.findall(r"async def (ws_plan_ai_[a-z_]+)\(", src)
-    assert len(names) == 10 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}
+    names = re.findall(r"async def (ws_plan_(?:ai|build)_[a-z_]+)\(", src)
+    assert len(names) == 18 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}       # 10 plan AI, 8 line-up (Build from plans)
     for name in names:
         head = src.split(f"async def {name}(", 1)[0].rsplit("@websocket_api.websocket_command", 1)[1]
         assert "@websocket_api.require_admin" in head, name
@@ -216,6 +216,7 @@ def test_every_command_is_an_administrators_registered_and_a_read_in_sample_mode
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     reads = panel[panel.index("const READS = new Set("):panel.index('.split(" ").map(t => "padspan_ha/" + t));')]
     assert "plan_ai_plans plan_ai_status plan_ai_sessions_get" in reads and not {"plan_ai_start", "plan_ai_verdict", "plan_ai_commit", "plan_ai_undo"} & set(reads.split())
+    assert "plan_build_info plan_build_status" in reads and not {"plan_build_start", "plan_build_answer", "plan_build_verdict", "plan_build_commit"} & set(reads.split())
 
 
 def test_the_stair_finders_loop_stops_on_the_master_code_and_its_menu_item_follows_the_switch():
