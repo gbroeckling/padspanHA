@@ -2293,11 +2293,13 @@ class LocalSteps:
     """The local steps of one floor's session, run in the executor on what was
     read: no AI, no store. `grey(map_id)` opens a plan's picture as grey;
     `bump(event)` counts; `cancel()` asks whether to stop. The stops it meets
-    are left in .stops for the event loop to note."""
+    are left in .stops for the event loop to note. `only`: the plans an
+    answer is about; the other plans keep their items, unfitted again, while
+    the anchor stays the one they were fitted to (design 3.5)."""
 
     def __init__(self, sess: dict, snap: dict, grey: Callable[[str], Any], bump: Callable[[str], None],
-                 cancel: Callable[[], bool] = lambda: False) -> None:
-        self.sess, self.snap, self.grey, self.bump, self.cancel = sess, snap, grey, bump, cancel
+                 cancel: Callable[[], bool] = lambda: False, only: set[str] | None = None) -> None:
+        self.sess, self.snap, self.grey, self.bump, self.cancel, self.only = sess, snap, grey, bump, cancel, only
         self.stops: list[tuple[str, str | None]] = []
         self._pics: dict[str, Any] = {}
 
@@ -2417,8 +2419,15 @@ class LocalSteps:
         if anchor is None and len(work) > 1:
             ref = max(work, key=lambda p: drawn_total(snap["plans"][p["map_id"]]["drawn"]))
             ref["role"] = "reference"
+        # An answer about one plan refits that plan only, while what the others were fitted to is unchanged.
+        keep = self.only is not None and ref is not None and ref["map_id"] == self.sess.get("ref_map_id") and ref["map_id"] not in self.only
+        self.sess["ref_map_id"] = ref["map_id"] if ref is not None else None
         for pl in work:
             if pl is ref or pl["role"] == "gauge" or self.cancel():
+                continue
+            if keep and pl["map_id"] not in self.only:
+                if isinstance((sess.get("items") or {}).get(f"place_{pl['map_id']}"), dict):
+                    items[f"place_{pl['map_id']}"] = sess["items"][f"place_{pl['map_id']}"]
                 continue
             it = self.place_item(pl, ref, held=anchor is None)
             if it:
@@ -2603,13 +2612,14 @@ class LocalSteps:
         checked = any(r is not None for r in ratio)
         taps = next((q for q in self._questions() if q["kind"] == "tap_corners" and q["map_id"] == m["map_id"] and q["state"] == "answered"), None)
         seeds: list[Callable[[], G.Fit | None]] = []
+        t0 = time.monotonic()                            # the pair's G.FIT_SECS, the coarse search inside it
         if taps:
             seeds.append(lambda: G.taps_start((taps.get("answer") or {}).get("taps") or [], (tuple(m["size_px"]), tuple(a["size_px"]))))
         else:
             if not (m.get("read_a") or {}).get("suspect") and not (a.get("read_a") or {}).get("suspect"):
                 seeds.append(lambda: G.stairs_start((m.get("read_a") or {}).get("stairs") or [], (a.get("read_a") or {}).get("stairs") or [], scale0))
-            seeds.append(lambda: G.search_start(self.pic(m["map_id"]), self.pic(a["map_id"]), scale0, cancel=self.cancel))
-        best, why, t0 = None, "low_corr", time.monotonic()
+            seeds.append(lambda: G.search_start(self.pic(m["map_id"]), self.pic(a["map_id"]), scale0, deadline=t0 + G.FIT_SECS, cancel=self.cancel))
+        best, why = None, "low_corr"
         for seed in seeds:
             left = G.FIT_SECS - (time.monotonic() - t0)
             if left <= 1 or self.cancel():
@@ -2944,12 +2954,20 @@ class LineupRunner(Runner):
                 lambda m=m: maps.image_file(str(((m or {}).get("image") or {}).get("filename") or ""), must_exist=True)) if m else None
         return out
 
-    async def local(self, files: dict[str, Any] | None = None) -> list[tuple[str, str | None]]:
-        """The local steps in the executor, on a snapshot of the house; the stops they met."""
+    async def local(self, files: dict[str, Any] | None = None, only: set[str] | None = None) -> list[tuple[str, str | None]]:
+        """The local steps in the executor, on a snapshot of the house and a
+        copy of the session (a save on the event loop never meets it half
+        changed); what they made is put on the session after, unless Stop
+        cut them short (what was there stays). The stops they met."""
         files = files if files is not None else await self.files_of()
         snap = house_snapshot(self.hass)
-        steps = LocalSteps(self.sess, snap, lambda mid: open_grey(files[mid]), lambda e: _bump(self.hass, e), lambda: bool(self.job.cancel))
+        work = copy.deepcopy(self.sess)
+        steps = LocalSteps(work, snap, lambda mid: open_grey(files[mid]), lambda e: _bump(self.hass, e), lambda: bool(self.job.cancel), only)
         await self.hass.async_add_executor_job(steps.run)
+        sess = self.store.lineup(self.job.sid)
+        if sess is not None and not self.job.cancel:
+            for k in ("plans", "items", "questions", "anchor", "ref_map_id", "cross_floor"):
+                sess[k] = work.get(k)
         return steps.stops
 
     async def run(self) -> None:  # noqa: C901 — one session's order, as the design lists it
@@ -3000,6 +3018,8 @@ class LineupRunner(Runner):
                 await self._save()
                 for reason, mid in await self.local(files):
                     note_stop(self.hass, self.store.data, self.sess, reason, mid)
+                if self.job.cancel:                      # Stop while measuring: what was there stays
+                    status, why = "cancelled", "user"
         except Exception as err:  # noqa: BLE001 — the session fails; nothing else is touched
             _LOGGER.warning("PadSpan plan line-up: the session stopped: %s", P._why(err))  # noqa: SLF001
             status, why = "failed", "error"
@@ -3103,16 +3123,46 @@ def resume_lineup(hass: HomeAssistant, store: PlanAiStore, sid: str) -> str:
     return start_lineup(hass, store, sess, sid)
 
 
-async def answer_locally(hass: HomeAssistant, store: PlanAiStore, sid: str) -> None:
-    """An answer reruns the local steps only, no new read (design 3.5)."""
-    sess = store.lineup(sid) or {}
-    runner = LineupRunner(hass, store, Job(sid), str(sess.get("ai_task") or ""))
-    for reason, mid in await runner.local():
-        note_stop(hass, store.data, store.lineup(sid), reason, mid)
-    sess = store.lineup(sid) or {}
-    open_q = any(q.get("state") == "open" for q in sess.get("questions") or [])
-    sess["status"] = "needs_help" if open_q else "done"
+def start_answer(hass: HomeAssistant, store: PlanAiStore, sid: str, only: set[str]) -> None:
+    """An answer's rerun of the local steps (no new read, design 3.5) as the
+    house's one job: Stop reaches it, the other commands wait for it, and it
+    runs outside the plan store's lock (Add data via plans shares that lock).
+    The caller has marked the session running."""
+    dom = hass.data.setdefault(DOMAIN, {})
+    job = Job(sid)
+    dom[_DATA_JOB] = job
+    job.task = hass.async_create_background_task(answer_locally(hass, store, job, only), "padspan_ha plan_build answer")
+
+
+async def answer_locally(hass: HomeAssistant, store: PlanAiStore, job: Job, only: set[str] | None = None) -> None:
+    """The rerun: the plans the answer was about fitted again (`only`; the
+    others keep their items), each fit within G.FIT_SECS; then needs_help or
+    done, or cancelled by Stop, or failed, each with its stop."""
+    sid = job.sid
+    sess = store.lineup(sid)
+    if sess is None:
+        return
+    status, why, stops = None, None, []
+    try:
+        stops = await LineupRunner(hass, store, job, str(sess.get("ai_task") or "")).local(only=only)
+        if job.cancel:
+            status, why = "cancelled", "user"
+    except Exception as err:  # noqa: BLE001 — the rerun fails; nothing else is touched
+        _LOGGER.warning("PadSpan plan line-up: re-measuring after an answer stopped: %s", P._why(err))  # noqa: SLF001
+        status, why = "failed", "error"
+    sess = store.lineup(sid)
+    if sess is None:
+        return
+    for reason, mid in stops:
+        note_stop(hass, store.data, sess, reason, mid)
+    if status is None:
+        status = "needs_help" if any(q.get("state") == "open" for q in sess.get("questions") or []) else "done"
+    sess.update(status=status, error=why, finished_at=time.time())
+    if ending_stop(status, why) and status != "needs_help":
+        note_stop(hass, store.data, sess, ending_stop(status, why))
+    sess["progress"] = {"plan": len(sess.get("plans") or []), "of": len(sess.get("plans") or []), "name": "", "step": "done"}
     sess["rev"] = int(sess.get("rev") or 0) + 1
+    await store.async_save()
 
 
 def apply_answer(sess: dict[str, Any], qid: str, answer: Any) -> str:

@@ -641,6 +641,60 @@ def test_a_refile_of_a_plan_with_things_on_it_is_refused_and_says_what(monkeypat
     assert _counters(h)["plan_build_refile:refused_drawn"] == 1
 
 
+def _answer(h, conn, store, *, stop=False, **kw):
+    """An answer sent; the re-measuring job it starts run to its end (as the
+    background task would), after Stop when `stop`. (reply, session after)."""
+    captured, task = [], SimpleNamespace(done=lambda: not captured)
+    h.async_create_background_task = lambda coro, name: (captured.append(coro), task)[1]
+    out = _call(W.ws_plan_build_answer, h, conn, session="pb_t", **kw)
+    if stop:
+        out["cancel"] = _call(W.ws_plan_build_cancel, h, conn, session="pb_t")
+    if captured:
+        assert not store.lock.locked()                                                  # the rerun holds no lock Add data via plans waits on
+        _run(captured[0])
+        captured.clear()
+    return out, store.lineup("pb_t")
+
+
+_SCAN2 = {"id": "m2", "name": "Scan copy", "floor_id": "basement", "image": {"filename": "moving.png", "width": 900, "height": 750, "sha256": "m2"},
+          "updated": "2026-11-09", "room_bounds": {}, "receivers": [], "beacons": [], "lights": [], "_t": dict(_T_MOVING)}
+
+
+def test_an_answer_refits_only_its_plan_within_the_pair_limit_and_stop_reaches_it(monkeypatch, tmp_path, disk):
+    """Review S3: a question about Scan reruns Scan's fit only (Scan copy
+    keeps its item), out of the store's lock, each coarse search inside
+    G.FIT_SECS, and Stop reaches the rerun."""
+    h, conn, ai = _house(monkeypatch, tmp_path, extra_maps=[_SCAN2])
+    h.data[DOMAIN][DATA_MODEL].map_transform("m1")["scale_y_m"] = 6.8                 # Scan asks; Scan copy is fitted at once
+    store, sess = _session(h)
+    assert "place_m2" in sess["items"] and "place_m1" not in sess["items"] and {q["map_id"] for q in sess["questions"]} == {"m1"}
+    m2_item = sess["items"]["place_m2"]
+    fitted, deadlines, real_fit, real_search = [], [], A.LocalSteps.fit, G.search_start
+
+    def fit(self, pl, anchor):
+        fitted.append(pl["map_id"])
+        return real_fit(self, pl, anchor)
+
+    def search(*a, deadline=None, **k):
+        deadlines.append(deadline - __import__("time").monotonic() if deadline else None)
+        return real_search(*a, deadline=deadline, **k)
+    monkeypatch.setattr(A.LocalSteps, "fit", fit)
+    monkeypatch.setattr(G, "search_start", search)
+    monkeypatch.setattr(G, "stairs_start", lambda *a, **k: None)                       # so the coarse search is the seed
+    out, s = _answer(h, conn, store, question_id="q1", answer="yes")
+    out, s = _answer(h, conn, store, question_id="q2", answer={"metres": 6.0})
+    assert s["status"] == "done" and "place_m1" in s["items"] and set(fitted) == {"m1"}
+    assert s["items"]["place_m2"] == m2_item                                            # kept as it was, not fitted again
+    assert deadlines and all(d is not None and 0 < d <= G.FIT_SECS for d in deadlines)
+    # Stop reaches the rerun: it is the house's one job while it runs.
+    store.data["lineups"]["pb_t"]["questions"].append({"id": "q9", "kind": "confirm_dimension", "map_id": "m1", "name": "Scan", "state": "open", "axis": "x",
+                                                       "dim": 0, "answer": None})
+    out, s = _answer(h, conn, store, stop=True, question_id="q9", answer="yes")
+    assert out["cancel"]["ok"] is True and s["status"] == "cancelled" and s["stops"][-1]["reason"] == "cancelled"
+    assert s["items"]["place_m2"] == m2_item and "place_m1" in s["items"]                # cut short: the items stay as they were
+    assert A.lineup_public(s, "pb_t")["resumable"] is True and A.running(h) is None
+
+
 def test_a_big_change_of_scale_is_confirmed_and_the_answer_reruns_only_the_local_steps(monkeypatch, tmp_path, disk):
     h, conn, ai = _house(monkeypatch, tmp_path)
     h.data[DOMAIN][DATA_MODEL].map_transform("m1")["scale_y_m"] = 6.8                 # 18 % off: over S1_BIG_CHANGE, so asked (design 3.5)
@@ -649,10 +703,9 @@ def test_a_big_change_of_scale_is_confirmed_and_the_answer_reruns_only_the_local
     assert [(q["kind"], q["axis"], q["ai"]["text"]) for q in sess["questions"]] == [("confirm_dimension", "x", "3 m + 2.5 m + 2.5 m"),
                                                                                      ("confirm_dimension", "y", "3.5 m + 2.5 m")]
     reads = len(ai.calls)
-    out = _call(W.ws_plan_build_answer, h, conn, session="pb_t", question_id="q1", answer="yes")
-    assert out["session"]["status"] == "needs_help"
-    out = _call(W.ws_plan_build_answer, h, conn, session="pb_t", question_id="q2", answer={"metres": 6.0})
-    s = out["session"]
+    out, s = _answer(h, conn, store, question_id="q1", answer="yes")
+    assert out["session"]["status"] == "running" and s["status"] == "needs_help"
+    out, s = _answer(h, conn, store, question_id="q2", answer={"metres": 6.0})
     assert s["status"] == "done" and len(ai.calls) == reads and "place_m1" in s["items"]
     assert G.max_move(s["items"]["place_m1"]["proposal"], _truth()) < 0.05
     c = _counters(h)

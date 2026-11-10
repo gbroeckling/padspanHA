@@ -2094,7 +2094,10 @@ export function createPlans(ctx){
     ctx.hint(`${LU_PREFIX}${n} plan${n === 1 ? "" : "s"} put back where ${n === 1 ? "it was" : "they were"}${k ? `; ${k} moved by hand since ${k === 1 ? "was" : "were"} left as ${k === 1 ? "it is" : "they are"}` : ""}.`);
   });
   const luRefile = (mid, fid) => { luRefileFor = null; return luWrite("plan_build_refile", { rev: luSess.rev, map_id: mid, to_floor_id: fid }, (r) => { if (r.item_id) luCur = r.item_id; }); };
-  const luAnswer = (q, answer) => luDo("plan_build_answer", { question_id: q.id, answer }, (r) => { luSess = r.session; luTaps.delete(q.id); luTyped = null; luKey = null; });
+  const luAnswer = (q, answer) => luDo("plan_build_answer", { question_id: q.id, answer }, (r) => {
+    luSess = r.session; luTaps.delete(q.id); luTyped = null; luKey = null;
+    if (luSess && luSess.status === "running") luPollStart(luSess.id);   // re-measuring on the server, with Stop, until it ends
+  });
 
   // -- pictures: the plan's ink in one colour, kept per link and colour ------
   function tinted(url, rgb, done){

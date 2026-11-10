@@ -609,14 +609,16 @@ async def ws_plan_build_resume(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_answer(hass: HomeAssistant, connection, msg) -> None:
-    """The little help (design 3.5): the answer reruns the local steps only, no new read."""
+    """The little help (design 3.5): the answer reruns the local steps only,
+    no new read, and only for the plan it is about. It answers at once; the
+    rerun is the house's one job (Stop reaches it), outside the store's lock."""
     store = await _build_refused(hass, connection, msg)
     if store is None:
         return
-    if A.running(hass) is not None:
-        connection.send_error(msg["id"], "already_running", PREFIX + "wait for the reading to finish.")
-        return
     async with store.lock:
+        if A.running(hass) is not None:
+            connection.send_error(msg["id"], "already_running", PREFIX + "wait for the reading to finish.")
+            return
         sess = store.lineup(msg["session"])
         if sess is None:
             connection.send_error(msg["id"], "not_found", PREFIX + "that session isn't here any more.")
@@ -627,7 +629,11 @@ async def ws_plan_build_answer(hass: HomeAssistant, connection, msg) -> None:
             return
         A._bump(hass, f"plan_build_help:{word}")  # noqa: SLF001
         A.stop_resolved(hass, sess, ("help_unanswered", "fit_rejected"))
-        await A.answer_locally(hass, store, msg["session"])
+        q = next(q for q in sess.get("questions") or [] if q.get("id") == msg["question_id"])
+        n = len(sess.get("plans") or [])
+        sess.update(status="running", error=None, finished_at=None, progress={"plan": n, "of": n, "name": q.get("name") or "", "step": "measure"},
+                    rev=int(sess.get("rev") or 0) + 1)
+        A.start_answer(hass, store, msg["session"], {q["map_id"]})
         await store.async_save()
     connection.send_result(msg["id"], {"session": A.lineup_public(store.lineup(msg["session"]), msg["session"])})
 
@@ -656,6 +662,9 @@ async def ws_plan_build_verdict(hass: HomeAssistant, connection, msg) -> None:
             return
         if int(sess.get("rev") or 0) != msg["rev"]:
             connection.send_error(msg["id"], REV_CODE, PREFIX + "the session changed since you looked: it is reloaded.")
+            return
+        if sess.get("status") == "running":            # its items are made again when the reading or re-measuring ends
+            connection.send_error(msg["id"], "already_running", PREFIX + "wait for the reading to finish.")
             return
         if it.get("state") in ("stale", "refused"):
             connection.send_error(msg["id"], "not_open", PREFIX + "that item can't be judged now.")
@@ -704,6 +713,9 @@ async def ws_plan_build_refile(hass: HomeAssistant, connection, msg) -> None:
             return
         if int(sess.get("rev") or 0) != msg["rev"]:
             connection.send_error(msg["id"], REV_CODE, PREFIX + "the session changed since you looked: it is reloaded.")
+            return
+        if sess.get("status") == "running":
+            connection.send_error(msg["id"], "already_running", PREFIX + "wait for the reading to finish.")
             return
         word, it = A.refile_by_hand(sess, A.house_snapshot(hass), msg["map_id"], msg["to_floor_id"])
         if word in ("not_found", "invalid"):
