@@ -309,6 +309,15 @@ def test_undo_takes_every_save_of_the_session_back_and_leaves_a_plan_moved_since
     assert _undo(h, conn)["error"] == "nothing_to_undo"
 
 
+def _stopped_short(h, store) -> None:
+    """The session as read on the real stores' records, stopped out of time (Resume can carry it on)."""
+    for pl in store.lineup("pb_t")["plans"]:
+        pl["place_sig"] = A.plan_now(h, pl["map_id"])["place_sig"]
+    assert A.plans_moved(h, copy.deepcopy(store.lineup("pb_t"))) == set()
+    store.lineup("pb_t").update(status="out_of_time", error=None)
+    assert A.lineup_public(store.lineup("pb_t"), "pb_t")["resumable"] is True
+
+
 @pytest.mark.parametrize("item", ["place_m2", "refile_r1"])
 def test_a_session_that_stopped_short_still_resumes_after_its_own_save_and_undo(monkeypatch, tmp_path, disk, item):
     """Review B1: a session stopped short (out of time) with proposals for the
@@ -317,11 +326,7 @@ def test_a_session_that_stopped_short_still_resumes_after_its_own_save_and_undo(
     saved. The same after an Undo of it."""
     from tests.test_plan_build import _resume
     h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
-    for pl in store.lineup("pb_t")["plans"]:                                                 # read on the real stores' records
-        pl["place_sig"] = A.plan_now(h, pl["map_id"])["place_sig"]
-    assert A.plans_moved(h, copy.deepcopy(store.lineup("pb_t"))) == set()
-    store.lineup("pb_t").update(status="out_of_time", error=None)
-    assert A.lineup_public(store.lineup("pb_t"), "pb_t")["resumable"] is True
+    _stopped_short(h, store)
     out = _commit(h, conn, [item])
     assert out["ok"] is True, out
     assert A.lineup_public(store.lineup("pb_t"), "pb_t")["resumable"] is True
@@ -334,6 +339,51 @@ def test_a_session_that_stopped_short_still_resumes_after_its_own_save_and_undo(
     out, s = _resume(h, conn, store)
     assert out == {"session": "pb_t"}, out
     assert s["status"] != "cancelled" and "plan_changed" not in _stops(h)
+
+
+def test_a_plan_saved_in_the_session_is_not_offered_again_when_the_floor_is_measured_again(monkeypatch, tmp_path, disk):
+    """Review B6: an answer (or Resume) measures the floor again, and a plan
+    saved in this session comes out with another fit (another anchor, say).
+    Its saved item stays saved: it isn't offered, nor saved, a second time,
+    so Undo can always take the session back."""
+    from tests.test_plan_build import _resume
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    was = _house_now(mdl, ms, cal)
+    _stopped_short(h, store)
+    assert _commit(h, conn, ["place_m2"])["ok"] is True
+    saved = store.lineup("pb_t")["items"]["place_m2"]
+    saved["proposal"] = {**saved["proposal"], "origin_x_m": saved["proposal"]["origin_x_m"] + 0.5}   # as composed on another anchor
+    saved_item = copy.deepcopy(saved)
+    out, s = _resume(h, conn, store)
+    assert out == {"session": "pb_t"}, out
+    assert s["items"]["place_m2"] == saved_item
+    assert _commit(h, conn, ["place_m2"])["code"] == "not_open"
+    assert _undo(h, conn)["undone"] == 1 and _house_now(mdl, ms, cal)["t"] == was["t"]
+
+
+def test_moving_the_plan_a_saved_plan_was_fitted_to_is_refused(monkeypatch, tmp_path, disk):
+    """Review B6: Scan saved, fitted to the anchor; then an answer makes
+    another plan the anchor, and the old anchor gets a placement of its own.
+    Saving it would move it from under Scan: refused, as the anchor's own
+    scale is (review S4), until this session is undone."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    was = _house_now(mdl, ms, cal)
+    items = store.lineup("pb_t")["items"]
+    assert items["place_m1"]["evidence"]["anchor"] == "a1"
+    assert _commit(h, conn, ["place_m1"])["ok"] is True
+    snap = A.house_snapshot(h)
+    now = A.placement_of(snap["plans"]["a1"]["t"])
+    moved = {**now, "origin_x_m": now["origin_x_m"] + 0.5}
+    items["place_a1"] = {"kind": "place", "map_id": "a1", "name": "Shop plan", "image_sig": snap["plans"]["a1"]["image_sig"],
+                         "target_place_sig": snap["plans"]["a1"]["place_sig"], "state": "open", "verdict": None, "held": None,
+                         "proposal": moved, "now": now, "max_move_m": 0.5, "scale_change": 0.0, "evidence": {"anchor": "m2"},
+                         "anchor_now": A.placement_of(snap["plans"]["m2"]["t"]), "flags": A.effects(snap, "a1", moved)[0], "others": {"n": 0, "names": []}}
+    saved = _house_now(mdl, ms, cal)
+    out = _commit(h, conn, ["place_a1"])
+    assert out["ok"] is False and out["code"] == "anchor_after_fit", out
+    assert out["message"].startswith("Line up plans (experimental): Scan is saved lined up to this plan as it is.")
+    assert _house_now(mdl, ms, cal) == saved
+    assert _undo(h, conn)["undone"] == 1 and _house_now(mdl, ms, cal)["t"] == was["t"]
 
 
 # ═══ refusals: nothing written, each stop named and counted ═════════════════

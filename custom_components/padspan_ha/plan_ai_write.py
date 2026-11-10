@@ -1047,8 +1047,8 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
     scaled = {it["map_id"] for _, it in wanted if it["kind"] == "anchor_scale"}
     if any(it["kind"] == "place" and (it.get("evidence") or {}).get("anchor") in scaled for _, it in wanted):
         raise Refused("invalid", LP + "save the anchor's own scale on its own: the plans fitted to it are lined up again after.", {"rev": sess.get("rev")})
-    for iid, it in wanted:                             # a saved plan fitted to this anchor would be left off its drawing (review S4)
-        fitted = _fitted_to(hass, store, it["map_id"]) if it["kind"] == "anchor_scale" else []
+    for iid, it in wanted:                             # a saved plan fitted to this one would be left off its drawing (review S4, B6)
+        fitted = _fitted_to(hass, store, it["map_id"]) if it["kind"] in ("anchor_scale", "place") else []
         if fitted:
             await refuse("anchor_after_fit", LP + f"{', '.join(fitted)} {'is' if len(fitted) == 1 else 'are'} saved lined up to this plan as it is. "
                          + " ".join(A.STOPS["anchor_after_fit"]), "anchor_after_fit", it["map_id"], "anchor_after_fit", {"items": [iid]})
