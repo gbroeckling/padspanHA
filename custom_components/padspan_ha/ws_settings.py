@@ -572,6 +572,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_ai_task_entity"): vol.Any(str, None),
         vol.Optional("atlas_3d_ai_task_backup_entity"): vol.Any(str, None),
         vol.Optional("ai_photos_enabled"): bool,
+        vol.Optional("ai_credit_month_usd"): vol.Any(int, float, str, None),
+        vol.Optional("ai_credit_warn_pct"): vol.Any(int, float, str, None),
         vol.Optional("ai_stairs_enabled"): bool,
         vol.Optional("ai_plans_enabled"): bool,
         vol.Optional("atlas_3d_library"): bool,
@@ -771,7 +773,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 from .perf_sampler import async_runs_opted_out  # noqa: PLC0415
                 await async_runs_opted_out(hass)
         if ("atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg or "ai_photos_enabled" in msg
-                or "ai_stairs_enabled" in msg or "ai_plans_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg):
+                or "ai_stairs_enabled" in msg or "ai_plans_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg
+                or "ai_credit_month_usd" in msg or "ai_credit_warn_pct" in msg):
             # Live Aboard's shared library and a cloud AI Task reading photos
             # both let data leave the house: an administrator's call, like the
             # usage report above.
@@ -968,6 +971,18 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 payload["atlas_3d_ai_task_backup_entity"] = _bk
         if "atlas_3d_home_idle_s" in msg:
             payload["atlas_3d_home_idle_s"] = _atlas_3d_idle(msg["atlas_3d_home_idle_s"])
+        # The AI credit tracker (ai_usage.py): the monthly credit typed in (empty = 0, none) and the
+        # warning's share, off unless 50 / 75 / 90. The report learns the share chosen, never the amount.
+        if "ai_credit_month_usd" in msg:
+            from .ai_usage import CREDIT_MAX_USD  # noqa: PLC0415
+            payload["ai_credit_month_usd"] = _clamped(msg["ai_credit_month_usd"], 0.01, CREDIT_MAX_USD, 0, zero_ok=True)
+        if "ai_credit_warn_pct" in msg:
+            from .ai_usage import WARN_PCTS  # noqa: PLC0415
+            _pct = int(_clamped(msg["ai_credit_warn_pct"], 0, 100, 0))
+            payload["ai_credit_warn_pct"] = _pct if _pct in WARN_PCTS else 0
+            if payload["ai_credit_warn_pct"] != ((st.data if st is not None else {}) or {}).get("ai_credit_warn_pct", 0):
+                from .telemetry import bump as _t_bump  # noqa: PLC0415
+                _t_bump(hass, f"ai_credit_warn:set_{_pct}" if payload["ai_credit_warn_pct"] else "ai_credit_warn:off")
         if "atlas_3d_carries" in msg and isinstance(msg["atlas_3d_carries"], dict):
             # A non-dict is ignored, never stored as empty (light_shapes' rule).
             payload["atlas_3d_carries"] = _atlas_3d_carries(msg["atlas_3d_carries"])

@@ -1308,7 +1308,7 @@ def test_without_an_ai_task_start_refuses_and_counts_it(monkeypatch, tmp_path, d
     h, conn, ai, media = _house(monkeypatch, tmp_path)
     h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = ""
     assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"])["error"] == P.NO_AI_CODE
-    assert counted == ["plan_ai_error:no_ai_task"] and ai.calls == []
+    assert counted == ["plan_ai_error:no_ai_task", "ai_reads_fail:no_ai"] and ai.calls == []
     assert _call(W.ws_plan_ai_plans, h, conn)["ai"]["ready"] is False
 
 

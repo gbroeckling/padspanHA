@@ -760,6 +760,20 @@ PLAN_AI_EVENTS: frozenset[str] = frozenset(
        "plan_ai_rail_side:ai", "plan_ai_rail_side:own", "plan_ai_light_unmatched", "plan_ai_tiles_slow"}
     | {f"plan_ai_fixtures:{k}" for k in PLAN_AI_FIXTURES} | {f"plan_ai_tiles:{k}" for k in PLAN_AI_TILE_BANDS}
     | {f"plan_ai_missing_added:{k}" for k in PLAN_AI_KINDS})
+# The AI credit tracker (ai_usage.py, experimental, 2026-11; every feature's
+# AI reads): each read by what it was for and who makes the AI; each read that
+# failed or was refused, by its one reason (ai_usage.STOP_REASONS, the stall
+# watch); once, when a month has ended, its reads and its estimated Claude
+# dollars in coarse bands (none: no priced model read); the warning's share
+# chosen (or off) and each notice it gave. Never an AI Task, a model, an
+# amount typed in, a price or an exact figure.
+from .ai_usage import (CREDIT_MONTH_BANDS as _AI_CREDIT_BANDS, KINDS as _AI_KINDS,  # noqa: E402
+                       MAKERS as _AI_MAKERS, READS_MONTH_BANDS as _AI_READS_BANDS,
+                       STOP_REASONS as _AI_STOPS, WARN_EVENTS as _AI_WARN)
+AI_USAGE_EVENTS: frozenset[str] = frozenset(
+    {f"ai_reads_kind:{k}" for k in _AI_KINDS} | {f"ai_reads_maker:{k}" for k in _AI_MAKERS}
+    | {f"ai_reads_fail:{k}" for k in _AI_STOPS} | {f"ai_reads_month:{k}" for k in _AI_READS_BANDS}
+    | {f"ai_credit_month:{k}" for k in _AI_CREDIT_BANDS} | {f"ai_credit_warn:{k}" for k in _AI_WARN})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -1232,7 +1246,7 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
-            or name in PLAN_AI_EVENTS
+            or name in PLAN_AI_EVENTS or name in AI_USAGE_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS)
 

@@ -427,6 +427,20 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: plan_ai — %s", e)
         errors.append("padspan_ha.plan_ai")
 
+    # ── 9a''''. The AI credit tracker (ai_usage.py) — only a file that exists, emptied ───
+    try:
+        from .ai_usage import DATA_AI_USAGE, STORE_KEY as _AI_USAGE_KEY, empty as _ai_usage_empty  # noqa: PLC0415
+        from .ws_common import _store_file_written  # noqa: PLC0415
+        if await _store_file_written(hass, _AI_USAGE_KEY):
+            await _St(hass, 1, _AI_USAGE_KEY).async_save(_ai_usage_empty())
+            cleared += 1
+        au_obj = domain.get(DATA_AI_USAGE)
+        if au_obj is not None:
+            au_obj.data = _ai_usage_empty()
+    except Exception as e:
+        _LOGGER.warning("Factory reset: ai_usage — %s", e)
+        errors.append("padspan_ha.ai_usage")
+
     # ── 9a''. Robot vacuum (vacuum_import.py) — the link, the walker and its
     # review pile; only a file that exists, emptied, and its polling stopped.
     try:

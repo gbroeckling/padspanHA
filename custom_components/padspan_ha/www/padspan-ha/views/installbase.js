@@ -879,6 +879,14 @@ function word(kind, k) {
       if (a === "plan_ai_commit") return `Plan AI keep ${{ done: "written", rev_mismatch: "refused: the list had changed", already_committed: "refused: already kept", changed_since: "refused: a target changed since",
         not_open: "refused: item no longer open", stair_first: "refused: railing before its stair", invalid: "refused: not a valid item", backup_failed: "stopped: no safety backup", save_failed: "stopped: the write failed" }[b] || b}`;
       if (a === "plan_ai_undo") return `Plan AI undo: ${{ batch: "a batch taken back", put_back: "an undo put back", item_skipped: "an item left, changed since", stairs: "a stair taken back", railing: "a railing taken back", light: "a light's kind taken back", already_undone: "refused: already undone", save_failed: "stopped: the write failed" }[b] || b}`;
+      // The AI credit tracker (ai_usage.py, experimental): every feature's AI reads.
+      if (a === "ai_reads_kind") return `AI read sent for ${{ photo: "a photo", stairs: "the stair finder", plans: "Add data via plans", plan_build: "the plan line-up", other: "something else" }[b] || b}`;
+      if (a === "ai_reads_maker") return `AI read sent to ${{ claude: "Claude (Anthropic)", openai: "OpenAI", google: "Google", ollama: "Ollama (local)", other: "another AI" }[b] || b}`;
+      if (a === "ai_reads_fail") return `AI read stopped: ${{ unreachable: "the AI couldn't be reached", no_credit: "out of credit", timeout: "no answer in time", refusal: "the AI declined",
+        bad_answer: "an answer PadSpan couldn't use", no_ai: "no AI Task that can do it", no_fallback: "stopped, no other AI is used", no_media: "the media folder couldn't take the picture", error: "another error" }[b] || b}`;
+      if (a === "ai_reads_month") return `AI reads last month: ${{ "0": "none", "1_20": "1–20", "21_100": "21–100", "101_500": "101–500", gt500: "over 500" }[b] || b}`;
+      if (a === "ai_credit_month") return `AI credit used last month (estimate): ${{ none: "no priced Claude model", lt1: "under $1", "1_5": "$1–5", "5_20": "$5–20", "20_50": "$20–50", gt50: "over $50" }[b] || b}`;
+      if (a === "ai_credit_warn") return `AI credit warning ${{ set_50: "set to 50 %", set_75: "set to 75 %", set_90: "set to 90 %", off: "turned off", fired: "shown" }[b] || b}`;
       if (key === "plan_ai_stale") return "Plan AI item changed since it was read (stale)";
       if (key === "plan_ai_light_unmatched") return "Plan AI fixture symbol with no placed light (not an AI failure)";
       if (key === "plan_ai_tiles_slow") return "Plan AI light tiles skipped: its first read took over 45 s";

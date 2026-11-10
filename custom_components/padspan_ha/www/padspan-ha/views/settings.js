@@ -4172,6 +4172,8 @@ function _settingsAI(ctx, el){
     [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, "Backup AI task"), bkSel]));
   card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:6px"},
     "Used when the main one can't be reached, e.g. a computer that's away."));
+  // This month's AI reads (ai_usage.py, experimental): asked only by an administrator, as the command is.
+  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) card.appendChild(_aiUsageRow(ctx, el, save));
   wrap.appendChild(card);
 
   // What it reads: a switch each; what is not built yet says so.
@@ -4527,6 +4529,71 @@ function _atlas3dSection(ctx, el, settings){
 // library's server is live (LIBRARY_SERVER_LIVE in the library's own module,
 // loaded here only then): before that, nothing of the library shows.
 /** "Last plan session: 17 items, 2026-11-05 · Undo": hidden until the server names a batch that can be undone. */
+/** The AI credit tracker (ai_usage.py, experimental, Garry 2026-11-09): this month's AI reads under
+ *  the AI Task picker. For a Claude AI Task, the estimate, "of your monthly credit" once an amount is
+ *  typed in, and the warning (off until chosen); any other AI, reads only. The stops by reason. */
+function _aiUsageRow(ctx, el, save){
+  const settings = ctx.state.settings || {};
+  const box = el("div",{"data-ai-usage":"",style:"display:none;margin-top:10px;padding:8px 10px;border:1px solid #1e3a2a;border-radius:8px"});
+  const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
+  const line = el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"});
+  const stops = el("div",{"data-ai-usage-stops":"",style:"display:none;font-size:12px;color:#fca5a5;margin-top:4px"});
+  const how = el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:4px"});
+  const controls = el("div",{style:"display:none;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px"});
+  const money = (v) => `$${Number(v).toFixed(2)}`;
+  let credit = Number(settings.ai_credit_month_usd) > 0 ? Number(settings.ai_credit_month_usd) : 0;
+  const inp = el("input",{type:"number", min:"0", step:"any", placeholder:"e.g. 200", "data-ai-credit":"", class:"input", style:"width:90px;box-sizing:content-box"});
+  inp.value = credit > 0 ? String(credit) : "";
+  inp.addEventListener("change", ()=>{ const was = credit, want = inp.value.trim() === "" ? 0 : Math.max(0, Number(inp.value) || 0);
+    save("ai_credit_month_usd", want, ()=>{ inp.value = was > 0 ? String(was) : ""; }).then(ok=>{ if (ok) { credit = want; load(); } }); });
+  const warn = document.createElement("select");
+  warn.className = "select";
+  warn.setAttribute("data-ai-credit-warn", "");
+  for (const [v, n] of [["0", "Off"], ["50", "at 50 %"], ["75", "at 75 %"], ["90", "at 90 %"]]) warn.appendChild(el("option",{value:v}, n));
+  warn.value = String([50, 75, 90].includes(Number(settings.ai_credit_warn_pct)) ? Number(settings.ai_credit_warn_pct) : 0);
+  let warnLast = warn.value;
+  warn.addEventListener("change", ()=>{ const want = warn.value; save("ai_credit_warn_pct", Number(want), ()=>{ warn.value = warnLast; }).then(ok=>{ if (ok) warnLast = want; }); });
+  controls.appendChild(el("label",{style:"display:flex;align-items:center;gap:6px;font-size:12px;color:#a7f3d0;white-space:nowrap"}, ["Your monthly credit, US$", inp]));
+  controls.appendChild(el("label",{style:"display:flex;align-items:center;gap:6px;font-size:12px;color:#a7f3d0;white-space:nowrap"}, ["Warn me", warn]));
+  box.appendChild(line);
+  box.appendChild(stops);
+  box.appendChild(how);
+  box.appendChild(controls);
+  function show(u){
+    box.style.display = u ? "" : "none";
+    if (!u) return;
+    const claude = u.main_maker === "claude";
+    let text;
+    if (claude) {
+      text = `Claude reads this month: ${u.claude_reads}`;
+      if (u.claude_usd == null) text += " (no price known for this model)";
+      else text += `, about ${money(u.claude_usd)}` + (credit > 0 ? ` of your $${credit} monthly credit` : "");
+    } else {
+      text = `AI reads this month: ${u.reads}`;
+    }
+    line.innerHTML = "";
+    line.appendChild(document.createTextNode(text));
+    line.appendChild(chip);
+    const list = u.stops || [];
+    const n = list.reduce((s, x) => s + (x.n || 0), 0);
+    stops.style.display = n ? "" : "none";
+    stops.textContent = !n ? "" : `${n} read${n === 1 ? "" : "s"} stopped: ` +
+      (list.length === 1 ? list[0].words : list.map(x => `${x.n} ${x.words}`).join(", "));
+    how.innerHTML = "";
+    if (claude) {
+      how.appendChild(document.createTextNode("An estimate from each picture's size and each question's length: Home Assistant doesn't pass on what Claude counted. Exact numbers: "));
+      how.appendChild(el("a",{href:"https://platform.claude.com/usage", target:"_blank", rel:"noopener noreferrer", style:"color:#52b788"}, "Anthropic Console → Usage"));
+      how.appendChild(document.createTextNode(" (filter by the key Home Assistant uses)." + (u.warned ? " This month's warning has been shown." : "")));
+    } else {
+      how.textContent = "Every read PadSpan sent to your AI this month. A cost is estimated for Claude only.";
+    }
+    controls.style.display = claude ? "flex" : "none";
+  }
+  function load(){ ctx.actions.wsCall("padspan_ha/ai_usage_get").then(show).catch(() => show(null)); }
+  load();
+  return box;
+}
+
 function _planAiLastRow(ctx, el){
   const box = el("div",{"data-ai-plans-last":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
   const show = (u) => {

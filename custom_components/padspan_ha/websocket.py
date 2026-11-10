@@ -396,6 +396,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ws_plan_ai import WS_COMMANDS as _plan_ai_commands
     for _cmd in _plan_ai_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # The AI credit tracker (ai_usage.py, experimental): this month's AI reads for Settings → AI; admins only.
+    from .ai_usage import WS_COMMANDS as _ai_usage_commands
+    for _cmd in _ai_usage_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most.
     from .setup_checks import WS_COMMANDS as _setup_tip_commands

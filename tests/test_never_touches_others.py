@@ -79,7 +79,7 @@ ALLOWED: dict[tuple[str, str, str], tuple[str, str | None, str]] = {
     ("ws_companion.py", "ws_companion_follow", "services.async_call"):
         (OWN, '"command_ble_transmitter"',
          "Track a phone: asks the Companion App (via notify) to turn its BLE transmitter on"),
-    ("ws_house3d_photo.py", "ask", "services.async_call"):
+    ("ws_house3d_photo.py", "_ask_once", "services.async_call"):
         (OWN, '"ai_task", "generate_data"', "Live Aboard photo: asks the user's AI Task entity to read a photo"),
     # ── OTHER: acts on another integration's object, only on a button press ──
     ("ws_companion.py", "ws_companion_follow", "registry.async_update_entity"):

@@ -54,6 +54,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_MAPS, DATA_MODEL, DATA_PLAN_AI, DATA_SETTINGS, DEFAULT_FLOOR_ID, DOMAIN, OUTSIDE_FLOOR_ID, PLAN_AI_STORE_KEY
+from . import ai_usage as U
 from . import ws_house3d_photo as P
 from . import ws_house3d_stairs as S
 
@@ -349,9 +350,12 @@ _QWEN25 = re.compile(r"qwen\s*2[._-]?5", re.I)
 
 
 def _model_text(hass: HomeAssistant, eid: str) -> str:
-    """What names the model behind an AI Task entity: its id and names, and
-    the "model" of the integration's sub-entry or entry (Ollama keeps it
-    there). Whatever can't be read is left out: no name means a named frame."""
+    """What names the model behind an AI Task entity: its id and names, the
+    "model" of the integration's sub-entry or entry (Ollama keeps it there),
+    the sub-entry's "chat_model" (Anthropic's), and last the device's model id
+    and model ("claude-opus-5-5", "Claude Opus 5.5"; the AI credit tracker's
+    price, ai_usage.model_of). Whatever can't be read is left out: no name
+    means a named frame."""
     out = [str(eid or "")]
     try:
         from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
@@ -362,6 +366,11 @@ def _model_text(hass: HomeAssistant, eid: str) -> str:
         for src in (getattr(sub, "data", None), getattr(entry, "options", None), getattr(entry, "data", None)):
             if src and src.get("model"):
                 out.append(str(src["model"]))
+        if sub is not None and isinstance((getattr(sub, "data", None) or {}).get("chat_model"), str):
+            out.append(sub.data["chat_model"])
+        from homeassistant.helpers import device_registry as dr  # noqa: PLC0415
+        dev = dr.async_get(hass).async_get(getattr(ent, "device_id", None))
+        out += [v for v in (getattr(dev, k, None) for k in ("model_id", "model")) if isinstance(v, str)]
     except Exception:  # noqa: BLE001
         pass
     return " ".join(out)
@@ -1042,6 +1051,7 @@ class Runner:
         self.consecutive_timeouts = 0
         if self.first_read_s is None:
             self.first_read_s = time.monotonic() - t0
+        self.last_by = by
         if by != self.ai.get("ai_task"):
             if not sess.get("backup_used"):              # counted per session, not per read (count=False above)
                 _bump(self.hass, "ai_backup_used")
@@ -1050,6 +1060,7 @@ class Runner:
                 sess["frame"] = "named"
         if answer is None:
             self._err("bad_answer")
+            U.unusable(self.hass, by)
         return answer
 
     async def read(self, prompt: str, raw: bytes, parse) -> Any:
@@ -1059,11 +1070,15 @@ class Runner:
         if answer is None:
             return None
         got = parse(answer)
+        if got is None:                                  # each answer that couldn't be used, for the AI credit tracker
+            U.unusable(self.hass, getattr(self, "last_by", None) or self.ai.get("ai_task"), answer)
         if got is None and not self.stop_here():
             answer = await self.ask(prompt, raw)
             if answer is None:
                 return None
             got = parse(answer)
+            if got is None:
+                U.unusable(self.hass, getattr(self, "last_by", None) or self.ai.get("ai_task"), answer)
         if got is None:
             self._err("bad_answer")
         return got

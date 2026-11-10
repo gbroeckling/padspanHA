@@ -48,6 +48,7 @@ from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled
 from .ws_common import _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
+from . import ai_usage as U
 from . import ws_house3d_photo as P
 from .ws_common import admin_if_enhanced_security
 
@@ -313,6 +314,7 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
         return
     if not ai["ready"]:
         _bump(hass, "stair_read:no_ai_task")
+        U.refused(hass, "no_ai", ai.get("ai_task"))
         connection.send_error(msg["id"], P.NO_AI_CODE, ai["message"])
         return
     model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -352,6 +354,7 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
     found = stairs_from_answer(answer, w, h, lambda fx, fy: model.map_frac_to_metres(fx, fy, map_id), counts)
     if found is None:
         _bump(hass, "stair_read:bad_answer")
+        U.unusable(hass, by, answer)
         connection.send_result(msg["id"], {"ok": False, "reason": "bad_answer", "took_s": took,
                                            "message": "The AI's answer had no stairs in it that PadSpan could read."})
         return

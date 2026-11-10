@@ -222,7 +222,7 @@ def test_each_outcome_is_counted_by_name_only(monkeypatch, tmp_path, disk):
     # How long the AI took is counted for each read it answered (0.38.193), in the photo bands.
     secs = [e for e in counted if e.startswith("stair_secs:")]
     boxes = [e for e in counted if e.startswith("stair_box:")]
-    assert [e for e in counted if not e.startswith(("stair_secs:", "stair_box:"))] == ["stair_read:found", "stair_read:none", "stair_read:bad_answer", "stair_read:error"]
+    assert [e for e in counted if not e.startswith(("stair_secs:", "stair_box:", "ai_reads_"))] == ["stair_read:found", "stair_read:none", "stair_read:bad_answer", "stair_read:error"]
     assert secs == ["stair_secs:lt5"] * 3 and all(T.event_allowed(e) for e in secs)
     # How the boxes fared (2026-11-02), as many times as each happened; nothing from an empty answer.
     assert sorted(boxes) == ["stair_box:dropped", "stair_box:dropped", "stair_box:kept", "stair_box:past_edge"] and all(T.event_allowed(e) for e in boxes)

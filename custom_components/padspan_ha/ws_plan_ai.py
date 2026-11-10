@@ -39,6 +39,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
+from . import ai_usage as U
 from . import plan_ai as A
 from . import plan_ai_write as C
 from . import ws_house3d_photo as P
@@ -132,6 +133,7 @@ async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
         ai = P.ai_task(hass, with_backup=True)
         if not ai.get("ready"):
             A._bump(hass, "plan_ai_error:no_ai_task")  # noqa: SLF001
+            U.refused(hass, "no_ai", ai.get("ai_task"))
             connection.send_error(msg["id"], P.NO_AI_CODE, ai.get("message", ""))
             return
         by_id = {p["map_id"]: p for p in A.plans(hass)}

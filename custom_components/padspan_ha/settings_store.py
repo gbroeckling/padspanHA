@@ -211,6 +211,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_3d_ai_task_backup_entity": "", # ai_task.* used when the main one can't be reached (ws_house3d_photo.ask_ai); "" = no backup
     "ai_plans_enabled": False,            # Settings → AI: AI map-building research (experimental, 2026-11): hides the stair finder and the Plans tool while off; a home that used the stair finder comes up on (ai_plans_stamp)
     "ai_stairs_enabled": False,           # Settings → AI: stairs read off the floor plans by the AI Task (0.38.188), off until chosen
+    "ai_credit_month_usd": 0,             # Settings → AI: the monthly AI credit typed in (US$, ai_usage.py), 0 = none: the line then says no "of your credit"
+    "ai_credit_warn_pct": 0,              # Settings → AI: 0 = off (the default), or 50 / 75 / 90: one notice a month past that share of the credit
     "ai_photos_enabled": True,            # Settings → AI: furniture (tags, receivers, people's figures) from a photo; on as it always was
     "atlas_3d_library": False,            # the shared furniture library
     "atlas_3d_weather": True,             # rain and snow in Live Aboard: follows Outdoor weather (atlas_weather_*), which must be on too

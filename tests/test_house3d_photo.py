@@ -559,7 +559,7 @@ def test_each_outcome_is_counted_by_name_only(monkeypatch, tmp_path, disk):
     # nothing for the one refused before it was sent.
     assert [e for e in counted if e.startswith("photo_subject:")] == ["photo_subject:furniture"] * 3
     assert [e for e in counted if e.startswith("photo_secs:")] == ["photo_secs:lt5"] * 3
-    assert set(counted) <= T.PHOTO_EVENTS and all(T.event_allowed(e) for e in T.PHOTO_EVENTS)
+    assert set(counted) <= T.PHOTO_EVENTS | T.AI_USAGE_EVENTS and all(T.event_allowed(e) for e in T.PHOTO_EVENTS)
     src = inspect.getsource(P)
     for e in T.PHOTO_EVENTS:
         assert f'"{e}"' in src, f"{e} has a real call site"
