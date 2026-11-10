@@ -1129,7 +1129,7 @@ async def lineup_commit(hass: HomeAssistant, store: A.PlanAiStore, sid: str, rev
         if failed == "changed":
             await refuse("changed_since", LP + " ".join(A.STOPS["changed_while_saving"]), "changed_while_saving", None, "changed_since")
         if failed == "refile_refused":                 # something was drawn on the plan since the last check
-            items[e["item_id"]]["state"] = "refused"
+            ((sess.get("items") or {}).get(e["item_id"]) or {})["state"] = "refused"      # the session as put back
             await refuse("refile_refused", LP + " ".join(A.STOPS["refile_refused"]), "refile_refused", e["map_id"], "refile_refused",
                          {"items": [e["item_id"]]})
         await refuse("save_failed", LP + ("couldn't write the line-up, so what was written is put back: nothing was changed. " if put_back else

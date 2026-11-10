@@ -506,6 +506,7 @@ def test_a_hand_change_after_the_last_check_to_the_anchor_or_a_refiled_plan_is_n
     else:
         assert out["code"] == "refile_refused" and _stops(h)[-1] == "refile_refused"
         assert A.STOPS["refile_refused"][0] in out["message"]
+        assert store.lineup("pb_t")["items"]["refile_r1"]["state"] == "refused"                  # said on its item too
         assert ms.get_map("r1")["floor_id"] == "basement" and mdl.data["map_transforms"]["r1"]["floor_id"] == "basement"
         assert [r["id"] for r in ms.get_map("r1")["receivers"]] == ["scanner_x"]                 # the hand change stands
     assert all(not b.get("pending") for b in store.data["lineup_batches"].values())
