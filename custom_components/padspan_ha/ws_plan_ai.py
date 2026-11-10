@@ -44,10 +44,18 @@ plan_build_info, which Settings asks to know whether to draw the row.
   nothing drawn on a plan) and plan_build_undo: take a whole session back,
   allowed whatever the AI Task. Both through plan_ai_write.py, the one writer;
   nothing here writes a placement, a floor, calibration or any metres itself.
+
+Rooms from plans (Stage 2, experimental; plan_ai.py's rooms), on a floor whose
+line-up has ended: plan_build_rooms_start / _status / _resume (Stop is
+plan_build_cancel); plan_build_rooms_edit (merge, separate, a new room's name,
+read 1 or 2), kept on the session; plan_build_rooms_check (the rooms gate for
+the ticks, writing nothing); plan_build_rooms_commit (Accept all for this
+floor: one save) and plan_build_rooms_undo, both plan_ai_write.py's.
 """
 
 from __future__ import annotations
 
+import copy
 import time
 from typing import Any
 
@@ -475,10 +483,14 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
         store = await A.async_get_store(hass)
         await _settled(hass, store)
         und = A.lineup_undo_info(store)
+        model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        names = {str(f.get("id")): f.get("name") for f in (model.floors() if model is not None else [])}
         if und:
-            model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-            names = {str(f.get("id")): f.get("name") for f in (model.floors() if model is not None else [])}
             out["undo"] = {**und, "floor_name": names.get(str(und.get("floor_id"))) or und.get("floor_id")}
+        await _rooms_settled(hass, store)
+        rund = A.rooms_undo_info(store)                # the rooms' undo too (Stage 2), whatever the AI Task
+        if rund:
+            out["rooms_undo"] = {**rund, "floor_name": names.get(str(rund.get("floor_id"))) or rund.get("floor_id")}
     if out["on"] and house3d_on(hass) and _tier_at_least(hass, "pro"):
         store = await A.async_get_store(hass)
         if A.sweep_abandoned(hass, store):
@@ -486,7 +498,8 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
         snap = A.house_snapshot(hass)
         job = A.running(hass)
         out.update(floors=_floors(hass, store, snap), stall=A.stall_summary(store), gauge=snap["gauge"],
-                   running=job.sid if job and store.lineup(job.sid) else None, start_blocked=A.start_allowed(hass))
+                   running=job.sid if job and store.lineup(job.sid) else None, start_blocked=A.start_allowed(hass),
+                   rooms=_rooms_floors(hass, store, snap), rooms_running=job.sid if job and store.rooms_session(job.sid) else None)
     connection.send_result(msg["id"], out)
 
 
@@ -796,3 +809,287 @@ async def ws_plan_build_undo(hass: HomeAssistant, connection, msg) -> None:
 
 WS_COMMANDS = WS_COMMANDS + (ws_plan_build_info, ws_plan_build_start, ws_plan_build_status, ws_plan_build_cancel, ws_plan_build_resume,
                              ws_plan_build_answer, ws_plan_build_verdict, ws_plan_build_refile, ws_plan_build_commit, ws_plan_build_undo)
+
+
+# ══ Build from plans: rooms, doors, windows and stairs (Stage 2; experimental) ══
+# Design 5. The same gates as the line-up's; the one write and its undo are
+# plan_ai_write.py's (rooms_commit, rooms_undo), with the 3D store's lock and
+# then the plan store's held. plan_build_rooms_undo, like plan_build_undo,
+# answers under the master switch whatever the AI Task.
+
+RP = C.RP
+
+
+async def _rooms_settled(hass: HomeAssistant, store: A.PlanAiStore) -> None:
+    """A rooms save or undo cut short is finished or put back first (plan_ai_write.settle_rooms)."""
+    if not any(isinstance(b, dict) and b.get("pending") for b in (store.data.get("room_batches") or {}).values()):
+        return
+    from .house3d_store import async_get_store as house_store  # noqa: PLC0415
+    try:
+        house = await house_store(hass)
+    except Exception:  # noqa: BLE001 — the 3D file can't be read now: settled next time
+        return
+    async with house.lock, store.lock:
+        if await C.settle_rooms(hass, store, house):
+            await store.async_save()
+
+
+def _areas(hass: HomeAssistant, rooms: dict[str, Any], floor_id: str) -> list[str]:
+    """Home Assistant's areas that aren't a room yet, this floor's first: the
+    names offered for a new room (design 5: a name the person picks)."""
+    try:
+        from homeassistant.helpers import area_registry  # noqa: PLC0415
+        areas = list(area_registry.async_get(hass).async_list_areas())
+    except Exception:  # noqa: BLE001
+        return []
+    taken = {str(n).lower() for n in rooms}
+    free = [a for a in areas if str(getattr(a, "name", "") or "").lower() not in taken and getattr(a, "name", None)]
+    free.sort(key=lambda a: (getattr(a, "floor_id", None) != floor_id, str(a.name).lower()))
+    return [str(a.name) for a in free][:60]
+
+
+def _rooms_answer(hass: HomeAssistant, store: A.PlanAiStore, sid: str | None) -> dict[str, Any]:
+    sess = store.rooms_session(sid)
+    job = A.running(hass)
+    out: dict[str, Any] = {"session": A.rooms_public(sess, sid), "running": job.sid if job else None}
+    if sess is not None:
+        snap = A.house_snapshot(hass)
+        out["areas"] = _areas(hass, snap["rooms"], sess.get("floor_id"))
+        out["undo"] = A.rooms_undo_info(store, sid)
+    return out
+
+
+def _rooms_floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> dict[str, dict[str, Any]]:
+    """Per indoor floor: whether its rooms can be read (its line-up), its plans and the estimate, its last rooms session."""
+    out = {}
+    for f in snap["floors"]:
+        ready = A.rooms_ready(store, snap, f["id"])
+        last = max(((sid, s) for sid, s in (store.data.get("rooms") or {}).items() if isinstance(s, dict) and s.get("floor_id") == f["id"]),
+                   key=lambda t: float(t[1].get("started_at") or 0), default=None)
+        out[f["id"]] = {"ready": ready["ok"], "why": ready.get("why_more") or ready["why"],
+                        "plans": [{"map_id": m, "name": snap["plans"][m]["name"], "est_usd": A.rooms_estimate(hass, [snap["plans"][m]["size"]])}
+                                  for m in ready["plans"]],
+                        "others": ready["others"],
+                        "last": {"session": last[0], "at": last[1].get("finished_at") or last[1].get("started_at"), "status": last[1].get("status")} if last else None}
+    return out
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_rooms_start",
+    vol.Required("floor_id"): str,
+    vol.Optional("map_ids"): [str],
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_rooms_start(hass: HomeAssistant, connection, msg) -> None:
+    """One floor's rooms read (design 5): only its lined-up plans, two reads each.
+    It answers at once; the job runs on the server."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        why = A.start_allowed(hass)
+        if why:
+            connection.send_error(msg["id"], why, RP + {"already_running": "a session is already reading your plans.",
+                                                        "too_soon": "a session started less than a minute ago.",
+                                                        "daily_cap": f"at most {A.STARTS_A_DAY} sessions a day."}[why])
+            return
+        snap = A.house_snapshot(hass)
+        ready = A.rooms_ready(store, snap, msg["floor_id"])
+        want = [m for m in (msg.get("map_ids") or ready["plans"]) if m in ready["plans"]]
+        if not ready["ok"] or not want:
+            A.note_stop(hass, store.data, None, "not_lined_up")
+            await store.async_save()
+            connection.send_error(msg["id"], "not_lined_up", RP + " ".join(A.STOPS["not_lined_up"]))
+            return
+        sess = A.new_rooms_session(A.unlock(hass), snap, msg["floor_id"], ready, want)
+        sid = A.start_rooms(hass, store, sess)
+        await store.async_save()
+    connection.send_result(msg["id"], {"session": sid})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_status", vol.Optional("session"): vol.Any(str, None)})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> None:
+    """A rooms session (by id, or the newest) with its proposal, and the names a new room may take."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    await _rooms_settled(hass, store)
+    job = A.running(hass)
+    await store.async_sweep(job.sid if job else None)
+    sid = msg.get("session")
+    if not sid:
+        sid = max(((k, s) for k, s in (store.data.get("rooms") or {}).items() if isinstance(s, dict)),
+                  key=lambda t: float(t[1].get("started_at") or 0), default=(None, None))[0]
+    connection.send_result(msg["id"], _rooms_answer(hass, store, sid))
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_resume", vol.Required("session"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_rooms_resume(hass: HomeAssistant, connection, msg) -> None:
+    """A rooms session that stopped short reads the rest."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        sess = store.rooms_session(msg["session"])
+        stop = A.rooms_resume_refused(hass, store, sess)
+        if stop == "not_open":
+            connection.send_error(msg["id"], "not_open", RP + "that session has nothing to resume.")
+            return
+        if stop:
+            await store.async_save()
+            connection.send_error(msg["id"], stop, RP + " ".join(A.STOPS[stop]))
+            return
+        if A.start_allowed(hass) == "already_running":
+            connection.send_error(msg["id"], "already_running", RP + "a session is already reading your plans.")
+            return
+        A.resume_rooms(hass, store, msg["session"])
+        await store.async_save()
+    connection.send_result(msg["id"], {"session": msg["session"]})
+
+
+_EDIT_WORDS = {"not_found": "that isn't in the proposal any more.", "invalid": "pick two or more rooms or spaces.",
+               "two_rooms": "two of your rooms can't be merged here: that would remove one. Merge spaces into one room.",
+               "depends": "a later merge took this one in: separate that one first."}
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_rooms_edit",
+    vol.Required("session"): str,
+    vol.Required("rev"): int,
+    vol.Required("op"): vol.In(("merge", "separate", "space", "pick")),
+    vol.Optional("parts"): [str],
+    vol.Optional("merge"): int,
+    vol.Optional("space"): str,
+    vol.Optional("name"): vol.Any(str, None),
+    vol.Optional("room"): str,
+    vol.Optional("read"): int,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None:
+    """The person's edit of the proposal (design 5): merge rooms and spaces
+    into one, separate a merge, name a space as a new room (or leave it out),
+    pick read 1 or 2 for a room. Kept on the session, nothing written to the
+    house; the proposal is worked out again."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        sess = store.rooms_session(msg["session"])
+        if sess is None:
+            connection.send_error(msg["id"], "not_found", RP + "that session isn't here any more.")
+            return
+        if int(sess.get("rev") or 0) != msg["rev"]:
+            connection.send_error(msg["id"], REV_CODE, RP + "the session changed since you looked: it is reloaded.")
+            return
+        if sess.get("status") == "running" or not sess.get("proposal"):
+            connection.send_error(msg["id"], "already_running", RP + "wait for the reading to finish.")
+            return
+        snap0 = A.house_snapshot(hass)
+        was = copy.deepcopy(sess.get("edits"))
+        word = A.apply_rooms_edit(sess, snap0, msg["op"], {k: msg[k] for k in ("parts", "merge", "space", "name", "room", "read") if k in msg})
+        if word != "ok":
+            if word == "name_taken":
+                A.note_stop(hass, store.data, sess, "name_taken")
+                sess["rev"] = int(sess.get("rev") or 0) + 1
+                await store.async_save()
+            connection.send_error(msg["id"], word, RP + (" ".join(A.STOPS["name_taken"]) if word == "name_taken" else _EDIT_WORDS.get(word, "that can't be done.")))
+            return
+        snap, house, points, barriers = await A.rooms_inputs(hass)
+        try:
+            sess["proposal"] = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
+        except Exception:  # noqa: BLE001 — an edit that can't be worked out is taken back
+            sess["edits"] = was
+            connection.send_error(msg["id"], "invalid", RP + "that edit couldn't be worked out, so it was taken back.")
+            return
+        if msg["op"] == "separate":
+            A._bump(hass, "plan_build_merge:separated")  # noqa: SLF001
+        sess["rev"] = int(sess.get("rev") or 0) + 1
+        await store.async_save()
+    connection.send_result(msg["id"], _rooms_answer(hass, store, msg["session"]))
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_rooms_check",
+    vol.Required("session"): str,
+    vol.Required("items"): [str],
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_rooms_check(hass: HomeAssistant, connection, msg) -> None:
+    """The rooms gate for these ticks, before Save (design 5): the room score on
+    this floor's calibration spots, now and with them. Writes nothing."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    sess = store.rooms_session(msg["session"])
+    prop = (sess or {}).get("proposal")
+    if not prop:
+        connection.send_error(msg["id"], "not_found", RP + "that session has no proposal.")
+        return
+    snap, _house, points, _barriers = await A.rooms_inputs(hass)
+    gate = await hass.async_add_executor_job(A.rooms_gate, points, sess["floor_id"], snap["rooms"], A.chosen_outlines(prop, msg["items"]),
+                                             C._excluded(hass))  # noqa: SLF001
+    connection.send_result(msg["id"], {"gate": gate})
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_rooms_commit",
+    vol.Required("session"): str,
+    vol.Required("rev"): int,
+    vol.Required("items"): [str],
+    vol.Optional("finals"): dict,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_rooms_commit(hass: HomeAssistant, connection, msg) -> None:
+    """Accept all for this floor: the ticked items in ONE save (design 5)."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    await _rooms_write(hass, connection, msg, store, lambda house: C.rooms_commit(hass, store, house, msg["session"], msg["rev"], msg["items"],
+                                                                                  msg.get("finals")))
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_undo", vol.Required("session"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_rooms_undo(hass: HomeAssistant, connection, msg) -> None:
+    """Undo a rooms session; allowed under the master switch whatever the AI Task (form q3)."""
+    if not A.enabled(hass):
+        connection.send_error(msg["id"], PLANS_OFF_CODE, RP + PLANS_OFF_MESSAGE)
+        return
+    store = await A.async_get_store(hass)
+    await _rooms_write(hass, connection, msg, store, lambda house: C.rooms_undo(hass, store, house, msg["session"]))
+
+
+async def _rooms_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, what) -> None:
+    """A rooms save or undo with the 3D store's lock and then the plan store's
+    held throughout. A refusal with a list is an ok: false answer; any other a
+    websocket error. Nothing was written either way."""
+    from .house3d_store import ReadFailed, async_get_store as house_store  # noqa: PLC0415
+    try:
+        house = await house_store(hass)
+    except ReadFailed:
+        connection.send_error(msg["id"], READ_CODE, RP + READ_MESSAGE)
+        return
+    try:
+        async with house.lock, store.lock:
+            answer = await what(house)
+    except C.Refused as err:
+        if err.extra is None:
+            connection.send_error(msg["id"], err.code, err.message)
+        else:
+            connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message, **err.extra,
+                                               **_rooms_answer(hass, store, msg["session"])})
+        return
+    connection.send_result(msg["id"], {**answer, **_rooms_answer(hass, store, msg["session"])})
+
+
+WS_COMMANDS = WS_COMMANDS + (ws_plan_build_rooms_start, ws_plan_build_rooms_status, ws_plan_build_rooms_resume, ws_plan_build_rooms_edit,
+                             ws_plan_build_rooms_check, ws_plan_build_rooms_commit, ws_plan_build_rooms_undo)
