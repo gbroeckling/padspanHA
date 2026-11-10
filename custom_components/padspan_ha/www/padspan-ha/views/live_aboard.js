@@ -3759,7 +3759,14 @@ function createSlot(slotKey){
     cam.fly = null;
     if (name === "iso") { const a = isoAngle(); fit(a.theta, a.phi); }
     else if (name === "top") fit(0, MIN_PHI);
-    else if (name === "turn") { turnBy(Math.PI / 2); applyCam(); }
+    else if (name === "turn") {
+      // Not zoomed in: framed again at the new angle as Fit frames it (zoomed
+      // out, as far out again), or a corner turns in under the scene row.
+      const pts = visiblePoints(), k = cam.radius / frameFor(cam.theta, cam.phi, pts).radius;
+      turnBy(Math.PI / 2);
+      if (k >= 0.9) { const g = frameFor(cam.theta, cam.phi, pts); cam.target.copy(g.target); cam.radius = Math.min(MAX_R, g.radius * Math.max(1, k)); }
+      applyCam();
+    }
     else fit();
     if (byHand && bare) setBare(false, false);
   }

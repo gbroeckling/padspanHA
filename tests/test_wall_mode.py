@@ -335,6 +335,17 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
     assert "Math.max(0.6, 1 - 2 * Math.max(pad.top, pad.bottom) / pad.H)" in src, "elsewhere, still never under 60% of the view"
 
 
+def test_the_90_turn_frames_the_whole_house_again_as_fit_does():
+    """Garry's wall, 2026-11-09: after ⟳ 90° without Fit a corner of the house
+    dipped behind the scene row. Not zoomed in, the turn frames the house again
+    at its new angle (frameFor, the band Fit uses); zoomed out, as far out again."""
+    src = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8")
+    assert "const pts = visiblePoints(), k = cam.radius / frameFor(cam.theta, cam.phi, pts).radius;" in src
+    assert ("if (k >= 0.9) { const g = frameFor(cam.theta, cam.phi, pts); cam.target.copy(g.target); "
+            "cam.radius = Math.min(MAX_R, g.radius * Math.max(1, k)); }") in src
+    assert 'else if (name === "turn") { turnBy(Math.PI / 2); applyCam(); }' not in src
+
+
 def test_a_motion_sensors_reach_is_soft_light_with_no_hard_edge():
     """Its reach stays, on every screen and off the house too. It used to be a pale plate
     with a bright outline, which cut across rooms and stood out as a disc on the ground."""
