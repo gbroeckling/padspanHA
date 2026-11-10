@@ -265,7 +265,7 @@ const CSS = `
 .la3d-show .la3d-sreset[aria-disabled="true"]{opacity:.45;cursor:default}
 .la3d-show .la3d-sset{margin-left:auto;color:#7dd3fc}
 :host([data-wall]) .la3d-more,:host([data-wall]) .la3d-show{zoom:var(--wall-ctl,var(--wall-ui,1))}
-/* A wall (Garry, 2026-11-09: "fits the wall"): the whole list on the screen
+/* A wall (2026-11-09, "fits the wall"): the whole list on the screen
    with no scrolling. As wide and tall as the screen lets it be (over the
    bottom bar while it is open), up to four columns;
    each line its plain name (no hint under it), a line not
