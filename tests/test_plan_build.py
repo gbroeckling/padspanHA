@@ -302,6 +302,14 @@ def test_the_unlock_and_the_price_read_the_model_in_one_place(name, monkeypatch)
     assert "def _poly_in" not in plan and "_point_in_polygon" in plan                                   # ws_common's, not a copy
 
 
+def test_the_shipped_files_carry_no_house_data():
+    """Review B9 (public repo): no plan's file name and no credit amount in the files that ship, comments included."""
+    for name in ("plan_ai.py", "plan_ai_write.py", "plan_geom.py", "ws_plan_ai.py", "ai_usage.py"):
+        src = (_ROOT / name).read_text(encoding="utf-8")
+        assert not re.search(r"Screenshot \d", src), name
+        assert not re.search(r"\$\d", src), name
+
+
 def test_the_effective_rule_needs_the_master_switch(monkeypatch, tmp_path, disk):
     h, conn, _ai = _house(monkeypatch, tmp_path)
     assert A.build_on(h)

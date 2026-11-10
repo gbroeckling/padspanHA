@@ -1762,7 +1762,7 @@ S1_ANCHOR_SMALL = 0.03       # an anchor's own error under this is information; 
 S1_SAME_M = 0.10             # a proposal moving no corner further than this: "already lined up" (the acceptance tolerance)
 S1_FLAG_M = 0.30             # a click landing this far from its stored metres is flagged (design 3.6)
 S1_OUTLINE_ON_INK = 0.5      # under this share of the AI's outline on drawn walls, its positions are suspect. Design 3.2 had the
-                             # outline's box against the ink's box (IoU < 0.7); on Garry's Screenshot 03-14 that misfired at 0.43
+                             # outline's box against the ink's box (IoU < 0.7); on one test plan (Nov 9) that misfired at 0.43
                              # (patio and dimensions outside the walls are ink too), while on-ink read 0.54-0.87 right and
                              # 0.16-0.40 shifted or in a 0-1000 frame (dry run, 2026-11-09). The box IoU is still recorded.
 S1_PICTURE_PX, S1_PICTURE_MP = 2560, 3.5      # what Claude is sent (design 3.2; Stage 0b: 4.1 MP was shrunk by the API)

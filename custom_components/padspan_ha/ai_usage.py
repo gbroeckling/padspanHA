@@ -4,8 +4,8 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """How much AI PadSpan uses: the AI credit tracker (experimental, 2026-11).
 
-Garry, 2026-11-09: "My plan started as $200 today, let's track this on my
-claude for this usage by ha". Design: PadspanResearch
+Garry, 2026-11-09: track this integration's Claude use against the monthly
+credit of the plan Home Assistant's key runs on. Design: PadspanResearch
 plan-build-design-2026-11.md, section 9 (the tracker), 10 (the opt-in report)
 and 14 (stall watch: every read that failed or was refused has a named reason).
 
