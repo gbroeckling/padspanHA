@@ -322,10 +322,12 @@ def enabled(hass: HomeAssistant) -> bool:
 # ── Plans and their signatures ───────────────────────────────────────────────
 
 def image_sig(m: dict) -> str:
-    """The picture's version: the map's `updated`, else the image's sha256
-    (map_image_view.image_path keys the browser's links the same way)."""
+    """The picture's version: the image's sha256 (every rewrite of the
+    picture sets it), else the map's `updated`. Not `updated` first: any save
+    of the map record moves it (a refile's floor, a scanner dragged), and none
+    of those changes the picture."""
     image = m.get("image") or {}
-    return re.sub(r"[^a-zA-Z0-9]", "", str(m.get("updated") or image.get("sha256") or ""))[:32]
+    return re.sub(r"[^a-zA-Z0-9]", "", str(image.get("sha256") or m.get("updated") or ""))[:32]
 
 
 def place_sig(t: Any) -> str:

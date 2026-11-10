@@ -243,6 +243,22 @@ def test_a_refile_moves_the_plan_to_its_new_storey_in_every_reader_and_undo_brin
     assert _house_now(mdl, ms, cal)["t"] == was["t"]
 
 
+def test_a_refile_undone_can_be_accepted_again_and_undone_again(monkeypatch, tmp_path, disk):
+    """A refile writes the map record, which moves its `updated`; the
+    picture's signature must not move with it, or the undone refile reads as
+    a new picture and can't be accepted again."""
+    h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)
+    was = _house_now(mdl, ms, cal)
+    for _ in range(2):
+        out = _commit(h, conn, ["refile_r1"])
+        assert out["ok"] is True, out
+        assert ms.get_map("r1")["floor_id"] == "upper" and mdl.data["map_transforms"]["r1"]["floor_id"] == "upper"
+        out = _undo(h, conn)
+        assert out["ok"] is True and out["undone"] == 1 and out["items"]["refile_r1"]["state"] == "undone"
+        assert ms.get_map("r1")["floor_id"] == "basement" and _house_now(mdl, ms, cal)["t"] == was["t"]
+    assert _counters(h)["plan_build_refile:accepted"] == 2 and _counters(h)["plan_build_refile:undone"] == 2
+
+
 def test_a_refile_to_a_floor_removed_since_is_refused_by_name(monkeypatch, tmp_path, disk):
     """Review S5: Upper deleted in Home Assistant after the proposal."""
     h, conn, store, mdl, ms, cal = _ready(monkeypatch, tmp_path, disk)

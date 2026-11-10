@@ -1055,9 +1055,9 @@ def test_a_reject_is_remembered_on_the_same_plan_version_expires_with_a_re_place
     [sug_id] = sess["suggestions"]
     _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=sess["rev"], sug_id=sug_id, v="failure", why="nothing_there")
     [key] = store.data["rejects"]
-    assert A.remembered_reject(store.data["rejects"], "stairs", "m1", "20261102T100000", A.place_sig(_T1), 1.6, 4.3) == key
-    assert A.remembered_reject(store.data["rejects"], "railing", "m1", "20261102T100000", A.place_sig(_T1), 1.5, 4.0) is None
-    assert A.remembered_reject(store.data["rejects"], "stairs", "m1", "20261102T100000", A.place_sig(_T1), 2.5, 4.0) is None
+    assert A.remembered_reject(store.data["rejects"], "stairs", "m1", "abc", A.place_sig(_T1), 1.6, 4.3) == key
+    assert A.remembered_reject(store.data["rejects"], "railing", "m1", "abc", A.place_sig(_T1), 1.5, 4.0) is None
+    assert A.remembered_reject(store.data["rejects"], "stairs", "m1", "abc", A.place_sig(_T1), 2.5, 4.0) is None
     # Read again on the same plan version: the same find is not queued; it is listed as ignored before.
     store, sess2, sid2 = _run(_session(h, ("m1",), ("stairs",)))
     [sug] = sess2["suggestions"].values()
