@@ -629,7 +629,8 @@ async def ws_fabric_rooms_merge(hass: HomeAssistant, connection, msg) -> None:
     if bad:
         connection.send_error(msg["id"], "invalid", f"Only outlined rooms on this floor merge: {', '.join(bad)}")
         return
-    outline, pieces = plan_geom.merge_outline([geo[r]["points_m"] for r in names])
+    # Pillow and a pure-Python trace: up to a second or more on a small machine, so off the event loop (review B4).
+    outline, pieces = await hass.async_add_executor_job(plan_geom.merge_outline, [geo[r]["points_m"] for r in names])
     outline = plan_geom.simplify(outline, 0.05)
     if pieces > 1 or len(outline) < 3:
         connection.send_error(msg["id"], "apart", "These rooms don't touch (more than a metre apart), so they can't be one outline. Move them together first.")
@@ -642,11 +643,18 @@ async def ws_fabric_rooms_merge(hass: HomeAssistant, connection, msg) -> None:
     if not res.get("ok"):
         connection.send_error(msg["id"], res.get("error", "failed"), str(res))
         return
-    for r in others:
-        await mdl.async_remove_room(r)
+    removed, failed = [], []
+    for r in others:                                     # each delete checked: one that fails is said, not hidden (review B10)
+        try:
+            res = await mdl.async_remove_room(r)
+        except Exception:  # noqa: BLE001
+            res = {}
+        (removed if res.get("ok") else failed).append(r)
     _bump(hass, "room_merged")
     _invalidate_snapshot_cache(hass)
-    connection.send_result(msg["id"], {"ok": True, "room": keep, "removed": others, "points_m": outline, "backup_id": backup})
+    connection.send_result(msg["id"], {"ok": not failed, "room": keep, "removed": removed, "failed": failed, "points_m": outline, "backup_id": backup,
+                                       **({"message": f"Merged into \"{keep}\", but {', '.join(failed)} couldn't be deleted: it overlaps the merged room. "
+                                                      "Delete it, or restore the safety backup."} if failed else {})})
 
 
 @websocket_api.websocket_command(

@@ -33,5 +33,17 @@ check("merge: two outlined rooms", maps._roomsMergeable(new Set(["A", "B"]), dra
 check("merge: one room isn't a merge", !maps._roomsMergeable(new Set(["A"]), draft, none).ok);
 check("merge: a circle can't", /circle/.test(maps._roomsMergeable(new Set(["A", "C"]), draft, none).why));
 check("merge: unsaved changes first", /Save or discard/.test(maps._roomsMergeable(new Set(["A", "B"]), draft, (r) => r === "B").why));
+// After a merge (review B5): only the merged rooms change in the open draft; another room's unsaved edit stays.
+const big = [[0, 0], [8, 0], [8, 3], [0, 3]], moved = [[9, 0], [12, 0], [12, 2], [9, 2]];
+const d2 = { A: { type: "poly", points_m: sq, floor_id: "main" }, B: { type: "poly", points_m: sq }, D: { type: "poly", points_m: moved } };
+const o2 = { A: { type: "poly", points_m: sq, floor_id: "main" }, B: { type: "poly", points_m: sq }, D: { type: "poly", points_m: [[9, 0], [11, 0], [11, 2], [9, 2]] } };
+maps._roomsAfterMerge(d2, o2, "A", ["B"], { ok: true, removed: ["B"], points_m: big });
+check("merge after: the kept room takes the merged outline in the draft and as saved", JSON.stringify(d2.A.points_m) === JSON.stringify(big)
+  && JSON.stringify(o2.A.points_m) === JSON.stringify(big) && d2.A.floor_id === "main", [d2.A, o2.A]);
+check("merge after: the merged room leaves the draft", !("B" in d2) && !("B" in o2), [d2, o2]);
+check("merge after: another room's unsaved edit stays", JSON.stringify(d2.D.points_m) === JSON.stringify(moved) && o2.D.points_m[1][0] === 11, [d2.D, o2.D]);
+const d3 = { A: { type: "poly", points_m: sq }, B: { type: "poly", points_m: sq } };
+maps._roomsAfterMerge(d3, null, "A", ["B"], { ok: false, removed: [], failed: ["B"], points_m: big });
+check("merge after: a room whose delete failed stays in the draft", "B" in d3, d3);
 console.log(JSON.stringify(results));
 process.exit(0);

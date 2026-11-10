@@ -11166,6 +11166,16 @@ export function _roomsMergeable(sel, draft, changed) {
   if (rooms.some(r => changed(r))) return { ok: false, why: "Save or discard your changes to these rooms first." };
   return { ok: true, why: "" };
 }
+// A merge saved: into the open draft only, as Delete does, so the other unsaved
+// edits stay. The rooms deleted leave it; the kept one takes the merged outline.
+export function _roomsAfterMerge(draft, orig, keep, others, res) {
+  const gone = Array.isArray(res && res.removed) ? res.removed : others;
+  for (const m of [draft, orig]) {
+    if (!m) continue;
+    for (const r of gone) delete m[r];
+    if (res && Array.isArray(res.points_m) && m[keep]) m[keep] = { ...m[keep], type: "poly", points_m: JSON.parse(JSON.stringify(res.points_m)) };
+  }
+}
 
 // Connected-component count over room bounding boxes (gap ≤ gapM = same
 // cluster). Mirrors the backend's _cluster_count so the readout here and the
@@ -12480,11 +12490,11 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           if (!confirm(`Merge ${others.map(r => `"${r}"`).join(", ")} into "${keep}"? "${keep}" gets one outline round them all; ${others.length === 1 ? "the other room is" : "the others are"} deleted with ${others.length === 1 ? "its" : "their"} adjacency and scanner assignments. A safety backup is taken first.`)) return;
           const btn = e.currentTarget; btn.disabled = true;
           try {
-            await ctx.actions.wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others });
-            ctx.toast(`✔ Merged into "${keep}"`);
+            const res = await ctx.actions.wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others }) || {};
+            if (res.ok === false && res.message) ctx.toast(res.message, true);
+            else ctx.toast(`✔ Merged into "${keep}"`);
             mapState._roomsSel = [keep];
-            for (const r of others) { if (mapState._roomsDraft) delete mapState._roomsDraft[r]; if (mapState._roomsOrig) delete mapState._roomsOrig[r]; }
-            mapState._roomsDraftFloorId = null;
+            _roomsAfterMerge(mapState._roomsDraft, mapState._roomsOrig, keep, others, res);
             mapState._roomsTruthCache = null;
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
