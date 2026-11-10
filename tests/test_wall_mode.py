@@ -327,6 +327,19 @@ def test_the_flat_maps_scene_row_lies_over_the_cards_foot_and_fades():
     assert ":host([data-wall]:not([data-wall-active])) .psc-atlas *{pointer-events:none}" in lp, "its tiles can't be tapped unseen"
 
 
+def test_zoomed_past_100_the_drawing_stays_on_the_wall():
+    """BUG_LOG 2026-11-09: past 100% the forest's wall branch (atlas_forest.js
+    fit) turns the drawing's width into a height and a negative margin, and a
+    `%` there means the stage's height in one and its width in the other, so the
+    layer kept a net height and pushed the drawing down (a portrait wall at
+    130%: 570 px) or up. The width is in cqw, the stage's width either way."""
+    lm = _src("views/lights_map.js")
+    assert "? `min(${Math.round((view.zoom || 1) * 100)}cqw, calc(${(view.zoom || 1)} * 100cqh * " in lm
+    assert "? `min(${Math.round((view.zoom || 1) * 100)}%, calc(" not in lm
+    fo = _src("views/atlas_forest.js")
+    assert 'const tall = `max(100cqh, calc(${width} * ${a}))`;' in fo and 'st.marginBottom = `calc(-1 * ${tall})`;' in fo
+
+
 def test_the_atlas_page_runs_without_the_wall_module():
     # The 15-hour review's load-risk check: an optional module must not take the page with it.
     lp = _src("lights_panel.js")

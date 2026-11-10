@@ -3952,9 +3952,12 @@ export function buildLightsMapCard(hostIn){
     // On a wall, as wide as the stage or as tall as it, whichever comes
     // first (the stage is a size container: 100cqh is its height), so the
     // whole house is on the screen at 100%; zoomed in, it grows from there.
+    // cqw, not %: the forest and the rain take this width into a height and
+    // a margin, where % means the stage's height in one and its width in the
+    // other (zoomed past 100%, the drawing slid off the screen).
     const vb = svg.viewBox && svg.viewBox.baseVal;
     const wallW = WALL && vb && vb.width && vb.height
-      ? `min(${Math.round((view.zoom || 1) * 100)}%, calc(${(view.zoom || 1)} * 100cqh * ${(vb.width / vb.height).toFixed(5)}))` : null;
+      ? `min(${Math.round((view.zoom || 1) * 100)}cqw, calc(${(view.zoom || 1)} * 100cqh * ${(vb.width / vb.height).toFixed(5)}))` : null;
     svg.style.width = wallW || `${Math.round((view.zoom || 1) * 100)}%`;
     // 2026-09-22, after three straight rounds of this still being wrong
     // live (a visible flash, then not filling the width, then the whole
