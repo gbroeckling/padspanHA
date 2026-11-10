@@ -160,7 +160,7 @@ def _house(monkeypatch, tmp_path, *, plans=None, answers=None, fail=None, gauge=
     h.states.get = lambda eid: SimpleNamespace(state="unknown", attributes={"friendly_name": "Claude AI Task", "supported_features": 3}) \
         if eid == _CLAUDE else None
     monkeypatch.setattr(A, "model_sources", lambda hass, eid: list(sources))
-    monkeypatch.setattr(U, "model_of", lambda hass, eid: "opus 5.5")
+    monkeypatch.setattr(U, "model_of", lambda hass, eid: "Claude Opus 5.5")
     conn.user = SimpleNamespace(is_admin=True, name="Garry")
     pics = {"anchor.png": tmp_path / "anchor.png", "moving.png": tmp_path / "moving.png", "other.png": tmp_path / "other.png"}
     _draw(pics["anchor.png"])
@@ -280,6 +280,26 @@ def test_claude_through_any_other_integration_is_locked_and_an_unknown_family_fa
     assert A.unlock_rule(None, ["Claude Opus 5.5"])["why"] == "not_anthropic"
     assert A.claude_model("claude-zephyr-9-0") is None                           # a family not in the pattern: no model, locked
     assert "zephyr" not in A.PLAN_BUILD_MIN
+
+
+@pytest.mark.parametrize("name", ["Claude Opus 10", "claude-opus-10-1", "Claude Opus 5.5", "claude-opus-5-5-20261201", "Claude Fable 5",
+                                  "claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"])
+def test_the_unlock_and_the_price_read_the_model_in_one_place(name, monkeypatch):
+    """Review B5: one reader of the AI Task's model (model_sources) and one
+    parser of its name (claude_model), for the unlock and the AI credit
+    tracker's price alike: "Claude Opus 10" is Opus 10.0 to both."""
+    from tests.test_house3d_store import _house as _bare
+    monkeypatch.setattr(A, "model_sources", lambda hass, eid: [name])
+    read = A.claude_model(name)
+    model = U.model_of(_bare(), "ai_task.claude")
+    assert model is not None and A.claude_model(model) == read
+    fam, (major, minor) = read
+    assert U.price_of(model) == U.PRICES.get((fam, f"{major}.{minor}" if minor else f"{major}"))
+    assert U.price_of(name) == U.price_of(model)
+    usage, plan = (_ROOT / "ai_usage.py").read_text(encoding="utf-8"), (_ROOT / "plan_ai.py").read_text(encoding="utf-8")
+    assert "_MODEL_RE" not in usage and "re.compile" not in usage[usage.index("PRICES"):usage.index("def kind_of")]
+    assert plan.count("entity_registry as er") == 1 and plan.count("device_registry as dr") == 1      # one registry reader
+    assert "def _poly_in" not in plan and "_point_in_polygon" in plan                                   # ws_common's, not a copy
 
 
 def test_the_effective_rule_needs_the_master_switch(monkeypatch, tmp_path, disk):
@@ -595,7 +615,7 @@ def test_the_picker_shows_the_trackers_own_estimate_and_every_refusal_says_exper
     and Settings with the line-up's prefix."""
     h, conn, ai = _house(monkeypatch, tmp_path)
     plans = {p["map_id"]: p for p in _call(W.ws_plan_build_info, h, conn)["floors"][0]["plans"]}
-    price = U.price_of("opus 5.5")
+    price = U.price_of("Claude Opus 5.5")
     want = U.estimate_usd(price, (1000, 800), len(A.READ_A_PROMPT)) + sum(
         A.S1_DIMS_PER_AXIS * U.estimate_usd(price, (side, 200), len(A.READ_B_PROMPT)) for side in (1000, 800))
     assert plans["a1"]["est_usd"] == [round(want, 4), round(2 * want, 4)] and 0 < want < 0.2

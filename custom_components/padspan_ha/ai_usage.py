@@ -138,9 +138,6 @@ PRICES: dict[tuple[str, str], tuple[float, float]] = {
     ("sonnet", "5.5"): (2.0, 10.0), ("sonnet", "5"): (2.0, 10.0), ("sonnet", "4.6"): (3.0, 15.0),
     ("haiku", "5.5"): (0.10, 0.50), ("haiku", "4.5"): (1.0, 5.0),
 }
-# "claude-opus-5-5", "Claude Opus 5.5", "claude-sonnet-4-5-20250929": one digit
-# each side, so a date is never read as the version.
-_MODEL_RE = re.compile(r"(fable|mythos|opus|sonnet|haiku)[ _-]?(\d)(?:[._-](\d)(?!\d))?", re.I)
 
 # Opt-in report bands (telemetry.AI_USAGE_EVENTS): the month just ended, once.
 READS_MONTH_BANDS: tuple[str, ...] = ("0", "1_20", "21_100", "101_500", "gt500")
@@ -159,12 +156,14 @@ def maker_of(platform: str | None) -> str:
 
 
 def price_of(model: str | None) -> tuple[float, float] | None:
-    """(input, output) dollars a million tokens, or None for a model not known."""
-    m = _MODEL_RE.search(str(model or ""))
-    if not m:
+    """(input, output) dollars a million tokens, or None for a model not known.
+    The name is read by plan_ai.claude_model, as the unlock reads it (review B5)."""
+    from .plan_ai import claude_model  # noqa: PLC0415
+    got = claude_model(model)
+    if got is None:
         return None
-    ver = m.group(2) + (f".{m.group(3)}" if m.group(3) and m.group(3) != "0" else "")
-    return PRICES.get((m.group(1).lower(), ver))
+    fam, (major, minor) = got
+    return PRICES.get((fam, f"{major}.{minor}" if minor else f"{major}"))
 
 
 def estimate_usd(price: tuple[float, float] | None, size: tuple[int, int] | None, prompt_chars: int) -> float | None:
@@ -370,15 +369,16 @@ def _platform(hass: HomeAssistant, eid: str) -> str | None:
 
 
 def model_of(hass: HomeAssistant, eid: str) -> str | None:
-    """The Claude model behind an AI Task ("opus 5.5"), from what
-    plan_ai._model_text reads of it (the one reader: the integration's
-    sub-entry and, last, its device), the last named; None when none is."""
-    from .plan_ai import _model_text  # noqa: PLC0415
-    found = _MODEL_RE.findall(_model_text(hass, eid))
-    if not found:
-        return None
-    fam, major, minor = found[-1]
-    return f"{fam.lower()} {major}" + (f".{minor}" if minor and minor != "0" else "")
+    """The Claude model behind an AI Task ("Claude Opus 5.5"), read where the
+    unlock reads it (plan_ai.model_sources through plan_ai.claude_model,
+    review B5): the first source that names one; None when none does."""
+    from .plan_ai import claude_model, model_sources  # noqa: PLC0415
+    for src in model_sources(hass, eid):
+        got = claude_model(src)
+        if got is not None:
+            fam, (major, minor) = got
+            return f"Claude {fam.capitalize()} {major}.{minor}"
+    return None
 
 
 def _settings(hass: HomeAssistant) -> dict[str, Any]:

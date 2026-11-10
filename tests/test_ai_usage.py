@@ -132,8 +132,9 @@ def test_the_price_table(model, price):
 
 
 def test_the_model_is_read_where_the_plan_ai_reads_it(monkeypatch):
-    """One reader (plan_ai._model_text): the Anthropic integration names the model
-    on its device and its sub-entry's chat_model; the last named counts."""
+    """One reader (plan_ai.model_sources, as the unlock reads it): the Anthropic
+    integration names the model on its sub-entry's chat_model and its device;
+    the first that names a Claude model counts."""
     import homeassistant.helpers.device_registry as dr
     import homeassistant.helpers.entity_registry as er
     ents = {_CLAUDE: SimpleNamespace(name=None, original_name="Claude AI Task", config_entry_id="e1",
@@ -148,8 +149,8 @@ def test_the_model_is_read_where_the_plan_ai_reads_it(monkeypatch):
     monkeypatch.setattr(dr, "async_get", lambda hass: SimpleNamespace(async_get=devs.get), raising=False)
     h = _house()
     h.config_entries.async_get_entry = entries.get
-    assert U.model_of(h, _CLAUDE) == "opus 5.5" and U.price_of(U.model_of(h, _CLAUDE)) == (4.0, 20.0)
-    assert U.model_of(h, _LOCAL) == "opus 5", "only a name says Opus here: the reader's words, priced only for a Claude AI Task"
+    assert U.model_of(h, _CLAUDE) == "Claude Opus 5.5" and U.price_of(U.model_of(h, _CLAUDE)) == (4.0, 20.0)
+    assert U.model_of(h, _LOCAL) is None, "only the entity's own name says Opus here: not a model source (review B5)"
     assert U.model_of(h, "ai_task.gone") is None
 
 

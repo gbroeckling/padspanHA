@@ -70,6 +70,7 @@ from . import plan_geom as G
 from . import ws_house3d_photo as P
 from . import ws_house3d_stairs as S
 from .fabric_truth import placement_metres
+from .ws_common import _point_in_polygon
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -403,31 +404,32 @@ def plans_moved(hass: HomeAssistant, sess: dict[str, Any]) -> set[str]:
 _QWEN25 = re.compile(r"qwen\s*2[._-]?5", re.I)
 
 
+def _registry(hass: HomeAssistant, eid: str) -> tuple[Any, Any, Any, Any]:
+    """The one registry read of an AI Task (review B5): its entity, its
+    config entry, the entry's sub-entry and its device, None each that
+    can't be read."""
+    try:
+        from homeassistant.helpers import device_registry as dr, entity_registry as er  # noqa: PLC0415
+        ent = er.async_get(hass).async_get(eid)
+        entry = hass.config_entries.async_get_entry(getattr(ent, "config_entry_id", None))
+        sub = (getattr(entry, "subentries", None) or {}).get(getattr(ent, "config_subentry_id", None))
+        return ent, entry, sub, dr.async_get(hass).async_get(getattr(ent, "device_id", None))
+    except Exception:  # noqa: BLE001
+        return None, None, None, None
+
+
 def _model_text(hass: HomeAssistant, eid: str) -> str:
     """What names the model behind an AI Task entity: its id and names, the
     "model" of the integration's sub-entry or entry (Ollama keeps it there),
-    the sub-entry's "chat_model" (Anthropic's), and last the device's model id
-    and model ("claude-opus-5-5", "Claude Opus 5.5"; the AI credit tracker's
-    price, ai_usage.model_of). Whatever can't be read is left out: no name
-    means a named frame."""
-    out = [str(eid or "")]
-    try:
-        from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
-        ent = er.async_get(hass).async_get(eid)
-        out += [str(getattr(ent, k, None) or "") for k in ("name", "original_name")]
-        entry = hass.config_entries.async_get_entry(getattr(ent, "config_entry_id", None))
-        sub = (getattr(entry, "subentries", None) or {}).get(getattr(ent, "config_subentry_id", None))
-        for src in (getattr(sub, "data", None), getattr(entry, "options", None), getattr(entry, "data", None)):
-            if src and src.get("model"):
-                out.append(str(src["model"]))
-        if sub is not None and isinstance((getattr(sub, "data", None) or {}).get("chat_model"), str):
-            out.append(sub.data["chat_model"])
-        from homeassistant.helpers import device_registry as dr  # noqa: PLC0415
-        dev = dr.async_get(hass).async_get(getattr(ent, "device_id", None))
-        out += [v for v in (getattr(dev, k, None) for k in ("model_id", "model")) if isinstance(v, str)]
-    except Exception:  # noqa: BLE001
-        pass
-    return " ".join(out)
+    and model_sources (the sub-entry's "chat_model", Anthropic's, and the
+    device's model and model id). Whatever can't be read is left out: no
+    name means a named frame."""
+    ent, entry, sub, _dev = _registry(hass, eid)
+    out = [str(eid or "")] + [str(getattr(ent, k, None) or "") for k in ("name", "original_name")]
+    for src in (getattr(sub, "data", None), getattr(entry, "options", None), getattr(entry, "data", None)):
+        if src and src.get("model"):
+            out.append(str(src["model"]))
+    return " ".join(out + model_sources(hass, eid))
 
 
 def frame_kind(hass: HomeAssistant, eid: str) -> str:
@@ -1909,21 +1911,11 @@ def unlock_rule(platform: str | None, sources: list[str]) -> dict[str, Any]:
 def model_sources(hass: HomeAssistant, eid: str) -> list[str]:
     """Every name of the model behind an AI Task that can be read (design 1.3):
     the integration sub-entry's chat_model (Anthropic's), and its device's
-    model and model id; the registry reads of _model_text."""
-    out: list[str] = []
-    try:
-        from homeassistant.helpers import device_registry as dr, entity_registry as er  # noqa: PLC0415
-        ent = er.async_get(hass).async_get(eid)
-        entry = hass.config_entries.async_get_entry(getattr(ent, "config_entry_id", None))
-        sub = (getattr(entry, "subentries", None) or {}).get(getattr(ent, "config_subentry_id", None))
-        chat = (getattr(sub, "data", None) or {}).get("chat_model") if sub is not None else None
-        if isinstance(chat, str):
-            out.append(chat)
-        dev = dr.async_get(hass).async_get(getattr(ent, "device_id", None))
-        out += [v for v in (getattr(dev, k, None) for k in ("model", "model_id")) if isinstance(v, str)]
-    except Exception:  # noqa: BLE001
-        pass
-    return out
+    model and model id. The unlock and the AI credit tracker's price
+    (ai_usage.model_of) both read the model here, through claude_model."""
+    _ent, _entry, sub, dev = _registry(hass, eid)
+    chat = (getattr(sub, "data", None) or {}).get("chat_model")
+    return ([chat] if isinstance(chat, str) else []) + [v for v in (getattr(dev, k, None) for k in ("model", "model_id")) if isinstance(v, str)]
 
 
 def unlock(hass: HomeAssistant) -> dict[str, Any]:
@@ -2261,18 +2253,9 @@ def refile_candidates(sess: dict, snap: dict) -> dict[str, dict]:
     return out
 
 
-def _poly_in(x: float, y: float, pts: list) -> bool:
-    c = False
-    for i in range(len(pts)):
-        (xi, yi), (xj, yj) = pts[i], pts[i - 1]
-        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
-            c = not c
-    return c
-
-
 def _room_at(snap: dict, fid: str, x: float, y: float) -> str | None:
     for name, r in snap["rooms"].items():
-        if r["floor_id"] == fid and len(r["points_m"]) >= 3 and _poly_in(x, y, r["points_m"]):
+        if r["floor_id"] == fid and len(r["points_m"]) >= 3 and _point_in_polygon(x, y, r["points_m"]):
             return name
     return None
 
@@ -2328,7 +2311,7 @@ def effects(snap: dict, map_id: str, new_t: dict) -> tuple[list[dict], dict[str,
             if str(ident) in on_plan or not isinstance(pos, dict) or str(pos.get("floor_id") or "") != fid:
                 continue
             x, y = S._num(pos.get("x_m")), S._num(pos.get("y_m"))  # noqa: SLF001
-            if x is not None and y is not None and _poly_in(x, y, corners):
+            if x is not None and y is not None and _point_in_polygon(x, y, corners):
                 others.append(_short(pos.get("label") or ident, 40))
     return flags, {"n": len(others), "names": others[:20]}
 
