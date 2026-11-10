@@ -218,7 +218,12 @@ await tryCase("same: the same house, the same forest", async () => {
 
 // ── layer ───────────────────────────────────────────────────────────────────
 await tryCase("layer: each plate is cut out on its own, and nothing but the picture is touched", async () => {
-  const ko = geoOf(HOUSE), plan = FO.forestPlan(areaOf(ko), ko.polys, 7);
+  // As the layer paints it (paint: forestPlan(..., last.plates)): the plates are cut
+  // out, the space between floors is not (a dark, treeless curtain hung there,
+  // 2026-11-09), though nothing stands in it either.
+  const ko = geoOf(HOUSE), plan = FO.forestPlan(areaOf(ko), ko.polys, 7, ko.plates);
+  const joins = ko.polys.length - ko.plates.length;
+  const shape = FO.houseShape(ko.polys), standsInJoin = plan.items.some(i => i.k === "tree" && shape.inside(i.x, i.y));
   const log = [];
   const g = new Proxy({ globalCompositeOperation: "source-over" }, {
     get: (t, k) => (k in t ? t[k] : k === "createLinearGradient" || k === "createRadialGradient" ? () => ({ addColorStop() {} }) : (...a) => { log.push([String(k), t.globalCompositeOperation]); }),
@@ -230,7 +235,8 @@ await tryCase("layer: each plate is cut out on its own, and nothing but the pict
   const fills = log.filter(l => l[0] === "fill" && l[1] === "destination-out").length;
   const notBack = log.filter(l => l[0] === "drawImage" && l[1] !== "source-over").length;
   check("layer: each plate is cut out on its own, and nothing but the picture is touched",
-    fills === ko.polys.length && notBack === 0 && g.globalCompositeOperation === "source-over", { fills, polys: ko.polys.length, notBack });
+    joins > 0 && fills === ko.plates.length && plan.polys === ko.plates && !standsInJoin && notBack === 0 && g.globalCompositeOperation === "source-over",
+    { fills, plates: ko.plates.length, joins, standsInJoin, notBack });
 });
 
 // ── light ───────────────────────────────────────────────────────────────────

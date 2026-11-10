@@ -75,12 +75,18 @@ export function standOf(seed, x, y){
 
 // ── The house, as far as the trees care ─────────────────────────────────────
 /** Every plate's polygons and the space between stacked floors, in drawing
- *  units: the rain's mask (atlas_weather.js), and a garden's plate as well. */
+ *  units: the rain's mask (atlas_weather.js), and a garden's plate as well.
+ *  polys: where nothing may stand (plates and the space between floors);
+ *  plates: the plates alone, all that is cut out of the picture: the forest
+ *  floor and its mist run on between the floors, as every other theme's ground
+ *  does (cutting the space between floors out too hung dark, treeless
+ *  curtains from the upper floors, 2026-11-09). */
 export function forestKeepOut(svg, outdoorZ, offsets){
   const geo = WX.atlasPlatesFromSvg(svg);
   if (!geo) return null;
   const outZ = outdoorZ instanceof Set ? outdoorZ : new Set();
-  return { viewBox: geo.viewBox, polys: [...geo.plates.flatMap(pl => pl.polys), ...WX.stackJoins(geo.plates, outZ, offsets)] };
+  const plates = geo.plates.flatMap(pl => pl.polys);
+  return { viewBox: geo.viewBox, polys: [...plates, ...WX.stackJoins(geo.plates, outZ, offsets)], plates };
 }
 const inPoly = (P, x, y) => {
   let c = false;
@@ -147,8 +153,9 @@ const SPECIES = ["fir", "cedar", "hemlock"];
 const CLEARING = 42, GLADE = 0.3;           // units of open floor round the house; how much of the forest is a glade
 const WIDTH = { fir: 0.3, cedar: 0.38, hemlock: 0.3 };      // the sprite's half-width x its height, roughly
 /** Everything in the picture, back to front. area: {x0, y0, x1, y1} in units;
- *  polys: forestKeepOut's; seed: forestSeed's. Pure. */
-export function forestPlan(area, polys, seed){
+ *  polys: forestKeepOut's (nothing stands there); seed: forestSeed's; cut: what
+ *  is cut out of the picture (forestKeepOut's plates; else polys). Pure. */
+export function forestPlan(area, polys, seed, cut = polys){
   const shape = houseShape(polys), items = [], dabs = [], mist = [];
   const cells = (cx, cy, salt, fn) => {
     for (let iy = Math.floor(area.y0 / cy) - 1; iy <= Math.ceil(area.y1 / cy) + 1; iy++) {
@@ -219,7 +226,7 @@ export function forestPlan(area, polys, seed){
   items.sort((a, b) => a.y - b.y || a.x - b.x);
   cells(46, 25, 6, (r, x, y) => { const m = r(), s = r(), w = r(); dabs.push({ x, y, w: 26 + s * 60, kind: w < 0.62 ? 0 : 1, a: 0.28 + m * 0.5 }); });
   cells(170, 58, 7, (r, x, y) => { const m = r(), s = r(); if (m < 0.72) mist.push({ x, y, w: 150 + s * 240, a: (0.05 + m * 0.13) * (gladeAt(x, y) ? 1.8 : 1) }); });
-  return { area: { ...area }, polys: polys || [], items, dabs, mist };
+  return { area: { ...area }, polys: cut || [], items, dabs, mist };
 }
 
 // ── Colours ─────────────────────────────────────────────────────────────────
@@ -645,7 +652,7 @@ function createSlot(){
     const g = canvas.getContext("2d", SOFT);
     if (!g) return false;
     g.setTransform(canvas.width / W, 0, 0, canvas.height / H, -area.x0 * canvas.width / W, -area.y0 * canvas.height / H);
-    const plan = forestPlan(area, last.polys, last.seed);
+    const plan = forestPlan(area, last.polys, last.seed, last.plates);
     drawForest(g, plan, spritesFor(px));
     if (inv) {
       const img = g.getImageData(0, 0, canvas.width, canvas.height);
@@ -667,7 +674,7 @@ function createSlot(){
         if (!ko) { this.detach(); return false; }
         ensure(stage);
         shapeKey = `${ko.viewBox.join(",")}|${ko.polys.map(P => P.map(q => `${q[0]},${q[1]}`).join(" ")).join(";")}`;
-        last = { viewBox: ko.viewBox, polys: ko.polys, seed: forestSeed(p.model) };
+        last = { viewBox: ko.viewBox, polys: ko.polys, plates: ko.plates, seed: forestSeed(p.model) };
         // The panel's theme may have changed (the key tells paint), or a new
         // card only now comes on the page.
         if (!stage.isConnected || underInvert(layer) !== !!(painted && painted.endsWith("|inv"))) later();
