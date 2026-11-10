@@ -2852,7 +2852,7 @@ export function createPlans(ctx){
   // -- the tab ---------------------------------------------------------------
   function paintRooms(){
     luTabs();
-    head("Rooms from plans", "Claude reads a lined-up floor: rooms, doors, windows and stairs together. Experimental.");
+    head("Rooms from plans", "Claude reads a floor's plans: rooms, doors, windows and stairs together. Experimental.");
     sheet.appendChild(d("div", "pl-ban", RB_BANNER));
     if (rbErr) { const e = d("div", "pl-note pl-bad", rbErr); e.setAttribute("role", "alert"); sheet.appendChild(e); }
     if (rbBusy && !rbSess) { sheet.appendChild(d("div", "pl-note", "Looking…")); return; }
@@ -2894,7 +2894,7 @@ export function createPlans(ctx){
     }
     const ticked = (ri.plans || []).filter(p => rbPicked.has(p.map_id)), priced = ticked.filter(p => num(p.est_usd) !== null);
     const est = !ticked.length ? "tick the plans to read" : priced.length === ticked.length ? `about $${priced.reduce((s, p) => s + p.est_usd, 0).toFixed(2)} for ${ticked.length === 1 ? "this plan" : `these ${ticked.length} plans`} (estimate, experimental)` : "no price is known for this model";
-    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them, twice each: the plans leave the house for Anthropic. ${est}. `
+    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them, twice each: the plans leave the house for Anthropic; ${est}. `
       + "Nothing is saved until you accept: one save for the floor, a backup first, one undo."));
     const acts = d("div", "pl-acts");
     acts.setAttribute("data-plan-build", "rooms-start");
@@ -3100,7 +3100,7 @@ export function createPlans(ctx){
         foot.append(yes, btn("Cancel", "Keep what was saved", () => { rbAskUndo = false; redraw(); }));
       } else foot.appendChild(btn("Undo this rooms session (experimental)", "Puts back everything this session saved", () => { rbAskUndo = true; redraw(); }));
     }
-    foot.appendChild(btn("Read again (experimental)", "Pick a floor and read it again", () => { rbSess = null; rbKey = null; rbSel.clear(); rbGate = null; rbSleep(); luInfo().then(() => redraw()); }));
+    foot.appendChild(btn("Read the floor again (experimental)", "Pick a floor and read it again", () => { rbSess = null; rbKey = null; rbSel.clear(); rbGate = null; rbSleep(); luInfo().then(() => redraw()); }));
     sheet.appendChild(foot);
   }
 
