@@ -3783,7 +3783,13 @@ export function buildLightsMapCard(hostIn){
                 const go = () => { _la3dPick(h3.slot, false); h3.openAtlasRoom(fid, room); };
                 const s = la3dSlot();
                 if (!(s && s.holdLeave && s.holdLeave(go))) go();
-              } } : null,
+              },
+              // Where the tool stops, its next actions (maps.js plansGo): Measure a plan, the rooms helper, Settings → AI,
+              // each leaving Edit first (asking if something is unsaved). None on a wall screen.
+              go: !h3.plansGo ? null : (() => {
+                const G = h3.plansGo, leave = (f) => (...a) => { const run = () => f(...a); const s = la3dSlot(); if (!(s && s.holdLeave && s.holdLeave(run))) run(); };
+                return { measure: leave(G.measure), helperOffered: G.helperOffered, helper: leave(G.helper), settings: leave(G.settings) };
+              })() } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'
           // choice, a floor at a time, lowest first; and, on the sidebar,

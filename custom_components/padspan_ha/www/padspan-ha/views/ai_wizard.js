@@ -30,7 +30,8 @@ const { isOutdoorFloorId } = await import(`./iso_lights.js${V}`);
 
 export const VIA = "wizard";
 export const CONSOLE_URL = "https://platform.claude.com/";
-export const GUIDE_URL = "https://padspan.traks.ca/guides/claude-ai-task/";
+// The guide, the model words and Claude's case are views/ai_wizard_offer.js's (one copy; Settings → AI says the same).
+export const GUIDE_URL = OFFER.GUIDE_URL;
 export const HA_ADD_PATH = "/config/integrations/dashboard/add?domain=anthropic";
 export const HA_ANTHROPIC_PATH = "/config/integrations/integration/anthropic";
 export const HA_AREAS_PATH = "/config/areas/dashboard";
@@ -48,7 +49,7 @@ export const SCALE_UNUSABLE = "Claude's answers couldn't be used for this plan. 
 // A reading that isn't double-checked (one direction only, or across and down disagree): the person measures first.
 export const SCALE_UNCHECKED = "Claude found a measurement on your plan but couldn't double-check it, so measure one thing yourself. It's the surest way.";
 export const SCALE_UNCHECKED_LOOK = "Claude couldn't double-check this one. Look closely at the amber line: it should run the full length the number is for.";
-const MODEL_WORDS = "Claude Opus 5.5 or newer (any Fable or Mythos works too)";
+const MODEL_WORDS = OFFER.MODEL_WORDS;
 
 // What the person sees when a read or a save stops (design B, the failure table), and what they can do.
 export const FAILS = {
@@ -70,20 +71,7 @@ const ACT_LABEL = { console: "Open the Console ↗", guide: "Guide ↗", resume:
 
 // ── pure: which case, which screen, which words ──────────────────────────────
 
-/** Claude's case from plan_build_info: {why, display, eid}. why is the unlock
- *  rule's word, or available_unchosen: a usable Claude that isn't PadSpan's AI. */
-export function claudeState(build) {
-  const b = build || {}, u = b.unlock || {}, cands = b.candidates || [];
-  if (u.ok) return { why: "ok", display: u.display };
-  const usable = cands.find(c => c.ok && !c.chosen);
-  if (usable) return { why: "available_unchosen", display: usable.display, eid: usable.entity_id };
-  let why = u.why || "no_ai_task", display = u.display || null;
-  if (why === "no_ai_task" || why === "not_anthropic") {          // an Anthropic AI Task with the wrong model says more
-    const anth = cands.find(c => c.why && c.why !== "not_anthropic");
-    if (anth) { why = anth.why; display = anth.display; }
-  }
-  return { why, display };
-}
+export const claudeState = OFFER.claudeState;
 
 /** Whether Start must first turn the two switches on (or choose Claude): asked by a tick, never silently. */
 export function needsConsent(build, why) {
@@ -822,17 +810,17 @@ function connectScreen(ctx, S, box) {
     return;
   }
   if (c.why === "below_opus_5_5") {
-    box.appendChild(P(ctx, `Your AI Task uses ${c.display || "an older Claude"}. Drawing rooms needs ${MODEL_WORDS}. ` +
+    box.appendChild(P(ctx, `${OFFER.claudeOlder(c.display)} Drawing rooms needs ${MODEL_WORDS}. ` +
       "Change the model in Home Assistant: Settings → Devices & services → Anthropic."));
     box.appendChild(row(ctx, [haLink(ctx, HA_ANTHROPIC_PATH, "Open the Anthropic integration", "ha_anthropic"), again]));
     return;
   }
   if (c.why === "unknown_model" || c.why === "sources_disagree") {
-    box.appendChild(P(ctx, "PadSpan can't tell which Claude model this AI Task uses. Choose the model again by its full name in the Anthropic integration."));
+    box.appendChild(P(ctx, OFFER.CLAUDE_WHY.unknown_model + " Choose the model again by its full name in the Anthropic integration."));
     box.appendChild(row(ctx, [haLink(ctx, HA_ANTHROPIC_PATH, "Open the Anthropic integration", "ha_anthropic"), again]));
     return;
   }
-  box.appendChild(P(ctx, "Claude isn't connected to Home Assistant yet. It takes about ten minutes, once:"));
+  box.appendChild(P(ctx, OFFER.CLAUDE_WHY.not_connected + " It takes about ten minutes, once:"));
   const li = (kids) => el("li", { style: "margin:4px 0" }, kids);
   box.appendChild(el("ol", { "data-aiw": "connect-steps", style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, [
     li([el("b", {}, "Get an API key. "), "Sign in to the Anthropic Console and create a key. ", ext(ctx, CONSOLE_URL, "Open the Anthropic Console ↗", "console")]),

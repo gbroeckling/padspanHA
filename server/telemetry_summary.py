@@ -524,10 +524,10 @@ _STUCK_WORDS = ("plan_no_rooms", "rooms_no_receivers", "receivers_no_calibration
 # counts the Plans tool's walls; the helper's own events join in later pieces.
 _MAPPING_FUNNEL = ("plans_tool:opened", "plans_tab:add", "plans_tab:lineup", "plans_tab:rooms", "plans_floor:s1", "plans_floor:s2",
                    "plan_build_stop_ui:no_tabs_off", "plan_build_stop_ui:no_tabs_locked", "plan_build_stop_ui:s1_no_plans",
-                   "plan_build_stop_ui:s2_not_placed")
+                   "plan_build_stop_ui:s2_not_placed", "plans_tool_go:measure", "plans_tool_go:helper", "plans_tool_go:settings")
 # Let Claude draw your rooms (pieces 2 and 3): the helper's own funnel, in the order a
 # person meets it; the words are telemetry.AI_WIZARD_EVENTS' (tests/test_ai_wizard.py).
-_WIZ_SURFACES = ("overview", "getting_started", "setup", "maps_wizard")
+_WIZ_SURFACES = ("overview", "getting_started", "setup", "maps_wizard", "plans_tool")
 _WIZ_STEPS = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read",
               "rooms_check", "saved", "next_floor", "handoff")
 _WIZ_BANDS = ("0", "1", "2_3", "4_6", "7_12", "gt12")

@@ -323,6 +323,26 @@ def test_the_effective_rule_needs_the_master_switch(monkeypatch, tmp_path, disk)
     assert out["on"] is False and out["unlock"] == {"ok": False, "why": "below_opus_5_5", "display": "Claude Sonnet 5.5"}
 
 
+def test_the_info_names_each_floors_plans_with_no_scale_yet(monkeypatch, tmp_path, disk):
+    """The Plans tool's dead ends (new-user audit 2026-11-10, D and E): a floor whose plans have no scale
+    yet is said with its real count and Measure is offered for one of them. Read only; nothing with the
+    research switch off; never a plan of the outside."""
+    img = {"filename": "other.png", "width": 640, "height": 480, "sha256": "uu"}
+    extra = [{"id": "u1", "name": "Upper scan", "floor_id": "upper", "image": img, "room_bounds": {}, "receivers": [], "beacons": [], "lights": []},
+             {"id": "o1", "name": "Site", "floor_id": "__outside__", "image": img, "room_bounds": {}, "receivers": [], "beacons": [], "lights": []}]
+    h, conn, _ai = _house(monkeypatch, tmp_path, extra_maps=extra)
+    model = h.data[DOMAIN][DATA_MODEL]
+    was = model.map_transform
+    model.map_transform = lambda mid: None if mid in ("u1", "o1") else was(mid)
+    out = _call(W.ws_plan_build_info, h, conn)
+    assert out["unscaled"] == {"upper": [{"map_id": "u1", "name": "Upper scan"}]}
+    assert out["gauge"] is True and not out["rooms"]["upper"]["ready"]
+    assert [f["id"] for f in out["floors"] if f["plans"]] == ["basement", "main"]
+    _unchanged(h, disk)
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_plans_enabled"] = False
+    assert "unscaled" not in _call(W.ws_plan_build_info, h, conn)
+
+
 def test_the_backup_ai_task_never_counts_for_the_unlock(monkeypatch, tmp_path, disk):
     h, conn, _ai = _house(monkeypatch, tmp_path)
     st = h.data[DOMAIN][DATA_SETTINGS].data

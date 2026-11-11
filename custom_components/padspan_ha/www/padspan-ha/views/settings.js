@@ -24,6 +24,8 @@ const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, LICENCE_PATH, BRI
 const WALLCARD = await import(`./wall_card.js${new URL(import.meta.url).search}`).catch(() => null);
 // Basic's focused views: a link opens one card of a tab (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// Optional: why Build from plans isn't offered, in the rooms helper's words (Settings → AI).
+const AIWO = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
 // Optional too: the tester sign-up must not take the Settings tab with it.
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: tester_signup failed to load", err); return { testerSection: () => null }; });
@@ -4611,8 +4613,19 @@ function _planBuildRow(ctx, el, save, settings){
     // The last line-up's undo stays here whatever the AI Task (form q3): a session can always be taken back.
     const undo = info && info.master && info.undo ? info.undo : null;
     const rundo = info && info.master && info.rooms_undo ? info.rooms_undo : null;   // Rooms from plans' too (Stage 2)
-    box.style.display = ok || undo || rundo ? "" : "none";
-    if (!ok) { if (undo) box.appendChild(undoRow(undo, false)); if (rundo) box.appendChild(undoRow(rundo, false, true)); return; }
+    // AI map-building research on and Claude not usable: why the row isn't here, in the rooms helper's words (one copy:
+    // ai_wizard_offer.js), and the guide. Nothing while the research switch is off.
+    const why = info && info.master && info.unlock && !info.unlock.ok && AIWO ? AIWO.claudeWhyWords(AIWO.claudeState(info)) : "";
+    box.style.display = ok || undo || rundo || why ? "" : "none";
+    if (!ok) {
+      if (why) {
+        const line = el("div",{"data-ai-plan-build-why":"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px 0"},
+          `Build from plans (experimental) isn't offered here. ${why} It needs ${AIWO.MODEL_WORDS} through Home Assistant's Anthropic integration. `);
+        if (newTabOk(ctx.state.kioskMode)) line.appendChild(el("a",{href:AIWO.GUIDE_URL, target:"_blank", rel:"noopener", style:"color:#8ee5b4"}, "How to connect Claude ↗"));
+        box.appendChild(line);
+      }
+      if (undo) box.appendChild(undoRow(undo, false)); if (rundo) box.appendChild(undoRow(rundo, false, true)); return;
+    }
     const label = el("label",{style:"display:flex;align-items:flex-start;gap:10px;cursor:pointer"});
     const cb = el("input",{type:"checkbox", style:"margin-top:3px", "data-ai-plan-build-switch":""});
     cb.checked = on;

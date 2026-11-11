@@ -1995,6 +1995,7 @@ export function createPlans(ctx){
   let luNow = false;                                   // the overlays show where each plan is now, not the proposal
   let luCur = null, luList = false, luDimFor = null, luRefileFor = null, luAskUndo = false, luFade = 0.8;
   let luAwake = false, luKey = null, luTok = 0, luFly = false;
+let luOff = null;                                    // no Line up or Rooms tab: "locked" (Claude) or "off" (the switch), for the hint
   const luMeshes = [];
   const luPicked = new Set(), luTaps = new Map(), tints = new Map();
   const LU_PREFIX = "Line up plans (experimental): ";
@@ -2004,6 +2005,9 @@ export function createPlans(ctx){
   const LU_TAKES = new Set(["open", "undone"]);        // what Accept saves (an undone item can be saved again)
   const pct = (v) => (num(v) === null ? "?" : `${(Math.round(v * 1000) / 10).toFixed(1)} %`);
   const f1 = (v) => (num(v) === null ? "?" : v.toFixed(1));
+  // A score from 0 to 1 said in words (the line-up's match bands, plan_build_fit); the number stays in the hover.
+  const fitWord = (v) => (v >= 0.85 ? "well" : v >= 0.7 ? "roughly" : "poorly");
+  const subLine = (s) => { const n = d("div", "pl-sub", typeof s === "string" ? s : s.text); if (s && s.title) n.title = s.title; return n; };
   const luSaid = (e) => LU_PREFIX + String((e && e.message) || e).replace(LU_PREFIX, "");   // every message of the tab says experimental (design 7)
   const luCall = (type, extra) => call(type, extra).catch((e) => { throw Object.assign(new Error(String((e && e.message) || e)), { code: e && e.code }); });
   const luPlan = (mid) => ((luSess && luSess.plans) || []).find(p => p.map_id === mid) || null;
@@ -2015,11 +2019,54 @@ export function createPlans(ctx){
   async function luInfo(){
     try { lu = await luCall("plan_build_info"); } catch (_) { lu = null; }
     if (lu && !lu.on) count(lu.unlock && lu.unlock.ok ? "plan_build_stop_ui:no_tabs_off" : "plan_build_stop_ui:no_tabs_locked", true);
+    luOff = lu && !lu.on ? (lu.unlock && lu.unlock.ok ? "off" : "locked") : null;
     if (!lu || !lu.on) { lu = null; if (mode === "lineup" || mode === "rooms") mode = "add"; }
     return lu;
   }
+  // Where the tool stops, its next actions (the host's go: Measure a plan in Mapping, the rooms helper,
+  // Settings → AI); none on a wall screen, where the words say where to do it instead.
+  const luGo = () => { const h = ctx.host(); return (h && h.go) || null; };
+  const luUnscaled = (fid) => ((lu && lu.unscaled) || {})[fid] || [];   // plan_build_info: a floor's plans with no scale yet
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  /** A plan with no scale yet: Measure it in Mapping; with `helper`, the rooms helper where its rule offers it. */
+  function paintMeasure(plan, helper = true){
+    const g = luGo(), box = d("div", "pl-acts");
+    box.setAttribute("data-plans-next", "measure");
+    if (g && g.measure) {
+      const b = btn(`Measure ${plan.name || "this plan"} in Mapping`, "Mapping → Edit on this plan, with the Measure tool: two lengths you know, like a doorway or a wall",
+        () => { count("plans_tool_go:measure"); g.measure(plan.map_id); }, "go");
+      b.setAttribute("data-plans-go", "measure");
+      box.appendChild(b);
+    } else box.appendChild(d("div", "pl-sub", `From another screen: Mapping → Edit, open ${plan.name || "the plan"}, then 📏 Measure two lengths you know, like a doorway or a wall.`));
+    sheet.appendChild(box);
+    if (helper && g && g.helper && g.helperOffered && g.helperOffered()) {
+      const l = d("div", "pl-note");
+      l.setAttribute("data-plans-next", "helper");
+      l.appendChild(d("span", null, "Or let Claude draw the rooms for you: it starts with one measurement. "));
+      const h = btn("Try it →", "Let Claude draw your rooms (experimental)", () => { count("plans_tool_go:helper"); g.helper(); });
+      h.setAttribute("data-plans-go", "helper");
+      l.appendChild(h);
+      sheet.appendChild(l);
+    }
+  }
+  /** No Line up or Rooms tab here: one muted line on what turns them on (the tool is an administrator's only). */
+  function luHint(){
+    if (!luOff) return;
+    const box = d("div", "pl-note");
+    box.setAttribute("data-plans-next", "tabs");
+    box.appendChild(d("span", null, luOff === "off"
+      ? "Two more tabs, Line up plans and Rooms from plans, come with Settings → AI → Build from plans (experimental). "
+      : "Two more tabs, Line up plans and Rooms from plans, need Claude Opus 5.5 or newer through Home Assistant's Anthropic integration, then Settings → AI → Build from plans (experimental). "));
+    const g = luGo();
+    if (g && g.settings) {
+      const b = btn("Open Settings → AI", "Where Build from plans is turned on", () => { count("plans_tool_go:settings"); g.settings(); });
+      b.setAttribute("data-plans-go", "settings");
+      box.appendChild(b);
+    }
+    sheet.appendChild(box);
+  }
   function luTabs(){
-    if (!lu || !lu.on) return;
+    if (!lu || !lu.on) { luHint(); return; }
     const row = d("div", "pl-choose");
     row.setAttribute("data-plan-build", "tabs");
     const tabs = [["add", "Add data via plans"], ["lineup", "Line up plans (experimental)"], ...(lu.rooms ? [["rooms", "Rooms from plans (experimental)"]] : [])];
@@ -2331,16 +2378,29 @@ export function createPlans(ctx){
   function paintLuPicker(){
     const floors = (lu && lu.floors) || [];
     if (floors.length && !floors.some(f => (f.plans || []).length)) count("plan_build_stop_ui:s1_no_plans", true);   // every chip "0 plans"
+    // No plan in the house measured: nothing to line the others up to. One message, not a list of floors it can't use.
+    if (lu && lu.gauge === false) {
+      sheet.appendChild(d("div", "pl-note", "Line up needs one plan measured first: the other plans are lined up to it. Experimental."));
+      const first = floors.map(x => luUnscaled(x.id)[0] || (x.plans || [])[0]).find(Boolean);
+      if (first) paintMeasure(first); else sheet.appendChild(d("div", "pl-note", "There's no plan to line up yet: add one in Mapping → Upload."));
+      return;
+    }
     sheet.appendChild(d("h5", null, "Which floor (experimental)"));
     const chips = d("div", "pl-choose");
     chips.setAttribute("data-plan-build", "floors");
+    const noScale = floors.filter(x => !(x.plans || []).length && luUnscaled(x.id).length);   // plans there, none with a scale yet
     for (const f of floors) {
-      const n = (f.plans || []).length;
-      const b = btn(`${f.name || f.id} · ${n} plan${n === 1 ? "" : "s"}`, f.last ? `Last lined up: ${new Date((f.last.at || 0) * 1000).toLocaleDateString()}` : "Not lined up yet", () => luPick(f.id));
+      const n = (f.plans || []).length, un = n ? 0 : luUnscaled(f.id).length;
+      const b = btn(`${f.name || f.id} · ${un ? `${plural(un, "plan")}, none with a scale yet` : plural(n, "plan")}`,
+        un ? "Its plans need a scale before they can be lined up" : f.last ? `Last lined up: ${new Date((f.last.at || 0) * 1000).toLocaleDateString()}` : "Not lined up yet", () => luPick(f.id));
       b.setAttribute("aria-pressed", String(luFloor === f.id)); b.disabled = !n;
       chips.appendChild(b);
     }
     sheet.appendChild(chips);
+    noScale.forEach((x, i) => {
+      sheet.appendChild(d("div", "pl-note", `${x.name || x.id}: its plans have no scale yet, so they can't be lined up.`));
+      paintMeasure(luUnscaled(x.id)[0], i === 0);
+    });
     const f = floors.find(x => x.id === luFloor);
     if (!f) { sheet.appendChild(d("div", "pl-note", "Pick a floor. One floor is read at a time; the plans of other floors are used as they are.")); return; }
     for (const p of f.plans || []) {
@@ -2352,7 +2412,7 @@ export function createPlans(ctx){
       if (urls && urls[p.map_id]) { const im = d("img"); im.src = urls[p.map_id]; im.alt = ""; l.appendChild(im); }
       const dr = p.drawn || {}, bits = [dr.rooms ? `rooms traced: ${dr.rooms}` : "", dr.calibration ? `calibration points: ${dr.calibration}` : "",
         (dr.receivers || 0) + (dr.beacons || 0) + (dr.lights || 0) ? `devices drawn: ${(dr.receivers || 0) + (dr.beacons || 0) + (dr.lights || 0)}` : ""].filter(Boolean);
-      l.appendChild(d("span", null, `${p.name || "a plan"}${p.gauge ? " · your measured plan (never moved)" : ""} — ${bits.length ? bits.join(", ") : "nothing drawn on it"}`));
+      l.appendChild(d("span", null, `${p.name || "a plan"}${p.gauge ? " · the plan that set your house's scale (never moved)" : ""} — ${bits.length ? bits.join(", ") : "nothing drawn on it"}`));
       sheet.appendChild(l);
     }
     // The AI credit tracker's own estimate for the ticked plans (plan_ai.plan_estimate): every read once, to every read twice.
@@ -2360,7 +2420,7 @@ export function createPlans(ctx){
     const est = !ticked.length ? "tick the plans to read" : priced.length === ticked.length
       ? `about $${priced.reduce((s, p) => s + p.est_usd[0], 0).toFixed(2)}–$${priced.reduce((s, p) => s + p.est_usd[1], 0).toFixed(2)} for ${ticked.length === 1 ? "this plan" : `these ${ticked.length} plans`} (estimate, experimental)`
       : "no price is known for this model";
-    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them: the plans leave the house for Anthropic. About 5 reads a plan; ${est}. `
+    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them: the plans leave the house for Anthropic. Claude looks at each plan about 5 times; ${est}. `
       + "Nothing is saved until you accept a proposal: a backup is taken before each save, and one undo takes the whole session back."));
     const acts = d("div", "pl-acts");
     acts.setAttribute("data-plan-build", "start");
@@ -2385,7 +2445,7 @@ export function createPlans(ctx){
     const word = { done: "done", needs_help: "needs your help", cancelled: "stopped", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit" }[s.status] || s.status;
     const cost = num(s.est_usd) !== null ? `, about $${s.est_usd.toFixed(2)} (estimate)` : "";
     return `${luFloorName(s.floor_id)}: ${word}. ${s.reads || 0} reads${s.reused ? `, ${s.reused} plan${s.reused === 1 ? "" : "s"} reused` : ""}${cost}, in ${mins(s.spent_s)}. `
-      + `${n("place")} placement${n("place") === 1 ? "" : "s"}, ${n("refile")} refile${n("refile") === 1 ? "" : "s"}${n("anchor_scale") ? ", the anchor's own scale" : ""}.`
+      + `${plural(n("place"), "plan")} to line up, ${n("refile")} to move to another floor${n("anchor_scale") ? ", a scale check of the plan the others are lined up to" : ""}.`
       + (saved ? ` ${saved} saved.` : "")
       + (s.cross_floor ? ` Its stairs sit ${m1(s.cross_floor.stairs_m)} m from ${luFloorName(s.cross_floor.floor_id)}'s.` : "");
   }
@@ -2427,13 +2487,13 @@ export function createPlans(ctx){
     if (!plans.length || !others.length) return;
     const box = luSection("pl-row pl-lu");
     box.setAttribute("data-plan-build", "refile");
-    box.appendChild(d("div", "pl-sub", "A plan filed on the wrong floor? Say which floor it shows: a refile, checked and saved like any proposal. Only a plan with nothing drawn on it can move here (experimental)."));
+    box.appendChild(d("div", "pl-sub", "A plan filed on the wrong floor? Say which floor it shows and it moves there, checked and saved like any other change. Only a plan with nothing drawn on it can move here (experimental)."));
     const here = luFloorName(luSess.floor_id);
     for (const p of plans) {
       const a = d("div", "pl-acts");
       if (luRefileFor === p.map_id) {
         a.appendChild(d("span", "pl-sub", `${p.name || "This plan"} shows:`));
-        for (const f of others) a.appendChild(btn(f.name || f.id, `A refile of ${p.name || "this plan"} to ${f.name || f.id}`, () => luRefile(p.map_id, f.id)));
+        for (const f of others) a.appendChild(btn(f.name || f.id, `Move ${p.name || "this plan"} to ${f.name || f.id}`, () => luRefile(p.map_id, f.id)));
         a.appendChild(btn("Cancel", "Leave it on " + here, () => { luRefileFor = null; redraw(); }));
       } else a.appendChild(btn(`${p.name || "This plan"} isn't ${here}? (experimental)`, "Say which floor it shows", () => { luRefileFor = p.map_id; redraw(); }));
       for (const b of a.querySelectorAll("button")) b.disabled = luBusy;
@@ -2448,12 +2508,12 @@ export function createPlans(ctx){
     const calm = open.filter(([, it]) => !luShifts(it)), loud = open.length - calm.length;
     if (calm.length) {
       const np = calm.filter(([, it]) => it.kind === "place").length, nr = calm.length - np;
-      const save = btn(`Save line-up for ${luFloorName(luSess.floor_id)} (experimental): ${[np ? `${np} plan${np === 1 ? "" : "s"}` : "", nr ? `${nr} refile${nr === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ")}`,
+      const save = btn(`Save line-up for ${luFloorName(luSess.floor_id)} (experimental): ${[np ? `${np} plan${np === 1 ? "" : "s"}` : "", nr ? `${nr} to another floor` : ""].filter(Boolean).join(", ")}`,
         "Saves the proposals that shift nothing drawn on their plans, together; a backup is taken first", () => luSave(calm.map(([id]) => id), true), "go");
       save.disabled = luBusy;
       foot.appendChild(save);
     }
-    if (loud) foot.appendChild(d("div", "pl-note", `${loud} proposal${loud === 1 ? "" : "s"} would shift what is drawn on ${loud === 1 ? "its plan" : "their plans"}: accept ${loud === 1 ? "it" : "them"} one by one.`));
+    if (loud) foot.appendChild(d("div", "pl-note", `${loud} change${loud === 1 ? "" : "s"} would move things drawn on ${loud === 1 ? "its plan" : "their plans"}, so ${loud === 1 ? "it is" : "they are"} accepted one by one.`));
     if (items.some(([, it]) => it.state === "committed")) {
       if (luAskUndo) {
         foot.appendChild(d("div", "pl-note", "Put every plan this session saved back where it was? A backup is taken first; a plan you moved by hand since is left as it is."));
@@ -2513,7 +2573,7 @@ export function createPlans(ctx){
       const a = d("div", "pl-acts");
       const use = btn("Use these taps", "Line it up from them", () => luAnswer(q, { taps: luTaps.get(q.id) }), "go");
       use.disabled = taps.length !== 4 || luBusy;
-      a.append(use, btn("Clear", "Tap again", () => { luTaps.delete(q.id); redraw(); }), btn("Skip", "Leave this plan out: Mapping → Align does it by hand", () => luAnswer(q, "skip")));
+      a.append(use, btn("Clear", "Tap again", () => { luTaps.delete(q.id); redraw(); }), btn("Skip", "Leave this plan out: Mapping → 3D Stack → Alignment Overlay lines it up by hand", () => luAnswer(q, "skip")));
       t.appendChild(a);
     }
     box.appendChild(t);
@@ -2539,7 +2599,7 @@ export function createPlans(ctx){
   function paintLuDims(t, it){
     const list = luDims(it), ev = it.evidence || {}, box = d("div");
     box.setAttribute("data-plan-build", "dimension");
-    box.appendChild(d("div", "pl-sub", "The printed dimensions this proposal stands on (experimental). Amber: the dimension line as read; green: between the ticks PadSpan found."));
+    box.appendChild(d("div", "pl-sub", "The printed sizes this change is based on (experimental). Amber: the size line Claude read; green: the length PadSpan measured between its end marks."));
     for (const x of list) {
       const tall = x.d.axis === "y", c = d("canvas");             // a dimension down the page gets a tall crop, not a sliver
       c.width = tall ? 200 : 460; c.height = tall ? 340 : 110; c.style.width = tall ? "auto" : "100%"; c.style.maxWidth = "100%"; c.style.height = "auto";
@@ -2548,11 +2608,11 @@ export function createPlans(ctx){
       questionPic(c, { id: `dim_${x.mid}`, kind: "confirm_dimension", box: x.d.box, ticks_px: x.d.ticks_px, map_id: x.mid, mark: true }, x.mid);
       const m = num(x.d.parse_m) ?? num(x.d.metres);
       box.appendChild(d("div", "pl-sub", `${x.name} (${x.role}): “${x.d.text || "?"}” = ${m === null ? "?" : m.toFixed(3)} m ${x.d.axis === "y" ? "down" : "across"}; `
-        + `${num(x.d.span_px) === null ? "?" : Math.round(x.d.span_px)} px between its ticks, so ${f1(x.d.ppm)} px a metre${x.d.source === "person" ? " (as you typed it)" : ""}.`));
+        + `${num(x.d.span_px) === null ? "?" : Math.round(x.d.span_px)} px between its end marks, so ${f1(x.d.ppm)} pixels per metre${x.d.source === "person" ? " (as you typed it)" : ""}.`));
     }
     const pp = ev.ppm_printed || [], pn = ev.ppm_now || [], pw = ev.ppm_new || [];
-    if (pp.some(v => num(v) !== null)) box.appendChild(d("div", "pl-sub", `Pixels a metre, across / down: printed ${f1(pp[0])} / ${f1(pp[1])}; as placed now ${f1(pn[0])} / ${f1(pn[1])}; as proposed ${f1(pw[0])} / ${f1(pw[1])}.`));
-    if (!list.length) box.appendChild(d("div", "pl-sub", "No printed dimension could be measured on this plan: its placement comes from the picture match alone."));
+    if (pp.some(v => num(v) !== null)) box.appendChild(d("div", "pl-sub", `Scale in pixels per metre, across / down: from the printed sizes ${f1(pp[0])} / ${f1(pp[1])}; now ${f1(pn[0])} / ${f1(pn[1])}; proposed ${f1(pw[0])} / ${f1(pw[1])}.`));
+    if (!list.length) box.appendChild(d("div", "pl-sub", "No printed size could be measured on this plan: where it goes comes from matching the pictures alone."));
     t.appendChild(box);
   }
   function paintLuItem(id, it, onMap){
@@ -2563,15 +2623,15 @@ export function createPlans(ctx){
       box.appendChild(c);
       overlay(c, it);
     }
-    const anchorName = (it.evidence || {}).anchor_name || "the anchor";
+    const anchorName = (it.evidence || {}).anchor_name || "the plan it is lined up to";
     if (it.kind !== "refile") box.appendChild(d("div", "pl-lu-key", onMap
-      ? (it.kind === "place" ? `On the map: blue is ${anchorName}, red this plan ${luNow ? "where it is now" : "as proposed"}; purple where they agree. Grey dashes: now; amber: proposed; arrows: where a click would land.`
-        : "On the map: blue is this plan now, red at its own printed scale. Grey dashes: now; amber: proposed.")
-      : (it.kind === "place" ? `Blue: ${anchorName}. Red: this plan ${luNow ? "where it is now" : "as proposed"}; purple where they agree. Grey dashes: now; amber: proposed.`
-        : "Blue: this plan now. Red: at its own printed scale. Grey dashes: now; amber: proposed.")));
+      ? (it.kind === "place" ? `On the map: blue is ${anchorName}; red is this plan ${luNow ? "where it is now" : "where it would go"}; purple where the two drawings agree. Grey dashed outline: now; amber: where it would go; arrows: where things drawn on it would land.`
+        : "On the map: blue is this plan now; red is it at its printed sizes. Grey dashed outline: now; amber: where it would go.")
+      : (it.kind === "place" ? `Blue: ${anchorName}. Red: this plan ${luNow ? "where it is now" : "where it would go"}; purple where the two drawings agree. Grey dashed outline: now; amber: where it would go.`
+        : "Blue: this plan now. Red: it at its printed sizes. Grey dashed outline: now; amber: where it would go.")));
     const t = d("div", "pl-txt");
     const head_ = d("div");
-    head_.append(d("span", null, `${{ place: "Placement", refile: "Refile", anchor_scale: "The anchor's own scale" }[it.kind] || it.kind} · ${it.name || "a plan"}`),
+    head_.append(d("span", null, `${{ place: "Line up", refile: "Move to another floor", anchor_scale: "Scale of the plan the others are lined up to" }[it.kind] || it.kind} · ${it.name || "a plan"}`),
       d("span", "pl-chip", "EXPERIMENTAL"));
     t.appendChild(head_);
     const ev = it.evidence || {};
@@ -2582,11 +2642,12 @@ export function createPlans(ctx){
     if (it.kind === "place") {
       if (it.state === "same") lines.push(`Already lined up: no corner would move more than ${Math.max(1, Math.round((num(it.max_move_m) || 0) * 100))} cm. Nothing to change.`);
       else lines.push(`Moves up to ${m1(it.max_move_m)} m; scale changes ${pct(it.scale_change)}.`);
-      if (ev.anchor_name) lines.push(`Fits ${ev.anchor_name} at ${num(ev.corr) === null ? "?" : ev.corr.toFixed(2)} (from ${ev.seed === "stairs" ? "the stairs" : ev.seed === "taps" ? "your taps" : "a search"}); turned ${num(ev.tilt_deg) === null ? "0" : Math.abs(ev.tilt_deg).toFixed(2)}°.`);
-      if (it.held === "no_anchor") lines.push("Nothing on this floor agrees with its own printed dimensions: look closely.");
+      if (ev.anchor_name) lines.push({ text: `Matches ${ev.anchor_name}${num(ev.corr) === null ? "" : ` ${fitWord(ev.corr)}`} (found by ${ev.seed === "stairs" ? "the stairs" : ev.seed === "taps" ? "your taps" : "a search"}); turned ${num(ev.tilt_deg) === null ? "0" : Math.abs(ev.tilt_deg).toFixed(2)}°.`,
+        title: num(ev.corr) === null ? "" : `Match score ${ev.corr.toFixed(2)} (1.00: a perfect match)` });
+      if (it.held === "no_anchor") lines.push("No plan on this floor matches its own printed sizes, so there's nothing sure to line it up to: look closely.");
     } else if (it.kind === "anchor_scale") {
       const e = ev.scale_err || [];
-      lines.push(`The plan the others are lined up to: by its own printed dimensions ${pct(Math.abs(e[0] || 0))} off across, ${pct(Math.abs(e[1] || 0))} down. ${it.state === "info" ? "Under 3 %: information only." : "3 % or more: Not now unless you choose it."}`);
+      lines.push(`The plan the others are lined up to is ${pct(Math.abs(e[0] || 0))} off its own printed sizes across, ${pct(Math.abs(e[1] || 0))} down. ${it.state === "info" ? "Under 3 %: for information only." : "3 % or more: left alone unless you accept it."}`);
     } else {
       const why = (it.proposal || {}).why || {};
       lines.push(`${it.by_hand ? "You say it" : "It"} shows ${it.to_name || "another floor"}${why.title ? ` (“${why.title}”)` : ""}${(why.rooms || []).length ? `: ${why.rooms.join(", ")}` : ""}. Then line it up on ${it.to_name || "that floor"}.`);
@@ -2595,11 +2656,11 @@ export function createPlans(ctx){
     if (it.state !== "committed") for (const f of it.flags || []) lines.push(flagLine(f));
     if ((it.others || {}).n && it.state !== "committed") lines.push(`${it.others.n} other device${it.others.n === 1 ? "" : "s"} on this floor lie under this plan; check them against the corrected picture.`);
     if (it.state === "stale") lines.push("The plan moved or changed since this was read: line the floor up again.");
-    for (const ln of lines) t.appendChild(d("div", "pl-sub", ln));
+    for (const ln of lines) t.appendChild(subLine(ln));
     const a = d("div", "pl-acts");
     if (luAcceptable(it)) {
       const nf = (it.flags || []).length;
-      a.appendChild(btn(nf ? `Accept: ${nf} thing${nf === 1 ? "" : "s"} drawn here would sit elsewhere` : "Accept", "Saves this one (experimental): a backup first; Undo this line-up session takes it back", () => luSave([id], false), "go"));
+      a.appendChild(btn(nf ? `Accept: ${nf} thing${nf === 1 ? "" : "s"} drawn on this plan would move` : "Accept", "Saves this one (experimental): a backup first; Undo this line-up session takes it back", () => luSave([id], false), "go"));
     }
     if (["open", "same", "info"].includes(it.state)) a.appendChild(btn("Not now", "Leave it (noted at once)", () => luVerdict(id, "not_now")));
     if (["open", "same", "info", "not_now", "undone"].includes(it.state)) {
@@ -2607,7 +2668,7 @@ export function createPlans(ctx){
       else a.appendChild(btn("Wrong", "Mark it wrong, with one reason (noted at once)", () => { luWrongFor = id; redraw(); }));
     }
     if (it.verdict && ["not_now", "wrong"].includes(it.state)) a.appendChild(btn("Take that back", "Back as it was", () => luVerdict(id, "back")));
-    if (it.kind !== "refile" && luDims(it).length) a.appendChild(btn(luDimFor === id ? "Hide the dimension" : "Show me the dimension", "The printed dimensions it stands on, on the plan (experimental)", () => { luDimFor = luDimFor === id ? null : id; redraw(); }));
+    if (it.kind !== "refile" && luDims(it).length) a.appendChild(btn(luDimFor === id ? "Hide the dimension" : "Show me the dimension", "The printed sizes it is based on, on the plan (experimental)", () => { luDimFor = luDimFor === id ? null : id; redraw(); }));
     for (const b of a.querySelectorAll("button")) if (!b.disabled) b.disabled = luBusy;
     t.appendChild(a);
     if (luDimFor === id) paintLuDims(t, it);
@@ -2629,7 +2690,7 @@ export function createPlans(ctx){
   let rbGate = null, rbGateKey = "", rbBoth = null, rbNameFor = null, rbAwake = false, rbKey = null, rbFly = false, rbTok = 0;
   const rbPicked = new Set(), rbTicks = new Set(), rbSel = new Set(), rbMeshes = [];
   const RB_PREFIX = "Rooms from plans (experimental): ";
-  const RB_BANNER = "Experimental. Claude reads each plan twice; where the two reads agree, that outline is proposed even if yours differs. Where they differ, look closely. "
+  const RB_BANNER = "Experimental. Claude reads each plan twice; where the two reads agree, their outline is offered, even if it differs from yours. Where they differ, look closely. "
     + "Nothing is saved until Accept all: a backup is taken first, and one undo takes it all back.";
   const RB_COL = { his: "#94a3b8", ready: "#22c55e", look: "#f59e0b", space: "#fb923c", sel: "#3b82f6", r1: "#06b6d4", r2: "#d946ef", door: "#ef4444", window: "#60a5fa", stairs: "#f97316" };
   const rbSaid = (e) => RB_PREFIX + String((e && e.message) || e).replace(RB_PREFIX, "");
@@ -2874,17 +2935,21 @@ export function createPlans(ctx){
     const chips = d("div", "pl-choose");
     chips.setAttribute("data-plan-build", "rooms-floors");
     for (const f of floors) {
-      const ri = rbInfo(f.id) || {}, n = (ri.plans || []).length;
-      const b = btn(`${f.name || f.id} · ${ri.ready ? `${n} plan${n === 1 ? "" : "s"}${ri.lined_up ? " lined up" : ""}` : "no plan placed"}`,
-        ri.ready ? "Read its rooms" : "Place a plan on this floor in Mapping first", () => rbPick(f.id));
+      const ri = rbInfo(f.id) || {}, n = (ri.plans || []).length, un = luUnscaled(f.id).length;
+      const b = btn(`${f.name || f.id} · ${ri.ready ? `${n} plan${n === 1 ? "" : "s"}${ri.lined_up ? " lined up" : ""}` : un ? `${plural(un, "plan")}, no scale yet` : "no plan"}`,
+        ri.ready ? "Read its rooms" : un ? "Its plans need a scale before their rooms can be read" : "No plan is filed on this floor", () => rbPick(f.id));
       b.setAttribute("aria-pressed", String(rbFloor === f.id));
       chips.appendChild(b);
     }
     sheet.appendChild(chips);
     const f = floors.find(x => x.id === rbFloor), ri = f ? rbInfo(f.id) : null;
-    if (!f) { sheet.appendChild(d("div", "pl-note", "Pick a floor. Its plans are read where they are placed now; a floor lined up first fits closer.")); return; }
-    if (!ri || !ri.ready) {                              // the one stop here: nothing placed in metres to read
-      sheet.appendChild(d("div", "pl-note", `${luFloorName(f.id)}: no plan is placed on this floor yet, so there is nothing to read. Place one in Mapping → 3D Stack first. Experimental.`));
+    if (!f) { sheet.appendChild(d("div", "pl-note", "Pick a floor. Its plans are read where they sit now; lining the floor up first gives closer outlines.")); return; }
+    if (!ri || !ri.ready) {                              // the one stop here: no plan with a scale to read; says why, offers the way on
+      const un = luUnscaled(f.id);
+      if (un.length) {
+        sheet.appendChild(d("div", "pl-note", `${luFloorName(f.id)}: the plans on this floor have no scale yet, so their rooms can't be read. Experimental.`));
+        paintMeasure(un[0]);
+      } else sheet.appendChild(d("div", "pl-note", `${luFloorName(f.id)}: there's no plan on this floor yet, so there is nothing to read. Add one in Mapping → Upload. Experimental.`));
       return;
     }
     rbLineupNote(f.id, ri.note);
@@ -2902,7 +2967,7 @@ export function createPlans(ctx){
     }
     const ticked = (ri.plans || []).filter(p => rbPicked.has(p.map_id)), priced = ticked.filter(p => num(p.est_usd) !== null);
     const est = !ticked.length ? "tick the plans to read" : priced.length === ticked.length ? `about $${priced.reduce((s, p) => s + p.est_usd, 0).toFixed(2)} for ${ticked.length === 1 ? "this plan" : `these ${ticked.length} plans`} (estimate, experimental)` : "no price is known for this model";
-    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads them, twice each: the plans leave the house for Anthropic; ${est}. `
+    sheet.appendChild(d("div", "pl-note", `${(lu && lu.unlock && lu.unlock.display) || "Claude"} reads each plan twice: the plans leave the house for Anthropic; ${est}. `
       + "Nothing is saved until you accept: one save for the floor, a backup first, one undo."));
     const acts = d("div", "pl-acts");
     acts.setAttribute("data-plan-build", "rooms-start");
@@ -2928,7 +2993,7 @@ export function createPlans(ctx){
     l.appendChild(cb);
     const t = d("span", "pl-txt");
     t.appendChild(d("div", null, rbSaved(id) ? `${label} · saved` : label));
-    for (const s of sub || []) if (s) t.appendChild(d("div", "pl-sub", s));
+    for (const s of sub || []) if (s) t.appendChild(subLine(s));
     l.appendChild(t);
     return l;
   }
@@ -2988,9 +3053,9 @@ export function createPlans(ctx){
     if (!g || g.now === null || g.now === undefined) line.textContent = "Rooms right on your calibration spots: working it out… (experimental)";
     else {
       const f = (v) => `${Math.round(v * 10) / 10} %`;
-      line.textContent = g.scored ? `For information: calibration spots inside their room, ${f(g.now)} now, ${f(g.with)} with what is ticked (${g.spots} spots). Each room below says its own. Experimental.`
+      line.textContent = g.scored ? `For information: your calibration spots inside their own room, ${f(g.now)} now, ${f(g.with)} with what is ticked (${g.spots} spots). Each room below says its own. Experimental.`
         : `Only ${g.spots} calibration spot${g.spots === 1 ? "" : "s"} on this floor: too few to judge (${g.inside_now} inside their room now, ${g.inside_with} with these). Experimental.`;
-      if (g.held_out && g.held_out.now !== null) line.textContent += ` Held-out check: ${g.held_out.now} % now, ${g.held_out.with} % with these.`;
+      if (g.held_out && g.held_out.now !== null) line.textContent += ` A second check against your calibration spots: ${g.held_out.now} % now, ${g.held_out.with} % with these.`;
     }
     sheet.appendChild(line);
   }
@@ -2999,15 +3064,15 @@ export function createPlans(ctx){
     for (const r of rooms.sort((a, b) => Number(a.ready) - Number(b.ready) || a.room.localeCompare(b.room))) {
       const fl = r.flags || [], sub = [];
       if (fl.includes("merge_only")) sub.push("Not on these plans: its outline now, with what you merged into it.");
-      else if (r.third && r.third.decided && r.ready) sub.push(`Read again: two of three reads agree (${Math.max(...(r.third.agree || [0])).toFixed(2)}).`);
-      else if (r.ready) sub.push(`Both reads agree (${(r.agree || 0).toFixed(2)}).`);
+      else if (r.third && r.third.decided && r.ready) sub.push({ text: "Read again: two of three reads agree.", title: `Agreement ${Math.max(...(r.third.agree || [0])).toFixed(2)} (1.00: the same outline)` });
+      else if (r.ready) sub.push({ text: "Both reads agree.", title: `Agreement ${(r.agree || 0).toFixed(2)} (1.00: the same outline)` });
       else if (fl.includes("one_read")) sub.push("Only one read found it: not ticked; tick it to use it.");
       else if (fl.includes("three_differ")) sub.push("Look closely: read again, and all three reads differ. Not ticked: pick the one that fits and tick it, or keep yours.");
-      else if (fl.includes("reads_differ")) sub.push(`Look closely: the two reads differ (${(r.agree || 0).toFixed(2)}). Not ticked: show both reads to compare, read it again, or tick it to use it.`);
-      else sub.push(`Look closely: both reads agree (${(r.agree || 0).toFixed(2)}), but its printed rooms didn't join into one shape. Not ticked: merge, or tick it to use it.`);
-      if (!fl.includes("merge_only")) sub.push(`Overlap with your outline ${(r.iou_now || 0).toFixed(2)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`);
+      else if (fl.includes("reads_differ")) sub.push({ text: "Look closely: the two reads differ. Not ticked: show both reads to compare, read it again, or tick it to use it.", title: `Agreement ${(r.agree || 0).toFixed(2)} (1.00: the same outline)` });
+      else sub.push({ text: "Look closely: both reads agree, but its printed rooms didn't join into one shape. Not ticked: merge, or tick it to use it.", title: `Agreement ${(r.agree || 0).toFixed(2)} (1.00: the same outline)` });
+      if (!fl.includes("merge_only")) sub.push({ text: `Matches your outline ${fitWord(r.iou_now || 0)}; ${m1(r.area_now)} → ${m1(r.area_new)} m².`, title: `Overlap ${(r.iou_now || 0).toFixed(2)} (1.00: the same outline)` });
       if (fl.includes("apart")) sub.push("Some of its printed rooms didn't join the rest: only the largest part is used.");
-      if (!fl.includes("merge_only") && (r.spots || [])[2]) sub.push(`Using read ${r.pick}${r.picked_by === "person" ? " (your pick)" : ""}: it keeps ${Math.max(0, r.spots[r.pick - 1])} of ${r.spots[2]} calibration spots inside it.`);
+      if (!fl.includes("merge_only") && (r.spots || [])[2]) sub.push(`Using read ${r.pick}${r.picked_by === "person" ? " (your pick)" : ""}: ${Math.max(0, r.spots[r.pick - 1])} of the ${r.spots[2]} calibration spots in this room stay inside it.`);
       if ((r.cal || {}).leaving) sub.push(`${r.cal.leaving} of your ${r.cal.labelled} spots would fall outside it${r.cal.most ? " (half or more: not ticked)" : ""}; ${r.cal.leaving === 1 ? "it keeps its" : "they keep their"} room label. Your choice: keep yours, or use Claude's.`);
       if ((r.merged || []).length) sub.push(`Merged in: ${r.merged.map(id => ((p.spaces || {})[id] || {}).name || id).join(", ")}.`);
       const row = rbTick(r.id, r.room, sub);
@@ -3033,7 +3098,7 @@ export function createPlans(ctx){
   function paintRbSpaces(spaces, p){
     if (!spaces.length) return;
     sheet.appendChild(d("h5", null, "Extra spaces (experimental)"));
-    sheet.appendChild(d("div", "pl-note", "Printed spaces inside none of your rooms. Merge one into a room, add it as a new room with a name you pick, or leave it out (the default)."));
+    sheet.appendChild(d("div", "pl-note", "Spaces on the plan that aren't one of your rooms yet. Merge one into a room, add it as a new room with a name you pick, or leave it out (the default)."));
     const his = Object.keys(p.rooms || {}).concat(p.unseen || []).sort();
     for (const sp of spaces) {
       const sub = [`${m1(rbArea(sp.outline_m))} m² · ${sp.reads.length > 1 ? "both reads" : "one read only"}`];
@@ -3070,11 +3135,11 @@ export function createPlans(ctx){
     const n = (f) => ops.filter(f).length;
     sheet.appendChild(d("div", "pl-note", `Proposed when both reads found it: ${n(o => o.cls === "door" && o.reads > 1)} doors, ${n(o => o.cls === "window" && o.reads > 1)} windows. `
       + `Found by one read only ("maybe", not ticked): ${n(o => o.reads === 1)}. Already in your house, offered as a correction (not ticked): ${n(o => o.existing && o.existing.what === "opening")}. `
-      + `On your map as a barrier, left as is: ${n(o => o.existing && o.existing.what !== "opening")}. Not on a wall of your rooms: ${n(o => !o.placed)}.`));
+      + `Already drawn on your map, left as is: ${n(o => o.existing && o.existing.what !== "opening")}. Not on a wall of your rooms: ${n(o => !o.placed)}.`));
     const what = (o) => o.cls === "window" ? `Window${o.rooms.length ? ` in ${o.rooms[0]}` : ""}` : `${o.kind === "doorway" ? "Doorway" : "Door"}${o.rooms.length > 1 ? ` between ${o.rooms[0]} and ${o.rooms[1]}` : o.rooms.length ? ` of ${o.rooms[0]}` : ""}${o.type ? ` (${o.type})` : ""}`;
     for (const o of ops.sort((a, b) => (b.reads - a.reads) || a.id.localeCompare(b.id))) {
       const fix = !!(o.existing && o.existing.what === "opening"), off = !o.placed || (!!o.existing && !fix);
-      sheet.appendChild(rbTick(o.id, what(o), [fix ? "Already in your house: a correction moves or resizes yours to the one read. Not ticked." : o.existing ? "Drawn on your map as a barrier: left as is."
+      sheet.appendChild(rbTick(o.id, what(o), [fix ? "Already in your house: a correction moves or resizes yours to the one read. Not ticked." : o.existing ? "Already drawn on your map: left as is."
         : !o.placed ? "Not on a wall of your rooms: not offered." : o.reads > 1 ? "Both reads." : "Maybe: one read only."], { off }));
     }
   }

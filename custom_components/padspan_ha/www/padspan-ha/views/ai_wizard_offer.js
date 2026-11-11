@@ -6,7 +6,8 @@
 // Where "Let Claude draw your rooms" (views/ai_wizard.js) is offered: a row
 // in the Overview's Getting started card, a card of its own on the Overview
 // when Getting started isn't showing, and one line in Setup and in the
-// Mapping wizard's scale and rooms steps (design ai-wizard A.4). Small on
+// Mapping wizard's scale and rooms steps (design ai-wizard A.4), and one in
+// the Plans tool where it stops on plans with no scale yet. Small on
 // purpose: the screens load it, the helper itself loads only when opened.
 //
 // Who sees it is the server's rule alone (ai_wizard.offer_reason, asked once
@@ -14,8 +15,44 @@
 // minds Not now and Don't ask again; "pull" for Setup and Mapping.
 
 // telemetry.AI_WIZARD_SURFACES, the report's words for where it was offered.
-export const SURFACES = Object.freeze(["overview", "getting_started", "setup", "maps_wizard"]);
-const RULE = { overview: "push", getting_started: "push", setup: "pull", maps_wizard: "pull" };
+export const SURFACES = Object.freeze(["overview", "getting_started", "setup", "maps_wizard", "plans_tool"]);
+const RULE = { overview: "push", getting_started: "push", setup: "pull", maps_wizard: "pull", plans_tool: "pull" };
+
+// Why Claude can't be used here, in plain words (plan_build_info's unlock.why), one copy: the helper's
+// Connect Claude screen (views/ai_wizard.js) and Settings → AI's line where Build from plans is hidden.
+export const GUIDE_URL = "https://padspan.traks.ca/guides/claude-ai-task/";
+export const MODEL_WORDS = "Claude Opus 5.5 or newer (any Fable or Mythos works too)";
+export const CLAUDE_WHY = Object.freeze({
+  not_connected: "Claude isn't connected to Home Assistant yet.",
+  no_ai_task: "No AI Task is chosen for PadSpan yet.",
+  not_anthropic: "Your AI Task isn't Claude through Home Assistant's Anthropic integration.",
+  unknown_model: "PadSpan can't tell which Claude model this AI Task uses.",
+});
+/** Your AI Task's Claude, older than MODEL_WORDS. */
+export const claudeOlder = (display) => `Your AI Task uses ${display || "an older Claude"}.`;
+
+/** Claude's case from plan_build_info: {why, display, eid}. why is the unlock
+ *  rule's word, or available_unchosen: a usable Claude that isn't PadSpan's AI. */
+export function claudeState(build) {
+  const b = build || {}, u = b.unlock || {}, cands = b.candidates || [];
+  if (u.ok) return { why: "ok", display: u.display };
+  const usable = cands.find(c => c.ok && !c.chosen);
+  if (usable) return { why: "available_unchosen", display: usable.display, eid: usable.entity_id };
+  let why = u.why || "no_ai_task", display = u.display || null;
+  if (why === "no_ai_task" || why === "not_anthropic") {          // an Anthropic AI Task with the wrong model says more
+    const anth = cands.find(c => c.why && c.why !== "not_anthropic");
+    if (anth) { why = anth.why; display = anth.display; }
+  }
+  return { why, display };
+}
+
+/** One sentence: why Claude can't read plans for PadSpan here (a claudeState()). */
+export function claudeWhyWords(c) {
+  if (c.why === "available_unchosen") return `Home Assistant has ${c.display || "Claude"} ready, but it isn't PadSpan's AI Task yet.`;
+  if (c.why === "below_opus_5_5") return claudeOlder(c.display);
+  if (c.why === "unknown_model" || c.why === "sources_disagree") return CLAUDE_WHY.unknown_model;
+  return CLAUDE_WHY[c.why] || CLAUDE_WHY.not_anthropic;
+}
 
 export const CHIP_TEXT = "EXPERIMENTAL";
 /** The amber chip every one of the helper's screens and offers carries. */

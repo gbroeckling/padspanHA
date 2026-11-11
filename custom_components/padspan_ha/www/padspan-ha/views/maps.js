@@ -427,6 +427,19 @@ function _openForEdit(ctx, mapId){
   ctx.actions.setMapsTab("edit");
 }
 
+// "Measure this plan" (the Plans tool's floors with no scale yet, 3D Stack's
+// reference with none): the plan opened as Open does, on the Measure tool.
+// Basic's wizard step 2 is Measure already; Advanced, Edit's one-shot
+// _openMode, or the tool itself when that plan's draft is already open.
+function _openMeasure(ctx, mapId){
+  const ms = ctx.state.maps || (ctx.state.maps = {});
+  if (ctx.state.complexity !== "basic") {
+    if (ms._draftMapId === mapId) { ms._mode = "measure"; ms._measurePts = []; ms._drawing = null; ms._selectedRxId = null; }
+    else ms._openMode = "measure";
+  }
+  _openForEdit(ctx, mapId);
+}
+
 function _library(ctx, maps, activeId, helpBtn, isBasic){
   const { el } = ctx.helpers;
   helpBtn = helpBtn || (()=>null);
@@ -1497,7 +1510,8 @@ function _wizardScale(ctx, map, maps, w){
   const done = _wizHasScale(ctx.state);
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
     "Measure two points you know the real distance between — a doorway, a wall — so distances on the map match distances in the house. " +
-    "Rooms can be drawn without this, but wall attenuation and any real-world measurement need it, so it's worth doing now while you're here."));
+    "Rooms can be drawn without this, but wall attenuation and any real-world measurement need it, so it's worth doing now while you're here. " +
+    "The AI tools that read your plans need it too."));
   if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     "✓ Scale is set for this house."));
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
@@ -5825,6 +5839,20 @@ function _stack(ctx, maps, helpBtn){
   tgtSel.addEventListener("change", buildStage);
   buildStage();
 
+  // A Reference plan with no scale yet has nothing to line a plan up to (Reset and Point Align
+  // refuse it): said in plain words under the buttons, with Measure for that plan.
+  const noScaleRef = el("div",{"data-stack":"ref-no-scale", style:"display:none;font-size:12px;color:#fde68a;margin-top:8px;line-height:1.5"});
+  const paintNoScaleRef = () => {
+    const ref = maps.find(m=>m.id===refSel.value) || null;
+    noScaleRef.innerHTML = "";
+    noScaleRef.style.display = ref && !_placeOf(ref.id) ? "" : "none";
+    if (!ref || _placeOf(ref.id)) return;
+    noScaleRef.appendChild(el("span",{}, `${ref.name || "The Reference plan"} has no scale yet, so nothing can be lined up to it. `));
+    noScaleRef.appendChild(el("button",{class:"btn inline", "data-stack-go":"measure", onclick:()=>_openMeasure(ctx, ref.id)}, "\ud83d\udccf Measure it"));
+  };
+  refSel.addEventListener("change", paintNoScaleRef);
+  paintNoScaleRef();
+
   const ctrlRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px"});
 
   // THE FOUR CONTROLS THAT USED TO NULL `_m`.
@@ -5956,7 +5984,7 @@ function _stack(ctx, maps, helpBtn){
   ctrlRow.appendChild(el("button",{class:"btn inline",style:"margin-left:8px", onclick:()=>{
     const tgtMap = maps.find(m=>m.id===(alignState.targetId||tgtSel.value));
     const seed = tgtMap && _seedPlace(tgtMap, alignState.refId||refSel.value);
-    if(!seed){ ctx.toast("The Reference map has no placement yet — measure it first.", true); return; }
+    if(!seed){ ctx.toast("The Reference plan has no scale yet: measure it first (Measure it, below).", true); return; }
     alignState.place = seed;
     applyCurrentTransform();
   }},"Reset"));
@@ -6139,7 +6167,7 @@ function _stack(ctx, maps, helpBtn){
     // needs the reference's own metres. Refused here, before any points are
     // placed, rather than after the Compute the Apply would then reject.
     if (!_placeOf(refMap.id)) {
-      ctx.toast("The reference map has no placement yet — measure it, or align it onto a measured map first.", true);
+      ctx.toast("The Reference plan has no scale yet: measure it first, or line it up to a measured plan.", true);
       return;
     }
 
@@ -7104,6 +7132,7 @@ function _stack(ctx, maps, helpBtn){
   ctrlRow.appendChild(addTieInBtn);
 
   card.appendChild(ctrlRow);
+  card.appendChild(noScaleRef);
   card.appendChild(warnDiv);
   card.appendChild(tieInListDiv);
   renderTieIns();
@@ -9778,6 +9807,17 @@ function _lightsTab(ctx, maps, active) {
     }
     if (ctx.actions.setMapsTab) ctx.actions.setMapsTab(t.tab); else { ctx.state.mapsTab = t.tab; ctx.actions.renderRooms(); }
   };
+  // The Plans tool's next actions where it stops (live_aboard_plans.js): Measure a plan with no scale yet,
+  // the rooms helper where its rule offers it ("pull", ai_wizard_offer.js), Settings → AI. None on a wall
+  // screen: nothing there navigates away, the tool says where to do it instead.
+  const plansGo = ctx.state.kioskMode ? null : {
+    measure: (mapId) => _openMeasure(ctx, mapId),
+    helperOffered: () => !!(AIW && AIW.offered(ctx, "plans_tool")),
+    helper: () => { if (AIW) AIW.openWizard(ctx, "plans_tool"); },
+    settings: () => { ctx.state._settingsPart = "ai_task"; FOCUS.openFocus(ctx, FOCUS.part("aiTask")); },
+  };
+  // Asked once a page, with the experimental switch on, so the answer is there when the tool stops.
+  if (plansGo && AIW && ctx.state.settings?.ai_plans_enabled === true) AIW.infoFor(ctx, "plans_tool");
   // The builder's checklist: how much of the house is actually placed.
   const nPlaced = placeableLights.filter(l => placements[l.entity_id]).length;
   const nApprox = placeableLights.filter(l => placements[l.entity_id] && placements[l.entity_id].source === "auto").length;
@@ -10468,6 +10508,7 @@ function _lightsTab(ctx, maps, active) {
         : { read: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } },
       callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
       openAtlasRoom,
+      plansGo,
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).
       saveNorth: async (b) => {
@@ -10870,7 +10911,7 @@ function _lightsTab(ctx, maps, active) {
     const plansBtn = plansList ? el("button", { class: "btn inline", style: "margin-left:6px", title: "This device shows no 3D view, so the AI's finds from your plans open as a list", onclick: async () => {
       if (mapState._plansList) { mapState._plansList.dispose(); mapState._plansList = null; return; }
       try {
-        mapState._plansList = await la3dPlansList(plansBox, { floors: ctx.state.model?.floors || [], toast: (t, bad) => ctx.toast(t, bad), openAtlasRoom,
+        mapState._plansList = await la3dPlansList(plansBox, { floors: ctx.state.model?.floors || [], toast: (t, bad) => ctx.toast(t, bad), openAtlasRoom, go: plansGo,
           callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } });
       } catch (e) { ctx.toast(String((e && e.message) || e), true); }
     } }, "Add data via plans (experimental)") : null;

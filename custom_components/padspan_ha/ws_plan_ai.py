@@ -510,6 +510,20 @@ def _floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> list[dict[
     return out
 
 
+def _unscaled(hass: HomeAssistant, snap: dict) -> dict[str, list[dict[str, str]]]:
+    """Per indoor floor, its plans with no scale yet (no placement in metres): what the Plans tool offers to
+    measure in Mapping, so a floor whose plans can't be read says why instead of "0 plans". Read only."""
+    maps = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    indoor = {str(f["id"]) for f in snap["floors"]}            # floor_order: never Outside
+    out: dict[str, list[dict[str, str]]] = {}
+    for m in (maps.list_maps() if maps is not None else []):
+        mid, fid = str(m.get("id") or ""), str(m.get("floor_id") or "")
+        p = snap["plans"].get(mid)
+        if mid and fid in indoor and not (p and (p.get("t") or {}).get("scale_x_m")):
+            out.setdefault(fid, []).append({"map_id": mid, "name": str(m.get("name") or "")[:80]})
+    return out
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/plan_build_info", vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -546,7 +560,8 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
         job = A.running(hass)
         out.update(floors=_floors(hass, store, snap), stall=A.stall_summary(store), gauge=snap["gauge"],
                    running=job.sid if job and store.lineup(job.sid) else None, start_blocked=A.start_allowed(hass),
-                   rooms=_rooms_floors(hass, store, snap), rooms_running=job.sid if job and store.rooms_session(job.sid) else None)
+                   rooms=_rooms_floors(hass, store, snap), rooms_running=job.sid if job and store.rooms_session(job.sid) else None,
+                   unscaled=_unscaled(hass, snap))
     connection.send_result(msg["id"], out)
 
 

@@ -858,12 +858,15 @@ PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
 # Line up (s1) or Rooms from plans (s2), and the stops the panel shows by
 # itself: Rooms from plans on a floor with no plan placed, Line up with no
 # floor that has a plan, and no tabs because Claude isn't unlocked or the
-# Build from plans switch is off. Counts only, never a floor or a plan.
+# Build from plans switch is off. And the next actions those walls offer,
+# tapped: Measure a plan in Mapping, the rooms helper, Settings → AI. Counts
+# only, never a floor or a plan.
 PLANS_TOOL_TABS: tuple[str, ...] = ("add", "lineup", "rooms")
 PLANS_TOOL_STOPS_UI: tuple[str, ...] = ("s2_not_placed", "s1_no_plans", "no_tabs_locked", "no_tabs_off")
+PLANS_TOOL_GO: tuple[str, ...] = ("measure", "helper", "settings")
 PLANS_TOOL_EVENTS: frozenset[str] = frozenset(
     {"plans_tool:opened"} | {f"plans_tab:{k}" for k in PLANS_TOOL_TABS} | {f"plans_floor:{s}" for s in ("s1", "s2")}
-    | {f"plan_build_stop_ui:{k}" for k in PLANS_TOOL_STOPS_UI})
+    | {f"plan_build_stop_ui:{k}" for k in PLANS_TOOL_STOPS_UI} | {f"plans_tool_go:{k}" for k in PLANS_TOOL_GO})
 # Let Claude draw your rooms (ai_wizard.py, views/ai_wizard.js; design
 # ai-wizard J.2, J.3, J.5): where it was offered and opened, each step
 # reached and the step it was left at, how it ended, why a read or a save
@@ -872,7 +875,7 @@ PLANS_TOOL_EVENTS: frozenset[str] = frozenset(
 # offered and saved, where each saved room's name came from and how many of
 # the floor's Home Assistant areas no room took. Counts only: never a name,
 # a plan, a room, a floor or an amount.
-AI_WIZARD_SURFACES: tuple[str, ...] = ("overview", "getting_started", "setup", "maps_wizard")
+AI_WIZARD_SURFACES: tuple[str, ...] = ("overview", "getting_started", "setup", "maps_wizard", "plans_tool")
 AI_WIZARD_STEPS: tuple[str, ...] = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided",
                                     "floor_pick", "rooms_read", "rooms_check", "saved", "next_floor", "handoff")
 AI_WIZARD_OUTCOMES: tuple[str, ...] = ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed")

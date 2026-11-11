@@ -292,7 +292,7 @@ function renderUnlocked(ctx, root) {
     const only = (vals, ...fs) => Object.fromEntries(Object.entries(vals).filter(([k]) => fs.includes(k.split(":")[0])));
     if (Object.keys(mpv).length) {
       const nMap = (fenv.mapping || {}).installs || 0, stuckBy = only(mpv, "stuck"), lead = top(stuckBy);
-      const walls = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(plans_tool|plans_tab|plans_floor|plan_build_stop_ui):/.test(k)));
+      const walls = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(plans_tool|plans_tab|plans_floor|plan_build_stop_ui|plans_tool_go):/.test(k)));
       const wiz = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(ai_wizard[a-z_]*|plan_build_rooms_(offered|saved)|plan_build_name|plan_build_unmatched_areas|plan_build_scale[a-z_]*):/.test(k)));
       section("Getting to a map", "Homes that added a floor plan but haven't finished setting up, from each install's latest report: the step each is stuck at, how old its plan is, and what the AI helper's rule (Let Claude draw your rooms) would say to it. Homes that finished setup don't send this.", [
         grid([
@@ -799,7 +799,7 @@ const W_MAPPING = {
   claude_available: { yes: "a usable Claude set up but not chosen" },
 };
 // The AI rooms helper's own counts (telemetry.AI_WIZARD_EVENTS).
-const W_WIZ_SURFACE = { overview: "the Overview card", getting_started: "Getting started", setup: "Setup", maps_wizard: "the Mapping wizard" };
+const W_WIZ_SURFACE = { overview: "the Overview card", getting_started: "Getting started", setup: "Setup", maps_wizard: "the Mapping wizard", plans_tool: "the Plans tool" };
 const W_WIZ_OUTCOME = { finished: "rooms saved", dismissed: "don't ask again", snoozed: "not now", came_back: "came back to it", undone: "rooms taken back",
   area_created: "a Home Assistant area added", area_failed: "a Home Assistant area couldn't be added" };
 const W_WIZ_FAIL = { no_credit: "out of credit", unreachable: "Claude couldn't be reached", out_of_time: "stopped part-way", bad_answer: "answers not usable",
@@ -968,6 +968,7 @@ function word(kind, k) {
       if (a === "plans_floor") return `Plans tool: picked a floor in ${{ s1: "Line up plans", s2: "Rooms from plans" }[b] || b}`;
       if (a === "plan_build_stop_ui") return `Plans tool stopped on screen: ${{ s2_not_placed: "Rooms from plans on a floor with no plan placed", s1_no_plans: "Line up plans with no floor that has a plan",
         no_tabs_locked: "no Line up or Rooms tabs, Claude can't read plans here", no_tabs_off: "no Line up or Rooms tabs, Build from plans is off" }[b] || b}`;
+      if (a === "plans_tool_go") return `Plans tool: tapped ${{ measure: "Measure this plan (Mapping)", helper: "Let Claude draw the rooms", settings: "Open Settings → AI" }[b] || b}`;
       // Let Claude draw your rooms (telemetry.AI_WIZARD_EVENTS; ai_wizard.py, views/ai_wizard.js).
       if (a === "ai_wizard_offered") return `AI rooms helper offered on ${W_WIZ_SURFACE[b] || b}`;
       if (a === "ai_wizard_opened") return `AI rooms helper opened from ${W_WIZ_SURFACE[b] || b}`;
