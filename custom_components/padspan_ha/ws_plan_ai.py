@@ -1236,12 +1236,14 @@ WS_COMMANDS = WS_COMMANDS + (ws_plan_build_rooms_start, ws_plan_build_rooms_stat
 
 _MEASURE = vol.Schema({vol.Required("p1"): [vol.Coerce(float)], vol.Required("p2"): [vol.Coerce(float)],
                        vol.Required("text"): vol.All(str, vol.Length(max=40))}, extra=vol.REMOVE_EXTRA)
+_DRAFT = vol.Schema({vol.Optional("p1"): [vol.Coerce(float)], vol.Optional("p2"): [vol.Coerce(float)],
+                     vol.Optional("text", default=""): vol.All(str, vol.Length(max=40))}, extra=vol.REMOVE_EXTRA)   # the length before both ends are clicked
 
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/plan_build_scale_preview",
     vol.Required("map_id"): str,
-    vol.Optional("measures"): [_MEASURE],
+    vol.Optional("measures"): [_DRAFT],
     vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin

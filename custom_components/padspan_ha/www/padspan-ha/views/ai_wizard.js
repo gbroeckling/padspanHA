@@ -109,7 +109,7 @@ export function failOfCode(code) {
 const CODE_WORDS = {
   too_soon: "A reading started less than a minute ago. Try again in a minute.",
   already_running: "Claude is already reading a plan. Try again when it's done.",
-  map_not_placed: "This plan's scale isn't set, so its rooms can't be read yet. Set the scale in Setup first.",
+  map_not_placed: "This plan's scale isn't set yet, so its rooms can't be read. Measure one thing on it first: both ends of something you know the length of.",
   apart: "Those two don't touch, so they can't be one room. Join only rooms that touch.",
   invalid: "Pick two or more rooms on the plan to join.",
   two_rooms: "Two of your rooms can't be joined here.",
@@ -127,16 +127,33 @@ export function screenOf(ans) {
   return failOf(s) ? "fail" : "intro";
 }
 
-/** Plans the helper can read, best first: a scale, inside the house; the lowest floor, then the largest picture. */
+/** A plan nobody has measured or placed yet: the helper measures it first (one measurement, the scale screen). */
+export function needsScale(state, plan) {
+  const tfs = (state.model && state.model.map_transforms) || {};
+  return !!(plan && plan.id) && !tfs[plan.id];
+}
+
+/** Plans the helper can read, best first: inside the house, with a scale or none at all yet (it measures that one first);
+ *  a plan with a scale before one without, then the lowest floor, then the largest picture. */
 export function plansOf(state) {
   const tfs = (state.model && state.model.map_transforms) || {};
   const floors = (state.model && state.model.floors) || [];
   const rank = (fid) => { const i = floors.findIndex(f => f && (f.floor_id || f.id) === fid); return i < 0 ? 999 : Number(floors[i].level ?? i); };
   const px = (m) => Number((m.image || {}).width || 0) * Number((m.image || {}).height || 0);
+  const unscaled = (m) => (needsScale(state, m) ? 1 : 0);
   return ((state.maps && state.maps.list) || [])
-    .filter(m => m && m.id && String(m.floor_id || "") !== "outside" && tfs[m.id] && Number(tfs[m.id].scale_x_m) > 0)
-    .sort((a, b) => rank(a.floor_id) - rank(b.floor_id) || px(b) - px(a));
+    .filter(m => m && m.id && String(m.floor_id || "") !== "outside" && (!tfs[m.id] || Number(tfs[m.id].scale_x_m) > 0))
+    .sort((a, b) => unscaled(a) - unscaled(b) || rank(a.floor_id) - rank(b.floor_id) || px(b) - px(a));
 }
+
+/** The house's indoor floors as {id, name}, for "Which floor does this plan show?". */
+export function indoorFloors(state) {
+  return ((state.model && state.model.floors) || []).map(f => ({ id: f && (f.floor_id || f.id), name: (f && f.name) || "" }))
+    .filter(f => f.id && String(f.id).toLowerCase() !== "outside");
+}
+
+/** A length as the scale screen says it: whole metres past 100, else one decimal. */
+export const metresText = (v) => (Number(v) >= 100 ? String(Math.round(Number(v))) : Number(v).toFixed(1));
 
 export function floorName(state, fid) {
   const f = ((state.model && state.model.floors) || []).find(x => x && (x.floor_id || x.id) === fid);
@@ -182,13 +199,21 @@ const ws = (ctx, payload) => ctx.actions.callWS(payload);
 function S_of(ctx) {
   const st = ctx.state;
   if (!st._aiw) st._aiw = { screen: null, info: null, build: null, ans: null, plan: null, ticks: new Set(), ha: new Set(), sel: new Set(), names: {}, root: null,
-    sid: null, busy: false, msg: "", fail: null, showSmall: false, ok1: false, ok2: false, done: null, undone: null, timer: null, loading: false };
+    sid: null, busy: false, msg: "", fail: null, showSmall: false, ok1: false, ok2: false, done: null, undone: null, timer: null, loading: false, sc: null };
   return st._aiw;
+}
+
+/** The scale screen's draft for the chosen plan (kept through every redraw until it is saved): the two ends, the typed
+ *  length, the server's last answer about them, the floor picked. A new plan starts a new draft. */
+function scaleDraft(S) {
+  const id = S.plan && S.plan.id;
+  if (!S.sc || S.sc.map_id !== id) S.sc = { map_id: id, pts: [], text: "", pv: null, seq: 0, floor: null, askFloor: false, drag: null, moved: false };
+  return S.sc;
 }
 
 function stepWord(S) {
   if (S.screen === "intro") return { trial: "trial", consent: "consent" }[introBlock(S.info, S.build)] || "intro";
-  return { connect: "connect", rooms_read: "rooms_read", rooms_check: "rooms_check", saved: "saved" }[S.screen] || null;
+  return { connect: "connect", scale: "scale_guided", rooms_read: "rooms_read", rooms_check: "rooms_check", saved: "saved" }[S.screen] || null;
 }
 
 function markStep(ctx, S) {
@@ -297,34 +322,105 @@ function poll(ctx, S) {
   }, 4000);
 }
 
+/** The ticks the intro asked for, written before anything else (both switches; Claude chosen). Nothing turned on silently. */
+async function consent(ctx, S) {
+  const c = claudeState(S.build);
+  if (!needsConsent(S.build, c.why)) return;
+  const st = ctx.state, set = {};
+  if (!(S.build.master && S.build.switch)) Object.assign(set, { ai_plans_enabled: true, ai_plan_build_enabled: true });
+  if (c.why === "available_unchosen") Object.assign(set, chooseClaude(st.settings, c.eid));
+  const res = await ws(ctx, { type: "padspan_ha/settings_set", ...set });
+  if (res && res.settings) st.settings = res.settings;
+  if (set.ai_plans_enabled) tel(ctx, "ai_wizard_switch:on");
+  if (set.atlas_3d_ai_task_entity) tel(ctx, "ai_wizard_ai:chosen");
+  S.build = await ws(ctx, { type: "padspan_ha/plan_build_info", via: VIA }).catch(() => S.build);
+}
+
+/** A start that didn't go: its words, its failure screen, or Connect Claude. */
+function startFailed(ctx, S, plan, e) {
+  const code = e && e.code;
+  S.fail = failOfCode(code);
+  if (S.fail) { telOnce(ctx, "ai_wizard_fail:" + S.fail); S.screen = "fail"; }
+  else if (code === "plan_build_locked") S.screen = "connect";
+  else if (code === "map_not_placed" && needsScale(ctx.state, plan)) { S.plan = plan; S.screen = "scale"; S.msg = codeWords(code); }
+  else S.msg = codeWords(code);
+}
+
+/** From the intro (or Done's next floor): a plan with no scale is measured first, any other goes straight to the read. */
+async function begin(ctx, S, plan) {
+  if (!needsScale(ctx.state, plan)) { telOnce(ctx, "plan_build_scale:already_set"); return startRead(ctx, S, plan); }
+  S.busy = true; S.msg = ""; S.fail = null;
+  rerender(ctx);
+  try {
+    await consent(ctx, S);
+    S.plan = plan; S.screen = "scale"; S.done = null; S.undone = null;
+    _done.delete("step:scale_guided");
+  } catch (e) { startFailed(ctx, S, plan, e); }
+  S.busy = false;
+  rerender(ctx);
+}
+
 async function startRead(ctx, S, plan) {
   S.busy = true; S.msg = ""; S.fail = null;
   rerender(ctx);
   try {
-    const c = claudeState(S.build);
-    if (needsConsent(S.build, c.why)) {
-      const st = ctx.state, set = {};
-      if (!(S.build.master && S.build.switch)) Object.assign(set, { ai_plans_enabled: true, ai_plan_build_enabled: true });
-      if (c.why === "available_unchosen") Object.assign(set, chooseClaude(st.settings, c.eid));
-      const res = await ws(ctx, { type: "padspan_ha/settings_set", ...set });
-      if (res && res.settings) st.settings = res.settings;
-      if (set.ai_plans_enabled) tel(ctx, "ai_wizard_switch:on");
-      if (set.atlas_3d_ai_task_entity) tel(ctx, "ai_wizard_ai:chosen");
-      S.build = await ws(ctx, { type: "padspan_ha/plan_build_info", via: VIA }).catch(() => S.build);
-    }
+    await consent(ctx, S);
     const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_start", floor_id: plan.floor_id, map_ids: [plan.id], via: VIA });
     S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null;
     S.screen = "rooms_read";
     _done.delete("step:rooms_read"); _done.delete("step:rooms_check"); _done.delete("step:saved");
-  } catch (e) {
-    const code = e && e.code;
-    S.fail = failOfCode(code);
-    if (S.fail) { telOnce(ctx, "ai_wizard_fail:" + S.fail); S.screen = "fail"; }
-    else if (code === "plan_build_locked") S.screen = "connect";
-    else S.msg = codeWords(code);
-  }
+  } catch (e) { startFailed(ctx, S, plan, e); }
   S.busy = false;
   rerender(ctx);
+}
+
+/** What the server makes of the two ends and the typed length (the length understood, the plan's size); the newest answer wins. */
+async function scalePreview(ctx, S) {
+  const sc = scaleDraft(S), seq = ++sc.seq;
+  const text = String(sc.text || "").trim();
+  const measures = text ? [{ text, ...(sc.pts.length === 2 ? { p1: sc.pts[0], p2: sc.pts[1] } : {}) }] : [];
+  try {
+    const pv = await ws(ctx, { type: "padspan_ha/plan_build_scale_preview", map_id: S.plan.id, measures, via: VIA });
+    if (seq !== sc.seq) return;
+    sc.pv = pv;
+    if (pv && pv.floor_known === false && !_done.has("step:floor_pick")) {
+      _done.add("step:floor_pick");
+      ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "floor_pick", map_id: S.plan.id }).catch(() => {});
+    }
+  } catch (e) {
+    if (seq === sc.seq) S.msg = codeWords(e && e.code);
+  }
+  rerenderKeep(ctx, S);
+}
+
+/** Save the measurement (the server works the scale out again itself), then straight on to the rooms read. */
+async function scaleSave(ctx, S) {
+  const sc = scaleDraft(S), pv = sc.pv || {};
+  if (S.busy || sc.pts.length !== 2 || !pv.sig) return;
+  S.busy = true; S.msg = ""; rerender(ctx);
+  let r = null;
+  try {
+    r = await ws(ctx, { type: "padspan_ha/plan_build_scale_save", map_id: S.plan.id, sig: pv.sig, ...(sc.floor ? { floor_id: sc.floor } : {}),
+      measures: [{ p1: sc.pts[0], p2: sc.pts[1], text: String(sc.text || "").trim() }], source: "guided", via: VIA });
+  } catch (e) {
+    r = { ok: false, code: e && e.code, message: codeWords(e && e.code) };
+  }
+  S.busy = false;
+  if (!r || r.ok === false) {
+    const code = r && r.code;
+    if (code === "backup_failed") telOnce(ctx, "ai_wizard_fail:backup_failed");
+    if (code === "floor_unknown") sc.askFloor = true;
+    if (code === "plan_changed") { sc.pts = []; sc.pv = null; }
+    S.msg = (r && r.message) || codeWords(code);
+    rerender(ctx);
+    if (code === "plan_changed") scalePreview(ctx, S);
+    return;
+  }
+  const plan = { ...S.plan, floor_id: r.floor_id || S.plan.floor_id };
+  S.sc = null;
+  if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+  if (ctx.actions.mapsRefresh && plan.floor_id !== S.plan.floor_id) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
+  return startRead(ctx, S, plan);
 }
 
 /** The settings that make a usable Claude PadSpan's AI; the old choice becomes the backup if none is set. */
@@ -411,9 +507,17 @@ async function save(ctx, S) {
 async function undo(ctx, S) {
   S.busy = true; S.msg = ""; rerender(ctx);
   try {
+    // The rooms first, then the plan's scale if this helper set it (design E.5): the server takes the scale back only
+    // while nothing in metres was added since, and otherwise says why (it stays, like any measurement).
     const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_undo", session: S.sid, via: VIA });
-    S.undone = { n: Number(r && r.undone) || 0, skipped: ((r && r.skipped) || []).length };
+    S.undone = { n: Number(r && r.undone) || 0, skipped: ((r && r.skipped) || []).length, scale: null };
     OFFER.forget();
+    const mid = (S.plan && S.plan.id) || ((((S.ans && S.ans.session) || {}).plans || [])[0] || {}).map_id;
+    if (mid) {
+      const u = await ws(ctx, { type: "padspan_ha/plan_build_scale_undo", map_id: mid, via: VIA }).catch(() => null);
+      if (u && u.ok) { S.undone.scale = "back"; if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {}); }
+      else if (u && u.code && u.code !== "nothing_to_undo") S.undone.scale = u.message || codeWords(u.code);
+    }
   } catch (e) {
     S.msg = codeWords(e && e.code);
   }
@@ -478,14 +582,16 @@ function failBlock(ctx, S, word) {
 function introScreen(ctx, S, box) {
   const { el } = ctx.helpers, st = ctx.state;
   const plans = plansOf(st);
-  box.appendChild(P(ctx, "Two steps, a few minutes:"));
-  box.appendChild(el("ol", { style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, [
+  const measure = needsScale(st, S.plan);
+  box.appendChild(P(ctx, measure ? "Three steps, a few minutes:" : "Two steps, a few minutes:"));
+  box.appendChild(el("ol", { "data-aiw": "steps", style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, [
+    ...(measure ? [el("li", {}, "You measure one thing on your plan: click both ends of something you know the length of, and type its length. That gives the plan its size.")] : []),
     el("li", {}, "Claude finds the rooms on your plan and their names. Rooms that match your Home Assistant rooms get their names."),
     el("li", {}, "You tick the rooms to keep and press Save. A backup is taken first; one Undo takes it all back."),
   ]));
-  box.appendChild(MUTED(ctx, "✓ This plan's scale is already set."));
+  if (S.plan && !measure) box.appendChild(MUTED(ctx, "✓ This plan's scale is already set."));
   if (!plans.length) {
-    box.appendChild(P(ctx, "No floor plan with a scale was found. Set the scale in Setup first."));
+    box.appendChild(P(ctx, "No floor plan was found. Add one in Setup first."));
     return;
   }
   if (plans.length > 1) {
@@ -537,7 +643,8 @@ function introScreen(ctx, S, box) {
       ready = ready && S.ok2;
     }
   }
-  box.appendChild(row(ctx, [btn(ctx, S.busy ? "Starting…" : "Read my plan →", () => { if (ready && !S.busy && S.plan) startRead(ctx, S, S.plan); }, { primary: true, disabled: !ready || S.busy || !S.plan, attrs: { "data-aiw": "start" } })]));
+  box.appendChild(row(ctx, [btn(ctx, S.busy ? "Starting…" : measure ? "Next: measure one thing →" : "Read my plan →",
+    () => { if (ready && !S.busy && S.plan) begin(ctx, S, S.plan); }, { primary: true, disabled: !ready || S.busy || !S.plan, attrs: { "data-aiw": "start" } })]));
 }
 
 function connectScreen(ctx, S, box) {
@@ -599,12 +706,24 @@ function readScreen(ctx, S, box) {
   poll(ctx, S);
 }
 
-function picture(ctx, S, shapes) {
-  const { el, esc } = ctx.helpers, st = ctx.state;
+/** The chosen plan's picture with a layer over it, 1000 units across and H down: as wide as its column, but never
+ *  taller than most of the screen, so an upright plan stays whole, beside its list. */
+function planFrame(ctx, S, layerStyle = "") {
+  const { el } = ctx.helpers, st = ctx.state;
   const map = ((st.maps && st.maps.list) || []).find(m => S.plan && m.id === S.plan.id);
   const img = map && ctx.helpers.mapImageUrl ? ctx.helpers.mapImageUrl(map) : null;
   const w = Number((map && map.image && map.image.width) || 1000), h = Number((map && map.image && map.image.height) || 750);
-  const H = Math.round(1000 * h / w);
+  const pic = el("div", { "data-aiw": "picture",
+    style: `position:relative;width:min(100%, calc(72vh * ${w} / ${h}));aspect-ratio:${w}/${h};background:#0f1a12;border-radius:6px;overflow:hidden;margin:8px 0` });
+  if (img) pic.appendChild(el("img", { src: img, alt: "", style: "position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill;opacity:.85" }));
+  const layer = el("div", { style: "position:absolute;left:0;top:0;width:100%;height:100%;" + layerStyle });
+  pic.appendChild(layer);
+  return { pic, layer, H: Math.round(1000 * h / w) };
+}
+
+function picture(ctx, S, shapes) {
+  const { esc } = ctx.helpers;
+  const { pic, layer, H } = planFrame(ctx, S);
   const sure = new Set(rowsOf(S.ans).filter(r => r.sure).map(r => r.id));
   let svg = `<svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%">`;
   for (const s of shapes) {
@@ -618,10 +737,6 @@ function picture(ctx, S, shapes) {
     svg += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" font-size="30" font-weight="600" fill="#ffffff" stroke="#000000" stroke-width="5" paint-order="stroke" pointer-events="none">${esc(s.name || "")}</text>`;
   }
   svg += "</svg>";
-  const pic = el("div", { "data-aiw": "picture", // As wide as its column, but never taller than most of the screen: an upright plan stays whole, beside its list.
-    style: `position:relative;width:min(100%, calc(72vh * ${w} / ${h}));aspect-ratio:${w}/${h};background:#0f1a12;border-radius:6px;overflow:hidden;margin:8px 0` });
-  if (img) pic.appendChild(el("img", { src: img, alt: "", style: "position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill;opacity:.85" }));
-  const layer = el("div", { style: "position:absolute;left:0;top:0;width:100%;height:100%" });
   layer.innerHTML = svg;
   layer.addEventListener("click", (e) => {
     const id = e && e.target && e.target.getAttribute ? e.target.getAttribute("data-id") : null;
@@ -629,8 +744,129 @@ function picture(ctx, S, shapes) {
     if (S.sel.has(id)) S.sel.delete(id); else S.sel.add(id);
     rerender(ctx);
   });
-  pic.appendChild(layer);
   return pic;
+}
+
+/** The two ends on the plan: a tap puts the first, then the second; after that a tap moves the nearer one, and either
+ *  can be dragged (mouse, pen or finger: pointer events, no page scroll while dragging). */
+function measurePicture(ctx, S) {
+  const sc = scaleDraft(S);
+  const { pic, layer, H } = planFrame(ctx, S, "cursor:crosshair;touch-action:none");
+  const xy = (p) => [(p[0] * 1000).toFixed(1), (p[1] * H).toFixed(1)];
+  let svg = `<svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%">`;
+  if (sc.pts.length === 2) {
+    const [a, b] = sc.pts.map(xy);
+    svg += `<line data-aiw-line="1" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#000000" stroke-width="9" stroke-opacity=".5"/>` +
+      `<line data-aiw-line="2" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#f59e0b" stroke-width="5"/>`;
+  }
+  sc.pts.forEach((p, i) => {
+    const [x, y] = xy(p);
+    svg += `<circle data-pt="${i}" cx="${x}" cy="${y}" r="16" fill="#f59e0b" fill-opacity=".9" stroke="#ffffff" stroke-width="4" style="cursor:grab"/>` +
+      `<text x="${x}" y="${(Number(y) - 24).toFixed(1)}" text-anchor="middle" font-size="28" font-weight="700" fill="#ffffff" stroke="#000000" stroke-width="5" paint-order="stroke" pointer-events="none">${i + 1}</text>`;
+  });
+  svg += "</svg>";
+  layer.innerHTML = svg;
+  layer.setAttribute("data-aiw", "measure");
+  const frac = (e) => {
+    const r = layer.getBoundingClientRect();
+    if (!r || !r.width || !r.height) return null;
+    return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))].map(v => Math.round(v * 10000) / 10000);
+  };
+  layer.addEventListener("click", (e) => {
+    if (sc.moved) { sc.moved = false; return; }                     // the end of a drag, not a tap
+    const p = e && frac(e);
+    if (!p) return;
+    if (sc.pts.length < 2) sc.pts.push(p);
+    else {
+      const d = (q) => (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2;
+      sc.pts[d(sc.pts[0]) <= d(sc.pts[1]) ? 0 : 1] = p;
+    }
+    scalePreview(ctx, S);
+    rerenderKeep(ctx, S);
+  });
+  layer.addEventListener("pointerdown", (e) => {
+    const i = e && e.target && e.target.getAttribute ? e.target.getAttribute("data-pt") : null;
+    if (i === null || i === undefined) return;
+    sc.drag = Number(i);
+    sc.moved = false;
+    if (e.preventDefault) e.preventDefault();
+    try { if (layer.setPointerCapture && e.pointerId !== undefined) layer.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
+  });
+  layer.addEventListener("pointermove", (e) => {
+    if (sc.drag === null) return;
+    const p = frac(e);
+    if (!p) return;
+    sc.pts[sc.drag] = p;
+    sc.moved = true;
+    // Moved in place while dragging (a redraw would drop the pointer); the screen is drawn again when it is let go.
+    const c = layer.querySelector ? layer.querySelector(`circle[data-pt="${sc.drag}"]`) : null;
+    const [x, y] = xy(p);
+    if (c && c.setAttribute) { c.setAttribute("cx", x); c.setAttribute("cy", y); }
+    for (const k of ["1", "2"]) {
+      const l = layer.querySelector ? layer.querySelector(`line[data-aiw-line="${k}"]`) : null;
+      if (l && l.setAttribute) { l.setAttribute(sc.drag === 0 ? "x1" : "x2", x); l.setAttribute(sc.drag === 0 ? "y1" : "y2", y); }
+    }
+  });
+  const drop = () => {
+    if (sc.drag === null) return;
+    sc.drag = null;
+    scalePreview(ctx, S);
+    rerenderKeep(ctx, S);
+  };
+  layer.addEventListener("pointerup", drop);
+  layer.addEventListener("pointercancel", drop);
+  return pic;
+}
+
+/** The plan has no scale: one measurement the person makes (design B screen 3's fallback; E has the save). */
+function scaleScreen(ctx, S, box) {
+  const { el } = ctx.helpers, st = ctx.state;
+  const sc = scaleDraft(S), pv = sc.pv;
+  telOnce(ctx, "plan_build_scale:guided");
+  if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, whether it may be measured here
+  box.appendChild(P(ctx, "Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length."));
+  if (pv && pv.stop) {
+    box.appendChild(P(ctx, pv.stop_message || codeWords(pv.stop), "color:#f59e0b"));
+    if (pv.stop === "already_placed") box.appendChild(row(ctx, [btn(ctx, "Find the rooms →", () => startRead(ctx, S, S.plan), { primary: true, attrs: { "data-aiw": "scale-skip" } })]));
+    else box.appendChild(row(ctx, [btn(ctx, "Draw them myself", () => act(ctx, S, "by_hand"), { attrs: { "data-aiw": "scale-by-hand" } })]));
+    return;
+  }
+  const cols = el("div", { "data-aiw": "scale", style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
+  const side = el("div", { style: "flex:1 1 300px;min-width:260px" });
+  cols.appendChild(el("div", { style: "flex:1 1 380px;min-width:280px;max-width:900px" }, [measurePicture(ctx, S),
+    MUTED(ctx, sc.pts.length < 2 ? `Click the ${sc.pts.length ? "other" : "first"} end on the plan.` : "Drag an end, or click near it, to move it.")]));
+  cols.appendChild(side);
+  box.appendChild(cols);
+  const len = el("input", { type: "text", maxlength: "40", "data-aiw": "scale-length", placeholder: "e.g. 4.2 m or 13' 9\"",
+    style: "flex:0 1 180px;min-width:120px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:14px" });
+  len.value = sc.text;
+  if (S.busy) len.disabled = true;
+  // Typing stays here (S.sc) through every redraw; the server says what it understood.
+  len.addEventListener("input", () => { sc.text = String(len.value || ""); scalePreview(ctx, S); });
+  const m = pv && Array.isArray(pv.metres) && pv.metres[0];
+  const said = !sc.text.trim() ? "" : m ? `= ${Number(m).toFixed(2)} m` : (pv && pv.invalid) || "";
+  side.appendChild(el("label", { style: "display:block;font-size:13px;color:#cbd5e1;margin:8px 0 4px" }, "Its length:"));
+  side.appendChild(row(ctx, [len, el("span", { "data-aiw": "scale-understood", style: `font-size:13px;color:${m ? "#a7f3d0" : "#f59e0b"}` }, said)], "margin:0 0 8px"));
+  const sized = !!(m && sc.pts.length === 2 && pv && pv.across_m);
+  if (sized) {
+    side.appendChild(P(ctx, `Your plan will be ${metresText(pv.across_m)} m across and ${metresText(pv.down_m)} m down.`, "font-weight:600"));
+    if (pv.odd) {
+      const big = pv.across_m > 100 || pv.across_m < 2 ? ["across", pv.across_m] : ["down", pv.down_m];
+      side.appendChild(el("div", { "data-aiw": "scale-odd", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
+        `That makes your plan ${metresText(big[1])} m ${big[0]}. Is the number right? You can change it, or save it as it is.`));
+    }
+  }
+  const floors = indoorFloors(st);
+  const askFloor = (pv && pv.floor_known === false) || sc.askFloor;
+  if (askFloor) {
+    side.appendChild(P(ctx, "Which floor does this plan show?"));
+    side.appendChild(row(ctx, floors.map(f => btn(ctx, f.name || f.id, () => { sc.floor = f.id; rerender(ctx); },
+      { primary: sc.floor === f.id, attrs: { "data-aiw": "floor-" + f.id } }))));
+  }
+  const ready = sized && (!askFloor || !!sc.floor) && !S.busy;
+  side.appendChild(row(ctx, [btn(ctx, S.busy ? "Saving…" : "Save and find the rooms →", () => { if (ready) scaleSave(ctx, S); },
+    { primary: true, disabled: !ready, attrs: { "data-aiw": "scale-save" } })]));
+  side.appendChild(MUTED(ctx, "A backup is taken first. Undo on the last screen takes the rooms and this measurement back."));
 }
 
 function checkScreen(ctx, S, box) {
@@ -722,6 +958,8 @@ function savedScreen(ctx, S, box) {
   if (S.undone) {
     box.appendChild(P(ctx, `${S.undone.n} room${S.undone.n === 1 ? "" : "s"} taken back.` +
       (S.undone.skipped ? ` ${S.undone.skipped} ${S.undone.skipped === 1 ? "was" : "were"} left, because ${S.undone.skipped === 1 ? "it" : "they"} changed since or a receiver was put in.` : "")));
+    if (S.undone.scale === "back") box.appendChild(MUTED(ctx, "The measurement this helper made is taken back too: the plan has no scale again."));
+    else if (S.undone.scale) box.appendChild(el("div", { "data-aiw": "scale-kept", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:6px 0" }, S.undone.scale));
     if (Object.values((S.done && S.done.areas) || {}).includes("created")) box.appendChild(row(ctx, [
       MUTED(ctx, "The areas added to Home Assistant are still there. Remove them on Home Assistant's"), haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas")]));
     return;
@@ -740,9 +978,9 @@ function savedScreen(ctx, S, box) {
   const roomsOn = new Set(Object.values((st.model && st.model.room_geometry_m) || {}).map(r => r && r.floor_id).filter(Boolean));
   const next = plansOf(st).find(m => m.floor_id !== fid && !roomsOn.has(m.floor_id));
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
-    btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); startRead(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } })]));
+    btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } })]));
   box.appendChild(row(ctx, [MUTED(ctx, "Something wrong?"), btn(ctx, "Undo", () => undo(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "undo" } }),
-    MUTED(ctx, "takes back the rooms. Later, the same Undo is in Settings → AI.")]));
+    MUTED(ctx, "takes back the rooms, and the measurement if this helper made it. Later, the rooms' Undo is in Settings → AI.")]));
 }
 
 export function render(ctx) {
@@ -771,6 +1009,7 @@ export function render(ctx) {
   }
   if (S.screen === "intro") introScreen(ctx, S, card);
   else if (S.screen === "connect") connectScreen(ctx, S, card);
+  else if (S.screen === "scale" && S.plan) scaleScreen(ctx, S, card);
   else if (S.screen === "rooms_read") readScreen(ctx, S, card);
   else if (S.screen === "rooms_check" && S.ans && S.ans.session && S.ans.session.proposal) checkScreen(ctx, S, card);
   else if (S.screen === "saved") savedScreen(ctx, S, card);

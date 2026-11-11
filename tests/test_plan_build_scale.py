@@ -177,7 +177,9 @@ def test_the_typed_length_is_parsed_on_the_server_and_a_scale_from_the_panel_is_
         got = _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard", measures=[{**_ACROSS, "text": text}])
         assert abs(got["metres"][0] - m) < 1e-3, text
     bad = _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard", measures=[{**_ACROSS, "text": "about four"}])
-    assert "metres" not in bad and bad["invalid"]
+    assert bad["metres"] == [None] and bad["invalid"] and "across_m" not in bad
+    early = _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard", measures=[{"text": "13' 9\""}])
+    assert abs(early["metres"][0] - 4.191) < 1e-3 and "across_m" not in early and "invalid" not in early      # understood before the clicks
     out = _save(h, conn, measures=[{**_ACROSS, "px_per_meter": 7.0, "scale_x_m": 99.0, "ppm": 3}], scale_x_m=99.0, ppm=3)
     assert out["ok"] and mdl.map_transform("n1")["scale_x_m"] == 10.0
     assert mdl.map_transform("n1")["reference_measurements"][0]["px_per_meter"] == 100.0

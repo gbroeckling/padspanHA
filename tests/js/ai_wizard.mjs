@@ -49,8 +49,8 @@ function house(o = {}) {
   const state = {
     dataMode: "live", view: "ai_wizard", kioskMode: !!o.kiosk, _aiwFrom: { view: "setup", surface: "setup" },
     settings: { telemetry_enabled: false, atlas_3d_ai_task_entity: o.chosen || "", ...(o.settings || {}) },
-    maps: { list: [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } }] },
-    model: { floors: [{ floor_id: "main", name: "Main", level: 0 }], map_transforms: { m1: { ...T, reference_measurements: [{}] } }, room_geometry_m: {} },
+    maps: { list: o.maps || [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } }] },
+    model: { floors: o.floors || [{ floor_id: "main", name: "Main", level: 0 }], map_transforms: o.tfs || { m1: { ...T, reference_measurements: [{}] } }, room_geometry_m: {} },
   };
   const server = {
     "padspan_ha/ai_wizard_info": () => ({ reason: "offer", offer: true, wizard: o.wizard || {}, tier: o.tier || "pro", trial_offerable: !!o.trial }),
@@ -65,6 +65,9 @@ function house(o = {}) {
       session: SESS({ saved: Object.fromEntries(p.items.map(i => [i, "rb"])) }), undo: { session: "rb_1", items: p.items.length }, areas_list: [], wizard: WIZ }),
     "padspan_ha/plan_build_rooms_undo": () => ({ ok: true, undone: 2, skipped: [] }),
     "padspan_ha/plan_build_rooms_resume": () => ({ session: "rb_1" }),
+    "padspan_ha/plan_build_scale_preview": (p) => preview(p, o),
+    "padspan_ha/plan_build_scale_save": (p) => o.scaleSave ? o.scaleSave(p) : ({ ok: true, map_id: p.map_id, floor_id: p.floor_id || "main", across_m: 10, down_m: 8 }),
+    "padspan_ha/plan_build_scale_undo": () => o.scaleUndo || { ok: false, code: "nothing_to_undo", message: "nothing" },
   };
   const ctx = {
     hass: { user: { is_admin: true } }, state,
@@ -77,6 +80,22 @@ function house(o = {}) {
     },
   };
   return { ctx, calls, tele, shown, steps };
+}
+
+// The server's plan_build_scale_preview, faked: the lengths it knows, the plan's size from the two ends on a 1000 x 800 picture.
+const LENGTHS = { "13' 9\"": 4.191, "5 m": 5, "206 m": 206 };
+function preview(p, o) {
+  const m = (p.measures || [])[0] || {};
+  const out = { sig: "nn", size: [1000, 800], floor_known: o.floorKnown !== false, floors: ["main", "upper"], stop: null };
+  if (!m.text) return out;
+  const metres = m.text in LENGTHS ? LENGTHS[m.text] : null;
+  out.metres = [metres];
+  if (metres === null) out.invalid = "Type a length such as 4.2 m, 420 cm or 13' 9\".";
+  else if (m.p1 && m.p2) {
+    const ppm = Math.hypot((m.p2[0] - m.p1[0]) * 1000, (m.p2[1] - m.p1[1]) * 800) / metres;
+    Object.assign(out, { across_m: 1000 / ppm, down_m: 800 / ppm, odd: 1000 / ppm > 100 });
+  }
+  return out;
 }
 
 const q = (root, sel) => root.querySelector(sel);
@@ -219,7 +238,8 @@ const chipOn = (root) => !!q(root, '[data-aiw="chip"]') && root.textContent.incl
   q(root, '[data-aiw="undo"]').click();
   for (let i = 0; i < 3; i++) await tick();
   const u = h2.calls.filter(x => x.type.includes("undo"));
-  check("undo: the rooms, through the helper", u.length === 1 && u[0].type === "padspan_ha/plan_build_rooms_undo" && u[0].via === "wizard" && u[0].session === "rb_1", u);
+  check("undo: the rooms first, then the plan's scale, both through the helper", u.length === 2 && u[0].type === "padspan_ha/plan_build_rooms_undo" && u[0].via === "wizard"
+    && u[0].session === "rb_1" && u[1].type === "padspan_ha/plan_build_scale_undo" && u[1].map_id === "m1" && u[1].via === "wizard", u);
   root = await view(h2);
   check("undo: said", root.textContent.includes("2 rooms taken back."));
 }
@@ -236,6 +256,134 @@ const chipOn = (root) => !!q(root, '[data-aiw="chip"]') && root.textContent.incl
   q(root, '[data-aiw="act-resume"]').click();
   await tick();
   check("no credit: Try again resumes", h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_resume" && c.via === "wizard"));
+}
+
+// ── piece 3: a plan with no scale: measure one thing, then the rooms ─────────
+const N1 = [{ id: "n1", name: "New plan", floor_id: "main", image: { width: 1000, height: 800 } }];
+const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, clientY: y, stopPropagation() {}, preventDefault() {} });   // the shim's layer is 800 x 600
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {} });
+  let root = await view(h);
+  check("scale: three steps, the first is measuring", root.textContent.includes("Three steps") && root.textContent.includes("You measure one thing on your plan")
+    && !root.textContent.includes("already set"), root.textContent.slice(0, 400));
+  const start = q(root, '[data-aiw="start"]');
+  check("scale: the button says what comes next", start && start.textContent === "Next: measure one thing →", start && start.textContent);
+  start.click();
+  root = await view(h);
+  check("scale: the screen, its words, the chip", !!q(root, '[data-aiw="measure"]') && root.textContent.includes("Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length.") && chipOn(root), root.textContent.slice(0, 300));
+  check("scale: no read before the measurement", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start"));
+  check("scale: counted as guided, step marked", h.tele.includes("plan_build_scale:guided") && h.calls.some(c => c.what === "step" && c.step === "scale_guided"), h.tele);
+  check("scale: no floor question when the plan's floor is the house's", !q(root, '[data-aiw="floor-main"]') && !root.textContent.includes("Which floor"));
+  check("scale: Save waits for two ends and a length", q(root, '[data-aiw="scale-save"]').disabled === true);
+  tap(q(root, '[data-aiw="measure"]'), 80, 300);
+  root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 480, 300);
+  root = await view(h);
+  const S = h.ctx.state._aiw;
+  check("scale: two taps, two ends", JSON.stringify(S.sc.pts) === "[[0.1,0.5],[0.6,0.5]]", S.sc.pts);
+  const pic = html(root);
+  check("scale: two markers and a line between them", pic.includes('data-pt="0"') && pic.includes('data-pt="1"') && pic.includes("<line "), pic.slice(0, 200));
+  const len = q(root, '[data-aiw="scale-length"]');
+  len.value = "13' 9\""; len.dispatchEvent({ type: "input" });
+  root = await view(h);
+  check("scale: what it understood, as typed", q(root, '[data-aiw="scale-understood"]').textContent === "= 4.19 m", q(root, '[data-aiw="scale-understood"]').textContent);
+  check("scale: the plan's size", root.textContent.includes("Your plan will be 8.4 m across and 6.7 m down."), root.textContent.slice(0, 600));
+  const pvs = h.calls.filter(c => c.type === "padspan_ha/plan_build_scale_preview");
+  check("scale: the server works it out from the ends and the text", pvs.length >= 2 && JSON.stringify(pvs.at(-1).measures) === JSON.stringify([{ text: "13' 9\"", p1: [0.1, 0.5], p2: [0.6, 0.5] }]), pvs.at(-1));
+  root = await view(h);
+  check("scale: typed text and both ends kept through a redraw", q(root, '[data-aiw="scale-length"]').value === "13' 9\"" && S.sc.pts.length === 2);
+  tap(q(root, '[data-aiw="measure"]'), 560, 300);
+  check("scale: a third tap moves the nearer end", JSON.stringify(S.sc.pts) === "[[0.1,0.5],[0.7,0.5]]", S.sc.pts);
+  root = await view(h);
+  const layer = q(root, '[data-aiw="measure"]'), n0 = h.calls.length;
+  layer.dispatchEvent({ type: "pointerdown", target: { getAttribute: (k) => (k === "data-pt" ? "0" : null) }, pointerId: 1, preventDefault() {} });
+  layer.dispatchEvent({ type: "pointermove", clientX: 40, clientY: 300 });
+  layer.dispatchEvent({ type: "pointerup" });
+  tap(layer, 40, 300);                                            // the click a drag ends with: not a tap
+  check("scale: an end dragged (finger or mouse)", JSON.stringify(S.sc.pts) === "[[0.05,0.5],[0.7,0.5]]" && h.calls.slice(n0).some(c => c.type === "padspan_ha/plan_build_scale_preview"), S.sc.pts);
+  root = await view(h);
+  const save = q(root, '[data-aiw="scale-save"]');
+  check("scale: Save and find the rooms", save && save.disabled === false && save.textContent === "Save and find the rooms →", save && save.textContent);
+  save.click();
+  for (let i = 0; i < 6; i++) await tick();
+  const sv = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_save"), order = typesOf(h).filter(t => t === "plan_build_scale_save" || t === "plan_build_rooms_start");
+  check("scale: saved through the helper, the ends and the text only, no scale of its own", sv && sv.map_id === "n1" && sv.sig === "nn" && sv.source === "guided" && sv.via === "wizard"
+    && !("floor_id" in sv) && JSON.stringify(sv.measures) === JSON.stringify([{ p1: [0.05, 0.5], p2: [0.7, 0.5], text: "13' 9\"" }]), sv);
+  const rs = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_start");
+  check("scale: then straight on to the rooms read", order.join() === "plan_build_scale_save,plan_build_rooms_start" && rs.via === "wizard" && JSON.stringify(rs.map_ids) === '["n1"]', order);
+  root = await view(h);
+  check("scale: reading", root.textContent.includes("Claude is reading your plan"));
+}
+
+// ── piece 3: the floor question only when the plan's floor isn't one of the house's; an odd size is said, not refused ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: [{ ...N1[0], floor_id: "ground" }], tfs: {}, floorKnown: false,
+    floors: [{ floor_id: "main", name: "Main", level: 0 }, { floor_id: "upper", name: "Upper", level: 1 }, { floor_id: "outside", name: "Outside" }] });
+  let root = await view(h);
+  q(root, '[data-aiw="start"]').click();
+  root = await view(h);
+  check("floor: asked, with the house's indoor floors", root.textContent.includes("Which floor does this plan show?") && !!q(root, '[data-aiw="floor-main"]')
+    && !!q(root, '[data-aiw="floor-upper"]') && !q(root, '[data-aiw="floor-outside"]'), root.textContent.slice(0, 500));
+  check("floor: the step marked", h.calls.some(c => c.what === "step" && c.step === "floor_pick"));
+  tap(q(root, '[data-aiw="measure"]'), 0, 300); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 800, 300); root = await view(h);
+  const len = q(root, '[data-aiw="scale-length"]');
+  len.value = "206 m"; len.dispatchEvent({ type: "input" });
+  root = await view(h);
+  const odd = q(root, '[data-aiw="scale-odd"]');
+  check("odd: said as a question, never a refusal", odd && odd.textContent.startsWith("That makes your plan 206 m across. Is the number right?"), root.textContent.slice(0, 600));
+  check("floor: Save waits for the floor", q(root, '[data-aiw="scale-save"]').disabled === true);
+  q(root, '[data-aiw="floor-upper"]').click();
+  root = await view(h);
+  check("odd: Save is there all the same", q(root, '[data-aiw="scale-save"]').disabled === false);
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  const sv = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_save"), rs = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_start");
+  check("floor: sent with the save, and the read is on that floor", sv && sv.floor_id === "upper" && rs && rs.floor_id === "upper", [sv, rs]);
+}
+
+// ── piece 3: a refusal is said and nothing moves on; a plan with a scale skips the step ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {},
+    scaleSave: () => ({ ok: false, code: "points_on_plan", message: "Calibration spots are already saved on this plan, so its scale is left as it is." }) });
+  let root = await view(h);
+  q(root, '[data-aiw="start"]').click(); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 80, 300); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 480, 300); root = await view(h);
+  const len = q(root, '[data-aiw="scale-length"]'); len.value = "5 m"; len.dispatchEvent({ type: "input" });
+  root = await view(h);
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h);
+  check("refused: the server's words, still on the screen, no read", root.textContent.includes("left as it is") && !!q(root, '[data-aiw="measure"]')
+    && !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start"), root.textContent.slice(0, 400));
+  const h2 = house({ unlock: { ok: true, why: "ok" }, master: true });
+  root = await view(h2);
+  check("set already: two steps, said", root.textContent.includes("Two steps") && root.textContent.includes("✓ This plan's scale is already set."));
+  q(root, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  check("set already: straight to the read, counted", h2.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start") && !h2.calls.some(c => c.type.includes("plan_build_scale"))
+    && h2.tele.includes("plan_build_scale:already_set"), typesOf(h2));
+  check("codes: a plan not measured says the scale step", W.codeWords("map_not_placed").includes("Measure one thing on it first"));
+}
+
+// ── piece 3: Undo after a scale this helper set; refused when something in metres was added since ──
+{
+  const ans = { session: SESS({ saved: { "space:a": "rb" } }), areas: [], undo: { session: "rb_1" }, wizard: WIZ };
+  const h = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans, scaleUndo: { ok: true, map_id: "m1" } });
+  let root = await view(h);
+  q(root, '[data-aiw="undo"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h);
+  check("undo: the scale taken back too, said", root.textContent.includes("2 rooms taken back.") && root.textContent.includes("the plan has no scale again"), root.textContent.slice(0, 300));
+  const h2 = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans,
+    scaleUndo: { ok: false, code: "changed_since", message: "Something was added in metres since the scale was saved, so the scale stays. To change it, use Mapping → Edit → Measure." } });
+  root = await view(h2);
+  q(root, '[data-aiw="undo"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h2);
+  const kept = q(root, '[data-aiw="scale-kept"]');
+  check("undo: a scale that stays says why and where to change it", kept && kept.textContent.includes("Mapping → Edit → Measure"), root.textContent.slice(0, 300));
 }
 
 // ── status → words ───────────────────────────────────────────────────────────

@@ -1986,13 +1986,18 @@ def scale_preview(hass: HomeAssistant, map_id: str, measures: Any) -> dict[str, 
         scale_check(hass, map_id, None, (m or {}).get("floor_id") if out["floor_known"] else (out["floors"] or [None])[0])
         out["stop"] = None
     except Refused as err:
-        out["stop"] = err.code
-    if measures and size:
-        try:
-            got = scale_from_measures(size, measures, "guided", "")
-            out.update(metres=got["metres"], across_m=got["across_m"], down_m=got["down_m"], odd=got["odd"])
-        except Refused as err:
-            out["invalid"] = err.message
+        out.update(stop=err.code, stop_message=err.message)
+    measures = [x for x in measures if isinstance(x, dict)] if isinstance(measures, list) else []
+    if measures:
+        out["metres"] = [G.parse_length(x.get("text")) for x in measures]   # said as the person types, before both ends are clicked
+        if None in out["metres"]:
+            out["invalid"] = "Type a length such as 4.2 m, 420 cm or 13' 9\"."
+        elif size and all(x.get("p1") is not None and x.get("p2") is not None for x in measures):
+            try:
+                got = scale_from_measures(size, measures, "guided", "")
+                out.update(metres=got["metres"], across_m=got["across_m"], down_m=got["down_m"], odd=got["odd"])
+            except Refused as err:
+                out["invalid"] = err.message
     return out
 
 
