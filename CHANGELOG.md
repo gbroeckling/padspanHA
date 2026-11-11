@@ -4,6 +4,32 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.231 — The stable after 0.38.224: lighting scenes under the Atlas, Show on this screen, a chosen floor fills the screen, how much AI you use, and two experimental plan tools (2026-11-10)
+
+### New
+- **This is everything since 0.38.224 in one go,** written as how it works now. The betas' notes under it are steps along the way; where they differ, this one is right.
+- **Your lighting scenes as small maps.** A row under the sidebar Atlas's map, under Mapping → Atlas, and in Live Aboard: one small map per scene, for Home Assistant's scenes that set a light you have placed and for Whole house presets that light one floor. Tap one to run it; when all its lights are on, a tap turns them off. Administrators get ✎ and + New scene, which open Home Assistant's own scene editor.
+- **⋯ Show on this screen.** A small ⋯ beside Live Aboard's compass, on every screen and on a wall, opens a checklist of everything the 3D house draws: lights, motion, doors and windows, people and tracking, the house, weather and look. Untick a line and it is gone from that screen only. Leak, smoke, CO and gas alarms are always shown. A line your house hasn't set up yet says so, with a button to where it is set up.
+- **A chosen floor fills the Atlas.** Choosing a floor on the sidebar Atlas now shows that floor alone, as big as the screen: nearly twice the size on a wall. All shows the stack as before. A leak, smoke, CO or gas alarm on another floor brings the other floors back, faded, with its ring on top, until it clears. To keep the other floors there always, tick **Other floors, faded** in the ⋯ list. Mapping still fades the other floors, since its tools place things by them.
+- **How much AI PadSpan uses (experimental).** Settings → AI shows how many reads PadSpan sent to your AI this month. For a Claude AI Task it also shows about what they cost, an estimate that runs a little high. Type your monthly credit to see the share used, and choose a warning at 50, 75 or 90 %. Reads that stopped are listed by why. A house that doesn't use AI sees nothing new.
+- **Mapping → Rooms: Merge into one, and add or remove a corner.** Select two or more rooms and Merge into one gives the room you pick one clean outline round them all, asked first and with a safety backup. With one room selected, double-click a corner to remove it, or press the + halfway along a side to add one.
+- **Line up plans (experimental, Claude Opus 5.5 or newer).** Off for everyone until you turn on Build from plans in Settings → AI. Claude reads the plans of one floor and PadSpan lines them up to each other. You check each proposal on the 3D view before it is saved; each save takes a backup first and moves only the plan's picture, never calibration points, rooms or receivers. One undo puts every plan back.
+- **Rooms from plans (experimental, Claude Opus 5.5 or newer).** Behind the same switch. Claude reads each plan on a floor twice, for rooms, doors, windows and stairs together, and proposes outlines for the rooms you have. Rooms the two reads agree on are ticked; rooms where they differ, or that would leave half or more of their calibration spots outside, start unticked for you to look at, and Read again makes a third read. Accept all saves the floor in one save with one backup and one undo. Your rooms are never renamed or removed.
+
+### Changed
+- **Showcase can start on West Coast Forest.** In forested places (much of central and northern Europe, and the Pacific Northwest coast) the first time you turn Showcase on it starts on West Coast Forest instead of Classic. PadSpan reads this from Home Assistant's own location settings, and nothing leaves your house. If you already use Showcase or have picked a theme, nothing changes.
+- **Rain looks like rain, not snow.** Thin, fast streaks on a slight slant, in Live Aboard and on the flat Atlas. Snow is unchanged.
+- **No shop links.** The Bluetooth tips and the website's tag and wall-screen guides say what to look for instead of linking to products.
+
+### Fixed
+- **On a wall, the flat Atlas uses the whole height again.** The scene row lies over the foot of the screen and fades with the other controls. Zooming past 100 % keeps the house on the screen.
+- **On a wall, everything fades together.** The ⋯ button and the Motion chip now fade with the compass and the bars after 30 seconds, and the first touch only wakes the wall. The ⋯ list fits a 1280×720 wall without scrolling, and nothing in it leads a wall away to another page.
+- **The Vacation Mode banner** no longer covers an open list or menu, and stays in sight in full screen.
+- **Live Aboard:** each floor's coloured line follows the house's own outline; a light strip on a deck railing stops where the railing does; stair railings meet in a post at each landing; room names and chips move clear of each other; ⟳ 90° and short screens keep the whole house above the scene row; scene names show whole.
+- **West Coast Forest on the flat Atlas** no longer leaves dark, treeless columns under the upper floors.
+
+---
+
 ## 0.38.230 — A floor shown alone gives way to an alarm on another floor (2026-11-10)
 
 ### Fixed
