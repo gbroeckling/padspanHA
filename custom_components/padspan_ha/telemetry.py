@@ -470,6 +470,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "device_name",
     "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
+    "plan_measure", "scale_nudge",                  # the hand measurement (the helper's and the upload's "Set this plan's scale now")
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
@@ -955,6 +956,10 @@ SETUP_EVENTS: frozenset[str] = frozenset(
     {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"}
     # "Put my receivers in their rooms" (ws_fabric.ws_receivers_to_rooms, 2026-11-12): pressed, how many it placed, undone.
     | {f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")} | {f"setup_receivers_placed:{b}" for b in ROOMS_BANDS})
+# "Set this plan's scale now" right after Mapping → Upload (views/scale_nudge.js): shown, saved with one length or
+# two, put off with Later, and the quiet "No scale yet" line's Measure (Mapping → Library, Setup) pressed.
+SCALE_NUDGE_WORDS: tuple[str, ...] = ("shown", "measured_one", "measured_two", "later", "reminder_measure")
+SCALE_NUDGE_EVENTS: frozenset[str] = frozenset(f"scale_nudge:{k}" for k in SCALE_NUDGE_WORDS)
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
@@ -1411,7 +1416,7 @@ def event_allowed(name: str) -> bool:
             or name in PLAN_AI_EVENTS or name in AI_USAGE_EVENTS or name in PLAN_BUILD_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
-            or name in AI_WIZARD_EVENTS)
+            or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

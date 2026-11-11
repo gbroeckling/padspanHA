@@ -63,6 +63,8 @@ const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search
 // Optional: a card that fails to load must not blank the Mapping tab.
 // Let Claude draw your rooms (experimental): one line in the wizard's scale and rooms steps, where the rule offers it.
 const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
+// "Set this plan's scale now" after an upload, and the quiet "No scale yet" line (scale_nudge.js).
+const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
 
@@ -203,7 +205,7 @@ export function render(ctx){
   const body = el("div",{},[
     activeTab==="library" ? _library(ctx, maps, activeId, helpBtn, isBasic) :
     activeTab==="upload" ? _upload(ctx, helpBtn, isBasic) :
-    activeTab==="edit" ? _edit(ctx, active, maps) :
+    activeTab==="edit" ? (NUDGE && NUDGE.pending(ctx, active) ? NUDGE.render(ctx, active) : _edit(ctx, active, maps)) :
     activeTab==="stack" ? _stack(ctx, maps, helpBtn) :
     activeTab==="rooms" ? _roomsTab(ctx, maps) :
     activeTab==="lights" ? _lightsTab(ctx, maps, active) :
@@ -628,6 +630,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
       el("div",{class:"muted", style:"font-size:12px"}, `updated: ${m.updated || ""}` + (reco ? " • gap detected" : "")
         + (_placed ? ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m` : " • not placed")),
     ]);
+    { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id)); if (n) left.appendChild(n); }
 
     const actions = el("div",{style:"display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap"});
     actions.appendChild(el("button",{class:"btn inline", onclick:()=>_openForEdit(ctx, m.id)}, "Open"));
@@ -1230,6 +1233,10 @@ function _upload(ctx, helpBtn, isBasic){
       const max = parseInt((maxw.value||"").trim() || "1600", 10);
       const res = await _preparePng(f, isFinite(max) ? max : 1600, cropRect);
       status.textContent = `Uploading\u2026 (${res.width}\u00d7${res.height})`;
+      // The plan's scale, asked for straight after (scale_nudge.js): in Advanced "Set this plan's
+      // scale now" waits on the plan in Edit; in Basic the Setup Wizard's own scale step opens; an
+      // upload in the wizard goes on to that step anyway. Never for an Outside plan.
+      const _askScale = !ctx.state._mapsWizard && floor_id !== OUTSIDE_FLOOR_ID;
       const uploadRes = await ctx.actions.mapsUpload({
         name: (name.value||f.name||"Map"),
         filename: f.name,
@@ -1238,10 +1245,13 @@ function _upload(ctx, helpBtn, isBasic){
         height: res.height,
         png_base64: res.pngBase64,
         floor_id,
+        ...(_askScale && !isBasic ? { scale_nudge: true } : {}),
       });
       status.textContent = "Uploaded \u2714";
       ctx.state._mapsUploadFile = null;
       ctx.state._mapsUploadFloorId = null;
+      const _newMap = uploadRes?.map?.id ? (ctx.state.maps?.list || []).find(m => m.id === uploadRes.map.id) || uploadRes.map : null;
+      if(_askScale && isBasic && _newMap && NUDGE && NUDGE.offered(ctx, _newMap)){ _openMeasure(ctx, _newMap.id); return; }
       // Open the newly uploaded map in the edit tab
       if(uploadRes?.map?.id) ctx.state.activeMapId = uploadRes.map.id;
       ctx.state.mapsTab = "edit";

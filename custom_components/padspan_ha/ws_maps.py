@@ -92,6 +92,8 @@ async def ws_maps_image_urls(hass: HomeAssistant, connection, msg) -> None:
         # Backup restore only: a map whose backup has no picture is created
         # without one rather than lost with its data (async_add_map).
         vol.Optional("allow_no_image", default=False): bool,
+        # Mapping → Upload: "Set this plan's scale now" waits on the new plan (views/scale_nudge.js).
+        vol.Optional("scale_nudge", default=False): bool,
     }
 )
 @websocket_api.require_admin
@@ -124,6 +126,7 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
             msg.get("png_base64") or "",
             floor_id,
             allow_no_image=bool(msg.get("allow_no_image")),
+            scale_nudge=bool(msg.get("scale_nudge")) and floor_id != OUTSIDE_FLOOR_ID,
         )
     except ValueError as exc:
         # Only the size limit is "too large"; an empty, non-PNG or garbled
@@ -132,6 +135,68 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], code, str(exc))
         return
     connection.send_result(msg["id"], {"map": info})
+
+
+# "Set this plan's scale now" (views/scale_nudge.js), right after Mapping → Upload: a hand
+# measurement, one length or two, saved exactly as Mapping → Edit → Measure saves one,
+# through its writer (ws_fabric.async_write_measured_transform), on the plan's own floor.
+# Never the rooms helper's: no backup, no ledger, no undo of its own; its lengths carry no
+# helper source, so the helper never takes it for its own. The lengths are read and the
+# scale worked out here (plan_ai_write.measures_preview / scale_from_measures, the same
+# reading the helper's measuring screen shows); any scale the panel sends is not read.
+_HAND_MEASURE = vol.Schema({vol.Optional("p1"): [vol.Coerce(float)], vol.Optional("p2"): [vol.Coerce(float)],
+                            vol.Optional("text", default=""): vol.All(str, vol.Length(max=40))}, extra=vol.REMOVE_EXTRA)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/maps_scale_measure",
+        "map_id": str,
+        vol.Optional("measures", default=list): vol.All([_HAND_MEASURE], vol.Length(max=2)),
+        vol.Optional("save", default=False): bool,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_maps_scale_measure(hass: HomeAssistant, connection, msg) -> None:
+    """What the lengths make of the plan (writes nothing), or with `save` the
+    plan's scale from them. A save that can't go is an ok: false answer with
+    its plain words; nothing was written."""
+    from . import plan_ai_write as C  # noqa: PLC0415
+    from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    m = ms.get_map(msg["map_id"]) if ms else None
+    if not m:
+        connection.send_error(msg["id"], "not_found", "Map not found")
+        return
+    size = C._picture_size(m)  # noqa: SLF001
+    measures = msg.get("measures") or []
+    if not msg.get("save"):
+        connection.send_result(msg["id"], {"size": list(size) if size else None, **C.measures_preview(size, measures)})
+        return
+    if size is None:
+        connection.send_result(msg["id"], {"ok": False, "code": "no_picture_size", "message": C.SCALE_WORDS["no_picture_size"]})
+        return
+    try:
+        got = C.scale_from_measures(size, measures, None, _time.strftime("%Y-%m-%d", _time.gmtime()))
+    except C.Refused as err:
+        connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message})
+        return
+    # Measure's own rule: the plan's floor as it is (a first measurement of a plan with none: the main floor).
+    stored = await async_write_measured_transform(hass, msg["map_id"], {**got["transform"], "floor_id": m.get("floor_id") or DEFAULT_FLOOR_ID})
+    await ms.async_end_scale_nudge(msg["map_id"])
+    connection.send_result(msg["id"], {"ok": True, "map_id": msg["map_id"], "scale_x_m": stored.get("scale_x_m"),
+                                       "scale_y_m": stored.get("scale_y_m"), "lengths": len(measures)})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/maps_scale_nudge_end", "map_id": str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_maps_scale_nudge_end(hass: HomeAssistant, connection, msg) -> None:
+    """"Later" on "Set this plan's scale now": it ends for this plan, for good."""
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    ended = await ms.async_end_scale_nudge(msg["map_id"]) if ms else False
+    connection.send_result(msg["id"], {"ok": True, "ended": ended})
 
 
 @websocket_api.websocket_command(

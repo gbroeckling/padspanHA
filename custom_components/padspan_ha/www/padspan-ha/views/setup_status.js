@@ -46,6 +46,12 @@ export function hasScale(state) {
     && Object.values(state.model.map_transforms).some(t => t && t.reference_measurements && t.reference_measurements.length > 0));
 }
 
+/** This plan has a real-world size (the Library's "not placed" is the opposite): what "No scale yet" asks about. */
+export function planHasScale(state, mapId) {
+  const t = state.model && state.model.map_transforms && state.model.map_transforms[mapId];
+  return !!(t && Number(t.scale_x_m) > 0 && Number(t.scale_y_m) > 0);
+}
+
 /**
  * The house has been calibrated: five calibration points or more (the
  * number calibration_store fits a model from), or a fitted model. One rule

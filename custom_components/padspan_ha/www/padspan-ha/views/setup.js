@@ -19,6 +19,8 @@ const { hasMaps, hasScale, hasRooms, hasReceivers, hasCalibration, undrawnAreaNa
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Let Claude draw your rooms (experimental): one line under the scale and rooms steps, where the rule offers it.
 const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
+// "No scale yet: Measure" under the scale step, for each plan that has none (scale_nudge.js).
+const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
 
 // setup_checks.SETUP_STEPS, in order (tests/test_guided_setup.py holds them equal).
 export const SETUP_STEPS = ["plan", "scale", "floors", "rooms", "receivers", "calibration"];
@@ -464,6 +466,12 @@ export function render(ctx) {
     if (s.id === aiwAt && AIW && !_demo(st)) {
       const line = AIW.offerLine(ctx, "setup", s.done);
       if (line) info.appendChild(line);
+    }
+    if (s.id === "scale" && NUDGE) {
+      for (const m of (st.maps && st.maps.list) || []) {
+        const n = NUDGE.reminderLine(ctx, m, () => openStep(ctx, "scale", m.id), m.name || "a plan");
+        if (n) info.appendChild(n);
+      }
     }
     if (s.id === "receivers") {
       const rb = receiversBlock(ctx);

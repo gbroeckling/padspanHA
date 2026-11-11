@@ -267,7 +267,7 @@ class MapsStore:
             return None
         return fp
 
-    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None, *, allow_no_image: bool = False) -> dict[str, Any]:
+    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None, *, allow_no_image: bool = False, scale_nudge: bool = False) -> dict[str, Any]:
         """Create a new map from an uploaded PNG image.
 
         Writes the image file to disk, creates the metadata dict with default
@@ -278,6 +278,10 @@ class MapsStore:
         stack, calibration, rooms and pins with it. With the flag and an empty
         payload the map is created with no picture file (`image.missing`), at
         the backup's own dimensions; Replace Image puts the picture back.
+
+        `scale_nudge`: Mapping → Upload's "Set this plan's scale now" waits on
+        this plan (`scale_nudge: True` on its record) until its Later or its
+        Save ends it (async_end_scale_nudge).
         """
         # Reject oversized uploads before decoding (avoid OOM)
         max_b64_len = (MAX_MAP_BYTES * 4) // 3 + 4
@@ -331,11 +335,22 @@ class MapsStore:
         }
         if no_image:
             info["image"]["missing"] = True
+        if scale_nudge:
+            info["scale_nudge"] = True
 
         self.data.setdefault("maps", [])
         self.data["maps"].append(info)
         await self.store.async_save(self.data)
         return info
+
+    async def async_end_scale_nudge(self, map_id: str) -> bool:
+        """The upload's "Set this plan's scale now" ended for this plan, for good
+        (its Later, or its Save). False when it wasn't waiting."""
+        m = self.get_map(map_id)
+        if not m or not m.pop("scale_nudge", None):
+            return False
+        await self.store.async_save(self.data)
+        return True
 
     async def async_update_map(self, map_id: str, *, receivers: list[dict[str, Any]] | None = None, beacons: list[dict[str, Any]] | None = None, calibration: dict[str, Any] | None = None, notes: str | None = None, floor_id: str | None = None, room_bounds: dict[str, Any] | None = None, stack: dict | None = None) -> dict[str, Any]:
         """Update map metadata — only fields that are not None are changed.

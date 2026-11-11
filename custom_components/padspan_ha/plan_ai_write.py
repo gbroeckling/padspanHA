@@ -1939,12 +1939,13 @@ def scale_from_measures(size: tuple[int, int], measures: Any, source: str, today
         ppm = dist_px / metres
         ppms.append(ppm)
         refs.append({"p1": p1, "p2": p2, "distance_m": round(metres, 4), "px_per_meter": round(ppm * 100) / 100,
-                     "angle_deg": round(math.degrees(math.atan2(abs(dy), abs(dx)))), "date": today, "source": source})
+                     "angle_deg": round(math.degrees(math.atan2(abs(dy), abs(dx)))), "date": today, **({"source": source} if source else {})})
     ppm = round(sum(ppms) / len(ppms) * 100) / 100
     sx, sy = round(w / ppm * 10000) / 10000, round(h / ppm * 10000) / 10000
     lo, hi = SCALE_ODD_M
     return {"transform": {"scale_x_m": sx, "scale_y_m": sy, "reference_measurements": refs}, "ppm": ppm, "across_m": sx, "down_m": sy,
-            "metres": [r["distance_m"] for r in refs], "odd": not (lo <= sx <= hi and lo <= sy <= hi)}
+            "metres": [r["distance_m"] for r in refs], "odd": not (lo <= sx <= hi and lo <= sy <= hi),
+            "differ_pct": round(abs(ppms[0] - ppms[1]) / ((ppms[0] + ppms[1]) / 2) * 100, 1) if len(ppms) == 2 else None}
 
 
 def _points_on(hass: HomeAssistant, map_id: str) -> bool:
@@ -2051,6 +2052,16 @@ def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bo
         out["stop"] = None
     except Refused as err:
         out.update(stop=err.code, stop_message=err.message)
+    out.update(measures_preview(size, measures))
+    return out
+
+
+def measures_preview(size: tuple[int, int] | None, measures: Any) -> dict[str, Any]:
+    """Pure. What the measuring screen says of the typed lengths as they are typed (the metres, the unit a bare number
+    was read in) and, once every length has its two ends, the plan's size from them (scale_from_measures, as the save
+    works it out) and how far two lengths disagree. The rooms helper's preview and the upload's hand measurement
+    (ws_maps.ws_maps_scale_measure) both say this."""
+    out: dict[str, Any] = {}
     measures = [x for x in measures if isinstance(x, dict)] if isinstance(measures, list) else []
     if measures:
         read = [G.length_read(x.get("text")) for x in measures]             # said as the person types, before both ends are clicked
@@ -2061,6 +2072,8 @@ def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bo
             try:
                 got = scale_from_measures(size, measures, "guided", "")
                 out.update(metres=got["metres"], across_m=got["across_m"], down_m=got["down_m"], odd=got["odd"])
+                if got["differ_pct"] is not None:
+                    out["differ_pct"] = got["differ_pct"]
             except Refused as err:
                 out["invalid"] = err.message
     return out

@@ -29,6 +29,10 @@ const { _haLink } = await import(`./rooms.js${V}`);
 const { isOutdoorFloorId } = await import(`./iso_lights.js${V}`);
 // "Put my receivers in their rooms": Setup's one copy, on the Done screen too (owner, 2026-11-12).
 const SETUP = await import(`./setup.js${V}`).catch(() => null);
+// The measuring screen's picture, length field and Save bar: one copy, shared with the upload's "Set this plan's scale now".
+const PM = await import(`./plan_measure.js${V}`);
+const { btn, P, MUTED, row, STICKY_BAR, keepScroll } = PM;
+export const { tapWord, ZOOM_MAX, metresText } = PM;
 
 export const VIA = "wizard";
 export const CONSOLE_URL = "https://platform.claude.com/";
@@ -199,9 +203,6 @@ export function indoorFloors(state) {
   return ((state.model && state.model.floors) || []).map(f => ({ id: f && (f.floor_id || f.id), name: (f && f.name) || "" }))
     .filter(f => f.id && !isOutdoorFloorId(f.id));
 }
-
-/** A length as the scale screen says it: whole metres past 100, else one decimal. */
-export const metresText = (v) => (Number(v) >= 100 ? String(Math.round(Number(v))) : Number(v).toFixed(1));
 
 export function floorName(state, fid) {
   const f = ((state.model && state.model.floors) || []).find(x => x && (x.floor_id || x.id) === fid);
@@ -950,13 +951,6 @@ function leave(ctx, S) {
 
 // ── pieces ──────────────────────────────────────────────────────────────────
 
-function btn(ctx, label, on, extra = {}) {
-  const b = ctx.helpers.el("button", { class: "btn inline" + (extra.primary ? " primary" : ""), style: "font-size:12px", ...(extra.attrs || {}) }, label);
-  if (extra.disabled) b.disabled = true;
-  b.addEventListener("click", on);
-  return b;
-}
-
 /** An outside link: a new tab where one can be closed again, else the address said. */
 function ext(ctx, url, label, word) {
   const { el } = ctx.helpers;
@@ -974,12 +968,6 @@ function haLink(ctx, path, label, word) {
   a.addEventListener("click", () => tel(ctx, "ai_wizard_link:" + word));
   return a;
 }
-
-// The bar stuck to the bottom of the screen that keeps a screen's Save in view while it scrolls (the rooms list, the scale).
-const STICKY_BAR = "position:sticky;bottom:0;z-index:2;background:#0f1a12;border-top:1px solid #1b3526;padding:4px 0;margin-top:8px";
-const P = (ctx, text, style = "") => ctx.helpers.el("div", { style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:6px 0;" + style }, text);
-const MUTED = (ctx, text) => ctx.helpers.el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, text);
-const row = (ctx, kids, style = "") => ctx.helpers.el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;" + style }, kids);
 
 function failBlock(ctx, S, word, redrawn = false) {
   const { el } = ctx.helpers, f = redrawn && word === "changed_since" ? REDRAWN_FAIL : FAILS[word];
@@ -1152,22 +1140,10 @@ function readScreen(ctx, S, box) {
   poll(ctx, S);
 }
 
-/** The chosen plan's picture with a layer over it, 1000 units across and H down: as wide as its column, but never
- *  taller than most of the screen, so an upright plan stays whole, beside its list. `zoom` (the guided measurement's,
- *  inside its own scrolling window): that many times as big. */
-function planFrame(ctx, S, layerStyle = "", zoom = 0) {
-  const { el } = ctx.helpers, st = ctx.state;
-  const map = ((st.maps && st.maps.list) || []).find(m => S.plan && m.id === S.plan.id);
-  const img = map && ctx.helpers.mapImageUrl ? ctx.helpers.mapImageUrl(map) : null;
-  const w = Number((map && map.image && map.image.width) || 1000), h = Number((map && map.image && map.image.height) || 750);
-  const fit = `min(100%, calc(72vh * ${w} / ${h}))`;
-  const pic = el("div", { "data-aiw": "picture",
-    style: `position:relative;width:${zoom > 1 ? `calc(${zoom} * ${fit})` : fit};aspect-ratio:${w}/${h};background:#0f1a12;border-radius:6px;overflow:hidden;margin:${zoom ? 0 : "8px 0"}` });
-  if (img) pic.appendChild(el("img", { src: img, alt: "", style: "position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill;opacity:.85" }));
-  const layer = el("div", { style: "position:absolute;left:0;top:0;width:100%;height:100%;" + layerStyle });
-  pic.appendChild(layer);
-  return { pic, layer, H: Math.round(1000 * h / w) };
-}
+/** The chosen plan's record (its picture and size) from the plans list. */
+const planOf = (ctx, S) => (((ctx.state.maps && ctx.state.maps.list) || []).find(m => S.plan && m.id === S.plan.id));
+/** The chosen plan's picture with a layer over it (plan_measure.planFrame). */
+const planFrame = (ctx, S, layerStyle = "", zoom = 0) => PM.planFrame(ctx, planOf(ctx, S), layerStyle, zoom);
 
 export const LABEL_MIN = 18;     // a label smaller than this (of 1000 across) isn't drawn: it can't be read
 function picture(ctx, S, shapes) {
@@ -1201,121 +1177,13 @@ function picture(ctx, S, shapes) {
   return pic;
 }
 
-/** A window's scroll put back once it is on the page, before it is painted (a microtask: the panel draws a screen and
- *  puts it on the page in one go), so a redraw neither jumps nor flickers. */
-function keepScroll(win, at) {
-  const go = () => { win.scrollLeft = at[0]; win.scrollTop = at[1]; };
-  if (typeof queueMicrotask === "function") queueMicrotask(go); else if (typeof setTimeout === "function") setTimeout(go, 0);
-}
-
-/** "Tap" on a touch screen, "Click" with a mouse. */
-export const tapWord = () => (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? "Tap" : "Click");
-export const ZOOM_MAX = 4;
-
-/** The two ends on the plan: a tap puts the first, then the second; after that a tap moves the nearer one, and either
- *  can be dragged (mouse, pen or finger: pointer events). One finger places and drags; two fingers pinch and pan the
- *  page (touch-action pinch-zoom). − and + enlarge the picture inside its own window, which keeps its place through
- *  every redraw (sc.scroll), so the printed numbers can be read. */
+/** The two ends on the plan (plan_measure.measurePicture): each end put down or let go asks the server again. */
 function measurePicture(ctx, S) {
-  const { el } = ctx.helpers;
-  const sc = scaleDraft(S), z = sc.zoom || 1;
-  const { pic, layer, H } = planFrame(ctx, S, "cursor:crosshair;touch-action:pinch-zoom", z);
-  const xy = (p) => [(p[0] * 1000).toFixed(1), (p[1] * H).toFixed(1)];
-  let svg = `<svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%">`;
-  const u = (v) => (v / z).toFixed(1);                             // marks keep their size on the screen when zoomed, so an end sits exactly
-  if (sc.pts.length === 2) {
-    const [a, b] = sc.pts.map(xy);
-    svg += `<line data-aiw-line="1" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#000000" stroke-width="${u(9)}" stroke-opacity=".5"/>` +
-      `<line data-aiw-line="2" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#f59e0b" stroke-width="${u(5)}"/>`;
-  }
-  sc.pts.forEach((p, i) => {
-    const [x, y] = xy(p);
-    svg += `<circle data-pt="${i}" cx="${x}" cy="${y}" r="${u(16)}" fill="#f59e0b" fill-opacity=".9" stroke="#ffffff" stroke-width="${u(4)}" style="cursor:grab"/>` +
-      `<text x="${x}" y="${(Number(y) - 24 / z).toFixed(1)}" text-anchor="middle" font-size="${u(28)}" font-weight="700" fill="#ffffff" stroke="#000000" stroke-width="${u(5)}" paint-order="stroke" pointer-events="none">${i + 1}</text>`;
+  return PM.measurePicture(ctx, scaleDraft(S), planOf(ctx, S), {
+    changed: () => { scalePreview(ctx, S); rerenderKeep(ctx, S); },
+    redraw: () => rerenderKeep(ctx, S),
+    zoomed: () => telOnce(ctx, "ai_wizard:zoomed"),
   });
-  svg += "</svg>";
-  layer.innerHTML = svg;
-  layer.setAttribute("data-aiw", "measure");
-  const frac = (e) => {
-    const r = layer.getBoundingClientRect();
-    if (!r || !r.width || !r.height) return null;
-    return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))].map(v => Math.round(v * 10000) / 10000);
-  };
-  layer.addEventListener("click", (e) => {
-    if (sc.moved) { sc.moved = false; return; }                     // the end of a drag, not a tap
-    const p = e && frac(e);
-    if (!p) return;
-    if (sc.pts.length < 2) sc.pts.push(p);
-    else {
-      const d = (q) => (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2;
-      sc.pts[d(sc.pts[0]) <= d(sc.pts[1]) ? 0 : 1] = p;
-    }
-    scalePreview(ctx, S);
-    rerenderKeep(ctx, S);
-  });
-  // One pointer at a time: an end dragged by the finger that took it; a second finger (a pinch) puts it back where it was,
-  // as the browser's pointercancel does. Zoomed in, a drag on the empty plan pans the window; a tap still places an end.
-  const capture = (e) => { try { if (layer.setPointerCapture && e.pointerId !== undefined) layer.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ } };
-  const putBack = () => { if (sc.drag !== null && sc.dragFrom) sc.pts[sc.drag] = sc.dragFrom; sc.drag = null; sc.pan = null; sc.moved = false; rerenderKeep(ctx, S); };
-  layer.addEventListener("pointerdown", (e) => {
-    if (sc.drag !== null || sc.pan) { if (e.pointerId !== sc.dragId) putBack(); return; }      // a second finger: a pinch, not a drag
-    sc.moved = false;                                               // a drag's own click may never have come: every press starts afresh
-    const i = e && e.target && e.target.getAttribute ? e.target.getAttribute("data-pt") : null;
-    if (i === null || i === undefined) {
-      if (z > 1) { sc.pan = { x: e.clientX, y: e.clientY, l: Number(view.scrollLeft) || 0, t: Number(view.scrollTop) || 0 }; sc.dragId = e.pointerId; capture(e); }
-      return;
-    }
-    sc.drag = Number(i);
-    sc.dragId = e.pointerId;
-    sc.dragFrom = sc.pts[sc.drag] ? sc.pts[sc.drag].slice() : null;
-    if (e.preventDefault) e.preventDefault();
-    capture(e);
-  });
-  layer.addEventListener("pointermove", (e) => {
-    if (e.pointerId !== sc.dragId) return;                          // another finger's: never moves this end
-    if (sc.pan) {
-      const dx = e.clientX - sc.pan.x, dy = e.clientY - sc.pan.y;
-      if (Math.abs(dx) + Math.abs(dy) > 6) sc.moved = true;          // a pan, not a tap
-      view.scrollLeft = Math.max(0, sc.pan.l - dx); view.scrollTop = Math.max(0, sc.pan.t - dy);
-      return;
-    }
-    if (sc.drag === null) return;
-    const p = frac(e);
-    if (!p) return;
-    sc.pts[sc.drag] = p;
-    sc.moved = true;
-    // Moved in place while dragging (a redraw would drop the pointer); the screen is drawn again when it is let go.
-    const c = layer.querySelector ? layer.querySelector(`circle[data-pt="${sc.drag}"]`) : null;
-    const [x, y] = xy(p);
-    if (c && c.setAttribute) { c.setAttribute("cx", x); c.setAttribute("cy", y); }
-    for (const k of ["1", "2"]) {
-      const l = layer.querySelector ? layer.querySelector(`line[data-aiw-line="${k}"]`) : null;
-      if (l && l.setAttribute) { l.setAttribute(sc.drag === 0 ? "x1" : "x2", x); l.setAttribute(sc.drag === 0 ? "y1" : "y2", y); }
-    }
-  });
-  const drop = (e) => {
-    if (e && e.pointerId !== sc.dragId) return;
-    if (sc.pan) { sc.pan = null; return; }
-    if (sc.drag === null) return;
-    sc.drag = null;
-    scalePreview(ctx, S);
-    rerenderKeep(ctx, S);
-  };
-  layer.addEventListener("pointerup", drop);
-  layer.addEventListener("pointercancel", (e) => { if (e && e.pointerId === sc.dragId && (sc.drag !== null || sc.pan)) putBack(); });   // the browser took it (a pinch)
-  const view = el("div", { "data-aiw": "measure-view", style: "overflow:auto;max-width:100%;max-height:72vh;margin:8px 0" }, [pic]);
-  view.addEventListener("scroll", () => { sc.scroll = [Number(view.scrollLeft) || 0, Number(view.scrollTop) || 0]; });
-  if (z > 1 && sc.scroll) keepScroll(view, sc.scroll);
-  const zoomTo = (nz) => {                                         // the middle of the window stays where it was
-    const r = nz / z, vw = Number(view.clientWidth) || 0, vh = Number(view.clientHeight) || 0, [l, t] = sc.scroll || [0, 0];
-    sc.scroll = [Math.max(0, (l + vw / 2) * r - vw / 2), Math.max(0, (t + vh / 2) * r - vh / 2)];
-    sc.zoom = nz;
-    if (nz > 1) telOnce(ctx, "ai_wizard:zoomed");
-    rerenderKeep(ctx, S);
-  };
-  return el("div", {}, [view, row(ctx, [MUTED(ctx, "Zoom:"),
-    btn(ctx, "−", () => zoomTo(Math.max(1, z - 1)), { disabled: z <= 1, attrs: { "data-aiw": "zoom-out", "aria-label": "Smaller" } }),
-    btn(ctx, "+", () => zoomTo(Math.min(ZOOM_MAX, z + 1)), { disabled: z >= ZOOM_MAX, attrs: { "data-aiw": "zoom-in", "aria-label": "Bigger" } })], "margin:0")]);
 }
 
 /** A refusal the server says before anything is saved (the plan has a scale by now, calibration spots on it…): its words, the way on. */
@@ -1418,8 +1286,7 @@ function scaleScreen(ctx, S, box) {
   telOnce(ctx, "plan_build_scale:guided");
   if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, whether it may be measured here
   const tap = tapWord();
-  box.appendChild(P(ctx, `${tap} both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. ` +
-    "The longer the thing you measure, the more exact your map." + (tap === "Tap" ? " Pinch with two fingers, or use + below the plan, to look closer." : "")));
+  box.appendChild(P(ctx, PM.measureHow(tap)));
   if (main) {
     box.appendChild(row(ctx, [P(ctx, ["Claude found ", el("b", { "data-aiw": "scale-text" }, main.text), ` printed ${runs(r.main)} your plan ` +
       `(${Number(main.metres).toFixed(2)} m), and the other way agrees.`], "margin:0"),
@@ -1435,8 +1302,7 @@ function scaleScreen(ctx, S, box) {
   // The plan takes every bit of the width its few fields leave it; on a phone, the whole width above them.
   const cols = el("div", { "data-aiw": "scale", style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:0 1 240px;min-width:220px" });
-  cols.appendChild(el("div", { "data-aiw": "measure-col", style: "flex:1 1 0;min-width:280px" }, [measurePicture(ctx, S),
-    MUTED(ctx, sc.pts.length < 2 ? `${tap} the ${sc.pts.length ? "other" : "first"} end on the plan.` : `Drag an end, or ${tap.toLowerCase()} near it, to move it.`)]));
+  cols.appendChild(el("div", { "data-aiw": "measure-col", style: "flex:1 1 0;min-width:280px" }, [measurePicture(ctx, S), MUTED(ctx, PM.endHint(sc, tap))]));
   cols.appendChild(side);
   box.appendChild(cols);
   if (main && sc.used) {                                          // Use it pressed: where Claude read it, close up, to check before Save
@@ -1444,16 +1310,9 @@ function scaleScreen(ctx, S, box) {
     if (inset) side.appendChild(inset);
     side.appendChild(MUTED(ctx, "Check that the two ends sit where the printed length starts and ends."));
   }
-  const len = el("input", { type: "text", maxlength: "40", "data-aiw": "scale-length", placeholder: "e.g. 4.2 m or 13' 9\"",
-    style: "flex:0 1 180px;min-width:120px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:14px" });
-  len.value = sc.text;
-  if (S.busy) len.disabled = true;
   // Typing stays here (S.sc) through every redraw, and the field is never rebuilt while it is typed in: the server's
   // answer (what it understood, the plan's size, whether Save may go) is drawn in place (paint), as a drag is.
-  len.addEventListener("input", () => { sc.text = String(len.value || ""); scalePreviewSoon(ctx, S); });
-  const said = el("span", { "data-aiw": "scale-understood", style: "font-size:13px" });
-  side.appendChild(el("label", { style: "display:block;font-size:13px;color:#cbd5e1;margin:8px 0 4px" }, "Its length:"));
-  side.appendChild(row(ctx, [len, said], "margin:0 0 8px"));
+  const { said } = PM.lengthField(ctx, side, sc.text, { busy: S.busy, onInput: (t) => { sc.text = t; scalePreviewSoon(ctx, S); } });
   const { sized, save } = scaleFooter(ctx, S, side, box);
   sc.paint = { shape: scaleShape(sc), fn: () => scaleSaid(ctx, S, said, sized, save) };
   sc.paint.fn();
@@ -1464,18 +1323,11 @@ function scaleScreen(ctx, S, box) {
  *  reading when they are more than SCALE_DIFFERS_PCT apart, and Save, which goes only on an answer for the measurement as
  *  it is now. */
 function scaleSaid(ctx, S, said, sized, save) {
-  const { el } = ctx.helpers, sc = scaleDraft(S), pv = sc.pv, m = scaleMetres(sc);
-  const unit = pv && Array.isArray(pv.assumed) && pv.assumed[0];
-  said.textContent = !String(sc.text || "").trim() ? "" : m ? `= ${Number(m).toFixed(2)} m${unit ? ` (read as ${unit})` : ""}` : (pv && pv.invalid) || "";
-  said.style.color = m ? "#a7f3d0" : "#f59e0b";
+  const { el } = ctx.helpers, sc = scaleDraft(S), pv = sc.pv;
+  PM.paintSaid(said, sc.text, pv);
   const lines = [];
   if (scaleSized(sc)) {
-    lines.push(P(ctx, `The whole picture, margins and all, will be ${metresText(pv.across_m)} m across and ${metresText(pv.down_m)} m down.`, "font-weight:600"));
-    if (pv.odd) {
-      const big = pv.across_m > 100 || pv.across_m < 2 ? ["across", pv.across_m] : ["down", pv.down_m];
-      lines.push(el("div", { "data-aiw": "scale-odd", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
-        `That makes your plan ${metresText(big[1])} m ${big[0]}. Is the number right? You can change it, or save it as it is.`));
-    }
+    lines.push(...PM.sizeLines(ctx, pv));
     const r = sc.read;
     if (r && r.across_m && !scaleUsed(sc) && Math.abs(pv.across_m / r.across_m - 1) * 100 > SCALE_DIFFERS_PCT) {
       lines.push(el("div", { "data-aiw": "scale-differs", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
