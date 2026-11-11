@@ -3084,10 +3084,12 @@ function _barsPaint() {
   st.classList.toggle("lv-quietbars", barsQuiet(Date.now(), _bars.last));
 }
 // Wired once, when this file loads (never by a card: every card sets up the same listeners and timers, tests/test_live_aboard.py).
-if (typeof window !== "undefined" && window.addEventListener) {
+// On the document, not the window: the window's key and resize listeners are the views' own, counted and taken
+// away with them (tests/js/live_aboard_screen.mjs).
+if (typeof document !== "undefined" && document.addEventListener) {
   _bars.wired = true;
   const woke = () => { _bars.last = Date.now(); _barsPaint(); };
-  for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"]) window.addEventListener(ev, woke, { passive: true, capture: true });
+  for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"]) document.addEventListener(ev, woke, { passive: true, capture: true });
   if (typeof setInterval === "function") { _bars.timer = setInterval(_barsPaint, 30000); if (_bars.timer && _bars.timer.unref) _bars.timer.unref(); }
 }
 function _barsWatch(stage) {
