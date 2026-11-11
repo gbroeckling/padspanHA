@@ -334,7 +334,7 @@ async function loadAll(ctx, S) {
         if (!S.plan || !open.some(m => m.id === S.plan.id)) S.plan = open[0] || null;
       }
       if (gone) {
-        S.msg = "The plan you were working on isn't there any more. Choose a plan to go on.";
+        S.gone = true;                                 // said at the top of the intro (introScreen), for one plan or several
         // The stored step points at the next plan now (the server drops the gone plan's readings with it).
         if (S.plan) ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "intro", map_id: S.plan.id }).catch(() => {});
       }
@@ -401,8 +401,33 @@ function keepName(ctx, S, id, typed, left) {
     if (!left) return;
     const got = (rowsOf(S.ans).find(x => x.id === id) || {}).name;
     if (String((S.names || {})[id] ?? "").trim() === want && (!want || got === want)) delete S.names[id];
-    if (ctx.state._aiw === S) rerenderKeep(ctx, S);
+    if (ctx.state._aiw === S) redrawAfterPress(ctx, S);
   }).catch(() => {});                                             // never leaves Save waiting on a broken chain
+}
+
+/** Draw again, but never under a press. A name field left by pressing Save, a tick or Join fires its change (and the
+ *  name is kept) between that press and its click: a redraw then replaced the button, and the click was lost (real
+ *  panel, 2026-11-11). Under a press the redraw waits until it is let go and its click delivered (render's listeners). */
+function redrawAfterPress(ctx, S) {
+  if (!S.pressing) { rerenderKeep(ctx, S); return; }
+  S.redrawLater = true;
+}
+
+/** The press the list's redraw waits for (redrawAfterPress): pointerdown anywhere in the helper; its click is delivered
+ *  in the same turn as its pointerup, so the waiting redraw runs one turn later. */
+function watchPress(ctx, S, root) {
+  root.addEventListener("pointerdown", () => { S.pressing = true; });
+  const up = () => {
+    const go = () => {
+      S.pressing = false;
+      if (!S.redrawLater) return;
+      S.redrawLater = false;
+      if (ctx.state._aiw === S) rerenderKeep(ctx, S);
+    };
+    if (typeof setTimeout === "function") setTimeout(go, 0); else go();
+  };
+  root.addEventListener("pointerup", up);
+  root.addEventListener("pointercancel", up);
 }
 
 /** A row's name as typed (kept here until the session has it: a redraw or an answer never takes typing away), else Claude's. */
@@ -537,6 +562,7 @@ function startFailed(ctx, S, plan, e) {
 /** From the intro (or Done's next floor): a plan with no scale gets one first (Claude reads a measurement printed on it),
  *  any other goes straight to the rooms read. */
 async function begin(ctx, S, plan) {
+  S.gone = false;
   if (!needsScale(ctx.state, plan)) { telOnce(ctx, "plan_build_scale:already_set"); return startRead(ctx, S, plan); }
   return scaleRead(ctx, S, plan);
 }
@@ -836,6 +862,9 @@ function introScreen(ctx, S, box) {
   };
   const doneLine = () => el("div", { "data-aiw": "plans-done", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" },
     `Already has rooms, so not read again here: ${done.map(label).join(", ")}. Change those rooms in Mapping.`);
+  // The plan a stored step pointed at was deleted: said first, in words for the plans that are left.
+  if (S.gone) box.appendChild(el("div", { "data-aiw": "plan-gone", style: "font-size:13px;color:#f59e0b;line-height:1.5;margin:6px 0" },
+    "The plan you were working on isn't there any more." + (open.length === 1 ? ` The helper goes on with ${label(open[0])}.` : open.length ? " Choose a plan to go on." : "")));
   if (plans.length && !open.length) {
     box.appendChild(P(ctx, "Every floor with a plan already has rooms."));
     box.appendChild(doneLine());
@@ -1201,12 +1230,22 @@ function textInset(ctx, S, ax) {
   const b = ax && ax.box_frac;
   if (!img || !b) return null;
   const w = Number((map.image && map.image.width) || 1000), h = Number((map.image && map.image.height) || 750), pad = 12;
+  // Along the line: from its two ends (plus a margin), with Claude's box: the box can be shorter than the line (real
+  // panel, 2026-11-11: a box 315-820 down a line running 166-1014), and every number quoted is printed along the line.
   // Across its narrow side the box is Claude's tight one round the line; the numbers are printed beside it: widened by
-  // INSET_ACROSS of its length each way, so they are whole, while the length is the box's own (every segment reachable).
-  const bw = (b[2] - b[0]) * w, bh = (b[3] - b[1]) * h, across = Math.max(pad, INSET_ACROSS * Math.max(bw, bh));
-  const padX = bh > bw ? across : pad, padY = bh > bw ? pad : across;
-  const x0 = Math.max(0, b[0] * w - padX), y0 = Math.max(0, b[1] * h - padY);
-  const cw = Math.max(Math.min(w, b[2] * w + padX) - x0, 1), ch = Math.max(Math.min(h, b[3] * h + padY) - y0, 1);
+  // INSET_ACROSS of its length each way, so they are whole.
+  const e = Array.isArray(ax.ends_frac) && ax.ends_frac.length === 2 ? ax.ends_frac : null;
+  const tall = e ? Math.abs(e[1][1] - e[0][1]) * h > Math.abs(e[1][0] - e[0][0]) * w : (b[3] - b[1]) * h > (b[2] - b[0]) * w;
+  let [l, t, r, bt] = [b[0] * w, b[1] * h, b[2] * w, b[3] * h];
+  if (e) {
+    const along = tall ? [e[0][1] * h, e[1][1] * h] : [e[0][0] * w, e[1][0] * w], m = pad + INSET_ACROSS * Math.abs(along[1] - along[0]);
+    const lo = Math.min(...along) - m, hi = Math.max(...along) + m;
+    if (tall) { t = Math.min(t, lo); bt = Math.max(bt, hi); } else { l = Math.min(l, lo); r = Math.max(r, hi); }
+  }
+  const across = Math.max(pad, INSET_ACROSS * Math.max(r - l, bt - t)), alongPad = e ? 0 : pad;
+  const padX = tall ? across : alongPad, padY = tall ? alongPad : across;
+  const x0 = Math.max(0, l - padX), y0 = Math.max(0, t - padY);
+  const cw = Math.max(Math.min(w, r + padX) - x0, 1), ch = Math.max(Math.min(h, bt + padY) - y0, 1);
   const z = Math.min(4, INSET_PX / Math.min(cw, ch)), px = (v) => `${(v * z).toFixed(1)}px`;
   const pic = el("div", { "data-aiw": "scale-inset-pic", "data-crop": [x0, y0, cw, ch].map(v => Math.round(v)).join(","),
     style: `width:${px(cw)};height:${px(ch)};background:#ffffff url("${img}") no-repeat;background-size:${px(w)} ${px(h)};` +
@@ -1488,6 +1527,7 @@ export function render(ctx) {
   const S = S_of(ctx);
   const root = el("div", { id: "ai-wizard" });
   S.root = root;                                    // where rerenderKeep puts the cursor back
+  watchPress(ctx, S, root);
   const card = el("div", { class: "card" });
   const back = btn(ctx, "← Back", () => leave(ctx, S), { attrs: { "data-aiw": "back" } });
   // Off any step (a reading Carry on came back to, say) to the plan chooser: what was read stays held on the server.

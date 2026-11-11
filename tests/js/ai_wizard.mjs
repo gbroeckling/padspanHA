@@ -841,15 +841,32 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   const [b0, b1, b2, b3] = [ax.box_frac[0] * 1000, ax.box_frac[1] * 800, ax.box_frac[2] * 1000, ax.box_frac[3] * 800];
   check(`inset ${main}: a window no taller than a third of the screen, scrolling`, st.includes("max-height:min(33vh, 240px)") && st.includes("overflow:auto")
     && st.includes("max-width:100%"), st);
-  // Round 3: the length is the box's own (every segment reachable by scrolling); across its narrow side the printed
-  // numbers beside the line are whole: INSET_ACROSS of its length each way.
-  const tall = b3 - b1 > b2 - b0, across = Math.max(12, W.INSET_ACROSS * Math.max(b2 - b0, b3 - b1));
-  const [lenSide, boxLen, wide, boxWide] = tall ? [ch, b3 - b1, cw, b2 - b0] : [cw, b2 - b0, ch, b3 - b1];
-  check(`inset ${main}: the whole box quoted, its numbers whole across it`, cx <= b0 && cy <= b1 && cx + cw >= b2 && cy + ch >= b3
-    && lenSide <= boxLen + 25 && wide >= boxWide + 2 * across - 2 && wide <= boxWide + 2 * across + 2, [cx, cy, cw, ch, b0, b1, b2, b3]);
+  // Changed 2026-11-12 (real panel: Claude's box can be shorter than the line, so some quoted numbers couldn't be
+  // scrolled to): along the line the crop runs from its two ends plus a margin (and the box); round 3's "the box's own
+  // length" no longer holds. Across its narrow side the printed numbers beside the line are whole: INSET_ACROSS of its length each way.
+  const e = ax.ends_frac.map(p => [p[0] * 1000, p[1] * 800]);
+  const tall = Math.abs(e[1][1] - e[0][1]) > Math.abs(e[1][0] - e[0][0]);
+  const along = tall ? [e[0][1], e[1][1]] : [e[0][0], e[1][0]], mg = 12 + W.INSET_ACROSS * Math.abs(along[1] - along[0]);
+  const lo = Math.min(tall ? b1 : b0, Math.min(...along) - mg), hi = Math.max(tall ? b3 : b2, Math.max(...along) + mg);
+  const len = Math.min(tall ? 800 : 1000, hi) - Math.max(0, lo), across = Math.max(12, W.INSET_ACROSS * (hi - lo));
+  const [lenSide, wide, boxWide] = tall ? [ch, cw, b2 - b0] : [cw, ch, b3 - b1];
+  check(`inset ${main}: the whole line and box quoted, its numbers whole across it`, cx <= b0 && cy <= b1 && cx + cw >= b2 && cy + ch >= b3
+    && (tall ? cy <= Math.min(...along) && cy + ch >= Math.max(...along) : cx <= Math.min(...along) && cx + cw >= Math.max(...along))
+    && Math.abs(lenSide - len) <= 2 && wide >= boxWide + 2 * across - 2 && wide <= boxWide + 2 * across + 2, [cx, cy, cw, ch, b0, b1, b2, b3, len]);
   const ps = String(pic.getAttribute("style")), zw = Number(/width:([\d.]+)px/.exec(ps)[1]), zh = Number(/height:([\d.]+)px/.exec(ps)[1]);
   const bx = Number(/background-position:-([\d.]+)px/.exec(ps)[1]);
   check(`inset ${main}: enlarged so its short side reads`, Math.abs(Math.min(zw, zh) - W.INSET_PX) < 1 && Math.abs(bx - cx * zw / cw) < 0.005 * bx, ps);   // the crop's numbers are rounded in data-crop
+}
+// Real panel 2026-11-11: Claude's box down a line can be much shorter than the line (box 315-820 of a line 166-1014): the
+// close-up still runs the line's whole length, so every number quoted can be scrolled to.
+{
+  const short = READ({ main: "y", other: "x" });
+  short.proposal.axes.y = { ...short.proposal.axes.y, ends_frac: [[0.95, 0.15], [0.95, 0.95]], box_frac: [0.93, 0.38, 0.98, 0.62] };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => short });
+  let root = await view(h);
+  root = await readScale(h, root);
+  const [cx, cy, cw, ch] = String(q(root, '[data-aiw="scale-inset-pic"]').getAttribute("data-crop")).split(",").map(Number);
+  check("inset: a box shorter than its line, the close-up runs the whole line", cy <= 0.15 * 800 && cy + ch >= 0.95 * 800 - 1 && cx <= 930 && cx + cw >= 980, [cx, cy, cw, ch]);
 }
 
 // ── defect 10: the guided picture: its room, Tap on a touch screen, pinch, a zoom ──
@@ -1237,6 +1254,42 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   check("gone: the chooser, said, the step moved to the plan that is there", root.textContent.includes("The plan you were working on isn't there any more")
     && !!q(root, '[data-aiw="start"]') && !q(root, '[data-aiw="measure"]') && !g.calls.some(c => c.type === "padspan_ha/plan_build_scale_status")
     && !!mk && root.textContent.includes("Claude will read Upper plan (Upper)."), [root.textContent.slice(0, 300), !!mk]);
+  // 2026-11-12: said at the top, above the steps and Start, in words for the one plan left (not "Choose a plan").
+  const t = root.textContent, gl = q(root, '[data-aiw="plan-gone"]');
+  check("gone: said first, for the one plan left", gl && gl.textContent === "The plan you were working on isn't there any more. The helper goes on with Upper plan (Upper)."
+    && t.indexOf("isn't there any more") < t.indexOf("Claude will read") && !t.includes("Choose a plan to go on") && !q(root, '[data-aiw="msg"]'), t.slice(0, 400));
+  // Setup's line beforehand: nothing to carry on with on a plan that was deleted (it said "You started measuring…").
+  O._reset();
+  const s = house({ maps: [maps[1]], floors, wizard: { started: { at: "scale_guided", map_id: "m1", floor_id: "main" } } });
+  O.offerLine(s.ctx, "setup");
+  for (let i = 0; i < 3; i++) await tick();
+  const line = O.offerLine(s.ctx, "setup");
+  check("gone: Setup's line doesn't say a deleted plan's measuring was started", line && !line.textContent.includes("You started measuring")
+    && q(line, '[data-aiw="try"]').textContent === "Try it →", line && line.textContent);
+  O._reset();
+}
+
+// ── real panel 2026-11-11: the first press on Save from a name field already kept was lost. Browser order: pointerdown on
+// Save, change on the field (the name kept), pointerup, click on the Save that was there at pointerdown. ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  const root = await view(h);
+  const save = q(root, '[data-aiw="save"]'), name = q(root, '[data-aiw="name-space:a"]'), r0 = h.renders.n;
+  root.dispatchEvent({ type: "pointerdown" });
+  name.dispatchEvent({ type: "change" });                          // its name is Claude's, already kept: nothing sent, the list would be drawn again
+  for (let i = 0; i < 6; i++) await tick();
+  check("press: leaving a name field under a press draws nothing yet", h.renders.n === r0, h.renders.n - r0);
+  root.dispatchEvent({ type: "pointerup" });
+  save.click();                                                    // the node that was there at pointerdown
+  await shim.flush();
+  for (let i = 0; i < 6; i++) await tick();
+  check("press: the click reaches Save, then the list is drawn", !!h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_commit") && h.renders.n > r0, typesOf(h));
+  // No press (the keyboard's Tab): drawn at once, as before.
+  const k = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  const kr = await view(k), k0 = k.renders.n;
+  q(kr, '[data-aiw="name-space:a"]').dispatchEvent({ type: "change" });
+  for (let i = 0; i < 6; i++) await tick();
+  check("press: with no press the list is drawn at once", k.renders.n > k0, k.renders.n - k0);
 }
 
 // ── round 3, items 8 and 9: a plan with no floor; floors the house doesn't know; one plan named; nothing left ──

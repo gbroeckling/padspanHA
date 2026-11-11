@@ -119,7 +119,9 @@ const MEASURING = new Set(["scale_guided"]);
  *  to carry on with (Claude reading, a reading to check, a measurement started); `done`: the step it is offered on is done
  *  (Setup's Rooms row once a floor has rooms), so not "Stuck?". */
 export function lineWords(ctx, surface, done = false) {
-  const st = ((infoFor(ctx, surface) || {}).wizard || {}).started || {};
+  const st0 = ((infoFor(ctx, surface) || {}).wizard || {}).started || {};
+  // The plan it was left on was deleted: nothing of it to carry on with (the helper says so and starts on the chooser).
+  const st = st0.map_id && !((ctx.state.maps && ctx.state.maps.list) || []).some(m => m && m.id === st0.map_id) ? {} : st0;
   const fl = (((ctx.state.model && ctx.state.model.floors) || []).find(f => f && (f.floor_id || f.id) === st.floor_id) || {}).name;
   const text = READING.has(st.at) ? "Claude is part-way through drawing your rooms (experimental)."
     : MEASURING.has(st.at) ? `You started measuring your plan${fl ? ` on ${fl}` : ""} for Claude to draw its rooms (experimental).`
