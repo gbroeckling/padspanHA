@@ -4955,7 +4955,7 @@ function createSlot(slotKey){
     const people = s ? s.atlas_3d_people === true && onObj(p.people) : onObj(p.people);
     const tags = s ? s.atlas_3d_tags === true && onObj(p.tags) : onObj(p.tags);
     return { people, tags, radios: tags || looked, rain: p.weather3d !== false, codes: onObj(p.codes),
-             trails: prefGet(PREF_TRAILS) === "1", roof: roofPick() !== "off" };
+             trails: prefGet(PREF_TRAILS) === "1", roof: roofPick() !== "off", other_floors: false };
   }
   /** The eids the list leaves out (lights, strips, fans, readouts, locks: never an alarm). */
   function showHidden(p, on){

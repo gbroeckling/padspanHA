@@ -292,32 +292,41 @@ tryCase("wiring: a hold the poll cut short leaves no timer, ring or dimming", ()
 });
 
 // ── one floor chosen: the others fade (iso_lights.js, data-role="floorghost") ──
+// The sidebar draws a chosen floor alone (focusAlone) unless this screen's ⋯ list has "Other floors, faded"
+// ticked: these cases tick it (Live Aboard on, the flat map picked), since the fade is what the patch has to keep.
+{
+  const kept = new Map();
+  if (!globalThis.localStorage) globalThis.localStorage = { getItem: (k) => (kept.has(k) ? kept.get(k) : null), setItem: (k, v) => kept.set(k, String(v)), removeItem: (k) => kept.delete(k) };
+  localStorage.setItem("padspan_lv_3d_fade", "0");
+  localStorage.setItem("padspan_la3d_show_fade", JSON.stringify({ other_floors: true }));
+}
+const FADED = { house3d: { slot: "fade", settings: { atlas_3d_enabled: true } } };
 tryCase("fade: a light on a faded floor patched, still faded, always the full rebuild's markup", () => {
   const view = newView();
   view.focusIdx = 1;                                 // [All, main, main + upper, upper]: main alone
-  const a = card(view);
+  const a = card(view, FADED);
   const ghost = a.parts.filter(n => n._leaf.startsWith('<g data-role="floorghost" data-z="1"'));
   const was = ghost[0] ? ghost[0]._leaf : "";
   const kept = a.parts.find(n => n._leaf.startsWith('<g class="lroom"'));
-  const b = card(view, { states: flip("light.office") });
+  const b = card(view, { ...FADED, states: flip("light.office") });
   const ghost2 = b.parts.filter(n => n._leaf.startsWith('<g data-role="floorghost" data-z="1"'));
   check("fade: a light on a faded floor patched, still faded, always the full rebuild's markup",
     ghost.length === 1 && b.svg === a.svg && ghost2.length === 1 && ghost2[0]._leaf !== was && b.parts.includes(kept)
-    && markupOf(b.svg) === fullMarkup(view, { states: flip("light.office") }), { ghosts: ghost.length, same: b.svg === a.svg });
+    && markupOf(b.svg) === fullMarkup(view, { ...FADED, states: flip("light.office") }), { ghosts: ghost.length, same: b.svg === a.svg });
 });
 tryCase("fade: another floor and back, nothing left over", () => {
   const view = newView();
-  const all = card(view);
+  const all = card(view, FADED);
   const allMarkup = markupOf(all.svg);
   view.focusIdx = 1;
-  const one = card(view);
+  const one = card(view, FADED);
   const faded = markupOf(one.svg).includes('data-role="floorghost"');
   view.focusIdx = 3;
-  const other = card(view);
-  const swapped = markupOf(other.svg) === fullMarkup(view);
+  const other = card(view, FADED);
+  const swapped = markupOf(other.svg) === fullMarkup(view, FADED);
   view.focusIdx = 0;
-  const back = card(view);
-  const backAgain = card(view);
+  const back = card(view, FADED);
+  const backAgain = card(view, FADED);
   check("fade: another floor and back, nothing left over",
     faded && swapped && back.svg !== other.svg && markupOf(back.svg) === allMarkup && !markupOf(back.svg).includes("floorghost")
     && backAgain.svg === back.svg && markupOf(backAgain.svg) === allMarkup, { faded, swapped });
@@ -325,13 +334,13 @@ tryCase("fade: another floor and back, nothing left over", () => {
 tryCase("fade: the people layer still lands at the top of the drawing, outside the fade", () => {
   const view = newView();
   view.focusIdx = 1;
-  const a = card(view);
+  const a = card(view, FADED);
   // atlas_aboard.js place(): just under the next floor's plate.
   const slab = a.parts.find(n => n._leaf.startsWith('<g data-role="floorslab" data-z="1"'));
   const live = document.createElementNS(SVG_NS, "g");
   live.setAttribute("data-live", "");
   a.svg.insertBefore(live, slab);
-  const b = card(view, { states: flip("light.office") });
+  const b = card(view, { ...FADED, states: flip("light.office") });
   const kids = b.svg.childNodes, i = kids.indexOf(live);
   check("fade: the people layer still lands at the top of the drawing, outside the fade",
     !!slab && b.svg === a.svg && i >= 0 && /^<g data-role="floorslab" data-z="1"/.test((kids[i + 1] && kids[i + 1]._leaf) || ""), i);

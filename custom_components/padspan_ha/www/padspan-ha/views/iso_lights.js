@@ -2921,8 +2921,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // slack the earlier "big gap at the bottom" fix had just removed, for no
   // observed benefit (no live Y clipping — see the X note below for why X is
   // different).
+  // A chosen floor drawn alone (opts.focusAlone, the sidebar Atlas): the floors
+  // not chosen are left out and the box is measured from the chosen one, so it
+  // fills the screen. The frame is the whole stack's either way: every point
+  // stays where it was. Without it (Mapping), the others fade and stay.
+  const isFoc=(z)=>focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
+  const ALONE=!!opts.focusAlone && levels.some(isFoc) && !levels.every(isFoc);
+  const sized=(z)=>!ALONE||isFoc(z);
   let contentMaxY = -Infinity, contentMinY = Infinity;
-  for(const r of rooms) for(const p of r.pts){
+  for(const r of rooms) if(sized(r.z)) for(const p of r.pts){
     const py = iso(p[0], p[1], r.z)[1];
     if(py > contentMaxY) contentMaxY = py;
     if(py < contentMinY) contentMinY = py;
@@ -2936,18 +2943,23 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // actually clipped past the canvas edge live.
   let contentMinX = Infinity, contentMaxX = -Infinity;
   const growX=(x)=>{ if(x<contentMinX) contentMinX=x; if(x>contentMaxX) contentMaxX=x; };
-  for(const r of rooms) for(const p of r.pts) growX(iso(p[0], p[1], r.z)[0]);
+  for(const r of rooms) if(sized(r.z)) for(const p of r.pts) growX(iso(p[0], p[1], r.z)[0]);
   for(const z of levels){
     const box=floorBox.get(z);
-    if(!box) continue;
+    if(!box || !sized(z)) continue;
     const ccx=(box.x0+box.x1)/2, ccy=(box.y0+box.y1)/2;
     const halfW=(box.x1-box.x0)/2+slabPad, halfH=(box.y1-box.y0)/2+slabPad;
     const x0=ccx-halfW, x1=ccx+halfW, y0_=ccy-halfH, y1_=ccy+halfH;
     const zb=rankOf(z)-slabWZ;
     for(const pt of [iso(x0,y0_,z), iso(x1,y0_,z), iso(x1,y1_,z), iso(x0,y1_,z),
-                      iso(x0,y0_,zb), iso(x1,y0_,zb), iso(x1,y1_,zb), iso(x0,y1_,zb)]) growX(pt[0]);
+                      iso(x0,y0_,zb), iso(x1,y0_,zb), iso(x1,y1_,zb), iso(x0,y1_,zb)]){
+      growX(pt[0]);
+      // Alone, the plate is the picture: its own corners count for the height too.
+      if(ALONE){ if(pt[1]>contentMaxY) contentMaxY=pt[1]; if(pt[1]<contentMinY) contentMinY=pt[1]; }
+    }
   }
-  const LEGEND_Y0 = isFinite(contentMaxY) ? Math.min(BASE_H, contentMaxY + 70) : BASE_H;
+  // Alone, the plate's corners are in the measure already: less room around it.
+  const LEGEND_Y0 = isFinite(contentMaxY) ? Math.min(BASE_H, contentMaxY + (ALONE ? 44 : 70)) : BASE_H;
   // ONE fixed row for the whole bottom strip — floor index AND the motion
   // colour index share it (Garry, 2026-09-11: the old formula gave the
   // floor index its OWN row per floor, so a 4-storey house drew a legend
@@ -2968,7 +2980,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // width-fit frame) kept everything above it as dead canvas, and a zoomed
   // view opened on that empty band. Every reader of the viewBox goes through
   // getScreenCTM or viewBox.baseVal, never a fixed 0 origin.
-  const viewY = isFinite(contentMinY) ? contentMinY - 50
+  const viewY = isFinite(contentMinY) ? contentMinY - (ALONE ? 24 : 50)
                                        : Math.min(0, CY - maxIsoZ*FG - 50);
   const HTOTAL  = LEGEND_Y0 + LEGEND_H - viewY;
   // Same idea, sideways: the fixed 0..W bound never reserved any slack at
@@ -3656,7 +3668,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // slabWZ/slabHalfW/slabHalfH/slabPad are computed earlier now — the
   // viewBox itself needs them, see the content-extent pass above.
   for(const z of levels){
-    const isFocused=focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
+    const isFocused=isFoc(z);
+    if(ALONE && !isFocused) continue;
     const go=isFocused?1.0:GHOST_FLOOR_OPACITY;
     // A ghosted floor is a backdrop, not a target: its rooms, names and markers
     // fade together in one group (data-role="floorghost") and would otherwise

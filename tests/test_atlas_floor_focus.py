@@ -477,3 +477,57 @@ def test_help_says_it_in_english_and_each_language() -> None:
         for key in wanted:
             assert key in table, (lang, key[:60])
             assert "Light (inverted)" in table[key], (lang, key[:60])
+
+
+# ── The sidebar Atlas draws a chosen floor alone (opts.focusAlone) ──────────
+
+
+def _box(svg: str) -> list:
+    return [float(v) for v in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
+
+
+@pytest.mark.parametrize("show", [False, True])
+def test_alone_a_chosen_floor_is_the_only_one_drawn(tmp_path, show) -> None:
+    opts = {**_OPTS, "showcase": show, "focusAlone": True}
+    out = _draw(tmp_path, {"main": [0, opts], "up": [1, opts]})
+    for name, z, other in (("main", "0", "1"), ("up", "1", "0")):
+        root = ET.fromstring(out[name])
+        assert not _ghosts(root)
+        assert [e.get("data-z") for e in root if e.get("data-role") == "floorslab"] == [z]
+        assert [e.get("data-z") for e in root if e.get("data-role") == "floor"] == [z]
+        assert not [e for e in root.iter() if e.get("class") in ("lroom", "lstack") and e.get("data-z") == other]
+    assert "M01" in out["main"] and "U01" not in out["main"]
+    assert "U01" in out["up"] and "M01" not in out["up"]
+
+
+def test_alone_the_box_is_the_chosen_floors_and_holds_its_plate(tmp_path) -> None:
+    alone = {**_OPTS, "focusAlone": True}
+    out = _draw(tmp_path, {"all": [None, alone], "main": [0, alone], "up": [1, alone]})
+    ah = _box(out["all"])[3]
+    for name in ("main", "up"):
+        x, y, w, h = _box(out[name])
+        assert h < ah * 0.8, (name, h, ah)
+        tops = re.findall(r'<polygon points="([^"]+)" data-role="slabtop"', out[name])
+        assert len(tops) == 1
+        for p in tops[0].split():
+            px, py = (float(v) for v in p.split(","))
+            assert x <= px <= x + w and y <= py <= y + h, (name, p)
+    # The legend still names every floor.
+    assert ">Main<" in out["up"] and ">Up<" in out["main"]
+
+
+def test_alone_changes_nothing_with_all_or_a_floor_that_is_not_there(tmp_path) -> None:
+    alone = {**_OPTS, "focusAlone": True}
+    out = _draw(tmp_path, {"all": [None, _OPTS], "all_alone": [None, alone], "gone": [7, _OPTS], "gone_alone": [7, alone],
+                           "both": [[0, 1], alone]})
+    assert out["all_alone"] == out["all"] == out["both"]
+    assert out["gone_alone"] == out["gone"]
+
+
+def test_only_the_sidebar_atlas_draws_a_floor_alone() -> None:
+    src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
+    # ... unless this screen's ⋯ list has "Other floors, faded" ticked; and the choice makes a new drawing.
+    assert 'focusAlone: DISPLAY && flatShow("other_floors") !== true' in src
+    assert "!!o.underlay, o.focusAlone])" in src
+    # Mapping's tools go by the faded floors (plate lookup, the door circle's toast).
+    assert "focusAlone" not in (_VIEWS / "maps.js").read_text(encoding="utf-8")

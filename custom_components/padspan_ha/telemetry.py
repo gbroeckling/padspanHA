@@ -643,7 +643,7 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
     "lights", "glow", "strips", "fans", "scenes", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
-    "furniture", "devices", "stairs", "room_names", "room_outlines", "floor_outlines", "roof",
+    "furniture", "devices", "stairs", "room_names", "room_outlines", "floor_outlines", "other_floors", "roof",
     "rain", "theme", "forest",
 )
 HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(

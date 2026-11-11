@@ -583,8 +583,10 @@ await tryCase("card: a floor chosen and back, on its screen, always what a new c
   P.view.focusIdx = 0;
   const [c3, f3] = await P.tick(CBASE);
   const [c4] = await P.tick(CBASE);
-  const out = { allIsNew: all === f0, plainAll: !all.includes("floorghost"), fades: one.includes("floorghost"), oneIsNew: one === f1,
-    keptOnTick: c2 === c1 && two === f2, stillFades: two.includes("floorghost"), backIsNew: kser(c3) === f3, backIsAll: kser(c3) === all, keptAfter: c4 === c3 };
+  // The sidebar Atlas draws a chosen floor alone (focusAlone): one plate, nothing faded.
+  const slabs = (t) => t.split('data-role="floorslab"').length - 1;
+  const out = { allIsNew: all === f0, plainAll: !all.includes("floorghost") && slabs(all) > 1, alone: !one.includes("floorghost") && slabs(one) === 1, oneIsNew: one === f1,
+    keptOnTick: c2 === c1 && two === f2, stillAlone: !two.includes("floorghost") && slabs(two) === 1, backIsNew: kser(c3) === f3, backIsAll: kser(c3) === all, keptAfter: c4 === c3 };
   check("card: a floor chosen and back, on its screen, always what a new card makes", Object.values(out).every(Boolean), out);
 });
 await tryCase("card: a saved floor off screen comes into view once when the page opens, and nothing else moves the page", async () => {

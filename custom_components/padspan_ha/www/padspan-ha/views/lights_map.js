@@ -3670,10 +3670,12 @@ export function buildLightsMapCard(hostIn){
       const r = mapCard.getBoundingClientRect(), vh = window.innerHeight || r.bottom;
       return r.top > vh - 160 ? null : { left: r.left + (view.railHidden ? 8 : 52), right: r.right - 64, bottom: Math.min(vh, r.bottom) };
     } : null }) : null;
-  const sceneFlatHidden = () => {
-    if (!h3) return false;
-    try { const o = JSON.parse(_laPrefs.get(`show_${h3.slot}`) || "{}"); return !!(o && o.scenes === false); } catch (_) { return false; }
+  // What this screen's ⋯ list (live_aboard_show.js) says of a line the flat map goes by, or undefined.
+  const flatShow = (key) => {
+    if (!h3) return undefined;
+    try { const o = JSON.parse(_laPrefs.get(`show_${h3.slot}`) || "{}"); return o && typeof o[key] === "boolean" ? o[key] : undefined; } catch (_) { return undefined; }
   };
+  const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
   // while it shows (fn gets its slot); false while the flat map shows.
@@ -4052,7 +4054,10 @@ export function buildLightsMapCard(hostIn){
         automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0),
         underlay: abData && abFurn() ? _AB.underlayOf(abData) : null,
         // Live Aboard's own hinge, swing, type and Shown for a door, when it is on.
-        doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null };
+        doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null,
+        // The sidebar Atlas draws a chosen floor alone, as big as the screen; Mapping keeps the others, faded.
+        // Unless this screen's ⋯ list has "Other floors, faded" ticked.
+        focusAlone: DISPLAY && flatShow("other_floors") !== true };
     const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors, isoOpts);
     // The sidebar's poll patches the last drawing (drawStageSvg above); the
@@ -4064,7 +4069,7 @@ export function buildLightsMapCard(hostIn){
         getFocusZ(view.focusIdx), view.floorGap, view.horizGap, view.zoom, V2, WALL, o.showcase, o.showcaseTheme, o.liveColours,
         o.fitRooms, o.isolux, o.sceneField, o.codeChip, o.hideCodes, o.classFilter, o.hitHalo, o.collapseUnplaced, o.dropMarker,
         o.labelScale, o.heatmap, o.barrierHit, o.automorph, o.automorphRoomPct, o.automorphHardness, o.automorphStyle,
-        o.automorphSubtlety, !!o.underlay]) }).full;
+        o.automorphSubtlety, !!o.underlay, o.focusAlone]) }).full;
     } else { isoDiv.innerHTML = svgStr; drawnWhole = true; }
     // People, tags and scanners over it, then the newest positions (while
     // the flat map shows and the page is in sight).

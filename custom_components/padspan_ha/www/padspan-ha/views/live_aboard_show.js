@@ -76,6 +76,9 @@ export const SHOW_ITEMS = [
   { key: "room_names", group: "house", words: "Room names", hint: "Each room's name on its floor", link: "rooms" },
   { key: "room_outlines", group: "house", words: "Room outlines", hint: "The coloured line round each room", link: "rooms" },
   { key: "floor_outlines", group: "house", words: "Floor outlines", hint: "The faint line round each floor", link: "la3d" },
+  // The flat Map's (lights_map.js focusAlone): with one floor chosen it is drawn alone, as big as the screen,
+  // unless this is ticked. Off unless ticked (live_aboard.js showHouseOf).
+  { key: "other_floors", group: "house", words: "Other floors, faded", hint: "On the flat Map with one floor chosen: the other floors stay, faded. Off: the chosen floor fills the screen" },
   { key: "roof", group: "house", words: "Roof", hint: "The roof, seen from outside (the Roof button too)" },
   { key: "rain", group: "look", words: "Rain and snow", hint: "Rain and snow falling round the house", link: "weather" },
   { key: "theme", group: "look", words: "Theme colours", hint: "Off: the Classic look on this screen", link: "showcase" },
