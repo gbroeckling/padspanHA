@@ -955,7 +955,8 @@ export const ZOOM_MAX = 4;
  *  page (touch-action pinch-zoom). − and + enlarge the picture inside its own window, which keeps its place through
  *  every redraw (sc.scroll), so the printed numbers can be read. */
 function measurePicture(ctx, S) {
-  const sc = scaleDraft(S), { el } = ctx.helpers, z = sc.zoom || 1;
+  const { el } = ctx.helpers;
+  const sc = scaleDraft(S), z = sc.zoom || 1;
   const { pic, layer, H } = planFrame(ctx, S, "cursor:crosshair;touch-action:pinch-zoom", z);
   const xy = (p) => [(p[0] * 1000).toFixed(1), (p[1] * H).toFixed(1)];
   let svg = `<svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%">`;
