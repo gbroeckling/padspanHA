@@ -58,6 +58,7 @@ plan_build_rooms_undo, both plan_ai_write.py's.
 from __future__ import annotations
 
 import copy
+import logging
 import time
 from typing import Any
 
@@ -75,6 +76,8 @@ from .house3d_store import enabled as house3d_on
 from .ws_common import _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESSAGE
 from .ws_house3d_stairs import NOT_PLACED_CODE, PLANS_OFF_CODE, PLANS_OFF_MESSAGE
+
+_LOGGER = logging.getLogger(__name__)
 
 REV_CODE = C.REV_CODE
 
@@ -1200,7 +1203,13 @@ async def _rooms_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStor
                                                **_rooms_answer(hass, store, msg["session"])})
         return
     # The rooms helper's follow-up (its areas, its counts, its mark), after the save, outside the locks.
-    extra = await after(answer) if after is not None and answer.get("ok", True) else {}
+    # The rooms are saved (or taken back) by now: a follow-up that fails is logged, never turned into "that didn't work".
+    extra: dict = {}
+    if after is not None and answer.get("ok", True):
+        try:
+            extra = await after(answer) or {}
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("PadSpan: the rooms helper's follow-up failed after the save: %s", err)
     connection.send_result(msg["id"], {**answer, **_rooms_answer(hass, store, msg["session"]), **extra})
 
 

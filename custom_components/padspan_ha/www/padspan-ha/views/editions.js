@@ -176,8 +176,8 @@ export const SURFACE_CLASS = Object.freeze({
   sandbox:     "presence",
   occupancy:   "presence",
   guests:      "presence",      // guest tags (0.38.178): a tag lent to a guest is presence
-  setup:       "presence",
-  ai_wizard:   "presence",      // Let Claude draw your rooms: rooms for presence (never offered in Bright)      // the guided Setup: receivers and calibration are presence
+  setup:       "presence",      // the guided Setup: receivers and calibration are presence
+  ai_wizard:   "presence",      // Let Claude draw your rooms: rooms for presence (never offered in Bright)
   // The developer's install-base dashboard is about BOTH builds' installs,
   // but it is a presence-build surface: Bright has no Pro key to present.
   installbase: "presence",

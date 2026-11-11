@@ -181,7 +181,7 @@ const ws = (ctx, payload) => ctx.actions.callWS(payload);
 
 function S_of(ctx) {
   const st = ctx.state;
-  if (!st._aiw) st._aiw = { screen: null, info: null, build: null, ans: null, plan: null, ticks: new Set(), ha: new Set(), sel: new Set(),
+  if (!st._aiw) st._aiw = { screen: null, info: null, build: null, ans: null, plan: null, ticks: new Set(), ha: new Set(), sel: new Set(), names: {}, root: null,
     sid: null, busy: false, msg: "", fail: null, showSmall: false, ok1: false, ok2: false, done: null, undone: null, timer: null, loading: false };
   return st._aiw;
 }
@@ -249,6 +249,26 @@ function take(S, ans) {
   }
   for (const id of [...S.ha]) if (!rows.has(id)) S.ha.delete(id);
   for (const id of [...S.sel]) if (!rows.has(id)) S.sel.delete(id);
+  for (const id of Object.keys(S.names || {})) if (!rows.has(id)) delete S.names[id];
+}
+
+/** A row's name as typed (kept here until Save: a redraw or an answer never takes typing away), else Claude's. */
+const nameOf = (S, r) => { const d = (S.names || {})[r.id]; return typeof d === "string" && d.trim() ? d.trim() : r.name; };
+
+/** Draw again and put the cursor back where it was (a name left for the next field: that field keeps its focus). */
+function rerenderKeep(ctx, S) {
+  const rn = S.root && S.root.getRootNode ? S.root.getRootNode() : null;
+  const a = rn && rn.activeElement, key = a && a.getAttribute ? a.getAttribute("data-aiw") : null;
+  let pos = null;
+  try { if (a && typeof a.selectionStart === "number") pos = [a.selectionStart, a.selectionEnd]; } catch (_) { pos = null; }
+  rerender(ctx);
+  if (!key || typeof setTimeout !== "function") return;
+  setTimeout(() => {
+    const n = S.root && S.root.querySelector ? S.root.querySelector(`[data-aiw="${key}"]`) : null;
+    if (!n || !n.focus) return;
+    n.focus();
+    if (pos && n.setSelectionRange) { try { n.setSelectionRange(pos[0], pos[1]); } catch (_) { /* not a text field */ } }
+  }, 0);
 }
 
 async function status(ctx, S) {
@@ -285,7 +305,7 @@ async function startRead(ctx, S, plan) {
     if (needsConsent(S.build, c.why)) {
       const st = ctx.state, set = {};
       if (!(S.build.master && S.build.switch)) Object.assign(set, { ai_plans_enabled: true, ai_plan_build_enabled: true });
-      if (c.why === "available_unchosen") Object.assign(set, chooseClaude(st, c.eid));
+      if (c.why === "available_unchosen") Object.assign(set, chooseClaude(st.settings, c.eid));
       const res = await ws(ctx, { type: "padspan_ha/settings_set", ...set });
       if (res && res.settings) st.settings = res.settings;
       if (set.ai_plans_enabled) tel(ctx, "ai_wizard_switch:on");
@@ -293,7 +313,7 @@ async function startRead(ctx, S, plan) {
       S.build = await ws(ctx, { type: "padspan_ha/plan_build_info", via: VIA }).catch(() => S.build);
     }
     const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_start", floor_id: plan.floor_id, map_ids: [plan.id], via: VIA });
-    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.done = null; S.undone = null;
+    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null;
     S.screen = "rooms_read";
     _done.delete("step:rooms_read"); _done.delete("step:rooms_check"); _done.delete("step:saved");
   } catch (e) {
@@ -357,9 +377,22 @@ async function save(ctx, S) {
   const items = [...S.ticks].filter(id => rows.has(id));
   if (!sess || !items.length) return;
   S.busy = true; S.msg = ""; S.fail = null; rerender(ctx);
-  const names = Object.fromEntries(rowsOf(S.ans).map(r => [r.id, r.name]));
+  let names = {};
   try {
-    const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_commit", session: sess.id, rev: sess.rev, items, via: VIA,
+    for (const row of rowsOf(S.ans)) {
+      const typed = nameOf(S, row);
+      if (row.his || !items.includes(row.id) || typed === row.name) continue;
+      try {
+        take(S, await ws(ctx, { type: "padspan_ha/plan_build_rooms_edit", session: S.ans.session.id, rev: S.ans.session.rev, via: VIA, op: "space", space: row.id, name: typed }));
+      } catch (e) {
+        if (e && e.code === "name_taken") { S.msg = `Another room is already called "${typed}". Give one of them another name.`; S.busy = false; rerender(ctx); return; }
+        throw e;
+      }
+      delete S.names[row.id];
+    }
+    names = Object.fromEntries(rowsOf(S.ans).map(r => [r.id, r.name]));
+    const now = S.ans.session;
+    const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_commit", session: now.id, rev: now.rev, items, via: VIA,
       ha_areas: [...S.ha].filter(id => S.ticks.has(id)) });
     if (r && r.ok === false) throw { code: r.code };
     take(S, r);
@@ -553,7 +586,7 @@ function connectScreen(ctx, S, box) {
     li([el("b", {}, "Add an AI Task "), `in that integration and choose ${MODEL_WORDS} as its model.`]),
     li(["Come back here and press ", el("b", {}, "Check again"), "."]),
   ]));
-  box.appendChild(row(ctx, ["Step-by-step guide with pictures, kept up to date:", ext(ctx, GUIDE_URL, "Connect Claude for PadSpan ↗", "guide")]));
+  box.appendChild(row(ctx, [MUTED(ctx, "Step-by-step guide with pictures, kept up to date:"), ext(ctx, GUIDE_URL, "Connect Claude for PadSpan ↗", "guide")]));
   box.appendChild(row(ctx, [again]));
 }
 
@@ -561,7 +594,7 @@ function readScreen(ctx, S, box) {
   const sess = S.ans && S.ans.session;
   const pr = (sess && sess.progress) || {};
   box.appendChild(P(ctx, "Claude is reading your plan for its rooms, twice, to check itself… (1–3 minutes). " +
-    "You can leave this page; it carries on, and the Overview will say when it's ready."));
+    "You can leave this page; it carries on. Come back here from the Overview or Setup."));
   if (pr.step) box.appendChild(MUTED(ctx, `Now: ${pr.step === "measure" ? "putting the rooms together" : pr.step}.`));
   poll(ctx, S);
 }
@@ -582,10 +615,11 @@ function picture(ctx, S, shapes) {
   }
   for (const s of shapes) {
     const cx = s.frac.reduce((a, p) => a + p[0], 0) / s.frac.length * 1000, cy = s.frac.reduce((a, p) => a + p[1], 0) / s.frac.length * H;
-    svg += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" font-size="20" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke" pointer-events="none">${esc(s.name || "")}</text>`;
+    svg += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" font-size="30" font-weight="600" fill="#ffffff" stroke="#000000" stroke-width="5" paint-order="stroke" pointer-events="none">${esc(s.name || "")}</text>`;
   }
   svg += "</svg>";
-  const pic = el("div", { "data-aiw": "picture", style: `position:relative;width:100%;max-width:900px;aspect-ratio:${w}/${h};background:#0f1a12;border-radius:6px;overflow:hidden;margin:8px 0` });
+  const pic = el("div", { "data-aiw": "picture", // As wide as its column, but never taller than most of the screen: an upright plan stays whole, beside its list.
+    style: `position:relative;width:min(100%, calc(72vh * ${w} / ${h}));aspect-ratio:${w}/${h};background:#0f1a12;border-radius:6px;overflow:hidden;margin:8px 0` });
   if (img) pic.appendChild(el("img", { src: img, alt: "", style: "position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill;opacity:.85" }));
   const layer = el("div", { style: "position:absolute;left:0;top:0;width:100%;height:100%" });
   layer.innerHTML = svg;
@@ -608,23 +642,39 @@ function checkScreen(ctx, S, box) {
   if (f) box.appendChild(failBlock(ctx, S, f));
   box.appendChild(P(ctx, `Claude found ${rows.length} room${rows.length === 1 ? "" : "s"}. ${nTick} ${nTick === 1 ? "is" : "are"} ticked.`, "font-weight:600"));
   const plan = (sess.plans || []).find(p => S.plan && p.map_id === S.plan.id) || (sess.plans || [])[0];
-  const shapes = plan ? pictureShapes(sess.proposal, plan.t).filter(s => shown.some(r => r.id === s.id)) : [];
-  box.appendChild(picture(ctx, S, shapes));
-  box.appendChild(MUTED(ctx, "Green: both of Claude's reads agree. Amber: they differ, so look at its shape."));
-  const areas = (S.ans.areas || []).map(String);
+  const shapes = plan ? pictureShapes(sess.proposal, plan.t).filter(s => shown.some(r => r.id === s.id))
+    .map(s => { const r = shown.find(x => x.id === s.id); return r ? { ...s, name: nameOf(S, r) } : s; }) : [];
+  const areas = (S.ans.areas || []).map(String), isArea = (n) => areas.some(a => a.toLowerCase() === String(n).toLowerCase());
+  if (!rows.length && !f) {
+    box.appendChild(P(ctx, "Claude didn't find rooms it could use on this plan. You can ask it to read the plan again, or draw the rooms yourself."));
+    box.appendChild(row(ctx, [btn(ctx, "Read it again", () => act(ctx, S, "again"), { primary: true, disabled: S.busy, attrs: { "data-aiw": "none-again" } }),
+      btn(ctx, "Draw them myself", () => act(ctx, S, "by_hand"), { attrs: { "data-aiw": "none-by-hand" } })]));
+    return;
+  }
+  // The plan beside its list on a wide screen, above it on a narrow one.
+  const cols = el("div", { "data-aiw": "check", style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
+  const side = el("div", { style: "flex:1 1 340px;min-width:280px" });
+  cols.appendChild(el("div", { style: "flex:1 1 380px;min-width:280px;max-width:900px" }, [picture(ctx, S, shapes),
+    MUTED(ctx, "Green: both of Claude's reads agree. Amber: they differ, so look at its shape.")]));
+  cols.appendChild(side);
+  box.appendChild(cols);
   box.appendChild(el("datalist", { id: "aiw-areas" }, areas.map(a => el("option", { value: a }))));
   const list = el("div", { "data-aiw": "rows", style: "display:flex;flex-direction:column;gap:6px;margin:8px 0" });
+  let anyHa = false;
   for (const r of shown) {
     const tick = el("input", { type: "checkbox", "data-aiw": "tick-" + r.id });
     tick.checked = S.ticks.has(r.id);
     tick.addEventListener("change", () => { if (tick.checked) S.ticks.add(r.id); else S.ticks.delete(r.id); rerender(ctx); });
     const name = el("input", { type: "text", list: "aiw-areas", maxlength: "40", "data-aiw": "name-" + r.id,
       style: "flex:0 1 220px;min-width:120px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:3px 6px;font-size:13px" });
-    name.value = r.name;
+    name.value = typeof S.names[r.id] === "string" ? S.names[r.id] : r.name;
     if (r.his || S.busy) name.disabled = true;
-    name.addEventListener("change", () => { const v = String(name.value || "").trim(); if (v && v !== r.name) edit(ctx, S, { op: "space", space: r.id, name: v }); });
+    // Typing stays here until Save (S.names): no answer or redraw takes it away, and Save sends the names first.
+    name.addEventListener("input", () => { S.names[r.id] = String(name.value || ""); });
+    name.addEventListener("change", () => { if (typeof setTimeout === "function") setTimeout(() => rerenderKeep(ctx, S), 0); else rerender(ctx); });
+    const typed = nameOf(S, r), matched = typed === r.name ? r.matched : isArea(typed);
     const chipText = r.his ? "your room" : !r.sure ? "Claude saw this one differently twice: look at its shape"
-      : r.matched ? "matches your Home Assistant room" : "new room, only in PadSpan";
+      : matched ? "matches your Home Assistant room" : "new room, only in PadSpan";
     const line = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [tick, name,
       el("span", { "data-aiw": "chip-" + r.id, style: `font-size:11px;color:${r.sure ? "#94a3b8" : "#f59e0b"}` }, chipText)]);
     if (r.his && r.flagged) line.appendChild(btn(ctx, "Ask Claude to look again", async () => {
@@ -633,24 +683,31 @@ function checkScreen(ctx, S, box) {
       rerender(ctx);
     }, { attrs: { "data-aiw": "again-" + r.id } }));
     const item = el("div", { style: "padding:6px 8px;border:1px solid #1b3526;border-radius:6px" }, [line]);
-    if (!r.his && !r.matched) {
+    if (!r.his && !matched) {
       const ha = el("input", { type: "checkbox", "data-aiw": "ha-" + r.id });
       ha.checked = S.ha.has(r.id);
       ha.addEventListener("change", () => { if (ha.checked) S.ha.add(r.id); else S.ha.delete(r.id); rerender(ctx); });
-      item.appendChild(el("label", { style: "display:flex;gap:6px;align-items:flex-start;font-size:12px;color:#94a3b8;line-height:1.45;margin:4px 0 0 22px" }, [ha,
-        el("span", {}, ["Also add this room to Home Assistant. Undo here takes the room out of PadSpan but leaves the area in Home Assistant; remove it there on the ",
-          haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas"), "."])]));
+      // Said once, under the list (HA_NOTE below): a row keeps to a few words.
+      item.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8;margin:4px 0 0 22px" }, [ha,
+        el("span", {}, "Also add this room to Home Assistant")]));
+      anyHa = true;
     }
+    // The row's room lights up on the plan while the pointer is on it.
+    item.addEventListener("mouseenter", () => { const g = cols.querySelector(`polygon[data-id="${r.id}"]`); if (g) { g.setAttribute("stroke", "#ffffff"); g.setAttribute("stroke-width", "6"); } });
+    item.addEventListener("mouseleave", () => { const g = cols.querySelector(`polygon[data-id="${r.id}"]`); if (g) { const pk = S.sel.has(r.id); g.setAttribute("stroke", pk ? "#ffffff" : (r.sure ? "#52b788" : "#f59e0b")); g.setAttribute("stroke-width", pk ? "5" : "3"); } });
     list.appendChild(item);
   }
-  box.appendChild(list);
+  side.appendChild(list);
+  if (anyHa) side.appendChild(el("div", { "data-aiw": "ha-note", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:2px 0 8px" }, [
+    "\"Also add this room to Home Assistant\" makes an area there with that name, so Home Assistant's own pages and motion sensors can use the room. ",
+    "Undo here takes the room out of PadSpan but leaves the area in Home Assistant; remove it there on the ", haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas"), "."]));
   const small = rows.filter(r => r.small);
-  if (small.length) box.appendChild(row(ctx, [MUTED(ctx, `Small spaces (${small.length}): closets and halls, left out.`),
+  if (small.length) side.appendChild(row(ctx, [MUTED(ctx, `Small spaces (${small.length}): closets and halls, left out.`),
     btn(ctx, S.showSmall ? "Hide" : "Show", () => { S.showSmall = !S.showSmall; rerender(ctx); }, { attrs: { "data-aiw": "small" } })]));
-  const used = new Set(rows.map(r => String(r.name).toLowerCase()));
+  const used = new Set(rows.map(r => String(nameOf(S, r)).toLowerCase()));
   const left = areas.filter(a => !used.has(a.toLowerCase())).slice(0, 8);
-  if (left.length) box.appendChild(MUTED(ctx, `Home Assistant rooms not on this plan: ${left.join(", ")}. Pick one in a row above, or draw it later in Mapping.`));
-  box.appendChild(row(ctx, [MUTED(ctx, "Tap two rooms on the plan to join them into one (an open kitchen and dining room, say)."),
+  if (left.length) side.appendChild(MUTED(ctx, `Home Assistant rooms not on this plan: ${left.join(", ")}. Pick one in a row above, or draw it later in Mapping.`));
+  side.appendChild(row(ctx, [MUTED(ctx, "Tap two rooms on the plan to join them into one (an open kitchen and dining room, say)."),
     btn(ctx, "Join into one", () => { if (S.sel.size >= 2 && !S.busy) edit(ctx, S, { op: "merge", parts: [...S.sel] }); }, { disabled: S.sel.size < 2 || S.busy, attrs: { "data-aiw": "join" } })]));
   if (S.fail) box.appendChild(failBlock(ctx, S, S.fail));
   const n = [...S.ticks].filter(id => rows.some(r => r.id === id)).length;
@@ -665,6 +722,8 @@ function savedScreen(ctx, S, box) {
   if (S.undone) {
     box.appendChild(P(ctx, `${S.undone.n} room${S.undone.n === 1 ? "" : "s"} taken back.` +
       (S.undone.skipped ? ` ${S.undone.skipped} ${S.undone.skipped === 1 ? "was" : "were"} left, because ${S.undone.skipped === 1 ? "it" : "they"} changed since or a receiver was put in.` : "")));
+    if (Object.values((S.done && S.done.areas) || {}).includes("created")) box.appendChild(row(ctx, [
+      MUTED(ctx, "The areas added to Home Assistant are still there. Remove them on Home Assistant's"), haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas")]));
     return;
   }
   const n = S.done ? S.done.saved : Object.keys((sess && sess.saved) || {}).length;
@@ -683,13 +742,14 @@ function savedScreen(ctx, S, box) {
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
     btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); startRead(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } })]));
   box.appendChild(row(ctx, [MUTED(ctx, "Something wrong?"), btn(ctx, "Undo", () => undo(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "undo" } }),
-    MUTED(ctx, "takes back the rooms.")]));
+    MUTED(ctx, "takes back the rooms. Later, the same Undo is in Settings → AI.")]));
 }
 
 export function render(ctx) {
   const { el } = ctx.helpers, st = ctx.state;
   const S = S_of(ctx);
   const root = el("div", { id: "ai-wizard" });
+  S.root = root;                                    // where rerenderKeep puts the cursor back
   const card = el("div", { class: "card" });
   const back = btn(ctx, "← Back", () => leave(ctx, S), { attrs: { "data-aiw": "back" } });
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px" }, [back,

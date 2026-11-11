@@ -41,7 +41,7 @@ export function infoFor(ctx, surface) {
   if (!_asking[rule] && ctx.actions.callWS) {
     _asking[rule] = true;
     ctx.actions.callWS({ type: "padspan_ha/ai_wizard_info", surface: rule, kiosk: !!ctx.state.kioskMode, live: true })
-      .then(r => { _info[rule] = r || { offer: false }; ctx.actions.renderRooms(); })
+      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer) ctx.actions.renderRooms(); })   // no offer: nothing to draw again
       .catch(() => { _info[rule] = { offer: false }; })
       .finally(() => { _asking[rule] = false; });
   }
@@ -103,9 +103,9 @@ export function overviewCard(ctx) {
   const back = w.started && ["rooms_read", "rooms_check"].includes(w.started.at);
   const card = el("div", { "data-aiw": "card", style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788" },
-    [back ? "Claude's rooms for your plan are waiting for you." : "Your floor plan is in. Want Claude to draw the rooms?", chip(el)]));
+    [back ? "Pick up where you left off with Claude and your plan." : "Your floor plan is in. Want Claude to draw the rooms?", chip(el)]));
   card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin:4px 0 8px" }, back
-    ? "Pick up where you left off: check the rooms Claude found and press Save. One button takes it all back."
+    ? "Carry on to see the rooms Claude found, check them and press Save. One button takes it all back."
     : "Claude can read your plan, find its rooms and their names, and draw them for you. You check each one before anything is saved, and one button takes it all back."));
   const show = el("button", { class: "btn inline primary", "data-aiw": "show", style: "font-size:12px" }, back ? "Carry on" : "Show me");
   show.addEventListener("click", () => openWizard(ctx, "overview"));

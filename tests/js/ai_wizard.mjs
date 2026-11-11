@@ -279,5 +279,49 @@ for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);
   check("not an administrator: nothing asked", O.offerLine(h3.ctx, "setup") === null && h3.calls.length === 0);
 }
 
+// ── review 2026-11-10: the tick that chooses Claude keeps the earlier AI Task as the backup ──
+{
+  const h = house({ chosen: "ai_task.old", candidates: [{ entity_id: "ai_task.c", ok: true, why: "ok", display: "Claude Opus 5.5", chosen: false }] });
+  let root = await view(h);
+  for (const k of ["consent", "choose"]) { const t = q(root, `[data-aiw="${k}"]`); if (t) { t.checked = true; t.dispatchEvent({ type: "change" }); root = await view(h); } }
+  q(root, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  const set = h.calls.find(c => c.type === "padspan_ha/settings_set");
+  check("unchosen: Read my plan keeps the earlier AI Task as the backup", set && set.atlas_3d_ai_task_entity === "ai_task.c" && set.atlas_3d_ai_task_backup_entity === "ai_task.old", set);
+}
+
+// ── review 2026-11-10: a typed name stays through a redraw, and Save sends the names first ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  let root = await view(h);
+  const n = q(root, '[data-aiw="name-space:a"]');
+  n.value = "Scullery"; n.dispatchEvent({ type: "input" });
+  check("names: typing asks the server nothing", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_edit"));
+  const tb = q(root, '[data-aiw="tick-space:b"]'); tb.checked = true; tb.dispatchEvent({ type: "change" });      // any redraw
+  root = await view(h);
+  check("names: the typed name is still there after a redraw", q(root, '[data-aiw="name-space:a"]').value === "Scullery");
+  check("names: its chip and its Home Assistant tick follow the typed name", q(root, '[data-aiw="chip-space:a"]').textContent === "new room, only in PadSpan"
+    && !!q(root, '[data-aiw="ha-space:a"]'));
+  check("names: the plan's label too", html(root).includes(">Scullery<"));
+  q(root, '[data-aiw="save"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  const order = typesOf(h).filter(t => t === "plan_build_rooms_edit" || t === "plan_build_rooms_commit");
+  const e = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_edit");
+  check("names: Save sends the changed name, then saves", order.join() === "plan_build_rooms_edit,plan_build_rooms_commit" && e.op === "space" && e.space === "space:a"
+    && e.name === "Scullery" && e.via === "wizard", order);
+}
+
+// ── review 2026-11-10: nothing usable read: two ways on ──
+{
+  const none = { session: SESS({ proposal: { rooms: {}, openings: {}, stairs: {}, spaces: {} } }), areas: [], undo: null,
+    wizard: { rows: [], ticked: [], small: [], outdoor: [], dropped: [], m2: {}, sources: {} } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } }, ans: none });
+  const root = await view(h);
+  check("no rooms: says so, with Read it again and Draw them myself", root.textContent.includes("didn't find rooms it could use")
+    && !!q(root, '[data-aiw="none-again"]') && !!q(root, '[data-aiw="none-by-hand"]') && !q(root, '[data-aiw="save"]'), root.textContent.slice(0, 300));
+  q(root, '[data-aiw="none-by-hand"]').click();
+  check("no rooms: Draw them myself opens Setup's rooms step", h.steps.join() === "rooms");
+}
+
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);
