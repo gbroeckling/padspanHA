@@ -379,7 +379,15 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   await flush();
   const later = S.receiversBlock(n3.ctx);
   check("receivers: no receiver yet, a line saying it will work once they have areas", later && later.textContent.includes("PadSpan can put them in their rooms"), later && later.textContent);
-  // After a reload: the Undo is still there (the server keeps what the last press placed and says so in its dry run).
+  // Rooms drawn by hand (on the plan, no helper): the line shows there too (real panel, 2026-11-12).
+  S._resetReceivers();
+  const hand = house(3, { calibration: { points: [], model: {} } });
+  hand.maps.list[0].room_bounds = { Kitchen: { points: [[0, 0], [1, 0], [1, 1]] } };
+  const n5 = fake(hand, [{ ok: true, ready: [], skipped: [], undo: 0 }]);
+  S.receiversBlock(n5.ctx);
+  await flush();
+  const hl = S.receiversBlock(n5.ctx);
+  check("receivers: rooms drawn by hand, the line shows", hl && hl.getAttribute("data-setup") === "receivers-later", hl && hl.textContent);  // After a reload: the Undo is still there (the server keeps what the last press placed and says so in its dry run).
   S._resetReceivers();
   const n4 = fake(none, [{ ok: true, ready: [], skipped: [], undo: 2 }]);
   S.receiversBlock(n4.ctx);

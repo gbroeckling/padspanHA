@@ -65,7 +65,7 @@ function house(o = {}) {
     // By plan (map_id): the rooms already read for it and not saved, only when the case says there are (heldRooms).
     "padspan_ha/plan_build_rooms_status": (p) => (p.map_id && !o.heldRooms ? { session: null, running: null } : o.status ? o.status() : ans),
     "padspan_ha/plan_build_rooms_edit": (p) => (o.edit ? o.edit(p) : ans),
-    "padspan_ha/plan_build_rooms_commit": (p) => ({ ok: true, saved: p.items, areas: Object.fromEntries((p.ha_areas || []).map(i => [i, "created"])),
+    "padspan_ha/plan_build_rooms_commit": (p) => (o.commit && o.commit(p)) || ({ ok: true, saved: p.items, areas: Object.fromEntries((p.ha_areas || []).map(i => [i, "created"])),
       session: SESS({ saved: Object.fromEntries(p.items.map(i => [i, "rb"])) }), undo: { session: "rb_1", items: p.items.length }, areas_list: [], wizard: WIZ }),
     "padspan_ha/plan_build_rooms_undo": () => ({ ok: true, undone: 2, skipped: [] }),
     "padspan_ha/plan_build_rooms_resume": () => ({ session: "rb_1" }),
@@ -1344,7 +1344,7 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
     status: () => { statusAsked.push(1); return ans; }, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
   let root = await view(h);
   const n = q(root, '[data-aiw="scale-notice"]');
-  check("scale notice: said with its example, two answers, Save still there", n && n.textContent.includes("The scale may be off: the rooms come out several times too big. Den would be 108.4 m², too big for any bedroom.")
+  check("scale notice: said with its example, two answers, Save still there", n && n.textContent.includes("The scale may be off: the rooms come out several times too big. Den would be 108.4 m²: too big for any bedroom.")
     && !!q(root, '[data-aiw="scale-check"]') && !!q(root, '[data-aiw="scale-right"]') && q(root, '[data-aiw="save"]').disabled === false, n && n.textContent);
   check("scale notice: counted, with its signs", h.tele.includes("ai_wizard_scale_notice:shown") && h.tele.includes("ai_wizard_scale_sign:rooms"), h.tele);
   q(root, '[data-aiw="scale-check"]').click();
@@ -1418,7 +1418,9 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
 check("factor words", [[3.1, "about 3 times"], [1 / 3, "about 3 times"], [2.1, "about twice"], [0.5, "about twice"], [2.54, "about two and a half times"],
   [1.6, "about one and a half times"], [0.3048, "about 3 times"]].every(([k, w]) => W.factorWords(k) === w));
 check("printed first", W.scaleNoticeWords({ k: 0.33, source: "printed", example: { printed: { text: "45'", here_m: 4.5 }, rooms: { name: "Room 3", kind: null, m2: 1.3 } } })
-  === "The scale may be off: the rooms come out about 3 times too small. Claude read 45' printed on the plan, which this scale makes 4.5 m. Room 3 would be 1.3 m².");
+  === "The scale may be off: the rooms come out about 3 times too small. Claude read 45' printed on the plan, which this scale makes 4.5 m. Room 3 would be 1.3 m²: too small for any room.");
+check("example named", W.scaleNoticeWords({ k: 0.33, source: "rooms", example: { rooms: { name: "Kitchen", kind: "kitchen", m2: 1.3 } } })
+  === "The scale may be off: the rooms come out several times too small. Kitchen would be 1.3 m²: too small for any kitchen.");
 // ── review 2026-11-12, items 2, 3, 11, 15: "Check the scale" is one plan's and one session's, stored on the server ──
 {
   // Left mid-measure, then Carry on: back to measuring, whatever reading is held; Save draws the same rooms again, no read.
@@ -1592,6 +1594,26 @@ check("printed first", W.scaleNoticeWords({ k: 0.33, source: "printed", example:
     status: () => ({ session: SESS(), areas: [], undo: null, wizard: WIZ, reprojected: { redrawn: true, reset: true } }) });
   const gr = await view(g);
   check("held list redrawn at the scale now, said", !!q(gr, '[data-aiw="redrawn"]') && gr.textContent.includes("Drawn again at the new scale"), gr.textContent.slice(0, 300));
+}
+// ── real panel 2026-11-12, item A: a held list whose plan was measured again in Mapping: reopened, it is drawn again
+// at the scale now (said); a refused Save says why and keeps saying it after the refresh; then Save goes through ──
+{
+  let commits = 0;
+  const moved = { session: SESS(), areas: [], undo: null, wizard: WIZ, reprojected: { redrawn: true, reset: false } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, status: () => moved, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } },
+    commit: () => (commits++ === 0 ? { ok: false, code: "plan_changed", message: "Rooms from plans: the plan moved since the read." } : null) });
+  let root = await view(h);
+  const st = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_status");
+  check("held list: asked to be drawn again at the scale now, said", st && st.reproject === true && !!q(root, '[data-aiw="redrawn"]')
+    && root.textContent.includes("Your names and ticks are kept."), root.textContent.slice(0, 300));
+  q(root, '[data-aiw="save"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  root = await view(h);
+  check("a refused Save says why, after the refresh too", !!q(root, '[data-aiw="fail-changed_since"]') && h.ctx.state._aiw.screen === "rooms_check", root.textContent.slice(0, 300));
+  q(root, '[data-aiw="save"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  root = await view(h);
+  check("then Save goes through", commits === 2 && root.textContent.includes("saved on Main"), root.textContent.slice(0, 300));
 }
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);

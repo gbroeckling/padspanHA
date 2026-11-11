@@ -297,7 +297,7 @@ export function receiversBlock(ctx, opts = {}) {
   const p = _plan(ctx);
   if (!p) return null;
   const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(p.skipped);
-  const rooms = Object.keys((st.model && st.model.room_geometry_m) || {}).length;
+  const rooms = hasRooms(st);                       // any rooms, drawn by hand or by the helper (setup_status: the button is for everyone)
   if (!n && !_rcv.said && !undo) {
     if ((opts && opts.quiet) || !rooms) return null;
     return el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length

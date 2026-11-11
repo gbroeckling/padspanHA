@@ -498,10 +498,12 @@ async function status(ctx, S) {
   try {
     // The rooms are drawn again from the same reads only when "Check the scale" asked for it, for this plan and this
     // session (the server's record), never because a plan moved for another reason (review 2026-11-12).
+    // Always asked to draw the list again when its plan was measured again or lined up since (no read; the server does
+    // it only then, and says so): a held list is never shown, or saved, at the old scale (real panel, 2026-11-12).
     const mid = S.plan && S.plan.id, again = !!(mid && S.sid && rescaleOf(S, mid) === S.sid && !needsScale(ctx.state, S.plan));
-    const ans = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", session: S.sid, via: VIA, ...(again ? { reproject: true } : {}) });
+    const ans = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", session: S.sid, via: VIA, ...(S.sid ? { reproject: true } : {}) });
+    if (ans.reprojected && ans.reprojected.redrawn) S.redrawn = ans.reprojected;
     if (again) {
-      S.redrawn = ans.reprojected && ans.reprojected.redrawn ? ans.reprojected : null;
       ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale_done", map_id: mid }).catch(() => {});
       if (S.info && S.info.wizard && S.info.wizard.rescale) delete S.info.wizard.rescale[mid];
       _done.delete("step:rooms_check");             // marked again with this session: reopening the helper finds the list
@@ -868,7 +870,7 @@ async function save(ctx, S) {
     const now = S.ans.session;
     const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_commit", session: now.id, rev: now.rev, items, via: VIA,
       ha_areas: [...S.ha].filter(id => S.ticks.has(id)) });
-    if (r && r.ok === false) throw { code: r.code };
+    if (r && r.ok === false) throw { code: r.code, message: r.message };
     take(S, r);
     S.done = { saved: items.length, areas: r.areas || {}, names };
     S.screen = "saved";
@@ -877,8 +879,11 @@ async function save(ctx, S) {
     if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   } catch (e) {
     const f = failOfCode(e && e.code);
-    if (f) { S.fail = f; telOnce(ctx, "ai_wizard_fail:" + f); } else S.msg = codeWords(e && e.code);
-    if (f === "changed_since") await status(ctx, S);
+    if (f) { S.fail = f; telOnce(ctx, "ai_wizard_fail:" + f); } else S.msg = (e && e.message) || codeWords(e && e.code);
+    if (f === "changed_since") {
+      await status(ctx, S);                          // the list as it is now (drawn again if its plan moved)...
+      S.fail = f;                                    // ...and the refusal stays said, whatever the refresh did (real panel, 2026-11-12)
+    }
   }
   S.busy = false;
   rerender(ctx);
@@ -1464,7 +1469,9 @@ export function scaleNoticeWords(sc) {
   // figure the room sizes can't back (second review, 2026-11-12).
   const amount = sc.source === "printed" ? factorWords(sc.k) : "several times";
   if (ex.printed) bits.push(`Claude read ${ex.printed.text} printed on the plan, which this scale makes ${ex.printed.here_m} m.`);
-  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m²` + (ex.rooms.kind ? `, ${big ? "too big" : "too small"} for any ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}.` : "."));
+  // The room that shows it, with what it is (the server picks a named room impossible for its kind first; review 2026-11-12).
+  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m²` + (ex.rooms.kind ? `: ${big ? "too big" : "too small"} for any ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}.`
+    : big ? "." : ": too small for any room."));
   return [`The scale may be off: the rooms come out ${amount} too ${big ? "big" : "small"}.`, ...bits].join(" ");
 }
 /** Where "Check the scale" can't take the scale back here (u.code): what a correction affects, and where it is made. */

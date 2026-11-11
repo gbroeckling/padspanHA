@@ -398,6 +398,14 @@ _HOMES = {
     "church hall": [("Main Hall", 300), ("Kitchen", 20), ("WC", 6), ("Vestry", 15)],
     "big barn": [("Barn", 400), ("Hay Loft", 200), ("Tack Room", 20)],
     "gym floor": [("Gym", 500), ("Changing Room", 40), ("Changing Room 2", 40), ("Office", 15)],
+    # The real panel's reading (2026-11-12) at its right scale (its sizes x9): read 3x too small it said nothing.
+    "compact 13-room house": [(n, round(a * 9, 1)) for n, a in (("Living Room", 7.2), ("Bedroom", 3), ("Kitchen", 1.3), ("Garage", 4.9),
+                              ("Bedroom 2", 2.6), ("Bedroom 3", 2.2), ("Bathroom", 0.7), ("Bathroom 2", 0.5), ("Hallway", 1.0),
+                              ("Laundry", 0.6), ("Dining Room", 1.6), ("Office", 1.2), ("Closet", 0.3))],
+    # Genuinely small rooms at their right scale.
+    "Japanese-size flat": [("Living Room", 10), ("Kitchen", 4), ("Bedroom", 7), ("Bathroom", 2.5), ("Toilet", 1.2), ("Entrance", 1.5)],
+    "15 m2 cabin": [("Cabin", 11), ("Bathroom", 2.5), ("Entry", 1.5)],
+    "dorm floor": [*((f"Bedroom {i}", 9) for i in range(1, 11)), ("Bathroom", 8), ("Hallway", 25), ("Kitchen", 10)],
 }
 _ORDINARY = ("German names", "French names", "Dutch names", "plain 3-bed")
 _NEVER = ("basement, 2 big rooms",)                                # two rooms: never evidence
@@ -437,6 +445,22 @@ def test_the_scale_looks_wrong_catches_a_unit_mix_up(home):
         got = _says(home, k)
         assert got and got["source"] == "rooms" and got["signs"] == ["rooms"] and (got["k"] > 1) == (k > 1), (home, k, got)
 
+
+def test_the_scale_looks_wrong_says_so_when_rooms_are_impossibly_small():
+    """Review of the real panel, 2026-11-12: a plain 13-room house read 3x too small (a 1.3 m² kitchen, a 3 m² bedroom) said
+    nothing. Too small is strong evidence on its own (no home has such rooms); too big keeps the strict rule. Quiet at
+    1.5x too small and at the right scale. Given up, by design: a home of fewer than 8 rooms needs 2.5x (a tiny home's
+    few rooms at its right size look like an ordinary home's 1.5x too small), so such a home read 2x too small says nothing."""
+    for k in (1 / 3.0, 1 / 2.54, 1 / 3.28):
+        got = _says("compact 13-room house", k)
+        assert got and got["source"] == "rooms" and got["k"] < 1 and got["example"]["rooms"]["kind"], (k, got)
+    for k in (1 / 1.5, 1.0):
+        assert _says("compact 13-room house", k) is None, k
+    for home in ("tiny house 25 m2", "studio flat 31 m2", "Japanese-size flat", "15 m2 cabin", "dorm floor"):
+        assert _says(home, 1.0) is None, home
+    # The example: a recognised room, the most clearly impossible, never one PadSpan can't name while there is one.
+    ex = _says("compact 13-room house", 1 / 3.0)["example"]["rooms"]
+    assert ex["kind"] and ex["big"] is False, ex
 
 @pytest.mark.parametrize("home", _BIG)
 def test_the_scale_looks_wrong_stays_quiet_on_big_rooms_at_their_scale(home):
@@ -723,3 +747,21 @@ def test_rooms_read_for_a_plan_and_not_saved_are_found_again_by_plan(monkeypatch
     sess = moved["session"]
     assert _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=moved["wizard"]["ticked"], via="wizard").get("ok")
     assert _call(WP.ws_plan_build_rooms_status, h, conn, map_id=mid, via="wizard")["session"] is None
+
+def test_a_held_list_whose_plan_was_measured_again_is_redrawn_and_saves(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Real panel, 2026-11-12: after a re-measure in Mapping a held list kept its old sizes and Save was refused ("plan
+    moved since the read"). Read, re-measure, reopen (the helper's status): the sizes are the new ones, said redrawn,
+    and Save goes through; no read."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    ans = _wiz_read(h, conn)
+    sess, runs = ans["session"], _counters(h).get("plan_build_run:s2_started")
+    mid = sess["plans"][0]["map_id"]
+    tf = h.data[DOMAIN][DATA_MODEL].data["map_transforms"][mid]
+    tf.update(scale_x_m=tf["scale_x_m"] * 1.5, scale_y_m=tf["scale_y_m"] * 1.5)        # measured again in Mapping
+    stale = _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=ans["wizard"]["ticked"], via="wizard")
+    assert not stale.get("ok")                                                           # at the old scale: refused, as before
+    again = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
+    assert again["reprojected"]["redrawn"] is True
+    out = _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=again["session"]["rev"], items=again["wizard"]["ticked"], via="wizard")
+    assert out.get("ok"), out
+    assert _counters(h).get("plan_build_run:s2_started") == runs

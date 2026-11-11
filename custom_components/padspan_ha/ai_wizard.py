@@ -576,11 +576,12 @@ def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
 # same error, so it is not used. Two cases:
 #   a printed measurement Claude read and double-checked disagrees with the scale saved, AND the room sizes are off the
 #     same way: two independent signs; the factor said is the reading's.
-#   no printed reading: only a unit mix-up shows on its own (feet typed as metres 3.28x, metres as feet 0.3048x, inches
-#     as cm 2.54x): three rooms or more, a length factor of UNITS_X or more (or 1/UNITS_X or less), three quarters
-#     of the rooms each outside what any room of that kind can be, and two plain rooms (PLAIN_KINDS) each off by
-#     PLAIN_OFF or more. Nothing subtler is said: the size on each row is the
-#     person's cue (tests/test_ai_wizard_rooms.py holds the table of homes it must, and must never, fire on).
+#   no printed reading, and the two errors are not alike (review of the real panel, 2026-11-12): rooms impossibly SMALL
+#     are strong evidence (no home has a 1.3 m² kitchen): most rooms below the smallest their kind can be and the rooms
+#     about twice too small or more (more with few rooms: a tiny home). Rooms very LARGE exist (ballrooms, warehouses,
+#     barns): only a unit mix-up (feet typed as metres 3.28x, inches as cm 2.54x), three quarters of the rooms beyond
+#     their kind and the plain rooms (a bathroom, a hall, a closet) absurd too. Nothing subtler is said: the size on each
+#     row is the person's cue (tests/test_ai_wizard_rooms.py holds the table of homes it must, and must never, fire on).
 # Doors carry no evidence either: they are read as points, and their width is a standard one.
 KIND_M2: dict[str, tuple[float, float, float]] = {
     "bedroom": (12.0, 4.0, 45.0), "bathroom": (5.0, 1.5, 20.0), "kitchen": (12.0, 3.0, 45.0), "living": (22.0, 8.0, 100.0),
@@ -593,6 +594,10 @@ MOST_IMPOSSIBLE = 0.75              # ...and this share of the rooms each imposs
 PLAIN_KINDS = frozenset({"bathroom", "powder", "closet", "hallway", "laundry", "entrance"})   # rooms whose size a grand house doesn't change much
 PLAIN_OFF = 2.0                     # ...and at least MIN_PLAIN of them each this far off in length from their usual size
 MIN_PLAIN = 2
+MOST_SMALL = 2 / 3                   # too small: this share of the rooms below the smallest a room of their kind can be
+SMALL_X = 2.0                       # ...and the rooms this many times too small in length (8 rooms or more: SMALL_MANY)
+SMALL_MANY = 8
+SMALL_FEW_X = 2.5                   # fewer rooms: this many (a tiny home's few rooms look like an ordinary one's at 1.5x)
 ROOMS_WITH_PRINTED = 1.25           # with a printed reading: the room sizes off the same way at least this much
 PRINTED_OFF = 1.2                   # a printed reading this far from the scale saved disagrees with it
 AGREE_X = 1.6                       # the two within this factor of each other
@@ -606,10 +611,10 @@ def _kind(name: Any) -> str | None:
 
 
 def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None = None) -> dict[str, Any] | None:
-    """Pure. {k (the length factor), source ("printed": the reading's factor, said as a number; "rooms": a unit mix-up,
-    said as "several times"), signs, example} when the evidence says the scale is off (the rule above), else None.
-    `spaces`: the proposal's, `rows`: the space ids offered; `printed`: {k, text, metres, here_m} from a held,
-    double-checked reading. `example`: the facts said on the check list."""
+    """Pure. {k (the length factor), source ("printed": the reading's factor, said as a number; "rooms": room sizes
+    alone, said as "several times"), signs, example} when the evidence says the scale is off (the rule above), else
+    None. `spaces`: the proposal's, `rows`: the space ids offered; `printed`: {k, text, metres, here_m} from a held,
+    double-checked reading. `example`: the room that shows it best (a named one impossible for its kind first)."""
     from . import plan_geom as G  # noqa: PLC0415
     rooms = []
     for s in (spaces.get(sid) for sid in rows):
@@ -620,25 +625,43 @@ def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None =
             nm = str(s.get("new") or s.get("name") or "")
             kind = _kind(nm)
             typ, lo, hi = KIND_M2[kind] if kind else ANY_ROOM_M2
-            rooms.append({"name": nm, "kind": kind, "m2": a, "k": math.sqrt(a / typ), "impossible": a < lo or a > hi})
+            rooms.append({"name": nm, "kind": kind, "m2": a, "k": math.sqrt(a / typ), "small": a < lo, "big": a > hi,
+                          "under": a / lo, "over": a / hi})
     if len(rooms) < MIN_ROOMS:
         return None
     ks = sorted(r["k"] for r in rooms)
     k_rooms = ks[len(ks) // 2] if len(ks) % 2 else math.sqrt(ks[len(ks) // 2 - 1] * ks[len(ks) // 2])
     big = k_rooms > 1
-    ex = max(rooms, key=lambda r: r["k"]) if big else min(rooms, key=lambda r: r["k"])
-    example = {"rooms": {"name": ex["name"], "kind": ex["kind"], "m2": round(ex["m2"], 1)}}
+
+    def example() -> dict[str, Any]:
+        """The recognised room most clearly impossible, said with its kind; else the most extreme room, unnamed."""
+        flag, by = ("big", "over") if big else ("small", "under")
+        named = [r for r in rooms if r["kind"] and r[flag]]
+        pool = named or [r for r in rooms if r[flag]] or rooms
+        ex = (max if big else min)(pool, key=lambda r: r[by])
+        return {"rooms": {"name": ex["name"], "kind": ex["kind"], "m2": round(ex["m2"], 1), "big": big}}
+
     k_p = float((printed or {}).get("k") or 0)
     if k_p and max(k_p, 1 / k_p) >= PRINTED_OFF and (k_p > 1) == big and max(k_rooms, 1 / k_rooms) >= ROOMS_WITH_PRINTED \
             and max(k_p / k_rooms, k_rooms / k_p) <= AGREE_X:
-        example["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
-        return {"k": round(k_p, 3), "source": "printed", "signs": ["printed", "rooms"], "example": example}
-    # The plain rooms every home has (a bathroom, a hall, a closet...) are the test: in a unit mix-up they come out absurd too
-    # (a 39 m² bathroom), while a grand house or a warehouse at its right scale has big rooms but plain ones of plain size,
-    # or none (third review, 2026-11-12: an estate wing and a warehouse unit alarmed on the other tests alone).
-    plain = sum(1 for r in rooms if r["kind"] in PLAIN_KINDS and (r["k"] >= PLAIN_OFF if big else r["k"] <= 1 / PLAIN_OFF))
-    if max(k_rooms, 1 / k_rooms) >= UNITS_X and sum(1 for r in rooms if r["impossible"]) / len(rooms) >= MOST_IMPOSSIBLE and plain >= MIN_PLAIN:
-        return {"k": round(k_rooms, 3), "source": "rooms", "signs": ["rooms"], "example": example}
+        ex = example()
+        ex["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
+        return {"k": round(k_p, 3), "source": "printed", "signs": ["printed", "rooms"], "example": ex}
+    if big:
+        # Too big: the strict rule. Very large rooms exist (ballrooms, warehouses, barns), so only a unit mix-up: three
+        # quarters of the rooms beyond any room of their kind, and the plain rooms every home has (a bathroom, a hall,
+        # a closet) absurd too (third review, 2026-11-12).
+        plain = sum(1 for r in rooms if r["kind"] in PLAIN_KINDS and r["k"] >= PLAIN_OFF)
+        if k_rooms >= UNITS_X and sum(1 for r in rooms if r["big"]) / len(rooms) >= MOST_IMPOSSIBLE and plain >= MIN_PLAIN:
+            return {"k": round(k_rooms, 3), "source": "rooms", "signs": ["rooms"], "example": example()}
+        return None
+    # Too small: strong evidence on its own (no home has a 1.3 m² kitchen or a 3 m² bedroom, whatever the house; review of
+    # the real panel, 2026-11-12): most rooms below the smallest such a room can be and the rooms about SMALL_X too small.
+    # A tiny home's few rooms can look like an ordinary home's at about 1.5x too small, so with few rooms it takes more
+    # (SMALL_FEW_X): quiet is preferred there (tests/test_ai_wizard_rooms.py's table says which cases are given up).
+    need = SMALL_X if len(rooms) >= SMALL_MANY else SMALL_FEW_X
+    if 1 / k_rooms >= need and sum(1 for r in rooms if r["small"]) / len(rooms) >= MOST_SMALL:
+        return {"k": round(k_rooms, 3), "source": "rooms", "signs": ["rooms"], "example": example()}
     return None
 
 
