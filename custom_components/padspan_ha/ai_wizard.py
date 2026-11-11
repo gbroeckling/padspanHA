@@ -214,6 +214,17 @@ def setup_state(hass: HomeAssistant) -> dict[str, Any]:
             "calibration": {"points": cal.get("points") or [], "model": cal.get("model") or {}}}
 
 
+def plan_roomed(m: dict, roomed: set[str], rooms: list) -> bool:
+    """Whether a plan's floor has rooms (the panel's planRoomed, views/ai_wizard.js, is this rule): rooms drawn on the
+    plan itself, or on its floor; a plan with no floor never takes another floor's rooms, only the rooms drawn on it
+    (its room_bounds, or a room whose outline was made from it)."""
+    if m.get("room_bounds"):
+        return True
+    if m.get("floor_id"):
+        return str(m["floor_id"]) in roomed
+    return any(isinstance(r, dict) and r.get("source_map_id") == m.get("id") for r in rooms)
+
+
 def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live: bool | None = None,
           now: float | None = None) -> dict[str, Any]:
     """What offer_reason reads. `live`: the panel's word (Sample mode, a demo);
@@ -234,12 +245,12 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     tier = hass_tier(hass)
     w = settings.get("ai_map_wizard")
     fab = getattr(dom.get(DATA_FABRIC), "data", None) or {}
-    # A plan with no floor is filed on "main", as fabric_truth files it and the rooms drawn on it.
     roomed = {str(fid) for fid, fl in (fab.get("floors") or {}).items() if isinstance(fl, dict) and fl.get("rooms")} \
-        | {str(m.get("floor_id") or "main") for m in _maps(s) if m.get("room_bounds")}
+        | {str(m.get("floor_id")) for m in _maps(s) if m.get("room_bounds") and m.get("floor_id")}
+    fab_rooms = [r for fl in (fab.get("floors") or {}).values() if isinstance(fl, dict) for r in (fl.get("rooms") or {}).values()]
     return {"admin": admin, "live": settings.get("data_mode") == "live" and live is not False, "kiosk": kiosk,
             "edition": edition(), "rooms": has_fabric_rooms(s), "room_bounds": any(len(m.get("room_bounds") or {}) > 0 for m in _maps(s)),
-            "floor_no_rooms": any(str(m.get("floor_id") or "main") not in roomed for m in indoor),
+            "floor_no_rooms": any(not plan_roomed(m, roomed, fab_rooms) for m in indoor),
             "indoor_plans": len(indoor), "plan_since": plan_since, "plan_age_days": None if since is None else max(0.0, (now - since) / 86400),
             "wizard": w if isinstance(w, dict) else {}, "now": now,
             "tool_used": bool(plan_ai.get("lineups") or plan_ai.get("rooms")),
@@ -287,7 +298,10 @@ def mark(w: dict, what: str, now: float, today: date, step: str | None = None, *
         if what == "opened" and "started" not in w:
             w["started"] = {"at": "intro"}
     elif what == "step":
-        w["started"] = {**(w.get("started") or {}), "at": step if step in WIZARD_STEPS else "intro",
+        old = w.get("started") or {}
+        if ids.get("map_id") and old.get("map_id") and ids["map_id"] != old["map_id"]:
+            old = {}                                   # another plan: the last plan's readings aren't its own
+        w["started"] = {**old, "at": step if step in WIZARD_STEPS else "intro",
                         **{k: v for k, v in ids.items() if isinstance(v, str) and v}}
     elif what == "snoozed":
         n = int(w.get("snoozes") or 0) + 1

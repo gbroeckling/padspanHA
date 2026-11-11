@@ -125,7 +125,8 @@ for (const [why, display, words] of [
     const said = text(rowOf(r));
     const name = `helper undo, scale ${scale}${sv && !sv.ok ? " (refused at the time)" : ""}`;
     if (scale === "goes") check(`${name}: warned before`, said.includes("It also removes this plan's scale, which was set in the helper: the plan will need measuring again."), said);
-    else if (scale === "changed_since") check(`${name}: says it stays, and why`, said.includes("The plan's scale set in the helper stays: something measured in metres was added since"), said);
+    else if (scale === "changed_since") check(`${name}: says it stays, and why (what the check covers: walls, zones and the 3D house too)`,
+      said.includes("The plan's scale set in the helper stays: something placed in metres was added or changed since (rooms, walls, zones, receivers, calibration points, the 3D house or another plan's scale)"), said);
     else check(`${name}: no word about a scale`, !/scale/.test(said), said);
     await press(r, "data-ai-plan-build-undo-ask");
     const sure = text(rowOf(r));
@@ -137,8 +138,9 @@ for (const [why, display, words] of [
     check(`${name}: the scale taken back only when it goes, after the rooms`, scale === "goes"
       ? su.length === 1 && su[0].map_id === "n1" && su[0].via === "wizard" && r.sent.indexOf(ru) < r.sent.indexOf(su[0]) : su.length === 0, r.sent.map(x => x.type));
     const t = r.toasts.join(" ");
-    check(`${name}: said after`, t.includes("3 taken back") && (scale !== "goes" ? !t.includes("scale")
-      : sv.ok ? t.includes("The plan's scale was removed too") : t.includes("The plan's scale stays: Something in metres changed since.")), t);
+    check(`${name}: said after`, t.includes("3 taken back") && (scale === "changed_since" ? t.includes("3 taken back. The plan's scale stays.")
+      : scale !== "goes" ? !t.includes("scale")
+        : sv.ok ? t.includes("The plan's scale was removed too") : t.includes("The plan's scale stays: Something in metres changed since.")), t);
   }
   const r2 = await render({ ai_plans_enabled: true }, undoOf(false));
   const row2 = all(r2.root).find(n => has(n, "data-ai-plan-build-rooms-undo"));

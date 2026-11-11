@@ -138,6 +138,10 @@ def test_not_now_is_a_week_then_a_month_and_the_steps_reopen_where_left():
     w = W.mark(w, "step", 0.0, d, step="rooms_check", map_id="m1", floor_id="main", rooms_session="rb_1", extra="x")
     assert w["started"] == {"at": "rooms_check", "map_id": "m1", "floor_id": "main", "rooms_session": "rb_1"}
     assert W.mark(w, "dismissed", 0.0, d)["dismissed"] is True
+    # Round 3: a step on another plan starts afresh: the last plan's readings aren't carried over to it.
+    other = W.mark({**w, "started": {**w["started"], "scale_session": "sc_1"}}, "step", 0.0, d, step="intro", map_id="m2")
+    assert other["started"] == {"at": "intro", "map_id": "m2"}
+    assert W.mark(w, "step", 0.0, d, step="rooms_read", map_id="m1")["started"]["rooms_session"] == "rb_1"   # the same plan keeps them
     done = W.mark({**w, "undone": True}, "finished", 0.0, d)
     assert done["finished_day"] == "2026-11-10" and "undone" not in done and W.wizard_state(done, 0.0) == "finished"
     assert W.mark(done, "undone", 0.0, d)["undone"] is True

@@ -4673,7 +4673,7 @@ function _planBuildRow(ctx, el, save, settings){
       what: (u) => `The last rooms Let Claude draw your rooms saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} room${u.items === 1 ? "" : "s"}. ` +
         "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. " +
         (u.scale === "goes" ? "It also removes this plan's scale, which was set in the helper: the plan will need measuring again." :
-          u.scale === "changed_since" ? "The plan's scale set in the helper stays: something measured in metres was added since (receivers, calibration points, rooms or another plan's scale), and it is placed by that scale." : ""),
+          u.scale === "changed_since" ? "The plan's scale set in the helper stays: something placed in metres was added or changed since (rooms, walls, zones, receivers, calibration points, the 3D house or another plan's scale), and it is placed by that scale." : ""),
       sure: (u) => u.scale === "goes" ? "Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Mapping → Edit → Measure)."
         : "Take back the rooms Let Claude draw your rooms saved?",
       done: (n, k) => `${n} taken back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
@@ -4698,7 +4698,7 @@ function _planBuildRow(ctx, el, save, settings){
         ctx.actions.wsCall(K.cmd, { session: u.session, ...(K.via ? { via: K.via } : {}) }).then(async (r)=>{
           asking[kind] = false;
           if (r && r.ok === false) { said[kind] = String(r.message || r.code || ""); ask(); return; }
-          let more = "";
+          let more = kind === "helper" && u.scale === "changed_since" ? " The plan's scale stays." : "";
           if (kind === "helper" && u.scale === "goes" && u.map_id) {      // the rooms first, then the scale: the Done screen's order
             const sv = await ctx.actions.wsCall("padspan_ha/plan_build_scale_undo", { map_id: u.map_id, via: "wizard" }).catch((e) => ({ ok: false, message: e && e.message }));
             more = sv && sv.ok ? " The plan's scale was removed too: measure it again in Mapping → Edit → Measure."

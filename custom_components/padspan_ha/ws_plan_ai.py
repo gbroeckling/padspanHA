@@ -555,7 +555,15 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
             if rund.get("helper"):
                 # The rooms helper's: whether its undo takes the plan's scale back too (goes), or why not, by scale_undo's
                 # own rule as it will stand once these rooms are undone (owner, 2026-11-11: warned before it goes).
-                out["rooms_undo"]["scale"] = await C.rooms_undo_scale(hass, store, rund["session"], rund.get("map_id"))
+                # Never at the cost of the answer (Settings' rows, the helper's Connect Claude, the Plans tool's tabs read it):
+                # a failure says "none" (no scale word, no scale undo) and is logged once a run.
+                try:
+                    out["rooms_undo"]["scale"] = await C.rooms_undo_scale(hass, store, rund["session"], rund.get("map_id"))
+                except Exception:  # noqa: BLE001
+                    out["rooms_undo"]["scale"] = "none"
+                    if not hass.data.setdefault(DOMAIN, {}).get("_aiw_undo_scale_logged"):
+                        hass.data[DOMAIN]["_aiw_undo_scale_logged"] = True
+                        _LOGGER.warning("PadSpan rooms helper: whether its undo takes the scale back couldn't be worked out", exc_info=True)
     if out["on"] and (house3d_on(hass) or not _need_3d(msg)) and _tier_at_least(hass, "pro"):
         store = await A.async_get_store(hass)
         if A.sweep_abandoned(hass, store):
@@ -1375,6 +1383,11 @@ async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> Non
                 return
         held = None if msg.get("again") else A.held_scale_read(store, m)
         if held:                                 # Claude read this plan's picture already: that reading again, no paid read
+            hs = store.scale_session(held) or {}
+            pl = (hs.get("plans") or [None])[0]
+            if isinstance(pl, dict):             # shown as this PadSpan shows it (a reading kept by 0.38.233 quoted a cut chain); saves the same
+                hs["proposal"] = A.scale_proposal(pl, pl.get("size_px"))
+                await store.async_save()
             A._bump(hass, "plan_build_scale:reused")  # noqa: SLF001
             connection.send_result(msg["id"], {"session": held, "reused": True})
             return

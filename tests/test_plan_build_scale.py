@@ -578,6 +578,15 @@ def test_the_settings_undo_is_told_whether_the_helper_s_scale_goes_by_the_undo_s
     cal.data["points"].append({"id": "cp_y", "map_id": "n1", "x_frac": 0.2, "y_frac": 0.2, "x_m": 2.0, "y_m": 1.6, "floor_id": "main", "room": ""})
     assert word() == "changed_since" and _call(WP.ws_plan_build_info, h, conn)["rooms_undo"]["scale"] == "changed_since"
     cal.data["points"].pop()
+    # Round 3: the prediction can never cost the answer (Settings' rows, the Plans tool's tabs read it): "none".
+    def boom(*a, **k):
+        raise RuntimeError("unreadable")
+    real_fp = C._metres_fp
+    monkeypatch.setattr(C, "_metres_fp", boom)
+    info = _call(WP.ws_plan_build_info, h, conn)
+    assert info["rooms_undo"]["scale"] == "none" and "unlock" in info
+    monkeypatch.setattr(C, "_metres_fp", real_fp)
+    assert word() == "goes"
     # Measured again by hand: no longer the helper's scale, so neither removed nor warned about.
     assert _call(F.ws_fabric_map_transform_set, h, conn, map_id="n1", transform=_HAND)["ok"]
     assert word() == "remeasured" and _undo(h, conn)["code"] == "changed_since" and mdl.map_transform("n1")["scale_x_m"] == 10.5

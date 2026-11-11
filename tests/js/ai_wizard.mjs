@@ -841,10 +841,15 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   const [b0, b1, b2, b3] = [ax.box_frac[0] * 1000, ax.box_frac[1] * 800, ax.box_frac[2] * 1000, ax.box_frac[3] * 800];
   check(`inset ${main}: a window no taller than a third of the screen, scrolling`, st.includes("max-height:min(33vh, 240px)") && st.includes("overflow:auto")
     && st.includes("max-width:100%"), st);
-  check(`inset ${main}: the whole box of the dimension quoted, a little margin`, cx <= b0 && cy <= b1 && cx + cw >= b2 && cy + ch >= b3
-    && cw <= b2 - b0 + 25 && ch <= b3 - b1 + 25, [cx, cy, cw, ch, b0, b1, b2, b3]);
+  // Round 3: the length is the box's own (every segment reachable by scrolling); across its narrow side the printed
+  // numbers beside the line are whole: INSET_ACROSS of its length each way.
+  const tall = b3 - b1 > b2 - b0, across = Math.max(12, W.INSET_ACROSS * Math.max(b2 - b0, b3 - b1));
+  const [lenSide, boxLen, wide, boxWide] = tall ? [ch, b3 - b1, cw, b2 - b0] : [cw, b2 - b0, ch, b3 - b1];
+  check(`inset ${main}: the whole box quoted, its numbers whole across it`, cx <= b0 && cy <= b1 && cx + cw >= b2 && cy + ch >= b3
+    && lenSide <= boxLen + 25 && wide >= boxWide + 2 * across - 2 && wide <= boxWide + 2 * across + 2, [cx, cy, cw, ch, b0, b1, b2, b3]);
   const ps = String(pic.getAttribute("style")), zw = Number(/width:([\d.]+)px/.exec(ps)[1]), zh = Number(/height:([\d.]+)px/.exec(ps)[1]);
-  check(`inset ${main}: enlarged so its short side reads`, Math.abs(Math.min(zw, zh) - W.INSET_PX) < 1 && ps.includes(`background-position:-${(cx * zw / cw).toFixed(1)}px`), ps);
+  const bx = Number(/background-position:-([\d.]+)px/.exec(ps)[1]);
+  check(`inset ${main}: enlarged so its short side reads`, Math.abs(Math.min(zw, zh) - W.INSET_PX) < 1 && Math.abs(bx - cx * zw / cw) < 0.005 * bx, ps);   // the crop's numbers are rounded in data-crop
 }
 
 // ── defect 10: the guided picture: its room, Tap on a touch screen, pinch, a zoom ──
@@ -1059,7 +1064,7 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
 // ── review 2026-11-11: a measurement of the person's own left is said as that, not "part-way" ──
 {
   for (const [at, words, btn] of [["scale_guided", "You started measuring your plan on Main for Claude to draw its rooms", "Carry on →"],
-    ["floor_pick", "You started measuring your plan on Main", "Carry on →"], ["scale_read", "part-way", "Carry on →"], ["rooms_check", "part-way", "Carry on →"]]) {
+    ["floor_pick", "You were choosing which floor your plan shows", "Carry on →"], ["scale_read", "part-way", "Carry on →"], ["rooms_check", "part-way", "Carry on →"]]) {
     O._reset();
     const h = house({ wizard: { started: { at, floor_id: "main" } } });
     O.offerLine(h.ctx, "setup");
@@ -1097,7 +1102,12 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
 {
   const kept = [];
   const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } },
-    edit: (p) => { if (p.op === "space") kept.push(p); return { session: SESS(), areas: ["Kitchen", "Garage"], undo: null, wizard: WIZ }; } });
+    edit: (p) => {
+      if (p.op === "space") kept.push(p);
+      const spaces = { ...PROP.spaces };
+      for (const k of kept) spaces[k.space] = { ...spaces[k.space], new: k.name };
+      return { session: SESS({ proposal: { ...PROP, spaces } }), areas: ["Kitchen", "Garage"], undo: null, wizard: WIZ };
+    } });
   const root = await view(h);
   const n = q(root, '[data-aiw="name-space:b"]');
   n.value = "Stud"; n.dispatchEvent({ type: "input" });
@@ -1125,6 +1135,128 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   let r = await view(g);
   r = await readScale(g, r);
   check("close-up: says it scrolls when there is more of it", q(r, '[data-aiw="scale-inset-more"]')?.textContent === "Scroll the close-up to see the whole measurement.");
+}
+
+// ── round 3, item 1 (real panel): a typed name reverted to Claude's 1.2 s after typing stopped. Events in a browser's
+// order: input, the keep timer, then change on that same field. Keeping while in the field never redraws it. ──
+{
+  const fake = () => {
+    const st = { rev: 3, names: {}, held: [], hold: false };
+    const answer = () => ({ session: SESS({ rev: st.rev, proposal: { ...PROP, spaces: Object.fromEntries(Object.entries(PROP.spaces)
+      .map(([k, v]) => [k, st.names[k] ? { ...v, new: st.names[k] } : v])) } }), areas: ["Kitchen", "Garage"], undo: null,
+    wizard: { ...WIZ, sources: { ...WIZ.sources, ...Object.fromEntries(Object.keys(st.names).map(k => [k, "typed"])) } } });
+    const edit = (p) => {
+      if (p.op === "ticks") return { ok: true };
+      if (p.rev !== st.rev) return Promise.reject({ code: "rev_mismatch" });
+      const go = () => { st.rev++; if (p.op === "space") { if (p.name) st.names[p.space] = p.name; else delete st.names[p.space]; } return answer(); };
+      return st.hold ? new Promise(r => st.held.push(() => r(go()))) : go();
+    };
+    return { st, o: { unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } }, status: answer, edit } };
+  };
+  const spaceEdits = (h) => h.calls.filter(c => c.op === "space").map(c => c.name);
+  {
+    const { o } = fake();
+    const h = house(o);
+    const root = await view(h);
+    const node = q(root, '[data-aiw="name-space:a"]');
+    node.value = "Scullery"; node.dispatchEvent({ type: "input" });
+    const r0 = h.renders.n;
+    await shim.flush();                                             // a second with no key pressed: the keep timer
+    for (let i = 0; i < 6; i++) await tick();
+    check("typed name: kept while in the field, nothing redrawn", JSON.stringify(spaceEdits(h)) === '["Scullery"]' && h.renders.n === r0, [spaceEdits(h), h.renders.n - r0]);
+    node.dispatchEvent({ type: "change" });                         // then left: the change of that same field
+    for (let i = 0; i < 6; i++) await tick();
+    const after = await view(h);
+    check("typed name: leaving it sends no empty name, and it stays", JSON.stringify(spaceEdits(h)) === '["Scullery"]'
+      && q(after, '[data-aiw="name-space:a"]').value === "Scullery", [spaceEdits(h), q(after, '[data-aiw="name-space:a"]').value]);
+  }
+  {
+    const { st, o } = fake();
+    const h = house(o);
+    let root = await view(h);
+    const node = q(root, '[data-aiw="name-space:a"]');
+    st.hold = true;
+    node.value = "Scull"; node.dispatchEvent({ type: "input" });
+    await shim.flush();                                             // the draft "Scull" on its way, held
+    node.value = ""; node.dispatchEvent({ type: "input" }); node.dispatchEvent({ type: "change" });
+    for (let i = 0; i < 4; i++) await tick();
+    st.hold = false; while (st.held.length) st.held.shift()();
+    for (let i = 0; i < 8; i++) await tick();
+    root = await view(h);
+    q(root, '[data-aiw="save"]').click();
+    for (let i = 0; i < 8; i++) await tick();
+    check("cleared while a draft was on its way: the clear goes after it, Claude's name saved", JSON.stringify(spaceEdits(h)) === '["Scull",""]'
+      && !("space:a" in st.names) && !!h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_commit"), [spaceEdits(h), st.names]);
+  }
+  {
+    const { o } = fake();
+    const h = house(o);
+    const root = await view(h);
+    const node = q(root, '[data-aiw="name-space:a"]');
+    node.value = "Larder"; node.dispatchEvent({ type: "input" });
+    q(root, '[data-aiw="back"]').click();                           // left the helper before the timer
+    await shim.flush();
+    for (let i = 0; i < 4; i++) await tick();
+    check("the keep timer after Back does nothing", spaceEdits(h).length === 0, spaceEdits(h));
+  }
+}
+
+// ── round 3, item 4: a reading offered again can be asked for afresh, which costs, said ──
+{
+  let starts = [];
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ(),
+    scaleStart: (p) => { starts.push(p); return p.again ? { session: "sc_2" } : { session: "sc_1", reused: true }; } });
+  let root = await view(h);
+  root = await readScale(h, root);
+  const ask = q(root, '[data-aiw="scale-ask-again"]');
+  check("reused: Ask Claude again on the check screen, its cost said", !!q(root, '[data-aiw="scale-yes"]') && ask && ask.textContent === "Ask Claude again"
+    && root.textContent.includes(W.SCALE_AGAIN_COSTS), root.textContent.slice(0, 500));
+  ask.click();
+  for (let i = 0; i < 4; i++) await tick();
+  check("reused: Ask Claude again starts a fresh reading", starts.length === 2 && starts[1].again === true, starts);
+}
+
+// ── round 3, item 5: Choose another plan from a step Carry on reached; a stored step whose plan is gone ──
+{
+  const maps = [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } },
+    { id: "m2", name: "Upper plan", floor_id: "upper", image: { width: 1000, height: 800 } }];
+  const floors = [{ floor_id: "main", name: "Main", level: 0 }, { floor_id: "upper", name: "Upper", level: 1 }];
+  const tfs = { m1: { ...T, reference_measurements: [{}] }, m2: { ...T, reference_measurements: [{}] } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors, tfs, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  let root = await view(h);
+  check("choose: on the list Carry on reached, a way to the plan chooser", !!q(root, '[data-aiw="rows"]') && !!q(root, '[data-aiw="choose-plan"]'));
+  q(root, '[data-aiw="choose-plan"]').click();
+  root = await view(h);
+  check("choose: the chooser, both plans", !!q(root, '[data-aiw="plan-m1"]') && !!q(root, '[data-aiw="plan-m2"]') && !q(root, '[data-aiw="choose-plan"]')
+    && !q(root, '[data-aiw="rows"]'), root.textContent.slice(0, 300));
+  // The plan the stored step points at was deleted: cleared, the chooser, said, nothing of it picked up.
+  const g = house({ unlock: { ok: true, why: "ok" }, master: true, maps: [maps[1]], floors, tfs, scaleSess: () => READ(),
+    wizard: { started: { at: "scale_check", map_id: "m1", scale_session: "sc_1" } } });
+  root = await view(g);
+  const mk = g.calls.find(c => c.what === "step" && c.step === "intro" && c.map_id === "m2");
+  check("gone: the chooser, said, the step moved to the plan that is there", root.textContent.includes("The plan you were working on isn't there any more")
+    && !!q(root, '[data-aiw="start"]') && !q(root, '[data-aiw="measure"]') && !g.calls.some(c => c.type === "padspan_ha/plan_build_scale_status")
+    && !!mk && root.textContent.includes("Claude will read Upper plan (Upper)."), [root.textContent.slice(0, 300), !!mk]);
+}
+
+// ── round 3, items 8 and 9: a plan with no floor; floors the house doesn't know; one plan named; nothing left ──
+{
+  const maps = [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } },
+    { id: "c1", name: "Cottage plan", image: { width: 1000, height: 800 } }];
+  const tfs = { m1: { ...T, reference_measurements: [{}] }, c1: { ...T, reference_measurements: [{}] } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps, tfs, rooms: { Kitchen: { floor_id: "main" } } });
+  const root = await view(h);
+  check("no floor: not taken for main's rooms, chosen, named without an id", h.ctx.state._aiw.plan.id === "c1"
+    && root.textContent.includes("Claude will read Cottage plan.") && !root.textContent.includes("Cottage plan (main)"), root.textContent.slice(0, 400));
+  check("no floor: has rooms only by its own", W.planRoomed(h.ctx.state, maps[1]) === false
+    && W.planRoomed({ ...h.ctx.state, model: { ...h.ctx.state.model, room_geometry_m: { Den: { floor_id: "main", source_map_id: "c1" } } } }, maps[1]) === true);
+  const g = house({ unlock: { ok: true, why: "ok" }, master: true, maps: [{ ...maps[1], floor_id: "attic" }], tfs });
+  const r2 = await view(g);
+  check("unknown floor: the plan's name alone", r2.textContent.includes("Claude will read Cottage plan.") && !r2.textContent.includes("(attic)"), r2.textContent.slice(0, 300));
+  const k = house({ unlock: { ok: true, why: "ok" }, master: true, maps: [maps[0]], tfs, rooms: { Kitchen: { floor_id: "main" } } });
+  const r3 = await view(k);
+  check("nothing left: said, no steps list above it", r3.textContent.includes("Every floor with a plan already has rooms.") && !q(r3, '[data-aiw="steps"]')
+    && !q(r3, '[data-aiw="start"]'), r3.textContent.slice(0, 300));
 }
 
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));

@@ -195,10 +195,13 @@ def test_facts_read_the_stores():
         f = W.facts(h, now=_NOW)
         assert f["floor_no_rooms"] is False and f["indoor_plans"] == 2, name
         assert W.offer_reason({**f, "wizard": {"finished_day": "2026-11-10"}}, "pull") == "has_rooms", name
-    # A plan with no floor is filed on "main", where its hand-drawn rooms are: it doesn't lack rooms when main has them.
+    # A plan with no floor (round 3): it has rooms only when they were drawn on it, never by taking another floor's
+    # (a real floor "main" with rooms used to make it count as done).
     h = _stuck_house(floor_id=None)
     assert W.facts(h, now=_NOW)["floor_no_rooms"] is True
-    h.data[DOMAIN][DATA_FABRIC].data["floors"] = {"main": {"rooms": {"Kitchen": {}}}}
+    h.data[DOMAIN][DATA_FABRIC].data["floors"] = {"main": {"rooms": {"Kitchen": {"source_map_id": "other"}}}}
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is True
+    h.data[DOMAIN][DATA_FABRIC].data["floors"]["main"]["rooms"]["Den"] = {"source_map_id": "m1"}     # a room made from this plan
     assert W.facts(h, now=_NOW)["floor_no_rooms"] is False
     h = _stuck_house(floor_id="", room_bounds={"Den": {}})
     assert W.facts(h, now=_NOW)["floor_no_rooms"] is False

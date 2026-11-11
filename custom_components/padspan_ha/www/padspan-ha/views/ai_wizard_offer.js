@@ -113,7 +113,7 @@ function _mark(ctx, what) {
 // Where the helper was left (ai_wizard._UNFINISHED): Claude reading, or what it read waiting to be checked, is part-way
 // (what the reading screen promises); a measurement of the person's own was only started.
 const READING = new Set(["scale_read", "scale_check", "rooms_read", "rooms_check"]);
-const MEASURING = new Set(["scale_guided", "floor_pick"]);
+const MEASURING = new Set(["scale_guided"]);
 
 /** The words for where the helper was left, one copy for every pull surface: {back, text, go}. `back`: there is something
  *  to carry on with (Claude reading, a reading to check, a measurement started); `done`: the step it is offered on is done
@@ -123,7 +123,8 @@ export function lineWords(ctx, surface, done = false) {
   const fl = (((ctx.state.model && ctx.state.model.floors) || []).find(f => f && (f.floor_id || f.id) === st.floor_id) || {}).name;
   const text = READING.has(st.at) ? "Claude is part-way through drawing your rooms (experimental)."
     : MEASURING.has(st.at) ? `You started measuring your plan${fl ? ` on ${fl}` : ""} for Claude to draw its rooms (experimental).`
-      : null;
+      : st.at === "floor_pick" ? "You were choosing which floor your plan shows, for Claude to draw its rooms (experimental)."
+        : null;
   if (text) return { back: true, text, go: "Carry on →" };
   return { back: false, go: "Try it →", text: done ? "Claude can draw the rooms on another of your floor plans too (experimental)."
     : "Stuck? Claude can read your plan and draw the rooms for you (experimental)." };

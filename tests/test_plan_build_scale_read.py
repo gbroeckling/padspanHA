@@ -510,6 +510,15 @@ def test_a_reading_held_for_the_same_plan_and_picture_is_offered_again_never_pai
     r = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")
     assert r == {"session": first["id"], "reused": True} and not h.jobs
     assert _counters(h)["plan_build_scale:reused"] == 1 and _counters(h)["plan_build_run:s0_started"] == 1
+    # Round 3: a reading kept by 0.38.233 holds its proposal in the old shape (the chain quoted cut short). Offered again,
+    # it is shown as this PadSpan shows it; what Save sends is the same.
+    store = _store(h)
+    prop = store.scale_session(first["id"])["proposal"]
+    want = {k: (prop["axes"]["x"][k]) for k in ("text", "save_text", "metres", "ppm", "ends_frac")}
+    prop["axes"]["x"]["text"] = "8'-4\" 27'-4"                                      # as 0.38.233 kept it
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")["reused"] is True
+    again = _call(WP.ws_plan_build_scale_status, h, conn, session=first["id"], via="wizard")["session"]["proposal"]["axes"]["x"]
+    assert {k: again[k] for k in want} == want
     fresh = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", again=True, via="wizard")
     assert "reused" not in fresh and fresh.get("error") == "too_soon"              # a fresh read, held to the one-a-minute gap
     m = ms.get_map("n1")

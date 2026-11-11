@@ -53,6 +53,8 @@ export const SCALE_SAVE_SAYS = "Save keeps this as your plan's scale, then Claud
   "A backup is taken first. Undo on the last screen takes the rooms and this measurement back.";
 /** Claude's earlier reading of the same plan and picture, offered again instead of a new (paid) read. */
 export const SCALE_REUSED = "Claude already read this plan's measurement, so it isn't read again.";
+/** Under "Ask Claude again" where a reading was offered again: a new reading costs, in the helper's usual words. */
+export const SCALE_AGAIN_COSTS = "A new reading: Anthropic charges your Anthropic account for it.";
 export const SCALE_UNCHECKED_LOOK = "Claude couldn't double-check this one. Look closely at the amber line: it should run the full length the number is for.";
 const MODEL_WORDS = OFFER.MODEL_WORDS;
 /** While Claude reads: the way back that is really there (Setup's line, ai_wizard_offer.offerLine, which the rule offers
@@ -142,14 +144,16 @@ export function needsScale(state, plan) {
   return !!(plan && plan.id) && !tfs[plan.id];
 }
 
-/** A plan's floor as its rooms are filed: a plan with none is on "main" (fabric_truth, ai_wizard.facts). */
-export const floorOf = (m) => String((m && m.floor_id) || "main");
-
-/** The floors that have rooms already: the house's room outlines (room_geometry_m) and a plan's own (room_bounds). */
-export function roomedFloors(state) {
-  const out = new Set(Object.values((state.model && state.model.room_geometry_m) || {}).map(r => r && r.floor_id).filter(Boolean));
-  for (const m of (state.maps && state.maps.list) || []) if (m && Object.keys(m.room_bounds || {}).length) out.add(floorOf(m));
-  return out;
+/** Whether a plan's floor has rooms already (ai_wizard.plan_roomed is this rule): rooms drawn on the plan itself, or on
+ *  its floor; a plan with no floor never takes another floor's rooms, only those drawn on it (its room_bounds, or a room
+ *  whose outline was made from it). */
+export function planRoomed(state, m) {
+  if (!m) return false;
+  if (Object.keys(m.room_bounds || {}).length) return true;
+  const geo = Object.values((state.model && state.model.room_geometry_m) || {});
+  if (!m.floor_id) return geo.some(r => r && r.source_map_id === m.id);
+  return geo.some(r => r && r.floor_id === m.floor_id)
+    || ((state.maps && state.maps.list) || []).some(o => o && o.floor_id === m.floor_id && Object.keys(o.room_bounds || {}).length);
 }
 
 /** Plans the helper can read, best first: inside the house, with a scale or none at all yet (it measures that one first);
@@ -161,7 +165,7 @@ export function plansOf(state) {
   const rank = (fid) => { const i = floors.findIndex(f => f && (f.floor_id || f.id) === fid); return i < 0 ? 999 : Number(floors[i].level ?? i); };
   const px = (m) => Number((m.image || {}).width || 0) * Number((m.image || {}).height || 0);
   const unscaled = (m) => (needsScale(state, m) ? 1 : 0);
-  const roomed = roomedFloors(state), done = (m) => (roomed.has(floorOf(m)) ? 1 : 0);
+  const done = (m) => (planRoomed(state, m) ? 1 : 0);
   return ((state.maps && state.maps.list) || [])
     .filter(m => m && m.id && !isOutdoorFloorId(m.floor_id) && (!tfs[m.id] || Number(tfs[m.id].scale_x_m) > 0))
     .sort((a, b) => done(a) - done(b) || unscaled(a) - unscaled(b) || rank(a.floor_id) - rank(b.floor_id) || px(b) - px(a));
@@ -302,12 +306,14 @@ async function loadAll(ctx, S) {
       const w = S.info.wizard || {};
       const plans = plansOf(ctx.state);
       S.plan = plans.find(m => w.started && m.id === w.started.map_id) || plans[0] || null;
+      // The plan it was left on is gone (removed, or moved outdoors): nothing of it is picked up; the chooser, said.
+      const gone = !!(w.started && w.started.map_id && !plans.some(m => m.id === w.started.map_id));
       if (w.started && !w.finished_day && !w.undone && w.started.at !== "intro" && !_done.has("came_back")) {
         _done.add("came_back");                       // counted by the server (ai_wizard:came_back)
         ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "came_back" }).catch(() => {});
       }
       S.screen = "intro";
-      const at = w.started && w.started.at;
+      const at = gone ? null : w.started && w.started.at;
       if (w.started && w.started.scale_session && ["scale_read", "scale_check", "scale_guided"].includes(at)) {
         S.scaleSid = w.started.scale_session;          // Claude's reading of the measurement, left while it read, before it was checked, or measuring
         await scaleStatus(ctx, S);
@@ -317,15 +323,20 @@ async function loadAll(ctx, S) {
         toGuided(ctx, S);                                // measuring with no reading of Claude's to go back to: the measurement, nothing read
       } else if (at === "floor_pick") {
         // Which floor the plan shows: the plan chooser; Read my plan then offers Claude's reading again (never a new one).
-      } else if (w.started && w.started.rooms_session) {
+      } else if (!gone && w.started && w.started.rooms_session) {
         S.sid = w.started.rooms_session;
         await status(ctx, S);
       }
       // Nothing to pick up (a session finished, taken back, gone): the intro, on the plan that is next, choosable.
       if (S.screen === "intro") {
         S.sid = null; S.ans = null;
-        const open = plans.filter(m => !roomedFloors(ctx.state).has(floorOf(m)));
+        const open = plans.filter(m => !planRoomed(ctx.state, m));
         if (!S.plan || !open.some(m => m.id === S.plan.id)) S.plan = open[0] || null;
+      }
+      if (gone) {
+        S.msg = "The plan you were working on isn't there any more. Choose a plan to go on.";
+        // The stored step points at the next plan now (the server drops the gone plan's readings with it).
+        if (S.plan) ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "intro", map_id: S.plan.id }).catch(() => {});
       }
       telOnce(ctx, "ai_wizard_ai:" + (now === "ok" ? "ok" : now));
     }
@@ -363,31 +374,34 @@ function keepTicks(ctx, S) {
     .catch(() => {});
 }
 
-/** A name typed and left (the field's change): kept on the rooms session at once (the server's "space" edit), so it
- *  survives Back and a reload; refused (another room has it), it stays typed here and is said. Save waits for it. */
 export const NAME_KEEP_MS = 1000;
-function keepName(ctx, S, id) {
-  if (S.screen !== "rooms_check") return;                         // saved or left meanwhile (a timer's late call): nothing to keep
-  const typed = String((S.names || {})[id] || "").trim(), sess = S.ans && S.ans.session;
-  const row = rowsOf(S.ans).find(r => r.id === id);
-  if (!sess || !row || row.his) return;
-  // Cleared: Claude's name again, here and, for a name the person had kept, on the session (an empty name gives the
-  // server's suggestion back).
-  const mine = ["typed", "picked_area"].includes((((S.ans && S.ans.wizard) || {}).sources || {})[id]);
-  if (!typed) { delete S.names[id]; if (!mine) return; }
-  else if (typed === row.name) return;
+
+/** A name kept on the rooms session (the server's "space" edit, a draft: one already taken is said, not counted as a stop;
+ *  Save's is). `typed`: the text of the field the event came from, so a field that was replaced can never read as
+ *  cleared. While the person is in the field (`left` false: a second after typing stops) it only sends: no redraw, the
+ *  field untouched (a phone keyboard keeps its word). When the field is left, the typed copy goes once the session has
+ *  it and the list is drawn again. Empty: Claude's name back, sent after any draft still on its way (the server gives its
+ *  suggestion back for an empty name). Save and Join wait for it (S.pending). Nothing from a helper that was left. */
+function keepName(ctx, S, id, typed, left) {
+  if (ctx.state._aiw !== S || S.screen !== "rooms_check") return;    // a timer after Back, or after Save: nothing
+  const want = String(typed || "").trim(), row0 = rowsOf(S.ans).find(r => r.id === id);
+  if (!S.ans || !S.ans.session || !row0 || row0.his) return;
   S.pending = Promise.resolve(S.pending).then(async () => {
-    const now = S.ans && S.ans.session, was = (rowsOf(S.ans).find(x => x.id === id) || {}).name;
-    if (!now || (typed && typed === was)) return;                 // kept already (typing stopped, then the field was left)
-    try {
-      // `draft`: a name kept as it is typed; one already taken is said here, not counted as a stop (Save's is).
-      take(S, await ws(ctx, { type: "padspan_ha/plan_build_rooms_edit", session: now.id, rev: now.rev, via: VIA, op: "space", space: id, name: typed, draft: true }));
-      if (String(S.names[id] || "").trim() === typed) delete S.names[id];
-    } catch (e) {
-      S.msg = e && e.code === "name_taken" ? `Another room is already called "${typed}". Give one of them another name.` : codeWords(e && e.code);
-      await status(ctx, S);
+    const now = S.ans && S.ans.session, row = rowsOf(S.ans).find(x => x.id === id);
+    if (!now || !row) return;
+    const mine = ["typed", "picked_area"].includes((((S.ans && S.ans.wizard) || {}).sources || {})[id]);
+    if (want ? want !== row.name : mine) {
+      try {
+        take(S, await ws(ctx, { type: "padspan_ha/plan_build_rooms_edit", session: now.id, rev: now.rev, via: VIA, op: "space", space: id, name: want, draft: true }));
+      } catch (e) {
+        S.msg = e && e.code === "name_taken" ? `Another room is already called "${want}". Give one of them another name.` : codeWords(e && e.code);
+        await status(ctx, S);
+      }
     }
-    rerenderKeep(ctx, S);
+    if (!left) return;
+    const got = (rowsOf(S.ans).find(x => x.id === id) || {}).name;
+    if (String((S.names || {})[id] ?? "").trim() === want && (!want || got === want)) delete S.names[id];
+    if (ctx.state._aiw === S) rerenderKeep(ctx, S);
   }).catch(() => {});                                             // never leaves Save waiting on a broken chain
 }
 
@@ -748,6 +762,14 @@ async function undo(ctx, S) {
   rerender(ctx);
 }
 
+/** The plan chooser, from any step: nothing is thrown away on the server (a reading stays held for its plan). */
+function toChooser(ctx, S) {
+  if (S.timer) { clearTimeout(S.timer); S.timer = null; }
+  Object.assign(S, { screen: "intro", sid: null, ans: null, scaleSid: null, sc: null, fail: null, failFor: null, msg: "", reusedFor: null, done: null, undone: null });
+  _done.delete("step:intro");
+  rerender(ctx);
+}
+
 function leave(ctx, S) {
   const step = stepWord(S);
   if (step && S.screen !== "saved" && !S.undone) tel(ctx, "ai_wizard_left:" + step);
@@ -805,6 +827,20 @@ function failBlock(ctx, S, word) {
 function introScreen(ctx, S, box) {
   const { el } = ctx.helpers, st = ctx.state;
   const plans = plansOf(st);
+  // A floor that has rooms already isn't read again here (that would offer changes to its rooms, and more rooms on top):
+  // listed apart, plainly, never chosen. A floor the house doesn't know isn't named by its id.
+  const open = plans.filter(m => !planRoomed(st, m)), done = plans.filter(m => planRoomed(st, m));
+  const label = (m) => {
+    const f = ((st.model && st.model.floors) || []).find(x => x && (x.floor_id || x.id) === m.floor_id), nm = m.name || "Plan";
+    return !f || !f.name || nm.trim().toLowerCase() === String(f.name).trim().toLowerCase() ? nm : `${nm} (${f.name})`;
+  };
+  const doneLine = () => el("div", { "data-aiw": "plans-done", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" },
+    `Already has rooms, so not read again here: ${done.map(label).join(", ")}. Change those rooms in Mapping.`);
+  if (plans.length && !open.length) {
+    box.appendChild(P(ctx, "Every floor with a plan already has rooms."));
+    box.appendChild(doneLine());
+    return;
+  }
   const measure = needsScale(st, S.plan);
   box.appendChild(P(ctx, measure ? "Three steps, a few minutes:" : "Two steps, a few minutes:"));
   box.appendChild(el("ol", { "data-aiw": "steps", style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, [
@@ -817,16 +853,8 @@ function introScreen(ctx, S, box) {
     box.appendChild(P(ctx, "No floor plan was found. Add one in Setup first."));
     return;
   }
-  // A floor that has rooms already isn't read again here (that would offer changes to its rooms, and more rooms on top):
-  // listed apart, plainly, never chosen.
-  const roomed = roomedFloors(st), open = plans.filter(m => !roomed.has(floorOf(m))), done = plans.filter(m => roomed.has(floorOf(m)));
-  const label = (m) => { const fl = floorName(st, m.floor_id), nm = m.name || "Plan"; return nm.trim().toLowerCase() === String(fl).trim().toLowerCase() ? nm : `${nm} (${fl})`; };
-  if (done.length) box.appendChild(el("div", { "data-aiw": "plans-done", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" },
-    `Already has rooms, so not read again here: ${done.map(label).join(", ")}. Change those rooms in Mapping.`));
-  if (!open.length) {
-    box.appendChild(P(ctx, "Every floor with a plan already has rooms."));
-    return;
-  }
+  if (done.length) box.appendChild(doneLine());
+  if (open.length === 1) box.appendChild(el("div", { "data-aiw": "plan-one", style: "font-size:13px;color:#e2e8f0;margin:6px 0" }, `Claude will read ${label(open[0])}.`));
   if (open.length > 1) {
     box.appendChild(P(ctx, "Which plan shall we start with?"));
     for (const m of open) {
@@ -1135,6 +1163,12 @@ function scaleReadScreen(ctx, S, box) {
   poll(ctx, S);
 }
 
+/** A reading offered again (no new read): said; with `ask`, Ask Claude again for a fresh one (which costs, and says so). */
+function reusedLine(ctx, S, ask) {
+  return row(ctx, [MUTED(ctx, SCALE_REUSED), ...(ask ? [btn(ctx, "Ask Claude again", () => scaleRead(ctx, S, S.plan, true),
+    { disabled: S.busy, attrs: { "data-aiw": "scale-ask-again" } }), MUTED(ctx, SCALE_AGAIN_COSTS)] : [])], "margin:0 0 6px");
+}
+
 /** The plan with Claude's reading drawn on it: amber between the two end marks found, for each direction read. Nothing to tap. */
 function readPicture(ctx, S, r) {
   const { pic, layer, H } = planFrame(ctx, S);
@@ -1158,7 +1192,8 @@ function readPicture(ctx, S, r) {
  *  middle of a long line, where a neighbouring length is printed), enlarged so its short side is about INSET_PX on the
  *  screen, in a window that never takes more than a third of the screen's height or its column's width and scrolls
  *  along a long line, starting at its middle. `crop`: the part of the picture shown, in its pixels. */
-export const INSET_PX = 120;
+export const INSET_PX = 160;
+export const INSET_ACROSS = 0.03;
 function textInset(ctx, S, ax) {
   const { el } = ctx.helpers, st = ctx.state;
   const map = ((st.maps && st.maps.list) || []).find(m => S.plan && m.id === S.plan.id);
@@ -1166,8 +1201,12 @@ function textInset(ctx, S, ax) {
   const b = ax && ax.box_frac;
   if (!img || !b) return null;
   const w = Number((map.image && map.image.width) || 1000), h = Number((map.image && map.image.height) || 750), pad = 12;
-  const x0 = Math.max(0, b[0] * w - pad), y0 = Math.max(0, b[1] * h - pad);
-  const cw = Math.max(Math.min(w, b[2] * w + pad) - x0, 1), ch = Math.max(Math.min(h, b[3] * h + pad) - y0, 1);
+  // Across its narrow side the box is Claude's tight one round the line; the numbers are printed beside it: widened by
+  // INSET_ACROSS of its length each way, so they are whole, while the length is the box's own (every segment reachable).
+  const bw = (b[2] - b[0]) * w, bh = (b[3] - b[1]) * h, across = Math.max(pad, INSET_ACROSS * Math.max(bw, bh));
+  const padX = bh > bw ? across : pad, padY = bh > bw ? pad : across;
+  const x0 = Math.max(0, b[0] * w - padX), y0 = Math.max(0, b[1] * h - padY);
+  const cw = Math.max(Math.min(w, b[2] * w + padX) - x0, 1), ch = Math.max(Math.min(h, b[3] * h + padY) - y0, 1);
   const z = Math.min(4, INSET_PX / Math.min(cw, ch)), px = (v) => `${(v * z).toFixed(1)}px`;
   const pic = el("div", { "data-aiw": "scale-inset-pic", "data-crop": [x0, y0, cw, ch].map(v => Math.round(v)).join(","),
     style: `width:${px(cw)};height:${px(ch)};background:#ffffff url("${img}") no-repeat;background-size:${px(w)} ${px(h)};` +
@@ -1198,7 +1237,7 @@ function scaleCheckScreen(ctx, S, box) {
   const { el } = ctx.helpers;
   const sc = scaleDraft(S), pv = sc.pv, r = sc.read;
   const main = r.axes[r.main], other = r.other ? r.axes[r.other] : null;
-  if (S.reusedFor === S.plan.id) box.appendChild(MUTED(ctx, SCALE_REUSED));
+  if (S.reusedFor === S.plan.id) box.appendChild(reusedLine(ctx, S, true));
   if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, the plan's size as read
   sc.paint = null;
   if (pv && pv.stop) { scaleStopped(ctx, S, box, pv); return; }
@@ -1264,7 +1303,7 @@ function scaleScreen(ctx, S, box) {
   const { el } = ctx.helpers;
   const sc = scaleDraft(S), pv = sc.pv;
   telOnce(ctx, "plan_build_scale:guided");
-  if (S.reusedFor === (S.plan && S.plan.id)) box.appendChild(MUTED(ctx, SCALE_REUSED));
+  if (S.reusedFor === (S.plan && S.plan.id)) box.appendChild(reusedLine(ctx, S, !scaleDraft(S).again));
   if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, whether it may be measured here
   if (sc.read && !sc.read.checked) {
     box.appendChild(row(ctx, [P(ctx, SCALE_UNCHECKED, "margin:0;font-weight:600"),
@@ -1361,12 +1400,11 @@ function checkScreen(ctx, S, box) {
       S.names[r.id] = String(name.value || "");
       if (typeof setTimeout !== "function") return;               // kept a second after typing stops, so a reload mid-word loses nothing
       clearTimeout((S.nameTimers || {})[r.id]);
-      (S.nameTimers = S.nameTimers || {})[r.id] = setTimeout(() => { delete S.nameTimers[r.id]; keepName(ctx, S, r.id); }, NAME_KEEP_MS);
+      (S.nameTimers = S.nameTimers || {})[r.id] = setTimeout(() => { delete S.nameTimers[r.id]; keepName(ctx, S, r.id, name.value, false); }, NAME_KEEP_MS);
     });
-    name.addEventListener("change", () => {
+    name.addEventListener("change", () => {                         // left: kept, then the list drawn again
       clearTimeout((S.nameTimers || {})[r.id]);
-      keepName(ctx, S, r.id);
-      if (typeof setTimeout === "function") setTimeout(() => rerenderKeep(ctx, S), 0); else rerender(ctx);
+      keepName(ctx, S, r.id, name.value, true);
     });
     const typed = nameOf(S, r), matched = typed === r.name ? r.matched : isArea(typed);
     const chipText = r.his ? "your room" : !r.sure ? "Claude saw this one differently twice: look at its shape"
@@ -1438,8 +1476,7 @@ function savedScreen(ctx, S, box) {
     btn(ctx, "Place receivers →", () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "handoff" }).catch(() => {});
       const mid = ((((sess && sess.plans) || [])[0]) || {}).map_id || (S.plan && S.plan.id);   // the plan just saved, never Setup's own pick
       st._aiw = null; ctx.actions.openSetupStep("receivers", mid); }, { primary: true, attrs: { "data-aiw": "receivers" } })]));
-  const roomsOn = roomedFloors(st);
-  const next = plansOf(st).find(m => m.floor_id !== fid && !roomsOn.has(floorOf(m)));
+  const next = plansOf(st).find(m => m.floor_id !== fid && !planRoomed(st, m));
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
     btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } })]));
   box.appendChild(row(ctx, [MUTED(ctx, "Something wrong?"), btn(ctx, "Undo", () => undo(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "undo" } }),
@@ -1453,9 +1490,12 @@ export function render(ctx) {
   S.root = root;                                    // where rerenderKeep puts the cursor back
   const card = el("div", { class: "card" });
   const back = btn(ctx, "← Back", () => leave(ctx, S), { attrs: { "data-aiw": "back" } });
+  // Off any step (a reading Carry on came back to, say) to the plan chooser: what was read stays held on the server.
+  const choose = S.screen && !["intro", "connect"].includes(S.screen) && plansOf(st).length > 1
+    ? btn(ctx, "Choose another plan", () => toChooser(ctx, S), { attrs: { "data-aiw": "choose-plan" } }) : "";
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px" }, [back,
     el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, ["Let Claude draw your rooms", OFFER.chip(el)]),
-    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("ai_wizard") : ""]));
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("ai_wizard") : "", choose]));
   root.appendChild(card);
   if (st.dataMode !== "live") {
     card.appendChild(P(ctx, "The demo house is showing. The helper works on your own house."));
