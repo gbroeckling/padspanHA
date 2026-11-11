@@ -789,7 +789,7 @@ const W_MAPPING = {
   stuck: { plan_no_rooms: "a plan, no rooms drawn", rooms_no_receivers: "rooms, no receivers placed", receivers_no_calibration: "receivers, not calibrated", none: "set up (used the AI helper)" },
   plan_age: { lt1d: "plan under a day old", "1_7d": "plan 1–7 days old", "8_30d": "plan 8–30 days old", "31_90d": "plan 31–90 days old", gt90d: "plan over 90 days old" },
   wizard: { not_admin: "not an administrator", not_live: "Sample mode, not their own house", wall_screen: "a wall screen", edition: "Bright (Atlas only)",
-    has_rooms: "has rooms already", no_plan: "no plan inside the house", age_unknown: "plan's age not known", plan_too_new: "plan under 7 days old",
+    has_rooms: "has rooms already", no_plan: "no plan inside the house", age_unknown: "plan's age not known", plan_too_new: "plan under 7 days old", not_struggled: "hasn't yet left the scale or rooms step unfinished",
     dismissed: "said don't ask again", undone: "took the helper's rooms back", snoozed: "said not now", tool_used: "already used Line up or Rooms from plans",
     no_pro_path: "no Pro and no trial left", no_scale: "plan has no scale yet", offer: "would be offered the helper" },
   wizard_state: { never: "helper never shown", offered: "helper shown", opened: "helper opened", finished: "finished the helper", dismissed: "said don't ask again",
@@ -803,7 +803,9 @@ const W_WIZ_SURFACE = { overview: "the Overview card", getting_started: "Getting
 const W_WIZ_OUTCOME = { finished: "rooms saved", dismissed: "don't ask again", snoozed: "not now", came_back: "came back to it", undone: "rooms taken back",
   area_created: "a Home Assistant area added", area_failed: "a Home Assistant area couldn't be added",
   with_rooms: "opened again on a house with rooms (the next floor, or a read left part-way)", after_undo: "opened again after its Undo",
-  edits_back: "came back to a rooms list with the person's changes kept", zoomed: "zoomed the plan to measure" };
+  edits_back: "came back to a rooms list with the person's changes kept", zoomed: "zoomed the plan to measure",
+  struggled_later: "Setup's scale or rooms step met again on a later visit, unfinished (Setup and the Mapping wizard offer the helper from now)",
+  struggled_left: "back on Setup after opening its scale or rooms step, unfinished (Setup and the Mapping wizard offer the helper from now)" };
 const W_WIZ_FAIL = { no_credit: "out of credit", unreachable: "Claude couldn't be reached", out_of_time: "stopped part-way", bad_answer: "answers not usable",
   refusal: "Claude declined", no_media: "media folder", daily_cap: "ten readings a day", backup_failed: "no safety backup", changed_since: "plan or rooms changed" };
 const W_WIZ_AI = { no_ai_task: "no AI Task", not_anthropic: "not Anthropic's integration", below_opus_5_5: "below Opus 5.5", unknown_model: "model unknown",
@@ -811,6 +813,7 @@ const W_WIZ_AI = { no_ai_task: "no AI Task", not_anthropic: "not Anthropic's int
   check_again: "pressed Check again", became_ok: "became ready" };
 const W_WIZ_LINK = { guide: "the guide", console: "the Anthropic Console", ha_add: "add Anthropic in Home Assistant", ha_anthropic: "the Anthropic integration",
   ha_areas: "Home Assistant's Areas" };
+const W_WIZ_CHECK = { ok: "passed", no_credit: "the Anthropic account is out of credit", unreachable: "Claude couldn't be reached", no_media: "media folder", error: "another error (went on)", not_ready: "no usable AI Task" };
 const W_ROOMS_BAND = { "0": "no rooms", "1": "1 room", "2_3": "2–3 rooms", "4_6": "4–6 rooms", "7_12": "7–12 rooms", gt12: "over 12 rooms" };
 const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", area_abbrev: "after a Home Assistant area (abbreviated)",
   printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };
@@ -982,6 +985,7 @@ function word(kind, k) {
       if (a === "ai_wizard_fail") return `AI rooms helper stopped: ${W_WIZ_FAIL[b] || b}`;
       if (a === "ai_wizard_ai") return `AI rooms helper, Claude: ${W_WIZ_AI[b] || b}`;
       if (a === "ai_wizard_link") return `AI rooms helper link tapped: ${W_WIZ_LINK[b] || b}`;
+      if (a === "ai_wizard_check") return `AI rooms helper's account check before measuring: ${W_WIZ_CHECK[b] || b}`;
       if (a === "ai_wizard_switch") return "AI rooms helper turned on AI map-building and Build from plans";
       if (a === "plan_build_rooms_offered") return `AI rooms helper offered ${W_ROOMS_BAND[b] || b}`;
       if (a === "plan_build_rooms_saved") return `AI rooms helper saved ${W_ROOMS_BAND[b] || b}`;

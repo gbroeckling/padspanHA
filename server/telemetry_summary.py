@@ -535,12 +535,13 @@ _WIZARD_FUNNEL = (
     tuple(f"ai_wizard_offered:{s}" for s in _WIZ_SURFACES) + tuple(f"ai_wizard_opened:{s}" for s in _WIZ_SURFACES)
     + tuple(f"ai_wizard_step:{s}" for s in _WIZ_STEPS) + tuple(f"ai_wizard_left:{s}" for s in _WIZ_STEPS)
     + tuple(f"ai_wizard:{k}" for k in ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed",
-                                          "with_rooms", "after_undo", "edits_back", "zoomed"))
+                                          "with_rooms", "after_undo", "edits_back", "zoomed", "struggled_later", "struggled_left"))
     + tuple(f"ai_wizard_fail:{k}" for k in ("no_credit", "unreachable", "out_of_time", "bad_answer", "refusal", "no_media", "daily_cap",
                                              "backup_failed", "changed_since"))
     + tuple(f"ai_wizard_ai:{k}" for k in ("no_ai_task", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree",
                                            "available_unchosen", "ok", "chosen", "check_again", "became_ok"))
     + tuple(f"ai_wizard_link:{k}" for k in ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")) + ("ai_wizard_switch:on",)
+    + tuple(f"ai_wizard_check:{k}" for k in ("ok", "no_credit", "unreachable", "no_media", "error", "not_ready"))
     + tuple(f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in _WIZ_BANDS)
     + tuple(f"plan_build_name:{k}" for k in ("area_exact", "area_abbrev", "printed", "typed", "picked_area"))
     + tuple(f"plan_build_unmatched_areas:{b}" for b in _WIZ_BANDS)

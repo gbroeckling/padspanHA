@@ -879,12 +879,15 @@ AI_WIZARD_SURFACES: tuple[str, ...] = ("overview", "getting_started", "setup", "
 AI_WIZARD_STEPS: tuple[str, ...] = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided",
                                     "floor_pick", "rooms_read", "rooms_check", "saved", "next_floor", "handoff")
 AI_WIZARD_OUTCOMES: tuple[str, ...] = ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed",
-                                       "with_rooms", "after_undo", "edits_back", "zoomed")
+                                       "with_rooms", "after_undo", "edits_back", "zoomed",
+                                       "struggled_later", "struggled_left")   # the pull surfaces' trigger first met (2026-11-12)
 AI_WIZARD_FAILS: tuple[str, ...] = ("no_credit", "unreachable", "out_of_time", "bad_answer", "refusal", "no_media", "daily_cap",
                                     "backup_failed", "changed_since")
 AI_WIZARD_AI: tuple[str, ...] = ("no_ai_task", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree",
                                  "available_unchosen", "ok", "chosen", "check_again", "became_ok")
 AI_WIZARD_LINKS: tuple[str, ...] = ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")
+# The one tiny read before anything is measured (ai_wizard.ws_ai_wizard_check_claude, 2026-11-12): how it ended.
+AI_WIZARD_CHECK: tuple[str, ...] = ("ok", "no_credit", "unreachable", "no_media", "error", "not_ready")
 ROOMS_BANDS: tuple[str, ...] = ("0", "1", "2_3", "4_6", "7_12", "gt12")
 NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed", "picked_area")
 # The plan's scale (pieces 3 and 4, design J.4): the path its scale took (a
@@ -908,6 +911,7 @@ AI_WIZARD_EVENTS: frozenset[str] = frozenset(
     | {f"ai_wizard_{w}:{s}" for w in ("step", "left") for s in AI_WIZARD_STEPS}
     | {f"ai_wizard:{k}" for k in AI_WIZARD_OUTCOMES} | {f"ai_wizard_fail:{k}" for k in AI_WIZARD_FAILS}
     | {f"ai_wizard_ai:{k}" for k in AI_WIZARD_AI} | {f"ai_wizard_link:{k}" for k in AI_WIZARD_LINKS} | {"ai_wizard_switch:on"}
+    | {f"ai_wizard_check:{k}" for k in AI_WIZARD_CHECK}
     | {f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in ROOMS_BANDS}
     | {f"plan_build_name:{k}" for k in NAME_SOURCES} | {f"plan_build_unmatched_areas:{b}" for b in ROOMS_BANDS}
     | {f"plan_build_scale:{k}" for k in SCALE_PATHS} | {f"plan_build_scale_save:{k}" for k in SCALE_SAVE}

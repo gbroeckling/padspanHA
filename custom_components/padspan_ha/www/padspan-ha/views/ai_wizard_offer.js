@@ -65,7 +65,25 @@ const _info = { push: null, pull: null };
 const _asking = { push: false, pull: false };
 const _offered = new Set();
 
-export function _reset() { _info.push = _info.pull = null; _asking.push = _asking.pull = false; _offered.clear(); }
+// The pull surfaces' trigger (owner, 2026-11-12; ai_wizard.mark step_seen / step_left): Setup's Scale or Rooms step
+// met on two page loads, or Setup shown again after opening that step from it, while it is unfinished. Once a page each.
+const PAGE = Math.random().toString(36).slice(2, 12);
+const _steps = new Set();
+
+export function _reset() { _info.push = _info.pull = null; _asking.push = _asking.pull = false; _offered.clear(); _steps.clear(); }
+
+function _stepMark(ctx, what, step) {
+  const st = ctx.state;
+  if (!["scale", "rooms"].includes(step) || _steps.has(what + step) || !_admin(ctx) || st.dataMode !== "live" || st.kioskMode || !ctx.actions.callWS) return;
+  _steps.add(what + step);
+  ctx.actions.callWS({ type: "padspan_ha/ai_wizard_mark", what, setup_step: step, page: PAGE })
+    .then(r => { if (r && r.wizard && r.wizard.struggled && _info.pull && !_info.pull.offer) { _info.pull = null; ctx.actions.renderRooms(); } })
+    .catch(() => {});
+}
+/** Setup's Scale or Rooms step (or the Mapping wizard's) shown, unfinished: this page load's id goes with it. */
+export const stepSeen = (ctx, step) => _stepMark(ctx, "step_seen", step);
+/** Setup shown again, after that step was opened from it in this page load and is still unfinished. */
+export const stepLeft = (ctx, step) => _stepMark(ctx, "step_left", step);
 export function forget() { _info.push = _info.pull = null; }
 
 const _admin = (ctx) => !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);

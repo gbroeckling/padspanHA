@@ -502,6 +502,14 @@ def _candidates(hass: HomeAssistant) -> list[dict[str, Any]]:
     return out
 
 
+def _anthropic_set_up(hass: HomeAssistant) -> bool:
+    """Whether Home Assistant has the Anthropic integration (the helper's Connect Claude skips the steps that make it)."""
+    try:
+        return bool(hass.config_entries.async_entries("anthropic"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> list[dict[str, Any]]:
     """Each indoor floor, lowest first, with its plans and its last line-up."""
     out = []
@@ -541,7 +549,8 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
     on_master = A.enabled(hass)
     out: dict[str, Any] = {"unlock": {k: u.get(k) for k in ("ok", "why", "display")}, "master": on_master,
                            "switch": A.build_switch(hass), "on": on_master and A.build_switch(hass) and bool(u.get("ok")),
-                           "floors": [], "stall": None, "running": None, "undo": None, "candidates": _candidates(hass)}
+                           "floors": [], "stall": None, "running": None, "undo": None, "candidates": _candidates(hass),
+                           "anthropic": _anthropic_set_up(hass)}
     if on_master:
         A._bump_once(hass, f"plan_build_unlock:{A.unlock_event(u)}")  # noqa: SLF001
         if u.get("ok"):

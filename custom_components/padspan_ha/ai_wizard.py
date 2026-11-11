@@ -35,8 +35,12 @@ OFFER_AFTER_DAYS = 7    # a plan this many days old with no rooms is stuck (the 
 SCALE_BUILT = True      # piece 3: the helper sets a plan's scale by one measurement, so no_scale is never the answer (kept in REASONS for older reports)
 SURFACES: tuple[str, ...] = ("push", "pull")   # push: the Overview (respects Not now / Don't ask again); pull: Setup, the Mapping wizard
 REASONS: tuple[str, ...] = ("not_admin", "not_live", "wall_screen", "edition", "has_rooms", "no_plan",
-                            "age_unknown", "plan_too_new", "dismissed", "undone", "snoozed",
+                            "age_unknown", "plan_too_new", "not_struggled", "dismissed", "undone", "snoozed",
                             "tool_used", "no_pro_path", "no_scale", "offer")
+# The pull surfaces' trigger (owner, 2026-11-12): no day count; Setup and the Mapping wizard offer the helper once the
+# person has opened the Scale or Rooms step and left it unfinished (settings.ai_map_wizard.struggled, set by mark()),
+# or has used the helper already. The push surfaces keep OFFER_AFTER_DAYS.
+SETUP_STEPS_WATCHED: tuple[str, ...] = ("scale", "rooms")
 # A helper's read the person hasn't finished: it can be picked up again (the step before Save, or a read still running).
 _UNFINISHED = frozenset({"scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read", "rooms_check"})
 
@@ -67,11 +71,14 @@ def offer_reason(f: dict[str, Any], surface: str) -> str:
         return "has_rooms"                         # never disturb a house that has rooms (pull: unless the helper is still at it)
     if not f["indoor_plans"]:
         return "no_plan"
-    if f["plan_age_days"] is None:
-        return "age_unknown"                       # no plan's `created`, and no first_seen_ts
-    if f["plan_age_days"] < OFFER_AFTER_DAYS:
-        return "plan_too_new"
     w = f["wizard"]
+    if surface == "push":
+        if f["plan_age_days"] is None:
+            return "age_unknown"                   # no plan's `created`, and no first_seen_ts
+        if f["plan_age_days"] < OFFER_AFTER_DAYS:
+            return "plan_too_new"
+    elif not (w.get("struggled") or w.get("started")):
+        return "not_struggled"                     # pull: the Scale or Rooms step not yet opened and left unfinished
     if surface == "push" and w.get("dismissed"):
         return "dismissed"
     if surface == "push" and w.get("undone"):
@@ -176,9 +183,14 @@ def done_age_word(finished_day: Any, today: date) -> str | None:
 def clean_wizard(raw: dict) -> dict[str, Any]:
     """settings.ai_map_wizard as stored: the keys design A.3 names, nothing else."""
     out: dict[str, Any] = {}
-    for k in ("dismissed", "undone", "offered"):
+    for k in ("dismissed", "undone", "offered", "struggled"):
         if raw.get(k) is True:
             out[k] = True
+    seen = raw.get("seen")                         # Setup step -> the page load that first showed it (mark "step_seen")
+    if isinstance(seen, dict):
+        seen = {k: str(v)[:64] for k, v in seen.items() if k in SETUP_STEPS_WATCHED and isinstance(v, str)}
+        if seen:
+            out["seen"] = seen
     for k in ("snooze_until", "snoozes"):
         v = raw.get(k)
         if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
@@ -287,13 +299,24 @@ MAPPING_WORDS: dict[str, tuple[str, ...]] = {
 
 # ── piece 2: Not now, Don't ask again, where it was left (design A.3) ────────
 SNOOZE_DAYS: tuple[int, int] = (7, 30)          # the first Not now, then every one after
-MARKS: tuple[str, ...] = ("offered", "opened", "step", "snoozed", "dismissed", "came_back", "finished", "undone")
+MARKS: tuple[str, ...] = ("offered", "opened", "step", "snoozed", "dismissed", "came_back", "finished", "undone",
+                          "step_seen", "step_left")
 
 
 def mark(w: dict, what: str, now: float, today: date, step: str | None = None, **ids: Any) -> dict[str, Any]:
-    """settings.ai_map_wizard after one thing the person did. Pure."""
+    """settings.ai_map_wizard after one thing the person did. Pure. step_seen (Setup's Scale or Rooms step shown, with
+    the page load's id): seen again on another page load, the person left it unfinished and came back (struggled);
+    step_left (Setup shown again after opening that step from it, in the same page load): struggled."""
     w = clean_wizard(w)
-    if what in ("offered", "opened"):
+    if what == "step_seen" and step in SETUP_STEPS_WATCHED:
+        seen, page = dict(w.get("seen") or {}), str(ids.get("page") or "")[:64]
+        if step in seen and seen[step] != page:
+            w["struggled"] = True
+        seen.setdefault(step, page)
+        w["seen"] = seen
+    elif what == "step_left" and step in SETUP_STEPS_WATCHED:
+        w["struggled"] = True
+    elif what in ("offered", "opened"):
         w["offered"] = True
         if what == "opened" and "started" not in w:
             w["started"] = {"at": "intro"}
@@ -597,9 +620,11 @@ async def ws_ai_wizard_info(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/ai_wizard_mark",
-    vol.Required("what"): vol.In(("offered", "opened", "step", "snoozed", "dismissed", "came_back")),
+    vol.Required("what"): vol.In(("offered", "opened", "step", "snoozed", "dismissed", "came_back", "step_seen", "step_left")),
     vol.Optional("surface"): vol.In(AI_WIZARD_SURFACES),
     vol.Optional("step"): vol.In(WIZARD_STEPS),
+    vol.Optional("setup_step"): vol.In(SETUP_STEPS_WATCHED),
+    vol.Optional("page"): vol.All(str, vol.Length(max=64)),
     vol.Optional("map_id"): vol.All(str, vol.Length(max=64)),
     vol.Optional("floor_id"): vol.All(str, vol.Length(max=64)),
     vol.Optional("scale_session"): vol.All(str, vol.Length(max=64)),
@@ -631,9 +656,56 @@ async def ws_ai_wizard_mark(hass: HomeAssistant, connection, msg) -> None:
     if what == "came_back" or st is None:
         connection.send_result(msg["id"], {"wizard": clean_wizard((st.data if st else {}).get("ai_map_wizard") or {})})
         return
+    if what in ("step_seen", "step_left"):
+        # Setup's or the Mapping wizard's Scale or Rooms step: the pull surfaces' trigger, counted once when it is first met.
+        was = bool((st.data.get("ai_map_wizard") or {}).get("struggled"))
+        w = await async_mark(hass, what, step=msg.get("setup_step"), page=msg.get("page"))
+        if w.get("struggled") and not was:
+            bump(hass, f"ai_wizard:struggled_{'later' if what == 'step_seen' else 'left'}")
+        connection.send_result(msg["id"], {"wizard": w})
+        return
     w = await async_mark(hass, what, step=msg.get("step"),
                          **{k: msg[k] for k in ("map_id", "floor_id", "scale_session", "rooms_session") if k in msg})
     connection.send_result(msg["id"], {"wizard": w})
 
 
-WS_COMMANDS = (ws_ai_wizard_info, ws_ai_wizard_mark)
+CHECK_OK_S = 3600       # a check that passed is believed this long: Start doesn't pay for a second one
+CHECK_WORDS = "This is a connection check. Reply with the single word OK."
+CHECK_WHY: tuple[str, ...] = ("ok", "no_credit", "unreachable", "no_media", "error", "not_ready")
+# A 1 x 1 white PNG: the one ask path takes a picture, and this one costs next to nothing; no plan is in it.
+_TINY_PNG = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c4944415478da63f8ffff3f0005fe02fe"
+                          "331295140000000049454e44ae426082")
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/ai_wizard_check_claude"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_ai_wizard_check_claude(hass: HomeAssistant, connection, msg) -> None:
+    """Before anything is measured or read (owner, 2026-11-12: catch an Anthropic account with no credit before the
+    person has spent effort): one tiny read through PadSpan's AI Task with no plan in it, through the one ask path
+    (ws_house3d_photo.ask, counted by the AI credit tracker like any read). {ok} or {ok: False, why}: CHECK_WHY. A pass
+    is believed for CHECK_OK_S. Counted as ai_wizard_check:<why>."""
+    from . import ai_usage as U  # noqa: PLC0415
+    from . import ws_house3d_photo as P  # noqa: PLC0415
+    from .telemetry import bump  # noqa: PLC0415
+    dom = hass.data.setdefault(DOMAIN, {})
+    if time.time() - float(dom.get("_aiw_claude_ok") or 0) < CHECK_OK_S:
+        connection.send_result(msg["id"], {"ok": True})
+        return
+    ai = P.ai_task(hass)
+    why = "ok"
+    if not ai.get("ready"):
+        why = "not_ready"
+    else:
+        try:
+            await P.ask(hass, ai["ai_task"], CHECK_WORDS, None, _TINY_PNG, "image/png", task_name="PadSpan rooms helper check", timeout_s=60)
+        except Exception as err:  # noqa: BLE001 — said on the screen in the helper's words
+            w = U.stop_reason(err, no_media=isinstance(err, P._NoMedia), unreachable=P.unreachable(err))  # noqa: SLF001
+            why = w if w in CHECK_WHY else "error"
+    if why == "ok":
+        dom["_aiw_claude_ok"] = time.time()
+    bump(hass, f"ai_wizard_check:{why}")
+    connection.send_result(msg["id"], {"ok": why == "ok", **({} if why == "ok" else {"why": why})})
+
+
+WS_COMMANDS = (ws_ai_wizard_info, ws_ai_wizard_mark, ws_ai_wizard_check_claude)

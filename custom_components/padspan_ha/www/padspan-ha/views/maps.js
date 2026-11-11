@@ -1514,6 +1514,7 @@ function _wizardScale(ctx, map, maps, w){
     "The AI tools that read your plans need it too."));
   if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     "✓ Scale is set for this house."));
+  if (AIW && AIW.stepSeen && !done) AIW.stepSeen(ctx, "scale");          // the rooms helper's pull trigger: met again, unfinished
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
   if (aiw) wrap.appendChild(aiw);
   wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "measure")));
@@ -1530,6 +1531,7 @@ function _wizardRooms(ctx, map, maps, w){
   const drawnCount = areaNames.length - undrawn.length;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
     "Trace the outline of each room from your Home Assistant areas onto the floor plan. Pick a room from the dropdown below the map, click around its outline, then Save Layout."));
+  if (AIW && AIW.stepSeen && !drawnCount) AIW.stepSeen(ctx, "rooms");     // the rooms helper's pull trigger: met again, unfinished
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
   if (aiw) wrap.appendChild(aiw);
   if (areaNames.length) {

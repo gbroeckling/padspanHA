@@ -177,12 +177,17 @@ function _save(ctx, p) {
 
 // ── opening a step: the tool that already does it ───────────────────────────
 
+// Steps opened from Setup in this page load: back on Setup with one still unfinished, the person left it (the rooms
+// helper's pull trigger, ai_wizard_offer.stepLeft).
+const _opened = new Set();
+
 /** Open a step's own tool, with the bar back to Setup over it. `mapId`: on that plan (the rooms helper's Done opens
  *  receivers on the plan it just saved), else the plan open in Mapping, else the first. */
 export function openStep(ctx, id, mapId = null) {
   const st = ctx.state;
   _save(ctx, openProgress(progressOf(st), id));
   _countStep(ctx, id);
+  if (AIW && AIW.stepSeen && !_demo(st)) { AIW.stepSeen(ctx, id); _opened.add(id); }   // the rooms helper's pull trigger (scale, rooms only)
   st._setupReturn = id;
   if (id === "calibration") {
     st._calibWizard = { step: 1 };
@@ -324,6 +329,7 @@ export function render(ctx) {
       ]),
       el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.4;margin-top:2px" }, _detail(st, s.id, s.unknown ? null : s.done)),
     ]);
+    if (_opened.has(s.id) && !s.done && AIW && AIW.stepLeft && !_demo(st)) AIW.stepLeft(ctx, s.id);
     if (s.id === aiwAt && AIW && !_demo(st)) {
       const line = AIW.offerLine(ctx, "setup", s.done);
       if (line) info.appendChild(line);

@@ -20,6 +20,9 @@ import * as shim from "./dom_shim.mjs";
 
 const WWW = process.argv[2];
 shim.install(globalThis);
+// Connect Claude checks again when the page comes back into view (document visibilitychange): caught here to fire it.
+const docListeners = {};
+document.addEventListener = (t, f) => { (docListeners[t] ||= []).push(f); };
 const W = await import(pathToFileURL(join(WWW, "views", "ai_wizard.js")).href);
 const O = await import(pathToFileURL(join(WWW, "views", "ai_wizard_offer.js")).href);
 const src = readFileSync(join(WWW, "panel.js"), "utf-8").replace(/\r\n/g, "\n");
@@ -54,7 +57,7 @@ function house(o = {}) {
   };
   const server = {
     "padspan_ha/ai_wizard_info": () => ({ reason: "offer", offer: true, wizard: o.wizard || {}, tier: o.tier || "pro", trial_offerable: !!o.trial }),
-    "padspan_ha/plan_build_info": () => ({ unlock: o.unlock || { ok: false, why: "no_ai_task" }, master: !!o.master, switch: !!o.master,
+    "padspan_ha/plan_build_info": () => ({ unlock: o.unlock || { ok: false, why: "no_ai_task" }, master: !!o.master, switch: !!o.master, anthropic: !!o.anthropic,
       on: !!o.master && !!(o.unlock || {}).ok, candidates: o.candidates || [] }),
     "padspan_ha/ai_wizard_mark": () => ({ wizard: o.wizard || {} }),
     "padspan_ha/settings_set": (p) => ({ settings: { ...state.settings, ...p } }),
@@ -66,6 +69,7 @@ function house(o = {}) {
     "padspan_ha/plan_build_rooms_undo": () => ({ ok: true, undone: 2, skipped: [] }),
     "padspan_ha/plan_build_rooms_resume": () => ({ session: "rb_1" }),
     "padspan_ha/plan_build_scale_preview": (p) => preview(p, o),
+    "padspan_ha/ai_wizard_check_claude": () => o.check || { ok: true },   // the tiny read before anything is measured (2026-11-12)
     "padspan_ha/plan_build_scale_save": (p) => o.scaleSave ? o.scaleSave(p) : ({ ok: true, map_id: p.map_id, floor_id: p.floor_id || "main", across_m: 10, down_m: 8 }),
     "padspan_ha/plan_build_scale_undo": () => o.scaleUndo || { ok: false, code: "nothing_to_undo", message: "nothing" },
     // Claude's reading of a printed measurement (piece 4): nothing found unless a case says what it read.
@@ -129,10 +133,16 @@ async function readScale(h, root) {
 
 // ── (i) free, no AI Task: the trial card ──────────────────────────────────────
 {
-  const h = house({ tier: "free", trial: true, settings: { pro_has_key: false } });
+  // Owner, 2026-11-12: the trial comes after Claude is connected, and its pitch is about drawing rooms here.
+  const h0 = house({ tier: "free", trial: true, settings: { pro_has_key: false } });
+  const r0 = await view(h0);
+  check("free, no Claude yet: Connect Claude first, no trial card", !!q(r0, '[data-aiw="next-connect"]') && !q(r0, '[data-trial="card"]'), r0.textContent.slice(0, 400));
+  const h = house({ tier: "free", trial: true, settings: { pro_has_key: false }, unlock: { ok: true, why: "ok" } });
   const root = await view(h);
-  check("free: the trial card, not a buy link", !!q(root, '[data-trial="card"]') && !q(root, '[data-trial="buy"]') && root.textContent.includes("part of PadSpan Pro. Try it free"), root.textContent.slice(0, 400));
-  check("free: rooms stay after the trial", root.textContent.includes("When the trial ends, the rooms you saved stay"));
+  const pitch = q(root, '[data-trial="pitch"]');
+  check("free: the trial card, not a buy link", !!q(root, '[data-trial="card"]') && !q(root, '[data-trial="buy"]') && !q(root, '[data-aiw="start"]'), root.textContent.slice(0, 400));
+  check("free: pitched on drawing rooms, rooms stay after the trial", pitch && pitch.textContent.includes("let Claude draw your rooms now")
+    && pitch.textContent.includes("When the trial ends, the rooms you saved stay") && !pitch.textContent.includes("light") && !pitch.textContent.includes("Forensics"), pitch && pitch.textContent);
   check("free: counted on its own surface", h.tele.includes("trial_offer_shown:ai_wizard"), h.tele);
   check("free: chip", chipOn(root));
   check("free: step trial marked", h.calls.some(c => c.type === "padspan_ha/ai_wizard_mark" && c.step === "trial"));
@@ -145,7 +155,18 @@ async function readScale(h, root) {
   check("pro no ai: next is connect", !!q(root, '[data-aiw="next-connect"]') && !q(root, '[data-aiw="start"]'));
   q(root, '[data-aiw="next-connect"]').click();
   root = await view(h);
-  check("pro no ai: five steps", !!q(root, '[data-aiw="connect-steps"]') && root.textContent.includes("Make sure that account has credit") && root.textContent.includes("under Billing"), root.textContent.slice(0, 500));
+  // 2026-11-12: honest about the whole path (it listed 4 steps and left out the account and the credit).
+  const steps = q(root, '[data-aiw="connect-steps"]');
+  check("pro no ai: what is needed and how long, every step from the account to coming back", steps && steps.children.length === 6
+    && root.textContent.includes(W.CONNECT_NEED) && steps.textContent.includes("Sign up or sign in") && steps.textContent.includes("Add credit")
+    && steps.textContent.includes("under Billing") && steps.textContent.includes("Create an API key") && steps.textContent.includes("checks again by itself")
+    && !/\$\s*\d/.test(root.textContent), root.textContent.slice(0, 700));
+  // Coming back to the page (the tab visible again): checked again by itself.
+  const n0 = h.calls.filter(c => c.type === "padspan_ha/plan_build_info").length;
+  document.visibilityState = "visible";
+  (docListeners.visibilitychange || []).forEach(f => f());
+  for (let i = 0; i < 4; i++) await tick();
+  check("pro no ai: checked again on coming back, with no press", h.calls.filter(c => c.type === "padspan_ha/plan_build_info").length === n0 + 1, n0);
   const con = q(root, '[data-aiw="link-console"]'), gd = q(root, '[data-aiw="link-guide"]'), add = q(root, '[data-aiw="link-ha_add"]');
   check("links: the Console, a new tab", con && con.getAttribute("href") === W.CONSOLE_URL && con.getAttribute("target") === "_blank");
   check("links: the guide", gd && gd.getAttribute("href") === W.GUIDE_URL);
@@ -158,6 +179,34 @@ async function readScale(h, root) {
   check("pro no ai: chip", chipOn(root));
   q(root, '[data-aiw="back"]').click();
   check("back: left at connect, to where it came from", h.tele.includes("ai_wizard_left:connect") && h.shown.at(-1) === "setup" && h.ctx.state._aiw === null, [h.tele, h.shown]);
+  // The integration already in Home Assistant: the steps that make it are skipped.
+  const g = house({ anthropic: true });
+  let gr = await view(g);
+  q(gr, '[data-aiw="next-connect"]').click();
+  gr = await view(g);
+  const gs = q(gr, '[data-aiw="connect-steps"]');
+  check("integration there: two steps left, said, its page linked", gs && gs.children.length === 2 && gr.textContent.includes(W.CONNECT_HAVE)
+    && !gs.textContent.includes("Create an API key") && !!q(gr, '[data-aiw="link-ha_anthropic"]') && !q(gr, '[data-aiw="link-ha_add"]'), gr.textContent.slice(0, 500));
+}
+
+// ── 2026-11-12: the Anthropic account checked with one tiny read before anything is measured; out of credit said then ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, maps: [{ id: "n1", name: "New plan", floor_id: "main", image: { width: 1000, height: 800 } }], tfs: {}, check: { ok: false, why: "no_credit" } });
+  let root = await view(h);
+  q(root, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  root = await view(h);
+  check("account check: out of credit said before measuring, its ways on", !!q(root, '[data-aiw="fail-no_credit"]') && !q(root, '[data-aiw="measure"]')
+    && !!q(root, '[data-aiw="link-console"]') && !!q(root, '[data-aiw="act-resume"]') && h.calls.some(c => c.type === "padspan_ha/ai_wizard_check_claude")
+    && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_start" || c.type === "padspan_ha/plan_build_rooms_start"), root.textContent.slice(0, 400));
+  check("account check: said while it runs", W.CHECKING.includes("one tiny read") && W.CHECKING.includes("no plan is sent"));
+  h.ctx.state._aiw.screen = "fail";
+  const ok = house({ unlock: { ok: true, why: "ok" }, maps: [{ id: "n1", name: "New plan", floor_id: "main", image: { width: 1000, height: 800 } }], tfs: {}, check: { ok: false, why: "error" } });
+  let r2 = await view(ok);
+  q(r2, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  r2 = await view(ok);
+  check("account check: anything but no credit or unreachable goes on", !!q(r2, '[data-aiw="measure"]'), r2.textContent.slice(0, 300));
 }
 
 // ── a wall screen: no new tab, the address said ───────────────────────────────
@@ -607,7 +656,9 @@ const map = [[{ status: "no_credit" }, "no_credit"], [{ status: "failed", error:
 for (const [s, want] of map) check(`status: ${s.status}/${s.error || ""}`, W.failOf(s) === want, W.failOf(s));
 check("codes: daily cap, backup, changed", W.failOfCode("daily_cap") === "daily_cap" && W.failOfCode("backup_failed") === "backup_failed"
   && W.failOfCode("rev_mismatch") === "changed_since" && W.failOfCode("too_soon") === null);
-check("start states", W.introBlock({ tier: "free", trial_offerable: true }, {}) === "trial" && W.introBlock({ tier: "pro" }, {}) === "connect"
+// 2026-11-12: Connect Claude comes before the trial (it was the trial first for a free install with no Claude).
+check("start states", W.introBlock({ tier: "free", trial_offerable: true }, {}) === "connect" && W.introBlock({ tier: "free", trial_offerable: true }, { unlock: { ok: true } }) === "trial"
+  && W.introBlock({ tier: "pro" }, {}) === "connect"
   // 2026-11-12: no "consent" block any more (no Settings switch is ticked for the helper): Claude ready is "start", switches or not.
   && W.introBlock({ tier: "pro" }, { unlock: { ok: true } }) === "start" && W.introBlock({ tier: "pro" }, { unlock: { ok: true }, master: true, switch: true }) === "start");
 for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);

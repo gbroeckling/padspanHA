@@ -58,50 +58,48 @@ footer p{margin:4px 0}
 <h1>Connect Claude to Home Assistant for PadSpan's room helper</h1>
 <p class="lead">PadSpan's "Let Claude draw your rooms" (experimental) reads your floor plan with Claude, finds its rooms and their names, and draws them for you to check. Claude reaches PadSpan through Home Assistant's own Anthropic integration and your own Anthropic account. This page shows how to set that up, once.</p>
 
-<h2>1. What you need</h2>
+<h2>1. What you need, and how long it takes</h2>
 <ul>
-  <li>An Anthropic account (the company that makes Claude).</li>
-  <li>Home Assistant with its <a href="https://www.home-assistant.io/integrations/anthropic/">Anthropic integration</a>, and an AI Task in it.</li>
-  <li>PadSpan Pro, or PadSpan's free trial, which the helper offers.</li>
+  <li>An Anthropic account (the company that makes Claude) with credit on it. Anthropic charges that account for each read; PadSpan doesn't sell or include credit, and it never asks for a card.</li>
+  <li>Home Assistant's <a href="https://www.home-assistant.io/integrations/anthropic/">Anthropic integration</a>, with an AI Task in it using Claude Opus 5.5 or newer.</li>
+  <li>PadSpan Pro, or PadSpan's free trial, which the helper offers once Claude is connected.</li>
 </ul>
+<p>From nothing, it is ten steps in three places (the Anthropic Console, Home Assistant, PadSpan), about 15 minutes, once. The helper's Connect Claude screen skips the steps that are already done: if Home Assistant already has the Anthropic integration, you start at step 7.</p>
 
-<h2>2. Get an API key</h2>
+<h2>2. In the Anthropic Console: an account, credit and a key</h2>
 <ol>
-  <li>Sign in to the <a href="https://platform.claude.com/">Anthropic Console</a>.</li>
+  <li>Sign up or sign in at the <a href="https://platform.claude.com/">Anthropic Console</a>.</li>
+  <li>Add credit on the Console's <a href="https://platform.claude.com/settings/billing">Billing</a> page. If your Claude subscription includes monthly API credit, link your Console organisation to it in Claude's own settings, under Billing, instead (you need the Owner, Admin or Billing role in that organisation; the credit then shows in the Console under Promotional credits; Anthropic's <a href="https://support.claude.com/">help centre</a> explains it). A Claude subscription on its own doesn't pay for these reads.</li>
   <li>Open <a href="https://platform.claude.com/settings/keys">API keys</a> and press Create Key. Give it a name you'll recognise, such as "Home Assistant".</li>
   <li>Copy the key now: the Console shows it only once. Keep it secret, like a password.</li>
 </ol>
+<p>The Console's <a href="https://platform.claude.com/usage">usage page</a> shows what each read cost.</p>
 
-<h2>3. Credit: where it's set up</h2>
-<p>Anthropic charges the account the key belongs to for each read. PadSpan doesn't sell or include credit, and it never asks for a card.</p>
-<ul>
-  <li>Credit is set up in the Console's <a href="https://platform.claude.com/settings/billing">Billing</a> page.</li>
-  <li>If your Claude subscription includes monthly API credit, link your Console organisation to it in Claude's own settings, under Billing (you need the Owner, Admin or Billing role in that organisation). The credit then shows in the Console under Promotional credits. Anthropic's <a href="https://support.claude.com/">help centre</a> explains it.</li>
-  <li>The Console's <a href="https://platform.claude.com/usage">usage page</a> shows what each read cost.</li>
-</ul>
-
-<h2>4. Add the Anthropic integration to Home Assistant</h2>
-<ol>
+<h2>3. In Home Assistant: the integration and its AI Task</h2>
+<ol start="5">
   <li>Open <a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=anthropic">Add the Anthropic integration</a> (it opens your own Home Assistant), or go to Settings → Devices &amp; services → Add integration → Anthropic.</li>
   <li>Paste the API key and finish.</li>
+  <li>In the Anthropic integration, open its AI Task (or add one).</li>
+  <li>Choose <strong>Claude Opus 5.5 or newer</strong> as its model (any Fable or Mythos works too), by its full name, so PadSpan can tell which one it is. Sonnet and Haiku aren't accepted: PadSpan's plan reading was tested on Opus 5.5.</li>
+  <li>Save.</li>
 </ol>
 
-<h2>5. Add an AI Task</h2>
-<p>In the Anthropic integration, add an AI Task and choose <strong>Claude Opus 5.5 or newer</strong> as its model (any Fable or Mythos works too). Sonnet and Haiku aren't accepted: PadSpan's plan reading was tested on Opus 5.5. Choose the model by its full name, so PadSpan can tell which one it is.</p>
+<h2>4. Back in PadSpan</h2>
+<ol start="10">
+  <li>Go back to the helper. Its Connect Claude screen checks again by itself when you come back to it (or press Check again). If Home Assistant has a usable Claude that isn't PadSpan's AI yet, it offers "Use it for PadSpan", and your earlier AI Task stays as the backup. Before anything is read, it checks your Anthropic account with one tiny read with no plan in it, so an account with no credit is found here, not after you have measured your plan. You can also pick Claude yourself in PadSpan's Settings → AI → Your AI.</li>
+</ol>
 
-<h2>6. Choose it in PadSpan</h2>
-<p>The helper does this for you: on its Connect Claude step, press Check again, and if Home Assistant has a usable Claude that isn't PadSpan's AI yet, it offers "Use it for PadSpan". You can also pick it yourself in PadSpan's Settings → AI → Your AI.</p>
-
-<h2>7. What the helper's check means</h2>
+<h2>5. What the helper's check means</h2>
 <table>
   <tr><th>The helper says</th><th>What to do</th></tr>
-  <tr><td>Claude isn't connected to Home Assistant yet</td><td>Steps 2 to 5 above.</td></tr>
+  <tr><td>Claude isn't connected to Home Assistant yet</td><td>Steps 1 to 9 above (from step 7 when the Anthropic integration is already there).</td></tr>
+  <tr><td>Anthropic says this account is out of credit</td><td>Step 2 above, then come back: the helper checks again.</td></tr>
   <tr><td>Your AI Task uses an older Claude</td><td>Change the AI Task's model to Claude Opus 5.5 or newer in the Anthropic integration.</td></tr>
   <tr><td>PadSpan can't tell which Claude model this AI Task uses</td><td>Choose the model again by its full name in the Anthropic integration.</td></tr>
   <tr><td>Home Assistant has Claude ready</td><td>Press "Use it for PadSpan". Photo and stair reading use it too.</td></tr>
 </table>
 
-<h2>8. When a read fails</h2>
+<h2>6. When a read fails</h2>
 <ul>
   <li><strong>Out of credit:</strong> check the Console's <a href="https://platform.claude.com/settings/billing">Billing</a> page, and if your Claude plan includes API credit, that your Console organisation is linked to it. Then press Try again: what was read is kept.</li>
   <li><strong>Claude couldn't be reached:</strong> look at the Anthropic integration's status in Home Assistant (Settings → Devices &amp; services) and at Home Assistant's log.</li>
@@ -109,7 +107,7 @@ footer p{margin:4px 0}
   <li>The Console's <a href="https://platform.claude.com/usage">usage page</a> shows each read.</li>
 </ul>
 
-<h2>9. Privacy</h2>
+<h2>7. Privacy</h2>
 <p>Only the floor plan picture and PadSpan's instructions are sent to Anthropic, through Home Assistant's integration and your own account. No people, devices or positions leave the house. Anthropic's <a href="https://www.anthropic.com/legal/commercial-terms">commercial terms</a> and <a href="https://www.anthropic.com/legal/privacy">privacy policy</a> cover what happens to it there.</p>
 
 <div class="cta">

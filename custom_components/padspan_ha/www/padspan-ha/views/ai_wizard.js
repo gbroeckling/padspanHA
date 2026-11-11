@@ -58,6 +58,12 @@ export const SCALE_SAVE_SAYS = "Save keeps this as your plan's scale, then Claud
   "A backup is taken first. Undo on the last screen takes the rooms and this scale back.";
 export const SCALE_DIFFERS_PCT = 5;     // the person's line and Claude's double-checked reading this far apart: said, never refused
 const MODEL_WORDS = OFFER.MODEL_WORDS;
+// Connect Claude, honest about the whole path (owner, 2026-11-12; the guide's "ten steps in three places").
+export const CONNECT_NEED = "What you need: an Anthropic account with credit on it (Anthropic charges it for each read) and Home Assistant's " +
+  "Anthropic integration. About ten steps in the Anthropic Console and Home Assistant, around 15 minutes, once:";
+export const CONNECT_HAVE = "Home Assistant's Anthropic integration is set up already, so two steps are left:";
+/** While Start checks the Anthropic account before anything is measured or read. */
+export const CHECKING = "Checking your Anthropic account with one tiny read (no plan is sent)…";
 /** While Claude reads: the way back that is really there (Setup's line, ai_wizard_offer.offerLine, which the rule offers
  *  on the pull surfaces while a read is left part-way: ai_wizard.goes_on). */
 export const COME_BACK = "You can leave this page; it carries on. To come back to it, open Mapping, then Setup, and press Carry on →.";
@@ -84,13 +90,15 @@ const ACT_LABEL = { console: "Open the Console ↗", guide: "Guide ↗", resume:
 
 export const claudeState = OFFER.claudeState;
 
-/** The intro's block for a starting state: trial (free, no AI Task or any), no_pro, connect (Pro, Claude not ready),
- *  start (Pro, Claude ready, or ready in Home Assistant and chosen by Start, said on the intro). No Settings switch is
- *  asked for: Start, with what is sent and what it costs beside it, is the consent (owner, 2026-11-12). */
+/** The intro's block for a starting state: connect (Claude not ready, Pro or not), then trial (free, Claude ready:
+ *  owner, 2026-11-12, the trial comes after Claude is connected, pitched on drawing rooms) or no_pro, then start (Pro,
+ *  Claude ready, or ready in Home Assistant and chosen by Start, said on the intro). No Settings switch is asked for:
+ *  Start, with what is sent and what it costs beside it, is the consent. */
 export function introBlock(info, build) {
-  if (!info || info.tier !== "pro") return info && info.trial_offerable ? "trial" : "no_pro";
   const c = claudeState(build).why;
-  return c !== "ok" && c !== "available_unchosen" ? "connect" : "start";
+  if (c !== "ok" && c !== "available_unchosen") return "connect";
+  if (!info || info.tier !== "pro") return info && info.trial_offerable ? "trial" : "no_pro";
+  return "start";
 }
 
 /** A stopped session's word (FAILS), or null while it reads or when it read. */
@@ -558,19 +566,35 @@ function startFailed(ctx, S, plan, e) {
 /** From the intro (or Done's next floor): a plan with no scale is measured first (the measuring screen, nothing read),
  *  any other goes straight to the rooms read. */
 async function begin(ctx, S, plan) {
-  S.gone = false;
-  if (!needsScale(ctx.state, plan)) { telOnce(ctx, "plan_build_scale:already_set"); return startRead(ctx, S, plan); }
-  S.busy = true; S.msg = ""; rerender(ctx);
+  S.gone = false; S.busy = true; S.msg = ""; S.fail = null; S.failFor = null; rerender(ctx);
   try {
     await consent(ctx, S);
   } catch (e) {
     S.busy = false; S.msg = codeWords(e && e.code); rerender(ctx);
     return;
   }
-  S.plan = plan; S.scaleSid = null; S.sc = null; S.done = null; S.undone = null;
+  S.plan = plan;
+  if (!(await checkAccount(ctx, S))) { S.busy = false; rerender(ctx); return; }
+  S.busy = false;
+  if (!needsScale(ctx.state, plan)) { telOnce(ctx, "plan_build_scale:already_set"); return startRead(ctx, S, plan); }
+  S.busy = true; S.scaleSid = null; S.sc = null; S.done = null; S.undone = null;
   await toMeasure(ctx, S);
   S.busy = false;
   rerender(ctx);
+}
+
+/** Before the person measures or Claude reads (owner, 2026-11-12): the Anthropic account checked with one tiny read
+ *  (ai_wizard_check_claude; a pass is believed for an hour). Out of credit or Claude unreachable: said now, with its
+ *  ways on, before any effort; anything else goes on (the reads say it in their own words). */
+async function checkAccount(ctx, S) {
+  S.checking = true; rerender(ctx);
+  const r = await ws(ctx, { type: "padspan_ha/ai_wizard_check_claude" }).catch(() => null);
+  S.checking = false;
+  const why = r && r.ok === false ? r.why : null;
+  if (why !== "no_credit" && why !== "unreachable") return true;
+  S.fail = why; S.failFor = "check"; S.screen = "fail";
+  telOnce(ctx, "ai_wizard_fail:" + why);
+  return false;
 }
 
 /** "Ask Claude to look" on the measuring screen, only when the person asks (it is paid, and said so): Claude looks for a
@@ -696,6 +720,7 @@ async function act(ctx, S, word) {
   if (word === "console" || word === "guide") return;          // links, below
   // Claude's reading of the measurement stopped: every way on reads it again (what was read is kept and used again).
   if (S.failFor === "scale" && ["resume", "carry_on", "again", "read_again"].includes(word)) return scaleRead(ctx, S, S.plan);
+  if (S.failFor === "check" && ["resume", "carry_on", "again", "read_again"].includes(word)) return begin(ctx, S, S.plan);   // the account checked again
   if (word === "by_hand") { ctx.state._aiw = null; ctx.actions.openSetupStep("rooms", S.plan && S.plan.id); return; }
   if (word === "save") return save(ctx, S);
   S.busy = true; S.msg = ""; rerender(ctx);
@@ -904,14 +929,13 @@ function introScreen(ctx, S, box) {
     box.appendChild(MUTED(ctx, SAVED_ONLY));
   }
   if (block === "trial" || block === "no_pro") {
-    box.appendChild(P(ctx, block === "trial" ? "Drawing rooms with Claude is part of PadSpan Pro. Try it free:" : "Drawing rooms with Claude is part of PadSpan Pro."));
-    if (block === "trial" && TRIAL) {
+    if (block === "no_pro") box.appendChild(P(ctx, "Drawing rooms with Claude is part of PadSpan Pro."));
+    if (block === "trial" && TRIAL) {                // its pitch is about drawing rooms here (trial_offer.trialPitch)
       const host = TRIAL.trialHostFromCtx(ctx);
       const started = host.onStarted;
       host.onStarted = (r) => { started(r); loadAll(ctx, S); };
       const card = TRIAL.trialOfferCard(host, "ai_wizard", { buy: false });
       if (card) box.appendChild(card);
-      box.appendChild(MUTED(ctx, "When the trial ends, the rooms you saved stay: they're ordinary rooms."));
     }
     return;
   }
@@ -927,6 +951,7 @@ function introScreen(ctx, S, box) {
       "Photo and stair reading will use it too."));
   }
   box.appendChild(MUTED(ctx, LEAVES));
+  if (S.checking) box.appendChild(MUTED(ctx, CHECKING));
   box.appendChild(row(ctx, [btn(ctx, S.busy ? "Starting…" : START,
     () => { if (!S.busy && S.plan) begin(ctx, S, S.plan); }, { primary: true, disabled: S.busy || !S.plan, attrs: { "data-aiw": "start" } })]));
 }
@@ -968,17 +993,38 @@ function connectScreen(ctx, S, box) {
     box.appendChild(row(ctx, [haLink(ctx, HA_ANTHROPIC_PATH, "Open the Anthropic integration", "ha_anthropic"), again]));
     return;
   }
-  box.appendChild(P(ctx, OFFER.CLAUDE_WHY.not_connected + " It takes about ten minutes, once:"));
+  // Honest about the whole path (2026-11-12): what is needed, how long, and only the steps not done yet (Home Assistant's
+  // Anthropic integration already there: the last three). The screen checks again by itself when the person comes back.
+  const have = !!(S.build && S.build.anthropic);
+  box.appendChild(P(ctx, OFFER.CLAUDE_WHY.not_connected));
+  box.appendChild(P(ctx, have ? CONNECT_HAVE : CONNECT_NEED, "margin-top:0"));
   const li = (kids) => el("li", { style: "margin:4px 0" }, kids);
-  box.appendChild(el("ol", { "data-aiw": "connect-steps", style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, [
-    li([el("b", {}, "Get an API key. "), "Sign in to the Anthropic Console and create a key. ", ext(ctx, CONSOLE_URL, "Open the Anthropic Console ↗", "console")]),
-    li([el("b", {}, "Make sure that account has credit. "), "Credit is set up in the Console, under Billing. If your Claude plan includes monthly API credit, link your Console organisation to it first."]),
+  const aiTask = li([el("b", {}, "Give the integration an AI Task: "), `open its AI Task (or add one), choose ${MODEL_WORDS} by its full name, and save. `,
+    ...(have ? [haLink(ctx, HA_ANTHROPIC_PATH, "Open the Anthropic integration", "ha_anthropic")] : [])]);
+  const back = li(["Come back here: this screen checks again by itself (or press ", el("b", {}, "Check again"), ")."]);
+  box.appendChild(el("ol", { "data-aiw": "connect-steps", style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, have ? [aiTask, back] : [
+    li([el("b", {}, "Sign up or sign in "), "at the Anthropic Console. ", ext(ctx, CONSOLE_URL, "Open the Anthropic Console ↗", "console")]),
+    li([el("b", {}, "Add credit "), "under Billing, or link your Claude plan's monthly API credit there. A Claude subscription on its own doesn't pay for these reads."]),
+    li([el("b", {}, "Create an API key "), "under API keys and copy it: it is shown only once."]),
     li([el("b", {}, "Add Home Assistant's Anthropic integration "), "and paste the key. ", haLink(ctx, HA_ADD_PATH, "Add Anthropic to Home Assistant", "ha_add")]),
-    li([el("b", {}, "Add an AI Task "), `in that integration and choose ${MODEL_WORDS} as its model.`]),
-    li(["Come back here and press ", el("b", {}, "Check again"), "."]),
+    aiTask, back,
   ]));
-  box.appendChild(row(ctx, [MUTED(ctx, "Step-by-step guide with pictures, kept up to date:"), ext(ctx, GUIDE_URL, "Connect Claude for PadSpan ↗", "guide")]));
+  box.appendChild(row(ctx, [MUTED(ctx, "Every step with pictures, kept up to date:"), ext(ctx, GUIDE_URL, "Connect Claude for PadSpan ↗", "guide")]));
   box.appendChild(row(ctx, [again]));
+  watchReturn(ctx, S);
+}
+
+/** Back on the page after setting Claude up elsewhere: Connect Claude checks again by itself. One listener a page. */
+let _returnCtx = null;
+function watchReturn(ctx, S) {
+  const first = !_returnCtx;
+  _returnCtx = { ctx, S };
+  if (!first || typeof document === "undefined" || !document.addEventListener) return;
+  document.addEventListener("visibilitychange", () => {
+    const r = _returnCtx;
+    if (document.visibilityState !== "visible" || !r || r.ctx.state._aiw !== r.S || r.S.screen !== "connect") return;
+    loadAll(r.ctx, r.S);
+  });
 }
 
 function readScreen(ctx, S, box) {

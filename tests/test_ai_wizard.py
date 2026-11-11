@@ -64,7 +64,9 @@ def test_every_reason_comes_in_its_one_order(monkeypatch):
     for fix in fixes:
         f.update(fix)
         seen.append(W.offer_reason(f, "push"))
-    assert tuple(seen) == W.REASONS
+    # not_struggled is the pull surfaces' own reason (2026-11-12): the push walk never meets it.
+    assert tuple(seen) == tuple(r for r in W.REASONS if r != "not_struggled")
+    assert W.offer_reason(_f(), "pull") == "not_struggled" and W.REASONS.index("not_struggled") == W.REASONS.index("plan_too_new") + 1
     assert W.REASONS[-1] == "offer" and len(set(W.REASONS)) == len(W.REASONS)
 
 
@@ -72,7 +74,9 @@ def test_the_seven_day_line():
     assert W.OFFER_AFTER_DAYS == 7
     assert W.offer_reason(_f(plan_age_days=6.999), "push") == "plan_too_new"
     assert W.offer_reason(_f(plan_age_days=7.0), "push") == "offer"
-    assert W.offer_reason(_f(plan_age_days=0.0), "pull") == "plan_too_new"
+    # Owner, 2026-11-12: no day count on the pull surfaces (it was plan_too_new there too); their trigger is the struggle.
+    assert W.offer_reason(_f(plan_age_days=0.0, wizard={"struggled": True}), "pull") == "offer"
+    assert W.offer_reason(_f(plan_age_days=None, wizard={"struggled": True}), "pull") == "offer"
 
 
 @pytest.mark.parametrize("rooms", [{"rooms": True}, {"room_bounds": True}])
@@ -88,13 +92,13 @@ def test_a_house_with_rooms_is_never_disturbed(rooms):
 def test_push_respects_not_now_and_dont_ask_again_pull_does_not():
     for w, push in (({"dismissed": True}, "dismissed"), ({"snooze_until": _NOW + 1}, "snoozed")):
         assert W.offer_reason(_f(wizard=w), "push") == push
-        assert W.offer_reason(_f(wizard=w), "pull") == "offer"
+        assert W.offer_reason(_f(wizard={**w, "struggled": True}), "pull") == "offer"   # pull: once the step was left unfinished
     assert W.offer_reason(_f(wizard={"snooze_until": _NOW}), "push") == "offer", "a snooze ends when its time comes"
     # The helper's own Undo: never pushed again (design A.3), but Setup, the Mapping wizard and the Plans tool still
     # offer it, so someone who undid because the scale was wrong can try again (end-to-end test 2026-11-11; until then
     # an undo refused every surface).
     assert W.offer_reason(_f(wizard={"undone": True}), "push") == "undone"
-    assert W.offer_reason(_f(wizard={"undone": True}), "pull") == "offer"
+    assert W.offer_reason(_f(wizard={"undone": True, "struggled": True}), "pull") == "offer"
 
 
 def test_a_house_the_helper_gave_rooms_keeps_its_way_back_on_the_pull_surfaces_only():
@@ -119,8 +123,70 @@ def test_a_house_the_helper_gave_rooms_keeps_its_way_back_on_the_pull_surfaces_o
     assert W.offer_reason({**nxt, "tier": "free", "trial_offerable": False}, "pull") == "no_pro_path"
 
 
+def test_the_pull_trigger_is_a_step_left_unfinished_never_a_day_count():
+    """Owner, 2026-11-12: Setup and the Mapping wizard offer the helper once the person has opened the Scale or Rooms step
+    and left it unfinished: met again on a later page load (step_seen with another page id), or Setup shown again after
+    opening that step from it (step_left). Opening it the first time is not enough; the Overview keeps its 7 days."""
+    today = date(2026, 11, 12)
+    w = W.mark({}, "step_seen", _NOW, today, step="scale", page="p1")
+    assert w == {"seen": {"scale": "p1"}} and W.offer_reason(_f(plan_age_days=0.5, wizard=w), "pull") == "not_struggled"
+    w = W.mark(w, "step_seen", _NOW, today, step="scale", page="p1")                 # the same page load, drawn again
+    assert "struggled" not in w
+    w = W.mark(w, "step_seen", _NOW, today, step="scale", page="p2")                 # came back on a later page load
+    assert w["struggled"] is True and W.offer_reason(_f(plan_age_days=0.5, wizard=w), "pull") == "offer"
+    assert W.offer_reason(_f(plan_age_days=0.5, wizard=w), "push") == "plan_too_new"
+    assert W.mark({}, "step_left", _NOW, today, step="rooms") == {"struggled": True}
+    assert W.mark({}, "step_left", _NOW, today, step="calibration") == {} and W.mark({}, "step_seen", _NOW, today, step="plan", page="x") == {}
+    assert W.clean_wizard({"seen": {"scale": "p" * 99, "Kitchen": "x"}, "struggled": "yes"}) == {"seen": {"scale": "p" * 64}}
+    # The ones who used the helper already keep their way back without it.
+    assert W.offer_reason(_f(plan_age_days=0.5, wizard={"started": {"at": "intro"}}), "pull") == "offer"
+
+
+def test_the_step_marks_are_written_counted_once_and_answered(monkeypatch):
+    h = _house()
+    conn = MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    bumped = []
+    monkeypatch.setattr(T, "bump", lambda _h, e: bumped.append(e) or True)
+    for page in ("p1", "p1", "p2", "p3"):
+        _run(W.ws_ai_wizard_mark(h, conn, {"id": 1, "what": "step_seen", "setup_step": "rooms", "page": page}))
+    stored = h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]
+    assert stored["struggled"] is True and stored["seen"] == {"rooms": "p1"}
+    assert bumped == ["ai_wizard:struggled_later"] and conn.send_result.call_args[0][1]["wizard"]["struggled"] is True
+    assert T.event_allowed("ai_wizard:struggled_left") and T.event_allowed("ai_wizard:struggled_later")
+
+
+def test_the_account_check_is_one_tiny_read_through_the_one_ask_path_and_says_no_credit(monkeypatch):
+    """Owner, 2026-11-12: an account with no credit is caught before the person measures anything: one tiny read with
+    no plan in it, through ws_house3d_photo.ask (counted by the credit tracker as any read); a pass is believed an hour."""
+    from custom_components.padspan_ha import ws_house3d_photo as P
+    h = _house()
+    conn = MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    asked, bumped = [], []
+    monkeypatch.setattr(T, "bump", lambda _h, e: bumped.append(e) or True)
+    monkeypatch.setattr(P, "ai_task", lambda _h, **_k: {"ready": True, "ai_task": "ai_task.claude"})
+
+    async def broke(_h, eid, words, structure, raw, mime, task_name="", timeout_s=None):
+        asked.append((eid, raw, task_name))
+        raise RuntimeError("Error code: 400 - Your credit balance is too low to access the Anthropic API.")
+    monkeypatch.setattr(P, "ask", broke)
+    _run(W.ws_ai_wizard_check_claude(h, conn, {"id": 1}))
+    assert conn.send_result.call_args[0][1] == {"ok": False, "why": "no_credit"} and bumped == ["ai_wizard_check:no_credit"]
+    assert asked[0][0] == "ai_task.claude" and asked[0][1][:8] == b"\x89PNG\r\n\x1a\n" and len(asked[0][1]) < 100   # no plan in it
+
+    async def fine(*_a, **_k):
+        asked.append("ok")
+        return "OK"
+    monkeypatch.setattr(P, "ask", fine)
+    _run(W.ws_ai_wizard_check_claude(h, conn, {"id": 2}))
+    _run(W.ws_ai_wizard_check_claude(h, conn, {"id": 3}))                              # believed: not read again
+    assert conn.send_result.call_args[0][1] == {"ok": True} and asked.count("ok") == 1 and bumped[-1] == "ai_wizard_check:ok"
+    assert all(T.event_allowed(f"ai_wizard_check:{w}") for w in W.CHECK_WHY)
+
+
 def test_the_smaller_gates():
-    assert W.offer_reason(_f(tool_used=True), "pull") == "tool_used"
+    assert W.offer_reason(_f(tool_used=True, wizard={"struggled": True}), "pull") == "tool_used"
     assert W.offer_reason(_f(tool_used=True, wizard={"started": {"at": "intro"}}), "pull") == "offer", "its own use isn't 'used the tool'"
     assert W.offer_reason(_f(tier="free", trial_offerable=True), "push") == "offer"
     assert W.offer_reason(_f(tier="bright", trial_offerable=False), "push") == "no_pro_path"

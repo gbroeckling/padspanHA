@@ -148,6 +148,10 @@ export function trialPitch(surface, feature, settings) {
   if (feature) {
     return `The trial unlocks ${feature} and the rest of PadSpan Pro on your own house.`;
   }
+  if (surface === "ai_wizard") {                   // after Claude is connected (owner, 2026-11-12): the pitch is this helper's
+    return "Drawing rooms with Claude is part of PadSpan Pro. Try Pro free on your own house for 90 days and let Claude " +
+      "draw your rooms now. When the trial ends, the rooms you saved stay: they're ordinary rooms.";
+  }
   if (surface === "settings") {
     return "Try all of PadSpan Pro on your own house. When it ends, nothing you set up is deleted, " +
       "and it all comes back as you left it when you buy.";
