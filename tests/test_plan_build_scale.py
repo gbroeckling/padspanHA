@@ -591,3 +591,45 @@ def test_the_settings_undo_is_told_whether_the_helper_s_scale_goes_by_the_undo_s
     # Measured again by hand: no longer the helper's scale, so neither removed nor warned about.
     assert _call(F.ws_fabric_map_transform_set, h, conn, map_id="n1", transform=_HAND)["ok"]
     assert word() == "remeasured" and _undo(h, conn)["code"] == "changed_since" and mdl.map_transform("n1")["scale_x_m"] == 10.5
+
+
+# ═══ "Check the scale": the helper's own scale replaced in one step (second review, 2026-11-12) ═══
+
+def test_check_the_scale_replaces_in_one_step_and_a_false_alarm_costs_nothing(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Nothing is taken back until the person saves a new measurement that differs; the same measurement changes nothing;
+    the preview says whether a replace may be done here; a replace refused leaves the old scale; a save refused after
+    the undo puts the old scale back."""
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
+    assert _save(h, conn)["ok"]
+    old = copy.deepcopy(mdl.map_transform("n1"))
+    pv = _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", measures=[], replace=True, via="wizard")
+    assert pv["replace"] == "goes" and pv["stop"] is None                                    # measurable with the scale still there
+    assert _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", measures=[], via="wizard")["stop"] == "already_placed"
+    same = _save(h, conn, replace=True)                                                      # the same length again: a false alarm
+    assert same["ok"] and same["unchanged"] is True and mdl.map_transform("n1") == old and len(_store(h).data["scale_batches"]) == 1
+    out = _save(h, conn, replace=True, measures=[{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "10 m"}])
+    assert out["ok"] and mdl.map_transform("n1")["scale_x_m"] == 20.0 and out.get("unchanged") is None
+    live = [b for b in _store(h).data["scale_batches"].values() if not b.get("undo_of") and not b.get("undone_at")]
+    assert len(live) == 1 and live[0]["after"]["t"]["scale_x_m"] == 20.0                     # the new one is the helper's, its Undo available
+    # Something in metres added since: not replaced, the scale as it was.
+    rx = mdl.fabric.scanner_positions_m()
+    monkeypatch.setattr(mdl.fabric, "scanner_positions_m", lambda: {**rx, "CC:DD": {"x_m": 1.0, "y_m": 1.0, "floor_id": "main"}})
+    was = copy.deepcopy(mdl.map_transform("n1"))
+    refused = _save(h, conn, replace=True, measures=[{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "4 m"}])
+    assert refused["ok"] is False and refused["code"] == "changed_since" and mdl.map_transform("n1") == was
+    assert _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", measures=[], replace=True, via="wizard")["replace"] == "changed_since"
+
+
+def test_a_replace_whose_save_is_refused_puts_the_old_scale_back(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
+    assert _save(h, conn)["ok"]
+    old = copy.deepcopy(mdl.map_transform("n1"))
+
+    async def refused(*_a, **_k):
+        raise C.Refused("backup_failed", C.SCALE_WORDS["backup_failed"])
+    monkeypatch.setattr(C, "scale_save", refused)
+    out = _save(h, conn, replace=True, measures=[{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "10 m"}])
+    assert out["ok"] is False and out["code"] == "backup_failed"
+    now = mdl.map_transform("n1")
+    assert now["scale_x_m"] == old["scale_x_m"] and now["scale_y_m"] == old["scale_y_m"]
+    assert not any(b.get("undo_of") for b in _store(h).data["scale_batches"].values())        # the undo's mark taken off

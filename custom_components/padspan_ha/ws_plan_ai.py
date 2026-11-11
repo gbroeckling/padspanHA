@@ -1052,7 +1052,7 @@ async def ws_plan_build_rooms_start(hass: HomeAssistant, connection, msg) -> Non
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_status", vol.Optional("session"): vol.Any(str, None), vol.Optional("via"): VIA,
-                                  vol.Optional("reproject"): bool})
+                                  vol.Optional("reproject"): bool, vol.Optional("map_id"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> None:
@@ -1064,6 +1064,11 @@ async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> No
     job = A.running(hass)
     await store.async_sweep(job.sid if job else None)
     sid = msg.get("session")
+    if not sid and msg.get("map_id") and _helper(msg):
+        sid = _held_rooms(hass, store, msg["map_id"])     # the helper's rooms read for this plan and picture, not saved; or none
+        if sid is None:
+            connection.send_result(msg["id"], {"session": None, "running": None})
+            return
     if not sid:
         sid = max(((k, s) for k, s in (store.data.get("rooms") or {}).items() if isinstance(s, dict)),
                   key=lambda t: float(t[1].get("started_at") or 0), default=(None, None))[0]
@@ -1074,6 +1079,22 @@ async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> No
         if redrawn is not None:
             ans["reprojected"] = redrawn
     connection.send_result(msg["id"], ans)
+
+
+def _held_rooms(hass: HomeAssistant, store: A.PlanAiStore, map_id: str) -> str | None:
+    """The newest of the helper's rooms sessions read for this plan, finished, with a proposal, not saved, of the plan's
+    picture as it is now (second review, 2026-11-12: reopening the helper finds that list; Draw my rooms never pays for
+    a second read of it). None when there is none."""
+    maps = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    m = maps.get_map(map_id) if maps is not None else None
+    if not isinstance(m, dict):
+        return None
+    now = {"image_sig": A.image_sig(m), "image_sig_was": A.legacy_image_sig(m)}
+    held = [(sid, s) for sid, s in (store.data.get("rooms") or {}).items()
+            if isinstance(s, dict) and s.get("via") == "wizard" and s.get("status") == "done" and s.get("proposal")
+            and not s.get("saved") and not s.get("batches") and ((s.get("plans") or [{}])[0] or {}).get("map_id") == map_id
+            and A.same_picture(((s.get("plans") or [{}])[0] or {}).get("image_sig"), now)]
+    return max(held, key=lambda t: float(t[1].get("started_at") or 0))[0] if held else None
 
 
 async def _undo_scale_word(hass: HomeAssistant, store: A.PlanAiStore, ans: dict[str, Any]) -> None:
@@ -1404,6 +1425,7 @@ _DRAFT = vol.Schema({vol.Optional("p1"): [vol.Coerce(float)], vol.Optional("p2")
     "type": "padspan_ha/plan_build_scale_preview",
     vol.Required("map_id"): str,
     vol.Optional("measures"): [_DRAFT],
+    vol.Optional("replace"): bool,
     vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
@@ -1414,7 +1436,13 @@ async def ws_plan_build_scale_preview(hass: HomeAssistant, connection, msg) -> N
     store = await _build_refused(hass, connection, msg)
     if store is None:
         return
-    connection.send_result(msg["id"], C.scale_preview(hass, msg["map_id"], msg.get("measures") or []))
+    out = C.scale_preview(hass, msg["map_id"], msg.get("measures") or [], bool(msg.get("replace")))
+    if msg.get("replace"):                     # "Check the scale": whether the helper's own scale may be replaced here (scale_replace's rule)
+        try:
+            out["replace"] = await C.scale_replace_word(hass, store, msg["map_id"])
+        except Exception:  # noqa: BLE001
+            out["replace"] = "none"
+    connection.send_result(msg["id"], out)
 
 
 @websocket_api.websocket_command({
@@ -1425,6 +1453,7 @@ async def ws_plan_build_scale_preview(hass: HomeAssistant, connection, msg) -> N
     vol.Required("measures"): vol.All([_MEASURE], vol.Length(min=1, max=2)),
     vol.Optional("source", default="guided"): vol.In(C.SCALE_SOURCES),
     vol.Optional("session"): vol.Any(str, None),
+    vol.Optional("replace"): bool,
     vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
@@ -1438,7 +1467,8 @@ async def ws_plan_build_scale_save(hass: HomeAssistant, connection, msg) -> None
         return
     try:
         async with store.lock:
-            answer = await C.scale_save(hass, store, map_id=msg["map_id"], sig=msg["sig"], floor_id=msg.get("floor_id"),
+            write = C.scale_replace if msg.get("replace") else C.scale_save   # "Check the scale": one step, the old scale kept until then
+            answer = await write(hass, store, map_id=msg["map_id"], sig=msg["sig"], floor_id=msg.get("floor_id"),
                                         measures=msg["measures"], source=msg["source"], session=msg.get("session"))
     except C.Refused as err:
         connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message, **(err.extra or {})})

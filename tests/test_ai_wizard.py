@@ -332,6 +332,21 @@ def test_a_calibrated_house_s_report_is_byte_for_byte_what_it_was(monkeypatch):
     assert with_block != json.dumps(T.build_payload(h), sort_keys=True)
 
 
+def test_setup_wide_marks_never_make_a_set_up_house_report_the_helper():
+    """Review 2026-11-12: "Put my receivers in their rooms" and Setup's step marks write to settings.ai_map_wizard for
+    houses that never opened the helper; a calibrated house that only pressed it sends the report it sent before."""
+    h = _calibrated_house()
+    before = T.build_payload(h)
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {"receivers_placed": {_MAC1: [1.0, 1.0, 2.4, "main"]}, "seen": {"rooms": "p1"},
+                                                           "struggled": True, "step_open": {"rooms": "p1"}}
+    after = T.build_payload(h)
+    assert W.report_env(h, _NOW) is None and "mapping" not in after["env"]
+    for p in (before, after):
+        p.pop("usage", None)
+    assert json.dumps(before, sort_keys=True) == json.dumps(after, sort_keys=True)
+    assert W.helper_used({"offered": True}) and not W.helper_used({"struggled": True, "seen": {"scale": "x"}, "receivers_placed": {}})
+
+
 def test_env_mapping_only_where_it_applies():
     assert W.report_env(_stuck_house(), _NOW)["stuck"] == "plan_no_rooms"
     h = _report_house()                              # rooms, no receivers on a plan, 2 calibration points

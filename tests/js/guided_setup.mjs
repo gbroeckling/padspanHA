@@ -257,24 +257,32 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   S.render(ctx);
   for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
   check("helper line: none where the rule doesn't offer it", !S.render(ctx).querySelector('[data-aiw="line"]'));
-  // 2026-11-12, the pull trigger: a Scale step opened from Setup and Setup shown again with it unfinished: "left".
+  // Second review, 2026-11-12, the pull trigger: "opened the Scale or Rooms step and LEFT it unfinished". The real
+  // sequence: Setup drawn, the step opened from it, the Mapping view drawn (its wizard draws the step, as maps.js does,
+  // several times in one visit): one opening, not a struggle. Then left, and Setup or the step shown again: a struggle.
   {
+    const marks = (m) => m.calls.filter(c => c[0] === "ws" && c[1].type === "padspan_ha/ai_wizard_mark").map(c => `${c[1].what}:${c[1].setup_step}`);
     AIWO._reset();
     const st = house(1, { calibration: { points: [], model: {} } });
     const m = mkCtx(st);
-    S.openStep(m.ctx, "scale");
-    st.view = "setup";
-    S.render(m.ctx);
-    const marks = m.calls.filter(c => c[0] === "ws" && c[1].type === "padspan_ha/ai_wizard_mark").map(c => `${c[1].what}:${c[1].setup_step}`);
-    check("pull trigger: opened from Setup (seen), then Setup again with it unfinished (left)", marks.indexOf("step_seen:scale") === 0 && marks.indexOf("step_left:scale") === 1, marks);   // Rooms, opened earlier on this page, may follow
-  }
-  // Review 2026-11-12, item 13: opening a step already done is not "left unfinished".
-  {
+    st._viewVisit = 1; S.render(m.ctx);                            // Setup
+    S.openStep(m.ctx, "scale");                                     // → Mapping
+    st._viewVisit = 2; AIWO.stepSeen(m.ctx, "scale"); AIWO.stepSeen(m.ctx, "scale");   // the wizard's scale step drawn, twice
+    check("pull trigger: one opening (Setup, then the step drawn) is not a struggle", marks(m).join() === "step_seen:scale", marks(m));
+    st.view = "setup"; st._viewVisit = 3; S.render(m.ctx);          // left, back on Setup with it unfinished
+    check("pull trigger: left unfinished and back on Setup: a struggle", marks(m).join() === "step_seen:scale,step_left:scale", marks(m));
     AIWO._reset();
-    const st = house(3, { calibration: { points: [], model: {} } });
-    const m = mkCtx(st);
-    S.openStep(m.ctx, "scale");
-    check("pull trigger: a finished Scale step opened is not counted", !m.calls.some(c => c[0] === "ws" && c[1].type === "padspan_ha/ai_wizard_mark"), m.calls.map(c => c[1] && c[1].what));
+    const m2 = mkCtx(st);
+    st._viewVisit = 5; AIWO.stepSeen(m2.ctx, "scale");              // the step drawn
+    st._viewVisit = 6; st._viewVisit = 7; AIWO.stepSeen(m2.ctx, "scale");   // left to another view and back to the step
+    check("pull trigger: left and the step shown again on a later visit: a struggle", marks(m2).join() === "step_seen:scale,step_left:scale", marks(m2));
+    AIWO._reset();
+    const done = house(3, { calibration: { points: [], model: {} } });   // its scale set: the wizard doesn't mark a finished step
+    const m3 = mkCtx(done);
+    done._viewVisit = 1; S.render(m3.ctx); S.openStep(m3.ctx, "scale");
+    done.view = "setup"; done._viewVisit = 3; S.render(m3.ctx);
+    check("pull trigger: a finished step is never a struggle", !marks(m3).length, marks(m3));
+    AIWO._reset();
   }
   // 2026-11-12: the helper's later undo on its Draw the rooms row: its own words, asked once, the rooms then the scale.
   {
@@ -307,60 +315,78 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   AIWO._reset();
 }
 
-// 2026-11-12: "Put my receivers in their rooms" on Setup's receivers step, for everyone: what it would do, what it did and
-// what it couldn't (and why), one Undo.
+// 2026-11-12: "Put my receivers in their rooms" on Setup's receivers step, for everyone. Its count and reasons are the
+// server's one rule (a dry run of the same command, review 2026-11-12): what it did and couldn't, and why; Undo of the last press.
 {
-  const st = house(4, { calibration: { points: [], model: {} }, live: { snapshot: { ble: { radios: [{ source: "porch-proxy" }, { source: "kitchen-proxy" }] } } } });
-  st.model.scanners = { "kitchen-proxy": { room: "Kitchen", floor_id: "ground" }, "office-proxy": { room: "Office", floor_id: "ground" } };
-  const m = mkCtx(st), sent = [];
-  m.ctx.actions.callWS = async (msg) => {
-    sent.push(msg);
-    if (msg.type !== "padspan_ha/receivers_to_rooms") return {};
-    return msg.undo ? { ok: true, undone: ["kitchen-proxy"], left: [] }
-      : { ok: true, placed: [{ source: "kitchen-proxy", room: "Kitchen", x_m: 1.5, y_m: 1 }], skipped: [{ source: "office-proxy", why: "no_outline" }, { source: "porch-proxy", why: "no_area" }] };
+  const flush = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
+  const fake = (st, plans) => {
+    const m = mkCtx(st), sent = [];
+    let k = 0;
+    m.ctx.actions.callWS = async (msg) => {
+      sent.push(msg);
+      if (msg.type !== "padspan_ha/receivers_to_rooms") return {};
+      if (msg.dry_run) return plans[Math.min(k++, plans.length - 1)];
+      return msg.undo ? { ok: true, undone: ["kitchen-proxy"], left: [] }
+        : { ok: true, placed: [{ source: "kitchen-proxy", room: "Kitchen", x_m: 1.5, y_m: 1 }], skipped: [{ source: "office-proxy", why: "no_outline" }, { source: "porch-proxy", why: "no_area" }] };
+    };
+    return { ...m, sent };
   };
-  check("receivers: the count it would place", S.receiversReady(st) === 1);
+  const skipped = [{ source: "office-proxy", why: "no_outline" }, { source: "porch-proxy", why: "no_area" }];
+  S._resetReceivers();
+  const st = house(4, { calibration: { points: [], model: {} } });
+  st._viewVisit = 1;
+  const m = fake(st, [{ ok: true, ready: [{ source: "kitchen-proxy", room: "Kitchen" }], skipped, undo: 0 },
+    { ok: true, ready: [], skipped, undo: 1 }, { ok: true, ready: [], skipped, undo: 0 }]);
+  S.render(m.ctx);
+  await flush();
   let root = S.render(m.ctx);
   const row = root.querySelector('[data-setup="step-receivers"]');
-  check("receivers: the button on the receivers step, said with no cost", row && !!row.querySelector('[data-setup="receivers-place"]')
-    && row.textContent.includes("1 receiver has a room with an outline and no place on the map yet") && row.textContent.includes("No AI, nothing to pay"), row && row.textContent);
+  check("receivers: the server's count on the receivers step, its reasons, no cost", row && !!row.querySelector('[data-setup="receivers-place"]')
+    && row.textContent.includes("1 receiver has a room with an outline and no place on the map yet") && row.textContent.includes("No AI, nothing to pay")
+    && row.textContent.includes("no Home Assistant area: porch-proxy") && m.sent.filter(x => x.dry_run).length === 1, row && row.textContent);
   btn(root, "receivers-place").click();
-  for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r));
+  await flush();
+  root = S.render(m.ctx);
+  await flush();
   root = S.render(m.ctx);
   const said = btn(root, "receivers-said");
-  check("receivers: what it placed, what it couldn't and why", said && said.textContent.includes("Placed 1 receiver at the middle of its room (kitchen-proxy in Kitchen)")
-    && said.textContent.includes("no Home Assistant area: porch-proxy") && said.textContent.includes("its room has no outline yet: office-proxy"), said && said.textContent);
-  btn(root, "receivers-undo").click();
-  for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r));
+  check("receivers: what it placed, what it couldn't and why; asked again after", said && said.textContent.includes("Placed 1 receiver inside its room (kitchen-proxy in Kitchen)")
+    && said.textContent.includes("no Home Assistant area: porch-proxy") && said.textContent.includes("its room has no outline yet: office-proxy")
+    && m.sent.filter(x => x.dry_run).length === 2 && !btn(root, "receivers-place"), said && said.textContent);
+  const undo = btn(root, "receivers-undo");
+  check("receivers: Undo of the last press, said so", undo && undo.textContent === "Undo the 1 placed last", undo && undo.textContent);
+  undo.click();
+  await flush();
   root = S.render(m.ctx);
-  const u = sent.find(x => x.type === "padspan_ha/receivers_to_rooms" && x.undo);
-  // Review 2026-11-12: what it placed is kept on the server (a reload keeps the Undo); Undo asks the server to take it back.
-  check("receivers: Undo in one step, from what the server kept", u && u.undo === true && btn(root, "receivers-said").textContent.startsWith("1 taken back off the map")
-    && !btn(root, "receivers-undo"), u);
+  await flush();
+  root = S.render(m.ctx);
+  check("receivers: Undo in one step, from what the server kept", m.sent.some(x => x.undo === true) && btn(root, "receivers-said").textContent.startsWith("1 taken back off the map")
+    && !btn(root, "receivers-undo"));
   const demo = house(4, { dataMode: "sample" });
-  demo.model.scanners = st.model.scanners;
-  check("receivers: nothing on the demo house", !S.receiversBlock(mkCtx(demo).ctx));
-  // Rooms and no receiver ready: one plain line on the receivers step (it says the button exists); nothing on the helper's Done.
-  // After a reload: the Undo is still there (the server keeps what the last press placed).
-  {
-    const AIWO = await import(pathToFileURL(join(WWW, "views", "ai_wizard_offer.js")).href);
-    S._resetReceivers(); AIWO._reset();
-    const st2 = house(5, { calibration: { points: [], model: {} } });
-    st2.model.scanners = {};
-    const m2 = mkCtx(st2);
-    m2.ctx.actions.callWS = async (msg) => (msg.type === "padspan_ha/ai_wizard_info" ? { reason: "has_rooms", offer: false, wizard: { receivers_placed: { "kitchen-proxy": [1.5, 1, 2.4, "ground"] } } } : {});
-    AIWO.infoFor(m2.ctx, "setup");
-    for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
-    const rb = S.receiversBlock(m2.ctx);
-    check("receivers: after a reload, Undo is still offered", rb && !!rb.querySelector('[data-setup="receivers-undo"]'), rb && rb.textContent);
-    AIWO._reset(); S._resetReceivers();
-  }
+  check("receivers: nothing on the demo house", !S.receiversBlock(fake(demo, [{ ready: [], skipped: [], undo: 0 }]).ctx));
+  // Nothing the server would place: no button; the line says why (or, with no receiver yet, that it will work later).
   S._resetReceivers();
   const none = house(4, { calibration: { points: [], model: {} } });
-  none.model.scanners = {};
-  const later = S.receiversBlock(mkCtx(none).ctx);
-  check("receivers: none ready, a line saying it will work once they have areas", later && later.getAttribute("data-setup") === "receivers-later"
-    && later.textContent.includes("PadSpan can put them in their rooms") && !S.receiversBlock(mkCtx(none).ctx, { quiet: true }), later && later.textContent);
+  const n2 = fake(none, [{ ok: true, ready: [], skipped, undo: 0 }]);
+  S.receiversBlock(n2.ctx);
+  await flush();
+  const why = S.receiversBlock(n2.ctx);
+  check("receivers: none ready, no button, the line says why", why && why.getAttribute("data-setup") === "receivers-later" && !why.querySelector('[data-setup="receivers-place"]')
+    && why.textContent.includes("Not ready: no Home Assistant area: porch-proxy") && why.textContent.includes("its room has no outline yet: office-proxy") && !S.receiversBlock(n2.ctx, { quiet: true }), why && why.textContent);
+  S._resetReceivers();
+  const n3 = fake(none, [{ ok: true, ready: [], skipped: [], undo: 0 }]);
+  S.receiversBlock(n3.ctx);
+  await flush();
+  const later = S.receiversBlock(n3.ctx);
+  check("receivers: no receiver yet, a line saying it will work once they have areas", later && later.textContent.includes("PadSpan can put them in their rooms"), later && later.textContent);
+  // After a reload: the Undo is still there (the server keeps what the last press placed and says so in its dry run).
+  S._resetReceivers();
+  const n4 = fake(none, [{ ok: true, ready: [], skipped: [], undo: 2 }]);
+  S.receiversBlock(n4.ctx);
+  await flush();
+  const rb = S.receiversBlock(n4.ctx);
+  check("receivers: after a reload, Undo is still offered", rb && rb.querySelector('[data-setup="receivers-undo"]')?.textContent === "Undo the 2 placed last", rb && rb.textContent);
+  S._resetReceivers();
 }
 
 // No Skip for the plan: every step after it draws on one.

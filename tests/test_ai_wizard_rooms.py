@@ -346,34 +346,57 @@ def test_receivers_go_into_their_rooms_never_move_one_placed_and_undo_in_one_ste
     c = _counters(h)
     assert c.get("setup_receivers_rooms:pressed") == 1 and c.get("setup_receivers_placed:1") == 1
     assert _call(WF.ws_receivers_to_rooms, h, conn)["placed"] == [] and len(backups) == 1     # nothing left: nothing moved, no backup
+    # Review 2026-11-12: Setup's count and reasons are this rule's, by a dry run that writes nothing.
+    dry = _call(WF.ws_receivers_to_rooms, h, conn, dry_run=True)
+    assert dry["ready"] == [] and dry["undo"] == 1 and {s["why"] for s in dry["skipped"]} == {"placed_already", "no_outline", "no_area"} and len(backups) == 1
+    live.append("later")
+    mdl.data["scanners"]["later"] = {"room": room, "floor_id": "main"}
+    assert [r["source"] for r in _call(WF.ws_receivers_to_rooms, h, conn, dry_run=True)["ready"]] == ["later"]
+    assert [p["source"] for p in _call(WF.ws_receivers_to_rooms, h, conn)["placed"]] == ["later"]
+    assert list(h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]["receivers_placed"]) == ["later"]   # the Undo is the last press's
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]["receivers_placed"] = kept                   # (the undo below runs on the first press's)
     # Undo: one placed by the press but raised since is left; the one untouched goes; a backup first.
     _run(fab.async_spatial_update(set_scanners={"new2": {**pos["new"], "z_m": 2.4}}, op="test"))
     h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]["receivers_placed"] = {**kept, "new2": [pos["new"]["x_m"], pos["new"]["y_m"], 2.4, pos["new"]["floor_id"]]}
     _run(fab.async_spatial_update(set_scanners={"new2": {**pos["new"], "z_m": 1.1}}, op="test"))        # its height set since
     out = _call(WF.ws_receivers_to_rooms, h, conn, undo=True)
     assert out["undone"] == ["new"] and out["left"] == ["new2"] and "new" not in mdl.scanner_positions_m() and "new2" in mdl.scanner_positions_m()
-    assert len(backups) == 2 and "receivers_placed" not in h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]
+    assert len(backups) == 3 and "receivers_placed" not in h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]
     assert _counters(h).get("setup_receivers_rooms:undone") == 1
     for e in ("setup_receivers_rooms:pressed", "setup_receivers_rooms:undone", "setup_receivers_placed:gt12"):
         assert T.event_allowed(e)
 
 
-# "The scale may be off" (review 2026-11-12: the first rule almost never fired). Three ordinary homes, their rooms laid
-# out side by side, read at a range of wrong scales, with names PadSpan knows (English, German) and with rooms named by
-# number. FIRE: it must say so; QUIET: it must not; the gap between (0.7x, 1.5x) may go either way.
+# "The scale may be off" (second review, 2026-11-12): the reviewer's 17 homes, laid out side by side and read at a range
+# of scales. ZERO alarms anywhere from 0.67x to 1.5x on all of them (a false alarm offers to replace a right scale);
+# FIRE at the unit mix-ups on the ordinary homes. Never: the two-room basement (two rooms are not evidence); homes whose
+# rooms PadSpan can't name, at a mix-up, only where their sizes are impossible for any room.
 _HOMES = {
-    "flat 60 m2": [("Living Room", 22), ("Bedroom", 12), ("Kitchen", 9), ("Bathroom", 5), ("Hallway", 6), ("Closet", 2)],
-    "house 150 m2": [("Living Room", 25), ("Kitchen", 14), ("Dining Room", 12), ("Bedroom", 14), ("Bedroom 2", 11), ("Bedroom 3", 10),
-                     ("Bathroom", 6), ("Bathroom 2", 4), ("Hallway", 8), ("Laundry", 5), ("Closet", 2), ("Entrance", 5), ("Office", 10)],
-    "house 300 m2": [("Living Room", 40), ("Family Room", 25), ("Kitchen", 20), ("Dining Room", 18), ("Bedroom", 20), ("Bedroom 2", 16),
-                     ("Bedroom 3", 14), ("Bedroom 4", 13), ("Ensuite", 8), ("Bathroom", 7), ("Bathroom 2", 6), ("Powder Room", 3),
-                     ("Hallway", 15), ("Hallway 2", 10), ("Laundry", 7), ("Office", 14), ("Entrance", 8), ("Closet", 4), ("Closet 2", 3), ("Garage", 40)],
+    "studio flat 31 m2": [("Studio", 25), ("Bathroom", 4), ("Entry", 2)],
+    "tiny house 25 m2": [("Living Room", 12), ("Bedroom", 6), ("Bathroom", 3), ("Kitchen", 4)],
+    "500 m2 house, big rooms": [("Living Room", 80), ("Family Room", 50), ("Kitchen", 40), ("Dining Room", 35), ("Primary Bedroom", 40),
+                                ("Bedroom 2", 25), ("Bedroom 3", 22), ("Bedroom 4", 20), ("Ensuite", 20), ("Bathroom", 10), ("Bathroom 2", 9),
+                                ("Powder Room", 4), ("Hallway", 30), ("Laundry", 12), ("Office", 25), ("Entrance", 15), ("Closet", 10), ("Garage", 70)],
+    "garage + workshop": [("Garage", 60), ("Workshop", 40), ("Storage", 8)],
+    "open plan + small rooms": [("Living Kitchen", 60), ("Bedroom", 10), ("Bathroom", 4), ("Closet", 1.5), ("Laundry", 3)],
+    "attic, 3 small bedrooms + bath": [("Bedroom", 7), ("Bedroom 2", 7), ("Bedroom 3", 6), ("Bathroom", 3)],
+    "attic, 3 store rooms": [("Store Room", 4), ("Store Room 2", 4), ("Store Room 3", 4)],
+    "basement, 2 big rooms": [("Rec Room", 45), ("Utility", 20)],
+    "basement, 3 rooms": [("Rec Room", 40), ("Utility", 15), ("Bathroom", 5)],
+    "commercial unit": [("Shop", 120), ("Office", 12), ("WC", 3), ("Storage", 15)],
+    "office suite": [("Office", 20), ("Office 2", 15), ("Office 3", 15), ("Meeting Room", 25), ("Kitchen", 8), ("WC", 3)],
+    "closets + baths only": [("Closet", 2), ("Closet 2", 1.5), ("Bathroom", 5), ("Bathroom 2", 4), ("Powder Room", 2)],
+    "German names": [("Wohnzimmer", 25), ("Küche", 12), ("Schlafzimmer", 14), ("Schlafzimmer 2", 11), ("Badezimmer", 6), ("Flur", 8), ("Abstellraum", 2)],
+    "French names": [("Salon", 25), ("Cuisine", 12), ("Chambre", 14), ("Chambre 2", 11), ("Salle de bains", 6), ("Couloir", 8), ("Placard", 2)],
+    "Dutch names": [("Woonkamer", 25), ("Keuken", 12), ("Slaapkamer", 14), ("Slaapkamer 2", 11), ("Badkamer", 6), ("Gang", 8), ("Berging", 2)],
+    "rooms by number": [(f"Room {i + 1}", a) for i, a in enumerate((25, 12, 10, 14, 11, 10, 6, 8, 2))],
+    "plain 3-bed": [("Living Room", 25), ("Kitchen", 12), ("Dining Room", 10), ("Bedroom", 14), ("Bedroom 2", 11), ("Bedroom 3", 10),
+                    ("Bathroom", 6), ("Hallway", 8), ("Closet", 2)],
 }
-_DE = {"Living Room": "Wohnzimmer", "Family Room": "Wohnzimmer", "Bedroom": "Schlafzimmer", "Kitchen": "Küche", "Bathroom": "Badezimmer",
-       "Ensuite": "Bad", "Powder Room": "Toilette", "Hallway": "Flur", "Closet": "Abstellraum", "Dining Room": "Esszimmer",
-       "Laundry": "Waschküche", "Entrance": "Eingang", "Office": "Büro", "Garage": "Garage"}
-_FIRE = (0.25, 0.3048, 1 / 3, 0.5, 2.0, 2.54, 3.0, 3.28)       # 0.3048: feet typed as metres; 3.28: metres typed as feet
-_QUIET = (0.8, 0.9, 1.0, 1.1, 1.25)
+_ORDINARY = ("German names", "French names", "Dutch names", "plain 3-bed")
+_NEVER = ("basement, 2 big rooms",)                                # two rooms: never evidence
+_QUIET = (0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.33, 1.5)
+_FIRE = (0.3048, 1 / 3, 2.54, 3.0, 3.28)
 
 
 def _laid_out(rooms, k):
@@ -389,39 +412,43 @@ def _laid_out(rooms, k):
     return out
 
 
-def _named(rooms, how):
-    if how == "numbered":
-        return [(f"Room {i + 1}", a) for i, (_n, a) in enumerate(rooms)]
-    if how == "german":
-        return [(_DE[n.rstrip(" 0123456789")] + n[len(n.rstrip(" 0123456789")):], a) for n, a in rooms]
-    return rooms
+def _says(home, k, printed=None):
+    sp = _laid_out(_HOMES[home], k)
+    return W.scale_signs(sp, list(sp), printed)
 
 
 @pytest.mark.parametrize("home", list(_HOMES))
-@pytest.mark.parametrize("how", ["english", "german", "numbered"])
-def test_the_scale_looks_wrong_fires_when_far_off_and_never_near_right(home, how):
+def test_the_scale_looks_wrong_never_false_alarms_near_right(home):
+    for k in _QUIET:
+        assert _says(home, k) is None, (home, k, _says(home, k))
+
+
+@pytest.mark.parametrize("home", _ORDINARY)
+def test_the_scale_looks_wrong_catches_a_unit_mix_up(home):
+    for k in _FIRE:
+        got = _says(home, k)
+        assert got and got["source"] == "rooms" and got["signs"] == ["rooms"] and (got["k"] > 1) == (k > 1), (home, k, got)
+
+
+def test_the_scale_looks_wrong_two_rooms_never_and_a_printed_reading_first():
     for k in _FIRE + _QUIET:
-        sp = _laid_out(_named(_HOMES[home], how), k)
-        got = W.scale_signs(sp, list(sp))
-        if k in _QUIET:
-            assert got is None, (home, how, k, got)
-        else:
-            assert got and "rooms" in got["signs"] and len(got["signs"]) >= 2, (home, how, k, got)
-            assert (got["k"] > 1) == (k > 1) and max(got["k"] / k, k / got["k"]) < 1.5, (home, how, k, got["k"])   # a fair estimate
-
-
-def test_the_scale_looks_wrong_stays_quiet_on_too_little_and_takes_a_printed_reading_first():
-    garage = {"space:0": {"new": "Garage", "outline_m": _SQ(6, 6)}}
-    one_two = {f"space:{i}": {"new": n, "outline_m": [[p[0] + 5 * i, p[1]] for p in _SQ(9, 9)]} for i, n in enumerate(("Bedroom", "Kitchen"))}
-    for sp in (garage, one_two, {**garage, "space:x": {"new": "Garage 2", "outline_m": _SQ(18, 18)}}):
-        assert W.scale_signs(sp, list(sp)) is None and W.scale_signs(sp, list(sp), {"k": 3.0}) is None   # one or two rooms: never
-    sp = _laid_out(_HOMES["house 150 m2"], 3.28)
-    got = W.scale_signs(sp, list(sp), {"k": 3.25, "text": "45'", "metres": 13.7, "here_m": 44.6})
-    assert got["k"] == 3.25 and got["signs"] == ["printed", "rooms", "spread"] and got["example"]["printed"]["text"] == "45'"
-    assert W.scale_signs(sp, list(sp), {"k": 0.5})["signs"] == ["rooms", "spread"]                      # a reading the other way doesn't count
-    ok = _laid_out(_HOMES["house 150 m2"], 1.0)
-    assert W.scale_signs(ok, list(ok), {"k": 3.0}) is None                                              # a printed reading alone: never
+        assert _says("basement, 2 big rooms", k) is None and _says("basement, 2 big rooms", k, {"k": k}) is None
+    # A printed reading that disagrees, and room sizes off the same way: two independent signs, the reading's factor.
+    got = _says("plain 3-bed", 1.8, {"k": 1.8, "text": "45'", "metres": 13.7, "here_m": 24.7})
+    assert got["source"] == "printed" and got["k"] == 1.8 and got["signs"] == ["printed", "rooms"] and got["example"]["printed"]["text"] == "45'"
+    assert _says("plain 3-bed", 1.8) is None                                          # the same rooms with no reading: nothing subtle said
+    assert _says("plain 3-bed", 1.0, {"k": 1.8}) is None                              # a reading alone: never
+    assert _says("plain 3-bed", 1.8, {"k": 0.55}) is None                             # the other way: they disagree
     assert W._kind("Küche") == "kitchen" and W._kind("SALLE DE BAINS") == "bathroom" and W._kind("Slaapkamer 2") == "bedroom"   # noqa: SLF001
+
+
+def test_the_table_as_it_comes_out():
+    """The whole table, printed (pytest -s): which homes say so at which scales."""
+    scales = (0.3048, 1 / 3, 0.5, 0.67, 1.0, 1.5, 2.0, 2.54, 3.0, 3.28)
+    rows = []
+    for home in _HOMES:
+        rows.append(f"{home:32} " + " ".join(f"{('x' if _says(home, k) else '.'):>6}" for k in scales))
+    print("\n" + " " * 33 + " ".join(f"{k:>6.2f}" for k in scales) + "\n" + "\n".join(rows))
 
 
 def test_checking_the_scale_redraws_the_same_rooms_at_the_new_scale_with_no_new_read(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -663,3 +690,16 @@ def test_the_helpers_own_sessions_are_not_the_plans_tool_used(monkeypatch, tmp_p
     assert W.facts(h)["tool_used"] is False
     A_store.data.setdefault("rooms", {})["rb_tool"] = {"floor_id": "main", "status": "done"}     # the Plans tool's own
     assert W.facts(h)["tool_used"] is True
+
+def test_rooms_read_for_a_plan_and_not_saved_are_found_again_by_plan(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Second review, 2026-11-12 (item 7): reopening the helper on a plan finds the rooms Claude read for it and its picture
+    and that weren't saved, whatever the stored step points at; once saved (or of another picture), none."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    ans = _wiz_read(h, conn)
+    sess = ans["session"]
+    mid = sess["plans"][0]["map_id"]
+    got = _call(WP.ws_plan_build_rooms_status, h, conn, map_id=mid, via="wizard")
+    assert got["session"]["id"] == sess["id"] and got["wizard"]["rows"]
+    assert _call(WP.ws_plan_build_rooms_status, h, conn, map_id="elsewhere", via="wizard")["session"] is None
+    assert _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=ans["wizard"]["ticked"], via="wizard").get("ok")
+    assert _call(WP.ws_plan_build_rooms_status, h, conn, map_id=mid, via="wizard")["session"] is None

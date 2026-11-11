@@ -318,8 +318,9 @@ async function loadAll(ctx, S) {
       }
       S.screen = "intro";
       const at = gone ? null : w.started && w.started.at;
-      const rescale = !gone && S.plan && (w.rescale || {})[S.plan.id];
-      if (rescale && needsScale(ctx.state, S.plan)) {
+      // A scale check left while measuring (its rooms session still there; a stale record is dropped).
+      const rescale = !gone && S.plan && (at === "scale_guided" || needsScale(ctx.state, S.plan)) ? await rescaleAlive(ctx, S, S.plan.id) : null;
+      if (rescale) {
         // "Check the scale" left part-way (stored on the server for this plan, whatever else is held): back to measuring;
         // after Save the same rooms come back, drawn again (scaleSave), with no read.
         S.rescale = { map: S.plan.id, sid: rescale };
@@ -340,6 +341,8 @@ async function loadAll(ctx, S) {
         S.sid = null; S.ans = null;
         const open = plans.filter(m => !planRoomed(ctx.state, m));
         if (!S.plan || !open.some(m => m.id === S.plan.id)) S.plan = open[0] || null;
+        // Rooms already read for that plan and not saved (the stored step may point elsewhere): their list, never a new read.
+        if (S.plan && !gone && !needsScale(ctx.state, S.plan)) await heldRooms(ctx, S, S.plan);
       }
       if (gone) {
         S.gone = true;                                 // said at the top of the intro (introScreen), for one plan or several
@@ -471,9 +474,22 @@ function rerenderKeep(ctx, S) {
   }, 0);
 }
 
+/** Measuring for "Check the scale" on this plan: the old scale stays until a new one is saved (scale_replace). */
+const rechecking = (S) => !!(S.rescale && S.plan && S.rescale.map === S.plan.id);
 /** The rescale record for the plan (the server's: "Check the scale" waiting for the new measurement), or null. */
 const rescaleOf = (S, mid) => (((S.info && S.info.wizard) || {}).rescale || {})[mid] || null;
 
+/** Rooms Claude already read for this plan and its picture, finished and not saved (the server's newest for the plan;
+ *  second review, 2026-11-12): that list again, said, with reading again as the paid lesser choice. True when there is one. */
+async function heldRooms(ctx, S, plan) {
+  const ans = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", map_id: plan.id, via: VIA }).catch(() => null);
+  if (!ans || !ans.session || screenOf(ans) !== "rooms_check") return false;
+  Object.assign(S, { plan, sid: ans.session.id, ans: null, ticks: new Set(), ha: new Set(), sel: new Set(), names: {}, fail: null, heldFor: plan.id });
+  take(S, ans);
+  S.screen = "rooms_check";
+  _done.delete("step:rooms_check");                // its step marked again, with this session (Carry on finds it)
+  return true;
+}
 async function status(ctx, S) {
   try {
     // The rooms are drawn again from the same reads only when "Check the scale" asked for it, for this plan and this
@@ -484,6 +500,7 @@ async function status(ctx, S) {
       S.redrawn = ans.reprojected && ans.reprojected.redrawn ? ans.reprojected : null;
       ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale_done", map_id: mid }).catch(() => {});
       if (S.info && S.info.wizard && S.info.wizard.rescale) delete S.info.wizard.rescale[mid];
+      _done.delete("step:rooms_check");             // marked again with this session: reopening the helper finds the list
     }
     const back = take(S, ans);
     const scr = screenOf(ans);
@@ -603,9 +620,18 @@ function startFailed(ctx, S, plan, e) {
  *  any other goes straight to the rooms read. */
 async function begin(ctx, S, plan) {
   // A scale check belongs to its own plan and session: any other plan starts without it; this plan's (the server's
-  // record, left part-way) is picked up again.
-  S.rescale = rescaleOf(S, plan.id) && needsScale(ctx.state, plan) ? { map: plan.id, sid: rescaleOf(S, plan.id) } : null;
-  S.gone = false; S.busy = true; S.msg = ""; S.fail = null; S.failFor = null; rerender(ctx);
+  // record, left part-way, its rooms still there) is picked up again: the measuring screen, nothing read.
+  S.rescale = null;
+  S.gone = false;
+  const rs = await rescaleAlive(ctx, S, plan.id);
+  if (rs) {
+    S.plan = plan; S.rescale = { map: plan.id, sid: rs }; S.sid = rs; S.sc = null; S.done = null; S.undone = null;
+    await toMeasure(ctx, S);
+    rerender(ctx);
+    return;
+  }
+  // Rooms Claude already read for this plan and picture, not saved: that list again, never a new read (second review).
+  if (!needsScale(ctx.state, plan) && await heldRooms(ctx, S, plan)) { rerender(ctx); return; } S.busy = true; S.msg = ""; S.fail = null; S.failFor = null; rerender(ctx);
   try {
     await consent(ctx, S);
   } catch (e) {
@@ -664,7 +690,7 @@ async function startRead(ctx, S, plan) {
   try {
     await consent(ctx, S);
     const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_start", floor_id: plan.floor_id, map_ids: [plan.id], via: VIA });
-    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null; S.redrawn = null; S.rescale = null;
+    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null; S.redrawn = null; S.rescale = null; S.heldFor = null;
     S.screen = "rooms_read";
     _done.delete("step:rooms_read"); _done.delete("step:rooms_check"); _done.delete("step:saved");
   } catch (e) { startFailed(ctx, S, plan, e); }
@@ -679,7 +705,7 @@ async function scalePreview(ctx, S) {
   if (sc.timer) { clearTimeout(sc.timer); sc.timer = null; }
   const measures = ask.filter(m => m.text);
   try {
-    const pv = await ws(ctx, { type: "padspan_ha/plan_build_scale_preview", map_id: S.plan.id, measures, via: VIA });
+    const pv = await ws(ctx, { type: "padspan_ha/plan_build_scale_preview", map_id: S.plan.id, measures, ...(rechecking(S) ? { replace: true } : {}), via: VIA });
     if (seq !== sc.seq || S.sc !== sc) return;
     sc.pv = pv; sc.pvFor = ask;
     if (pv && pv.floor_known === false && !_done.has("step:floor_pick")) {
@@ -724,7 +750,7 @@ async function scaleSave(ctx, S) {
   try {
     r = await ws(ctx, { type: "padspan_ha/plan_build_scale_save", map_id: S.plan.id, sig: pv.sig, ...(sc.floor ? { floor_id: sc.floor } : {}),
       measures: ask.map(m => ({ p1: m.p1, p2: m.p2, text: m.text })),
-      source: used ? "plan_dimension" : "guided", ...(used ? { session: used.sid } : {}), via: VIA });
+      source: used ? "plan_dimension" : "guided", ...(used ? { session: used.sid } : {}), ...(rechecking(S) ? { replace: true } : {}), via: VIA });
   } catch (e) {
     r = { ok: false, code: e && e.code, message: codeWords(e && e.code) };
   }
@@ -747,7 +773,12 @@ async function scaleSave(ctx, S) {
   if (S.rescale && S.rescale.map === plan.id) {     // "Check the scale": the same rooms, worked out again at the new scale (no new read)
     S.sid = S.rescale.sid; S.rescale = null; S.scaleElsewhere = null;
     await status(ctx, S);
-    if (S.screen === "rooms_check") { rerender(ctx); return; }
+    if (S.screen !== "rooms_check") {              // the list is gone: never a read from a screen that said it was free
+      S.screen = "intro"; S.sid = null; S.ans = null;
+      S.msg = "The scale is saved. The rooms list from before isn't there any more: press Draw my rooms to have Claude read the plan (two reads).";
+    }
+    rerender(ctx);
+    return;
   }
   return startRead(ctx, S, plan);
 }
@@ -832,6 +863,8 @@ async function save(ctx, S) {
     S.done = { saved: items.length, areas: r.areas || {}, names };
     S.screen = "saved";
     OFFER.forget();
+    // The panel's own copy of the house, as other writers do after a write (second review: Setup said no rooms until a reload).
+    if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   } catch (e) {
     const f = failOfCode(e && e.code);
     if (f) { S.fail = f; telOnce(ctx, "ai_wizard_fail:" + f); } else S.msg = codeWords(e && e.code);
@@ -851,7 +884,7 @@ async function undo(ctx, S) {
     const out = await OFFER.undoHelperRooms(ctx, { session: S.sid, map_id: mid, scale: ((S.ans && S.ans.undo) || {}).scale });
     if (!out.ok) throw { code: "undo", message: out.message };
     S.undone = { n: out.n, skipped: out.skipped, scale: out.scale === "back" ? "back" : out.scale === "kept" ? out.scaleWords : null };
-    if (out.scale === "back" && ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+    if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});   // the rooms went, the scale perhaps
   } catch (e) {
     S.msg = (e && e.message) || codeWords(e && e.code);
   }
@@ -862,7 +895,7 @@ async function undo(ctx, S) {
 /** The plan chooser, from any step: nothing is thrown away on the server (a reading stays held for its plan). */
 function toChooser(ctx, S) {
   if (S.timer) { clearTimeout(S.timer); S.timer = null; }
-  Object.assign(S, { screen: "intro", sid: null, ans: null, scaleSid: null, sc: null, fail: null, failFor: null, msg: "", done: null, undone: null, rescale: null, redrawn: null });
+  Object.assign(S, { screen: "intro", sid: null, ans: null, scaleSid: null, sc: null, fail: null, failFor: null, msg: "", done: null, undone: null, rescale: null, redrawn: null, heldFor: null });
   _done.delete("step:intro");
   rerender(ctx);
 }
@@ -1261,7 +1294,7 @@ function scaleFooter(ctx, S, side) {
     side.appendChild(row(ctx, indoorFloors(ctx.state).map(f => btn(ctx, f.name || f.id, () => { sc.floor = f.id; rerender(ctx); },
       { primary: sc.floor === f.id, attrs: { "data-aiw": "floor-" + f.id } }))));
   }
-  const save = btn(ctx, S.busy ? "Saving…" : "Save and find the rooms →", () => { if (scaleReady(S)) scaleSave(ctx, S); },
+  const save = btn(ctx, S.busy ? "Saving…" : rechecking(S) ? "Save the new scale →" : "Save and find the rooms →", () => { if (scaleReady(S)) scaleSave(ctx, S); },
     { primary: true, attrs: { "data-aiw": "scale-save" } });
   side.appendChild(row(ctx, [save]));
   side.appendChild(MUTED(ctx, S.rescale ? SCALE_SAVE_RESCALE : SCALE_SAVE_SAYS));
@@ -1414,11 +1447,12 @@ export function factorWords(k) {
 }
 export function scaleNoticeWords(sc) {
   const big = Number(sc.k) > 1, ex = sc.example || {}, bits = [];
-  // A printed measurement Claude read is the strongest evidence: said first.
+  // With a printed reading, its factor; on room sizes alone (a unit mix-up) the direction and "several times", never a
+  // figure the room sizes can't back (second review, 2026-11-12).
+  const amount = sc.source === "printed" ? factorWords(sc.k) : "several times";
   if (ex.printed) bits.push(`Claude read ${ex.printed.text} printed on the plan, which this scale makes ${ex.printed.here_m} m.`);
-  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m²` + (ex.rooms.kind ? `, ${big ? "big" : "small"} for a ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}.` : "."));
-  if (ex.spread) bits.push(`The rooms together would reach ${ex.spread.m} m end to end.`);
-  return [`The scale may be off: the rooms come out ${factorWords(sc.k)} too ${big ? "big" : "small"}.`, ...bits].join(" ");
+  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m²` + (ex.rooms.kind ? `, ${big ? "too big" : "too small"} for any ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}.` : "."));
+  return [`The scale may be off: the rooms come out ${amount} too ${big ? "big" : "small"}.`, ...bits].join(" ");
 }
 /** Where "Check the scale" can't take the scale back here (u.code): what a correction affects, and where it is made. */
 export const SCALE_ELSEWHERE = {
@@ -1437,21 +1471,43 @@ async function checkScale(ctx, S) {
   if (!mid || S.busy) return;
   tel(ctx, "ai_wizard_scale_notice:checked");
   S.busy = true; S.msg = ""; rerender(ctx);
-  const u = await ws(ctx, { type: "padspan_ha/plan_build_scale_undo", map_id: mid, via: VIA }).catch((e) => ({ ok: false, code: e && e.code }));
-  S.busy = false;
-  if (u && u.ok) {
-    if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
-    S.rescale = { map: mid, sid: S.sid }; S.scaleSid = null; S.sc = null;
-    // Stored on the server for this plan, so leaving now and Carry on comes back to the measurement, and its Save
-    // draws these rooms again (never a new read): whatever other step or reading is held.
-    if (S.info) S.info.wizard = { ...(S.info.wizard || {}), rescale: { ...((S.info.wizard || {}).rescale || {}), [mid]: S.sid } };
-    await ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale", map_id: mid, rooms_session: S.sid }).catch(() => {});
-    await toMeasure(ctx, S);
-  } else {
+  // Nothing is changed now (second review, 2026-11-12: a false alarm must never cost a right scale). Asked first: may the
+  // helper's own scale be replaced here (scale_replace's rule)? Then the measuring screen with the scale still in place;
+  // only a saved new measurement that differs replaces it, in one step on the server.
+  const pv = await ws(ctx, { type: "padspan_ha/plan_build_scale_preview", map_id: mid, measures: [], replace: true, via: VIA }).catch(() => null);
+  if (!pv || pv.replace !== "goes") {
+    S.busy = false;
     tel(ctx, "ai_wizard_scale_notice:elsewhere");
-    S.scaleElsewhere = (u && u.code) === "changed_since" ? "changed_since" : "other";
+    S.scaleElsewhere = pv && pv.replace === "changed_since" ? "changed_since" : "other";
+    rerender(ctx);
+    return;
   }
+  // Stored on the server for this plan first, so leaving now and Carry on comes back to the measurement and its Save
+  // draws these rooms again (never a new read). If it can't be stored, nothing goes on.
+  const kept = await ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale", map_id: mid, rooms_session: S.sid }).then(() => true, () => false);
+  S.busy = false;
+  if (!kept) {
+    S.msg = "The scale check couldn't be started, so nothing was changed. Try again in a moment.";
+    rerender(ctx);
+    return;
+  }
+  if (S.info) S.info.wizard = { ...(S.info.wizard || {}), rescale: { ...((S.info.wizard || {}).rescale || {}), [mid]: S.sid } };
+  S.rescale = { map: mid, sid: S.sid }; S.scaleSid = null; S.sc = null;
+  await toMeasure(ctx, S);
   rerender(ctx);
+}
+
+/** The plan's scale-check record, if the rooms session behind it is still there to draw again (read, not saved); a
+ *  stale one is dropped (second review: never a screen that says free ahead of a paid read). */
+async function rescaleAlive(ctx, S, mid) {
+  const sid = rescaleOf(S, mid);
+  if (!sid) return null;
+  const a = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", session: sid, via: VIA }).catch(() => null);
+  const s = a && a.session;
+  if (s && s.id === sid && s.proposal && s.status !== "running" && !Object.keys(s.saved || {}).length) return sid;
+  ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale_done", map_id: mid }).catch(() => {});
+  if (S.info && S.info.wizard && S.info.wizard.rescale) delete S.info.wizard.rescale[mid];
+  return null;
 }
 
 /** The notice at the top of the check list: two signs or more agreeing (never one), with its example; never blocks Save. */
@@ -1510,6 +1566,9 @@ function checkScreen(ctx, S, box) {
   }
   if (S.redrawn) box.appendChild(el("div", { "data-aiw": "redrawn", style: "font-size:12px;color:#a7f3d0;line-height:1.5;margin:4px 0" },
     "Drawn again at the new scale, from the same reading. " + (S.redrawn.reset ? "Names and ticks are Claude's again: check them before you save." : "Your names and ticks are kept.")));
+  if (S.heldFor && S.plan && S.heldFor === S.plan.id) box.appendChild(row(ctx, [MUTED(ctx, "Claude already read this plan's rooms, so they aren't read again."),
+    btn(ctx, "Read it again", () => act(ctx, S, "again"), { disabled: S.busy, attrs: { "data-aiw": "held-again" } }),
+    MUTED(ctx, "Two reads, charged to your Anthropic account.")], "margin:4px 0"));
   const notice = scaleNotice(ctx, S, w.scale_check);
   if (notice) box.appendChild(notice);
   // The plan beside its list on a wide screen, above it on a narrow one.

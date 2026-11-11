@@ -544,7 +544,7 @@ _WIZARD_FUNNEL = (
     + tuple(f"ai_wizard_link:{k}" for k in ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")) + ("ai_wizard_switch:on",)
     + tuple(f"ai_wizard_check:{k}" for k in ("ok", "no_credit", "unreachable", "no_media", "error", "not_ready"))
     + tuple(f"ai_wizard_scale_notice:{k}" for k in ("shown", "checked", "dismissed", "elsewhere", "reprojected"))
-    + tuple(f"ai_wizard_scale_sign:{k}" for k in ("rooms", "spread", "printed"))
+    + tuple(f"ai_wizard_scale_sign:{k}" for k in ("rooms", "printed"))
     + tuple(f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in _WIZ_BANDS)
     + tuple(f"plan_build_name:{k}" for k in ("area_exact", "area_abbrev", "printed", "typed", "picked_area"))
     + tuple(f"plan_build_unmatched_areas:{b}" for b in _WIZ_BANDS)

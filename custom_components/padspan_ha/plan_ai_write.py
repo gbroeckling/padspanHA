@@ -2015,15 +2015,16 @@ def _floor_side(hass: HomeAssistant, m: dict, fid: str | None = None) -> dict[st
             "stack_level": side["stack_level"] if level is None else level, "stack_height": side["stack_height"] if height is None else height}
 
 
-def scale_check(hass: HomeAssistant, map_id: str, sig: str | None, floor_id: str | None) -> tuple[dict, str]:
-    """The data-safety checks, in order; (the plan, its floor) when all pass. Refused with the stop's word."""
+def scale_check(hass: HomeAssistant, map_id: str, sig: str | None, floor_id: str | None, replacing: bool = False) -> tuple[dict, str]:
+    """The data-safety checks, in order; (the plan, its floor) when all pass. Refused with the stop's word. `replacing`:
+    the helper's own scale is to be replaced (scale_replace makes that check itself), so a scale already there is no stop."""
     mdl, ms, _cal = _house_stores(hass)
     m = ms.get_map(map_id) if ms is not None else None
     if mdl is None or not isinstance(m, dict) or (sig is not None and A.image_sig(m) != sig):
         raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
     if _picture_size(m) is None:
         raise Refused("no_picture_size", SCALE_WORDS["no_picture_size"])
-    if mdl.map_transform(map_id) is not None:
+    if mdl.map_transform(map_id) is not None and not replacing:
         raise Refused("already_placed", SCALE_WORDS["already_placed"])
     if _points_on(hass, map_id):
         raise Refused("points_on_plan", SCALE_WORDS["points_on_plan"])
@@ -2033,7 +2034,7 @@ def scale_check(hass: HomeAssistant, map_id: str, sig: str | None, floor_id: str
     return m, fid
 
 
-def scale_preview(hass: HomeAssistant, map_id: str, measures: Any) -> dict[str, Any]:
+def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bool = False) -> dict[str, Any]:
     """What the screen shows while the person types: the plan's picture
     signature (sent back with Save), whether its floor is one of the house's,
     whether it may be measured here at all (`stop`), the unit a length typed
@@ -2046,7 +2047,7 @@ def scale_preview(hass: HomeAssistant, map_id: str, measures: Any) -> dict[str, 
                            "floor_known": isinstance(m, dict) and str(m.get("floor_id") or "") in _indoor(hass),
                            "floors": [f["id"] for f in A.floor_order(mdl)] if mdl is not None else []}
     try:
-        scale_check(hass, map_id, None, (m or {}).get("floor_id") if out["floor_known"] else (out["floors"] or [None])[0])
+        scale_check(hass, map_id, None, (m or {}).get("floor_id") if out["floor_known"] else (out["floors"] or [None])[0], replacing)
         out["stop"] = None
     except Refused as err:
         out.update(stop=err.code, stop_message=err.message)
@@ -2331,3 +2332,51 @@ async def scale_undo(hass: HomeAssistant, store: A.PlanAiStore, map_id: str | No
     _LOGGER.info("PadSpan rooms helper: plan %s's scale taken back (backup %s)", mid, backup_id)
     A._bump(hass, "plan_build_scale_undo:done")  # noqa: SLF001
     return {"ok": True, "map_id": mid, "backup_id": backup_id, "house_scale_unset": gauge_expect is not None}
+
+
+async def scale_replace(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, sig: str, floor_id: str | None, measures: Any,
+                        source: str, session: str | None = None) -> dict[str, Any]:
+    """"Check the scale" (second review, 2026-11-12): the helper's own scale replaced by the person's new measurement in
+    one step, so a false alarm never costs a right scale. Nothing changes until this runs (the person measured with the
+    old scale still in place), nor when the new measurement makes the same scale (unchanged). Otherwise, under the
+    plan store's lock: the new length worked out first (an unreadable one refuses here), then scale_undo with its own
+    checks (only the helper's own scale, nothing in metres added since), then scale_save. If that save is refused, the
+    old scale is written back through Measure's own writer and the undo's ledger mark taken off. One writer, this module.
+    A plan with no scale is the plain save."""
+    from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    mdl, ms, _cal = _house_stores(hass)
+    m = ms.get_map(map_id) if ms is not None else None
+    old = copy.deepcopy(mdl.map_transform(map_id)) if mdl is not None else None
+    if old is None:
+        return await scale_save(hass, store, map_id=map_id, sig=sig, floor_id=floor_id, measures=measures, source=source, session=session)
+    size = _picture_size(m) if isinstance(m, dict) else None
+    if size is None or A.image_sig(m) != sig:
+        raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
+    got = scale_from_measures(size, measures, source, time.strftime("%Y-%m-%d", time.gmtime()))
+    new_t = got["transform"]
+    if all(abs(float(new_t[k]) / float(old.get(k) or 1e-9) - 1) < 0.002 for k in ("scale_x_m", "scale_y_m")):
+        return {"ok": True, "unchanged": True, "map_id": map_id, "floor_id": str(old.get("floor_id") or m.get("floor_id") or "")}
+    await _metre_files_read(hass)
+    info = scale_undo_info(store, map_id)
+    if info is None or scale_undo_word(hass, store, map_id) != "goes":
+        raise Refused("changed_since", SCALE_WORDS["changed_since"])
+    await scale_undo(hass, store, map_id)
+    try:
+        return await scale_save(hass, store, map_id=map_id, sig=sig, floor_id=floor_id, measures=measures, source=source, session=session)
+    except Refused:
+        await async_write_measured_transform(hass, map_id, old)
+        batches = store.data.get("scale_batches") or {}
+        if info["batch"] in batches:
+            batches[info["batch"]]["undone_at"] = None
+        for k in [k for k, b in batches.items() if isinstance(b, dict) and b.get("undo_of") == info["batch"]]:
+            batches.pop(k, None)
+        await _save(store)
+        _invalidate(hass)
+        _LOGGER.warning("PadSpan rooms helper: plan %s's new scale was refused, so its old scale was put back", map_id)
+        raise
+
+async def scale_replace_word(hass: HomeAssistant, store: A.PlanAiStore, map_id: str) -> str:
+    """Whether "Check the scale" may replace this plan's scale here: scale_undo_word ("goes": the helper's own, nothing in
+    metres since), with the metres files read first, as scale_replace reads them."""
+    await _metre_files_read(hass)
+    return scale_undo_word(hass, store, map_id)

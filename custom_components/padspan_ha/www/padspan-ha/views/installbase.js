@@ -817,7 +817,7 @@ const W_WIZ_LINK = { guide: "the guide", console: "the Anthropic Console", ha_ad
   ha_areas: "Home Assistant's Areas" };
 const W_WIZ_CHECK = { ok: "passed", no_credit: "the Anthropic account is out of credit", unreachable: "Claude couldn't be reached", no_media: "media folder", error: "another error (went on)", not_ready: "no usable AI Task" };
 const W_WIZ_SCALE_NOTICE = { shown: "shown", checked: "the person checked the scale", dismissed: "the person said the scale is right", elsewhere: "sent to Mapping's Measure (things in metres sit on the scale)", reprojected: "the rooms redrawn at the new scale (no new read)" };
-const W_WIZ_SCALE_SIGN = { rooms: "room sizes for their names", spread: "how far the rooms reach for how many there are", printed: "a printed measurement Claude read" };
+const W_WIZ_SCALE_SIGN = { rooms: "room sizes for their names", printed: "a printed measurement Claude read" };
 const W_ROOMS_BAND = { "0": "no rooms", "1": "1 room", "2_3": "2–3 rooms", "4_6": "4–6 rooms", "7_12": "7–12 rooms", gt12: "over 12 rooms" };
 const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", area_abbrev: "after a Home Assistant area (abbreviated)",
   printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };

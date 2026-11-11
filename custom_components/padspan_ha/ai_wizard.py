@@ -199,9 +199,9 @@ def clean_wizard(raw: dict) -> dict[str, Any]:
         resc = {str(k)[:64]: str(v)[:64] for k, v in list(resc.items())[-10:] if isinstance(k, str) and isinstance(v, str) and k and v}
         if resc:
             out["rescale"] = resc
-    rp = raw.get("receivers_placed")              # "Put my receivers in their rooms": source -> [x_m, y_m, z_m, floor_id], for its Undo
+    rp = raw.get("receivers_placed")              # "Put my receivers in their rooms": its LAST press that placed any (source -> [x_m, y_m, z_m, floor_id]), for its Undo; 1000: no house has that many receivers
     if isinstance(rp, dict):
-        rp = {str(k)[:80]: [float(v[0]), float(v[1]), float(v[2]), str(v[3])[:64]] for k, v in list(rp.items())[:64]
+        rp = {str(k)[:80]: [float(v[0]), float(v[1]), float(v[2]), str(v[3])[:64]] for k, v in list(rp.items())[:1000]
               if isinstance(k, str) and isinstance(v, list) and len(v) == 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v[:3])}
         if rp:
             out["receivers_placed"] = rp
@@ -290,6 +290,15 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
             "plan_scaled": has_scale(s), "state": s}
 
 
+# The helper's own keys in settings.ai_map_wizard. The rest (Setup's step marks, "Put my receivers in their rooms") are
+# Setup-wide, written for houses that never opened the helper: they never make a set-up house report it (review 2026-11-12).
+HELPER_KEYS: tuple[str, ...] = ("offered", "started", "finished_day", "dismissed", "undone", "snooze_until", "snoozes", "scale_ok", "rescale")
+
+
+def helper_used(w: dict) -> bool:
+    return any(w.get(k) for k in HELPER_KEYS)
+
+
 def report_env(hass: HomeAssistant, now: float) -> dict[str, Any] | None:
     """env.mapping for the daily report, or None where it doesn't apply (no
     plan; set up and never used the helper). The rule's word is its answer for
@@ -297,7 +306,7 @@ def report_env(hass: HomeAssistant, now: float) -> dict[str, Any] | None:
     f = facts(hass, now=now)
     s, w = f["state"], f["wizard"]
     stuck = stuck_word(s)
-    if not has_maps(s) or (stuck == "none" and not w):
+    if not has_maps(s) or (stuck == "none" and not helper_used(w)):
         return None
     out = {"stuck": stuck}
     age = install_age_word(f["plan_since"], now)          # days since the first plan's `created`
@@ -560,73 +569,69 @@ def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
     return {"rows": rows, "ticked": ticked, "small": small, "outdoor": outdoor, "dropped": dropped, "m2": m2}
 
 
-# ── "The scale looks wrong" (owner, 2026-11-12): evidence the rooms read already holds, at no cost ─────────
-# Every sign is an ESTIMATE of the length factor k: how many times too long the plan's lengths come out at its scale
-# (k = 2: twice too big; k = 1/3: three times too small). Three kinds of evidence, honestly counted:
-#   room sizes: ONE sign, whichever way it is worked out, because both ways read the same room areas. With three or more
-#     rooms whose names say what they are (TYPICAL_M2; German, French and Dutch names through ABBREV), against what a
-#     room of that name usually is; else, any language or rooms named by number, the median room against a home's
-#     usual room (ROOM_M2). Strong only when the median is off by ROOMS_OFF or more and most rooms are off that way.
-#   spread: how far the rooms reach (their longest extent) for how many rooms there are, against how far that many
-#     rooms usually reach. The same outlines, so not independent of the areas, but it errs differently (a house's shape,
-#     not its rooms' sizes); weak, so it only counts when it points the same way.
-#   printed: a printed measurement Claude read and double-checked, against the scale saved: the strongest.
-# The notice ("lots of evidence"): room sizes strong on their own terms AND the spread or a printed reading pointing the
-# same way within AGREE_X of it. Doors carry none: they are read as points, and their width is a standard one.
-TYPICAL_M2: dict[str, float] = {"bedroom": 12.0, "bathroom": 5.0, "kitchen": 12.0, "living": 22.0, "dining": 12.0, "family": 20.0,
-                                "office": 10.0, "laundry": 5.0, "closet": 2.5, "hallway": 6.0, "entrance": 5.0, "garage": 32.0,
-                                "powder": 2.5, "ensuite": 5.0}
-ROOM_M2 = 10.0          # a home's usual room, the median of all its rooms
-ROOMS_OFF = 1.55        # room sizes say the scale is off from this length factor (0.8-1.25 never: tests/test_ai_wizard_rooms.py's table)
-ROOM_ONE_OFF = 1.25     # one room is off that way past this factor; "most rooms": MOST_ROOMS of them
-MOST_ROOMS = 0.6
-SPREAD_M = 1.4          # n rooms of ROOM_M2 usually reach about SPREAD_M * sqrt(n * ROOM_M2) metres at their longest
-AGREE_X = 1.6           # another sign agrees when it points the same way within this factor of the room sizes' estimate
+# ── "The scale looks wrong" (owner, 2026-11-12; the second review's rule): honest about what the evidence is ─────────
+# Room sizes are ONE sign: every room's area against what a room of that name is (KIND_M2: typical, and the smallest and
+# largest any home's room of that kind can be; German, French and Dutch names through ABBREV), or, for a room PadSpan
+# can't name, against any room of a home (ANY_ROOM_M2). How far the rooms reach is not a second sign: it scales with the
+# same error, so it is not used. Two cases:
+#   a printed measurement Claude read and double-checked disagrees with the scale saved, AND the room sizes are off the
+#     same way: two independent signs; the factor said is the reading's.
+#   no printed reading: only a unit mix-up shows on its own (feet typed as metres 3.28x, metres as feet 0.3048x, inches
+#     as cm 2.54x): three rooms or more, a length factor of UNITS_X or more (or 1/UNITS_X or less), and three quarters
+#     of the rooms each outside what any room of that kind can be. Nothing subtler is said: the size on each row is the
+#     person's cue (tests/test_ai_wizard_rooms.py holds the table of homes it must, and must never, fire on).
+# Doors carry no evidence either: they are read as points, and their width is a standard one.
+KIND_M2: dict[str, tuple[float, float, float]] = {
+    "bedroom": (12.0, 4.0, 45.0), "bathroom": (5.0, 1.5, 20.0), "kitchen": (12.0, 3.0, 45.0), "living": (22.0, 8.0, 100.0),
+    "dining": (12.0, 4.0, 60.0), "family": (20.0, 8.0, 100.0), "office": (10.0, 3.0, 50.0), "laundry": (5.0, 1.5, 20.0),
+    "closet": (2.5, 0.3, 10.0), "hallway": (6.0, 1.0, 30.0), "entrance": (5.0, 1.0, 25.0), "garage": (32.0, 10.0, 150.0),
+    "powder": (2.5, 0.8, 8.0), "ensuite": (5.0, 1.5, 25.0)}
+ANY_ROOM_M2 = (10.0, 1.5, 150.0)    # a room PadSpan can't name: its usual size, the smallest and largest a home's room is
+UNITS_X = 2.5                       # a length factor this far off, on room sizes alone, is a unit mix-up (2.54x, 3.28x, 0.3048x)
+MOST_IMPOSSIBLE = 0.75              # ...and this share of the rooms each impossible for their kind
+ROOMS_WITH_PRINTED = 1.25           # with a printed reading: the room sizes off the same way at least this much
+PRINTED_OFF = 1.2                   # a printed reading this far from the scale saved disagrees with it
+AGREE_X = 1.6                       # the two within this factor of each other
 MIN_ROOMS = 3
-SCALE_SIGNS: tuple[str, ...] = ("rooms", "spread", "printed")
+SCALE_SIGNS: tuple[str, ...] = ("rooms", "printed")
 
 
 def _kind(name: Any) -> str | None:
     words = _words(name)
-    return next((k for k in TYPICAL_M2 if k in words), None)
+    return next((k for k in KIND_M2 if k in words), None)
 
 
 def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None = None) -> dict[str, Any] | None:
-    """Pure. {k (the length factor, the printed reading's when there is one), signs, example} when the evidence says the
-    scale is off (the rule above), else None. `spaces`: the proposal's, `rows`: the space ids offered; `printed`: {k,
-    text, metres, here_m} from a held, double-checked reading. `example`: the facts said on the check list."""
+    """Pure. {k (the length factor), source ("printed": the reading's factor, said as a number; "rooms": a unit mix-up,
+    said as "several times"), signs, example} when the evidence says the scale is off (the rule above), else None.
+    `spaces`: the proposal's, `rows`: the space ids offered; `printed`: {k, text, metres, here_m} from a held,
+    double-checked reading. `example`: the facts said on the check list."""
     from . import plan_geom as G  # noqa: PLC0415
-    rooms = [(str(s.get("new") or s.get("name") or ""), G.area(s.get("outline_m") or []), s.get("outline_m") or [])
-             for s in (spaces.get(sid) for sid in rows) if isinstance(s, dict)]
-    rooms = [r for r in rooms if r[1] > 0]
+    rooms = []
+    for s in (spaces.get(sid) for sid in rows):
+        if not isinstance(s, dict):
+            continue
+        a = G.area(s.get("outline_m") or [])
+        if a > 0:
+            nm = str(s.get("new") or s.get("name") or "")
+            kind = _kind(nm)
+            typ, lo, hi = KIND_M2[kind] if kind else ANY_ROOM_M2
+            rooms.append({"name": nm, "kind": kind, "m2": a, "k": math.sqrt(a / typ), "impossible": a < lo or a > hi})
     if len(rooms) < MIN_ROOMS:
         return None
-    named = [(math.sqrt(a / TYPICAL_M2[k]), nm, k, a) for nm, a, _p in rooms for k in [_kind(nm)] if k]
-    each = named if len(named) >= MIN_ROOMS else [(math.sqrt(a / ROOM_M2), nm, None, a) for nm, a, _p in rooms]
-    ks = sorted(e[0] for e in each)
+    ks = sorted(r["k"] for r in rooms)
     k_rooms = ks[len(ks) // 2] if len(ks) % 2 else math.sqrt(ks[len(ks) // 2 - 1] * ks[len(ks) // 2])
     big = k_rooms > 1
-    most = sum(1 for e in each if (e[0] >= ROOM_ONE_OFF if big else e[0] <= 1 / ROOM_ONE_OFF)) / len(each)
-    if max(k_rooms, 1 / k_rooms) < ROOMS_OFF or most < MOST_ROOMS:
-        return None
-    ex = max(each, key=lambda e: e[0]) if big else min(each, key=lambda e: e[0])
-    facts: dict[str, dict] = {"rooms": {"name": ex[1], "kind": ex[2], "m2": round(ex[3], 1)}}
-    agree: dict[str, float] = {}
-    pts = [p for _n, _a, poly in rooms for p in poly]
-    reach = max(max(p[0] for p in pts) - min(p[0] for p in pts), max(p[1] for p in pts) - min(p[1] for p in pts))
-    k_spread = reach / (SPREAD_M * math.sqrt(len(rooms) * ROOM_M2))
-    if (k_spread > 1) == big and max(k_spread / k_rooms, k_rooms / k_spread) <= AGREE_X:
-        agree["spread"] = k_spread
-        facts["spread"] = {"m": round(reach, 1)}
-    if printed and printed.get("k"):
-        k_p = float(printed["k"])
-        if (k_p > 1) == big and max(k_p / k_rooms, k_rooms / k_p) <= AGREE_X:
-            agree["printed"] = k_p
-            facts["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
-    if not agree:
-        return None
-    k = agree.get("printed", k_rooms)
-    return {"k": round(k, 3), "signs": sorted(["rooms", *agree]), "example": facts}
+    ex = max(rooms, key=lambda r: r["k"]) if big else min(rooms, key=lambda r: r["k"])
+    example = {"rooms": {"name": ex["name"], "kind": ex["kind"], "m2": round(ex["m2"], 1)}}
+    k_p = float((printed or {}).get("k") or 0)
+    if k_p and max(k_p, 1 / k_p) >= PRINTED_OFF and (k_p > 1) == big and max(k_rooms, 1 / k_rooms) >= ROOMS_WITH_PRINTED \
+            and max(k_p / k_rooms, k_rooms / k_p) <= AGREE_X:
+        example["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
+        return {"k": round(k_p, 3), "source": "printed", "signs": ["printed", "rooms"], "example": example}
+    if max(k_rooms, 1 / k_rooms) >= UNITS_X and sum(1 for r in rooms if r["impossible"]) / len(rooms) >= MOST_IMPOSSIBLE:
+        return {"k": round(k_rooms, 3), "source": "rooms", "signs": ["rooms"], "example": example}
+    return None
 
 
 def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:

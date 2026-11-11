@@ -521,6 +521,7 @@ def _same_spot(now: dict | None, was: list) -> bool:
 @websocket_api.websocket_command({
     "type": "padspan_ha/receivers_to_rooms",
     vol.Optional("undo"): bool,
+    vol.Optional("dry_run"): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -558,6 +559,11 @@ async def ws_receivers_to_rooms(hass: HomeAssistant, connection, msg) -> None:
                 if isinstance(r, dict)} - {""}
     live = {str(r.get("source")) for r in live_radios(hass) if isinstance(r, dict) and r.get("source")}
     pos, skipped = receivers_to_rooms(mdl.data.get("scanners") or {}, mdl.room_geometry_m(), set(now) | on_plans, live)
+    if msg.get("dry_run"):                       # what a press would do now, and what its Undo would take back: Setup's count and reasons
+        kept = (((st.data if st else {}) or {}).get("ai_map_wizard") or {}).get("receivers_placed") or {}
+        connection.send_result(msg["id"], {"ok": True, "ready": [{"source": s, "room": (mdl.data.get("scanners") or {}).get(s, {}).get("room")} for s in pos],
+                                           "skipped": skipped, "undo": sum(1 for s, w in kept.items() if _same_spot(now.get(s), w))})
+        return
     if pos:
         if not await _auto_backup(hass, "Before putting receivers in their rooms", [FABRIC_STORE_KEY]):
             connection.send_error(msg["id"], "backup_failed", "The safety backup couldn't be made, so no receiver was moved.")

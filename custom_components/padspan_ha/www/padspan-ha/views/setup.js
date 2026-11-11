@@ -177,9 +177,6 @@ function _save(ctx, p) {
 
 // ── opening a step: the tool that already does it ───────────────────────────
 
-// Steps opened from Setup in this page load: back on Setup with one still unfinished, the person left it (the rooms
-// helper's pull trigger, ai_wizard_offer.stepLeft).
-const _opened = new Set();
 
 /** Open a step's own tool, with the bar back to Setup over it. `mapId`: on that plan (the rooms helper's Done opens
  *  receivers on the plan it just saved), else the plan open in Mapping, else the first. */
@@ -187,8 +184,6 @@ export function openStep(ctx, id, mapId = null) {
   const st = ctx.state;
   _save(ctx, openProgress(progressOf(st), id));
   _countStep(ctx, id);
-  // The rooms helper's pull trigger (scale, rooms only), and only for a step not done yet (review 2026-11-12).
-  if (AIW && AIW.stepSeen && !_demo(st) && DONE[id] && DONE[id](st) !== true) { AIW.stepSeen(ctx, id); _opened.add(id); }
   st._setupReturn = id;
   if (id === "calibration") {
     st._calibWizard = { step: 1 };
@@ -229,40 +224,51 @@ export function returnBar(ctx) {
 }
 
 // ── "Put my receivers in their rooms" (owner, 2026-11-12): for everyone, on the receivers step and the rooms helper's
-// Done. No AI. Each receiver whose room (its Home Assistant area) has an outline, and that has no position yet, goes to
-// the middle of that room on the server (ws_fabric.ws_receivers_to_rooms: a backup, then the one spatial writer), to be
+// Done. No AI. Each live receiver whose room (its Home Assistant area) has an outline, and that has no position yet, goes
+// inside that room on the server (ws_fabric.ws_receivers_to_rooms: a backup, then the one spatial writer), to be
 // dragged to where it is mounted. It says what it placed and what it couldn't, and why; one Undo takes them back. ──
-const _rcv = { busy: false, said: "", undo: null };
-export function _resetReceivers() { Object.assign(_rcv, { busy: false, said: "", undo: null }); }   // a test's new page
-
-/** How many receivers it would place now: a room with an outline, no position in metres or on a plan. */
-export function receiversReady(st) {
-  const sc = (st.model && st.model.scanners) || {}, geo = (st.model && st.model.room_geometry_m) || {}, pos = (st.model && st.model.scanner_positions_m) || {};
-  const onPlans = new Set(((st.maps && st.maps.list) || []).flatMap(m => (m.receivers || []).map(r => r && (r.source || r.id))));   // as maps_store.receiver_key
-  return Object.entries(sc).filter(([src, s]) => !pos[src] && !onPlans.has(src) && s && s.room && geo[s.room]).length;
-}
+const _rcv = { busy: false, said: "", plan: null, asked: null };
+export function _resetReceivers() { Object.assign(_rcv, { busy: false, said: "", plan: null, asked: null }); }   // a test's new page
 
 const _names = (xs) => xs.length > 4 ? `${xs.slice(0, 4).join(", ")} and ${xs.length - 4} more` : xs.join(", ");
+/** Why the server's one rule leaves receivers where they are, in words (placed_already is left unsaid). */
+function _whyWords(skipped) {
+  const why = (w) => (skipped || []).filter(x => x.why === w).map(x => x.source), bits = [];
+  if (why("no_area").length) bits.push(`no Home Assistant area: ${_names(why("no_area"))} (give it an area in Home Assistant, or place it by hand)`);
+  if (why("no_outline").length) bits.push(`its room has no outline yet: ${_names(why("no_outline"))}`);
+  return bits;
+}
+
+/** What a press would do now: the server's one rule (a dry run of the same command), asked once a visit to the view
+ *  and again after a press or an Undo; null while it is asked. Setup's count and its reasons are never the panel's own. */
+function _plan(ctx) {
+  const visit = ctx.state._viewVisit || 0;
+  if (_rcv.plan && _rcv.asked === visit) return _rcv.plan;
+  if (_rcv.asked !== visit && ctx.actions.callWS) {
+    _rcv.asked = visit;
+    ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms", dry_run: true })
+      .then(r => { _rcv.plan = r || { ready: [], skipped: [], undo: 0 }; ctx.actions.renderRooms(); })
+      .catch(() => { _rcv.plan = { ready: [], skipped: [], undo: 0 }; });
+  }
+  return _rcv.plan;
+}
 
 async function _placeReceivers(ctx) {
-  const st = ctx.state;
   _rcv.busy = true; ctx.actions.renderRooms();
   try {
     const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms" });
     const placed = (r && r.placed) || [], skipped = (r && r.skipped) || [];
-    const why = (w) => skipped.filter(x => x.why === w).map(x => x.source);
-    const noArea = why("no_area");                      // live receivers with no Home Assistant area (the server's one rule)
-    const bits = [placed.length ? `Placed ${placed.length} receiver${placed.length === 1 ? "" : "s"} at the middle of ${placed.length === 1 ? "its room" : "their rooms"} ` +
+    const bits = [placed.length ? `Placed ${placed.length} receiver${placed.length === 1 ? "" : "s"} inside ${placed.length === 1 ? "its room" : "their rooms"} ` +
       `(${_names(placed.map(p => `${p.source} in ${p.room}`))}). Drag each to where it is mounted: Mapping → Edit → Radios.` : "No receiver was placed."];
-    if (noArea.length) bits.push(`Not placed, no Home Assistant area: ${_names(noArea)}. Give it an area in Home Assistant, or place it by hand.`);
-    if (why("no_outline").length) bits.push(`Not placed, its room has no outline yet: ${_names(why("no_outline"))}.`);
-    if (why("placed_already").length) bits.push(`${why("placed_already").length} already on the map, left where ${why("placed_already").length === 1 ? "it is" : "they are"}.`);
+    const not = _whyWords(skipped);
+    if (not.length) bits.push(`Not placed, ${not.join("; ")}.`);
+    const already = skipped.filter(x => x.why === "placed_already").length;
+    if (already) bits.push(`${already} already on the map, left where ${already === 1 ? "it is" : "they are"}.`);
     _rcv.said = bits.join(" ");
-    _rcv.undo = placed.length > 0;
   } catch (e) {
     _rcv.said = String((e && e.message) || "That didn't work. Try again in a moment.");
   }
-  _rcv.busy = false;
+  _rcv.busy = false; _rcv.asked = null;            // asked again: what is left to place, what Undo takes back
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   ctx.actions.renderRooms();
 }
@@ -270,34 +276,33 @@ async function _placeReceivers(ctx) {
 async function _unplaceReceivers(ctx) {
   _rcv.busy = true; ctx.actions.renderRooms();
   try {
-    const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms", undo: true });   // what it placed is kept on the server
+    const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms", undo: true });   // the last press's, kept on the server
     const n = ((r && r.undone) || []).length, left = ((r && r.left) || []).length;
     _rcv.said = `${n} taken back off the map${left ? `; ${left} moved since, left where ${left === 1 ? "it is" : "they are"}` : ""}.`;
-    _rcv.undo = false;
-    if (AIW && AIW.forget) AIW.forget();
   } catch (e) {
     _rcv.said = String((e && e.message) || "That didn't work. Try again in a moment.");
   }
-  _rcv.busy = false;
+  _rcv.busy = false; _rcv.asked = null;
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   ctx.actions.renderRooms();
 }
 
-/** The button with its line, what the last press did, and its Undo; null where there is nothing to place or say (your
- *  own house, an administrator, not a wall screen). */
+/** The button with its count, what the last press did, and its Undo (the last press's: earlier ones are simply placed);
+ *  when nothing can be placed, why; null on the demo house, for a non-administrator, on a wall screen, while the server
+ *  is asked, and on the helper's Done (opts.quiet) when there is nothing to do. */
 export function receiversBlock(ctx, opts = {}) {
   const { el } = ctx.helpers;
   const st = ctx.state;
   if (_demo(st) || st.kioskMode || !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin)) return null;
-  const n = receiversReady(st);
-  // Its Undo survives a reload: the server keeps what the last press placed (the rule's answer carries it).
-  const kept = AIW && AIW.infoFor ? (((AIW.infoFor(ctx, "setup") || {}).wizard || {}).receivers_placed || null) : null;
-  const canUndo = _rcv.undo === true || (_rcv.undo !== false && !!kept && Object.keys(kept).length > 0);
-  if (!n && !_rcv.said && !canUndo) {
-    // Nothing to place yet: said once, plainly, on the receivers step only (opts.quiet: the helper's Done says nothing).
-    const rooms = Object.keys((st.model && st.model.room_geometry_m) || {}).length;
-    return rooms && !(opts && opts.quiet) ? el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" },
-      "Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here.") : null;
+  const p = _plan(ctx);
+  if (!p) return null;
+  const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(p.skipped);
+  const rooms = Object.keys((st.model && st.model.room_geometry_m) || {}).length;
+  if (!n && !_rcv.said && !undo) {
+    if ((opts && opts.quiet) || !rooms) return null;
+    return el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length
+      ? `PadSpan can put a receiver in its room once it has an area that is one of your rooms with an outline. Not ready: ${not.join("; ")}.`
+      : "Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here.");
   }
   const box = el("div", { "data-setup": "receivers-rooms", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" });
   const b = (label, attr, on, primary) => {
@@ -307,10 +312,11 @@ export function receiversBlock(ctx, opts = {}) {
     return x;
   };
   if (_rcv.said) box.appendChild(el("div", { "data-setup": "receivers-said", style: "color:#a7f3d0" }, _rcv.said));
-  if (canUndo) box.appendChild(b("Undo", "receivers-undo", () => _unplaceReceivers(ctx), false));
+  if (undo) box.appendChild(b(`Undo the ${undo} placed last`, "receivers-undo", () => _unplaceReceivers(ctx), false));
   if (n) {
     box.appendChild(el("div", {}, `${n} receiver${n === 1 ? " has" : "s have"} a room with an outline and no place on the map yet: ` +
-      `each can go to the middle of ${n === 1 ? "its room" : "their rooms"}, to drag to where it is mounted. No AI, nothing to pay.`));
+      `each can go inside ${n === 1 ? "its room" : "their rooms"}, to drag to where it is mounted. No AI, nothing to pay.` +
+      (not.length ? ` Not ready: ${not.join("; ")}.` : "")));
     box.appendChild(b("Put my receivers in their rooms", "receivers-place", () => _placeReceivers(ctx), true));
   }
   return box;
@@ -453,7 +459,8 @@ export function render(ctx) {
       ]),
       el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.4;margin-top:2px" }, _detail(st, s.id, s.unknown ? null : s.done)),
     ]);
-    if (_opened.has(s.id) && !s.done && AIW && AIW.stepLeft && !_demo(st)) AIW.stepLeft(ctx, s.id);
+    // The rooms helper's pull trigger: a Scale or Rooms step shown in the Mapping wizard and left unfinished (ai_wizard_offer.stepBack).
+    if ((s.id === "scale" || s.id === "rooms") && AIW && AIW.stepBack && !_demo(st)) AIW.stepBack(ctx, s.id, s.done);
     if (s.id === aiwAt && AIW && !_demo(st)) {
       const line = AIW.offerLine(ctx, "setup", s.done);
       if (line) info.appendChild(line);

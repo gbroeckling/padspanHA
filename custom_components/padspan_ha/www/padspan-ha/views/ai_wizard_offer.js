@@ -65,28 +65,41 @@ const _info = { push: null, pull: null };
 const _asking = { push: false, pull: false };
 const _offered = new Set();
 
-// The pull surfaces' trigger (owner, 2026-11-12; ai_wizard.mark step_seen / step_left): Setup's Scale or Rooms step
-// met on two page loads, or Setup shown again after opening that step from it, while it is unfinished. Once a page each.
+// The pull surfaces' trigger (owner, 2026-11-12: "opened the Scale or Rooms step and LEFT it unfinished"; ai_wizard.mark
+// step_seen / step_left). A step is shown when the Mapping wizard draws it unfinished (stepSeen); one opening, however
+// many draws, is one. The person LEFT it when, after that, Setup is drawn with it still unfinished (stepBack), or the
+// Mapping wizard draws it again on a later visit to the view (the panel's state._viewVisit: a view drawn after another).
+// Across page loads the server sees the step shown under two page ids (step_seen). Second review, 2026-11-12: opening
+// it from Setup is not a struggle in itself (it was: Setup's mark and the Mapping view's own made two).
 const PAGE = Math.random().toString(36).slice(2, 12);
 const _steps = new Set();
+const _shown = {};                                  // step -> the visit it was last drawn on (this page load)
 
-export function _reset() { _info.push = _info.pull = null; _asking.push = _asking.pull = false; _offered.clear(); _steps.clear(); }
+export function _reset() {
+  _info.push = _info.pull = null; _asking.push = _asking.pull = false; _offered.clear(); _steps.clear();
+  for (const k of Object.keys(_shown)) delete _shown[k];
+}
 
 function _stepMark(ctx, what, step) {
-  const st = ctx.state;
-  // A visit, not only a page load (review 2026-11-12): the panel counts each time a view is drawn after another one
-  // (state._viewVisit), so leaving the Mapping wizard or Setup and coming back is "later" without a reload.
-  const page = `${PAGE}:${st._viewVisit || 0}`, key = what + step + (what === "step_seen" ? page : "");
+  const st = ctx.state, key = what + step;
   if (!["scale", "rooms"].includes(step) || _steps.has(key) || !_admin(ctx) || st.dataMode !== "live" || st.kioskMode || !ctx.actions.callWS) return;
   _steps.add(key);
-  ctx.actions.callWS({ type: "padspan_ha/ai_wizard_mark", what, setup_step: step, page })
+  ctx.actions.callWS({ type: "padspan_ha/ai_wizard_mark", what, setup_step: step, page: PAGE })
     .then(r => { if (r && r.wizard && r.wizard.struggled && _info.pull && !_info.pull.offer) { _info.pull = null; ctx.actions.renderRooms(); } })
     .catch(() => {});
 }
-/** Setup's Scale or Rooms step (or the Mapping wizard's) shown, unfinished: this page load's id goes with it. */
-export const stepSeen = (ctx, step) => _stepMark(ctx, "step_seen", step);
-/** Setup shown again, after that step was opened from it in this page load and is still unfinished. */
-export const stepLeft = (ctx, step) => _stepMark(ctx, "step_left", step);
+/** The Mapping wizard drew its Scale or Rooms step, unfinished: shown (once a page load to the server); drawn again on a
+ *  later visit after leaving, the person came back to it unfinished. */
+export function stepSeen(ctx, step) {
+  const visit = ctx.state._viewVisit || 0;
+  if (_shown[step] !== undefined && _shown[step] !== visit) _stepMark(ctx, "step_left", step);
+  _shown[step] = visit;
+  _stepMark(ctx, "step_seen", step);
+}
+/** Setup drawn: a Scale or Rooms step shown in the Mapping wizard earlier and still unfinished was left. */
+export function stepBack(ctx, step, done) {
+  if (_shown[step] !== undefined && !done) _stepMark(ctx, "step_left", step);
+}
 export function forget() { _info.push = _info.pull = null; }
 
 const _admin = (ctx) => !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
@@ -99,7 +112,7 @@ export function infoFor(ctx, surface) {
   if (!_asking[rule] && ctx.actions.callWS) {
     _asking[rule] = true;
     ctx.actions.callWS({ type: "padspan_ha/ai_wizard_info", surface: rule, kiosk: !!ctx.state.kioskMode, live: true })
-      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer || _info[rule].undo || (_info[rule].wizard || {}).receivers_placed) ctx.actions.renderRooms(); })   // nothing to offer: nothing to draw again
+      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer || _info[rule].undo) ctx.actions.renderRooms(); })   // nothing to offer: nothing to draw again
       .catch(() => { _info[rule] = { offer: false }; })
       .finally(() => { _asking[rule] = false; });
   }
@@ -144,7 +157,9 @@ export function lineWords(ctx, surface, done = false) {
   // The plan it was left on was deleted: nothing of it to carry on with (the helper says so and starts on the chooser).
   const st = st0.map_id && !((ctx.state.maps && ctx.state.maps.list) || []).some(m => m && m.id === st0.map_id) ? {} : st0;
   const fl = (((ctx.state.model && ctx.state.model.floors) || []).find(f => f && (f.floor_id || f.id) === st.floor_id) || {}).name;
-  const text = READING.has(st.at) ? "Claude is part-way through drawing your rooms (experimental)."
+  const rescale = st.map_id && (((infoFor(ctx, surface) || {}).wizard || {}).rescale || {})[st.map_id];
+  const text = MEASURING.has(st.at) && rescale ? `You were checking the scale of the rooms Claude already found${fl ? ` on ${fl}` : ""} (experimental).`
+    : READING.has(st.at) ? "Claude is part-way through drawing your rooms (experimental)."
     : MEASURING.has(st.at) ? `You started measuring your plan${fl ? ` on ${fl}` : ""} for Claude to draw its rooms (experimental).`
       : st.at === "floor_pick" ? "You were choosing which floor your plan shows, for Claude to draw its rooms (experimental)."
         : null;

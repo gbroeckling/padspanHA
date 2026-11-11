@@ -892,7 +892,7 @@ AI_WIZARD_CHECK: tuple[str, ...] = ("ok", "no_credit", "unreachable", "no_media"
 # "The scale looks wrong" on the check list (ai_wizard.scale_signs, 2026-11-12): shown (and which signs), what the person
 # did (checked it, said it is right, sent to Mapping's Measure because things in metres sit on it), the rooms redrawn.
 AI_WIZARD_SCALE_NOTICE: tuple[str, ...] = ("shown", "checked", "dismissed", "elsewhere", "reprojected")
-AI_WIZARD_SCALE_SIGNS: tuple[str, ...] = ("rooms", "spread", "printed")
+AI_WIZARD_SCALE_SIGNS: tuple[str, ...] = ("rooms", "printed")
 ROOMS_BANDS: tuple[str, ...] = ("0", "1", "2_3", "4_6", "7_12", "gt12")
 NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed", "picked_area")
 # The plan's scale (pieces 3 and 4, design J.4): the path its scale took (a
