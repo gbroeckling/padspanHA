@@ -1051,7 +1051,8 @@ async def ws_plan_build_rooms_start(hass: HomeAssistant, connection, msg) -> Non
     connection.send_result(msg["id"], {"session": sid})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_status", vol.Optional("session"): vol.Any(str, None), vol.Optional("via"): VIA})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_status", vol.Optional("session"): vol.Any(str, None), vol.Optional("via"): VIA,
+                                  vol.Optional("reproject"): bool})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> None:
@@ -1066,31 +1067,56 @@ async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> No
     if not sid:
         sid = max(((k, s) for k, s in (store.data.get("rooms") or {}).items() if isinstance(s, dict)),
                   key=lambda t: float(t[1].get("started_at") or 0), default=(None, None))[0]
-    if _helper(msg) and sid:
-        await _reprojected(hass, store, sid)
-    connection.send_result(msg["id"], _rooms_answer(hass, store, sid))
+    redrawn = await _reprojected(hass, store, sid) if _helper(msg) and sid and msg.get("reproject") else None
+    ans = _rooms_answer(hass, store, sid)
+    if _helper(msg):
+        await _undo_scale_word(hass, store, ans)
+        if redrawn is not None:
+            ans["reprojected"] = redrawn
+    connection.send_result(msg["id"], ans)
 
 
-async def _reprojected(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> None:
-    """The helper's rooms, after the person checked the scale (owner, 2026-11-12): worked out again from the same reads at
-    the plan's new scale (plan_ai.reproject_rooms), as an edit is; no new read. Taken back if it can't be worked out."""
+async def _undo_scale_word(hass: HomeAssistant, store: A.PlanAiStore, ans: dict[str, Any]) -> None:
+    """The helper's undo, with what it does to the plan's scale (rooms_undo_scale: the word Setup and Settings → AI use),
+    so the Done screen's Undo says the same and stays quiet about a scale measured again by hand."""
+    u = ans.get("undo")
+    if isinstance(u, dict) and u.get("helper") and u.get("session"):
+        try:
+            u["scale"] = await C.rooms_undo_scale(hass, store, u["session"], u.get("map_id"))
+        except Exception:  # noqa: BLE001
+            u["scale"] = "none"
+
+
+async def _reprojected(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> dict[str, bool]:
+    """The helper's rooms after the person checked the scale and measured again (owner, 2026-11-12), asked for by the
+    helper only (`reproject`): worked out again from the same reads at the plan's new placement, as an edit is; no new
+    read. Built aside and swapped in only when it worked. The person's names and ticks are kept when every room keeps
+    its id (the scale didn't really change), else they start again from Claude's. {redrawn, reset}."""
     async with store.lock:
         sess = store.rooms_session(sid)
         if sess is None:
-            return
-        was = copy.deepcopy(sess.get("plans"))
-        if not A.reproject_rooms(sess, A.house_snapshot(hass)):
-            return
+            return {"redrawn": False, "reset": False}
+        work = copy.deepcopy(sess)
+        if not A.reproject_rooms(work, A.house_snapshot(hass)):
+            return {"redrawn": False, "reset": False}
         snap, house, points, barriers = await A.rooms_inputs(hass)
         try:
-            sess["proposal"] = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
-        except Exception:  # noqa: BLE001
-            sess["plans"] = was
-            return
-        A.wizard_name(sess, snap, W.ha_areas(hass))
-        sess["rev"] = int(sess.get("rev") or 0) + 1
+            prop = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(work), snap, house, points, barriers)
+            reset = set(prop.get("spaces") or {}) != set(((sess.get("proposal") or {}).get("spaces")) or {})
+            if reset:
+                A.reset_rooms_edits(work)
+                prop = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(work), snap, house, points, barriers)
+        except Exception:  # noqa: BLE001 — the session as it was: nothing lost
+            _LOGGER.debug("PadSpan rooms helper: the rooms couldn't be drawn again at the new scale", exc_info=True)
+            return {"redrawn": False, "reset": False}
+        work["proposal"] = prop
+        A.wizard_name(work, snap, W.ha_areas(hass))
+        work["rev"] = int(sess.get("rev") or 0) + 1
+        sess.clear()
+        sess.update(work)
         A._bump(hass, "ai_wizard_scale_notice:reprojected")  # noqa: SLF001
         await store.async_save()
+        return {"redrawn": True, "reset": reset}
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_resume", vol.Required("session"): str, vol.Optional("via"): VIA})
@@ -1351,7 +1377,10 @@ async def _rooms_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStor
             extra = await after(answer) or {}
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("PadSpan: the rooms helper's follow-up failed after the save: %s", err)
-    connection.send_result(msg["id"], {**answer, **_rooms_answer(hass, store, msg["session"]), **extra})
+    resp = {**answer, **_rooms_answer(hass, store, msg["session"]), **extra}
+    if _helper(msg):
+        await _undo_scale_word(hass, store, resp)
+    connection.send_result(msg["id"], resp)
 
 
 WS_COMMANDS = WS_COMMANDS + (ws_plan_build_rooms_start, ws_plan_build_rooms_status, ws_plan_build_rooms_resume, ws_plan_build_rooms_edit,

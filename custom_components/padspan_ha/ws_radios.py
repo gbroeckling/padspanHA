@@ -271,6 +271,14 @@ async def ws_radio_reset(hass: HomeAssistant, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/radio_audit"})
+def live_radios(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """The Bluetooth radios heard in the last five minutes: what counts as a live receiver (the audit here, and
+    "Put my receivers in their rooms", ws_fabric.ws_receivers_to_rooms: one rule)."""
+    from .bluetooth_live import get_bluetooth_live  # noqa: PLC0415
+    bl = get_bluetooth_live(hass)
+    return list(((bl.get_snapshot(max_ads=0, max_age_s=300) if bl else {}) or {}).get("radios") or [])
+
+
 @websocket_api.async_response
 async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
     """Cross-reference BLE radios with ESPHome devices and fabric scanners.
@@ -282,8 +290,6 @@ async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
     - Area/floor assignment from HA vs fabric
     - Mismatch flags when HA and fabric disagree
     """
-    from .bluetooth_live import get_bluetooth_live
-
     dr = device_registry.async_get(hass)
     ar = area_registry.async_get(hass)
 
@@ -297,9 +303,7 @@ async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
             area_id_to_floor[a.id] = str(fl)
 
     # Get live BLE snapshot
-    bl = get_bluetooth_live(hass)
-    ble_snap = bl.get_snapshot(max_ads=0, max_age_s=300) if bl else {"radios": []}
-    radios = ble_snap.get("radios") or []
+    radios = live_radios(hass)
 
     # Fabric scanner mappings
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)

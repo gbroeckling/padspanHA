@@ -4372,12 +4372,14 @@ def reproject_rooms(sess: dict, snap: dict) -> bool:
     for pl, now in moved:
         pl.update(t=dict(now["t"]), place_sig=now["place_sig"])
         pl.pop("changed", None)
-    if moved:
-        # A space's id comes from its outline in metres, so every id is new: the person's names, joins and ticks of the
-        # old ones start again from Claude's (the helper says so), never applied to the wrong room.
-        sess.update(edits={"merges": [], "spaces": {}, "picks": {}}, named={})
-        sess.pop("picked", None)
     return bool(moved)
+
+
+def reset_rooms_edits(sess: dict) -> None:
+    """A space's id comes from its outline in metres: at a new scale every id is new, so the person's names, joins and
+    ticks of the old ones start again from Claude's (the helper says so), never applied to the wrong room."""
+    sess.update(edits={"merges": [], "spaces": {}, "picks": {}}, named={})
+    sess.pop("picked", None)
 
 
 def read_again(hass: HomeAssistant, store: PlanAiStore, sid: str, room: str) -> str:

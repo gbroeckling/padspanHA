@@ -286,7 +286,8 @@ async function readScale(h, root) {
   const tb = q(root, '[data-aiw="tick-space:b"]'); tb.checked = true; tb.dispatchEvent({ type: "change" });
   const hb = q(root, '[data-aiw="ha-space:b"]'); hb.checked = true; hb.dispatchEvent({ type: "change" });
   root = await view(h);
-  check("check: Save says how many", q(root, '[data-aiw="save"]').textContent.includes("Save 2 rooms (experimental)"));
+  // 2026-11-12: "Experimental." moved into the one-line note beside Save (a compact bar on a phone).
+check("check: Save says how many", q(root, '[data-aiw="save"]').textContent === "Save 2 rooms" && q(root, '[data-aiw="save-bar"]').textContent.includes("Experimental."));
   q(root, '[data-aiw="save"]').click();
   for (let i = 0; i < 4; i++) await tick();
   const c = h.calls.find(x => x.type === "padspan_ha/plan_build_rooms_commit");
@@ -1262,7 +1263,7 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   name.dispatchEvent({ type: "change" });                          // its name is Claude's, already kept: nothing sent, the list would be drawn again
   for (let i = 0; i < 6; i++) await tick();
   check("press: leaving a name field under a press draws nothing yet", h.renders.n === r0, h.renders.n - r0);
-  root.dispatchEvent({ type: "pointerup" });
+  (docListeners.pointerup || []).forEach(f => f({ type: "pointerup" }));   // let go: heard on the document, wherever it is
   save.click();                                                    // the node that was there at pointerdown
   await shim.flush();
   for (let i = 0; i < 6; i++) await tick();
@@ -1330,17 +1331,17 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
 
 // ── 2026-11-12: "the scale looks wrong", only on the server's two agreeing signs; Check the scale and The scale is right ──
 {
-  const SCK = { k: 1.42, signs: ["footprint", "rooms"], example: { rooms: { name: "Den", kind: "bedroom", m2: 24.2 }, footprint: { m: 57.1 } } };
+  // Review 2026-11-12: said as a factor in lengths ("about 3 times"), not a percent of unlike factors.
+  const SCK = { k: 3.1, signs: ["rooms", "spread"], example: { rooms: { name: "Den", kind: "bedroom", m2: 108.4 }, spread: { m: 57.1 } } };
   const ans = { session: SESS(), areas: ["Kitchen", "Garage"], undo: null, wizard: { ...WIZ, scale_check: SCK } };
   let statusAsked = [];
   const h = house({ unlock: { ok: true, why: "ok" }, master: true, ans, scaleUndo: { ok: true, map_id: "m1" },
     status: () => { statusAsked.push(1); return ans; }, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
   let root = await view(h);
   const n = q(root, '[data-aiw="scale-notice"]');
-  check("scale notice: said with its example, two answers, Save still there", n && n.textContent.includes("The scale may be off: the rooms come out about 42 % too big.")
-    && n.textContent.includes("Den would be 24.2 m², big for a bedroom; the rooms together would run 57.1 m end to end.")
+  check("scale notice: said with its example, two answers, Save still there", n && n.textContent.includes("The scale may be off: the rooms come out about 3 times too big. Den would be 108.4 m², big for a bedroom. The rooms together would reach 57.1 m end to end.")
     && !!q(root, '[data-aiw="scale-check"]') && !!q(root, '[data-aiw="scale-right"]') && q(root, '[data-aiw="save"]').disabled === false, n && n.textContent);
-  check("scale notice: counted, with its signs", h.tele.includes("ai_wizard_scale_notice:shown") && h.tele.includes("ai_wizard_scale_sign:rooms") && h.tele.includes("ai_wizard_scale_sign:footprint"), h.tele);
+  check("scale notice: counted, with its signs", h.tele.includes("ai_wizard_scale_notice:shown") && h.tele.includes("ai_wizard_scale_sign:rooms") && h.tele.includes("ai_wizard_scale_sign:spread"), h.tele);
   q(root, '[data-aiw="scale-check"]').click();
   for (let i = 0; i < 6; i++) await tick();
   h.ctx.state.model.map_transforms = {};                          // the helper's scale taken back: the plan has none now
@@ -1408,6 +1409,92 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   const b = q(root, '[data-setup="receivers-place"]');
   check("done: put my receivers in their rooms, before Place receivers", b && b.textContent === "Put my receivers in their rooms"
     && root.textContent.indexOf("Put my receivers") < root.textContent.indexOf("Place receivers →"), root.textContent.slice(0, 500));
+}
+// ── review 2026-11-12: the factor in plain words; a printed reading said first ──
+check("factor words", [[3.1, "about 3 times"], [1 / 3, "about 3 times"], [2.1, "about twice"], [0.5, "about twice"], [2.54, "about two and a half times"],
+  [1.6, "about one and a half times"], [0.3048, "about 3 times"]].every(([k, w]) => W.factorWords(k) === w));
+check("printed first", W.scaleNoticeWords({ k: 0.33, example: { printed: { text: "45'", here_m: 4.5 }, rooms: { name: "Room 3", kind: null, m2: 1.3 } } })
+  === "The scale may be off: the rooms come out about 3 times too small. Claude read 45' printed on the plan, which this scale makes 4.5 m. Room 3 would be 1.3 m².");
+// ── review 2026-11-12, items 2, 3, 11, 15: "Check the scale" is one plan's and one session's, stored on the server ──
+{
+  // Left mid-measure, then Carry on: back to measuring, whatever reading is held; Save draws the same rooms again, no read.
+  const ans = { session: SESS(), areas: ["Kitchen"], undo: null, wizard: WIZ };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, ans, held: true, scaleSess: () => READ(),
+    wizard: { started: { at: "scale_guided", map_id: "n1", scale_session: "sc_1", rooms_session: "rb_1" }, rescale: { n1: "rb_1" } } });
+  let root = await view(h);
+  check("carry on a scale check: the measuring screen, its own Save words", !!q(root, '[data-aiw="measure"]') && h.ctx.state._aiw.rescale?.sid === "rb_1"
+    && root.textContent.includes(W.SCALE_SAVE_RESCALE) && !root.textContent.includes(W.SCALE_SAVE_SAYS), root.textContent.slice(0, 300));
+  root = await useIt(h, root);
+  h.ctx.state.model.map_transforms = { n1: { ...T, reference_measurements: [{}] } };
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 8; i++) await tick();
+  const st = h.calls.filter(c => c.type === "padspan_ha/plan_build_rooms_status").at(-1);
+  check("carry on a scale check: saved, the same session drawn again, no rooms read", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start")
+    && st && st.session === "rb_1" && st.reproject === true && h.calls.some(c => c.what === "rescale_done" && c.map_id === "n1"), typesOf(h));
+}
+{
+  // Check the scale on one plan, then another plan: it goes with the first plan; the second is read as any plan is.
+  const maps = [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } }, { id: "m2", name: "Upper plan", floor_id: "upper", image: { width: 1000, height: 800 } }];
+  const floors = [{ floor_id: "main", name: "Main", level: 0 }, { floor_id: "upper", name: "Upper", level: 1 }];
+  const ans = { session: SESS(), areas: [], undo: null, wizard: { ...WIZ, scale_check: { k: 3, signs: ["rooms", "spread"], example: {} } } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors, tfs: { m1: { ...T, reference_measurements: [{}] } }, ans, scaleUndo: { ok: true },
+    wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  let root = await view(h);
+  q(root, '[data-aiw="scale-check"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  h.ctx.state.model.map_transforms = {};
+  root = await view(h);
+  check("scale check: recorded on the server for its plan and session", h.calls.some(c => c.what === "rescale" && c.map_id === "m1" && c.rooms_session === "rb_1"));
+  q(root, '[data-aiw="choose-plan"]').click();
+  root = await view(h);
+  check("another plan: the scale check doesn't go with it", h.ctx.state._aiw.rescale === null);
+  q(root, '[data-aiw="plan-m2"]').checked = true; q(root, '[data-aiw="plan-m2"]').dispatchEvent({ type: "change" });
+  root = await view(h);
+  q(root, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 80, 300); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 480, 300); root = await view(h);
+  await typeIn(q(root, '[data-aiw="scale-length"]'), "5 m");
+  root = await view(h);
+  h.ctx.state.model.map_transforms = { m2: { ...T, reference_measurements: [{}] } };
+  const before = h.calls.filter(c => c.type === "padspan_ha/plan_build_rooms_status").length;
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 8; i++) await tick();
+  const rs = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_start");
+  check("another plan: its rooms read, the first plan's session not loaded", rs && JSON.stringify(rs.map_ids) === '["m2"]'
+    && h.calls.filter(c => c.type === "padspan_ha/plan_build_rooms_status").length === before, typesOf(h));
+  // Coming back later to the first plan: its scale check picked up again (the server's record).
+  const S = h.ctx.state._aiw;
+  S.screen = "intro"; S.plan = maps[0]; S.busy = false;
+  root = await view(h);
+  q(root, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  check("first plan again: its scale check picked up (no new read later)", h.ctx.state._aiw.rescale?.sid === "rb_1" && h.ctx.state._aiw.screen === "scale", h.ctx.state._aiw.rescale);
+}
+{
+  // Done's Undo uses the server's word for the scale: a scale measured again by hand is left, with no words about it.
+  const ans = { session: SESS({ saved: { "space:a": "rb" } }), areas: [], undo: { session: "rb_1", helper: true, scale: "remeasured" }, wizard: WIZ };
+  const h = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans });
+  let root = await view(h);
+  q(root, '[data-aiw="undo"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h);
+  check("done undo: the server's scale word, no scale undo for a scale measured again by hand", !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_undo")
+    && !q(root, '[data-aiw="scale-kept"]'), typesOf(h));
+}
+// ── review 2026-11-12, item 14: "later" is a later visit to the view (the panel's _viewVisit), not only a reload ──
+{
+  O._reset();
+  const h = house({});
+  h.ctx.state._viewVisit = 3;
+  O.stepSeen(h.ctx, "scale"); O.stepSeen(h.ctx, "scale");       // drawn twice in one visit: one mark
+  h.ctx.state._viewVisit = 5;                                       // left the view and came back
+  O.stepSeen(h.ctx, "scale");
+  await tick();
+  const pages = h.calls.filter(c => c.what === "step_seen").map(c => c.page);
+  check("visit: one mark a visit, another visit another page id", pages.length === 2 && pages[0] !== pages[1] && pages[0].endsWith(":3") && pages[1].endsWith(":5"), pages);
+  O._reset();
 }
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);

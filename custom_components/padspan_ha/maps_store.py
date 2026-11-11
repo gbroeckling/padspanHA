@@ -684,6 +684,11 @@ class MapsStore:
             await self.store.async_save(self.data)
         return removed
 
+    @staticmethod
+    def receiver_key(rx: dict) -> str:
+        """A plan receiver's source: `source`, or `id` on the older records (as the migrations read them)."""
+        return str((rx or {}).get("source") or (rx or {}).get("id") or "")
+
     async def async_remove_receiver_by_source(self, source: str) -> int:
         """Remove receivers matching a specific source from all maps.
 

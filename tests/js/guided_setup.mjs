@@ -268,6 +268,14 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     const marks = m.calls.filter(c => c[0] === "ws" && c[1].type === "padspan_ha/ai_wizard_mark").map(c => `${c[1].what}:${c[1].setup_step}`);
     check("pull trigger: opened from Setup (seen), then Setup again with it unfinished (left)", marks.indexOf("step_seen:scale") === 0 && marks.indexOf("step_left:scale") === 1, marks);   // Rooms, opened earlier on this page, may follow
   }
+  // Review 2026-11-12, item 13: opening a step already done is not "left unfinished".
+  {
+    AIWO._reset();
+    const st = house(3, { calibration: { points: [], model: {} } });
+    const m = mkCtx(st);
+    S.openStep(m.ctx, "scale");
+    check("pull trigger: a finished Scale step opened is not counted", !m.calls.some(c => c[0] === "ws" && c[1].type === "padspan_ha/ai_wizard_mark"), m.calls.map(c => c[1] && c[1].what));
+  }
   // 2026-11-12: the helper's later undo on its Draw the rooms row: its own words, asked once, the rooms then the scale.
   {
     AIWO._reset();
@@ -293,7 +301,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     root = S.render(m.ctx);
     const order = sent.filter(x => x.type.includes("_undo")).map(x => `${x.type.replace("padspan_ha/", "")}:${x.via}`);
     check("later undo: the rooms, then the scale, as the helper's; said, with the ways on; counted", order.join() === "plan_build_rooms_undo:wizard,plan_build_scale_undo:wizard"
-      && root.textContent.includes("3 taken back. The plan's scale was removed too") && root.textContent.includes("Try it again or draw the rooms yourself below")
+      && root.textContent.includes("3 taken back. The plan's scale was removed too") && root.textContent.includes("To try again, use the line below; to draw them yourself, this step's own button.")
       && m.events.includes("ai_wizard:undo_from_setup"), [order, root.textContent.slice(0, 300)]);
   }
   AIWO._reset();
@@ -309,7 +317,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     sent.push(msg);
     if (msg.type !== "padspan_ha/receivers_to_rooms") return {};
     return msg.undo ? { ok: true, undone: ["kitchen-proxy"], left: [] }
-      : { ok: true, placed: [{ source: "kitchen-proxy", room: "Kitchen", x_m: 1.5, y_m: 1 }], skipped: [{ source: "office-proxy", why: "no_outline" }] };
+      : { ok: true, placed: [{ source: "kitchen-proxy", room: "Kitchen", x_m: 1.5, y_m: 1 }], skipped: [{ source: "office-proxy", why: "no_outline" }, { source: "porch-proxy", why: "no_area" }] };
   };
   check("receivers: the count it would place", S.receiversReady(st) === 1);
   let root = S.render(m.ctx);
@@ -326,11 +334,33 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r));
   root = S.render(m.ctx);
   const u = sent.find(x => x.type === "padspan_ha/receivers_to_rooms" && x.undo);
-  check("receivers: Undo sends what it placed, in one step", u && JSON.stringify(u.undo) === '{"kitchen-proxy":[1.5,1]}' && btn(root, "receivers-said").textContent.startsWith("1 taken back off the map")
+  // Review 2026-11-12: what it placed is kept on the server (a reload keeps the Undo); Undo asks the server to take it back.
+  check("receivers: Undo in one step, from what the server kept", u && u.undo === true && btn(root, "receivers-said").textContent.startsWith("1 taken back off the map")
     && !btn(root, "receivers-undo"), u);
   const demo = house(4, { dataMode: "sample" });
   demo.model.scanners = st.model.scanners;
   check("receivers: nothing on the demo house", !S.receiversBlock(mkCtx(demo).ctx));
+  // Rooms and no receiver ready: one plain line on the receivers step (it says the button exists); nothing on the helper's Done.
+  // After a reload: the Undo is still there (the server keeps what the last press placed).
+  {
+    const AIWO = await import(pathToFileURL(join(WWW, "views", "ai_wizard_offer.js")).href);
+    S._resetReceivers(); AIWO._reset();
+    const st2 = house(5, { calibration: { points: [], model: {} } });
+    st2.model.scanners = {};
+    const m2 = mkCtx(st2);
+    m2.ctx.actions.callWS = async (msg) => (msg.type === "padspan_ha/ai_wizard_info" ? { reason: "has_rooms", offer: false, wizard: { receivers_placed: { "kitchen-proxy": [1.5, 1, 2.4, "ground"] } } } : {});
+    AIWO.infoFor(m2.ctx, "setup");
+    for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
+    const rb = S.receiversBlock(m2.ctx);
+    check("receivers: after a reload, Undo is still offered", rb && !!rb.querySelector('[data-setup="receivers-undo"]'), rb && rb.textContent);
+    AIWO._reset(); S._resetReceivers();
+  }
+  S._resetReceivers();
+  const none = house(4, { calibration: { points: [], model: {} } });
+  none.model.scanners = {};
+  const later = S.receiversBlock(mkCtx(none).ctx);
+  check("receivers: none ready, a line saying it will work once they have areas", later && later.getAttribute("data-setup") === "receivers-later"
+    && later.textContent.includes("PadSpan can put them in their rooms") && !S.receiversBlock(mkCtx(none).ctx, { quiet: true }), later && later.textContent);
 }
 
 // No Skip for the plan: every step after it draws on one.

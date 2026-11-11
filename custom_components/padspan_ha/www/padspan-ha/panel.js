@@ -4906,6 +4906,9 @@ class PadSpanHaApp extends HTMLElement {
   // but user interactions are sacred (never destroy mid-action).
   _renderCurrentView(fromPoll){
     if(this.state._factoryResetInProgress) return;
+    // A visit to a view: counted each time a view is drawn after another one (the rooms helper's "came back later",
+    // views/ai_wizard_offer.js stepSeen, means a later visit, not only a reload).
+    if(this.state.view !== this._visitView){ this._visitView = this.state.view; this.state._viewVisit = (this.state._viewVisit || 0) + 1; }
     // Training is the manual: its translated help is fetched on first open.
     if(this.state.view === "training" && !this._helpLoad) this._loadHelpLanguage();
     // Left the Overview holding a slim snapshot (Optimize for scale): fetch

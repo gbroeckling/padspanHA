@@ -86,8 +86,10 @@ def offer_reason(f: dict[str, Any], surface: str) -> str:
         return "undone"                            # design A.3: not pushed again; Setup, the Mapping wizard and the Plans tool still offer it
     if surface == "push" and f["now"] < (w.get("snooze_until") or 0):
         return "snoozed"
-    if f["tool_used"] and not w.get("started"):
-        return "tool_used"                         # someone already found Line up / Rooms from plans
+    if surface == "push" and f["tool_used"] and not w.get("started"):
+        # Someone already found the Plans tool (Line up / Rooms from plans): not pushed a beginner's helper. The pull
+        # surfaces offer it all the same (review 2026-11-12): there the person is stuck at Scale or Rooms right now.
+        return "tool_used"
     if f["tier"] != "pro" and not f["trial_offerable"]:
         return "no_pro_path"                       # a lapsed key, or the trial already used
     if not SCALE_BUILT and not f["plan_scaled"]:
@@ -192,6 +194,17 @@ def clean_wizard(raw: dict) -> dict[str, Any]:
         ok = [str(m)[:64] for m in ok if isinstance(m, str) and m][-20:]
         if ok:
             out["scale_ok"] = ok
+    resc = raw.get("rescale")                      # plan -> its rooms session, while "Check the scale" waits for the new measurement
+    if isinstance(resc, dict):
+        resc = {str(k)[:64]: str(v)[:64] for k, v in list(resc.items())[-10:] if isinstance(k, str) and isinstance(v, str) and k and v}
+        if resc:
+            out["rescale"] = resc
+    rp = raw.get("receivers_placed")              # "Put my receivers in their rooms": source -> [x_m, y_m, z_m, floor_id], for its Undo
+    if isinstance(rp, dict):
+        rp = {str(k)[:80]: [float(v[0]), float(v[1]), float(v[2]), str(v[3])[:64]] for k, v in list(rp.items())[:64]
+              if isinstance(k, str) and isinstance(v, list) and len(v) == 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v[:3])}
+        if rp:
+            out["receivers_placed"] = rp
     seen = raw.get("seen")                         # Setup step -> the page load that first showed it (mark "step_seen")
     if isinstance(seen, dict):
         seen = {k: str(v)[:64] for k, v in seen.items() if k in SETUP_STEPS_WATCHED and isinstance(v, str)}
@@ -271,7 +284,8 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
             "floor_no_rooms": any(not plan_roomed(m, roomed, fab_rooms) for m in indoor),
             "indoor_plans": len(indoor), "plan_since": plan_since, "plan_age_days": None if since is None else max(0.0, (now - since) / 86400),
             "wizard": w if isinstance(w, dict) else {}, "now": now,
-            "tool_used": bool(plan_ai.get("lineups") or plan_ai.get("rooms")),
+            # The Plans tool's own sessions only: the helper's rooms and scale sessions are kept in the same store (via "wizard").
+            "tool_used": bool(plan_ai.get("lineups")) or any(isinstance(r, dict) and r.get("via") != "wizard" for r in (plan_ai.get("rooms") or {}).values()),
             "tier": tier, "trial_offerable": trial_offerable(bool(str(settings.get("forensics_license_key") or "").strip()), tier),
             "plan_scaled": has_scale(s), "state": s}
 
@@ -306,7 +320,7 @@ MAPPING_WORDS: dict[str, tuple[str, ...]] = {
 # ── piece 2: Not now, Don't ask again, where it was left (design A.3) ────────
 SNOOZE_DAYS: tuple[int, int] = (7, 30)          # the first Not now, then every one after
 MARKS: tuple[str, ...] = ("offered", "opened", "step", "snoozed", "dismissed", "came_back", "finished", "undone",
-                          "step_seen", "step_left", "scale_ok")
+                          "step_seen", "step_left", "scale_ok", "rescale", "rescale_done", "receivers_placed")
 
 
 def mark(w: dict, what: str, now: float, today: date, step: str | None = None, **ids: Any) -> dict[str, Any]:
@@ -324,6 +338,12 @@ def mark(w: dict, what: str, now: float, today: date, step: str | None = None, *
         w["struggled"] = True
     elif what == "scale_ok" and isinstance(ids.get("map_id"), str) and ids["map_id"]:
         w["scale_ok"] = [m for m in w.get("scale_ok") or [] if m != ids["map_id"]] + [ids["map_id"]]
+    elif what == "rescale" and ids.get("map_id") and ids.get("rooms_session"):
+        w["rescale"] = {**{k: v for k, v in (w.get("rescale") or {}).items() if k != ids["map_id"]}, ids["map_id"]: ids["rooms_session"]}
+    elif what == "rescale_done" and ids.get("map_id"):
+        w["rescale"] = {k: v for k, v in (w.get("rescale") or {}).items() if k != ids["map_id"]}
+    elif what == "receivers_placed":
+        w["receivers_placed"] = dict(ids.get("placed") or {})
     elif what in ("offered", "opened"):
         w["offered"] = True
         if what == "opened" and "started" not in w:
@@ -371,7 +391,19 @@ ABBREV: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("cl", "clo", "clos", "wic"), ("closet",)), **dict.fromkeys(("master", "mstr"), ("primary",)),
     "bedrm": ("bedroom",), "mbr": ("primary", "bedroom"), "pwd": ("powder", "room"), "rm": ("room",), "fam": ("family", "room"),
     "util": ("utility",), "mech": ("mechanical",), "wd": ("laundry",), **dict.fromkeys(("ens", "ensuite"), ("ensuite", "bathroom")),
-    "gar": ("garage",)}
+    "gar": ("garage",),
+    # German, French and Dutch room names (folded: no accents), so "the scale looks wrong" reads them too (2026-11-12).
+    **dict.fromkeys(("schlafzimmer", "kinderzimmer", "gastezimmer", "chambre", "slaapkamer"), ("bedroom",)),
+    **dict.fromkeys(("badezimmer", "bad", "bains", "sdb", "badkamer"), ("bathroom",)),
+    **dict.fromkeys(("kuche", "cuisine", "keuken"), ("kitchen",)),
+    **dict.fromkeys(("wohnzimmer", "salon", "sejour", "woonkamer"), ("living", "room")),
+    **dict.fromkeys(("esszimmer", "eetkamer"), ("dining", "room")),
+    **dict.fromkeys(("flur", "diele", "couloir", "degagement", "gang", "hal", "overloop"), ("hallway",)),
+    **dict.fromkeys(("buro", "arbeitszimmer", "bureau", "kantoor", "werkkamer"), ("office",)),
+    **dict.fromkeys(("waschkuche", "hauswirtschaftsraum", "buanderie", "wasruimte", "washok"), ("laundry",)),
+    **dict.fromkeys(("abstellraum", "placard", "dressing", "berging"), ("closet",)),
+    **dict.fromkeys(("toilette", "toilettes", "toilet"), ("powder", "room")),
+    **dict.fromkeys(("eingang", "entree"), ("entrance",))}
 # Written out in a printed name too: only true abbreviations (STUDY stays Study, MASTER stays Master, ENSUITE stays Ensuite).
 _SPELL_OUT = frozenset({"br", "bdrm", "bd", "ba", "kit", "kitch", "lr", "liv", "dr", "din", "wc", "pwdr", "ldry", "lndry", "ofc", "ent",
                         "corr", "cl", "clo", "clos", "wic", "bed", "bedrm", "mbr", "pwd", "rm", "fam", "util", "mech", "wd", "ens", "gar", "mstr"})
@@ -529,55 +561,72 @@ def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
 
 
 # ── "The scale looks wrong" (owner, 2026-11-12): evidence the rooms read already holds, at no cost ─────────
-# Each sign is a factor k: how many times too big the rooms come out at the plan's scale (k > 1: the scale is too big).
-# rooms: the rooms' sizes against what a room of that name usually is (the square root of the median ratio, 3 rooms or
-# more); footprint: the rooms together, against a house's 5 to 40 m (only outside that); printed: a double-checked
-# printed measurement Claude already read, against the scale saved. Doors carry none: they are read as points, and
-# their width is a standard one. A notice only when two signs or more fire the same way and roughly agree.
+# Every sign is an ESTIMATE of the length factor k: how many times too long the plan's lengths come out at its scale
+# (k = 2: twice too big; k = 1/3: three times too small). Three kinds of evidence, honestly counted:
+#   room sizes: ONE sign, whichever way it is worked out, because both ways read the same room areas. With three or more
+#     rooms whose names say what they are (TYPICAL_M2; German, French and Dutch names through ABBREV), against what a
+#     room of that name usually is; else, any language or rooms named by number, the median room against a home's
+#     usual room (ROOM_M2). Strong only when the median is off by ROOMS_OFF or more and most rooms are off that way.
+#   spread: how far the rooms reach (their longest extent) for how many rooms there are, against how far that many
+#     rooms usually reach. The same outlines, so not independent of the areas, but it errs differently (a house's shape,
+#     not its rooms' sizes); weak, so it only counts when it points the same way.
+#   printed: a printed measurement Claude read and double-checked, against the scale saved: the strongest.
+# The notice ("lots of evidence"): room sizes strong on their own terms AND the spread or a printed reading pointing the
+# same way within AGREE_X of it. Doors carry none: they are read as points, and their width is a standard one.
 TYPICAL_M2: dict[str, float] = {"bedroom": 12.0, "bathroom": 5.0, "kitchen": 12.0, "living": 22.0, "dining": 12.0, "family": 20.0,
                                 "office": 10.0, "laundry": 5.0, "closet": 2.5, "hallway": 6.0, "entrance": 5.0, "garage": 32.0,
                                 "powder": 2.5, "ensuite": 5.0}
-SIGN_OFF = 1.2          # a sign fires past 20 % either way
-SIGNS_AGREE = 1.3       # signs that fire the same way agree while the largest is within 30 % of the smallest
-HOUSE_M = (5.0, 40.0)   # a house's longest side, from its rooms
-SCALE_SIGNS: tuple[str, ...] = ("rooms", "footprint", "printed")
+ROOM_M2 = 10.0          # a home's usual room, the median of all its rooms
+ROOMS_OFF = 1.55        # room sizes say the scale is off from this length factor (0.8-1.25 never: tests/test_ai_wizard_rooms.py's table)
+ROOM_ONE_OFF = 1.25     # one room is off that way past this factor; "most rooms": MOST_ROOMS of them
+MOST_ROOMS = 0.6
+SPREAD_M = 1.4          # n rooms of ROOM_M2 usually reach about SPREAD_M * sqrt(n * ROOM_M2) metres at their longest
+AGREE_X = 1.6           # another sign agrees when it points the same way within this factor of the room sizes' estimate
+MIN_ROOMS = 3
+SCALE_SIGNS: tuple[str, ...] = ("rooms", "spread", "printed")
+
+
+def _kind(name: Any) -> str | None:
+    words = _words(name)
+    return next((k for k in TYPICAL_M2 if k in words), None)
 
 
 def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None = None) -> dict[str, Any] | None:
-    """Pure. {k, signs, example} when two signs or more say the scale is off the same way and roughly as much, else
-    None. `spaces`: the proposal's, `rows`: the space ids offered; `printed`: {k, text, metres} from a held,
-    double-checked reading. `example`: the plain-words facts behind the strongest sign (said on the check list)."""
+    """Pure. {k (the length factor, the printed reading's when there is one), signs, example} when the evidence says the
+    scale is off (the rule above), else None. `spaces`: the proposal's, `rows`: the space ids offered; `printed`: {k,
+    text, metres, here_m} from a held, double-checked reading. `example`: the facts said on the check list."""
     from . import plan_geom as G  # noqa: PLC0415
-    signs: dict[str, float] = {}
-    facts: dict[str, dict] = {}
-    named = []
-    for sid in rows:
-        s = spaces.get(sid) or {}
-        a = G.area(s.get("outline_m") or [])
-        words = _words(s.get("new") or s.get("name"))
-        kind = next((k for k in TYPICAL_M2 if k in words), None)
-        if kind and a > 0:
-            named.append((a / TYPICAL_M2[kind], str(s.get("new") or s.get("name") or ""), kind, a))
-    if len(named) >= 3:
-        named.sort()
-        signs["rooms"] = math.sqrt(named[len(named) // 2][0])
-        r = named[-1] if signs["rooms"] > 1 else named[0]
-        facts["rooms"] = {"name": r[1], "kind": r[2], "m2": round(r[3], 1)}
-    pts = [p for sid in rows for p in (spaces.get(sid) or {}).get("outline_m") or []]
-    if pts:
-        side = max(max(p[0] for p in pts) - min(p[0] for p in pts), max(p[1] for p in pts) - min(p[1] for p in pts))
-        if side > HOUSE_M[1] or 0 < side < HOUSE_M[0]:
-            signs["footprint"] = side / (HOUSE_M[1] if side > HOUSE_M[1] else HOUSE_M[0])
-            facts["footprint"] = {"m": round(side, 1)}
+    rooms = [(str(s.get("new") or s.get("name") or ""), G.area(s.get("outline_m") or []), s.get("outline_m") or [])
+             for s in (spaces.get(sid) for sid in rows) if isinstance(s, dict)]
+    rooms = [r for r in rooms if r[1] > 0]
+    if len(rooms) < MIN_ROOMS:
+        return None
+    named = [(math.sqrt(a / TYPICAL_M2[k]), nm, k, a) for nm, a, _p in rooms for k in [_kind(nm)] if k]
+    each = named if len(named) >= MIN_ROOMS else [(math.sqrt(a / ROOM_M2), nm, None, a) for nm, a, _p in rooms]
+    ks = sorted(e[0] for e in each)
+    k_rooms = ks[len(ks) // 2] if len(ks) % 2 else math.sqrt(ks[len(ks) // 2 - 1] * ks[len(ks) // 2])
+    big = k_rooms > 1
+    most = sum(1 for e in each if (e[0] >= ROOM_ONE_OFF if big else e[0] <= 1 / ROOM_ONE_OFF)) / len(each)
+    if max(k_rooms, 1 / k_rooms) < ROOMS_OFF or most < MOST_ROOMS:
+        return None
+    ex = max(each, key=lambda e: e[0]) if big else min(each, key=lambda e: e[0])
+    facts: dict[str, dict] = {"rooms": {"name": ex[1], "kind": ex[2], "m2": round(ex[3], 1)}}
+    agree: dict[str, float] = {}
+    pts = [p for _n, _a, poly in rooms for p in poly]
+    reach = max(max(p[0] for p in pts) - min(p[0] for p in pts), max(p[1] for p in pts) - min(p[1] for p in pts))
+    k_spread = reach / (SPREAD_M * math.sqrt(len(rooms) * ROOM_M2))
+    if (k_spread > 1) == big and max(k_spread / k_rooms, k_rooms / k_spread) <= AGREE_X:
+        agree["spread"] = k_spread
+        facts["spread"] = {"m": round(reach, 1)}
     if printed and printed.get("k"):
-        signs["printed"] = float(printed["k"])
-        facts["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
-    for big in (True, False):
-        same = {k: v for k, v in signs.items() if (v >= SIGN_OFF if big else v <= 1 / SIGN_OFF)}
-        if len(same) >= 2 and max(same.values()) / min(same.values()) <= SIGNS_AGREE:
-            ks = sorted(same.values())
-            return {"k": round(ks[len(ks) // 2], 2), "signs": sorted(same), "example": {k: facts[k] for k in same if k in facts}}
-    return None
+        k_p = float(printed["k"])
+        if (k_p > 1) == big and max(k_p / k_rooms, k_rooms / k_p) <= AGREE_X:
+            agree["printed"] = k_p
+            facts["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
+    if not agree:
+        return None
+    k = agree.get("printed", k_rooms)
+    return {"k": round(k, 3), "signs": sorted(["rooms", *agree]), "example": facts}
 
 
 def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:
@@ -683,7 +732,8 @@ async def ws_ai_wizard_info(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/ai_wizard_mark",
-    vol.Required("what"): vol.In(("offered", "opened", "step", "snoozed", "dismissed", "came_back", "step_seen", "step_left", "scale_ok")),
+    vol.Required("what"): vol.In(("offered", "opened", "step", "snoozed", "dismissed", "came_back", "step_seen", "step_left", "scale_ok",
+                                  "rescale", "rescale_done")),
     vol.Optional("surface"): vol.In(AI_WIZARD_SURFACES),
     vol.Optional("step"): vol.In(WIZARD_STEPS),
     vol.Optional("setup_step"): vol.In(SETUP_STEPS_WATCHED),
@@ -752,10 +802,11 @@ async def ws_ai_wizard_check_claude(hass: HomeAssistant, connection, msg) -> Non
     from . import ws_house3d_photo as P  # noqa: PLC0415
     from .telemetry import bump  # noqa: PLC0415
     dom = hass.data.setdefault(DOMAIN, {})
-    if time.time() - float(dom.get("_aiw_claude_ok") or 0) < CHECK_OK_S:
+    ai = P.ai_task(hass)
+    passed = dom.get("_aiw_claude_ok") or {}                 # {AI Task: when it passed}: a pass counts for that AI Task only
+    if ai.get("ready") and time.time() - float(passed.get(ai.get("ai_task")) or 0) < CHECK_OK_S:
         connection.send_result(msg["id"], {"ok": True})
         return
-    ai = P.ai_task(hass)
     why = "ok"
     if not ai.get("ready"):
         why = "not_ready"
@@ -766,7 +817,7 @@ async def ws_ai_wizard_check_claude(hass: HomeAssistant, connection, msg) -> Non
             w = U.stop_reason(err, no_media=isinstance(err, P._NoMedia), unreachable=P.unreachable(err))  # noqa: SLF001
             why = w if w in CHECK_WHY else "error"
     if why == "ok":
-        dom["_aiw_claude_ok"] = time.time()
+        dom["_aiw_claude_ok"] = {ai["ai_task"]: time.time()}
     bump(hass, f"ai_wizard_check:{why}")
     connection.send_result(msg["id"], {"ok": why == "ok", **({} if why == "ok" else {"why": why})})
 

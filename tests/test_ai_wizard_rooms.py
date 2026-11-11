@@ -292,11 +292,26 @@ def test_the_helpers_later_undo_is_offered_whatever_the_switches_on_setup_and_in
     assert _call(W.ws_ai_wizard_info, h, conn, surface="pull", kiosk=False, live=True)["undo"] is None
 
 
-def test_receivers_go_to_their_rooms_middle_never_move_one_placed_and_undo_in_one_step(monkeypatch, tmp_path, disk):  # noqa: F811
-    """Owner, 2026-11-12, "Put my receivers in their rooms": no AI; each receiver whose room has an outline and that has
-    no position goes to the room's middle, through a backup and the one spatial writer; one placed already (in metres or
-    on a plan) is never moved; it says which it couldn't and why; Undo takes back only those still where it put them."""
+_L = [[0, 0], [6, 0], [6, 2], [2, 2], [2, 6], [0, 6]]                      # an L: its corners' middle (2.67, 2.67) is out in the notch
+_U = [[0, 0], [6, 0], [6, 6], [4, 6], [4, 2], [2, 2], [2, 6], [0, 6]]      # a U: its corners' middle (3, 3.5) is in the gap
+
+
+@pytest.mark.parametrize("poly", [_L, _U, _SQ(4, 3)])
+def test_a_receivers_first_place_is_inside_its_room(poly):
+    """Review 2026-11-12: "the middle of the room" was the corners' average, outside an L or a U room."""
+    x, y = A.G.inner_point(poly)
+    assert A.G.inside(x, y, poly) and A.G._edge_dist(x, y, poly) >= 0.5, (x, y)   # noqa: SLF001
+    assert not A.G.inside(*A.G.centroid(_L), _L) and not A.G.inside(*A.G.centroid(_U), _U)   # the old way, outside
+
+
+def test_receivers_go_into_their_rooms_never_move_one_placed_and_undo_in_one_step(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-12, "Put my receivers in their rooms", and the review after it: no AI; only live receivers (the one
+    rule, ws_radios.live_radios), never another device the model keeps with an area; each into a point inside its room,
+    through a backup and the one spatial writer; one already placed (in metres, or on a plan by `source` or the older
+    `id`) never moved; what it couldn't, and why; what it placed kept on the server so the Undo survives a reload; Undo
+    backs up first and takes back only those still exactly where it put them (x, y, height and floor)."""
     from custom_components.padspan_ha import ws_fabric as WF
+    from custom_components.padspan_ha import ws_radios as WR
     from custom_components.padspan_ha.const import DATA_MAPS
     h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
     ans = _wiz_read(h, conn)
@@ -311,79 +326,157 @@ def test_receivers_go_to_their_rooms_middle_never_move_one_placed_and_undo_in_on
         backups.append((note, keys))
         return "bk_1"
     monkeypatch.setattr(WF, "_auto_backup", backup)
+    live = ["new", "held", "onplan", "oldplan", "elsewhere", "noarea"]
+    monkeypatch.setattr(WR, "live_radios", lambda _h: [{"source": s} for s in live])
     _run(fab.async_spatial_update(set_scanners={"held": {"x_m": 1.0, "y_m": 1.0, "z_m": 2.0, "floor_id": "main"}}, op="test"))
-    ms = h.data[DOMAIN][DATA_MAPS]
-    plan = ms.list_maps()[0]
-    plan["receivers"] = [{"source": "onplan", "x": 0.5, "y": 0.5}]
-    mdl.data["scanners"] = {"new": {"room": room, "floor_id": "main"}, "held": {"room": room, "floor_id": "main"},
-                            "onplan": {"room": room, "floor_id": "main"}, "elsewhere": {"room": "Nowhere", "floor_id": "main"}, "bare": {"room": ""}}
+    plan = h.data[DOMAIN][DATA_MAPS].list_maps()[0]
+    plan["receivers"] = [{"source": "onplan", "x": 0.5, "y": 0.5}, {"id": "oldplan", "x": 0.4, "y": 0.4}]   # an older record: `id` only
+    mdl.data["scanners"] = {s: {"room": room, "floor_id": "main"} for s in ("new", "held", "onplan", "oldplan", "esphome-plug")}
+    mdl.data["scanners"]["elsewhere"] = {"room": "Nowhere", "floor_id": "main"}
     got = _call(WF.ws_receivers_to_rooms, h, conn)
-    cx, cy = A.G.centroid(rooms[room]["points_m"])
-    assert [p["source"] for p in got["placed"]] == ["new"] and got["placed"][0]["room"] == room
-    assert abs(got["placed"][0]["x_m"] - cx) < 1e-3 and abs(got["placed"][0]["y_m"] - cy) < 1e-3
-    assert {s["source"]: s["why"] for s in got["skipped"]} == {"held": "placed_already", "onplan": "placed_already", "elsewhere": "no_outline", "bare": "no_area"}
+    assert [p["source"] for p in got["placed"]] == ["new"] and got["placed"][0]["room"] == room       # not the plug: it isn't a live radio
+    assert A.G.inside(got["placed"][0]["x_m"], got["placed"][0]["y_m"], rooms[room]["points_m"])
+    assert {s["source"]: s["why"] for s in got["skipped"]} == {"held": "placed_already", "onplan": "placed_already", "oldplan": "placed_already",
+                                                               "elsewhere": "no_outline", "noarea": "no_area"}
     pos = mdl.scanner_positions_m()
-    assert pos["held"]["x_m"] == 1.0 and "onplan" not in pos and pos["new"]["floor_id"] == rooms[room].get("floor_id")
+    assert pos["held"]["x_m"] == 1.0 and "onplan" not in pos and "esphome-plug" not in pos and pos["new"]["floor_id"] == rooms[room].get("floor_id")
     assert backups and backups[0][1] == [WF.FABRIC_STORE_KEY]
+    kept = h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]["receivers_placed"]
+    assert list(kept) == ["new"] and kept["new"][2] == 2.4                       # kept on the server: a reload keeps the Undo
     c = _counters(h)
     assert c.get("setup_receivers_rooms:pressed") == 1 and c.get("setup_receivers_placed:1") == 1
-    # Pressed again: nothing left to place, nothing moved, no backup taken.
-    again = _call(WF.ws_receivers_to_rooms, h, conn)
-    assert again["placed"] == [] and len(backups) == 1 and c.get("setup_receivers_placed:0") is None and _counters(h)["setup_receivers_placed:0"] == 1
-    # Undo: only the one still where it was put.
-    _run(fab.async_spatial_update(set_scanners={"held": {"x_m": 1.0, "y_m": 1.0, "z_m": 2.0, "floor_id": "main"}}, op="test"))
-    out = _call(WF.ws_receivers_to_rooms, h, conn, undo={"new": [got["placed"][0]["x_m"], got["placed"][0]["y_m"]], "held": [9.0, 9.0]})
-    assert out["undone"] == ["new"] and out["left"] == ["held"] and "new" not in mdl.scanner_positions_m() and "held" in mdl.scanner_positions_m()
+    assert _call(WF.ws_receivers_to_rooms, h, conn)["placed"] == [] and len(backups) == 1     # nothing left: nothing moved, no backup
+    # Undo: one placed by the press but raised since is left; the one untouched goes; a backup first.
+    _run(fab.async_spatial_update(set_scanners={"new2": {**pos["new"], "z_m": 2.4}}, op="test"))
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]["receivers_placed"] = {**kept, "new2": [pos["new"]["x_m"], pos["new"]["y_m"], 2.4, pos["new"]["floor_id"]]}
+    _run(fab.async_spatial_update(set_scanners={"new2": {**pos["new"], "z_m": 1.1}}, op="test"))        # its height set since
+    out = _call(WF.ws_receivers_to_rooms, h, conn, undo=True)
+    assert out["undone"] == ["new"] and out["left"] == ["new2"] and "new" not in mdl.scanner_positions_m() and "new2" in mdl.scanner_positions_m()
+    assert len(backups) == 2 and "receivers_placed" not in h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]
     assert _counters(h).get("setup_receivers_rooms:undone") == 1
     for e in ("setup_receivers_rooms:pressed", "setup_receivers_rooms:undone", "setup_receivers_placed:gt12"):
         assert T.event_allowed(e)
 
 
-def _box(x0, y0, w, h):
-    return [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]]
+# "The scale may be off" (review 2026-11-12: the first rule almost never fired). Three ordinary homes, their rooms laid
+# out side by side, read at a range of wrong scales, with names PadSpan knows (English, German) and with rooms named by
+# number. FIRE: it must say so; QUIET: it must not; the gap between (0.7x, 1.5x) may go either way.
+_HOMES = {
+    "flat 60 m2": [("Living Room", 22), ("Bedroom", 12), ("Kitchen", 9), ("Bathroom", 5), ("Hallway", 6), ("Closet", 2)],
+    "house 150 m2": [("Living Room", 25), ("Kitchen", 14), ("Dining Room", 12), ("Bedroom", 14), ("Bedroom 2", 11), ("Bedroom 3", 10),
+                     ("Bathroom", 6), ("Bathroom 2", 4), ("Hallway", 8), ("Laundry", 5), ("Closet", 2), ("Entrance", 5), ("Office", 10)],
+    "house 300 m2": [("Living Room", 40), ("Family Room", 25), ("Kitchen", 20), ("Dining Room", 18), ("Bedroom", 20), ("Bedroom 2", 16),
+                     ("Bedroom 3", 14), ("Bedroom 4", 13), ("Ensuite", 8), ("Bathroom", 7), ("Bathroom 2", 6), ("Powder Room", 3),
+                     ("Hallway", 15), ("Hallway 2", 10), ("Laundry", 7), ("Office", 14), ("Entrance", 8), ("Closet", 4), ("Closet 2", 3), ("Garage", 40)],
+}
+_DE = {"Living Room": "Wohnzimmer", "Family Room": "Wohnzimmer", "Bedroom": "Schlafzimmer", "Kitchen": "Küche", "Bathroom": "Badezimmer",
+       "Ensuite": "Bad", "Powder Room": "Toilette", "Hallway": "Flur", "Closet": "Abstellraum", "Dining Room": "Esszimmer",
+       "Laundry": "Waschküche", "Entrance": "Eingang", "Office": "Büro", "Garage": "Garage"}
+_FIRE = (0.25, 0.3048, 1 / 3, 0.5, 2.0, 2.54, 3.0, 3.28)       # 0.3048: feet typed as metres; 3.28: metres typed as feet
+_QUIET = (0.8, 0.9, 1.0, 1.1, 1.25)
 
 
-def test_the_scale_looks_wrong_only_on_two_signs_agreeing():
-    """Owner, 2026-11-12: evidence the rooms read already holds; a notice only when two independent signs say the same way
-    and roughly as much; one sign alone, or two that disagree, say nothing."""
-    big = {"space:1": {"new": "Bedroom", "outline_m": _box(0, 0, 4.9, 4.9)}, "space:2": {"new": "Bedroom 2", "outline_m": _box(5, 0, 5, 5)},
-           "space:3": {"new": "Kitchen", "outline_m": _box(11, 0, 5.1, 5.1)}, "space:4": {"name": "BATH", "new": "Bathroom", "outline_m": _box(55, 0, 3.3, 3.3)}}
-    rows = list(big)
-    got = W.scale_signs(big, rows)
-    assert got and got["signs"] == ["footprint", "rooms"] and 1.4 < got["k"] < 1.55, got
-    assert got["example"]["rooms"]["kind"] in ("bathroom", "kitchen", "bedroom") and got["example"]["footprint"]["m"] == 58.3
-    near = {k: {**v, "outline_m": _box(v["outline_m"][0][0] * 0.3, 0, 4, 4) if k == "space:4" else v["outline_m"]} for k, v in big.items()}
-    assert W.scale_signs(near, rows) is None                                   # rooms alone: never shown on one sign
-    assert W.scale_signs(near, rows, {"k": 1.5, "text": "60'", "metres": 18.3, "here_m": 27.4})["signs"] == ["printed", "rooms"]
-    assert W.scale_signs(near, rows, {"k": 0.6, "text": "60'"}) is None         # the other way: they disagree, nothing said
-    assert W.scale_signs({k: v for k, v in list(near.items())[:2]}, rows[:2], {"k": 1.5}) is None   # two named rooms aren't a sign
-    small = {k: {**v, "outline_m": [[p[0] * 0.5, p[1] * 0.5] for p in v["outline_m"]]} for k, v in near.items()}
-    assert W.scale_signs(small, rows, {"k": 0.7})["signs"] == ["printed", "rooms"] and W.scale_signs(small, rows, {"k": 0.5}) is None   # 0.5 against 0.74: too far apart
+def _laid_out(rooms, k):
+    import math
+    width, x, y, row_h, out = math.sqrt(sum(a for _n, a in rooms)) * 1.3, 0.0, 0.0, 0.0, {}
+    for i, (n, a) in enumerate(rooms):
+        w = math.sqrt(a) * 1.2
+        h = a / w
+        if x + w > width and x > 0:
+            x, y, row_h = 0.0, y + row_h, 0.0
+        out[f"space:{i}"] = {"new": n, "outline_m": [[x * k, y * k], [(x + w) * k, y * k], [(x + w) * k, (y + h) * k], [x * k, (y + h) * k]]}
+        x, row_h = x + w, max(row_h, h)
+    return out
+
+
+def _named(rooms, how):
+    if how == "numbered":
+        return [(f"Room {i + 1}", a) for i, (_n, a) in enumerate(rooms)]
+    if how == "german":
+        return [(_DE[n.rstrip(" 0123456789")] + n[len(n.rstrip(" 0123456789")):], a) for n, a in rooms]
+    return rooms
+
+
+@pytest.mark.parametrize("home", list(_HOMES))
+@pytest.mark.parametrize("how", ["english", "german", "numbered"])
+def test_the_scale_looks_wrong_fires_when_far_off_and_never_near_right(home, how):
+    for k in _FIRE + _QUIET:
+        sp = _laid_out(_named(_HOMES[home], how), k)
+        got = W.scale_signs(sp, list(sp))
+        if k in _QUIET:
+            assert got is None, (home, how, k, got)
+        else:
+            assert got and "rooms" in got["signs"] and len(got["signs"]) >= 2, (home, how, k, got)
+            assert (got["k"] > 1) == (k > 1) and max(got["k"] / k, k / got["k"]) < 1.5, (home, how, k, got["k"])   # a fair estimate
+
+
+def test_the_scale_looks_wrong_stays_quiet_on_too_little_and_takes_a_printed_reading_first():
+    garage = {"space:0": {"new": "Garage", "outline_m": _SQ(6, 6)}}
+    one_two = {f"space:{i}": {"new": n, "outline_m": [[p[0] + 5 * i, p[1]] for p in _SQ(9, 9)]} for i, n in enumerate(("Bedroom", "Kitchen"))}
+    for sp in (garage, one_two, {**garage, "space:x": {"new": "Garage 2", "outline_m": _SQ(18, 18)}}):
+        assert W.scale_signs(sp, list(sp)) is None and W.scale_signs(sp, list(sp), {"k": 3.0}) is None   # one or two rooms: never
+    sp = _laid_out(_HOMES["house 150 m2"], 3.28)
+    got = W.scale_signs(sp, list(sp), {"k": 3.25, "text": "45'", "metres": 13.7, "here_m": 44.6})
+    assert got["k"] == 3.25 and got["signs"] == ["printed", "rooms", "spread"] and got["example"]["printed"]["text"] == "45'"
+    assert W.scale_signs(sp, list(sp), {"k": 0.5})["signs"] == ["rooms", "spread"]                      # a reading the other way doesn't count
+    ok = _laid_out(_HOMES["house 150 m2"], 1.0)
+    assert W.scale_signs(ok, list(ok), {"k": 3.0}) is None                                              # a printed reading alone: never
+    assert W._kind("Küche") == "kitchen" and W._kind("SALLE DE BAINS") == "bathroom" and W._kind("Slaapkamer 2") == "bedroom"   # noqa: SLF001
 
 
 def test_checking_the_scale_redraws_the_same_rooms_at_the_new_scale_with_no_new_read(monkeypatch, tmp_path, disk):  # noqa: F811
-    """Owner, 2026-11-12: after the scale is measured again, the helper's unsaved rooms come back worked out from the
-    same reads at the new scale (plan_ai.reproject_rooms through rooms_status); a saved session is never touched; the
-    scale notice is gone for a plan whose scale the person said is right."""
+    """Owner, 2026-11-12, and the review after it: the helper's unsaved rooms are drawn again from the same reads only
+    when the helper asks (`reproject`, after "Check the scale"), never because the plan moved for another reason; the
+    new proposal is built aside and swapped in only when it worked; names and ticks are kept when no room's id changed,
+    else they start again from Claude's, and the answer says which; the notice is gone for a plan said to be right."""
     h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
     ans = _wiz_read(h, conn)
     sess = ans["session"]
     mid = sess["plans"][0]["map_id"]
+    space = next(iter(_by_name(ans).values()))
+    named = _call(WP.ws_plan_build_rooms_edit, h, conn, session=sess["id"], rev=sess["rev"], op="space", space=space, name="Snug", via="wizard")["session"]
     area = lambda a: {sid: round(A.G.area(s["outline_m"]), 2) for sid, s in a["session"]["proposal"]["spaces"].items() if not s.get("merged_into")}  # noqa: E731
     before, runs = area(ans), _counters(h).get("plan_build_run:s2_started")
     tf = h.data[DOMAIN][DATA_MODEL].data["map_transforms"][mid]
     tf.update(scale_x_m=tf["scale_x_m"] * 2, scale_y_m=tf["scale_y_m"] * 2)  # measured again: twice as big
-    again = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")
+    # Not asked: the plan moved, nothing is redrawn (the person's names stay; Save says what changed, as before).
+    plain = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")
+    assert plain["session"]["rev"] == named["rev"] and "reprojected" not in plain
+    # Building the new proposal fails: the session exactly as it was, nothing lost.
+    real = A.rooms_proposal
+    monkeypatch.setattr(A, "rooms_proposal", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    broke = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
+    assert broke["reprojected"] == {"redrawn": False, "reset": False} and broke["session"]["rev"] == named["rev"]
+    assert broke["session"]["edits"]["spaces"][space]["new"] == "Snug"
+    monkeypatch.setattr(A, "rooms_proposal", real)
+    again = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
     after = area(again)
-    # A space's id comes from its outline in metres: the ids are new, the same rooms four times the area.
-    assert again["session"]["rev"] > sess["rev"] and len(after) == len(before)
+    # A space's id comes from its outline in metres: the ids are new, the same rooms four times the area, Claude's names.
+    assert again["reprojected"] == {"redrawn": True, "reset": True} and again["session"]["rev"] > named["rev"] and len(after) == len(before)
     b4, af = sorted(before.values()), sorted(after.values())
     assert all(abs(a - 4 * b) <= 0.05 * max(1.0, 4 * b) for a, b in zip(af, b4)), (b4, af)
     assert all(s.get("new") for s in again["session"]["proposal"]["spaces"].values() if not s.get("merged_into"))   # named again
     assert _counters(h).get("plan_build_run:s2_started") == runs and _counters(h).get("ai_wizard_scale_notice:reprojected") == 1
-    assert _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["session"]["rev"] == again["session"]["rev"]   # once
+    once = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
+    assert once["reprojected"]["redrawn"] is False and once["session"]["rev"] == again["session"]["rev"]   # nothing moved since: nothing said
+    # Measured again to the same scale (its placement record new, the outlines the same): the names are kept.
+    s2 = again["session"]
+    sp2 = next(iter(_by_name(again).values()))
+    kept = _call(WP.ws_plan_build_rooms_edit, h, conn, session=s2["id"], rev=s2["rev"], op="space", space=sp2, name="Den Two", via="wizard")["session"]
+    tf["origin_anchored"] = "2026-11-12"                       # a new record, the same metres
+    same = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
+    if same["reprojected"]["redrawn"]:
+        assert same["reprojected"]["reset"] is False and same["session"]["edits"]["spaces"][sp2]["new"] == "Den Two"
+    else:
+        assert same["session"]["rev"] == kept["rev"]
+    # A new placement whose metres are the same (the same length measured again): every id stays, the names are kept.
+    monkeypatch.setattr(A, "reproject_rooms", lambda s, snap: True)
+    cur = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["session"]
+    kept = _call(WP.ws_plan_build_rooms_edit, h, conn, session=cur["id"], rev=cur["rev"], op="space", space=sp2, name="Den Three", via="wizard")["session"]
+    same = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
+    assert same["reprojected"] == {"redrawn": True, "reset": False} and same["session"]["edits"]["spaces"][sp2]["new"] == "Den Three"
     h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {"scale_ok": [mid]}
-    monkeypatch.setattr(W, "scale_signs", lambda *a, **k: {"k": 2.0, "signs": ["rooms", "footprint"], "example": {}})
+    monkeypatch.setattr(W, "scale_signs", lambda *a, **k: {"k": 2.0, "signs": ["rooms", "spread"], "example": {}})
     assert _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["wizard"]["scale_check"] is None
     h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {}
     assert _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["wizard"]["scale_check"]["k"] == 2.0
@@ -558,3 +651,15 @@ def test_the_install_base_names_every_helper_word():
         fam, _, val = e.partition(":")
         assert f'a === "{fam}"' in ib, fam
         assert fam == "ai_wizard_switch" or re.search(rf'(\b{val}|"{val}"): "', ib), e
+
+
+def test_the_helpers_own_sessions_are_not_the_plans_tool_used(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-12 (item 18): the helper's rooms and scale sessions live in the Plans tool's store; they never make
+    the house "tool_used", so someone who used the helper, undid everything and is stuck again still gets the pull line."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    _wiz_read(h, conn)
+    A_store = _run(A.async_get_store(h))
+    A_store.data["lineups"] = {}                                    # the test floor's own line-up (the Plans tool's) left out
+    assert W.facts(h)["tool_used"] is False
+    A_store.data.setdefault("rooms", {})["rb_tool"] = {"floor_id": "main", "status": "done"}     # the Plans tool's own
+    assert W.facts(h)["tool_used"] is True

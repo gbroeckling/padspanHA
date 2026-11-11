@@ -74,9 +74,12 @@ export function _reset() { _info.push = _info.pull = null; _asking.push = _askin
 
 function _stepMark(ctx, what, step) {
   const st = ctx.state;
-  if (!["scale", "rooms"].includes(step) || _steps.has(what + step) || !_admin(ctx) || st.dataMode !== "live" || st.kioskMode || !ctx.actions.callWS) return;
-  _steps.add(what + step);
-  ctx.actions.callWS({ type: "padspan_ha/ai_wizard_mark", what, setup_step: step, page: PAGE })
+  // A visit, not only a page load (review 2026-11-12): the panel counts each time a view is drawn after another one
+  // (state._viewVisit), so leaving the Mapping wizard or Setup and coming back is "later" without a reload.
+  const page = `${PAGE}:${st._viewVisit || 0}`, key = what + step + (what === "step_seen" ? page : "");
+  if (!["scale", "rooms"].includes(step) || _steps.has(key) || !_admin(ctx) || st.dataMode !== "live" || st.kioskMode || !ctx.actions.callWS) return;
+  _steps.add(key);
+  ctx.actions.callWS({ type: "padspan_ha/ai_wizard_mark", what, setup_step: step, page })
     .then(r => { if (r && r.wizard && r.wizard.struggled && _info.pull && !_info.pull.offer) { _info.pull = null; ctx.actions.renderRooms(); } })
     .catch(() => {});
 }
@@ -96,7 +99,7 @@ export function infoFor(ctx, surface) {
   if (!_asking[rule] && ctx.actions.callWS) {
     _asking[rule] = true;
     ctx.actions.callWS({ type: "padspan_ha/ai_wizard_info", surface: rule, kiosk: !!ctx.state.kioskMode, live: true })
-      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer || _info[rule].undo) ctx.actions.renderRooms(); })   // nothing to offer: nothing to draw again
+      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer || _info[rule].undo || (_info[rule].wizard || {}).receivers_placed) ctx.actions.renderRooms(); })   // nothing to offer: nothing to draw again
       .catch(() => { _info[rule] = { offer: false }; })
       .finally(() => { _asking[rule] = false; });
   }

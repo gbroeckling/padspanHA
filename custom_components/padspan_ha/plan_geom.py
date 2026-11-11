@@ -943,6 +943,35 @@ def inside(x: float, y: float, p: Any) -> bool:
     return c
 
 
+def _edge_dist(x: float, y: float, p: Any) -> float:
+    """How far a point is from a polygon's nearest edge."""
+    best = math.inf
+    for i in range(len(p)):
+        (x1, y1), (x2, y2) = p[i - 1][:2], p[i][:2]
+        dx, dy = x2 - x1, y2 - y1
+        t = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy))) if dx or dy else 0.0
+        best = min(best, math.hypot(x - (x1 + t * dx), y - (y1 + t * dy)))
+    return best
+
+
+def inner_point(p: Any, rows: int = 15) -> tuple[float, float]:
+    """A point inside a polygon, as far from its walls as a simple search finds: the middle of the corners when that is
+    inside, and the middles of the inside runs of a few scanlines across it; of those, the one furthest from every edge wins.
+    An L or a U room gets a point in the room, never the corners' middle out in the notch (the receivers' first
+    place: ws_fabric.receivers_to_rooms)."""
+    if not p or len(p) < 3:
+        return centroid(p)
+    cands = [centroid(p)] if inside(*centroid(p), p) else []
+    lo, hi = min(v[1] for v in p), max(v[1] for v in p)
+    for k in range(1, rows + 1):
+        y = lo + (hi - lo) * k / (rows + 1)
+        xs = sorted((p[i - 1][0] + (y - p[i - 1][1]) * (p[i][0] - p[i - 1][0]) / (p[i][1] - p[i - 1][1]))
+                    for i in range(len(p)) if (p[i - 1][1] > y) != (p[i][1] > y))
+        cands += [((xs[j] + xs[j + 1]) / 2, y) for j in range(0, len(xs) - 1, 2)]
+    cands = [c for c in cands if inside(c[0], c[1], p)]
+    return max(cands, key=lambda c: _edge_dist(c[0], c[1], p)) if cands else centroid(p)
+
+
 def _box(polys: list, pad: float) -> tuple[float, float, float, float]:
     xs = [v[0] for p in polys for v in p]
     ys = [v[1] for p in polys for v in p]

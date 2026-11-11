@@ -43,8 +43,8 @@ export const HA_AREAS_PATH = "/config/areas/dashboard";
 export const START = "Draw my rooms →";
 export const LEAVES = "Pressing Draw my rooms sends your floor plan picture to Claude, through Home Assistant's Anthropic integration and " +
   "your Anthropic account. Nothing else from your house is sent: no people, devices or positions.";
-export const COST = "Claude reads your plan twice to find its rooms. Anthropic charges your Anthropic account for each read; " +
-  "the Anthropic Console's usage page shows what they cost.";
+export const COST = "Claude reads your plan twice to find its rooms, after one tiny read with no plan in it that checks your account " +
+  "has credit. Anthropic charges your Anthropic account for each read; the Anthropic Console's usage page shows what they cost.";
 /** The same for a plan with no scale yet: the person measures it (owner, 2026-11-12: measure first; Claude reads the scale
  *  only when asked to). */
 export const COST_SCALE = COST + " Claude looks for a measurement printed on your plan only if you ask it to (up to three reads more).";
@@ -58,6 +58,9 @@ export const SCALE_UNCHECKED = "Claude found a measurement but couldn't double-c
 /** Under the scale screen's one Save: what it does, then what happens next. */
 export const SCALE_SAVE_SAYS = "Save keeps this as your plan's scale, then Claude reads the plan for its rooms (two reads, 1–3 minutes). " +
   "A backup is taken first. Undo on the last screen takes the rooms and this scale back.";
+/** The same after "Check the scale" (review 2026-11-12: it said two reads while the notice said it costs nothing). */
+export const SCALE_SAVE_RESCALE = "Save keeps this as your plan's scale, then the same rooms are drawn again at it: nothing is read again, " +
+  "nothing is paid for. A backup is taken first.";
 export const SCALE_DIFFERS_PCT = 5;     // the person's line and Claude's double-checked reading this far apart: said, never refused
 const MODEL_WORDS = OFFER.MODEL_WORDS;
 // Connect Claude, honest about the whole path (owner, 2026-11-12; the guide's "ten steps in three places").
@@ -315,14 +318,17 @@ async function loadAll(ctx, S) {
       }
       S.screen = "intro";
       const at = gone ? null : w.started && w.started.at;
-      if (w.started && w.started.scale_session && ["scale_read", "scale_check", "scale_guided"].includes(at)) {
+      const rescale = !gone && S.plan && (w.rescale || {})[S.plan.id];
+      if (rescale && needsScale(ctx.state, S.plan)) {
+        // "Check the scale" left part-way (stored on the server for this plan, whatever else is held): back to measuring;
+        // after Save the same rooms come back, drawn again (scaleSave), with no read.
+        S.rescale = { map: S.plan.id, sid: rescale };
+        await toMeasure(ctx, S);
+      } else if (w.started && w.started.scale_session && ["scale_read", "scale_check", "scale_guided"].includes(at)) {
         S.scaleSid = w.started.scale_session;          // Claude's reading, left while it read or while measuring (scale_check: before 2026-11-12)
         await scaleStatus(ctx, S);
       } else if (at === "scale_guided" && S.plan && needsScale(ctx.state, S.plan)) {
-        // Measuring: back to that, a reading Claude already made offered (never a new one); with rooms read before (the
-        // scale was being checked), those rooms come back after Save, worked out again (scaleSave).
-        if (w.started.rooms_session) S.rescaleSid = w.started.rooms_session;
-        await toMeasure(ctx, S);
+        await toMeasure(ctx, S);                         // measuring: back to that, a reading Claude already made offered (never a new one)
       } else if (at === "floor_pick") {
         // Which floor the plan shows: the plan chooser; Draw my rooms then measures again (no new read).
       } else if (!gone && w.started && w.started.rooms_session) {
@@ -417,19 +423,33 @@ function redrawAfterPress(ctx, S) {
 
 /** The press the list's redraw waits for (redrawAfterPress): pointerdown anywhere in the helper; its click is delivered
  *  in the same turn as its pointerup, so the waiting redraw runs one turn later. */
+// Let go anywhere ends the press (review 2026-11-12: let go outside the helper left it pressed): one listener on the
+// document for the open helper, taken off when it is left (leave).
+let _upCtx = null, _up = null;
 function watchPress(ctx, S, root) {
   root.addEventListener("pointerdown", () => { S.pressing = true; });
-  const up = () => {
+  _upCtx = ctx;
+  if (_up || typeof document === "undefined" || !document.addEventListener) return;
+  _up = () => {
+    const c = _upCtx, s = c && c.state._aiw;
+    if (!s) return;
     const go = () => {
-      S.pressing = false;
-      if (!S.redrawLater) return;
-      S.redrawLater = false;
-      if (ctx.state._aiw === S) rerenderKeep(ctx, S);
+      s.pressing = false;
+      if (!s.redrawLater) return;
+      s.redrawLater = false;
+      if (c.state._aiw === s) rerenderKeep(c, s);
     };
     if (typeof setTimeout === "function") setTimeout(go, 0); else go();
   };
-  root.addEventListener("pointerup", up);
-  root.addEventListener("pointercancel", up);
+  document.addEventListener("pointerup", _up, true);
+  document.addEventListener("pointercancel", _up, true);
+}
+function unwatchPress() {
+  if (_up && typeof document !== "undefined" && document.removeEventListener) {
+    document.removeEventListener("pointerup", _up, true);
+    document.removeEventListener("pointercancel", _up, true);
+  }
+  _up = null; _upCtx = null;
 }
 
 /** A row's name as typed (kept here until the session has it: a redraw or an answer never takes typing away), else Claude's. */
@@ -451,9 +471,20 @@ function rerenderKeep(ctx, S) {
   }, 0);
 }
 
+/** The rescale record for the plan (the server's: "Check the scale" waiting for the new measurement), or null. */
+const rescaleOf = (S, mid) => (((S.info && S.info.wizard) || {}).rescale || {})[mid] || null;
+
 async function status(ctx, S) {
   try {
-    const ans = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", session: S.sid, via: VIA });
+    // The rooms are drawn again from the same reads only when "Check the scale" asked for it, for this plan and this
+    // session (the server's record), never because a plan moved for another reason (review 2026-11-12).
+    const mid = S.plan && S.plan.id, again = !!(mid && S.sid && rescaleOf(S, mid) === S.sid && !needsScale(ctx.state, S.plan));
+    const ans = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", session: S.sid, via: VIA, ...(again ? { reproject: true } : {}) });
+    if (again) {
+      S.redrawn = ans.reprojected && ans.reprojected.redrawn ? ans.reprojected : null;
+      ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale_done", map_id: mid }).catch(() => {});
+      if (S.info && S.info.wizard && S.info.wizard.rescale) delete S.info.wizard.rescale[mid];
+    }
     const back = take(S, ans);
     const scr = screenOf(ans);
     if (back && scr === "rooms_check") telOnce(ctx, "ai_wizard:edits_back");   // back on the list with their ticks (once a page)
@@ -571,6 +602,9 @@ function startFailed(ctx, S, plan, e) {
 /** From the intro (or Done's next floor): a plan with no scale is measured first (the measuring screen, nothing read),
  *  any other goes straight to the rooms read. */
 async function begin(ctx, S, plan) {
+  // A scale check belongs to its own plan and session: any other plan starts without it; this plan's (the server's
+  // record, left part-way) is picked up again.
+  S.rescale = rescaleOf(S, plan.id) && needsScale(ctx.state, plan) ? { map: plan.id, sid: rescaleOf(S, plan.id) } : null;
   S.gone = false; S.busy = true; S.msg = ""; S.fail = null; S.failFor = null; rerender(ctx);
   try {
     await consent(ctx, S);
@@ -630,7 +664,7 @@ async function startRead(ctx, S, plan) {
   try {
     await consent(ctx, S);
     const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_start", floor_id: plan.floor_id, map_ids: [plan.id], via: VIA });
-    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null; S.redrawn = false;
+    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null; S.redrawn = null; S.rescale = null;
     S.screen = "rooms_read";
     _done.delete("step:rooms_read"); _done.delete("step:rooms_check"); _done.delete("step:saved");
   } catch (e) { startFailed(ctx, S, plan, e); }
@@ -710,10 +744,10 @@ async function scaleSave(ctx, S) {
   S.sc = null;
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   if (ctx.actions.mapsRefresh && plan.floor_id !== S.plan.floor_id) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
-  if (S.rescaleSid) {                                // "Check the scale": the same rooms, worked out again at the new scale (no new read)
-    S.sid = S.rescaleSid; S.rescaleSid = null; S.scaleElsewhere = null;
+  if (S.rescale && S.rescale.map === plan.id) {     // "Check the scale": the same rooms, worked out again at the new scale (no new read)
+    S.sid = S.rescale.sid; S.rescale = null; S.scaleElsewhere = null;
     await status(ctx, S);
-    if (S.screen === "rooms_check") { S.redrawn = true; rerender(ctx); return; }
+    if (S.screen === "rooms_check") { rerender(ctx); return; }
   }
   return startRead(ctx, S, plan);
 }
@@ -813,7 +847,8 @@ async function undo(ctx, S) {
     // The rooms first, then the plan's scale if this helper set it (design E.5): the server takes the scale back only
     // while nothing in metres was added since, and otherwise says why. One run for here, Setup and Settings → AI.
     const mid = (S.plan && S.plan.id) || ((((S.ans && S.ans.session) || {}).plans || [])[0] || {}).map_id;
-    const out = await OFFER.undoHelperRooms(ctx, { session: S.sid, map_id: mid });
+    // The server's word for the scale (as Setup and Settings → AI use it): quiet about a scale measured again by hand.
+    const out = await OFFER.undoHelperRooms(ctx, { session: S.sid, map_id: mid, scale: ((S.ans && S.ans.undo) || {}).scale });
     if (!out.ok) throw { code: "undo", message: out.message };
     S.undone = { n: out.n, skipped: out.skipped, scale: out.scale === "back" ? "back" : out.scale === "kept" ? out.scaleWords : null };
     if (out.scale === "back" && ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
@@ -827,7 +862,7 @@ async function undo(ctx, S) {
 /** The plan chooser, from any step: nothing is thrown away on the server (a reading stays held for its plan). */
 function toChooser(ctx, S) {
   if (S.timer) { clearTimeout(S.timer); S.timer = null; }
-  Object.assign(S, { screen: "intro", sid: null, ans: null, scaleSid: null, sc: null, fail: null, failFor: null, msg: "", done: null, undone: null });
+  Object.assign(S, { screen: "intro", sid: null, ans: null, scaleSid: null, sc: null, fail: null, failFor: null, msg: "", done: null, undone: null, rescale: null, redrawn: null });
   _done.delete("step:intro");
   rerender(ctx);
 }
@@ -837,6 +872,7 @@ function leave(ctx, S) {
   if (step && S.screen !== "saved" && !S.undone) tel(ctx, "ai_wizard_left:" + step);
   if (S.timer) { clearTimeout(S.timer); S.timer = null; }
   const from = ctx.state._aiwFrom || {};
+  unwatchPress();
   ctx.state._aiw = null;
   ctx.actions.showView(from.view && from.view !== "ai_wizard" ? from.view : "overview");
 }
@@ -1228,7 +1264,7 @@ function scaleFooter(ctx, S, side) {
   const save = btn(ctx, S.busy ? "Saving…" : "Save and find the rooms →", () => { if (scaleReady(S)) scaleSave(ctx, S); },
     { primary: true, attrs: { "data-aiw": "scale-save" } });
   side.appendChild(row(ctx, [save]));
-  side.appendChild(MUTED(ctx, SCALE_SAVE_SAYS));
+  side.appendChild(MUTED(ctx, S.rescale ? SCALE_SAVE_RESCALE : SCALE_SAVE_SAYS));
   return { sized, save };
 }
 
@@ -1371,13 +1407,18 @@ function scaleSaid(ctx, S, said, sized, save) {
 
 /** "The scale looks wrong" in plain words (ai_wizard.scale_signs' answer): how far, and the example that showed it. */
 const KIND_WORDS = { living: "living room", dining: "dining room", family: "family room", powder: "powder room" };
+/** A length factor as people say it (2026-11-12: a percent of unlike factors said "60 % too small" for 3 times). */
+export function factorWords(k) {
+  const f = Number(k) > 1 ? Number(k) : 1 / Number(k);
+  return f < 1.75 ? "about one and a half times" : f < 2.25 ? "about twice" : f < 2.75 ? "about two and a half times" : `about ${Math.round(f)} times`;
+}
 export function scaleNoticeWords(sc) {
-  const big = Number(sc.k) > 1, pct = Math.round(Math.abs(Number(sc.k) - 1) * 100), ex = sc.example || {}, bits = [];
-  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m², ${big ? "big" : "small"} for a ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}`);
-  if (ex.footprint) bits.push(`the rooms together would run ${ex.footprint.m} m end to end`);
-  if (ex.printed) bits.push(`Claude read ${ex.printed.text} printed on the plan, which this scale makes ${ex.printed.here_m} m`);
-  const said = bits.join("; ");
-  return `The scale may be off: the rooms come out about ${pct} % too ${big ? "big" : "small"}.` + (said ? ` ${said[0].toUpperCase()}${said.slice(1)}.` : "");
+  const big = Number(sc.k) > 1, ex = sc.example || {}, bits = [];
+  // A printed measurement Claude read is the strongest evidence: said first.
+  if (ex.printed) bits.push(`Claude read ${ex.printed.text} printed on the plan, which this scale makes ${ex.printed.here_m} m.`);
+  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m²` + (ex.rooms.kind ? `, ${big ? "big" : "small"} for a ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}.` : "."));
+  if (ex.spread) bits.push(`The rooms together would reach ${ex.spread.m} m end to end.`);
+  return [`The scale may be off: the rooms come out ${factorWords(sc.k)} too ${big ? "big" : "small"}.`, ...bits].join(" ");
 }
 /** Where "Check the scale" can't take the scale back here (u.code): what a correction affects, and where it is made. */
 export const SCALE_ELSEWHERE = {
@@ -1400,7 +1441,11 @@ async function checkScale(ctx, S) {
   S.busy = false;
   if (u && u.ok) {
     if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
-    S.rescaleSid = S.sid; S.scaleSid = null; S.sc = null;
+    S.rescale = { map: mid, sid: S.sid }; S.scaleSid = null; S.sc = null;
+    // Stored on the server for this plan, so leaving now and Carry on comes back to the measurement, and its Save
+    // draws these rooms again (never a new read): whatever other step or reading is held.
+    if (S.info) S.info.wizard = { ...(S.info.wizard || {}), rescale: { ...((S.info.wizard || {}).rescale || {}), [mid]: S.sid } };
+    await ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale", map_id: mid, rooms_session: S.sid }).catch(() => {});
     await toMeasure(ctx, S);
   } else {
     tel(ctx, "ai_wizard_scale_notice:elsewhere");
@@ -1419,7 +1464,10 @@ function scaleNotice(ctx, S, sc) {
   box.appendChild(P(ctx, scaleNoticeWords(sc), "margin:0"));
   if (S.scaleElsewhere) {
     box.appendChild(P(ctx, SCALE_ELSEWHERE[S.scaleElsewhere], "margin:6px 0 0;color:#f59e0b"));
-    box.appendChild(row(ctx, [btn(ctx, "Measure it in Mapping →", () => { ctx.state._aiw = null; ctx.actions.openSetupStep("scale", mid); },
+    box.appendChild(row(ctx, [btn(ctx, "Measure it in Mapping →", () => {
+      // Recorded first: back here after measuring, these rooms are drawn again at the new scale (status, no read).
+      ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale", map_id: mid, rooms_session: S.sid }).catch(() => {});
+      ctx.state._aiw = null; ctx.actions.openSetupStep("scale", mid); },
       { primary: true, attrs: { "data-aiw": "scale-elsewhere" } })]));
     return box;
   }
@@ -1461,7 +1509,7 @@ function checkScreen(ctx, S, box) {
     return;
   }
   if (S.redrawn) box.appendChild(el("div", { "data-aiw": "redrawn", style: "font-size:12px;color:#a7f3d0;line-height:1.5;margin:4px 0" },
-    "Drawn again at the new scale, from the same reading. Names and ticks are Claude's again: check them before you save."));
+    "Drawn again at the new scale, from the same reading. " + (S.redrawn.reset ? "Names and ticks are Claude's again: check them before you save." : "Your names and ticks are kept.")));
   const notice = scaleNotice(ctx, S, w.scale_check);
   if (notice) box.appendChild(notice);
   // The plan beside its list on a wide screen, above it on a narrow one.
@@ -1552,9 +1600,13 @@ function checkScreen(ctx, S, box) {
   if (S.fail) box.appendChild(failBlock(ctx, S, S.fail));
   const n = [...S.ticks].filter(id => rows.some(r => r.id === id)).length;
   // Save stays in view while the list scrolls (desktop and phone): a bar stuck to the bottom of the screen.
-  box.appendChild(el("div", { "data-aiw": "save-bar", style: "position:sticky;bottom:0;z-index:2;background:#0f1a12;border-top:1px solid #1b3526;padding:6px 0;margin-top:8px" },
-    [row(ctx, [btn(ctx, S.busy ? "Saving…" : `Save ${n} room${n === 1 ? "" : "s"} (experimental)`, () => save(ctx, S),
-      { primary: true, disabled: !n || S.busy, attrs: { "data-aiw": "save" } }), MUTED(ctx, "A backup is taken first. One Undo takes it all back.")], "margin:0")]));
+  // One compact line (review 2026-11-12: on a phone the bar and the bottom menu took about 150 of 844 px): the note beside
+  // Save shrinks to one line and is cut short rather than wrapping.
+  box.appendChild(el("div", { "data-aiw": "save-bar", style: "position:sticky;bottom:0;z-index:2;background:#0f1a12;border-top:1px solid #1b3526;padding:4px 0;margin-top:8px;" +
+    "display:flex;gap:8px;align-items:center;flex-wrap:nowrap" }, [
+    btn(ctx, S.busy ? "Saving…" : `Save ${n} room${n === 1 ? "" : "s"}`, () => save(ctx, S), { primary: true, disabled: !n || S.busy, attrs: { "data-aiw": "save", style: "font-size:12px;flex:none" } }),
+    el("span", { style: "flex:1 1 auto;min-width:0;font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" },
+      "Experimental. A backup is taken first; one Undo takes it all back.")]));
 }
 
 function savedScreen(ctx, S, box) {
@@ -1582,7 +1634,7 @@ function savedScreen(ctx, S, box) {
   if (made.length) box.appendChild(MUTED(ctx, `Added to Home Assistant's areas: ${made.join(", ")}.`));
   if (failed.length) box.appendChild(row(ctx, [MUTED(ctx, `Couldn't add to Home Assistant: ${failed.join(", ")}. The rooms are saved in PadSpan; add the area yourself on Home Assistant's`),
     haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas")]));
-  const rb = SETUP && SETUP.receiversBlock ? SETUP.receiversBlock(ctx) : null;
+  const rb = SETUP && SETUP.receiversBlock ? SETUP.receiversBlock(ctx, { quiet: true }) : null;
   if (rb) box.appendChild(rb);
   box.appendChild(row(ctx, [P(ctx, "Next: put your Bluetooth receivers on the map, so PadSpan can tell which room each phone is in.", "margin:0"),
     btn(ctx, "Place receivers →", () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "handoff" }).catch(() => {});

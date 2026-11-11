@@ -182,11 +182,18 @@ def test_the_account_check_is_one_tiny_read_through_the_one_ask_path_and_says_no
     _run(W.ws_ai_wizard_check_claude(h, conn, {"id": 2}))
     _run(W.ws_ai_wizard_check_claude(h, conn, {"id": 3}))                              # believed: not read again
     assert conn.send_result.call_args[0][1] == {"ok": True} and asked.count("ok") == 1 and bumped[-1] == "ai_wizard_check:ok"
+    # Review 2026-11-12: the pass belongs to the AI Task that passed; another one within the hour is checked again.
+    monkeypatch.setattr(P, "ai_task", lambda _h, **_k: {"ready": True, "ai_task": "ai_task.other"})
+    _run(W.ws_ai_wizard_check_claude(h, conn, {"id": 4}))
+    assert asked.count("ok") == 2
     assert all(T.event_allowed(f"ai_wizard_check:{w}") for w in W.CHECK_WHY)
 
 
 def test_the_smaller_gates():
-    assert W.offer_reason(_f(tool_used=True, wizard={"struggled": True}), "pull") == "tool_used"
+    # Review 2026-11-12: tool_used is for the push surfaces (someone who found the Plans tool isn't pushed a beginner's
+    # helper); on Setup and the Mapping wizard, where the person is stuck at Scale or Rooms now, it is offered all the same.
+    assert W.offer_reason(_f(tool_used=True), "push") == "tool_used"
+    assert W.offer_reason(_f(tool_used=True, wizard={"struggled": True}), "pull") == "offer"
     assert W.offer_reason(_f(tool_used=True, wizard={"started": {"at": "intro"}}), "pull") == "offer", "its own use isn't 'used the tool'"
     assert W.offer_reason(_f(tier="free", trial_offerable=True), "push") == "offer"
     assert W.offer_reason(_f(tier="bright", trial_offerable=False), "push") == "no_pro_path"
