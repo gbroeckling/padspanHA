@@ -70,7 +70,7 @@ def test_an_area_s_words_inside_a_label_match_and_short_words_do_not():
     spaces = {"space:a": {"name": "LIVING / DINING", "outline_m": _SQ(5, 5)}, "space:b": {"name": "RM 3", "outline_m": _SQ(3, 3)}}
     got = W.suggest_names(spaces, [{"name": "Dining Room", "floor_id": "main"}, {"name": "3", "floor_id": "main"}], [], "main")
     assert got["space:a"] == {"name": "Dining Room", "source": "area_abbrev"} and got["space:b"]["source"] == "printed"
-    assert W.printed_name("MSTR BR") == "Mstr Bedroom" and W.printed_name("Salle à manger") == "Salle à manger"
+    assert W.printed_name("MSTR BR") == "Master Bedroom" and W.printed_name("Salle à manger") == "Salle à manger"
     assert len(W.printed_name("X" * 80)) == W.NAME_MAX == A.S2_NAME_MAX
 
 
@@ -88,6 +88,41 @@ def test_the_helper_ticks_rooms_seen_twice_and_big_enough():
     assert t["ticked"] == ["space:big", "space:midm"]
     assert t["small"] == ["space:tiny"] and t["outdoor"] == ["space:deck"] and t["dropped"] == ["space:void"]
     assert "space:gone" not in t["rows"] and "space:void" not in t["rows"] and t["m2"]["space:big"] == 9.0
+
+
+@pytest.mark.parametrize("name", ["Balkon", "Loggia", "Terrasse", "Garten", "Hof", "Carport", "Treppenhaus", "balcon", "TERRASSE", "Cour", "Jardin",
+                                  "loggia", "Escalier", "BALKON", "Terras", "Tuin", "Trap", "Trappenhuis", "STAIR", "Stairwell", "Stairs",
+                                  "CARPORT", "Void above"])
+def test_outside_stairs_and_voids_in_four_languages_start_unticked_but_are_offered(name):
+    prop = {"rooms": {}, "spaces": {"space:x": {"name": name, "new": name, "outline_m": _SQ(4, 4), "reads": [1, 2]},
+                                    "space:k": {"name": "Küche", "new": "Küche", "outline_m": _SQ(4, 4), "reads": [1, 2]}}}
+    t = W.wizard_ticks(prop, {})
+    assert t["outdoor"] == ["space:x"] and t["ticked"] == ["space:k"] and "space:x" in t["rows"], name
+
+
+@pytest.mark.parametrize("label,area,printed", [
+    ("BEDRM 2", "Bedroom 2", "Bedroom 2"), ("BDRM", "Bedroom", "Bedroom"), ("BED RM", "Bedroom", "Bedroom"),
+    ("PWD RM", "Powder Room", "Powder Room"), ("PWDR RM", "Powder Room", "Powder Room"), ("MSTR", "Primary", "Master"),
+    ("MBR", "Primary Bedroom", "Master Bedroom"), ("FAM RM", "Family Room", "Family Room"), ("LIV RM", "Living Room", "Living Room"),
+    ("DIN RM", "Dining Room", "Dining Room"), ("UTIL", "Utility", "Utility"), ("MECH", "Mechanical", "Mechanical"),
+    ("W/D", "Laundry", "Laundry"), ("WIC", "Closet", "Closet"), ("ENS", "Ensuite Bathroom", "Ensuite"), ("ENSUITE", "Ensuite Bathroom", "Ensuite"),
+    ("ENS", "Ensuite", "Ensuite"), ("GAR", "Garage", "Garage")])
+def test_the_abbreviations_plans_print_match_their_areas_and_are_written_out(label, area, printed):
+    sp = {"space:a": {"name": label, "outline_m": _SQ(3, 4)}}
+    assert W.suggest_names(sp, [{"name": area, "floor_id": "main"}], [], "main")["space:a"] == {"name": area, "source": "area_abbrev"}, label
+    assert W.printed_name(label) == printed and W.suggest_names(sp, [], [], "main")["space:a"]["name"] == printed, label
+
+
+@pytest.mark.parametrize("label,want", [
+    ("BEDROOM 2 14'-8\" x 8'-5\"", "Bedroom 2"), ("KITCHEN 4.2 x 3.1", "Kitchen"), ("DEN 12'0\" x 10'6\"", "Den"), ("FAMILY ROOM 132 sq ft", "Family Room"),
+    ("Wohnen 12,3 m²", "Wohnen"), ("OFFICE (12'x10')", "Office"), ("BR 3 - 3.6 m x 3.0 m", "Bedroom 3"), ("Bath 4,2 x 2,1", "Bath"),
+    ("STUDY 2", "STUDY 2".title()), ("BR 2", "Bedroom 2")])
+def test_a_printed_size_never_reaches_a_room_s_name(label, want):
+    assert W.printed_name(label) == want, (label, W.printed_name(label))
+    assert W.suggest_names({"space:a": {"name": label, "outline_m": _SQ(3, 4)}}, [], [], "main")["space:a"]["name"] == want
+    # and it never stops a match: the size is no part of the words matched
+    assert W.suggest_names({"space:a": {"name": label, "outline_m": _SQ(3, 4)}}, [{"name": want, "floor_id": "main"}], [], "main")["space:a"]["source"] \
+        in ("area_exact", "area_abbrev")
 
 
 # ═══ Not now, Don't ask again, where it was left (design A.3) ═════════════════

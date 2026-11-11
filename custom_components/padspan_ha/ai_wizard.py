@@ -303,11 +303,22 @@ ABBREV: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("dr", "din", "dining"), ("dining", "room")), **dict.fromkeys(("wc", "pwdr", "powder"), ("powder", "room")),
     **dict.fromkeys(("ldry", "lndry"), ("laundry",)), **dict.fromkeys(("ofc", "study"), ("office",)),
     **dict.fromkeys(("ent", "entry", "foyer"), ("entrance",)), **dict.fromkeys(("hall", "corr", "corridor"), ("hallway",)),
-    **dict.fromkeys(("cl", "clo", "clos", "wic"), ("closet",)), **dict.fromkeys(("master", "mstr"), ("primary",))}
-# Written out in a printed name too: only true abbreviations (STUDY stays Study, MASTER stays Master).
+    **dict.fromkeys(("cl", "clo", "clos", "wic"), ("closet",)), **dict.fromkeys(("master", "mstr"), ("primary",)),
+    "bedrm": ("bedroom",), "mbr": ("primary", "bedroom"), "pwd": ("powder", "room"), "rm": ("room",), "fam": ("family", "room"),
+    "util": ("utility",), "mech": ("mechanical",), "wd": ("laundry",), **dict.fromkeys(("ens", "ensuite"), ("ensuite", "bathroom")),
+    "gar": ("garage",)}
+# Written out in a printed name too: only true abbreviations (STUDY stays Study, MASTER stays Master, ENSUITE stays Ensuite).
 _SPELL_OUT = frozenset({"br", "bdrm", "bd", "ba", "kit", "kitch", "lr", "liv", "dr", "din", "wc", "pwdr", "ldry", "lndry", "ofc", "ent",
-                        "corr", "cl", "clo", "clos", "wic"})
-OUTDOOR_WORDS = frozenset({"porch", "deck", "patio", "balcony", "terrace", "veranda", "lanai"})
+                        "corr", "cl", "clo", "clos", "wic", "bed", "bedrm", "mbr", "pwd", "rm", "fam", "util", "mech", "wd", "ens", "gar", "mstr"})
+_PRINTED = {"mstr": ("master",), "mbr": ("master", "bedroom"), "ens": ("ensuite",)}   # written out as printed plans mean them
+# Not a room to tick at the start (still offered, unticked): outside, stairs and voids, in English, German, French and Dutch.
+OUTDOOR_WORDS = frozenset({"porch", "deck", "patio", "balcony", "terrace", "veranda", "lanai", "carport", "stair", "stairs", "stairwell", "void",
+                           "balkon", "loggia", "terrasse", "garten", "hof", "treppenhaus",            # German
+                           "balcon", "cour", "jardin", "escalier",                                  # French (loggia, terrasse above)
+                           "terras", "tuin", "trap", "trappenhuis"})                                # Dutch (balkon above)
+# A size printed with a room's name (14'-8" x 8'-5", 4.2 x 3.1, 132 sq ft, 12.3 m²): never part of the name.
+_LEN = r"\d+(?:[.,]\d+)?\s*(?:['′’]|ft\.?|mm|cm|m)?(?:\s*-?\s*\d+(?:[.,]\d+)?(?:\s+\d+/\d+)?\s*(?:[\"″”]|''|in\.?)?)?"
+_SIZE = re.compile(rf"{_LEN}\s*[x×]\s*{_LEN}|\d+(?:[.,]\d+)?\s*(?:sq\.?\s*(?:ft|m)|sf|ft²|ft2|m²|m2)\.?", re.I)
 SMALL_M2, TICK_M2 = 2.0, 4.0     # under 2 m²: Small spaces, unticked; 4 m² or more: ticked when both reads saw it
 NAME_MAX = 40                    # plan_ai.S2_NAME_MAX
 
@@ -319,11 +330,22 @@ def fold(s: Any) -> str:
     return " ".join(t.split())
 
 
+def strip_size(label: Any) -> str:
+    """A printed label without the size printed with it (_SIZE), and what that leaves empty: "( )", a trailing dash."""
+    s = re.sub(r"[(\[]\s*[)\]]", " ", _SIZE.sub(" ", str(label or "")))
+    return " ".join(s.split()).strip(" -–,:;/|")
+
+
+def _same(out: list[str], x: str) -> bool:
+    """A word written out twice in a row (BED RM: bedroom; LIV RM: living room; ENSUITE BATH: ensuite bathroom)."""
+    return bool(out) and ((out[-1].lower() == x and not x.isdigit()) or (x == "room" and out[-1].lower().endswith("room")))
+
+
 def _words(s: Any) -> list[str]:
     out: list[str] = []
-    for w in fold(s).split():
+    for w in re.sub(r"\bw d\b", "wd", fold(strip_size(s))).split():
         for x in ABBREV.get(w, (w,)):
-            if not (out and out[-1] == x == "room"):
+            if not _same(out, x):
                 out.append(x)
     return out
 
@@ -339,15 +361,16 @@ def is_outdoor(label: Any) -> bool:
 
 def printed_name(label: Any) -> str:
     """A printed label as a room's name: abbreviations written out, CAPITALS
-    made Title Case, accents kept."""
-    raw = " ".join(str(label or "").split())
+    made Title Case, accents kept, a printed size left out."""
+    raw = strip_size(label)
     caps = raw.isupper()
     out: list[str] = []
     for w in raw.split():
         f = fold(w)
+        f = "wd" if f == "w d" else f
         if f in _SPELL_OUT:
-            for x in ABBREV[f]:
-                if not (out and out[-1].lower() == x == "room"):
+            for x in _PRINTED.get(f, ABBREV[f]):
+                if not _same(out, x):
                     out.append(x.capitalize())
         else:
             out.append(w.capitalize() if caps else w)
@@ -382,7 +405,7 @@ def suggest_names(spaces: dict[str, dict], areas: list[dict], taken: Any, floor_
         for sid in order:
             if sid in out:
                 continue
-            i = next((i for i, a in enumerate(free) if i not in used and test(spaces[sid].get("name"), a["name"])), None)
+            i = next((i for i, a in enumerate(free) if i not in used and test(strip_size(spaces[sid].get("name")), a["name"])), None)
             if i is not None:
                 used.add(i)
                 out[sid] = {"name": str(free[i]["name"])[:NAME_MAX], "source": source}
@@ -411,7 +434,8 @@ def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
     doors, windows and stairs stay on the session for Live Aboard's Plans
     tool. Ticked: seen by both reads and 4 m² or more, or 2 m² or more and
     one of the house's Home Assistant areas. Unticked: one read only, a
-    porch or a deck; under 2 m²: Small spaces. Open to below: not offered."""
+    porch, a deck, stairs or a carport (OUTDOOR_WORDS, in four languages);
+    under 2 m²: Small spaces. Open to below: not offered."""
     from . import plan_geom as G  # noqa: PLC0415
     rows, ticked, small, outdoor, dropped, m2 = [], [], [], [], [], {}
     for r in (prop.get("rooms") or {}).values():
