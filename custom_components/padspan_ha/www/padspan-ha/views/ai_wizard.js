@@ -27,6 +27,8 @@ const { roomShapes } = await import(`./plan_room_shapes.js${V}`);
 const { metresToMapFrac } = await import(`./stack_transform.js${V}`);
 const { _haLink } = await import(`./rooms.js${V}`);
 const { isOutdoorFloorId } = await import(`./iso_lights.js${V}`);
+// "Put my receivers in their rooms": Setup's one copy, on the Done screen too (owner, 2026-11-12).
+const SETUP = await import(`./setup.js${V}`).catch(() => null);
 
 export const VIA = "wizard";
 export const CONSOLE_URL = "https://platform.claude.com/";
@@ -1580,6 +1582,8 @@ function savedScreen(ctx, S, box) {
   if (made.length) box.appendChild(MUTED(ctx, `Added to Home Assistant's areas: ${made.join(", ")}.`));
   if (failed.length) box.appendChild(row(ctx, [MUTED(ctx, `Couldn't add to Home Assistant: ${failed.join(", ")}. The rooms are saved in PadSpan; add the area yourself on Home Assistant's`),
     haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas")]));
+  const rb = SETUP && SETUP.receiversBlock ? SETUP.receiversBlock(ctx) : null;
+  if (rb) box.appendChild(rb);
   box.appendChild(row(ctx, [P(ctx, "Next: put your Bluetooth receivers on the map, so PadSpan can tell which room each phone is in.", "margin:0"),
     btn(ctx, "Place receivers →", () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "handoff" }).catch(() => {});
       const mid = ((((sess && sess.plans) || [])[0]) || {}).map_id || (S.plan && S.plan.id);   // the plan just saved, never Setup's own pick

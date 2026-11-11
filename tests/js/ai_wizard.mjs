@@ -1398,5 +1398,16 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   check("done: says where the later Undo is", W.FAILS && (await view(house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans })))
     .textContent.includes("Later, the same Undo is on Setup's Draw the rooms step and in Settings → AI."));
 }
+// ── 2026-11-12: "Put my receivers in their rooms" on the Done screen too (Setup's one copy) ──
+{
+  const ans = { session: SESS({ saved: { "space:a": "rb" } }), areas: [], undo: { session: "rb_1" }, wizard: WIZ };
+  const h = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans,
+    rooms: { Kitchen: { floor_id: "main", points_m: [[1, 1], [4, 1], [4, 4], [1, 4]] } } });
+  h.ctx.state.model.scanners = { "kitchen-proxy": { room: "Kitchen", floor_id: "main" } };
+  const root = await view(h);
+  const b = q(root, '[data-setup="receivers-place"]');
+  check("done: put my receivers in their rooms, before Place receivers", b && b.textContent === "Put my receivers in their rooms"
+    && root.textContent.indexOf("Put my receivers") < root.textContent.indexOf("Place receivers →"), root.textContent.slice(0, 500));
+}
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);

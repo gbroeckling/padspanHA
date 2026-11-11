@@ -952,7 +952,9 @@ CAL_RESULTS_EVENTS: frozenset[str] = frozenset(
 # house that used it). Where people stop, beside the two wizards' own funnels.
 from .setup_checks import SETUP_STEPS  # noqa: E402
 SETUP_EVENTS: frozenset[str] = frozenset(
-    {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"})
+    {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"}
+    # "Put my receivers in their rooms" (ws_fabric.ws_receivers_to_rooms, 2026-11-12): pressed, how many it placed, undone.
+    | {f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")} | {f"setup_receivers_placed:{b}" for b in ROOMS_BANDS})
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to

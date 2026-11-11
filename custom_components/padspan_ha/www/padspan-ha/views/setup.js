@@ -227,6 +227,85 @@ export function returnBar(ctx) {
   return bar;
 }
 
+// ── "Put my receivers in their rooms" (owner, 2026-11-12): for everyone, on the receivers step and the rooms helper's
+// Done. No AI. Each receiver whose room (its Home Assistant area) has an outline, and that has no position yet, goes to
+// the middle of that room on the server (ws_fabric.ws_receivers_to_rooms: a backup, then the one spatial writer), to be
+// dragged to where it is mounted. It says what it placed and what it couldn't, and why; one Undo takes them back. ──
+const _rcv = { busy: false, said: "", undo: null };
+const _radios = (st) => (((st.live && st.live.snapshot && st.live.snapshot.ble) || {}).radios || []).map(r => r && r.source).filter(Boolean);
+
+/** How many receivers it would place now: a room with an outline, no position in metres or on a plan. */
+export function receiversReady(st) {
+  const sc = (st.model && st.model.scanners) || {}, geo = (st.model && st.model.room_geometry_m) || {}, pos = (st.model && st.model.scanner_positions_m) || {};
+  const onPlans = new Set(((st.maps && st.maps.list) || []).flatMap(m => (m.receivers || []).map(r => r && r.source)));
+  return Object.entries(sc).filter(([src, s]) => !pos[src] && !onPlans.has(src) && s && s.room && geo[s.room]).length;
+}
+
+const _names = (xs) => xs.length > 4 ? `${xs.slice(0, 4).join(", ")} and ${xs.length - 4} more` : xs.join(", ");
+
+async function _placeReceivers(ctx) {
+  const st = ctx.state;
+  _rcv.busy = true; ctx.actions.renderRooms();
+  try {
+    const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms" });
+    const placed = (r && r.placed) || [], skipped = (r && r.skipped) || [];
+    const why = (w) => skipped.filter(x => x.why === w).map(x => x.source);
+    const known = new Set(Object.keys((st.model && st.model.scanners) || {}));
+    const noArea = [...why("no_area"), ..._radios(st).filter(s => !known.has(s))];
+    const bits = [placed.length ? `Placed ${placed.length} receiver${placed.length === 1 ? "" : "s"} at the middle of ${placed.length === 1 ? "its room" : "their rooms"} ` +
+      `(${_names(placed.map(p => `${p.source} in ${p.room}`))}). Drag each to where it is mounted: Mapping → Edit → Radios.` : "No receiver was placed."];
+    if (noArea.length) bits.push(`Not placed, no Home Assistant area: ${_names(noArea)}. Give it an area in Home Assistant, or place it by hand.`);
+    if (why("no_outline").length) bits.push(`Not placed, its room has no outline yet: ${_names(why("no_outline"))}.`);
+    if (why("placed_already").length) bits.push(`${why("placed_already").length} already on the map, left where ${why("placed_already").length === 1 ? "it is" : "they are"}.`);
+    _rcv.said = bits.join(" ");
+    _rcv.undo = placed.length ? Object.fromEntries(placed.map(p => [p.source, [p.x_m, p.y_m]])) : null;
+  } catch (e) {
+    _rcv.said = String((e && e.message) || "That didn't work. Try again in a moment.");
+  }
+  _rcv.busy = false;
+  if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+  ctx.actions.renderRooms();
+}
+
+async function _unplaceReceivers(ctx) {
+  _rcv.busy = true; ctx.actions.renderRooms();
+  try {
+    const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms", undo: _rcv.undo });
+    const n = ((r && r.undone) || []).length, left = ((r && r.left) || []).length;
+    _rcv.said = `${n} taken back off the map${left ? `; ${left} moved since, left where ${left === 1 ? "it is" : "they are"}` : ""}.`;
+    _rcv.undo = null;
+  } catch (e) {
+    _rcv.said = String((e && e.message) || "That didn't work. Try again in a moment.");
+  }
+  _rcv.busy = false;
+  if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+  ctx.actions.renderRooms();
+}
+
+/** The button with its line, what the last press did, and its Undo; null where there is nothing to place or say (your
+ *  own house, an administrator, not a wall screen). */
+export function receiversBlock(ctx) {
+  const st = ctx.state, { el } = ctx.helpers;
+  if (_demo(st) || st.kioskMode || !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin)) return null;
+  const n = receiversReady(st);
+  if (!n && !_rcv.said) return null;
+  const box = el("div", { "data-setup": "receivers-rooms", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" });
+  const b = (label, attr, on, primary) => {
+    const x = el("button", { class: "btn inline" + (primary ? " primary" : ""), style: "font-size:12px;margin:4px 6px 0 0", "data-setup": attr }, label);
+    if (_rcv.busy) x.disabled = true;
+    x.addEventListener("click", on);
+    return x;
+  };
+  if (_rcv.said) box.appendChild(el("div", { "data-setup": "receivers-said", style: "color:#a7f3d0" }, _rcv.said));
+  if (_rcv.undo) box.appendChild(b("Undo", "receivers-undo", () => _unplaceReceivers(ctx), false));
+  if (n) {
+    box.appendChild(el("div", {}, `${n} receiver${n === 1 ? " has" : "s have"} a room with an outline and no place on the map yet: ` +
+      `each can go to the middle of ${n === 1 ? "its room" : "their rooms"}, to drag to where it is mounted. No AI, nothing to pay.`));
+    box.appendChild(b("Put my receivers in their rooms", "receivers-place", () => _placeReceivers(ctx), true));
+  }
+  return box;
+}
+
 // ── the rooms helper's later undo, on its Draw the rooms row (owner, 2026-11-12) ──
 // Its words and its run are the helper's own (ai_wizard_offer.undoWhat / undoSure / undoHelperRooms), asked once, then
 // what happened and the ways on: the helper's line (Try it) and this step's own Start.
@@ -368,6 +447,10 @@ export function render(ctx) {
     if (s.id === aiwAt && AIW && !_demo(st)) {
       const line = AIW.offerLine(ctx, "setup", s.done);
       if (line) info.appendChild(line);
+    }
+    if (s.id === "receivers") {
+      const rb = receiversBlock(ctx);
+      if (rb) info.appendChild(rb);
     }
     if (s.id === "rooms" && AIW && AIW.helperUndo && !_demo(st) && !st.kioskMode) {
       const u = AIW.helperUndo(ctx);

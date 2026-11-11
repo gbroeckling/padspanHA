@@ -557,7 +557,9 @@ _WIZARD_FUNNEL = (
     + tuple(f"plan_build_scale_stretch:{k}" for k in ("lt1", "1_3", "3_10", "gt10"))
     + tuple(f"plan_build_scale_save:{k}" for k in ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown"))
     + tuple(f"plan_build_scale_undo:{k}" for k in ("done", "changed_since", "failed"))
-    + tuple(f"plan_build_scale_remeasured:{k}" for k in ("lt1", "1_3", "3_10", "gt10")))
+    + tuple(f"plan_build_scale_remeasured:{k}" for k in ("lt1", "1_3", "3_10", "gt10"))
+    # "Put my receivers in their rooms" (Setup's receivers step and the helper's Done, 2026-11-12).
+    + tuple(f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")) + tuple(f"setup_receivers_placed:{b}" for b in _WIZ_BANDS))
 
 
 def _mapping(r: dict) -> dict:

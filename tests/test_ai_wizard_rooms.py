@@ -292,6 +292,53 @@ def test_the_helpers_later_undo_is_offered_whatever_the_switches_on_setup_and_in
     assert _call(W.ws_ai_wizard_info, h, conn, surface="pull", kiosk=False, live=True)["undo"] is None
 
 
+def test_receivers_go_to_their_rooms_middle_never_move_one_placed_and_undo_in_one_step(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-12, "Put my receivers in their rooms": no AI; each receiver whose room has an outline and that has
+    no position goes to the room's middle, through a backup and the one spatial writer; one placed already (in metres or
+    on a plan) is never moved; it says which it couldn't and why; Undo takes back only those still where it put them."""
+    from custom_components.padspan_ha import ws_fabric as WF
+    from custom_components.padspan_ha.const import DATA_MAPS
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    ans = _wiz_read(h, conn)
+    sess = ans["session"]
+    assert _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=ans["wizard"]["ticked"], via="wizard").get("ok")
+    mdl, fab = h.data[DOMAIN][DATA_MODEL], h.data[DOMAIN][DATA_FABRIC]
+    rooms = mdl.room_geometry_m()
+    room = sorted(rooms)[0]
+    backups = []
+
+    async def backup(_h, note, keys):
+        backups.append((note, keys))
+        return "bk_1"
+    monkeypatch.setattr(WF, "_auto_backup", backup)
+    _run(fab.async_spatial_update(set_scanners={"held": {"x_m": 1.0, "y_m": 1.0, "z_m": 2.0, "floor_id": "main"}}, op="test"))
+    ms = h.data[DOMAIN][DATA_MAPS]
+    plan = ms.list_maps()[0]
+    plan["receivers"] = [{"source": "onplan", "x": 0.5, "y": 0.5}]
+    mdl.data["scanners"] = {"new": {"room": room, "floor_id": "main"}, "held": {"room": room, "floor_id": "main"},
+                            "onplan": {"room": room, "floor_id": "main"}, "elsewhere": {"room": "Nowhere", "floor_id": "main"}, "bare": {"room": ""}}
+    got = _call(WF.ws_receivers_to_rooms, h, conn)
+    cx, cy = A.G.centroid(rooms[room]["points_m"])
+    assert [p["source"] for p in got["placed"]] == ["new"] and got["placed"][0]["room"] == room
+    assert abs(got["placed"][0]["x_m"] - cx) < 1e-3 and abs(got["placed"][0]["y_m"] - cy) < 1e-3
+    assert {s["source"]: s["why"] for s in got["skipped"]} == {"held": "placed_already", "onplan": "placed_already", "elsewhere": "no_outline", "bare": "no_area"}
+    pos = mdl.scanner_positions_m()
+    assert pos["held"]["x_m"] == 1.0 and "onplan" not in pos and pos["new"]["floor_id"] == rooms[room].get("floor_id")
+    assert backups and backups[0][1] == [WF.FABRIC_STORE_KEY]
+    c = _counters(h)
+    assert c.get("setup_receivers_rooms:pressed") == 1 and c.get("setup_receivers_placed:1") == 1
+    # Pressed again: nothing left to place, nothing moved, no backup taken.
+    again = _call(WF.ws_receivers_to_rooms, h, conn)
+    assert again["placed"] == [] and len(backups) == 1 and c.get("setup_receivers_placed:0") is None and _counters(h)["setup_receivers_placed:0"] == 1
+    # Undo: only the one still where it was put.
+    _run(fab.async_spatial_update(set_scanners={"held": {"x_m": 1.0, "y_m": 1.0, "z_m": 2.0, "floor_id": "main"}}, op="test"))
+    out = _call(WF.ws_receivers_to_rooms, h, conn, undo={"new": [got["placed"][0]["x_m"], got["placed"][0]["y_m"]], "held": [9.0, 9.0]})
+    assert out["undone"] == ["new"] and out["left"] == ["held"] and "new" not in mdl.scanner_positions_m() and "held" in mdl.scanner_positions_m()
+    assert _counters(h).get("setup_receivers_rooms:undone") == 1
+    for e in ("setup_receivers_rooms:pressed", "setup_receivers_rooms:undone", "setup_receivers_placed:gt12"):
+        assert T.event_allowed(e)
+
+
 def _box(x0, y0, w, h):
     return [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]]
 

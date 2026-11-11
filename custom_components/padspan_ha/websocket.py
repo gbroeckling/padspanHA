@@ -267,6 +267,7 @@ from .ws_fabric import (  # noqa: F401  (re-exported: registration, tests, calle
     ws_fabric_room_remove,
     ws_fabric_rooms_reconcile,
     ws_fabric_scanner_position_set,
+    ws_receivers_to_rooms,
     ws_fabric_scanner_remove,
     ws_fabric_scanner_z_set,
     ws_fabric_sync_mode_set,
@@ -472,6 +473,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_sync_mode_set)
     # Phase 2: real-world spatial model commands
     websocket_api.async_register_command(hass, ws_fabric_scanner_position_set)
+    websocket_api.async_register_command(hass, ws_receivers_to_rooms)
     websocket_api.async_register_command(hass, ws_fabric_floor_elevations_set)
     websocket_api.async_register_command(hass, ws_fabric_scanner_z_set)
     websocket_api.async_register_command(hass, ws_fabric_correct_room)

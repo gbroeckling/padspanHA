@@ -299,6 +299,40 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   AIWO._reset();
 }
 
+// 2026-11-12: "Put my receivers in their rooms" on Setup's receivers step, for everyone: what it would do, what it did and
+// what it couldn't (and why), one Undo.
+{
+  const st = house(4, { calibration: { points: [], model: {} }, live: { snapshot: { ble: { radios: [{ source: "porch-proxy" }, { source: "kitchen-proxy" }] } } } });
+  st.model.scanners = { "kitchen-proxy": { room: "Kitchen", floor_id: "ground" }, "office-proxy": { room: "Office", floor_id: "ground" } };
+  const m = mkCtx(st), sent = [];
+  m.ctx.actions.callWS = async (msg) => {
+    sent.push(msg);
+    if (msg.type !== "padspan_ha/receivers_to_rooms") return {};
+    return msg.undo ? { ok: true, undone: ["kitchen-proxy"], left: [] }
+      : { ok: true, placed: [{ source: "kitchen-proxy", room: "Kitchen", x_m: 1.5, y_m: 1 }], skipped: [{ source: "office-proxy", why: "no_outline" }] };
+  };
+  check("receivers: the count it would place", S.receiversReady(st) === 1);
+  let root = S.render(m.ctx);
+  const row = root.querySelector('[data-setup="step-receivers"]');
+  check("receivers: the button on the receivers step, said with no cost", row && !!row.querySelector('[data-setup="receivers-place"]')
+    && row.textContent.includes("1 receiver has a room with an outline and no place on the map yet") && row.textContent.includes("No AI, nothing to pay"), row && row.textContent);
+  btn(root, "receivers-place").click();
+  for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r));
+  root = S.render(m.ctx);
+  const said = btn(root, "receivers-said");
+  check("receivers: what it placed, what it couldn't and why", said && said.textContent.includes("Placed 1 receiver at the middle of its room (kitchen-proxy in Kitchen)")
+    && said.textContent.includes("no Home Assistant area: porch-proxy") && said.textContent.includes("its room has no outline yet: office-proxy"), said && said.textContent);
+  btn(root, "receivers-undo").click();
+  for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r));
+  root = S.render(m.ctx);
+  const u = sent.find(x => x.type === "padspan_ha/receivers_to_rooms" && x.undo);
+  check("receivers: Undo sends what it placed, in one step", u && JSON.stringify(u.undo) === '{"kitchen-proxy":[1.5,1]}' && btn(root, "receivers-said").textContent.startsWith("1 taken back off the map")
+    && !btn(root, "receivers-undo"), u);
+  const demo = house(4, { dataMode: "sample" });
+  demo.model.scanners = st.model.scanners;
+  check("receivers: nothing on the demo house", !S.receiversBlock(mkCtx(demo).ctx));
+}
+
 // No Skip for the plan: every step after it draws on one.
 {
   const { ctx } = mkCtx(house(0, { calibration: { points: [] } }));

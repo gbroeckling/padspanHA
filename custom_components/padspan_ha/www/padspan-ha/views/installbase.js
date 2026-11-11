@@ -1082,6 +1082,8 @@ function word(kind, k) {
       if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",
         floor_heights: "went to floor heights", compute: "went to work out the accuracy", room_empty: "went to add points in an empty room",
         room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
+      if (a === "setup_receivers_rooms") return `Setup: "Put my receivers in their rooms" ${{ pressed: "pressed", undone: "undone" }[b] || b}`;
+      if (a === "setup_receivers_placed") return `Setup: "Put my receivers in their rooms" placed ${W_ROOMS_BAND[b] ? W_ROOMS_BAND[b].replace("room", "receiver") : b}`;
       if (a === "setup_step" || a === "setup_skip") {
         const step = { plan: "floor plan", scale: "scale", floors: "floors and heights", rooms: "rooms", receivers: "receivers", calibration: "calibration" }[b] || b;
         return `Setup: ${a === "setup_step" ? "reached" : "skipped"} the ${step} step`;

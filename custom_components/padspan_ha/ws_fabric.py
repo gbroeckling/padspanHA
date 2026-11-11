@@ -485,6 +485,76 @@ async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -
     connection.send_result(msg["id"], {"ok": True, "source": source})
 
 
+def receivers_to_rooms(scanners: dict[str, Any], rooms: dict[str, Any], placed: set[str]) -> tuple[dict[str, dict], list[dict]]:
+    """Pure. "Put my receivers in their rooms" (owner, 2026-11-12): each receiver whose room (its Home Assistant area, or
+    the room set by hand: model scanners) has an outline goes to the middle of that outline, on its floor, at the
+    default height, to be dragged to where it is mounted. Never one that already has a position (`placed`: in metres
+    or on a plan). (positions {source: {x_m, y_m, z_m, floor_id}}, skipped [{source, why: placed_already | no_area |
+    no_outline}])."""
+    from .plan_geom import centroid  # noqa: PLC0415
+    out: dict[str, dict] = {}
+    skipped: list[dict] = []
+    for src, s in sorted((scanners or {}).items()):
+        room = (s or {}).get("room") if isinstance(s, dict) else None
+        geo = (rooms or {}).get(room) if room else None
+        pts = (geo or {}).get("points_m") or []
+        if src in placed:
+            skipped.append({"source": src, "why": "placed_already"})
+        elif not room:
+            skipped.append({"source": src, "why": "no_area"})
+        elif len(pts) < 3:
+            skipped.append({"source": src, "why": "no_outline"})
+        else:
+            cx, cy = centroid(pts)
+            out[src] = {"x_m": round(float(cx), 3), "y_m": round(float(cy), 3), "z_m": 2.4, "floor_id": str(geo.get("floor_id") or DEFAULT_FLOOR_ID),
+                        "map_id": None}
+    return out, skipped
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/receivers_to_rooms",
+    vol.Optional("undo"): {str: [vol.Coerce(float)]},
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_receivers_to_rooms(hass: HomeAssistant, connection, msg) -> None:
+    """Every receiver with a room that has an outline, and no position yet, put at its room's middle: one backup of the
+    fabric, then one write through the one spatial writer (fabric.async_spatial_update, as each receiver's own save).
+    `undo` ({source: [x_m, y_m]} as placed): those still exactly there taken back out in one write; one moved since is
+    left. Counted (setup_receivers_rooms:pressed|undone, setup_receivers_placed:<band>)."""
+    from .telemetry import rooms_band  # noqa: PLC0415
+    dom = hass.data.get(DOMAIN, {})
+    mdl, fab = dom.get(DATA_MODEL), dom.get(DATA_FABRIC)
+    if mdl is None or fab is None:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    now = mdl.scanner_positions_m()
+    if "undo" in msg:
+        gone = [s for s, xy in (msg.get("undo") or {}).items() if s in now and len(xy) >= 2
+                and abs(float(now[s].get("x_m", 1e9)) - xy[0]) < 1e-3 and abs(float(now[s].get("y_m", 1e9)) - xy[1]) < 1e-3]
+        if gone:
+            await fab.async_spatial_update(remove_scanners=gone, op="receivers_to_rooms_undo")
+            _invalidate_snapshot_cache(hass)
+        _bump(hass, "setup_receivers_rooms:undone")
+        connection.send_result(msg["id"], {"ok": True, "undone": gone, "left": [s for s in (msg.get("undo") or {}) if s not in gone]})
+        return
+    maps = dom.get(DATA_MAPS)
+    on_plans = {str(r.get("source")) for m in (maps.list_maps() if maps is not None else []) for r in (m.get("receivers") or [])
+                if isinstance(r, dict) and r.get("source")}
+    pos, skipped = receivers_to_rooms(mdl.data.get("scanners") or {}, mdl.room_geometry_m(), set(now) | on_plans)
+    if pos:
+        if not await _auto_backup(hass, "Before putting receivers in their rooms", [FABRIC_STORE_KEY]):
+            connection.send_error(msg["id"], "backup_failed", "The safety backup couldn't be made, so no receiver was moved.")
+            return
+        await fab.async_spatial_update(set_scanners=pos, op="receivers_to_rooms")
+        _invalidate_snapshot_cache(hass)
+    _bump(hass, "setup_receivers_rooms:pressed")
+    _bump(hass, f"setup_receivers_placed:{rooms_band(len(pos))}")
+    rooms = {s: (mdl.data.get("scanners") or {}).get(s, {}).get("room") for s in pos}
+    connection.send_result(msg["id"], {"ok": True, "placed": [{"source": s, "room": rooms[s], "x_m": p["x_m"], "y_m": p["y_m"]} for s, p in pos.items()],
+                                       "skipped": skipped})
+
+
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_scanner_z_set",
