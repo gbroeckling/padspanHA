@@ -4227,10 +4227,14 @@ function _settingsAI(ctx, el){
   ]));
   // Build from plans (experimental; replaces "Rooms and walls… coming soon"): drawn only when the server says
   // Claude Opus 5.5 or newer is the AI Task (padspan_ha/plan_build_info); the panel never decides that itself.
-  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) { const pb = _planBuildRow(ctx, el, save, settings); under.appendChild(pb); pbRefresh = pb._refresh; }
+  let helperRow = null;
+  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) { const pb = _planBuildRow(ctx, el, save, settings); under.appendChild(pb); pbRefresh = pb._refresh; helperRow = pb._helper; }
   // The last session's undo (admins; ws_plan_ai.plan_ai_undo): what changed since is left, and said. Asked here in the page.
   if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin && settings.ai_plans_enabled === true) under.appendChild(_planAiLastRow(ctx, el));
   feats.appendChild(under);
+  // Let Claude draw your rooms under its own name, outside the research switch it doesn't need (owner, 2026-11-12):
+  // shown only once it has saved rooms that can be taken back.
+  if (helperRow) feats.appendChild(helperRow);
   feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
     "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
     "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
@@ -4606,14 +4610,27 @@ function _aiUsageRow(ctx, el, save){
  *  Anthropic integration) and the master switch is on; asked again after the AI Task changes (`_refresh`). */
 function _planBuildRow(ctx, el, save, settings){
   const box = el("div",{"data-ai-plan-build":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
+  // Let Claude draw your rooms' own row (its later undo), placed by the caller outside the research switch.
+  const hbox = el("div",{"data-ai-helper":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
+  box._helper = hbox;
   let on = settings.ai_plan_build_enabled === true;
   const chip = () => el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
   const show = (info) => {
     box.innerHTML = "";
+    hbox.innerHTML = "";
     const ok = !!(info && info.master && info.unlock && info.unlock.ok);
     // The last line-up's undo stays here whatever the AI Task (form q3): a session can always be taken back.
     const undo = info && info.master && info.undo ? info.undo : null;
-    const rundo = info && info.master && info.rooms_undo ? info.rooms_undo : null;   // Rooms from plans' too (Stage 2)
+    const ru = info && info.rooms_undo ? info.rooms_undo : null;
+    const rundo = ru && !ru.helper && info.master ? ru : null;    // Rooms from plans' (Stage 2), under the research switch
+    const hundo = ru && ru.helper ? ru : null;                     // the helper's, under its own name, whatever the switches
+    hbox.style.display = hundo ? "" : "none";
+    if (hundo) {
+      hbox.appendChild(el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["Let Claude draw your rooms", chip()]));
+      hbox.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:2px 0 6px"},
+        "Claude reads a floor plan and draws its rooms for you to check; it is offered in Setup's Draw the rooms step. It needs none of the switches above."));
+      hbox.appendChild(undoRow(hundo, true, true));
+    }
     // AI map-building research on and Claude not usable: why the row isn't here, in the rooms helper's words (one copy:
     // ai_wizard_offer.js), and the guide. Nothing while the research switch is off.
     const cs = info && info.master && info.unlock && !info.unlock.ok && AIWO ? AIWO.claudeState(info) : null;
@@ -4668,15 +4685,9 @@ function _planBuildRow(ctx, el, save, settings){
     // the helper's (via "wizard": it isn't offered on the Overview again, and is counted). Then, as the Done screen's Undo, the
     // plan's scale the helper set, when the server says it goes (u.scale, by scale_undo's own rule; owner, 2026-11-11: warned
     // first; a scale measured again by hand is the person's and is neither warned about nor removed).
-    helper: { title: "Undo the rooms Claude drew (experimental)", cmd: "padspan_ha/plan_build_rooms_undo", via: "wizard", prefix: "Let Claude draw your rooms (experimental): ",
-      tool: "Let Claude draw your rooms",
-      what: (u) => `The last rooms Let Claude draw your rooms saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} room${u.items === 1 ? "" : "s"}. ` +
-        "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. " +
-        (u.scale === "goes" ? "It also removes this plan's scale, which was set in the helper: the plan will need measuring again." :
-          u.scale === "changed_since" ? "The plan's scale set in the helper stays: something placed in metres was added or changed since (rooms, walls, zones, receivers, calibration points, the 3D house or another plan's scale), and it is placed by that scale." : ""),
-      sure: (u) => u.scale === "goes" ? "Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Mapping → Edit → Measure)."
-        : "Take back the rooms Let Claude draw your rooms saved?",
-      done: (n, k) => `${n} taken back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
+    // Its words and its run are the helper's own (views/ai_wizard_offer.js: one copy for the Done screen, Setup and here).
+    helper: { title: AIWO ? AIWO.UNDO_TITLE : "", cmd: "padspan_ha/plan_build_rooms_undo", via: "wizard", prefix: "Let Claude draw your rooms (experimental): ",
+      tool: "Let Claude draw your rooms", what: (u) => (AIWO ? AIWO.undoWhat(u) : ""), sure: (u) => (AIWO ? AIWO.undoSure(u) : "") },
   };
   const asking = { lineup: false, rooms: false, helper: false }, said = { lineup: "", rooms: "", helper: "" };
   function undoRow(u, unlocked, rooms = false){
@@ -4695,16 +4706,15 @@ function _planBuildRow(ctx, el, save, settings){
       const no = el("button",{...bs, type:"button"}, "Cancel");
       yes.addEventListener("click", ()=>{
         yes.disabled = true;
-        ctx.actions.wsCall(K.cmd, { session: u.session, ...(K.via ? { via: K.via } : {}) }).then(async (r)=>{
+        // The helper's: its own run (the rooms, then the scale where it goes); the others: their one command.
+        const run = kind === "helper" && AIWO ? AIWO.undoHelperRooms(ctx, u).then(out => (out.ok ? { text: AIWO.undoDone(out) } : out))
+          : ctx.actions.wsCall(K.cmd, { session: u.session }).then(r => (r && r.ok === false ? { ok: false, message: String(r.message || r.code || "") }
+            : { text: K.done((r && r.undone) || 0, ((r && r.skipped) || []).length) }));
+        run.then((r)=>{
           asking[kind] = false;
-          if (r && r.ok === false) { said[kind] = String(r.message || r.code || ""); ask(); return; }
-          let more = kind === "helper" && u.scale === "changed_since" ? " The plan's scale stays." : "";
-          if (kind === "helper" && u.scale === "goes" && u.map_id) {      // the rooms first, then the scale: the Done screen's order
-            const sv = await ctx.actions.wsCall("padspan_ha/plan_build_scale_undo", { map_id: u.map_id, via: "wizard" }).catch((e) => ({ ok: false, message: e && e.message }));
-            more = sv && sv.ok ? " The plan's scale was removed too: measure it again in Mapping → Edit → Measure."
-              : ` The plan's scale stays: ${String((sv && sv.message) || "it couldn't be taken back.")}`;
-          }
-          ctx.toast(K.prefix + K.done((r && r.undone) || 0, ((r && r.skipped) || []).length) + more);
+          if (r && r.ok === false) { said[kind] = r.message; ask(); return; }
+          if (kind === "helper" && typeof ctx.actions.telemetryEvent === "function") ctx.actions.telemetryEvent("ai_wizard:undo_from_settings");
+          ctx.toast(K.prefix + r.text);
           said[kind] = ""; ask();
         }).catch((e)=>{ asking[kind] = false; said[kind] = K.prefix + String((e && e.message) || e).replace(K.prefix, ""); ask(); });
       });
@@ -4717,7 +4727,7 @@ function _planBuildRow(ctx, el, save, settings){
   }
   const ask = () => ctx.actions.wsCall("padspan_ha/plan_build_info").then(show).catch(() => show(null));
   box._refresh = ask;
-  if (settings.ai_plans_enabled === true) ask();
+  ask();                                            // the helper's undo is asked for whatever the research switch (its own row)
   return box;
 }
 function _planAiLastRow(ctx, el){

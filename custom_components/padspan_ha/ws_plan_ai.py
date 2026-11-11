@@ -563,8 +563,14 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
         names = {str(f.get("id")): f.get("name") for f in (model.floors() if model is not None else [])}
         if und:
             out["undo"] = {**und, "floor_name": names.get(str(und.get("floor_id"))) or und.get("floor_id")}
-        await _rooms_settled(hass, store)
-        rund = A.rooms_undo_info(store)                # the rooms' undo too (Stage 2), whatever the AI Task
+    # The rooms' undo too (Stage 2), whatever the AI Task; the rooms helper's whatever the switches (owner, 2026-11-12:
+    # its later undo lives in Settings → AI under its own name, and the helper needs no switch).
+    store = await A.async_get_store(hass)
+    await _rooms_settled(hass, store)
+    rund = A.rooms_undo_info(store)
+    if rund and (on_master or rund.get("helper")):
+        model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        names = {str(f.get("id")): f.get("name") for f in (model.floors() if model is not None else [])}
         if rund:
             out["rooms_undo"] = {**rund, "floor_name": names.get(str(rund.get("floor_id"))) or rund.get("floor_id")}
             if rund.get("helper"):

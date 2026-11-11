@@ -880,7 +880,8 @@ AI_WIZARD_STEPS: tuple[str, ...] = ("intro", "trial", "connect", "consent", "sca
                                     "floor_pick", "rooms_read", "rooms_check", "saved", "next_floor", "handoff")
 AI_WIZARD_OUTCOMES: tuple[str, ...] = ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed",
                                        "with_rooms", "after_undo", "edits_back", "zoomed",
-                                       "struggled_later", "struggled_left")   # the pull surfaces' trigger first met (2026-11-12)
+                                       "struggled_later", "struggled_left",   # the pull surfaces' trigger first met (2026-11-12)
+                                       "undo_from_setup", "undo_from_settings", "undo_next_again", "undo_next_by_hand")   # the later undo, what next
 AI_WIZARD_FAILS: tuple[str, ...] = ("no_credit", "unreachable", "out_of_time", "bad_answer", "refusal", "no_media", "daily_cap",
                                     "backup_failed", "changed_since")
 AI_WIZARD_AI: tuple[str, ...] = ("no_ai_task", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree",

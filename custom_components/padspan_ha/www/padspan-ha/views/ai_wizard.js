@@ -809,18 +809,14 @@ async function undo(ctx, S) {
   S.busy = true; S.msg = ""; rerender(ctx);
   try {
     // The rooms first, then the plan's scale if this helper set it (design E.5): the server takes the scale back only
-    // while nothing in metres was added since, and otherwise says why (it stays, like any measurement).
-    const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_undo", session: S.sid, via: VIA });
-    S.undone = { n: Number(r && r.undone) || 0, skipped: ((r && r.skipped) || []).length, scale: null };
-    OFFER.forget();
+    // while nothing in metres was added since, and otherwise says why. One run for here, Setup and Settings → AI.
     const mid = (S.plan && S.plan.id) || ((((S.ans && S.ans.session) || {}).plans || [])[0] || {}).map_id;
-    if (mid) {
-      const u = await ws(ctx, { type: "padspan_ha/plan_build_scale_undo", map_id: mid, via: VIA }).catch(() => null);
-      if (u && u.ok) { S.undone.scale = "back"; if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {}); }
-      else if (u && u.code && u.code !== "nothing_to_undo") S.undone.scale = u.message || codeWords(u.code);
-    }
+    const out = await OFFER.undoHelperRooms(ctx, { session: S.sid, map_id: mid });
+    if (!out.ok) throw { code: "undo", message: out.message };
+    S.undone = { n: out.n, skipped: out.skipped, scale: out.scale === "back" ? "back" : out.scale === "kept" ? out.scaleWords : null };
+    if (out.scale === "back" && ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   } catch (e) {
-    S.msg = codeWords(e && e.code);
+    S.msg = (e && e.message) || codeWords(e && e.code);
   }
   S.busy = false;
   rerender(ctx);
@@ -1570,6 +1566,10 @@ function savedScreen(ctx, S, box) {
     else if (S.undone.scale) box.appendChild(el("div", { "data-aiw": "scale-kept", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:6px 0" }, S.undone.scale));
     if (Object.values((S.done && S.done.areas) || {}).includes("created")) box.appendChild(row(ctx, [
       MUTED(ctx, "The areas added to Home Assistant are still there. Remove them on Home Assistant's"), haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas")]));
+    // What next (2026-11-12; it was Back only): try again on this plan, or draw the rooms by hand.
+    box.appendChild(row(ctx, [
+      btn(ctx, "Try again", () => { tel(ctx, "ai_wizard:undo_next_again"); begin(ctx, S, S.plan); }, { primary: true, disabled: S.busy || !S.plan, attrs: { "data-aiw": "undone-again" } }),
+      btn(ctx, "Draw them myself", () => { tel(ctx, "ai_wizard:undo_next_by_hand"); act(ctx, S, "by_hand"); }, { attrs: { "data-aiw": "undone-by-hand" } })]));
     return;
   }
   const n = S.done ? S.done.saved : Object.keys((sess && sess.saved) || {}).length;
@@ -1588,7 +1588,7 @@ function savedScreen(ctx, S, box) {
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
     btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } })]));
   box.appendChild(row(ctx, [MUTED(ctx, "Something wrong?"), btn(ctx, "Undo", () => undo(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "undo" } }),
-    MUTED(ctx, "takes back the rooms, and the plan's scale if it was set here.")]));
+    MUTED(ctx, "takes back the rooms, and the plan's scale if it was set here. Later, the same Undo is on Setup's Draw the rooms step and in Settings → AI.")]));
 }
 
 export function render(ctx) {

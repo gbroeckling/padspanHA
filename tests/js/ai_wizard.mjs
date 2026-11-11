@@ -1381,5 +1381,22 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   const one = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
   check("no notice without the server's answer", !q(await view(one), '[data-aiw="scale-notice"]'));
 }
+// ── 2026-11-12: after the Done screen's Undo, the next moves (it was Back only); one undo run for here, Setup and Settings ──
+{
+  const ans = { session: SESS({ saved: { "space:a": "rb" } }), areas: [], undo: { session: "rb_1" }, wizard: WIZ };
+  const h = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans, scaleUndo: { ok: true, map_id: "m1" } });
+  let root = await view(h);
+  q(root, '[data-aiw="undo"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h);
+  const again = q(root, '[data-aiw="undone-again"]'), hand = q(root, '[data-aiw="undone-by-hand"]');
+  const u = h.calls.filter(c => c.type.endsWith("_undo")).map(c => `${c.type.replace("padspan_ha/", "")}:${c.via}`);
+  check("undone: try again or draw them myself", again && again.className.includes("primary") && hand && root.textContent.includes("2 rooms taken back.")
+    && u.join() === "plan_build_rooms_undo:wizard,plan_build_scale_undo:wizard", [u, root.textContent.slice(0, 300)]);
+  hand.click();
+  check("undone: draw them myself opens Setup's rooms step, counted", h.steps.at(-1) === "rooms" && h.tele.includes("ai_wizard:undo_next_by_hand"), [h.steps, h.tele]);
+  check("done: says where the later Undo is", W.FAILS && (await view(house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans })))
+    .textContent.includes("Later, the same Undo is on Setup's Draw the rooms step and in Settings → AI."));
+}
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);

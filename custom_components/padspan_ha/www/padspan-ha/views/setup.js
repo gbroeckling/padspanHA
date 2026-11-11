@@ -227,6 +227,41 @@ export function returnBar(ctx) {
   return bar;
 }
 
+// ── the rooms helper's later undo, on its Draw the rooms row (owner, 2026-11-12) ──
+// Its words and its run are the helper's own (ai_wizard_offer.undoWhat / undoSure / undoHelperRooms), asked once, then
+// what happened and the ways on: the helper's line (Try it) and this step's own Start.
+let _undoAsking = false, _undoBusy = false, _undoSaid = "";
+function _helperUndo(ctx, u) {
+  const { el } = ctx.helpers;
+  const box = el("div", { "data-setup": "helper-undo", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" });
+  if (_undoSaid) box.appendChild(el("div", { "data-setup": "helper-undo-said", style: "color:#a7f3d0" }, _undoSaid));
+  if (!u) return box;
+  box.appendChild(el("div", {}, AIW.undoWhat(u)));
+  const b = (label, attr, on, primary = false) => {
+    const x = el("button", { class: "btn inline" + (primary ? " primary" : ""), style: "font-size:12px;margin:4px 6px 0 0", "data-setup": attr }, label);
+    if (_undoBusy) x.disabled = true;
+    x.addEventListener("click", on);
+    return x;
+  };
+  if (!_undoAsking) {
+    box.appendChild(b(AIW.UNDO_TITLE, "helper-undo-ask", () => { _undoAsking = true; _undoSaid = ""; ctx.actions.renderRooms(); }));
+    return box;
+  }
+  box.appendChild(el("div", { style: "color:#fde68a;margin-top:2px" }, AIW.undoSure(u)));
+  box.appendChild(b("Undo it (experimental)", "helper-undo-go", async () => {
+    _undoBusy = true; ctx.actions.renderRooms();
+    let out;
+    try { out = await AIW.undoHelperRooms(ctx, u); } catch (e) { out = { ok: false, message: String((e && e.message) || "That didn't work.") }; }
+    _undoBusy = false; _undoAsking = false;
+    _undoSaid = out.ok ? `${AIW.undoDone(out)} Try it again or draw the rooms yourself below.` : out.message;
+    if (out.ok && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("ai_wizard:undo_from_setup");
+    if (out.ok && ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+    ctx.actions.renderRooms();
+  }, true));
+  box.appendChild(b("Cancel", "helper-undo-cancel", () => { _undoAsking = false; ctx.actions.renderRooms(); }));
+  return box;
+}
+
 // ── the view ────────────────────────────────────────────────────────────────
 
 const _COLORS = {
@@ -333,6 +368,10 @@ export function render(ctx) {
     if (s.id === aiwAt && AIW && !_demo(st)) {
       const line = AIW.offerLine(ctx, "setup", s.done);
       if (line) info.appendChild(line);
+    }
+    if (s.id === "rooms" && AIW && AIW.helperUndo && !_demo(st) && !st.kioskMode) {
+      const u = AIW.helperUndo(ctx);
+      if (u || _undoSaid) info.appendChild(_helperUndo(ctx, u));
     }
     row.appendChild(info);
     const btns = el("div", { style: "display:flex;gap:6px;flex:none;margin-left:auto" });

@@ -272,6 +272,26 @@ def test_the_helper_needs_no_settings_switch_and_the_plans_tool_still_does(monke
     assert data["ai_plans_enabled"] is False and data["ai_plan_build_enabled"] is False
 
 
+def test_the_helpers_later_undo_is_offered_whatever_the_switches_on_setup_and_in_settings(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-12: the later undo lives on Setup's Draw the rooms row (the pull rule's answer carries it) and in
+    Settings → AI under the helper's own name (plan_build_info gives it whatever the research switch); the Plans tool's
+    own rooms undo stays under that switch."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    h.data[DOMAIN][DATA_SETTINGS].data.update(ai_plans_enabled=False, ai_plan_build_enabled=False)
+    ans = _wiz_read(h, conn)
+    sess = ans["session"]
+    assert _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=ans["wizard"]["ticked"], via="wizard").get("ok")
+    info = _call(WP.ws_plan_build_info, h, conn)
+    assert info["master"] is False and info["rooms_undo"]["helper"] is True and info["rooms_undo"]["session"] == sess["id"]
+    assert info["rooms_undo"]["scale"] in ("goes", "none", "changed_since", "remeasured")
+    pull = _call(W.ws_ai_wizard_info, h, conn, surface="pull", kiosk=False, live=True)
+    assert pull["undo"]["session"] == sess["id"] and pull["undo"]["items"] == len(ans["wizard"]["ticked"]) and pull["undo"]["scale"] == info["rooms_undo"]["scale"]
+    assert "undo" not in _call(W.ws_ai_wizard_info, h, conn, surface="push", kiosk=False, live=True)
+    assert "undo" not in _call(W.ws_ai_wizard_info, h, conn, surface="pull", kiosk=True, live=True)      # never on a wall screen
+    assert _call(WP.ws_plan_build_rooms_undo, h, conn, session=sess["id"], via="wizard").get("ok")
+    assert _call(W.ws_ai_wizard_info, h, conn, surface="pull", kiosk=False, live=True)["undo"] is None
+
+
 def _box(x0, y0, w, h):
     return [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]]
 

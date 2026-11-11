@@ -95,8 +95,18 @@ for (const [why, display, words] of [
   check("why, wall screen: the words, no link that opens a page", r.why && text(r.why).includes("Your AI Task uses Claude Sonnet 4.5.") && !r.link, r.why ? text(r.why) : null);
 }
 {
-  const r = await render({ ai_plans_enabled: false }, INFO({ why: "below_opus_5_5", display: "Claude Sonnet 4.5" }));
-  check("research off: nothing new, the server isn't asked", !r.why && !r.calls.includes("padspan_ha/plan_build_info"), r.calls);
+  // 2026-11-12: the server is asked whatever the switch (the helper's later undo lives under its own name, outside it);
+  // with the research switch off and no helper rooms to undo, nothing new shows.
+  const r = await render({ ai_plans_enabled: false }, { ...INFO({ why: "below_opus_5_5", display: "Claude Sonnet 4.5" }), master: false });
+  const helper = all(r.root).find(n => has(n, "data-ai-helper"));
+  check("research off: nothing new", !r.why && helper && helper.style.display === "none" && !text(helper), r.calls);
+  // The helper's rooms to undo, switches off: its own row, named after it, outside the research switch's block.
+  const hu = { ...INFO({ ok: true, why: "ok" }), master: false, rooms_undo: { session: "rb_1", floor_id: "main", floor_name: "Main", items: 2, saves: 1, at: 0, helper: true, map_id: "n1", scale: "none" } };
+  const r2 = await render({ ai_plans_enabled: false }, hu);
+  const row = all(r2.root).find(n => has(n, "data-ai-helper")), block = all(r2.root).find(n => has(n, "data-ai-plan-build"));
+  check("helper undo, switches off: under its own name, not under Build from plans", row && row.style.display !== "none"
+    && text(row).startsWith("Let Claude draw your rooms") && text(row).includes("Undo the rooms Claude drew (experimental)")
+    && !all(block).some(n => has(n, "data-ai-plan-build-rooms-undo")), [row && row.getAttribute("style"), !!block, block && all(block).some(n => has(n, "data-ai-plan-build-rooms-undo")), row && text(row).slice(0, 40)]);
 }
 {
   const r = await render({ ai_plans_enabled: true }, { ...INFO({ ok: true, why: "ok", display: "Claude Opus 5.5" }), switch: true, on: true });

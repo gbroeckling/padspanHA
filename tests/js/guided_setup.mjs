@@ -257,6 +257,45 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   S.render(ctx);
   for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
   check("helper line: none where the rule doesn't offer it", !S.render(ctx).querySelector('[data-aiw="line"]'));
+  // 2026-11-12, the pull trigger: a Scale step opened from Setup and Setup shown again with it unfinished: "left".
+  {
+    AIWO._reset();
+    const st = house(1, { calibration: { points: [], model: {} } });
+    const m = mkCtx(st);
+    S.openStep(m.ctx, "scale");
+    st.view = "setup";
+    S.render(m.ctx);
+    const marks = m.calls.filter(c => c[0] === "ws" && c[1].type === "padspan_ha/ai_wizard_mark").map(c => `${c[1].what}:${c[1].setup_step}`);
+    check("pull trigger: opened from Setup (seen), then Setup again with it unfinished (left)", marks.indexOf("step_seen:scale") === 0 && marks.indexOf("step_left:scale") === 1, marks);   // Rooms, opened earlier on this page, may follow
+  }
+  // 2026-11-12: the helper's later undo on its Draw the rooms row: its own words, asked once, the rooms then the scale.
+  {
+    AIWO._reset();
+    const st = house(5, { calibration: { points: [], model: {} } });
+    const m = mkCtx(st), sent = [];
+    m.ctx.actions.callWS = async (msg) => {
+      sent.push(msg);
+      return msg.type === "padspan_ha/ai_wizard_info" ? { reason: "has_rooms", offer: false, wizard: {}, undo: { session: "rb_1", map_id: "m1", items: 3, floor_name: "Ground", scale: "goes" } }
+        : msg.type === "padspan_ha/plan_build_rooms_undo" ? { ok: true, undone: 3, skipped: [] } : msg.type === "padspan_ha/plan_build_scale_undo" ? { ok: true } : {};
+    };
+    S.render(m.ctx);
+    for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
+    let root = S.render(m.ctx);
+    const box = root.querySelector('[data-setup="step-rooms"]').querySelector('[data-setup="helper-undo"]');
+    check("later undo: on Setup's Draw the rooms row, in the helper's words", box && box.textContent.includes("The last rooms Let Claude draw your rooms saved on Ground: 3 rooms.")
+      && box.textContent.includes("It also removes this plan's scale") && !!btn(root, "helper-undo-ask"), box && box.textContent);
+    btn(root, "helper-undo-ask").click();
+    root = S.render(m.ctx);
+    check("later undo: asked first, saying what goes", root.textContent.includes("and remove this plan's scale that was set in the helper?") && !!btn(root, "helper-undo-go")
+      && !sent.some(x => x.type === "padspan_ha/plan_build_rooms_undo"));
+    btn(root, "helper-undo-go").click();
+    for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r));
+    root = S.render(m.ctx);
+    const order = sent.filter(x => x.type.includes("_undo")).map(x => `${x.type.replace("padspan_ha/", "")}:${x.via}`);
+    check("later undo: the rooms, then the scale, as the helper's; said, with the ways on; counted", order.join() === "plan_build_rooms_undo:wizard,plan_build_scale_undo:wizard"
+      && root.textContent.includes("3 taken back. The plan's scale was removed too") && root.textContent.includes("Try it again or draw the rooms yourself below")
+      && m.events.includes("ai_wizard:undo_from_setup"), [order, root.textContent.slice(0, 300)]);
+  }
   AIWO._reset();
 }
 

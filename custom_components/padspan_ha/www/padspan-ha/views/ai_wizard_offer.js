@@ -96,7 +96,7 @@ export function infoFor(ctx, surface) {
   if (!_asking[rule] && ctx.actions.callWS) {
     _asking[rule] = true;
     ctx.actions.callWS({ type: "padspan_ha/ai_wizard_info", surface: rule, kiosk: !!ctx.state.kioskMode, live: true })
-      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer) ctx.actions.renderRooms(); })   // no offer: nothing to draw again
+      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer || _info[rule].undo) ctx.actions.renderRooms(); })   // nothing to offer: nothing to draw again
       .catch(() => { _info[rule] = { offer: false }; })
       .finally(() => { _asking[rule] = false; });
   }
@@ -148,6 +148,44 @@ export function lineWords(ctx, surface, done = false) {
   if (text) return { back: true, text, go: "Carry on →" };
   return { back: false, go: "Try it →", text: done ? "Claude can draw the rooms on another of your floor plans too (experimental)."
     : "Stuck? Claude can read your plan and draw the rooms for you (experimental)." };
+}
+
+// ── the later undo of the rooms the helper saved: one copy for its Done screen, Setup's Draw the rooms row and Settings →
+// AI (owner, 2026-11-12). The rooms first, then the plan's scale the helper set where the server says it goes (u.scale,
+// scale_undo's own rule; unknown on the Done screen: asked, and a refusal said). A scale measured again by hand is the
+// person's: neither warned about nor taken back. `u`: {session, map_id, items, floor_name, scale}.
+export const UNDO_TITLE = "Undo the rooms Claude drew (experimental)";
+export const undoWhat = (u) => `The last rooms Let Claude draw your rooms saved on ${u.floor_name || "a floor"}${u.when || ""}: ${u.items} room${u.items === 1 ? "" : "s"}. ` +
+  "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. " +
+  (u.scale === "goes" ? "It also removes this plan's scale, which was set in the helper: the plan will need measuring again." :
+    u.scale === "changed_since" ? "The plan's scale set in the helper stays: something placed in metres was added or changed since (rooms, walls, zones, receivers, calibration points, the 3D house or another plan's scale), and it is placed by that scale." : "");
+export const undoSure = (u) => u.scale === "goes" ? "Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Mapping → Edit → Measure)."
+  : "Take back the rooms Let Claude draw your rooms saved?";
+/** After it: the rooms' count, then what happened to the scale. */
+export const undoDone = (out) => `${out.n} taken back${out.skipped ? `; ${out.skipped} changed since left as ${out.skipped === 1 ? "it is" : "they are"}` : ""}.` +
+  (out.scale === "back" ? " The plan's scale was removed too: measure it again in Mapping → Edit → Measure."
+    : out.scale === "kept" ? (out.scaleWords ? ` The plan's scale stays: ${out.scaleWords}` : " The plan's scale stays.") : "");
+
+/** Run it: {ok, n, skipped, scale: "back" | "kept" | null, scaleWords} or {ok: false, message}. */
+export async function undoHelperRooms(ctx, u) {
+  const call = (type, data) => (ctx.actions.wsCall ? ctx.actions.wsCall(type, data) : ctx.actions.callWS({ type, ...data }));
+  const r = await call("padspan_ha/plan_build_rooms_undo", { session: u.session, via: "wizard" });
+  if (r && r.ok === false) return { ok: false, message: String(r.message || r.code || "") };
+  forget();
+  const out = { ok: true, n: Number(r && r.undone) || 0, skipped: ((r && r.skipped) || []).length, scale: null, scaleWords: "" };
+  if (u.scale === "changed_since") out.scale = "kept";
+  else if (u.map_id && (u.scale === "goes" || u.scale === undefined)) {
+    const sv = await call("padspan_ha/plan_build_scale_undo", { map_id: u.map_id, via: "wizard" }).catch((e) => ({ ok: false, message: e && e.message }));
+    if (sv && sv.ok) out.scale = "back";
+    else if (!(sv && sv.code === "nothing_to_undo")) { out.scale = "kept"; out.scaleWords = String((sv && sv.message) || "it couldn't be taken back."); }
+  }
+  return out;
+}
+
+/** The helper's undo to offer on Setup's Draw the rooms row (the pull rule's answer carries it), or null. */
+export function helperUndo(ctx) {
+  const i = infoFor(ctx, "setup");
+  return (i && i.undo) || null;
 }
 
 /** Setup's and the Mapping wizard's line (pull: Not now doesn't hide it): Carry on where it was left, else Try it. */
