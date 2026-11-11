@@ -320,7 +320,9 @@ async function loadAll(ctx, S) {
       const at = gone ? null : w.started && w.started.at;
       // A scale check left while measuring (its rooms session still there; a stale record is dropped).
       const rescale = !gone && S.plan && (at === "scale_guided" || needsScale(ctx.state, S.plan)) ? await rescaleAlive(ctx, S, S.plan.id) : null;
-      if (rescale) {
+      if (rescale === RECHECK_UNKNOWN) {
+        S.msg = RECHECK_UNKNOWN_WORDS;
+      } else if (rescale) {
         // "Check the scale" left part-way (stored on the server for this plan, whatever else is held): back to measuring;
         // after Save the same rooms come back, drawn again (scaleSave), with no read.
         S.rescale = { map: S.plan.id, sid: rescale };
@@ -487,6 +489,8 @@ async function heldRooms(ctx, S, plan) {
   Object.assign(S, { plan, sid: ans.session.id, ans: null, ticks: new Set(), ha: new Set(), sel: new Set(), names: {}, fail: null, heldFor: plan.id });
   take(S, ans);
   S.screen = "rooms_check";
+  // Its plan measured again or lined up since it was read: drawn again at the scale now, from the same reading, and said.
+  S.redrawn = ans.reprojected && ans.reprojected.redrawn ? ans.reprojected : null;
   _done.delete("step:rooms_check");                // its step marked again, with this session (Carry on finds it)
   return true;
 }
@@ -533,7 +537,8 @@ async function toMeasure(ctx, S) {
   toGuided(ctx, S);
   const sc = scaleDraft(S);
   sc.heldAsked = true;
-  const r = await ws(ctx, { type: "padspan_ha/plan_build_scale_start", map_id: S.plan.id, held_only: true, via: VIA }).catch(() => null);
+  // A plan whose scale is being checked has a scale: its held reading is asked for as a recheck (third review, 2026-11-12).
+  const r = await ws(ctx, { type: "padspan_ha/plan_build_scale_start", map_id: S.plan.id, held_only: true, ...(rechecking(S) ? { recheck: true } : {}), via: VIA }).catch(() => null);
   if (r && r.session && S.sc === sc && !sc.pts.length && !sc.text) {
     S.scaleSid = r.session;
     await scaleStatus(ctx, S);
@@ -553,7 +558,7 @@ async function scaleStatus(ctx, S) {
   const s = ans && ans.session;
   if (!s) { toGuided(ctx, S); return; }
   // The plan has a scale by now (saved here before the rooms read could start, or measured by hand): on to the rooms.
-  if (S.plan && !needsScale(ctx.state, S.plan)) { S.screen = "intro"; S.scaleSid = null; return; }
+  if (S.plan && !needsScale(ctx.state, S.plan) && !rechecking(S)) { S.screen = "intro"; S.scaleSid = null; return; }
   // A reading of another plan (this one was removed, or moved outdoors, and the helper picked the next): never drawn here.
   if (S.plan && s.map_id && s.map_id !== S.plan.id) { toGuided(ctx, S); return; }
   if (s.status === "running") { S.screen = "scale_read"; return; }
@@ -624,6 +629,7 @@ async function begin(ctx, S, plan) {
   S.rescale = null;
   S.gone = false;
   const rs = await rescaleAlive(ctx, S, plan.id);
+  if (rs === RECHECK_UNKNOWN) { S.busy = false; S.msg = RECHECK_UNKNOWN_WORDS; rerender(ctx); return; }
   if (rs) {
     S.plan = plan; S.rescale = { map: plan.id, sid: rs }; S.sid = rs; S.sc = null; S.done = null; S.undone = null;
     await toMeasure(ctx, S);
@@ -670,13 +676,15 @@ async function scaleRead(ctx, S, plan) {
   rerender(ctx);
   tel(ctx, "plan_build_scale_taken:asked_claude");
   try {
-    const r = await ws(ctx, { type: "padspan_ha/plan_build_scale_start", map_id: plan.id, via: VIA });
+    const r = await ws(ctx, { type: "padspan_ha/plan_build_scale_start", map_id: plan.id, ...(rechecking(S) ? { recheck: true } : {}), via: VIA });
     S.plan = plan; S.scaleSid = r.session; S.done = null; S.undone = null;
     S.screen = "scale_read";
     for (const k of ["scale_read", "scale_guided"]) _done.delete("step:" + k);
     if (r.reused) await scaleStatus(ctx, S);             // a reading of this picture already held: shown now, nothing paid
   } catch (e) {
-    if (e && e.code === "already_placed") { S.busy = false; telOnce(ctx, "plan_build_scale:already_set"); return startRead(ctx, S, plan); }
+    // A plan that has a scale by now: on to its rooms, but never from a scale check (its rooms are already read).
+    if (e && e.code === "already_placed" && !rechecking(S)) { S.busy = false; telOnce(ctx, "plan_build_scale:already_set"); return startRead(ctx, S, plan); }
+    if (e && e.code === "already_placed") { S.busy = false; S.msg = codeWords(e.code); rerender(ctx); return; }
     startFailed(ctx, S, plan, e);
     if (S.screen === "fail") S.failFor = "scale";
   }
@@ -685,6 +693,8 @@ async function scaleRead(ctx, S, plan) {
 }
 
 async function startRead(ctx, S, plan) {
+  // Nothing on a scale check's screen ever starts a rooms read: its rooms are already read (third review, 2026-11-12).
+  if (rechecking(S)) { S.msg = "This plan's rooms are already read: save the new scale, or go back to them."; rerender(ctx); return; }
   S.busy = true; S.msg = ""; S.fail = null; S.failFor = null;
   rerender(ctx);
   try {
@@ -1279,7 +1289,7 @@ function measurePicture(ctx, S) {
 /** A refusal the server says before anything is saved (the plan has a scale by now, calibration spots on it…): its words, the way on. */
 function scaleStopped(ctx, S, box, pv) {
   box.appendChild(P(ctx, pv.stop_message || codeWords(pv.stop), "color:#f59e0b"));
-  if (pv.stop === "already_placed") box.appendChild(row(ctx, [btn(ctx, "Find the rooms →", () => startRead(ctx, S, S.plan), { primary: true, attrs: { "data-aiw": "scale-skip" } })]));
+  if (pv.stop === "already_placed" && !rechecking(S)) box.appendChild(row(ctx, [btn(ctx, "Find the rooms →", () => startRead(ctx, S, S.plan), { primary: true, attrs: { "data-aiw": "scale-skip" } })]));
   else box.appendChild(row(ctx, [btn(ctx, "Draw them myself", () => act(ctx, S, "by_hand"), { attrs: { "data-aiw": "scale-by-hand" } })]));
 }
 
@@ -1368,6 +1378,9 @@ function scaleScreen(ctx, S, box) {
   const { el } = ctx.helpers;
   const sc = scaleDraft(S), pv = sc.pv, r = sc.read, main = r && r.axes[r.main];
   telOnce(ctx, "plan_build_scale:guided");
+  // A scale check can end without a new measurement (third review, 2026-11-12): back to the same list, nothing written.
+  if (rechecking(S)) box.appendChild(row(ctx, [btn(ctx, "The scale is right, back to my rooms", () => backToRooms(ctx, S),
+    { disabled: S.busy, attrs: { "data-aiw": "recheck-back" } })], "margin:0 0 6px"));
   if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, whether it may be measured here
   const tap = tapWord();
   box.appendChild(P(ctx, `${tap} both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. ` +
@@ -1497,12 +1510,29 @@ async function checkScale(ctx, S) {
   rerender(ctx);
 }
 
+export const RECHECK_UNKNOWN = "unknown";
+export const RECHECK_UNKNOWN_WORDS = "Your scale check couldn't be looked up just now, so nothing was changed. Try again in a moment.";
+/** "The scale is right, back to my rooms": the check ended (its record cleared, the notice not shown again for this
+ *  plan), the same list with its names and ticks, and nothing written to the scale. */
+async function backToRooms(ctx, S) {
+  const mid = S.plan.id, sid = S.rescale.sid;
+  S.rescale = null; S.sc = null;
+  if (S.info && S.info.wizard && S.info.wizard.rescale) delete S.info.wizard.rescale[mid];
+  ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale_done", map_id: mid }).catch(() => {});
+  tel(ctx, "ai_wizard_scale_notice:dismissed");
+  S.scaleOkFor = [...(S.scaleOkFor || []), mid];
+  ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "scale_ok", map_id: mid }).catch(() => {});
+  S.sid = sid;
+  await status(ctx, S);
+  rerender(ctx);
+}
 /** The plan's scale-check record, if the rooms session behind it is still there to draw again (read, not saved); a
  *  stale one is dropped (second review: never a screen that says free ahead of a paid read). */
 async function rescaleAlive(ctx, S, mid) {
   const sid = rescaleOf(S, mid);
   if (!sid) return null;
-  const a = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", session: sid, via: VIA }).catch(() => null);
+  const a = await ws(ctx, { type: "padspan_ha/plan_build_rooms_status", session: sid, via: VIA }).then(x => x, () => undefined);
+  if (a === undefined) return RECHECK_UNKNOWN;      // not answered just now (a blip, Claude locked): kept, said, tried again later
   const s = a && a.session;
   if (s && s.id === sid && s.proposal && s.status !== "running" && !Object.keys(s.saved || {}).length) return sid;
   ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale_done", map_id: mid }).catch(() => {});

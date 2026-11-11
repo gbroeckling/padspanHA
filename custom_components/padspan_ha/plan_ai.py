@@ -4718,7 +4718,7 @@ class ScaleRunner(LineupRunner):
                 return "plan_gone"
             if not same_picture(pl["image_sig"], {"image_sig": image_sig(m), "image_sig_was": legacy_image_sig(m)}):
                 return "plan_changed"
-            if model is not None and model.map_transform(pl["map_id"]) is not None:    # measured by hand meanwhile
+            if model is not None and model.map_transform(pl["map_id"]) is not None and not self.sess.get("recheck"):    # measured by hand meanwhile (a recheck reads a plan that has a scale)
                 return "plan_changed"
         return None
 

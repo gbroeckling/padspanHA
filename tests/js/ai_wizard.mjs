@@ -1548,5 +1548,50 @@ check("printed first", W.scaleNoticeWords({ k: 0.33, source: "printed", example:
     && !line.textContent.includes("You started measuring"), line && line.textContent);
   O._reset();
 }
+// ── third review 2026-11-12: a scale check never starts a rooms read; Use it and Ask Claude work for a plan with a scale;
+// back to the rooms without measuring; a lookup that fails keeps the check; a held list whose plan moved is redrawn, said ──
+{
+  const ans = { session: SESS(), areas: [], undo: null, wizard: { ...WIZ, scale_check: { k: 3, source: "rooms", signs: ["rooms"], example: {} } } };
+  const recheck = async (o) => {
+    const h = house({ unlock: { ok: true, why: "ok" }, master: true, ans, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } }, ...o });
+    let root = await view(h);
+    q(root, '[data-aiw="scale-check"]').click();
+    for (let i = 0; i < 6; i++) await tick();
+    return { h, root: await view(h) };
+  };
+  let { h, root } = await recheck({});
+  check("recheck: the plan keeps its scale, the held reading asked for as a recheck", !!q(root, '[data-aiw="measure"]')
+    && h.calls.some(c => c.type === "padspan_ha/plan_build_scale_start" && c.held_only && c.recheck === true), typesOf(h));
+  q(root, '[data-aiw="scale-ask"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  root = await view(h);
+  check("recheck: Ask Claude to look reads the scale as a recheck, never the rooms; the list survives", h.calls.some(c => c.type === "padspan_ha/plan_build_scale_start" && !c.held_only && c.recheck === true)
+    && !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start") && h.ctx.state._aiw.rescale?.sid === "rb_1", typesOf(h));
+  ({ h, root } = await recheck({ scaleStart: (p) => (p.held_only ? { session: null } : Promise.reject({ code: "already_placed" })) }));
+  q(root, '[data-aiw="scale-ask"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  check("recheck: already_placed never falls through to a rooms read", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start") && h.ctx.state._aiw.rescale?.sid === "rb_1");
+  ({ h, root } = await recheck({ held: true, scaleSess: () => ({ ...READ({}), map_id: "m1" }) }));
+  check("recheck: a held double-checked reading offered as Use it", !!q(root, '[data-aiw="scale-use"]'), root.textContent.slice(0, 300));
+  q(root, '[data-aiw="recheck-back"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  root = await view(h);
+  check("recheck: the scale is right, back to the same list, nothing written", !!q(root, '[data-aiw="rows"]') && !h.ctx.state._aiw.rescale
+    && h.calls.some(c => c.what === "rescale_done") && h.calls.some(c => c.what === "scale_ok") && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save")
+    && !q(root, '[data-aiw="scale-notice"]'), typesOf(h));
+}
+{
+  // The check's lookup fails just now: kept (not dropped), said, nothing started.
+  let n = 0;
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, status: () => (n++ === 0 ? Promise.reject({ code: "home_assistant_error" }) : { session: null }),
+    wizard: { started: { at: "scale_guided", map_id: "n1", rooms_session: "rb_1" }, rescale: { n1: "rb_1" } } });
+  const root = await view(h);
+  check("recheck lookup failed: said, the record kept", root.textContent.includes(W.RECHECK_UNKNOWN_WORDS) && !h.calls.some(c => c.what === "rescale_done"), root.textContent.slice(0, 300));
+  // A held list whose plan was measured again since: drawn again at the scale now, and said.
+  const g = house({ unlock: { ok: true, why: "ok" }, master: true, heldRooms: true,
+    status: () => ({ session: SESS(), areas: [], undo: null, wizard: WIZ, reprojected: { redrawn: true, reset: true } }) });
+  const gr = await view(g);
+  check("held list redrawn at the scale now, said", !!q(gr, '[data-aiw="redrawn"]') && gr.textContent.includes("Drawn again at the new scale"), gr.textContent.slice(0, 300));
+}
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);

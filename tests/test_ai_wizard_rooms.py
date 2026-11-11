@@ -392,9 +392,17 @@ _HOMES = {
     "rooms by number": [(f"Room {i + 1}", a) for i, a in enumerate((25, 12, 10, 14, 11, 10, 6, 8, 2))],
     "plain 3-bed": [("Living Room", 25), ("Kitchen", 12), ("Dining Room", 10), ("Bedroom", 14), ("Bedroom 2", 11), ("Bedroom 3", 10),
                     ("Bathroom", 6), ("Hallway", 8), ("Closet", 2)],
+    # Third review: big rooms at their right scale, which a rule on room sizes alone took for a unit mix-up.
+    "estate wing": [("Ballroom", 240), ("Gallery", 156), ("Primary Bedroom", 63), ("Ensuite", 30)],
+    "warehouse unit": [("Warehouse", 400), ("Store", 180), ("Loading Bay", 160), ("Office", 20)],
+    "church hall": [("Main Hall", 300), ("Kitchen", 20), ("WC", 6), ("Vestry", 15)],
+    "big barn": [("Barn", 400), ("Hay Loft", 200), ("Tack Room", 20)],
+    "gym floor": [("Gym", 500), ("Changing Room", 40), ("Changing Room 2", 40), ("Office", 15)],
 }
 _ORDINARY = ("German names", "French names", "Dutch names", "plain 3-bed")
 _NEVER = ("basement, 2 big rooms",)                                # two rooms: never evidence
+# Big rooms whose plain rooms (bathrooms, halls, closets) are plain or absent: quiet at the right scale and near it.
+_BIG = ("estate wing", "warehouse unit", "church hall", "big barn", "gym floor")
 _QUIET = (0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.33, 1.5)
 _FIRE = (0.3048, 1 / 3, 2.54, 3.0, 3.28)
 
@@ -430,6 +438,12 @@ def test_the_scale_looks_wrong_catches_a_unit_mix_up(home):
         assert got and got["source"] == "rooms" and got["signs"] == ["rooms"] and (got["k"] > 1) == (k > 1), (home, k, got)
 
 
+@pytest.mark.parametrize("home", _BIG)
+def test_the_scale_looks_wrong_stays_quiet_on_big_rooms_at_their_scale(home):
+    for k in (0.8, 1.0, 1.25, 1.5):
+        assert _says(home, k) is None, (home, k, _says(home, k))
+
+
 def test_the_scale_looks_wrong_two_rooms_never_and_a_printed_reading_first():
     for k in _FIRE + _QUIET:
         assert _says("basement, 2 big rooms", k) is None and _says("basement, 2 big rooms", k, {"k": k}) is None
@@ -444,7 +458,7 @@ def test_the_scale_looks_wrong_two_rooms_never_and_a_printed_reading_first():
 
 def test_the_table_as_it_comes_out():
     """The whole table, printed (pytest -s): which homes say so at which scales."""
-    scales = (0.3048, 1 / 3, 0.5, 0.67, 1.0, 1.5, 2.0, 2.54, 3.0, 3.28)
+    scales = (0.3048, 1 / 3, 0.5, 0.67, 0.8, 1.0, 1.25, 1.5, 2.0, 2.54, 3.0, 3.28)
     rows = []
     for home in _HOMES:
         rows.append(f"{home:32} " + " ".join(f"{('x' if _says(home, k) else '.'):>6}" for k in scales))
@@ -701,5 +715,11 @@ def test_rooms_read_for_a_plan_and_not_saved_are_found_again_by_plan(monkeypatch
     got = _call(WP.ws_plan_build_rooms_status, h, conn, map_id=mid, via="wizard")
     assert got["session"]["id"] == sess["id"] and got["wizard"]["rows"]
     assert _call(WP.ws_plan_build_rooms_status, h, conn, map_id="elsewhere", via="wizard")["session"] is None
-    assert _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=ans["wizard"]["ticked"], via="wizard").get("ok")
+    # Third review: its plan measured again since: found, drawn again at the scale now from the same reads, and said.
+    tf = h.data[DOMAIN][DATA_MODEL].data["map_transforms"][mid]
+    tf.update(scale_x_m=tf["scale_x_m"] * 2, scale_y_m=tf["scale_y_m"] * 2)
+    moved = _call(WP.ws_plan_build_rooms_status, h, conn, map_id=mid, via="wizard")
+    assert moved["session"]["id"] == sess["id"] and moved["reprojected"]["redrawn"] is True
+    sess = moved["session"]
+    assert _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=moved["wizard"]["ticked"], via="wizard").get("ok")
     assert _call(WP.ws_plan_build_rooms_status, h, conn, map_id=mid, via="wizard")["session"] is None

@@ -535,3 +535,17 @@ def test_held_only_answers_a_held_reading_and_never_starts_a_paid_one(monkeypatc
     first = _read(h, conn)
     assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", held_only=True, via="wizard") == {"session": first["id"], "reused": True}
     assert _counters(h)["plan_build_run:s0_started"] == 1
+
+
+def test_a_scale_check_reads_a_plan_that_has_a_scale_and_only_as_a_recheck(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Third review, 2026-11-12: "Check the scale" keeps the plan's scale, so its held reading (Use it) and a new reading
+    (Ask Claude to look) are asked for as a recheck; without it a plan with a scale is refused, as before."""
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk, "feet_chain")
+    first = _read(h, conn)
+    mdl.data["map_transforms"]["n1"] = {"scale_x_m": 10.0, "scale_y_m": 8.0, "floor_id": "main", "reference_measurements": [{}]}
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", held_only=True, via="wizard")["error"] == "already_placed"
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", held_only=True, recheck=True, via="wizard") == {"session": first["id"], "reused": True}
+    fresh = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", again=True, recheck=True, via="wizard")
+    assert fresh.get("error") in (None, "too_soon") and fresh.get("error") != "already_placed", fresh   # past the scale's own check
+    for c in h.jobs:
+        c.close()

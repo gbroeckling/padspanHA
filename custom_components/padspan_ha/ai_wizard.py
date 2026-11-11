@@ -577,8 +577,9 @@ def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
 #   a printed measurement Claude read and double-checked disagrees with the scale saved, AND the room sizes are off the
 #     same way: two independent signs; the factor said is the reading's.
 #   no printed reading: only a unit mix-up shows on its own (feet typed as metres 3.28x, metres as feet 0.3048x, inches
-#     as cm 2.54x): three rooms or more, a length factor of UNITS_X or more (or 1/UNITS_X or less), and three quarters
-#     of the rooms each outside what any room of that kind can be. Nothing subtler is said: the size on each row is the
+#     as cm 2.54x): three rooms or more, a length factor of UNITS_X or more (or 1/UNITS_X or less), three quarters
+#     of the rooms each outside what any room of that kind can be, and two plain rooms (PLAIN_KINDS) each off by
+#     PLAIN_OFF or more. Nothing subtler is said: the size on each row is the
 #     person's cue (tests/test_ai_wizard_rooms.py holds the table of homes it must, and must never, fire on).
 # Doors carry no evidence either: they are read as points, and their width is a standard one.
 KIND_M2: dict[str, tuple[float, float, float]] = {
@@ -589,6 +590,9 @@ KIND_M2: dict[str, tuple[float, float, float]] = {
 ANY_ROOM_M2 = (10.0, 1.5, 150.0)    # a room PadSpan can't name: its usual size, the smallest and largest a home's room is
 UNITS_X = 2.5                       # a length factor this far off, on room sizes alone, is a unit mix-up (2.54x, 3.28x, 0.3048x)
 MOST_IMPOSSIBLE = 0.75              # ...and this share of the rooms each impossible for their kind
+PLAIN_KINDS = frozenset({"bathroom", "powder", "closet", "hallway", "laundry", "entrance"})   # rooms whose size a grand house doesn't change much
+PLAIN_OFF = 2.0                     # ...and at least MIN_PLAIN of them each this far off in length from their usual size
+MIN_PLAIN = 2
 ROOMS_WITH_PRINTED = 1.25           # with a printed reading: the room sizes off the same way at least this much
 PRINTED_OFF = 1.2                   # a printed reading this far from the scale saved disagrees with it
 AGREE_X = 1.6                       # the two within this factor of each other
@@ -629,7 +633,11 @@ def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None =
             and max(k_p / k_rooms, k_rooms / k_p) <= AGREE_X:
         example["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
         return {"k": round(k_p, 3), "source": "printed", "signs": ["printed", "rooms"], "example": example}
-    if max(k_rooms, 1 / k_rooms) >= UNITS_X and sum(1 for r in rooms if r["impossible"]) / len(rooms) >= MOST_IMPOSSIBLE:
+    # The plain rooms every home has (a bathroom, a hall, a closet...) are the test: in a unit mix-up they come out absurd too
+    # (a 39 m² bathroom), while a grand house or a warehouse at its right scale has big rooms but plain ones of plain size,
+    # or none (third review, 2026-11-12: an estate wing and a warehouse unit alarmed on the other tests alone).
+    plain = sum(1 for r in rooms if r["kind"] in PLAIN_KINDS and (r["k"] >= PLAIN_OFF if big else r["k"] <= 1 / PLAIN_OFF))
+    if max(k_rooms, 1 / k_rooms) >= UNITS_X and sum(1 for r in rooms if r["impossible"]) / len(rooms) >= MOST_IMPOSSIBLE and plain >= MIN_PLAIN:
         return {"k": round(k_rooms, 3), "source": "rooms", "signs": ["rooms"], "example": example}
     return None
 

@@ -1072,7 +1072,9 @@ async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> No
     if not sid:
         sid = max(((k, s) for k, s in (store.data.get("rooms") or {}).items() if isinstance(s, dict)),
                   key=lambda t: float(t[1].get("started_at") or 0), default=(None, None))[0]
-    redrawn = await _reprojected(hass, store, sid) if _helper(msg) and sid and msg.get("reproject") else None
+    # Drawn again from the same reads when asked (after "Check the scale"), and always for a held list found by plan: one whose
+    # plan was measured again or lined up since is never shown with stale metres (third review, 2026-11-12).
+    redrawn = await _reprojected(hass, store, sid) if _helper(msg) and sid and (msg.get("reproject") or msg.get("map_id")) else None
     ans = _rooms_answer(hass, store, sid)
     if _helper(msg):
         await _undo_scale_word(hass, store, ans)
@@ -1497,7 +1499,7 @@ async def ws_plan_build_scale_undo(hass: HomeAssistant, connection, msg) -> None
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_build_scale_start", vol.Required("map_id"): str, vol.Optional("again"): bool,
-                                  vol.Optional("held_only"): bool, vol.Optional("via"): VIA})
+                                  vol.Optional("held_only"): bool, vol.Optional("recheck"): bool, vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> None:
@@ -1518,14 +1520,17 @@ async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> Non
         if not isinstance(m, dict) or model is None:
             connection.send_error(msg["id"], "not_found", RP + "that plan isn't there any more.")
             return
-        if model.map_transform(msg["map_id"]) is not None:
+        # "Check the scale" (third review, 2026-11-12): a plan with the helper's scale may have its printed measurement read
+        # (or a reading held offered) to check that scale against; nothing is written by a read.
+        recheck = bool(msg.get("recheck")) and model.map_transform(msg["map_id"]) is not None
+        if model.map_transform(msg["map_id"]) is not None and not recheck:
             connection.send_error(msg["id"], "already_placed", C.SCALE_WORDS["already_placed"])
             return
         if str(m.get("floor_id") or "").strip().lower() in OUTDOOR_FLOOR_NAMES:
             connection.send_error(msg["id"], "outdoor", RP + "this plan shows the outside: the helper reads the plans of the house's floors.")
             return
         try:                                     # the save's own data-safety checks, before a paid read (the floor is chosen at the save)
-            C.scale_check(hass, msg["map_id"], None, None)
+            C.scale_check(hass, msg["map_id"], None, None, recheck)
         except C.Refused as err:
             if err.code != "floor_unknown":
                 connection.send_error(msg["id"], err.code, err.message)
@@ -1552,7 +1557,10 @@ async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> Non
         earlier = A.earlier_reads(store)
         if msg.get("again"):                     # Ask Claude again: a first look that didn't match the drawing isn't used again
             earlier = {k: v for k, v in earlier.items() if not (v.get("read_a") or {}).get("suspect")}
-        sid = A.start_scale(hass, store, A.new_scale_session(A.unlock(hass), m, earlier))
+        sess = A.new_scale_session(A.unlock(hass), m, earlier)
+        if recheck:
+            sess["recheck"] = True                # its read isn't stopped by the scale the plan already has
+        sid = A.start_scale(hass, store, sess)
         await store.async_save()
     connection.send_result(msg["id"], {"session": sid})
 

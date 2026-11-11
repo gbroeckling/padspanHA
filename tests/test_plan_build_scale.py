@@ -128,9 +128,10 @@ def test_one_writer_the_helper_never_writes_a_plans_scale_past_measures_writer(m
     scale = src[src.index("# ── The rooms helper's scale"):]
     assert ".async_set_map_transform(" not in scale and ".async_reanchor_map(" not in scale and "reanchor=" not in scale
     assert "map_transforms\"]" not in scale and "[\"world_gauge\"] =" not in scale
-    # The un-set writer: defined once, called from scale_undo only.
+    # The un-set writer: defined once, called from this module only: scale_undo, and (third review, 2026-11-12) scale_replace,
+    # which clears and writes the new scale at once, and clears its own new one again to put the old back on a failure.
     callers = [p.name for p in _PKG.glob("*.py") if "async_unset_world_gauge(" in p.read_text(encoding="utf-8")]
-    assert sorted(callers) == ["model_store.py", "plan_ai_write.py"] and scale.count("async_unset_world_gauge(") == 1
+    assert sorted(callers) == ["model_store.py", "plan_ai_write.py"] and scale.count("async_unset_world_gauge(") == 3
 
 
 def test_the_house_scale_is_seeded_only_when_none_existed(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -620,16 +621,64 @@ def test_check_the_scale_replaces_in_one_step_and_a_false_alarm_costs_nothing(mo
     assert _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", measures=[], replace=True, via="wizard")["replace"] == "changed_since"
 
 
-def test_a_replace_whose_save_is_refused_puts_the_old_scale_back(monkeypatch, tmp_path, disk):  # noqa: F811
-    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
-    assert _save(h, conn)["ok"]
-    old = copy.deepcopy(mdl.map_transform("n1"))
+def _picked_floor(monkeypatch, tmp_path, disk):  # noqa: F811
+    """A plan on a floor the house doesn't have, whose first scale came with a floor pick (Upper)."""
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, plan={**_N1, "floor_id": "ground"}, gauge=False)
+    assert _save(h, conn, floor_id="upper")["ok"] and ms.get_map("n1")["floor_id"] == "upper"
+    return h, conn, mdl, ms, cal
 
-    async def refused(*_a, **_k):
-        raise C.Refused("backup_failed", C.SCALE_WORDS["backup_failed"])
-    monkeypatch.setattr(C, "scale_save", refused)
+
+def test_a_replace_keeps_the_floor_picked(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Third review, 2026-11-12: a replace is not an undo then a save; it keeps the plan's floor (and the panel sends none)."""
+    h, conn, mdl, ms, cal = _picked_floor(monkeypatch, tmp_path, disk)
     out = _save(h, conn, replace=True, measures=[{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "10 m"}])
-    assert out["ok"] is False and out["code"] == "backup_failed"
-    now = mdl.map_transform("n1")
-    assert now["scale_x_m"] == old["scale_x_m"] and now["scale_y_m"] == old["scale_y_m"]
-    assert not any(b.get("undo_of") for b in _store(h).data["scale_batches"].values())        # the undo's mark taken off
+    assert out["ok"] and out["replaced"] and ms.get_map("n1")["floor_id"] == "upper" and mdl.map_transform("n1")["floor_id"] == "upper"
+    assert mdl.map_transform("n1")["scale_x_m"] == 20.0 and mdl.world_gauge()["source_map_id"] == "n1"
+    assert _undo(h, conn)["ok"] is True and mdl.map_transform("n1") is None and ms.get_map("n1")["floor_id"] == "ground"   # its Undo: back to no scale
+
+
+@pytest.mark.parametrize("fails", ["refused", "raised", "ledger"])
+def test_a_failed_replace_leaves_the_plan_byte_identical(monkeypatch, tmp_path, disk, fails):  # noqa: F811
+    """Any failure after the clear, a refusal or an exception, puts the plan back whole: scale, floor, house scale, ledger."""
+    from custom_components.padspan_ha import ws_fabric as F2
+    h, conn, mdl, ms, cal = _picked_floor(monkeypatch, tmp_path, disk)
+    was, ledger = _now(mdl, ms, cal), json.dumps(_store(h).data.get("scale_batches"), sort_keys=True)
+    real = F2.async_write_measured_transform
+    calls = []
+
+    async def failing(hass, map_id, transform):
+        calls.append(transform)
+        if len(calls) == 1:                                     # the new measurement's write; the restore's goes through
+            if fails == "refused":
+                raise C.Refused("plan_changed", C.SCALE_WORDS["plan_changed"])
+            if fails == "raised":
+                raise RuntimeError("disk full")
+        return await real(hass, map_id, transform)
+    monkeypatch.setattr(F2, "async_write_measured_transform", failing)
+    if fails == "ledger":
+        monkeypatch.setattr(_store(h), "async_checked_save", lambda: _false())
+    try:
+        out = _save(h, conn, replace=True, measures=[{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "10 m"}])
+    except RuntimeError:
+        out = {"ok": False}                                     # an exception reaches the websocket layer, which answers with an error
+    assert not out.get("ok"), out
+    assert _now(mdl, ms, cal) == was and json.dumps(_store(h).data.get("scale_batches"), sort_keys=True) == ledger
+
+
+async def _false():
+    return False
+
+
+def test_a_hand_measurement_during_a_failed_replace_stays(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Measure takes no lock: one landing between the clear and the write is the person's newer one; it stays, and is said."""
+    from custom_components.padspan_ha import ws_fabric as F2
+    h, conn, mdl, ms, cal = _picked_floor(monkeypatch, tmp_path, disk)
+    hand = {**mdl.map_transform("n1"), "scale_x_m": 13.0, "scale_y_m": 10.4}
+
+    async def failing(hass, map_id, transform):
+        mdl.data["map_transforms"]["n1"] = hand                 # the hand measurement, landing just now
+        raise RuntimeError("busy")
+    monkeypatch.setattr(F2, "async_write_measured_transform", failing)
+    out = _save(h, conn, replace=True, measures=[{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "10 m"}])
+    assert out["ok"] is False and out["code"] == "changed_since" and "measured again in Mapping" in out["message"]
+    assert mdl.map_transform("n1")["scale_x_m"] == 13.0
