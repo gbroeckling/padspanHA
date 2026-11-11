@@ -3071,6 +3071,28 @@ function buildShapeLegend(el, lights){
 // element per screen (live_aboard.js liveAboardSlot), moved into each new
 // card beside the stage, which it hides while it shows. It loads with
 // import().catch, and every failure puts the flat Atlas back, counted once.
+// The sidebar Atlas's scroll bars go away once nobody has touched the page for five minutes (Garry, 2026-11-11: a map
+// left showing, a wall above all, shouldn't keep two grey bars on it), and come back at the next touch, key or
+// pointer move. One clock and one set of listeners for the page, on the newest sidebar card's stage; the map still
+// scrolls and pans with its bars hidden. Mapping's map keeps its bars: someone is working there.
+export const BARS_IDLE_MS = 5 * 60 * 1000;
+const _bars = { last: Date.now(), stage: null, wired: false, timer: null };
+export function barsQuiet(now, last) { return now - last >= BARS_IDLE_MS; }
+function _barsPaint() {
+  const st = _bars.stage;
+  if (!st || !st.classList || typeof st.classList.toggle !== "function") return;
+  st.classList.toggle("lv-quietbars", barsQuiet(Date.now(), _bars.last));
+}
+function _barsWatch(stage) {
+  _bars.stage = stage;
+  if (!_bars.wired && typeof window !== "undefined" && window.addEventListener) {
+    _bars.wired = true;
+    const woke = () => { _bars.last = Date.now(); _barsPaint(); };
+    for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"]) window.addEventListener(ev, woke, { passive: true, capture: true });
+    if (typeof setInterval === "function") { _bars.timer = setInterval(_barsPaint, 30000); if (_bars.timer && _bars.timer.unref) _bars.timer.unref(); }
+  }
+  _barsPaint();
+}
 const _LA_PICK = "padspan_lv_3d_";
 const _la3dPicked = (slot) => { try { return localStorage.getItem(_LA_PICK + slot) === "1"; } catch (_) { return false; } };
 const _la3dPick = (slot, on) => { try { localStorage.setItem(_LA_PICK + slot, on ? "1" : "0"); } catch (_) {} };
@@ -4089,6 +4111,7 @@ export function buildLightsMapCard(hostIn){
   // Pinch on the drawing zooms about the fingers; one finger pans (the stage
   // scrolls). Wired once per card — the stage element outlives rebuilds.
   wireStageTouch(isoDiv, view, zoomAbout);
+  if (DISPLAY) _barsWatch(isoDiv);
 
   // Ripple: while armed, one tap anywhere on the drawing (a fixture hex
   // included — the wave starts THERE) hands the caller each placed fixture's

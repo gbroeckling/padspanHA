@@ -1288,6 +1288,9 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   touch-action:pan-x pan-y;
   -webkit-touch-callout:none}
 .lv-stage::-webkit-scrollbar{height:9px;width:9px}
+/* Nobody has touched the page for five minutes (lights_map.js _barsWatch): the bars go, the map still scrolls. */
+.lv-stage.lv-quietbars{scrollbar-width:none}
+.lv-stage.lv-quietbars::-webkit-scrollbar{display:none}
 .lv-stage::-webkit-scrollbar-thumb{background:rgba(120,190,155,.26);border-radius:999px;border:2px solid #040a05}
 
 /* ── Atlas outdoor weather (views/atlas_weather.js) ─────────────────────────
