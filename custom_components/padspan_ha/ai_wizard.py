@@ -36,6 +36,18 @@ SURFACES: tuple[str, ...] = ("push", "pull")   # push: the Overview (respects No
 REASONS: tuple[str, ...] = ("not_admin", "not_live", "wall_screen", "edition", "has_rooms", "no_plan",
                             "age_unknown", "plan_too_new", "dismissed", "undone", "snoozed",
                             "tool_used", "no_pro_path", "no_scale", "offer")
+# A helper's read the person hasn't finished: it can be picked up again (the step before Save, or a read still running).
+_UNFINISHED = frozenset({"scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read", "rooms_check"})
+
+
+def goes_on(f: dict[str, Any]) -> bool:
+    """A house with rooms that the helper itself is still working on: it saved
+    rooms here and an indoor floor with a plan has none yet (the next floor),
+    or one of its reads is left part-way. Only the pull surfaces see it; a
+    house that got its rooms some other way is never offered the helper."""
+    w = f["wizard"]
+    st = w.get("started") if isinstance(w.get("started"), dict) else {}
+    return (bool(w.get("finished_day")) and bool(f.get("floor_no_rooms"))) or st.get("at") in _UNFINISHED
 
 
 def offer_reason(f: dict[str, Any], surface: str) -> str:
@@ -48,8 +60,8 @@ def offer_reason(f: dict[str, Any], surface: str) -> str:
         return "wall_screen"
     if f["edition"] == "bright":
         return "edition"                           # Bright builds show no presence
-    if f["rooms"] or f["room_bounds"]:
-        return "has_rooms"                         # never disturb a house that has rooms
+    if (f["rooms"] or f["room_bounds"]) and (surface == "push" or not goes_on(f)):
+        return "has_rooms"                         # never disturb a house that has rooms (pull: unless the helper is still at it)
     if not f["indoor_plans"]:
         return "no_plan"
     if f["plan_age_days"] is None:
@@ -59,8 +71,8 @@ def offer_reason(f: dict[str, Any], surface: str) -> str:
     w = f["wizard"]
     if surface == "push" and w.get("dismissed"):
         return "dismissed"
-    if w.get("undone"):
-        return "undone"
+    if surface == "push" and w.get("undone"):
+        return "undone"                            # design A.3: not pushed again; Setup, the Mapping wizard and the Plans tool still offer it
     if surface == "push" and f["now"] < (w.get("snooze_until") or 0):
         return "snoozed"
     if f["tool_used"] and not w.get("started"):
@@ -218,8 +230,12 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     plan_ai = getattr(dom.get(DATA_PLAN_AI), "data", None) or {}
     tier = hass_tier(hass)
     w = settings.get("ai_map_wizard")
+    fab = getattr(dom.get(DATA_FABRIC), "data", None) or {}
+    roomed = {str(fid) for fid, fl in (fab.get("floors") or {}).items() if isinstance(fl, dict) and fl.get("rooms")} \
+        | {str(m.get("floor_id") or "") for m in _maps(s) if m.get("room_bounds")}
     return {"admin": admin, "live": settings.get("data_mode") == "live" and live is not False, "kiosk": kiosk,
             "edition": edition(), "rooms": has_fabric_rooms(s), "room_bounds": any(len(m.get("room_bounds") or {}) > 0 for m in _maps(s)),
+            "floor_no_rooms": any(str(m.get("floor_id") or "") not in roomed for m in indoor),
             "indoor_plans": len(indoor), "plan_since": plan_since, "plan_age_days": None if since is None else max(0.0, (now - since) / 86400),
             "wizard": w if isinstance(w, dict) else {}, "now": now,
             "tool_used": bool(plan_ai.get("lineups") or plan_ai.get("rooms")),
@@ -580,13 +596,20 @@ async def ws_ai_wizard_mark(hass: HomeAssistant, connection, msg) -> None:
     by the rooms save and undo themselves (ws_plan_ai, via "wizard")."""
     from .telemetry import bump  # noqa: PLC0415
     what = msg["what"]
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if what in ("offered", "opened") and msg.get("surface"):
         bump(hass, f"ai_wizard_{what}:{msg['surface']}")
     elif what == "step" and msg.get("step"):
         bump(hass, f"ai_wizard_step:{msg['step']}")
     elif what in ("snoozed", "dismissed", "came_back"):
         bump(hass, f"ai_wizard:{what}")
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if what == "opened":
+        # Opened again after its own Undo, or on a house that has rooms (the next floor, a read left part-way): the ways
+        # back only the pull surfaces give (offer_reason), counted so the field shows whether they are used.
+        if ((st.data if st else {}).get("ai_map_wizard") or {}).get("undone"):
+            bump(hass, "ai_wizard:after_undo")
+        elif has_rooms(setup_state(hass)):
+            bump(hass, "ai_wizard:with_rooms")
     if what == "came_back" or st is None:
         connection.send_result(msg["id"], {"wizard": clean_wizard((st.data if st else {}).get("ai_map_wizard") or {})})
         return

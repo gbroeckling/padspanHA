@@ -97,5 +97,20 @@ for (const [why, display, words] of [
   const r = await render({ ai_plans_enabled: true }, { ...INFO({ ok: true, why: "ok", display: "Claude Opus 5.5" }), switch: true, on: true });
   check("Claude ready: the switch, no why line", !r.why && !!r.sw, text(r.root).slice(0, 200));
 }
+{
+  // End-to-end test 2026-11-11: the research switch's words are true now the rooms helper (which turns it on) saves
+  // rooms and a scale, and the undo of rooms the helper saved is under the helper's name.
+  const undoOf = (helper) => ({ ...INFO({ ok: true, why: "ok", display: "Claude Opus 5.5" }), switch: true, on: true,
+    rooms_undo: { session: "rb_1", floor_id: "main", floor_name: "Main", items: 3, saves: 1, at: 0, helper } });
+  const r = await render({ ai_plans_enabled: true }, undoOf(true));
+  const all_ = text(r.root), row = all(r.root).find(n => has(n, "data-ai-plan-build-rooms-undo"));
+  check("research words: true about what is saved", all_.includes("Rooms from plans and Let Claude draw your rooms save rooms")
+    && all_.includes("never changes your calibration") && !all_.includes("never writes your rooms"), all_.slice(0, 600));
+  check("helper undo: named as the helper's", row && text(row).includes("Undo the rooms Claude drew (experimental)") && text(row).includes("The last rooms Let Claude draw your rooms saved on Main")
+    && !text(row).includes("Undo this rooms session"), row ? text(row) : null);
+  const r2 = await render({ ai_plans_enabled: true }, undoOf(false));
+  const row2 = all(r2.root).find(n => has(n, "data-ai-plan-build-rooms-undo"));
+  check("rooms from plans undo: as it was", row2 && text(row2).includes("Undo this rooms session (experimental)") && !text(row2).includes("Claude drew"), row2 ? text(row2) : null);
+}
 
 console.log(JSON.stringify(results));

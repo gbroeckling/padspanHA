@@ -234,6 +234,25 @@ def test_scale_proposal_is_pure_and_takes_no_unread_axis():
     assert A.scale_proposal(pl, [1000, 800])["axes"]["x"]["save_text"] == "8.0000 m"
 
 
+def test_the_check_screen_never_quotes_a_text_cut_short_beside_the_whole_length():
+    """End-to-end test 2026-11-11: a chain of eight millimetre lengths (too long for Save's 40 characters) was quoted
+    as Claude's text cut at 24 characters, five numbers adding up to 11.79 m beside "(28.72 m)". What is quoted now adds
+    up to the metres beside it: the whole chain when it fits on the screen, else how many lengths it has."""
+    seg = ["1665", "3395", "1810", "3520", "1395", "4200", "6340", "6395"]
+    m = sum(int(s) for s in seg) / 1000
+    pl = {"dims": [{"axis": "x", "ok": True, "ticks_px": [[100, 500], [900, 500]], "parse_m": m, "text": "1665 3395 1810 3520 1395",
+                    "chain": seg, "box": [90, 480, 910, 520]}]}
+    ax = A.scale_proposal(pl, [1000, 800])["axes"]["x"]
+    assert ax["save_text"] == "28.7200 m" and ax["metres"] == pytest.approx(28.72)
+    assert ax["text"] == " + ".join(seg) and G.parse_length(ax["text"]) == pytest.approx(m)       # the numbers shown add up to it
+    pl["dims"][0]["chain"] = seg * 3
+    pl["dims"][0]["parse_m"] = 3 * m
+    ax = A.scale_proposal(pl, [1000, 800])["axes"]["x"]
+    assert ax["text"] == "24 lengths printed end to end" and "1665" not in ax["text"]
+    pl["dims"][0].update(chain=[], text="2.5 m", parse_m=8.0)                       # nothing printed that adds up: the metres alone
+    assert A.scale_proposal(pl, [1000, 800])["axes"]["x"]["text"] == "8.00 m"
+
+
 # ═══ the save: piece 3's scale_save, unchanged ════════════════════════════════
 
 def test_yes_saves_through_scale_save_exactly_as_a_guided_save_of_the_same_ends(monkeypatch, tmp_path, disk):  # noqa: F811

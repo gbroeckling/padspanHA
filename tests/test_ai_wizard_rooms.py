@@ -159,6 +159,25 @@ def test_the_mark_command_is_an_administrator_s_counts_and_writes():
         assert c.get(e) == 1, e
 
 
+def test_opening_it_again_after_its_undo_or_on_a_house_with_rooms_is_counted(monkeypatch):
+    """The two ways back only the pull surfaces give (offer_reason): counted when used."""
+    from tests.test_house3d_store import _house as _h3
+    h = _h3()
+    h.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] = True
+    conn = MagicMock()
+    monkeypatch.setattr(W, "setup_state", lambda hass: {"maps": {"list": [{"id": "m1"}]}, "model": {"room_geometry_m": {}}})
+    _run(W.ws_ai_wizard_mark(h, conn, {"id": 1, "what": "opened", "surface": "setup"}))
+    c = dict(h.data[DOMAIN].get(T._DATA_COUNTERS) or {})
+    assert "ai_wizard:after_undo" not in c and "ai_wizard:with_rooms" not in c                 # a first open: neither
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {"undone": True, "started": {"at": "saved"}}
+    _run(W.ws_ai_wizard_mark(h, conn, {"id": 2, "what": "opened", "surface": "setup"}))
+    monkeypatch.setattr(W, "setup_state", lambda hass: {"maps": {"list": []}, "model": {"room_geometry_m": {"Den": {}}}})
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {"finished_day": "2026-11-10", "started": {"at": "saved"}}
+    _run(W.ws_ai_wizard_mark(h, conn, {"id": 3, "what": "opened", "surface": "maps_wizard"}))
+    c = dict(h.data[DOMAIN].get(T._DATA_COUNTERS) or {})
+    assert c.get("ai_wizard:after_undo") == 1 and c.get("ai_wizard:with_rooms") == 1
+
+
 # ═══ "Also add this room to Home Assistant" ═══════════════════════════════════
 
 class _Areas:
@@ -262,6 +281,39 @@ def test_the_helper_names_ticks_saves_adds_the_area_asked_for_and_undo_takes_the
     assert und.get("ok") and und["undone"] == 3 and _fab_rooms(h) == {}
     assert h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"]["undone"] is True and _counters(h).get("ai_wizard:undone") == 1
     assert reg.made == [("Reading Nook", "main")]                     # Undo leaves the area in Home Assistant (said on the row)
+
+
+def test_the_person_s_ticks_are_kept_on_the_session_without_touching_the_proposal(monkeypatch, tmp_path, disk):  # noqa: F811
+    """End-to-end test 2026-11-11: names typed, a row unticked and "Also add to Home Assistant" ticked were lost on Back
+    or a reload. The ticks are kept on the rooms session itself (names go there through the "space" edit as they are
+    typed): a reload of the session finds them, a new read starts from Claude's own."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    ans = _wiz_read(h, conn)
+    sess, ticked = ans["session"], ans["wizard"]["ticked"]
+    assert "picked" not in sess and len(ticked) >= 2
+    want = {"ticked": ticked[1:], "ha": ticked[1:2]}
+    r = _call(WP.ws_plan_build_rooms_edit, h, conn, session=sess["id"], rev=sess["rev"] - 3, op="ticks", via="wizard", **want)
+    assert r == {"ok": True}                                                         # an old rev is fine: the proposal isn't touched
+    again = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")
+    assert again["session"]["picked"] == want and again["session"]["rev"] == sess["rev"]
+    assert again["session"]["proposal"] == sess["proposal"]
+    assert _call(WP.ws_plan_build_rooms_edit, h, conn, session="rb_nope", rev=1, op="ticks", ticked=[], via="wizard")["error"] == "not_found"
+
+
+def test_the_helper_s_save_is_named_as_the_helper_s_in_its_backups_and_its_undo_row(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Settings → AI's undo row and the automatic backups name the helper, as its scale's backup already did."""
+    from tests.test_plan_build_rooms import _backups
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    ans = _wiz_read(h, conn)
+    sess = ans["session"]
+    out = _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=ans["wizard"]["ticked"], via="wizard")
+    assert out.get("ok"), out
+    assert out["undo"]["helper"] is True and _call(WP.ws_plan_build_info, h, conn, via="wizard")["rooms_undo"]["helper"] is True
+    assert _call(WP.ws_plan_build_rooms_undo, h, conn, session=sess["id"], via="wizard").get("ok")
+    notes = [b["note"] for b in _backups(tmp_path)]
+    assert any(n.startswith("Before Let Claude draw your rooms saved rooms: ") for n in notes), notes
+    assert any(n.startswith("Before undoing the rooms Let Claude draw your rooms saved: ") for n in notes), notes
+    assert not any("rooms from plans" in n for n in notes), notes
 
 
 def test_an_area_that_fails_is_said_and_counted_and_the_rooms_stay_saved(monkeypatch, tmp_path, disk):  # noqa: F811

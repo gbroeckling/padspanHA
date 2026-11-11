@@ -200,6 +200,50 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("bar: nothing for a step that is not one", S.returnBar(ctx) === null);
 }
 
+// The rooms helper's Done (end-to-end test 2026-11-11): its receivers step opens on the plan it just saved, not the
+// first plan or the one open in Mapping.
+{
+  const st = house(5, { calibration: { points: [], model: {} }, activeMapId: "m1" });
+  st.maps.list.push({ id: "m2", name: "Upstairs", floor_id: "up", receivers: [], room_bounds: {} });
+  const { ctx } = mkCtx(st);
+  S.openStep(ctx, "receivers", "m2");
+  check("open: a step opened on a given plan opens on that plan", st._mapsWizard.step === 4 && st._mapsWizard.mapId === "m2" && st.activeMapId === "m2", st._mapsWizard);
+  S.openStep(ctx, "receivers", "gone");
+  check("open: a plan that isn't there: the one open in Mapping", st._mapsWizard.mapId === "m2");
+}
+
+// The rooms helper's line (end-to-end test 2026-11-11): under the current step when that is Scale or Rooms, else under
+// Rooms, so a two-floor house whose current step became Floors keeps it while the rule offers it.
+{
+  const AIWO = await import(pathToFileURL(join(WWW, "views", "ai_wizard_offer.js")).href);
+  const offering = (st) => {
+    const m = mkCtx(st);
+    const real = m.ctx.actions.callWS;
+    m.ctx.actions.callWS = async (msg) => (msg.type === "padspan_ha/ai_wizard_info" ? { reason: "offer", offer: true, wizard: {} } : real(msg));
+    return m;
+  };
+  const lineRow = async (st) => {
+    AIWO._reset();
+    const { ctx } = offering(st);
+    S.render(ctx);
+    for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
+    const root = S.render(ctx);
+    return root.querySelectorAll("[data-setup-status]").filter(n => n.querySelector('[data-aiw="line"]')).map(n => n.getAttribute("data-setup").slice(5));
+  };
+  const floorsNow = house(2, { calibration: { points: [], model: {} } });
+  check("helper line: Floors current, the line under Rooms", S.deriveSetup(floorsNow).current === "floors" && (await lineRow(floorsNow)).join() === "rooms");
+  const scaleNow = house(1, { calibration: { points: [], model: {} } });
+  check("helper line: Scale current, under Scale only", (await lineRow(scaleNow)).join() === "scale");
+  const roomsDone = house(5, { calibration: { points: [], model: {} } });
+  check("helper line: a house past its rooms keeps it under Rooms while the rule offers it", (await lineRow(roomsDone)).join() === "rooms");
+  AIWO._reset();
+  const { ctx } = mkCtx(house(2, { calibration: { points: [], model: {} } }));
+  S.render(ctx);
+  for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
+  check("helper line: none where the rule doesn't offer it", !S.render(ctx).querySelector('[data-aiw="line"]'));
+  AIWO._reset();
+}
+
 // No Skip for the plan: every step after it draws on one.
 {
   const { ctx } = mkCtx(house(0, { calibration: { points: [] } }));

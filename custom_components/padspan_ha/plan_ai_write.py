@@ -1521,6 +1521,13 @@ def _rooms_landed(store: A.PlanAiStore, bid: str, b: dict[str, Any], at: float) 
         sess["rev"] = int(sess.get("rev") or 0) + 1
 
 
+def _rooms_note(sess: dict | None, undo: bool) -> str:
+    """A rooms backup's note by the tool that saved them: the rooms helper's in its own name, as its scale's backup says it."""
+    if (sess or {}).get("via") == "wizard":
+        return "Before undoing the rooms Let Claude draw your rooms saved" if undo else "Before Let Claude draw your rooms saved rooms"
+    return "Before undoing rooms from plans (experimental)" if undo else "Before rooms from plans (experimental)"
+
+
 async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStore, sid: str, rev: int, item_ids: Any,
                        finals: Any = None) -> dict[str, Any]:
     """Accept all for this floor (Garry: "an all or nothing option"): the
@@ -1654,7 +1661,7 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
     A._bump(hass, f"plan_build_heldout:{A.gate_event(gate)}")  # noqa: SLF001
 
     # 3. One backup, in its own slot.
-    backup_id = await _auto_backup_rooms(hass, f"Before rooms from plans (experimental): {_floor_name(snap, fid)}")
+    backup_id = await _auto_backup_rooms(hass, f"{_rooms_note(sess, False)}: {_floor_name(snap, fid)}")
     if not backup_id:
         await refuse("backup_failed", RP + " ".join(A.STOPS["backup_failed"]), "backup_failed", "backup_failed")
     await recheck(True)                                   # the backup awaited: a hand edit may have landed meanwhile
@@ -1796,7 +1803,7 @@ async def rooms_undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3d
         await _save(store)
         raise Refused(code, RP + " ".join(A.STOPS[reason]), {"rev": (store.rooms_session(sid) or {}).get("rev")})
 
-    backup_id = await _auto_backup_rooms(hass, f"Before undoing rooms from plans (experimental): {_floor_name(snap, (sess or {}).get('floor_id'))}")
+    backup_id = await _auto_backup_rooms(hass, f"{_rooms_note(sess, True)}: {_floor_name(snap, (sess or {}).get('floor_id'))}")
     if not backup_id:
         await failed_undo("backup_failed", "backup_failed")
     snap_store = copy.deepcopy(store.data)

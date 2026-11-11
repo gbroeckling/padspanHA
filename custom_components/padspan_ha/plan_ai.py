@@ -4493,7 +4493,8 @@ def rooms_undo_info(store: PlanAiStore, sid: str | None = None) -> dict[str, Any
     mine = [b for b in (store.data.get("room_batches") or {}).values() if isinstance(b, dict) and b.get("session") == best["session"]
             and not b.get("undo_of") and not b.get("undone_at") and not b.get("pending")]
     return {"session": best["session"], "floor_id": best.get("floor_id"), "items": sum(len(b.get("items") or []) for b in mine),
-            "saves": len(mine), "at": max(float(b.get("committed_at") or 0) for b in mine)}
+            "saves": len(mine), "at": max(float(b.get("committed_at") or 0) for b in mine),
+            "helper": (store.rooms_session(best["session"]) or {}).get("via") == "wizard"}    # saved by Let Claude draw your rooms
 
 
 # ══ The rooms helper's scale read (Let Claude draw your rooms, piece 4; design E.1) ══
@@ -4561,9 +4562,27 @@ def _save_text(d: dict, m: float) -> tuple[str, bool]:
     return f"{m:.4f} m", False
 
 
+SCALE_SHOW_MAX = 80          # a chain of printed lengths this long is quoted whole on the check screen; longer, by how many it has
+
+
+def _shown_text(d: dict, save: str, printed: bool, m: float) -> str:
+    """What the check screen quotes beside the metres: the print's own words
+    when Save sends them; else the whole chain joined by + when its lengths
+    add up to the length (too long for Save's 40 characters), or how many
+    lengths it has when it is longer still; else the metres. Never a text cut
+    short, whose numbers would add up to less than the metres said beside it."""
+    if printed:
+        return save
+    chain = [str(c) for c in d.get("chain") or []]
+    if chain and G.agrees(G.chain_length(chain, m), m, S1_PARSE_AGREE):
+        joined = " + ".join(chain)
+        return joined if len(joined) <= SCALE_SHOW_MAX else f"{len(chain)} lengths printed end to end"
+    return f"{m:.2f} m"
+
+
 def scale_proposal(pl: dict, size: Any) -> dict[str, Any]:
     """Pure. What the scale read found on one plan of `size` (its picture's
-    pixels): per axis {text (as printed), save_text, metres, ppm, ends_frac
+    pixels): per axis {text (as quoted: _shown_text), save_text, metres, ppm, ends_frac
     (the two tick ends, fractions of the picture), box_frac (the printed line
     with its text), span_frac, state single | unconfirmed | none, near: its
     text read only near Claude's metres (SCALE_PARSE_NEAR)}, the axis
@@ -4591,7 +4610,7 @@ def scale_proposal(pl: dict, size: Any) -> dict[str, Any]:
             px = math.hypot((ends[1][0] - ends[0][0]) * W, (ends[1][1] - ends[0][1]) * H)
             if m and px >= 8:
                 b = d.get("box") or []
-                rec.update(text=save if printed else str(d.get("text") or save), save_text=save, metres=round(m, 4), ppm=round(px / m, 4), ends_frac=ends,
+                rec.update(text=_shown_text(d, save, printed, m), save_text=save, metres=round(m, 4), ppm=round(px / m, 4), ends_frac=ends,
                            box_frac=[clamp(b[0] / W), clamp(b[1] / H), clamp(b[2] / W), clamp(b[3] / H)] if len(b) == 4 else None,
                            span_frac=round(px / (W if axis == "x" else H), 3), state="single" if d.get("ok") else "unconfirmed",
                            near=bool(d.get("near")))

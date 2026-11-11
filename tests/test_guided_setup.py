@@ -113,7 +113,7 @@ def test_entry_points() -> None:
     assert "...(_setupShown && !_noPlansYet" in maps
     start = maps.split('startBtn.setAttribute("data-maps-start", "setup");')[1].split("empty.appendChild(startBtn);")[0]
     assert 'ctx.actions.openSetupStep("plan");' in start and "ctx.state._mapsWizard = { step: 1, mapId: null };" in start
-    assert 'openSetupStep: (id)=>{' in panel and "m.openStep(this._ctx(), id)" in panel
+    assert 'openSetupStep: (id, mapId=null)=>{' in panel and "m.openStep(this._ctx(), id, mapId)" in panel   # mapId: the rooms helper's saved plan
     # The old wizards stay reachable directly.
     assert '"Start Setup Wizard"' in maps and '"+ Add a floor"' in maps
     assert "🧭 Guided calibration" in _read("views/calibration.js")

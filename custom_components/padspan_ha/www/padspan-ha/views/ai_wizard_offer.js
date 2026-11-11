@@ -110,14 +110,19 @@ function _mark(ctx, what) {
   return ctx.actions.callWS({ type: "padspan_ha/ai_wizard_mark", what }).catch(() => {}).finally(() => ctx.actions.renderRooms());
 }
 
-/** Setup's and the Mapping wizard's line (pull: Not now doesn't hide it). */
+// A read the helper left part-way (ai_wizard._UNFINISHED): its line says Carry on, as the reading screen promises.
+const UNFINISHED = new Set(["scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read", "rooms_check"]);
+
+/** Setup's and the Mapping wizard's line (pull: Not now doesn't hide it): Carry on for a read left part-way, else Try it. */
 export function offerLine(ctx, surface) {
   if (!offered(ctx, surface)) return null;
   const { el } = ctx.helpers;
-  const go = el("button", { class: "btn inline", "data-aiw": "try", style: "font-size:12px;margin-left:6px" }, "Try it →");
+  const w = (infoFor(ctx, surface) || {}).wizard || {};
+  const back = !!(w.started && UNFINISHED.has(w.started.at));
+  const go = el("button", { class: "btn inline", "data-aiw": "try", style: "font-size:12px;margin-left:6px" }, back ? "Carry on →" : "Try it →");
   go.addEventListener("click", () => openWizard(ctx, surface));
   return el("div", { "data-aiw": "line", style: "font-size:12px;color:#94a3b8;margin:6px 0;line-height:1.5" },
-    ["Stuck? Claude can read your plan and draw the rooms for you (experimental).", go]);
+    [back ? "Claude is part-way through drawing your rooms (experimental)." : "Stuck? Claude can read your plan and draw the rooms for you (experimental).", go]);
 }
 
 /** The Getting started card's row, under Draw Rooms. */

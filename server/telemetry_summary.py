@@ -534,7 +534,8 @@ _WIZ_BANDS = ("0", "1", "2_3", "4_6", "7_12", "gt12")
 _WIZARD_FUNNEL = (
     tuple(f"ai_wizard_offered:{s}" for s in _WIZ_SURFACES) + tuple(f"ai_wizard_opened:{s}" for s in _WIZ_SURFACES)
     + tuple(f"ai_wizard_step:{s}" for s in _WIZ_STEPS) + tuple(f"ai_wizard_left:{s}" for s in _WIZ_STEPS)
-    + tuple(f"ai_wizard:{k}" for k in ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed"))
+    + tuple(f"ai_wizard:{k}" for k in ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed",
+                                          "with_rooms", "after_undo", "edits_back", "zoomed"))
     + tuple(f"ai_wizard_fail:{k}" for k in ("no_credit", "unreachable", "out_of_time", "bad_answer", "refusal", "no_media", "daily_cap",
                                              "backup_failed", "changed_since"))
     + tuple(f"ai_wizard_ai:{k}" for k in ("no_ai_task", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree",

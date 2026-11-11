@@ -177,8 +177,9 @@ function _save(ctx, p) {
 
 // ── opening a step: the tool that already does it ───────────────────────────
 
-/** Open a step's own tool, with the bar back to Setup over it. */
-export function openStep(ctx, id) {
+/** Open a step's own tool, with the bar back to Setup over it. `mapId`: on that plan (the rooms helper's Done opens
+ *  receivers on the plan it just saved), else the plan open in Mapping, else the first. */
+export function openStep(ctx, id, mapId = null) {
   const st = ctx.state;
   _save(ctx, openProgress(progressOf(st), id));
   _countStep(ctx, id);
@@ -195,10 +196,12 @@ export function openStep(ctx, id) {
     return;
   }
   const maps = (st.maps && st.maps.list) || [];
-  const mapId = (st.activeMapId && maps.some(m => m.id === st.activeMapId)) ? st.activeMapId : ((maps[0] && maps[0].id) || null);
+  const has = (mid) => !!mid && maps.some(m => m.id === mid);
+  const on = has(mapId) ? mapId : has(st.activeMapId) ? st.activeMapId : ((maps[0] && maps[0].id) || null);
+  if (has(mapId)) st.activeMapId = mapId;
   // A plan already uploaded: the wizard's Upload adds another floor ("+ Add a floor").
   if (id === "plan") st.activeMapId = null;
-  st._mapsWizard = { step: { plan: 1, scale: 2, rooms: 3, receivers: 4 }[id], mapId: id === "plan" ? null : mapId };
+  st._mapsWizard = { step: { plan: 1, scale: 2, rooms: 3, receivers: 4 }[id], mapId: id === "plan" ? null : on };
   ctx.actions.showView("maps");
 }
 
@@ -299,6 +302,10 @@ export function render(ctx) {
   }
 
   const list = el("div", { style: "display:flex;flex-direction:column;gap:6px;margin-top:10px" });
+  // Let Claude draw your rooms: its one line under the current step when that is Scale or Rooms, else under Rooms, so a
+  // house that has moved on (a second floor's heights, receivers) keeps it while the rule offers it (the next floor, a
+  // read left part-way).
+  const aiwAt = d.current === "scale" || d.current === "rooms" ? d.current : "rooms";
   for (const s of d.steps) {
     const c = _COLORS[s.status];
     const cur = s.status === "current";
@@ -317,7 +324,7 @@ export function render(ctx) {
       ]),
       el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.4;margin-top:2px" }, _detail(st, s.id, s.unknown ? null : s.done)),
     ]);
-    if (cur && (s.id === "scale" || s.id === "rooms") && AIW && !_demo(st)) {
+    if (s.id === aiwAt && AIW && !_demo(st)) {
       const line = AIW.offerLine(ctx, "setup");
       if (line) info.appendChild(line);
     }

@@ -371,7 +371,7 @@ const MENU = [
 ];
 
 // Screens reached by a link, never listed in MENU: what the phone's top bar calls them.
-const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics", ai_wizard: "Draw rooms with Claude" };
+const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics", ai_wizard: "Let Claude draw your rooms" };
 
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
 // Modes no longer hide screens (2026-10-30): every screen is in the menu in
@@ -3859,9 +3859,10 @@ class PadSpanHaApp extends HTMLElement {
         // Rooms or Receivers): its links are left out where it hasn't.
         canOpen: (id)=>this._getVisibleTabs().has(id),
         // A guided Setup step's own tool, with the bar back to Setup
-        // (views/setup.js openStep), loading Setup first if need be.
-        openSetupStep: (id)=>{
-          _loadView("setup").then(m => { if (m && m.openStep) m.openStep(this._ctx(), id); });
+        // (views/setup.js openStep), loading Setup first if need be;
+        // `mapId`: on that plan.
+        openSetupStep: (id, mapId=null)=>{
+          _loadView("setup").then(m => { if (m && m.openStep) m.openStep(this._ctx(), id, mapId); });
         },
         // Targeted tag-list re-render — avoids a full view rebuild which would
         // cause infinite loops in the Objects view's search/filter interaction

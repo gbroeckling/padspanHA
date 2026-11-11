@@ -801,7 +801,9 @@ const W_MAPPING = {
 // The AI rooms helper's own counts (telemetry.AI_WIZARD_EVENTS).
 const W_WIZ_SURFACE = { overview: "the Overview card", getting_started: "Getting started", setup: "Setup", maps_wizard: "the Mapping wizard", plans_tool: "the Plans tool" };
 const W_WIZ_OUTCOME = { finished: "rooms saved", dismissed: "don't ask again", snoozed: "not now", came_back: "came back to it", undone: "rooms taken back",
-  area_created: "a Home Assistant area added", area_failed: "a Home Assistant area couldn't be added" };
+  area_created: "a Home Assistant area added", area_failed: "a Home Assistant area couldn't be added",
+  with_rooms: "opened again on a house with rooms (the next floor, or a read left part-way)", after_undo: "opened again after its Undo",
+  edits_back: "came back to a rooms list with the person's changes kept", zoomed: "zoomed the plan to measure" };
 const W_WIZ_FAIL = { no_credit: "out of credit", unreachable: "Claude couldn't be reached", out_of_time: "stopped part-way", bad_answer: "answers not usable",
   refusal: "Claude declined", no_media: "media folder", daily_cap: "ten readings a day", backup_failed: "no safety backup", changed_since: "plan or rooms changed" };
 const W_WIZ_AI = { no_ai_task: "no AI Task", not_anthropic: "not Anthropic's integration", below_opus_5_5: "below Opus 5.5", unknown_model: "model unknown",

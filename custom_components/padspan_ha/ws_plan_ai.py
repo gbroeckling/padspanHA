@@ -1029,13 +1029,15 @@ _EDIT_WORDS = {"not_found": "that isn't in the proposal any more.", "invalid": "
     "type": "padspan_ha/plan_build_rooms_edit",
     vol.Required("session"): str,
     vol.Required("rev"): int,
-    vol.Required("op"): vol.In(("merge", "separate", "space", "pick")),
+    vol.Required("op"): vol.In(("merge", "separate", "space", "pick", "ticks")),
     vol.Optional("parts"): [str],
     vol.Optional("merge"): int,
     vol.Optional("space"): str,
     vol.Optional("name"): vol.Any(str, None),
     vol.Optional("room"): str,
     vol.Optional("read"): int,
+    vol.Optional("ticked"): vol.All([vol.All(str, vol.Length(max=64))], vol.Length(max=200)),
+    vol.Optional("ha"): vol.All([vol.All(str, vol.Length(max=64))], vol.Length(max=200)),
     vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
@@ -1044,7 +1046,10 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
     """The person's edit of the proposal (design 5): merge rooms and spaces
     into one, separate a merge, name a space as a new room (or leave it out),
     pick read 1 or 2 for a room. Kept on the session, nothing written to the
-    house; the proposal is worked out again."""
+    house; the proposal is worked out again. "ticks" (the rooms helper's):
+    which rows are ticked and which "Also add to Home Assistant", kept on the
+    session as the person left them (`picked`) so leaving, coming back or a
+    reload finds them; the proposal and its rev are untouched."""
     store = await _build_refused(hass, connection, msg)
     if store is None:
         return
@@ -1052,6 +1057,11 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
         sess = store.rooms_session(msg["session"])
         if sess is None:
             connection.send_error(msg["id"], "not_found", RP + "that session isn't here any more.")
+            return
+        if msg["op"] == "ticks":
+            sess["picked"] = {"ticked": list(dict.fromkeys(msg.get("ticked") or [])), "ha": list(dict.fromkeys(msg.get("ha") or []))}
+            await store.async_save()
+            connection.send_result(msg["id"], {"ok": True})
             return
         if int(sess.get("rev") or 0) != msg["rev"]:
             connection.send_error(msg["id"], REV_CODE, RP + "the session changed since you looked: it is reloaded.")

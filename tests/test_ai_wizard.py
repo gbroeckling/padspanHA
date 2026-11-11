@@ -90,8 +90,30 @@ def test_push_respects_not_now_and_dont_ask_again_pull_does_not():
         assert W.offer_reason(_f(wizard=w), "push") == push
         assert W.offer_reason(_f(wizard=w), "pull") == "offer"
     assert W.offer_reason(_f(wizard={"snooze_until": _NOW}), "push") == "offer", "a snooze ends when its time comes"
-    for surface in W.SURFACES:      # an undo is never pushed or pulled again
-        assert W.offer_reason(_f(wizard={"undone": True}), surface) == "undone"
+    # The helper's own Undo: never pushed again (design A.3), but Setup, the Mapping wizard and the Plans tool still
+    # offer it, so someone who undid because the scale was wrong can try again (end-to-end test 2026-11-11; until then
+    # an undo refused every surface).
+    assert W.offer_reason(_f(wizard={"undone": True}), "push") == "undone"
+    assert W.offer_reason(_f(wizard={"undone": True}), "pull") == "offer"
+
+
+def test_a_house_the_helper_gave_rooms_keeps_its_way_back_on_the_pull_surfaces_only():
+    """End-to-end test 2026-11-11: once the first floor had rooms, every surface said has_rooms, so the second floor
+    could be reached only from the Done screen's "Do Upper next", and a read left part-way could not be picked up.
+    Pull surfaces now offer it while the helper is still at it; the push surfaces stay as they were."""
+    nxt = _f(rooms=True, floor_no_rooms=True, wizard={"finished_day": "2026-11-10", "started": {"at": "saved", "rooms_session": "rb_1"}})
+    assert W.offer_reason(nxt, "pull") == "offer" and W.offer_reason(nxt, "push") == "has_rooms"
+    assert W.offer_reason({**nxt, "floor_no_rooms": False}, "pull") == "has_rooms"          # every plan's floor has rooms: done
+    assert W.offer_reason({**nxt, "room_bounds": True, "rooms": False}, "pull") == "offer"
+    for at in ("scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read", "rooms_check"):   # a read left part-way
+        mid = _f(rooms=True, floor_no_rooms=False, wizard={"started": {"at": at, "rooms_session": "rb_2"}})
+        assert W.offer_reason(mid, "pull") == "offer" and W.offer_reason(mid, "push") == "has_rooms", at
+    # A house that got its rooms some other way, or only opened the helper, is never offered it.
+    for w in ({}, {"started": {"at": "intro"}}, {"started": {"at": "consent"}}, {"offered": True}, {"undone": True}):
+        assert W.offer_reason(_f(rooms=True, floor_no_rooms=True, wizard=w), "pull") == "has_rooms", w
+    # The gates after has_rooms still hold for the next floor.
+    assert W.offer_reason({**nxt, "kiosk": True}, "pull") == "wall_screen"
+    assert W.offer_reason({**nxt, "tier": "free", "trial_offerable": False}, "pull") == "no_pro_path"
 
 
 def test_the_smaller_gates():
@@ -152,6 +174,17 @@ def test_facts_read_the_stores():
     # Room outlines drawn on a plan only (no fabric rooms) still count as rooms.
     h = _stuck_house(room_bounds={"Nicole's Office": {"points": [[0, 0], [1, 0], [1, 1]]}})
     assert W.offer_reason(W.facts(h, now=_NOW), "pull") == "has_rooms"
+    # Whether an indoor floor with a plan has no rooms yet (the helper's next floor): the fabric's rooms and a plan's outlines.
+    h = _stuck_house()
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is True
+    h.data[DOMAIN][DATA_FABRIC].data["floors"] = {"main": {"rooms": {"Kitchen": {}}}}
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is False
+    h.data[DOMAIN][DATA_MAPS].data["maps"].append({"id": "m2", "floor_id": "up", "created": _iso(18)})
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is True
+    h.data[DOMAIN][DATA_MAPS].data["maps"][1]["room_bounds"] = {"Den": {}}
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is False
+    h.data[DOMAIN][DATA_MAPS].data["maps"].append({"id": "m3", "floor_id": OUTSIDE_FLOOR_ID, "created": _iso(18)})
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is False                         # the outdoors is never a floor to draw
     # The plan AI's sessions: Line up or Rooms from plans used.
     h = _stuck_house()
     h.data[DOMAIN]["plan_ai"] = MagicMock(data={"lineups": {"s": {}}, "rooms": {}})

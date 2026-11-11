@@ -878,7 +878,8 @@ PLANS_TOOL_EVENTS: frozenset[str] = frozenset(
 AI_WIZARD_SURFACES: tuple[str, ...] = ("overview", "getting_started", "setup", "maps_wizard", "plans_tool")
 AI_WIZARD_STEPS: tuple[str, ...] = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided",
                                     "floor_pick", "rooms_read", "rooms_check", "saved", "next_floor", "handoff")
-AI_WIZARD_OUTCOMES: tuple[str, ...] = ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed")
+AI_WIZARD_OUTCOMES: tuple[str, ...] = ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed",
+                                       "with_rooms", "after_undo", "edits_back", "zoomed")
 AI_WIZARD_FAILS: tuple[str, ...] = ("no_credit", "unreachable", "out_of_time", "bad_answer", "refusal", "no_media", "daily_cap",
                                     "backup_failed", "changed_since")
 AI_WIZARD_AI: tuple[str, ...] = ("no_ai_task", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree",

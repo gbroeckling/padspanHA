@@ -43,14 +43,14 @@ const WIZ = { rows: ["space:a", "space:b", "space:c"], ticked: ["space:a"], smal
 const SESS = (extra = {}) => ({ id: "rb_1", rev: 3, status: "done", floor_id: "main", plans: [{ map_id: "m1", t: T }], proposal: PROP, progress: {}, ...extra });
 
 function house(o = {}) {
-  const calls = [], tele = [], shown = [], steps = [], renders = { n: 0 };
+  const calls = [], tele = [], shown = [], steps = [], stepMaps = [], renders = { n: 0 };
   W._resetCounts();
   const ans = o.ans || { session: SESS(), areas: ["Kitchen", "Garage"], undo: null, wizard: WIZ };
   const state = {
     dataMode: "live", view: "ai_wizard", kioskMode: !!o.kiosk, _aiwFrom: { view: "setup", surface: "setup" },
     settings: { telemetry_enabled: false, atlas_3d_ai_task_entity: o.chosen || "", ...(o.settings || {}) },
     maps: { list: o.maps || [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } }] },
-    model: { floors: o.floors || [{ floor_id: "main", name: "Main", level: 0 }], map_transforms: o.tfs || { m1: { ...T, reference_measurements: [{}] } }, room_geometry_m: {} },
+    model: { floors: o.floors || [{ floor_id: "main", name: "Main", level: 0 }], map_transforms: o.tfs || { m1: { ...T, reference_measurements: [{}] } }, room_geometry_m: o.rooms || {} },
   };
   const server = {
     "padspan_ha/ai_wizard_info": () => ({ reason: "offer", offer: true, wizard: o.wizard || {}, tier: o.tier || "pro", trial_offerable: !!o.trial }),
@@ -60,7 +60,7 @@ function house(o = {}) {
     "padspan_ha/settings_set": (p) => ({ settings: { ...state.settings, ...p } }),
     "padspan_ha/plan_build_rooms_start": () => ({ session: "rb_1" }),
     "padspan_ha/plan_build_rooms_status": () => o.status ? o.status() : ans,
-    "padspan_ha/plan_build_rooms_edit": () => ans,
+    "padspan_ha/plan_build_rooms_edit": (p) => (o.edit ? o.edit(p) : ans),
     "padspan_ha/plan_build_rooms_commit": (p) => ({ ok: true, saved: p.items, areas: Object.fromEntries((p.ha_areas || []).map(i => [i, "created"])),
       session: SESS({ saved: Object.fromEntries(p.items.map(i => [i, "rb"])) }), undo: { session: "rb_1", items: p.items.length }, areas_list: [], wizard: WIZ }),
     "padspan_ha/plan_build_rooms_undo": () => ({ ok: true, undone: 2, skipped: [] }),
@@ -79,10 +79,10 @@ function house(o = {}) {
       callWS: (p) => { calls.push(p); const f = server[p.type]; return f ? Promise.resolve(f(p)) : Promise.reject({ code: "unknown_command" }); },
       wsCall: (type, data) => ctx.actions.callWS({ type, ...data }),
       telemetryEvent: (n) => tele.push(n), renderRooms: () => { renders.n++; }, renderNav: () => {},
-      showView: (v) => shown.push(v), openSetupStep: (id) => steps.push(id),
+      showView: (v) => shown.push(v), openSetupStep: (id, mapId) => { steps.push(id); stepMaps.push(mapId); },
     },
   };
-  return { ctx, calls, tele, shown, steps, renders };
+  return { ctx, calls, tele, shown, steps, stepMaps, renders };
 }
 
 // The server's plan_build_scale_preview, faked: the lengths it knows (and the unit a bare number is read in), the plan's
@@ -212,6 +212,9 @@ async function readScale(h, root) {
   check("ready: the switch counted", h.tele.includes("ai_wizard_switch:on"));
   root = await view(h);
   check("ready: reading, may leave", root.textContent.includes("Claude is reading your plan") && root.textContent.includes("You can leave this page"));
+  // End-to-end test 2026-11-11: the way back named must be one that is there (Setup's line, which says Carry on while a read is left part-way).
+  check("ready: the way back named is Setup's", root.textContent.includes(W.COME_BACK) && root.textContent.includes("open Mapping, then Setup, and press Carry on →")
+    && !root.textContent.includes("from the Overview"), root.textContent.slice(0, 400));
   check("ready: chip", chipOn(root));
 }
 
@@ -244,7 +247,8 @@ async function readScale(h, root) {
   check("done: saved on the floor", root.textContent.includes("✓ 2 rooms saved on Main."), root.textContent.slice(0, 300));
   check("done: the area added is said", root.textContent.includes("Added to Home Assistant's areas: Den."));
   q(root, '[data-aiw="receivers"]').click();
-  check("done: the hand-off is Setup's receivers step", h.steps.join() === "receivers" && h.calls.some(x => x.what === "step" && x.step === "handoff"));
+  check("done: the hand-off is Setup's receivers step, on the plan just saved", h.steps.join() === "receivers" && h.stepMaps.join() === "m1"
+    && h.calls.some(x => x.what === "step" && x.step === "handoff"), h.stepMaps);
   h.ctx.state._aiw = null;
   // Undo: the rooms, through the helper.
   const h2 = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } },
@@ -500,7 +504,15 @@ const READ = (extra = {}) => ({ id: "sc_1", status: "done", map_id: "n1", propos
     && h.calls.some(c => c.type === "padspan_ha/plan_build_scale_preview" && c.measures.length === 2 && c.measures[0].text === "30'-5 1/2\""), q(root, '[data-aiw="scale-size"]').textContent);
   check("found: the step marked", h.calls.some(c => c.what === "step" && c.step === "scale_check"));
   check("found: no stretch said when across and down agree", !q(root, '[data-aiw="scale-stretch"]'));
+  // End-to-end test 2026-11-11: Yes saved and started two paid reads at once, while a Save button under it implied Yes
+  // only answered. Now Yes and No only answer; the one button under them saves and says what comes next.
   q(root, '[data-aiw="scale-yes"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  check("yes: only an answer, nothing saved or read", !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save" || c.type === "padspan_ha/plan_build_rooms_start")
+    && q(root, '[data-aiw="scale-yes"]').className.includes("primary"));
+  check("yes: the one button says what it does and what follows", q(root, '[data-aiw="scale-save"]').textContent === "Save and find the rooms →"
+    && root.textContent.includes(W.SCALE_SAVE_SAYS) && W.SCALE_SAVE_SAYS.includes("then Claude reads the plan for its rooms"));
+  q(root, '[data-aiw="scale-save"]').click();
   for (let i = 0; i < 6; i++) await tick();
   const sv = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_save");
   check("yes: saved as read, from the ends found and the lengths as printed, no scale of its own", sv && sv.source === "plan_dimension" && sv.session === "sc_1" && sv.sig === "nn"
@@ -713,8 +725,9 @@ for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);
   check("names: the plan's label too", html(root).includes(">Scullery<"));
   q(root, '[data-aiw="save"]').click();
   for (let i = 0; i < 6; i++) await tick();
-  const order = typesOf(h).filter(t => t === "plan_build_rooms_edit" || t === "plan_build_rooms_commit");
-  const e = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_edit");
+  const order = h.calls.filter(c => (c.type === "padspan_ha/plan_build_rooms_edit" && c.op === "space") || c.type === "padspan_ha/plan_build_rooms_commit")
+    .map(c => c.type.replace("padspan_ha/", ""));
+  const e = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_edit" && c.op === "space");
   check("names: Save sends the changed name, then saves", order.join() === "plan_build_rooms_edit,plan_build_rooms_commit" && e.op === "space" && e.space === "space:a"
     && e.name === "Scullery" && e.via === "wizard", order);
 }
@@ -729,6 +742,167 @@ for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);
     && !!q(root, '[data-aiw="none-again"]') && !!q(root, '[data-aiw="none-by-hand"]') && !q(root, '[data-aiw="save"]'), root.textContent.slice(0, 300));
   q(root, '[data-aiw="none-by-hand"]').click();
   check("no rooms: Draw them myself opens Setup's rooms step", h.steps.join() === "rooms");
+}
+
+// ── end-to-end test 2026-11-11, defect 1: the person's edits survive Back, reopening and a reload ──
+{
+  // A fake server that keeps what the helper sends: names through the "space" edit, ticks through the "ticks" edit.
+  const kept = { names: {}, picked: null };
+  const answer = (id = "rb_1") => ({ session: SESS({ id, picked: id === "rb_1" ? kept.picked : null, proposal: { ...PROP, spaces: Object.fromEntries(
+    Object.entries(PROP.spaces).map(([k, v]) => [k, kept.names[k] ? { ...v, new: kept.names[k] } : v])) } }), areas: ["Kitchen", "Garage"], undo: null, wizard: WIZ });
+  const edit = (p) => {
+    if (p.op === "ticks") { kept.picked = { ticked: p.ticked, ha: p.ha }; return { ok: true }; }
+    if (p.op === "space") kept.names[p.space] = p.name;
+    return answer();
+  };
+  const o = { unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } }, status: () => answer(), edit };
+  const h = house(o);
+  let root = await view(h);
+  const na = q(root, '[data-aiw="name-space:a"]'), nb = q(root, '[data-aiw="name-space:b"]');
+  na.value = "Scullery"; na.dispatchEvent({ type: "input" }); na.dispatchEvent({ type: "change" });
+  nb.value = "Studio"; nb.dispatchEvent({ type: "input" }); nb.dispatchEvent({ type: "change" });
+  for (let i = 0; i < 6; i++) await tick();
+  root = await view(h);
+  const ta = q(root, '[data-aiw="tick-space:a"]'); ta.checked = false; ta.dispatchEvent({ type: "change" });
+  root = await view(h);
+  const tb = q(root, '[data-aiw="tick-space:b"]'); tb.checked = true; tb.dispatchEvent({ type: "change" });
+  root = await view(h);
+  const hb = q(root, '[data-aiw="ha-space:b"]'); hb.checked = true; hb.dispatchEvent({ type: "change" });
+  for (let i = 0; i < 4; i++) await tick();
+  check("edits: a name left is kept on the session at once", kept.names["space:a"] === "Scullery" && kept.names["space:b"] === "Studio"
+    && h.calls.filter(c => c.op === "space").every(c => c.via === "wizard"), kept.names);
+  check("edits: the ticks and the Home Assistant tick are kept on the session", JSON.stringify(kept.picked) === '{"ticked":["space:b"],"ha":["space:b"]}', kept.picked);
+  q(await view(h), '[data-aiw="back"]').click();
+  // Opened again (a reload is the same: a new page, a new state), from the server alone.
+  for (const how of ["reopened", "reloaded"]) {
+    const h2 = house(o);
+    root = await view(h2);
+    check(`edits: ${how}, the names typed are there`, q(root, '[data-aiw="name-space:a"]').value === "Scullery" && q(root, '[data-aiw="name-space:b"]').value === "Studio",
+      [q(root, '[data-aiw="name-space:a"]').value]);
+    check(`edits: ${how}, the ticks as left`, q(root, '[data-aiw="tick-space:a"]').checked === false && q(root, '[data-aiw="tick-space:b"]').checked === true
+      && q(root, '[data-aiw="ha-space:b"]').checked === true && root.textContent.includes("1 is ticked."), root.textContent.slice(0, 200));
+    check(`edits: ${how}, counted`, h2.tele.includes("ai_wizard:edits_back"), h2.tele);
+    q(root, '[data-aiw="save"]').click();
+    for (let i = 0; i < 6; i++) await tick();
+    const c = h2.calls.find(x => x.type === "padspan_ha/plan_build_rooms_commit");
+    check(`edits: ${how}, Save sends them as left`, c && JSON.stringify(c.items) === '["space:b"]' && JSON.stringify(c.ha_areas) === '["space:b"]'
+      && !h2.calls.some(x => x.op === "space"), c);
+  }
+  // A new read is a new session: Claude's own ticks, nothing of the old one's.
+  const h3 = house({ ...o, status: () => answer("rb_2"), wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_2" } } });
+  root = await view(h3);
+  check("edits: a new read starts from Claude's ticks", q(root, '[data-aiw="tick-space:a"]').checked === true && q(root, '[data-aiw="tick-space:b"]').checked === false
+    && !h3.tele.includes("ai_wizard:edits_back"));
+}
+
+// ── defect 11: after an undo in Settings → AI (or the helper's), reopening starts where the plan can be chosen ──
+{
+  const maps = [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } },
+    { id: "m2", name: "Upper plan", floor_id: "upper", image: { width: 1000, height: 800 } }];
+  const floors = [{ floor_id: "main", name: "Main", level: 0 }, { floor_id: "upper", name: "Upper", level: 1 }];
+  const tfs = { m1: { ...T, reference_measurements: [{}] }, m2: { ...T, reference_measurements: [{}] } };
+  const taken = { session: SESS({ saved: {}, batches: ["rbb_1"] }), areas: [], undo: null, wizard: WIZ };
+  const started = { finished_day: "2026-11-11", started: { at: "handoff", map_id: "m1", rooms_session: "rb_1" } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors, tfs, ans: taken, wizard: started });
+  const root = await view(h);
+  check("taken back: the intro with both plans to choose, not the old check list", !q(root, '[data-aiw="save"]') && !!q(root, '[data-aiw="plan-m1"]')
+    && !!q(root, '[data-aiw="plan-m2"]') && !!q(root, '[data-aiw="start"]'), root.textContent.slice(0, 300));
+  // The first floor's rooms still there: the next floor is the one picked.
+  const h2 = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors, tfs, ans: taken, rooms: { Kitchen: { floor_id: "main" } }, wizard: started });
+  const r2 = await view(h2);
+  check("next floor: the plan on the floor with no rooms is picked", q(r2, '[data-aiw="plan-m2"]').checked === true && q(r2, '[data-aiw="plan-m1"]').checked === false
+    && h2.ctx.state._aiw.plan.id === "m2");
+  check("plans: a floor with rooms after one without", W.plansOf(h2.ctx.state).map(m => m.id).join() === "m2,m1");
+  q(r2, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  const rs = h2.calls.find(c => c.type === "padspan_ha/plan_build_rooms_start");
+  check("next floor: read on its own floor", rs && rs.floor_id === "upper" && JSON.stringify(rs.map_ids) === '["m2"]', rs);
+  // A plan and its floor of the same name are said once.
+  const h3 = house({ unlock: { ok: true, why: "ok" }, master: true, tfs, floors: [{ floor_id: "g", name: "Ground Floor", level: 0 }, floors[1]],
+    maps: [{ id: "m1", name: "Ground Floor", floor_id: "g", image: { width: 1000, height: 800 } }, maps[1]] });
+  const r3 = await view(h3);
+  check("plans: Ground Floor (Ground Floor) said once", !r3.textContent.includes("Ground Floor (Ground Floor)") && r3.textContent.includes("Ground Floor")
+    && r3.textContent.includes("Upper plan (Upper)"), r3.textContent.slice(0, 500));
+}
+
+// ── defect 7: the close look is the box quoted, bounded to the screen ──
+for (const [main, other] of [["x", "y"], ["y", "x"]]) {
+  const ax = READ({ main, other }).proposal.axes[main];
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ({ main, other }) });
+  let root = await view(h);
+  root = await readScale(h, root);
+  const win = q(root, '[data-aiw="scale-inset"]'), pic = q(root, '[data-aiw="scale-inset-pic"]');
+  const st = String(win && win.getAttribute("style")), [cx, cy, cw, ch] = String(pic && pic.getAttribute("data-crop")).split(",").map(Number);
+  const [b0, b1, b2, b3] = [ax.box_frac[0] * 1000, ax.box_frac[1] * 800, ax.box_frac[2] * 1000, ax.box_frac[3] * 800];
+  check(`inset ${main}: a window no taller than a third of the screen, scrolling`, st.includes("max-height:min(33vh, 240px)") && st.includes("overflow:auto")
+    && st.includes("max-width:100%"), st);
+  check(`inset ${main}: the whole box of the dimension quoted, a little margin`, cx <= b0 && cy <= b1 && cx + cw >= b2 && cy + ch >= b3
+    && cw <= b2 - b0 + 25 && ch <= b3 - b1 + 25, [cx, cy, cw, ch, b0, b1, b2, b3]);
+  const ps = String(pic.getAttribute("style")), zw = Number(/width:([\d.]+)px/.exec(ps)[1]), zh = Number(/height:([\d.]+)px/.exec(ps)[1]);
+  check(`inset ${main}: enlarged so its short side reads`, Math.abs(Math.min(zw, zh) - W.INSET_PX) < 1 && ps.includes(`background-position:-${(cx * zw / cw).toFixed(1)}px`), ps);
+}
+
+// ── defect 10: the guided picture: its room, Tap on a touch screen, pinch, a zoom ──
+{
+  const realMM = globalThis.matchMedia;
+  globalThis.matchMedia = (mq) => ({ matches: mq === "(pointer: coarse)" });
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {} });
+  let root = await view(h);
+  root = await readScale(h, root);
+  check("touch: Tap, and pinch said", root.textContent.includes("Tap both ends of something you know the length of") && root.textContent.includes("Pinch with two fingers")
+    && root.textContent.includes("Tap the first end on the plan.") && !root.textContent.includes("Click"), root.textContent.slice(0, 400));
+  const layer = q(root, '[data-aiw="measure"]');
+  check("touch: two fingers pinch and pan, one finger places", String(layer.getAttribute("style")).includes("touch-action:pinch-zoom")
+    && !String(layer.getAttribute("style")).includes("touch-action:none"), layer.getAttribute("style"));
+  globalThis.matchMedia = realMM;
+  check("mouse: Click", W.tapWord() === "Click");
+  const col = q(root, '[data-aiw="measure-col"]');
+  check("room: the plan takes the width its few fields leave", String(col.getAttribute("style")).includes("flex:1 1 0")
+    && String(q(root, '[data-aiw="picture"]').getAttribute("style")).includes("width:min(100%, calc(72vh * 1000 / 800))"), col.getAttribute("style"));
+  check("zoom: − off at its smallest", q(root, '[data-aiw="zoom-out"]').disabled === true && q(root, '[data-aiw="zoom-in"]').disabled === false);
+  q(root, '[data-aiw="zoom-in"]').click();
+  root = await view(h);
+  check("zoom: + makes the plan twice as big, in its own window, counted", String(q(root, '[data-aiw="picture"]').getAttribute("style")).includes("width:calc(2 * min(100%")
+    && String(q(root, '[data-aiw="measure-view"]').getAttribute("style")).includes("overflow:auto") && h.tele.includes("ai_wizard:zoomed"), h.tele);
+  tap(q(root, '[data-aiw="measure"]'), 80, 300); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 480, 300); root = await view(h);
+  check("zoom: a tap still places an end where it is on the plan", JSON.stringify(h.ctx.state._aiw.sc.pts) === "[[0.1,0.5],[0.6,0.5]]", h.ctx.state._aiw.sc.pts);
+}
+
+// ── defect 12: small rooms' names fit; a name given a number says why; one name for the helper ──
+{
+  const prop = { ...PROP, spaces: { ...PROP.spaces, "space:h": { id: "space:h", name: "HALL", new: "Hall 2", outline_m: box(4, 4, 8, 7), reads: [1, 2] },
+    "space:k": { id: "space:k", name: "BEDROOM 2", new: "Bedroom 2", outline_m: box(8, 4, 10, 7), reads: [1, 2] } } };
+  const wiz = { ...WIZ, rows: [...WIZ.rows, "space:h", "space:k"], sources: { ...WIZ.sources, "space:h": "printed", "space:k": "printed" } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } },
+    ans: { session: SESS({ proposal: prop }), areas: ["Kitchen"], undo: null, wizard: wiz } });
+  let root = await view(h);
+  const why = q(root, '[data-aiw="renamed-space:h"]');
+  check("renamed: Hall 2 says why", why && why.textContent === 'Another room is already called "Hall", so this one is "Hall 2". Change it if you like.'
+    && !q(root, '[data-aiw="renamed-space:k"]'), root.textContent.slice(0, 600));
+  q(root, '[data-aiw="small"]').click();
+  root = await view(h);
+  const pic = html(root), fsOf = (name) => Number((new RegExp(`font-size="(\\d+)"[^>]*>${name}<`).exec(pic) || [])[1]);
+  check("labels: a small room's name is smaller, a big one's as before", fsOf("Closet") < 30 && fsOf("Closet") >= 14 && fsOf("Kitchen") === 30, [fsOf("Closet"), fsOf("Kitchen")]);
+  const titles = new Function("return " + /const UNLISTED_VIEW_TITLES = (\{[^\n]*\});/.exec(src)[1])();
+  check("one name: the phone's title bar says what the card says", titles.ai_wizard === "Let Claude draw your rooms" && root.textContent.includes(titles.ai_wizard));
+}
+
+// ── defect 2: Setup's line says Carry on while a read is left part-way (what the reading screen promises) ──
+{
+  O._reset();
+  const h = house({ wizard: { started: { at: "rooms_read", rooms_session: "rb_1" } } });
+  O.offerLine(h.ctx, "setup");
+  for (let i = 0; i < 3; i++) await tick();
+  const line = O.offerLine(h.ctx, "setup");
+  check("line: Carry on for a read left part-way", line && q(line, '[data-aiw="try"]').textContent === "Carry on →" && line.textContent.includes("part-way"), line && line.textContent);
+  O._reset();
+  const h2 = house({ wizard: { finished_day: "2026-11-11", started: { at: "handoff" } } });
+  O.offerLine(h2.ctx, "setup");
+  for (let i = 0; i < 3; i++) await tick();
+  check("line: Try it otherwise", q(O.offerLine(h2.ctx, "setup"), '[data-aiw="try"]').textContent === "Try it →");
+  if (line) texts.push(line.textContent);
+  O._reset();
 }
 
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));

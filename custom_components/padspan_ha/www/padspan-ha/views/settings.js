@@ -4205,8 +4205,9 @@ function _settingsAI(ctx, el){
   master.appendChild(el("div",{},[
     el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["AI map-building research (experimental)", chip]),
     el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
-      "Research feature. The AI suggests; you check every item. It never writes your rooms, walls or calibration; only Line up plans moves a plan's picture, when you accept it. " +
-      "Turning it off hides it; it does not undo what you kept."),
+      "Research feature. The AI suggests; you check every item, and nothing is saved until you accept it. It never changes your calibration or signal walls. " +
+      "What it can save, each with a backup first and an undo: Line up plans moves a plan's picture; Rooms from plans and Let Claude draw your rooms save rooms " +
+      "(the helper also sets a plan's scale from one measurement). Turning it off hides it; it does not undo what you kept."),
   ]));
   feats.appendChild(master);
   const under = el("div",{"data-ai-plans-under":"",style:`margin-left:22px;display:${settings.ai_plans_enabled === true ? "" : "none"}`});
@@ -4663,10 +4664,17 @@ function _planBuildRow(ctx, el, save, settings){
         "Undo puts every one back as it was; a backup is taken first, and anything you changed since is left as it is.",
       sure: "Put every room, door, window and stair this session saved back as it was?",
       done: (n, k) => `${n} put back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
+    // The same undo for rooms the rooms helper saved (plan_ai.rooms_undo_info's `helper`), said in the helper's name.
+    helper: { title: "Undo the rooms Claude drew (experimental)", cmd: "padspan_ha/plan_build_rooms_undo", prefix: "Let Claude draw your rooms (experimental): ",
+      tool: "Let Claude draw your rooms",
+      what: (u) => `The last rooms Let Claude draw your rooms saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} room${u.items === 1 ? "" : "s"}. ` +
+        "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. A plan's scale the helper set stays (change it in Mapping → Edit → Measure).",
+      sure: "Take back the rooms Let Claude draw your rooms saved?",
+      done: (n, k) => `${n} taken back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
   };
-  const asking = { lineup: false, rooms: false }, said = { lineup: "", rooms: "" };
+  const asking = { lineup: false, rooms: false, helper: false }, said = { lineup: "", rooms: "", helper: "" };
   function undoRow(u, unlocked, rooms = false){
-    const kind = rooms ? "rooms" : "lineup", K = UNDO_OF[kind];
+    const kind = rooms ? (u.helper ? "helper" : "rooms") : "lineup", K = UNDO_OF[kind];
     const row = el("div",{[rooms ? "data-ai-plan-build-rooms-undo" : "data-ai-plan-build-undo"]:"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px 0"});
     const when = u.at ? ` (${new Date(u.at * 1000).toLocaleDateString()})` : "";
     row.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;font-weight:600"}, [K.title, chip()]));
