@@ -270,7 +270,6 @@ async def ws_radio_reset(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"ok": True, "source": source, "summary": summary})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/radio_audit"})
 def live_radios(hass: HomeAssistant) -> list[dict[str, Any]]:
     """The Bluetooth radios heard in the last five minutes: what counts as a live receiver (the audit here, and
     "Put my receivers in their rooms", ws_fabric.ws_receivers_to_rooms: one rule)."""
@@ -279,6 +278,7 @@ def live_radios(hass: HomeAssistant) -> list[dict[str, Any]]:
     return list(((bl.get_snapshot(max_ads=0, max_age_s=300) if bl else {}) or {}).get("radios") or [])
 
 
+@websocket_api.websocket_command({"type": "padspan_ha/radio_audit"})
 @websocket_api.async_response
 async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
     """Cross-reference BLE radios with ESPHome devices and fabric scanners.
