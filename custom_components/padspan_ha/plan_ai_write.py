@@ -2075,7 +2075,9 @@ async def settle_scale(hass: HomeAssistant, store: A.PlanAiStore) -> bool:
     whose isn't never happened. An undo whose record is gone is finished (the
     floor put back); one whose isn't never happened. A floor is moved only
     while the plan is still on the floor the cut step left it on: one changed
-    by hand meanwhile stays. In memory; the caller saves when it returns True."""
+    by hand meanwhile stays. A replace (scale_replace) is a save that also
+    closes the one it replaced; one cut after its clear and before its write
+    puts the old scale back. In memory; the caller saves when it returns True."""
     if not A.writable(store.data):
         return False
     mdl, ms, _cal = _house_stores(hass)
@@ -2113,9 +2115,15 @@ async def settle_scale(hass: HomeAssistant, store: A.PlanAiStore) -> bool:
             if m is not None and b["floor_id"] != on and on == b["before"]["floor"]["floor_id"]:
                 await _write_refile(hass, mid, _floor_side(hass, m, b["floor_id"]))
             _scale_landed(hass, b, mid, p.get("fp"))
+            if isinstance(batches.get(b.get("replaces")), dict):   # a replace: the scale it replaced closed, as scale_replace closes it
+                batches[b["replaces"]].update(undone_at=float(p.get("at") or time.time()), replaced_by=bid)
             b.pop("pending", None)
             A._bump(hass, "plan_build_settled:finished")  # noqa: SLF001
         else:                                                 # it didn't: nothing was written
+            ob = batches.get(b.get("replaces")) or {}
+            if t is None and (ob.get("after") or {}).get("t"):   # a replace cut between its clear and its write: the old scale back
+                from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+                await async_write_measured_transform(hass, mid, copy.deepcopy(ob["after"]["t"]))
             batches.pop(bid, None)
             A._bump(hass, "plan_build_settled:put_back")  # noqa: SLF001
     return settled
@@ -2129,6 +2137,17 @@ def _scale_landed(hass: HomeAssistant, b: dict[str, Any], map_id: str, fp: str |
     b["after"] = {"t": copy.deepcopy(mdl.map_transform(map_id)), "floor_id": str(m.get("floor_id") or ""), "floor": _floor_side(hass, m),
                   "gauge": copy.deepcopy(mdl.data.get("world_gauge"))}
     b["fp"] = fp
+
+
+def _reading_of(store: A.PlanAiStore, source: str, session: str | None, map_id: str, m: dict) -> None:
+    """Claude's reading (any source but "guided") must be of this plan, of the picture it read: else plan_changed."""
+    if source == "guided":
+        return
+    sess = store.scale_session(session)
+    pl = ((sess or {}).get("plans") or [{}])[0]
+    if not sess or sess.get("map_id") != map_id or not A.same_picture(
+            pl.get("image_sig"), {"image_sig": A.image_sig(m), "image_sig_was": A.legacy_image_sig(m)}):
+        raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
 
 
 async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, sig: str, floor_id: str | None, measures: Any,
@@ -2154,13 +2173,8 @@ async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, 
 
     try:
         m, fid = scale_check(hass, map_id, sig, floor_id)
-        if source != "guided":                                      # Claude's reading: of this plan, of the picture it read
-            sess = store.scale_session(session)
-            pl = ((sess or {}).get("plans") or [{}])[0]
-            if not sess or sess.get("map_id") != map_id or not A.same_picture(
-                    pl.get("image_sig"), {"image_sig": A.image_sig(m), "image_sig_was": A.legacy_image_sig(m)}):
-                raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
-        got = scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()))   # type: ignore[arg-type]  (UTC, as Measure dates it)
+        _reading_of(store, source, session, map_id, m)
+        got =scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()))   # type: ignore[arg-type]  (UTC, as Measure dates it)
     except Refused as err:
         raise stop(err) from None
     mdl, _ms, _cal = _house_stores(hass)
@@ -2344,16 +2358,25 @@ async def scale_replace(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: st
     compare-and-clear and the new measurement written through Measure's own writer, on the same floor. The ledger: the
     old save closed, a new one whose `before` is the old one's (its Undo still goes back to "no scale"). Any failure
     after the clear, a refusal or an exception, puts the plan back whole (scale, house scale, ledger), unless a hand
-    measurement landed meanwhile (Measure takes no lock): that one stays, and is said. A plan with no scale: the plain save."""
+    measurement landed meanwhile (Measure takes no lock): that one stays, and is said. A plan with no scale: the plain save.
+    The ledger is marked pending before the clear, as scale_save's and scale_undo's are (fourth review, 2026-11-12), so a
+    restart in the middle is settled the same way (settle_scale)."""
     from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    if not A.writable(store.data):
+        raise Refused("plan_ai_newer", "This plan store was saved by a newer PadSpan: update PadSpan to save.")
+    if source not in SCALE_SOURCES:
+        raise Refused("invalid", "Unknown measurement source.")
+    if await settle_scale(hass, store):
+        await _save(store)
     mdl, ms, _cal = _house_stores(hass)
     m = ms.get_map(map_id) if ms is not None else None
     old = copy.deepcopy(mdl.map_transform(map_id)) if mdl is not None else None
     if old is None:
         return await scale_save(hass, store, map_id=map_id, sig=sig, floor_id=floor_id, measures=measures, source=source, session=session)
-    size = _picture_size(m) if isinstance(m, dict) else None
+    size =_picture_size(m) if isinstance(m, dict) else None
     if size is None or A.image_sig(m) != sig:
         raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
+    _reading_of(store, source, session, map_id, m)
     got = scale_from_measures(size, measures, source, time.strftime("%Y-%m-%d", time.gmtime()))
     fid = str(old.get("floor_id") or m.get("floor_id") or "")
     if all(abs(float(got["transform"][k]) / float(old.get(k) or 1e-9) - 1) < 0.002 for k in ("scale_x_m", "scale_y_m")):
@@ -2376,18 +2399,28 @@ async def scale_replace(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: st
     gauge_expect = b["after"]["gauge"] if seeded and FT.metre_gauge(mdl) is not None else None
     snap_store, old_gauge = copy.deepcopy(store.data), copy.deepcopy(mdl.data.get("world_gauge"))
     fp = _metres_fp(hass, map_id)
+    at = time.time()
+    nbid = "sb_" + secrets.token_hex(4)
+    nb = {"map_id": map_id, "session": session, "source": source, "committed_at": at, "backup_id": backup_id, "floor_id": fid,
+          "before": copy.deepcopy(b["before"]), "after": None, "fp": None, "undone_at": None, "undo_of": None, "replaces": bid,
+          "pending": {"at": at, "refs": copy.deepcopy(got["transform"]["reference_measurements"]), "fp": fp}}
+    store.data["scale_batches"][nbid] = nb
+    store.trim()
+    if not await store.async_checked_save():
+        await _put_back(store, snap_store)
+        raise Refused("save_failed", SCALE_WORDS["save_failed"])
+    # The ledger's save awaited (Measure takes no lock): same() runs again inside the compare and clear.
     if not await mdl.async_unset_world_gauge(map_id, b["after"]["t"], gauge_expect, still=same):
+        await _put_back(store, snap_store)
         raise Refused("changed_since", SCALE_WORDS["changed_since"])
     try:
+        if mdl.map_transform(map_id) is not None:                  # a hand measurement landed during the clear's save: it stays (below)
+            raise Refused("changed_since", SCALE_WORDS["changed_since"])
         await async_write_measured_transform(hass, map_id, {**got["transform"], "floor_id": fid})
-        at = time.time()
-        nbid = "sb_" + secrets.token_hex(4)
         b["undone_at"] = at
         b["replaced_by"] = nbid
-        nb = {"map_id": map_id, "session": session, "source": source, "committed_at": at, "backup_id": backup_id, "floor_id": fid,
-              "before": copy.deepcopy(b["before"]), "after": None, "fp": None, "undone_at": None, "undo_of": None, "replaces": bid}
-        store.data["scale_batches"][nbid] = nb
         _scale_landed(hass, nb, map_id, fp)
+        nb.pop("pending", None)
         if not await store.async_checked_save():
             raise Refused("save_failed", SCALE_WORDS["save_failed"])
     except BaseException:

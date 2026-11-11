@@ -1152,10 +1152,13 @@ class ModelStore:
         yes. Anything else and nothing changes: False. Every comparison runs
         with no await between it and the clear.
 
-        The ONE way the world gauge is ever un-set, and it is called from one
-        place, plan_ai_write.scale_undo, which has checked first that nothing
-        in metres was added since (owner's choice, 2026-11-10, over keeping
-        the gauge set-once for this case). Logged at INFO, as the seed is."""
+        The ONE way the world gauge is ever un-set, and it is called from three
+        places, all in plan_ai_write: scale_undo; scale_replace, which clears the
+        helper's scale and writes the new one straight after; and scale_replace's
+        failure path, which clears its own new one to put the old back. The first
+        two check first that nothing in metres was added since (owner's choice,
+        2026-11-10, over keeping the gauge set-once for this case). Logged at
+        INFO, as the seed is."""
         transforms = self.data.get("map_transforms") or {}
         if transforms.get(str(map_id)) != expect_t:
             return False

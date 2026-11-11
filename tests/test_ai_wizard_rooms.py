@@ -367,10 +367,11 @@ def test_receivers_go_into_their_rooms_never_move_one_placed_and_undo_in_one_ste
         assert T.event_allowed(e)
 
 
-# "The scale may be off" (second review, 2026-11-12): the reviewer's 17 homes, laid out side by side and read at a range
-# of scales. ZERO alarms anywhere from 0.67x to 1.5x on all of them (a false alarm offers to replace a right scale);
-# FIRE at the unit mix-ups on the ordinary homes. Never: the two-room basement (two rooms are not evidence); homes whose
-# rooms PadSpan can't name, at a mix-up, only where their sizes are impossible for any room.
+# "The scale may be off": homes, laid out side by side and read at a range of scales. The promise (fourth review,
+# 2026-11-12; it replaces the second review's "quiet from 0.67x to 1.5x"): NO NOTICE AT THE CORRECT SCALE, on every home
+# in the table, read at 0.9x, 1.0x and 1.1x (a false alarm offers to replace a right scale). FIRE at the unit mix-ups on
+# the ordinary homes. Never: the two-room basement (two rooms are not evidence). Between 0.67x and 1.5x a notice at a
+# WRONG scale is a correct detection, and the homes that give one are listed (_NEAR_FIRES) so the behaviour is visible.
 _HOMES = {
     "studio flat 31 m2": [("Studio", 25), ("Bathroom", 4), ("Entry", 2)],
     "tiny house 25 m2": [("Living Room", 12), ("Bedroom", 6), ("Bathroom", 3), ("Kitchen", 4)],
@@ -406,13 +407,38 @@ _HOMES = {
     "Japanese-size flat": [("Living Room", 10), ("Kitchen", 4), ("Bedroom", 7), ("Bathroom", 2.5), ("Toilet", 1.2), ("Entrance", 1.5)],
     "15 m2 cabin": [("Cabin", 11), ("Bathroom", 2.5), ("Entry", 1.5)],
     "dorm floor": [*((f"Bedroom {i}", 9) for i in range(1, 11)), ("Bathroom", 8), ("Hallway", 25), ("Kitchen", 10)],
+    # Fourth review (2026-11-12): floors of tiny compartments, tiny homes, and the plain 3-bed with one bathroom and no hall.
+    "storage lockers": [*((f"Locker {i}", 1.2) for i in range(1, 11)), ("Hallway", 15)],
+    "capsule floor": [*((f"Capsule {i}", 1.3) for i in range(1, 13)), ("Bathroom", 12), ("Lounge", 20)],
+    "Kellerabteile": [*((f"Kellerabteil {i}", 1.4) for i in range(1, 9)), ("Flur", 12), ("Waschküche", 10), ("Heizungsraum", 8)],
+    "Hong Kong micro flat": [("Living Room", 8), ("Bedroom", 4.5), ("Kitchen", 2.5), ("Toilet", 1.0)],
+    "Japanese 1K": [("Bedroom", 8), ("Kitchen", 3), ("Bath", 3), ("Entrance", 1.2), ("Closet", 1)],
+    "Tokyo one-room": [("Room", 13), ("Kitchen", 2.5), ("Bathroom", 2.5), ("Toilet", 1.0), ("Entrance", 1.0)],
+    "narrowboat": [("Saloon", 8), ("Kitchen", 4), ("Bathroom", 2.2), ("Bedroom", 5), ("Well Deck", 2)],
+    "caravan": [("Lounge", 6), ("Kitchen", 3), ("Bathroom", 2), ("Bedroom", 4.5), ("Bedroom 2", 3)],
+    "tiny house on wheels": [("Living Room", 8), ("Kitchen", 4), ("Bathroom", 2.5), ("Sleeping Loft", 6)],
+    "student halls": [*((f"Study Bedroom {i}", 7.5) for i in range(1, 9)), ("Kitchen", 15), ("Bathroom", 4), ("Corridor", 20)],
+    "student pods": [*((f"Study Bedroom {i}", 5) for i in range(1, 9)), ("Kitchen", 12), ("Bathroom", 4), ("Corridor", 18)],
+    "closets, WCs, store rooms": [("Closet", 1.2), ("Closet 2", 1.0), ("Closet 3", 1.5), ("WC", 1.2), ("WC 2", 1.1), ("WC 3", 1.3),
+                                  ("Store Room", 3), ("Store Room 2", 2.5), ("Hallway", 10)],
+    "micro-apartment block": [*((f"Studio {i}", 18) for i in range(1, 7)), *((f"Bathroom {i}", 2.8) for i in range(1, 7)), ("Hallway", 30)],
+    "old terrace": [("Front Room", 12), ("Back Room", 11), ("Kitchen", 7), ("Scullery", 3), ("WC", 1.2), ("Bedroom", 12),
+                    ("Bedroom 2", 9), ("Box Room", 5), ("Bathroom", 4), ("Hall", 4)],
+    "plain 3-bed, one bathroom": [("Living Room", 27), ("Kitchen", 12), ("Dining Room", 10), ("Bedroom", 14), ("Bedroom 2", 11),
+                                  ("Bedroom 3", 9), ("Bathroom", 5)],
 }
 _ORDINARY = ("German names", "French names", "Dutch names", "plain 3-bed")
 _NEVER = ("basement, 2 big rooms",)                                # two rooms: never evidence
-# Big rooms whose plain rooms (bathrooms, halls, closets) are plain or absent: quiet at the right scale and near it.
+# Big rooms whose plain rooms (bathrooms, halls, closets) are plain or absent: quiet at the right scale.
 _BIG = ("estate wing", "warehouse unit", "church hall", "big barn", "gym floor")
-_QUIET = (0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.33, 1.5)
+_RIGHT = (0.9, 1.0, 1.1)                                           # the correct scale, give or take a careless click
+_NEAR = (0.67, 0.75, 0.8, 1.25, 1.33, 1.5)                         # wrong, but not by a unit mix-up
 _FIRE = (0.3048, 1 / 3, 2.54, 3.0, 3.28)
+# The homes that say so at a wrong scale between 0.67x and 1.5x: correct detections, a wrong scale pointed out in the right
+# direction (tiny homes read a third or a quarter too small: their kitchens, bedrooms and bathrooms below the smallest
+# such a room can be). Accepted, not promised. Not here, by design: the estate wing, whose large ensuite is an ensuite,
+# never a plain bathroom (a grand house's ensuite is grand; it said so at 1.1x when it counted as one).
+_NEAR_FIRES = [("Tokyo one-room", 0.67), ("caravan", 0.67), ("student pods", 0.67), ("student pods", 0.75)]
 
 
 def _laid_out(rooms, k):
@@ -434,9 +460,18 @@ def _says(home, k, printed=None):
 
 
 @pytest.mark.parametrize("home", list(_HOMES))
-def test_the_scale_looks_wrong_never_false_alarms_near_right(home):
-    for k in _QUIET:
+def test_the_scale_looks_wrong_never_says_so_at_the_correct_scale(home):
+    # Fourth review: was every scale from 0.67x to 1.5x; the promise is now the correct scale (_RIGHT), every home.
+    for k in _RIGHT:
         assert _says(home, k) is None, (home, k, _says(home, k))
+
+
+def test_the_homes_that_say_so_near_the_right_scale_are_these():
+    """Printed (pytest -s) and held: the notices at a wrong scale between 0.67x and 1.5x. Each is a correct detection."""
+    near = [(home, k) for home in _HOMES for k in _NEAR if _says(home, k)]
+    print("\nnear the right scale, a wrong one said:", near)
+    assert near == _NEAR_FIRES
+    assert all((_says(home, k)["k"] > 1) == (k > 1) for home, k in near)          # each in the right direction
 
 
 @pytest.mark.parametrize("home", _ORDINARY)
@@ -458,6 +493,12 @@ def test_the_scale_looks_wrong_says_so_when_rooms_are_impossibly_small():
         assert _says("compact 13-room house", k) is None, k
     for home in ("tiny house 25 m2", "studio flat 31 m2", "Japanese-size flat", "15 m2 cabin", "dorm floor"):
         assert _says(home, 1.0) is None, home
+    # Fourth review: rooms of no kind PadSpan knows never count toward too small (lockers, capsules, Kellerabteile at
+    # their right size); the rooms it can name still do.
+    for home in ("storage lockers", "capsule floor", "Kellerabteile"):
+        for k in _RIGHT:
+            assert _says(home, k) is None, (home, k)
+    assert _says("plain 3-bed", 1 / 3.0)["k"] < 1
     # The example: a recognised room, the most clearly impossible, never one PadSpan can't name while there is one.
     ex = _says("compact 13-room house", 1 / 3.0)["example"]["rooms"]
     assert ex["kind"] and ex["big"] is False, ex
@@ -468,8 +509,16 @@ def test_the_scale_looks_wrong_stays_quiet_on_big_rooms_at_their_scale(home):
         assert _says(home, k) is None, (home, k, _says(home, k))
 
 
+def test_a_plain_3_bed_with_one_bathroom_and_no_hall_says_feet_or_inches_typed_as_metres():
+    """Fourth review: with MIN_PLAIN 2 this ordinary home said nothing at 2.54x or 3.28x (a 290 m² living room, a 54 m²
+    bathroom); one plain room absurd is enough now."""
+    for k in (2.54, 3.28):
+        got = _says("plain 3-bed, one bathroom", k)
+        assert got and got["source"] == "rooms" and got["k"] > 2, (k, got)
+
+
 def test_the_scale_looks_wrong_two_rooms_never_and_a_printed_reading_first():
-    for k in _FIRE + _QUIET:
+    for k in _FIRE + _NEAR + _RIGHT:
         assert _says("basement, 2 big rooms", k) is None and _says("basement, 2 big rooms", k, {"k": k}) is None
     # A printed reading that disagrees, and room sizes off the same way: two independent signs, the reading's factor.
     got = _says("plain 3-bed", 1.8, {"k": 1.8, "text": "45'", "metres": 13.7, "here_m": 24.7})
@@ -482,7 +531,7 @@ def test_the_scale_looks_wrong_two_rooms_never_and_a_printed_reading_first():
 
 def test_the_table_as_it_comes_out():
     """The whole table, printed (pytest -s): which homes say so at which scales."""
-    scales = (0.3048, 1 / 3, 0.5, 0.67, 0.8, 1.0, 1.25, 1.5, 2.0, 2.54, 3.0, 3.28)
+    scales = (0.3048, 1 / 3, 0.5, 0.67, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0, 2.54, 3.0, 3.28)
     rows = []
     for home in _HOMES:
         rows.append(f"{home:32} " + " ".join(f"{('x' if _says(home, k) else '.'):>6}" for k in scales))
@@ -522,8 +571,13 @@ def test_checking_the_scale_redraws_the_same_rooms_at_the_new_scale_with_no_new_
     assert all(abs(a - 4 * b) <= 0.05 * max(1.0, 4 * b) for a, b in zip(af, b4)), (b4, af)
     assert all(s.get("new") for s in again["session"]["proposal"]["spaces"].values() if not s.get("merged_into"))   # named again
     assert _counters(h).get("plan_build_run:s2_started") == runs and _counters(h).get("ai_wizard_scale_notice:reprojected") == 1
+    # Nothing moved since: nothing said; and (fourth review) the poll's status stops at the placements' hash, before the
+    # session's copy, the house snapshot and reproject_rooms (which takes both).
+    tried, real_rp = [], A.reproject_rooms
+    monkeypatch.setattr(A, "reproject_rooms", lambda s_, snap: tried.append(1) or real_rp(s_, snap))
     once = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
-    assert once["reprojected"]["redrawn"] is False and once["session"]["rev"] == again["session"]["rev"]   # nothing moved since: nothing said
+    assert once["reprojected"]["redrawn"] is False and once["session"]["rev"] == again["session"]["rev"] and tried == []
+    monkeypatch.setattr(A, "reproject_rooms", real_rp)
     # Measured again to the same scale (its placement record new, the outlines the same): the names are kept.
     s2 = again["session"]
     sp2 = next(iter(_by_name(again).values()))
@@ -535,9 +589,10 @@ def test_checking_the_scale_redraws_the_same_rooms_at_the_new_scale_with_no_new_
     else:
         assert same["session"]["rev"] == kept["rev"]
     # A new placement whose metres are the same (the same length measured again): every id stays, the names are kept.
-    monkeypatch.setattr(A, "reproject_rooms", lambda s, snap: True)
+    # (Fourth review: a real new record now, not reproject_rooms forced to say yes: the placement's hash is looked at first.)
     cur = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["session"]
     kept = _call(WP.ws_plan_build_rooms_edit, h, conn, session=cur["id"], rev=cur["rev"], op="space", space=sp2, name="Den Three", via="wizard")["session"]
+    tf["origin_anchored"] = "2026-11-13"
     same = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard", reproject=True)
     assert same["reprojected"] == {"redrawn": True, "reset": False} and same["session"]["edits"]["spaces"][sp2]["new"] == "Den Three"
     h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {"scale_ok": [mid]}

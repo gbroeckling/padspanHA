@@ -682,3 +682,106 @@ def test_a_hand_measurement_during_a_failed_replace_stays(monkeypatch, tmp_path,
     out = _save(h, conn, replace=True, measures=[{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "10 m"}])
     assert out["ok"] is False and out["code"] == "changed_since" and "measured again in Mapping" in out["message"]
     assert mdl.map_transform("n1")["scale_x_m"] == 13.0
+
+
+# ═══ the replace, fourth review (2026-11-12): pending first, a newer store, Claude's reading, a hand measurement ═══
+
+_TEN = [{"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "10 m"}]
+
+
+@pytest.mark.parametrize("cut", ["before_the_write", "after_the_write"])
+def test_a_replace_cut_short_is_settled_at_the_next_start_as_a_save_is(monkeypatch, tmp_path, disk, cut):  # noqa: F811
+    """The ledger is marked pending BEFORE the clear, as scale_save and scale_undo mark theirs: the power going between
+    the clear and the write puts the old scale back at the next start; going after the write finishes the replace."""
+    from custom_components.padspan_ha import ws_fabric as F2
+    h, conn, mdl, ms, cal = _picked_floor(monkeypatch, tmp_path, disk)
+    old = copy.deepcopy(mdl.map_transform("n1"))
+    real, at_cut = F2.async_write_measured_transform, {}
+    path = tmp_path / ".storage" / PLAN_AI_STORE_KEY
+
+    async def power_cut(hass, map_id, transform):
+        if at_cut:                                              # the rollback's own write (the power is still on in the test)
+            return await real(hass, map_id, transform)
+        if cut == "after_the_write":
+            await real(hass, map_id, transform)
+        at_cut.update(file=path.read_text(encoding="utf-8"), t=copy.deepcopy(mdl.map_transform("n1")),
+                      gauge=copy.deepcopy(mdl.data["world_gauge"]))
+        raise asyncio.CancelledError
+    monkeypatch.setattr(F2, "async_write_measured_transform", power_cut)
+    with pytest.raises(asyncio.CancelledError):
+        _save(h, conn, replace=True, measures=_TEN)
+    on_disk = json.loads(at_cut["file"])["data"]["scale_batches"]
+    assert [bool(b.get("pending")) and bool(b.get("replaces")) for b in on_disk.values()].count(True) == 1   # pending before the write
+    # The disk as the power cut left it; then the next start.
+    path.write_text(at_cut["file"], encoding="utf-8")
+    if at_cut["t"] is None:
+        mdl.data["map_transforms"].pop("n1", None)
+    else:
+        mdl.data["map_transforms"]["n1"] = at_cut["t"]
+    mdl.data["world_gauge"] = at_cut["gauge"]
+    monkeypatch.setattr(F2, "async_write_measured_transform", real)
+    _restart(h)
+    _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard")
+    batches = _store(h).data["scale_batches"]
+    assert not any(b.get("pending") for b in batches.values())
+    if cut == "before_the_write":
+        assert mdl.map_transform("n1") == old and mdl.world_gauge()["source_map_id"] == "n1"     # the old scale back
+        assert len(batches) == 1 and not next(iter(batches.values())).get("undone_at")
+        assert _counters(h)["plan_build_settled:put_back"] == 1
+    else:
+        assert mdl.map_transform("n1")["scale_x_m"] == 20.0 and _counters(h)["plan_build_settled:finished"] == 1
+        new = next(b for b in batches.values() if b.get("replaces"))
+        assert new["after"]["t"] == mdl.map_transform("n1") and batches[new["replaces"]]["replaced_by"] in batches
+    assert ms.get_map("n1")["floor_id"] == "upper"
+    assert _undo(h, conn)["ok"] is True and mdl.map_transform("n1") is None and ms.get_map("n1")["floor_id"] == "ground"
+
+
+def test_a_replace_refuses_a_store_saved_by_a_newer_padspan(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _picked_floor(monkeypatch, tmp_path, disk)
+    was = _now(mdl, ms, cal)
+    store = _store(h)
+    store.data["schema"] = A.SCHEMA + 1
+    with pytest.raises(C.Refused) as err:
+        _run(C.scale_replace(h, store, map_id="n1", sig="nn", floor_id=None, measures=_TEN, source="guided"))
+    assert err.value.code == "plan_ai_newer" and _now(mdl, ms, cal) == was
+
+
+def test_use_it_replaces_only_with_a_reading_of_this_plan_and_picture(monkeypatch, tmp_path, disk):  # noqa: F811
+    """As scale_save checks it: Claude's reading must be this plan's, of the picture it read."""
+    h, conn, mdl, ms, cal = _picked_floor(monkeypatch, tmp_path, disk)
+    was = _now(mdl, ms, cal)
+    sig = A.image_sig(ms.get_map("n1"))
+    _store(h).data["scales"].update({"sc_mine": {"started_at": time.time(), "map_id": "n1", "plans": [{"image_sig": sig}]},
+                                     "sc_other": {"started_at": time.time(), "map_id": "m1", "plans": [{"image_sig": sig}]},
+                                     "sc_old_pic": {"started_at": time.time(), "map_id": "n1", "plans": [{"image_sig": "older"}]}})
+    for session in (None, "sc_other", "sc_old_pic"):
+        out = _save(h, conn, replace=True, measures=_TEN, source="plan_dimension", session=session)
+        assert out["ok"] is False and out["code"] == "plan_changed" and _now(mdl, ms, cal) == was, session
+    out = _save(h, conn, replace=True, measures=_TEN, source="plan_dimension", session="sc_mine")
+    assert out["ok"] and out["replaced"] and mdl.map_transform("n1")["scale_x_m"] == 20.0
+
+
+def test_a_hand_measurement_landing_during_the_clear_stays_and_is_said(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Measure takes no lock: one landing while the clear's save is written is the person's newer one. The replace never
+    writes over it; the ledger is as it was."""
+    from custom_components.padspan_ha import ws_fabric as F2
+    h, conn, mdl, ms, cal = _picked_floor(monkeypatch, tmp_path, disk)
+    ledger = json.dumps(_store(h).data.get("scale_batches"), sort_keys=True)
+    hand = {**mdl.map_transform("n1"), "scale_x_m": 13.0, "scale_y_m": 10.4}
+    real_clear, writes = mdl.async_unset_world_gauge, []
+
+    async def clear_then_hand(*a, **k):
+        ok = await real_clear(*a, **k)
+        mdl.data["map_transforms"]["n1"] = hand                 # landed while the clear's save was written
+        return ok
+    monkeypatch.setattr(mdl, "async_unset_world_gauge", clear_then_hand)
+    real = F2.async_write_measured_transform
+
+    async def spy(hass, map_id, transform):
+        writes.append(transform)
+        return await real(hass, map_id, transform)
+    monkeypatch.setattr(F2, "async_write_measured_transform", spy)
+    out = _save(h, conn, replace=True, measures=_TEN)
+    assert out["ok"] is False and out["code"] == "changed_since" and "measured again in Mapping" in out["message"]
+    assert writes == [] and mdl.map_transform("n1") == hand
+    assert json.dumps(_store(h).data.get("scale_batches"), sort_keys=True) == ledger

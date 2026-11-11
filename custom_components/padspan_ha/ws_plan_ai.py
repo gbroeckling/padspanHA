@@ -1114,10 +1114,14 @@ async def _reprojected(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> d
     """The helper's rooms after the person checked the scale and measured again (owner, 2026-11-12), asked for by the
     helper only (`reproject`): worked out again from the same reads at the plan's new placement, as an edit is; no new
     read. Built aside and swapped in only when it worked. The person's names and ticks are kept when every room keeps
-    its id (the scale didn't really change), else they start again from Claude's. {redrawn, reset}."""
+    its id (the scale didn't really change), else they start again from Claude's. {redrawn, reset}. Asked on every
+    status, the 4-second poll's too: the placements' cheap hash is compared first, and the copy and the house snapshot
+    are made only when a plan's differs (fourth review, 2026-11-12)."""
+    model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     async with store.lock:
         sess = store.rooms_session(sid)
-        if sess is None:
+        if sess is None or model is None or all(A.place_sig(model.map_transform(str(pl.get("map_id") or ""))) == pl.get("place_sig")
+                                                for pl in sess.get("plans") or []):
             return {"redrawn": False, "reset": False}
         work = copy.deepcopy(sess)
         if not A.reproject_rooms(work, A.house_snapshot(hass)):

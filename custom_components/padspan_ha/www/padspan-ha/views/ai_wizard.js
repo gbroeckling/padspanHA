@@ -48,6 +48,7 @@ export const COST = "Claude reads your plan twice to find its rooms, after one t
 /** The same for a plan with no scale yet: the person measures it (owner, 2026-11-12: measure first; Claude reads the scale
  *  only when asked to). */
 export const COST_SCALE = COST + " Claude looks for a measurement printed on your plan only if you ask it to (up to three reads more).";
+export const READ_TWICE = "Two reads, charged to your Anthropic account.";   // beside every button that starts a rooms read
 export const SAVED_ONLY = "Nothing is saved until you press Save. A backup is taken first, and one Undo takes it all back.";
 // The scale screen (owner, 2026-11-12: measure first, Claude optional). A reading of Claude's is offered only when it is
 // double-checked (across and down read and agreeing: plan_ai.scale_proposal's `checked`), as "Use it"; never one that isn't.
@@ -56,7 +57,8 @@ export const SCALE_NONE = "Claude found no measurement printed on this plan that
 export const SCALE_UNUSABLE = "Claude's answers couldn't be used for this plan.";
 export const SCALE_UNCHECKED = "Claude found a measurement but couldn't double-check it across and down, so it isn't offered.";
 /** Under the scale screen's one Save: what it does, then what happens next. */
-export const SCALE_SAVE_SAYS = "Save keeps this as your plan's scale, then Claude reads the plan for its rooms (two reads, 1–3 minutes). " +
+export const SCALE_SAVE_SAYS = "Save keeps this as your plan's scale, then Claude reads the plan for its rooms (two reads, charged to your " +
+  "Anthropic account; 1–3 minutes). " +
   "A backup is taken first. Undo on the last screen takes the rooms and this scale back.";
 /** The same after "Check the scale" (review 2026-11-12: it said two reads while the notice said it costs nothing). */
 export const SCALE_SAVE_RESCALE = "Save keeps this as your plan's scale, then the same rooms are drawn again at it: nothing is read again, " +
@@ -88,8 +90,20 @@ export const FAILS = {
   backup_failed: { text: "The safety backup couldn't be made, so nothing was saved. Check Home Assistant's storage and try again.", acts: ["save"] },
   changed_since: { text: "The plan or your rooms changed while you were checking. Nothing was saved.", acts: ["read_again"] },
 };
+// A Save refused because the plan moved, whose list the refresh then drew again where the plan is now (fourth review,
+// 2026-11-12): the list is valid, so Save again is the way on; reading again is the lesser, paid choice.
+const REDRAWN_FAIL = { text: "Nothing was saved: the plan was measured again or moved while you were checking. Your list has been drawn " +
+  "again where the plan is now, from the same reading: check it, then save again.", acts: ["save_again", "read_again"] };
 const ACT_LABEL = { console: "Open the Console ↗", guide: "Guide ↗", resume: "Try again", carry_on: "Carry on", again: "Try again",
-  by_hand: "Draw them myself", save: "Try again", read_again: "Read again" };
+  by_hand: "Draw them myself", save: "Try again", read_again: "Read again", save_again: "Save again" };
+const READS = ["resume", "carry_on", "again", "read_again"];   // the ways on that start a Claude read (paid)
+/** What a fail box's paid way on costs, said beside it (fourth review: every button that leads to a read says so). */
+function readCost(S, paid) {
+  if (S.failFor === "scale") return SCALE_ASK;
+  if (S.failFor === "check") return "Trying again checks your account with one more tiny read, charged to your Anthropic account.";
+  return paid.some(a => a === "again" || a === "read_again") ? "Reading again is two more reads, charged to your Anthropic account."
+    : "Carrying on reads the rest of the plan, charged to your Anthropic account.";
+}
 
 // ── pure: which case, which screen, which words ──────────────────────────────
 
@@ -426,33 +440,38 @@ function redrawAfterPress(ctx, S) {
   S.redrawLater = true;
 }
 
-/** The press the list's redraw waits for (redrawAfterPress): pointerdown anywhere in the helper; its click is delivered
- *  in the same turn as its pointerup, so the waiting redraw runs one turn later. */
-// Let go anywhere ends the press (review 2026-11-12: let go outside the helper left it pressed): one listener on the
+/** The press the list's redraw waits for (redrawAfterPress): pointerdown anywhere in the helper, until its click has been
+ *  delivered (heard on the document before the button's own handler, so the waiting redraw runs one turn later). Not
+ *  pointerup: on a phone the name field is left by the touch's compatibility events, which come after pointerup and
+ *  before the click (real panel, 2026-11-12: the first tap on "Check the scale" was lost). A press that makes no click
+ *  (dragged off the button, taken over by the browser) ends RELEASE_MS after it is let go. */
+// Let go anywhere ends the press (review 2026-11-12: let go outside the helper left it pressed): listeners on the
 // document for the open helper, taken off when it is left (leave).
+const RELEASE_MS = 600;
 let _upCtx = null, _up = null;
+const PRESS_ENDS = ["click", "pointerup", "pointercancel"];
 function watchPress(ctx, S, root) {
   root.addEventListener("pointerdown", () => { S.pressing = true; });
   _upCtx = ctx;
   if (_up || typeof document === "undefined" || !document.addEventListener) return;
-  _up = () => {
+  _up = (e) => {
     const c = _upCtx, s = c && c.state._aiw;
     if (!s) return;
+    const mine = s.releaseTok = (s.releaseTok || 0) + 1;      // only the latest end of a press lets it go
     const go = () => {
+      if (s.releaseTok !== mine) return;
       s.pressing = false;
       if (!s.redrawLater) return;
       s.redrawLater = false;
       if (c.state._aiw === s) rerenderKeep(c, s);
     };
-    if (typeof setTimeout === "function") setTimeout(go, 0); else go();
+    if (typeof setTimeout === "function") setTimeout(go, e && e.type === "click" ? 0 : RELEASE_MS); else go();
   };
-  document.addEventListener("pointerup", _up, true);
-  document.addEventListener("pointercancel", _up, true);
+  for (const t of PRESS_ENDS) document.addEventListener(t, _up, true);
 }
 function unwatchPress() {
   if (_up && typeof document !== "undefined" && document.removeEventListener) {
-    document.removeEventListener("pointerup", _up, true);
-    document.removeEventListener("pointercancel", _up, true);
+    for (const t of PRESS_ENDS) document.removeEventListener(t, _up, true);
   }
   _up = null; _upCtx = null;
 }
@@ -809,7 +828,7 @@ async function act(ctx, S, word) {
   if (S.failFor === "scale" && ["resume", "carry_on", "again", "read_again"].includes(word)) return scaleRead(ctx, S, S.plan);
   if (S.failFor === "check" && ["resume", "carry_on", "again", "read_again"].includes(word)) return begin(ctx, S, S.plan);   // the account checked again
   if (word === "by_hand") { ctx.state._aiw = null; ctx.actions.openSetupStep("rooms", S.plan && S.plan.id); return; }
-  if (word === "save") return save(ctx, S);
+  if (word === "save" || word === "save_again") return save(ctx, S);
   S.busy = true; S.msg = ""; rerender(ctx);
   try {
     if (word === "resume" || word === "carry_on") {
@@ -847,7 +866,7 @@ async function edit(ctx, S, args) {
 
 async function save(ctx, S) {
   if (S.busy) return;                                             // one press, one commit
-  S.busy = true; S.msg = ""; S.fail = null; rerender(ctx);
+  S.busy = true; S.msg = ""; S.fail = null; S.failRedrawn = false; rerender(ctx);
   if (S.pending) await S.pending;                                 // a name just typed is kept first
   const sess = S.ans && S.ans.session;
   const rows = new Set(((S.ans && S.ans.wizard) || {}).rows || []);
@@ -881,8 +900,12 @@ async function save(ctx, S) {
     const f = failOfCode(e && e.code);
     if (f) { S.fail = f; telOnce(ctx, "ai_wizard_fail:" + f); } else S.msg = (e && e.message) || codeWords(e && e.code);
     if (f === "changed_since") {
+      const was = S.redrawn;
+      S.redrawn = null;
       await status(ctx, S);                          // the list as it is now (drawn again if its plan moved)...
       S.fail = f;                                    // ...and the refusal stays said, whatever the refresh did (real panel, 2026-11-12)
+      S.failRedrawn = !!S.redrawn;                   // drawn again just now: it says so and offers Save again (fourth review)
+      S.redrawn = S.redrawn || was;
     }
   }
   S.busy = false;
@@ -952,19 +975,23 @@ function haLink(ctx, path, label, word) {
   return a;
 }
 
+// The bar stuck to the bottom of the screen that keeps a screen's Save in view while it scrolls (the rooms list, the scale).
+const STICKY_BAR = "position:sticky;bottom:0;z-index:2;background:#0f1a12;border-top:1px solid #1b3526;padding:4px 0;margin-top:8px";
 const P = (ctx, text, style = "") => ctx.helpers.el("div", { style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:6px 0;" + style }, text);
 const MUTED = (ctx, text) => ctx.helpers.el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, text);
 const row = (ctx, kids, style = "") => ctx.helpers.el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;" + style }, kids);
 
-function failBlock(ctx, S, word) {
-  const { el } = ctx.helpers, f = FAILS[word];
+function failBlock(ctx, S, word, redrawn = false) {
+  const { el } = ctx.helpers, f = redrawn && word === "changed_since" ? REDRAWN_FAIL : FAILS[word];
   if (!f) return null;
   const box = el("div", { "data-aiw": "fail-" + word, style: "border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin:8px 0" });
   box.appendChild(P(ctx, f.text, "margin:0"));
-  const acts = f.acts.map(a => a === "console" ? ext(ctx, CONSOLE_URL, ACT_LABEL.console, "console")
+  const one = (a) => a === "console" ? ext(ctx, CONSOLE_URL, ACT_LABEL.console, "console")
     : a === "guide" ? ext(ctx, GUIDE_URL, ACT_LABEL.guide, "guide")
-      : btn(ctx, ACT_LABEL[a], () => act(ctx, S, a), { attrs: { "data-aiw": "act-" + a }, disabled: S.busy }));
-  if (acts.length) box.appendChild(row(ctx, acts));
+      : btn(ctx, ACT_LABEL[a], () => act(ctx, S, a), { primary: a === "save_again", attrs: { "data-aiw": "act-" + a }, disabled: S.busy });
+  const free = f.acts.filter(a => !READS.includes(a)), paid = f.acts.filter(a => READS.includes(a));
+  if (free.length) box.appendChild(row(ctx, free.map(one)));
+  if (paid.length) box.appendChild(row(ctx, [...paid.map(one), MUTED(ctx, readCost(S, paid))]));   // the paid ones after, their cost beside
   return box;
 }
 
@@ -1294,13 +1321,19 @@ function measurePicture(ctx, S) {
 /** A refusal the server says before anything is saved (the plan has a scale by now, calibration spots on it…): its words, the way on. */
 function scaleStopped(ctx, S, box, pv) {
   box.appendChild(P(ctx, pv.stop_message || codeWords(pv.stop), "color:#f59e0b"));
-  if (pv.stop === "already_placed" && !rechecking(S)) box.appendChild(row(ctx, [btn(ctx, "Find the rooms →", () => startRead(ctx, S, S.plan), { primary: true, attrs: { "data-aiw": "scale-skip" } })]));
-  else box.appendChild(row(ctx, [btn(ctx, "Draw them myself", () => act(ctx, S, "by_hand"), { attrs: { "data-aiw": "scale-by-hand" } })]));
+  if (pv.stop === "already_placed" && !rechecking(S)) box.appendChild(row(ctx, [btn(ctx, "Find the rooms →", () => startRead(ctx, S, S.plan), { primary: true, attrs: { "data-aiw": "scale-skip" } }),
+    MUTED(ctx, READ_TWICE)]));
+  else box.appendChild(row(ctx, [btn(ctx, "Draw them myself", () => act(ctx, S, "by_hand"), { attrs: { "data-aiw": "scale-by-hand" } }), ...recheckBack(ctx, S)]));
 }
 
+/** A scale check can end without a new measurement (third review, 2026-11-12): back to the same list, nothing written. */
+const recheckBack = (ctx, S) => (rechecking(S) ? [btn(ctx, "Back to my rooms", () => backToRooms(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "recheck-back" } })] : []);
+
 /** The end of both scale screens: the plan's size (drawn in place by scaleSaid), "Which floor does this plan show?" only when
- *  its floor isn't one of the house's indoor floors, Save, and the backup line. */
-function scaleFooter(ctx, S, side) {
+ *  its floor isn't one of the house's indoor floors; then Save and what it does, in the bar the rooms list uses, stuck to
+ *  the bottom of the screen (real panel, 2026-11-12: on a 390x844 phone "Save the new scale →" sat below the fold), with a
+ *  scale check's way back to the rooms beside it. */
+function scaleFooter(ctx, S, side, box) {
   const { el } = ctx.helpers, sc = scaleDraft(S);
   const sized = el("div", { "data-aiw": "scale-size" });
   side.appendChild(sized);
@@ -1311,8 +1344,8 @@ function scaleFooter(ctx, S, side) {
   }
   const save = btn(ctx, S.busy ? "Saving…" : rechecking(S) ? "Save the new scale →" : "Save and find the rooms →", () => { if (scaleReady(S)) scaleSave(ctx, S); },
     { primary: true, attrs: { "data-aiw": "scale-save" } });
-  side.appendChild(row(ctx, [save]));
-  side.appendChild(MUTED(ctx, S.rescale ? SCALE_SAVE_RESCALE : SCALE_SAVE_SAYS));
+  box.appendChild(el("div", { "data-aiw": "scale-bar", style: STICKY_BAR }, [row(ctx, [save, ...recheckBack(ctx, S)], "margin:0"),
+    el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4" }, S.rescale ? SCALE_SAVE_RESCALE : SCALE_SAVE_SAYS)]));
   return { sized, save };
 }
 
@@ -1383,9 +1416,6 @@ function scaleScreen(ctx, S, box) {
   const { el } = ctx.helpers;
   const sc = scaleDraft(S), pv = sc.pv, r = sc.read, main = r && r.axes[r.main];
   telOnce(ctx, "plan_build_scale:guided");
-  // A scale check can end without a new measurement (third review, 2026-11-12): back to the same list, nothing written.
-  if (rechecking(S)) box.appendChild(row(ctx, [btn(ctx, "The scale is right, back to my rooms", () => backToRooms(ctx, S),
-    { disabled: S.busy, attrs: { "data-aiw": "recheck-back" } })], "margin:0 0 6px"));
   if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, whether it may be measured here
   const tap = tapWord();
   box.appendChild(P(ctx, `${tap} both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. ` +
@@ -1424,7 +1454,7 @@ function scaleScreen(ctx, S, box) {
   const said = el("span", { "data-aiw": "scale-understood", style: "font-size:13px" });
   side.appendChild(el("label", { style: "display:block;font-size:13px;color:#cbd5e1;margin:8px 0 4px" }, "Its length:"));
   side.appendChild(row(ctx, [len, said], "margin:0 0 8px"));
-  const { sized, save } = scaleFooter(ctx, S, side);
+  const { sized, save } = scaleFooter(ctx, S, side, box);
   sc.paint = { shape: scaleShape(sc), fn: () => scaleSaid(ctx, S, said, sized, save) };
   sc.paint.fn();
 }
@@ -1519,18 +1549,17 @@ async function checkScale(ctx, S) {
 
 export const RECHECK_UNKNOWN = "unknown";
 export const RECHECK_UNKNOWN_WORDS = "Your scale check couldn't be looked up just now, so nothing was changed. Try again in a moment.";
-/** "The scale is right, back to my rooms": the check ended (its record cleared, the notice not shown again for this
- *  plan), the same list with its names and ticks, and nothing written to the scale. */
+/** "Back to my rooms": the check ended (its record cleared), the same list with its names and ticks, nothing written to
+ *  the scale. It only ends the check (real panel, 2026-11-12): the notice stays on the list, where its own "The scale is
+ *  right" dismisses it, and the list's step is marked again, so Setup no longer says a measurement is under way. */
 async function backToRooms(ctx, S) {
   const mid = S.plan.id, sid = S.rescale.sid;
   S.rescale = null; S.sc = null;
   if (S.info && S.info.wizard && S.info.wizard.rescale) delete S.info.wizard.rescale[mid];
   ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "rescale_done", map_id: mid }).catch(() => {});
-  tel(ctx, "ai_wizard_scale_notice:dismissed");
-  S.scaleOkFor = [...(S.scaleOkFor || []), mid];
-  ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "scale_ok", map_id: mid }).catch(() => {});
   S.sid = sid;
   await status(ctx, S);
+  _done.delete("step:rooms_check");
   rerender(ctx);
 }
 /** The plan's scale-check record, if the rooms session behind it is still there to draw again (read, not saved); a
@@ -1602,10 +1631,10 @@ function checkScreen(ctx, S, box) {
     return;
   }
   if (S.redrawn) box.appendChild(el("div", { "data-aiw": "redrawn", style: "font-size:12px;color:#a7f3d0;line-height:1.5;margin:4px 0" },
-    "Drawn again at the new scale, from the same reading. " + (S.redrawn.reset ? "Names and ticks are Claude's again: check them before you save." : "Your names and ticks are kept.")));
+    "Drawn again where the plan is now, from the same reading. " + (S.redrawn.reset ? "Names and ticks are Claude's again: check them before you save." : "Your names and ticks are kept.")));
   if (S.heldFor && S.plan && S.heldFor === S.plan.id) box.appendChild(row(ctx, [MUTED(ctx, "Claude already read this plan's rooms, so they aren't read again."),
     btn(ctx, "Read it again", () => act(ctx, S, "again"), { disabled: S.busy, attrs: { "data-aiw": "held-again" } }),
-    MUTED(ctx, "Two reads, charged to your Anthropic account.")], "margin:4px 0"));
+    MUTED(ctx, READ_TWICE)], "margin:4px 0"));
   const notice = scaleNotice(ctx, S, w.scale_check);
   if (notice) box.appendChild(notice);
   // The plan beside its list on a wide screen, above it on a narrow one.
@@ -1644,11 +1673,11 @@ function checkScreen(ctx, S, box) {
     const size = Number(r.m2) > 0 ? el("span", { "data-aiw": "m2-" + r.id, style: "font-size:12px;color:#cbd5e1;white-space:nowrap" }, `${Math.round(r.m2 * 10) / 10} m²`) : "";
     // Its secondary controls behind the row's own ⋯ (the Home Assistant area, a look again): kept in the row, hidden.
     const more = el("div", { "data-aiw": "more-" + r.id, style: `display:${(S.open || new Set()).has(r.id) ? "block" : "none"};margin:4px 0 0 22px` });
-    if (r.his && r.flagged) more.appendChild(btn(ctx, "Ask Claude to look again", async () => {
+    if (r.his && r.flagged) more.appendChild(row(ctx, [btn(ctx, "Ask Claude to look again", async () => {
       try { take(S, await ws(ctx, { type: "padspan_ha/plan_build_rooms_read_again", session: sess.id, rev: sess.rev, room: r.id.slice(5), via: VIA })); S.screen = "rooms_read"; }
       catch (e) { S.msg = codeWords(e && e.code); }
       rerender(ctx);
-    }, { attrs: { "data-aiw": "again-" + r.id } }));
+    }, { attrs: { "data-aiw": "again-" + r.id } }), MUTED(ctx, "One more read of the plan, charged to your Anthropic account.")], "margin:0"));
     if (!r.his && !matched) {
       const ha = el("input", { type: "checkbox", "data-aiw": "ha-" + r.id });
       ha.checked = S.ha.has(r.id);
@@ -1693,16 +1722,17 @@ function checkScreen(ctx, S, box) {
   if (left.length) side.appendChild(MUTED(ctx, `Home Assistant rooms not on this plan: ${left.join(", ")}. Pick one in a row above, or draw it later in Mapping.`));
   side.appendChild(row(ctx, [MUTED(ctx, `${tapWord()} two rooms on the plan to join them into one (an open kitchen and dining room, say).`),
     btn(ctx, "Join into one", () => { if (S.sel.size >= 2 && !S.busy) edit(ctx, S, { op: "merge", parts: [...S.sel] }); }, { disabled: S.sel.size < 2 || S.busy, attrs: { "data-aiw": "join" } })]));
-  if (S.fail) box.appendChild(failBlock(ctx, S, S.fail));
   const n = [...S.ticks].filter(id => rows.some(r => r.id === id)).length;
   // Save stays in view while the list scrolls (desktop and phone): a bar stuck to the bottom of the screen.
   // One compact line (review 2026-11-12: on a phone the bar and the bottom menu took about 150 of 844 px): the note beside
-  // Save shrinks to one line and is cut short rather than wrapping.
-  box.appendChild(el("div", { "data-aiw": "save-bar", style: "position:sticky;bottom:0;z-index:2;background:#0f1a12;border-top:1px solid #1b3526;padding:4px 0;margin-top:8px;" +
-    "display:flex;gap:8px;align-items:center;flex-wrap:nowrap" }, [
-    btn(ctx, S.busy ? "Saving…" : `Save ${n} room${n === 1 ? "" : "s"}`, () => save(ctx, S), { primary: true, disabled: !n || S.busy, attrs: { "data-aiw": "save", style: "font-size:12px;flex:none" } }),
-    el("span", { style: "flex:1 1 auto;min-width:0;font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" },
-      "Experimental. A backup is taken first; one Undo takes it all back.")]));
+  // Save shrinks to one line and is cut short rather than wrapping. A refused Save says why in the bar, where it was
+  // pressed (real panel, 2026-11-12: at the end of the list it was some 1440 px away, out of sight).
+  const refused = S.fail ? failBlock(ctx, S, S.fail, S.failRedrawn) : null;
+  box.appendChild(el("div", { "data-aiw": "save-bar", style: STICKY_BAR }, [...(refused ? [refused] : []),
+    el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:nowrap" }, [
+      btn(ctx, S.busy ? "Saving…" : `Save ${n} room${n === 1 ? "" : "s"}`, () => save(ctx, S), { primary: true, disabled: !n || S.busy, attrs: { "data-aiw": "save", style: "font-size:12px;flex:none" } }),
+      el("span", { style: "flex:1 1 auto;min-width:0;font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" },
+        "Experimental. A backup is taken first; one Undo takes it all back.")])]));
 }
 
 function savedScreen(ctx, S, box) {
@@ -1720,6 +1750,7 @@ function savedScreen(ctx, S, box) {
     box.appendChild(row(ctx, [
       btn(ctx, "Try again", () => { tel(ctx, "ai_wizard:undo_next_again"); begin(ctx, S, S.plan); }, { primary: true, disabled: S.busy || !S.plan, attrs: { "data-aiw": "undone-again" } }),
       btn(ctx, "Draw them myself", () => { tel(ctx, "ai_wizard:undo_next_by_hand"); act(ctx, S, "by_hand"); }, { attrs: { "data-aiw": "undone-by-hand" } })]));
+    box.appendChild(MUTED(ctx, "Trying again: " + READ_TWICE));
     return;
   }
   const n = S.done ? S.done.saved : Object.keys((sess && sess.saved) || {}).length;
@@ -1738,7 +1769,7 @@ function savedScreen(ctx, S, box) {
       st._aiw = null; ctx.actions.openSetupStep("receivers", mid); }, { primary: true, attrs: { "data-aiw": "receivers" } })]));
   const next = plansOf(st).find(m => m.floor_id !== fid && !planRoomed(st, m));
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
-    btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } })]));
+    btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } }), MUTED(ctx, READ_TWICE)]));
   box.appendChild(row(ctx, [MUTED(ctx, "Something wrong?"), btn(ctx, "Undo", () => undo(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "undo" } }),
     MUTED(ctx, "takes back the rooms, and the plan's scale if it was set here. Later, the same Undo is on Setup's Draw the rooms step and in Settings → AI.")]));
 }

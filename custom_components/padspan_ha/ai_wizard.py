@@ -583,17 +583,18 @@ def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
 #     their kind and the plain rooms (a bathroom, a hall, a closet) absurd too. Nothing subtler is said: the size on each
 #     row is the person's cue (tests/test_ai_wizard_rooms.py holds the table of homes it must, and must never, fire on).
 # Doors carry no evidence either: they are read as points, and their width is a standard one.
-KIND_M2: dict[str, tuple[float, float, float]] = {
+KIND_M2: dict[str, tuple[float, float, float]] = {   # in the order _kind tries them: an ensuite (ensuite bathroom) is an ensuite
+    "ensuite": (5.0, 1.5, 25.0),   # not a plain room: a grand house's ensuite is grand (it took an estate wing for feet as metres)
     "bedroom": (12.0, 4.0, 45.0), "bathroom": (5.0, 1.5, 20.0), "kitchen": (12.0, 3.0, 45.0), "living": (22.0, 8.0, 100.0),
     "dining": (12.0, 4.0, 60.0), "family": (20.0, 8.0, 100.0), "office": (10.0, 3.0, 50.0), "laundry": (5.0, 1.5, 20.0),
     "closet": (2.5, 0.3, 10.0), "hallway": (6.0, 1.0, 30.0), "entrance": (5.0, 1.0, 25.0), "garage": (32.0, 10.0, 150.0),
-    "powder": (2.5, 0.8, 8.0), "ensuite": (5.0, 1.5, 25.0)}
+    "powder": (2.5, 0.8, 8.0)}
 ANY_ROOM_M2 = (10.0, 1.5, 150.0)    # a room PadSpan can't name: its usual size, the smallest and largest a home's room is
 UNITS_X = 2.5                       # a length factor this far off, on room sizes alone, is a unit mix-up (2.54x, 3.28x, 0.3048x)
 MOST_IMPOSSIBLE = 0.75              # ...and this share of the rooms each impossible for their kind
 PLAIN_KINDS = frozenset({"bathroom", "powder", "closet", "hallway", "laundry", "entrance"})   # rooms whose size a grand house doesn't change much
-PLAIN_OFF = 2.0                     # ...and at least MIN_PLAIN of them each this far off in length from their usual size
-MIN_PLAIN = 2
+PLAIN_OFF = 2.5                     # ...and at least MIN_PLAIN of them this far off in length from their usual size (fourth review: one
+MIN_PLAIN = 1                       # bathroom is enough; a 3-bed with no hall or closet read in feet as metres must say so)
 MOST_SMALL = 2 / 3                   # too small: this share of the rooms below the smallest a room of their kind can be
 SMALL_X = 2.0                       # ...and the rooms this many times too small in length (8 rooms or more: SMALL_MANY)
 SMALL_MANY = 8
@@ -629,8 +630,13 @@ def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None =
                           "under": a / lo, "over": a / hi})
     if len(rooms) < MIN_ROOMS:
         return None
-    ks = sorted(r["k"] for r in rooms)
-    k_rooms = ks[len(ks) // 2] if len(ks) % 2 else math.sqrt(ks[len(ks) // 2 - 1] * ks[len(ks) // 2])
+
+    def middle(rs: list[dict]) -> float:
+        """The rooms' middle length factor (two in the middle: their geometric mean)."""
+        ks = sorted(r["k"] for r in rs)
+        return ks[len(ks) // 2] if len(ks) % 2 else math.sqrt(ks[len(ks) // 2 - 1] * ks[len(ks) // 2])
+
+    k_rooms = middle(rooms)
     big = k_rooms > 1
 
     def example() -> dict[str, Any]:
@@ -659,9 +665,15 @@ def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None =
     # the real panel, 2026-11-12): most rooms below the smallest such a room can be and the rooms about SMALL_X too small.
     # A tiny home's few rooms can look like an ordinary home's at about 1.5x too small, so with few rooms it takes more
     # (SMALL_FEW_X): quiet is preferred there (tests/test_ai_wizard_rooms.py's table says which cases are given up).
-    need = SMALL_X if len(rooms) >= SMALL_MANY else SMALL_FEW_X
-    if 1 / k_rooms >= need and sum(1 for r in rooms if r["small"]) / len(rooms) >= MOST_SMALL:
-        return {"k": round(k_rooms, 3), "source": "rooms", "signs": ["rooms"], "example": example()}
+    # Only rooms PadSpan can name count (fourth review, 2026-11-12): a floor of storage lockers, capsules or Kellerabteile at
+    # its right size is small rooms of no kind PadSpan knows, never evidence; and they set neither the factor nor the count.
+    named = [r for r in rooms if r["kind"]]
+    if len(named) < MIN_ROOMS:
+        return None
+    k_named = middle(named)
+    need = SMALL_X if len(named) >= SMALL_MANY else SMALL_FEW_X
+    if 1 / k_named >= need and sum(1 for r in named if r["small"]) / len(named) >= MOST_SMALL:
+        return {"k": round(k_named, 3), "source": "rooms", "signs": ["rooms"], "example": example()}
     return None
 
 

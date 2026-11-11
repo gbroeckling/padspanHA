@@ -342,11 +342,14 @@ export function install(globalObj = globalThis) {
   return document;
 }
 
-/** Run everything the render deferred, repeatedly, until it stops queueing. */
-export async function flush(rounds = 8) {
+/** Run everything the render deferred, repeatedly, until it stops queueing. `maxMs`: only timers due within it run (the
+ *  rest stay queued): what a few milliseconds of real time would run. */
+export async function flush(rounds = 8, maxMs = Infinity) {
   for (let i = 0; i < rounds; i++) {
     const rafs = rafQueue.splice(0, rafQueue.length).filter(Boolean);
-    const timers = timerQueue.splice(0, timerQueue.length).filter(Boolean);
+    const all = timerQueue.splice(0, timerQueue.length).filter(Boolean);
+    const timers = all.filter(t => t.ms <= maxMs);
+    timerQueue.push(...all.filter(t => t.ms > maxMs));
     if (!rafs.length && !timers.length) break;
     for (const fn of rafs) await fn(i * 16);
     for (const t of timers.sort((a, b) => a.ms - b.ms)) await t.fn(...t.a);

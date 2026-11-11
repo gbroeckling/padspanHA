@@ -204,6 +204,8 @@ async function readScale(h, root) {
     && !!q(root, '[data-aiw="link-console"]') && !!q(root, '[data-aiw="act-resume"]') && h.calls.some(c => c.type === "padspan_ha/ai_wizard_check_claude")
     && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_start" || c.type === "padspan_ha/plan_build_rooms_start"), root.textContent.slice(0, 400));
   check("account check: said while it runs", W.CHECKING.includes("one tiny read") && W.CHECKING.includes("no plan is sent"));
+  // Fourth review: every button that leads to a Claude read says its cost beside it.
+  check("account check: Try again says it is one more tiny read, charged", q(root, '[data-aiw="act-resume"]').parentNode.textContent.includes("one more tiny read, charged to your Anthropic account"));
   h.ctx.state._aiw.screen = "fail";
   const ok = house({ unlock: { ok: true, why: "ok" }, maps: [{ id: "n1", name: "New plan", floor_id: "main", image: { width: 1000, height: 800 } }], tfs: {}, check: { ok: false, why: "error" } });
   let r2 = await view(ok);
@@ -326,6 +328,7 @@ check("check: Save says how many", q(root, '[data-aiw="save"]').textContent === 
   const box = q(root, '[data-aiw="fail-no_credit"]');
   check("no credit: what to tell, where credit is set up", box && box.textContent.includes("out of credit") && box.textContent.includes("under Billing"), root.textContent.slice(0, 300));
   check("no credit: the Console, the guide, Try again", !!q(root, '[data-aiw="link-console"]') && !!q(root, '[data-aiw="link-guide"]') && !!q(root, '[data-aiw="act-resume"]'));
+  check("no credit: Try again says what it costs", q(root, '[data-aiw="act-resume"]').parentNode.textContent.includes("reads the rest of the plan, charged to your Anthropic account"));
   check("no credit: counted", h.tele.includes("ai_wizard_fail:no_credit"), h.tele);
   q(root, '[data-aiw="act-resume"]').click();
   await tick();
@@ -637,6 +640,7 @@ async function useIt(h, root) {
   const box = q(root, '[data-aiw="fail-no_credit"]');
   check("asked, no credit: its words, the Console, the guide, Try again", box && box.textContent.includes("out of credit") && !!q(root, '[data-aiw="link-console"]')
     && !!q(root, '[data-aiw="link-guide"]') && !!q(root, '[data-aiw="act-resume"]'), root.textContent.slice(0, 300));
+  check("asked, no credit: Try again says the scale read's cost", q(root, '[data-aiw="act-resume"]').parentNode.textContent.includes(W.SCALE_ASK));
   q(root, '[data-aiw="act-resume"]').click();
   for (let i = 0; i < 4; i++) await tick();
   check("asked, no credit: Try again reads again (no rooms resume)", paidStarts(h).length === 2 && !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_resume"));
@@ -1272,6 +1276,22 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   await shim.flush();
   for (let i = 0; i < 6; i++) await tick();
   check("press: the click reaches Save, then the list is drawn", !!h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_commit") && h.renders.n > r0, typesOf(h));
+  // Real panel, 2026-11-12 (phones): a tap's field is left by the touch's compatibility events, AFTER pointerup and before
+  // the click. Touch order: pointerdown, pointerup, the field's change, then the click on the node that was there.
+  const t = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  const tr = await view(t), tsave = q(tr, '[data-aiw="save"]'), t0 = t.renders.n;
+  tr.dispatchEvent({ type: "pointerdown" });
+  (docListeners.pointerup || []).forEach(f => f({ type: "pointerup" }));
+  await shim.flush(8, 50);                                         // a few milliseconds go by: what pointerup let go then runs
+  q(tr, '[data-aiw="name-space:a"]').dispatchEvent({ type: "change" });
+  for (let i = 0; i < 6; i++) await tick();
+  await shim.flush(8, 50);
+  check("touch: the field left after pointerup draws nothing before the click", t.renders.n === t0 && q(tr, '[data-aiw="save"]') === tsave, t.renders.n - t0);
+  (docListeners.click || []).forEach(f => f({ type: "click" }));   // heard on the document first (capture), then the button
+  tsave.click();
+  await shim.flush();
+  for (let i = 0; i < 6; i++) await tick();
+  check("touch: the click reaches Save once, then the list is drawn", t.calls.filter(c => c.type === "padspan_ha/plan_build_rooms_commit").length === 1 && t.renders.n > t0, typesOf(t));
   // No press (the keyboard's Tab): drawn at once, as before.
   const k = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
   const kr = await view(k), k0 = k.renders.n;
@@ -1575,12 +1595,19 @@ check("example named", W.scaleNoticeWords({ k: 0.33, source: "rooms", example: {
   check("recheck: already_placed never falls through to a rooms read", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start") && h.ctx.state._aiw.rescale?.sid === "rb_1");
   ({ h, root } = await recheck({ held: true, scaleSess: () => ({ ...READ({}), map_id: "m1" }) }));
   check("recheck: a held double-checked reading offered as Use it", !!q(root, '[data-aiw="scale-use"]'), root.textContent.slice(0, 300));
+  const sbar = q(root, '[data-aiw="scale-bar"]');
+  check("recheck: Save the new scale and the way back in a bar stuck to the bottom of the screen", sbar && String(sbar.getAttribute("style")).includes("position:sticky")
+    && String(sbar.getAttribute("style")).includes("bottom:0") && q(sbar, '[data-aiw="scale-save"]')?.textContent === "Save the new scale →"
+    && !!q(sbar, '[data-aiw="recheck-back"]') && sbar.textContent.includes(W.SCALE_SAVE_RESCALE), sbar && sbar.textContent);
   q(root, '[data-aiw="recheck-back"]').click();
   for (let i = 0; i < 6; i++) await tick();
   root = await view(h);
-  check("recheck: the scale is right, back to the same list, nothing written", !!q(root, '[data-aiw="rows"]') && !h.ctx.state._aiw.rescale
-    && h.calls.some(c => c.what === "rescale_done") && h.calls.some(c => c.what === "scale_ok") && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save")
-    && !q(root, '[data-aiw="scale-notice"]'), typesOf(h));
+  // Real panel, 2026-11-12: going back marked the scale right too (the notice gone for good) and left Setup saying a
+  // measurement was under way. It only ends the check now: the notice stays, and the list's step is marked again.
+  const at = h.calls.findIndex(c => c.what === "rescale_done");
+  check("recheck: back to the same list, nothing written, the notice still there, the list's step marked", !!q(root, '[data-aiw="rows"]') && !h.ctx.state._aiw.rescale
+    && at >= 0 && !h.calls.some(c => c.what === "scale_ok") && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save")
+    && !!q(root, '[data-aiw="scale-notice"]') && h.calls.slice(at).some(c => c.what === "step" && c.step === "rooms_check" && c.rooms_session === "rb_1"), typesOf(h));
 }
 {
   // The check's lookup fails just now: kept (not dropped), said, nothing started.
@@ -1593,7 +1620,9 @@ check("example named", W.scaleNoticeWords({ k: 0.33, source: "rooms", example: {
   const g = house({ unlock: { ok: true, why: "ok" }, master: true, heldRooms: true,
     status: () => ({ session: SESS(), areas: [], undo: null, wizard: WIZ, reprojected: { redrawn: true, reset: true } }) });
   const gr = await view(g);
-  check("held list redrawn at the scale now, said", !!q(gr, '[data-aiw="redrawn"]') && gr.textContent.includes("Drawn again at the new scale"), gr.textContent.slice(0, 300));
+  // Fourth review: "at the new scale" was untrue after a line-up that kept the scale; the words now hold for both.
+  check("held list redrawn where the plan is now, said", !!q(gr, '[data-aiw="redrawn"]') && gr.textContent.includes("Drawn again where the plan is now, from the same reading.")
+    && !gr.textContent.includes("at the new scale"), gr.textContent.slice(0, 300));
 }
 // ── real panel 2026-11-12, item A: a held list whose plan was measured again in Mapping: reopened, it is drawn again
 // at the scale now (said); a refused Save says why and keeps saying it after the refresh; then Save goes through ──
@@ -1610,10 +1639,17 @@ check("example named", W.scaleNoticeWords({ k: 0.33, source: "rooms", example: {
   for (let i = 0; i < 6; i++) await tick();
   root = await view(h);
   check("a refused Save says why, after the refresh too", !!q(root, '[data-aiw="fail-changed_since"]') && h.ctx.state._aiw.screen === "rooms_check", root.textContent.slice(0, 300));
-  q(root, '[data-aiw="save"]').click();
+  // Fourth review, items 1 and 9: the list was drawn again by the refresh, so the box says so, in the Save bar where the
+  // press happened; Save again comes first; Read again (two paid reads) is the lesser choice, its cost beside it.
+  const bar = q(root, '[data-aiw="save-bar"]'), fbox = bar && q(bar, '[data-aiw="fail-changed_since"]');
+  const again = fbox && q(fbox, '[data-aiw="act-save_again"]'), read = fbox && q(fbox, '[data-aiw="act-read_again"]');
+  check("refused, redrawn: said in the Save bar, Save again first, Read again with its cost", !!fbox && fbox.textContent.includes("Your list has been drawn again where the plan is now")
+    && !!again && again.textContent === "Save again" && !!read && read.parentNode !== again.parentNode
+    && read.parentNode.textContent.includes("two more reads, charged to your Anthropic account"), fbox && fbox.textContent);
+  again.click();
   for (let i = 0; i < 6; i++) await tick();
   root = await view(h);
-  check("then Save goes through", commits === 2 && root.textContent.includes("saved on Main"), root.textContent.slice(0, 300));
+  check("then Save again goes through", commits === 2 && root.textContent.includes("saved on Main"), root.textContent.slice(0, 300));
 }
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);
