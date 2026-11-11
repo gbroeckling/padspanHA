@@ -22,8 +22,11 @@ def test_five_minutes() -> None:
 def test_only_the_sidebar_atlas_and_one_set_of_listeners() -> None:
     assert _SRC.count("_barsWatch(isoDiv)") == 1 and "if (DISPLAY) _barsWatch(isoDiv);" in _SRC
     # Wired once for the page, whatever the number of cards built; every way of touching the page wakes the bars.
-    body = _SRC[_SRC.index("function _barsWatch(stage)"):_SRC.index("const _LA_PICK")]
-    assert "if (!_bars.wired" in body and "_bars.wired = true;" in body
+    body = _SRC[_SRC.index("const _bars = "):_SRC.index("const _LA_PICK")]
+    assert body.count("window.addEventListener(ev, woke") == 1 and body.count("setInterval(") == 1
+    # ... when the file loads, never by a card (every card sets up the same listeners and timers).
+    watch = body[body.index("function _barsWatch(stage)"):]
+    assert "addEventListener" not in watch and "setInterval" not in watch
     for ev in ("pointerdown", "pointermove", "wheel", "keydown", "touchstart"):
         assert f'"{ev}"' in body
     assert "passive: true" in body and ".unref()" in body          # never holds a scroll back, never keeps a test run alive

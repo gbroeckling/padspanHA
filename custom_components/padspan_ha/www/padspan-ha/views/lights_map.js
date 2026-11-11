@@ -3083,14 +3083,15 @@ function _barsPaint() {
   if (!st || !st.classList || typeof st.classList.toggle !== "function") return;
   st.classList.toggle("lv-quietbars", barsQuiet(Date.now(), _bars.last));
 }
+// Wired once, when this file loads (never by a card: every card sets up the same listeners and timers, tests/test_live_aboard.py).
+if (typeof window !== "undefined" && window.addEventListener) {
+  _bars.wired = true;
+  const woke = () => { _bars.last = Date.now(); _barsPaint(); };
+  for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"]) window.addEventListener(ev, woke, { passive: true, capture: true });
+  if (typeof setInterval === "function") { _bars.timer = setInterval(_barsPaint, 30000); if (_bars.timer && _bars.timer.unref) _bars.timer.unref(); }
+}
 function _barsWatch(stage) {
   _bars.stage = stage;
-  if (!_bars.wired && typeof window !== "undefined" && window.addEventListener) {
-    _bars.wired = true;
-    const woke = () => { _bars.last = Date.now(); _barsPaint(); };
-    for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"]) window.addEventListener(ev, woke, { passive: true, capture: true });
-    if (typeof setInterval === "function") { _bars.timer = setInterval(_barsPaint, 30000); if (_bars.timer && _bars.timer.unref) _bars.timer.unref(); }
-  }
   _barsPaint();
 }
 const _LA_PICK = "padspan_lv_3d_";
