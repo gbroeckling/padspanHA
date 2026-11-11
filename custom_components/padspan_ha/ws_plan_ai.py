@@ -953,6 +953,22 @@ def _rooms_answer(hass: HomeAssistant, store: A.PlanAiStore, sid: str | None) ->
     return out
 
 
+async def helper_undo(hass: HomeAssistant, store: Any) -> dict[str, Any] | None:
+    """The newest rooms the helper saved that can still be taken back, with what its undo does to the plan's scale
+    (plan_ai_write.rooms_undo_scale: the one rule Settings → AI and the Done screen say too), or None."""
+    und = A.rooms_undo_info(store)
+    if not und or not und.get("helper"):
+        return None
+    try:
+        scale = await C.rooms_undo_scale(hass, store, und["session"], und.get("map_id"))
+    except Exception:  # noqa: BLE001 — never at the cost of the answer: no word about the scale
+        scale = "none"
+    model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    names = {str(fl.get("id")): fl.get("name") for fl in (model.floors() if model is not None else [])}
+    return {"session": und["session"], "map_id": und.get("map_id"), "items": und.get("items"), "at": und.get("at"),
+            "floor_id": und.get("floor_id"), "floor_name": names.get(str(und.get("floor_id"))) or und.get("floor_id"), "scale": scale}
+
+
 def _scale_check(hass: HomeAssistant, store: A.PlanAiStore, sess: dict[str, Any], rows: list[str]) -> dict[str, Any] | None:
     """The helper's "the scale looks wrong" evidence (ai_wizard.scale_signs) for an unsaved session, unless the person
     said this plan's scale is right. Read only; never at the cost of the answer."""

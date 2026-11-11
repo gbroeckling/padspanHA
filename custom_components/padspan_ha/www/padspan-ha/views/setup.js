@@ -285,7 +285,8 @@ async function _unplaceReceivers(ctx) {
 /** The button with its line, what the last press did, and its Undo; null where there is nothing to place or say (your
  *  own house, an administrator, not a wall screen). */
 export function receiversBlock(ctx) {
-  const st = ctx.state, { el } = ctx.helpers;
+  const { el } = ctx.helpers;
+  const st = ctx.state;
   if (_demo(st) || st.kioskMode || !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin)) return null;
   const n = receiversReady(st);
   if (!n && !_rcv.said) return null;

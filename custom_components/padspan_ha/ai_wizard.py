@@ -676,26 +676,9 @@ async def ws_ai_wizard_info(hass: HomeAssistant, connection, msg) -> None:
     reason = offer_reason(f, msg["surface"])
     out = {"reason": reason, "offer": reason == "offer", "wizard": clean_wizard(f["wizard"]), "tier": f["tier"], "trial_offerable": f["trial_offerable"]}
     if msg["surface"] == "pull" and not msg["kiosk"]:
+        from .ws_plan_ai import helper_undo  # noqa: PLC0415 — the plan writer's own module answers it
         out["undo"] = await helper_undo(hass, store)   # Setup's Draw the rooms row offers the helper's later undo (owner, 2026-11-12)
     connection.send_result(msg["id"], out)
-
-
-async def helper_undo(hass: HomeAssistant, store: Any) -> dict[str, Any] | None:
-    """The newest rooms the helper saved that can still be taken back, with what its undo does to the plan's scale
-    (plan_ai_write.rooms_undo_scale: the one rule Settings → AI and the Done screen say too), or None."""
-    from . import plan_ai as A  # noqa: PLC0415
-    from . import plan_ai_write as C  # noqa: PLC0415
-    und = A.rooms_undo_info(store)
-    if not und or not und.get("helper"):
-        return None
-    try:
-        scale = await C.rooms_undo_scale(hass, store, und["session"], und.get("map_id"))
-    except Exception:  # noqa: BLE001 — never at the cost of the answer: no word about the scale
-        scale = "none"
-    model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    names = {str(fl.get("id")): fl.get("name") for fl in (model.floors() if model is not None else [])}
-    return {"session": und["session"], "map_id": und.get("map_id"), "items": und.get("items"), "at": und.get("at"),
-            "floor_id": und.get("floor_id"), "floor_name": names.get(str(und.get("floor_id"))) or und.get("floor_id"), "scale": scale}
 
 
 @websocket_api.websocket_command({
