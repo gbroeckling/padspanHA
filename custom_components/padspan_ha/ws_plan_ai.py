@@ -54,10 +54,13 @@ plan_build_rooms_check (the room score on the calibration spots, writing
 nothing); plan_build_rooms_commit (Accept all for this floor: one save) and
 plan_build_rooms_undo, both plan_ai_write.py's.
 
-The rooms helper's scale (Let Claude draw your rooms, piece 3; design E):
+The rooms helper's scale (Let Claude draw your rooms, pieces 3 and 4; design E):
+plan_build_scale_start / _status (Claude reads a printed dimension off a plan
+with no scale: plan_ai.py's ScaleRunner, writing nothing),
 plan_build_scale_preview (what one measurement makes of the plan, writing
 nothing), plan_build_scale_save (a plan with no scale, through Measure's own
-writer) and plan_build_scale_undo, both plan_ai_write.py's.
+writer, from the person's two ends or the ticks Claude's reading found) and
+plan_build_scale_undo, both plan_ai_write.py's.
 """
 
 from __future__ import annotations
@@ -1283,6 +1286,8 @@ async def ws_plan_build_scale_save(hass: HomeAssistant, connection, msg) -> None
     except C.Refused as err:
         connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message, **(err.extra or {})})
         return
+    # Saved: what the person did with Claude's reading (design J.4), counted after the write.
+    A.count_scale_check(hass, store.scale_session(msg.get("session")), msg["source"], msg["measures"])
     connection.send_result(msg["id"], answer)
 
 
@@ -1304,4 +1309,58 @@ async def ws_plan_build_scale_undo(hass: HomeAssistant, connection, msg) -> None
     connection.send_result(msg["id"], answer)
 
 
-WS_COMMANDS = WS_COMMANDS + (ws_plan_build_scale_preview, ws_plan_build_scale_save, ws_plan_build_scale_undo)
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_scale_start", vol.Required("map_id"): str, vol.Optional("via"): VIA})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> None:
+    """Claude reads a printed dimension off a plan with no scale (piece 4; design
+    E.1): Read A, then one dimension an axis. It answers at once; the job runs
+    on the server. A plan that has a scale already (the helper skips the step)
+    or shows the outside is refused before a start is spent."""
+    from .const import OUTDOOR_FLOOR_NAMES  # noqa: PLC0415
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    async with store.lock:
+        dom = hass.data.get(DOMAIN, {})
+        maps, model = dom.get(DATA_MAPS), dom.get(DATA_MODEL)
+        m = maps.get_map(msg["map_id"]) if maps is not None else None
+        if not isinstance(m, dict) or model is None:
+            connection.send_error(msg["id"], "not_found", RP + "that plan isn't there any more.")
+            return
+        if model.map_transform(msg["map_id"]) is not None:
+            connection.send_error(msg["id"], "already_placed", C.SCALE_WORDS["already_placed"])
+            return
+        if str(m.get("floor_id") or "").strip().lower() in OUTDOOR_FLOOR_NAMES:
+            connection.send_error(msg["id"], "outdoor", RP + "this plan shows the outside: the helper reads the plans of the house's floors.")
+            return
+        why = A.start_allowed(hass)
+        if why:
+            connection.send_error(msg["id"], why, RP + {"already_running": "a session is already reading your plans.",
+                                                        "too_soon": "a session started less than a minute ago.",
+                                                        "daily_cap": f"at most {A.STARTS_A_DAY} sessions a day."}[why])
+            return
+        sid = A.start_scale(hass, store, A.new_scale_session(A.unlock(hass), m, A.earlier_reads(store)))
+        await store.async_save()
+    connection.send_result(msg["id"], {"session": sid})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_scale_status", vol.Optional("session"): vol.Any(str, None), vol.Optional("via"): VIA})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_scale_status(hass: HomeAssistant, connection, msg) -> None:
+    """A scale read (by id, or the newest): where it is and what it found."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    job = A.running(hass)
+    await store.async_sweep(job.sid if job else None)
+    sid = msg.get("session")
+    if not sid:
+        sid = max(((k, s) for k, s in (store.data.get("scales") or {}).items() if isinstance(s, dict)),
+                  key=lambda t: float(t[1].get("started_at") or 0), default=(None, None))[0]
+    connection.send_result(msg["id"], {"session": A.scale_public(store.scale_session(sid), sid), "running": job.sid if job else None})
+
+
+WS_COMMANDS = WS_COMMANDS + (ws_plan_build_scale_preview, ws_plan_build_scale_save, ws_plan_build_scale_undo,
+                             ws_plan_build_scale_start, ws_plan_build_scale_status)

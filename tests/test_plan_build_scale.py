@@ -363,10 +363,13 @@ def test_the_rooms_read_right_after_the_helpers_scale_skips_the_minute_gap_only(
 
 def test_the_scale_counts_are_closed_shareable_and_named():
     words = {e for e in T.AI_WIZARD_EVENTS if e.startswith("plan_build_scale")}
-    assert words == ({f"plan_build_scale:{k}" for k in ("guided", "already_set")}
+    assert words == ({f"plan_build_scale:{k}" for k in ("printed", "unconfirmed_shown", "none_found", "guided", "already_set")}
                      | {f"plan_build_scale_save:{k}" for k in ("done", *C.SCALE_STOPS)}
                      | {f"plan_build_scale_undo:{k}" for k in ("done", "changed_since", "failed")}
-                     | {f"plan_build_scale_remeasured:{k}" for k in T.PLAN_BUILD_PCT})
+                     | {f"plan_build_scale_remeasured:{k}" for k in T.PLAN_BUILD_PCT}
+                     | {f"plan_build_scale_check:{k}" for k in ("yes", "corrected", "guided_instead")}
+                     | {f"plan_build_scale_axes:{k}" for k in ("two", "one", "none")}
+                     | {f"plan_build_scale_{w}:{k}" for w in ("fix", "stretch") for k in T.PLAN_BUILD_PCT})
     for e in words:
         assert T.event_allowed(e)
         T.assert_shareable({"usage": {e: 1}})

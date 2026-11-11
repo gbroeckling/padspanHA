@@ -812,7 +812,10 @@ const W_WIZ_LINK = { guide: "the guide", console: "the Anthropic Console", ha_ad
 const W_ROOMS_BAND = { "0": "no rooms", "1": "1 room", "2_3": "2–3 rooms", "4_6": "4–6 rooms", "7_12": "7–12 rooms", gt12: "over 12 rooms" };
 const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", area_abbrev: "after a Home Assistant area (abbreviated)",
   printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };
-const W_SCALE_PATH = { guided: "one measurement by the person", already_set: "the plan had a scale already" };
+const W_SCALE_PATH = { printed: "a printed measurement Claude read", unconfirmed_shown: "a printed measurement Claude read (one line, the person to confirm)",
+  none_found: "no printed measurement Claude could read", guided: "one measurement by the person", already_set: "the plan had a scale already" };
+const W_SCALE_CHECK = { yes: "the person said yes", corrected: "the person corrected the number", guided_instead: "the person measured something themselves instead" };
+const W_SCALE_AXES = { two: "across and down", one: "one direction", none: "none" };
 const W_SCALE_SAVE = { done: "saved", already_placed: "refused, the plan had a scale already", points_on_plan: "refused, calibration spots on the plan",
   plan_changed: "refused, the plan picture changed", no_picture_size: "refused, the plan picture has no size on record", backup_failed: "refused, no safety backup", floor_unknown: "refused, floor not known" };
 const W_SCALE_UNDO = { done: "taken back", changed_since: "refused, something added since", failed: "failed" };
@@ -956,6 +959,7 @@ function word(kind, k) {
       if (a === "ai_credit_warn") return `AI credit warning ${{ set_50: "set to 50 %", set_75: "set to 75 %", set_90: "set to 90 %", off: "turned off", fired: "shown" }[b] || b}`;
       // Build from plans: plan line-up (experimental; telemetry.PLAN_BUILD_EVENTS). Values of the run families carry the stage (s1 = line up).
       const pbStage = (v) => String(v).replace(/^s\d_/, "");
+      const pbJob = (v) => (String(v).startsWith("s0_") ? "AI rooms helper scale read (experimental)" : "Plan line-up (experimental)");
       // The Plans tool's walls (telemetry.PLANS_TOOL_EVENTS): counted in the panel, the server never sees them.
       if (a === "plans_tool") return "Plans tool opened (Live Aboard → Edit)";
       if (a === "plans_tab") return `Plans tool: chose ${{ add: "Add data via plans", lineup: "Line up plans", rooms: "Rooms from plans" }[b] || b}`;
@@ -978,16 +982,20 @@ function word(kind, k) {
       if (a === "plan_build_scale") return `AI rooms helper plan scale: ${W_SCALE_PATH[b] || b}`;
       if (a === "plan_build_scale_save") return `AI rooms helper plan scale save: ${W_SCALE_SAVE[b] || b}`;
       if (a === "plan_build_scale_undo") return `AI rooms helper plan scale undo: ${W_SCALE_UNDO[b] || b}`;
+      if (a === "plan_build_scale_check") return `AI rooms helper, Claude's printed measurement: ${W_SCALE_CHECK[b] || b}`;
+      if (a === "plan_build_scale_fix") return `AI rooms helper, a corrected number differed from Claude's by ${W_SCALE_PCT[b] || b}`;
+      if (a === "plan_build_scale_axes") return `AI rooms helper, printed measurements read: ${W_SCALE_AXES[b] || b}`;
+      if (a === "plan_build_scale_stretch") return `AI rooms helper, plan picture across and down disagree by ${W_SCALE_PCT[b] || b}`;
       if (a === "plan_build_scale_remeasured") return `Plan the AI rooms helper scaled, measured again by hand: scale moved ${W_SCALE_PCT[b] || b}`;
       if (a === "plan_build_unmatched_areas") return `AI rooms helper save left ${W_ROOMS_BAND[b] || b} Home Assistant areas without a room`;
       if (a === "plan_build_setting") return `Plan line-up (experimental) setting ${{ shown: "shown (Claude qualifies)", on: "turned on", off: "turned off" }[b] || b}`;
       if (a === "plan_build_unlock") return `Plan line-up (experimental) AI: ${W_UNLOCK[b] || b}`;
-      if (a === "plan_build_run") return `Plan line-up (experimental) run: ${{ started: "started", finished: "finished", needs_help: "needed help", resumed: "resumed", cancelled: "cancelled", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit", abandoned: "abandoned", read_again: "a room read again" }[pbStage(b)] || b}`;
-      if (a === "plan_build_run_secs") return `Plan line-up (experimental) run took ${{ lt1m: "under 1 min", "1_3m": "1–3 min", "3_10m": "3–10 min", gt10m: "over 10 min" }[pbStage(b)] || b}`;
+      if (a === "plan_build_run") return `${pbJob(b)} run: ${{ started: "started", finished: "finished", needs_help: "needed help", resumed: "resumed", cancelled: "cancelled", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit", abandoned: "abandoned", read_again: "a room read again" }[pbStage(b)] || b}`;
+      if (a === "plan_build_run_secs") return `${pbJob(b)} run took ${{ lt1m: "under 1 min", "1_3m": "1–3 min", "3_10m": "3–10 min", gt10m: "over 10 min" }[pbStage(b)] || b}`;
       if (a === "plan_build_plans") return `Plan line-up (experimental) over ${{ "1": "1 plan", "2_3": "2–3 plans", "4_6": "4–6 plans", gt6: "over 6 plans" }[b] || b}`;
-      if (a === "plan_build_credit_run") return `Plan line-up (experimental) run cost (estimate) ${{ lt0_10: "under $0.10", "0_10_0_50": "$0.10–0.50", "0_50_2": "$0.50–2", gt2: "over $2" }[pbStage(b)] || b}`;
-      if (a === "plan_build_read") return `Plan line-up (experimental) read: ${{ plan: "a whole plan", dimension: "one dimension line", retry: "a retry", reused: "a whole plan reused (no read)" }[pbStage(b)] || b}`;
-      if (a === "plan_build_read_fail") return `Plan line-up (experimental) read failed: ${{ timeout: "no answer in time", refusal: "the AI declined", bad_answer: "nothing usable", unreachable: "couldn't be reached", no_credit: "out of credit", no_media: "media folder", suspect_frame: "positions off the drawing", backup_used: "backup used (a bug)" }[pbStage(b)] || b}`;
+      if (a === "plan_build_credit_run") return `${pbJob(b)} run cost (estimate) ${{ lt0_10: "under $0.10", "0_10_0_50": "$0.10–0.50", "0_50_2": "$0.50–2", gt2: "over $2" }[pbStage(b)] || b}`;
+      if (a === "plan_build_read") return `${pbJob(b)} read: ${{ plan: "a whole plan", dimension: "one dimension line", retry: "a retry", reused: "a whole plan reused (no read)" }[pbStage(b)] || b}`;
+      if (a === "plan_build_read_fail") return `${pbJob(b)} read failed: ${{ timeout: "no answer in time", refusal: "the AI declined", bad_answer: "nothing usable", unreachable: "couldn't be reached", no_credit: "out of credit", no_media: "media folder", suspect_frame: "positions off the drawing", backup_used: "backup used (a bug)" }[pbStage(b)] || b}`;
       if (a === "plan_build_read_secs") return `Plan line-up (experimental) read took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b}`;
       if (a === "plan_build_anchor") return `Plan line-up (experimental) floor's anchor: ${{ gauge: "the measured plan", evidence: "a plan agreeing with its own dimensions", none: "none" }[b] || b}`;
       if (a === "plan_build_dims") return `Plan line-up (experimental) printed dimensions on an axis: ${{ agree: "two or more agree", disagree: "disagree", single: "one reading", none: "none", parse_mismatch: "PadSpan and Claude read it differently" }[b] || b}`;

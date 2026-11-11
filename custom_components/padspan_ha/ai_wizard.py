@@ -544,6 +544,7 @@ async def ws_ai_wizard_info(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("step"): vol.In(WIZARD_STEPS),
     vol.Optional("map_id"): vol.All(str, vol.Length(max=64)),
     vol.Optional("floor_id"): vol.All(str, vol.Length(max=64)),
+    vol.Optional("scale_session"): vol.All(str, vol.Length(max=64)),
     vol.Optional("rooms_session"): vol.All(str, vol.Length(max=64)),
 })
 @websocket_api.require_admin
@@ -566,7 +567,7 @@ async def ws_ai_wizard_mark(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"wizard": clean_wizard((st.data if st else {}).get("ai_map_wizard") or {})})
         return
     w = await async_mark(hass, what, step=msg.get("step"),
-                         **{k: msg[k] for k in ("map_id", "floor_id", "rooms_session") if k in msg})
+                         **{k: msg[k] for k in ("map_id", "floor_id", "scale_session", "rooms_session") if k in msg})
     connection.send_result(msg["id"], {"wizard": w})
 
 

@@ -781,7 +781,7 @@ AI_USAGE_EVENTS: frozenset[str] = frozenset(
 # title, a room, a floor, an AI Task, a map id, a coordinate, a size, a credit
 # amount or a price. The stall watch (section 14): every stop by its one named
 # reason (plan_ai.STOPS), the stress signals and how long a person waited.
-PLAN_BUILD_STAGE: tuple[str, ...] = ("s1", "s2")
+PLAN_BUILD_STAGE: tuple[str, ...] = ("s0", "s1", "s2")      # s0: the rooms helper's scale read (design ai-wizard J.4)
 PLAN_BUILD_SETTING: tuple[str, ...] = ("shown", "on", "off")
 PLAN_BUILD_UNLOCK: tuple[str, ...] = ("opus", "fable", "other", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree", "no_ai_task")
 PLAN_BUILD_RUN: tuple[str, ...] = ("started", "finished", "needs_help", "resumed", "cancelled", "failed", "out_of_time", "no_credit", "abandoned",
@@ -835,7 +835,7 @@ PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
     | {f"plan_build_run_secs:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_RUN_SECS}
     | {f"plan_build_plans:{k}" for k in PLAN_BUILD_PLAN_BANDS}
     | {f"plan_build_credit_run:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_CREDIT}
-    | {f"plan_build_read:s1_{k}" for k in PLAN_BUILD_READ} | {f"plan_build_read:s2_{k}" for k in PLAN_BUILD_READ_S2}
+    | {f"plan_build_read:{s}_{k}" for s in ("s0", "s1") for k in PLAN_BUILD_READ} | {f"plan_build_read:s2_{k}" for k in PLAN_BUILD_READ_S2}
     | {f"plan_build_read_fail:{s}_{k}" for s in PLAN_BUILD_STAGE for k in PLAN_BUILD_READ_FAIL}
     | {f"plan_build_read_secs:{k}" for k in PHOTO_SECS}
     | {f"plan_build_anchor:{k}" for k in PLAN_BUILD_ANCHOR} | {f"plan_build_dims:{k}" for k in PLAN_BUILD_DIMS}
@@ -862,7 +862,7 @@ PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
 PLANS_TOOL_TABS: tuple[str, ...] = ("add", "lineup", "rooms")
 PLANS_TOOL_STOPS_UI: tuple[str, ...] = ("s2_not_placed", "s1_no_plans", "no_tabs_locked", "no_tabs_off")
 PLANS_TOOL_EVENTS: frozenset[str] = frozenset(
-    {"plans_tool:opened"} | {f"plans_tab:{k}" for k in PLANS_TOOL_TABS} | {f"plans_floor:{s}" for s in PLAN_BUILD_STAGE}
+    {"plans_tool:opened"} | {f"plans_tab:{k}" for k in PLANS_TOOL_TABS} | {f"plans_floor:{s}" for s in ("s1", "s2")}
     | {f"plan_build_stop_ui:{k}" for k in PLANS_TOOL_STOPS_UI})
 # Let Claude draw your rooms (ai_wizard.py, views/ai_wizard.js; design
 # ai-wizard J.2, J.3, J.5): where it was offered and opened, each step
@@ -883,11 +883,17 @@ AI_WIZARD_AI: tuple[str, ...] = ("no_ai_task", "not_anthropic", "below_opus_5_5"
 AI_WIZARD_LINKS: tuple[str, ...] = ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")
 ROOMS_BANDS: tuple[str, ...] = ("0", "1", "2_3", "4_6", "7_12", "gt12")
 NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed", "picked_area")
-# The plan's scale (piece 3, design J.4's guided subset): the path its scale took
-# (one guided measurement, or set already), how each save ended (the data-safety
+# The plan's scale (pieces 3 and 4, design J.4): the path its scale took (a
+# printed dimension Claude read, one only Claude's ends confirm, none found,
+# one guided measurement, or set already), how each save ended (the data-safety
 # stops are plan_ai_write.SCALE_STOPS), how its undo ended, and a later hand
-# Measure of a plan the helper scaled, by how far it moved the scale.
-SCALE_PATHS: tuple[str, ...] = ("guided", "already_set")
+# Measure of a plan the helper scaled, by how far it moved the scale. Of
+# Claude's reading: what the person did (yes, a number corrected, measured
+# themselves instead), how far a corrected number was from Claude's, how many
+# directions were read and how far across and down disagreed (PLAN_BUILD_PCT).
+SCALE_PATHS: tuple[str, ...] = ("printed", "unconfirmed_shown", "none_found", "guided", "already_set")
+SCALE_CHECK: tuple[str, ...] = ("yes", "corrected", "guided_instead")
+SCALE_AXES: tuple[str, ...] = ("two", "one", "none")
 SCALE_SAVE: tuple[str, ...] = ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown")
 SCALE_UNDO: tuple[str, ...] = ("done", "changed_since", "failed")
 AI_WIZARD_EVENTS: frozenset[str] = frozenset(
@@ -898,7 +904,9 @@ AI_WIZARD_EVENTS: frozenset[str] = frozenset(
     | {f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in ROOMS_BANDS}
     | {f"plan_build_name:{k}" for k in NAME_SOURCES} | {f"plan_build_unmatched_areas:{b}" for b in ROOMS_BANDS}
     | {f"plan_build_scale:{k}" for k in SCALE_PATHS} | {f"plan_build_scale_save:{k}" for k in SCALE_SAVE}
-    | {f"plan_build_scale_undo:{k}" for k in SCALE_UNDO} | {f"plan_build_scale_remeasured:{k}" for k in PLAN_BUILD_PCT})
+    | {f"plan_build_scale_undo:{k}" for k in SCALE_UNDO} | {f"plan_build_scale_remeasured:{k}" for k in PLAN_BUILD_PCT}
+    | {f"plan_build_scale_check:{k}" for k in SCALE_CHECK} | {f"plan_build_scale_axes:{k}" for k in SCALE_AXES}
+    | {f"plan_build_scale_{w}:{k}" for w in ("fix", "stretch") for k in PLAN_BUILD_PCT})
 
 
 def rooms_band(n: int) -> str:

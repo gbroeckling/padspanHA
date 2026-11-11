@@ -543,8 +543,12 @@ _WIZARD_FUNNEL = (
     + tuple(f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in _WIZ_BANDS)
     + tuple(f"plan_build_name:{k}" for k in ("area_exact", "area_abbrev", "printed", "typed", "picked_area"))
     + tuple(f"plan_build_unmatched_areas:{b}" for b in _WIZ_BANDS)
-    # Piece 3: the plan's scale by one guided measurement (design J.4's guided subset).
-    + tuple(f"plan_build_scale:{k}" for k in ("guided", "already_set"))
+    # Pieces 3 and 4: the plan's scale, read off the plan by Claude or by one guided measurement (design J.4).
+    + tuple(f"plan_build_scale:{k}" for k in ("printed", "unconfirmed_shown", "none_found", "guided", "already_set"))
+    + tuple(f"plan_build_scale_check:{k}" for k in ("yes", "corrected", "guided_instead"))
+    + tuple(f"plan_build_scale_fix:{k}" for k in ("lt1", "1_3", "3_10", "gt10"))
+    + tuple(f"plan_build_scale_axes:{k}" for k in ("two", "one", "none"))
+    + tuple(f"plan_build_scale_stretch:{k}" for k in ("lt1", "1_3", "3_10", "gt10"))
     + tuple(f"plan_build_scale_save:{k}" for k in ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown"))
     + tuple(f"plan_build_scale_undo:{k}" for k in ("done", "changed_since", "failed"))
     + tuple(f"plan_build_scale_remeasured:{k}" for k in ("lt1", "1_3", "3_10", "gt10")))

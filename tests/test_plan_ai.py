@@ -207,7 +207,7 @@ def test_every_command_refuses_while_the_switch_live_aboard_or_pro_is_off(monkey
 def test_every_command_is_an_administrators_registered_and_a_read_in_sample_mode():
     src = (_ROOT / "ws_plan_ai.py").read_text(encoding="utf-8")
     names = re.findall(r"async def (ws_plan_(?:ai|build)_[a-z_]+)\(", src)
-    assert len(names) == 31 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}       # 10 plan AI, 10 line-up, 8 rooms (Build from plans), 3 the helper's scale
+    assert len(names) == 33 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}       # 10 plan AI, 10 line-up, 8 rooms (Build from plans), 5 the helper's scale
     for name in names:
         head = src.split(f"async def {name}(", 1)[0].rsplit("@websocket_api.websocket_command", 1)[1]
         assert "@websocket_api.require_admin" in head, name
