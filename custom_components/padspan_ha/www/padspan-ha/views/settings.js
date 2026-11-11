@@ -4615,12 +4615,13 @@ function _planBuildRow(ctx, el, save, settings){
     const rundo = info && info.master && info.rooms_undo ? info.rooms_undo : null;   // Rooms from plans' too (Stage 2)
     // AI map-building research on and Claude not usable: why the row isn't here, in the rooms helper's words (one copy:
     // ai_wizard_offer.js), and the guide. Nothing while the research switch is off.
-    const why = info && info.master && info.unlock && !info.unlock.ok && AIWO ? AIWO.claudeWhyWords(AIWO.claudeState(info)) : "";
+    const cs = info && info.master && info.unlock && !info.unlock.ok && AIWO ? AIWO.claudeState(info) : null;
+    const why = cs ? AIWO.claudeWhyWords(cs) : "";
     box.style.display = ok || undo || rundo || why ? "" : "none";
     if (!ok) {
       if (why) {
         const line = el("div",{"data-ai-plan-build-why":"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px 0"},
-          `Build from plans (experimental) isn't offered here. ${why} It needs ${AIWO.MODEL_WORDS} through Home Assistant's Anthropic integration. `);
+          `Build from plans (experimental) isn't offered here. ${why} ${cs.why === "available_unchosen" ? "Choose it as your AI Task above." : `It needs ${AIWO.MODEL_WORDS} through Home Assistant's Anthropic integration.`} `);
         if (newTabOk(ctx.state.kioskMode)) line.appendChild(el("a",{href:AIWO.GUIDE_URL, target:"_blank", rel:"noopener", style:"color:#8ee5b4"}, "How to connect Claude ↗"));
         box.appendChild(line);
       }

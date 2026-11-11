@@ -1835,7 +1835,7 @@ STOPS: dict[str, tuple[str, str]] = {
     "no_anchor": ("No plan on this floor matches its own printed sizes, so there's nothing sure to line the others up to.",
                   "Look closely at every item, or measure one plan in Mapping → Edit → Measure."),
     "no_metre_scale": ("Your house has no scale yet: no plan has been measured.", "Measure one plan first in Mapping → Edit → Measure."),
-    "not_placed": ("A plan on this floor has no scale yet.", "Measure it in Mapping → Edit → Measure first."),
+    "not_placed": ("This floor has no plan with a scale yet.", "Measure one in Mapping → Edit → Measure first."),
     "fit_rejected": ("The match and the printed dimensions didn't agree for this plan.", "Tap the same corner on both plans."),
     "cancelled": ("The session was stopped. What was read is kept.", "Resume reads the rest."),
     "abandoned": ("The proposals were left without a verdict.", "Line up the floor again when you're ready."),

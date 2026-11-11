@@ -189,7 +189,7 @@ async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
         want = list(dict.fromkeys(str(m) for m in msg["map_ids"]))
         missing = [m for m in want if m not in by_id]
         if not want or missing:
-            connection.send_error(msg["id"], NOT_PLACED_CODE, "That floor plan isn't placed on its floor yet: place it in Mapping → 3D Stack first.")
+            connection.send_error(msg["id"], NOT_PLACED_CODE, "That floor plan has no scale yet: measure it in Mapping → Edit → Measure first.")
             return
         fixtures = {m: msg["fixtures"].get(m, "unsure") for m in want} if "light" in kinds else {}
         for answer in fixtures.values():

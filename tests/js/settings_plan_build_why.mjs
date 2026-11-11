@@ -83,7 +83,7 @@ for (const [why, display, words] of [
   check("one copy: the helper takes the guide and Claude's case from the same module",
     OFFER.GUIDE_URL === "https://padspan.traks.ca/guides/claude-ai-task/" && typeof OFFER.claudeState === "function", OFFER.GUIDE_URL);
   const r = await render({ ai_plans_enabled: true }, INFO({ why: "not_anthropic" }, [{ entity_id: "ai_task.claude", ok: true, chosen: false, display: "Claude Opus 5.5" }]));
-  check("why: a ready Claude not chosen is said", r.why && text(r.why).includes("Home Assistant has Claude Opus 5.5 ready, but it isn't PadSpan's AI Task yet."), r.why ? text(r.why) : null);
+  check("why: a ready Claude not chosen is said", r.why && text(r.why).includes("Home Assistant has Claude Opus 5.5 ready, but it isn't PadSpan's AI Task yet. Choose it as your AI Task above.") && !text(r.why).includes("It needs"), r.why ? text(r.why) : null);
 }
 {
   const r = await render({ ai_plans_enabled: true }, INFO({ why: "below_opus_5_5", display: "Claude Sonnet 4.5" }), true);

@@ -435,7 +435,7 @@ function _openMeasure(ctx, mapId){
   const ms = ctx.state.maps || (ctx.state.maps = {});
   if (ctx.state.complexity !== "basic") {
     if (ms._draftMapId === mapId) { ms._mode = "measure"; ms._measurePts = []; ms._drawing = null; ms._selectedRxId = null; }
-    else ms._openMode = "measure";
+    else { ms._openMode = "measure"; ms._measurePts = []; ms._measurements = []; }
   }
   _openForEdit(ctx, mapId);
 }
@@ -1864,6 +1864,7 @@ function _edit(ctx, map, allMaps, opts){
   if(_focused) card.setAttribute("data-focus-part", _tools ? _tools.join(" ") : "edit");
 
   if(!map){
+    ctx.state.maps._openMode = null;   // the plan asked for is gone: its one-shot tool is not kept for the next one opened
     card.appendChild(el("div",{class:"muted"},"No map selected. Go to Library or Upload tab."));
     return card;
   }

@@ -709,7 +709,7 @@ export function createPlans(ctx){
     sheet.appendChild(d("div", "pl-ban", BANNER));
     errLine();
     const plans = (info && info.plans) || [];
-    if (!plans.length) { sheet.appendChild(d("div", "pl-note", "No placed floor plans to read: add one in Mapping and place it in Mapping → 3D Stack first.")); return; }
+    if (!plans.length) { sheet.appendChild(d("div", "pl-note", "No floor plan with a scale to read yet: add one in Mapping → Upload, then measure it in Mapping → Edit → 📏 Measure.")); return; }
     // 1. Which plans, by floor; two on one floor said so.
     const byFloor = new Map();
     for (const p of plans) { if (outdoor(p.floor_id)) continue; if (!byFloor.has(p.floor_id)) byFloor.set(p.floor_id, []); byFloor.get(p.floor_id).push(p); }

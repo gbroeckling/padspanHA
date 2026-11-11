@@ -51,21 +51,21 @@ def test_measure_opens_that_plan_on_the_measure_tool():
     fns = src[src.index("function _openForEdit("):src.index("function _library(")]
     js = fns + r"""
 const mk = (complexity, draft) => { const calls = [];
-  const ctx = { state: { complexity, maps: { _draftMapId: draft, _mode: "rooms", _measurePts: [[1, 2]] } },
+  const ctx = { state: { complexity, maps: { _draftMapId: draft, _mode: "rooms", _measurePts: [[1, 2]], _measurements: [{ m: 3 }] } },
     actions: { mapsSetActive: (id) => calls.push("active:" + id), setMapsTab: (t) => calls.push("tab:" + t), renderRooms: () => calls.push("render") } };
   return { ctx, calls }; };
 const out = {};
 for (const [k, cx, dr] of [["other", "advanced", "p9"], ["same", "advanced", "p1"], ["basic", "basic", "p9"]]) {
   const a = mk(cx, dr); _openMeasure(a.ctx, "p1");
-  out[k] = { calls: a.calls, open: a.ctx.state.maps._openMode || null, mode: a.ctx.state.maps._mode, wiz: a.ctx.state._mapsWizard || null, pts: a.ctx.state.maps._measurePts.length };
+  out[k] = { calls: a.calls, open: a.ctx.state.maps._openMode || null, mode: a.ctx.state.maps._mode, wiz: a.ctx.state._mapsWizard || null, pts: a.ctx.state.maps._measurePts.length, meas: a.ctx.state.maps._measurements.length };
 }
 console.log(JSON.stringify(out));
 """
     r = subprocess.run([_node(), "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert r.returncode == 0, r.stderr[-1500:]
     out = json.loads(r.stdout.strip().splitlines()[-1])
-    assert out["other"] == {"calls": ["active:p1", "tab:edit"], "open": "measure", "mode": "rooms", "wiz": None, "pts": 1}
-    assert out["same"] == {"calls": ["active:p1", "tab:edit"], "open": None, "mode": "measure", "wiz": None, "pts": 0}
+    assert out["other"] == {"calls": ["active:p1", "tab:edit"], "open": "measure", "mode": "rooms", "wiz": None, "pts": 0, "meas": 0}   # another plan's half-made measurement is not carried over
+    assert out["same"] == {"calls": ["active:p1", "tab:edit"], "open": None, "mode": "measure", "wiz": None, "pts": 0, "meas": 1}       # this plan's own earlier length is kept
     assert out["basic"]["wiz"] == {"step": 2, "mapId": "p1"} and out["basic"]["open"] is None and "tab:edit" not in out["basic"]["calls"]
 
 
@@ -111,3 +111,22 @@ def test_the_two_tabs_speak_plain_words():
     for word in ("Mapping → Align", "metre scale", "Refile", "measured plan", "isn't placed"):
         assert word not in said, word
     assert A.STOPS["no_metre_scale"] == ("Your house has no scale yet: no plan has been measured.", "Measure one plan first in Mapping → Edit → Measure.")
+
+
+def test_the_first_tab_and_the_stop_send_nobody_to_3d_stack() -> None:
+    """Add data via plans with nothing measured, and the server's stop for a floor with no measured plan (also used
+    for a floor with no plan at all): measure first, in the same words as the other two tabs."""
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    js = (root / "www" / "padspan-ha" / "views" / "live_aboard_plans.js").read_text(encoding="utf-8")
+    assert "No floor plan with a scale to read yet" in js and "place it in Mapping → 3D Stack first" not in js
+    assert "place it in Mapping → 3D Stack first" not in (root / "ws_plan_ai.py").read_text(encoding="utf-8")
+    from custom_components.padspan_ha import plan_ai
+    assert plan_ai.STOPS["not_placed"] == ("This floor has no plan with a scale yet.", "Measure one in Mapping → Edit → Measure first.")
+
+
+def test_a_plan_gone_leaves_no_tool_armed_and_no_measurement_carried() -> None:
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views"
+    js = (root / "maps.js").read_text(encoding="utf-8")
+    gone = js[js.index("  if(!map){"):js.index("No map selected. Go to Library")]
+    assert "ctx.state.maps._openMode = null;" in gone
+    assert 'else { ms._openMode = "measure"; ms._measurePts = []; ms._measurements = []; }' in js
