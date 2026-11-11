@@ -17,6 +17,8 @@ const { hasMaps, hasScale, hasRooms, hasReceivers, hasCalibration, undrawnAreaNa
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// Let Claude draw your rooms (experimental): one line under the scale and rooms steps, where the rule offers it.
+const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
 
 // setup_checks.SETUP_STEPS, in order (tests/test_guided_setup.py holds them equal).
 export const SETUP_STEPS = ["plan", "scale", "floors", "rooms", "receivers", "calibration"];
@@ -308,13 +310,18 @@ export function render(ctx) {
       "aria-hidden": "true",
       style: `flex:none;width:24px;height:24px;border-radius:12px;border:2px solid ${c.ring};background:${c.fill};color:${c.text};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700`,
     }, s.done ? "✓" : String(s.n)));
-    row.appendChild(el("div", { style: "flex:1 1 200px;min-width:0" }, [
+    const info = el("div", { style: "flex:1 1 200px;min-width:0" }, [
       el("div", { style: `font-size:13px;font-weight:${cur ? 700 : 600};color:${c.text}` }, [
         `${s.n}. ${s.label}`,
         el("span", { style: `margin-left:8px;font-size:10px;font-weight:600;color:${s.done ? "#52b788" : cur ? "#5eead4" : "#64748b"}` }, _WORD[s.status]),
       ]),
       el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.4;margin-top:2px" }, _detail(st, s.id, s.unknown ? null : s.done)),
-    ]));
+    ]);
+    if (cur && (s.id === "scale" || s.id === "rooms") && AIW && !_demo(st)) {
+      const line = AIW.offerLine(ctx, "setup");
+      if (line) info.appendChild(line);
+    }
+    row.appendChild(info);
     const btns = el("div", { style: "display:flex;gap:6px;flex:none;margin-left:auto" });
     // Every step after it draws on a plan: no Skip for the plan (as the wizard's Upload).
     if (cur && !s.done && s.id !== "plan") {

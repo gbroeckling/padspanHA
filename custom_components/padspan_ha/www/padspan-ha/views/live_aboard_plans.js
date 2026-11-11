@@ -284,6 +284,23 @@ export function tally(states){
   }
   return t;
 }
+/** Rooms from plans' outlines as one flat list ({id, kind, pts, name}):
+ *  his room as it is ("his"), the room as read ("ready" where the reads
+ *  agree, "look" where they don't, "dim" with read 1 and 2 beside it while
+ *  `both` is that room), and each space not joined into another. The Plans
+ *  tool's map and the rooms helper's picture (views/ai_wizard.js) draw the
+ *  same list. Pure. */
+export function roomShapes(prop, opts = {}) {
+  const p = prop || {}, out = [], both = opts.both;
+  for (const r of Object.values(p.rooms || {})) {
+    out.push({ id: r.id, kind: "his", pts: r.now_m });
+    out.push({ id: r.id, kind: both === r.room ? "dim" : (r.ready ? "ready" : "look"), pts: r.outline_m, name: r.room });
+    if (both === r.room) (r.reads_m || []).forEach((q, i) => { if (q) out.push({ id: r.id, kind: i ? "r2" : "r1", pts: q }); });
+  }
+  for (const s of Object.values(p.spaces || {})) if (!s.merged_into) out.push({ id: s.id, kind: "space", pts: s.outline_m, name: s.new || s.name });
+  return out;
+}
+
 export const inPolygon = (x, y, pts) => {
   let c = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -2770,16 +2787,7 @@ export function createPlans(ctx){
   });
 
   // -- the flat floor map: his outlines, the proposal, the selection ---------
-  function rbShapes(){
-    const p = rbProp() || {}, out = [];
-    for (const r of Object.values(p.rooms || {})) {
-      out.push({ id: r.id, kind: "his", pts: r.now_m });
-      out.push({ id: r.id, kind: rbBoth === r.room ? "dim" : (r.ready ? "ready" : "look"), pts: r.outline_m, name: r.room });
-      if (rbBoth === r.room) (r.reads_m || []).forEach((q, i) => { if (q) out.push({ id: r.id, kind: i ? "r2" : "r1", pts: q }); });
-    }
-    for (const s of Object.values(p.spaces || {})) if (rbSpaceShown(s)) out.push({ id: s.id, kind: "space", pts: s.outline_m, name: s.new || s.name });
-    return out;
-  }
+  function rbShapes(){ return roomShapes(rbProp(), { both: rbBoth }); }
   function rbHit(x, y){
     const hits = rbShapes().filter(s => (s.kind === "ready" || s.kind === "look" || s.kind === "space" || s.kind === "dim") && rbInside(x, y, s.pts));
     hits.sort((a, b) => rbArea(a.pts) - rbArea(b.pts));

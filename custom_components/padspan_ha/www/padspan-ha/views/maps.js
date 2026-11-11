@@ -61,6 +61,8 @@ const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search
   .catch(err => { console.warn("PadSpan: vacuum_import failed to load", err); return null; });
 // The 90-day trial card, shared by every paid wall (trial_offer.js).
 // Optional: a card that fails to load must not blank the Mapping tab.
+// Let Claude draw your rooms (experimental): one line in the wizard's scale and rooms steps, where the rule offers it.
+const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
 
@@ -1498,6 +1500,8 @@ function _wizardScale(ctx, map, maps, w){
     "Rooms can be drawn without this, but wall attenuation and any real-world measurement need it, so it's worth doing now while you're here."));
   if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     "✓ Scale is set for this house."));
+  const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
+  if (aiw) wrap.appendChild(aiw);
   wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "measure")));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later" }));
   return wrap;
@@ -1512,6 +1516,8 @@ function _wizardRooms(ctx, map, maps, w){
   const drawnCount = areaNames.length - undrawn.length;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
     "Trace the outline of each room from your Home Assistant areas onto the floor plan. Pick a room from the dropdown below the map, click around its outline, then Save Layout."));
+  const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
+  if (aiw) wrap.appendChild(aiw);
   if (areaNames.length) {
     const check = el("div",{style:"margin-bottom:10px;padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px"});
     check.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788;margin-bottom:6px"},

@@ -119,6 +119,12 @@ let PRO_INVITE = null;
 import(`./views/pro_invite.js?b=${BUILD_ID}`)
   .then(m => { PRO_INVITE = m; })
   .catch(err => console.warn("PadSpan: pro_invite module failed to load", err));
+// Where "Let Claude draw your rooms" is offered (views/ai_wizard_offer.js):
+// a Getting started row and an Overview card. Optional like the trial.
+let AIW = null;
+import(`./views/ai_wizard_offer.js?b=${BUILD_ID}`)
+  .then(m => { AIW = m; })
+  .catch(err => console.warn("PadSpan: ai_wizard_offer module failed to load", err));
 // Basic's focused views (views/focus.js): a link from Basic opens just the
 // part it is about. Settings and Mapping load it too; the panel's own links
 // (an Overview tip, the tester card) wait for it.
@@ -210,6 +216,9 @@ const _VIEW_PATHS = {
   // The guided Setup (plan → … → calibration): reached from the Overview's
   // Getting started and from Mapping, never a menu tab.
   setup:        "./views/setup.js",
+  // Let Claude draw your rooms (experimental): opened from its offers
+  // (views/ai_wizard_offer.js), never a menu tab.
+  ai_wizard:    "./views/ai_wizard.js",
 };
 
 // Views reachable by internal navigation but never listed in MENU. Being
@@ -221,6 +230,7 @@ const _VIEW_PATHS = {
 // in Basic mode. (Since More tools, 2026-10-30, every mode lists qa and
 // devices; they stay here harmlessly.)
 const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics", "qa", "devices", "setup"]);
+_VIEW_PATHS_HIDDEN_OK.add("ai_wizard");   // Let Claude draw your rooms: reached from its offers only
 
 // Track in-flight imports to avoid duplicate fetches
 const _viewLoading = {};
@@ -361,7 +371,7 @@ const MENU = [
 ];
 
 // Screens reached by a link, never listed in MENU: what the phone's top bar calls them.
-const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics" };
+const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics", ai_wizard: "Draw rooms with Claude" };
 
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
 // Modes no longer hide screens (2026-10-30): every screen is in the menu in
@@ -1413,6 +1423,17 @@ class PadSpanHaApp extends HTMLElement {
   // For that reason it is shown only to an administrator — the one person who
   // can start the trial — and never on a kiosk or in sample mode. Never
   // beside the Getting started card or another Overview card (the caller).
+  // Let Claude draw your rooms (views/ai_wizard_offer.js): the Overview's own
+  // card when Getting started isn't showing, one card at a time.
+  _aiWizardOverviewCard(){
+    if (!AIW || this.state.kioskMode) return null;
+    if (!this._aiwCardVisible && this._overviewCardShown) return null;   // another card has this page load
+    let card = null;
+    try { card = AIW.overviewCard(this._ctx()); } catch(e) { card = null; }
+    if (card) { this._aiwCardVisible = true; this._overviewCardShown = true; }
+    return card;
+  }
+
   _trialMilestoneCard(positioned){
     const st = this.state.settings;
     if (!TRIAL || !st || this.state.kioskMode) return null;
@@ -5220,6 +5241,10 @@ class PadSpanHaApp extends HTMLElement {
             else this._scheduleRender();
           });
           list.appendChild(row);
+          // Under Draw Rooms: Claude can draw them from the plan (experimental), where the rule offers it.
+          if (s.id === "rooms" && !s.done && AIW) {
+            try { const _aiw = AIW.gettingStartedRow(this._ctx()); if (_aiw) list.appendChild(_aiw); } catch(e) { /* no offer */ }
+          }
         }
         // Last line: the 90-day trial (views/trial_offer.js) — an offer, not a
         // step, so it is not counted above. Only while there is no key; the
@@ -5266,7 +5291,7 @@ class PadSpanHaApp extends HTMLElement {
             // A Pro invite first, then the one-time tester card, then the
             // trial's: whichever is first to be due, one at a time.
             const _ms = this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
-              || this._trialMilestoneCard(_hasPositioned);
+              || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned);
             if (_ms) frag.appendChild(_ms);
             // Last in line: the accuracy tips, only when no other card is up.
             else { const _tips = this._accuracyTipsCard(); if (_tips) frag.appendChild(_tips); }

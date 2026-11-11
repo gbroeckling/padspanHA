@@ -201,8 +201,9 @@ function _receivers(ctx) {
   _go(ctx, "bluetooth");
 }
 
-/** A link into Home Assistant's own pages (Areas). */
-function _haLink(el, path, label) {
+/** A link into Home Assistant's own pages (Areas), in the same window;
+ *  the rooms helper (views/ai_wizard.js) uses it too. */
+export function _haLink(el, path, label) {
   const a = el("a", { href: path, target: "_top", style: "color:#52b788;font-size:12px;text-decoration:underline;cursor:pointer" }, label);
   a.addEventListener("click", (e) => {
     try {
