@@ -361,6 +361,41 @@ def test_parse_length(text, m):
     assert (got is None) if m is None else (got is not None and abs(got - m) < 5e-4), (text, got)
 
 
+# Read wrongly or not at all before (the real-Claude test, 2026-11-11), each with its unit word.
+@pytest.mark.parametrize("text,expect,m,unit", [
+    # printed fraction characters
+    ("30'-5⅜\"", None, 30 * 0.3048 + 5.375 * 0.0254, None), ("5½\"", None, 5.5 * 0.0254, None), ("½\"", None, 0.0127, None),
+    ("15'-6⅜\"", None, 15 * 0.3048 + 6.375 * 0.0254, None), ("1'-9¾\" + 2'-10½\"", None, 0.55245 + 0.8763, None),
+    # a decimal comma
+    ("12,48", None, 12.48, "metres"), ("12,48 m", None, 12.48, None), ("4,35 m", None, 4.35, None), ("4,5 cm", None, 0.045, None),
+    # a comma then three digits: thousands as before with no unit or mm; a decimal comma with m, or where thousands can't be a building
+    ("1,200 mm", None, 1.2, None), ("2,400", None, 2.4, "millimetres"), ("1,200,000", None, 1200.0, "millimetres"),
+    ("1,250 m", None, 1.25, None), ("600,000 mm", None, 0.6, None), ("1,250 cm", None, 12.5, None),
+    # chains separated by |
+    ("5 1/2\" | 5'-5 3/4\"", None, 5.5 * 0.0254 + 5 * 0.3048 + 5.75 * 0.0254, None), ("3 m | 2.5 m | 2.5 m", None, 8.0, None),
+    # feet and inches with a dash and no marks: only with the length expected, and only when it agrees
+    ("66-7", None, None, None), ("66-7", 20.2946, 66 * 0.3048 + 7 * 0.0254, "feet and inches"), ("66-7", 5.0, None, None),
+    ("66-7 1/2", 20.31, 66 * 0.3048 + 7.5 * 0.0254, "feet and inches"),
+    # a bare whole number in centimetres: only with the length expected; otherwise millimetres, said
+    ("435", None, 0.435, "millimetres"), ("435", 4.35, 4.35, "centimetres"), ("435", 0.435, 0.435, "millimetres"),
+    ("1665 + 3395", 50.6, 50.6, "centimetres"), ("1665 + 3395", 5.06, 5.06, "millimetres"),
+])
+def test_length_read_takes_what_was_thrown_away(text, expect, m, unit):
+    got, said = G.length_read(text, expect)
+    assert ((got is None) if m is None else (got is not None and abs(got - m) < 5e-4)) and (m is None or said == unit), (text, got, said)
+
+
+@pytest.mark.parametrize("text,m", [
+    ("30'-5 1/2\"", 9.2837), ("9'-1\"", 2.7686), ("12'-0\"", 3.6576), ("9284", 9.284), ("9.284 m", 9.284), ("2 400", 2.4), ("928 cm", 9.28),
+    ("3 m + 2.5 m + 2.5 m", 8.0), ("12", 12.0), ("450", 0.45)])
+def test_a_length_already_read_reads_the_same_with_the_length_expected(text, m):
+    """What was read before is read the same with Claude's metres agreeing (the other reading is taken only when the usual one disagrees)."""
+    for expect in (None, m, m * 1.015, m * 0.985):
+        assert G.length_read(text, expect) == G.length_read(text), (text, expect)
+    assert G.chain_length(["3 m", "2.5 m", "2.5 m"]) == 8.0 and G.chain_length(["66-7"]) is None and G.chain_length([]) is None
+    assert abs(G.chain_length(["66-7", "1-5"], 20.73) - (67 * 0.3048 + 12 * 0.0254)) < 5e-4
+
+
 def test_the_ticks_of_a_chain_give_the_true_span(tmp_path):
     p = tmp_path / "a.png"
     _draw(p)

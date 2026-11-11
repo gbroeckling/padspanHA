@@ -2022,15 +2022,20 @@ def _bump_once(hass: HomeAssistant, event: str) -> None:
 def note_stop(hass: HomeAssistant, data: dict[str, Any], sess: dict[str, Any] | None, reason: str, map_id: str | None = None) -> dict[str, Any]:
     """One stop: kept on the session (with its plan), counted for the month in
     this store and in the opt-in report; the same reason twice in a session is
-    a stress signal. The record, as the screen says it."""
+    a stress signal. The record, as the screen says it. A scale read's
+    (stage s0) is kept on its session only: those counts carry no stage word
+    and are the line-up's (its run's end is in plan_build_run:s0_*)."""
     reason = reason if reason in STOPS else "cancelled"
     rec = {"reason": reason, "at": time.time(), **({"map_id": map_id} if map_id else {})}
+    counted = not (sess is not None and sess.get("stage") == "s0")
     if sess is not None:
         stops = sess.setdefault("stops", [])
-        if sum(1 for s in stops if s.get("reason") == reason) == 1:
+        if counted and sum(1 for s in stops if s.get("reason") == reason) == 1:
             _bump(hass, "plan_build_stress:repeat")
         stops.append(rec)
         del stops[:-50]
+    if not counted:
+        return rec
     stall = data.setdefault("stall", {})
     month = stall.setdefault(_month(), {})
     month[reason] = int(month.get(reason) or 0) + 1
@@ -2380,6 +2385,10 @@ class LocalSteps:
     answer is about; the other plans keep their items, unfitted again, while
     the anchor stays the one they were fitted to (design 3.5)."""
 
+    # The rooms helper's scale read only (SCALE_PARSE_NEAR): a printed length PadSpan reads past
+    # S1_PARSE_AGREE from Claude's metres but within this is kept, never as confirmed. 0: dropped (the line-up).
+    near_ok = 0.0
+
     def __init__(self, sess: dict, snap: dict, grey: Callable[[str], Any], bump: Callable[[str], None],
                  cancel: Callable[[], bool] = lambda: False, only: set[str] | None = None) -> None:
         self.sess, self.snap, self.grey, self.bump, self.cancel, self.only = sess, snap, grey, bump, cancel, only
@@ -2409,12 +2418,16 @@ class LocalSteps:
                 continue
             d["done"] = True
             segs: list[Any] = []
+            near = False
             if d.get("source") == "person":
                 m = float(d["metres"])
             else:
                 claude = float(d["metres"])
-                parsed, chain_sum = G.parse_length(d.get("text")), G.chain_length(d.get("chain"))
+                parsed, chain_sum = G.parse_length(d.get("text"), claude), G.chain_length(d.get("chain"), claude)
                 m = parsed if G.agrees(parsed, claude, S1_PARSE_AGREE) else chain_sum if G.agrees(chain_sum, claude, S1_PARSE_AGREE) else None
+                if m is None and self.near_ok:           # the scale read: PadSpan's reading kept, shown as not confirmed
+                    m = parsed if G.agrees(parsed, claude, self.near_ok) else chain_sum if G.agrees(chain_sum, claude, self.near_ok) else None
+                    near = m is not None
                 if m is None:
                     d.update(ok=False, why="parse_mismatch", parse_m=parsed if parsed is not None else chain_sum)
                     self.bump("plan_build_dims:parse_mismatch")
@@ -2425,6 +2438,8 @@ class LocalSteps:
                 elif "+" in str(d.get("text") or ""):
                     segs = str(d["text"]).split("+")
             d["parse_m"] = round(m, 5)
+            if near:
+                d["near"] = True
             seg_m = [G.parse_length(c) for c in segs]
             # A chain of three or more: two segments have one inner tick, matched by chance too easily (Garry's main floor, 2026-11-09).
             todo.append((d, m, seg_m if len(seg_m) >= 3 and all(v is not None for v in seg_m) else []))
@@ -2451,7 +2466,7 @@ class LocalSteps:
                 d.update(ok=False, why="no_ticks")
                 continue
             ppm = round(ticks.span / m, 4)
-            if not seg_m and expect is None and d.get("source") != "person":
+            if d.get("near") or (not seg_m and expect is None and d.get("source") != "person"):
                 d.update(ok=False, why="unconfirmed", ppm_guess=ppm, ticks_px=ticks.ends_px)
                 continue
             d.update(ok=True, why=None, ticks_px=ticks.ends_px, span_px=ticks.span, ppm=ppm, chain_hits=ticks.matched)
@@ -2826,8 +2841,8 @@ def new_lineup(u: dict, snap: dict, floor_id: str, map_ids: list[str], earlier: 
                        "dims": _fresh_dims(prior.get("dims")) if prior and prior.get("dims_read") else [],
                        "dims_read": bool(prior and prior.get("dims_read")), "tilt_rad": prior.get("tilt_rad") if prior else None,
                        "ppm": {}, "health": {}})
-        if prior and not prior.get("dims_read") and prior.get("read_a"):
-            plans_[-1]["dims"] = _dims_to_read(prior["read_a"])
+        if prior and not prior.get("dims_read") and prior.get("read_a") and not prior["read_a"].get("suspect"):
+            plans_[-1]["dims"] = _dims_to_read(prior["read_a"])    # a suspect first look reads no dimension (read_whole's rule)
     return {"rev": 1, "stage": "s1", "floor_id": floor_id, "started_at": time.time(), "finished_at": None, "status": "running", "error": None,
             "ai_task": u.get("ai_task"), "model": {"family": u.get("family"), "version": u.get("version"), "display": u.get("display")},
             "frame": PIXEL_FRAME, "budget_s": S1_BUDGET_S, "spent_s": 0.0, "spent_before": 0.0, "reads": 0, "reused": 0, "timeouts": 0,
@@ -4490,7 +4505,9 @@ def rooms_undo_info(store: PlanAiStore, sid: str | None = None) -> dict[str, Any
 # tick ends and the length text. Sessions in this store's "scales".
 
 MAX_SCALE_SESSIONS = 10      # sessions kept
-SCALE_AXES_AGREE = 0.03      # across and down within this: no stretch said (either way the average is used, as Mapping's Measure does)
+SCALE_AXES_AGREE = 0.03      # across and down within this: no stretch said (either way the average is used, as Mapping's Measure does);
+                             # both read and within it: the reading is double-checked (`checked`), the only one offered with Yes picked
+SCALE_PARSE_NEAR = 0.02      # PadSpan's reading of the text this far from Claude's metres (past S1_PARSE_AGREE): kept, never double-checked
 
 
 def _one_per_axis(dims: Any) -> list[dict]:
@@ -4547,11 +4564,13 @@ def scale_proposal(pl: dict, size: Any) -> dict[str, Any]:
     """Pure. What the scale read found on one plan of `size` (its picture's
     pixels): per axis {text (as printed), save_text, metres, ppm, ends_frac
     (the two tick ends, fractions of the picture), box_frac (the printed line
-    with its text), span_frac, state single | unconfirmed | none}, the axis
+    with its text), span_frac, state single | unconfirmed | none, near: its
+    text read only near Claude's metres (SCALE_PARSE_NEAR)}, the axis
     shown first (main: a confirmed one, then the longer), the other, the
     plan's pixels per metre (the axes' average, as Mapping's Measure does) and
     its size from it, how far the axes differ (stretch_pct, stretched past
-    SCALE_AXES_AGREE), none_found. Each axis's px/m is worked out from its
+    SCALE_AXES_AGREE), none_found, checked (both axes read, not stretched,
+    neither near: the only reading the screen offers with Yes picked). Each axis's px/m is worked out from its
     rounded ends and its save_text, as plan_ai_write.scale_from_measures will."""
     W, H = (int(v or 0) for v in (list(size or []) + [0, 0])[:2])
 
@@ -4561,7 +4580,7 @@ def scale_proposal(pl: dict, size: Any) -> dict[str, Any]:
     axes: dict[str, dict[str, Any]] = {}
     for axis in ("x", "y"):
         rec: dict[str, Any] = {"text": None, "save_text": None, "metres": None, "ppm": None, "ends_frac": None, "box_frac": None,
-                               "span_frac": None, "state": "none"}
+                               "span_frac": None, "state": "none", "near": False}
         d = next((d for d in pl.get("dims") or [] if d.get("axis") == axis and d.get("ticks_px") and d.get("parse_m")
                   and (d.get("ok") or d.get("why") == "unconfirmed")), None)
         if d is not None and W and H:
@@ -4573,11 +4592,12 @@ def scale_proposal(pl: dict, size: Any) -> dict[str, Any]:
                 b = d.get("box") or []
                 rec.update(text=save if printed else str(d.get("text") or save), save_text=save, metres=round(m, 4), ppm=round(px / m, 4), ends_frac=ends,
                            box_frac=[clamp(b[0] / W), clamp(b[1] / H), clamp(b[2] / W), clamp(b[3] / H)] if len(b) == 4 else None,
-                           span_frac=round(px / (W if axis == "x" else H), 3), state="single" if d.get("ok") else "unconfirmed")
+                           span_frac=round(px / (W if axis == "x" else H), 3), state="single" if d.get("ok") else "unconfirmed",
+                           near=bool(d.get("near")))
         axes[axis] = rec
     found = sorted((a for a in ("x", "y") if axes[a]["ppm"]), key=lambda a: (axes[a]["state"] != "unconfirmed", axes[a]["span_frac"]), reverse=True)
     out: dict[str, Any] = {"axes": axes, "main": None, "other": None, "ppm": None, "across_m": None, "down_m": None,
-                           "stretch_pct": None, "stretched": False, "none_found": not found}
+                           "stretch_pct": None, "stretched": False, "none_found": not found, "checked": False}
     if not found:
         return out
     ppm = sum(axes[a]["ppm"] for a in found) / len(found)
@@ -4585,20 +4605,23 @@ def scale_proposal(pl: dict, size: Any) -> dict[str, Any]:
     if len(found) == 2:
         pct = abs(axes["x"]["ppm"] - axes["y"]["ppm"]) / ppm * 100
         out.update(stretch_pct=round(pct, 1), stretched=pct > SCALE_AXES_AGREE * 100)
+        # Double-checked: two readings, one each way, that agree (the real-Claude test of 2026-11-11 saved
+        # +19 to +41 % from one line), neither of them a printed length PadSpan read only near Claude's.
+        out["checked"] = not out["stretched"] and not any(axes[a]["near"] for a in found)
     return out
 
 
 def count_scale_read(hass: HomeAssistant, prop: dict | None) -> None:
-    """What a finished scale read offers (design J.4): a printed dimension (or
-    one only Claude's ends confirm), none, how many axes, how far apart."""
+    """What a finished scale read offers (design J.4): a printed dimension,
+    double-checked (offered with Yes picked) or not (the person measures
+    first), none, how many axes, how far apart."""
     if not prop:
         return
     if prop.get("none_found"):
         _bump(hass, "plan_build_scale:none_found")
         _bump(hass, "plan_build_scale_axes:none")
         return
-    main = prop["axes"][prop["main"]]
-    _bump(hass, f"plan_build_scale:{'unconfirmed_shown' if main['state'] == 'unconfirmed' else 'printed'}")
+    _bump(hass, f"plan_build_scale:{'printed_checked' if prop.get('checked') else 'printed_unchecked'}")
     _bump(hass, f"plan_build_scale_axes:{'two' if prop.get('other') else 'one'}")
     if prop.get("stretch_pct") is not None:
         _bump(hass, f"plan_build_scale_stretch:{_scale_band(float(prop['stretch_pct']))}")
@@ -4630,6 +4653,9 @@ class ScaleRunner(LineupRunner):
     def sess(self) -> dict[str, Any]:
         return self.store.scale_session(self.job.sid) or {}
 
+    def count_secs(self, band: str) -> None:
+        """Not counted: plan_build_read_secs carries no stage word and is the line-up's."""
+
     def plan_guard(self) -> str | None:
         dom = self.hass.data.get(DOMAIN, {})
         maps, model = dom.get(DATA_MAPS), dom.get(DATA_MODEL)
@@ -4648,7 +4674,9 @@ class ScaleRunner(LineupRunner):
         work = copy.deepcopy((self.sess.get("plans") or [None])[0])
         if not work:
             return
-        steps = LocalSteps({}, {}, lambda mid: open_grey(fp), lambda e: _bump(self.hass, e), lambda: bool(self.job.cancel))
+        # Not counted: plan_build_dims:* are the line-up's (no stage word); this read says what it found in plan_build_scale*.
+        steps = LocalSteps({}, {}, lambda mid: open_grey(fp), lambda e: None, lambda: bool(self.job.cancel))
+        steps.near_ok = SCALE_PARSE_NEAR
         await self.hass.async_add_executor_job(measure_axes, steps, work)
         sess = self.store.scale_session(self.job.sid)
         if sess is not None and not self.job.cancel:
@@ -4716,9 +4744,11 @@ def start_scale(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any], s
 
 
 def scale_public(sess: dict[str, Any] | None, sid: str | None) -> dict[str, Any] | None:
-    """A scale read as the helper's screen sees it: where it is, what it found, every stop in words."""
+    """A scale read as the helper's screen sees it: where it is, what it found, every stop in words, and
+    whether Claude's first look didn't match the drawing (suspect: no dimension was read; it may be asked again)."""
     if not sess:
         return None
     return {"id": sid, **{k: sess.get(k) for k in ("status", "error", "map_id", "floor_id", "progress", "proposal", "rev", "started_at",
                                                     "finished_at", "reads")},
+            "suspect": any(bool((p.get("read_a") or {}).get("suspect")) for p in sess.get("plans") or []),
             "stops": [stop_words(r) for r in sess.get("stops") or []]}

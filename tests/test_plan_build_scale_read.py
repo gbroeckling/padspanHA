@@ -116,6 +116,10 @@ _CASES = {
     "tilted": {**_FEET, "deg": 1.0},
     "none": {"size": (1100, 900), "x": None, "y": None, "b": {}, "ppm": (100.0, 100.0)},
 }
+# Claude's metres 1 % off its own text across (the Amoureaux chain of the real-Claude test, 2026-11-11): kept, not confirmed;
+# 3 % off: dropped as before.
+_CASES["near"] = {**_CASES["metric"], "b": {"x": {"text": "10.00 m", "metres": 10.1, "chain": [], "ends": None}, "y": _b("8.00 m")}}
+_CASES["far"] = {**_CASES["metric"], "b": {"x": {"text": "10.00 m", "metres": 10.3, "chain": [], "ends": None}, "y": _b("8.00 m")}}
 
 
 def _house(monkeypatch, tmp_path, disk, case="feet_chain", fail=None):  # noqa: F811
@@ -184,15 +188,16 @@ def test_the_states_main_axis_and_words_of_each_case(monkeypatch, tmp_path, disk
     assert prop["axes"]["x"]["state"] == "single" and prop["axes"]["y"]["state"] == "unconfirmed"
     assert prop["axes"]["x"]["text"] == " + ".join(_FT_X) and prop["axes"]["x"]["metres"] == pytest.approx(9.2837, abs=1e-3)
     assert prop["axes"]["y"]["save_text"] == "24'-0\"" and prop["stretched"] is False and prop["stretch_pct"] < 1
+    assert prop["checked"] is True                                                   # across and down read, and they agree
     c = _counters(h)
-    assert c["plan_build_scale:printed"] == 1 and c["plan_build_scale_stretch:lt1"] == 1 and "plan_build_scale:unconfirmed_shown" not in c
+    assert c["plan_build_scale:printed_checked"] == 1 and c["plan_build_scale_stretch:lt1"] == 1 and "plan_build_scale:printed_unchecked" not in c
 
 
 def test_two_single_lines_are_shown_for_the_person_to_confirm(monkeypatch, tmp_path, disk):  # noqa: F811
     h, conn, *_ = _house(monkeypatch, tmp_path, disk, "metric")
     prop = _read(h, conn)["proposal"]
     assert {prop["axes"][k]["state"] for k in "xy"} == {"unconfirmed"} and prop["main"] == "x"      # the longer one first
-    assert _counters(h)["plan_build_scale:unconfirmed_shown"] == 1
+    assert prop["checked"] is True and _counters(h)["plan_build_scale:printed_checked"] == 1          # each checks the other
 
 
 def test_a_picture_stretched_one_way_is_said_not_refused(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -200,7 +205,9 @@ def test_a_picture_stretched_one_way_is_said_not_refused(monkeypatch, tmp_path, 
     prop = _read(h, conn)["proposal"]
     assert prop["stretched"] is True and prop["stretch_pct"] == pytest.approx(6 / 103 * 100, abs=0.5)
     assert {prop["axes"][k]["state"] for k in "xy"} == {"single"}
-    assert _counters(h)["plan_build_scale_stretch:3_10"] == 1
+    assert prop["checked"] is False                                                  # the two disagree: the person measures first
+    c = _counters(h)
+    assert c["plan_build_scale_stretch:3_10"] == 1 and c["plan_build_scale:printed_unchecked"] == 1 and "plan_build_scale:printed_checked" not in c
 
 
 def test_no_printed_dimension_is_none_found_after_one_read(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -218,6 +225,7 @@ def test_scale_proposal_is_pure_and_takes_no_unread_axis():
     prop = A.scale_proposal(pl, [1000, 800])
     assert pl == was and prop["main"] == "x" and prop["other"] is None and prop["ppm"] == 100.0
     assert prop["across_m"] == 10.0 and prop["down_m"] == 8.0 and prop["axes"]["y"]["state"] == "none" and prop["stretch_pct"] is None
+    assert prop["checked"] is False                                                # one direction only: never double-checked
     assert prop["axes"]["x"]["ends_frac"] == [[0.1, 0.625], [0.9, 0.625]]
     # A text PadSpan can't read as the length (cut short): the chain's segments, else the metres, are what Save sends.
     pl["dims"][0].update(text="3 m + 2.5 m + 2.", chain=["3 m", "2.5 m", "2.5 m"])
@@ -348,3 +356,111 @@ def test_read_a_is_reused_by_the_next_scale_read_and_by_a_later_line_up(monkeypa
         store.data["scales"][f"sc_old{i}"] = {"started_at": i, "status": "done"}
     store.trim()
     assert len(store.data["scales"]) == A.MAX_SCALE_SESSIONS and second["id"] in store.data["scales"]
+
+
+# ═══ the review's findings and the real-Claude test (2026-11-11) ══════════════
+
+def test_double_checked_needs_both_directions_agreeing_and_neither_read_only_near():
+    two = {"dims": [{"axis": "x", "ok": False, "why": "unconfirmed", "ticks_px": [[100, 500], [900, 500]], "parse_m": 8.0, "text": "8 m", "chain": []},
+                    {"axis": "y", "ok": False, "why": "unconfirmed", "ticks_px": [[950, 100], [950, 700]], "parse_m": 6.0, "text": "6 m", "chain": []}]}
+    assert A.scale_proposal(two, [1000, 800])["checked"] is True
+    two["dims"][1]["parse_m"] = 6.25                                               # 4 % apart: stretched, not double-checked
+    assert A.scale_proposal(two, [1000, 800])["checked"] is False
+    two["dims"][1].update(parse_m=6.0, near=True)                                  # agreeing, but one text read only near Claude's metres
+    prop = A.scale_proposal(two, [1000, 800])
+    assert prop["checked"] is False and prop["axes"]["y"]["near"] is True and prop["axes"]["x"]["near"] is False
+
+
+def test_a_text_one_percent_from_claudes_metres_is_kept_unconfirmed_and_three_percent_is_dropped(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, *_ = _house(monkeypatch, tmp_path, disk, "near")
+    prop = _read(h, conn)["proposal"]
+    x = prop["axes"]["x"]
+    assert x["state"] == "unconfirmed" and x["near"] is True and x["metres"] == pytest.approx(10.0) and x["ppm"] == pytest.approx(80.0, rel=0.005)
+    assert prop["other"] == "y" and prop["checked"] is False and _counters(h)["plan_build_scale:printed_unchecked"] == 1
+    h, conn, *_ = _house(monkeypatch, tmp_path, disk, "far")
+    prop = _read(h, conn)["proposal"]
+    assert prop["axes"]["x"]["state"] == "none" and prop["main"] == "y" and prop["other"] is None and prop["checked"] is False
+
+
+def test_a_scale_read_bumps_none_of_the_line_ups_stage_less_counts(monkeypatch, tmp_path, disk):  # noqa: F811
+    stageless = ("plan_build_read_secs:", "plan_build_dims:", "plan_build_stop:", "plan_build_stress:")
+    h, conn, *_ = _house(monkeypatch, tmp_path, disk, "far")                        # a parse mismatch too
+    _read(h, conn)
+    assert not [k for k in _counters(h) if k.startswith(stageless)], _counters(h)
+    h, conn, *_ = _house(monkeypatch, tmp_path, disk, fail=RuntimeError("Your credit balance is too low to access the Anthropic API"))
+    sess = _read(h, conn)
+    assert [s["reason"] for s in sess["stops"]] == ["no_credit"]                    # kept on the session, said on the screen
+    assert not [k for k in _counters(h) if k.startswith(stageless)] and not _store(h).data.get("stall"), _counters(h)
+    # A line-up's stop is still counted as before.
+    A.note_stop(h, _store(h).data, {"stage": "s1"}, "no_credit")
+    assert _counters(h)["plan_build_stop:no_credit"] == 1
+
+
+def test_a_suspect_first_look_gives_a_later_line_up_no_dimension_reads():
+    read_a = {"suspect": True, "dims": [{"axis": "x", "text": "10 m", "box": [100, 700, 900, 730]}, {"axis": "y", "text": "8 m", "box": [950, 100, 980, 700]}]}
+    store = SimpleNamespace(data={"scales": {"sc_1": {"started_at": 1, "plans": [{"map_id": "n1", "image_sig": "ss", "read_a": read_a, "dims": [], "dims_read": False}]}}})
+    snap = {"plans": {"n1": {"name": "New plan", "floor_id": "main", "image_sig": "ss", "place_sig": "p", "size": [1250, 1000], "drawn": {}, "refs": 1}}}
+    pl = A.new_lineup({}, snap, "main", ["n1"], A.earlier_reads(store))["plans"][0]
+    assert pl["reused"] is True and pl["dims"] == [] and not pl["dims_read"]       # as a suspect line-up passed it on: nothing to read closely
+    read_a["suspect"] = False
+    assert len(A.new_lineup({}, snap, "main", ["n1"], A.earlier_reads(store))["plans"][0]["dims"]) == 2
+
+
+def test_ask_claude_again_takes_a_fresh_first_look_after_a_suspect_one(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, *_ = _house(monkeypatch, tmp_path, disk)
+    first = _read(h, conn)
+    store = _store(h)
+    store.scale_session(first["id"])["plans"][0]["read_a"]["suspect"] = True        # its first look didn't match the drawing
+    h.data[DOMAIN][A._DATA_STARTS] = []                                             # noqa: SLF001
+    second = _read(h, conn)                                                         # reused: nothing read closely, none found
+    assert second["reads"] == 0 and second["proposal"]["none_found"] is True and second["suspect"] is True
+    h.data[DOMAIN][A._DATA_STARTS] = []                                             # noqa: SLF001
+    r = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", again=True, via="wizard")
+    while h.jobs:
+        _run(h.jobs.pop(0))
+    third = _call(WP.ws_plan_build_scale_status, h, conn, session=r["session"], via="wizard")["session"]
+    assert third["reads"] == 3 and third["suspect"] is False and third["proposal"]["checked"] is True
+
+
+def _save_read(h, conn, sess, **kw):
+    return _call(WP.ws_plan_build_scale_save, h, conn, **{"map_id": "n1", "sig": "ss", "measures": _measures(sess["proposal"]), "source": "plan_dimension",
+                                                          "session": sess["id"], "via": "wizard", **kw})
+
+
+def test_claudes_reading_is_saved_only_for_its_own_plan_and_picture(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    sess = _read(h, conn)
+    # The picture replaced since it was read (the panel sends the new picture's signature): refused, nothing written.
+    ms.get_map("n1")["image"]["sha256"] = "s2"
+    out = _save_read(h, conn, sess, sig="s2")
+    assert out["ok"] is False and out["code"] == "plan_changed" and mdl.map_transform("n1") is None
+    assert _save_read(h, conn, sess, sig="s2", source="plan_dimension_corrected")["code"] == "plan_changed"
+    ms.get_map("n1")["image"]["sha256"] = "ss"
+    # No reading, or another plan's: refused.
+    assert _save_read(h, conn, sess, session=None)["code"] == "plan_changed"
+    assert _save_read(h, conn, sess, session="sc_nothere")["code"] == "plan_changed"
+    _store(h).scale_session(sess["id"])["map_id"] = "m1"
+    assert _save_read(h, conn, sess)["code"] == "plan_changed" and mdl.map_transform("n1") is None
+    assert _counters(h)["plan_build_scale_save:plan_changed"] == 5
+    _store(h).scale_session(sess["id"])["map_id"] = "n1"
+    # A guided save needs no reading, picture replaced or not.
+    ms.get_map("n1")["image"]["sha256"] = "s2"
+    assert _save_read(h, conn, sess, sig="s2", source="guided", session=None)["ok"] is True
+
+
+def test_start_refuses_points_on_the_plan_or_no_picture_size_before_any_read(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    cal.data["points"].append({"id": "cp_n", "map_id": "n1", "x_frac": 0.5, "y_frac": 0.5, "x_m": 1.0, "y_m": 1.0, "floor_id": "main", "room": ""})
+    out = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")
+    assert out["error"] == "points_on_plan" and "Calibration spots" in out["message"]
+    cal.data["points"].pop()
+    ms.get_map("n1")["image"].pop("width")
+    out = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")
+    assert out["error"] == "no_picture_size" and "no size on record" in out["message"]
+    assert not h.data[DOMAIN].get(A._DATA_STARTS) and not h.jobs and not h.services.async_call.calls     # noqa: SLF001
+    # A floor that isn't one of the house's is picked at the save: not a reason to refuse the read.
+    ms.get_map("n1")["image"]["width"] = 1250
+    ms.get_map("n1")["floor_id"] = "nowhere"
+    assert "session" in _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")
+    for c in h.jobs:
+        c.close()                                                                    # the read itself isn't this test's

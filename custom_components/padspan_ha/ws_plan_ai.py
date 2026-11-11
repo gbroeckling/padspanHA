@@ -1309,7 +1309,8 @@ async def ws_plan_build_scale_undo(hass: HomeAssistant, connection, msg) -> None
     connection.send_result(msg["id"], answer)
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_build_scale_start", vol.Required("map_id"): str, vol.Optional("via"): VIA})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_scale_start", vol.Required("map_id"): str, vol.Optional("again"): bool,
+                                  vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> None:
@@ -1334,13 +1335,22 @@ async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> Non
         if str(m.get("floor_id") or "").strip().lower() in OUTDOOR_FLOOR_NAMES:
             connection.send_error(msg["id"], "outdoor", RP + "this plan shows the outside: the helper reads the plans of the house's floors.")
             return
+        try:                                     # the save's own data-safety checks, before a paid read (the floor is chosen at the save)
+            C.scale_check(hass, msg["map_id"], None, None)
+        except C.Refused as err:
+            if err.code != "floor_unknown":
+                connection.send_error(msg["id"], err.code, err.message)
+                return
         why = A.start_allowed(hass)
         if why:
             connection.send_error(msg["id"], why, RP + {"already_running": "a session is already reading your plans.",
                                                         "too_soon": "a session started less than a minute ago.",
                                                         "daily_cap": f"at most {A.STARTS_A_DAY} sessions a day."}[why])
             return
-        sid = A.start_scale(hass, store, A.new_scale_session(A.unlock(hass), m, A.earlier_reads(store)))
+        earlier = A.earlier_reads(store)
+        if msg.get("again"):                     # Ask Claude again: a first look that didn't match the drawing isn't used again
+            earlier = {k: v for k, v in earlier.items() if not (v.get("read_a") or {}).get("suspect")}
+        sid = A.start_scale(hass, store, A.new_scale_session(A.unlock(hass), m, earlier))
         await store.async_save()
     connection.send_result(msg["id"], {"session": sid})
 

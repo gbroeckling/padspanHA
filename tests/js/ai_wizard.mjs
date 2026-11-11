@@ -472,7 +472,7 @@ const READ = (extra = {}) => ({ id: "sc_1", status: "done", map_id: "n1", propos
                box_frac: [0.08, 0.86, 0.92, 0.94], span_frac: 0.8, state: "single" },
           y: { text: "24'-0\"", save_text: "24'-0\"", metres: 7.3152, ppm: 87.5, ends_frac: [[0.95, 0.1], [0.95, 0.9]],
                box_frac: [0.93, 0.08, 0.98, 0.92], span_frac: 0.8, state: "unconfirmed" } },
-  main: "x", other: "y", ppm: 86.8, across_m: 11.52, down_m: 9.22, stretch_pct: 1.5, stretched: false, none_found: false, ...extra } });
+  main: "x", other: "y", ppm: 86.8, across_m: 11.52, down_m: 9.22, stretch_pct: 1.5, stretched: false, none_found: false, checked: true, ...extra } });
 {
   let sess = { id: "sc_1", status: "running", map_id: "n1", proposal: null };
   const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => sess });
@@ -535,16 +535,83 @@ const READ = (extra = {}) => ({ id: "sc_1", status: "done", map_id: "n1", propos
 
 // ── piece 4: measure myself instead; stretched; unusable answers; out of credit; the start's refusals ──
 {
-  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ({ stretched: true, stretch_pct: 5.8 }) });
+  // Across and down disagree: not double-checked, so the person measures first; Claude's reading is there to look at.
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ({ stretched: true, stretch_pct: 5.8, checked: false }) });
   let root = await view(h);
   root = await readScale(h, root);
+  check("unchecked: the guided measurement first, its line, Show me", !!q(root, '[data-aiw="measure"]') && !q(root, '[data-aiw="scale-yes"]')
+    && root.textContent.includes(W.SCALE_UNCHECKED) && q(root, '[data-aiw="scale-show-read"]').textContent === "Show me what Claude read"
+    && !h.tele.includes("plan_build_scale_check:looked"), root.textContent.slice(0, 400));
+  q(root, '[data-aiw="scale-show-read"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h);
+  check("unchecked: Show me opens the reading with no answer picked, its line, counted", !!q(root, '[data-aiw="scale-yes"]')
+    && !q(root, '[data-aiw="scale-yes"]').className.includes("primary") && !q(root, '[data-aiw="scale-no"]').className.includes("primary")
+    && root.textContent.includes(W.SCALE_UNCHECKED_LOOK) && h.tele.includes("plan_build_scale_check:looked"), root.textContent.slice(0, 600));
   const st = q(root, '[data-aiw="scale-stretch"]');
-  check("stretch: said as information, Save still there", st && st.textContent === "Across and down disagree by 6 %: the picture may be stretched. The average is used, as Mapping's Measure does."
-    && !root.textContent.includes("(7.32 m) ✓") && q(root, '[data-aiw="scale-save"]').disabled === false, root.textContent.slice(0, 600));
+  check("stretch: said as information", st && st.textContent === "Across and down disagree by 6 %: the picture may be stretched. The average is used, as Mapping's Measure does."
+    && !root.textContent.includes("(7.32 m) ✓"), root.textContent.slice(0, 600));
+  check("unchecked: Save waits for an answer", q(root, '[data-aiw="scale-save"]').disabled === true);
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  check("unchecked: never saved without an answer", !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save"));
+  q(root, '[data-aiw="scale-yes"]').click();                     // the first click picks Yes, as a choice
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h);
+  check("unchecked: Yes picked, Save goes, nothing saved yet", q(root, '[data-aiw="scale-yes"]').className.includes("primary")
+    && q(root, '[data-aiw="scale-save"]').disabled === false && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save"));
   q(root, '[data-aiw="scale-myself"]').click();
   root = await view(h);
-  check("myself: the guided measurement, with no line about Claude", !!q(root, '[data-aiw="measure"]') && !root.textContent.includes(W.SCALE_NONE)
-    && h.tele.includes("plan_build_scale_check:guided_instead") && h.tele.includes("plan_build_scale:guided"), h.tele);
+  check("myself: the guided measurement, Claude's reading still there to look at", !!q(root, '[data-aiw="measure"]') && !root.textContent.includes(W.SCALE_NONE)
+    && !!q(root, '[data-aiw="scale-show-read"]') && h.tele.includes("plan_build_scale_check:guided_instead") && h.tele.includes("plan_build_scale:guided"), h.tele);
+  q(root, '[data-aiw="scale-show-read"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  root = await view(h);
+  check("unchecked: looked at again, the answer picked afresh", !!q(root, '[data-aiw="scale-yes"]') && h.ctx.state._aiw.sc.answer === null
+    && q(root, '[data-aiw="scale-save"]').disabled === true);
+  await typeIn(q(root, '[data-aiw="scale-fix"]'), "31'");
+  for (let i = 0; i < 4; i++) await tick();
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  const sv = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_save");
+  check("unchecked: a typed number is an answer, saved as corrected", sv && sv.source === "plan_dimension_corrected" && sv.session === "sc_1", sv);
+}
+{
+  // One direction only: not double-checked either; the guided measurement saved as guided, nothing of Claude's sent.
+  const one = READ({ other: null, stretch_pct: null, checked: false });
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => one });
+  let root = await view(h);
+  root = await readScale(h, root);
+  check("one way: the guided measurement first", !!q(root, '[data-aiw="measure"]') && root.textContent.includes(W.SCALE_UNCHECKED));
+  const S = h.ctx.state._aiw;
+  S.sc.pts = [[0.1, 0.5], [0.6, 0.5]];
+  await typeIn(q(root, '[data-aiw="scale-length"]'), "13' 9\"");
+  for (let i = 0; i < 4; i++) await tick();
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  const sv = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_save");
+  check("one way: saved as guided, no reading's session", sv && sv.source === "guided" && !("session" in sv), sv);
+}
+{
+  // Double-checked: the check screen, Yes picked.
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ() });
+  let root = await view(h);
+  root = await readScale(h, root);
+  check("checked: Yes picked, no line about double-checking", q(root, '[data-aiw="scale-yes"]').className.includes("primary") && !q(root, '[data-aiw="measure"]')
+    && !root.textContent.includes(W.SCALE_UNCHECKED_LOOK) && !root.textContent.includes(W.SCALE_UNCHECKED));
+}
+{
+  // A first look that didn't match the drawing, nothing found: the guided measurement with its reason and Ask Claude again (a fresh look).
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {},
+    scaleSess: () => ({ id: "sc_1", status: "done", map_id: "n1", suspect: true, proposal: { none_found: true, axes: {} } }) });
+  let root = await view(h);
+  root = await readScale(h, root);
+  const again = q(root, '[data-aiw="scale-again"]');
+  check("suspect: nothing found, said, Ask Claude again", root.textContent.includes(W.SCALE_NONE) && again && again.textContent === "Ask Claude again");
+  again.click();
+  for (let i = 0; i < 4; i++) await tick();
+  const st = h.calls.filter(c => c.type === "padspan_ha/plan_build_scale_start");
+  check("suspect: asked again, a fresh look", st.length === 2 && st[1].again === true && !st[0].again, st);
 }
 {
   const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => ({ id: "sc_1", status: "failed", error: "bad_answer" }) });

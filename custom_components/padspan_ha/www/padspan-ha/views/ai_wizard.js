@@ -45,6 +45,9 @@ export const COST_SCALE = "Anthropic charges your Anthropic account for each rea
 /** The one line above the guided measurement when Claude's reading didn't give one (design B screen 3's fallback). */
 export const SCALE_NONE = "There's no measurement printed on this plan that Claude could read. Measure one thing instead:";
 export const SCALE_UNUSABLE = "Claude's answers couldn't be used for this plan. Measure one thing instead:";
+// A reading that isn't double-checked (one direction only, or across and down disagree): the person measures first.
+export const SCALE_UNCHECKED = "Claude found a measurement on your plan but couldn't double-check it, so measure one thing yourself. It's the surest way.";
+export const SCALE_UNCHECKED_LOOK = "Claude couldn't double-check this one. Look closely at the amber line: it should run the full length the number is for.";
 const MODEL_WORDS = "Claude Opus 5.5 or newer (any Fable or Mythos works too)";
 
 // What the person sees when a read or a save stops (design B, the failure table), and what they can do.
@@ -248,7 +251,7 @@ const scaleShape = (sc) => [sc.mode, !!sc.pv, !!(sc.pv && sc.pv.stop), scaleAskF
 
 function scaleReady(S) {
   const sc = scaleDraft(S);
-  return scaleFresh(sc) && scaleSized(sc) && (!scaleAskFloor(sc) || !!sc.floor) && !S.busy;
+  return scaleFresh(sc) && scaleSized(sc) && (!scaleAskFloor(sc) || !!sc.floor) && !S.busy && !(sc.mode === "read" && !sc.answer);
 }
 
 function stepWord(S) {
@@ -359,10 +362,11 @@ async function status(ctx, S) {
 }
 
 /** The guided measurement (piece 3's screen), with the one line that says why when Claude's reading gave none
- *  (`again`: Claude may be asked again). Opened afresh: nothing of Claude's reading is sent with it. */
-function toGuided(ctx, S, why = "", again = false) {
+ *  (`again`: Claude may be asked again). Opened afresh: nothing of Claude's reading is sent with it. `read`: a reading
+ *  that isn't double-checked, kept only to be shown on "Show me what Claude read" (never saved from here). */
+function toGuided(ctx, S, why = "", again = false, read = null) {
   const sc = scaleDraft(S);
-  Object.assign(sc, { mode: "guided", why, again, pts: [], text: "", pv: null, pvFor: null, seq: 0, paint: null });
+  Object.assign(sc, { mode: "guided", read, why, again, pts: [], text: "", pv: null, pvFor: null, seq: 0, paint: null });
   S.screen = "scale"; S.fail = null; S.failFor = null;
   _done.delete("step:scale_guided");
 }
@@ -389,12 +393,27 @@ async function scaleStatus(ctx, S) {
   if (f === "bad_answer" || f === "refusal") { toGuided(ctx, S, SCALE_UNUSABLE, true); return; }
   if (f) { S.fail = f; S.failFor = "scale"; S.screen = "fail"; return; }
   const prop = s.proposal;
-  if (!prop || prop.none_found) { toGuided(ctx, S, SCALE_NONE); return; }
+  // Nothing found; after a first look that didn't match the drawing, Claude may be asked again (a fresh look).
+  if (!prop || prop.none_found) { toGuided(ctx, S, SCALE_NONE, !!s.suspect); return; }
   const sc = scaleDraft(S);
-  if (sc.mode !== "read" || !sc.read || sc.read.sid !== s.id) {
-    Object.assign(sc, { mode: "read", read: { sid: s.id, ...prop }, answer: "yes", fix: "", pv: null, pvFor: null, seq: 0, paint: null });
+  if (!sc.read || sc.read.sid !== s.id) {
+    // Double-checked (across and down read and agreeing): offered with Yes picked. Otherwise the person measures first,
+    // and Claude's reading is there to look at, with no answer picked.
+    if (prop.checked) Object.assign(sc, { mode: "read", read: { sid: s.id, ...prop }, answer: "yes", fix: "", pv: null, pvFor: null, seq: 0, paint: null });
+    else toGuided(ctx, S, "", false, { sid: s.id, ...prop });
   }
+  S.screen = sc.mode === "read" ? "scale_check" : "scale";
+}
+
+/** "Show me what Claude read" on the guided screen: the check screen for a reading that isn't double-checked, no answer
+ *  picked (Save waits for Yes or a typed number). */
+function showRead(ctx, S) {
+  const sc = scaleDraft(S);
+  if (!sc.read) return;
+  tel(ctx, "plan_build_scale_check:looked");
+  Object.assign(sc, { mode: "read", answer: null, fix: "", pv: null, pvFor: null, seq: 0, paint: null });
   S.screen = "scale_check";
+  rerender(ctx);
 }
 
 function poll(ctx, S) {
@@ -430,6 +449,7 @@ function startFailed(ctx, S, plan, e) {
   if (S.fail) { telOnce(ctx, "ai_wizard_fail:" + S.fail); S.screen = "fail"; }
   else if (code === "plan_build_locked") S.screen = "connect";
   else if (code === "map_not_placed" && needsScale(ctx.state, plan)) { S.plan = plan; S.screen = "scale"; S.msg = codeWords(code); }
+  else if (code === "points_on_plan" || code === "no_picture_size") S.msg = (e && e.message) || codeWords(code);    // the save's own words, before a read
   else S.msg = codeWords(code);
 }
 
@@ -441,13 +461,13 @@ async function begin(ctx, S, plan) {
 }
 
 /** Claude looks for a measurement printed on the plan (piece 4): the read runs on the server; this screen waits for it.
- *  A plan that has a scale by now goes straight to the rooms read. */
-async function scaleRead(ctx, S, plan) {
+ *  A plan that has a scale by now goes straight to the rooms read. `again`: Claude takes a fresh first look. */
+async function scaleRead(ctx, S, plan, again = false) {
   S.busy = true; S.msg = ""; S.fail = null; S.failFor = null;
   rerender(ctx);
   try {
     await consent(ctx, S);
-    const r = await ws(ctx, { type: "padspan_ha/plan_build_scale_start", map_id: plan.id, via: VIA });
+    const r = await ws(ctx, { type: "padspan_ha/plan_build_scale_start", map_id: plan.id, ...(again ? { again: true } : {}), via: VIA });
     S.plan = plan; S.scaleSid = r.session; S.sc = null; S.done = null; S.undone = null;
     S.screen = "scale_read";
     for (const k of ["scale_read", "scale_check", "scale_guided"]) _done.delete("step:" + k);
@@ -520,6 +540,7 @@ function scalePaint(sc) {
 async function scaleSave(ctx, S) {
   const sc = scaleDraft(S), pv = sc.pv || {}, ask = sc.pvFor, read = sc.mode === "read" && sc.read;
   if (S.busy || !scaleFresh(sc) || !ask.length || !ask.every(m => m.p1 && m.p2 && m.text) || !pv.sig) return;
+  if (read && sc.answer !== "yes" && sc.answer !== "no") return;    // Claude's reading is saved only on the person's Yes or their number
   S.busy = true; S.msg = ""; rerender(ctx);
   let r = null;
   try {
@@ -1040,6 +1061,7 @@ function scaleCheckScreen(ctx, S, box) {
   if (inset) side.appendChild(inset);
   side.appendChild(P(ctx, ["Claude read ", el("b", { "data-aiw": "scale-text" }, main.text),
     ` along the amber line, running ${runs(r.main)} your plan (${Number(main.metres).toFixed(2)} m). Is that what the plan says for that line?`]));
+  if (!r.checked) side.appendChild(P(ctx, SCALE_UNCHECKED_LOOK, "margin-top:0;color:#f59e0b"));
   const otherMark = el("span", { "data-aiw": "scale-other-mark" });
   if (other) side.appendChild(P(ctx, [`and along the thinner blue line, running ${runs(r.other)}: `, el("b", {}, other.text),
     ` (${Number(other.metres).toFixed(2)} m)`, otherMark], "margin-top:0"));
@@ -1060,7 +1082,7 @@ function scaleCheckScreen(ctx, S, box) {
   side.appendChild(row(ctx, [no, fix, said]));
   side.appendChild(row(ctx, [btn(ctx, "Measure something myself instead", () => {
     tel(ctx, "plan_build_scale_check:guided_instead");
-    toGuided(ctx, S);
+    toGuided(ctx, S, "", false, r.checked ? null : r);           // a reading not double-checked stays there to look at again
     rerender(ctx);
   }, { disabled: S.busy, attrs: { "data-aiw": "scale-myself" } })]));
   const notes = el("div", { "data-aiw": "scale-notes" });
@@ -1077,7 +1099,7 @@ function readSaid(ctx, S, yes, no, notes, otherMark) {
   yes.className = "btn inline" + (sc.answer === "yes" ? " primary" : "");
   no.className = "btn inline" + (sc.answer === "no" ? " primary" : "");
   const lines = [];
-  if (sc.answer === "yes" && r.stretched) {
+  if (sc.answer !== "no" && r.stretched) {
     lines.push(el("div", { "data-aiw": "scale-stretch", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
       `Across and down disagree by ${Math.round(Number(r.stretch_pct))} %: the picture may be stretched. The average is used, as Mapping's Measure does.`));
   }
@@ -1091,8 +1113,11 @@ function scaleScreen(ctx, S, box) {
   const sc = scaleDraft(S), pv = sc.pv;
   telOnce(ctx, "plan_build_scale:guided");
   if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, whether it may be measured here
-  if (sc.why) box.appendChild(row(ctx, [P(ctx, sc.why, "margin:0;font-weight:600"),
-    ...(sc.again ? [btn(ctx, "Try again", () => scaleRead(ctx, S, S.plan), { disabled: S.busy, attrs: { "data-aiw": "scale-again" } })] : [])]));
+  if (sc.read && !sc.read.checked) {
+    box.appendChild(row(ctx, [P(ctx, SCALE_UNCHECKED, "margin:0;font-weight:600"),
+      btn(ctx, "Show me what Claude read", () => showRead(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "scale-show-read" } })]));
+  } else if (sc.why) box.appendChild(row(ctx, [P(ctx, sc.why, "margin:0;font-weight:600"),
+    ...(sc.again ? [btn(ctx, "Ask Claude again", () => scaleRead(ctx, S, S.plan, true), { disabled: S.busy, attrs: { "data-aiw": "scale-again" } })] : [])]));
   box.appendChild(P(ctx, "Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. " +
     "The longer the thing you measure, the more exact your map."));
   sc.paint = null;

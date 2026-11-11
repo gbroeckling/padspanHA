@@ -2116,9 +2116,10 @@ async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, 
                      source: str, session: str | None = None) -> dict[str, Any]:
     """The rooms helper's scale for a plan that has none (design E.3): every
     check, a backup, the ledger pending, Measure's own write, the floor if it
-    moved, the mark off. Piece 4 calls this unchanged with source
-    plan_dimension or plan_dimension_corrected. The caller holds the plan
-    store's lock."""
+    moved, the mark off. Piece 4 calls this with source plan_dimension or
+    plan_dimension_corrected and its scale read's `session`, which must be
+    this plan's and of the picture it read (else plan_changed). The caller
+    holds the plan store's lock."""
     from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
     if not A.writable(store.data):
         raise Refused("plan_ai_newer", "This plan store was saved by a newer PadSpan: update PadSpan to save.")
@@ -2134,6 +2135,12 @@ async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, 
 
     try:
         m, fid = scale_check(hass, map_id, sig, floor_id)
+        if source != "guided":                                      # Claude's reading: of this plan, of the picture it read
+            sess = store.scale_session(session)
+            pl = ((sess or {}).get("plans") or [{}])[0]
+            if not sess or sess.get("map_id") != map_id or not A.same_picture(
+                    pl.get("image_sig"), {"image_sig": A.image_sig(m), "image_sig_was": A.legacy_image_sig(m)}):
+                raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
         got = scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()))   # type: ignore[arg-type]  (UTC, as Measure dates it)
     except Refused as err:
         raise stop(err) from None

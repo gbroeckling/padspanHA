@@ -64,35 +64,59 @@ _M_PER_FT, _M_PER_IN = 0.3048, 0.0254
 # ── 1. Printed dimensions ────────────────────────────────────────────────────
 
 _QUOTES = str.maketrans({"′": "'", "’": "'", "‘": "'", "`": "'", "´": "'",
-                         "″": '"', "“": '"', "”": '"', "–": "-", "—": "-", "−": "-"})
+                         "″": '"', "“": '"', "”": '"', "–": "-", "—": "-", "−": "-",
+                         # A printed fraction character, as its digits: 30'-5⅜" is 30'-5 3/8".
+                         "⅛": " 1/8", "¼": " 1/4", "⅜": " 3/8", "½": " 1/2", "⅝": " 5/8", "¾": " 3/4", "⅞": " 7/8"})
 _FRAC = r"(\d+)\s*/\s*(\d+)"
 _FT_IN = re.compile(r"^(\d+(?:\.\d+)?)\s*(?:'|ft\.?|feet)\s*-?\s*(?:(\d+(?:\.\d+)?)?(?:\s*-?\s*" + _FRAC + r")?\s*(?:\"|''|in\.?|inches)?)?$")
 _IN = re.compile(r"^(\d+(?:\.\d+)?)?(?:\s*-?\s*" + _FRAC + r")?\s*(?:\"|''|in\.?|inches)$")
-_METRIC = re.compile(r"^(\d{1,3}(?:[ ,]\d{3})+|\d+(?:\.\d+)?)\s*(mm|cm|m)?$")
+_METRIC = re.compile(r"^(\d{1,3}(?:[ ,]\d{3})+|\d+(?:[.,]\d+)?)\s*(mm|cm|m)?$")
+_FT_IN_DASH = re.compile(r"^(\d+)\s*-\s*(\d+(?:\.\d+)?)(?:\s+" + _FRAC + r")?$")     # 66-7: feet and inches, no marks
+ALT_AGREE = 0.02           # the other reading of an open form is taken only within this of the length expected (Claude's metres)
 
 
-def parse_length(text: Any) -> float | None:
+def parse_length(text: Any, expect_m: float | None = None) -> float | None:
     """A printed length in metres, or None when it isn't one. Feet and inches
-    with fractions (30'-5 1/2", 9'-1", 8', 3 1/2", 1'-9 3/4"), metric (9.284 m,
-    928 cm, 9284, 2 400: a bare whole number of 100 or more is millimetres, a
-    bare decimal under 100 metres), and a chain joined by + summed."""
-    return length_read(text)[0]
+    with fractions (30'-5 1/2", 9'-1", 8', 3 1/2", 1'-9 3/4", 30'-5⅜"), metric
+    (9.284 m, 928 cm, 9284, 2 400, 12,48 m: a bare whole number of 100 or more
+    is millimetres, a bare decimal under 100 metres), and a chain joined by +
+    or | summed. `expect_m`: see length_read."""
+    return length_read(text, expect_m)[0]
 
 
-def length_read(text: Any) -> tuple[float | None, str | None]:
+def length_read(text: Any, expect_m: float | None = None) -> tuple[float | None, str | None]:
     """parse_length's metres, and the unit a number typed with none was taken
-    in ("metres", "millimetres", both joined for a chain that mixes them), or
-    None when every unit was typed."""
+    in ("metres", "millimetres", "centimetres", "feet and inches", joined for a
+    chain that mixes them), or None when every unit was typed.
+
+    `expect_m`: the length the caller already has for this text (Claude's own
+    metres for the line). Only then are the two forms a bare string leaves
+    open read the other way: feet and inches written with a dash and no marks
+    (66-7 = 66'-7"), and a bare whole number in centimetres (435 = 4.35 m);
+    and only when the usual reading doesn't agree with expect_m within
+    ALT_AGREE and the other one does. With no expect_m nothing is guessed."""
+    plain = _length_read(text, False)
+    if expect_m is None or agrees(plain[0], expect_m, ALT_AGREE):
+        return plain
+    alt = _length_read(text, True)
+    return alt if agrees(alt[0], expect_m, ALT_AGREE) else plain
+
+
+def _length_read(text: Any, alt: bool) -> tuple[float | None, str | None]:
     s = str(text or "").translate(_QUOTES).strip().lower()
     if not s:
         return None, None
-    if "+" in s:
-        parts = [length_read(p) for p in s.split("+")]
+    if "+" in s or "|" in s:
+        parts = [_length_read(p, alt) for p in re.split(r"[+|]", s)]
         if not parts or any(p[0] is None for p in parts):
             return None, None
         said = sorted({p[1] for p in parts if p[1]})
         return round(sum(p[0] for p in parts), 6), " and ".join(said) or None  # type: ignore[misc]
     s = re.sub(r"\s+", " ", s.replace("=", "").strip())
+    m = _FT_IN_DASH.match(s) if alt else None
+    if m:
+        inch = float(m.group(2)) + (float(m.group(3)) / float(m.group(4)) if m.group(3) and float(m.group(4)) else 0.0)
+        return (round(float(m.group(1)) * _M_PER_FT + inch * _M_PER_IN, 6), "feet and inches") if inch < 12.0 else (None, None)
     m = _FT_IN.match(s)
     if m and ("'" in s or "ft" in s or "feet" in s):
         ft = float(m.group(1))
@@ -117,8 +141,20 @@ def length_read(text: Any) -> tuple[float | None, str | None]:
     m = _METRIC.match(s)
     if m:
         raw, unit = m.group(1), m.group(2)
+        # A comma: a decimal comma (12,48 m), unless it is followed by exactly
+        # three digits, which stays a thousands separator as before (1,200 mm;
+        # 2,400 with no unit is 2400 mm, the same metres as 2.400 m either way)
+        # except where that can't be a building's length: with m ("1,250 m"
+        # is 1.25 m), and with mm or cm when the decimal reading is already
+        # 0.5 m or more ("600,000 mm" is 0.6 m).
+        if re.fullmatch(r"\d+,\d+", raw):
+            dec = float(raw.replace(",", "."))
+            if not re.fullmatch(r"\d{1,3},\d{3}", raw) or unit == "m" or dec / {"mm": 1000.0, "cm": 100.0}.get(unit or "", math.inf) >= 0.5:
+                raw = raw.replace(",", ".")
         grouped = bool(re.search(r"[ ,]\d{3}$", raw))
         v = float(raw.replace(" ", "").replace(",", ""))
+        if unit is None and alt and "." not in raw and not grouped and v >= 100:
+            return round(v / 100.0, 6), "centimetres"
         if unit == "mm" or (unit is None and (grouped or ("." not in raw and v >= 100))):
             return round(v / 1000.0, 6), None if unit else "millimetres"
         if unit == "cm":
@@ -128,12 +164,12 @@ def length_read(text: Any) -> tuple[float | None, str | None]:
     return None, None
 
 
-def chain_length(parts: Any) -> float | None:
-    """The sum of a chain's printed segments, or None when any can't be read."""
+def chain_length(parts: Any, expect_m: float | None = None) -> float | None:
+    """The sum of a chain's printed segments, or None when any can't be read
+    (`expect_m`: the whole chain's, as length_read's)."""
     if not isinstance(parts, (list, tuple)) or not parts:
         return None
-    vals = [parse_length(p) for p in parts]
-    return round(sum(vals), 6) if all(v is not None for v in vals) else None  # type: ignore[misc]
+    return length_read(" + ".join(str(p or "") for p in parts), expect_m)[0]
 
 
 def agrees(a: float | None, b: float | None, tol: float) -> bool:

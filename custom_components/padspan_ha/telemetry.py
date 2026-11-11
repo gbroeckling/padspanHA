@@ -884,15 +884,15 @@ AI_WIZARD_LINKS: tuple[str, ...] = ("guide", "console", "ha_add", "ha_anthropic"
 ROOMS_BANDS: tuple[str, ...] = ("0", "1", "2_3", "4_6", "7_12", "gt12")
 NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed", "picked_area")
 # The plan's scale (pieces 3 and 4, design J.4): the path its scale took (a
-# printed dimension Claude read, one only Claude's ends confirm, none found,
-# one guided measurement, or set already), how each save ended (the data-safety
+# printed dimension Claude read, double-checked across and down or not, none
+# found, one guided measurement, or set already), how each save ended (the data-safety
 # stops are plan_ai_write.SCALE_STOPS), how its undo ended, and a later hand
 # Measure of a plan the helper scaled, by how far it moved the scale. Of
 # Claude's reading: what the person did (yes, a number corrected, measured
-# themselves instead), how far a corrected number was from Claude's, how many
+# themselves instead, looked at a reading not double-checked), how far a corrected number was from Claude's, how many
 # directions were read and how far across and down disagreed (PLAN_BUILD_PCT).
-SCALE_PATHS: tuple[str, ...] = ("printed", "unconfirmed_shown", "none_found", "guided", "already_set")
-SCALE_CHECK: tuple[str, ...] = ("yes", "corrected", "guided_instead")
+SCALE_PATHS: tuple[str, ...] = ("printed_checked", "printed_unchecked", "none_found", "guided", "already_set")
+SCALE_CHECK: tuple[str, ...] = ("yes", "corrected", "guided_instead", "looked")
 SCALE_AXES: tuple[str, ...] = ("two", "one", "none")
 SCALE_SAVE: tuple[str, ...] = ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown")
 SCALE_UNDO: tuple[str, ...] = ("done", "changed_since", "failed")
