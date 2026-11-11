@@ -325,7 +325,7 @@ export function render(ctx) {
       el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.4;margin-top:2px" }, _detail(st, s.id, s.unknown ? null : s.done)),
     ]);
     if (s.id === aiwAt && AIW && !_demo(st)) {
-      const line = AIW.offerLine(ctx, "setup");
+      const line = AIW.offerLine(ctx, "setup", s.done);
       if (line) info.appendChild(line);
     }
     row.appendChild(info);

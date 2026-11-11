@@ -326,8 +326,8 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   root = await view(h);
   const layer = q(root, '[data-aiw="measure"]'), n0 = h.calls.length;
   layer.dispatchEvent({ type: "pointerdown", target: { getAttribute: (k) => (k === "data-pt" ? "0" : null) }, pointerId: 1, preventDefault() {} });
-  layer.dispatchEvent({ type: "pointermove", clientX: 40, clientY: 300 });
-  layer.dispatchEvent({ type: "pointerup" });
+  layer.dispatchEvent({ type: "pointermove", clientX: 40, clientY: 300, pointerId: 1 });
+  layer.dispatchEvent({ type: "pointerup", pointerId: 1 });
   tap(layer, 40, 300);                                            // the click a drag ends with: not a tap
   check("scale: an end dragged (finger or mouse)", JSON.stringify(S.sc.pts) === "[[0.05,0.5],[0.7,0.5]]" && h.calls.slice(n0).some(c => c.type === "padspan_ha/plan_build_scale_preview"), S.sc.pts);
   root = await view(h);
@@ -407,8 +407,8 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   check("answered: Save ready again", save().disabled === false);
   const layer = q(root, '[data-aiw="measure"]');
   layer.dispatchEvent({ type: "pointerdown", target: { getAttribute: (k) => (k === "data-pt" ? "0" : null) }, pointerId: 1, preventDefault() {} });
-  layer.dispatchEvent({ type: "pointermove", clientX: 120, clientY: 300 });
-  layer.dispatchEvent({ type: "pointerup" });                     // let go off the plan: no click follows
+  layer.dispatchEvent({ type: "pointermove", clientX: 120, clientY: 300, pointerId: 1 });
+  layer.dispatchEvent({ type: "pointerup", pointerId: 1 });                     // let go off the plan: no click follows
   root = await view(h);
   const l3 = q(root, '[data-aiw="measure"]');
   l3.dispatchEvent({ type: "pointerdown", target: { getAttribute: () => null }, pointerId: 2, preventDefault() {} });
@@ -810,8 +810,13 @@ for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);
   // The first floor's rooms still there: the next floor is the one picked.
   const h2 = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors, tfs, ans: taken, rooms: { Kitchen: { floor_id: "main" } }, wizard: started });
   const r2 = await view(h2);
-  check("next floor: the plan on the floor with no rooms is picked", q(r2, '[data-aiw="plan-m2"]').checked === true && q(r2, '[data-aiw="plan-m1"]').checked === false
-    && h2.ctx.state._aiw.plan.id === "m2");
+  // Click-through 2026-11-11: a floor that has rooms is listed apart, plainly, never chosen (no second set of rooms on top).
+  check("next floor: the plan on the floor with no rooms is picked; the one with rooms is said apart, not choosable",
+    h2.ctx.state._aiw.plan.id === "m2" && !q(r2, '[data-aiw="plan-m1"]')
+    && q(r2, '[data-aiw="plans-done"]').textContent === "Already has rooms, so not read again here: Main plan (Main). Change those rooms in Mapping.", r2.textContent.slice(0, 500));
+  const h4 = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors, tfs, rooms: { Kitchen: { floor_id: "main" }, Den: { floor_id: "upper" } } });
+  const r4 = await view(h4);
+  check("every floor with rooms: said, nothing to start", r4.textContent.includes("Every floor with a plan already has rooms.") && !q(r4, '[data-aiw="start"]'), r4.textContent.slice(0, 400));
   check("plans: a floor with rooms after one without", W.plansOf(h2.ctx.state).map(m => m.id).join() === "m2,m1");
   q(r2, '[data-aiw="start"]').click();
   for (let i = 0; i < 6; i++) await tick();
@@ -885,7 +890,9 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   const pic = html(root), fsOf = (name) => Number((new RegExp(`font-size="(\\d+)"[^>]*>${name}<`).exec(pic) || [])[1]);
   check("labels: a small room's name is smaller, a big one's as before", fsOf("Closet") < 30 && fsOf("Closet") >= 14 && fsOf("Kitchen") === 30, [fsOf("Closet"), fsOf("Kitchen")]);
   const titles = new Function("return " + /const UNLISTED_VIEW_TITLES = (\{[^\n]*\});/.exec(src)[1])();
-  check("one name: the phone's title bar says what the card says", titles.ai_wizard === "Let Claude draw your rooms" && root.textContent.includes(titles.ai_wizard));
+  // Click-through 2026-11-11: the phone's title bar cut the full name off; a short form of the same name, the card says it whole.
+  check("one name: the phone's title bar a short form of the card's", titles.ai_wizard === "Claude draws rooms" && titles.ai_wizard.length <= 18
+    && root.textContent.includes("Let Claude draw your rooms"));
 }
 
 // ── defect 2: Setup's line says Carry on while a read is left part-way (what the reading screen promises) ──
@@ -903,6 +910,221 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   check("line: Try it otherwise", q(O.offerLine(h2.ctx, "setup"), '[data-aiw="try"]').textContent === "Try it →");
   if (line) texts.push(line.textContent);
   O._reset();
+}
+
+// ── review 2026-11-11 of the fixes: names kept as typed, Save and Join wait for them ──
+{
+  // A server whose edits each move the rev on, and whose name edits can be held back to answer later.
+  const mk = () => {
+    const st = { rev: 3, names: {}, held: [], commits: [] };
+    const answer = () => ({ session: SESS({ rev: st.rev, proposal: { ...PROP, spaces: Object.fromEntries(Object.entries(PROP.spaces)
+      .map(([k, v]) => [k, st.names[k] ? { ...v, new: st.names[k] } : v])) } }), areas: ["Kitchen", "Garage"], undo: null,
+    wizard: { ...WIZ, sources: { ...WIZ.sources, ...Object.fromEntries(Object.keys(st.names).map(k => [k, "typed"])) } } });
+    const edit = (p) => {
+      if (p.op === "ticks") return { ok: true };
+      if (p.rev !== st.rev) return Promise.reject({ code: "rev_mismatch" });
+      const go = () => { st.rev++; if (p.op === "space") { if (p.name) st.names[p.space] = p.name; else delete st.names[p.space]; } return answer(); };
+      return p.op === "space" && st.hold ? new Promise(r => st.held.push(() => r(go()))) : go();
+    };
+    const o = { unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } }, status: answer, edit };
+    return { st, o };
+  };
+  const nameIn = async (root, id, text) => { const n = q(root, `[data-aiw="name-${id}"]`); n.value = text; n.dispatchEvent({ type: "input" }); n.dispatchEvent({ type: "change" }); };
+  {
+    const { st, o } = mk();
+    const h = house(o);
+    let root = await view(h);
+    st.hold = true;
+    await nameIn(root, "space:a", "Scullery");
+    q(root, '[data-aiw="save"]').click();
+    q(root, '[data-aiw="save"]').click();                         // pressed twice while the name is still being kept
+    for (let i = 0; i < 4; i++) await tick();
+    check("save twice: nothing committed while the name is kept", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_commit") && st.held.length === 1);
+    st.hold = false; st.held.shift()();
+    for (let i = 0; i < 8; i++) await tick();
+    const commits = h.calls.filter(c => c.type === "padspan_ha/plan_build_rooms_commit");
+    check("save twice: one press, one commit, on the name's rev", commits.length === 1 && commits[0].rev === 4 && !h.tele.some(t => t.startsWith("ai_wizard_fail:")), [commits, h.tele]);
+    const kept = h.calls.find(c => c.op === "space");
+    check("names: kept as typed, as a draft (no stop counted)", kept && kept.draft === true && kept.name === "Scullery");
+  }
+  {
+    const { st, o } = mk();
+    const h = house(o);
+    let root = await view(h);
+    st.hold = true;
+    await nameIn(root, "space:a", "Scullery");
+    h.ctx.state._aiw.sel = new Set(["space:a", "space:b"]);
+    root = await view(h);
+    q(root, '[data-aiw="join"]').click();                         // at once, the name not kept yet
+    for (let i = 0; i < 4; i++) await tick();
+    check("join: waits for the name being kept", !h.calls.some(c => c.op === "merge"));
+    st.hold = false; st.held.shift()();
+    for (let i = 0; i < 8; i++) await tick();
+    const m = h.calls.find(c => c.op === "merge");
+    check("join: then goes, on the rev after the name", m && m.rev === 4 && !h.ctx.state._aiw.msg, [m, h.ctx.state._aiw.msg]);
+  }
+  {
+    const { st, o } = mk();
+    const h = house(o);
+    let root = await view(h);
+    await nameIn(root, "space:a", "Scullery");
+    for (let i = 0; i < 6; i++) await tick();
+    root = await view(h);
+    check("cleared: the kept name is there first", q(root, '[data-aiw="name-space:a"]').value === "Scullery" && st.names["space:a"] === "Scullery");
+    await nameIn(root, "space:a", "");
+    for (let i = 0; i < 6; i++) await tick();
+    root = await view(h);
+    const e = h.calls.filter(c => c.op === "space").at(-1);
+    check("cleared: Claude's name again, on screen and on the server", e.name === "" && !("space:a" in st.names)
+      && q(root, '[data-aiw="name-space:a"]').value === "Kitchen", [e, q(root, '[data-aiw="name-space:a"]').value]);
+    // A redraw that throws while a name is kept leaves Save working.
+    const real = h.ctx.actions.renderRooms;
+    let once = true;
+    h.ctx.actions.renderRooms = () => { if (once) { once = false; throw new Error("redraw"); } return real(); };
+    await nameIn(root, "space:b", "Studio");
+    for (let i = 0; i < 6; i++) await tick();
+    h.ctx.actions.renderRooms = real;
+    root = await view(h);
+    q(root, '[data-aiw="save"]').click();
+    for (let i = 0; i < 8; i++) await tick();
+    check("a redraw that threw: Save still goes", h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_commit"));
+  }
+  {
+    // edits_back only when the person lands back on the list.
+    const picked = { ticked: ["space:b"], ha: [] };
+    for (const [how, sess, undo, list] of [["on the list", SESS({ picked }), null, true], ["at Done", SESS({ picked, saved: { "space:b": "rb" } }), { session: "rb_1" }, false],
+      ["taken back", SESS({ picked, saved: {}, batches: ["rbb_1"] }), null, false]]) {
+      const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } },
+        ans: { session: sess, areas: [], undo, wizard: WIZ } });
+      const root = await view(h);
+      check(`edits_back: ${how}`, h.tele.includes("ai_wizard:edits_back") === list && !!q(root, '[data-aiw="rows"]') === list, h.tele);
+    }
+  }
+}
+
+// ── review 2026-11-11: the close-up and the zoomed window keep their place through a redraw ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ() });
+  let root = await view(h);
+  root = await readScale(h, root);
+  const win = q(root, '[data-aiw="scale-inset"]');
+  win.scrollLeft = 300; win.scrollTop = 5; win.dispatchEvent({ type: "scroll" });
+  root = W.render(h.ctx);                                         // the 5 s poll's redraw, say
+  await Promise.resolve();                                        // put back before the screen is painted: a microtask
+  const win2 = q(root, '[data-aiw="scale-inset"]');
+  check("inset: kept where it was scrolled through a redraw", win2 !== win && win2.scrollLeft === 300 && win2.scrollTop === 5, [win2.scrollLeft, win2.scrollTop]);
+  const g = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {} });
+  root = await view(g);
+  root = await readScale(g, root);
+  q(root, '[data-aiw="zoom-in"]').click();
+  root = await view(g);
+  const v = q(root, '[data-aiw="measure-view"]');
+  v.scrollLeft = 210; v.scrollTop = 90; v.dispatchEvent({ type: "scroll" });
+  root = W.render(g.ctx);
+  await Promise.resolve();
+  const v2 = q(root, '[data-aiw="measure-view"]');
+  check("zoomed window: kept in the same tick (no flicker)", v2 !== v && v2.scrollLeft === 210 && v2.scrollTop === 90, [v2.scrollLeft, v2.scrollTop]);
+
+  // ── touch: a pinch that starts on an end doesn't move it; zoomed in, one finger on the empty plan pans ──
+  tap(q(root, '[data-aiw="measure"]'), 80, 300); root = await view(g);
+  tap(q(root, '[data-aiw="measure"]'), 480, 300); root = await view(g);
+  const S = g.ctx.state._aiw, before = JSON.stringify(S.sc.pts), onEnd = { getAttribute: (k) => (k === "data-pt" ? "0" : null) };
+  let layer = q(root, '[data-aiw="measure"]');
+  layer.dispatchEvent({ type: "pointerdown", target: onEnd, pointerId: 7, preventDefault() {} });
+  layer.dispatchEvent({ type: "pointermove", clientX: 300, clientY: 100, pointerId: 8 });
+  check("touch: another finger's move never moves the end", JSON.stringify(S.sc.pts) === before, S.sc.pts);
+  layer.dispatchEvent({ type: "pointermove", clientX: 300, clientY: 100, pointerId: 7 });
+  layer.dispatchEvent({ type: "pointerdown", target: { getAttribute: () => null }, pointerId: 8, preventDefault() {} });   // the second finger lands: a pinch
+  check("touch: a pinch begun on an end puts it back", JSON.stringify(S.sc.pts) === before && S.sc.drag === null, S.sc.pts);
+  root = await view(g); layer = q(root, '[data-aiw="measure"]');
+  layer.dispatchEvent({ type: "pointerdown", target: onEnd, pointerId: 9, preventDefault() {} });
+  layer.dispatchEvent({ type: "pointermove", clientX: 300, clientY: 100, pointerId: 9 });
+  layer.dispatchEvent({ type: "pointercancel", pointerId: 9 });   // the browser took the gesture over
+  check("touch: a cancelled drag puts the end back", JSON.stringify(S.sc.pts) === before && S.sc.drag === null, S.sc.pts);
+  root = await view(g); layer = q(root, '[data-aiw="measure"]');
+  const vw = q(root, '[data-aiw="measure-view"]'), n0 = S.sc.pts.length;
+  vw.scrollLeft = 100; vw.scrollTop = 50;
+  layer.dispatchEvent({ type: "pointerdown", target: { getAttribute: () => null }, pointerId: 10, clientX: 400, clientY: 300, preventDefault() {} });
+  layer.dispatchEvent({ type: "pointermove", clientX: 360, clientY: 280, pointerId: 10 });
+  layer.dispatchEvent({ type: "pointerup", pointerId: 10 });
+  tap(layer, 360, 280);                                           // the click a pan ends with: not a tap
+  check("zoomed: one finger on the empty plan pans, and places nothing", vw.scrollLeft === 140 && vw.scrollTop === 70 && JSON.stringify(S.sc.pts) === before
+    && S.sc.pts.length === n0, [vw.scrollLeft, vw.scrollTop, S.sc.pts]);
+  layer.dispatchEvent({ type: "pointerdown", target: { getAttribute: () => null }, pointerId: 11, clientX: 400, clientY: 300, preventDefault() {} });
+  layer.dispatchEvent({ type: "pointerup", pointerId: 11 });
+  tap(layer, 400, 300);
+  check("zoomed: a tap still places an end", JSON.stringify(S.sc.pts) !== before, S.sc.pts);
+}
+
+// ── review 2026-11-11: a measurement of the person's own left is said as that, not "part-way" ──
+{
+  for (const [at, words, btn] of [["scale_guided", "You started measuring your plan on Main for Claude to draw its rooms", "Carry on →"],
+    ["floor_pick", "You started measuring your plan on Main", "Carry on →"], ["scale_read", "part-way", "Carry on →"], ["rooms_check", "part-way", "Carry on →"]]) {
+    O._reset();
+    const h = house({ wizard: { started: { at, floor_id: "main" } } });
+    O.offerLine(h.ctx, "setup");
+    for (let i = 0; i < 3; i++) await tick();
+    const line = O.offerLine(h.ctx, "setup");
+    check(`line: ${at}`, line && line.textContent.includes(words) && q(line, '[data-aiw="try"]').textContent === btn
+      && (words === "part-way" || !line.textContent.includes("part-way")), line && line.textContent);
+  }
+  O._reset();
+}
+
+// ── click-through 2026-11-11, A: Carry on lands where it was left, and Claude's reading is never paid for twice ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ(),
+    wizard: { started: { at: "scale_guided", map_id: "n1", scale_session: "sc_1" } } });
+  const root = await view(h);
+  check("carry on, measuring: back on the measurement, nothing read", !!q(root, '[data-aiw="measure"]') && !q(root, '[data-aiw="scale-yes"]')
+    && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_start"), root.textContent.slice(0, 300));
+  const h1 = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, wizard: { started: { at: "scale_guided", map_id: "n1" } } });
+  const r1 = await view(h1);
+  check("carry on, measuring with no reading held: the measurement", !!q(r1, '[data-aiw="measure"]') && !h1.calls.some(c => c.type === "padspan_ha/plan_build_scale_start"));
+  let started = 0;
+  const h2 = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ(),
+    scaleStart: () => { started++; return { session: "sc_1", reused: true }; }, wizard: { started: { at: "floor_pick", map_id: "n1", scale_session: "sc_1" } } });
+  let r2 = await view(h2);
+  check("carry on, which floor: the plan chooser, nothing read", !!q(r2, '[data-aiw="start"]') && !q(r2, '[data-aiw="measure"]') && started === 0, r2.textContent.slice(0, 300));
+  q(r2, '[data-aiw="start"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  r2 = await view(h2);
+  check("read my plan again: Claude's earlier reading offered, said, no new read", started === 1 && r2.textContent.includes(W.SCALE_REUSED)
+    && !!q(r2, '[data-aiw="scale-yes"]') && h2.ctx.state._aiw.screen === "scale_check", r2.textContent.slice(0, 400));
+}
+
+// ── B: a name being typed is kept a moment after typing stops (a reload mid-word keeps it) ──
+{
+  const kept = [];
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } },
+    edit: (p) => { if (p.op === "space") kept.push(p); return { session: SESS(), areas: ["Kitchen", "Garage"], undo: null, wizard: WIZ }; } });
+  const root = await view(h);
+  const n = q(root, '[data-aiw="name-space:b"]');
+  n.value = "Stud"; n.dispatchEvent({ type: "input" });
+  n.value = "Studio"; n.dispatchEvent({ type: "input" });
+  check("typing: nothing sent while typing", kept.length === 0);
+  await shim.flush();                                             // a second with no key pressed
+  for (let i = 0; i < 4; i++) await tick();
+  check("typing: kept once it stops, the last text only, as a draft", kept.length === 1 && kept[0].name === "Studio" && kept[0].draft === true, kept);
+  n.dispatchEvent({ type: "change" });                            // then the field is left: kept already, nothing more
+  for (let i = 0; i < 4; i++) await tick();
+  check("typing: leaving the field after it was kept sends nothing more", kept.length === 1, kept.length);
+}
+
+// ── F: Click or Tap to join; the close-up says it scrolls; a room too small for a name has none on the picture ──
+{
+  const prop = { ...PROP, spaces: { ...PROP.spaces, "space:e": { id: "space:e", name: "ENS", new: "Ensuite", outline_m: box(8, 4, 8.5, 6), reads: [1, 2] } } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } },
+    ans: { session: SESS({ proposal: prop }), areas: ["Kitchen"], undo: null, wizard: { ...WIZ, rows: [...WIZ.rows, "space:e"] } } });
+  const root = await view(h);
+  const pic = html(root);
+  check("labels: a room too small for a readable name has none on the picture, its outline stays", pic.includes('data-id="space:e"') && !pic.includes(">Ensuite<")
+    && pic.includes(">Kitchen<") && !!q(root, '[data-aiw="name-space:e"]'), pic.slice(0, 400));
+  check("join: Click with a mouse", root.textContent.includes("Click two rooms on the plan to join them into one"));
+  const g = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {}, scaleSess: () => READ() });
+  let r = await view(g);
+  r = await readScale(g, r);
+  check("close-up: says it scrolls when there is more of it", q(r, '[data-aiw="scale-inset-more"]')?.textContent === "Scroll the close-up to see the whole measurement.");
 }
 
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));

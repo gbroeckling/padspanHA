@@ -106,8 +106,11 @@ def test_a_house_the_helper_gave_rooms_keeps_its_way_back_on_the_pull_surfaces_o
     assert W.offer_reason({**nxt, "floor_no_rooms": False}, "pull") == "has_rooms"          # every plan's floor has rooms: done
     assert W.offer_reason({**nxt, "room_bounds": True, "rooms": False}, "pull") == "offer"
     for at in ("scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read", "rooms_check"):   # a read left part-way
-        mid = _f(rooms=True, floor_no_rooms=False, wizard={"started": {"at": at, "rooms_session": "rb_2"}})
+        mid = _f(rooms=True, floor_no_rooms=True, wizard={"started": {"at": at, "rooms_session": "rb_2"}})
         assert W.offer_reason(mid, "pull") == "offer" and W.offer_reason(mid, "push") == "has_rooms", at
+        # Review 2026-11-11: started.at is never cleared (a read that failed stays at rooms_read). Once every floor with
+        # a plan has rooms (drawn by hand, say), the helper is done there: never "part-way" for ever.
+        assert W.offer_reason({**mid, "floor_no_rooms": False}, "pull") == "has_rooms", at
     # A house that got its rooms some other way, or only opened the helper, is never offered it.
     for w in ({}, {"started": {"at": "intro"}}, {"started": {"at": "consent"}}, {"offered": True}, {"undone": True}):
         assert W.offer_reason(_f(rooms=True, floor_no_rooms=True, wizard=w), "pull") == "has_rooms", w
@@ -185,6 +188,20 @@ def test_facts_read_the_stores():
     assert W.facts(h, now=_NOW)["floor_no_rooms"] is False
     h.data[DOMAIN][DATA_MAPS].data["maps"].append({"id": "m3", "floor_id": OUTSIDE_FLOOR_ID, "created": _iso(18)})
     assert W.facts(h, now=_NOW)["floor_no_rooms"] is False                         # the outdoors is never a floor to draw
+    # Review 2026-11-11: outdoors is presence_rules.is_outdoor_floor's rule, as the panel's (isOutdoorFloorId): a
+    # finished house with a plan on a floor called Yard or Garden isn't offered the helper for ever.
+    for name in ("Yard", "garden", "Outdoors", "exterior", "outside"):
+        h.data[DOMAIN][DATA_MAPS].data["maps"][2]["floor_id"] = name
+        f = W.facts(h, now=_NOW)
+        assert f["floor_no_rooms"] is False and f["indoor_plans"] == 2, name
+        assert W.offer_reason({**f, "wizard": {"finished_day": "2026-11-10"}}, "pull") == "has_rooms", name
+    # A plan with no floor is filed on "main", where its hand-drawn rooms are: it doesn't lack rooms when main has them.
+    h = _stuck_house(floor_id=None)
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is True
+    h.data[DOMAIN][DATA_FABRIC].data["floors"] = {"main": {"rooms": {"Kitchen": {}}}}
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is False
+    h = _stuck_house(floor_id="", room_bounds={"Den": {}})
+    assert W.facts(h, now=_NOW)["floor_no_rooms"] is False
     # The plan AI's sessions: Line up or Rooms from plans used.
     h = _stuck_house()
     h.data[DOMAIN]["plan_ai"] = MagicMock(data={"lineups": {"s": {}}, "rooms": {}})

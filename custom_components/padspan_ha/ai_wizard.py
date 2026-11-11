@@ -27,7 +27,8 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DATA_PLAN_AI, DATA_SETTINGS, DOMAIN, OUTSIDE_FLOOR_ID
+from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DATA_PLAN_AI, DATA_SETTINGS, DOMAIN
+from .presence_rules import is_outdoor_floor
 from .telemetry import AI_WIZARD_STEPS, AI_WIZARD_SURFACES, INSTALL_AGE_WORDS, install_age_word
 
 OFFER_AFTER_DAYS = 7    # a plan this many days old with no rooms is stuck (the field's median stuck house: 18 days)
@@ -41,13 +42,15 @@ _UNFINISHED = frozenset({"scale_read", "scale_check", "scale_guided", "floor_pic
 
 
 def goes_on(f: dict[str, Any]) -> bool:
-    """A house with rooms that the helper itself is still working on: it saved
-    rooms here and an indoor floor with a plan has none yet (the next floor),
-    or one of its reads is left part-way. Only the pull surfaces see it; a
-    house that got its rooms some other way is never offered the helper."""
+    """A house with rooms that the helper itself is still working on: an indoor
+    floor with a plan has no rooms yet, and the helper either saved rooms here
+    (that floor is next) or left one of its reads part-way. Only the pull
+    surfaces see it; a house that got its rooms some other way, or whose
+    floors all have rooms now (a read that failed, the rooms drawn by hand),
+    is never offered the helper."""
     w = f["wizard"]
     st = w.get("started") if isinstance(w.get("started"), dict) else {}
-    return (bool(w.get("finished_day")) and bool(f.get("floor_no_rooms"))) or st.get("at") in _UNFINISHED
+    return bool(f.get("floor_no_rooms")) and (bool(w.get("finished_day")) or st.get("at") in _UNFINISHED)
 
 
 def offer_reason(f: dict[str, Any], surface: str) -> str:
@@ -222,7 +225,7 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     settings: dict[str, Any] = (st.data if st else {}) or {}
     now = time.time() if now is None else now
     s = setup_state(hass)
-    indoor = [m for m in _maps(s) if str(m.get("floor_id") or "") != OUTSIDE_FLOOR_ID]
+    indoor = [m for m in _maps(s) if not is_outdoor_floor(m.get("floor_id"))]      # the one outdoors rule (Outside, Yard, Garden…)
     created = [t for t in (_ts(m.get("created")) for m in indoor) if t is not None]
     seen = settings.get("first_seen_ts")
     plan_since = min(created) if created else None
@@ -231,11 +234,12 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     tier = hass_tier(hass)
     w = settings.get("ai_map_wizard")
     fab = getattr(dom.get(DATA_FABRIC), "data", None) or {}
+    # A plan with no floor is filed on "main", as fabric_truth files it and the rooms drawn on it.
     roomed = {str(fid) for fid, fl in (fab.get("floors") or {}).items() if isinstance(fl, dict) and fl.get("rooms")} \
-        | {str(m.get("floor_id") or "") for m in _maps(s) if m.get("room_bounds")}
+        | {str(m.get("floor_id") or "main") for m in _maps(s) if m.get("room_bounds")}
     return {"admin": admin, "live": settings.get("data_mode") == "live" and live is not False, "kiosk": kiosk,
             "edition": edition(), "rooms": has_fabric_rooms(s), "room_bounds": any(len(m.get("room_bounds") or {}) > 0 for m in _maps(s)),
-            "floor_no_rooms": any(str(m.get("floor_id") or "") not in roomed for m in indoor),
+            "floor_no_rooms": any(str(m.get("floor_id") or "main") not in roomed for m in indoor),
             "indoor_plans": len(indoor), "plan_since": plan_since, "plan_age_days": None if since is None else max(0.0, (now - since) / 86400),
             "wizard": w if isinstance(w, dict) else {}, "now": now,
             "tool_used": bool(plan_ai.get("lineups") or plan_ai.get("rooms")),

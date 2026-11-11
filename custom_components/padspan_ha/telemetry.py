@@ -895,7 +895,7 @@ NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed"
 # Claude's reading: what the person did (yes, a number corrected, measured
 # themselves instead, looked at a reading not double-checked), how far a corrected number was from Claude's, how many
 # directions were read and how far across and down disagreed (PLAN_BUILD_PCT).
-SCALE_PATHS: tuple[str, ...] = ("printed_checked", "printed_unchecked", "none_found", "guided", "already_set")
+SCALE_PATHS: tuple[str, ...] = ("printed_checked", "printed_unchecked", "none_found", "guided", "already_set", "reused")
 SCALE_CHECK: tuple[str, ...] = ("yes", "corrected", "guided_instead", "looked")
 SCALE_AXES: tuple[str, ...] = ("two", "one", "none")
 SCALE_SAVE: tuple[str, ...] = ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown")

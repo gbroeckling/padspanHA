@@ -552,6 +552,10 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
         rund = A.rooms_undo_info(store)                # the rooms' undo too (Stage 2), whatever the AI Task
         if rund:
             out["rooms_undo"] = {**rund, "floor_name": names.get(str(rund.get("floor_id"))) or rund.get("floor_id")}
+            if rund.get("helper"):
+                # The rooms helper's: whether its undo takes the plan's scale back too (goes), or why not, by scale_undo's
+                # own rule as it will stand once these rooms are undone (owner, 2026-11-11: warned before it goes).
+                out["rooms_undo"]["scale"] = await C.rooms_undo_scale(hass, store, rund["session"], rund.get("map_id"))
     if out["on"] and (house3d_on(hass) or not _need_3d(msg)) and _tier_at_least(hass, "pro"):
         store = await A.async_get_store(hass)
         if A.sweep_abandoned(hass, store):
@@ -1038,6 +1042,7 @@ _EDIT_WORDS = {"not_found": "that isn't in the proposal any more.", "invalid": "
     vol.Optional("read"): int,
     vol.Optional("ticked"): vol.All([vol.All(str, vol.Length(max=64))], vol.Length(max=200)),
     vol.Optional("ha"): vol.All([vol.All(str, vol.Length(max=64))], vol.Length(max=200)),
+    vol.Optional("draft"): bool,
     vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
@@ -1049,7 +1054,9 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
     house; the proposal is worked out again. "ticks" (the rooms helper's):
     which rows are ticked and which "Also add to Home Assistant", kept on the
     session as the person left them (`picked`) so leaving, coming back or a
-    reload finds them; the proposal and its rev are untouched."""
+    reload finds them; the proposal and its rev are untouched. `draft` (the
+    helper's name kept as it is typed): a name already taken is refused as
+    always, but not recorded as a stop; the real Save's is."""
     store = await _build_refused(hass, connection, msg)
     if store is None:
         return
@@ -1073,7 +1080,7 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
         was = copy.deepcopy(sess.get("edits"))
         word = A.apply_rooms_edit(sess, snap0, msg["op"], {k: msg[k] for k in ("parts", "merge", "space", "name", "room", "read") if k in msg})
         if word != "ok":
-            if word == "name_taken":
+            if word == "name_taken" and not msg.get("draft"):
                 A.note_stop(hass, store.data, sess, "name_taken")
                 sess["rev"] = int(sess.get("rev") or 0) + 1
                 await store.async_save()
@@ -1366,6 +1373,11 @@ async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> Non
             if err.code != "floor_unknown":
                 connection.send_error(msg["id"], err.code, err.message)
                 return
+        held = None if msg.get("again") else A.held_scale_read(store, m)
+        if held:                                 # Claude read this plan's picture already: that reading again, no paid read
+            A._bump(hass, "plan_build_scale:reused")  # noqa: SLF001
+            connection.send_result(msg["id"], {"session": held, "reused": True})
+            return
         why = A.start_allowed(hass)
         if why:
             connection.send_error(msg["id"], why, RP + {"already_running": "a session is already reading your plans.",

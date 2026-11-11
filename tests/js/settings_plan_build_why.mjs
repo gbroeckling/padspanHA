@@ -41,8 +41,8 @@ const text = (n) => (n.textContent || "").replace(/\s+/g, " ").trim();
 const tag = (n) => (n.tagName || n.localName || "").toUpperCase();
 const has = (n, k) => !!(n.getAttribute && n.getAttribute(k) !== null && n.getAttribute(k) !== undefined);
 
-async function render(settings, info, kiosk = false) {
-  const calls = [];
+async function render(settings, info, kiosk = false, answer = null) {
+  const calls = [], sent = [], toasts = [];
   const s = {
     dataMode: "live", _dataModeKnown: true, complexity: "advanced", view: "settings", _settingsTab: "ai", version: "0", buildId: "b", kioskMode: kiosk,
     settings: { tier: "pro", edition: "full", atlas_3d_ai_task_entity: "ai_task.helper", ...settings }, followedAddrs: new Set(), timing: {}, roomTagMap: {}, wsCounts: {},
@@ -50,18 +50,23 @@ async function render(settings, info, kiosk = false) {
     live: { snapshot: { ble: { radios: [] }, objects: { list: [], summary: {} }, tags: [] } },
   };
   const actions = {
-    wsCall: async (type, p) => { calls.push(type); if (type === "padspan_ha/plan_build_info") return info; return { settings: { ...s.settings, ...p } }; },
+    wsCall: async (type, p) => {
+      calls.push(type); sent.push({ type, ...(p || {}) });
+      if (type === "padspan_ha/plan_build_info") return info;
+      const got = answer && answer(type, p);
+      return got !== undefined ? got : { settings: { ...s.settings, ...p } };
+    },
     canOpen: () => true,
   };
   const helpers = new Proxy({ el, esc: (x) => String(x ?? ""), helpBtn: () => el("button", {}, "?"), HELP: {} },
     { get: (t, k) => (k in t ? t[k] : quiet()) });
   const ctx = new Proxy({ hass: { states: { "ai_task.helper": { attributes: { friendly_name: "Helper" } } }, user: { is_admin: true }, connection: { sendMessagePromise: async () => ({}) } },
     state: s, helpers, actions: new Proxy(actions, { get: (t, k) => (k in t ? t[k] : quiet()) }),
-    toast: () => {} }, { get: (t, k) => (k in t ? t[k] : quiet()) });
+    toast: (m) => toasts.push(m) }, { get: (t, k) => (k in t ? t[k] : quiet()) });
   const root = SET.render(ctx);
   await settle();
   const why = all(root).find(n => has(n, "data-ai-plan-build-why")) || null;
-  return { root, calls, why, link: why ? all(why).find(n => tag(n) === "A") || null : null, sw: all(root).find(n => has(n, "data-ai-plan-build-switch")) || null };
+  return { root, calls, sent, toasts, why, link: why ? all(why).find(n => tag(n) === "A") || null : null, sw: all(root).find(n => has(n, "data-ai-plan-build-switch")) || null };
 }
 const INFO = (unlock, cands = []) => ({ unlock: { ok: false, display: null, ...unlock }, master: true, switch: false, on: false, candidates: cands, floors: [], stall: null, undo: null });
 const LEAD = "Build from plans (experimental) isn't offered here.";
@@ -108,6 +113,33 @@ for (const [why, display, words] of [
     && all_.includes("never changes your calibration") && !all_.includes("never writes your rooms"), all_.slice(0, 600));
   check("helper undo: named as the helper's", row && text(row).includes("Undo the rooms Claude drew (experimental)") && text(row).includes("The last rooms Let Claude draw your rooms saved on Main")
     && !text(row).includes("Undo this rooms session"), row ? text(row) : null);
+  // Owner, 2026-11-11: the undo of a helper session also takes back the scale the helper set, warned first; a scale
+  // measured again by hand is neither warned about nor removed; one kept because something in metres was added since says so.
+  const press = async (r, k) => { const b = all(r.root).find(n => has(n, k)); b.click(); await settle(); return b; };
+  const rowOf = (r) => all(r.root).find(n => has(n, "data-ai-plan-build-rooms-undo"));
+  for (const [scale, sv] of [["goes", { ok: true }], ["goes", { ok: false, code: "changed_since", message: "Something in metres changed since." }],
+    ["changed_since", null], ["remeasured", null], ["none", null]]) {
+    const info = { ...undoOf(true), rooms_undo: { ...undoOf(true).rooms_undo, map_id: "n1", scale } };
+    const r = await render({ ai_plans_enabled: true }, info, false, (type) => (type === "padspan_ha/plan_build_rooms_undo" ? { ok: true, undone: 3, skipped: [] }
+      : type === "padspan_ha/plan_build_scale_undo" ? sv : undefined));
+    const said = text(rowOf(r));
+    const name = `helper undo, scale ${scale}${sv && !sv.ok ? " (refused at the time)" : ""}`;
+    if (scale === "goes") check(`${name}: warned before`, said.includes("It also removes this plan's scale, which was set in the helper: the plan will need measuring again."), said);
+    else if (scale === "changed_since") check(`${name}: says it stays, and why`, said.includes("The plan's scale set in the helper stays: something measured in metres was added since"), said);
+    else check(`${name}: no word about a scale`, !/scale/.test(said), said);
+    await press(r, "data-ai-plan-build-undo-ask");
+    const sure = text(rowOf(r));
+    check(`${name}: the confirmation says what goes`, scale === "goes" ? sure.includes("and remove this plan's scale that was set in the helper? The plan will need measuring again")
+      : sure.includes("Take back the rooms Let Claude draw your rooms saved?") && !sure.includes("remove this plan's scale"), sure);
+    await press(r, "data-ai-plan-build-undo-go");
+    const ru = r.sent.find(x => x.type === "padspan_ha/plan_build_rooms_undo"), su = r.sent.filter(x => x.type === "padspan_ha/plan_build_scale_undo");
+    check(`${name}: the rooms through the helper (so it isn't offered on the Overview again)`, ru && ru.session === "rb_1" && ru.via === "wizard", ru);
+    check(`${name}: the scale taken back only when it goes, after the rooms`, scale === "goes"
+      ? su.length === 1 && su[0].map_id === "n1" && su[0].via === "wizard" && r.sent.indexOf(ru) < r.sent.indexOf(su[0]) : su.length === 0, r.sent.map(x => x.type));
+    const t = r.toasts.join(" ");
+    check(`${name}: said after`, t.includes("3 taken back") && (scale !== "goes" ? !t.includes("scale")
+      : sv.ok ? t.includes("The plan's scale was removed too") : t.includes("The plan's scale stays: Something in metres changed since.")), t);
+  }
   const r2 = await render({ ai_plans_enabled: true }, undoOf(false));
   const row2 = all(r2.root).find(n => has(n, "data-ai-plan-build-rooms-undo"));
   check("rooms from plans undo: as it was", row2 && text(row2).includes("Undo this rooms session (experimental)") && !text(row2).includes("Claude drew"), row2 ? text(row2) : null);

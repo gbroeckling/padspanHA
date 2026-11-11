@@ -4492,9 +4492,13 @@ def rooms_undo_info(store: PlanAiStore, sid: str | None = None) -> dict[str, Any
         return None
     mine = [b for b in (store.data.get("room_batches") or {}).values() if isinstance(b, dict) and b.get("session") == best["session"]
             and not b.get("undo_of") and not b.get("undone_at") and not b.get("pending")]
-    return {"session": best["session"], "floor_id": best.get("floor_id"), "items": sum(len(b.get("items") or []) for b in mine),
-            "saves": len(mine), "at": max(float(b.get("committed_at") or 0) for b in mine),
-            "helper": (store.rooms_session(best["session"]) or {}).get("via") == "wizard"}    # saved by Let Claude draw your rooms
+    sess = store.rooms_session(best["session"]) or {}
+    out = {"session": best["session"], "floor_id": best.get("floor_id"), "items": sum(len(b.get("items") or []) for b in mine),
+           "saves": len(mine), "at": max(float(b.get("committed_at") or 0) for b in mine),
+           "helper": sess.get("via") == "wizard"}                                  # saved by Let Claude draw your rooms
+    if out["helper"]:
+        out["map_id"] = ((sess.get("plans") or [{}])[0] or {}).get("map_id")      # the plan whose scale the helper may have set
+    return out
 
 
 # ══ The rooms helper's scale read (Let Claude draw your rooms, piece 4; design E.1) ══
@@ -4573,6 +4577,11 @@ def _shown_text(d: dict, save: str, printed: bool, m: float) -> str:
     short, whose numbers would add up to less than the metres said beside it."""
     if printed:
         return save
+    # Printed as the length, read only with Claude's metres as the unit hint (66-7 in dashed feet, a bare 2029 in
+    # centimetres), as LocalSteps.measure read it: the print's own words, to compare with the plan.
+    text = str(d.get("text") or "")
+    if text and G.agrees(G.parse_length(text, float(d.get("metres") or m)), m, S1_PARSE_AGREE):
+        return text
     chain = [str(c) for c in d.get("chain") or []]
     if chain and G.agrees(G.chain_length(chain, m), m, S1_PARSE_AGREE):
         joined = " + ".join(chain)
@@ -4756,6 +4765,17 @@ class ScaleRunner(LineupRunner):
         if status == "done":
             count_scale_read(self.hass, sess.get("proposal"))
         await self._save()
+
+
+def held_scale_read(store: PlanAiStore, m: dict) -> str | None:
+    """The newest finished scale read of this plan and this picture still held
+    in the store, or None: a later "Read my plan" offers it again instead of
+    paying Claude to read the same picture twice (end-to-end test 2026-11-11)."""
+    now = {"image_sig": image_sig(m), "image_sig_was": legacy_image_sig(m)}
+    held = [(sid, s) for sid, s in (store.data.get("scales") or {}).items()
+            if isinstance(s, dict) and s.get("map_id") == m.get("id") and s.get("status") == "done" and s.get("proposal") is not None
+            and same_picture(((s.get("plans") or [{}])[0] or {}).get("image_sig"), now)]
+    return max(held, key=lambda t: float(t[1].get("started_at") or 0))[0] if held else None
 
 
 def start_scale(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any], sid: str | None = None) -> str:

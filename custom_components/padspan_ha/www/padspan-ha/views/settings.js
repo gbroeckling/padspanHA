@@ -4637,7 +4637,7 @@ function _planBuildRow(ctx, el, save, settings){
       el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["Build from plans: advanced plan alignment (Claude, experimental)", chip()]),
       el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
         "Claude reads your floor plans and lines them up to each other and to your house. You check every change on a map before anything is saved; " +
-        "a backup is taken before each save and one undo takes a session back. It never changes calibration or anything placed in metres. " +
+        "a backup is taken before each save and one undo takes a session back. Lining plans up never changes calibration or anything placed in metres. " +
         "Needs Claude Opus 5.5 or newer as your AI Task. In Live Aboard: Edit → Plans → Line up plans; then, on a lined-up floor, Rooms from plans " +
         "reads its rooms, doors, windows and stairs, saved together with one backup and one undo."),
       el("div",{style:"font-size:11px;color:#a7f3d0;margin-top:2px"}, `Reads with ${info.unlock.display || "Claude"}. The plans leave the house for Anthropic.`),
@@ -4664,12 +4664,18 @@ function _planBuildRow(ctx, el, save, settings){
         "Undo puts every one back as it was; a backup is taken first, and anything you changed since is left as it is.",
       sure: "Put every room, door, window and stair this session saved back as it was?",
       done: (n, k) => `${n} put back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
-    // The same undo for rooms the rooms helper saved (plan_ai.rooms_undo_info's `helper`), said in the helper's name.
-    helper: { title: "Undo the rooms Claude drew (experimental)", cmd: "padspan_ha/plan_build_rooms_undo", prefix: "Let Claude draw your rooms (experimental): ",
+    // The same undo for rooms the rooms helper saved (plan_ai.rooms_undo_info's `helper`), said in the helper's name, sent as
+    // the helper's (via "wizard": it isn't offered on the Overview again, and is counted). Then, as the Done screen's Undo, the
+    // plan's scale the helper set, when the server says it goes (u.scale, by scale_undo's own rule; owner, 2026-11-11: warned
+    // first; a scale measured again by hand is the person's and is neither warned about nor removed).
+    helper: { title: "Undo the rooms Claude drew (experimental)", cmd: "padspan_ha/plan_build_rooms_undo", via: "wizard", prefix: "Let Claude draw your rooms (experimental): ",
       tool: "Let Claude draw your rooms",
       what: (u) => `The last rooms Let Claude draw your rooms saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} room${u.items === 1 ? "" : "s"}. ` +
-        "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. A plan's scale the helper set stays (change it in Mapping → Edit → Measure).",
-      sure: "Take back the rooms Let Claude draw your rooms saved?",
+        "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. " +
+        (u.scale === "goes" ? "It also removes this plan's scale, which was set in the helper: the plan will need measuring again." :
+          u.scale === "changed_since" ? "The plan's scale set in the helper stays: something measured in metres was added since (receivers, calibration points, rooms or another plan's scale), and it is placed by that scale." : ""),
+      sure: (u) => u.scale === "goes" ? "Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Mapping → Edit → Measure)."
+        : "Take back the rooms Let Claude draw your rooms saved?",
       done: (n, k) => `${n} taken back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
   };
   const asking = { lineup: false, rooms: false, helper: false }, said = { lineup: "", rooms: "", helper: "" };
@@ -4689,15 +4695,21 @@ function _planBuildRow(ctx, el, save, settings){
       const no = el("button",{...bs, type:"button"}, "Cancel");
       yes.addEventListener("click", ()=>{
         yes.disabled = true;
-        ctx.actions.wsCall(K.cmd, { session: u.session }).then((r)=>{
+        ctx.actions.wsCall(K.cmd, { session: u.session, ...(K.via ? { via: K.via } : {}) }).then(async (r)=>{
           asking[kind] = false;
           if (r && r.ok === false) { said[kind] = String(r.message || r.code || ""); ask(); return; }
-          ctx.toast(K.prefix + K.done((r && r.undone) || 0, ((r && r.skipped) || []).length));
+          let more = "";
+          if (kind === "helper" && u.scale === "goes" && u.map_id) {      // the rooms first, then the scale: the Done screen's order
+            const sv = await ctx.actions.wsCall("padspan_ha/plan_build_scale_undo", { map_id: u.map_id, via: "wizard" }).catch((e) => ({ ok: false, message: e && e.message }));
+            more = sv && sv.ok ? " The plan's scale was removed too: measure it again in Mapping → Edit → Measure."
+              : ` The plan's scale stays: ${String((sv && sv.message) || "it couldn't be taken back.")}`;
+          }
+          ctx.toast(K.prefix + K.done((r && r.undone) || 0, ((r && r.skipped) || []).length) + more);
           said[kind] = ""; ask();
         }).catch((e)=>{ asking[kind] = false; said[kind] = K.prefix + String((e && e.message) || e).replace(K.prefix, ""); ask(); });
       });
       no.addEventListener("click", ()=>{ asking[kind] = false; ask(); });
-      row.appendChild(el("div",{style:"color:#fde68a;margin-top:2px"}, K.sure));
+      row.appendChild(el("div",{style:"color:#fde68a;margin-top:2px"}, typeof K.sure === "function" ? K.sure(u) : K.sure));
       row.appendChild(yes); row.appendChild(no);
     }
     if (said[kind]) row.appendChild(el("div",{role:"alert", style:"color:#fca5a5;margin-top:2px"}, said[kind]));

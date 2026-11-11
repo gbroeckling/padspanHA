@@ -3790,7 +3790,7 @@ export function buildLightsMapCard(hostIn){
               // each leaving Edit first (asking if something is unsaved). None on a wall screen.
               go: !h3.plansGo ? null : (() => {
                 const G = h3.plansGo, leave = (f) => (...a) => { const run = () => f(...a); const s = la3dSlot(); if (!(s && s.holdLeave && s.holdLeave(run))) run(); };
-                return { measure: leave(G.measure), helperOffered: G.helperOffered, helper: leave(G.helper), settings: leave(G.settings) };
+                return { measure: leave(G.measure), helperOffered: G.helperOffered, helperWords: G.helperWords, helper: leave(G.helper), settings: leave(G.settings) };
               })() } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'

@@ -83,7 +83,7 @@ def test_the_four_offers_are_wired_and_the_view_is_unlisted():
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     assert 'ai_wizard:    "./views/ai_wizard.js",' in panel and '_VIEW_PATHS_HIDDEN_OK.add("ai_wizard");' in panel
     assert "AIW.gettingStartedRow(this._ctx())" in panel and "this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned)" in panel
-    assert 'AIW.offerLine(ctx, "setup")' in _src("setup.js")
+    assert 'AIW.offerLine(ctx, "setup", s.done)' in _src("setup.js")   # s.done: a Done row isn't "Stuck?" (guided_setup.mjs runs it)
     assert _src("maps.js").count('AIW.offerLine(ctx, "maps_wizard")') == 2
 
 

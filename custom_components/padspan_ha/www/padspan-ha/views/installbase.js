@@ -816,7 +816,8 @@ const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", a
   printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };
 const W_SCALE_PATH = { printed_checked: "printed measurements Claude read, across and down agreeing (offered with Yes picked)",
   printed_unchecked: "a printed measurement Claude read but couldn't double-check (the person measures first)",
-  none_found: "no printed measurement Claude could read", guided: "one measurement by the person", already_set: "the plan had a scale already" };
+  none_found: "no printed measurement Claude could read", guided: "one measurement by the person", already_set: "the plan had a scale already",
+  reused: "Claude's earlier reading of the same plan offered again (no new read)" };
 const W_SCALE_CHECK = { yes: "the person said yes", corrected: "the person corrected the number", guided_instead: "the person measured something themselves instead",
   looked: "the person looked at a reading Claude couldn't double-check" };
 const W_SCALE_AXES = { two: "across and down", one: "one direction", none: "none" };

@@ -371,7 +371,7 @@ const MENU = [
 ];
 
 // Screens reached by a link, never listed in MENU: what the phone's top bar calls them.
-const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics", ai_wizard: "Let Claude draw your rooms" };
+const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics", ai_wizard: "Claude draws rooms" };   // the phone's title bar: the card says "Let Claude draw your rooms"
 
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
 // Modes no longer hide screens (2026-10-30): every screen is in the menu in

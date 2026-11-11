@@ -110,19 +110,32 @@ function _mark(ctx, what) {
   return ctx.actions.callWS({ type: "padspan_ha/ai_wizard_mark", what }).catch(() => {}).finally(() => ctx.actions.renderRooms());
 }
 
-// A read the helper left part-way (ai_wizard._UNFINISHED): its line says Carry on, as the reading screen promises.
-const UNFINISHED = new Set(["scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read", "rooms_check"]);
+// Where the helper was left (ai_wizard._UNFINISHED): Claude reading, or what it read waiting to be checked, is part-way
+// (what the reading screen promises); a measurement of the person's own was only started.
+const READING = new Set(["scale_read", "scale_check", "rooms_read", "rooms_check"]);
+const MEASURING = new Set(["scale_guided", "floor_pick"]);
 
-/** Setup's and the Mapping wizard's line (pull: Not now doesn't hide it): Carry on for a read left part-way, else Try it. */
-export function offerLine(ctx, surface) {
+/** The words for where the helper was left, one copy for every pull surface: {back, text, go}. `back`: there is something
+ *  to carry on with (Claude reading, a reading to check, a measurement started); `done`: the step it is offered on is done
+ *  (Setup's Rooms row once a floor has rooms), so not "Stuck?". */
+export function lineWords(ctx, surface, done = false) {
+  const st = ((infoFor(ctx, surface) || {}).wizard || {}).started || {};
+  const fl = (((ctx.state.model && ctx.state.model.floors) || []).find(f => f && (f.floor_id || f.id) === st.floor_id) || {}).name;
+  const text = READING.has(st.at) ? "Claude is part-way through drawing your rooms (experimental)."
+    : MEASURING.has(st.at) ? `You started measuring your plan${fl ? ` on ${fl}` : ""} for Claude to draw its rooms (experimental).`
+      : null;
+  if (text) return { back: true, text, go: "Carry on →" };
+  return { back: false, go: "Try it →", text: done ? "Claude can draw the rooms on another of your floor plans too (experimental)."
+    : "Stuck? Claude can read your plan and draw the rooms for you (experimental)." };
+}
+
+/** Setup's and the Mapping wizard's line (pull: Not now doesn't hide it): Carry on where it was left, else Try it. */
+export function offerLine(ctx, surface, done = false) {
   if (!offered(ctx, surface)) return null;
-  const { el } = ctx.helpers;
-  const w = (infoFor(ctx, surface) || {}).wizard || {};
-  const back = !!(w.started && UNFINISHED.has(w.started.at));
-  const go = el("button", { class: "btn inline", "data-aiw": "try", style: "font-size:12px;margin-left:6px" }, back ? "Carry on →" : "Try it →");
+  const { el } = ctx.helpers, w = lineWords(ctx, surface, done);
+  const go = el("button", { class: "btn inline", "data-aiw": "try", style: "font-size:12px;margin-left:6px" }, w.go);
   go.addEventListener("click", () => openWizard(ctx, surface));
-  return el("div", { "data-aiw": "line", style: "font-size:12px;color:#94a3b8;margin:6px 0;line-height:1.5" },
-    [back ? "Claude is part-way through drawing your rooms (experimental)." : "Stuck? Claude can read your plan and draw the rooms for you (experimental).", go]);
+  return el("div", { "data-aiw": "line", style: "font-size:12px;color:#94a3b8;margin:6px 0;line-height:1.5" }, [w.text, go]);
 }
 
 /** The Getting started card's row, under Draw Rooms. */

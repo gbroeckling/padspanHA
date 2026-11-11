@@ -141,9 +141,9 @@ def _house(monkeypatch, tmp_path, disk, case="feet_chain", fail=None):  # noqa: 
     return h, conn, mdl, ms, cal
 
 
-def _read(h, conn) -> dict:
-    """plan_build_scale_start, its job run to its end, then the status."""
-    r = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")
+def _read(h, conn, **kw) -> dict:
+    """plan_build_scale_start, its job run to its end, then the status. `again=True`: a fresh read, not the one held."""
+    r = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard", **kw)
     assert "session" in r, r
     while h.jobs:
         _run(h.jobs.pop(0))
@@ -253,6 +253,19 @@ def test_the_check_screen_never_quotes_a_text_cut_short_beside_the_whole_length(
     assert A.scale_proposal(pl, [1000, 800])["axes"]["x"]["text"] == "8.00 m"
 
 
+@pytest.mark.parametrize("printed", ["66-7", "2029"])
+def test_a_length_readable_only_with_the_unit_hint_is_quoted_as_printed(printed):
+    """Review 2026-11-11: dashed feet (66-7) or bare centimetres (2029) read as the length only with Claude's metres as
+    the unit hint; the check screen said "Claude read 20.29 m" where the plan prints the number. It quotes the print
+    now, so the person can compare it with the plan; Save still sends the metres."""
+    m = G.parse_length(printed, 20.29)
+    assert m and G.agrees(m, 20.29, A.S1_PARSE_AGREE) and not G.agrees(G.parse_length(printed), m, A.S1_PARSE_AGREE)
+    pl = {"dims": [{"axis": "x", "ok": True, "ticks_px": [[100, 500], [900, 500]], "parse_m": m, "metres": 20.29, "text": printed,
+                    "chain": [], "box": [90, 480, 910, 520]}]}
+    ax = A.scale_proposal(pl, [1000, 800])["axes"]["x"]
+    assert ax["text"] == printed and ax["save_text"] == f"{m:.4f} m"
+
+
 # ═══ the save: piece 3's scale_save, unchanged ════════════════════════════════
 
 def test_yes_saves_through_scale_save_exactly_as_a_guided_save_of_the_same_ends(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -322,10 +335,11 @@ def test_the_rooms_read_after_a_scale_read_and_its_save_skips_the_gap_and_the_ca
         c.close()                                                                    # the rooms read isn't this test's
     h.jobs.clear()
     # Another scale read right away: the gap holds for it; ten a day hold for all.
+    # (again: a fresh read; without it, the reading held for this picture is offered again and nothing is started)
     mdl.data["map_transforms"].pop("n1")
-    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")["error"] in ("too_soon", "daily_cap")
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", again=True, via="wizard")["error"] in ("too_soon", "daily_cap")
     h.data[DOMAIN][A._DATA_STARTS] = [time.monotonic() - 100 - i for i in range(A.STARTS_A_DAY)]   # noqa: SLF001
-    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")["error"] == "daily_cap"
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", again=True, via="wizard")["error"] == "daily_cap"
 
 
 def test_out_of_credit_stops_with_its_reason_and_nothing_is_written(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -363,7 +377,7 @@ def test_read_a_is_reused_by_the_next_scale_read_and_by_a_later_line_up(monkeypa
     got = A.earlier_reads(store)["n1|ss"]
     assert got["read_a"]["dims"] and got["dims"] is None and got["dims_read"] is False      # Read A only: a line-up reads its own dimensions
     h.data[DOMAIN][A._DATA_STARTS] = []                                                     # noqa: SLF001
-    second = _read(h, conn)
+    second = _read(h, conn, again=True)                                                     # a fresh read (not the one held): Read A reused
     assert second["id"] != first["id"] and second["reads"] == 2 and _counters(h)["plan_build_read:s0_reused"] == 1
     assert second["proposal"]["ppm"] == pytest.approx(first["proposal"]["ppm"], rel=1e-6)
     snap = {"plans": {"n1": {"name": "New plan", "floor_id": "main", "image_sig": "ss", "place_sig": "p", "size": [1250, 1000], "drawn": {}, "refs": 1}}}
@@ -397,7 +411,7 @@ def test_a_text_one_percent_from_claudes_metres_is_kept_unconfirmed_and_three_pe
     assert x["state"] == "unconfirmed" and x["near"] is True and x["metres"] == pytest.approx(10.0) and x["ppm"] == pytest.approx(80.0, rel=0.005)
     assert prop["other"] == "y" and prop["checked"] is False and _counters(h)["plan_build_scale:printed_unchecked"] == 1
     h, conn, *_ = _house(monkeypatch, tmp_path, disk, "far")
-    prop = _read(h, conn)["proposal"]
+    prop = _read(h, conn, again=True)["proposal"]                                  # the same store and picture: a fresh read, not the one held
     assert prop["axes"]["x"]["state"] == "none" and prop["main"] == "y" and prop["other"] is None and prop["checked"] is False
 
 
@@ -407,7 +421,7 @@ def test_a_scale_read_bumps_none_of_the_line_ups_stage_less_counts(monkeypatch, 
     _read(h, conn)
     assert not [k for k in _counters(h) if k.startswith(stageless)], _counters(h)
     h, conn, *_ = _house(monkeypatch, tmp_path, disk, fail=RuntimeError("Your credit balance is too low to access the Anthropic API"))
-    sess = _read(h, conn)
+    sess = _read(h, conn, again=True)                                               # the same store and picture: a fresh read
     assert [s["reason"] for s in sess["stops"]] == ["no_credit"]                    # kept on the session, said on the screen
     assert not [k for k in _counters(h) if k.startswith(stageless)] and not _store(h).data.get("stall"), _counters(h)
     # A line-up's stop is still counted as before.
@@ -431,6 +445,8 @@ def test_ask_claude_again_takes_a_fresh_first_look_after_a_suspect_one(monkeypat
     store = _store(h)
     store.scale_session(first["id"])["plans"][0]["read_a"]["suspect"] = True        # its first look didn't match the drawing
     h.data[DOMAIN][A._DATA_STARTS] = []                                             # noqa: SLF001
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")["reused"] is True   # held: offered again, not read
+    store.scale_session(first["id"])["proposal"] = None                             # no longer held: a new read passes the first look on
     second = _read(h, conn)                                                         # reused: nothing read closely, none found
     assert second["reads"] == 0 and second["proposal"]["none_found"] is True and second["suspect"] is True
     h.data[DOMAIN][A._DATA_STARTS] = []                                             # noqa: SLF001
@@ -483,3 +499,19 @@ def test_start_refuses_points_on_the_plan_or_no_picture_size_before_any_read(mon
     assert "session" in _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")
     for c in h.jobs:
         c.close()                                                                    # the read itself isn't this test's
+
+
+def test_a_reading_held_for_the_same_plan_and_picture_is_offered_again_never_paid_for_twice(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Click-through 2026-11-11: leaving the guided measurement and pressing Read my plan again started a new scale read
+    that Claude was paid for again. A finished reading of the same plan and picture still held is offered again; Ask
+    Claude again (again) and a new picture still read afresh."""
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk, "feet_chain")
+    first = _read(h, conn)
+    r = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", via="wizard")
+    assert r == {"session": first["id"], "reused": True} and not h.jobs
+    assert _counters(h)["plan_build_scale:reused"] == 1 and _counters(h)["plan_build_run:s0_started"] == 1
+    fresh = _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", again=True, via="wizard")
+    assert "reused" not in fresh and fresh.get("error") == "too_soon"              # a fresh read, held to the one-a-minute gap
+    m = ms.get_map("n1")
+    m["image"]["sha256"] = "tt"                                                       # a new picture: read afresh
+    assert A.held_scale_read(_store(h), m) is None

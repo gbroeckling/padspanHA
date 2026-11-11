@@ -2042,8 +2042,10 @@ let luOff = null;                                    // no Line up or Rooms tab:
     if (helper && g && g.helper && g.helperOffered && g.helperOffered()) {
       const l = d("div", "pl-note");
       l.setAttribute("data-plans-next", "helper");
-      l.appendChild(d("span", null, "Or let Claude draw the rooms for you: it starts with one measurement. "));
-      const h = btn("Try it →", "Let Claude draw your rooms (experimental)", () => { count("plans_tool_go:helper"); g.helper(); });
+      // Setup's words where the helper was left (ai_wizard_offer.lineWords, one copy): Carry on, else this tool's own Try it.
+      const w = (g.helperWords && g.helperWords()) || {};
+      l.appendChild(d("span", null, w.back ? `${w.text} ` : "Or let Claude draw the rooms for you: it starts with one measurement. "));
+      const h = btn(w.go || "Try it →", "Let Claude draw your rooms (experimental)", () => { count("plans_tool_go:helper"); g.helper(); });
       h.setAttribute("data-plans-go", "helper");
       l.appendChild(h);
       sheet.appendChild(l);

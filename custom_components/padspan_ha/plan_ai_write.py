@@ -1742,6 +1742,37 @@ async def _auto_backup_rooms(hass: HomeAssistant, note: str) -> str | None:
                               exact=True, slot_keep=A.S1_BACKUPS_KEPT)
 
 
+def _rooms_undo_plan(hass: HomeAssistant, store: A.PlanAiStore, house: dict, sid: str) -> tuple[list, list[dict], list[dict]]:
+    """What an undo of this rooms session would do now: its saves still
+    standing (newest first), what goes back, what is left and why. One undo
+    per target (review B3): two saves of the session may touch one room, door
+    or stair; the newest `after` is checked against the house as it is, the
+    oldest `before` is written back. Writes nothing: rooms_undo acts on it,
+    rooms_undo_scale asks it which rooms an undo would take away."""
+    batches = store.data.setdefault("room_batches", {})
+    mine = sorted(((bid, b) for bid, b in batches.items() if isinstance(b, dict) and b.get("session") == sid and not b.get("undo_of")
+                   and not b.get("undone_at") and not b.get("pending")), key=lambda t: float(t[1].get("committed_at") or 0), reverse=True)
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    scanners = (getattr(mdl, "data", None) or {}).get("scanners") or {}
+    todo: list[dict] = []
+    skipped: list[dict] = []
+    targets: dict[tuple, list[tuple[str, dict]]] = {}
+    for bid, b in mine:
+        for e in reversed(b.get("items") or []):
+            targets.setdefault(("room", e["room"]) if e["kind"] in ROOM_KINDS else ("house", e["target"]), []).append((bid, e))
+    for got in targets.values():
+        (bid, newest), (_obid, oldest) = got[0], got[-1]
+        had = set((oldest.get("meta_before") or {}).get("scanners") or [])
+        in_use = oldest["kind"] == "room_new" and any(isinstance(v, dict) and v.get("room") == oldest["room"] and k not in had
+                                                      for k, v in scanners.items())
+        if _at_side(hass, house, newest, "after") and not in_use:
+            todo.append({**copy.deepcopy(oldest), "item_id": newest["item_id"], "item_ids": [e["item_id"] for _b, e in got],
+                         "before": copy.deepcopy(newest["after"]), "after": copy.deepcopy(oldest["before"]), "of": bid})
+        else:
+            skipped += [{"item_id": e["item_id"], "why": "in_use" if in_use else "changed"} for _b, e in got]
+    return mine, todo, skipped
+
+
 async def rooms_undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStore, sid: str) -> dict[str, Any]:
     """Undo a rooms session: every save of it, newest first. What is still as
     a save left it goes back (an outline with its stamp as it was; a room the
@@ -1758,31 +1789,10 @@ async def rooms_undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3d
     if A.running(hass) is not None:
         raise Refused("already_running", RP + "a session is reading your plans: undo when it ends.")
     sess = store.rooms_session(sid)
-    batches = store.data.setdefault("room_batches", {})
-    mine = sorted(((bid, b) for bid, b in batches.items() if isinstance(b, dict) and b.get("session") == sid and not b.get("undo_of")
-                   and not b.get("undone_at") and not b.get("pending")), key=lambda t: float(t[1].get("committed_at") or 0), reverse=True)
+    mine, todo, skipped = _rooms_undo_plan(hass, store, house.data, sid)
+    batches = store.data["room_batches"]
     if not mine:
         raise Refused("nothing_to_undo", RP + "nothing of this session is left to undo.")
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    scanners = (getattr(mdl, "data", None) or {}).get("scanners") or {}
-    todo: list[dict] = []
-    skipped: list[dict] = []
-    # One undo per target (review B3): two saves of the session may touch one room, door or stair. The newest `after`
-    # is checked against the house as it is; the oldest `before` is written back.
-    targets: dict[tuple, list[tuple[str, dict]]] = {}
-    for bid, b in mine:
-        for e in reversed(b.get("items") or []):
-            targets.setdefault(("room", e["room"]) if e["kind"] in ROOM_KINDS else ("house", e["target"]), []).append((bid, e))
-    for got in targets.values():
-        (bid, newest), (_obid, oldest) = got[0], got[-1]
-        had = set((oldest.get("meta_before") or {}).get("scanners") or [])
-        in_use = oldest["kind"] == "room_new" and any(isinstance(v, dict) and v.get("room") == oldest["room"] and k not in had
-                                                      for k, v in scanners.items())
-        if _at_side(hass, house.data, newest, "after") and not in_use:
-            todo.append({**copy.deepcopy(oldest), "item_id": newest["item_id"], "item_ids": [e["item_id"] for _b, e in got],
-                         "before": copy.deepcopy(newest["after"]), "after": copy.deepcopy(oldest["before"]), "of": bid})
-        else:
-            skipped += [{"item_id": e["item_id"], "why": "in_use" if in_use else "changed"} for _b, e in got]
     at = time.time()
     if not todo:                                          # everything changed since: nothing can go back, so the saves are spent
         for _bid, b in mine:
@@ -1968,7 +1978,7 @@ async def _metre_files_read(hass: HomeAssistant) -> None:
             _LOGGER.warning("PadSpan rooms helper: a file couldn't be read for the scale's undo check", exc_info=True)
 
 
-def _metres_fp(hass: HomeAssistant, map_id: str) -> str:
+def _metres_fp(hass: HomeAssistant, map_id: str, without: Any = ()) -> str:
     """Everything in metres a scale undo must find unchanged: the rooms, the
     walls, the receivers', beacons' and lights' positions, every calibration
     point's place in metres (by id and plan: one moved, or one added and one
@@ -1978,12 +1988,13 @@ def _metres_fp(hass: HomeAssistant, map_id: str) -> str:
     every OTHER plan's placement record. Synchronous, so a caller can compare
     and write with no await between. A hash, the same after a restart (sorted
     keys, numbers to four decimals). Taken before the save writes: the save
-    changes none of it."""
+    changes none of it. `without`: rooms left out, as a rooms undo about to
+    run would take them away (rooms_undo_scale)."""
     mdl, _ms, cal = _house_stores(hass)
     dom = hass.data.get(DOMAIN, {})
     h3, sz = dom.get(DATA_HOUSE3D), dom.get(DATA_SUBZONES)
     points = [p for p in ((getattr(cal, "data", None) or {}).get("points") or []) if isinstance(p, dict)]
-    got = {"rooms": mdl.room_geometry_m(), "walls": mdl.rf_barriers_m(), "receivers": mdl.scanner_positions_m(),
+    got = {"rooms": {k: v for k, v in mdl.room_geometry_m().items() if k not in without}, "walls": mdl.rf_barriers_m(), "receivers": mdl.scanner_positions_m(),
            "beacons": mdl.beacon_positions_m(), "lights": mdl.light_positions_m(),
            "points": sorted(json.dumps(_canon([p.get("id"), p.get("map_id"), p.get("x_m"), p.get("y_m")])) for p in points),
            "zones": sz.zones() if isinstance(sz, SZ.SubzoneStore) else "unread",
@@ -2206,6 +2217,46 @@ async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, 
             "down_m": got["down_m"], "odd": got["odd"], "house_scale_set": seeded}
 
 
+def _scale_same(hass: HomeAssistant, b: dict[str, Any], without: Any = ()) -> str:
+    """Whether a helper's scale save is still exactly as it wrote it: "same";
+    "remeasured" (the plan's record isn't the helper's any more: measured
+    again by hand, so it isn't the helper's to take back); "changed_since"
+    (the house scale moved, or something in metres was added or changed
+    since). The metre files must have been read (_metre_files_read)."""
+    mdl, _ms, _cal = _house_stores(hass)
+    mid, after = b["map_id"], b["after"]
+    if mdl.map_transform(mid) != after["t"]:
+        return "remeasured"
+    if mdl.data.get("world_gauge") != after["gauge"] or _metres_fp(hass, mid, without) != b["fp"]:
+        return "changed_since"
+    g = FT.metre_gauge(mdl)
+    return "same" if b["before"]["gauge_set"] or g is None or g.get("source_map_id") == mid else "changed_since"
+
+
+def scale_undo_word(hass: HomeAssistant, store: A.PlanAiStore, map_id: str | None, without: Any = ()) -> str:
+    """What scale_undo would do to this plan now: "goes" (the helper's scale is
+    taken back), "remeasured" or "changed_since" (it stays), or "none" (the
+    helper set no scale here). One rule for the undo and for the words that
+    warn of it (rooms_undo_scale)."""
+    info = scale_undo_info(store, map_id) if map_id else None
+    if info is None:
+        return "none"
+    word = _scale_same(hass, store.data["scale_batches"][info["batch"]], without)
+    return "goes" if word == "same" else word
+
+
+async def rooms_undo_scale(hass: HomeAssistant, store: A.PlanAiStore, sid: str, map_id: str | None) -> str:
+    """scale_undo_word for the plan a helper's rooms session read, as it will be
+    once that session's undo has run (the rooms it would take away left out):
+    what Settings → AI's undo row says, and whether it then takes the scale
+    back too. The rooms first, then the scale, as the Done screen's Undo."""
+    house = await H.async_get_store(hass)
+    await _metre_files_read(hass)
+    _mine, todo, _skipped = _rooms_undo_plan(hass, store, house.data, sid)
+    gone = {t["room"] for t in todo if t["kind"] == "room_new"}
+    return scale_undo_word(hass, store, map_id, gone)
+
+
 def scale_undo_info(store: A.PlanAiStore, map_id: str | None = None) -> dict[str, Any] | None:
     """The newest scale save of the helper still standing (of this plan, if given), or None."""
     live = [(bid, b) for bid, b in (store.data.get("scale_batches") or {}).items()
@@ -2240,10 +2291,7 @@ async def scale_undo(hass: HomeAssistant, store: A.PlanAiStore, map_id: str | No
     await _metre_files_read(hass)
 
     def same() -> bool:
-        if mdl.map_transform(mid) != after["t"] or mdl.data.get("world_gauge") != after["gauge"] or _metres_fp(hass, mid) != b["fp"]:
-            return False
-        g = FT.metre_gauge(mdl)
-        return not seeded or g is None or g.get("source_map_id") == mid
+        return _scale_same(hass, b) == "same"
 
     if not same():
         A._bump(hass, "plan_build_scale_undo:changed_since")  # noqa: SLF001

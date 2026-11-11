@@ -363,7 +363,8 @@ def test_the_rooms_read_right_after_the_helpers_scale_skips_the_minute_gap_only(
 
 def test_the_scale_counts_are_closed_shareable_and_named():
     words = {e for e in T.AI_WIZARD_EVENTS if e.startswith("plan_build_scale")}
-    assert words == ({f"plan_build_scale:{k}" for k in ("printed_checked", "printed_unchecked", "none_found", "guided", "already_set")}
+    assert words == ({f"plan_build_scale:{k}" for k in ("printed_checked", "printed_unchecked", "none_found", "guided", "already_set",
+                                                                 "reused")}   # reused: a reading held offered again (click-through 2026-11-11)
                      | {f"plan_build_scale_save:{k}" for k in ("done", *C.SCALE_STOPS)}
                      | {f"plan_build_scale_undo:{k}" for k in ("done", "changed_since", "failed")}
                      | {f"plan_build_scale_remeasured:{k}" for k in T.PLAN_BUILD_PCT}
@@ -543,3 +544,40 @@ def test_a_corrupt_stored_record_never_stops_a_measure_save(monkeypatch, tmp_pat
     mdl.data["map_transforms"]["n1"] = {"scale_x_m": 3.0, "scale_y_m": 2.0, "reference_measurements": 5}
     out = _call(F.ws_fabric_map_transform_set, h, conn, map_id="n1", transform=copy.deepcopy(_HAND))
     assert out.get("ok") is True and mdl.map_transform("n1")["scale_x_m"] == 10.5
+
+
+# ═══ Settings → AI's undo of a helper session takes its scale too (owner, 2026-11-11) ═══
+# "The scale should have a warning before removing unless a manual scale was entered": the row is told, by
+# scale_undo's own rule, whether the scale goes with the rooms or why it stays.
+
+def _helper_session(store, *, room="Attic"):
+    """A rooms helper's session on n1 that saved one new room (the plan store's records only)."""
+    store.data.setdefault("rooms", {})["rb_h"] = {"via": "wizard", "floor_id": "main", "plans": [{"map_id": "n1"}], "status": "done"}
+    store.data.setdefault("room_batches", {})["rbb_h"] = {
+        "session": "rb_h", "floor_id": "main", "committed_at": time.time(), "items": [
+            {"item_id": "space:a", "kind": "room_new", "room": room, "floor_id": "main", "before": None,
+             "after": {"type": "poly", "points_m": _ATTIC["points_m"]}, "meta_before": {}}]}
+
+
+def test_the_settings_undo_is_told_whether_the_helper_s_scale_goes_by_the_undo_s_own_rule(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
+    assert _save(h, conn)["ok"]
+    store = _store(h)
+    word = lambda sid="rb_h", mid="n1": _run(C.rooms_undo_scale(h, store, sid, mid))  # noqa: E731
+    assert word() == "goes" and word(mid="zz") == "none" and word(mid=None) == "none"
+    # The helper's own room, saved after the scale, would go first: left out of the check, the scale still goes.
+    rooms = mdl.fabric.rooms_flat()
+    monkeypatch.setattr(mdl.fabric, "rooms_flat", lambda: {**rooms, "Attic": _ATTIC})
+    monkeypatch.setattr(C, "_room_at", lambda hass, e, side: e["room"] == "Attic")       # the room is still as the helper saved it
+    _helper_session(store)
+    assert word() == "goes"
+    assert word(sid="rb_other") == "changed_since"                     # a room the undo wouldn't take: the scale stays
+    info = _call(WP.ws_plan_build_info, h, conn)["rooms_undo"]
+    assert info["helper"] is True and info["map_id"] == "n1" and info["scale"] == "goes" and info["session"] == "rb_h"
+    # Something measured in metres since: the scale stays, by the same rule the undo refuses with.
+    cal.data["points"].append({"id": "cp_y", "map_id": "n1", "x_frac": 0.2, "y_frac": 0.2, "x_m": 2.0, "y_m": 1.6, "floor_id": "main", "room": ""})
+    assert word() == "changed_since" and _call(WP.ws_plan_build_info, h, conn)["rooms_undo"]["scale"] == "changed_since"
+    cal.data["points"].pop()
+    # Measured again by hand: no longer the helper's scale, so neither removed nor warned about.
+    assert _call(F.ws_fabric_map_transform_set, h, conn, map_id="n1", transform=_HAND)["ok"]
+    assert word() == "remeasured" and _undo(h, conn)["code"] == "changed_since" and mdl.map_transform("n1")["scale_x_m"] == 10.5

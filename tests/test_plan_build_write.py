@@ -848,7 +848,7 @@ def test_settings_keeps_the_undo_reachable_when_the_ai_stops_qualifying():
     assert "if (undo) box.appendChild(undoRow(undo, false)); if (rundo) box.appendChild(undoRow(rundo, false, true)); return;" in row   # drawn while locked
     assert row.index("if (!ok) {") < row.index("if (undo) box.appendChild(undoRow(undo, false));")   # under the line saying why (tests/js/settings_plan_build_why.mjs)
     assert 'cmd: "padspan_ha/plan_build_rooms_undo"' in row and 'title: "Undo this rooms session (experimental)"' in row   # Stage 2's too, the same row
-    assert 'cmd: "padspan_ha/plan_build_undo"' in row and "ctx.actions.wsCall(K.cmd, { session: u.session })" in row
+    assert 'cmd: "padspan_ha/plan_build_undo"' in row and "ctx.actions.wsCall(K.cmd, { session: u.session, ...(K.via ? { via: K.via } : {}) })" in row   # via: the rooms helper's own (settings_plan_build_why.mjs runs it)
     assert 'title: "Undo this line-up session (experimental)"' in row and "K.title)" in row
     assert "In this version it proposes only" not in row
 

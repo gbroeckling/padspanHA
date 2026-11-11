@@ -151,6 +151,22 @@ for (const [name, go, offered] of [["the helper offered", true, true], ["the hel
   if (offered) { await click(button(M.sheet, "Try it →")); check("no scale: Try it opens the helper, counted", went.includes("helper") && M.tel.includes("plans_tool_go:helper"), JSON.stringify([went, M.tel])); }
   M.tool.dispose();
 }
+// Click-through 2026-11-11: where the helper was left, the Plans tool says what Setup says (ai_wizard_offer.lineWords).
+{
+  const went = [];
+  const host = { measure: () => {}, helperOffered: () => true, helper: () => went.push("helper"), settings: () => {},
+    helperWords: () => ({ back: true, text: "Claude is part-way through drawing your rooms (experimental).", go: "Carry on →" }) };
+  const M = mount({ ...BASE, plan_build_info: INFO({ unscaled: { upper: [{ map_id: "u1", name: "Upper scan" }] } }) }, { go: host });
+  M.tool.show(true); await settle();
+  await click(button(M.sheet, "Rooms from plans (experimental)"));
+  await click(button(M.sheet, "Upper · 1 plan, no scale yet"));
+  const t = text(M.sheet);
+  check("no scale, the helper left part-way: Setup's words and Carry on", t.includes("Claude is part-way through drawing your rooms (experimental).")
+    && !!button(M.sheet, "Carry on →") && !button(M.sheet, "Try it →"), t);
+  await click(button(M.sheet, "Carry on →"));
+  check("no scale, Carry on opens the helper", went.includes("helper"));
+  M.tool.dispose();
+}
 // ── a session: the rooms, the map, merges, the gate, Accept all, Undo ───────
 {
   let sess = SESSION(), gate = GATE();

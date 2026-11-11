@@ -236,6 +236,22 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("helper line: Scale current, under Scale only", (await lineRow(scaleNow)).join() === "scale");
   const roomsDone = house(5, { calibration: { points: [], model: {} } });
   check("helper line: a house past its rooms keeps it under Rooms while the rule offers it", (await lineRow(roomsDone)).join() === "rooms");
+  {
+    // Click-through 2026-11-11: on a Rooms row already Done, the line doesn't open with "Stuck?".
+    AIWO._reset();
+    const { ctx } = offering(roomsDone);
+    S.render(ctx);
+    for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
+    const line = S.render(ctx).querySelector('[data-aiw="line"]');
+    const notDone = house(2, { calibration: { points: [], model: {} } });
+    AIWO._reset();
+    const o2 = offering(notDone);
+    S.render(o2.ctx);
+    for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
+    const line2 = S.render(o2.ctx).querySelector('[data-aiw="line"]');
+    check("helper line: a Done row says another plan, not Stuck?", line && line.textContent.includes("Claude can draw the rooms on another of your floor plans too")
+      && !line.textContent.includes("Stuck?") && line2 && line2.textContent.includes("Stuck?"), [line && line.textContent, line2 && line2.textContent]);
+  }
   AIWO._reset();
   const { ctx } = mkCtx(house(2, { calibration: { points: [], model: {} } }));
   S.render(ctx);

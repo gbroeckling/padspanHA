@@ -300,6 +300,30 @@ def test_the_person_s_ticks_are_kept_on_the_session_without_touching_the_proposa
     assert _call(WP.ws_plan_build_rooms_edit, h, conn, session="rb_nope", rev=1, op="ticks", ticked=[], via="wizard")["error"] == "not_found"
 
 
+def test_a_name_kept_as_it_is_typed_counts_no_stop_and_cleared_gives_claude_s_back(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-11: the helper keeps a name on the session when its field is left (`draft`); a name already taken
+    was recorded as a stop on every blur, filling the opt-in stop counts and Settings' "stops this month". Only Save's
+    refusal counts now. An empty name gives Claude's suggestion back."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    ans = _wiz_read(h, conn)
+    names, sess = _by_name(ans), ans["session"]
+    a, b = names["Den"], names["Store"]
+    stops = lambda: [s["reason"] for s in (h.data[DOMAIN]["plan_ai"].rooms_session(sess["id"]) or {}).get("stops") or []]  # noqa: E731
+    r = _call(WP.ws_plan_build_rooms_edit, h, conn, session=sess["id"], rev=sess["rev"], op="space", space=a, name="Store", draft=True, via="wizard")
+    assert r["error"] == "name_taken" and stops().count("name_taken") == 0
+    again = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["session"]
+    assert again["rev"] == sess["rev"]                                               # nothing recorded, nothing moved on
+    r = _call(WP.ws_plan_build_rooms_edit, h, conn, session=sess["id"], rev=sess["rev"], op="space", space=a, name="Store", via="wizard")
+    assert r["error"] == "name_taken" and stops().count("name_taken") == 1          # Save's refusal: counted, as before
+    sess = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["session"]
+    r = _call(WP.ws_plan_build_rooms_edit, h, conn, session=sess["id"], rev=sess["rev"], op="space", space=a, name="Scullery", draft=True, via="wizard")
+    assert r["session"]["proposal"]["spaces"][a]["new"] == "Scullery" and r["wizard"]["sources"][a] == "typed"
+    sess = r["session"]
+    r = _call(WP.ws_plan_build_rooms_edit, h, conn, session=sess["id"], rev=sess["rev"], op="space", space=a, name="", draft=True, via="wizard")
+    assert r["session"]["proposal"]["spaces"][a]["new"] == "Den" and r["wizard"]["sources"][a] == ans["wizard"]["sources"][a] != "typed"
+    assert r["session"]["proposal"]["spaces"][b]["new"] == "Store"
+
+
 def test_the_helper_s_save_is_named_as_the_helper_s_in_its_backups_and_its_undo_row(monkeypatch, tmp_path, disk):  # noqa: F811
     """Settings → AI's undo row and the automatic backups name the helper, as its scale's backup already did."""
     from tests.test_plan_build_rooms import _backups

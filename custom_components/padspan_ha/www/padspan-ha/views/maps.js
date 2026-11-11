@@ -9814,6 +9814,7 @@ function _lightsTab(ctx, maps, active) {
   const plansGo = ctx.state.kioskMode ? null : {
     measure: (mapId) => _openMeasure(ctx, mapId),
     helperOffered: () => !!(AIW && AIW.offered(ctx, "plans_tool")),
+    helperWords: () => (AIW && AIW.lineWords ? AIW.lineWords(ctx, "plans_tool") : null),     // Carry on or Try it, as Setup says it
     helper: () => { if (AIW) AIW.openWizard(ctx, "plans_tool"); },
     settings: () => { ctx.state._settingsPart = "ai_task"; FOCUS.openFocus(ctx, FOCUS.part("aiTask")); },
   };
