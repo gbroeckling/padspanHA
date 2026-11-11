@@ -251,6 +251,27 @@ def test_the_plans_tool_still_needs_live_aboard_and_the_helper_does_not(monkeypa
     assert info["rooms"]["main"]["ready"] and "rooms" not in _call(WP.ws_plan_build_info, h, conn)
 
 
+def test_the_helper_needs_no_settings_switch_and_the_plans_tool_still_does(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-12: the helper's Start is the consent. With both Settings switches off its reads, edits, save and
+    undo go through and its read isn't stopped as switch_off; the Plans tool's commands still refuse, and nothing turns
+    a switch on."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    data.update(ai_plans_enabled=False, ai_plan_build_enabled=False, atlas_3d_enabled=True)
+    assert _call(WP.ws_plan_build_rooms_start, h, conn, floor_id="main")["error"] == "ai_plans_off"
+    data["ai_plans_enabled"] = True
+    assert _call(WP.ws_plan_build_rooms_start, h, conn, floor_id="main")["error"] == "plan_build_off"
+    data.update(ai_plans_enabled=False, atlas_3d_enabled=False)
+    ans = _wiz_read(h, conn)
+    assert ans["session"]["status"] == "done" and ans["wizard"]["rows"], ans["session"].get("error")
+    sess = ans["session"]
+    out = _call(WP.ws_plan_build_rooms_commit, h, conn, session=sess["id"], rev=sess["rev"], items=ans["wizard"]["ticked"], via="wizard")
+    assert out.get("ok"), out
+    assert _call(WP.ws_plan_build_rooms_undo, h, conn, session=sess["id"], via="wizard").get("ok")
+    assert _call(WP.ws_plan_build_rooms_undo, h, conn, session=sess["id"])["error"] == "ai_plans_off"   # the Plans tool's own undo: as it was
+    assert data["ai_plans_enabled"] is False and data["ai_plan_build_enabled"] is False
+
+
 def test_the_helper_names_ticks_saves_adds_the_area_asked_for_and_undo_takes_the_rooms_back(monkeypatch, tmp_path, disk):  # noqa: F811
     h, conn, _ai = _bare(monkeypatch, tmp_path, disk, areas=[{"name": "Den", "floor_id": "main"}, {"name": "Store", "floor_id": None},
                                                               {"name": "Nook", "floor_id": "upper"}])

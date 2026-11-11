@@ -36,13 +36,17 @@ export const HA_ADD_PATH = "/config/integrations/dashboard/add?domain=anthropic"
 export const HA_ANTHROPIC_PATH = "/config/integrations/integration/anthropic";
 export const HA_AREAS_PATH = "/config/areas/dashboard";
 
-export const LEAVES = "Your floor plan picture goes to Anthropic, the company that makes Claude, through Home Assistant's Anthropic " +
-  "integration and your own Anthropic account. Nothing else from your house is sent: no people, devices or positions.";
-export const COST = "Anthropic charges your Anthropic account for each read: two reads for one plan, and one more for a room you " +
-  "ask Claude to look at again. The Anthropic Console's usage page shows what it cost.";
-/** The same for a plan with no scale yet: Claude first reads a measurement printed on it (up to three reads). */
-export const COST_SCALE = "Anthropic charges your Anthropic account for each read: about five reads for one plan (up to three to find a " +
-  "measurement printed on it, two for its rooms), and one more for a room you ask Claude to look at again. The Anthropic Console's usage page shows what it cost.";
+// The intro (2026-11-12): what happens, what it costs in reads, that nothing is saved before Save; its Start is the one
+// consent (no Settings switch is ticked for the helper).
+export const START = "Draw my rooms →";
+export const LEAVES = "Pressing Draw my rooms sends your floor plan picture to Claude, through Home Assistant's Anthropic integration and " +
+  "your Anthropic account. Nothing else from your house is sent: no people, devices or positions.";
+export const COST = "Claude reads your plan twice to find its rooms. Anthropic charges your Anthropic account for each read; " +
+  "the Anthropic Console's usage page shows what they cost.";
+/** The same for a plan with no scale yet: Claude first looks for a measurement printed on it (up to three reads). */
+export const COST_SCALE = "Claude reads your plan up to three times to look for a measurement printed on it, then twice to find its rooms. " +
+  "Anthropic charges your Anthropic account for each read; the Anthropic Console's usage page shows what they cost.";
+export const SAVED_ONLY = "Nothing is saved until you press Save. A backup is taken first, and one Undo takes it all back.";
 /** The one line above the guided measurement when Claude's reading didn't give one (design B screen 3's fallback). */
 export const SCALE_NONE = "There's no measurement printed on this plan that Claude could read. Measure one thing instead:";
 export const SCALE_UNUSABLE = "Claude's answers couldn't be used for this plan. Measure one thing instead:";
@@ -50,7 +54,7 @@ export const SCALE_UNUSABLE = "Claude's answers couldn't be used for this plan. 
 export const SCALE_UNCHECKED = "Claude found a measurement on your plan but couldn't double-check it, so measure one thing yourself. It's the surest way.";
 /** Under the scale screens' one Save: what it does, then what happens next. */
 export const SCALE_SAVE_SAYS = "Save keeps this as your plan's scale, then Claude reads the plan for its rooms (two reads, 1–3 minutes). " +
-  "A backup is taken first. Undo on the last screen takes the rooms and this measurement back.";
+  "A backup is taken first. Undo on the last screen takes the rooms and this scale back.";
 /** Claude's earlier reading of the same plan and picture, offered again instead of a new (paid) read. */
 export const SCALE_REUSED = "Claude already read this plan's measurement, so it isn't read again.";
 /** Under "Ask Claude again" where a reading was offered again: a new reading costs, in the helper's usual words. */
@@ -83,18 +87,13 @@ const ACT_LABEL = { console: "Open the Console ↗", guide: "Guide ↗", resume:
 
 export const claudeState = OFFER.claudeState;
 
-/** Whether Start must first turn the two switches on (or choose Claude): asked by a tick, never silently. */
-export function needsConsent(build, why) {
-  return !(build && build.master && build.switch) || why === "available_unchosen";
-}
-
-/** The intro's block for a starting state: trial (free, no AI Task or any),
- *  no_pro, connect (Pro, Claude not ready), consent or start (Pro, Claude ready). */
+/** The intro's block for a starting state: trial (free, no AI Task or any), no_pro, connect (Pro, Claude not ready),
+ *  start (Pro, Claude ready, or ready in Home Assistant and chosen by Start, said on the intro). No Settings switch is
+ *  asked for: Start, with what is sent and what it costs beside it, is the consent (owner, 2026-11-12). */
 export function introBlock(info, build) {
   if (!info || info.tier !== "pro") return info && info.trial_offerable ? "trial" : "no_pro";
   const c = claudeState(build).why;
-  if (c !== "ok" && c !== "available_unchosen") return "connect";
-  return needsConsent(build, c) ? "consent" : "start";
+  return c !== "ok" && c !== "available_unchosen" ? "connect" : "start";
 }
 
 /** A stopped session's word (FAILS), or null while it reads or when it read. */
@@ -123,7 +122,7 @@ const CODE_WORDS = {
   apart: "Those two don't touch, so they can't be one room. Join only rooms that touch.",
   invalid: "Pick two or more rooms on the plan to join.",
   two_rooms: "Two of your rooms can't be joined here.",
-  not_found: "That isn't there any more: a plan or a room was removed. Go back and open the helper again.",
+  not_found: "That isn't there any more: a plan or a room was removed. Go back and open Let Claude draw your rooms again.",
 };
 export const codeWords = (code) => CODE_WORDS[code] || "That didn't work. Try again in a moment.";
 
@@ -227,7 +226,7 @@ const ws = (ctx, payload) => ctx.actions.callWS(payload);
 function S_of(ctx) {
   const st = ctx.state;
   if (!st._aiw) st._aiw = { screen: null, info: null, build: null, ans: null, plan: null, ticks: new Set(), ha: new Set(), sel: new Set(), names: {}, root: null,
-    sid: null, busy: false, msg: "", fail: null, showSmall: false, ok1: false, ok2: false, done: null, undone: null, timer: null, loading: false, sc: null,
+    sid: null, busy: false, msg: "", fail: null, showSmall: false, done: null, undone: null, timer: null, loading: false, sc: null,
     scaleSid: null, failFor: null, pending: null };
   return st._aiw;
 }
@@ -271,7 +270,7 @@ function scaleReady(S) {
 }
 
 function stepWord(S) {
-  if (S.screen === "intro") return { trial: "trial", consent: "consent" }[introBlock(S.info, S.build)] || "intro";
+  if (S.screen === "intro") return { trial: "trial" }[introBlock(S.info, S.build)] || "intro";
   return { connect: "connect", scale_read: "scale_read", scale_check: "scale_check", scale: "scale_guided", rooms_read: "rooms_read",
     rooms_check: "rooms_check", saved: "saved" }[S.screen] || null;
 }
@@ -534,17 +533,15 @@ function poll(ctx, S) {
   }, 4000);
 }
 
-/** The ticks the intro asked for, written before anything else (both switches; Claude chosen). Nothing turned on silently. */
+/** Start's one write, said on the intro above it: a Claude Home Assistant has ready becomes PadSpan's AI (the earlier
+ *  one its backup). No switch is turned on: the helper's commands need none, and the Plans tool stays as it was. */
 async function consent(ctx, S) {
   const c = claudeState(S.build);
-  if (!needsConsent(S.build, c.why)) return;
-  const st = ctx.state, set = {};
-  if (!(S.build.master && S.build.switch)) Object.assign(set, { ai_plans_enabled: true, ai_plan_build_enabled: true });
-  if (c.why === "available_unchosen") Object.assign(set, chooseClaude(st.settings, c.eid));
-  const res = await ws(ctx, { type: "padspan_ha/settings_set", ...set });
+  if (c.why !== "available_unchosen") return;
+  const st = ctx.state;
+  const res = await ws(ctx, { type: "padspan_ha/settings_set", ...chooseClaude(st.settings, c.eid) });
   if (res && res.settings) st.settings = res.settings;
-  if (set.ai_plans_enabled) tel(ctx, "ai_wizard_switch:on");
-  if (set.atlas_3d_ai_task_entity) tel(ctx, "ai_wizard_ai:chosen");
+  tel(ctx, "ai_wizard_ai:chosen");
   S.build = await ws(ctx, { type: "padspan_ha/plan_build_info", via: VIA }).catch(() => S.build);
 }
 
@@ -864,7 +861,7 @@ function introScreen(ctx, S, box) {
     `Already has rooms, so not read again here: ${done.map(label).join(", ")}. Change those rooms in Mapping.`);
   // The plan a stored step pointed at was deleted: said first, in words for the plans that are left.
   if (S.gone) box.appendChild(el("div", { "data-aiw": "plan-gone", style: "font-size:13px;color:#f59e0b;line-height:1.5;margin:6px 0" },
-    "The plan you were working on isn't there any more." + (open.length === 1 ? ` The helper goes on with ${label(open[0])}.` : open.length ? " Choose a plan to go on." : "")));
+    "The plan you were working on isn't there any more." + (open.length === 1 ? " Claude will read the plan that is left instead." : open.length ? " Choose a plan to go on." : "")));
   if (plans.length && !open.length) {
     box.appendChild(P(ctx, "Every floor with a plan already has rooms."));
     box.appendChild(doneLine());
@@ -873,9 +870,9 @@ function introScreen(ctx, S, box) {
   const measure = needsScale(st, S.plan);
   box.appendChild(P(ctx, measure ? "Three steps, a few minutes:" : "Two steps, a few minutes:"));
   box.appendChild(el("ol", { "data-aiw": "steps", style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, [
-    ...(measure ? [el("li", {}, "Claude reads a measurement printed on your plan, and you check it. That gives the plan its size.")] : []),
+    ...(measure ? [el("li", {}, "Your plan gets its scale, so the map is in metres: Claude looks for a measurement printed on it, or you measure one length yourself.")] : []),
     el("li", {}, "Claude finds the rooms on your plan and their names. Rooms that match your Home Assistant rooms get their names."),
-    el("li", {}, "You tick the rooms to keep and press Save. A backup is taken first; one Undo takes it all back."),
+    el("li", {}, "You check the rooms and press Save."),
   ]));
   if (S.plan && !measure) box.appendChild(MUTED(ctx, "✓ This plan's scale is already set."));
   if (!plans.length) {
@@ -893,9 +890,11 @@ function introScreen(ctx, S, box) {
       box.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;font-size:13px;color:#e2e8f0;margin:2px 0" }, [r, label(m)]));
     }
   }
-  box.appendChild(MUTED(ctx, LEAVES));
-  box.appendChild(MUTED(ctx, measure ? COST_SCALE : COST));
   const block = introBlock(S.info, S.build);
+  if (block === "start") {                          // what Start does, beside it: the one consent
+    box.appendChild(MUTED(ctx, measure ? COST_SCALE : COST));
+    box.appendChild(MUTED(ctx, SAVED_ONLY));
+  }
   if (block === "trial" || block === "no_pro") {
     box.appendChild(P(ctx, block === "trial" ? "Drawing rooms with Claude is part of PadSpan Pro. Try it free:" : "Drawing rooms with Claude is part of PadSpan Pro."));
     if (block === "trial" && TRIAL) {
@@ -913,27 +912,15 @@ function introScreen(ctx, S, box) {
     return;
   }
   const c = claudeState(S.build);
-  let ready = true;
-  if (block === "consent") {
-    if (!(S.build.master && S.build.switch)) {
-      const t1 = el("input", { type: "checkbox", "data-aiw": "consent" });
-      t1.checked = S.ok1;
-      t1.addEventListener("change", () => { S.ok1 = t1.checked; rerender(ctx); });
-      box.appendChild(el("label", { style: "display:flex;gap:6px;align-items:flex-start;font-size:12px;color:#cbd5e1;line-height:1.45;margin:6px 0" }, [t1,
-        el("span", {}, "Turn on \"AI map-building research\" and \"Build from plans\" in Settings → AI (both experimental). You can turn them off there; that doesn't undo anything you saved.")]));
-      ready = ready && S.ok1;
-    }
-    if (c.why === "available_unchosen") {
-      const t2 = el("input", { type: "checkbox", "data-aiw": "choose" });
-      t2.checked = S.ok2;
-      t2.addEventListener("change", () => { S.ok2 = t2.checked; rerender(ctx); });
-      box.appendChild(el("label", { style: "display:flex;gap:6px;align-items:flex-start;font-size:12px;color:#cbd5e1;line-height:1.45;margin:6px 0" }, [t2,
-        el("span", {}, `Use ${c.display || "Claude"} for PadSpan's AI. Photo and stair reading will use it too.`)]));
-      ready = ready && S.ok2;
-    }
+  if (c.why === "available_unchosen") {               // chosen by Start, said here (no tick)
+    const old = !!Object.keys(chooseClaude(st.settings, c.eid)).includes("atlas_3d_ai_task_backup_entity");
+    box.appendChild(el("div", { "data-aiw": "choose", style: "font-size:12px;color:#cbd5e1;line-height:1.5;margin:6px 0" },
+      `PadSpan will use ${c.display || "Claude"} from Home Assistant as its AI${old ? "; your earlier AI Task stays as the backup" : ""}. ` +
+      "Photo and stair reading will use it too."));
   }
-  box.appendChild(row(ctx, [btn(ctx, S.busy ? "Starting…" : "Read my plan →",
-    () => { if (ready && !S.busy && S.plan) begin(ctx, S, S.plan); }, { primary: true, disabled: !ready || S.busy || !S.plan, attrs: { "data-aiw": "start" } })]));
+  box.appendChild(MUTED(ctx, LEAVES));
+  box.appendChild(row(ctx, [btn(ctx, S.busy ? "Starting…" : START,
+    () => { if (!S.busy && S.plan) begin(ctx, S, S.plan); }, { primary: true, disabled: S.busy || !S.plan, attrs: { "data-aiw": "start" } })]));
 }
 
 function connectScreen(ctx, S, box) {
@@ -1497,7 +1484,7 @@ function savedScreen(ctx, S, box) {
   if (S.undone) {
     box.appendChild(P(ctx, `${S.undone.n} room${S.undone.n === 1 ? "" : "s"} taken back.` +
       (S.undone.skipped ? ` ${S.undone.skipped} ${S.undone.skipped === 1 ? "was" : "were"} left, because ${S.undone.skipped === 1 ? "it" : "they"} changed since or a receiver was put in.` : "")));
-    if (S.undone.scale === "back") box.appendChild(MUTED(ctx, "The measurement this helper made is taken back too: the plan has no scale again."));
+    if (S.undone.scale === "back") box.appendChild(MUTED(ctx, "The scale set here is taken back too: the plan has no scale again."));
     else if (S.undone.scale) box.appendChild(el("div", { "data-aiw": "scale-kept", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:6px 0" }, S.undone.scale));
     if (Object.values((S.done && S.done.areas) || {}).includes("created")) box.appendChild(row(ctx, [
       MUTED(ctx, "The areas added to Home Assistant are still there. Remove them on Home Assistant's"), haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas")]));
@@ -1519,7 +1506,7 @@ function savedScreen(ctx, S, box) {
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
     btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } })]));
   box.appendChild(row(ctx, [MUTED(ctx, "Something wrong?"), btn(ctx, "Undo", () => undo(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "undo" } }),
-    MUTED(ctx, "takes back the rooms, and the measurement if this helper made it. Later, the rooms' Undo is in Settings → AI.")]));
+    MUTED(ctx, "takes back the rooms, and the plan's scale if it was set here.")]));
 }
 
 export function render(ctx) {

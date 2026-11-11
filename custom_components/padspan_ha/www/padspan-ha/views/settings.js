@@ -4206,8 +4206,8 @@ function _settingsAI(ctx, el){
     el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["AI map-building research (experimental)", chip]),
     el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
       "Research feature. The AI suggests; you check every item, and nothing is saved until you accept it. It never changes your calibration or signal walls. " +
-      "What it can save, each with a backup first and an undo: Line up plans moves a plan's picture; Rooms from plans and Let Claude draw your rooms save rooms " +
-      "(the helper also sets a plan's scale from one measurement). Turning it off hides it; it does not undo what you kept."),
+      "What it can save, each with a backup first and an undo: Line up plans moves a plan's picture; Rooms from plans saves rooms. " +
+      "Turning it off hides it; it does not undo what you kept. Let Claude draw your rooms doesn't need it."),
   ]));
   feats.appendChild(master);
   const under = el("div",{"data-ai-plans-under":"",style:`margin-left:22px;display:${settings.ai_plans_enabled === true ? "" : "none"}`});

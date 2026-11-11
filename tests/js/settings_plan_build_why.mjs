@@ -109,7 +109,8 @@ for (const [why, display, words] of [
     rooms_undo: { session: "rb_1", floor_id: "main", floor_name: "Main", items: 3, saves: 1, at: 0, helper } });
   const r = await render({ ai_plans_enabled: true }, undoOf(true));
   const all_ = text(r.root), row = all(r.root).find(n => has(n, "data-ai-plan-build-rooms-undo"));
-  check("research words: true about what is saved", all_.includes("Rooms from plans and Let Claude draw your rooms save rooms")
+  // 2026-11-12: the helper no longer turns this switch on, nor needs it: said so, and it no longer lists the helper's saves.
+  check("research words: true about what is saved", all_.includes("Rooms from plans saves rooms") && all_.includes("Let Claude draw your rooms doesn't need it")
     && all_.includes("never changes your calibration") && !all_.includes("never writes your rooms"), all_.slice(0, 600));
   check("helper undo: named as the helper's", row && text(row).includes("Undo the rooms Claude drew (experimental)") && text(row).includes("The last rooms Let Claude draw your rooms saved on Main")
     && !text(row).includes("Undo this rooms session"), row ? text(row) : null);

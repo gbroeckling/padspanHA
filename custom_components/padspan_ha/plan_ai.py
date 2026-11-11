@@ -2930,8 +2930,8 @@ class LineupRunner(Runner):
         from .ws_common import _tier_at_least  # noqa: PLC0415
         if self.job.cancel or not self.sess:             # gone: a restore or a reset took the session (a rooms session too)
             return "user"
-        if not enabled(self.hass) or not build_switch(self.hass):
-            return "switch_off"
+        if self.sess.get("via") != "wizard" and (not enabled(self.hass) or not build_switch(self.hass)):
+            return "switch_off"                         # the rooms helper's own reads need no switch (its Start is the consent)
         u = unlock(self.hass)
         if not u.get("ok"):
             return "locked"

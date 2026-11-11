@@ -99,17 +99,23 @@ def _need_3d(msg) -> bool:
     return msg.get("via") != "wizard"
 
 
+def _helper(msg) -> bool:
+    """The rooms helper's command (via "wizard"). Its Start button, with what is sent and what it costs said beside it,
+    is the consent (owner, 2026-11-12): it needs neither Settings switch, and never turns the Plans tool's on."""
+    return msg.get("via") == "wizard"
+
+
 async def _refused(hass: HomeAssistant, connection, msg, prefix: str = "", need_3d: bool = True) -> A.PlanAiStore | None:
     """The gates every command shares; the store when they pass. `prefix`:
     the line-up's (experimental, design 7) before each refusal. `need_3d`:
-    False only for the rooms helper's commands."""
+    False only for the rooms helper's commands, which need no switch either (_helper)."""
     if need_3d and not house3d_on(hass):
         connection.send_error(msg["id"], OFF_CODE, prefix + OFF_MESSAGE)
         return None
     if not _tier_at_least(hass, "pro"):
         connection.send_error(msg["id"], OFF_CODE, prefix + PRO_MESSAGE)
         return None
-    if not A.enabled(hass):
+    if not A.enabled(hass) and not _helper(msg):
         connection.send_error(msg["id"], PLANS_OFF_CODE, prefix + PLANS_OFF_MESSAGE)
         return None
     return await A.async_get_store(hass)
@@ -465,7 +471,7 @@ async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore 
     if store is None:
         return None
     await _settled(hass, store)
-    if not A.build_switch(hass):
+    if not A.build_switch(hass) and not _helper(msg):
         connection.send_error(msg["id"], BUILD_OFF_CODE, PREFIX + "it is off: turn it on in Settings → AI.")
         return None
     u = A.unlock(hass)
@@ -1216,8 +1222,8 @@ async def ws_plan_build_rooms_commit(hass: HomeAssistant, connection, msg) -> No
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_rooms_undo(hass: HomeAssistant, connection, msg) -> None:
-    """Undo a rooms session; allowed under the master switch whatever the AI Task (form q3)."""
-    if not A.enabled(hass):
+    """Undo a rooms session; allowed under the master switch whatever the AI Task (form q3), and always for the helper's."""
+    if not A.enabled(hass) and not _helper(msg):
         connection.send_error(msg["id"], PLANS_OFF_CODE, RP + PLANS_OFF_MESSAGE)
         return
     store = await A.async_get_store(hass)
@@ -1336,7 +1342,7 @@ async def ws_plan_build_scale_save(hass: HomeAssistant, connection, msg) -> None
 @websocket_api.async_response
 async def ws_plan_build_scale_undo(hass: HomeAssistant, connection, msg) -> None:
     """Take the helper's scale back, only while nothing in metres was added since (design E.5)."""
-    if not A.enabled(hass):
+    if not A.enabled(hass) and not _helper(msg):
         connection.send_error(msg["id"], PLANS_OFF_CODE, RP + PLANS_OFF_MESSAGE)
         return
     store = await A.async_get_store(hass)

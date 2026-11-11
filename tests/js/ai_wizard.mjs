@@ -186,30 +186,28 @@ async function readScale(h, root) {
 {
   const h = house({ chosen: "ai_task.old", candidates: [{ entity_id: "ai_task.c", ok: true, why: "ok", display: "Claude Opus 5.5", chosen: false }] });
   const root = await view(h);
-  check("unchosen: a tick to use it", !!q(root, '[data-aiw="choose"]') && root.textContent.includes("Use Claude Opus 5.5 for PadSpan's AI"));
+  // 2026-11-12: said above Start, no tick (Start chooses it).
+  check("unchosen: said, Start chooses it", q(root, '[data-aiw="choose"]')?.textContent === "PadSpan will use Claude Opus 5.5 from Home Assistant as its AI; your earlier AI Task stays as the backup. Photo and stair reading will use it too."
+    && q(root, '[data-aiw="start"]').disabled === false, q(root, '[data-aiw="choose"]')?.textContent);
   check("unchosen: the old choice becomes the backup", JSON.stringify(W.chooseClaude({ atlas_3d_ai_task_entity: "ai_task.old" }, "ai_task.c"))
     === JSON.stringify({ atlas_3d_ai_task_entity: "ai_task.c", atlas_3d_ai_task_backup_entity: "ai_task.old" }));
   check("unchosen: a backup already set stays", !("atlas_3d_ai_task_backup_entity" in W.chooseClaude({ atlas_3d_ai_task_entity: "a", atlas_3d_ai_task_backup_entity: "b" }, "c")));
 }
 
-// ── (iv) Pro, Claude ready: the consent is a tick, then the read ──────────────
+// ── (iv) Pro, Claude ready, the Settings switches off: Start is the one consent (owner, 2026-11-12; it was two ticks) ──
 {
   const h = house({ unlock: { ok: true, why: "ok", display: "Claude Opus 5.5" } });
   let root = await view(h);
-  const start = q(root, '[data-aiw="start"]'), t = q(root, '[data-aiw="consent"]');
-  check("ready: the consent tick, Start waits for it", t && start && start.disabled === true);
+  const start = q(root, '[data-aiw="start"]'), t = root.textContent;
+  check("ready: no tick, Start ready, with what is sent, what it costs and that nothing is saved before Save beside it",
+    !q(root, '[data-aiw="consent"]') && !root.querySelectorAll("input").some(i => i.getAttribute("type") === "checkbox") && start && start.disabled === false
+    && t.includes(W.LEAVES) && t.includes(W.COST) && t.includes(W.SAVED_ONLY) && !t.includes("AI map-building research") && !t.includes("Build from plans")
+    && !t.includes("look at again"), t.slice(0, 600));
   start.click();
-  await tick();
-  check("ready: nothing turned on silently", !h.calls.some(c => c.type === "padspan_ha/settings_set"));
-  t.checked = true;
-  t.dispatchEvent({ type: "change" });
-  root = await view(h);
-  q(root, '[data-aiw="start"]').click();
   for (let i = 0; i < 6; i++) await tick();
-  const set = h.calls.find(c => c.type === "padspan_ha/settings_set"), go = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_start");
-  check("ready: both switches, then the read through the helper", set && set.ai_plans_enabled === true && set.ai_plan_build_enabled === true
+  const go = h.calls.find(c => c.type === "padspan_ha/plan_build_rooms_start");
+  check("ready: no switch turned on, the read through the helper", !h.calls.some(c => c.type === "padspan_ha/settings_set")
     && go && go.via === "wizard" && go.floor_id === "main" && JSON.stringify(go.map_ids) === '["m1"]', typesOf(h));
-  check("ready: the switch counted", h.tele.includes("ai_wizard_switch:on"));
   root = await view(h);
   check("ready: reading, may leave", root.textContent.includes("Claude is reading your plan") && root.textContent.includes("You can leave this page"));
   // End-to-end test 2026-11-11: the way back named must be one that is there (Setup's line, which says Carry on while a read is left part-way).
@@ -284,11 +282,12 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
 {
   const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {} });
   let root = await view(h);
-  check("scale: three steps, the first is Claude reading a measurement", root.textContent.includes("Three steps")
-    && root.textContent.includes("Claude reads a measurement printed on your plan, and you check it.") && !root.textContent.includes("already set"), root.textContent.slice(0, 400));
-  check("scale: the cost line counts the reads, no amount", root.textContent.includes("about five reads for one plan") && !root.textContent.includes("two reads for one plan"));
+  // 2026-11-12: the first step no longer promises Claude reads the measurement "for" the person (most plans are measured by hand).
+  check("scale: three steps, the first is the plan's scale", root.textContent.includes("Three steps")
+    && root.textContent.includes("Your plan gets its scale") && !root.textContent.includes("you check it. That gives the plan its size") && !root.textContent.includes("already set"), root.textContent.slice(0, 400));
+  check("scale: the cost line counts the reads, no amount", root.textContent.includes(W.COST_SCALE) && !root.textContent.includes(W.COST));
   const start = q(root, '[data-aiw="start"]');
-  check("scale: the button says what comes next", start && start.textContent === "Read my plan →", start && start.textContent);
+  check("scale: the button says what it does", start && start.textContent === "Draw my rooms →", start && start.textContent);
   root = await readScale(h, root);
   check("scale: nothing printed found: the measurement, with the line that says why", root.textContent.includes(W.SCALE_NONE) && !q(root, '[data-aiw="scale-again"]'),
     root.textContent.slice(0, 300));
@@ -666,7 +665,8 @@ for (const [s, want] of map) check(`status: ${s.status}/${s.error || ""}`, W.fai
 check("codes: daily cap, backup, changed", W.failOfCode("daily_cap") === "daily_cap" && W.failOfCode("backup_failed") === "backup_failed"
   && W.failOfCode("rev_mismatch") === "changed_since" && W.failOfCode("too_soon") === null);
 check("start states", W.introBlock({ tier: "free", trial_offerable: true }, {}) === "trial" && W.introBlock({ tier: "pro" }, {}) === "connect"
-  && W.introBlock({ tier: "pro" }, { unlock: { ok: true } }) === "consent" && W.introBlock({ tier: "pro" }, { unlock: { ok: true }, master: true, switch: true }) === "start");
+  // 2026-11-12: no "consent" block any more (no Settings switch is ticked for the helper): Claude ready is "start", switches or not.
+  && W.introBlock({ tier: "pro" }, { unlock: { ok: true } }) === "start" && W.introBlock({ tier: "pro" }, { unlock: { ok: true }, master: true, switch: true }) === "start");
 for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);
 
 // ── the Overview card ─────────────────────────────────────────────────────────
@@ -703,11 +703,12 @@ for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);
 {
   const h = house({ chosen: "ai_task.old", candidates: [{ entity_id: "ai_task.c", ok: true, why: "ok", display: "Claude Opus 5.5", chosen: false }] });
   let root = await view(h);
-  for (const k of ["consent", "choose"]) { const t = q(root, `[data-aiw="${k}"]`); if (t) { t.checked = true; t.dispatchEvent({ type: "change" }); root = await view(h); } }
+  // 2026-11-12: no tick: Start chooses it, as the line above Start says.
   q(root, '[data-aiw="start"]').click();
   for (let i = 0; i < 6; i++) await tick();
   const set = h.calls.find(c => c.type === "padspan_ha/settings_set");
-  check("unchosen: Read my plan keeps the earlier AI Task as the backup", set && set.atlas_3d_ai_task_entity === "ai_task.c" && set.atlas_3d_ai_task_backup_entity === "ai_task.old", set);
+  check("unchosen: Start keeps the earlier AI Task as the backup, and turns no switch on", set && set.atlas_3d_ai_task_entity === "ai_task.c"
+    && set.atlas_3d_ai_task_backup_entity === "ai_task.old" && !("ai_plans_enabled" in set) && !("ai_plan_build_enabled" in set), set);
 }
 
 // ── review 2026-11-10: a typed name stays through a redraw, and Save sends the names first ──
@@ -1256,7 +1257,7 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
     && !!mk && root.textContent.includes("Claude will read Upper plan (Upper)."), [root.textContent.slice(0, 300), !!mk]);
   // 2026-11-12: said at the top, above the steps and Start, in words for the one plan left (not "Choose a plan").
   const t = root.textContent, gl = q(root, '[data-aiw="plan-gone"]');
-  check("gone: said first, for the one plan left", gl && gl.textContent === "The plan you were working on isn't there any more. The helper goes on with Upper plan (Upper)."
+  check("gone: said first, for the one plan left", gl && gl.textContent === "The plan you were working on isn't there any more. Claude will read the plan that is left instead."
     && t.indexOf("isn't there any more") < t.indexOf("Claude will read") && !t.includes("Choose a plan to go on") && !q(root, '[data-aiw="msg"]'), t.slice(0, 400));
   // Setup's line beforehand: nothing to carry on with on a plan that was deleted (it said "You started measuring…").
   O._reset();
