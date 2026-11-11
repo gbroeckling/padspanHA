@@ -28,7 +28,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DATA_PLAN_AI, DATA_SETTINGS, DOMAIN, OUTSIDE_FLOOR_ID
-from .telemetry import INSTALL_AGE_WORDS, install_age_word
+from .telemetry import AI_WIZARD_STEPS, AI_WIZARD_SURFACES, INSTALL_AGE_WORDS, install_age_word
 
 OFFER_AFTER_DAYS = 7    # a plan this many days old with no rooms is stuck (the field's median stuck house: 18 days)
 SCALE_BUILT = False     # piece 3 (the helper sets a plan's scale) turns this on, and no_scale goes
@@ -117,8 +117,7 @@ def trial_offerable(has_key: bool, tier: str) -> bool:
 # step); until then, the first step not done. Sent only by a house with a plan
 # that isn't set up, or that used the helper: a set-up house's report is as it was.
 STUCK_WORDS: tuple[str, ...] = ("plan_no_rooms", "rooms_no_receivers", "receivers_no_calibration", "none")
-WIZARD_STEPS: tuple[str, ...] = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided",
-                                 "floor_pick", "rooms_read", "rooms_check", "saved", "next_floor", "handoff")
+WIZARD_STEPS: tuple[str, ...] = AI_WIZARD_STEPS       # one list: the report's words (telemetry.AI_WIZARD_EVENTS)
 WIZARD_STATES: tuple[str, ...] = ("never", "offered", "opened", *(f"left_{s}" for s in WIZARD_STEPS),
                                   "finished", "dismissed", "snoozed", "undone")
 DONE_AGE_WORDS: tuple[str, ...] = ("lt7d", "7_30d", "gt30d")
@@ -255,6 +254,270 @@ MAPPING_WORDS: dict[str, tuple[str, ...]] = {
     "wizard_state": WIZARD_STATES, "wizard_done_age": DONE_AGE_WORDS}
 
 
+# ── piece 2: Not now, Don't ask again, where it was left (design A.3) ────────
+SNOOZE_DAYS: tuple[int, int] = (7, 30)          # the first Not now, then every one after
+MARKS: tuple[str, ...] = ("offered", "opened", "step", "snoozed", "dismissed", "came_back", "finished", "undone")
+
+
+def mark(w: dict, what: str, now: float, today: date, step: str | None = None, **ids: Any) -> dict[str, Any]:
+    """settings.ai_map_wizard after one thing the person did. Pure."""
+    w = clean_wizard(w)
+    if what in ("offered", "opened"):
+        w["offered"] = True
+        if what == "opened" and "started" not in w:
+            w["started"] = {"at": "intro"}
+    elif what == "step":
+        w["started"] = {**(w.get("started") or {}), "at": step if step in WIZARD_STEPS else "intro",
+                        **{k: v for k, v in ids.items() if isinstance(v, str) and v}}
+    elif what == "snoozed":
+        n = int(w.get("snoozes") or 0) + 1
+        w.update(snoozes=n, snooze_until=now + SNOOZE_DAYS[min(n, 2) - 1] * 86400)
+    elif what == "dismissed":
+        w["dismissed"] = True
+    elif what == "finished":
+        w["finished_day"] = today.isoformat()
+        w.pop("undone", None)
+    elif what == "undone":
+        w["undone"] = True
+    return clean_wizard(w)
+
+
+async def async_mark(hass: HomeAssistant, what: str, **kw: Any) -> dict[str, Any]:
+    """mark() written to the settings store; the stored value."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if st is None:
+        return {}
+    now = time.time()
+    w = mark(st.data.get("ai_map_wizard") or {}, what, now, date.fromtimestamp(now), **kw)
+    await st.async_set(ai_map_wizard=w)
+    return w
+
+
+# ── piece 2: names for the rooms Claude found (design D) ─────────────────────
+# Folded: lower case, no accents, no punctuation, letters apart from numbers.
+# Matched on the folded words with the abbreviations a plan prints written out;
+# Master and Primary are one word.
+ABBREV: dict[str, tuple[str, ...]] = {
+    **dict.fromkeys(("br", "bdrm", "bd", "bed"), ("bedroom",)), **dict.fromkeys(("ba", "bath"), ("bathroom",)),
+    **dict.fromkeys(("kit", "kitch"), ("kitchen",)), **dict.fromkeys(("lr", "liv", "living"), ("living", "room")),
+    **dict.fromkeys(("dr", "din", "dining"), ("dining", "room")), **dict.fromkeys(("wc", "pwdr", "powder"), ("powder", "room")),
+    **dict.fromkeys(("ldry", "lndry"), ("laundry",)), **dict.fromkeys(("ofc", "study"), ("office",)),
+    **dict.fromkeys(("ent", "entry", "foyer"), ("entrance",)), **dict.fromkeys(("hall", "corr", "corridor"), ("hallway",)),
+    **dict.fromkeys(("cl", "clo", "clos", "wic"), ("closet",)), **dict.fromkeys(("master", "mstr"), ("primary",))}
+# Written out in a printed name too: only true abbreviations (STUDY stays Study, MASTER stays Master).
+_SPELL_OUT = frozenset({"br", "bdrm", "bd", "ba", "kit", "kitch", "lr", "liv", "dr", "din", "wc", "pwdr", "ldry", "lndry", "ofc", "ent",
+                        "corr", "cl", "clo", "clos", "wic"})
+OUTDOOR_WORDS = frozenset({"porch", "deck", "patio", "balcony", "terrace", "veranda", "lanai"})
+SMALL_M2, TICK_M2 = 2.0, 4.0     # under 2 m²: Small spaces, unticked; 4 m² or more: ticked when both reads saw it
+NAME_MAX = 40                    # plan_ai.S2_NAME_MAX
+
+
+def fold(s: Any) -> str:
+    import unicodedata  # noqa: PLC0415
+    t = "".join(c for c in unicodedata.normalize("NFKD", str(s or "")) if not unicodedata.combining(c)).lower()
+    t = re.sub(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", " ", re.sub(r"[^\w]+|_", " ", t))
+    return " ".join(t.split())
+
+
+def _words(s: Any) -> list[str]:
+    out: list[str] = []
+    for w in fold(s).split():
+        for x in ABBREV.get(w, (w,)):
+            if not (out and out[-1] == x == "room"):
+                out.append(x)
+    return out
+
+
+def is_void(label: Any) -> bool:
+    f = fold(label)
+    return "open to below" in f or "open below" in f or f in ("void", "otb")
+
+
+def is_outdoor(label: Any) -> bool:
+    return bool(OUTDOOR_WORDS & set(fold(label).split()))
+
+
+def printed_name(label: Any) -> str:
+    """A printed label as a room's name: abbreviations written out, CAPITALS
+    made Title Case, accents kept."""
+    raw = " ".join(str(label or "").split())
+    caps = raw.isupper()
+    out: list[str] = []
+    for w in raw.split():
+        f = fold(w)
+        if f in _SPELL_OUT:
+            for x in ABBREV[f]:
+                if not (out and out[-1].lower() == x == "room"):
+                    out.append(x.capitalize())
+        else:
+            out.append(w.capitalize() if caps else w)
+    return " ".join(out)[:NAME_MAX].strip()
+
+
+def _unique(name: str, taken: set[str]) -> str:
+    n, k = name, 2
+    while n.lower() in taken:
+        sfx = f" {k}"
+        n, k = name[:NAME_MAX - len(sfx)].rstrip() + sfx, k + 1
+    return n
+
+
+def suggest_names(spaces: dict[str, dict], areas: list[dict], taken: Any, floor_id: str) -> dict[str, dict[str, str]]:
+    """{space id: {name, source}} for the spaces Claude found (design D): a
+    Home Assistant area that isn't a room yet, on this floor or on none
+    (area_exact, then area_abbrev: the abbreviations written out, then the
+    area's words all in the label), the largest space first; else the printed
+    name (printed), made unique house-wide with 2, 3. "Open to below" gets no
+    name. `spaces`: {id: {name, outline_m}}. Pure."""
+    from . import plan_geom as G  # noqa: PLC0415
+    taken_l = {str(n).lower() for n in taken if n}
+    free = [a for a in areas if a.get("name") and str(a["name"]).lower() not in taken_l
+            and a.get("floor_id") in (None, "", floor_id)]
+    order = sorted((sid for sid, s in spaces.items() if not is_void(s.get("name"))),
+                   key=lambda sid: -G.area(spaces[sid].get("outline_m") or []))
+    out: dict[str, dict[str, str]] = {}
+    used: set[int] = set()
+
+    def give(test, source: str) -> None:
+        for sid in order:
+            if sid in out:
+                continue
+            i = next((i for i, a in enumerate(free) if i not in used and test(spaces[sid].get("name"), a["name"])), None)
+            if i is not None:
+                used.add(i)
+                out[sid] = {"name": str(free[i]["name"])[:NAME_MAX], "source": source}
+
+    def within(label: Any, area: Any) -> bool:
+        aw = set(_words(area))
+        return any(len(w) >= 3 and not w.isdigit() for w in aw) and aw <= set(_words(label))
+
+    give(lambda lab, ar: fold(lab) == fold(ar) and bool(fold(ar)), "area_exact")
+    give(lambda lab, ar: _words(lab) == _words(ar) and bool(_words(ar)), "area_abbrev")
+    give(within, "area_abbrev")
+    # Another floor's area keeps its name to itself: a room saved under it here would move it to this floor.
+    names = taken_l | {v["name"].lower() for v in out.values()} | {str(a["name"]).lower() for a in areas if a.get("name")
+                                                                    and a.get("floor_id") not in (None, "", floor_id)}
+    for sid in order:
+        if sid not in out:
+            nm = _unique(printed_name(spaces[sid].get("name")) or "Room", names)
+            names.add(nm.lower())
+            out[sid] = {"name": nm, "source": "printed"}
+    return out
+
+
+def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
+    """What the helper offers and ticks at the start (design D; Garry,
+    2026-11-10: a room only in PadSpan is ticked like any other). Only rooms:
+    doors, windows and stairs stay on the session for Live Aboard's Plans
+    tool. Ticked: seen by both reads and 4 m² or more, or 2 m² or more and
+    one of the house's Home Assistant areas. Unticked: one read only, a
+    porch or a deck; under 2 m²: Small spaces. Open to below: not offered."""
+    from . import plan_geom as G  # noqa: PLC0415
+    rows, ticked, small, outdoor, dropped, m2 = [], [], [], [], [], {}
+    for r in (prop.get("rooms") or {}).values():
+        rows.append(r["id"])
+        if r.get("default"):
+            ticked.append(r["id"])
+    for sid, s in (prop.get("spaces") or {}).items():
+        if s.get("merged_into"):
+            continue
+        if is_void(s.get("name")) or not s.get("new"):
+            dropped.append(sid)
+            continue
+        a = round(G.area(s.get("outline_m") or []), 1)
+        m2[sid] = a
+        rows.append(sid)
+        if a < SMALL_M2:
+            small.append(sid)
+            continue
+        if is_outdoor(s.get("name")):
+            outdoor.append(sid)
+            continue
+        matched = str(sources.get(sid) or "").startswith("area") or sources.get(sid) == "picked_area"
+        if len(s.get("reads") or []) >= 2 and (a >= TICK_M2 or matched):
+            ticked.append(sid)
+    return {"rows": rows, "ticked": ticked, "small": small, "outdoor": outdoor, "dropped": dropped, "m2": m2}
+
+
+def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Home Assistant's areas: [{name, floor_id}]; none when the registry can't be read."""
+    try:
+        from homeassistant.helpers import area_registry  # noqa: PLC0415
+        areas = list(area_registry.async_get(hass).async_list_areas())
+    except Exception:  # noqa: BLE001
+        return []
+    return [{"name": str(a.name), "floor_id": getattr(a, "floor_id", None)} for a in areas if getattr(a, "name", None)]
+
+
+# ── piece 2: "Also add this room to Home Assistant" (Garry, 2026-11-10) ──────
+# Off by default; run only after the rooms were saved; outside PadSpan's backup
+# and undo, which the row says. A name that is already an area is matched,
+# never made twice; a failure is said and counted, the rooms stay saved.
+
+def create_area(areas_reg: Any, floors_reg: Any, name: str, floor_id: str | None) -> str:
+    """matched, created or failed: one Home Assistant area of this name, on
+    this floor when Home Assistant has the floor."""
+    try:
+        if areas_reg.async_get_area_by_name(name) is not None:
+            return "matched"
+        fid = floor_id if floor_id and floors_reg is not None and floors_reg.async_get_floor(floor_id) is not None else None
+        areas_reg.async_create(name, floor_id=fid)
+        return "created"
+    except Exception:  # noqa: BLE001 — said on the Done screen, the rooms stay saved
+        return "failed"
+
+
+def ensure_area(hass: HomeAssistant, name: str, floor_id: str | None) -> str:
+    try:
+        from homeassistant.helpers import area_registry  # noqa: PLC0415
+        areas_reg = area_registry.async_get(hass)
+    except Exception:  # noqa: BLE001
+        return "failed"
+    try:
+        from homeassistant.helpers import floor_registry  # noqa: PLC0415
+        floors_reg = floor_registry.async_get(hass)
+    except Exception:  # noqa: BLE001
+        floors_reg = None
+    return create_area(areas_reg, floors_reg, name, floor_id)
+
+
+def before_save(sess: dict) -> dict[str, Any]:
+    """What after_save needs from the proposal before the save works it out
+    again (a saved space becomes one of the house's rooms there)."""
+    spaces = (sess.get("proposal") or {}).get("spaces") or {}
+    return {"names": {sid: s.get("new") for sid, s in spaces.items() if s.get("new")}, "sources": dict(sess.get("named") or {}),
+            "floor_id": sess.get("floor_id")}
+
+
+async def after_save(hass: HomeAssistant, pre: dict[str, Any], answer: dict[str, Any], ha_ids: list[str]) -> dict[str, Any]:
+    """A helper's save that went through: the areas asked for, the counts,
+    the helper marked finished. {"areas": {space id: matched|created|failed}}."""
+    from .telemetry import NAME_SOURCES, bump, rooms_band  # noqa: PLC0415
+    saved = [i for i in answer.get("saved") or [] if isinstance(i, str)]
+    bump(hass, f"plan_build_rooms_saved:{rooms_band(len(saved))}")
+    for sid in saved:
+        if sid.startswith("space:"):
+            src = pre["sources"].get(sid)
+            bump(hass, f"plan_build_name:{src if src in NAME_SOURCES else 'printed'}")
+    areas_out: dict[str, str] = {}
+    for sid in ha_ids:
+        name = pre["names"].get(sid)
+        if sid in saved and name:
+            areas_out[sid] = ensure_area(hass, name, pre["floor_id"])
+            if areas_out[sid] in ("created", "failed"):
+                bump(hass, f"ai_wizard:area_{areas_out[sid]}")
+    have = {str(n).lower() for n in _house_rooms(hass)}
+    left = [a for a in ha_areas(hass) if a.get("floor_id") in (None, "", pre["floor_id"]) and a["name"].lower() not in have]
+    bump(hass, f"plan_build_unmatched_areas:{rooms_band(len(left))}")
+    await async_mark(hass, "finished")
+    bump(hass, "ai_wizard:finished")
+    return {"areas": areas_out}
+
+
+def _house_rooms(hass: HomeAssistant) -> list[str]:
+    return list(setup_state(hass)["model"]["room_geometry_m"])
+
+
 @websocket_api.websocket_command({
     "type": "padspan_ha/ai_wizard_info",
     vol.Optional("surface", default="push"): vol.In(SURFACES),
@@ -264,11 +527,47 @@ MAPPING_WORDS: dict[str, tuple[str, ...]] = {
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_ai_wizard_info(hass: HomeAssistant, connection, msg) -> None:
-    """{reason, offer}: the rule's answer for this screen. Nothing calls it yet (piece 1)."""
+    """{reason, offer, wizard, tier, trial_offerable}: the rule's answer for
+    this screen, and where this house is with the helper (settings.ai_map_wizard)."""
     from .plan_ai import async_get_store  # noqa: PLC0415
     await async_get_store(hass)                    # "tool_used" reads its sessions
-    reason = offer_reason(facts(hass, kiosk=msg["kiosk"], live=msg.get("live")), msg["surface"])
-    connection.send_result(msg["id"], {"reason": reason, "offer": reason == "offer"})
+    f = facts(hass, kiosk=msg["kiosk"], live=msg.get("live"))
+    reason = offer_reason(f, msg["surface"])
+    connection.send_result(msg["id"], {"reason": reason, "offer": reason == "offer", "wizard": clean_wizard(f["wizard"]),
+                                       "tier": f["tier"], "trial_offerable": f["trial_offerable"]})
 
 
-WS_COMMANDS = (ws_ai_wizard_info,)
+@websocket_api.websocket_command({
+    "type": "padspan_ha/ai_wizard_mark",
+    vol.Required("what"): vol.In(("offered", "opened", "step", "snoozed", "dismissed", "came_back")),
+    vol.Optional("surface"): vol.In(AI_WIZARD_SURFACES),
+    vol.Optional("step"): vol.In(WIZARD_STEPS),
+    vol.Optional("map_id"): vol.All(str, vol.Length(max=64)),
+    vol.Optional("floor_id"): vol.All(str, vol.Length(max=64)),
+    vol.Optional("rooms_session"): vol.All(str, vol.Length(max=64)),
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_ai_wizard_mark(hass: HomeAssistant, connection, msg) -> None:
+    """One thing the person did with the helper: shown and opened (by where),
+    a step reached (where it reopens), Not now, Don't ask again, came back.
+    Written to settings.ai_map_wizard and counted. Saved and Undo are marked
+    by the rooms save and undo themselves (ws_plan_ai, via "wizard")."""
+    from .telemetry import bump  # noqa: PLC0415
+    what = msg["what"]
+    if what in ("offered", "opened") and msg.get("surface"):
+        bump(hass, f"ai_wizard_{what}:{msg['surface']}")
+    elif what == "step" and msg.get("step"):
+        bump(hass, f"ai_wizard_step:{msg['step']}")
+    elif what in ("snoozed", "dismissed", "came_back"):
+        bump(hass, f"ai_wizard:{what}")
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if what == "came_back" or st is None:
+        connection.send_result(msg["id"], {"wizard": clean_wizard((st.data if st else {}).get("ai_map_wizard") or {})})
+        return
+    w = await async_mark(hass, what, step=msg.get("step"),
+                         **{k: msg[k] for k in ("map_id", "floor_id", "rooms_session") if k in msg})
+    connection.send_result(msg["id"], {"wizard": w})
+
+
+WS_COMMANDS = (ws_ai_wizard_info, ws_ai_wizard_mark)

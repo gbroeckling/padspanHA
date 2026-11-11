@@ -2886,7 +2886,7 @@ class LineupRunner(Runner):
             return "locked"
         if u.get("ai_task") != self.eid:              # the session's own AI Task, still the main one and still qualifying: else closed
             return "ai_changed"
-        if not house3d_on(self.hass):
+        if not house3d_on(self.hass) and self.sess.get("via") != "wizard":    # the rooms helper reads rooms only: Live Aboard may be off
             return "house3d_off"
         if not _tier_at_least(self.hass, "pro"):
             return "licence"
@@ -4166,6 +4166,9 @@ class RoomsRunner(LineupRunner):
             return
         snap, house, points, barriers = await rooms_inputs(self.hass)
         sess["proposal"] = await self.hass.async_add_executor_job(rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
+        if sess.get("via") == "wizard":
+            from .ai_wizard import ha_areas  # noqa: PLC0415
+            wizard_name(sess, snap, ha_areas(self.hass))
 
     async def run(self) -> None:  # noqa: C901 — one session's order
         sess = self.sess
@@ -4222,6 +4225,10 @@ class RoomsRunner(LineupRunner):
         if int(sess.get("reads") or 0) > reads0:
             _bump(self.hass, f"plan_build_credit_run:s2_{'lt0_10' if usd < 0.10 else '0_10_0_50' if usd < 0.5 else '0_50_2' if usd < 2 else 'gt2'}")
         count_rooms(self.hass, sess.get("proposal"))
+        if sess.get("via") == "wizard" and sess.get("proposal"):
+            from .ai_wizard import wizard_ticks  # noqa: PLC0415
+            from .telemetry import rooms_band  # noqa: PLC0415
+            _bump(self.hass, f"plan_build_rooms_offered:{rooms_band(len(wizard_ticks(sess['proposal'], sess.get('named') or {})['rows']))}")
         await self._save()
 
 
@@ -4266,6 +4273,28 @@ class RoomsRunner(LineupRunner):
         if stop and status != "done":
             note_stop(self.hass, self.store.data, sess, stop)
         await self._save()
+
+
+def wizard_name(sess: dict, snap: dict, areas: list[dict]) -> None:
+    """A helper's session (via "wizard"; design D): each space not named yet
+    gets ai_wizard.suggest_names' name through the person's own edit field
+    (edits.spaces[id].new), so the ticks, the checks and rooms_commit are the
+    Plans tool's, unchanged. Where each name came from is kept (`named`)."""
+    from .ai_wizard import suggest_names  # noqa: PLC0415
+    prop = sess.get("proposal") or {}
+    named = sess.setdefault("named", {})
+    todo = {sid: s for sid, s in (prop.get("spaces") or {}).items() if s.get("merged_into") is None and not s.get("new")}
+    if not todo:
+        return
+    edits = sess.setdefault("edits", {"merges": [], "spaces": {}, "picks": {}})
+    taken = set(snap.get("rooms") or {}) | {str(v.get("new")) for v in (edits.get("spaces") or {}).values() if v.get("new")}
+    got = suggest_names(todo, areas, taken, str(sess.get("floor_id") or ""))
+    for sid in todo:
+        g = got.get(sid)
+        named[sid] = g["source"] if g else ""
+        if g:
+            edits.setdefault("spaces", {})[sid] = {"new": g["name"]}
+            prop["spaces"][sid]["new"] = g["name"]
 
 
 def read_again(hass: HomeAssistant, store: PlanAiStore, sid: str, room: str) -> str:

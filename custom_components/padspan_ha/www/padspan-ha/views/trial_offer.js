@@ -39,8 +39,9 @@ export const TRIAL_DAYS = 90;
 // update_banner: a line in the Overview's "updated to vX" banner. milestone:
 // the one-time Overview card (trialMilestoneDue). sidebar: the quiet entry
 // under the PadSpan sidebar menu — the one placement a Bright build has too.
+// ai_wizard: the intro of Let Claude draw your rooms (views/ai_wizard.js).
 export const TRIAL_SURFACES = Object.freeze(["overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
-  "update_banner", "milestone", "sidebar"]);
+  "update_banner", "milestone", "sidebar", "ai_wizard"]);
 // The placements that are not a paid wall.
 const _QUIET_SURFACES = ["update_banner", "milestone", "sidebar"];
 export const TRIAL_TITLE = "PadSpan Pro free for 90 days, no card";

@@ -525,6 +525,24 @@ _STUCK_WORDS = ("plan_no_rooms", "rooms_no_receivers", "receivers_no_calibration
 _MAPPING_FUNNEL = ("plans_tool:opened", "plans_tab:add", "plans_tab:lineup", "plans_tab:rooms", "plans_floor:s1", "plans_floor:s2",
                    "plan_build_stop_ui:no_tabs_off", "plan_build_stop_ui:no_tabs_locked", "plan_build_stop_ui:s1_no_plans",
                    "plan_build_stop_ui:s2_not_placed")
+# Let Claude draw your rooms (piece 2): the helper's own funnel, in the order a
+# person meets it; the words are telemetry.AI_WIZARD_EVENTS' (tests/test_ai_wizard.py).
+_WIZ_SURFACES = ("overview", "getting_started", "setup", "maps_wizard")
+_WIZ_STEPS = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read",
+              "rooms_check", "saved", "next_floor", "handoff")
+_WIZ_BANDS = ("0", "1", "2_3", "4_6", "7_12", "gt12")
+_WIZARD_FUNNEL = (
+    tuple(f"ai_wizard_offered:{s}" for s in _WIZ_SURFACES) + tuple(f"ai_wizard_opened:{s}" for s in _WIZ_SURFACES)
+    + tuple(f"ai_wizard_step:{s}" for s in _WIZ_STEPS) + tuple(f"ai_wizard_left:{s}" for s in _WIZ_STEPS)
+    + tuple(f"ai_wizard:{k}" for k in ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed"))
+    + tuple(f"ai_wizard_fail:{k}" for k in ("no_credit", "unreachable", "out_of_time", "bad_answer", "refusal", "no_media", "daily_cap",
+                                             "backup_failed", "changed_since"))
+    + tuple(f"ai_wizard_ai:{k}" for k in ("no_ai_task", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree",
+                                           "available_unchosen", "ok", "chosen", "check_again", "became_ok"))
+    + tuple(f"ai_wizard_link:{k}" for k in ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")) + ("ai_wizard_switch:on",)
+    + tuple(f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in _WIZ_BANDS)
+    + tuple(f"plan_build_name:{k}" for k in ("area_exact", "area_abbrev", "printed", "typed", "picked_area"))
+    + tuple(f"plan_build_unmatched_areas:{b}" for b in _WIZ_BANDS))
 
 
 def _mapping(r: dict) -> dict:
@@ -561,12 +579,16 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     who: dict[str, set] = defaultdict(set)
     for r in reports:
         for k, v in (r.get("usage") or {}).items():
-            if k in _MAPPING_FUNNEL:
+            if k in _MAPPING_FUNNEL or k in _WIZARD_FUNNEL:
                 use[k] += v
                 who[k].add(r.get("install_id"))
     out.append("  The Plans tool (events over the window; installs)")
     for k in _MAPPING_FUNNEL:
         out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
+    out.append("  Let Claude draw your rooms, the helper's funnel (events over the window; installs; words not seen left out)")
+    for k in _WIZARD_FUNNEL:
+        if use[k]:
+            out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
     return out
 
 

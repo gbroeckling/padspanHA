@@ -293,6 +293,7 @@ function renderUnlocked(ctx, root) {
     if (Object.keys(mpv).length) {
       const nMap = (fenv.mapping || {}).installs || 0, stuckBy = only(mpv, "stuck"), lead = top(stuckBy);
       const walls = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(plans_tool|plans_tab|plans_floor|plan_build_stop_ui):/.test(k)));
+      const wiz = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(ai_wizard[a-z_]*|plan_build_rooms_(offered|saved)|plan_build_name|plan_build_unmatched_areas):/.test(k)));
       section("Getting to a map", "Homes that added a floor plan but haven't finished setting up, from each install's latest report: the step each is stuck at, how old its plan is, and what the AI helper's rule (Let Claude draw your rooms) would say to it. Homes that finished setup don't send this.", [
         grid([
           barCard(el, { title: "Where they are stuck", ask: "The first setup step not done yet", map: stuckBy, total: nMap, kind: "mapping" }),
@@ -301,6 +302,7 @@ function renderUnlocked(ctx, root) {
           barCard(el, { title: "The AI helper", ask: "Where each home is with it", map: only(mpv, "wizard_state", "wizard_done_age"), total: nMap, limit: 20, kind: "mapping" }),
           barCard(el, { title: "Claude, in these homes", ask: "Whether Claude can read their plans, whatever Settings → AI says", map: only(aiv, "claude", "claude_available"), total: nMap, kind: "mapping" }),
           pairCard(el, `The Plans tool (${W} days)`, "Opened, tabs, floors picked, and where it stopped on screen", walls, "count", 12, "usage"),
+          pairCard(el, `The AI rooms helper (${W} days)`, "Offered, opened, each step reached, how it ended, why it stopped, and Claude's readiness", wiz, "count", 30, "usage"),
         ]),
       ], `${fmt(nMap)} homes still setting up` + (lead ? ` · most: ${word("mapping", lead[0])}` : ""));
     }
@@ -700,6 +702,7 @@ const W_CLIENT_SCREEN = {
 const W_SURFACE = {
   atlas: "the Atlas", busy_times: "Busy times", locate: "Locate", maps: "Maps", milestone: "a setup milestone",
   settings: "Settings", sidebar: "the sidebar", update_banner: "the update banner", overview: "the Overview",
+  ai_wizard: "Let Claude draw your rooms",
 };
 // Add data via plans (telemetry.PLAN_AI_EVENTS, experimental): the kinds it suggests.
 const W_PLAN_KIND = { stairs: "stairs", railing: "a railing hint", light: "a light" };
@@ -795,6 +798,20 @@ const W_MAPPING = {
   claude: Object.fromEntries(Object.entries(W_UNLOCK).map(([k, v]) => [k, `Claude: ${v}`])),
   claude_available: { yes: "a usable Claude set up but not chosen" },
 };
+// The AI rooms helper's own counts (telemetry.AI_WIZARD_EVENTS).
+const W_WIZ_SURFACE = { overview: "the Overview card", getting_started: "Getting started", setup: "Setup", maps_wizard: "the Mapping wizard" };
+const W_WIZ_OUTCOME = { finished: "rooms saved", dismissed: "don't ask again", snoozed: "not now", came_back: "came back to it", undone: "rooms taken back",
+  area_created: "a Home Assistant area added", area_failed: "a Home Assistant area couldn't be added" };
+const W_WIZ_FAIL = { no_credit: "out of credit", unreachable: "Claude couldn't be reached", out_of_time: "stopped part-way", bad_answer: "answers not usable",
+  refusal: "Claude declined", no_media: "media folder", daily_cap: "ten readings a day", backup_failed: "no safety backup", changed_since: "plan or rooms changed" };
+const W_WIZ_AI = { no_ai_task: "no AI Task", not_anthropic: "not Anthropic's integration", below_opus_5_5: "below Opus 5.5", unknown_model: "model unknown",
+  sources_disagree: "model names disagree", available_unchosen: "a usable Claude not chosen", ok: "ready", chosen: "chose a usable Claude",
+  check_again: "pressed Check again", became_ok: "became ready" };
+const W_WIZ_LINK = { guide: "the guide", console: "the Anthropic Console", ha_add: "add Anthropic in Home Assistant", ha_anthropic: "the Anthropic integration",
+  ha_areas: "Home Assistant's Areas" };
+const W_ROOMS_BAND = { "0": "no rooms", "1": "1 room", "2_3": "2–3 rooms", "4_6": "4–6 rooms", "7_12": "7–12 rooms", gt12: "over 12 rooms" };
+const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", area_abbrev: "after a Home Assistant area (abbreviated)",
+  printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", rooms: "draw rooms", scanners: "place receivers",
                     calibrate: "calibrate", positioned: "see devices placed" };
 const W_WEATHER = { still: "nothing falling", light_rain: "light rain", heavy_rain: "heavy rain", light_snow: "light snow",
@@ -940,6 +957,20 @@ function word(kind, k) {
       if (a === "plans_floor") return `Plans tool: picked a floor in ${{ s1: "Line up plans", s2: "Rooms from plans" }[b] || b}`;
       if (a === "plan_build_stop_ui") return `Plans tool stopped on screen: ${{ s2_not_placed: "Rooms from plans on a floor with no plan placed", s1_no_plans: "Line up plans with no floor that has a plan",
         no_tabs_locked: "no Line up or Rooms tabs, Claude can't read plans here", no_tabs_off: "no Line up or Rooms tabs, Build from plans is off" }[b] || b}`;
+      // Let Claude draw your rooms (telemetry.AI_WIZARD_EVENTS; ai_wizard.py, views/ai_wizard.js).
+      if (a === "ai_wizard_offered") return `AI rooms helper offered on ${W_WIZ_SURFACE[b] || b}`;
+      if (a === "ai_wizard_opened") return `AI rooms helper opened from ${W_WIZ_SURFACE[b] || b}`;
+      if (a === "ai_wizard_step") return `AI rooms helper reached ${W_WIZARD_STEP[b] || b}`;
+      if (a === "ai_wizard_left") return `AI rooms helper left at ${W_WIZARD_STEP[b] || b}`;
+      if (a === "ai_wizard") return `AI rooms helper: ${W_WIZ_OUTCOME[b] || b}`;
+      if (a === "ai_wizard_fail") return `AI rooms helper stopped: ${W_WIZ_FAIL[b] || b}`;
+      if (a === "ai_wizard_ai") return `AI rooms helper, Claude: ${W_WIZ_AI[b] || b}`;
+      if (a === "ai_wizard_link") return `AI rooms helper link tapped: ${W_WIZ_LINK[b] || b}`;
+      if (a === "ai_wizard_switch") return "AI rooms helper turned on AI map-building and Build from plans";
+      if (a === "plan_build_rooms_offered") return `AI rooms helper offered ${W_ROOMS_BAND[b] || b}`;
+      if (a === "plan_build_rooms_saved") return `AI rooms helper saved ${W_ROOMS_BAND[b] || b}`;
+      if (a === "plan_build_name") return `AI rooms helper room named ${W_NAME_SOURCE[b] || b}`;
+      if (a === "plan_build_unmatched_areas") return `AI rooms helper save left ${W_ROOMS_BAND[b] || b} Home Assistant areas without a room`;
       if (a === "plan_build_setting") return `Plan line-up (experimental) setting ${{ shown: "shown (Claude qualifies)", on: "turned on", off: "turned off" }[b] || b}`;
       if (a === "plan_build_unlock") return `Plan line-up (experimental) AI: ${W_UNLOCK[b] || b}`;
       if (a === "plan_build_run") return `Plan line-up (experimental) run: ${{ started: "started", finished: "finished", needs_help: "needed help", resumed: "resumed", cancelled: "cancelled", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit", abandoned: "abandoned", read_again: "a room read again" }[pbStage(b)] || b}`;

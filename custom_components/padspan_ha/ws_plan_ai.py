@@ -66,10 +66,11 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from . import ai_usage as U
+from . import ai_wizard as W
 from . import plan_ai as A
 from . import plan_ai_write as C
 from . import ws_house3d_photo as P
-from .const import DATA_MAPS, DATA_MODEL, DOMAIN
+from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled as house3d_on
 from .ws_common import _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESSAGE
@@ -78,10 +79,20 @@ from .ws_house3d_stairs import NOT_PLACED_CODE, PLANS_OFF_CODE, PLANS_OFF_MESSAG
 REV_CODE = C.REV_CODE
 
 
-async def _refused(hass: HomeAssistant, connection, msg, prefix: str = "") -> A.PlanAiStore | None:
+VIA = vol.In(("wizard",))     # a command the rooms helper sends (ai_wizard.py): Live Aboard may be off
+
+
+def _need_3d(msg) -> bool:
+    """Live Aboard is needed, except for the rooms helper (Garry, 2026-11-10:
+    it works with Live Aboard off; it reads and saves rooms only)."""
+    return msg.get("via") != "wizard"
+
+
+async def _refused(hass: HomeAssistant, connection, msg, prefix: str = "", need_3d: bool = True) -> A.PlanAiStore | None:
     """The gates every command shares; the store when they pass. `prefix`:
-    the line-up's (experimental, design 7) before each refusal."""
-    if not house3d_on(hass):
+    the line-up's (experimental, design 7) before each refusal. `need_3d`:
+    False only for the rooms helper's commands."""
+    if need_3d and not house3d_on(hass):
         connection.send_error(msg["id"], OFF_CODE, prefix + OFF_MESSAGE)
         return None
     if not _tier_at_least(hass, "pro"):
@@ -435,7 +446,7 @@ async def _settled(hass: HomeAssistant, store: A.PlanAiStore) -> None:
 
 async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore | None:
     """The gates every line-up command shares (design 4); the store when they pass."""
-    store = await _refused(hass, connection, msg, PREFIX)
+    store = await _refused(hass, connection, msg, PREFIX, _need_3d(msg))
     if store is None:
         return None
     await _settled(hass, store)
@@ -449,6 +460,25 @@ async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore 
         connection.send_error(msg["id"], LOCKED_CODE, PREFIX + A.STOPS["locked"][0] + " " + A.STOPS["locked"][1])
         return None
     return store
+
+
+def _candidates(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Every AI Task Home Assistant has, through the unlock rule (the rooms
+    helper's Connect Claude, design B screen 2): {entity_id, name, ok, why,
+    display, chosen}. Read only."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    chosen = str(((st.data if st else {}) or {}).get("atlas_3d_ai_task_entity") or "").strip()
+    out = []
+    try:
+        eids = sorted(hass.states.async_entity_ids("ai_task"))
+    except Exception:  # noqa: BLE001
+        return out
+    for eid in eids:
+        u = A.unlock_rule(P._platform(hass, eid), A.model_sources(hass, eid))  # noqa: SLF001
+        state = hass.states.get(eid)
+        out.append({"entity_id": eid, "name": str(((getattr(state, "attributes", None) or {}).get("friendly_name")) or eid),
+                    "ok": bool(u.get("ok")), "why": u.get("why"), "display": u.get("display"), "chosen": eid == chosen})
+    return out
 
 
 def _floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> list[dict[str, Any]]:
@@ -465,7 +495,7 @@ def _floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> list[dict[
     return out
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_build_info"})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_info", vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
@@ -476,7 +506,7 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
     on_master = A.enabled(hass)
     out: dict[str, Any] = {"unlock": {k: u.get(k) for k in ("ok", "why", "display")}, "master": on_master,
                            "switch": A.build_switch(hass), "on": on_master and A.build_switch(hass) and bool(u.get("ok")),
-                           "floors": [], "stall": None, "running": None, "undo": None}
+                           "floors": [], "stall": None, "running": None, "undo": None, "candidates": _candidates(hass)}
     if on_master:
         A._bump_once(hass, f"plan_build_unlock:{A.unlock_event(u)}")  # noqa: SLF001
         if u.get("ok"):
@@ -493,7 +523,7 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
         rund = A.rooms_undo_info(store)                # the rooms' undo too (Stage 2), whatever the AI Task
         if rund:
             out["rooms_undo"] = {**rund, "floor_name": names.get(str(rund.get("floor_id"))) or rund.get("floor_id")}
-    if out["on"] and house3d_on(hass) and _tier_at_least(hass, "pro"):
+    if out["on"] and (house3d_on(hass) or not _need_3d(msg)) and _tier_at_least(hass, "pro"):
         store = await A.async_get_store(hass)
         if A.sweep_abandoned(hass, store):
             await store.async_save()
@@ -575,11 +605,11 @@ async def ws_plan_build_status(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"session": A.lineup_public(sess, sid), "running": job.sid if job else None})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_build_cancel", vol.Required("session"): str})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_cancel", vol.Required("session"): str, vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_cancel(hass: HomeAssistant, connection, msg) -> None:
-    store = await _refused(hass, connection, msg, PREFIX)
+    store = await _refused(hass, connection, msg, PREFIX, _need_3d(msg))
     if store is None:
         return
     job = A.running(hass)
@@ -839,15 +869,10 @@ async def _rooms_settled(hass: HomeAssistant, store: A.PlanAiStore) -> None:
 def _areas(hass: HomeAssistant, rooms: dict[str, Any], floor_id: str) -> list[str]:
     """Home Assistant's areas that aren't a room yet, this floor's first: the
     names offered for a new room (design 5: a name the person picks)."""
-    try:
-        from homeassistant.helpers import area_registry  # noqa: PLC0415
-        areas = list(area_registry.async_get(hass).async_list_areas())
-    except Exception:  # noqa: BLE001
-        return []
     taken = {str(n).lower() for n in rooms}
-    free = [a for a in areas if str(getattr(a, "name", "") or "").lower() not in taken and getattr(a, "name", None)]
-    free.sort(key=lambda a: (getattr(a, "floor_id", None) != floor_id, str(a.name).lower()))
-    return [str(a.name) for a in free][:60]
+    free = [a for a in W.ha_areas(hass) if a["name"].lower() not in taken]
+    free.sort(key=lambda a: (a["floor_id"] != floor_id, a["name"].lower()))
+    return [a["name"] for a in free][:60]
 
 
 def _rooms_answer(hass: HomeAssistant, store: A.PlanAiStore, sid: str | None) -> dict[str, Any]:
@@ -858,6 +883,9 @@ def _rooms_answer(hass: HomeAssistant, store: A.PlanAiStore, sid: str | None) ->
         snap = A.house_snapshot(hass)
         out["areas"] = _areas(hass, snap["rooms"], sess.get("floor_id"))
         out["undo"] = A.rooms_undo_info(store, sid)
+        if sess.get("via") == "wizard" and sess.get("proposal"):
+            # The rooms helper: what it offers and ticks at the start, and where each name came from (design D).
+            out["wizard"] = {**W.wizard_ticks(sess["proposal"], sess.get("named") or {}), "sources": dict(sess.get("named") or {})}
     return out
 
 
@@ -882,6 +910,7 @@ def _rooms_floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> dict
     "type": "padspan_ha/plan_build_rooms_start",
     vol.Required("floor_id"): str,
     vol.Optional("map_ids"): [str],
+    vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -908,12 +937,14 @@ async def ws_plan_build_rooms_start(hass: HomeAssistant, connection, msg) -> Non
             return
         sess = A.new_rooms_session(A.unlock(hass), snap, msg["floor_id"], ready, want)
         sess["lineup_note"] = ready["note"]             # said on the session: "Line-up not finished on this floor…"
+        if msg.get("via") == "wizard":
+            sess["via"] = "wizard"                       # the rooms helper's: its spaces are named, it reads with Live Aboard off
         sid = A.start_rooms(hass, store, sess)
         await store.async_save()
     connection.send_result(msg["id"], {"session": sid})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_status", vol.Optional("session"): vol.Any(str, None)})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_status", vol.Optional("session"): vol.Any(str, None), vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> None:
@@ -931,7 +962,7 @@ async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> No
     connection.send_result(msg["id"], _rooms_answer(hass, store, sid))
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_resume", vol.Required("session"): str})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_resume", vol.Required("session"): str, vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_rooms_resume(hass: HomeAssistant, connection, msg) -> None:
@@ -974,6 +1005,7 @@ _EDIT_WORDS = {"not_found": "that isn't in the proposal any more.", "invalid": "
     vol.Optional("name"): vol.Any(str, None),
     vol.Optional("room"): str,
     vol.Optional("read"): int,
+    vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -1019,6 +1051,13 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
             connection.send_error(msg["id"], "apart", RP + _EDIT_WORDS["apart"])
             return
         sess["proposal"] = prop
+        if sess.get("via") == "wizard":                 # the helper's: a name typed or picked is counted as such; a joined room is named
+            areas = W.ha_areas(hass)
+            if msg["op"] == "space":
+                nm = str(((sess["edits"].get("spaces") or {}).get(msg.get("space") or "") or {}).get("new") or "")
+                sess.setdefault("named", {})[msg.get("space") or ""] = ("picked_area" if nm.lower() in {a["name"].lower() for a in areas}
+                                                                       else "typed") if nm else ""
+            A.wizard_name(sess, snap, areas)
         if msg["op"] == "separate":
             A._bump(hass, "plan_build_merge:separated")  # noqa: SLF001
         sess["rev"] = int(sess.get("rev") or 0) + 1
@@ -1031,6 +1070,7 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
     vol.Required("session"): str,
     vol.Required("rev"): int,
     vol.Required("room"): str,
+    vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -1092,19 +1132,31 @@ async def ws_plan_build_rooms_check(hass: HomeAssistant, connection, msg) -> Non
     vol.Required("rev"): int,
     vol.Required("items"): [str],
     vol.Optional("finals"): dict,
+    vol.Optional("via"): VIA,
+    vol.Optional("ha_areas"): [str],
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_rooms_commit(hass: HomeAssistant, connection, msg) -> None:
-    """Accept all for this floor: the ticked items in ONE save (design 5)."""
+    """Accept all for this floor: the ticked items in ONE save (design 5).
+    The rooms helper's (via "wizard"): rooms only while Live Aboard is off,
+    then the Home Assistant areas ticked (`ha_areas`, space ids), after the
+    save went through (ai_wizard.after_save)."""
     store = await _build_refused(hass, connection, msg)
     if store is None:
         return
+    after = None
+    if msg.get("via") == "wizard":
+        if not house3d_on(hass) and any(not str(i).startswith(("room:", "space:")) for i in msg["items"]):
+            connection.send_error(msg["id"], OFF_CODE, RP + OFF_MESSAGE)    # a door, window or stair is the 3D house's
+            return
+        pre = W.before_save(store.rooms_session(msg["session"]) or {})
+        after = lambda answer: W.after_save(hass, pre, answer, msg.get("ha_areas") or [])  # noqa: E731
     await _rooms_write(hass, connection, msg, store, lambda house: C.rooms_commit(hass, store, house, msg["session"], msg["rev"], msg["items"],
-                                                                                  msg.get("finals")))
+                                                                                  msg.get("finals")), after)
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_undo", vol.Required("session"): str})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_undo", vol.Required("session"): str, vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_rooms_undo(hass: HomeAssistant, connection, msg) -> None:
@@ -1113,10 +1165,21 @@ async def ws_plan_build_rooms_undo(hass: HomeAssistant, connection, msg) -> None
         connection.send_error(msg["id"], PLANS_OFF_CODE, RP + PLANS_OFF_MESSAGE)
         return
     store = await A.async_get_store(hass)
-    await _rooms_write(hass, connection, msg, store, lambda house: C.rooms_undo(hass, store, house, msg["session"]))
+    after = (lambda answer: _wizard_undone(hass, answer)) if msg.get("via") == "wizard" else None
+    await _rooms_write(hass, connection, msg, store, lambda house: C.rooms_undo(hass, store, house, msg["session"]), after)
 
 
-async def _rooms_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, what) -> None:
+async def _wizard_undone(hass: HomeAssistant, answer: dict[str, Any]) -> dict[str, Any]:
+    """The rooms helper's Undo took rooms back: it isn't offered again (design A.3)."""
+    from .telemetry import bump  # noqa: PLC0415
+    if not answer.get("undone"):
+        return {}
+    await W.async_mark(hass, "undone")
+    bump(hass, "ai_wizard:undone")
+    return {}
+
+
+async def _rooms_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, what, after=None) -> None:
     """A rooms save or undo with the 3D store's lock and then the plan store's
     held throughout. A refusal with a list is an ok: false answer; any other a
     websocket error. Nothing was written either way."""
@@ -1136,7 +1199,9 @@ async def _rooms_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStor
             connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message, **err.extra,
                                                **_rooms_answer(hass, store, msg["session"])})
         return
-    connection.send_result(msg["id"], {**answer, **_rooms_answer(hass, store, msg["session"])})
+    # The rooms helper's follow-up (its areas, its counts, its mark), after the save, outside the locks.
+    extra = await after(answer) if after is not None and answer.get("ok", True) else {}
+    connection.send_result(msg["id"], {**answer, **_rooms_answer(hass, store, msg["session"]), **extra})
 
 
 WS_COMMANDS = WS_COMMANDS + (ws_plan_build_rooms_start, ws_plan_build_rooms_status, ws_plan_build_rooms_resume, ws_plan_build_rooms_edit,

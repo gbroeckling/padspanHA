@@ -163,7 +163,8 @@ def test_the_command_answers_with_the_same_rule(monkeypatch):
     h = _stuck_house()
     conn = MagicMock()
     _run(W.ws_ai_wizard_info(h, conn, {"id": 1, "surface": "pull", "kiosk": True}))
-    assert conn.send_result.call_args[0][1] == {"reason": "wall_screen", "offer": False}
+    got = conn.send_result.call_args[0][1]
+    assert {k: got[k] for k in ("reason", "offer")} == {"reason": "wall_screen", "offer": False} and got["wizard"] == {}
     _run(W.ws_ai_wizard_info(h, conn, {"id": 2, "surface": "push", "kiosk": False}))
     got = conn.send_result.call_args[0][1]
     assert got["reason"] == W.offer_reason(W.facts(h), "push") and got["offer"] is (got["reason"] == "offer")
@@ -386,11 +387,14 @@ def test_the_summary_s_words_are_the_integration_s_and_it_splits_the_stuck_by_da
     S = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(S)
     assert S._STUCK_WORDS == W.STUCK_WORDS and set(S._MAPPING_FUNNEL) == T.PLANS_TOOL_EVENTS
-    rep = lambda iid, env, usage=None: {"install_id": iid, "day": "2026-11-10", "env": env, "usage": usage or {}}  # noqa: E731
+    assert set(S._WIZARD_FUNNEL) == T.AI_WIZARD_EVENTS and len(S._WIZARD_FUNNEL) == len(T.AI_WIZARD_EVENTS)
+    assert S._WIZ_STEPS == W.WIZARD_STEPS
+    rep =lambda iid, env, usage=None: {"install_id": iid, "day": "2026-11-10", "env": env, "usage": usage or {}}  # noqa: E731
     rows = {("a", "2026-11-09"): rep("a", {"mapping": {"stuck": "plan_no_rooms", "wizard": "no_scale"}, "ai": {"claude": "no_ai_task"}}),
             ("a", "2026-11-10"): rep("a", {"mapping": {"stuck": "rooms_no_receivers", "wizard": "has_rooms"}}),
             ("b", "2026-11-10"): rep("b", {"mapping": "not a dict"}), ("c", "2026-11-10"): rep("c", {})}
-    out = "\n".join(S.mapping_section(rows, [rep("a", {}, {"plans_tool:opened": 3, "tab:maps": 9})]))
+    out = "\n".join(S.mapping_section(rows, [rep("a", {}, {"plans_tool:opened": 3, "tab:maps": 9, "ai_wizard_step:rooms_read": 2})]))
+    assert re.search(r"ai_wizard_step:rooms_read\s+2\s+1 installs", out) and "ai_wizard_step:intro" not in out
     assert re.search(r"2026-11-09\s+1\s+0\s+0\s+0", out) and re.search(r"2026-11-10\s+0\s+1\s+0\s+0", out)
     assert "has_rooms 1" in out and re.search(r"plans_tool:opened\s+3\s+1 installs", out) and "tab:maps" not in out
     assert S.mapping_section({}, []) == ["Getting to a map: no install has sent env.mapping yet"]

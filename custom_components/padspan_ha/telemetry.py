@@ -545,7 +545,7 @@ def ui_error_at_allowed(name: str) -> bool:
 # line, the one-time milestone card on Overview (trial_nudge_dismissed is its
 # "No thanks" / ✕), and the quiet entry under the PadSpan sidebar menu.
 TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
-                                   "update_banner", "milestone", "sidebar")
+                                   "update_banner", "milestone", "sidebar", "ai_wizard")
 GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "scanners", "calibrate", "positioned", "trial")
 # The free-Pro cards (views/pro_invite.js): an invite shown (once per page, on
 # Overview or in Settings → PadSpan licence), put off, claimed, refused by the
@@ -863,6 +863,39 @@ PLANS_TOOL_STOPS_UI: tuple[str, ...] = ("s2_not_placed", "s1_no_plans", "no_tabs
 PLANS_TOOL_EVENTS: frozenset[str] = frozenset(
     {"plans_tool:opened"} | {f"plans_tab:{k}" for k in PLANS_TOOL_TABS} | {f"plans_floor:{s}" for s in PLAN_BUILD_STAGE}
     | {f"plan_build_stop_ui:{k}" for k in PLANS_TOOL_STOPS_UI})
+# Let Claude draw your rooms (ai_wizard.py, views/ai_wizard.js; design
+# ai-wizard J.2, J.3, J.5): where it was offered and opened, each step
+# reached and the step it was left at, how it ended, why a read or a save
+# stopped, whether Claude was ready (and what the person did about it), the
+# links tapped, the switches turned on, and per save how many rooms were
+# offered and saved, where each saved room's name came from and how many of
+# the floor's Home Assistant areas no room took. Counts only: never a name,
+# a plan, a room, a floor or an amount.
+AI_WIZARD_SURFACES: tuple[str, ...] = ("overview", "getting_started", "setup", "maps_wizard")
+AI_WIZARD_STEPS: tuple[str, ...] = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided",
+                                    "floor_pick", "rooms_read", "rooms_check", "saved", "next_floor", "handoff")
+AI_WIZARD_OUTCOMES: tuple[str, ...] = ("finished", "dismissed", "snoozed", "came_back", "undone", "area_created", "area_failed")
+AI_WIZARD_FAILS: tuple[str, ...] = ("no_credit", "unreachable", "out_of_time", "bad_answer", "refusal", "no_media", "daily_cap",
+                                    "backup_failed", "changed_since")
+AI_WIZARD_AI: tuple[str, ...] = ("no_ai_task", "not_anthropic", "below_opus_5_5", "unknown_model", "sources_disagree",
+                                 "available_unchosen", "ok", "chosen", "check_again", "became_ok")
+AI_WIZARD_LINKS: tuple[str, ...] = ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")
+ROOMS_BANDS: tuple[str, ...] = ("0", "1", "2_3", "4_6", "7_12", "gt12")
+NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed", "picked_area")
+AI_WIZARD_EVENTS: frozenset[str] = frozenset(
+    {f"ai_wizard_{w}:{s}" for w in ("offered", "opened") for s in AI_WIZARD_SURFACES}
+    | {f"ai_wizard_{w}:{s}" for w in ("step", "left") for s in AI_WIZARD_STEPS}
+    | {f"ai_wizard:{k}" for k in AI_WIZARD_OUTCOMES} | {f"ai_wizard_fail:{k}" for k in AI_WIZARD_FAILS}
+    | {f"ai_wizard_ai:{k}" for k in AI_WIZARD_AI} | {f"ai_wizard_link:{k}" for k in AI_WIZARD_LINKS} | {"ai_wizard_switch:on"}
+    | {f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in ROOMS_BANDS}
+    | {f"plan_build_name:{k}" for k in NAME_SOURCES} | {f"plan_build_unmatched_areas:{b}" for b in ROOMS_BANDS})
+
+
+def rooms_band(n: int) -> str:
+    """ROOMS_BANDS for a count of rooms."""
+    return "0" if n <= 0 else "1" if n == 1 else "2_3" if n <= 3 else "4_6" if n <= 6 else "7_12" if n <= 12 else "gt12"
+
+
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -1339,7 +1372,8 @@ def event_allowed(name: str) -> bool:
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
             or name in PLAN_AI_EVENTS or name in AI_USAGE_EVENTS or name in PLAN_BUILD_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
-            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS)
+            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
+            or name in AI_WIZARD_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
