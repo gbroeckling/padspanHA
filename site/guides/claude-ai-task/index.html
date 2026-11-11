@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect Claude to Home Assistant for PadSpan's room helper | PadSpan HA</title>
+<meta name="description" content="How to connect Claude to Home Assistant for PadSpan's experimental room helper: an Anthropic API key, where credit is set up, the Anthropic integration and its AI Task, and what the helper's check means.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/claude-ai-task/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Connect Claude to Home Assistant for PadSpan's room helper">
+<meta property="og:description" content="An Anthropic API key, where credit is set up, the Anthropic integration and its AI Task: once, for PadSpan's room helper.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/claude-ai-task/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1>Connect Claude to Home Assistant for PadSpan's room helper</h1>
+<p class="lead">PadSpan's "Let Claude draw your rooms" (experimental) reads your floor plan with Claude, finds its rooms and their names, and draws them for you to check. Claude reaches PadSpan through Home Assistant's own Anthropic integration and your own Anthropic account. This page shows how to set that up, once.</p>
+
+<h2>1. What you need</h2>
+<ul>
+  <li>An Anthropic account (the company that makes Claude).</li>
+  <li>Home Assistant with its <a href="https://www.home-assistant.io/integrations/anthropic/">Anthropic integration</a>, and an AI Task in it.</li>
+  <li>PadSpan Pro, or PadSpan's free trial, which the helper offers.</li>
+</ul>
+
+<h2>2. Get an API key</h2>
+<ol>
+  <li>Sign in to the <a href="https://platform.claude.com/">Anthropic Console</a>.</li>
+  <li>Open <a href="https://platform.claude.com/settings/keys">API keys</a> and press Create Key. Give it a name you'll recognise, such as "Home Assistant".</li>
+  <li>Copy the key now: the Console shows it only once. Keep it secret, like a password.</li>
+</ol>
+
+<h2>3. Credit: where it's set up</h2>
+<p>Anthropic charges the account the key belongs to for each read. PadSpan doesn't sell or include credit, and it never asks for a card.</p>
+<ul>
+  <li>Credit is set up in the Console's <a href="https://platform.claude.com/settings/billing">Billing</a> page.</li>
+  <li>If your Claude subscription includes monthly API credit, link your Console organisation to it in Claude's own settings, under Billing (you need the Owner, Admin or Billing role in that organisation). The credit then shows in the Console under Promotional credits. Anthropic's <a href="https://support.claude.com/">help centre</a> explains it.</li>
+  <li>The Console's <a href="https://platform.claude.com/usage">usage page</a> shows what each read cost.</li>
+</ul>
+
+<h2>4. Add the Anthropic integration to Home Assistant</h2>
+<ol>
+  <li>Open <a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=anthropic">Add the Anthropic integration</a> (it opens your own Home Assistant), or go to Settings → Devices &amp; services → Add integration → Anthropic.</li>
+  <li>Paste the API key and finish.</li>
+</ol>
+
+<h2>5. Add an AI Task</h2>
+<p>In the Anthropic integration, add an AI Task and choose <strong>Claude Opus 5.5 or newer</strong> as its model (any Fable or Mythos works too). Sonnet and Haiku aren't accepted: PadSpan's plan reading was tested on Opus 5.5. Choose the model by its full name, so PadSpan can tell which one it is.</p>
+
+<h2>6. Choose it in PadSpan</h2>
+<p>The helper does this for you: on its Connect Claude step, press Check again, and if Home Assistant has a usable Claude that isn't PadSpan's AI yet, it offers "Use it for PadSpan". You can also pick it yourself in PadSpan's Settings → AI → Your AI.</p>
+
+<h2>7. What the helper's check means</h2>
+<table>
+  <tr><th>The helper says</th><th>What to do</th></tr>
+  <tr><td>Claude isn't connected to Home Assistant yet</td><td>Steps 2 to 5 above.</td></tr>
+  <tr><td>Your AI Task uses an older Claude</td><td>Change the AI Task's model to Claude Opus 5.5 or newer in the Anthropic integration.</td></tr>
+  <tr><td>PadSpan can't tell which Claude model this AI Task uses</td><td>Choose the model again by its full name in the Anthropic integration.</td></tr>
+  <tr><td>Home Assistant has Claude ready</td><td>Press "Use it for PadSpan". Photo and stair reading use it too.</td></tr>
+</table>
+
+<h2>8. When a read fails</h2>
+<ul>
+  <li><strong>Out of credit:</strong> check the Console's <a href="https://platform.claude.com/settings/billing">Billing</a> page, and if your Claude plan includes API credit, that your Console organisation is linked to it. Then press Try again: what was read is kept.</li>
+  <li><strong>Claude couldn't be reached:</strong> look at the Anthropic integration's status in Home Assistant (Settings → Devices &amp; services) and at Home Assistant's log.</li>
+  <li><strong>The media folder couldn't take the plan:</strong> Home Assistant's media folder must be writable; PadSpan hands the plan picture to the AI Task through it.</li>
+  <li>The Console's <a href="https://platform.claude.com/usage">usage page</a> shows each read.</li>
+</ul>
+
+<h2>9. Privacy</h2>
+<p>Only the floor plan picture and PadSpan's instructions are sent to Anthropic, through Home Assistant's integration and your own account. No people, devices or positions leave the house. Anthropic's <a href="https://www.anthropic.com/legal/commercial-terms">commercial terms</a> and <a href="https://www.anthropic.com/legal/privacy">privacy policy</a> cover what happens to it there.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/guides/">More guides</a>
+  <a class="btn ghost" href="/demo/">Try the demo in your browser</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · Product names belong to their makers; PadSpan isn't affiliated with them.</p>
+</div></footer>
+</body>
+</html>

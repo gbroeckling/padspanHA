@@ -972,6 +972,16 @@ export function helpTexts() { return {
     ],
   },
 
+  ai_wizard: {
+    title: t("Let Claude draw your rooms (experimental)"),
+    body: [
+      t("For a house whose floor plan has a scale but no rooms yet. Claude reads the plan twice, finds its rooms and their names, and draws them over the plan picture for you to check. Nothing is saved until you press Save."),
+      t("Claude reaches PadSpan through Home Assistant's Anthropic integration and an AI Task using Claude Opus 5.5 or newer. \"Connect Claude\" shows the steps, and the guide \"Connect Claude for PadSpan\" on padspan.traks.ca has them with pictures. Anthropic charges your own Anthropic account for each read; only the plan picture is sent."),
+      t("A room starts ticked when both of Claude's reads saw it and it is big enough. A name that matches one of your Home Assistant rooms is used; any other room is saved in PadSpan only, and \"Also add this room to Home Assistant\" adds it to Home Assistant's areas when you save. Tap two rooms on the plan and press \"Join into one\" to make them one room."),
+      t("Save takes a backup first. \"Undo\" on the last screen takes the rooms back out of PadSpan; an area it added to Home Assistant stays there, to remove on Home Assistant's Areas page. \"Not now\" hides the offer on the Overview for a week, then a month; \"Don't ask again\" hides it there for good."),
+    ],
+  },
+
   // ── Calibration ────────────────────────────────────────────────────────
   calibration_overview: {
     title: t("Calibration — Teaching PadSpan your home"),
