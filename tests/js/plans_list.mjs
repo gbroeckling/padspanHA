@@ -133,7 +133,7 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   A.tool.dispose();
   const N = mount({ ...BASE, plan_ai_plans: { plans: [], ai: LOCAL, running: null, latest: null } });
   N.tool.show(true); await settle();
-  check("no plans: where to place one", text(N.sheet).includes("place it in Mapping → 3D Stack first"), text(N.sheet));
+  check("no plans: measure one first", text(N.sheet).includes("then measure it in Mapping → Edit → 📏 Measure") && !text(N.sheet).includes("3D Stack"), text(N.sheet));
   N.tool.dispose();
   const S = mount({ plan_ai_plans: {} });
   S.tool.show(true); await settle();
