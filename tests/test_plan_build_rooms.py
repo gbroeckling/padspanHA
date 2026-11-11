@@ -657,7 +657,7 @@ def test_a_save_cut_short_is_put_back_at_the_next_command(monkeypatch, tmp_path,
 
 def test_the_rooms_writer_reaches_only_its_own_writes():
     src = inspect.getsource(C)
-    s2 = src[src.index("# ══ Build from plans: rooms, doors, windows and stairs (Stage 2"):]
+    s2 = src[src.index("# ══ Build from plans: rooms, doors, windows and stairs (Stage 2"):src.index("# ── The rooms helper's scale")]   # the scale's own: test_plan_build_scale.py
     for bad in ("async_reanchor_map", "async_set_rf_barrier", "fabric_open_edges", "async_set_scanner_position", "async_set_beacon_position",
                 "calibration_store", "async_update_map", "async_ensure_world_gauge", "async_set_map_floor", "async_rename", "fabric_map_transform"):
         assert bad not in s2, bad

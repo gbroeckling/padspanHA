@@ -53,6 +53,11 @@ plan_build_rooms_read_again (a third read for a flagged room);
 plan_build_rooms_check (the room score on the calibration spots, writing
 nothing); plan_build_rooms_commit (Accept all for this floor: one save) and
 plan_build_rooms_undo, both plan_ai_write.py's.
+
+The rooms helper's scale (Let Claude draw your rooms, piece 3; design E):
+plan_build_scale_preview (what one measurement makes of the plan, writing
+nothing), plan_build_scale_save (a plan with no scale, through Measure's own
+writer) and plan_build_scale_undo, both plan_ai_write.py's.
 """
 
 from __future__ import annotations
@@ -439,12 +444,16 @@ PREFIX = C.LP
 
 async def _settled(hass: HomeAssistant, store: A.PlanAiStore) -> None:
     """A save or an undo cut short is finished or put back before anything else
-    looks at the line-ups (plan_ai_write.settle_lineups), under the store's lock."""
-    if not any(isinstance(b, dict) and b.get("pending") for b in (store.data.get("lineup_batches") or {}).values()):
-        return
-    async with store.lock:
-        if await C.settle_lineups(hass, store):
-            await store.async_save()
+    looks at the line-ups (plan_ai_write.settle_lineups), or at a plan's scale the
+    rooms helper saved (settle_scale), under the store's lock."""
+    if any(isinstance(b, dict) and b.get("pending") for b in (store.data.get("lineup_batches") or {}).values()):
+        async with store.lock:
+            if await C.settle_lineups(hass, store):
+                await store.async_save()
+    if any(isinstance(b, dict) and b.get("pending") for b in (store.data.get("scale_batches") or {}).values()):
+        async with store.lock:
+            if await C.settle_scale(hass, store):
+                await store.async_save()
 
 
 async def _build_refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore | None:
@@ -924,7 +933,8 @@ async def ws_plan_build_rooms_start(hass: HomeAssistant, connection, msg) -> Non
     if store is None:
         return
     async with store.lock:
-        why = A.start_allowed(hass)
+        # The helper's read right after its own scale save skips the one-a-minute gap (design E.2).
+        why = A.start_allowed(hass, skip_gap=msg.get("via") == "wizard" and A.take_scale_gap(hass))
         if why:
             connection.send_error(msg["id"], why, RP + {"already_running": "a session is already reading your plans.",
                                                         "too_soon": "a session started less than a minute ago.",
@@ -1215,3 +1225,81 @@ async def _rooms_write(hass: HomeAssistant, connection, msg, store: A.PlanAiStor
 
 WS_COMMANDS = WS_COMMANDS + (ws_plan_build_rooms_start, ws_plan_build_rooms_status, ws_plan_build_rooms_resume, ws_plan_build_rooms_edit,
                              ws_plan_build_rooms_read_again, ws_plan_build_rooms_check, ws_plan_build_rooms_commit, ws_plan_build_rooms_undo)
+
+
+# ══ Let Claude draw your rooms: the plan's scale (piece 3; design E) ══════════
+# One guided measurement for a plan that has no scale: the same gates as the
+# rooms helper's other commands (Live Aboard may be off), the write and its undo
+# plan_ai_write.py's (scale_save, scale_undo) under the plan store's lock. A
+# refusal is an ok: false answer with its code and plain words; nothing was
+# written. The undo, like the rooms undo, answers under the master switch.
+
+_MEASURE = vol.Schema({vol.Required("p1"): [vol.Coerce(float)], vol.Required("p2"): [vol.Coerce(float)],
+                       vol.Required("text"): vol.All(str, vol.Length(max=40))}, extra=vol.REMOVE_EXTRA)
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_scale_preview",
+    vol.Required("map_id"): str,
+    vol.Optional("measures"): [_MEASURE],
+    vol.Optional("via"): VIA,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_scale_preview(hass: HomeAssistant, connection, msg) -> None:
+    """What the measurement screen says while the person types (the length
+    understood, the plan's size): worked out here, as the save will. Writes nothing."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    connection.send_result(msg["id"], C.scale_preview(hass, msg["map_id"], msg.get("measures") or []))
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/plan_build_scale_save",
+    vol.Required("map_id"): str,
+    vol.Required("sig"): vol.All(str, vol.Length(max=64)),
+    vol.Optional("floor_id"): vol.Any(str, None),
+    vol.Required("measures"): vol.All([_MEASURE], vol.Length(min=1, max=2)),
+    vol.Optional("source", default="guided"): vol.In(C.SCALE_SOURCES),
+    vol.Optional("session"): vol.Any(str, None),
+    vol.Optional("via"): VIA,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_scale_save(hass: HomeAssistant, connection, msg) -> None:
+    """The plan's first scale from the person's measurement (design E.3). The
+    server parses the typed length and works the scale out from the two
+    points and the stored picture; any scale the panel sends is not read."""
+    store = await _build_refused(hass, connection, msg)
+    if store is None:
+        return
+    try:
+        async with store.lock:
+            answer = await C.scale_save(hass, store, map_id=msg["map_id"], sig=msg["sig"], floor_id=msg.get("floor_id"),
+                                        measures=msg["measures"], source=msg["source"], session=msg.get("session"))
+    except C.Refused as err:
+        connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message, **(err.extra or {})})
+        return
+    connection.send_result(msg["id"], answer)
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/plan_build_scale_undo", vol.Optional("map_id"): vol.Any(str, None), vol.Optional("via"): VIA})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_plan_build_scale_undo(hass: HomeAssistant, connection, msg) -> None:
+    """Take the helper's scale back, only while nothing in metres was added since (design E.5)."""
+    if not A.enabled(hass):
+        connection.send_error(msg["id"], PLANS_OFF_CODE, RP + PLANS_OFF_MESSAGE)
+        return
+    store = await A.async_get_store(hass)
+    try:
+        async with store.lock:
+            answer = await C.scale_undo(hass, store, msg.get("map_id"))
+    except C.Refused as err:
+        connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message})
+        return
+    connection.send_result(msg["id"], answer)
+
+
+WS_COMMANDS = WS_COMMANDS + (ws_plan_build_scale_preview, ws_plan_build_scale_save, ws_plan_build_scale_undo)

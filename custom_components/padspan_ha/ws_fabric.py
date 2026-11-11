@@ -962,6 +962,36 @@ async def ws_fabric_map_transform_set(hass: HomeAssistant, connection, msg) -> N
     if not map_id or not isinstance(transform, dict):
         connection.send_error(msg["id"], "invalid", "map_id and transform dict are required")
         return
+    _stored = await async_write_measured_transform(hass, map_id, transform)
+    connection.send_result(msg["id"], {
+        "ok": True, "map_id": map_id,
+        "scale_x_m": _stored.get("scale_x_m"),
+        "scale_y_m": _stored.get("scale_y_m"),
+        "refs": len(_stored.get("reference_measurements", [])),
+    })
+
+
+# The sources a measurement the rooms helper saved carries (plan_ai_write.scale_save):
+# one guided measurement now; a printed dimension, confirmed or corrected, later.
+HELPER_SCALE_SOURCES: tuple[str, ...] = ("guided", "plan_dimension", "plan_dimension_corrected")
+
+
+async def async_write_measured_transform(hass: HomeAssistant, map_id: str, transform: dict) -> dict:
+    """THE Measure tool's write, shared: Mapping → Edit → Measure's Save
+    (ws_fabric_map_transform_set) and the rooms helper's one guided
+    measurement (plan_ai_write.scale_save) both come through here, so "what
+    sets a plan's scale" has one answer. The map's record through
+    ModelStore.async_set_map_transform, the house's metre scale seeded if it
+    has none (write-once), the plan's calibration pins re-derived from their
+    metres. Returns the record as stored.
+
+    A hand measurement of a plan whose stored measurement the helper made is
+    counted, by how far it moved the scale (plan_build_scale_remeasured): the
+    field's check on the helper's accuracy."""
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    _old = mdl.map_transform(map_id) or {}
+    _by_helper = any(isinstance(r, dict) and r.get("source") in HELPER_SCALE_SOURCES for r in _old.get("reference_measurements") or [])
+    _was_sx = _old.get("scale_x_m")
     # A payload that does not STATE a floor has not moved the map to 'main'.
     # `_put_map_transform` carries `floor_id` with the placement coordinates
     # for exactly that reason — this is the σ rule on the field that decides
@@ -991,12 +1021,16 @@ async def ws_fabric_map_transform_set(hass: HomeAssistant, connection, msg) -> N
     except Exception:
         pass
     _stored = (mdl.data.get("map_transforms") or {}).get(map_id, {})
-    connection.send_result(msg["id"], {
-        "ok": True, "map_id": map_id,
-        "scale_x_m": _stored.get("scale_x_m"),
-        "scale_y_m": _stored.get("scale_y_m"),
-        "refs": len(_stored.get("reference_measurements", [])),
-    })
+    _new_refs = [r for r in _stored.get("reference_measurements") or [] if isinstance(r, dict)]
+    if _by_helper and _new_refs and not any(r.get("source") in HELPER_SCALE_SOURCES for r in _new_refs):
+        try:
+            from .plan_ai import _scale_band  # noqa: PLC0415
+            _was, _now = float(_was_sx or 0), float(_stored.get("scale_x_m") or 0)
+            if _was > 0 and _now > 0:
+                _bump(hass, f"plan_build_scale_remeasured:{_scale_band(abs(_now / _was - 1) * 100)}")
+        except Exception:  # noqa: BLE001 — a count, never a failed save
+            pass
+    return _stored
 
 
 @websocket_api.websocket_command(

@@ -293,7 +293,7 @@ function renderUnlocked(ctx, root) {
     if (Object.keys(mpv).length) {
       const nMap = (fenv.mapping || {}).installs || 0, stuckBy = only(mpv, "stuck"), lead = top(stuckBy);
       const walls = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(plans_tool|plans_tab|plans_floor|plan_build_stop_ui):/.test(k)));
-      const wiz = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(ai_wizard[a-z_]*|plan_build_rooms_(offered|saved)|plan_build_name|plan_build_unmatched_areas):/.test(k)));
+      const wiz = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(ai_wizard[a-z_]*|plan_build_rooms_(offered|saved)|plan_build_name|plan_build_unmatched_areas|plan_build_scale[a-z_]*):/.test(k)));
       section("Getting to a map", "Homes that added a floor plan but haven't finished setting up, from each install's latest report: the step each is stuck at, how old its plan is, and what the AI helper's rule (Let Claude draw your rooms) would say to it. Homes that finished setup don't send this.", [
         grid([
           barCard(el, { title: "Where they are stuck", ask: "The first setup step not done yet", map: stuckBy, total: nMap, kind: "mapping" }),
@@ -812,6 +812,11 @@ const W_WIZ_LINK = { guide: "the guide", console: "the Anthropic Console", ha_ad
 const W_ROOMS_BAND = { "0": "no rooms", "1": "1 room", "2_3": "2–3 rooms", "4_6": "4–6 rooms", "7_12": "7–12 rooms", gt12: "over 12 rooms" };
 const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", area_abbrev: "after a Home Assistant area (abbreviated)",
   printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };
+const W_SCALE_PATH = { guided: "one measurement by the person", already_set: "the plan had a scale already" };
+const W_SCALE_SAVE = { done: "saved", already_placed: "refused, the plan had a scale already", points_on_plan: "refused, calibration spots on the plan",
+  plan_changed: "refused, the plan picture changed", backup_failed: "refused, no safety backup", floor_unknown: "refused, floor not known" };
+const W_SCALE_UNDO = { done: "taken back", changed_since: "refused, something added since", failed: "failed" };
+const W_SCALE_PCT = { lt1: "under 1 %", "1_3": "1–3 %", "3_10": "3–10 %", gt10: "over 10 %" };
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", rooms: "draw rooms", scanners: "place receivers",
                     calibrate: "calibrate", positioned: "see devices placed" };
 const W_WEATHER = { still: "nothing falling", light_rain: "light rain", heavy_rain: "heavy rain", light_snow: "light snow",
@@ -970,6 +975,10 @@ function word(kind, k) {
       if (a === "plan_build_rooms_offered") return `AI rooms helper offered ${W_ROOMS_BAND[b] || b}`;
       if (a === "plan_build_rooms_saved") return `AI rooms helper saved ${W_ROOMS_BAND[b] || b}`;
       if (a === "plan_build_name") return `AI rooms helper room named ${W_NAME_SOURCE[b] || b}`;
+      if (a === "plan_build_scale") return `AI rooms helper plan scale: ${W_SCALE_PATH[b] || b}`;
+      if (a === "plan_build_scale_save") return `AI rooms helper plan scale save: ${W_SCALE_SAVE[b] || b}`;
+      if (a === "plan_build_scale_undo") return `AI rooms helper plan scale undo: ${W_SCALE_UNDO[b] || b}`;
+      if (a === "plan_build_scale_remeasured") return `Plan the AI rooms helper scaled, measured again by hand: scale moved ${W_SCALE_PCT[b] || b}`;
       if (a === "plan_build_unmatched_areas") return `AI rooms helper save left ${W_ROOMS_BAND[b] || b} Home Assistant areas without a room`;
       if (a === "plan_build_setting") return `Plan line-up (experimental) setting ${{ shown: "shown (Claude qualifies)", on: "turned on", off: "turned off" }[b] || b}`;
       if (a === "plan_build_unlock") return `Plan line-up (experimental) AI: ${W_UNLOCK[b] || b}`;

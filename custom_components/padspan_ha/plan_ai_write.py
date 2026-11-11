@@ -683,12 +683,14 @@ def _storey(hass: HomeAssistant, floor_id: str, map_id: str) -> tuple[int | None
     return (None if level is None else max(0, min(20, int(level)))), (next(iter(heights)) if len(heights) == 1 else None)
 
 
-async def _write_refile(hass: HomeAssistant, map_id: str, side: dict[str, Any]) -> str | None:
+async def _write_refile(hass: HomeAssistant, map_id: str, side: dict[str, Any], record: bool = True) -> str | None:
     """THE refile write: the map's floor and its storey in the stack (level
     and height), in one maps_store.async_update_map (with the legacy stack
     copy of the floor when the map has one, which radio_map.js still reads
     first), and the placement record's floor (ModelStore.async_set_map_floor,
-    the whole record kept). The placement stays: floors share one footprint."""
+    the whole record kept). The placement stays: floors share one footprint.
+    `record` False: a plan with no placement record (the rooms helper's scale
+    undo, after the record went), the maps store's floor only."""
     mdl, ms, _cal = _house_stores(hass)
     if mdl is None or ms is None or ms.get_map(map_id) is None:
         return "gone"
@@ -696,7 +698,7 @@ async def _write_refile(hass: HomeAssistant, map_id: str, side: dict[str, Any]) 
              if side.get(s) is not None}
     extra = {"stack": stack} if stack else {}
     await ms.async_update_map(map_id, floor_id=side["floor_id"], **extra)
-    if not await mdl.async_set_map_floor(map_id, side.get("t_floor") or side["floor_id"]):
+    if record and not await mdl.async_set_map_floor(map_id, side.get("t_floor") or side["floor_id"]):
         return "not_placed"
     return None
 
@@ -959,9 +961,9 @@ def _stood(hass: HomeAssistant, store: A.PlanAiStore, bid: str, b: dict[str, Any
     A._bump(hass, "plan_build_settled:stood")  # noqa: SLF001
 
 
-async def _backup(hass: HomeAssistant, note: str) -> str | None:
+async def _backup(hass: HomeAssistant, note: str, slot: str = LINEUP_SLOT) -> str | None:
     from .ws_backup import _auto_backup  # noqa: PLC0415
-    return await _auto_backup(hass, note, [MODEL_STORE_KEY, MAPS_STORE_KEY, CALIBRATION_STORE_KEY], slot=LINEUP_SLOT, slot_keep=A.S1_BACKUPS_KEPT)
+    return await _auto_backup(hass, note, [MODEL_STORE_KEY, MAPS_STORE_KEY, CALIBRATION_STORE_KEY], slot=slot, slot_keep=A.S1_BACKUPS_KEPT)
 
 
 def _invalidate(hass: HomeAssistant) -> None:
@@ -1827,3 +1829,369 @@ async def rooms_undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3d
         A._bump(hass, f"plan_build_item:{k}_undone")  # noqa: SLF001
     return {"ok": True, "undone": len(todo), "skipped": skipped, "batch": ubid, "backup_id": backup_id,
             "rev": (store.rooms_session(sid) or {}).get("rev"), "undo": A.rooms_undo_info(store)}
+
+
+# ── The rooms helper's scale: one guided measurement (AI mapping wizard piece 3) ──
+# Design ai-wizard-design-2026-11-10.md, E.3-E.6. What it writes: a plan's
+# first scale, exactly as Mapping → Edit → Measure's Save writes it, through
+# Measure's own writer (ws_fabric.async_write_measured_transform), which seeds
+# the house's metre scale only when the house has none; and the plan's floor,
+# through the refile write above, only when the person picked another. What it
+# never does: write a plan that already has any placement record, change a
+# house scale that was set, move a calibration point, a room, a receiver, a
+# beacon or a light, or re-place anything (no async_reanchor_map, no reanchor).
+# Its undo takes back exactly that, only while nothing in metres was added
+# since, through ModelStore.async_unset_world_gauge (compare and clear).
+# The ledger (scale_batches in this store) is written first, marked pending,
+# as the line-up's and the rooms' are: settle_scale finishes or takes back a
+# save or an undo a restart cut short.
+import hashlib  # noqa: E402
+import json  # noqa: E402
+
+from . import fabric_truth as FT  # noqa: E402
+
+SCALE_SLOT = "plan_build_scale"                                  # the backups' own slot (the last A.S1_BACKUPS_KEPT)
+SCALE_SOURCES: tuple[str, ...] = ("guided", "plan_dimension", "plan_dimension_corrected")
+SCALE_STOPS: tuple[str, ...] = ("already_placed", "points_on_plan", "plan_changed", "floor_unknown", "backup_failed")
+SCALE_ODD_M: tuple[float, float] = (2.0, 100.0)                  # a plan this many metres across or down is odd: said, never refused
+MIN_PX = 8.0                                                     # two clicks closer than this on the picture aren't a measurement
+SCALE_WORDS: dict[str, str] = {
+    "already_placed": "This plan already has a scale, so nothing was changed. To change it, use Mapping → Edit → Measure.",
+    "points_on_plan": "Calibration spots are already saved on this plan, so its scale is left as it is. "
+                      "To set it, use Mapping → Edit → Measure.",
+    "plan_changed": "The plan picture changed since this screen opened. Nothing was saved: measure again.",
+    "floor_unknown": "Pick which floor this plan shows.",
+    "backup_failed": "The safety backup couldn't be made, so nothing was saved. Check Home Assistant's storage and try again.",
+    "changed_since": "Something was added in metres since the scale was saved (a room, a receiver, a calibration spot or another "
+                     "plan's scale), so the scale stays. To change it, use Mapping → Edit → Measure.",
+    "nothing_to_undo": "There's no scale saved by this helper to take back.",
+    "save_failed": "The record of this save couldn't be written, so nothing was changed. Try again.",
+}
+
+
+def _picture_size(m: dict | None) -> tuple[int, int] | None:
+    img = (m or {}).get("image") or {}
+    try:
+        w, h = int(img.get("width") or 0), int(img.get("height") or 0)
+    except (TypeError, ValueError):
+        return None
+    return (w, h) if w > 0 and h > 0 else None
+
+
+def _frac_pt(p: Any) -> list[float] | None:
+    if not isinstance(p, (list, tuple)) or len(p) != 2:
+        return None
+    try:
+        x, y = float(p[0]), float(p[1])
+    except (TypeError, ValueError):
+        return None
+    if isinstance(p[0], bool) or isinstance(p[1], bool) or not (math.isfinite(x) and math.isfinite(y)):
+        return None
+    return [round(x, 4), round(y, 4)] if -0.001 <= x <= 1.001 and -0.001 <= y <= 1.001 else None
+
+
+def scale_from_measures(size: tuple[int, int], measures: Any, source: str, today: str) -> dict[str, Any]:
+    """Pure. The typed lengths parsed (plan_geom.parse_length: feet and inches,
+    mm, cm, m) and the scale worked out HERE from the two points and the
+    stored picture size, as Measure works it out (maps.js: px/m per
+    measurement, their average, the plan's size from it, both rounded as
+    Measure rounds them). A px/m the panel sends is never read. Refused
+    ("invalid") when a length isn't one or the points aren't two on the plan.
+    Returns {transform: exactly Measure's payload, ppm, across_m, down_m, odd}."""
+    w, h = size
+    if not isinstance(measures, list) or not 1 <= len(measures) <= 2:
+        raise Refused("invalid", "Click both ends of something on the plan, then type its length.")
+    refs, ppms = [], []
+    for ms_ in measures:
+        ms_ = ms_ if isinstance(ms_, dict) else {}
+        p1, p2 = _frac_pt(ms_.get("p1")), _frac_pt(ms_.get("p2"))
+        metres = G.parse_length(ms_.get("text"))
+        if p1 is None or p2 is None:
+            raise Refused("invalid", "Click both ends of something on the plan, then type its length.")
+        if metres is None or not 0.05 <= metres <= 1000:
+            raise Refused("invalid", "Type a length such as 4.2 m, 420 cm or 13' 9\".")
+        dx, dy = (p2[0] - p1[0]) * w, (p2[1] - p1[1]) * h
+        dist_px = math.hypot(dx, dy)
+        if dist_px < MIN_PX:
+            raise Refused("invalid", "The two ends are too close together: click both ends of something longer.")
+        ppm = dist_px / metres
+        ppms.append(ppm)
+        refs.append({"p1": p1, "p2": p2, "distance_m": round(metres, 4), "px_per_meter": round(ppm * 100) / 100,
+                     "angle_deg": round(math.degrees(math.atan2(abs(dy), abs(dx)))), "date": today, "source": source})
+    ppm = round(sum(ppms) / len(ppms) * 100) / 100
+    sx, sy = round(w / ppm * 10000) / 10000, round(h / ppm * 10000) / 10000
+    lo, hi = SCALE_ODD_M
+    return {"transform": {"scale_x_m": sx, "scale_y_m": sy, "reference_measurements": refs}, "ppm": ppm, "across_m": sx, "down_m": sy,
+            "metres": [r["distance_m"] for r in refs], "odd": not (lo <= sx <= hi and lo <= sy <= hi)}
+
+
+def _points_on(hass: HomeAssistant, map_id: str) -> bool:
+    """A calibration point with stored metres on this plan."""
+    _mdl, _ms, cal = _house_stores(hass)
+    return any(isinstance(p, dict) and p.get("map_id") == map_id and p.get("x_m") is not None
+               for p in ((getattr(cal, "data", None) or {}).get("points") or []))
+
+
+def _metres_fp(hass: HomeAssistant, map_id: str) -> str:
+    """Everything in metres a scale undo must find unchanged: the rooms, the
+    receivers', beacons' and lights' positions, how many calibration points
+    there are, and every OTHER plan's placement record. A hash, kept with the save."""
+    mdl, _ms, cal = _house_stores(hass)
+    got = {"rooms": mdl.room_geometry_m(), "receivers": mdl.scanner_positions_m(), "beacons": mdl.beacon_positions_m(),
+           "lights": mdl.light_positions_m(), "points": len((getattr(cal, "data", None) or {}).get("points") or []),
+           "others": {k: v for k, v in (mdl.data.get("map_transforms") or {}).items() if k != map_id}}
+    return hashlib.sha256(json.dumps(got, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+
+
+def _floor_side(hass: HomeAssistant, m: dict, fid: str | None = None) -> dict[str, Any]:
+    """A plan's floor as the refile write takes it: as it is, or (fid) moved to that floor's storey."""
+    stk = m.get("stack") or {}
+    side = {"floor_id": str(m.get("floor_id") or ""), "t_floor": None, "stack_floor": stk.get("floor_id"),
+            "stack_level": stk.get("z_level"), "stack_height": stk.get("ceiling_height_m")}
+    if fid is None:
+        return side
+    level, height = _storey(hass, fid, m["id"])
+    return {"floor_id": fid, "t_floor": fid, "stack_floor": fid if side["stack_floor"] else None,
+            "stack_level": side["stack_level"] if level is None else level, "stack_height": side["stack_height"] if height is None else height}
+
+
+def scale_check(hass: HomeAssistant, map_id: str, sig: str | None, floor_id: str | None) -> tuple[dict, str]:
+    """The data-safety checks, in order; (the plan, its floor) when all pass. Refused with the stop's word."""
+    mdl, ms, _cal = _house_stores(hass)
+    m = ms.get_map(map_id) if ms is not None else None
+    if mdl is None or not isinstance(m, dict) or (sig is not None and A.image_sig(m) != sig) or _picture_size(m) is None:
+        raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
+    if mdl.map_transform(map_id) is not None:
+        raise Refused("already_placed", SCALE_WORDS["already_placed"])
+    if _points_on(hass, map_id):
+        raise Refused("points_on_plan", SCALE_WORDS["points_on_plan"])
+    fid = str(floor_id or m.get("floor_id") or "")
+    if fid not in _indoor(hass):
+        raise Refused("floor_unknown", SCALE_WORDS["floor_unknown"], {"floors": [f["id"] for f in A.floor_order(mdl)]})
+    return m, fid
+
+
+def scale_preview(hass: HomeAssistant, map_id: str, measures: Any) -> dict[str, Any]:
+    """What the screen shows while the person types: the plan's picture
+    signature (sent back with Save), whether its floor is one of the house's,
+    whether it may be measured here at all (`stop`), and, once a length and
+    two points are given, the plan's size from them. Writes nothing."""
+    mdl, ms, _cal = _house_stores(hass)
+    m = ms.get_map(map_id) if ms is not None else None
+    size = _picture_size(m)
+    out: dict[str, Any] = {"sig": A.image_sig(m) if isinstance(m, dict) else None, "size": list(size) if size else None,
+                           "floor_known": isinstance(m, dict) and str(m.get("floor_id") or "") in _indoor(hass),
+                           "floors": [f["id"] for f in A.floor_order(mdl)] if mdl is not None else []}
+    try:
+        scale_check(hass, map_id, None, (m or {}).get("floor_id") if out["floor_known"] else (out["floors"] or [None])[0])
+        out["stop"] = None
+    except Refused as err:
+        out["stop"] = err.code
+    if measures and size:
+        try:
+            got = scale_from_measures(size, measures, "guided", "")
+            out.update(metres=got["metres"], across_m=got["across_m"], down_m=got["down_m"], odd=got["odd"])
+        except Refused as err:
+            out["invalid"] = err.message
+    return out
+
+
+async def settle_scale(hass: HomeAssistant, store: A.PlanAiStore) -> bool:
+    """A scale save or undo cut short by a restart, finished or taken back
+    (the ledger's pending mark). A save whose measurement is on the plan is
+    finished (the house scale seeded if it still has none, the floor moved,
+    `after` noted); one whose isn't never happened. An undo whose record is
+    gone is finished (the floor put back); one whose isn't never happened
+    (the floor put forward again). In memory; the caller saves when it returns True."""
+    if not A.writable(store.data):
+        return False
+    mdl, ms, _cal = _house_stores(hass)
+    if mdl is None or ms is None:
+        return False
+    settled = False
+    batches = store.data.get("scale_batches") or {}
+    for bid, b in list(batches.items()):
+        p = b.get("pending") if isinstance(b, dict) else None
+        if not isinstance(p, dict):
+            continue
+        settled = True
+        mid, t = b["map_id"], mdl.map_transform(b["map_id"])
+        m = ms.get_map(mid)
+        if b.get("undo_of"):
+            ob = batches.get(b["undo_of"]) or {}
+            if t is None:                                     # the record went: the undo landed
+                if m is not None and str(m.get("floor_id") or "") != ob["before"]["floor"]["floor_id"]:
+                    await _write_refile(hass, mid, ob["before"]["floor"], record=False)
+                ob["undone_at"] = float(p.get("at") or time.time())
+                b.pop("pending", None)
+                A._bump(hass, "plan_build_settled:finished")  # noqa: SLF001
+            else:                                             # it didn't: the save stands as it was
+                if m is not None and ob.get("after") and str(m.get("floor_id") or "") != ob["after"]["floor_id"]:
+                    await _write_refile(hass, mid, ob["after"]["floor"])
+                batches.pop(bid, None)
+                A._bump(hass, "plan_build_settled:put_back")  # noqa: SLF001
+            continue
+        refs = (t or {}).get("reference_measurements") if isinstance(t, dict) else None
+        if refs == p["refs"]:                                 # Measure's write landed: finish the rest
+            try:
+                await mdl.async_ensure_world_gauge(ms.data.get("maps") or [])
+            except Exception:  # noqa: BLE001 — refusal, as in the writer
+                _LOGGER.exception("PadSpan rooms helper: the house scale couldn't be seeded while settling a save")
+            if m is not None and b["floor_id"] != str(m.get("floor_id") or ""):
+                await _write_refile(hass, mid, _floor_side(hass, m, b["floor_id"]))
+            _scale_landed(hass, b, mid)
+            b.pop("pending", None)
+            A._bump(hass, "plan_build_settled:finished")  # noqa: SLF001
+        else:                                                 # it didn't: nothing was written
+            batches.pop(bid, None)
+            A._bump(hass, "plan_build_settled:put_back")  # noqa: SLF001
+    return settled
+
+
+def _scale_landed(hass: HomeAssistant, b: dict[str, Any], map_id: str) -> None:
+    """A save's `after`: the plan's record, its floor, the house scale, and the metres fingerprint, as they are now."""
+    mdl, ms, _cal = _house_stores(hass)
+    m = ms.get_map(map_id) or {}
+    b["after"] = {"t": copy.deepcopy(mdl.map_transform(map_id)), "floor_id": str(m.get("floor_id") or ""), "floor": _floor_side(hass, m),
+                  "gauge": copy.deepcopy(mdl.data.get("world_gauge"))}
+    b["fp"] = _metres_fp(hass, map_id)
+
+
+async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, sig: str, floor_id: str | None, measures: Any,
+                     source: str, session: str | None = None) -> dict[str, Any]:
+    """The rooms helper's scale for a plan that has none (design E.3): every
+    check, a backup, the ledger pending, Measure's own write, the floor if it
+    moved, the mark off. Piece 4 calls this unchanged with source
+    plan_dimension or plan_dimension_corrected. The caller holds the plan
+    store's lock."""
+    from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    if not A.writable(store.data):
+        raise Refused("plan_ai_newer", "This plan store was saved by a newer PadSpan: update PadSpan to save.")
+    if source not in SCALE_SOURCES:
+        raise Refused("invalid", "Unknown measurement source.")
+    if await settle_scale(hass, store):
+        await _save(store)
+
+    def stop(err: Refused) -> Refused:
+        if err.code in SCALE_STOPS:
+            A._bump(hass, f"plan_build_scale_save:{err.code}")  # noqa: SLF001
+        return err
+
+    try:
+        m, fid = scale_check(hass, map_id, sig, floor_id)
+        got = scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()))   # type: ignore[arg-type]  (UTC, as Measure dates it)
+    except Refused as err:
+        raise stop(err) from None
+    mdl, _ms, _cal = _house_stores(hass)
+    gauge_before = copy.deepcopy(mdl.data.get("world_gauge"))
+    gauge_was_set = FT.metre_gauge(mdl) is not None
+    floor_before = _floor_side(hass, m)
+    backup_id = await _backup(hass, f"Before Let Claude draw your rooms set a plan's scale: {m.get('name') or 'plan'}", SCALE_SLOT)
+    if not backup_id:
+        raise stop(Refused("backup_failed", SCALE_WORDS["backup_failed"]))
+    try:
+        m, fid = scale_check(hass, map_id, sig, floor_id)          # the backup awaited: a hand edit may have landed meanwhile
+    except Refused as err:
+        raise stop(err) from None
+    at = time.time()
+    bid = "sb_" + secrets.token_hex(4)
+    transform = {**got["transform"], "floor_id": fid}
+    snap_store = copy.deepcopy(store.data)
+    batch = {"map_id": map_id, "session": session, "source": source, "committed_at": at, "backup_id": backup_id, "floor_id": fid,
+             "before": {"t": None, "floor": floor_before, "gauge": gauge_before, "gauge_set": gauge_was_set},
+             "after": None, "fp": None, "undone_at": None, "undo_of": None,
+             "pending": {"at": at, "refs": copy.deepcopy(transform["reference_measurements"])}}
+    store.data.setdefault("scale_batches", {})[bid] = batch
+    store.trim()
+    if not await store.async_checked_save():
+        await _put_back(store, snap_store)
+        raise Refused("save_failed", SCALE_WORDS["save_failed"])
+    await async_write_measured_transform(hass, map_id, transform)
+    if fid != floor_before["floor_id"]:
+        await _write_refile(hass, map_id, _floor_side(hass, m, fid))
+    _scale_landed(hass, batch, map_id)
+    batch.pop("pending", None)
+    await _save(store)
+    _invalidate(hass)
+    seeded = not gauge_was_set and FT.metre_gauge(mdl) is not None
+    A._mark_scale_saved(hass)  # noqa: SLF001
+    _LOGGER.info("PadSpan rooms helper: plan %s measured (%s), %.2f m x %.2f m%s (backup %s)", map_id, source,
+                 got["across_m"], got["down_m"], "; the house's metre scale was set from it" if seeded else "", backup_id)
+    A._bump(hass, "plan_build_scale_save:done")  # noqa: SLF001
+    return {"ok": True, "batch": bid, "backup_id": backup_id, "map_id": map_id, "floor_id": fid, "across_m": got["across_m"],
+            "down_m": got["down_m"], "odd": got["odd"], "house_scale_set": seeded}
+
+
+def scale_undo_info(store: A.PlanAiStore, map_id: str | None = None) -> dict[str, Any] | None:
+    """The newest scale save of the helper still standing (of this plan, if given), or None."""
+    live = [(bid, b) for bid, b in (store.data.get("scale_batches") or {}).items()
+            if isinstance(b, dict) and not b.get("undo_of") and not b.get("undone_at") and not b.get("pending") and b.get("after")
+            and (map_id is None or b.get("map_id") == map_id)]
+    if not live:
+        return None
+    bid, b = max(live, key=lambda t: float(t[1].get("committed_at") or 0))
+    return {"batch": bid, "map_id": b["map_id"], "at": b["committed_at"]}
+
+
+async def scale_undo(hass: HomeAssistant, store: A.PlanAiStore, map_id: str | None = None) -> dict[str, Any]:
+    """Take the helper's scale back (owner's choice, 2026-11-10): only while
+    the plan's record and the house scale are exactly what the save wrote and
+    nothing in metres was added since. A backup, the ledger pending, the floor
+    back, then the record (and the house scale, only when this save set it)
+    through ModelStore.async_unset_world_gauge. Otherwise refused, pointing to
+    Measure. The helper's Undo runs rooms_undo first, then this. The caller
+    holds the plan store's lock."""
+    if not A.writable(store.data):
+        raise Refused("plan_ai_newer", "This plan store was saved by a newer PadSpan: update PadSpan to undo.")
+    if await settle_scale(hass, store):
+        await _save(store)
+    info = scale_undo_info(store, map_id)
+    if info is None:
+        raise Refused("nothing_to_undo", SCALE_WORDS["nothing_to_undo"])
+    bid, b = info["batch"], store.data["scale_batches"][info["batch"]]
+    mid = b["map_id"]
+    mdl, ms, _cal = _house_stores(hass)
+    after = b["after"]
+    seeded = not b["before"]["gauge_set"]
+
+    def same() -> bool:
+        if mdl.map_transform(mid) != after["t"] or mdl.data.get("world_gauge") != after["gauge"] or _metres_fp(hass, mid) != b["fp"]:
+            return False
+        g = FT.metre_gauge(mdl)
+        return not seeded or g is None or g.get("source_map_id") == mid
+
+    if not same():
+        A._bump(hass, "plan_build_scale_undo:changed_since")  # noqa: SLF001
+        raise Refused("changed_since", SCALE_WORDS["changed_since"])
+    m = ms.get_map(mid) or {"id": mid}
+    backup_id = await _backup(hass, f"Before undoing the plan scale Let Claude draw your rooms set: {m.get('name') or 'plan'}", SCALE_SLOT)
+    if not backup_id:
+        A._bump(hass, "plan_build_scale_undo:failed")  # noqa: SLF001
+        raise Refused("backup_failed", SCALE_WORDS["backup_failed"])
+    if not same():
+        A._bump(hass, "plan_build_scale_undo:changed_since")  # noqa: SLF001
+        raise Refused("changed_since", SCALE_WORDS["changed_since"])
+    at = time.time()
+    snap_store = copy.deepcopy(store.data)
+    ubid = "sb_" + secrets.token_hex(4)
+    store.data["scale_batches"][ubid] = {"map_id": mid, "committed_at": at, "backup_id": backup_id, "undo_of": bid, "undone_at": None,
+                                          "pending": {"at": at}}
+    store.trim()
+    if not await store.async_checked_save():
+        await _put_back(store, snap_store)
+        A._bump(hass, "plan_build_scale_undo:failed")  # noqa: SLF001
+        raise Refused("save_failed", SCALE_WORDS["save_failed"])
+    gauge_expect = after["gauge"] if seeded and FT.metre_gauge(mdl) is not None else None
+    if not await mdl.async_unset_world_gauge(mid, after["t"], gauge_expect):
+        await _put_back(store, snap_store)
+        A._bump(hass, "plan_build_scale_undo:failed")  # noqa: SLF001
+        raise Refused("changed_since", SCALE_WORDS["changed_since"])
+    if ms.get_map(mid) is not None and str(ms.get_map(mid).get("floor_id") or "") != b["before"]["floor"]["floor_id"]:
+        await _write_refile(hass, mid, b["before"]["floor"], record=False)
+    b["undone_at"] = at
+    store.data["scale_batches"][ubid].pop("pending", None)
+    await _save(store)
+    _invalidate(hass)
+    _LOGGER.info("PadSpan rooms helper: plan %s's scale taken back (backup %s)", mid, backup_id)
+    A._bump(hass, "plan_build_scale_undo:done")  # noqa: SLF001
+    return {"ok": True, "map_id": mid, "backup_id": backup_id, "house_scale_unset": gauge_expect is not None}

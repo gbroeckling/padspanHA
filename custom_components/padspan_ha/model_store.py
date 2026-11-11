@@ -1141,6 +1141,31 @@ class ModelStore:
         )
         return fabric_truth.metre_gauge(self)
 
+    async def async_unset_world_gauge(self, map_id: str, expect_t: dict, expect_gauge: dict | None) -> bool:
+        """Take back the rooms helper's first measurement of a plan: COMPARE
+        AND CLEAR, in one save. The plan's placement record goes only while it
+        is exactly `expect_t` (what the helper wrote); the house's metre scale
+        is put back to "none yet" only when `expect_gauge` is given and the
+        stored one is exactly it (a scale that save seeded from this plan).
+        Anything else and nothing changes: False.
+
+        The ONE way the world gauge is ever un-set, and it is called from one
+        place, plan_ai_write.scale_undo, which has checked first that nothing
+        in metres was added since (owner's choice, 2026-11-10, over keeping
+        the gauge set-once for this case). Logged at INFO, as the seed is."""
+        transforms = self.data.get("map_transforms") or {}
+        if transforms.get(str(map_id)) != expect_t:
+            return False
+        if expect_gauge is not None and self.data.get("world_gauge") != expect_gauge:
+            return False
+        transforms.pop(str(map_id), None)
+        if expect_gauge is not None:
+            self.data["world_gauge"] = dict(DEFAULT_DATA["world_gauge"])
+        await self.store.async_save(self.data)
+        _LOGGER.info("Plan %s: the rooms helper's measurement was taken back%s.", map_id,
+                     "; the house has no metre scale again" if expect_gauge is not None else "")
+        return True
+
     def has_spatial_model(self) -> bool:
         """Return True if real-world spatial data has been populated."""
         return bool(self.scanner_positions_m() or self.room_geometry_m() or self.beacon_positions_m())

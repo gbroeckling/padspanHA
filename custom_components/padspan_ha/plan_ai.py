@@ -148,7 +148,7 @@ _LIGHT_LABELS = ("light", "lights", "light fixture", "light fixtures", "ceiling 
 # ── The store ────────────────────────────────────────────────────────────────
 
 def empty() -> dict[str, Any]:
-    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}, "lineups": {}, "stall": {}, "lineup_batches": {}, "rooms": {}, "room_batches": {}}
+    return {"schema": SCHEMA, "sessions": {}, "batches": {}, "rejects": {}, "lineups": {}, "stall": {}, "lineup_batches": {}, "rooms": {}, "room_batches": {}, "scale_batches": {}}
 
 
 def writable(data: Any) -> bool:
@@ -165,7 +165,7 @@ def normalise(raw: Any) -> dict[str, Any]:
     out = dict(raw)
     out.setdefault("schema", SCHEMA)
     if writable(out):
-        for k in ("sessions", "batches", "rejects", "lineups", "stall", "lineup_batches", "rooms", "room_batches"):
+        for k in ("sessions", "batches", "rejects", "lineups", "stall", "lineup_batches", "rooms", "room_batches", "scale_batches"):
             if not isinstance(out.get(k), dict):
                 out[k] = {}
     return out
@@ -288,7 +288,7 @@ class PlanAiStore:
         for key, cap, when in (("sessions", MAX_SESSIONS, "started_at"), ("batches", MAX_BATCHES, "committed_at"),
                                ("rejects", MAX_REJECTS, "at"), ("lineups", MAX_LINEUPS, "started_at"),
                                ("lineup_batches", MAX_BATCHES, "committed_at"), ("rooms", MAX_ROOM_SESSIONS, "started_at"),
-                               ("room_batches", MAX_BATCHES, "committed_at")):
+                               ("room_batches", MAX_BATCHES, "committed_at"), ("scale_batches", MAX_BATCHES, "committed_at")):
             d = self._data.get(key) or {}
             if len(d) > cap:
                 order = sorted(d, key=lambda k: float((d[k] or {}).get(when) or 0) if isinstance(d[k], dict) else 0)
@@ -997,14 +997,32 @@ def running(hass: HomeAssistant) -> Job | None:
     return job if isinstance(job, Job) and job.task is not None and not job.task.done() else None
 
 
-def start_allowed(hass: HomeAssistant, now: float | None = None) -> str | None:
+_DATA_SCALE_SAVED = "plan_ai_scale_saved"   # hass.data[DOMAIN]: when the rooms helper last saved a plan's scale (monotonic)
+SCALE_GAP_S = 600                            # its rooms read started this soon after skips the one-a-minute gap (design E.2)
+
+
+def _mark_scale_saved(hass: HomeAssistant) -> None:
+    """The rooms helper saved a plan's scale (plan_ai_write.scale_save): its rooms read may start at once."""
+    hass.data.setdefault(DOMAIN, {})[_DATA_SCALE_SAVED] = time.monotonic()
+
+
+def take_scale_gap(hass: HomeAssistant, now: float | None = None) -> bool:
+    """Whether the helper's own scale save came just before, used up by asking."""
+    now = time.monotonic() if now is None else now
+    at = hass.data.get(DOMAIN, {}).pop(_DATA_SCALE_SAVED, None)
+    return isinstance(at, (int, float)) and 0 <= now - at < SCALE_GAP_S
+
+
+def start_allowed(hass: HomeAssistant, now: float | None = None, skip_gap: bool = False) -> str | None:
     """Why a start is refused now: already_running, too_soon (one a minute)
-    or daily_cap (STARTS_A_DAY in 24 h); None when it may start."""
+    or daily_cap (STARTS_A_DAY in 24 h); None when it may start. `skip_gap`:
+    the rooms helper's read right after its own scale save (design E.2): one
+    at a time and the daily cap still hold."""
     now = time.monotonic() if now is None else now
     if running(hass) is not None:
         return "already_running"
     starts = [t for t in hass.data.get(DOMAIN, {}).get(_DATA_STARTS, []) if now - t < 86400]
-    if starts and now - max(starts) < START_GAP_S:
+    if starts and now - max(starts) < START_GAP_S and not skip_gap:
         return "too_soon"
     if len(starts) >= STARTS_A_DAY:
         return "daily_cap"

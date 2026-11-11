@@ -207,7 +207,7 @@ def test_every_command_refuses_while_the_switch_live_aboard_or_pro_is_off(monkey
 def test_every_command_is_an_administrators_registered_and_a_read_in_sample_mode():
     src = (_ROOT / "ws_plan_ai.py").read_text(encoding="utf-8")
     names = re.findall(r"async def (ws_plan_(?:ai|build)_[a-z_]+)\(", src)
-    assert len(names) == 28 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}       # 10 plan AI, 10 line-up, 8 rooms (Build from plans)
+    assert len(names) == 31 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}       # 10 plan AI, 10 line-up, 8 rooms (Build from plans), 3 the helper's scale
     for name in names:
         head = src.split(f"async def {name}(", 1)[0].rsplit("@websocket_api.websocket_command", 1)[1]
         assert "@websocket_api.require_admin" in head, name
@@ -220,6 +220,7 @@ def test_every_command_is_an_administrators_registered_and_a_read_in_sample_mode
                                                                  "plan_build_undo", "plan_build_refile"} & set(reads.split())
     assert "plan_build_rooms_status plan_build_rooms_check" in reads and not {"plan_build_rooms_start", "plan_build_rooms_edit", "plan_build_rooms_commit",
                                                                               "plan_build_rooms_undo", "plan_build_rooms_resume"} & set(reads.split())
+    assert not {"plan_build_scale_save", "plan_build_scale_undo"} & set(reads.split())
 
 
 def test_the_stair_finders_loop_stops_on_the_master_code_and_its_menu_item_follows_the_switch():

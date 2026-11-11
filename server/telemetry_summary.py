@@ -525,7 +525,7 @@ _STUCK_WORDS = ("plan_no_rooms", "rooms_no_receivers", "receivers_no_calibration
 _MAPPING_FUNNEL = ("plans_tool:opened", "plans_tab:add", "plans_tab:lineup", "plans_tab:rooms", "plans_floor:s1", "plans_floor:s2",
                    "plan_build_stop_ui:no_tabs_off", "plan_build_stop_ui:no_tabs_locked", "plan_build_stop_ui:s1_no_plans",
                    "plan_build_stop_ui:s2_not_placed")
-# Let Claude draw your rooms (piece 2): the helper's own funnel, in the order a
+# Let Claude draw your rooms (pieces 2 and 3): the helper's own funnel, in the order a
 # person meets it; the words are telemetry.AI_WIZARD_EVENTS' (tests/test_ai_wizard.py).
 _WIZ_SURFACES = ("overview", "getting_started", "setup", "maps_wizard")
 _WIZ_STEPS = ("intro", "trial", "connect", "consent", "scale_read", "scale_check", "scale_guided", "floor_pick", "rooms_read",
@@ -542,7 +542,12 @@ _WIZARD_FUNNEL = (
     + tuple(f"ai_wizard_link:{k}" for k in ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")) + ("ai_wizard_switch:on",)
     + tuple(f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in _WIZ_BANDS)
     + tuple(f"plan_build_name:{k}" for k in ("area_exact", "area_abbrev", "printed", "typed", "picked_area"))
-    + tuple(f"plan_build_unmatched_areas:{b}" for b in _WIZ_BANDS))
+    + tuple(f"plan_build_unmatched_areas:{b}" for b in _WIZ_BANDS)
+    # Piece 3: the plan's scale by one guided measurement (design J.4's guided subset).
+    + tuple(f"plan_build_scale:{k}" for k in ("guided", "already_set"))
+    + tuple(f"plan_build_scale_save:{k}" for k in ("done", "already_placed", "points_on_plan", "plan_changed", "backup_failed", "floor_unknown"))
+    + tuple(f"plan_build_scale_undo:{k}" for k in ("done", "changed_since", "failed"))
+    + tuple(f"plan_build_scale_remeasured:{k}" for k in ("lt1", "1_3", "3_10", "gt10")))
 
 
 def _mapping(r: dict) -> dict:

@@ -883,13 +883,22 @@ AI_WIZARD_AI: tuple[str, ...] = ("no_ai_task", "not_anthropic", "below_opus_5_5"
 AI_WIZARD_LINKS: tuple[str, ...] = ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")
 ROOMS_BANDS: tuple[str, ...] = ("0", "1", "2_3", "4_6", "7_12", "gt12")
 NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed", "picked_area")
+# The plan's scale (piece 3, design J.4's guided subset): the path its scale took
+# (one guided measurement, or set already), how each save ended (the data-safety
+# stops are plan_ai_write.SCALE_STOPS), how its undo ended, and a later hand
+# Measure of a plan the helper scaled, by how far it moved the scale.
+SCALE_PATHS: tuple[str, ...] = ("guided", "already_set")
+SCALE_SAVE: tuple[str, ...] = ("done", "already_placed", "points_on_plan", "plan_changed", "backup_failed", "floor_unknown")
+SCALE_UNDO: tuple[str, ...] = ("done", "changed_since", "failed")
 AI_WIZARD_EVENTS: frozenset[str] = frozenset(
     {f"ai_wizard_{w}:{s}" for w in ("offered", "opened") for s in AI_WIZARD_SURFACES}
     | {f"ai_wizard_{w}:{s}" for w in ("step", "left") for s in AI_WIZARD_STEPS}
     | {f"ai_wizard:{k}" for k in AI_WIZARD_OUTCOMES} | {f"ai_wizard_fail:{k}" for k in AI_WIZARD_FAILS}
     | {f"ai_wizard_ai:{k}" for k in AI_WIZARD_AI} | {f"ai_wizard_link:{k}" for k in AI_WIZARD_LINKS} | {"ai_wizard_switch:on"}
     | {f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in ROOMS_BANDS}
-    | {f"plan_build_name:{k}" for k in NAME_SOURCES} | {f"plan_build_unmatched_areas:{b}" for b in ROOMS_BANDS})
+    | {f"plan_build_name:{k}" for k in NAME_SOURCES} | {f"plan_build_unmatched_areas:{b}" for b in ROOMS_BANDS}
+    | {f"plan_build_scale:{k}" for k in SCALE_PATHS} | {f"plan_build_scale_save:{k}" for k in SCALE_SAVE}
+    | {f"plan_build_scale_undo:{k}" for k in SCALE_UNDO} | {f"plan_build_scale_remeasured:{k}" for k in PLAN_BUILD_PCT})
 
 
 def rooms_band(n: int) -> str:

@@ -49,8 +49,10 @@ def _f(**kw):
 
 # ═══ the rule ═════════════════════════════════════════════════════════════════
 
-def test_every_reason_comes_in_its_one_order():
-    """From a house that fails every gate, fixing one at a time walks REASONS in order."""
+def test_every_reason_comes_in_its_one_order(monkeypatch):
+    """From a house that fails every gate, fixing one at a time walks REASONS in order
+    (no_scale with the scale step switched off, as before piece 3)."""
+    monkeypatch.setattr(W, "SCALE_BUILT", False)
     f = _f(admin=False, live=False, kiosk=True, edition="bright", rooms=True, room_bounds=True, indoor_plans=0,
            plan_age_days=None, wizard={"dismissed": True, "undone": True, "snooze_until": _NOW + 60},
            tool_used=True, tier="free", trial_offerable=False, plan_scaled=False)
@@ -99,11 +101,13 @@ def test_the_smaller_gates():
     assert W.offer_reason(_f(tier="bright", trial_offerable=False), "push") == "no_pro_path"
 
 
-def test_no_scale_stays_until_piece_3(monkeypatch):
-    assert W.SCALE_BUILT is False
-    assert W.offer_reason(_f(plan_scaled=False), "push") == "no_scale"
-    monkeypatch.setattr(W, "SCALE_BUILT", True)
+def test_a_plan_with_no_scale_is_offered_since_piece_3(monkeypatch):
+    """Piece 3 sets a plan's scale by one measurement: no_scale is never the answer now."""
+    assert W.SCALE_BUILT is True
     assert W.offer_reason(_f(plan_scaled=False), "push") == "offer"
+    assert W.offer_reason(_f(plan_scaled=False, rooms=True), "push") == "has_rooms"      # a house with rooms is never disturbed
+    monkeypatch.setattr(W, "SCALE_BUILT", False)
+    assert W.offer_reason(_f(plan_scaled=False), "push") == "no_scale"
 
 
 # ═══ the facts, from the stores ═══════════════════════════════════════════════
