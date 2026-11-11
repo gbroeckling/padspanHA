@@ -524,6 +524,26 @@ def test_alone_changes_nothing_with_all_or_a_floor_that_is_not_there(tmp_path) -
     assert out["gone_alone"] == out["gone"]
 
 
+def test_alone_gives_way_to_an_alarm_on_another_floor(tmp_path) -> None:
+    """A leak, smoke, CO or gas sensor going (or latched) on a floor that isn't chosen, or an opening Alert pulse
+    flags there: the stack stays, the others faded, with the ring above the fade as before. On the chosen floor,
+    or with nothing going, the floor is alone."""
+    alone = {**_OPTS, "focusAlone": True}
+    wet = {**_LBE, "binary_sensor.leak_up": {"entity_id": "binary_sensor.leak_up", "state": "on", "isFlood": True, "code": "W01", "shape": "circle"}}
+    dry = {**wet, "binary_sensor.leak_up": {**wet["binary_sensor.leak_up"], "state": "off"}}
+    model = {**_MODEL, "light_positions_m": {**_MODEL["light_positions_m"], "binary_sensor.leak_up": {"x_m": 4, "y_m": 2, "floor_id": "up"}}}
+    out = _draw(tmp_path, {"main": [0, alone], "main_fade": [0, _OPTS], "up": [1, alone]}, model=model, lbe=wet)
+    assert out["main"] == out["main_fade"] and "floorghost" in out["main"]
+    assert len(re.findall(r'data-role="floorslab"', out["up"])) == 1                  # the alarm's own floor chosen: alone
+    quiet = _draw(tmp_path, {"main": [0, alone]}, model=model, lbe=dry)
+    assert len(re.findall(r'data-role="floorslab"', quiet["main"])) == 1
+    latched = _draw(tmp_path, {"main": [0, {**alone, "floodLatches": {"binary_sensor.leak_up": {"triggered_at": _OPTS["nowMs"] / 1000 - 60}}}]}, model=model, lbe=dry)
+    assert "floorghost" in latched["main"]
+    flagged = _draw(tmp_path, {"main": [0, {**alone, "alertOpenings": {"binary_sensor.door_up": "left_open"}}],
+                               "up": [1, {**alone, "alertOpenings": {"binary_sensor.door_up": "left_open"}}]})
+    assert "floorghost" in flagged["main"] and "floorghost" not in flagged["up"]
+
+
 def test_only_the_sidebar_atlas_draws_a_floor_alone() -> None:
     src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
     # ... unless this screen's ⋯ list has "Other floors, faded" ticked; and the choice makes a new drawing.

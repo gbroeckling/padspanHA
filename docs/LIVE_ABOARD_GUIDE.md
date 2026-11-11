@@ -236,6 +236,53 @@ already there.
 Keys while the map shows: **N** new, **C** correction, **F** failure, **L** later, **Enter** next,
 **Backspace** previous, **Z** undo, **P** plan on or off.
 
+### Line up plans (experimental, Claude)
+
+**Also an experiment: check every proposal before you save it.** A floor often has several plans: a
+measured one, an architect's sheet, a scan. This tab lines them up to each other. It shows only
+when your main AI Task is Home Assistant's Anthropic integration running Claude Opus 5.5 or newer,
+with **Build from plans** on in **Settings → AI** (off for everyone until then). Claude gets a copy
+of the plans it reads, and **Settings → AI** shows about what the month's reads cost.
+
+1. Press **Edit → Plans → Line up plans** and pick a floor. Claude reads each plan's title, rooms,
+   stairs, outside corners and printed dimensions; PadSpan does the measuring.
+2. Each proposal shows the plan as proposed in red over the plan it is fitted to in blue, purple
+   where they agree, with an arrow for every calibration point, receiver or light drawn on it.
+   **Show me the dimension** marks the printed dimensions it stands on.
+3. When it can't settle something it asks one small thing, at most three a floor: confirm a printed
+   dimension, or tap the same corner on two plans.
+4. **Accept** saves one proposal. **Save line-up** saves together the ones that shift nothing drawn
+   on their plans. Each save takes a safety backup first. **Undo this line-up session** puts every
+   plan back, here or in **Settings → AI**.
+
+Only a plan's picture moves. Calibration points, rooms, receivers and everything placed in metres
+stay where they are, and the plan that set your house's scale is never moved. A stop says why in
+plain words and what to do next.
+
+### Rooms from plans (experimental, Claude)
+
+The third tab, behind the same switch. Claude reads each plan on a floor twice, the whole plan each
+time, for its rooms, doors, windows and stairs together, and proposes outlines for the rooms you
+already have. It matches your rooms by where they lie, never by their printed names, and never
+renames or removes one.
+
+- **Ticked** rooms are ones both reads agreed on. That outline is proposed even where yours differs.
+- **Look closely** means the two reads differ. The room isn't ticked and shows both. **Read again**
+  makes a third read, and two of three decide.
+- **Calibration spots.** A room says how many of its spots would fall outside the new outline, and
+  you choose: keep yours, or use Claude's. When half or more would, it starts unticked.
+- **Extra spaces.** A printed space inside none of your rooms can be merged into a room, added as a
+  new room with a name you pick, or left out. Rooms and spaces selected on the map merge into one
+  outline.
+- **Doors and windows** both reads found go on their walls. One only a single read found is a maybe,
+  unticked. One already in your 3D house is offered as a correction, never as a second one.
+
+**Accept all for this floor** saves everything ticked in one save, after one safety backup. It stops
+only to keep your data safe: a plan or a room changed since the read, or a backup that couldn't be
+made. **Undo this rooms session** puts it all back, here or in **Settings → AI**; anything you
+changed since is left alone. Rooms made this way edit in **Mapping → Rooms** like any other, where
+**Merge into one** and adding or removing a corner tidy an outline by hand.
+
 ### Undo, Save, keyboard
 
 - **Undo** and **Redo** step back and forward through everything you changed. **Discard** throws

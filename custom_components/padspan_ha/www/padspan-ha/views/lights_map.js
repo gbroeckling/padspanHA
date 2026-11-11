@@ -4901,6 +4901,8 @@ export function buildLightsMapCard(hostIn){
           if (la3dDo(s => s.findDevice(pick.entity_id))) return;
           const g = isoDiv.querySelector(`.lhex[data-eid="${CSS.escape(String(pick.entity_id))}"]`);
           const svg = isoDiv.querySelector("svg");
+          // A floor drawn alone: what is on may be on a floor that isn't drawn.
+          if (!g && svg && view.focusIdx && host.toast) host.toast("It is on another floor: choose All to see it");
           if (!g || !svg || !g.getBoundingClientRect) return;
           const gr = g.getBoundingClientRect(), sr = isoDiv.getBoundingClientRect();
           isoDiv.scrollLeft += (gr.left + gr.width / 2) - (sr.left + sr.width / 2);

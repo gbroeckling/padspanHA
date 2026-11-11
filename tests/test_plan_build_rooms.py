@@ -970,9 +970,14 @@ def test_undo_of_a_new_room_under_an_area_name_keeps_the_areas_settings(monkeypa
     s = _call(W.ws_plan_build_rooms_status, h, conn, session=s["id"])["session"]
     sp = _space_named(s["proposal"], "NOOK")
     s = _call(W.ws_plan_build_rooms_edit, h, conn, session=s["id"], rev=s["rev"], op="space", space=sp, name="Nook room")["session"]
+    # ... unless a receiver was in it already (its area's name, no settings yet): the receiver stays.
+    mdl.data["scanners"]["EE:FF"] = {"room": "Nook room"}
+    _run(mdl.store.async_save(mdl.data))
     assert _commit(h, conn, s, [sp])["ok"] is True and "Nook room" in mdl.data["room_meta"]
-    _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
+    u = _call(W.ws_plan_build_rooms_undo, h, conn, session=s["id"])
+    assert u["skipped"] == [], u
     assert "Nook room" not in mdl.data["room_meta"] and "Nook room" not in mdl.data["room_adjacency"] and "Nook room" not in _fab_rooms(h)
+    assert mdl.data["scanners"]["EE:FF"] == {"room": "Nook room"}
 
 
 def test_a_space_keeps_its_id_its_name_and_saved_when_his_rooms_change(monkeypatch, tmp_path, disk):  # noqa: F811

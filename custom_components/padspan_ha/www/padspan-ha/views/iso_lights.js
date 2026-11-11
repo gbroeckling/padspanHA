@@ -2926,7 +2926,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // fills the screen. The frame is the whole stack's either way: every point
   // stays where it was. Without it (Mapping), the others fade and stay.
   const isFoc=(z)=>focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
-  const ALONE=!!opts.focusAlone && levels.some(isFoc) && !levels.every(isFoc);
+  // Not while an alarm is going on a floor that isn't chosen (a leak, smoke, CO or gas sensor wet or still
+  // latched, or an opening Alert pulse flags): its ring has to be seen, so the stack stays, the others faded.
+  const alarmElsewhere=lights.some(pl=>{
+    const li=lightsByEid[pl.eid];
+    return !isFoc(pl.z) && li && li.isFlood && !hiddenEids.has(pl.eid)
+      && (li.state==="on" || floodLatchActive((FLOOD_LATCHES[pl.eid]||{}).triggered_at, NOW_MS));
+  }) || (!!opts.alertOpenings && ((model && model.rf_barriers_m) || []).some(bar=>{
+    const kind=bar && bar.linked_entity_id ? opts.alertOpenings[bar.linked_entity_id] : null;
+    return (kind==="rain_open" || kind==="left_open") && !isFoc(frame.levelOf(String(bar.floor_id || "main")));
+  }));
+  const ALONE=!!opts.focusAlone && levels.some(isFoc) && !levels.every(isFoc) && !alarmElsewhere;
   const sized=(z)=>!ALONE||isFoc(z);
   let contentMaxY = -Infinity, contentMinY = Infinity;
   for(const r of rooms) if(sized(r.z)) for(const p of r.pts){

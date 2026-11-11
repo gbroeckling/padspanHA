@@ -1336,9 +1336,10 @@ async def _write_room(hass: HomeAssistant, e: dict[str, Any], side: str) -> str 
     want, room, fl = e.get(side), e["room"], e["floor_id"]
     try:
         had = e.get("meta_before") or {}
-        if want is None and (had.get("room_meta") is not None or had.get("adjacency") is not None):
+        if want is None and (had.get("room_meta") is not None or had.get("adjacency") is not None or had.get("scanners")):
             # A new room under a name that already had settings (a Home Assistant area with its floor, colour,
-            # height, adjacency): only the shape the save added goes; the settings come back as they were (review B1).
+            # height, adjacency) or a receiver in it: only the shape the save added goes; the settings come back as
+            # they were (review B1), and the receivers stay (ModelStore.async_remove_room would take them along).
             res = await fab.async_remove_room(room)
             if not res.get("ok"):
                 return str(res.get("error") or "remove_failed")
