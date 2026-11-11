@@ -4,10 +4,12 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // Let Claude draw your rooms (experimental; design PadspanResearch
-// ai-wizard-design-2026-11-10.md, B, C option 2, D, G). For a house whose
-// plan has a scale and no rooms: intro (the trial for a free install, the
-// consent), Connect Claude, the rooms read, the rooms check drawn over the
-// plan picture, Save, Done with Undo and the hand-off to Setup's receivers.
+// ai-wizard-design-2026-11-10.md, B, C option 2, D, E, G). For a house whose
+// plan has no rooms: intro (the trial for a free install, the consent),
+// Connect Claude, one measurement when the plan has no scale yet (piece 3:
+// plan_build_scale_preview / _save, Measure's own write on the server), the
+// rooms read, the rooms check drawn over the plan picture, Save, Done with
+// Undo (the rooms, then the scale) and the hand-off to Setup's receivers.
 //
 // Nothing new on the server's side of the rooms: the read, the edits, the
 // save and its undo are Rooms from plans' own commands (ws_plan_ai.py), sent

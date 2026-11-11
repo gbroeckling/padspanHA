@@ -975,10 +975,11 @@ export function helpTexts() { return {
   ai_wizard: {
     title: t("Let Claude draw your rooms (experimental)"),
     body: [
-      t("For a house whose floor plan has a scale but no rooms yet. Claude reads the plan twice, finds its rooms and their names, and draws them over the plan picture for you to check. Nothing is saved until you press Save."),
+      t("For a house whose floor plan has no rooms yet. Claude reads the plan twice, finds its rooms and their names, and draws them over the plan picture for you to check. Nothing is saved until you press Save."),
+      t("A plan with no scale yet is measured first: click both ends of something you know the length of (a wall, a doorway, the whole house) and type its length, such as 4.2 m, 420 cm or 13' 9\". PadSpan shows what it understood and how big that makes the plan, and asks which floor the plan shows when it can't tell. A plan that already has a scale skips this step, and a plan with calibration spots on it is left as it is."),
       t("Claude reaches PadSpan through Home Assistant's Anthropic integration and an AI Task using Claude Opus 5.5 or newer. \"Connect Claude\" shows the steps, and the guide \"Connect Claude for PadSpan\" on padspan.traks.ca has them in full, kept up to date. Anthropic charges your own Anthropic account for each read; only the plan picture is sent."),
       t("A room starts ticked when both of Claude's reads saw it and it is big enough. A name that matches one of your Home Assistant rooms is used; any other room is saved in PadSpan only, and \"Also add this room to Home Assistant\" adds it to Home Assistant's areas when you save. Tap two rooms on the plan and press \"Join into one\" to make them one room."),
-      t("Save takes a backup first. \"Undo\" on the last screen takes the rooms back out of PadSpan; an area it added to Home Assistant stays there, to remove on Home Assistant's Areas page. \"Not now\" hides the offer on the Overview for a week, then a month; \"Don't ask again\" hides it there for good."),
+      t("Save takes a backup first. \"Undo\" on the last screen takes the rooms back out of PadSpan, then the measurement if this helper made it and nothing measured in metres was added since (a room, a receiver, a calibration spot or another plan's scale); otherwise the measurement stays, to change in Mapping → Edit → Measure. An area it added to Home Assistant stays there, to remove on Home Assistant's Areas page. \"Not now\" hides the offer on the Overview for a week, then a month; \"Don't ask again\" hides it there for good."),
     ],
   },
 
