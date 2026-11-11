@@ -13,7 +13,7 @@
 // save and its undo are Rooms from plans' own commands (ws_plan_ai.py), sent
 // with via "wizard" (Live Aboard may be off; names are pre-filled; the
 // server says which rows start ticked). The outlines are the Plans tool's
-// list (live_aboard_plans.roomShapes), drawn on the picture through the read
+// list (plan_room_shapes.roomShapes), drawn on the picture through the read
 // plan's own metres (stack_transform.metresToMapFrac). A focused view with
 // one Back; it never changes Basic or Advanced, and on a wall screen no link
 // opens a new page (trial_offer.newTabOk).
@@ -21,7 +21,7 @@
 const V = new URL(import.meta.url).search;
 const OFFER = await import(`./ai_wizard_offer.js${V}`);
 const TRIAL = await import(`./trial_offer.js${V}`).catch(() => null);
-const { roomShapes } = await import(`./live_aboard_plans.js${V}`);
+const { roomShapes } = await import(`./plan_room_shapes.js${V}`);
 const { metresToMapFrac } = await import(`./stack_transform.js${V}`);
 const { _haLink } = await import(`./rooms.js${V}`);
 

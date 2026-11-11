@@ -436,7 +436,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy", "installbase", "guests", "rooms", "receivers", "setup",
+    "sandbox", "occupancy", "installbase", "guests", "rooms", "receivers", "setup", "ai_wizard",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),
@@ -469,6 +469,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "device_name",
+    "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",

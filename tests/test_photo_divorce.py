@@ -83,6 +83,11 @@ _PHOTO_TOOLING = {
     # test_setup_status_parity.py). It answers a question about setup
     # progress, never the building's geometry.
     "setup_status.js": "onboarding/wizard setup-progress checks",
+    # Let Claude draw your rooms: its check screen draws Claude's room
+    # outlines over the plan picture, through the read plan's own metres
+    # (stack_transform.metresToMapFrac), so the person can see whether they
+    # fit. Looking at the picture is the point, as in plan_viewer.js.
+    "ai_wizard.js": "the rooms helper — Claude's outlines over the plan picture to check",
 }
 
 # Files that still break the rule. SHRINKS ONLY. Never add to this.

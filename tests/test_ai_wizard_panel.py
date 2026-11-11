@@ -89,8 +89,9 @@ def test_the_four_offers_are_wired_and_the_view_is_unlisted():
 
 def test_one_list_of_outlines_and_one_home_assistant_link():
     plans = _src("live_aboard_plans.js")
-    assert "export function roomShapes(prop, opts = {})" in plans and "function rbShapes(){ return roomShapes(rbProp(), { both: rbBoth }); }" in plans
+    assert "function rbShapes(){ return roomShapes(rbProp(), { both: rbBoth }); }" in plans and "./plan_room_shapes.js" in plans
+    assert "export function roomShapes(prop, opts = {})" in _src("plan_room_shapes.js") and "function roomShapes" not in plans
     wiz = _src("ai_wizard.js")
-    assert "const { roomShapes } = await import(" in wiz and "const { _haLink } = await import(" in wiz
+    assert "const { roomShapes } = await import(`./plan_room_shapes.js" in wiz and "live_aboard" not in wiz and "const { _haLink } = await import(" in wiz
     assert "export function _haLink(" in _src("rooms.js")
     assert "document.createElement" not in wiz       # SVG as a string (innerHTML), the views' way
