@@ -19,13 +19,15 @@ from pathlib import Path
 
 import pytest
 
+from custom_components.padspan_ha import house3d_store as H3
 from custom_components.padspan_ha import plan_ai as A
 from custom_components.padspan_ha import plan_ai_write as C
 from custom_components.padspan_ha import plan_geom as G
+from custom_components.padspan_ha import subzones as SZ
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_fabric as F
 from custom_components.padspan_ha import ws_plan_ai as WP
-from custom_components.padspan_ha.const import DATA_PLAN_AI, DOMAIN, MODEL_STORE_KEY, PLAN_AI_STORE_KEY
+from custom_components.padspan_ha.const import DATA_HOUSE3D, DATA_PLAN_AI, DATA_SUBZONES, DOMAIN, MODEL_STORE_KEY, PLAN_AI_STORE_KEY
 from custom_components.padspan_ha.model_store import ModelStore
 from tests.test_house3d_edit import disk  # noqa: F401  (the on-disk store fixture)
 from tests.test_house3d_store import _run
@@ -185,6 +187,17 @@ def test_the_typed_length_is_parsed_on_the_server_and_a_scale_from_the_panel_is_
     assert mdl.map_transform("n1")["reference_measurements"][0]["px_per_meter"] == 100.0
 
 
+def test_a_bare_number_says_which_unit_it_was_read_in(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)
+    for text, m, unit in (("12", 12.0, "metres"), ("450", 0.45, "millimetres"), ("2 400", 2.4, "millimetres"), ("5 m", 5.0, None),
+                          ("420 cm", 4.2, None), ("13' 9\"", 4.191, None), ("about four", None, None)):
+        got = _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard", measures=[{**_ACROSS, "text": text}])
+        assert got["assumed"] == [unit], text
+        assert (got["metres"][0] is None) if m is None else abs(got["metres"][0] - m) < 1e-3, text
+    assert G.length_read("1000+2") == (3.0, "metres and millimetres")
+    assert all(G.parse_length(t) == G.length_read(t)[0] for t in ("12", "450", "9.284 m", "30'-5 1/2\"", "3 1/2\"", "1'+2'", "x"))
+
+
 def test_an_odd_overall_size_is_said_never_refused(monkeypatch, tmp_path, disk):  # noqa: F811
     h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)
     out = _save(h, conn, measures=[{**_ACROSS, "text": "206 m"}])
@@ -193,10 +206,12 @@ def test_an_odd_overall_size_is_said_never_refused(monkeypatch, tmp_path, disk):
 
 # ═══ the refusals: data safety only, nothing written ══════════════════════════
 
-@pytest.mark.parametrize("case", ["already_placed", "points_on_plan", "plan_changed", "floor_unknown", "backup_failed"])
+@pytest.mark.parametrize("case", ["already_placed", "points_on_plan", "plan_changed", "no_picture_size", "floor_unknown", "backup_failed"])
 def test_each_refusal_writes_nothing_and_is_counted(monkeypatch, tmp_path, disk, case):  # noqa: F811
     h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)
     kw = {}
+    if case == "no_picture_size":
+        ms.get_map("n1")["image"].pop("width")
     if case == "already_placed":
         kw = {"map_id": "m1", "sig": "mm"}
     elif case == "points_on_plan":
@@ -214,6 +229,10 @@ def test_each_refusal_writes_nothing_and_is_counted(monkeypatch, tmp_path, disk,
     assert not (_store(h).data.get("scale_batches") or {})
     if case == "floor_unknown":
         assert out["floors"] == ["basement", "main", "upper"]
+    if case == "no_picture_size":                                   # its own words, never "the picture changed"
+        assert "no size on record" in out["message"] and "Mapping → Edit → Measure" in out["message"]
+        pv = _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard")
+        assert pv["stop"] == "no_picture_size" and pv["stop_message"] == out["message"]
 
 
 def test_a_floor_picked_moves_the_plan_and_undo_puts_it_back(monkeypatch, tmp_path, disk):  # noqa: F811
@@ -358,3 +377,166 @@ def test_the_words_a_person_reads_say_no_inside_words():
     banned = re.compile(r"\b(anchor|refile|fabric|gauge|transform|placement|proposal)", re.I)
     for code, text in C.SCALE_WORDS.items():
         assert not banned.search(text), code
+
+
+# ═══ the review's findings (2026-11-10): what the undo's check sees, and when ══
+
+_CP = {"id": "cp_m", "map_id": "m1", "x_frac": 0.5, "y_frac": 0.5, "x_m": 4.0, "y_m": 3.0, "floor_id": "basement", "room": "Den"}
+_ATTIC = {"floor_id": "main", "points_m": [[0, 0], [2, 0], [2, 2]]}
+_HAND = {"scale_x_m": 10.5, "scale_y_m": 8.4, "floor_id": "main", "reference_measurements": [
+    {"p1": [0.1, 0.5], "p2": [0.6, 0.5], "distance_m": 5.25, "px_per_meter": 95.24, "angle_deg": 0, "date": "2026-11-10"}]}
+
+
+def _cut_save(monkeypatch, h, conn, mdl, **kw):
+    """A save Home Assistant stopped right after Measure's write landed; then the restart."""
+    real = F.async_write_measured_transform
+
+    async def cut_short(hass, map_id, transform):
+        await mdl.async_set_map_transform(map_id, transform)
+        raise asyncio.CancelledError
+    monkeypatch.setattr(F, "async_write_measured_transform", cut_short)
+    with pytest.raises(asyncio.CancelledError):
+        _save(h, conn, **kw)
+    monkeypatch.setattr(F, "async_write_measured_transform", real)
+    _restart(h)
+
+
+def test_a_room_drawn_between_a_cut_save_and_its_settling_still_blocks_the_undo(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
+    _cut_save(monkeypatch, h, conn, mdl)
+    rooms = mdl.fabric.rooms_flat()
+    monkeypatch.setattr(mdl.fabric, "rooms_flat", lambda: {**rooms, "Attic": _ATTIC})   # drawn after the restart, before the next command
+    _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard")           # which settles the save
+    (b,) = _store(h).data["scale_batches"].values()
+    assert not b.get("pending") and b["fp"]
+    out = _undo(h, conn)
+    assert out["code"] == "changed_since" and mdl.map_transform("n1") is not None and mdl.world_gauge()["source_map_id"] == "n1"
+
+
+@pytest.mark.parametrize("change", ["point_moved", "point_swapped", "auto_point", "wall", "zone", "piece", "opening"])
+def test_undo_is_refused_once_anything_else_in_metres_changed(monkeypatch, tmp_path, disk, change):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
+    cal.data["points"].append(dict(_CP))
+    assert _save(h, conn)["ok"]
+    dom, pts = h.data[DOMAIN], cal.data["points"]
+    assert isinstance(dom.get(DATA_HOUSE3D), H3.House3dStore) and isinstance(dom.get(DATA_SUBZONES), SZ.SubzoneStore)
+    if change == "point_moved":
+        pts[-1]["x_m"] = 4.5
+    elif change == "point_swapped":                                     # one deleted, one added: the count the same
+        pts[-1] = {**_CP, "id": "cp_other"}
+    elif change == "auto_point":                                        # recorded by a pinned beacon on its own: metres from the scale
+        pts.append({**_CP, "id": "cp_auto", "map_id": "", "label": "[auto] Keys"})
+    elif change == "wall":
+        monkeypatch.setattr(mdl.fabric, "rf_barriers_m", lambda: [{"id": "w1", "floor_id": "main", "points_m": [[0, 0], [3, 0]]}])
+    elif change == "zone":
+        _run(dom[DATA_SUBZONES].async_put(None, {"name": "Bed", "floor_id": "main", "points_m": [[0, 0], [1, 0], [1, 1]]}))
+    elif change == "piece":
+        dom[DATA_HOUSE3D].data["pieces"]["p_new"] = {"id": "p_new", "x_m": 1.0, "y_m": 1.0}
+    else:
+        dom[DATA_HOUSE3D].data["openings"]["door:9"] = {"x_m": 2.0, "y_m": 0.0}
+    was = _now(mdl, ms, cal)
+    out = _undo(h, conn)
+    assert out["ok"] is False and out["code"] == "changed_since" and "calibration points were recorded since" in out["message"]
+    assert _now(mdl, ms, cal) == was and mdl.world_gauge()["source_map_id"] == "n1"
+
+
+def test_the_fingerprint_is_the_same_after_a_restart_for_an_untouched_house(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)
+    cal.data["points"].append({**_CP, "x_m": 4, "y_m": 3.25})              # a whole number and a decimal
+    _run(cal.store.async_save(cal.data))
+    h3, sz = _run(H3.async_get_store(h)), _run(SZ.async_get_store(h))
+    assert _run(h3.async_write({**h3.data, "pieces": {"p1": {"id": "p1", "x_m": 1, "y_m": 2.5, "z_m": 0.0}}}))
+    _run(sz.async_put(None, {"name": "Bed", "floor_id": "main", "points_m": [[0, 0], [1.5, 0], [1.5, 2]]}))
+    before = C._metres_fp(h, "n1")  # noqa: SLF001
+    for st in (mdl, ms, cal):
+        st.data = _run(st.store.async_load())
+    h.data[DOMAIN].pop(DATA_HOUSE3D)
+    h.data[DOMAIN].pop(DATA_SUBZONES)
+    _run(C._metre_files_read(h))  # noqa: SLF001
+    assert h.data[DOMAIN][DATA_HOUSE3D].data["pieces"] and h.data[DOMAIN][DATA_SUBZONES].zones()
+    assert C._metres_fp(h, "n1") == before  # noqa: SLF001
+
+
+def test_a_measure_landing_while_the_record_of_a_save_is_written_wins(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)
+    real, landed = A.PlanAiStore.async_checked_save, []
+
+    async def measure_meanwhile(self):
+        if not landed and any(b.get("pending") for b in (self.data.get("scale_batches") or {}).values()):
+            landed.append(await F.async_write_measured_transform(h, "n1", copy.deepcopy(_HAND)))   # Measure takes no lock
+        return await real(self)
+    monkeypatch.setattr(A.PlanAiStore, "async_checked_save", measure_meanwhile)
+    out = _save(h, conn)
+    assert landed and out["ok"] is False and out["code"] == "already_placed"
+    assert mdl.map_transform("n1")["scale_x_m"] == 10.5 and not (_store(h).data.get("scale_batches") or {})
+
+
+def test_a_room_drawn_while_the_record_of_an_undo_is_written_stops_the_undo(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
+    assert _save(h, conn)["ok"]
+    real, rooms = A.PlanAiStore.async_checked_save, mdl.fabric.rooms_flat()
+
+    async def room_meanwhile(self):
+        if any(b.get("undo_of") and b.get("pending") for b in (self.data.get("scale_batches") or {}).values()):
+            monkeypatch.setattr(mdl.fabric, "rooms_flat", lambda: {**rooms, "Attic": _ATTIC})
+        return await real(self)
+    monkeypatch.setattr(A.PlanAiStore, "async_checked_save", room_meanwhile)
+    out = _undo(h, conn)
+    assert out["code"] == "changed_since" and mdl.map_transform("n1") is not None and mdl.world_gauge()["source_map_id"] == "n1"
+    assert not any(b.get("undo_of") for b in _store(h).data["scale_batches"].values())
+
+
+def test_a_house_scale_set_by_measure_during_the_backup_is_kept_by_the_undo(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, gauge=False)
+    real = C._backup  # noqa: SLF001
+
+    async def measure_meanwhile(hass, note, slot):
+        bid = await real(hass, note, slot)
+        if "set a plan's scale" in note:                                   # another plan measured: the house scale seeded from it
+            mdl.data["world_gauge"] = {"m_per_unit": 0.02, "source_map_id": "m1"}
+            await mdl.store.async_save(mdl.data)
+        return bid
+    monkeypatch.setattr(C, "_backup", measure_meanwhile)
+    out = _save(h, conn)
+    g = copy.deepcopy(mdl.data["world_gauge"])
+    assert out["ok"] and out["house_scale_set"] is False and g["m_per_unit"] and g["source_map_id"] != "n1"
+    b = next(iter(_store(h).data["scale_batches"].values()))
+    assert b["before"]["gauge_set"] is True and b["before"]["gauge"] == g
+    u = _undo(h, conn)
+    assert u["ok"] is True and u["house_scale_unset"] is False and mdl.data["world_gauge"] == g and mdl.map_transform("n1") is None
+
+
+def test_settling_a_cut_save_leaves_a_floor_changed_by_hand(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, plan={**_N1, "floor_id": "ground"})
+    _cut_save(monkeypatch, h, conn, mdl, floor_id="upper")
+    ms.get_map("n1")["floor_id"] = "basement"                          # put on a floor by hand before the next command
+    _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard")
+    (b,) = _store(h).data["scale_batches"].values()
+    assert not b.get("pending") and ms.get_map("n1")["floor_id"] == "basement"
+
+
+@pytest.mark.parametrize("by_hand", [False, True])
+def test_settling_a_cut_undo_moves_the_floor_back_only_from_where_the_save_put_it(monkeypatch, tmp_path, disk, by_hand):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk, plan={**_N1, "floor_id": "ground"})
+    assert _save(h, conn, floor_id="upper")["ok"] and ms.get_map("n1")["floor_id"] == "upper"
+    real = C._write_refile  # noqa: SLF001
+
+    async def cut(hass, map_id, side, record=True):
+        raise asyncio.CancelledError                                   # stopped after the record went, before the floor
+    monkeypatch.setattr(C, "_write_refile", cut)
+    with pytest.raises(asyncio.CancelledError):
+        _undo(h, conn)
+    monkeypatch.setattr(C, "_write_refile", real)
+    _restart(h)
+    if by_hand:
+        ms.get_map("n1")["floor_id"] = "basement"
+    _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", via="wizard")
+    assert mdl.map_transform("n1") is None and C.scale_undo_info(_store(h)) is None
+    assert ms.get_map("n1")["floor_id"] == ("basement" if by_hand else "ground")
+
+
+def test_a_corrupt_stored_record_never_stops_a_measure_save(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)
+    mdl.data["map_transforms"]["n1"] = {"scale_x_m": 3.0, "scale_y_m": 2.0, "reference_measurements": 5}
+    out = _call(F.ws_fabric_map_transform_set, h, conn, map_id="n1", transform=copy.deepcopy(_HAND))
+    assert out.get("ok") is True and mdl.map_transform("n1")["scale_x_m"] == 10.5

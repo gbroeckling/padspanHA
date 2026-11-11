@@ -76,12 +76,22 @@ def parse_length(text: Any) -> float | None:
     with fractions (30'-5 1/2", 9'-1", 8', 3 1/2", 1'-9 3/4"), metric (9.284 m,
     928 cm, 9284, 2 400: a bare whole number of 100 or more is millimetres, a
     bare decimal under 100 metres), and a chain joined by + summed."""
+    return length_read(text)[0]
+
+
+def length_read(text: Any) -> tuple[float | None, str | None]:
+    """parse_length's metres, and the unit a number typed with none was taken
+    in ("metres", "millimetres", both joined for a chain that mixes them), or
+    None when every unit was typed."""
     s = str(text or "").translate(_QUOTES).strip().lower()
     if not s:
-        return None
+        return None, None
     if "+" in s:
-        parts = [parse_length(p) for p in s.split("+")]
-        return round(sum(parts), 6) if parts and all(p is not None for p in parts) else None  # type: ignore[misc]
+        parts = [length_read(p) for p in s.split("+")]
+        if not parts or any(p[0] is None for p in parts):
+            return None, None
+        said = sorted({p[1] for p in parts if p[1]})
+        return round(sum(p[0] for p in parts), 6), " and ".join(said) or None  # type: ignore[misc]
     s = re.sub(r"\s+", " ", s.replace("=", "").strip())
     m = _FT_IN.match(s)
     if m and ("'" in s or "ft" in s or "feet" in s):
@@ -90,32 +100,32 @@ def parse_length(text: Any) -> float | None:
         if m.group(3):
             den = float(m.group(4))
             if den == 0:
-                return None
+                return None, None
             inch += float(m.group(3)) / den
         if inch >= 12.0 + 1e-9:
-            return None
-        return round(ft * _M_PER_FT + inch * _M_PER_IN, 6)
+            return None, None
+        return round(ft * _M_PER_FT + inch * _M_PER_IN, 6), None
     m = _IN.match(s)
     if m and (m.group(1) or m.group(2)):
         inch = float(m.group(1) or 0)
         if m.group(2):
             den = float(m.group(3))
             if den == 0:
-                return None
+                return None, None
             inch += float(m.group(2)) / den
-        return round(inch * _M_PER_IN, 6)
+        return round(inch * _M_PER_IN, 6), None
     m = _METRIC.match(s)
     if m:
         raw, unit = m.group(1), m.group(2)
         grouped = bool(re.search(r"[ ,]\d{3}$", raw))
         v = float(raw.replace(" ", "").replace(",", ""))
         if unit == "mm" or (unit is None and (grouped or ("." not in raw and v >= 100))):
-            return round(v / 1000.0, 6)
+            return round(v / 1000.0, 6), None if unit else "millimetres"
         if unit == "cm":
-            return round(v / 100.0, 6)
+            return round(v / 100.0, 6), None
         if unit == "m" or (unit is None and v < 100):
-            return round(v, 6)
-    return None
+            return round(v, 6), None if unit else "metres"
+    return None, None
 
 
 def chain_length(parts: Any) -> float | None:

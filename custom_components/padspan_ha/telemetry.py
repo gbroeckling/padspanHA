@@ -888,7 +888,7 @@ NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed"
 # stops are plan_ai_write.SCALE_STOPS), how its undo ended, and a later hand
 # Measure of a plan the helper scaled, by how far it moved the scale.
 SCALE_PATHS: tuple[str, ...] = ("guided", "already_set")
-SCALE_SAVE: tuple[str, ...] = ("done", "already_placed", "points_on_plan", "plan_changed", "backup_failed", "floor_unknown")
+SCALE_SAVE: tuple[str, ...] = ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown")
 SCALE_UNDO: tuple[str, ...] = ("done", "changed_since", "failed")
 AI_WIZARD_EVENTS: frozenset[str] = frozenset(
     {f"ai_wizard_{w}:{s}" for w in ("offered", "opened") for s in AI_WIZARD_SURFACES}

@@ -43,7 +43,7 @@ import logging
 import math
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -1141,13 +1141,16 @@ class ModelStore:
         )
         return fabric_truth.metre_gauge(self)
 
-    async def async_unset_world_gauge(self, map_id: str, expect_t: dict, expect_gauge: dict | None) -> bool:
+    async def async_unset_world_gauge(self, map_id: str, expect_t: dict, expect_gauge: dict | None,
+                                      still: Callable[[], bool] | None = None) -> bool:
         """Take back the rooms helper's first measurement of a plan: COMPARE
         AND CLEAR, in one save. The plan's placement record goes only while it
         is exactly `expect_t` (what the helper wrote); the house's metre scale
         is put back to "none yet" only when `expect_gauge` is given and the
-        stored one is exactly it (a scale that save seeded from this plan).
-        Anything else and nothing changes: False.
+        stored one is exactly it (a scale that save seeded from this plan);
+        and only while `still()` (the caller's own final check, given) says
+        yes. Anything else and nothing changes: False. Every comparison runs
+        with no await between it and the clear.
 
         The ONE way the world gauge is ever un-set, and it is called from one
         place, plan_ai_write.scale_undo, which has checked first that nothing
@@ -1157,6 +1160,8 @@ class ModelStore:
         if transforms.get(str(map_id)) != expect_t:
             return False
         if expect_gauge is not None and self.data.get("world_gauge") != expect_gauge:
+            return False
+        if still is not None and not still():
             return False
         transforms.pop(str(map_id), None)
         if expect_gauge is not None:

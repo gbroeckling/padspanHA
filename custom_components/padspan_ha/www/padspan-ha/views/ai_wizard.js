@@ -26,6 +26,7 @@ const TRIAL = await import(`./trial_offer.js${V}`).catch(() => null);
 const { roomShapes } = await import(`./plan_room_shapes.js${V}`);
 const { metresToMapFrac } = await import(`./stack_transform.js${V}`);
 const { _haLink } = await import(`./rooms.js${V}`);
+const { isOutdoorFloorId } = await import(`./iso_lights.js${V}`);
 
 export const VIA = "wizard";
 export const CONSOLE_URL = "https://platform.claude.com/";
@@ -144,14 +145,14 @@ export function plansOf(state) {
   const px = (m) => Number((m.image || {}).width || 0) * Number((m.image || {}).height || 0);
   const unscaled = (m) => (needsScale(state, m) ? 1 : 0);
   return ((state.maps && state.maps.list) || [])
-    .filter(m => m && m.id && String(m.floor_id || "") !== "outside" && (!tfs[m.id] || Number(tfs[m.id].scale_x_m) > 0))
+    .filter(m => m && m.id && !isOutdoorFloorId(m.floor_id) && (!tfs[m.id] || Number(tfs[m.id].scale_x_m) > 0))
     .sort((a, b) => unscaled(a) - unscaled(b) || rank(a.floor_id) - rank(b.floor_id) || px(b) - px(a));
 }
 
 /** The house's indoor floors as {id, name}, for "Which floor does this plan show?". */
 export function indoorFloors(state) {
   return ((state.model && state.model.floors) || []).map(f => ({ id: f && (f.floor_id || f.id), name: (f && f.name) || "" }))
-    .filter(f => f.id && String(f.id).toLowerCase() !== "outside");
+    .filter(f => f.id && !isOutdoorFloorId(f.id));
 }
 
 /** A length as the scale screen says it: whole metres past 100, else one decimal. */
@@ -206,11 +207,28 @@ function S_of(ctx) {
 }
 
 /** The scale screen's draft for the chosen plan (kept through every redraw until it is saved): the two ends, the typed
- *  length, the server's last answer about them, the floor picked. A new plan starts a new draft. */
+ *  length, the server's last answer about them and what it was asked (pvFor), the floor picked. A new plan starts a new draft. */
 function scaleDraft(S) {
   const id = S.plan && S.plan.id;
-  if (!S.sc || S.sc.map_id !== id) S.sc = { map_id: id, pts: [], text: "", pv: null, seq: 0, floor: null, askFloor: false, drag: null, moved: false };
+  if (!S.sc || S.sc.map_id !== id) {
+    S.sc = { map_id: id, pts: [], text: "", pv: null, pvFor: null, seq: 0, timer: null, paint: null, floor: null, askFloor: false, drag: null, moved: false };
+  }
   return S.sc;
+}
+
+/** The two ends and the length as they are now: what the server is asked about. */
+const scaleAsk = (sc) => ({ pts: sc.pts.map(p => p.slice()), text: String(sc.text || "").trim() });
+/** The server's answer is for the ends and the length as they are now (Save goes on nothing older). */
+const scaleFresh = (sc) => !!sc.pv && !!sc.pvFor && JSON.stringify(sc.pvFor) === JSON.stringify(scaleAsk(sc));
+const scaleMetres = (sc) => sc.pv && Array.isArray(sc.pv.metres) && sc.pv.metres[0];
+const scaleSized = (sc) => !!(scaleMetres(sc) && sc.pts.length === 2 && sc.pv.across_m);
+const scaleAskFloor = (sc) => !!((sc.pv && sc.pv.floor_known === false) || sc.askFloor);
+/** What decides how the screen is built (a refusal, the floor question, a first answer): when it changes, it is drawn again. */
+const scaleShape = (sc) => [!!sc.pv, !!(sc.pv && sc.pv.stop), scaleAskFloor(sc)].join();
+
+function scaleReady(S) {
+  const sc = scaleDraft(S);
+  return scaleFresh(sc) && scaleSized(sc) && (!scaleAskFloor(sc) || !!sc.floor) && !S.busy;
 }
 
 function stepWord(S) {
@@ -376,34 +394,56 @@ async function startRead(ctx, S, plan) {
   rerender(ctx);
 }
 
-/** What the server makes of the two ends and the typed length (the length understood, the plan's size); the newest answer wins. */
+/** What the server makes of the two ends and the typed length (the length understood, the plan's size). Only the newest
+ *  request's answer is taken (a counter); it is drawn in place, so the length field is never rebuilt while it is typed in. */
 async function scalePreview(ctx, S) {
-  const sc = scaleDraft(S), seq = ++sc.seq;
-  const text = String(sc.text || "").trim();
-  const measures = text ? [{ text, ...(sc.pts.length === 2 ? { p1: sc.pts[0], p2: sc.pts[1] } : {}) }] : [];
+  const sc = scaleDraft(S), seq = ++sc.seq, ask = scaleAsk(sc);
+  if (sc.timer) { clearTimeout(sc.timer); sc.timer = null; }
+  const measures = ask.text ? [{ text: ask.text, ...(ask.pts.length === 2 ? { p1: ask.pts[0], p2: ask.pts[1] } : {}) }] : [];
   try {
     const pv = await ws(ctx, { type: "padspan_ha/plan_build_scale_preview", map_id: S.plan.id, measures, via: VIA });
-    if (seq !== sc.seq) return;
-    sc.pv = pv;
+    if (seq !== sc.seq || S.sc !== sc) return;
+    sc.pv = pv; sc.pvFor = ask;
     if (pv && pv.floor_known === false && !_done.has("step:floor_pick")) {
       _done.add("step:floor_pick");
       ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "floor_pick", map_id: S.plan.id }).catch(() => {});
     }
   } catch (e) {
-    if (seq === sc.seq) S.msg = codeWords(e && e.code);
+    if (seq !== sc.seq || S.sc !== sc) return;
+    S.msg = codeWords(e && e.code);
+    rerenderKeep(ctx, S);
+    return;
   }
-  rerenderKeep(ctx, S);
+  if (!scalePaint(sc)) rerenderKeep(ctx, S);
 }
 
-/** Save the measurement (the server works the scale out again itself), then straight on to the rooms read. */
+/** Typing: asked once it pauses (about a quarter of a second); an answer already on its way is for older text, and Save waits. */
+function scalePreviewSoon(ctx, S) {
+  const sc = scaleDraft(S);
+  sc.seq++;
+  if (sc.timer) clearTimeout(sc.timer);
+  sc.timer = null;
+  scalePaint(sc);
+  if (typeof setTimeout !== "function") { scalePreview(ctx, S); return; }
+  sc.timer = setTimeout(() => { sc.timer = null; scalePreview(ctx, S); }, 250);
+}
+
+/** The answer drawn in place, when the screen is built for it; false when it has to be drawn again. */
+function scalePaint(sc) {
+  if (!sc.paint || sc.paint.shape !== scaleShape(sc)) return false;
+  sc.paint.fn();
+  return true;
+}
+
+/** Save the measurement (the server works the scale out again itself) as the newest answer had it, then straight on to the rooms read. */
 async function scaleSave(ctx, S) {
-  const sc = scaleDraft(S), pv = sc.pv || {};
-  if (S.busy || sc.pts.length !== 2 || !pv.sig) return;
+  const sc = scaleDraft(S), pv = sc.pv || {}, ask = sc.pvFor;
+  if (S.busy || !scaleFresh(sc) || ask.pts.length !== 2 || !pv.sig) return;
   S.busy = true; S.msg = ""; rerender(ctx);
   let r = null;
   try {
     r = await ws(ctx, { type: "padspan_ha/plan_build_scale_save", map_id: S.plan.id, sig: pv.sig, ...(sc.floor ? { floor_id: sc.floor } : {}),
-      measures: [{ p1: sc.pts[0], p2: sc.pts[1], text: String(sc.text || "").trim() }], source: "guided", via: VIA });
+      measures: [{ p1: ask.pts[0], p2: ask.pts[1], text: ask.text }], source: "guided", via: VIA });
   } catch (e) {
     r = { ok: false, code: e && e.code, message: codeWords(e && e.code) };
   }
@@ -787,10 +827,10 @@ function measurePicture(ctx, S) {
     rerenderKeep(ctx, S);
   });
   layer.addEventListener("pointerdown", (e) => {
+    sc.moved = false;                                               // a drag's own click may never have come: every press starts afresh
     const i = e && e.target && e.target.getAttribute ? e.target.getAttribute("data-pt") : null;
     if (i === null || i === undefined) return;
     sc.drag = Number(i);
-    sc.moved = false;
     if (e.preventDefault) e.preventDefault();
     try { if (layer.setPointerCapture && e.pointerId !== undefined) layer.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
   });
@@ -826,7 +866,9 @@ function scaleScreen(ctx, S, box) {
   const sc = scaleDraft(S), pv = sc.pv;
   telOnce(ctx, "plan_build_scale:guided");
   if (!pv && !sc.seq) scalePreview(ctx, S);                      // the picture's signature, its floor, whether it may be measured here
-  box.appendChild(P(ctx, "Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length."));
+  box.appendChild(P(ctx, "Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. " +
+    "The longer the thing you measure, the more exact your map."));
+  sc.paint = null;
   if (pv && pv.stop) {
     box.appendChild(P(ctx, pv.stop_message || codeWords(pv.stop), "color:#f59e0b"));
     if (pv.stop === "already_placed") box.appendChild(row(ctx, [btn(ctx, "Find the rooms →", () => startRead(ctx, S, S.plan), { primary: true, attrs: { "data-aiw": "scale-skip" } })]));
@@ -843,32 +885,45 @@ function scaleScreen(ctx, S, box) {
     style: "flex:0 1 180px;min-width:120px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:14px" });
   len.value = sc.text;
   if (S.busy) len.disabled = true;
-  // Typing stays here (S.sc) through every redraw; the server says what it understood.
-  len.addEventListener("input", () => { sc.text = String(len.value || ""); scalePreview(ctx, S); });
-  const m = pv && Array.isArray(pv.metres) && pv.metres[0];
-  const said = !sc.text.trim() ? "" : m ? `= ${Number(m).toFixed(2)} m` : (pv && pv.invalid) || "";
+  // Typing stays here (S.sc) through every redraw, and the field is never rebuilt while it is typed in: the server's
+  // answer (what it understood, the plan's size, whether Save may go) is drawn in place (paint), as a drag is.
+  len.addEventListener("input", () => { sc.text = String(len.value || ""); scalePreviewSoon(ctx, S); });
+  const said = el("span", { "data-aiw": "scale-understood", style: "font-size:13px" });
+  const sized = el("div", { "data-aiw": "scale-size" });
   side.appendChild(el("label", { style: "display:block;font-size:13px;color:#cbd5e1;margin:8px 0 4px" }, "Its length:"));
-  side.appendChild(row(ctx, [len, el("span", { "data-aiw": "scale-understood", style: `font-size:13px;color:${m ? "#a7f3d0" : "#f59e0b"}` }, said)], "margin:0 0 8px"));
-  const sized = !!(m && sc.pts.length === 2 && pv && pv.across_m);
-  if (sized) {
-    side.appendChild(P(ctx, `Your plan will be ${metresText(pv.across_m)} m across and ${metresText(pv.down_m)} m down.`, "font-weight:600"));
+  side.appendChild(row(ctx, [len, said], "margin:0 0 8px"));
+  side.appendChild(sized);
+  if (scaleAskFloor(sc)) {
+    side.appendChild(P(ctx, "Which floor does this plan show?"));
+    side.appendChild(row(ctx, indoorFloors(st).map(f => btn(ctx, f.name || f.id, () => { sc.floor = f.id; rerender(ctx); },
+      { primary: sc.floor === f.id, attrs: { "data-aiw": "floor-" + f.id } }))));
+  }
+  const save = btn(ctx, S.busy ? "Saving…" : "Save and find the rooms →", () => { if (scaleReady(S)) scaleSave(ctx, S); },
+    { primary: true, attrs: { "data-aiw": "scale-save" } });
+  side.appendChild(row(ctx, [save]));
+  side.appendChild(MUTED(ctx, "A backup is taken first. Undo on the last screen takes the rooms and this measurement back."));
+  sc.paint = { shape: scaleShape(sc), fn: () => scaleSaid(ctx, S, said, sized, save) };
+  sc.paint.fn();
+}
+
+/** The server's answer on the scale screen: the length understood (with the unit a bare number was read in), the plan's
+ *  size, and Save, which goes only on an answer for the ends and the length as they are now. */
+function scaleSaid(ctx, S, said, sized, save) {
+  const { el } = ctx.helpers, sc = scaleDraft(S), pv = sc.pv, m = scaleMetres(sc);
+  const unit = pv && Array.isArray(pv.assumed) && pv.assumed[0];
+  said.textContent = !sc.text.trim() ? "" : m ? `= ${Number(m).toFixed(2)} m${unit ? ` (read as ${unit})` : ""}` : (pv && pv.invalid) || "";
+  said.style.color = m ? "#a7f3d0" : "#f59e0b";
+  const lines = [];
+  if (scaleSized(sc)) {
+    lines.push(P(ctx, `Your plan will be ${metresText(pv.across_m)} m across and ${metresText(pv.down_m)} m down.`, "font-weight:600"));
     if (pv.odd) {
       const big = pv.across_m > 100 || pv.across_m < 2 ? ["across", pv.across_m] : ["down", pv.down_m];
-      side.appendChild(el("div", { "data-aiw": "scale-odd", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
+      lines.push(el("div", { "data-aiw": "scale-odd", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
         `That makes your plan ${metresText(big[1])} m ${big[0]}. Is the number right? You can change it, or save it as it is.`));
     }
   }
-  const floors = indoorFloors(st);
-  const askFloor = (pv && pv.floor_known === false) || sc.askFloor;
-  if (askFloor) {
-    side.appendChild(P(ctx, "Which floor does this plan show?"));
-    side.appendChild(row(ctx, floors.map(f => btn(ctx, f.name || f.id, () => { sc.floor = f.id; rerender(ctx); },
-      { primary: sc.floor === f.id, attrs: { "data-aiw": "floor-" + f.id } }))));
-  }
-  const ready = sized && (!askFloor || !!sc.floor) && !S.busy;
-  side.appendChild(row(ctx, [btn(ctx, S.busy ? "Saving…" : "Save and find the rooms →", () => { if (ready) scaleSave(ctx, S); },
-    { primary: true, disabled: !ready, attrs: { "data-aiw": "scale-save" } })]));
-  side.appendChild(MUTED(ctx, "A backup is taken first. Undo on the last screen takes the rooms and this measurement back."));
+  sized.replaceChildren(...lines);
+  save.disabled = !scaleReady(S);
 }
 
 function checkScreen(ctx, S, box) {

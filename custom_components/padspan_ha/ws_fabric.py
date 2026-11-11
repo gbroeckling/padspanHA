@@ -989,9 +989,12 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
     counted, by how far it moved the scale (plan_build_scale_remeasured): the
     field's check on the helper's accuracy."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    _old = mdl.map_transform(map_id) or {}
-    _by_helper = any(isinstance(r, dict) and r.get("source") in HELPER_SCALE_SOURCES for r in _old.get("reference_measurements") or [])
-    _was_sx = _old.get("scale_x_m")
+    try:                                       # only counted: whatever the stored record holds, it never stops or alters the save
+        _old = mdl.map_transform(map_id) or {}
+        _by_helper = any(isinstance(r, dict) and r.get("source") in HELPER_SCALE_SOURCES for r in _old.get("reference_measurements") or [])
+        _was_sx = _old.get("scale_x_m")
+    except Exception:  # noqa: BLE001
+        _by_helper, _was_sx = False, None
     # A payload that does not STATE a floor has not moved the map to 'main'.
     # `_put_map_transform` carries `floor_id` with the placement coordinates
     # for exactly that reason — this is the σ rule on the field that decides
@@ -1021,15 +1024,15 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
     except Exception:
         pass
     _stored = (mdl.data.get("map_transforms") or {}).get(map_id, {})
-    _new_refs = [r for r in _stored.get("reference_measurements") or [] if isinstance(r, dict)]
-    if _by_helper and _new_refs and not any(r.get("source") in HELPER_SCALE_SOURCES for r in _new_refs):
-        try:
+    try:
+        _new_refs = [r for r in _stored.get("reference_measurements") or [] if isinstance(r, dict)]
+        if _by_helper and _new_refs and not any(r.get("source") in HELPER_SCALE_SOURCES for r in _new_refs):
             from .plan_ai import _scale_band  # noqa: PLC0415
             _was, _now = float(_was_sx or 0), float(_stored.get("scale_x_m") or 0)
             if _was > 0 and _now > 0:
                 _bump(hass, f"plan_build_scale_remeasured:{_scale_band(abs(_now / _was - 1) * 100)}")
-        except Exception:  # noqa: BLE001 — a count, never a failed save
-            pass
+    except Exception:  # noqa: BLE001 — a count, never a failed save
+        pass
     return _stored
 
 

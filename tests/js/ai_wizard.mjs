@@ -43,7 +43,7 @@ const WIZ = { rows: ["space:a", "space:b", "space:c"], ticked: ["space:a"], smal
 const SESS = (extra = {}) => ({ id: "rb_1", rev: 3, status: "done", floor_id: "main", plans: [{ map_id: "m1", t: T }], proposal: PROP, progress: {}, ...extra });
 
 function house(o = {}) {
-  const calls = [], tele = [], shown = [], steps = [];
+  const calls = [], tele = [], shown = [], steps = [], renders = { n: 0 };
   W._resetCounts();
   const ans = o.ans || { session: SESS(), areas: ["Kitchen", "Garage"], undo: null, wizard: WIZ };
   const state = {
@@ -75,21 +75,24 @@ function house(o = {}) {
     actions: {
       callWS: (p) => { calls.push(p); const f = server[p.type]; return f ? Promise.resolve(f(p)) : Promise.reject({ code: "unknown_command" }); },
       wsCall: (type, data) => ctx.actions.callWS({ type, ...data }),
-      telemetryEvent: (n) => tele.push(n), renderRooms: () => {}, renderNav: () => {},
+      telemetryEvent: (n) => tele.push(n), renderRooms: () => { renders.n++; }, renderNav: () => {},
       showView: (v) => shown.push(v), openSetupStep: (id) => steps.push(id),
     },
   };
-  return { ctx, calls, tele, shown, steps };
+  return { ctx, calls, tele, shown, steps, renders };
 }
 
-// The server's plan_build_scale_preview, faked: the lengths it knows, the plan's size from the two ends on a 1000 x 800 picture.
-const LENGTHS = { "13' 9\"": 4.191, "5 m": 5, "206 m": 206 };
+// The server's plan_build_scale_preview, faked: the lengths it knows (and the unit a bare number is read in), the plan's
+// size from the two ends on a 1000 x 800 picture.
+const LENGTHS = { "13' 9\"": 4.191, "5 m": 5, "206 m": 206, "12": 12, "450": 0.45 };
+const ASSUMED = { "12": "metres", "450": "millimetres" };
 function preview(p, o) {
   const m = (p.measures || [])[0] || {};
   const out = { sig: "nn", size: [1000, 800], floor_known: o.floorKnown !== false, floors: ["main", "upper"], stop: null };
   if (!m.text) return out;
   const metres = m.text in LENGTHS ? LENGTHS[m.text] : null;
   out.metres = [metres];
+  out.assumed = [ASSUMED[m.text] || null];
   if (metres === null) out.invalid = "Type a length such as 4.2 m, 420 cm or 13' 9\".";
   else if (m.p1 && m.p2) {
     const ppm = Math.hypot((m.p2[0] - m.p1[0]) * 1000, (m.p2[1] - m.p1[1]) * 800) / metres;
@@ -107,6 +110,8 @@ async function view(h) {
   return root;
 }
 const typesOf = (h) => h.calls.map(c => c.type.replace("padspan_ha/", ""));
+/** Typing in the length field: the input event, then the pause the screen waits for (the shim's queued timers run). */
+async function typeIn(len, text) { len.value = text; len.dispatchEvent({ type: "input" }); await shim.flush(); }
 const chipOn = (root) => !!q(root, '[data-aiw="chip"]') && root.textContent.includes("EXPERIMENTAL");
 
 // ── (i) free, no AI Task: the trial card ──────────────────────────────────────
@@ -270,7 +275,7 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   check("scale: the button says what comes next", start && start.textContent === "Next: measure one thing →", start && start.textContent);
   start.click();
   root = await view(h);
-  check("scale: the screen, its words, the chip", !!q(root, '[data-aiw="measure"]') && root.textContent.includes("Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length.") && chipOn(root), root.textContent.slice(0, 300));
+  check("scale: the screen, its words, the chip", !!q(root, '[data-aiw="measure"]') && root.textContent.includes("Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. The longer the thing you measure, the more exact your map.") && chipOn(root), root.textContent.slice(0, 300));
   check("scale: no read before the measurement", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start"));
   check("scale: counted as guided, step marked", h.tele.includes("plan_build_scale:guided") && h.calls.some(c => c.what === "step" && c.step === "scale_guided"), h.tele);
   check("scale: no floor question when the plan's floor is the house's", !q(root, '[data-aiw="floor-main"]') && !root.textContent.includes("Which floor"));
@@ -283,8 +288,15 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   check("scale: two taps, two ends", JSON.stringify(S.sc.pts) === "[[0.1,0.5],[0.6,0.5]]", S.sc.pts);
   const pic = html(root);
   check("scale: two markers and a line between them", pic.includes('data-pt="0"') && pic.includes('data-pt="1"') && pic.includes("<line "), pic.slice(0, 200));
-  const len = q(root, '[data-aiw="scale-length"]');
-  len.value = "13' 9\""; len.dispatchEvent({ type: "input" });
+  const len = q(root, '[data-aiw="scale-length"]'), said0 = q(root, '[data-aiw="scale-understood"]'), save0 = q(root, '[data-aiw="scale-save"]');
+  const r0 = h.renders.n, nPv = () => h.calls.filter(c => c.type === "padspan_ha/plan_build_scale_preview").length, p0 = nPv();
+  len.value = "1"; len.dispatchEvent({ type: "input" });
+  len.value = "13"; len.dispatchEvent({ type: "input" });
+  check("scale: Save waits while the newest length has no answer", save0.disabled === true && nPv() === p0);
+  await typeIn(len, "13' 9\"");
+  check("scale: typing is asked about once it pauses", nPv() - p0 === 1, nPv() - p0);
+  check("scale: typing never rebuilds the field (a phone keyboard stays up)", h.renders.n === r0 && said0.textContent === "= 4.19 m"
+    && q(root, '[data-aiw="scale-size"]').textContent.includes("Your plan will be 8.4 m across") && save0.disabled === false, [h.renders.n - r0, said0.textContent]);
   root = await view(h);
   check("scale: what it understood, as typed", q(root, '[data-aiw="scale-understood"]').textContent === "= 4.19 m", q(root, '[data-aiw="scale-understood"]').textContent);
   check("scale: the plan's size", root.textContent.includes("Your plan will be 8.4 m across and 6.7 m down."), root.textContent.slice(0, 600));
@@ -328,7 +340,7 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   tap(q(root, '[data-aiw="measure"]'), 0, 300); root = await view(h);
   tap(q(root, '[data-aiw="measure"]'), 800, 300); root = await view(h);
   const len = q(root, '[data-aiw="scale-length"]');
-  len.value = "206 m"; len.dispatchEvent({ type: "input" });
+  await typeIn(len, "206 m");
   root = await view(h);
   const odd = q(root, '[data-aiw="scale-odd"]');
   check("odd: said as a question, never a refusal", odd && odd.textContent.startsWith("That makes your plan 206 m across. Is the number right?"), root.textContent.slice(0, 600));
@@ -342,6 +354,62 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   check("floor: sent with the save, and the read is on that floor", sv && sv.floor_id === "upper" && rs && rs.floor_id === "upper", [sv, rs]);
 }
 
+// ── review: a bare number says its unit; only the newest answer counts; Save goes on nothing older; a tap after a drag; outside ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {} });
+  let root = await view(h);
+  q(root, '[data-aiw="start"]').click(); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 80, 300); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 480, 300); root = await view(h);
+  const S = h.ctx.state._aiw, len = q(root, '[data-aiw="scale-length"]'), said = q(root, '[data-aiw="scale-understood"]');
+  await typeIn(len, "12");
+  check("bare number: the unit it was read in", said.textContent === "= 12.00 m (read as metres)", said.textContent);
+  await typeIn(len, "450");
+  check("bare number: millimetres said", said.textContent === "= 0.45 m (read as millimetres)", said.textContent);
+  await typeIn(len, "5 m");
+  check("a unit typed: nothing added", said.textContent === "= 5.00 m", said.textContent);
+  const held = [], real = h.ctx.actions.callWS;
+  h.ctx.actions.callWS = (p) => (p.type === "padspan_ha/plan_build_scale_preview" ? new Promise(r => held.push(() => r(preview(p, {})))) : real(p));
+  await typeIn(len, "206 m");
+  await typeIn(len, "13' 9\"");
+  held[1]();
+  for (let i = 0; i < 4; i++) await tick();
+  held[0]();                                                      // the older answer comes back last
+  for (let i = 0; i < 4; i++) await tick();
+  check("out of order: the older answer is dropped", held.length === 2 && said.textContent === "= 4.19 m" && S.sc.pvFor.text === "13' 9\"", [said.textContent, S.sc.pvFor]);
+  h.ctx.actions.callWS = real;
+  root = await view(h);
+  const save = () => q(root, '[data-aiw="scale-save"]');
+  check("fresh: Save ready", save().disabled === false);
+  const l2 = q(root, '[data-aiw="scale-length"]');
+  l2.value = "5 m"; l2.dispatchEvent({ type: "input" });          // not answered yet
+  check("stale: Save waits for the answer", save().disabled === true);
+  save().click();
+  for (let i = 0; i < 4; i++) await tick();
+  check("stale: nothing saved on an older answer", !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save"));
+  await shim.flush();
+  check("answered: Save ready again", save().disabled === false);
+  const layer = q(root, '[data-aiw="measure"]');
+  layer.dispatchEvent({ type: "pointerdown", target: { getAttribute: (k) => (k === "data-pt" ? "0" : null) }, pointerId: 1, preventDefault() {} });
+  layer.dispatchEvent({ type: "pointermove", clientX: 120, clientY: 300 });
+  layer.dispatchEvent({ type: "pointerup" });                     // let go off the plan: no click follows
+  root = await view(h);
+  const l3 = q(root, '[data-aiw="measure"]');
+  l3.dispatchEvent({ type: "pointerdown", target: { getAttribute: () => null }, pointerId: 2, preventDefault() {} });
+  tap(l3, 560, 300);
+  check("a tap after a drag that ended without a click is taken", JSON.stringify(S.sc.pts) === "[[0.15,0.5],[0.7,0.5]]", S.sc.pts);
+  await shim.flush();
+  root = await view(h);
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  const sv = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_save");
+  check("save: the ends and the text the newest answer was for", sv && JSON.stringify(sv.measures) === JSON.stringify([{ p1: [0.15, 0.5], p2: [0.7, 0.5], text: "5 m" }]), sv);
+  const plans = W.plansOf({ maps: { list: [{ id: "a", floor_id: "__outside__" }, { id: "b", floor_id: "outside" }, { id: "c", floor_id: "main" }] },
+    model: { floors: [], map_transforms: {} } });
+  const floors = W.indoorFloors({ model: { floors: [{ floor_id: "__outside__" }, { floor_id: "Outside" }, { floor_id: "main" }] } });
+  check("outside: one rule for both spellings", plans.map(m => m.id).join() === "c" && floors.map(f => f.id).join() === "main", [plans, floors]);
+}
+
 // ── piece 3: a refusal is said and nothing moves on; a plan with a scale skips the step ──
 {
   const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps: N1, tfs: {},
@@ -350,7 +418,7 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   q(root, '[data-aiw="start"]').click(); root = await view(h);
   tap(q(root, '[data-aiw="measure"]'), 80, 300); root = await view(h);
   tap(q(root, '[data-aiw="measure"]'), 480, 300); root = await view(h);
-  const len = q(root, '[data-aiw="scale-length"]'); len.value = "5 m"; len.dispatchEvent({ type: "input" });
+  await typeIn(q(root, '[data-aiw="scale-length"]'), "5 m");
   root = await view(h);
   q(root, '[data-aiw="scale-save"]').click();
   for (let i = 0; i < 4; i++) await tick();

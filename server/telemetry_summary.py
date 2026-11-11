@@ -545,7 +545,7 @@ _WIZARD_FUNNEL = (
     + tuple(f"plan_build_unmatched_areas:{b}" for b in _WIZ_BANDS)
     # Piece 3: the plan's scale by one guided measurement (design J.4's guided subset).
     + tuple(f"plan_build_scale:{k}" for k in ("guided", "already_set"))
-    + tuple(f"plan_build_scale_save:{k}" for k in ("done", "already_placed", "points_on_plan", "plan_changed", "backup_failed", "floor_unknown"))
+    + tuple(f"plan_build_scale_save:{k}" for k in ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown"))
     + tuple(f"plan_build_scale_undo:{k}" for k in ("done", "changed_since", "failed"))
     + tuple(f"plan_build_scale_remeasured:{k}" for k in ("lt1", "1_3", "3_10", "gt10")))
 

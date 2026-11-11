@@ -814,7 +814,7 @@ const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", a
   printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };
 const W_SCALE_PATH = { guided: "one measurement by the person", already_set: "the plan had a scale already" };
 const W_SCALE_SAVE = { done: "saved", already_placed: "refused, the plan had a scale already", points_on_plan: "refused, calibration spots on the plan",
-  plan_changed: "refused, the plan picture changed", backup_failed: "refused, no safety backup", floor_unknown: "refused, floor not known" };
+  plan_changed: "refused, the plan picture changed", no_picture_size: "refused, the plan picture has no size on record", backup_failed: "refused, no safety backup", floor_unknown: "refused, floor not known" };
 const W_SCALE_UNDO = { done: "taken back", changed_since: "refused, something added since", failed: "failed" };
 const W_SCALE_PCT = { lt1: "under 1 %", "1_3": "1–3 %", "3_10": "3–10 %", gt10: "over 10 %" };
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", rooms: "draw rooms", scanners: "place receivers",
