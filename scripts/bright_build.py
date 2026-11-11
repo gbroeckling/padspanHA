@@ -269,7 +269,9 @@ def run_suite(tree: Path) -> subprocess.CompletedProcess:
                           cwd=tree, env=env, text=True, capture_output=True, encoding="utf-8")
 
 
-def _wait_for_required_checks(repo: str, sha: str, timeout_s: int = 900) -> None:
+# 2026-11-10: 900 s was shorter than Bright's own Tests run (16.5 min for 0.38.231), so the stable's Bright
+# release stopped after the push and had to be finished by hand. 40 min covers the suite and a queue.
+def _wait_for_required_checks(repo: str, sha: str, timeout_s: int = 2400) -> None:
     """Wait for the pushed Bright commit to pass every public release check.
 
     HACS's default-catalog checklist requires a release created *after* its
