@@ -1116,6 +1116,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     # Themes (0.38.157): Light for everyone, Day on Pro; the stored switch,
     # so a lapsed Pro still says day_theme. theme_palette is in the ENUMS.
     "day_theme": "day_theme", "light_theme": "light_theme",
+    # Settings → "Show lengths in feet and inches" (2026-11-12), off by default: on only.
+    "units_feet": "units_feet",
 }
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).

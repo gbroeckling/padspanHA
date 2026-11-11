@@ -64,6 +64,8 @@ const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search
 // Let Claude draw your rooms (experimental): one line in the wizard's scale and rooms steps, where the rule offers it.
 const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
 // "Set this plan's scale now" after an upload, and the quiet "No scale yet" line (scale_nudge.js).
+// Feet and inches where a plan is measured or checked (Settings → "Show lengths in feet and inches"): plan_measure.js's one copy.
+const PM = await import(`./plan_measure.js${new URL(import.meta.url).search}`);
 const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
@@ -628,7 +630,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
       nameRow,
       el("div",{class:"muted", style:"font-size:12px"}, `${m.image?.width||0}×${m.image?.height||0} • floor: ${(_floorName(ctx,m.floor_id))} • receivers: ${(m.receivers||[]).length}`),
       el("div",{class:"muted", style:"font-size:12px"}, `updated: ${m.updated || ""}` + (reco ? " • gap detected" : "")
-        + (_placed ? ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m` : " • not placed")),
+        + (_placed ? (PM.feetOn(ctx) ? ` • ${PM.feetText(_pl.scale_x_m)} × ${PM.feetText(_pl.scale_y_m)}` : ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m`) : " • not placed")),
     ]);
     { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id)); if (n) left.appendChild(n); }
 
@@ -2619,7 +2621,7 @@ function _edit(ctx, map, allMaps, opts){
         }
         // Label
         const mx = (sm.p1[0] + sm.p2[0]) / 2, my = (sm.p1[1] + sm.p2[1]) / 2;
-        _stageLabel(clamp01(mx), clamp01(my - 0.015), `${sm.distance_m}m @ ${sm.angle_deg}\u00b0`, col);
+        _stageLabel(clamp01(mx), clamp01(my - 0.015), `${PM.feetOn(ctx) ? PM.feetText(sm.distance_m) : `${sm.distance_m}m`} @ ${sm.angle_deg}\u00b0`, col);
       }
       // Current points being placed (pointer-events:none so clicks pass through)
       const mPts = ctx.state.maps._measurePts || [];
@@ -3288,6 +3290,8 @@ function _edit(ctx, map, allMaps, opts){
       const cal = map.calibration || {};
       if (!ctx.state.maps._measurements) ctx.state.maps._measurements = [];
       const meas = ctx.state.maps._measurements;
+      // Feet and inches with the switch on: the number typed is feet, every length said in feet; stored in metres.
+      const _ft = PM.feetOn(ctx), _len1 = (v) => (_ft ? PM.feetText(v) : `${v.toFixed(1)}m`);
 
       mPanel.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#7dd3fc;margin-bottom:6px"},
         "\ud83d\udccf Reference Distance Calibration"));
@@ -3317,16 +3321,16 @@ function _edit(ctx, map, allMaps, opts){
         const inputRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
         const distInput = document.createElement("input");
         distInput.type = "number"; distInput.min = "0.1"; distInput.max = "500"; distInput.step = "0.1";
-        distInput.placeholder = "metres";
+        distInput.placeholder = _ft ? "feet" : "metres";
         distInput.style.cssText = "width:100px;padding:4px 8px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:12px";
         inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Real distance:"));
         inputRow.appendChild(distInput);
-        inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"m"));
+        inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},_ft ? "ft" : "m"));
 
         const addBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:4px 12px;color:#7dd3fc;border-color:#1e4976"},
           meas.length === 0 ? "Add 1st Measurement" : "Add 2nd Measurement");
         addBtn.addEventListener("click", () => {
-          const realDist = parseFloat(distInput.value);
+          const realDist = _ft ? Math.round(parseFloat(distInput.value) * 0.3048 * 10000) / 10000 : parseFloat(distInput.value);
           if (!realDist || realDist <= 0) { ctx.toast("Enter a valid distance"); return; }
           const ppm = dist_px / realDist;
           meas.push({
@@ -3346,7 +3350,7 @@ function _edit(ctx, map, allMaps, opts){
         for (let i = 0; i < meas.length; i++) {
           const m2 = meas[i];
           measDiv.appendChild(el("div",{style:"font-size:11px;color:#7dd3fc;margin-bottom:2px"},
-            `#${i+1}: ${m2.distance_m}m \u2192 ${m2.px_per_meter.toFixed(1)} px/m at ${m2.angle_deg}\u00b0`));
+            `#${i+1}: ${_ft ? PM.feetText(m2.distance_m) : `${m2.distance_m}m`} \u2192 ${m2.px_per_meter.toFixed(1)} px/m at ${m2.angle_deg}\u00b0`));
         }
         mPanel.appendChild(measDiv);
       }
@@ -3375,7 +3379,7 @@ function _edit(ctx, map, allMaps, opts){
           analysisDiv.appendChild(el("div",{style:"font-size:12px;color:#52b788;font-weight:700;margin-bottom:4px"},
             `\u2705 Aspect ratio OK \u2014 ${diffPct.toFixed(1)}% difference`));
           analysisDiv.appendChild(el("div",{style:"font-size:11px;color:#94a3b8"},
-            `Scale: ${avgPpm.toFixed(1)} px/m (avg of ${ppm1.toFixed(1)} and ${ppm2.toFixed(1)}). Map width = ${(imgW/avgPpm).toFixed(1)}m, height = ${(imgH/avgPpm).toFixed(1)}m`));
+            `Scale: ${avgPpm.toFixed(1)} px/m (avg of ${ppm1.toFixed(1)} and ${ppm2.toFixed(1)}). Map width = ${_len1(imgW/avgPpm)}, height = ${_len1(imgH/avgPpm)}`));
         } else {
           analysisDiv.style.background = "rgba(248,113,113,.08)";
           analysisDiv.style.border = "1px solid #f8717133";
@@ -3394,7 +3398,7 @@ function _edit(ctx, map, allMaps, opts){
 
         // Save button — prominent green to make it clear this is the save action
         const applyBtn = el("button",{class:"btn save-pulse",style:"margin-top:12px;width:100%;padding:12px;font-size:15px;background:#1a3a0a;border:2px solid #52b788;color:#a7f3d0;font-weight:800;border-radius:8px;cursor:pointer"},
-          `\ud83d\udcbe  Save Scale: ${avgPpm.toFixed(1)} px/m \u2192 ${_preview_x_m.toFixed(1)}m \u00d7 ${_preview_y_m.toFixed(1)}m`);
+          `\ud83d\udcbe  Save Scale: ${avgPpm.toFixed(1)} px/m \u2192 ${_len1(_preview_x_m)} \u00d7 ${_len1(_preview_y_m)}`);
         applyBtn.addEventListener("click", async () => {
           applyBtn.disabled = true; applyBtn.textContent = "Saving\u2026";
           const ppm = Math.round(avgPpm * 100) / 100;
@@ -3438,7 +3442,7 @@ function _edit(ctx, map, allMaps, opts){
           try {
             // Save transform directly to fabric — fabric is the sole authority
             const _txResult = await ctx.actions.callWS({ type: "padspan_ha/fabric_map_transform_set", map_id: map.id, transform });
-            ctx.toast(`Scale saved: ${scale_x_m.toFixed(1)}m \u00d7 ${scale_y_m.toFixed(1)}m (${ppm} px/m)`);
+            ctx.toast(`Scale saved: ${_len1(scale_x_m)} \u00d7 ${_len1(scale_y_m)} (${ppm} px/m)`);
             ctx.state.maps._measurePts = [];
             ctx.state.maps._measurements = [];
             await ctx.actions.mapsRefresh();
@@ -3454,7 +3458,7 @@ function _edit(ctx, map, allMaps, opts){
       const _fabTx = (ctx.state.model?.map_transforms || {})[map.id];
       if (_fabTx && _fabTx.scale_x_m) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#52b788;margin-top:8px"},
-          `Current layout scale: ${_fabTx.scale_x_m.toFixed(1)}m \u00d7 ${_fabTx.scale_y_m.toFixed(1)}m`));
+          `Current layout scale: ${_len1(_fabTx.scale_x_m)} \u00d7 ${_len1(_fabTx.scale_y_m)}`));
         mPanel.appendChild(el("div",{style:"font-size:10px;color:#64748b;margin-top:2px"},
           `World origin: (${(_fabTx.origin_x_m||0).toFixed(2)}, ${(_fabTx.origin_y_m||0).toFixed(2)})m \u2014 locked; display edits never move it`));
         // No "Re-anchor origin" button: it sent only the map id, which the

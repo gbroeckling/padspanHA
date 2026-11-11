@@ -1289,7 +1289,7 @@ function scaleScreen(ctx, S, box) {
   box.appendChild(P(ctx, PM.measureHow(tap)));
   if (main) {
     box.appendChild(row(ctx, [P(ctx, ["Claude found ", el("b", { "data-aiw": "scale-text" }, main.text), ` printed ${runs(r.main)} your plan ` +
-      `(${Number(main.metres).toFixed(2)} m), and the other way agrees.`], "margin:0"),
+      `(${PM.feetOn(ctx) ? PM.feetText(main.metres) : `${Number(main.metres).toFixed(2)} m`}), and the other way agrees.`], "margin:0"),
       btn(ctx, "Use it", () => useReading(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "scale-use" } })], "margin:4px 0"));
   } else if (sc.why) {
     box.appendChild(P(ctx, sc.why, "margin:4px 0;color:#94a3b8"));
@@ -1324,14 +1324,14 @@ function scaleScreen(ctx, S, box) {
  *  it is now. */
 function scaleSaid(ctx, S, said, sized, save) {
   const { el } = ctx.helpers, sc = scaleDraft(S), pv = sc.pv;
-  PM.paintSaid(said, sc.text, pv);
+  PM.paintSaid(said, sc.text, pv, 0, PM.feetOn(ctx));
   const lines = [];
   if (scaleSized(sc)) {
     lines.push(...PM.sizeLines(ctx, pv));
     const r = sc.read;
     if (r && r.across_m && !scaleUsed(sc) && Math.abs(pv.across_m / r.across_m - 1) * 100 > SCALE_DIFFERS_PCT) {
       lines.push(el("div", { "data-aiw": "scale-differs", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
-        `Claude's reading makes the picture ${metresText(r.across_m)} m across; your line makes it ${metresText(pv.across_m)} m. Check the two ends and the length.`));
+        `Claude's reading makes the picture ${PM.lengthText(r.across_m, PM.feetOn(ctx))} across; your line makes it ${PM.lengthText(pv.across_m, PM.feetOn(ctx))}. Check the two ends and the length.`));
     }
   }
   sized.replaceChildren(...lines);
@@ -1345,14 +1345,15 @@ export function factorWords(k) {
   const f = Number(k) > 1 ? Number(k) : 1 / Number(k);
   return f < 1.75 ? "about one and a half times" : f < 2.25 ? "about twice" : f < 2.75 ? "about two and a half times" : `about ${Math.round(f)} times`;
 }
-export function scaleNoticeWords(sc) {
+/** `feet`: its example sizes in feet and square feet (Settings → "Show lengths in feet and inches"). */
+export function scaleNoticeWords(sc, feet = false) {
   const big = Number(sc.k) > 1, ex = sc.example || {}, bits = [];
   // With a printed reading, its factor; on room sizes alone (a unit mix-up) the direction and "several times", never a
   // figure the room sizes can't back (second review, 2026-11-12).
   const amount = sc.source === "printed" ? factorWords(sc.k) : "several times";
-  if (ex.printed) bits.push(`Claude read ${ex.printed.text} printed on the plan, which this scale makes ${ex.printed.here_m} m.`);
+  if (ex.printed) bits.push(`Claude read ${ex.printed.text} printed on the plan, which this scale makes ${feet ? PM.feetText(ex.printed.here_m) : `${ex.printed.here_m} m`}.`);
   // The room that shows it, with what it is (the server picks a named room impossible for its kind first; review 2026-11-12).
-  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m²` + (ex.rooms.kind ? `: ${big ? "too big" : "too small"} for any ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}.`
+  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${feet ? PM.sqftText(ex.rooms.m2) : `${ex.rooms.m2} m²`}` + (ex.rooms.kind ? `: ${big ? "too big" : "too small"} for any ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}.`
     : big ? "." : ": too small for any room."));
   return [`The scale may be off: the rooms come out ${amount} too ${big ? "big" : "small"}.`, ...bits].join(" ");
 }
@@ -1435,7 +1436,7 @@ function scaleNotice(ctx, S, sc) {
   telOnce(ctx, "ai_wizard_scale_notice:shown");
   for (const s of sc.signs || []) telOnce(ctx, "ai_wizard_scale_sign:" + s);
   const box = el("div", { "data-aiw": "scale-notice", style: "border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin:8px 0" });
-  box.appendChild(P(ctx, scaleNoticeWords(sc), "margin:0"));
+  box.appendChild(P(ctx, scaleNoticeWords(sc, PM.feetOn(ctx)), "margin:0"));
   if (S.scaleElsewhere) {
     box.appendChild(P(ctx, SCALE_ELSEWHERE[S.scaleElsewhere], "margin:6px 0 0;color:#f59e0b"));
     box.appendChild(row(ctx, [btn(ctx, "Measure it in Mapping →", () => {
@@ -1522,7 +1523,7 @@ function checkScreen(ctx, S, box) {
     const typed = nameOf(S, r), matched = typed === r.name ? r.matched : isArea(typed);
     const chipText = r.his ? "your room" : !r.sure ? "Claude saw this one differently twice: look at its shape"
       : matched ? "matches your Home Assistant room" : "new room, only in PadSpan";
-    const size = Number(r.m2) > 0 ? el("span", { "data-aiw": "m2-" + r.id, style: "font-size:12px;color:#cbd5e1;white-space:nowrap" }, `${Math.round(r.m2 * 10) / 10} m²`) : "";
+    const size = Number(r.m2) > 0 ? el("span", { "data-aiw": "m2-" + r.id, style: "font-size:12px;color:#cbd5e1;white-space:nowrap" }, PM.feetOn(ctx) ? PM.sqftText(r.m2) : `${Math.round(r.m2 * 10) / 10} m²`) : "";
     // Its secondary controls behind the row's own ⋯ (the Home Assistant area, a look again): kept in the row, hidden.
     const more = el("div", { "data-aiw": "more-" + r.id, style: `display:${(S.open || new Set()).has(r.id) ? "block" : "none"};margin:4px 0 0 22px` });
     if (r.his && r.flagged) more.appendChild(row(ctx, [btn(ctx, "Ask Claude to look again", async () => {

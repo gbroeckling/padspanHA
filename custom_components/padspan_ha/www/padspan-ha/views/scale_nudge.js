@@ -121,7 +121,7 @@ async function save(ctx, map, d) {
   tel(ctx, a.length === 2 ? "measured_two" : "measured_one");
   map.scale_nudge = false;
   ctx.state._scaleNudge = null;
-  if (ctx.toast) ctx.toast(`Scale saved: the plan is ${PM.metresText(r.scale_x_m)} m across and ${PM.metresText(r.scale_y_m)} m down.`);
+  if (ctx.toast) ctx.toast(`Scale saved: the plan is ${PM.lengthText(r.scale_x_m, PM.feetOn(ctx))} across and ${PM.lengthText(r.scale_y_m, PM.feetOn(ctx))} down.`);
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   if (ctx.actions.mapsRefresh) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
   redraw(ctx);
@@ -139,7 +139,7 @@ function later(ctx, map) {
  *  the way to a second length, and whether Save may go. */
 function paint(ctx, d, said, sized, saveBtn) {
   const { el } = ctx.helpers, pv = d.pv;
-  PM.paintSaid(said, d.text, pv, d.first ? 1 : 0);
+  PM.paintSaid(said, d.text, pv, d.first ? 1 : 0, PM.feetOn(ctx));
   const lines = [];
   if (fresh(d) && complete(d) && pv.across_m) {
     lines.push(...PM.sizeLines(ctx, pv));

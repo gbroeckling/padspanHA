@@ -351,6 +351,30 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     ]));
   }
 
+  // ── Units: feet and inches (owner, 2026-11-12: "Mapping and the helper first"), off by default ──
+  {
+    const settings = ctx.state.settings || {};
+    const feetToggle = el("input",{type:"checkbox",id:"unitsFeetToggle","data-units-feet":"toggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
+    feetToggle.checked = settings.units_feet === true;
+    feetToggle.addEventListener("change", async()=>{
+      try {
+        await ctx.actions.settingsSet({ units_feet: feetToggle.checked });
+        ctx.toast(feetToggle.checked ? "Lengths shown in feet and inches" : "Lengths shown in metres");
+      } catch(e){ ctx.toast("Failed to save", true); }
+    });
+    wrap.appendChild(el("div",{class:"card",style:"margin-top:12px","data-units-feet":"card"},[
+      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Units"),
+      el("div",{style:"display:flex;align-items:center;gap:8px"},[
+        feetToggle,
+        el("label",{for:"unitsFeetToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, "Show lengths in feet and inches"),
+      ]),
+      el("div",{class:"muted",style:"font-size:12px;margin-top:4px"},
+        "Changes what is shown where you measure or check a floor plan in Mapping and in the room helper: lengths in feet " +
+        "and inches, room sizes in square feet, and a number typed without a unit is read as feet. Everything is still " +
+        "stored in metres, and other screens stay in metres."),
+    ]));
+  }
+
   // ── 2D Map Mode (Experimental) ────────────────────────────────────────────
   {
     const settings = ctx.state.settings || {};

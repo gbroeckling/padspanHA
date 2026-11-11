@@ -75,16 +75,16 @@ _FT_IN_DASH = re.compile(r"^(\d+)\s*-\s*(\d+(?:\.\d+)?)(?:\s+" + _FRAC + r")?$")
 ALT_AGREE = 0.02           # the other reading of an open form is taken only within this of the length expected (Claude's metres)
 
 
-def parse_length(text: Any, expect_m: float | None = None) -> float | None:
+def parse_length(text: Any, expect_m: float | None = None, feet: bool = False) -> float | None:
     """A printed length in metres, or None when it isn't one. Feet and inches
     with fractions (30'-5 1/2", 9'-1", 8', 3 1/2", 1'-9 3/4", 30'-5⅜"), metric
     (9.284 m, 928 cm, 9284, 2 400, 12,48 m: a bare whole number of 100 or more
     is millimetres, a bare decimal under 100 metres), and a chain joined by +
-    or | summed. `expect_m`: see length_read."""
-    return length_read(text, expect_m)[0]
+    or | summed. `expect_m`, `feet`: see length_read."""
+    return length_read(text, expect_m, feet)[0]
 
 
-def length_read(text: Any, expect_m: float | None = None) -> tuple[float | None, str | None]:
+def length_read(text: Any, expect_m: float | None = None, feet: bool = False) -> tuple[float | None, str | None]:
     """parse_length's metres, and the unit a number typed with none was taken
     in ("metres", "millimetres", "centimetres", "feet and inches", joined for a
     chain that mixes them), or None when every unit was typed.
@@ -94,20 +94,24 @@ def length_read(text: Any, expect_m: float | None = None) -> tuple[float | None,
     open read the other way: feet and inches written with a dash and no marks
     (66-7 = 66'-7"), and a bare whole number in centimetres (435 = 4.35 m);
     and only when the usual reading doesn't agree with expect_m within
-    ALT_AGREE and the other one does. With no expect_m nothing is guessed."""
-    plain = _length_read(text, False)
+    ALT_AGREE and the other one does. With no expect_m nothing is guessed.
+
+    `feet`: Settings → "Show lengths in feet and inches" is on, so a number
+    typed with no unit is feet ("feet"); one typed with a unit is read as
+    typed either way."""
+    plain = _length_read(text, False, feet)
     if expect_m is None or agrees(plain[0], expect_m, ALT_AGREE):
         return plain
-    alt = _length_read(text, True)
+    alt = _length_read(text, True, feet)
     return alt if agrees(alt[0], expect_m, ALT_AGREE) else plain
 
 
-def _length_read(text: Any, alt: bool) -> tuple[float | None, str | None]:
+def _length_read(text: Any, alt: bool, feet: bool = False) -> tuple[float | None, str | None]:
     s = str(text or "").translate(_QUOTES).strip().lower()
     if not s:
         return None, None
     if "+" in s or "|" in s:
-        parts = [_length_read(p, alt) for p in re.split(r"[+|]", s)]
+        parts = [_length_read(p, alt, feet) for p in re.split(r"[+|]", s)]
         if not parts or any(p[0] is None for p in parts):
             return None, None
         said = sorted({p[1] for p in parts if p[1]})
@@ -153,6 +157,8 @@ def _length_read(text: Any, alt: bool) -> tuple[float | None, str | None]:
                 raw = raw.replace(",", ".")
         grouped = bool(re.search(r"[ ,]\d{3}$", raw))
         v = float(raw.replace(" ", "").replace(",", ""))
+        if unit is None and feet:
+            return round(v * _M_PER_FT, 6), "feet"
         if unit is None and alt and "." not in raw and not grouped and v >= 100:
             return round(v / 100.0, 6), "centimetres"
         if unit == "mm" or (unit is None and (grouped or ("." not in raw and v >= 100))):

@@ -17,6 +17,31 @@ export const ZOOM_MAX = 4;
 /** A length as the scale screen says it: whole metres past 100, else one decimal. */
 export const metresText = (v) => (Number(v) >= 100 ? String(Math.round(Number(v))) : Number(v).toFixed(1));
 
+// Feet and inches (Settings → "Show lengths in feet and inches", units_feet; owner, 2026-11-12). The panel's one copy:
+// what is SHOWN where a person measures or checks a plan (this screen, the upload's nudge, Mapping's Measure, the rooms
+// helper's sizes). Everything is stored in metres; a bare number typed with the switch on is read as feet by the server.
+const M_PER_IN = 0.0254, SQFT_PER_M2 = 10.7639104;
+/** The switch, from the panel's settings. */
+export const feetOn = (ctx) => !!(ctx && ctx.state && ctx.state.settings && ctx.state.settings.units_feet === true);
+/** Metres in feet and inches: to the nearest half inch under 10 feet (5' 4½"), the nearest inch under 100 feet
+ *  (30' 6"), whole feet past that (676'). */
+export function feetText(m) {
+  const inches = Math.round(Math.max(0, Number(m) || 0) / M_PER_IN * 1e6) / 1e6;
+  const step = inches < 120 ? 0.5 : inches < 1200 ? 1 : 12;
+  const r = Math.round(inches / step) * step, ft = Math.floor(r / 12), inch = r - ft * 12;
+  if (step === 12) return `${ft}'`;
+  const whole = Math.floor(inch), half = inch > whole;
+  const ins = `${whole || !half ? whole : ""}${half ? "½" : ""}"`;
+  return ft ? `${ft}' ${ins}` : ins;
+}
+/** Square metres in square feet: one decimal under 10, whole ones from there. */
+export function sqftText(m2) {
+  const f = Math.max(0, Number(m2) || 0) * SQFT_PER_M2;
+  return `${f < 9.95 ? Math.round(f * 10) / 10 : Math.round(f)} sq ft`;
+}
+/** A length with its unit: feet and inches with the switch on, else as the scale screen says metres. */
+export const lengthText = (m, feet) => (feet ? feetText(m) : `${metresText(m)} m`);
+
 // The bar stuck to the bottom of the screen that keeps a screen's Save in view while it scrolls (the rooms list, the scale).
 export const STICKY_BAR = "position:sticky;bottom:0;z-index:2;background:#0f1a12;border-top:1px solid #1b3526;padding:4px 0;margin-top:8px";
 
@@ -173,7 +198,7 @@ export function measurePicture(ctx, sc, map, on) {
  *  place). `key`: its data-aiw. */
 export function lengthField(ctx, side, text, { busy = false, onInput, key = "scale-length", label = "Its length:" }) {
   const { el } = ctx.helpers;
-  const len = el("input", { type: "text", maxlength: "40", "data-aiw": key, placeholder: "e.g. 4.2 m or 13' 9\"",
+  const len = el("input", { type: "text", maxlength: "40", "data-aiw": key, placeholder: feetOn(ctx) ? "e.g. 13' 9\" or 4.2 m" : "e.g. 4.2 m or 13' 9\"",
     style: "flex:0 1 180px;min-width:120px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:14px" });
   len.value = text;
   if (busy) len.disabled = true;
@@ -184,24 +209,24 @@ export function lengthField(ctx, side, text, { busy = false, onInput, key = "sca
   return { len, said };
 }
 
-/** What the server made of a typed length (its `i`th): the metres, with the unit a bare number was read in, or why it
- *  isn't a length. Nothing while the field is empty. */
-export function paintSaid(said, text, pv, i = 0) {
+/** What the server made of a typed length (its `i`th): the metres (in feet and inches with `feet`), with the unit a
+ *  bare number was read in, or why it isn't a length. Nothing while the field is empty. */
+export function paintSaid(said, text, pv, i = 0, feet = false) {
   const m = pv && Array.isArray(pv.metres) && pv.metres[i];
   const unit = pv && Array.isArray(pv.assumed) && pv.assumed[i];
-  said.textContent = !String(text || "").trim() ? "" : m ? `= ${Number(m).toFixed(2)} m${unit ? ` (read as ${unit})` : ""}` : (pv && pv.invalid) || "";
+  said.textContent = !String(text || "").trim() ? "" : m ? `= ${feet ? feetText(m) : `${Number(m).toFixed(2)} m`}${unit ? ` (read as ${unit})` : ""}` : (pv && pv.invalid) || "";
   said.style.color = m ? "#a7f3d0" : "#f59e0b";
 }
 
 /** The whole picture's size from the measurement (margins and all: it is the picture, not the house), and a size no
  *  house has said plainly (`odd`: said, never refused). */
 export function sizeLines(ctx, pv) {
-  const { el } = ctx.helpers;
-  const lines = [P(ctx, `The whole picture, margins and all, will be ${metresText(pv.across_m)} m across and ${metresText(pv.down_m)} m down.`, "font-weight:600")];
+  const { el } = ctx.helpers, ft = feetOn(ctx);
+  const lines = [P(ctx, `The whole picture, margins and all, will be ${lengthText(pv.across_m, ft)} across and ${lengthText(pv.down_m, ft)} down.`, "font-weight:600")];
   if (pv.odd) {
     const big = pv.across_m > 100 || pv.across_m < 2 ? ["across", pv.across_m] : ["down", pv.down_m];
     lines.push(el("div", { "data-aiw": "scale-odd", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
-      `That makes your plan ${metresText(big[1])} m ${big[0]}. Is the number right? You can change it, or save it as it is.`));
+      `That makes your plan ${lengthText(big[1], ft)} ${big[0]}. Is the number right? You can change it, or save it as it is.`));
   }
   return lines;
 }

@@ -1867,7 +1867,7 @@ import json  # noqa: E402
 
 from . import fabric_truth as FT  # noqa: E402
 from . import subzones as SZ  # noqa: E402
-from .const import DATA_HOUSE3D, DATA_SUBZONES  # noqa: E402
+from .const import DATA_HOUSE3D, DATA_SETTINGS, DATA_SUBZONES  # noqa: E402
 
 SCALE_SLOT = "plan_build_scale"                                  # the backups' own slot (the last A.S1_BACKUPS_KEPT)
 SCALE_SOURCES: tuple[str, ...] = ("guided", "plan_dimension", "plan_dimension_corrected")
@@ -1912,12 +1912,23 @@ def _frac_pt(p: Any) -> list[float] | None:
     return [round(x, 4), round(y, 4)] if -0.001 <= x <= 1.001 and -0.001 <= y <= 1.001 else None
 
 
-def scale_from_measures(size: tuple[int, int], measures: Any, source: str, today: str) -> dict[str, Any]:
+def feet_on(hass: HomeAssistant) -> bool:
+    """Settings → "Show lengths in feet and inches": a length typed with no unit is feet (plan_geom.length_read)."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    return bool(((st.data if st else {}) or {}).get("units_feet"))
+
+
+def type_length(feet: bool) -> str:
+    """The refusal of a length that isn't one, its examples in the person's units first."""
+    return "Type a length such as 13' 9\", 13.5 or 4.2 m." if feet else "Type a length such as 4.2 m, 420 cm or 13' 9\"."
+
+
+def scale_from_measures(size: tuple[int, int], measures: Any, source: str | None, today: str, feet: bool = False) -> dict[str, Any]:
     """Pure. The typed lengths parsed (plan_geom.parse_length: feet and inches,
     mm, cm, m) and the scale worked out HERE from the two points and the
     stored picture size, as Measure works it out (maps.js: px/m per
     measurement, their average, the plan's size from it, both rounded as
-    Measure rounds them). A px/m the panel sends is never read. Refused
+    Measure rounds them; `feet`: a bare number is feet, feet_on). A px/m the panel sends is never read. Refused
     ("invalid") when a length isn't one or the points aren't two on the plan.
     Returns {transform: exactly Measure's payload, ppm, across_m, down_m, odd}."""
     w, h = size
@@ -1927,11 +1938,11 @@ def scale_from_measures(size: tuple[int, int], measures: Any, source: str, today
     for ms_ in measures:
         ms_ = ms_ if isinstance(ms_, dict) else {}
         p1, p2 = _frac_pt(ms_.get("p1")), _frac_pt(ms_.get("p2"))
-        metres = G.parse_length(ms_.get("text"))
+        metres = G.parse_length(ms_.get("text"), feet=feet)
         if p1 is None or p2 is None:
             raise Refused("invalid", "Click both ends of something on the plan, then type its length.")
         if metres is None or not 0.05 <= metres <= 1000:
-            raise Refused("invalid", "Type a length such as 4.2 m, 420 cm or 13' 9\".")
+            raise Refused("invalid", type_length(feet))
         dx, dy = (p2[0] - p1[0]) * w, (p2[1] - p1[1]) * h
         dist_px = math.hypot(dx, dy)
         if dist_px < MIN_PX:
@@ -2052,11 +2063,11 @@ def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bo
         out["stop"] = None
     except Refused as err:
         out.update(stop=err.code, stop_message=err.message)
-    out.update(measures_preview(size, measures))
+    out.update(measures_preview(size, measures, feet_on(hass)))
     return out
 
 
-def measures_preview(size: tuple[int, int] | None, measures: Any) -> dict[str, Any]:
+def measures_preview(size: tuple[int, int] | None, measures: Any, feet: bool = False) -> dict[str, Any]:
     """Pure. What the measuring screen says of the typed lengths as they are typed (the metres, the unit a bare number
     was read in) and, once every length has its two ends, the plan's size from them (scale_from_measures, as the save
     works it out) and how far two lengths disagree. The rooms helper's preview and the upload's hand measurement
@@ -2064,13 +2075,13 @@ def measures_preview(size: tuple[int, int] | None, measures: Any) -> dict[str, A
     out: dict[str, Any] = {}
     measures = [x for x in measures if isinstance(x, dict)] if isinstance(measures, list) else []
     if measures:
-        read = [G.length_read(x.get("text")) for x in measures]             # said as the person types, before both ends are clicked
+        read = [G.length_read(x.get("text"), feet=feet) for x in measures]   # said as the person types, before both ends are clicked
         out["metres"], out["assumed"] = [r[0] for r in read], [r[1] for r in read]
         if None in out["metres"]:
-            out["invalid"] = "Type a length such as 4.2 m, 420 cm or 13' 9\"."
+            out["invalid"] = type_length(feet)
         elif size and all(x.get("p1") is not None and x.get("p2") is not None for x in measures):
             try:
-                got = scale_from_measures(size, measures, "guided", "")
+                got = scale_from_measures(size, measures, "guided", "", feet)
                 out.update(metres=got["metres"], across_m=got["across_m"], down_m=got["down_m"], odd=got["odd"])
                 if got["differ_pct"] is not None:
                     out["differ_pct"] = got["differ_pct"]
@@ -2187,7 +2198,7 @@ async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, 
     try:
         m, fid = scale_check(hass, map_id, sig, floor_id)
         _reading_of(store, source, session, map_id, m)
-        got =scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()))   # type: ignore[arg-type]  (UTC, as Measure dates it)
+        got =scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()), feet_on(hass))   # type: ignore[arg-type]  (UTC, as Measure dates it)
     except Refused as err:
         raise stop(err) from None
     mdl, _ms, _cal = _house_stores(hass)
@@ -2390,7 +2401,7 @@ async def scale_replace(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: st
     if size is None or A.image_sig(m) != sig:
         raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
     _reading_of(store, source, session, map_id, m)
-    got = scale_from_measures(size, measures, source, time.strftime("%Y-%m-%d", time.gmtime()))
+    got = scale_from_measures(size, measures, source, time.strftime("%Y-%m-%d", time.gmtime()), feet_on(hass))
     fid = str(old.get("floor_id") or m.get("floor_id") or "")
     if all(abs(float(got["transform"][k]) / float(old.get(k) or 1e-9) - 1) < 0.002 for k in ("scale_x_m", "scale_y_m")):
         return {"ok": True, "unchanged": True, "map_id": map_id, "floor_id": fid}

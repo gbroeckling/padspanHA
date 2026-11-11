@@ -172,13 +172,13 @@ async def ws_maps_scale_measure(hass: HomeAssistant, connection, msg) -> None:
     size = C._picture_size(m)  # noqa: SLF001
     measures = msg.get("measures") or []
     if not msg.get("save"):
-        connection.send_result(msg["id"], {"size": list(size) if size else None, **C.measures_preview(size, measures)})
+        connection.send_result(msg["id"], {"size": list(size) if size else None, **C.measures_preview(size, measures, C.feet_on(hass))})
         return
     if size is None:
         connection.send_result(msg["id"], {"ok": False, "code": "no_picture_size", "message": C.SCALE_WORDS["no_picture_size"]})
         return
     try:
-        got = C.scale_from_measures(size, measures, None, _time.strftime("%Y-%m-%d", _time.gmtime()))
+        got = C.scale_from_measures(size, measures, None, _time.strftime("%Y-%m-%d", _time.gmtime()), C.feet_on(hass))
     except C.Refused as err:
         connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message})
         return

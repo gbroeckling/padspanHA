@@ -592,7 +592,7 @@ const W_FEATURE = {
   director: "3D house: camera flies to events", scale: "Optimize for several wall screens",
   ai_backup: "AI: a backup AI Task is set",
   ai_plans: "AI map-building research is on (experimental)",
-  guest_tags: "Guest tags", room_walk: "Calibration: Walk a room", day_theme: "Day colour theme (Pro)",
+  guest_tags: "Guest tags", room_walk: "Calibration: Walk a room", day_theme: "Day colour theme (Pro)", units_feet: "Lengths in feet and inches",
   fusion: "Combines position and signal for the room",
   tasmota_ble_enabled: "Tasmota Bluetooth receivers",
   occupancy_hybrid_enabled: "Occupancy from motion + Bluetooth",
