@@ -888,6 +888,10 @@ AI_WIZARD_AI: tuple[str, ...] = ("no_ai_task", "not_anthropic", "below_opus_5_5"
 AI_WIZARD_LINKS: tuple[str, ...] = ("guide", "console", "ha_add", "ha_anthropic", "ha_areas")
 # The one tiny read before anything is measured (ai_wizard.ws_ai_wizard_check_claude, 2026-11-12): how it ended.
 AI_WIZARD_CHECK: tuple[str, ...] = ("ok", "no_credit", "unreachable", "no_media", "error", "not_ready")
+# "The scale looks wrong" on the check list (ai_wizard.scale_signs, 2026-11-12): shown (and which signs), what the person
+# did (checked it, said it is right, sent to Mapping's Measure because things in metres sit on it), the rooms redrawn.
+AI_WIZARD_SCALE_NOTICE: tuple[str, ...] = ("shown", "checked", "dismissed", "elsewhere", "reprojected")
+AI_WIZARD_SCALE_SIGNS: tuple[str, ...] = ("rooms", "footprint", "printed")
 ROOMS_BANDS: tuple[str, ...] = ("0", "1", "2_3", "4_6", "7_12", "gt12")
 NAME_SOURCES: tuple[str, ...] = ("area_exact", "area_abbrev", "printed", "typed", "picked_area")
 # The plan's scale (pieces 3 and 4, design J.4): the path its scale took (a
@@ -912,6 +916,7 @@ AI_WIZARD_EVENTS: frozenset[str] = frozenset(
     | {f"ai_wizard:{k}" for k in AI_WIZARD_OUTCOMES} | {f"ai_wizard_fail:{k}" for k in AI_WIZARD_FAILS}
     | {f"ai_wizard_ai:{k}" for k in AI_WIZARD_AI} | {f"ai_wizard_link:{k}" for k in AI_WIZARD_LINKS} | {"ai_wizard_switch:on"}
     | {f"ai_wizard_check:{k}" for k in AI_WIZARD_CHECK}
+    | {f"ai_wizard_scale_notice:{k}" for k in AI_WIZARD_SCALE_NOTICE} | {f"ai_wizard_scale_sign:{k}" for k in AI_WIZARD_SCALE_SIGNS}
     | {f"plan_build_rooms_{w}:{b}" for w in ("offered", "saved") for b in ROOMS_BANDS}
     | {f"plan_build_name:{k}" for k in NAME_SOURCES} | {f"plan_build_unmatched_areas:{b}" for b in ROOMS_BANDS}
     | {f"plan_build_scale:{k}" for k in SCALE_PATHS} | {f"plan_build_scale_save:{k}" for k in SCALE_SAVE}

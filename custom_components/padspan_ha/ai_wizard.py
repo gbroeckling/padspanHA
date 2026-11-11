@@ -18,6 +18,7 @@ same states (and trial_offer.js's trialOfferable against trial_offerable).
 """
 from __future__ import annotations
 
+import math
 import re
 import time
 from datetime import date, datetime
@@ -186,6 +187,11 @@ def clean_wizard(raw: dict) -> dict[str, Any]:
     for k in ("dismissed", "undone", "offered", "struggled"):
         if raw.get(k) is True:
             out[k] = True
+    ok = raw.get("scale_ok")                       # plans whose scale the person said is right (mark "scale_ok")
+    if isinstance(ok, list):
+        ok = [str(m)[:64] for m in ok if isinstance(m, str) and m][-20:]
+        if ok:
+            out["scale_ok"] = ok
     seen = raw.get("seen")                         # Setup step -> the page load that first showed it (mark "step_seen")
     if isinstance(seen, dict):
         seen = {k: str(v)[:64] for k, v in seen.items() if k in SETUP_STEPS_WATCHED and isinstance(v, str)}
@@ -300,7 +306,7 @@ MAPPING_WORDS: dict[str, tuple[str, ...]] = {
 # ── piece 2: Not now, Don't ask again, where it was left (design A.3) ────────
 SNOOZE_DAYS: tuple[int, int] = (7, 30)          # the first Not now, then every one after
 MARKS: tuple[str, ...] = ("offered", "opened", "step", "snoozed", "dismissed", "came_back", "finished", "undone",
-                          "step_seen", "step_left")
+                          "step_seen", "step_left", "scale_ok")
 
 
 def mark(w: dict, what: str, now: float, today: date, step: str | None = None, **ids: Any) -> dict[str, Any]:
@@ -316,6 +322,8 @@ def mark(w: dict, what: str, now: float, today: date, step: str | None = None, *
         w["seen"] = seen
     elif what == "step_left" and step in SETUP_STEPS_WATCHED:
         w["struggled"] = True
+    elif what == "scale_ok" and isinstance(ids.get("map_id"), str) and ids["map_id"]:
+        w["scale_ok"] = [m for m in w.get("scale_ok") or [] if m != ids["map_id"]] + [ids["map_id"]]
     elif what in ("offered", "opened"):
         w["offered"] = True
         if what == "opened" and "started" not in w:
@@ -520,6 +528,58 @@ def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
     return {"rows": rows, "ticked": ticked, "small": small, "outdoor": outdoor, "dropped": dropped, "m2": m2}
 
 
+# ── "The scale looks wrong" (owner, 2026-11-12): evidence the rooms read already holds, at no cost ─────────
+# Each sign is a factor k: how many times too big the rooms come out at the plan's scale (k > 1: the scale is too big).
+# rooms: the rooms' sizes against what a room of that name usually is (the square root of the median ratio, 3 rooms or
+# more); footprint: the rooms together, against a house's 5 to 40 m (only outside that); printed: a double-checked
+# printed measurement Claude already read, against the scale saved. Doors carry none: they are read as points, and
+# their width is a standard one. A notice only when two signs or more fire the same way and roughly agree.
+TYPICAL_M2: dict[str, float] = {"bedroom": 12.0, "bathroom": 5.0, "kitchen": 12.0, "living": 22.0, "dining": 12.0, "family": 20.0,
+                                "office": 10.0, "laundry": 5.0, "closet": 2.5, "hallway": 6.0, "entrance": 5.0, "garage": 32.0,
+                                "powder": 2.5, "ensuite": 5.0}
+SIGN_OFF = 1.2          # a sign fires past 20 % either way
+SIGNS_AGREE = 1.3       # signs that fire the same way agree while the largest is within 30 % of the smallest
+HOUSE_M = (5.0, 40.0)   # a house's longest side, from its rooms
+SCALE_SIGNS: tuple[str, ...] = ("rooms", "footprint", "printed")
+
+
+def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None = None) -> dict[str, Any] | None:
+    """Pure. {k, signs, example} when two signs or more say the scale is off the same way and roughly as much, else
+    None. `spaces`: the proposal's, `rows`: the space ids offered; `printed`: {k, text, metres} from a held,
+    double-checked reading. `example`: the plain-words facts behind the strongest sign (said on the check list)."""
+    from . import plan_geom as G  # noqa: PLC0415
+    signs: dict[str, float] = {}
+    facts: dict[str, dict] = {}
+    named = []
+    for sid in rows:
+        s = spaces.get(sid) or {}
+        a = G.area(s.get("outline_m") or [])
+        words = _words(s.get("new") or s.get("name"))
+        kind = next((k for k in TYPICAL_M2 if k in words), None)
+        if kind and a > 0:
+            named.append((a / TYPICAL_M2[kind], str(s.get("new") or s.get("name") or ""), kind, a))
+    if len(named) >= 3:
+        named.sort()
+        signs["rooms"] = math.sqrt(named[len(named) // 2][0])
+        r = named[-1] if signs["rooms"] > 1 else named[0]
+        facts["rooms"] = {"name": r[1], "kind": r[2], "m2": round(r[3], 1)}
+    pts = [p for sid in rows for p in (spaces.get(sid) or {}).get("outline_m") or []]
+    if pts:
+        side = max(max(p[0] for p in pts) - min(p[0] for p in pts), max(p[1] for p in pts) - min(p[1] for p in pts))
+        if side > HOUSE_M[1] or 0 < side < HOUSE_M[0]:
+            signs["footprint"] = side / (HOUSE_M[1] if side > HOUSE_M[1] else HOUSE_M[0])
+            facts["footprint"] = {"m": round(side, 1)}
+    if printed and printed.get("k"):
+        signs["printed"] = float(printed["k"])
+        facts["printed"] = {"text": printed.get("text"), "metres": printed.get("metres"), "here_m": printed.get("here_m")}
+    for big in (True, False):
+        same = {k: v for k, v in signs.items() if (v >= SIGN_OFF if big else v <= 1 / SIGN_OFF)}
+        if len(same) >= 2 and max(same.values()) / min(same.values()) <= SIGNS_AGREE:
+            ks = sorted(same.values())
+            return {"k": round(ks[len(ks) // 2], 2), "signs": sorted(same), "example": {k: facts[k] for k in same if k in facts}}
+    return None
+
+
 def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Home Assistant's areas: [{name, floor_id}]; none when the registry can't be read."""
     try:
@@ -620,7 +680,7 @@ async def ws_ai_wizard_info(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/ai_wizard_mark",
-    vol.Required("what"): vol.In(("offered", "opened", "step", "snoozed", "dismissed", "came_back", "step_seen", "step_left")),
+    vol.Required("what"): vol.In(("offered", "opened", "step", "snoozed", "dismissed", "came_back", "step_seen", "step_left", "scale_ok")),
     vol.Optional("surface"): vol.In(AI_WIZARD_SURFACES),
     vol.Optional("step"): vol.In(WIZARD_STEPS),
     vol.Optional("setup_step"): vol.In(SETUP_STEPS_WATCHED),

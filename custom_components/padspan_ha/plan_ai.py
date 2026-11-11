@@ -4358,6 +4358,28 @@ def wizard_name(sess: dict, snap: dict, areas: list[dict]) -> None:
             prop["spaces"][sid]["new"] = g["name"]
 
 
+def reproject_rooms(sess: dict, snap: dict) -> bool:
+    """A helper's rooms session, read and not saved, whose plan was measured again since (the person checked the scale;
+    owner, 2026-11-12): each plan takes its placement now, the same picture, so the proposal can be worked out again
+    from the same reads at the new scale. Nothing is read again. True when a plan moved; False (nothing changed) when
+    it didn't, or a plan is gone, unplaced or another picture now (the read is of the picture before)."""
+    if sess.get("via") != "wizard" or sess.get("saved") or sess.get("status") != "done" or not sess.get("proposal"):
+        return False
+    nows = [(pl, snap["plans"].get(pl.get("map_id"))) for pl in sess.get("plans") or []]
+    if not nows or any(now is None or not same_picture(pl["image_sig"], now) for pl, now in nows):
+        return False
+    moved = [(pl, now) for pl, now in nows if now["place_sig"] != pl["place_sig"]]
+    for pl, now in moved:
+        pl.update(t=dict(now["t"]), place_sig=now["place_sig"])
+        pl.pop("changed", None)
+    if moved:
+        # A space's id comes from its outline in metres, so every id is new: the person's names, joins and ticks of the
+        # old ones start again from Claude's (the helper says so), never applied to the wrong room.
+        sess.update(edits={"merges": [], "spaces": {}, "picks": {}}, named={})
+        sess.pop("picked", None)
+    return bool(moved)
+
+
 def read_again(hass: HomeAssistant, store: PlanAiStore, sid: str, room: str) -> str:
     """Start a third read for one flagged room (the plans it was read on), in
     the one job slot; "ok", or not_found / not_flagged / already_running."""

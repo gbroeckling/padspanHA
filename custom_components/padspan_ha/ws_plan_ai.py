@@ -943,7 +943,34 @@ def _rooms_answer(hass: HomeAssistant, store: A.PlanAiStore, sid: str | None) ->
         if sess.get("via") == "wizard" and sess.get("proposal"):
             # The rooms helper: what it offers and ticks at the start, and where each name came from (design D).
             out["wizard"] = {**W.wizard_ticks(sess["proposal"], sess.get("named") or {}), "sources": dict(sess.get("named") or {})}
+            out["wizard"]["scale_check"] = _scale_check(hass, store, sess, out["wizard"]["rows"])
     return out
+
+
+def _scale_check(hass: HomeAssistant, store: A.PlanAiStore, sess: dict[str, Any], rows: list[str]) -> dict[str, Any] | None:
+    """The helper's "the scale looks wrong" evidence (ai_wizard.scale_signs) for an unsaved session, unless the person
+    said this plan's scale is right. Read only; never at the cost of the answer."""
+    if sess.get("saved"):
+        return None
+    try:
+        pl = (sess.get("plans") or [{}])[0] or {}
+        st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        if pl.get("map_id") in (((st.data if st else {}) or {}).get("ai_map_wizard") or {}).get("scale_ok", []):
+            return None
+        printed = None
+        maps = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+        m = maps.get_map(pl.get("map_id")) if maps is not None else None
+        held = A.held_scale_read(store, m) if isinstance(m, dict) else None
+        prop = ((store.scale_session(held) or {}).get("proposal") or {}) if held else {}
+        here = float((pl.get("t") or {}).get("scale_x_m") or 0)
+        if prop.get("checked") and prop.get("across_m") and here:
+            ax = (prop.get("axes") or {}).get(prop.get("main")) or {}
+            k = here / float(prop["across_m"])
+            printed = {"k": k, "text": ax.get("text"), "metres": ax.get("metres"), "here_m": round(float(ax.get("metres") or 0) * k, 2)}
+        return W.scale_signs((sess.get("proposal") or {}).get("spaces") or {}, list(rows), printed)
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("PadSpan rooms helper: the scale check couldn't be worked out", exc_info=True)
+        return None
 
 
 def _rooms_floors(hass: HomeAssistant, store: A.PlanAiStore, snap: dict) -> dict[str, dict[str, Any]]:
@@ -1017,7 +1044,31 @@ async def ws_plan_build_rooms_status(hass: HomeAssistant, connection, msg) -> No
     if not sid:
         sid = max(((k, s) for k, s in (store.data.get("rooms") or {}).items() if isinstance(s, dict)),
                   key=lambda t: float(t[1].get("started_at") or 0), default=(None, None))[0]
+    if _helper(msg) and sid:
+        await _reprojected(hass, store, sid)
     connection.send_result(msg["id"], _rooms_answer(hass, store, sid))
+
+
+async def _reprojected(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> None:
+    """The helper's rooms, after the person checked the scale (owner, 2026-11-12): worked out again from the same reads at
+    the plan's new scale (plan_ai.reproject_rooms), as an edit is; no new read. Taken back if it can't be worked out."""
+    async with store.lock:
+        sess = store.rooms_session(sid)
+        if sess is None:
+            return
+        was = copy.deepcopy(sess.get("plans"))
+        if not A.reproject_rooms(sess, A.house_snapshot(hass)):
+            return
+        snap, house, points, barriers = await A.rooms_inputs(hass)
+        try:
+            sess["proposal"] = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
+        except Exception:  # noqa: BLE001
+            sess["plans"] = was
+            return
+        A.wizard_name(sess, snap, W.ha_areas(hass))
+        sess["rev"] = int(sess.get("rev") or 0) + 1
+        A._bump(hass, "ai_wizard_scale_notice:reprojected")  # noqa: SLF001
+        await store.async_save()
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_build_rooms_resume", vol.Required("session"): str, vol.Optional("via"): VIA})

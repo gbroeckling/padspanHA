@@ -272,6 +272,56 @@ def test_the_helper_needs_no_settings_switch_and_the_plans_tool_still_does(monke
     assert data["ai_plans_enabled"] is False and data["ai_plan_build_enabled"] is False
 
 
+def _box(x0, y0, w, h):
+    return [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]]
+
+
+def test_the_scale_looks_wrong_only_on_two_signs_agreeing():
+    """Owner, 2026-11-12: evidence the rooms read already holds; a notice only when two independent signs say the same way
+    and roughly as much; one sign alone, or two that disagree, say nothing."""
+    big = {"space:1": {"new": "Bedroom", "outline_m": _box(0, 0, 4.9, 4.9)}, "space:2": {"new": "Bedroom 2", "outline_m": _box(5, 0, 5, 5)},
+           "space:3": {"new": "Kitchen", "outline_m": _box(11, 0, 5.1, 5.1)}, "space:4": {"name": "BATH", "new": "Bathroom", "outline_m": _box(55, 0, 3.3, 3.3)}}
+    rows = list(big)
+    got = W.scale_signs(big, rows)
+    assert got and got["signs"] == ["footprint", "rooms"] and 1.4 < got["k"] < 1.55, got
+    assert got["example"]["rooms"]["kind"] in ("bathroom", "kitchen", "bedroom") and got["example"]["footprint"]["m"] == 58.3
+    near = {k: {**v, "outline_m": _box(v["outline_m"][0][0] * 0.3, 0, 4, 4) if k == "space:4" else v["outline_m"]} for k, v in big.items()}
+    assert W.scale_signs(near, rows) is None                                   # rooms alone: never shown on one sign
+    assert W.scale_signs(near, rows, {"k": 1.5, "text": "60'", "metres": 18.3, "here_m": 27.4})["signs"] == ["printed", "rooms"]
+    assert W.scale_signs(near, rows, {"k": 0.6, "text": "60'"}) is None         # the other way: they disagree, nothing said
+    assert W.scale_signs({k: v for k, v in list(near.items())[:2]}, rows[:2], {"k": 1.5}) is None   # two named rooms aren't a sign
+    small = {k: {**v, "outline_m": [[p[0] * 0.5, p[1] * 0.5] for p in v["outline_m"]]} for k, v in near.items()}
+    assert W.scale_signs(small, rows, {"k": 0.7})["signs"] == ["printed", "rooms"] and W.scale_signs(small, rows, {"k": 0.5}) is None   # 0.5 against 0.74: too far apart
+
+
+def test_checking_the_scale_redraws_the_same_rooms_at_the_new_scale_with_no_new_read(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-12: after the scale is measured again, the helper's unsaved rooms come back worked out from the
+    same reads at the new scale (plan_ai.reproject_rooms through rooms_status); a saved session is never touched; the
+    scale notice is gone for a plan whose scale the person said is right."""
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    ans = _wiz_read(h, conn)
+    sess = ans["session"]
+    mid = sess["plans"][0]["map_id"]
+    area = lambda a: {sid: round(A.G.area(s["outline_m"]), 2) for sid, s in a["session"]["proposal"]["spaces"].items() if not s.get("merged_into")}  # noqa: E731
+    before, runs = area(ans), _counters(h).get("plan_build_run:s2_started")
+    tf = h.data[DOMAIN][DATA_MODEL].data["map_transforms"][mid]
+    tf.update(scale_x_m=tf["scale_x_m"] * 2, scale_y_m=tf["scale_y_m"] * 2)  # measured again: twice as big
+    again = _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")
+    after = area(again)
+    # A space's id comes from its outline in metres: the ids are new, the same rooms four times the area.
+    assert again["session"]["rev"] > sess["rev"] and len(after) == len(before)
+    b4, af = sorted(before.values()), sorted(after.values())
+    assert all(abs(a - 4 * b) <= 0.05 * max(1.0, 4 * b) for a, b in zip(af, b4)), (b4, af)
+    assert all(s.get("new") for s in again["session"]["proposal"]["spaces"].values() if not s.get("merged_into"))   # named again
+    assert _counters(h).get("plan_build_run:s2_started") == runs and _counters(h).get("ai_wizard_scale_notice:reprojected") == 1
+    assert _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["session"]["rev"] == again["session"]["rev"]   # once
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {"scale_ok": [mid]}
+    monkeypatch.setattr(W, "scale_signs", lambda *a, **k: {"k": 2.0, "signs": ["rooms", "footprint"], "example": {}})
+    assert _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["wizard"]["scale_check"] is None
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {}
+    assert _call(WP.ws_plan_build_rooms_status, h, conn, session=sess["id"], via="wizard")["wizard"]["scale_check"]["k"] == 2.0
+
+
 def test_the_helper_names_ticks_saves_adds_the_area_asked_for_and_undo_takes_the_rooms_back(monkeypatch, tmp_path, disk):  # noqa: F811
     h, conn, _ai = _bare(monkeypatch, tmp_path, disk, areas=[{"name": "Den", "floor_id": "main"}, {"name": "Store", "floor_id": None},
                                                               {"name": "Nook", "floor_id": "upper"}])

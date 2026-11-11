@@ -317,7 +317,10 @@ async function loadAll(ctx, S) {
         S.scaleSid = w.started.scale_session;          // Claude's reading, left while it read or while measuring (scale_check: before 2026-11-12)
         await scaleStatus(ctx, S);
       } else if (at === "scale_guided" && S.plan && needsScale(ctx.state, S.plan)) {
-        await toMeasure(ctx, S);                         // measuring: back to that, a reading Claude already made offered (never a new one)
+        // Measuring: back to that, a reading Claude already made offered (never a new one); with rooms read before (the
+        // scale was being checked), those rooms come back after Save, worked out again (scaleSave).
+        if (w.started.rooms_session) S.rescaleSid = w.started.rooms_session;
+        await toMeasure(ctx, S);
       } else if (at === "floor_pick") {
         // Which floor the plan shows: the plan chooser; Draw my rooms then measures again (no new read).
       } else if (!gone && w.started && w.started.rooms_session) {
@@ -625,7 +628,7 @@ async function startRead(ctx, S, plan) {
   try {
     await consent(ctx, S);
     const r = await ws(ctx, { type: "padspan_ha/plan_build_rooms_start", floor_id: plan.floor_id, map_ids: [plan.id], via: VIA });
-    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null;
+    S.plan = plan; S.sid = r.session; S.ans = null; S.ticks = new Set(); S.ha = new Set(); S.sel = new Set(); S.names = {}; S.done = null; S.undone = null; S.redrawn = false;
     S.screen = "rooms_read";
     _done.delete("step:rooms_read"); _done.delete("step:rooms_check"); _done.delete("step:saved");
   } catch (e) { startFailed(ctx, S, plan, e); }
@@ -705,6 +708,11 @@ async function scaleSave(ctx, S) {
   S.sc = null;
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   if (ctx.actions.mapsRefresh && plan.floor_id !== S.plan.floor_id) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
+  if (S.rescaleSid) {                                // "Check the scale": the same rooms, worked out again at the new scale (no new read)
+    S.sid = S.rescaleSid; S.rescaleSid = null; S.scaleElsewhere = null;
+    await status(ctx, S);
+    if (S.screen === "rooms_check") { S.redrawn = true; rerender(ctx); return; }
+  }
   return startRead(ctx, S, plan);
 }
 
@@ -1363,8 +1371,76 @@ function scaleSaid(ctx, S, said, sized, save) {
   save.disabled = !scaleReady(S);
 }
 
+/** "The scale looks wrong" in plain words (ai_wizard.scale_signs' answer): how far, and the example that showed it. */
+const KIND_WORDS = { living: "living room", dining: "dining room", family: "family room", powder: "powder room" };
+export function scaleNoticeWords(sc) {
+  const big = Number(sc.k) > 1, pct = Math.round(Math.abs(Number(sc.k) - 1) * 100), ex = sc.example || {}, bits = [];
+  if (ex.rooms) bits.push(`${ex.rooms.name} would be ${ex.rooms.m2} m², ${big ? "big" : "small"} for a ${KIND_WORDS[ex.rooms.kind] || ex.rooms.kind}`);
+  if (ex.footprint) bits.push(`the rooms together would run ${ex.footprint.m} m end to end`);
+  if (ex.printed) bits.push(`Claude read ${ex.printed.text} printed on the plan, which this scale makes ${ex.printed.here_m} m`);
+  const said = bits.join("; ");
+  return `The scale may be off: the rooms come out about ${pct} % too ${big ? "big" : "small"}.` + (said ? ` ${said[0].toUpperCase()}${said.slice(1)}.` : "");
+}
+/** Where "Check the scale" can't take the scale back here (u.code): what a correction affects, and where it is made. */
+export const SCALE_ELSEWHERE = {
+  changed_since: "Things placed in metres sit on this scale now (receivers, calibration spots, or another plan lined up with it), so it isn't " +
+    "taken back here: a new measurement in Mapping → Edit → Measure moves them with it. Come back here after: the rooms are drawn again " +
+    "from the same reading, with no new read.",
+  other: "This plan's scale wasn't set here, so it is changed where it was set, in Mapping → Edit → Measure. Come back here after: the rooms " +
+    "are drawn again from the same reading, with no new read.",
+};
+
+/** "Check the scale": the helper's own scale taken back (only while nothing in metres sits on it) and the measuring screen
+ *  opened; after Save the same rooms come back, worked out again at the new scale on the server, with no new read. Where
+ *  it can't be taken back here, the list says what a correction affects and opens Mapping's Measure. Never automatic. */
+async function checkScale(ctx, S) {
+  const mid = S.plan && S.plan.id;
+  if (!mid || S.busy) return;
+  tel(ctx, "ai_wizard_scale_notice:checked");
+  S.busy = true; S.msg = ""; rerender(ctx);
+  const u = await ws(ctx, { type: "padspan_ha/plan_build_scale_undo", map_id: mid, via: VIA }).catch((e) => ({ ok: false, code: e && e.code }));
+  S.busy = false;
+  if (u && u.ok) {
+    if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+    S.rescaleSid = S.sid; S.scaleSid = null; S.sc = null;
+    await toMeasure(ctx, S);
+  } else {
+    tel(ctx, "ai_wizard_scale_notice:elsewhere");
+    S.scaleElsewhere = (u && u.code) === "changed_since" ? "changed_since" : "other";
+  }
+  rerender(ctx);
+}
+
+/** The notice at the top of the check list: two signs or more agreeing (never one), with its example; never blocks Save. */
+function scaleNotice(ctx, S, sc) {
+  const { el } = ctx.helpers, mid = S.plan && S.plan.id;
+  if (!sc || !mid || (S.scaleOkFor || []).includes(mid)) return null;
+  telOnce(ctx, "ai_wizard_scale_notice:shown");
+  for (const s of sc.signs || []) telOnce(ctx, "ai_wizard_scale_sign:" + s);
+  const box = el("div", { "data-aiw": "scale-notice", style: "border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin:8px 0" });
+  box.appendChild(P(ctx, scaleNoticeWords(sc), "margin:0"));
+  if (S.scaleElsewhere) {
+    box.appendChild(P(ctx, SCALE_ELSEWHERE[S.scaleElsewhere], "margin:6px 0 0;color:#f59e0b"));
+    box.appendChild(row(ctx, [btn(ctx, "Measure it in Mapping →", () => { ctx.state._aiw = null; ctx.actions.openSetupStep("scale", mid); },
+      { primary: true, attrs: { "data-aiw": "scale-elsewhere" } })]));
+    return box;
+  }
+  box.appendChild(row(ctx, [
+    btn(ctx, "Check the scale", () => checkScale(ctx, S), { primary: true, disabled: S.busy, attrs: { "data-aiw": "scale-check" } }),
+    btn(ctx, "The scale is right", () => {
+      tel(ctx, "ai_wizard_scale_notice:dismissed");
+      S.scaleOkFor = [...(S.scaleOkFor || []), mid];
+      ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "scale_ok", map_id: mid }).catch(() => {});
+      rerender(ctx);
+    }, { attrs: { "data-aiw": "scale-right" } }),
+    MUTED(ctx, "Checking it costs nothing: the same reading is used.")]));
+  return box;
+}
+
+/** The check list (2026-11-12): what needs a look after what looks right, each row's size, its secondary controls behind
+ *  its own "⋯", and Save in a bar that stays in view while the list scrolls. The defaults are the server's, unchanged. */
 function checkScreen(ctx, S, box) {
-  const { el } = ctx.helpers;
+  const { el } = ctx.helpers, st = ctx.state;
   const sess = S.ans.session, rows = rowsOf(S.ans), w = S.ans.wizard || {};
   const shown = rows.filter(r => !r.small || S.showSmall);
   const nTick = rows.filter(r => S.ticks.has(r.id)).length;
@@ -1376,11 +1452,20 @@ function checkScreen(ctx, S, box) {
     .map(s => { const r = shown.find(x => x.id === s.id); return r ? { ...s, name: nameOf(S, r) } : s; }) : [];
   const areas = (S.ans.areas || []).map(String), isArea = (n) => areas.some(a => a.toLowerCase() === String(n).toLowerCase());
   if (!rows.length && !f) {
-    box.appendChild(P(ctx, "Claude didn't find rooms it could use on this plan. You can ask it to read the plan again, or draw the rooms yourself."));
-    box.appendChild(row(ctx, [btn(ctx, "Read it again", () => act(ctx, S, "again"), { primary: true, disabled: S.busy, attrs: { "data-aiw": "none-again" } }),
-      btn(ctx, "Draw them myself", () => act(ctx, S, "by_hand"), { attrs: { "data-aiw": "none-by-hand" } })]));
+    // Nothing found (2026-11-12): reading the same plan again found the same rooms every time in testing, so the main way
+    // on is drawing them by hand or another plan; reading again is the lesser choice, its cost said.
+    box.appendChild(P(ctx, "Claude didn't find rooms it could use on this plan."));
+    const others = plansOf(st).filter(m => S.plan && m.id !== S.plan.id && !planRoomed(st, m));
+    box.appendChild(row(ctx, [btn(ctx, "Draw them myself", () => act(ctx, S, "by_hand"), { primary: true, attrs: { "data-aiw": "none-by-hand" } }),
+      ...(others.length ? [btn(ctx, "Try another plan", () => toChooser(ctx, S), { attrs: { "data-aiw": "none-other-plan" } })] : [])]));
+    box.appendChild(row(ctx, [MUTED(ctx, "Reading this plan again usually finds the same: two more reads, charged to your Anthropic account."),
+      btn(ctx, "Read it again", () => act(ctx, S, "again"), { disabled: S.busy, attrs: { "data-aiw": "none-again" } })]));
     return;
   }
+  if (S.redrawn) box.appendChild(el("div", { "data-aiw": "redrawn", style: "font-size:12px;color:#a7f3d0;line-height:1.5;margin:4px 0" },
+    "Drawn again at the new scale, from the same reading. Names and ticks are Claude's again: check them before you save."));
+  const notice = scaleNotice(ctx, S, w.scale_check);
+  if (notice) box.appendChild(notice);
   // The plan beside its list on a wide screen, above it on a narrow one.
   const cols = el("div", { "data-aiw": "check", style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:1 1 340px;min-width:280px" });
@@ -1391,12 +1476,12 @@ function checkScreen(ctx, S, box) {
   box.appendChild(el("datalist", { id: "aiw-areas" }, areas.map(a => el("option", { value: a }))));
   const list = el("div", { "data-aiw": "rows", style: "display:flex;flex-direction:column;gap:6px;margin:8px 0" });
   let anyHa = false;
-  for (const r of shown) {
+  const rowItem = (r) => {
     const tick = el("input", { type: "checkbox", "data-aiw": "tick-" + r.id });
     tick.checked = S.ticks.has(r.id);
     tick.addEventListener("change", () => { if (tick.checked) S.ticks.add(r.id); else S.ticks.delete(r.id); keepTicks(ctx, S); rerender(ctx); });
     const name = el("input", { type: "text", list: "aiw-areas", maxlength: "40", "data-aiw": "name-" + r.id,
-      style: "flex:0 1 220px;min-width:120px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:3px 6px;font-size:13px" });
+      style: "flex:0 1 200px;min-width:110px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:3px 6px;font-size:13px" });
     name.value = typeof S.names[r.id] === "string" ? S.names[r.id] : r.name;
     if (r.his || S.busy) name.disabled = true;
     // Typing stays here (S.names): no answer or redraw takes it away. Left (change), the name is kept on the session
@@ -1414,33 +1499,49 @@ function checkScreen(ctx, S, box) {
     const typed = nameOf(S, r), matched = typed === r.name ? r.matched : isArea(typed);
     const chipText = r.his ? "your room" : !r.sure ? "Claude saw this one differently twice: look at its shape"
       : matched ? "matches your Home Assistant room" : "new room, only in PadSpan";
-    const line = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [tick, name,
-      el("span", { "data-aiw": "chip-" + r.id, style: `font-size:11px;color:${r.sure ? "#94a3b8" : "#f59e0b"}` }, chipText)]);
-    if (r.his && r.flagged) line.appendChild(btn(ctx, "Ask Claude to look again", async () => {
+    const size = Number(r.m2) > 0 ? el("span", { "data-aiw": "m2-" + r.id, style: "font-size:12px;color:#cbd5e1;white-space:nowrap" }, `${Math.round(r.m2 * 10) / 10} m²`) : "";
+    // Its secondary controls behind the row's own ⋯ (the Home Assistant area, a look again): kept in the row, hidden.
+    const more = el("div", { "data-aiw": "more-" + r.id, style: `display:${(S.open || new Set()).has(r.id) ? "block" : "none"};margin:4px 0 0 22px` });
+    if (r.his && r.flagged) more.appendChild(btn(ctx, "Ask Claude to look again", async () => {
       try { take(S, await ws(ctx, { type: "padspan_ha/plan_build_rooms_read_again", session: sess.id, rev: sess.rev, room: r.id.slice(5), via: VIA })); S.screen = "rooms_read"; }
       catch (e) { S.msg = codeWords(e && e.code); }
       rerender(ctx);
     }, { attrs: { "data-aiw": "again-" + r.id } }));
-    const item = el("div", { style: "padding:6px 8px;border:1px solid #1b3526;border-radius:6px" }, [line]);
-    if (r.renamed && typed === r.name) item.appendChild(el("div", { "data-aiw": "renamed-" + r.id, style: "font-size:12px;color:#94a3b8;margin:4px 0 0 22px" },
-      `Another room is already called "${r.renamed}", so this one is "${r.name}". Change it if you like.`));
     if (!r.his && !matched) {
       const ha = el("input", { type: "checkbox", "data-aiw": "ha-" + r.id });
       ha.checked = S.ha.has(r.id);
       ha.addEventListener("change", () => { if (ha.checked) S.ha.add(r.id); else S.ha.delete(r.id); keepTicks(ctx, S); rerender(ctx); });
-      // Said once, under the list (HA_NOTE below): a row keeps to a few words.
-      item.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8;margin:4px 0 0 22px" }, [ha,
-        el("span", {}, "Also add this room to Home Assistant")]));
+      more.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, [ha,
+        el("span", {}, "Also make it a Home Assistant area (for its area pages and motion sensors)")]));
       anyHa = true;
     }
+    const toggle = more.children.length ? btn(ctx, (S.open || new Set()).has(r.id) ? "▴" : "⋯", () => {
+      S.open = S.open || new Set();
+      if (S.open.has(r.id)) S.open.delete(r.id); else S.open.add(r.id);
+      rerender(ctx);
+    }, { attrs: { "data-aiw": "toggle-" + r.id, "aria-label": "More for this room" } }) : "";
+    const line = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [tick, name, size,
+      el("span", { "data-aiw": "chip-" + r.id, style: `font-size:11px;color:${r.sure ? "#94a3b8" : "#f59e0b"}` }, chipText),
+      S.ha.has(r.id) ? el("span", { style: "font-size:11px;color:#a7f3d0" }, "+ area") : "", toggle]);
+    const item = el("div", { style: "padding:6px 8px;border:1px solid #1b3526;border-radius:6px" }, [line, more]);
+    if (r.renamed && typed === r.name) item.appendChild(el("div", { "data-aiw": "renamed-" + r.id, style: "font-size:12px;color:#94a3b8;margin:4px 0 0 22px" },
+      `Another room is already called "${r.renamed}", so this one is "${r.name}". Change it if you like.`));
     // The row's room lights up on the plan while the pointer is on it.
     item.addEventListener("mouseenter", () => { const g = cols.querySelector(`polygon[data-id="${r.id}"]`); if (g) { g.setAttribute("stroke", "#ffffff"); g.setAttribute("stroke-width", "6"); } });
     item.addEventListener("mouseleave", () => { const g = cols.querySelector(`polygon[data-id="${r.id}"]`); if (g) { const pk = S.sel.has(r.id); g.setAttribute("stroke", pk ? "#ffffff" : (r.sure ? "#52b788" : "#f59e0b")); g.setAttribute("stroke-width", pk ? "5" : "3"); } });
-    list.appendChild(item);
+    return item;
+  };
+  // What looks right first; what needs a look after it, under its own heading.
+  const unsure = shown.filter(r => !r.sure || r.flagged), sure = shown.filter(r => !unsure.includes(r));
+  for (const r of sure) list.appendChild(rowItem(r));
+  if (unsure.length) {
+    list.appendChild(el("div", { "data-aiw": "unsure-head", style: "font-size:13px;font-weight:600;color:#f59e0b;margin:8px 0 0" },
+      `Look at ${unsure.length === 1 ? "this one" : `these ${unsure.length}`}: Claude saw ${unsure.length === 1 ? "it" : "them"} differently on its two reads`));
+    for (const r of unsure) list.appendChild(rowItem(r));
   }
   side.appendChild(list);
   if (anyHa) side.appendChild(el("div", { "data-aiw": "ha-note", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:2px 0 8px" }, [
-    "\"Also add this room to Home Assistant\" makes an area there with that name, so Home Assistant's own pages and motion sensors can use the room. ",
+    "A room's ⋯ can also make it a Home Assistant area of that name, so Home Assistant's own pages and motion sensors can use the room. ",
     "Undo here takes the room out of PadSpan but leaves the area in Home Assistant; remove it there on the ", haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas"), "."]));
   const small = rows.filter(r => r.small);
   if (small.length) side.appendChild(row(ctx, [MUTED(ctx, `Small spaces (${small.length}): closets and halls, left out.`),
@@ -1452,8 +1553,10 @@ function checkScreen(ctx, S, box) {
     btn(ctx, "Join into one", () => { if (S.sel.size >= 2 && !S.busy) edit(ctx, S, { op: "merge", parts: [...S.sel] }); }, { disabled: S.sel.size < 2 || S.busy, attrs: { "data-aiw": "join" } })]));
   if (S.fail) box.appendChild(failBlock(ctx, S, S.fail));
   const n = [...S.ticks].filter(id => rows.some(r => r.id === id)).length;
-  box.appendChild(row(ctx, [btn(ctx, S.busy ? "Saving…" : `Save ${n} room${n === 1 ? "" : "s"} (experimental)`, () => save(ctx, S),
-    { primary: true, disabled: !n || S.busy, attrs: { "data-aiw": "save" } }), MUTED(ctx, "A backup is taken first. One Undo takes it all back.")]));
+  // Save stays in view while the list scrolls (desktop and phone): a bar stuck to the bottom of the screen.
+  box.appendChild(el("div", { "data-aiw": "save-bar", style: "position:sticky;bottom:0;z-index:2;background:#0f1a12;border-top:1px solid #1b3526;padding:6px 0;margin-top:8px" },
+    [row(ctx, [btn(ctx, S.busy ? "Saving…" : `Save ${n} room${n === 1 ? "" : "s"} (experimental)`, () => save(ctx, S),
+      { primary: true, disabled: !n || S.busy, attrs: { "data-aiw": "save" } }), MUTED(ctx, "A backup is taken first. One Undo takes it all back.")], "margin:0")]));
 }
 
 function savedScreen(ctx, S, box) {

@@ -814,6 +814,8 @@ const W_WIZ_AI = { no_ai_task: "no AI Task", not_anthropic: "not Anthropic's int
 const W_WIZ_LINK = { guide: "the guide", console: "the Anthropic Console", ha_add: "add Anthropic in Home Assistant", ha_anthropic: "the Anthropic integration",
   ha_areas: "Home Assistant's Areas" };
 const W_WIZ_CHECK = { ok: "passed", no_credit: "the Anthropic account is out of credit", unreachable: "Claude couldn't be reached", no_media: "media folder", error: "another error (went on)", not_ready: "no usable AI Task" };
+const W_WIZ_SCALE_NOTICE = { shown: "shown", checked: "the person checked the scale", dismissed: "the person said the scale is right", elsewhere: "sent to Mapping's Measure (things in metres sit on the scale)", reprojected: "the rooms redrawn at the new scale (no new read)" };
+const W_WIZ_SCALE_SIGN = { rooms: "room sizes for their names", footprint: "the rooms' overall size", printed: "a printed measurement Claude read" };
 const W_ROOMS_BAND = { "0": "no rooms", "1": "1 room", "2_3": "2–3 rooms", "4_6": "4–6 rooms", "7_12": "7–12 rooms", gt12: "over 12 rooms" };
 const W_NAME_SOURCE = { area_exact: "after a Home Assistant area (same name)", area_abbrev: "after a Home Assistant area (abbreviated)",
   printed: "as printed on the plan", typed: "by typing", picked_area: "by picking an area" };
@@ -986,6 +988,8 @@ function word(kind, k) {
       if (a === "ai_wizard_ai") return `AI rooms helper, Claude: ${W_WIZ_AI[b] || b}`;
       if (a === "ai_wizard_link") return `AI rooms helper link tapped: ${W_WIZ_LINK[b] || b}`;
       if (a === "ai_wizard_check") return `AI rooms helper's account check before measuring: ${W_WIZ_CHECK[b] || b}`;
+      if (a === "ai_wizard_scale_notice") return `AI rooms helper, "the scale looks wrong": ${W_WIZ_SCALE_NOTICE[b] || b}`;
+      if (a === "ai_wizard_scale_sign") return `AI rooms helper, "the scale looks wrong" shown on: ${W_WIZ_SCALE_SIGN[b] || b}`;
       if (a === "ai_wizard_switch") return "AI rooms helper turned on AI map-building and Build from plans";
       if (a === "plan_build_rooms_offered") return `AI rooms helper offered ${W_ROOMS_BAND[b] || b}`;
       if (a === "plan_build_rooms_saved") return `AI rooms helper saved ${W_ROOMS_BAND[b] || b}`;

@@ -1295,5 +1295,91 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
     && !q(r3, '[data-aiw="start"]'), r3.textContent.slice(0, 300));
 }
 
+// ── 2026-11-12: the check list's shape: what looks right first, what needs a look after it under its heading, each row's
+// size, its secondary controls behind its own ⋯, Save in a bar that stays in view ──
+{
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  let root = await view(h);
+  const list = q(root, '[data-aiw="rows"]'), t = list.textContent, head = q(root, '[data-aiw="unsure-head"]');
+  check("shape: sure rows first, the unsure after their heading", head && head.textContent === "Look at this one: Claude saw it differently on its two reads"
+    && t.indexOf("Kitchen") < t.indexOf("Look at this one") && t.indexOf("Look at this one") < t.indexOf("differently twice"), t.slice(0, 400));
+  check("shape: each row's size", q(root, '[data-aiw="m2-space:a"]')?.textContent === "9 m²" && q(root, '[data-aiw="m2-space:b"]')?.textContent === "12 m²");
+  const more = q(root, '[data-aiw="more-space:b"]');
+  check("shape: the Home Assistant area behind the row's ⋯, closed, default off", more && String(more.getAttribute("style")).includes("display:none")
+    && !!q(more, '[data-aiw="ha-space:b"]') && q(more, '[data-aiw="ha-space:b"]').checked === false && !!q(root, '[data-aiw="toggle-space:b"]')
+    && !q(root, '[data-aiw="toggle-space:a"]'), more && more.getAttribute("style"));
+  q(root, '[data-aiw="toggle-space:b"]').click();
+  root = await view(h);
+  check("shape: ⋯ opens it", String(q(root, '[data-aiw="more-space:b"]').getAttribute("style")).includes("display:block"));
+  const bar = q(root, '[data-aiw="save-bar"]');
+  check("shape: Save in a bar stuck to the bottom of the screen", bar && String(bar.getAttribute("style")).includes("position:sticky") && String(bar.getAttribute("style")).includes("bottom:0")
+    && !!q(bar, '[data-aiw="save"]'), bar && bar.getAttribute("style"));
+}
+
+// ── 2026-11-12: nothing found: draw them by hand (or another plan) first; reading again the lesser choice, its cost said ──
+{
+  const maps = [{ id: "m1", name: "Main plan", floor_id: "main", image: { width: 1000, height: 800 } }, { id: "m2", name: "Upper plan", floor_id: "upper", image: { width: 1000, height: 800 } }];
+  const none = { session: SESS({ proposal: { rooms: {}, spaces: {}, openings: {}, stairs: {} } }), areas: [], undo: null, wizard: { ...WIZ, rows: [], ticked: [], small: [] } };
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors: [{ floor_id: "main", name: "Main", level: 0 }, { floor_id: "upper", name: "Upper", level: 1 }],
+    tfs: { m1: { ...T, reference_measurements: [{}] }, m2: { ...T, reference_measurements: [{}] } }, ans: none, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  const root = await view(h);
+  const hand = q(root, '[data-aiw="none-by-hand"]'), again = q(root, '[data-aiw="none-again"]'), other = q(root, '[data-aiw="none-other-plan"]');
+  check("nothing found: Draw them myself first, another plan offered, Read it again lesser with its cost", hand && hand.className.includes("primary")
+    && again && !again.className.includes("primary") && !!other && root.textContent.includes("usually finds the same: two more reads, charged to your Anthropic account"), root.textContent.slice(0, 400));
+}
+
+// ── 2026-11-12: "the scale looks wrong", only on the server's two agreeing signs; Check the scale and The scale is right ──
+{
+  const SCK = { k: 1.42, signs: ["footprint", "rooms"], example: { rooms: { name: "Den", kind: "bedroom", m2: 24.2 }, footprint: { m: 57.1 } } };
+  const ans = { session: SESS(), areas: ["Kitchen", "Garage"], undo: null, wizard: { ...WIZ, scale_check: SCK } };
+  let statusAsked = [];
+  const h = house({ unlock: { ok: true, why: "ok" }, master: true, ans, scaleUndo: { ok: true, map_id: "m1" },
+    status: () => { statusAsked.push(1); return ans; }, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  let root = await view(h);
+  const n = q(root, '[data-aiw="scale-notice"]');
+  check("scale notice: said with its example, two answers, Save still there", n && n.textContent.includes("The scale may be off: the rooms come out about 42 % too big.")
+    && n.textContent.includes("Den would be 24.2 m², big for a bedroom; the rooms together would run 57.1 m end to end.")
+    && !!q(root, '[data-aiw="scale-check"]') && !!q(root, '[data-aiw="scale-right"]') && q(root, '[data-aiw="save"]').disabled === false, n && n.textContent);
+  check("scale notice: counted, with its signs", h.tele.includes("ai_wizard_scale_notice:shown") && h.tele.includes("ai_wizard_scale_sign:rooms") && h.tele.includes("ai_wizard_scale_sign:footprint"), h.tele);
+  q(root, '[data-aiw="scale-check"]').click();
+  for (let i = 0; i < 6; i++) await tick();
+  h.ctx.state.model.map_transforms = {};                          // the helper's scale taken back: the plan has none now
+  root = await view(h);
+  const u = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_undo");
+  check("check the scale: the helper's scale taken back, the measuring screen, counted", u && u.map_id === "m1" && u.via === "wizard" && !!q(root, '[data-aiw="measure"]')
+    && h.tele.includes("ai_wizard_scale_notice:checked"), typesOf(h));
+  tap(q(root, '[data-aiw="measure"]'), 80, 300); root = await view(h);
+  tap(q(root, '[data-aiw="measure"]'), 480, 300); root = await view(h);
+  await typeIn(q(root, '[data-aiw="scale-length"]'), "5 m");
+  root = await view(h);
+  const before = statusAsked.length;
+  h.ctx.state.model.map_transforms = { m1: { ...T, reference_measurements: [{}] } };
+  q(root, '[data-aiw="scale-save"]').click();
+  for (let i = 0; i < 8; i++) await tick();
+  root = await view(h);
+  check("check the scale: saved, then the same rooms back from the same reading, no new read", h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save")
+    && statusAsked.length > before && !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start") && !!q(root, '[data-aiw="rows"]'), typesOf(h));
+  // The scale is right: dismissed for that plan, remembered.
+  const g = house({ unlock: { ok: true, why: "ok" }, master: true, ans, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  let gr = await view(g);
+  q(gr, '[data-aiw="scale-right"]').click();
+  gr = await view(g);
+  check("the scale is right: gone, remembered for the plan, counted", !q(gr, '[data-aiw="scale-notice"]') && g.calls.some(c => c.what === "scale_ok" && c.map_id === "m1")
+    && g.tele.includes("ai_wizard_scale_notice:dismissed"), g.tele);
+  // Things in metres on the scale: not taken back here; what a correction affects, and Mapping's Measure.
+  const k = house({ unlock: { ok: true, why: "ok" }, master: true, ans, scaleUndo: { ok: false, code: "changed_since", message: "x" },
+    wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  let kr = await view(k);
+  q(kr, '[data-aiw="scale-check"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  kr = await view(k);
+  check("scale elsewhere: what it affects, Measure in Mapping", kr.textContent.includes(W.SCALE_ELSEWHERE.changed_since) && !!q(kr, '[data-aiw="scale-elsewhere"]')
+    && !q(kr, '[data-aiw="measure"]') && k.tele.includes("ai_wizard_scale_notice:elsewhere"), kr.textContent.slice(0, 500));
+  q(kr, '[data-aiw="scale-elsewhere"]').click();
+  check("scale elsewhere: opens Setup's scale step on this plan", k.steps.at(-1) === "scale" && k.stepMaps.at(-1) === "m1", [k.steps, k.stepMaps]);
+  // One sign alone: never shown (the server answers none).
+  const one = house({ unlock: { ok: true, why: "ok" }, master: true, wizard: { started: { at: "rooms_check", map_id: "m1", rooms_session: "rb_1" } } });
+  check("no notice without the server's answer", !q(await view(one), '[data-aiw="scale-notice"]'));
+}
 console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
 process.exit(0);
