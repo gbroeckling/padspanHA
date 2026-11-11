@@ -577,6 +577,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("ai_stairs_enabled"): bool,
         vol.Optional("ai_plans_enabled"): bool,
         vol.Optional("ai_plan_build_enabled"): bool,
+        vol.Optional("ai_map_wizard"): vol.Any(dict, None),
         vol.Optional("atlas_3d_library"): bool,
         vol.Optional("atlas_3d_weather"): bool,
         vol.Optional("atlas_3d_showcase"): bool,
@@ -775,7 +776,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 await async_runs_opted_out(hass)
         if ("atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg or "ai_photos_enabled" in msg
                 or "ai_stairs_enabled" in msg or "ai_plans_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg
-                or "ai_credit_month_usd" in msg or "ai_credit_warn_pct" in msg or "ai_plan_build_enabled" in msg):
+                or "ai_credit_month_usd" in msg or "ai_credit_warn_pct" in msg or "ai_plan_build_enabled" in msg or "ai_map_wizard" in msg):
             # Live Aboard's shared library and a cloud AI Task reading photos
             # both let data leave the house: an administrator's call, like the
             # usage report above.
@@ -988,6 +989,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if payload["ai_credit_warn_pct"] != ((st.data if st is not None else {}) or {}).get("ai_credit_warn_pct", 0):
                 from .telemetry import bump as _t_bump  # noqa: PLC0415
                 _t_bump(hass, f"ai_credit_warn:set_{_pct}" if payload["ai_credit_warn_pct"] else "ai_credit_warn:off")
+        if "ai_map_wizard" in msg and isinstance(msg["ai_map_wizard"], dict):
+            # Let Claude draw your rooms: only the keys the helper keeps (ai_wizard.clean_wizard).
+            from .ai_wizard import clean_wizard  # noqa: PLC0415
+            payload["ai_map_wizard"] = clean_wizard(msg["ai_map_wizard"])
         if "atlas_3d_carries" in msg and isinstance(msg["atlas_3d_carries"], dict):
             # A non-dict is ignored, never stored as empty (light_shapes' rule).
             payload["atlas_3d_carries"] = _atlas_3d_carries(msg["atlas_3d_carries"])

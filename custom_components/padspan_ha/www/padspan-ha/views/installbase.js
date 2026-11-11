@@ -282,6 +282,29 @@ function renderUnlocked(ctx, root) {
       })());
     }
 
+    // ── getting to a map ──────────────────────────────────────────────────
+    // env.mapping, sent only by a home with a plan whose setup isn't finished
+    // (or that used the AI helper), from each install's latest report (stats.php
+    // fields); env.ai's Claude words come from the same homes. The Plans tool's
+    // walls are the window's usage counts.
+    const fenv = (s.fields && s.fields.env) || {};
+    const mpv = (fenv.mapping || {}).values || {}, aiv = (fenv.ai || {}).values || {};
+    const only = (vals, ...fs) => Object.fromEntries(Object.entries(vals).filter(([k]) => fs.includes(k.split(":")[0])));
+    if (Object.keys(mpv).length) {
+      const nMap = (fenv.mapping || {}).installs || 0, stuckBy = only(mpv, "stuck"), lead = top(stuckBy);
+      const walls = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^(plans_tool|plans_tab|plans_floor|plan_build_stop_ui):/.test(k)));
+      section("Getting to a map", "Homes that added a floor plan but haven't finished setting up, from each install's latest report: the step each is stuck at, how old its plan is, and what the AI helper's rule (Let Claude draw your rooms) would say to it. Homes that finished setup don't send this.", [
+        grid([
+          barCard(el, { title: "Where they are stuck", ask: "The first setup step not done yet", map: stuckBy, total: nMap, kind: "mapping" }),
+          barCard(el, { title: "How old their plan is", ask: "Days since the first plan was added", map: only(mpv, "plan_age"), total: nMap, kind: "mapping", ranked: false }),
+          barCard(el, { title: "The AI helper's rule says", ask: "Why the helper would or wouldn't be offered to each", map: only(mpv, "wizard"), total: nMap, limit: 15, kind: "mapping" }),
+          barCard(el, { title: "The AI helper", ask: "Where each home is with it", map: only(mpv, "wizard_state", "wizard_done_age"), total: nMap, limit: 20, kind: "mapping" }),
+          barCard(el, { title: "Claude, in these homes", ask: "Whether Claude can read their plans, whatever Settings → AI says", map: only(aiv, "claude", "claude_available"), total: nMap, kind: "mapping" }),
+          pairCard(el, `The Plans tool (${W} days)`, "Opened, tabs, floors picked, and where it stopped on screen", walls, "count", 12, "usage"),
+        ]),
+      ], `${fmt(nMap)} homes still setting up` + (lead ? ` · most: ${word("mapping", lead[0])}` : ""));
+    }
+
     // ── 02 versions ───────────────────────────────────────────────────────
     section("Versions", `What people run, from each install's latest report. Percentages on this page are of the ${fmt(n)} installs that have ever sent a report, unless a card says otherwise.`, [
       grid([
@@ -445,7 +468,7 @@ function renderUnlocked(ctx, root) {
     // one row each: what it is, how many homes sent it, and what they said.
     // A field added to the report later turns up here by itself.
     const shownElsewhere = new Set(["scanners", "floors", "rooms", "maps", "calibration_points", "irks", "walls", "placed_lights",
-      "objects_total", "object_detail", "device_ids", "integrations", "scanner_kinds", "scanner_types", "scan_modes", "scan_modes_requested", "scan_mode_installs", "ai", "screens",
+      "objects_total", "object_detail", "device_ids", "integrations", "scanner_kinds", "scanner_types", "scan_modes", "scan_modes_requested", "scan_mode_installs", "ai", "screens", "mapping",
       "stairs", "calibration_no_floor", "install_age", "setup_stage", "country", "language",
       "crypto_ok", "ble_callback_active", "ble_diag_ok", "maps_geometry_faulted", "geometry_anchor_faulted", "stack_desync", "irks_silent",
       "has_metre_anchor", "floors_all_default", "scanner_z_uniform", "radios_ambiguous", "radios_unresolved", "calibration_points_vanished",
@@ -753,6 +776,25 @@ const W_EVENT = {
   cal_results_opened: "Opened Calibration Results",
   rooms_page_edit: "Rooms page: a colour, ceiling height or split level saved",
 };
+// Whether Claude can read plans (plan_ai.unlock_event): plan_build_unlock and env.ai.claude.
+const W_UNLOCK = { opus: "Claude Opus (unlocked)", fable: "Claude Fable (unlocked)", other: "another Claude tier (unlocked)", not_anthropic: "not Anthropic's integration (locked)", below_opus_5_5: "below Opus 5.5 (locked)", unknown_model: "model unknown (locked)", sources_disagree: "model names disagree (locked)", no_ai_task: "no AI Task (locked)" };
+// Getting to a map (env.mapping, ai_wizard.py): each field's words, and env.ai's Claude words beside them.
+const W_WIZARD_STEP = { intro: "the intro", trial: "the trial", connect: "Connect Claude", consent: "the consent", scale_read: "reading the scale",
+  scale_check: "checking the scale", scale_guided: "measuring the scale", floor_pick: "picking a floor", rooms_read: "reading the rooms",
+  rooms_check: "checking the rooms", saved: "the rooms saved", next_floor: "the next floor", handoff: "the hand-off" };
+const W_MAPPING = {
+  stuck: { plan_no_rooms: "a plan, no rooms drawn", rooms_no_receivers: "rooms, no receivers placed", receivers_no_calibration: "receivers, not calibrated", none: "set up (used the AI helper)" },
+  plan_age: { lt1d: "plan under a day old", "1_7d": "plan 1–7 days old", "8_30d": "plan 8–30 days old", "31_90d": "plan 31–90 days old", gt90d: "plan over 90 days old" },
+  wizard: { not_admin: "not an administrator", not_live: "Sample mode, not their own house", wall_screen: "a wall screen", edition: "Bright (Atlas only)",
+    has_rooms: "has rooms already", no_plan: "no plan inside the house", age_unknown: "plan's age not known", plan_too_new: "plan under 7 days old",
+    dismissed: "said don't ask again", undone: "took the helper's rooms back", snoozed: "said not now", tool_used: "already used Line up or Rooms from plans",
+    no_pro_path: "no Pro and no trial left", no_scale: "plan has no scale yet", offer: "would be offered the helper" },
+  wizard_state: { never: "helper never shown", offered: "helper shown", opened: "helper opened", finished: "finished the helper", dismissed: "said don't ask again",
+    snoozed: "said not now", undone: "took the helper's rooms back" },
+  wizard_done_age: { lt7d: "finished under 7 days ago", "7_30d": "finished 7–30 days ago", gt30d: "finished over 30 days ago" },
+  claude: Object.fromEntries(Object.entries(W_UNLOCK).map(([k, v]) => [k, `Claude: ${v}`])),
+  claude_available: { yes: "a usable Claude set up but not chosen" },
+};
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", rooms: "draw rooms", scanners: "place receivers",
                     calibrate: "calibrate", positioned: "see devices placed" };
 const W_WEATHER = { still: "nothing falling", light_rain: "light rain", heavy_rain: "heavy rain", light_snow: "light snow",
@@ -809,6 +851,9 @@ function word(kind, k) {
     case "stage": return W_STAGE[key] || tidy(key);
     case "tier": return W_TIER[key] || tidy(key);
     case "scan": return W_SCAN[key] || tidy(key);
+    case "mapping":
+      if (a === "wizard_state" && String(b).startsWith("left_")) return `left the helper at ${W_WIZARD_STEP[String(b).slice(5)] || String(b).slice(5)}`;
+      return (W_MAPPING[a] || {})[b] || tidy(key);
     case "ai": return { local: "Local (stays in the house)", cloud: "Cloud (leaves the house)", unknown: "Another AI integration",
                         unready: "Chosen, but not ready" }[key] || tidy(key);
     case "overview":
@@ -889,8 +934,14 @@ function word(kind, k) {
       if (a === "ai_credit_warn") return `AI credit warning ${{ set_50: "set to 50 %", set_75: "set to 75 %", set_90: "set to 90 %", off: "turned off", fired: "shown" }[b] || b}`;
       // Build from plans: plan line-up (experimental; telemetry.PLAN_BUILD_EVENTS). Values of the run families carry the stage (s1 = line up).
       const pbStage = (v) => String(v).replace(/^s\d_/, "");
+      // The Plans tool's walls (telemetry.PLANS_TOOL_EVENTS): counted in the panel, the server never sees them.
+      if (a === "plans_tool") return "Plans tool opened (Live Aboard → Edit)";
+      if (a === "plans_tab") return `Plans tool: chose ${{ add: "Add data via plans", lineup: "Line up plans", rooms: "Rooms from plans" }[b] || b}`;
+      if (a === "plans_floor") return `Plans tool: picked a floor in ${{ s1: "Line up plans", s2: "Rooms from plans" }[b] || b}`;
+      if (a === "plan_build_stop_ui") return `Plans tool stopped on screen: ${{ s2_not_placed: "Rooms from plans on a floor with no plan placed", s1_no_plans: "Line up plans with no floor that has a plan",
+        no_tabs_locked: "no Line up or Rooms tabs, Claude can't read plans here", no_tabs_off: "no Line up or Rooms tabs, Build from plans is off" }[b] || b}`;
       if (a === "plan_build_setting") return `Plan line-up (experimental) setting ${{ shown: "shown (Claude qualifies)", on: "turned on", off: "turned off" }[b] || b}`;
-      if (a === "plan_build_unlock") return `Plan line-up (experimental) AI: ${{ opus: "Claude Opus (unlocked)", fable: "Claude Fable (unlocked)", other: "another Claude tier (unlocked)", not_anthropic: "not Anthropic's integration (locked)", below_opus_5_5: "below Opus 5.5 (locked)", unknown_model: "model unknown (locked)", sources_disagree: "model names disagree (locked)", no_ai_task: "no AI Task (locked)" }[b] || b}`;
+      if (a === "plan_build_unlock") return `Plan line-up (experimental) AI: ${W_UNLOCK[b] || b}`;
       if (a === "plan_build_run") return `Plan line-up (experimental) run: ${{ started: "started", finished: "finished", needs_help: "needed help", resumed: "resumed", cancelled: "cancelled", failed: "failed", out_of_time: "ran out of time", no_credit: "out of credit", abandoned: "abandoned", read_again: "a room read again" }[pbStage(b)] || b}`;
       if (a === "plan_build_run_secs") return `Plan line-up (experimental) run took ${{ lt1m: "under 1 min", "1_3m": "1–3 min", "3_10m": "3–10 min", gt10m: "over 10 min" }[pbStage(b)] || b}`;
       if (a === "plan_build_plans") return `Plan line-up (experimental) over ${{ "1": "1 plan", "2_3": "2–3 plans", "4_6": "4–6 plans", gt6: "over 6 plans" }[b] || b}`;

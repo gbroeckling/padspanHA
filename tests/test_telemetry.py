@@ -264,7 +264,12 @@ def test_nothing_from_the_house_is_in_the_report():
     # here): Garry approved them on 2026-11-02 (the device detail plan's n14),
     # the receiver types "other" hides and how many objects have a name, a maker
     # and a type, nested so telemetry.php needs no deploy.
-    assert len(text) < 4450
+    # Raised 4450 -> 4560 for env.mapping and env.ai.claude (~105 bytes here):
+    # this fixture is a house still setting up (no receiver on a plan, two
+    # calibration points), the only kind that sends them (the AI mapping
+    # helper's field signal, 2026-11-10); a house that finished setup sends
+    # neither (tests/test_ai_wizard.py holds its report unchanged).
+    assert len(text) < 4560
 
 
 def test_presets_are_capped_at_ten_per_report():

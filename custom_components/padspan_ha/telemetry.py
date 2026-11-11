@@ -852,6 +852,17 @@ PLAN_BUILD_EVENTS: frozenset[str] = frozenset(
     | {f"plan_build_wait:{k}" for k in PLAN_BUILD_WAIT}
     | {f"plan_build_heldout:{k}" for k in PLAN_BUILD_HELDOUT} | {f"plan_build_agree:{k}" for k in PLAN_BUILD_AGREE}
     | {f"plan_build_merge:{k}" for k in PLAN_BUILD_MERGE})
+# The Plans tool's walls the server never saw (views/live_aboard_plans.js,
+# design ai-wizard J.6): the tool opened, each tab chosen, a floor picked in
+# Line up (s1) or Rooms from plans (s2), and the stops the panel shows by
+# itself: Rooms from plans on a floor with no plan placed, Line up with no
+# floor that has a plan, and no tabs because Claude isn't unlocked or the
+# Build from plans switch is off. Counts only, never a floor or a plan.
+PLANS_TOOL_TABS: tuple[str, ...] = ("add", "lineup", "rooms")
+PLANS_TOOL_STOPS_UI: tuple[str, ...] = ("s2_not_placed", "s1_no_plans", "no_tabs_locked", "no_tabs_off")
+PLANS_TOOL_EVENTS: frozenset[str] = frozenset(
+    {"plans_tool:opened"} | {f"plans_tab:{k}" for k in PLANS_TOOL_TABS} | {f"plans_floor:{s}" for s in PLAN_BUILD_STAGE}
+    | {f"plan_build_stop_ui:{k}" for k in PLANS_TOOL_STOPS_UI})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -1328,7 +1339,7 @@ def event_allowed(name: str) -> bool:
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
             or name in PLAN_AI_EVENTS or name in AI_USAGE_EVENTS or name in PLAN_BUILD_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
-            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS)
+            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -2286,6 +2297,24 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             env["ai"] = {"task": _ai}
     except Exception:
         pass
+    # Getting to a map (ai_wizard.report_env), only from a house with a plan
+    # whose setup isn't finished, or that used the helper: the step it is stuck
+    # at, how old its plan is, and the AI helper's rule as words. Those houses
+    # also say whether Claude can read their plans (plan_ai.unlock_event, the
+    # master switch on or not) and whether a usable Claude is set up but not
+    # chosen. A house that finished setup sends exactly what it sent before.
+    try:
+        from . import ai_wizard as _wiz  # noqa: PLC0415
+        _mp = _wiz.report_env(hass, time.time())
+        if _mp:
+            env["mapping"] = _mp
+            from . import plan_ai as _pa  # noqa: PLC0415
+            _u = _pa.unlock(hass)
+            env.setdefault("ai", {})["claude"] = _pa.unlock_event(_u)
+            if not _u.get("ok") and _pa.claude_unchosen(hass):
+                env["ai"]["claude_available"] = "yes"
+    except Exception:
+        pass
     # Vacation Mode (vacation_mode.report_buckets), only where it was used.
     try:
         from .vacation_mode import _VM_LOG, report_buckets as _vac_buckets  # noqa: PLC0415
@@ -2664,8 +2693,14 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
             raise ValueError("env.guest not in the vocabulary")
     if isinstance(env, dict) and "ai" in env:
         a = env["ai"]
-        if not isinstance(a, dict) or set(a) != {"task"} or a["task"] not in AI_TASK_WORDS:
+        words = {"task": AI_TASK_WORDS, "claude": PLAN_BUILD_UNLOCK, "claude_available": ("yes",)}
+        if not isinstance(a, dict) or not a or not all(k in words and v in words[k] for k, v in a.items()):
             raise ValueError("env.ai not in the vocabulary")
+    if isinstance(env, dict) and "mapping" in env:
+        from .ai_wizard import MAPPING_WORDS  # noqa: PLC0415
+        mp = env["mapping"]
+        if not isinstance(mp, dict) or "stuck" not in mp or not all(k in MAPPING_WORDS and v in MAPPING_WORDS[k] for k, v in mp.items()):
+            raise ValueError("env.mapping not in the vocabulary")
     if isinstance(env, dict) and "presence_cfg" in env:
         pc = env["presence_cfg"]
         if not isinstance(pc, dict) or not all(k in PRESENCE_CFG_WORDS and v in PRESENCE_CFG_WORDS[k] for k, v in pc.items()):
@@ -2790,6 +2825,18 @@ async def ensure_hw(hass: HomeAssistant) -> None:
         _LOGGER.debug("Telemetry could not read the hardware class: %s", err)
 
 
+async def ensure_plan_ai(hass: HomeAssistant) -> None:
+    """Load the plan AI's store in a house with a plan (it loads on first use),
+    so env.mapping's rule knows whether Line up or Rooms from plans was used
+    when nobody has opened the Plans tool since the restart."""
+    try:
+        if (getattr(hass.data.get(DOMAIN, {}).get(DATA_MAPS), "data", None) or {}).get("maps"):
+            from .plan_ai import async_get_store  # noqa: PLC0415
+            await async_get_store(hass)
+    except Exception as err:
+        _LOGGER.debug("Telemetry could not read the plan AI's store: %s", err)
+
+
 async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any]:
     """Build, check, POST. Returns {"sent": bool, "reason": str, "bytes": n}.
 
@@ -2811,6 +2858,7 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
     await ensure_install_id(hass)
     await ensure_snapshot(hass)
     await ensure_hw(hass)
+    await ensure_plan_ai(hass)
     payload = build_payload(hass, consume=False)
     try:
         assert_shareable(payload)

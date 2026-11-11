@@ -336,6 +336,14 @@ function planNote(ai, n){
  */
 export function createPlans(ctx){
   const { sheet, guard } = ctx;
+  // The tool's walls the server never sees (telemetry.PLANS_TOOL_EVENTS), through the host's telemetry;
+  // `once`: one count per opening of the tool, however often the sheet repaints.
+  const wallsSeen = new Set();
+  const count = (ev, once = false) => {
+    if (once) { if (wallsSeen.has(ev)) return; wallsSeen.add(ev); }
+    const h = ctx.host();
+    if (h && typeof h.telemetry === "function") { try { h.telemetry(ev); } catch (_) { /* a count, never in the way */ } }
+  };
   let shownNow = false, step = "idle", info = null, sess = null, poll = null, busy = false, err = "", view = "list";
   let urls = null, urlsAt = 0, urlsAsked = false, ignored = null, failing = null, cancelNote = "", runningId = null, undoInfo = null, askUndo = false, focusBtn = null;
   let record = null;                 // this house's own record, per kind (the server's: plan_ai.track_record)
@@ -2003,6 +2011,7 @@ export function createPlans(ctx){
   const luMapWanted = () => mapCan() && !luList && !!luSess && luSess.status !== "running" && luItems().length > 0;
   async function luInfo(){
     try { lu = await luCall("plan_build_info"); } catch (_) { lu = null; }
+    if (lu && !lu.on) count(lu.unlock && lu.unlock.ok ? "plan_build_stop_ui:no_tabs_off" : "plan_build_stop_ui:no_tabs_locked", true);
     if (!lu || !lu.on) { lu = null; if (mode === "lineup" || mode === "rooms") mode = "add"; }
     return lu;
   }
@@ -2015,6 +2024,7 @@ export function createPlans(ctx){
       const b = btn(word, m === "lineup" ? "Claude reads one floor's plans and PadSpan lines them up (experimental)"
         : m === "rooms" ? "Claude reads a lined-up floor's rooms, doors, windows and stairs (experimental)" : "Stairs, railings and lights from your plans", () => {
         mode = m; luErr = ""; rbErr = "";
+        count(`plans_tab:${m}`);
         if (m === "lineup" && !luSess) luOpen(); else if (m === "rooms" && !rbSess) rbOpen(); else redraw();
       });
       b.setAttribute("aria-pressed", String(mode === m));
@@ -2033,6 +2043,7 @@ export function createPlans(ctx){
   }
   function luPick(fid){
     luFloor = fid; luSess = null; luPicked.clear();
+    count("plans_floor:s1");
     const f = ((lu && lu.floors) || []).find(x => x.id === fid);
     for (const p of (f && f.plans) || []) luPicked.add(p.map_id);
     redraw();
@@ -2316,6 +2327,7 @@ export function createPlans(ctx){
   }
   function paintLuPicker(){
     const floors = (lu && lu.floors) || [];
+    if (floors.length && !floors.some(f => (f.plans || []).length)) count("plan_build_stop_ui:s1_no_plans", true);   // every chip "0 plans"
     sheet.appendChild(d("h5", null, "Which floor (experimental)"));
     const chips = d("div", "pl-choose");
     chips.setAttribute("data-plan-build", "floors");
@@ -2665,6 +2677,8 @@ export function createPlans(ctx){
   }
   function rbPick(fid){
     rbFloor = fid; rbSess = null; rbPicked.clear(); rbErr = "";
+    count("plans_floor:s2");
+    if (!(rbInfo(fid) || {}).ready) count("plan_build_stop_ui:s2_not_placed");
     for (const p of ((rbInfo(fid) || {}).plans || [])) if (p.tick !== false) rbPicked.add(p.map_id);
     redraw();
   }
@@ -3154,7 +3168,7 @@ export function createPlans(ctx){
       on = !!on;
       if (on === shownNow) return;
       shownNow = on;
-      if (on) { view = "list"; failing = null; listAsked = false; cur = null; card = "item"; urls = null; mode = "add"; open(); luInfo().then(() => redraw()); }
+      if (on) { wallsSeen.clear(); count("plans_tool:opened"); view = "list"; failing = null; listAsked = false; cur = null; card = "item"; urls = null; mode = "add"; open(); luInfo().then(() => redraw()); }
       else { stopPoll(); luPollStop(); rbPollStop(); sheet.classList.remove("plans"); sheet.classList.remove("map"); mapSleep(); luSleep(); rbSleep(); pics.clear(); tints.clear(); }
     },
     /** The sheet's content for the step we are at; true: there is one. */

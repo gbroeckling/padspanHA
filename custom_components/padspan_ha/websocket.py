@@ -397,6 +397,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ws_plan_ai import WS_COMMANDS as _plan_ai_commands
     for _cmd in _plan_ai_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Let Claude draw your rooms (ai_wizard.py): the rule's answer for this screen; admins only, nothing asks yet.
+    from .ai_wizard import WS_COMMANDS as _ai_wizard_commands
+    for _cmd in _ai_wizard_commands:
+        websocket_api.async_register_command(hass, _cmd)
     # The AI credit tracker (ai_usage.py, experimental): this month's AI reads for Settings → AI; admins only.
     from .ai_usage import WS_COMMANDS as _ai_usage_commands
     for _cmd in _ai_usage_commands:

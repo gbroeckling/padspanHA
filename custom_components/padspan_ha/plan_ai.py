@@ -1934,6 +1934,16 @@ def unlock(hass: HomeAssistant) -> dict[str, Any]:
     return {**unlock_rule(P._platform(hass, eid), model_sources(hass, eid)), "ai_task": eid}  # noqa: SLF001
 
 
+def claude_unchosen(hass: HomeAssistant) -> bool:
+    """An AI Task other than the chosen one that unlock_rule passes: a usable
+    Claude is set up but not picked in Settings → AI (the report's
+    env.ai.claude_available, design J.3)."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    chosen = str(((st.data if st else {}) or {}).get("atlas_3d_ai_task_entity") or "").strip()
+    return any(eid != chosen and unlock_rule(P._platform(hass, eid), model_sources(hass, eid)).get("ok")  # noqa: SLF001
+               for eid in hass.states.async_entity_ids("ai_task"))
+
+
 def build_switch(hass: HomeAssistant) -> bool:
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     return ((st.data if st else {}) or {}).get("ai_plan_build_enabled") is True

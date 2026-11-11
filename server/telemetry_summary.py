@@ -517,6 +517,59 @@ def new_installs_section(dirpath: Path, today: date) -> list[str]:
     return out
 
 
+# Getting to a map (env.mapping, sent only by a house with a plan whose setup
+# isn't finished; the AI helper's design J): the step each is stuck at.
+_STUCK_WORDS = ("plan_no_rooms", "rooms_no_receivers", "receivers_no_calibration", "none")
+# The helper's funnel, in step order, from the window's usage counts. Piece 1
+# counts the Plans tool's walls; the helper's own events join in later pieces.
+_MAPPING_FUNNEL = ("plans_tool:opened", "plans_tab:add", "plans_tab:lineup", "plans_tab:rooms", "plans_floor:s1", "plans_floor:s2",
+                   "plan_build_stop_ui:no_tabs_off", "plan_build_stop_ui:no_tabs_locked", "plan_build_stop_ui:s1_no_plans",
+                   "plan_build_stop_ui:s2_not_placed")
+
+
+def _mapping(r: dict) -> dict:
+    m = (r.get("env") or {}).get("mapping")
+    return m if isinstance(m, dict) else {}
+
+
+def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> list[str]:
+    """Where houses with a plan are stuck, per day; the latest report's rule
+    word, plan age and Claude; the Plans tool's walls over the window."""
+    days: dict[str, Counter] = defaultdict(Counter)
+    for (_iid, d), r in rows.items():
+        st = _mapping(r).get("stuck")
+        if isinstance(st, str):
+            days[d][st] += 1
+    if not days:
+        return ["Getting to a map: no install has sent env.mapping yet"]
+    out = ["Getting to a map: installs with a plan, stuck at (per day)",
+           "  day         " + "  ".join(f"{w:>24}" for w in _STUCK_WORDS)]
+    for d in sorted(days):
+        out.append(f"  {d}  " + "  ".join(f"{days[d][w]:>24}" for w in _STUCK_WORDS))
+    latest: dict[str, dict] = {}
+    for (iid, _d), r in sorted(rows.items(), key=lambda kv: kv[0][1]):
+        latest[iid] = r
+    stuck = [r for r in latest.values() if _mapping(r)]
+    for title, key in (("the helper's rule says", lambda r: _mapping(r).get("wizard")),
+                       ("plan age", lambda r: _mapping(r).get("plan_age")),
+                       ("helper state", lambda r: _mapping(r).get("wizard_state")),
+                       ("Claude (env.ai.claude)", lambda r: ((r.get("env") or {}).get("ai") or {}).get("claude")),
+                       ("a usable Claude not chosen", lambda r: ((r.get("env") or {}).get("ai") or {}).get("claude_available"))):
+        c = Counter(str(key(r)) for r in stuck if isinstance(key(r), str))
+        out.append(f"  {title}: " + (", ".join(f"{k} {v}" for k, v in c.most_common()) or "-"))
+    use: Counter = Counter()
+    who: dict[str, set] = defaultdict(set)
+    for r in reports:
+        for k, v in (r.get("usage") or {}).items():
+            if k in _MAPPING_FUNNEL:
+                use[k] += v
+                who[k].add(r.get("install_id"))
+    out.append("  The Plans tool (events over the window; installs)")
+    for k in _MAPPING_FUNNEL:
+        out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
@@ -532,6 +585,9 @@ def main() -> int:
     n = len(latest)
     print(f"{n} installs, {len(rows)} install-days, last {a.days} days\n")
     for line in new_installs_section(Path(a.dir), date.today()):
+        print(line)
+    print()
+    for line in mapping_section(rows, reports):
         print(line)
     print()
 

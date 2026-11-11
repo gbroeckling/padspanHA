@@ -398,7 +398,8 @@ const openMap = async (M) => { M.tool.show(true); await settle(); M.redraw(); aw
   check("floor end: the recap and the what's-missing pass", F.state().card === "floor" && text(F.sheet).includes("Main: what's missing?") && text(F.sheet).includes("1 new") && text(F.sheet).includes("The AI found no stairs on the Electrical plan.") && text(F.sheet).includes("wasn't seen on Main floor") === false, text(F.sheet));
   check("floor end: Add by hand beside On to the next floor", !!button(F.sheet, "Add by hand") && !!button(F.sheet, "On to Upper"), buttons(F.sheet).map(text).join("|"));
   await click(button(F.sheet, "Add by hand"));
-  check("Add by hand: opens Build and is counted, no name", F.M.byHand === true && F.M.telemetry.join() === "plan_ai_missing_added:stairs", JSON.stringify(F.M.telemetry));
+  check("Add by hand: opens Build and is counted, no name", F.M.byHand === true && F.M.telemetry.filter(t => t !== "plans_tool:opened").join() === "plan_ai_missing_added:stairs"
+    && F.M.telemetry.filter(t => t === "plans_tool:opened").length === 1, JSON.stringify(F.M.telemetry));   // and the tool's opening, once (telemetry.PLANS_TOOL_EVENTS)
   await click(button(F.sheet, "On to Upper"));
   check("floor end: on to the next floor's first item, the camera follows", F.state().cur === "u" && F.M.floor === "upper" && F.M.flown.at(-1).floor === "upper", JSON.stringify(F.M.flown.at(-1)));
   F.tool.dispose();
