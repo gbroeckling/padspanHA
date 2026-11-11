@@ -487,8 +487,9 @@ const READ = (extra = {}) => ({ id: "sc_1", status: "done", map_id: "n1", propos
   await shim.flush();
   root = await view(h);
   const t = root.textContent;
-  check("found: what Claude read, where, and the question", t.includes("Claude read 30'-5 1/2\" here, across the whole house (9.28 m). Is that what your plan says?"), t.slice(0, 500));
-  check("found: the other direction, ticked", t.includes("and down the side: 24'-0\" (7.32 m) ✓"), t.slice(0, 600));
+  check("found: what Claude read, where, and the question", t.includes("Claude read 30'-5 1/2\" along the amber line, running across your plan (9.28 m). Is that what the plan says for that line?")
+    && !t.includes("whole house"), t.slice(0, 500));
+  check("found: the other direction, ticked", t.includes("and along the thinner blue line, running down: 24'-0\" (7.32 m) ✓") && html(root).includes("#60a5fa"), t.slice(0, 600));
   const pic = html(root);
   check("found: drawn in amber between the marks found, a close look at the print", pic.includes("<line ") && pic.includes("#f59e0b") && !!q(root, '[data-aiw="scale-inset"]')
     && !!q(root, '[data-aiw="scale-line"]'), pic.slice(0, 200));

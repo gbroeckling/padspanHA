@@ -122,7 +122,7 @@ const CODE_WORDS = {
   apart: "Those two don't touch, so they can't be one room. Join only rooms that touch.",
   invalid: "Pick two or more rooms on the plan to join.",
   two_rooms: "Two of your rooms can't be joined here.",
-  not_found: "That room isn't there any more: the list is reloaded.",
+  not_found: "That isn't there any more: a plan or a room was removed. Go back and open the helper again.",
 };
 export const codeWords = (code) => CODE_WORDS[code] || "That didn't work. Try again in a moment.";
 
@@ -379,6 +379,10 @@ async function scaleStatus(ctx, S) {
   }
   const s = ans && ans.session;
   if (!s) { toGuided(ctx, S); return; }
+  // The plan has a scale by now (saved here before the rooms read could start, or measured by hand): on to the rooms.
+  if (S.plan && !needsScale(ctx.state, S.plan)) { S.screen = "intro"; S.scaleSid = null; return; }
+  // A reading of another plan (this one was removed, or moved outdoors, and the helper picked the next): never drawn here.
+  if (S.plan && s.map_id && s.map_id !== S.plan.id) { toGuided(ctx, S); return; }
   if (s.status === "running") { S.screen = "scale_read"; return; }
   const f = failOf(s);
   if (f) telOnce(ctx, "ai_wizard_fail:" + f);
@@ -981,10 +985,10 @@ function readPicture(ctx, S, r) {
   for (const k of [r.other, r.main]) {                             // the one asked about drawn last, on top
     const ax = k && r.axes[k];
     if (!ax || !ax.ends_frac) continue;
-    const [a, b] = ax.ends_frac.map(xy), w = k === r.main ? 5 : 3;
+    const [a, b] = ax.ends_frac.map(xy), w = k === r.main ? 5 : 3, col = k === r.main ? "#f59e0b" : "#60a5fa";
     svg += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#000000" stroke-width="${w + 4}" stroke-opacity=".5"/>` +
-      `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#f59e0b" stroke-width="${w}"/>`;
-    for (const [x, y] of [a, b]) svg += `<circle cx="${x}" cy="${y}" r="${w + 6}" fill="none" stroke="#f59e0b" stroke-width="3"/>`;
+      `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}" stroke-width="${w}"/>`;
+    for (const [x, y] of [a, b]) svg += `<circle cx="${x}" cy="${y}" r="${w + 6}" fill="none" stroke="${col}" stroke-width="3"/>`;
   }
   svg += "</svg>";
   layer.innerHTML = svg;
@@ -1014,11 +1018,7 @@ function textInset(ctx, S, ax) {
 }
 
 /** How the check screen says where a direction runs. */
-function runs(k, ax, first) {
-  if (!first) return k === "x" ? "across" : "down the side";
-  const whole = Number(ax.span_frac) >= 0.6 ? " the whole house" : "";
-  return (k === "x" ? "across" : "down") + whole;
-}
+const runs = (k) => (k === "x" ? "across" : "down");
 
 /** Claude read a measurement printed on the plan: the person checks it (design B screen 3). Yes saves it as read; "No, it
  *  says" takes their number (what was understood said as they type, the field never rebuilt); or they measure something
@@ -1033,15 +1033,16 @@ function scaleCheckScreen(ctx, S, box) {
   const cols = el("div", { "data-aiw": "scale-read", style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:1 1 300px;min-width:260px" });
   cols.appendChild(el("div", { style: "flex:1 1 380px;min-width:280px;max-width:900px" }, [readPicture(ctx, S, r),
-    MUTED(ctx, "The amber line is where Claude read it, between the marks at its two ends.")]));
+    MUTED(ctx, "The amber line is where Claude read the measurement, between the marks at its two ends.")]));
   cols.appendChild(side);
   box.appendChild(cols);
   const inset = textInset(ctx, S, main);
   if (inset) side.appendChild(inset);
   side.appendChild(P(ctx, ["Claude read ", el("b", { "data-aiw": "scale-text" }, main.text),
-    ` here, ${runs(r.main, main, true)} (${Number(main.metres).toFixed(2)} m). Is that what your plan says?`]));
-  if (other) side.appendChild(P(ctx, [`and ${runs(r.other, other, false)}: `, el("b", {}, other.text),
-    ` (${Number(other.metres).toFixed(2)} m)${r.stretched ? "" : " ✓"}`], "margin-top:0"));
+    ` along the amber line, running ${runs(r.main)} your plan (${Number(main.metres).toFixed(2)} m). Is that what the plan says for that line?`]));
+  const otherMark = el("span", { "data-aiw": "scale-other-mark" });
+  if (other) side.appendChild(P(ctx, [`and along the thinner blue line, running ${runs(r.other)}: `, el("b", {}, other.text),
+    ` (${Number(other.metres).toFixed(2)} m)`, otherMark], "margin-top:0"));
   const yes = btn(ctx, "Yes, that's right", () => {
     if (sc.answer === "yes" && scaleReady(S)) { scaleSave(ctx, S); return; }        // counted by the server (plan_build_scale_check:yes)
     sc.answer = "yes";
@@ -1053,7 +1054,7 @@ function scaleCheckScreen(ctx, S, box) {
   if (S.busy) fix.disabled = true;
   // As on the guided screen: typing stays in S.sc through every redraw, and the answer is drawn in place (paint).
   fix.addEventListener("input", () => { sc.fix = String(fix.value || ""); sc.answer = "no"; scalePreviewSoon(ctx, S); });
-  const no = btn(ctx, "No, it says:", () => { sc.answer = "no"; scalePreviewSoon(ctx, S); if (fix.focus) fix.focus(); }, { attrs: { "data-aiw": "scale-no" } });
+  const no = btn(ctx, "No, the amber line says:", () => { sc.answer = "no"; scalePreviewSoon(ctx, S); if (fix.focus) fix.focus(); }, { attrs: { "data-aiw": "scale-no" } });
   const said = el("span", { "data-aiw": "scale-understood", style: "font-size:13px" });
   side.appendChild(row(ctx, [yes]));
   side.appendChild(row(ctx, [no, fix, said]));
@@ -1065,13 +1066,14 @@ function scaleCheckScreen(ctx, S, box) {
   const notes = el("div", { "data-aiw": "scale-notes" });
   side.appendChild(notes);
   const { sized, save } = scaleFooter(ctx, S, side);
-  sc.paint = { shape: scaleShape(sc), fn: () => { scaleSaid(ctx, S, said, sized, save); readSaid(ctx, S, yes, no, notes); } };
+  sc.paint = { shape: scaleShape(sc), fn: () => { scaleSaid(ctx, S, said, sized, save); readSaid(ctx, S, yes, no, notes, otherMark); } };
   sc.paint.fn();
 }
 
 /** The check screen's answer drawn in place: which answer is chosen, and the stretch said while both directions are used. */
-function readSaid(ctx, S, yes, no, notes) {
+function readSaid(ctx, S, yes, no, notes, otherMark) {
   const { el } = ctx.helpers, sc = scaleDraft(S), r = sc.read;
+  if (otherMark) otherMark.textContent = sc.answer === "no" ? " (not used with your number)" : r.stretched ? "" : " ✓";
   yes.className = "btn inline" + (sc.answer === "yes" ? " primary" : "");
   no.className = "btn inline" + (sc.answer === "no" ? " primary" : "");
   const lines = [];
