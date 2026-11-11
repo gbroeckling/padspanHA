@@ -1356,14 +1356,16 @@ async def ws_plan_build_scale_undo(hass: HomeAssistant, connection, msg) -> None
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_build_scale_start", vol.Required("map_id"): str, vol.Optional("again"): bool,
-                                  vol.Optional("via"): VIA})
+                                  vol.Optional("held_only"): bool, vol.Optional("via"): VIA})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> None:
     """Claude reads a printed dimension off a plan with no scale (piece 4; design
     E.1): Read A, then one dimension an axis. It answers at once; the job runs
     on the server. A plan that has a scale already (the helper skips the step)
-    or shows the outside is refused before a start is spent."""
+    or shows the outside is refused before a start is spent. `held_only` (the
+    measure-first screen, owner 2026-11-12): only a reading already held, else
+    {"session": None}; nothing is read or paid for."""
     from .const import OUTDOOR_FLOOR_NAMES  # noqa: PLC0415
     store = await _build_refused(hass, connection, msg)
     if store is None:
@@ -1396,6 +1398,9 @@ async def ws_plan_build_scale_start(hass: HomeAssistant, connection, msg) -> Non
                 await store.async_save()
             A._bump(hass, "plan_build_scale:reused")  # noqa: SLF001
             connection.send_result(msg["id"], {"session": held, "reused": True})
+            return
+        if msg.get("held_only"):                 # the measure-first screen asks only for a reading already held: never a new, paid one
+            connection.send_result(msg["id"], {"session": None})
             return
         why = A.start_allowed(hass)
         if why:

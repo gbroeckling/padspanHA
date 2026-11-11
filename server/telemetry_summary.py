@@ -547,6 +547,7 @@ _WIZARD_FUNNEL = (
     # Pieces 3 and 4: the plan's scale, read off the plan by Claude or by one guided measurement (design J.4).
     + tuple(f"plan_build_scale:{k}" for k in ("printed_checked", "printed_unchecked", "none_found", "guided", "already_set", "reused"))
     + tuple(f"plan_build_scale_check:{k}" for k in ("yes", "corrected", "guided_instead", "looked"))
+    + tuple(f"plan_build_scale_taken:{k}" for k in ("measured", "used_reading", "asked_claude"))   # measure first (2026-11-12)
     + tuple(f"plan_build_scale_fix:{k}" for k in ("lt1", "1_3", "3_10", "gt10"))
     + tuple(f"plan_build_scale_axes:{k}" for k in ("two", "one", "none"))
     + tuple(f"plan_build_scale_stretch:{k}" for k in ("lt1", "1_3", "3_10", "gt10"))

@@ -900,6 +900,9 @@ SCALE_CHECK: tuple[str, ...] = ("yes", "corrected", "guided_instead", "looked")
 SCALE_AXES: tuple[str, ...] = ("two", "one", "none")
 SCALE_SAVE: tuple[str, ...] = ("done", "already_placed", "points_on_plan", "plan_changed", "no_picture_size", "backup_failed", "floor_unknown")
 SCALE_UNDO: tuple[str, ...] = ("done", "changed_since", "failed")
+# The scale step, measure first (owner, 2026-11-12): the way the saved scale was made (the person's own line, or
+# Claude's double-checked reading put down by Use it), and each time the person asked Claude to look (a paid read).
+SCALE_TAKEN: tuple[str, ...] = ("measured", "used_reading", "asked_claude")
 AI_WIZARD_EVENTS: frozenset[str] = frozenset(
     {f"ai_wizard_{w}:{s}" for w in ("offered", "opened") for s in AI_WIZARD_SURFACES}
     | {f"ai_wizard_{w}:{s}" for w in ("step", "left") for s in AI_WIZARD_STEPS}
@@ -910,6 +913,7 @@ AI_WIZARD_EVENTS: frozenset[str] = frozenset(
     | {f"plan_build_scale:{k}" for k in SCALE_PATHS} | {f"plan_build_scale_save:{k}" for k in SCALE_SAVE}
     | {f"plan_build_scale_undo:{k}" for k in SCALE_UNDO} | {f"plan_build_scale_remeasured:{k}" for k in PLAN_BUILD_PCT}
     | {f"plan_build_scale_check:{k}" for k in SCALE_CHECK} | {f"plan_build_scale_axes:{k}" for k in SCALE_AXES}
+    | {f"plan_build_scale_taken:{k}" for k in SCALE_TAKEN}
     | {f"plan_build_scale_{w}:{k}" for w in ("fix", "stretch") for k in PLAN_BUILD_PCT})
 
 

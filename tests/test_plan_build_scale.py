@@ -370,6 +370,7 @@ def test_the_scale_counts_are_closed_shareable_and_named():
                      | {f"plan_build_scale_remeasured:{k}" for k in T.PLAN_BUILD_PCT}
                      | {f"plan_build_scale_check:{k}" for k in ("yes", "corrected", "guided_instead", "looked")}
                      | {f"plan_build_scale_axes:{k}" for k in ("two", "one", "none")}
+                     | {f"plan_build_scale_taken:{k}" for k in ("measured", "used_reading", "asked_claude")}   # measure first, 2026-11-12
                      | {f"plan_build_scale_{w}:{k}" for w in ("fix", "stretch") for k in T.PLAN_BUILD_PCT})
     for e in words:
         assert T.event_allowed(e)

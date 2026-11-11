@@ -524,3 +524,14 @@ def test_a_reading_held_for_the_same_plan_and_picture_is_offered_again_never_pai
     m = ms.get_map("n1")
     m["image"]["sha256"] = "tt"                                                       # a new picture: read afresh
     assert A.held_scale_read(_store(h), m) is None
+
+
+def test_held_only_answers_a_held_reading_and_never_starts_a_paid_one(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-12, measure first: the scale screen asks only for a reading already held (held_only). With none held
+    nothing is started or counted as a start; with one held it is offered again, as before."""
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk, "feet_chain")
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", held_only=True, via="wizard") == {"session": None}
+    assert not h.jobs and "plan_build_run:s0_started" not in _counters(h) and not (_store(h).data.get("scales") or {})
+    first = _read(h, conn)
+    assert _call(WP.ws_plan_build_scale_start, h, conn, map_id="n1", held_only=True, via="wizard") == {"session": first["id"], "reused": True}
+    assert _counters(h)["plan_build_run:s0_started"] == 1

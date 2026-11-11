@@ -820,6 +820,7 @@ const W_SCALE_PATH = { printed_checked: "printed measurements Claude read, acros
   reused: "Claude's earlier reading of the same plan offered again (no new read)" };
 const W_SCALE_CHECK = { yes: "the person said yes", corrected: "the person corrected the number", guided_instead: "the person measured something themselves instead",
   looked: "the person looked at a reading Claude couldn't double-check" };
+const W_SCALE_TAKEN = { measured: "the person's own line", used_reading: "Claude's double-checked reading (Use it)", asked_claude: "the person asked Claude to look (a paid read)" };
 const W_SCALE_AXES = { two: "across and down", one: "one direction", none: "none" };
 const W_SCALE_SAVE = { done: "saved", already_placed: "refused, the plan had a scale already", points_on_plan: "refused, calibration spots on the plan",
   plan_changed: "refused, the plan picture changed", no_picture_size: "refused, the plan picture has no size on record", backup_failed: "refused, no safety backup", floor_unknown: "refused, floor not known" };
@@ -989,6 +990,7 @@ function word(kind, k) {
       if (a === "plan_build_scale_save") return `AI rooms helper plan scale save: ${W_SCALE_SAVE[b] || b}`;
       if (a === "plan_build_scale_undo") return `AI rooms helper plan scale undo: ${W_SCALE_UNDO[b] || b}`;
       if (a === "plan_build_scale_check") return `AI rooms helper, Claude's printed measurement: ${W_SCALE_CHECK[b] || b}`;
+      if (a === "plan_build_scale_taken") return `AI rooms helper plan scale made from: ${W_SCALE_TAKEN[b] || b}`;
       if (a === "plan_build_scale_fix") return `AI rooms helper, a corrected number differed from Claude's by ${W_SCALE_PCT[b] || b}`;
       if (a === "plan_build_scale_axes") return `AI rooms helper, printed measurements read: ${W_SCALE_AXES[b] || b}`;
       if (a === "plan_build_scale_stretch") return `AI rooms helper, plan picture across and down disagree by ${W_SCALE_PCT[b] || b}`;
