@@ -212,8 +212,8 @@ for (const view of ["devices", "traceback", "qa"]) {
 // Setup in the menu (owner's D4, 2026-11-13): at the top of the build group until every step is done, in every mode and
 // both skins, in the phone's drawer too (the drawer is the sidebar); then out of it; never before the answer is known.
 {
-  // Review 2026-11-11: an unfinished house is one that has STARTED (a plan uploaded: it was an empty house, which now is
-  // not pinned), and a scale is the placement's positive size (setup_status.hasScale), as Measure writes it.
+  // Review 2026-11-11: a scale is the placement's positive size (setup_status.hasScale), as Measure writes it. (Item 0 of
+  // the next round: any house not finished or skipped has Setup, an empty one too; below.)
   const house = (done) => ({
     dataMode: "live", _mapsLoaded: true, _modelLoaded: true,
     maps: { list: done ? [{ id: "m1", receivers: [{ id: "r1" }], room_bounds: { K: {} } }] : [{ id: "m1", receivers: [], room_bounds: {} }] },
@@ -262,11 +262,14 @@ for (const view of ["devices", "traceback", "qa"]) {
     pw._renderNav();
     check(`setup: calibration not asked on ${tag}`, w.length === 0, w);
   }
-  // Started, finished, skipped: one rule (panel.js _setupInMenu).
+  // Finished or skipped: one rule (panel.js _setupInMenu).
   const inMenu = (st) => { const x = panel({ mode: "advanced" }); Object.assign(x.state, house(false), st); x._renderNav(); return beforeMore(x).includes("setup"); };
-  check("setup: an empty house that never started set-up is not pinned (Make it a map is optional)",
-    !inMenu({ maps: { list: [] } }) && inMenu({ maps: { list: [] }, settings: { setup_progress: { at: "plan" } } }));
-  check("setup: Skip setup takes it out of the menu", !inMenu({ settings: { onboarding_completed: true } }));
+  // Changed in review 2026-11-11 item 0: this asserted an empty house was NOT pinned; the owner's rule is "until every step
+  // is done", and a brand-new house with no plan is exactly who needs Setup. Not before the plans and the model are in.
+  check("setup: a new house with nothing yet has it", inMenu({ maps: { list: [] } }) && inMenu({ maps: { list: [] }, settings: { setup_progress: { at: "plan" } } }));
+  check("setup: a new house waits for the plans and the model", !inMenu({ maps: { list: [] }, _mapsLoaded: false }) && !inMenu({ maps: { list: [] }, _modelLoaded: false }));
+  check("setup: Skip setup takes it out of the menu", !inMenu({ settings: { onboarding_completed: true } }) && !inMenu({ maps: { list: [] }, settings: { onboarding_completed: true } }));
+  check("setup: Setup's own Finish takes it out of the menu", !inMenu({ maps: { list: [] }, settings: { setup_progress: { done: true } } }));
   check("setup: every step left skipped takes it out of the menu", !inMenu({ settings: { setup_progress: { skipped: ["scale", "rooms", "receivers", "calibration"] } } })
     && inMenu({ settings: { setup_progress: { skipped: ["scale", "rooms"] } } }));
   check("setup: a wall screen never has it", !inMenu({ kioskMode: true }));

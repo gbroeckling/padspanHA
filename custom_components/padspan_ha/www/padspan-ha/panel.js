@@ -3471,11 +3471,11 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   /** Setup in the menu (owner's D4, 2026-11-13; review 2026-11-11): at the
-   *  top of the build group only while the house has STARTED set-up (a floor
-   *  plan uploaded, or a step opened or skipped in Setup) and has neither
-   *  FINISHED it (every step done) nor SKIPPED it (Getting started's "Skip
+   *  top of the build group until the house has FINISHED set-up (every step
+   *  done) or SKIPPED it (Getting started's "Skip
    *  setup", onboarding_completed; Setup's Finish, setup_progress.done; or
-   *  every step not done skipped). Out of it Setup is still reached from
+   *  every step not done skipped), so a new house with nothing yet has it
+   *  (review 2026-11-11, item 0). Out of it Setup is still reached from
    *  Getting started and Mapping's Setup button. Only on the house's own
    *  data, never on a wall screen, once the stores that answer it are in.
    *  Calibration's points are asked only when calibration is the one step
@@ -3487,7 +3487,7 @@ class PadSpanHaApp extends HTMLElement {
     if (st.dataMode !== "live" || st.kioskMode || !ss || !st._mapsLoaded || !st._modelLoaded) return false;
     const s = st.settings || {}, p = s.setup_progress || {};
     const skipped = Array.isArray(p.skipped) ? p.skipped : [];
-    if (s.onboarding_completed || p.done === true || !(ss.hasMaps(st) || p.at || skipped.length)) return false;
+    if (s.onboarding_completed || p.done === true) return false;
     const open = ss.setupSteps(st).filter(x => ss.stepDone(st, x.id) !== true && !skipped.includes(x.id));
     if (!open.length) return false;
     if (st.calibration || open.some(x => x.id !== "calibration")) return true;
