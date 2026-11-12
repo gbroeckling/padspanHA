@@ -19,6 +19,7 @@ import inspect
 import json
 import os
 import random
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -314,7 +315,11 @@ def test_the_plan_ais_one_writer_is_one_module(monkeypatch, tmp_path, disk):
     for word in ("DATA_FABRIC", "DATA_MAPS", "async_spatial_update", "async_remap_from_metres", "async_set_", "fabric_rf_barrier", "CALIBRATION", "DATA_SETTINGS", "model."):
         assert word not in src, word
     importers = [p.name for p in _PKG.glob("*.py") if "import plan_ai_write" in p.read_text(encoding="utf-8")]
-    assert importers == ["ws_plan_ai.py"], importers
+    assert importers == ["ws_maps.py", "ws_plan_ai.py"], importers
+    # ws_maps (the upload's hand measurement, 2026-11-12) takes only the pure reading and working-out of a length;
+    # its one write is Measure's own (ws_fabric.async_write_measured_transform), never one of the plan AI's.
+    used = set(re.findall(r"\bC\.(\w+)", (_PKG / "ws_maps.py").read_text(encoding="utf-8")))
+    assert used <= {"measures_preview", "scale_from_measures", "feet_on", "_picture_size", "Refused", "SCALE_WORDS"}, used
     # And the ordinary Save can't keep a suggestion by mistake (ws_house3d.house3d_edit).
     with pytest.raises(H.EditError):
         H.apply_edit(H.empty(), {"pieces": {"fur_11111111": {**_stair("fur_11111111", "main", 1.0, 1.0), "plan_ai_pending": {"session": "s", "sugs": {}}}}})

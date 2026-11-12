@@ -12,6 +12,7 @@ nothing for non-admins, Sample or a wall screen, two lengths that disagree.
 from __future__ import annotations
 
 import copy
+import importlib.util
 import json
 import re
 import shutil
@@ -25,7 +26,6 @@ from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_fabric as F
 from custom_components.padspan_ha import ws_maps as WM
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
-from server import telemetry_summary as S
 from tests.test_house3d_edit import disk  # noqa: F401  (the on-disk store fixture)
 from tests.test_plan_build import _call
 from tests.test_house3d_store import _run
@@ -119,6 +119,9 @@ def test_later_ends_it_for_good_and_the_upload_marks_only_an_indoor_plan(monkeyp
 def test_the_counters_are_allowed_summed_and_labelled():
     words = {f"scale_nudge:{k}" for k in ("shown", "measured_one", "measured_two", "later", "reminder_measure")}
     assert T.SCALE_NUDGE_EVENTS == words and all(T.event_allowed(e) for e in words)
+    spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
+    S = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(S)
     assert set(S._SCALE_NUDGE) == words
     js = (_WWW / "views" / "scale_nudge.js").read_text(encoding="utf-8")
     sent = set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', js)) | set(re.findall(r'"(measured_[a-z]+)"', js))
