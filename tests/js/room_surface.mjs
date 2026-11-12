@@ -116,15 +116,18 @@ for (const show of [false, true]) {
       now.length > 2000 && now === before && indoor === before && !now.includes("pspave") && blind,
       { now: now.length, before: before.length, indoor: indoor === before, blind });
   });
-  await tryCase(`map: ${tag}: a paved patio adds one pattern and changes its fill only`, () => {
+  await tryCase(`map: ${tag}: a paved patio adds one pattern, changes its fill and lays its colour over the tiles, nothing else`, () => {
     const base = svg(ISO, clone(HOUSE), show), paved = svg(ISO, withSurface(["Patio"]), show);
     const pats = paved.match(/<pattern id="pspave_\d+"[^]*?<\/pattern>/g) || [];
     const fills = paved.match(/fill="url\(#pspave_\d+\)" fill-opacity="0\.5"/g) || [];
     // Its fill polygon's points, and the same polygon in the plain drawing.
     const el = paved.match(/<polygon points="([^"]+)" fill="url\(#pspave_\d+\)"/);
     const plainEl = el && base.match(new RegExp(`<polygon points="${el[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" (fill="#[0-9a-fA-F]{6}" fill-opacity="[0-9.]+")`));
-    const back = pats.length === 1 && fills.length === 1 && plainEl ? paved.replace(pats[0], "").replace(fills[0], plainEl[1]) : null;
-    check(`map: ${tag}: a paved patio adds one pattern and changes its fill only`,
+    // ...and its colour (a lit room's tint) laid over the tiles at the plain fill's strength: one polygon, right after it.
+    const tint = el && plainEl && `<polygon points="${el[1]}" ${plainEl[1]} stroke="none" pointer-events="none"/>`;
+    const back = pats.length === 1 && fills.length === 1 && plainEl && paved.split(tint).length === 2
+      ? paved.replace(pats[0], "").replace(tint, "").replace(fills[0], plainEl[1]) : null;
+    check(`map: ${tag}: a paved patio adds one pattern, changes its fill and lays its colour over the tiles, nothing else`,
       back === base && pats[0].includes(SURF.PAVER_GREY) && pats[0].includes(SURF.PAVER_JOINT),
       { pats: pats.length, fills: fills.length, plain: !!plainEl, same: back === base });
   });

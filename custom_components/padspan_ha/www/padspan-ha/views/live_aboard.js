@@ -202,6 +202,8 @@ const PREF_FPS = "fps";                    // the frame-rate readout on this scr
 // Readable night: a floor keeps this much of its day colour, its outline and
 // the wall tops show, and a fixture that is off darkens with the house.
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
+// The ring on a covered patio's floor under an off ceiling light (its size, how far up).
+const FLOOR_MARK_R = 0.12, FLOOR_MARK_UP = 0.02;
 const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
 // A split level's floor's walls this close to the level's own rooms stand round them (sizeNames).
 const OWN_WALL_M = 0.5;
@@ -1605,6 +1607,12 @@ function createSlot(slotKey){
     return m;
   }
   const profileOf = () => HOUSE.QUALITY_PROFILES[quality.profile || quality.measuring || "low"];
+  /** The ring under an off ceiling light on a covered patio: flat, faint, one material for all. */
+  function floorMarkMat(){
+    return shared.floorMark || (shared.floorMark = { geo: new THREE.RingGeometry(0.55, 1, 24).rotateX(-Math.PI / 2),
+      mat: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide,
+                                         polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }) });
+  }
   /** The paving's joints: one small repeating picture made here (nothing
    *  downloaded), clear but for a thin line along two edges of each tile;
    *  one material for every paved room, made the first time one is drawn. */
@@ -2482,7 +2490,7 @@ function createSlot(slotKey){
       const lg = new THREE.Group();
       F.lightGroup = lg;
       F.group.add(lg);
-      const bulbs = { puck: [], dome: [], box: [], sphere: [] }, houses = [], halos = { s: [], m: [], l: [] }, pools = [];
+      const bulbs = { puck: [], dome: [], box: [], sphere: [] }, houses = [], halos = { s: [], m: [], l: [] }, pools = [], floorMarks = [];
       const washes = { fade: [], scallop: [], round: [] };
       const vdP = viewData().pieces || {}, furniture = Object.values(vdP).filter(p => p && (h.canon ? h.canon(p.floor_id) : String(p.floor_id)) === F.fl.id);
       const ctx = { rooms: F.rooms, pieces: F.pieces.map(P => P.pc), ground: h.ground, furniture };
@@ -2518,6 +2526,13 @@ function createSlot(slotKey){
         if (parts.poolH !== null) for (const pl of parts.pools) { L.refs.pools.push(pools.length); pools.push({ h: parts.poolH, ...pl }); }
         // On a cut-away wall its fixture is gone but its glow still lands on the floor: pressed there.
         L.poolPick = parts.poolH !== null ? parts.pools.map(pl => new THREE.Vector3(pl.at[0], F.fl.elev + parts.poolH, pl.at[1])) : [];
+        // A ceiling light under a covered patio's cover (parts.under): from above it
+        // shows only on its floor, past the cover's edge, so it is pressed there too
+        // (under each bulb), its pool marking it while on and a small ring while off.
+        if (parts.under) {
+          L.floorPick = parts.bulbs.map(b => new THREE.Vector3(b.x, F.fl.elev + FLOOR_MARK_UP, b.y));
+          L.refs.marks = parts.bulbs.map(b => floorMarks.push({ x: b.x, y: b.y, off: new THREE.Color(b.off) }) - 1);
+        }
         // A ceiling fan's blades turn while it runs.
         if (parts.spin) L.spin = { x: parts.spin.x, y: parts.spin.y, angle: 0, rps: 0, blades: parts.spin.blades.map(b => ({ a: b.a, r: b.r, ref: L.refs.houses[b.i] })) };
         const n = Math.max(1, parts.bulbs.length), mh = sh / n;
@@ -2572,6 +2587,15 @@ function createSlot(slotKey){
         im.renderOrder = 3; im.frustumCulled = false;
         lightRes.push({ dispose: () => im.dispose() });
         lg.add(F.washes[tex] = im);
+      }
+      F.marks = null;
+      if (floorMarks.length) {
+        const im = new THREE.InstancedMesh(floorMarkMat().geo, floorMarkMat().mat, floorMarks.length);
+        floorMarks.forEach((fm, i) => { im.setMatrixAt(i, ZERO); im.setColorAt(i, offColour(_c.copy(fm.off))); fm.m = compose(fm.x, F.fl.elev + FLOOR_MARK_UP, fm.y, 0, FLOOR_MARK_R, 1, FLOOR_MARK_R).clone(); });
+        im.renderOrder = 2; im.frustumCulled = false;
+        lightRes.push({ dispose: () => im.dispose() });
+        lg.add(F.marks = im);
+        F.markList = floorMarks;
       }
       F.pool = null;
       if (pools.length) {
@@ -2641,6 +2665,14 @@ function createSlot(slotKey){
       const g = on && !gone(r) ? k.f * WASH_K * glow * dk : 0;
       F.washes[r.tex].setColorAt(r.i, _c.setRGB(c.r * g, c.g * g, c.b * g));
       F.washes[r.tex].instanceColor.needsUpdate = true;
+    }
+    // Under a covered patio's cover: the small ring on its floor, while off.
+    if (F.marks && L.refs.marks) {
+      for (const i of L.refs.marks) {
+        F.marks.setMatrixAt(i, on || hidden ? ZERO : F.markList[i].m);
+        F.marks.setColorAt(i, offColour(_c.copy(F.markList[i].off)).multiplyScalar(k.unavailable ? 0.55 : 1).lerp(scene.background, 1 - dk));
+      }
+      F.marks.instanceMatrix.needsUpdate = true; F.marks.instanceColor.needsUpdate = true;
     }
     if (F.pool) {
       const g = on ? k.f * POOL_K * glow * dk : 0;
@@ -3977,7 +4009,7 @@ function createSlot(slotKey){
   // Atlas tab and its walls (mapOnly); Mapping's builder does not offer it, and switches as ever.
   const lightTapsOn = () => !mapOnly || !(showOn && showOn.light_taps === false);
   /** Where a light shows: its bulbs, glow and run, or on a cut-away wall the glow on its floor. */
-  const lightPoints = (L) => ((L.wall && L.wall.cut) ? L.poolPick : L.pick) || [];
+  const lightPoints = (L) => ((L.wall && L.wall.cut) ? L.poolPick : L.floorPick ? L.pick.concat(L.floorPick) : L.pick) || [];
   const nearPoly = (x, y, poly, slop) => HOUSE.inPoly(x, y, poly)
     || poly.some((a, i) => { const b = poly[(i + 1) % poly.length]; return HOUSE.segDist(x, y, a[0], a[1], b[0], b[1])[0] <= slop; });
   function deviceTarget(c){
@@ -5006,7 +5038,7 @@ function createSlot(slotKey){
         snowColour: plainSky() ? "#ffffff" : WEATHER.colourOf(p.showcase && p.showcase.theme),
         profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
         house: { key: `${shellGen}|${topElev}${forest ? "|forest" : ""}`, ...(forest ? FOREST.RAIN_REACH : {}), rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,
-                 shown: (fl) => HOUSE.floorShown(fl, topElev),
+                 shown: (fl) => HOUSE.floorShown(fl, topElev), minus: STOREY ? STOREY.minusPolys : null,   // a covered patio's open part
                  walls: () => floorsUi.filter(F => F.group.visible).flatMap(F => F.pieces.map(P => ({ P, F }))) } });
       if (changed) requestRender();
     } catch (_) {
@@ -5518,7 +5550,10 @@ function createSlot(slotKey){
                fixtures: lights.map(L => ({ eid: L.eid, kind: L.drawn, guess: L.guess, bulbs: L.refs.bulbs.length, washes: L.refs.washes.length,
                                             house: L.F.houses && L.refs.houses.length ? ((c) => { L.F.houses.getColorAt(L.refs.houses[0].i, c); return "#" + c.getHexString(); })(new THREE.Color()) : null,
                                             pools: L.refs.pools.length, halos: L.refs.halos.length, rps: L.spin ? L.spin.rps : null,
-                                            angle: L.spin ? L.spin.angle : null, cut: !!(L.wall && L.wall.cut) })),
+                                            angle: L.spin ? L.spin.angle : null, cut: !!(L.wall && L.wall.cut),
+                                            // Under a covered patio's cover: its rings on the floor, each shown or not.
+                                            ...(L.refs.marks ? { marks: L.refs.marks.map(i => { L.F.marks.getMatrixAt(i, _m); return _m.elements[0] > 0; }),
+                                                                 bulbH: L.refs.bulbs.map(r => r.m.elements[13] - L.F.fl.elev) } : {}) })),
                walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0),
                // The house itself: each storey's floor and roof, the roof's pick, the doors with no sensor.
                house: storeyL ? { ...storeyL.state(), roofPick: roofPick(), roofWant, rainShell: rainShell() } : null,
@@ -5677,7 +5712,7 @@ function createSlot(slotKey){
       applyCam();
     },
     /** Where something is on screen, in client px (the harness presses it):
-     *  {eid} a device's nearest point, {room}, {door: eid}, {floor: z},
+     *  {eid} a device's nearest point, {floorOf: eid} a covered patio's light's floor spot, {room}, {door: eid}, {floor: z},
      *  {tracked: key} a tag or a scanner (P6). */
     _where(q){
       if (!renderer || !camera) return null;
@@ -5696,6 +5731,7 @@ function createSlot(slotKey){
         const v = openingQuad(o.F, o.P);
         return at(v[0].clone().add(v[2]).multiplyScalar(0.5));
       }
+      if (q.floorOf) { const U = lights.find(x => x.eid === q.floorOf); return U && U.floorPick ? at(U.floorPick[0]) : null; }   // under a covered patio's cover: its floor spot
       const L = lights.find(x => x.eid === q.eid);
       if (L && L.pick && L.pick.length) {
         // Where it shows: of its points (lightPoints), those nothing hides, nearest their middle.

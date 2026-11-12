@@ -98,7 +98,7 @@ await tryCase("guess: by name as before; under a higher floor's room covered, pa
   check("guess: by name as before; under a higher floor's room covered, partly under open; Outside floor ground",
     k.Rec === "indoor" && k.Den === "indoor" && k.Patio === "covered" && k["Side Patio"] === "open" && k["Garden Patio"] === "open"
     && k.Deck === "open" && k.Shed === "ground" && k["Back Deck"] === "ground"
-    && p.outdoor && p.covered && Math.abs(p.coverH - 2.6) < 1e-9 && !p.roofed, { k, coverH: p.coverH });
+    && p.outdoor && p.covered && p.covers.length === 1 && Math.abs(p.covers[0].h - 2.6) < 1e-9 && !p.roofed, { k, covers: p.covers });
 });
 await tryCase("guess: under an indoor room is covered too", () => {
   const m = HOUSE(); m.room_geometry_m.Deck = rect("main", 0, 5, 6, 9); delete m.room_geometry_m.Deck;
@@ -134,29 +134,77 @@ await tryCase("stored: a value on a room on the Outside floor changes nothing: g
 });
 
 // ── rain ───────────────────────────────────────────────────────────────────
-await tryCase("rain: lands on an open patio, never on a covered one; no snow layer there", () => {
-  const h = read(HOUSE()), A = W.weatherArea({ rooms: h.rooms, ground: h.ground, shown: () => true });
-  const deckAt = (x, y) => A.decks.some(d => H.inPoly(x, y, d.pts));
-  const dryAt = (x, y) => A.indoor.some(d => H.inPoly(x, y, d.pts));
-  // Chosen Open, the Patio is rained on again (reversible).
-  const h2 = read(withSpace(HOUSE(), { Patio: "open" })), A2 = W.weatherArea({ rooms: h2.rooms, ground: h2.ground, shown: () => true });
-  const landed = A2.decks.filter(d => H.inPoly(3, 7, d.pts)).map(d => d.y).sort();
-  check("rain: lands on an open patio, never on a covered one; no snow layer there",
-    deckAt(12, 2) && deckAt(8, 2) && !A.decks.some(d => d.y === 0 && H.inPoly(3, 7, d.pts)) && dryAt(3, 7)
-    && W.landingAt(A, 12, 2) === 0 && JSON.stringify(landed) === "[0,2.6]", { landed });
+const STY = await import(url("views/live_aboard_storey.js"));
+// As the view hands it over: the ground drawn just under the lowest slab.
+const area = (h, shown = () => true) => W.weatherArea({ rooms: h.rooms, ground: h.ground - H.SLAB_T - 0.02, shown, minus: STY.minusPolys });
+// Where a fall of rain lands, by spot: what spawnLayer keeps (seeded, so the same each run).
+const drops = (A) => { const L = W.spawnLayer(A, "downpour", 4000, 7), out = []; for (let i = 0; i < L.n; i++) out.push([L.pos[i * 4], L.pos[i * 4 + 1], L.pos[i * 4 + 2]]); return out; };
+const inRect = (x, y, x0, y0, x1, y1) => x > x0 && x < x1 && y > y0 && y < y1;
+await tryCase("rain: falls on the open deck over a covered patio, never on the patio under it; no snow layer there", () => {
+  const A = area(read(HOUSE())), D = drops(A);
+  const onDeck = D.filter(d => inRect(d[0], d[1], 0, 5, 6, 9) && Math.abs(d[2] - 2.6) < 1e-6).length;
+  const onPatio = D.filter(d => inRect(d[0], d[1], 0, 5, 6, 9) && d[2] < 2.5).length;
+  const patio = A.decks.find(d => d.y === 0 && H.inPoly(3, 7, d.pts));
+  // Main hidden (Lower alone): still nothing falls on the covered patio.
+  const D2 = drops(area(read(HOUSE()), (fl) => fl.id !== "main"));
+  const hidden = D2.filter(d => inRect(d[0], d[1], 0.05, 5.05, 5.95, 8.95)).length;
+  check("rain: falls on the open deck over a covered patio, never on the patio under it; no snow layer there",
+    onDeck > 20 && onPatio === 0 && W.landingAt(A, 3, 7) === 2.6 && patio && patio.cover.length === 1 && patio.open.length === 0
+    && !A.indoor.some(d => H.inPoly(3, 7, d.pts)) && !A.tops.some(t => H.inPoly(3, 7, t.pts)) && hidden === 0, { onDeck, onPatio, hidden });
+});
+await tryCase("rain: a deck with nothing under it, and an open patio, are rained on as before", () => {
+  const m = HOUSE(); delete m.room_geometry_m.Patio;
+  const A = area(read(m)), D = drops(A);
+  const deck = A.decks.find(d => H.inPoly(3, 7, d.pts));
+  check("rain: a deck with nothing under it, and an open patio, are rained on as before",
+    deck && !deck.cover && deck.y === 2.6 && D.some(d => inRect(d[0], d[1], 0, 5, 6, 9) && Math.abs(d[2] - 2.6) < 1e-6)
+    && D.some(d => inRect(d[0], d[1], 10, 0, 14, 5) && d[2] === 0) && W.landingAt(A, 12, 2) === 0);
+});
+// An L-shaped patio half under the deck: Patio L (0..6, 5..13) with the Deck over 5..9 only.
+const LHOUSE = () => { const m = HOUSE(); m.room_geometry_m.Patio = { type: "poly", floor_id: "lower", points_m: [[0, 5], [6, 5], [6, 9], [3, 9], [3, 12], [0, 12]] }; return m; };
+await tryCase("rain: on an L-shaped patio half under a deck, rain and snow on the open half only", () => {
+  const h = read(LHOUSE()), p = h.rooms.find(r => r.name === "Patio"), A = area(h), D = drops(A);
+  const deck = A.decks.find(d => d.y === 0 && H.inPoly(1, 10, d.pts));
+  const openArea = (deck ? deck.open : []).reduce((a, P) => a + Math.abs(P.reduce((s, q, i) => { const r = P[(i + 1) % P.length]; return s + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2, 0);
+  const lowOpen = D.filter(d => inRect(d[0], d[1], 0, 9, 3, 12) && d[2] === 0).length, lowUnder = D.filter(d => inRect(d[0], d[1], 0, 5, 6, 9) && d[2] < 2.5).length;
+  check("rain: on an L-shaped patio half under a deck, rain and snow on the open half only",
+    p.kind === "covered" && deck && Math.abs(openArea - 9) < 1e-6 && lowOpen > 5 && lowUnder === 0 && W.landingAt(A, 1, 10) === 0 && W.landingAt(A, 1, 7) === 2.6,
+    { kind: p.kind, openArea, lowOpen, lowUnder });
 });
 
 // ── lights ─────────────────────────────────────────────────────────────────
+const potIn = (m, x, y) => {
+  const h = read(m), fl = h.byId.get("lower");
+  const per = h.perFloor.get(fl);
+  return H.fixtureParts({ kind: "pot", x, y, floor: fl, fp: null, rot: 0, marginM: null }, { rooms: per.rooms, pieces: per.pieces, ground: h.ground });
+};
 await tryCase("lights: a ceiling pot is set into an open patio's floor and hangs from what covers a covered one", () => {
-  const potIn = (m, x, y) => {
-    const h = read(m), fl = h.byId.get("lower");
-    const per = h.perFloor.get(fl);
-    return H.fixtureParts({ kind: "pot", x, y, floor: fl, fp: null, rot: 0, marginM: null }, { rooms: per.rooms, pieces: per.pieces, ground: h.ground }).bulbs[0].h;
-  };
-  const open = potIn(HOUSE(), 12, 2), covered = potIn(HOUSE(), 3, 7), roofed = potIn(withSpace(HOUSE(), { "Garden Patio": "covered" }), 12, 2);
+  const hOf = (P) => P.bulbs[0].h;
+  const open = hOf(potIn(HOUSE(), 12, 2)), cov = potIn(HOUSE(), 3, 7), covered = hOf(cov), roofed = potIn(withSpace(HOUSE(), { "Garden Patio": "covered" }), 12, 2);
   const reopened = potIn(withSpace(HOUSE(), { Patio: "open" }), 3, 7);
   check("lights: a ceiling pot is set into an open patio's floor and hangs from what covers a covered one",
-    open === 0.015 && reopened === 0.015 && covered > 2.3 && covered < 2.6 - H.SLAB_T + 1e-9 && roofed > 2.3 && roofed < 2.6, { open, covered, roofed, reopened });
+    open === 0.015 && hOf(reopened) === 0.015 && !reopened.under && covered > 2.3 && covered < 2.6 - H.SLAB_T + 1e-9 && cov.under === true
+    && hOf(roofed) > 2.3 && roofed.under === true, { open, covered, roofed: hOf(roofed), reopened: hOf(reopened) });
+});
+await tryCase("lights: on the L-shaped patio, a pot under the deck hangs at its ceiling, one in the open half sits in the floor", () => {
+  const under = potIn(LHOUSE(), 1.5, 7), out = potIn(LHOUSE(), 1.5, 11);
+  check("lights: on the L-shaped patio, a pot under the deck hangs at its ceiling, one in the open half sits in the floor",
+    under.bulbs[0].h > 2.3 && under.under === true && out.bulbs[0].h === 0.015 && !out.under, { under: under.bulbs[0].h, out: out.bulbs[0].h });
+});
+await tryCase("lights: the height is from the room over the spot, not a sunk room beside it", () => {
+  const m = HOUSE();
+  // A study on Main, sunk half a metre, beside the deck (its box meets the patio's, it is over none of it).
+  m.room_geometry_m.Study = rect("main", 6.2, 5, 9, 9);
+  withSpace(m, {}); m.room_meta.Study = { floor_id: "main", color: "#334455", floor_raise_m: -0.5 };
+  m.room_geometry_m.Patio = rect("lower", 0, 5, 6.5, 9);
+  const h = potIn(m, 3, 7).bulbs[0].h, base = potIn(HOUSE(), 3, 7).bulbs[0].h;
+  check("lights: the height is from the room over the spot, not a sunk room beside it", Math.abs(h - base) < 1e-9, { h, base });
+});
+await tryCase("lights: a porch chosen Covered hangs its pots from its roof's underside", () => {
+  const P = potIn(withSpace(HOUSE(), { "Garden Patio": "covered" }), 12, 2), Q = potIn(HOUSE(), 3, 7);
+  // Its roof's underside is at its floor's height (2.6), as the deck's slab underside is (2.6 less the slab): pots as far under each.
+  check("lights: a porch chosen Covered hangs its pots from its roof's underside", Math.abs(P.bulbs[0].h - (Q.bulbs[0].h + H.SLAB_T)) < 1e-9,
+    { porch: P.bulbs[0].h, patio: Q.bulbs[0].h });
 });
 
 // ── roof ───────────────────────────────────────────────────────────────────
@@ -250,6 +298,24 @@ await tryCase("rooms: a choice is saved with room_height_set {room, space}; Work
   check("rooms: a choice is saved with room_height_set {room, space}; Work it out sends null",
     JSON.stringify(calls) === JSON.stringify([{ type: "padspan_ha/room_height_set", room: "Patio", space: "open" },
                                               { type: "padspan_ha/room_height_set", room: "Patio", space: null }]), calls);
+});
+
+await tryCase("rooms: the page works out every room as the 3D view does (one rule, the same facts)", async () => {
+  const same = [];
+  for (const m of [HOUSE(), LHOUSE(), (() => { const x = HOUSE(); x.room_geometry_m.Study = rect("main", 6.2, 5, 9, 9); x.room_meta.Study = { floor_id: "main", color: "#334455", floor_raise_m: -0.5 }; return x; })()]) {
+    const k3 = kinds(read(clone(m))), { ctx } = roomsCtx(clone(m));
+    for (const g of R.roomGroups(ctx)) for (const r of g.rooms) same.push([r.name, r.spaceWorked, k3[r.name]]);
+  }
+  check("rooms: the page works out every room as the 3D view does (one rule, the same facts)",
+    same.length >= 20 && same.every(([, a, b]) => a === b), same.filter(([, a, b]) => a !== b));
+});
+await tryCase("rooms: a room drawn on the Outside plan whose area has no floor is outside ground: no choice", async () => {
+  const { ctx } = roomsCtx(HOUSE());
+  for (const a of ctx.state.model.areas) if (a.name === "Shed" || a.name === "Back Deck") a.floor_id = null;
+  const root = R.render(ctx);
+  const sel = (n) => all(roomNode(root, n)).find(x => x.getAttribute && x.getAttribute("data-edit") === "space") || null;
+  check("rooms: a room drawn on the Outside plan whose area has no floor is outside ground: no choice",
+    !sel("Shed") && !sel("Back Deck") && !!attrIn(root, "Back Deck", "data-space-note") && !!sel("Patio"));
 });
 
 // ── parity ─────────────────────────────────────────────────────────────────

@@ -5033,7 +5033,7 @@ const BRIGHT_PRO_MANUAL = [
           "Choose the room from the dropdown — these come from your Home Assistant areas.",
           "Click Start drawing, then click around the room's outline on the photo, one point per corner.",
           "Click Undo point if you misclick.",
-          "Double-click, or click Finish, once you've placed at least three points, to close the shape.",
+          "Double-click, or click Finish outline, once you've placed at least three points, to close the shape.",
           "Click Save Layout when you're done: until then the rooms are only a draft."
         ],
         "notes": [

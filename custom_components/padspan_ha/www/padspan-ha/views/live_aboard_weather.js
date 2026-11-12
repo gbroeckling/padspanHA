@@ -118,11 +118,14 @@ function nearPoly(x, y, R, g){
 /** The patch of sky the weather falls through, from the house as the view
  *  reads it: h = {rooms: [{pts, outdoor, floor: {elev, h}}], ground (the
  *  drawn ground's height), shown(floor) → whether the floor chips show it}.
- *   indoor   every indoor room and covered patio (readRooms: covered) on
- *            EVERY floor: nothing falls on or through one (the cut-away house
- *            has no roof), whatever the chips show
- *   decks    open outdoor rooms on floors that show (decks, patios, a yard's
- *            plates): what falls there lands on them, the highest first
+ *   indoor   every indoor room on EVERY floor: nothing falls on or through
+ *            one (the cut-away house has no roof), whatever the chips show
+ *   decks    outdoor rooms on floors that show (decks, patios, a yard's
+ *            plates): what falls there lands on them, the highest first. A
+ *            covered patio (readRooms: covered) only where nothing is over it
+ *            (cover: what is; open: the rest, where snow settles, cut by
+ *            h.minus, the view's own): under its cover nothing lands on it,
+ *            nor falls through it, and the room over it is rained on as ever
  *   patches  a round patch round the house, its edge fading out, and a
  *            patch of its own for any deck or yard beyond it
  *   tops     the indoor rooms on the floors that show, each from its floor
@@ -139,13 +142,12 @@ export function weatherArea(h){
     if (!r || !r.floor || !Array.isArray(r.pts) || r.pts.length < 3) continue;
     const bb = bboxOf(r.pts);
     if (![bb.x0, bb.y0, bb.x1, bb.y1].every(Number.isFinite)) continue;
-    const open = r.outdoor && !r.covered;                   // a covered patio stays dry, as a room does
-    if (!open) { indoor.push({ pts: r.pts, bb }); box = grow(box, bb); }
+    if (!r.outdoor) { indoor.push({ pts: r.pts, bb }); box = grow(box, bb); }
     if (!shown(r.floor)) continue;
     const elev = Number(r.floor.elev) || 0;
-    if (open) decks.push({ pts: r.pts, bb, y: elev });
-    else tops.push({ pts: r.pts, y: elev, h: Number(r.covered ? r.coverH : r.h ?? r.floor.h) || 2.8 });     // a room's own height, else its floor's
-    top = Math.max(top, elev + (open ? 1 : (Number(r.covered ? r.coverH : r.h ?? r.floor.h) || 2.8)));
+    if (r.outdoor) decks.push(r.covered ? coveredDeck(r, bb, elev, h.minus) : { pts: r.pts, bb, y: elev });
+    else tops.push({ pts: r.pts, y: elev, h: Number(r.h ?? r.floor.h) || 2.8 });     // a room's own height, else its floor's
+    top = Math.max(top, elev + (r.outdoor ? 1 : (Number(r.h ?? r.floor.h) || 2.8)));
   }
   if (!box) for (const d of decks) box = grow(box, d.bb);       // a garden alone still gets its weather
   if (!box) return null;
@@ -165,11 +167,21 @@ export function weatherArea(h){
   for (const R of indoor) ib = grow(ib, R.bb);
   return { cx, cy, r, top, ground, indoor, ib, decks, tops, patches, box, area: patches.reduce((a, p) => a + p.area, 0) };
 }
+/** A covered patio as a deck: rained on only where nothing is over it
+ *  (cover), snowed on only there (open: the room less its cover, by minus;
+ *  none without it). Worked out when the house is read, never per frame. */
+function coveredDeck(r, bb, y, minus){
+  const cover = (r.covers || []).map(c => c.pts);
+  let open = [];
+  try { open = typeof minus === "function" ? minus(r.pts, cover) : []; } catch (_) { open = []; }
+  return { pts: r.pts, bb, y, cover, open };
+}
 /** Where something falling at (x, y) lands: the highest deck that shows
- *  there, else the ground. */
+ *  there (a covered patio's only past its cover), else the ground. */
 export function landingAt(A, x, y){
   let y0 = A.ground;
-  for (const d of A.decks) if (d.y > y0 && x >= d.bb.x0 && x <= d.bb.x1 && y >= d.bb.y0 && y <= d.bb.y1 && inPoly(x, y, d.pts)) y0 = d.y;
+  for (const d of A.decks) if (d.y > y0 && x >= d.bb.x0 && x <= d.bb.x1 && y >= d.bb.y0 && y <= d.bb.y1 && inPoly(x, y, d.pts)
+                               && !(d.cover && d.cover.some(Q => inPoly(x, y, Q)))) y0 = d.y;
   return y0;
 }
 /** Is the whole fall clear: from where it lands, (dx, dy) up-wind at the
@@ -452,9 +464,10 @@ export function createWeather(THREE, host){
     const decks = (area && area.decks) || [];
     if (decks.length) {
       const dm = lam({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
-      for (const d of decks) {
+      // A covered patio's snow only where nothing is over it (its open parts).
+      for (const d of decks) for (const P of d.cover ? d.open : [d.pts]) {
         // rotateX(+90°): the plan's (x, y) to the world's (x, z), as the floor tiles are.
-        const g = new THREE.ShapeGeometry(new THREE.Shape(d.pts.map(p => new THREE.Vector2(p[0], p[1]))))
+        const g = new THREE.ShapeGeometry(new THREE.Shape(P.map(p => new THREE.Vector2(p[0], p[1]))))
           .rotateX(Math.PI / 2).translate(0, d.y + 0.012, 0);
         res.push(g);
         const mesh = new THREE.Mesh(g, dm);

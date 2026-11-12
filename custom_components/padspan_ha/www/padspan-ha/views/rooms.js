@@ -46,23 +46,6 @@ const { isOutdoorFloorId } = await import(`./iso_lights.js${new URL(import.meta.
 const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`).catch(() => null);
 const SPACE_WORDS = { indoor: "Indoors", open: "Open deck or patio", covered: "Covered patio or porch" };
 
-/** Each drawn room's facts for the one rule ({within, over} by name): its
- *  floor at the server's level (floor_elevations) plus its split level, as
- *  tall as its floor or its own height. */
-function _spaceFacts(model){
-  if (!SURF) return {};
-  const elev = model.floor_elevations || {}, meta = model.room_meta || {};
-  const fh = (fid) => Number(((model.floors || []).find(f => String(f.id) === fid) || {}).floor_to_floor_m) || 2.8;
-  const list = [];
-  for (const [name, g] of Object.entries(model.room_geometry_m || {})) {
-    const fid = String((g && g.floor_id) || "main"), m = meta[name] || {};
-    if (!g || !Array.isArray(g.points_m) || g.points_m.length < 3) continue;
-    list.push({ name, pts: g.points_m.map(p => [Number(p[0]), Number(p[1])]), elev: (Number(elev[fid]) || 0) + (Number(m.floor_raise_m) || 0),
-                h: Math.max(Number(m.height_m) || 0, fh(fid)), ground: isOutdoorFloorId(fid), stored: SURF.storedSpace(model, name) });
-  }
-  const f = SURF.spaceFacts(list);
-  return Object.fromEntries(list.map((r, i) => [r.name, { within: f[i].within, over: f[i].over }]));
-}
 
 let _LM = null;            // lights_map.js once loaded; false if it failed
 function _roomLights(ctx) {
@@ -163,9 +146,11 @@ export function roomGroups(ctx) {
   }
 
   const floorOf = (id) => floors.find(f => String(f.id) === id) || null;
-  const facts = _spaceFacts(model);
+  // Each drawn room's facts, read as Live Aboard reads them (houseFacts): its floor on the plan it is drawn on.
+  const facts = SURF ? SURF.houseFacts(model, isOutdoorFloorId) : {};
   const rows = rooms.map(r => {
     // The one rule: as stored (space), and as worked out (shown beside the choice).
+    // On an Outside floor by the plan it is drawn on (its area may have no floor), else by its area's.
     const f = { name: r.name, ground: isOutdoorFloorId(r.floorId), ...(facts[r.name] || {}) };
     const stored = SURF ? SURF.storedSpace(model, r.name) : null;
     const spaceNow = SURF ? SURF.outdoorKind({ ...f, stored }) : "indoor";
@@ -402,7 +387,9 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
   // Surface: outdoor rooms only (a deck, a patio, or a room on an outdoor floor).
   if (row.outdoor) {
     const sSel = el("select", { style: INPUT + ";width:auto", "data-edit": "surface",
-      title: "What the 3D view and the map draw on this outdoor space's floor. Drawing only, never positioning." }, [
+      // The flat map draws no room of an Outside floor: there, the 3D view only.
+      title: (row.spaceNow === "ground" ? "What the 3D view draws on this outdoor space's floor (the flat map does not show rooms on the Outside floor)."
+        : "What the 3D view and the map draw on this outdoor space's floor.") + " Drawing only, never positioning." }, [
       el("option", { value: "" }, "Standard"),
       el("option", { value: "pavers_2ft" }, "Grey paving tiles (2 ft × 2 ft)"),
     ]);

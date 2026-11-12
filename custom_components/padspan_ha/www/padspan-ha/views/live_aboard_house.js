@@ -558,25 +558,28 @@ export function readRooms(model, F){
                  stored, ...(surface ? { surface } : {}) });
   }
   // What kind of space each room is: outdoor_space.js's one rule, from the
-  // facts it reads of the house (spaceFacts, as the Rooms page does): a name
+  // facts it reads of the house (houseFacts, as the Rooms page does): a name
   // alone (a gallery called "Deck A") does not take a room outdoors where it
   // stands in a lower floor's room that rises past it (within); an outdoor
-  // room with a room of a higher floor over most of it is covered (over),
-  // its ceiling the underside of what covers it (coverH). Covered with
-  // nothing over it (a porch with its own roof, chosen): roofed at its
-  // floor's height (the view draws that roof).
-  const facts = SURF.spaceFacts(rooms.map(r => ({ name: r.name, pts: r.pts, spot: r.spot, elev: r.floor.elev0, h: r.h,
-                                                  ground: r.floor.outdoor, stored: r.stored })), overlapOnPlan);
-  rooms.forEach((r, k) => {
-    const f = facts[k];
+  // room with a room of a higher floor over most of it is covered (over).
+  // What is over it, spot by spot (covers): a covered patio's lights hang
+  // from it and rain keeps off it only there; past its edge it is open.
+  // Covered with nothing over it (a porch with its own roof, chosen): roofed
+  // at its floor's height (coverH; the view draws that roof), its own roof
+  // over all of it.
+  const facts = SURF.houseFacts(model, isOutdoorFloorId);
+  for (const r of rooms) {
+    const f = facts[r.name] || { within: false, over: false, covers: [] };
     r.within = f.within; r.over = f.over;
     r.kind = SURF.outdoorKind({ name: r.name, ground: r.floor.outdoor, stored: r.stored, within: f.within, over: f.over });
     r.outdoor = r.kind !== "indoor";
-    if (r.kind !== "covered") return;
+    if (r.kind !== "covered") continue;
     r.covered = true;
-    r.coverH = f.over ? f.coverH : r.floor.h;
-    if (!f.over) r.roofed = true;
-  });
+    r.covers = f.covers;
+    if (f.over || f.covers.length) continue;
+    r.roofed = true; r.coverH = r.floor.h;
+    r.covers = [{ pts: r.pts, h: r.coverH + SLAB_T }];        // its roof's underside: as a floor's slab over it
+  }
   return rooms;
 }
 export function roomAt(rooms, x, y){
@@ -590,9 +593,11 @@ export function ceilAt(rooms, floor, x, y){
   const fh = floor ? floor.h : FLOOR_TO_FLOOR_M;
   if (num(x) === null || num(y) === null) return fh;
   for (const r of rooms || []) {
-    if ((r.outdoor && !r.covered) || !(r.floor === floor || (r.floor && floor && r.floor.id === floor.id))) continue;
-    // A covered patio: the underside of what covers it (readRooms coverH).
-    if (inPoly(x, y, r.pts)) return r.covered ? r.coverH : Math.max(fh, num(r.h) ?? fh);
+    if ((r.outdoor && !r.covered) || !(r.floor === floor || (r.floor && floor && r.floor.id === floor.id)) || !inPoly(x, y, r.pts)) continue;
+    // A covered patio: the underside of what is over this spot (readRooms
+    // covers); past the cover's edge it is open, as a deck.
+    if (r.covered) { const c = SURF.coverAt(r.covers, x, y); if (c !== null) return c; continue; }
+    return Math.max(fh, num(r.h) ?? fh);
   }
   return fh;
 }
@@ -1359,6 +1364,8 @@ function ringSpots(loop, every){
   return out;
 }
 const GARAGE = /\b(garage|shop|workshop)\b/i;
+// The lights that hang from a ceiling (a covered patio's: from what covers it).
+const CEILING_KINDS = new Set(["pot", "pot_ring", "pendant", "fan", "chandelier"]);
 /** The kind a light is drawn as: its own (L.kind), with the perimeter family
  *  settled by its room — pots on a deck or patio (at floor level, along its
  *  edge), else a cove — and a run round no room only its light. */
@@ -1389,13 +1396,18 @@ export function fixtureParts(L, ctx){
   // in no room, i.e. on the outside of the building.
   const where = fl.outdoor ? "out" : !room ? "none" : room.outdoor ? "out" : "in";
   const outdoor = where !== "in";
-  // Pots on a covered patio hang from what covers it (readRooms coverH, ceil);
-  // on an open deck or patio there is no ceiling: set into the floor.
-  const sunk = outdoor && !(room && room.covered && !fl.outdoor);
+  // Pots on a covered patio hang from what covers their spot (readRooms
+  // covers, ceil); on an open deck or patio, or past the cover's edge, there
+  // is no ceiling: set into the floor.
+  const roofed = outdoor && !!room && !!room.covered && !fl.outdoor && SURF.coverAt(room.covers, L.x, L.y) !== null;
+  const sunk = outdoor && !roofed;
   const align = L.fp && L.fp.la >= 0.9 ? unit(L.fp.a) : null;
   const snap = outdoor ? nearestWall(pieces, L.x, L.y, where === "none" ? 2.5 : 1.5, true, align) : null;
   const onGround = fl.elev <= (ctx.ground || 0) + 0.5;
-  const P = { kind, where, bulbs: [], housings: [], halos: [], washes: [], pools: [], picks: [], poolH: 0.014, kf: 1, wall: null, spin: null };
+  const P = { kind, where, bulbs: [], housings: [], halos: [], washes: [], pools: [], picks: [], poolH: 0.014, kf: 1, wall: null, spin: null,
+              // A ceiling light under a covered patio's cover: seen from above only on
+              // its floor (the view adds a press and a mark there, under each bulb).
+              ...(roofed && CEILING_KINDS.has(kind) ? { under: true } : {}) };
   // Nothing out there to light, unless it is the ground (just above the
   // ground plane, which lies under the lowest slab).
   if (where === "none") P.poolH = onGround ? (ctx.ground || 0) - SLAB_T - 0.008 - fl.elev : null;

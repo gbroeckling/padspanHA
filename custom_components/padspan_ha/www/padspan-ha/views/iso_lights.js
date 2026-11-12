@@ -5791,19 +5791,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         }
         placedLabels.push({x:lix, y:liy, w:rw, h:rh});
       }
-      // A paved room is filled with its tiles (paveIds), half strength on the dark plate.
+      // A paved room is filled with its tiles (paveIds), half strength on the dark
+      // plate, its colour (a lit room's tint) laid over them as any room's fill is.
       const pave=paveIds.get(r), fillOf=(op)=>pave?`fill="url(#${pave})" fill-opacity="0.5"`:`fill="${color}" fill-opacity="${op}"`;
+      const tintOf=(op)=>pave?`<polygon points="${pp}" fill="${color}" fill-opacity="${op}" stroke="none" pointer-events="none"/>`:"";
       if(SHOW){
         // Same polygon, given depth: a soft dark edge seats the room on the
         // slab, the fill carries the room colour, one sheen from the shared
         // upper-left light source keeps every room lit from the same place,
         // and the room's own soft centre-glow (see roomGlowIds) rounds it out.
         s+=`<polygon points="${pp}" fill="none" stroke="${THEME.roomEdgeStroke}" stroke-width="4" stroke-linejoin="round" opacity="0.5"/>`;
-        s+=`<polygon points="${pp}" ${fillOf(THEME.roomFillOpacity)} stroke="${color}" stroke-width="${THEME.roomStrokeWidth}" stroke-opacity="${THEME.roomStrokeOpacity}" stroke-linejoin="round"/>`;
+        s+=`<polygon points="${pp}" ${fillOf(THEME.roomFillOpacity)} stroke="${color}" stroke-width="${THEME.roomStrokeWidth}" stroke-opacity="${THEME.roomStrokeOpacity}" stroke-linejoin="round"/>`+tintOf(THEME.roomFillOpacity);
         s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
         s+=`<polygon points="${pp}" fill="url(#pswash)" stroke="none" pointer-events="none"/>`;
       } else {
-        s+=`<polygon points="${pp}" ${fillOf("0.16")} stroke="${color}" stroke-width="1.6" opacity="1"/>`;
+        s+=`<polygon points="${pp}" ${fillOf("0.16")} stroke="${color}" stroke-width="1.6" opacity="1"/>`+tintOf("0.16");
         s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
       }
       // Deferred to labelJobs (see above): the name itself, plus everything

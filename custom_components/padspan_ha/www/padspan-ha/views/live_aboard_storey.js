@@ -135,6 +135,11 @@ export function minusAll(P, holes){
   for (const C of holes || []) parts = parts.flatMap(Q => minusConvex(Q, C));
   return parts;
 }
+/** P with any simple polygons taken out (a concave one cut into triangles
+ *  first): a covered patio's open part, past what is over it. */
+export function minusPolys(P, polys){
+  return minusAll(P, (polys || []).flatMap(Q => (Q.length < 3 ? [] : isConvex(Q) ? [Q] : triangles(Q))));
+}
 
 // ── the grid along the house's walls ─────────────────────────────────────────
 /** The way most of the house's walls run (radians, -45° to 45°; a quarter

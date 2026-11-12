@@ -44,31 +44,72 @@ export function outdoorKind({ name, ground = false, stored = null, within = fals
 /** The facts the rule works from, for each of `rooms` [{name, pts (plan
  *  metres), elev (its floor's real level, m), h (its height), ground (on an
  *  Outside floor), stored (its stored kind or null)}], in order:
- *  {within, over, coverH}. within: its name says outdoors but it stands in a
- *  lower floor's indoor room that rises a railing's height past it (overlap:
- *  two rooms share area on the plan; Live Aboard hands in its own). over: a
+ *  {within, over, covers}. within: its name says outdoors but it stands in a
+ *  lower floor's indoor room that rises a railing's height past it. over: a
  *  room of a higher floor (0.5 m up or more, indoor or a deck) over most of
- *  it; coverH: how far above it the lowest such floor is. Live Aboard
- *  (readRooms) and the Rooms page both read the house through this. */
-export function spaceFacts(rooms, overlap = shareArea){
+ *  it. covers: every such room that is over some of it, [{pts, h}] with h how
+ *  far above this room's floor that room's floor is (its slab's underside is
+ *  that, less the slab): what a light or a raindrop meets at a spot. */
+export function spaceFacts(rooms){
   const named = (r) => !r.ground && OUTDOOR_NAME.test(String(r.name || ""));
   const outdoor = rooms.map(r => outdoorKind({ name: r.name, ground: r.ground, stored: r.stored }) !== "indoor");
-  const out = rooms.map(() => ({ within: false, over: false, coverH: null }));
+  const out = rooms.map(() => ({ within: false, over: false, covers: [] }));
   rooms.forEach((r, i) => {
     out[i].within = named(r) && rooms.some((R, j) => !outdoor[j] && !R.ground && R.elev < r.elev - 1e-3
-                                            && R.elev + R.h >= r.elev + RAIL_M && overlap(R, r));
+                                            && R.elev + R.h >= r.elev + RAIL_M && shareArea(R, r));
     if (out[i].within && !r.stored) outdoor[i] = false;
   });
   const boxes = rooms.map(r => boxOf(r.pts));
   const meet = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
   rooms.forEach((r, i) => {
     if (r.ground || !(outdoor[i] || named(r))) return;
-    const ups = rooms.filter((R, j) => j !== i && !R.ground && R.elev > r.elev + 0.5 && meet(boxes[j], boxes[i]));
+    const ups = rooms.filter((R, j) => j !== i && !R.ground && R.elev > r.elev + 0.5 && meet(boxes[j], boxes[i]) && shareArea(R, r));
     out[i].over = underShare(r.pts, ups.map(R => R.pts)) > 0.5;
-    if (out[i].over) out[i].coverH = Math.min(...ups.map(R => R.elev - r.elev));
+    out[i].covers = ups.map(R => ({ pts: R.pts, h: R.elev - r.elev }));
   });
   return out;
 }
+/** spaceFacts for every drawn room of a model (model_get's: room_geometry_m,
+ *  room_meta, floors, floor_elevations; a split one too), by name, each with
+ *  ground. A room's floor stands at the server's level for it (else its
+ *  base_elevation_m, else stacked on the floors before it), plus its split
+ *  level; it is as tall as its floor or its own height. Live Aboard
+ *  (readRooms) and the Rooms page both read the house through this, so the
+ *  two work out the same. isOutdoorFloorId: iso_lights.js's (handed in). */
+export function houseFacts(model, isOutdoorFloorId){
+  const m = model || {}, meta = m.room_meta || {}, floors = Array.isArray(m.floors) ? m.floors : [];
+  const elev = {}, tall = {};
+  let run = 0;
+  for (const f of floors) {
+    const id = String(f && f.id), h = Number(f && f.floor_to_floor_m) > 0.5 ? Number(f.floor_to_floor_m) : FLOOR_M;
+    if (id.includes("~") || isOutdoorFloorId(id)) continue;
+    const e = num((m.floor_elevations || {})[id]) ?? num(f.base_elevation_m) ?? run;
+    elev[id] = e; tall[id] = h; run = Math.max(run, e + h);
+  }
+  const list = [];
+  for (const [name, g] of Object.entries(m.room_geometry_m || {})) {
+    if (!g || typeof g !== "object") continue;
+    const pts = g.type === "circle" ? circle(num(g.cx_m) || 0, num(g.cy_m) || 0, num(g.r_m) || 0.5)
+      : Array.isArray(g.points_m) ? g.points_m.map(p => [Number(p[0]), Number(p[1])]) : [];
+    if (pts.length < 3) continue;
+    const fid = String(g.floor_id || "main").split("~")[0], rm = meta[name] || {};
+    list.push({ name, pts, ground: isOutdoorFloorId(fid), stored: storedSpace(m, name),
+                elev: (elev[fid] ?? num((m.floor_elevations || {})[fid]) ?? 0) + (num(rm.floor_raise_m) ?? 0),
+                h: Math.max(num(rm.height_m) ?? 0, tall[fid] ?? FLOOR_M) });
+  }
+  const f = spaceFacts(list);
+  return Object.fromEntries(list.map((r, i) => [r.name, { ground: r.ground, ...f[i] }]));
+}
+/** How high over its floor what covers a room at (x, y) is (the lowest of
+ *  its covers there), or null: open to the sky at that spot. */
+export function coverAt(covers, x, y){
+  let h = null;
+  for (const c of covers || []) if (inside(x, y, c.pts) && (h === null || c.h < h)) h = c.h;
+  return h;
+}
+const FLOOR_M = 2.8;                      // a floor's height when none is set (the Floor Heights table's blank)
+const num = (v) => (v === null || v === undefined || v === "" || typeof v === "boolean" || !Number.isFinite(Number(v)) ? null : Number(v));
+function circle(cx, cy, r){ const out = []; for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } return out; }
 // A railing's height (the 3D house's RAIL_H, the same metre).
 const RAIL_M = 1.0;
 function boxOf(P){

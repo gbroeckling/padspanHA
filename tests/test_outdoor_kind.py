@@ -107,8 +107,8 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("guess:", 3), ("stored:", 3), ("rain:", 1), ("lights:", 1), ("roof:", 1),
-                                          ("doors:", 2), ("rooms:", 2), ("parity:", 1)])
+@pytest.mark.parametrize("prefix,least", [("guess:", 3), ("stored:", 3), ("rain:", 3), ("lights:", 4), ("roof:", 1),
+                                          ("doors:", 2), ("rooms:", 4), ("parity:", 1)])
 def test_the_panel_side(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"
@@ -139,3 +139,18 @@ def test_the_copies_are_gone_and_radio_reads_floors_only() -> None:
     assert callers == ["presence_rules.py", "websocket.py"], callers
     src = inspect.getsource(PR.is_outdoor_floor)
     assert "OUTDOOR_FLOOR_NAMES" in src and "kind" not in src
+
+
+def test_a_covered_patios_lights_stay_switchable() -> None:
+    """tests/js/covered_patio.mjs: a pot under the deck is pressed on the patio's
+    floor past the deck's edge (and not where the deck hides that spot), a small
+    ring marks it there while off; an open deck's and an indoor room's lights as before."""
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "covered_patio.mjs"), str(_WWW)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=240)
+    lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
+    assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
+    run = json.loads(lines[-1])
+    got = run["cases"]
+    assert len(got) == 3 and all(got.values()) and not run["failures"], json.dumps(run["failures"][:3], indent=2, ensure_ascii=False)
