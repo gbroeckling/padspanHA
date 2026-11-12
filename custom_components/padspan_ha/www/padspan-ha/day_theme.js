@@ -205,7 +205,7 @@ export function dayDecls(text, color = dayColor) {
 const KEEP_SELECTOR_RE = /\.(lv|la|la3d|pl)[-_]/;
 
 // The Atlas's controls (.lv-) are also used on plain cards (Mapping's Atlas
-// header and tools, Floor Heights): there they follow the day, and stay night
+// builder header and tools, Floor Heights): there they follow the day, and stay night
 // only on the Atlas's own card (lv-atlascard), in a kept drawing's box or in the
 // 3D house.
 const LV_ONLY_RE = /\.lv[-_]/, NOT_LV_RE = /\.(la3d|la|pl)(?![A-Za-z0-9])/;

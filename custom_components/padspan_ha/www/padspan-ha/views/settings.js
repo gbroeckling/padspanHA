@@ -4470,7 +4470,7 @@ function _atlas3dSection(ctx, el, settings){
       into.appendChild(el("div",{"data-la3d-state":key,style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px"},[
         el("span",{style:"color:#e2e8f0;font-size:13px"}, `${label}: ${checked ? "On" : "Off"}`),
         el("span",{style:"color:#94a3b8;font-size:12px"}, `Switch it in Live Aboard: Views \u25be \u2192 ${_LA_SWITCHED[key]}.`),
-        // Mapping → Atlas is the builder, an expert screen: not from Basic.
+        // Mapping → Atlas builder is an expert screen: not from Basic.
         FOCUS.expertLinks(ctx.state) ? go : null,
       ]));
       into.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 0;line-height:1.5"}, hint));

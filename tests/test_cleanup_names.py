@@ -26,7 +26,8 @@ def _read(p: Path) -> str:
 
 def test_mappings_rooms_tab_is_called_layout_with_its_id_kept() -> None:
     maps = _read(_WWW / "views" / "maps.js")
-    assert '["stack","3D Stack"],["rooms","Layout"],["lights","Atlas"]' in maps
+    # 2026-11-13, D7: Mapping's Atlas tab reads "Atlas builder" (its id stays "lights").
+    assert '["stack","3D Stack"],["rooms","Layout"],["lights","Atlas builder"]' in maps
     assert '["rooms","Rooms"]' not in maps
     assert 'activeTab==="rooms" ? _roomsTab(ctx, maps)' in maps         # the id the tab still goes by
     # Mapping → Edit's drawing mode draws rooms, so it keeps its name.

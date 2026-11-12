@@ -1779,7 +1779,7 @@ def test_the_light_index_fits_a_phone(tmp_path):
     """Design pass leftover, 2026-09-28: on a 390px phone every header and
     cell of the light index broke letter by letter ("Ligh t Index", "COD E")
     and the table ran 340px off the page, in the Atlas sidebar and in
-    Mapping -> Atlas alike (one table, both hosts). The panel-wide
+    Mapping -> Atlas builder alike (one table, both hosts). The panel-wide
     `.card{word-break:break-word}` let each column shrink to one letter.
 
     The index card now sizes by its own width (it also sits in a 440px

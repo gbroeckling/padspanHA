@@ -152,7 +152,7 @@ export function render(ctx){
   // without a key, which left PadSpan Bright's free program with no map at all.
   const tabDefs = isBasic
     ? [["library","Library"],["upload","Upload"]]
-    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Layout"],["lights","Atlas"],["export","Export"],["help","Help"]];
+    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Layout"],["lights","Atlas builder"],["export","Export"],["help","Help"]];
 
   // Live Aboard's Furnish (P2), after Atlas: only while Live Aboard shows (the
   // switch on, at Pro or Bright Pro). Otherwise there is no such tab, the way
@@ -4986,11 +4986,11 @@ const BRIGHT_PRO_MANUAL = [
   },
   {
     "heading": "Placing your lights",
-    "intro": "Open Mapping → Atlas, then place each light, fan, motion sensor and temperature sensor where it is installed. Resize and rotate the fixtures that need it. The index below the map helps you find and queue them, or undo a change.",
+    "intro": "Open Mapping → Atlas builder, then place each light, fan, motion sensor and temperature sensor where it is installed. Resize and rotate the fixtures that need it. The index below the map helps you find and queue them, or undo a change.",
     "subsections": [
       {
         "heading": "Place a light",
-        "body": "Open Mapping → Atlas. Every light starts out clustered at the centre of its room, waiting to be placed. There are two ways to move it to its real spot: drag it there directly, or queue it and tap the map.",
+        "body": "Open Mapping → Atlas builder. Every light starts out clustered at the centre of its room, waiting to be placed. There are two ways to move it to its real spot: drag it there directly, or queue it and tap the map.",
         "steps": [
           "To place one by dragging: click its marker on the map and drag it to where the fixture really sits, then let go.",
           "To place one by tapping: click + Place next to its row in the light index below the map — or click \"Queue all unplaced\" to queue every unplaced light in the house at once.",
@@ -9684,7 +9684,7 @@ function _lightsTourCard(ctx, wrap, paid){
   return card;
 }
 
-// ── Lights Tab (large — the whole Lights builder lives in this function) ───
+// ── Atlas builder tab, id "lights" (large — the whole builder lives in this function) ───
 // The paid build tools layered on top of the free lights map every sidebar
 // panel already shows (buildLightsMapCard/buildLightsTable from
 // lights_map.js — the SAME functions, so the map here and the sidebar's map
@@ -9967,14 +9967,14 @@ function _lightsTab(ctx, maps, active) {
   // other devices if placed"); wall-linking a lock is a SEPARATE, additive
   // capability (see the Map column below), not a replacement for it.
   const placeableLights = lights.filter(l => !l.isDoor);
-  // The Plans tool's fixture symbol with no placed light: Mapping → Atlas on its
+  // The Plans tool's fixture symbol with no placed light: Mapping → Atlas builder on its
   // floor, its room's lights chosen, for the person to place it. Nothing is written.
   const openAtlasRoom = (floorId, room) => {
     const mine = room ? placeableLights.filter(l => l.area_name === room) : [];
     mapState._atlasFloorAsk = floorId;
     mapState._selSet = new Set(mine.map(l => l.entity_id));
     mapState._focusRow = mine.length ? mine[0].entity_id : null;
-    ctx.toast(room ? `Mapping → Atlas, ${room}: choose a light, then drop its pin where the plan draws it.` : "Mapping → Atlas: choose a light, then drop its pin where the plan draws it.");
+    ctx.toast(room ? `Mapping → Atlas builder, ${room}: choose a light, then drop its pin where the plan draws it.` : "Mapping → Atlas builder: choose a light, then drop its pin where the plan draws it.");
     ctx.actions.setMapsTab("lights");
   };
   // Live Aboard's ⋯ list: its links and "Set it up" open that Settings card
@@ -9985,7 +9985,7 @@ function _lightsTab(ctx, maps, active) {
       FOCUS.openFocus(ctx, { view: "settings", tab: t.tab, part: t.part || "", title: "" });
       return;
     }
-    // Already here (Mapping → Atlas): Showcase and the devices are in the bar and on the flat map.
+    // Already here (Mapping → Atlas builder): Showcase and the devices are in the bar and on the flat map.
     if (t.tab === "lights" && ctx.state.mapsTab === "lights") {
       ctx.toast(t.where === "showcase" ? "Showcase and its theme are in the bar above the map (✦ Showcase)."
         : "Devices are placed on the flat map: switch Map / 3D to Map.");

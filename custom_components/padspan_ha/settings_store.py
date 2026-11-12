@@ -259,7 +259,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "maps_iso_horiz_gap":    0,     # px L/R horizontal offset
     "maps_iso_focus":        None,  # z_level to highlight, or null = all
     # 3D isometric view layout (Overview tab) — also the Atlas builder's own
-    # camera (Mapping -> Atlas seeds host.view from these same keys).
+    # camera (Mapping -> Atlas builder seeds host.view from these same keys).
     "overview_iso_floor_gap": 150,
     "overview_iso_horiz_gap": 0,
     "overview_iso_focus":     None,

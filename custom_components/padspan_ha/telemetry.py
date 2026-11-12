@@ -513,7 +513,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "wall_geom", "whatif_placement", "wled_advanced", "wled_model", "wled_tab_backup",
     "wled_tab_leds", "wled_tab_look", "wled_tab_presets", "wled_tab_settings",
     "wled_tab_sync", "wled_ui", "trial_offer", "release_notes", "pro_invite",
-    "aboard_wizard",                                # the Live Aboard setup wizard (Settings, Mapping → Atlas)
+    "aboard_wizard",                                # the Live Aboard setup wizard (Settings, Mapping → Atlas builder)
     "i18n",                                         # the panel's translations helper (t / tn)
     "status_dot",                                   # the top bar's status dot (what is wrong, from the live poll)
 })

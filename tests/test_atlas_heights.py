@@ -8,7 +8,7 @@ needs same information store, but needs to be a tool to add the third
 dimension for the sims view, height mostly ... This needs to be an element
 for all devices."
 
-tests/js/atlas_heights.mjs runs Mapping's Atlas tab (views/maps.js with
+tests/js/atlas_heights.mjs runs Mapping's Atlas builder tab (views/maps.js with
 views/atlas_heights.js) for real under the DOM shim: off, below Pro or in
 Preview nothing is fetched; the inspector's Height row with each kind's
 chips, its cm box and Live Aboard's default; Undo; Save placements sending a

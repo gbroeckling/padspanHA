@@ -9,7 +9,7 @@ the browser as the start of a scroll (.lv-stage is overflow:auto) and get
 silently taken over for panning instead of completing the press.
 
 This gesture is wired inline inside maps.js's render(ctx) — reaching it with
-a real pointerdown/pointermove/pointerup sequence needs the WHOLE Atlas tab
+a real pointerdown/pointermove/pointerup sequence needs the WHOLE Atlas builder tab
 built (ctx.state.mapsTab="lights", a real model, every render() dependency),
 which is disproportionate to what a touch-target hardening fix needs proving
 — the door-circle drag handler right next to this one (_wireDoorCircle) is

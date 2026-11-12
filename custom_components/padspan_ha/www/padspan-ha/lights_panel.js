@@ -802,7 +802,7 @@ class PadSpanLightsApp extends HTMLElement {
     openControlCard(this._hass, eid, {
       toast:(m,e)=>this._toast(m,e),
       rerender:()=>this._render(),
-      // Not in Basic: Mapping → Atlas (the builder) is an expert screen,
+      // Not in Basic: Mapping → Atlas builder is an expert screen,
       // and Basic's Mapping would put the link back on Library.
       onEdit: this._isAdmin() && !this._basicMode() ? (e)=>this._gotoBuilder(e) : null,
       ...controlApiFor(this._regStore?.reg, eid, { tier: this.state._tier, isAdmin: this._isAdmin() }),
@@ -885,7 +885,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Admin only: the pencil to the builder. Same map, the other tool.
       // Not in Basic, as a light's ✎ (Basic's Mapping would land on Library).
       el("span",{style:"margin-left:auto"}),
-      ...(this._isAdmin() && !this._basicMode() ? [el("button",{class:"lv-act",title:"Open Mapping \u2192 Atlas",
+      ...(this._isAdmin() && !this._basicMode() ? [el("button",{class:"lv-act",title:"Open Mapping \u2192 Atlas builder",
         onclick:()=>this._gotoBuilder(null)},"\u270e Edit map")] : []),
       // Home Assistant's sidebar, hidden or shown (ha_sidebar.js): with it
       // hidden, this is the way back from the Atlas. Not on a phone, where
@@ -1029,7 +1029,7 @@ class PadSpanLightsApp extends HTMLElement {
       // itself (Disable + intensity slider), pinned dead-center of the
       // screen, is built into the shared card below (Garry, 2026-09-21:
       // "I wanted the banner to show in the two atlas screens" — this one
-      // and Mapping -> Atlas, nowhere else, so it lives in the shared
+      // and Mapping -> Atlas builder, nowhere else, so it lives in the shared
       // renderer rather than panel.js's global chrome).
       onVacationModeEnable: async () => {
         if (!this._hass) return false;

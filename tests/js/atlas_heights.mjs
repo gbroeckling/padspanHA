@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 //
 // Heights for Live Aboard on the Atlas (views/atlas_heights.js and its hooks
-// in maps.js), run for real: Mapping's Atlas tab rendered under the DOM shim,
+// in maps.js), run for real: Mapping's Atlas builder tab rendered under the DOM shim,
 // every module load recorded.
 //
 //   off     Live Aboard off, or below Pro, or Preview: atlas_heights.js is

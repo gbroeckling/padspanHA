@@ -186,9 +186,9 @@ export async function openLiveAboardWizard(ctx, step) {
     catch (e) { if (note) { note.textContent = "Could not save: " + String((e && e.message) || e); note.style.color = "#f87171"; } }
     draw();
   };
-  // Off to a tool: Live Aboard picked for Mapping → Atlas, the tool asked for
+  // Off to a tool: Live Aboard picked for Mapping → Atlas builder, the tool asked for
   // (Live Aboard opens Edit there on its way in), and the step remembered so
-  // Mapping → Atlas offers "← Back to the setup wizard".
+  // Mapping → Atlas builder offers "← Back to the setup wizard".
   const go = (where) => {
     ctx.actions.closeModal();
     if (where.liveAboard) { try { localStorage.setItem("padspan_lv_3d_builder", "1"); } catch (_) { /* private mode */ } }
@@ -258,7 +258,7 @@ export async function openLiveAboardWizard(ctx, step) {
         return out;
       }
       out.push(toggle("Show Live Aboard on the Atlas", s.on, (v, n) => save({ atlas_3d_enabled: v }, n),
-        "Saves right away. In the sidebar Atlas, 🏠 on the left switches between the flat map and Live Aboard; in Mapping → Atlas, the Map | Live Aboard switch does."));
+        "Saves right away. In the sidebar Atlas, 🏠 on the left switches between the flat map and Live Aboard; in Mapping → Atlas builder, the Map | Live Aboard switch does."));
       if (s.webgl === false) out.push(tip("This browser can't draw 3D (no WebGL). Live Aboard still works on other screens; this one keeps the flat map."));
       out.push(overviewAtlas(s,
         "Optional, off unless you turn it on. Overview, the first tab, shows the Atlas (and Live Aboard) instead of the classic map; Live Tracker gets a switch to the classic Overview. You can change it any time in Settings → Atlas."));
@@ -297,11 +297,11 @@ export async function openLiveAboardWizard(ctx, step) {
         list([`Lights: ${s.placedLights} of ${s.lights}`, `Motion sensors: ${s.motion.placed} of ${s.motion.all}`,
               `Thermometers: ${s.temps.placed} of ${s.temps.all} (the heat map uses these)`, `Everything placed: ${s.placed}`]),
         tip("Place at least one thermometer per room you care about: with Temps picked in Live Aboard, each room turns its temperature colour."),
-        btn("Open Mapping → Atlas", () => go({ tab: "lights" }), true)];
+        btn("Open Mapping → Atlas builder", () => go({ tab: "lights" }), true)];
     },
     heights(s) {
       return [p("Live Aboard puts each device at the height it really is: a pot light on the ceiling, a lamp on a table, a switch at switch height. Anything without its own height uses the usual height for its kind, so this is about the ones that are wrong."),
-        tip("In Live Aboard: Edit → Heights, tap a device, then a spot (Ceiling, Corner, Wall, Switch height, Table, Floor…) or the slider. For a light, What is this? (pot light, pendant, lamp…) sets its look and height together. Mapping → Atlas also has a Heights list for setting several at once."),
+        tip("In Live Aboard: Edit → Heights, tap a device, then a spot (Ceiling, Corner, Wall, Switch height, Table, Floor…) or the slider. For a light, What is this? (pot light, pendant, lamp…) sets its look and height together. Mapping → Atlas builder also has a Heights list for setting several at once."),
         btn("Open Live Aboard at Heights", () => go({ tab: "lights", liveAboard: true, tool: "heights" }), true)];
     },
     openings(s) {
@@ -372,10 +372,10 @@ export async function openLiveAboardWizard(ctx, step) {
       if (first) {
         out.push(select("Quality", set.atlas_3d_quality || "auto", QUALITY, (v, n) => save({ atlas_3d_quality: v }, n)));
         if (!s.weather.on) out.push(toggle("Outdoor weather on the Atlas", false, (v, n) => save({ atlas_weather_enabled: v }, n),
-          "Rain and snow (and the open-window warning) follow the Atlas's outdoor weather: your weather entity's condition, or a rain sensor. Pick those in Mapping → Atlas."));
+          "Rain and snow (and the open-window warning) follow the Atlas's outdoor weather: your weather entity's condition, or a rain sensor. Pick those in Mapping → Atlas builder."));
         out.push(toggle("Rain and snow", s.weather.rain, (v, n) => save({ atlas_3d_weather: v }, n),
           s.weather.on ? `Falls outside the house when your weather says so${s.weather.source ? ` (${s.weather.source})` : ""}. With windows linked to sensors, an open window in the rain glows blue and gets a warning.`
-            : "Needs the Atlas's Outdoor weather on (Mapping → Atlas), with a rain sensor or weather entity."));
+            : "Needs the Atlas's Outdoor weather on (Mapping → Atlas builder), with a rain sensor or weather entity."));
       } else {
         out.push(setting("Quality", OPT(QUALITY, set.atlas_3d_quality || "auto")));
         if (!s.weather.on) out.push(setting("Outdoor weather on the Atlas", "Off"));

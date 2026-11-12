@@ -9,7 +9,7 @@
 // view, height mostly ... This needs to be an element for all devices if
 // someone starts using sims and wants it to work and look good."
 //
-//   Height row   in Mapping's Atlas inspector, for the placed device picked:
+//   Height row   in the Atlas builder's inspector, for the placed device picked:
 //                the heights its kind usually sits at (a leak sensor: Floor;
 //                a lock: Door height; a motion sensor: Corner, Ceiling...),
 //                a box in centimetres, and Default (what Live Aboard uses for

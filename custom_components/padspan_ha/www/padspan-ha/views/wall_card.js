@@ -47,7 +47,7 @@ export function wallCard(ctx, el, settings){
   if (!pro || !s.atlas_layout_v2) {
     card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5" },
       !pro ? "Wall screens come with PadSpan Pro (Settings → Features → PadSpan licence), on the Atlas's new layout."
-           : "Wall screens need the Atlas's new layout: Mapping → Atlas → ▦ New layout."));
+           : "Wall screens need the Atlas's new layout: Mapping → Atlas builder → ▦ New layout."));
     return card;
   }
 

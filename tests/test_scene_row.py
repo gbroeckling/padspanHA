@@ -108,7 +108,7 @@ def test_the_sidebar_hands_in_scenes_and_keeps_a_wall_on_its_page() -> None:
 
 
 def test_mapping_atlas_hands_in_scenes_too() -> None:
-    """Garry, 2026-11-09: the scene row under Mapping → Atlas as well (it was
+    """Garry, 2026-11-09: the scene row under Mapping → Atlas builder as well (it was
     only on the sidebar Atlas and in Live Aboard). The same row and rules
     (lights_map.js); Mapping's own calls and its own ⋯ list (slot "builder")."""
     mp = _code(_VIEWS / "maps.js")

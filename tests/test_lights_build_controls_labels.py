@@ -165,7 +165,7 @@ def test_sticky_control_row_is_opt_in_per_host(tmp_path):
 def test_pan_position_survives_a_full_rebuild_of_the_card(tmp_path):
     """2026-09-17 finding, live: buildLightsMapCard creates a BRAND NEW
     isoDiv every time it's called — every poll-triggered re-render of the
-    Atlas tab rebuilds the whole card from scratch, not just an in-place
+    Atlas builder tab rebuilds the whole card from scratch, not just an in-place
     rebuildISO(). A fresh div starts at scrollLeft/scrollTop 0 regardless
     of where the user had just pinched-and-panned to, which reads as
     "the system auto-adjusts the placement" — the touch-action fix (styles.css)

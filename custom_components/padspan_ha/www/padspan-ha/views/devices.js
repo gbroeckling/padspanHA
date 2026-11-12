@@ -671,7 +671,7 @@ function _renderDoorOpeners(ctx) {
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Door / Window Openers"));
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas, right alongside its sensor and its lock."));
+    "Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock."));
 
   if (!_isDoorOpenersPaidTier(ctx)) {
     card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;background:#2a220a;border:1px solid #78350f;border-radius:8px;padding:10px" },
@@ -709,7 +709,7 @@ function _renderDoorOpeners(ctx) {
   if (!candidates.length) {
     card.appendChild(el("div", { style: "font-size:12px;color:#64748b;padding:8px 0" },
       "No cover, switch, button, or script entities with “door”, “gate”, “garage”, or “opener” in their name were found. " +
-      "Nothing on this install looks like a door/window opener by name — if one exists under a different name, it can still be added from the picker on its wall opening's row in Mapping → Atlas."));
+      "Nothing on this install looks like a door/window opener by name — if one exists under a different name, it can still be added from the picker on its wall opening's row in Mapping → Atlas builder."));
   } else {
     for (const eid of candidates) {
       const st = states[eid];

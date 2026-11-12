@@ -41,7 +41,7 @@ function _roomLights(ctx) {
     return null;
   }
   if (typeof _LM.then === "function") return null;
-  // The Atlas's own pipeline (maps.js's Atlas tab): the same registry cache,
+  // The Atlas's own pipeline (maps.js's Atlas builder tab): the same registry cache,
   // the same light list, its hidden lights left out.
   const st = ctx.state, s = st.settings || {};
   if (!st._lightsRegStore) st._lightsRegStore = {};

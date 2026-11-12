@@ -6,7 +6,7 @@
  * The 90-day free trial, offered where people meet the paid wall.
  *
  * One card, used by every surface that offers the trial: the Overview's
- * Getting started card, the Atlas sidebar panel, Mapping → Atlas, a refused
+ * Getting started card, the Atlas sidebar panel, Mapping → Atlas builder, a refused
  * light placement, Locate, Busy Times and Settings → PadSpan licence — and,
  * for free installs that never meet a wall, three quiet ones: a line in the
  * "updated to vX" banner, a one-time milestone card on Overview and an entry
@@ -322,7 +322,7 @@ function _startedCard(el, done) {
   return el("div", { "data-trial": "started",
     style: "padding:10px 12px;border:1px solid #2d5a3d;border-radius:8px;background:#0a1f14;margin:8px 0;font-size:12px;color:#a7f3d0;line-height:1.55" },
     "✓ Your 90-day PadSpan Pro trial has started" + (Number.isFinite(days) && days > 0 ? ` (${days} days left)` : "") +
-    ". Start by placing your lights in Mapping → Atlas — drag each one to where it really hangs." +
+    ". Start by placing your lights in Mapping → Atlas builder — drag each one to where it really hangs." +
     (trialLaunchLine() ? " " + trialLaunchLine() : ""));
 }
 
