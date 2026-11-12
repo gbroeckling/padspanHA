@@ -315,6 +315,18 @@ const TF = { p2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } }
   const fr = await render(f);
   check("a flagged plan by another door: has no scale yet, not uploaded", fr.textContent.includes("Ground has no scale yet") && !fr.textContent.includes("is uploaded"),
     fr.textContent.slice(0, 200));
+  // Review 2026-11-11 (B2): the panel renders at once on mapsSetActive, still on the Library, before Edit is set: the
+  // Library's Measure must still open the one-length screen (it opened Edit → Rooms).
+  {
+    const ri = house({ maps: plain(), tfs: TF });
+    ri.ctx.actions.mapsSetActive = (id) => { ri.state.activeMapId = id; MAPS.render(ri.ctx); };
+    ri.ctx.actions.setMapsTab = (t) => { ri.state.mapsTab = t; MAPS.render(ri.ctx); };
+    let rr = await render(ri);
+    button(all(rr, '[data-nudge="reminder"]')[0], "Measure").click();
+    rr = await render(ri);
+    check("Library (Advanced), the panel rendering at once: Measure opens the one-length screen", !!q(rr, '[data-nudge="card"]')
+      && ri.state.mapsTab === "edit" && ri.state.activeMapId === "p1", [ri.state.mapsTab, rr.textContent.slice(0, 200)]);
+  }
   // Later on a screen a door opened: back to Edit on that plan.
   const l = house({ maps: plain(), tfs: TF });
   let lr = await render(l);

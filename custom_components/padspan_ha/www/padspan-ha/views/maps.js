@@ -177,7 +177,12 @@ export function render(ctx){
   // "Edit outline" is for the Edit tab only: anywhere else it is dropped.
   if (activeTab !== "edit" && ctx.state.maps) ctx.state.maps._openRoom = null;
   // The first-scale screen _openMeasure asked for belongs to Edit on that plan: leaving either ends it.
-  if (ctx.state._firstScale && (activeTab !== "edit" || !active || active.id !== ctx.state._firstScale.mapId)) ctx.state._firstScale = null;
+  // It lives through ONE render elsewhere before it is first shown (review 2026-11-11: _openForEdit's mapsSetActive
+  // renders at once, still on the Library, before setMapsTab("edit")); once shown, leaving ends it.
+  { const fs = ctx.state._firstScale;
+    if (fs && activeTab === "edit" && active && active.id === fs.mapId) fs.shown = true;
+    else if (fs && (fs.shown || fs.waited)) ctx.state._firstScale = null;
+    else if (fs) fs.waited = true; }
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
   const _setupShown = !!(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView);
