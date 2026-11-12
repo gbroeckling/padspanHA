@@ -50,6 +50,7 @@ from homeassistant.helpers.storage import Store
 
 from . import fabric_truth
 from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
+from .presence_rules import ROOM_SPACES
 from .safe_store import wrap_store
 from .util import ha_device_config_entries, ha_devices
 
@@ -190,12 +191,38 @@ def room_raise(v: Any) -> float | None:
     return round(max(-ROOM_SINK_MAX_M, min(ROOM_RAISE_MAX_M, float(v))), 3)
 
 
-def _room_meta_entry(floor_id: str, color: str, height: float | None, raise_m: float | None = None) -> dict[str, Any]:
+# An outdoor space's surface (room_meta[room]["surface"]): what Live Aboard
+# and the flat Map draw on its floor. None, or no key, is the standard one
+# drawn before (every existing room). "pavers_2ft": grey landscaping tiles,
+# 2 ft by 2 ft. Drawing only; positioning never reads it.
+ROOM_SURFACES = ("pavers_2ft",)
+
+
+def room_surface(v: Any) -> str | None:
+    """A room's surface as stored: one of ROOM_SURFACES; anything else is none (standard)."""
+    return v if isinstance(v, str) and v in ROOM_SURFACES else None
+
+
+# What kind of space a room is (room_meta[room]["space"], presence_rules
+# ROOM_SPACES): "indoor", "open" (a deck or patio open to the sky) or
+# "covered" (a roof, deck or floor over it, open sides). None, or no key, is
+# worked out (presence_rules.outdoor_kind). Drawing only.
+def room_space(v: Any) -> str | None:
+    """A room's kind of space as stored: one of ROOM_SPACES; anything else is none (worked out)."""
+    return v if isinstance(v, str) and v in ROOM_SPACES else None
+
+
+def _room_meta_entry(floor_id: str, color: str, height: float | None, raise_m: float | None = None,
+                     surface: str | None = None, space: str | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"floor_id": floor_id, "color": color}
     if height is not None:
         out["height_m"] = height
     if raise_m is not None:
         out["floor_raise_m"] = raise_m
+    if surface is not None:
+        out["surface"] = surface
+    if space is not None:
+        out["space"] = space
     return out
 
 
@@ -430,7 +457,8 @@ class ModelStore:
             room = k[:120]
             floor_id = str(v.get("floor_id") or DEFAULT_FLOOR_ID)[:40]
             color = str(v.get("color") or _hash_color_hex(room))[:20]
-            rm[room] = _room_meta_entry(floor_id, color, room_height(v.get("height_m")), room_raise(v.get("floor_raise_m")))
+            rm[room] = _room_meta_entry(floor_id, color, room_height(v.get("height_m")), room_raise(v.get("floor_raise_m")),
+                                        room_surface(v.get("surface")), room_space(v.get("space")))
         self.data["room_meta"] = rm
 
         # Only re-save on load if normalization actually changed something
@@ -468,30 +496,30 @@ class ModelStore:
         nor drawn in the fabric. A drawn room with no room_meta entry gets
         one: the fabric's floor and the name's colour, as async_ensure_rooms
         would give it."""
-        rm: dict[str, Any] = self.data.setdefault("room_meta", {})
-        h = room_height(height)
-        entry = rm.get(room)
-        if not isinstance(entry, dict):
-            geo = (self.room_geometry_m() or {}).get(room)
-            if not isinstance(geo, dict):
-                return False, None
-            if h is None:
-                return True, None
-            entry = rm[room] = {"floor_id": str(geo.get("floor_id") or DEFAULT_FLOOR_ID)[:40],
-                                "color": _hash_color_hex(room)}
-        if h is None:
-            entry.pop("height_m", None)
-        else:
-            entry["height_m"] = h
-        await self.store.async_save(self.data)
-        return True, h
+        return await self._async_set_room_value(room, "height_m", room_height(height))
 
     async def async_set_room_raise(self, room: str, raise_m: Any) -> tuple[bool, float | None]:
         """Set how far a room's floor sits above its floor's (room_raise), or
         clear it with None. (False, None) when the room is not on the map;
         a drawn room with no room_meta entry gets one, as async_set_room_height."""
+        return await self._async_set_room_value(room, "floor_raise_m", room_raise(raise_m))
+
+    async def async_set_room_surface(self, room: str, surface: Any) -> tuple[bool, str | None]:
+        """Set an outdoor space's surface (room_surface), or clear it with
+        None (standard), as async_set_room_height."""
+        return await self._async_set_room_value(room, "surface", room_surface(surface))
+
+    async def async_set_room_space(self, room: str, space: Any) -> tuple[bool, str | None]:
+        """Set what kind of space a room is (room_space), or clear it with
+        None (worked out), as async_set_room_height."""
+        return await self._async_set_room_value(room, "space", room_space(space))
+
+    async def _async_set_room_value(self, room: str, key: str, v: Any) -> tuple[bool, Any]:
+        """One room_meta drawing value, already validated: set, or popped
+        for None. (False, None) when the room is neither in room_meta nor
+        drawn in the fabric; a drawn room with no entry gets one (the
+        fabric's floor and the name's colour, as async_ensure_rooms would)."""
         rm: dict[str, Any] = self.data.setdefault("room_meta", {})
-        v = room_raise(raise_m)
         entry = rm.get(room)
         if not isinstance(entry, dict):
             geo = (self.room_geometry_m() or {}).get(room)
@@ -502,9 +530,9 @@ class ModelStore:
             entry = rm[room] = {"floor_id": str(geo.get("floor_id") or DEFAULT_FLOOR_ID)[:40],
                                 "color": _hash_color_hex(room)}
         if v is None:
-            entry.pop("floor_raise_m", None)
+            entry.pop(key, None)
         else:
-            entry["floor_raise_m"] = v
+            entry[key] = v
         await self.store.async_save(self.data)
         return True, v
 
@@ -2191,7 +2219,9 @@ class ModelStore:
                 prior = rm.get(r) if isinstance(rm.get(r), dict) else {}
                 height = room_height(meta["height_m"]) if "height_m" in meta else room_height(prior.get("height_m"))
                 raised = room_raise(meta["floor_raise_m"]) if "floor_raise_m" in meta else room_raise(prior.get("floor_raise_m"))
-                rm[r] = _room_meta_entry(floor_id, color, height, raised)
+                surface = room_surface(meta["surface"]) if "surface" in meta else room_surface(prior.get("surface"))
+                space = room_space(meta["space"]) if "space" in meta else room_space(prior.get("space"))
+                rm[r] = _room_meta_entry(floor_id, color, height, raised, surface, space)
             self.data["room_meta"] = rm
 
         await self.store.async_save(self.data)

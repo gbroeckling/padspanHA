@@ -60,6 +60,8 @@ from .const import (
     DATA_TRACEBACK,
 )
 from .build_info import BUILD_ID, BUILD_VERSION
+from .model_store import ROOM_SURFACES
+from .presence_rules import ROOM_SPACES, outdoor_kind
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -663,6 +665,10 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("height_m"): vol.Any(None, vol.Coerce(float)),
         # Split level (0.38.190): how far its floor sits above its floor's; null = level.
         vol.Optional("floor_raise_m"): vol.Any(None, vol.Coerce(float)),
+        # An outdoor space's surface (model_store.ROOM_SURFACES); null = standard.
+        vol.Optional("surface"): vol.Any(None, vol.In(ROOM_SURFACES)),
+        # What kind of space (presence_rules.ROOM_SPACES); null = worked out.
+        vol.Optional("space"): vol.Any(None, vol.In(ROOM_SPACES)),
     }
 )
 @websocket_api.async_response
@@ -676,9 +682,16 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
     if not mdl:
         connection.send_error(msg["id"], "no_model_store", "Model store not initialized")
         return
-    if "height_m" not in msg and "floor_raise_m" not in msg:
-        connection.send_error(msg["id"], "invalid", "Send height_m, floor_raise_m or both")
+    if not any(k in msg for k in ("height_m", "floor_raise_m", "surface", "space")):
+        connection.send_error(msg["id"], "invalid", "Send height_m, floor_raise_m, surface or space")
         return
+    if msg.get("space") is not None:
+        # A room on an Outside floor is outside ground: no kind to choose.
+        geo = (mdl.room_geometry_m() or {}).get(msg["room"]) or {}
+        floor = geo.get("floor_id") or (mdl.room_meta().get(msg["room"]) or {}).get("floor_id")
+        if outdoor_kind(msg["room"], floor) == "ground":
+            connection.send_error(msg["id"], "invalid", f"{msg['room']} is on an outdoor floor: it is outside ground.")
+            return
     out: dict[str, Any] = {"ok": True, "room": msg["room"]}
     for key in ("height_m", "floor_raise_m"):
         v = msg.get(key)
@@ -692,6 +705,16 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
             return
     if "floor_raise_m" in msg:
         ok, out["floor_raise_m"] = await mdl.async_set_room_raise(msg["room"], msg["floor_raise_m"])
+        if not ok:
+            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            return
+    if "surface" in msg:
+        ok, out["surface"] = await mdl.async_set_room_surface(msg["room"], msg["surface"])
+        if not ok:
+            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            return
+    if "space" in msg:
+        ok, out["space"] = await mdl.async_set_room_space(msg["room"], msg["space"])
         if not ok:
             connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
             return

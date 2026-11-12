@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 import math
+import re
 
 from .const import (
     DATA_SETTINGS, DEFAULT_PATH_LOSS_EXP, DEFAULT_REF_POWER, DOMAIN, OUTDOOR_FLOOR_NAMES,
@@ -224,6 +225,29 @@ def is_outdoor_floor(floor_id: Any) -> bool:
     """Whether a floor id names the outdoors — the fabric sentinel or a
     registry floor called outside/garden/yard/…, one list in const."""
     return str(floor_id or "").strip().lower().replace(" ", "_") in OUTDOOR_FLOOR_NAMES
+
+
+# What kind of space a room is (the panel's views/outdoor_space.js
+# outdoorKind is the same rule; tests/test_outdoor_kind.py holds them alike).
+# A drawing matter: positioning, presence and the report read is_outdoor_floor,
+# never this, so a covered patio is as outdoors for radio as it always was.
+OUTDOOR_ROOM_NAME = re.compile(r"\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoor)\b", re.I | re.A)
+# room_meta[room]["space"]: as a person chose it; no key, worked out.
+ROOM_SPACES = ("indoor", "open", "covered")
+
+
+def outdoor_kind(name: Any, floor_id: Any, stored: Any = None, *, within: bool = False, over: bool = False) -> str:
+    """"ground" on an Outside floor; else the kind stored; else worked out:
+    indoors unless the name says outdoors, and indoors too where it stands
+    within a lower floor's room that rises past it (within); an outdoor room
+    with a room of a higher floor over most of it (over) is covered, else open."""
+    if is_outdoor_floor(floor_id):
+        return "ground"
+    if stored in ROOM_SPACES:
+        return str(stored)
+    if not OUTDOOR_ROOM_NAME.search(str(name or "")) or within:
+        return "indoor"
+    return "covered" if over else "open"
 
 
 def indoor_coverage_floor(points: list[dict[str, Any]], *,

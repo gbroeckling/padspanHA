@@ -33,12 +33,13 @@ _NODE = shutil.which("node")
 def _run(tmp_path: Path, script: str, doors: bool = True) -> dict:
     if _NODE is None:
         pytest.skip("node is not installed")
-    for name in ("iso_lights", "light_codes", "room_color", "wall_geom", "door_types"):
+    for name in ("iso_lights", "light_codes", "room_color", "wall_geom", "door_types", "outdoor_space"):
         if name == "door_types" and not doors:
             continue
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
         src = src.replace("./light_codes.js${new URL(import.meta.url).search}", "./light_codes.mjs")
         src = src.replace("./door_types.js${new URL(import.meta.url).search}", "./door_types.mjs")
+        src = src.replace("./outdoor_space.js${new URL(import.meta.url).search}", "./outdoor_space.mjs")
         src = src.replace('"./room_color.js"', '"./room_color.mjs"')
         src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")

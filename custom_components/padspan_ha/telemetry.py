@@ -504,6 +504,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
     "vacuum_import",                                # the Mapping tab's "Import from a robot vacuum"
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
+    "outdoor_space",                                # outdoor rooms by name, and an outdoor room's surface (every look)
     "atlas_heights",                                # Mapping's Height row and Heights list (Live Aboard's heights)
     "wall_scale", "wall_card",                      # wall screens: the scale, and Settings' Wall screens card
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
@@ -2315,6 +2316,11 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                 and not isinstance(v.get("floor_raise_m"), bool) and v["floor_raise_m"] < 0)
     if _up or _down:
         env["split_levels"] = {"raised": _up, "sunk": _down}
+    # Outdoor surfaces (room_meta surface), only from a house with one: how
+    # many rooms have each. Counts, never which rooms.
+    _paved = sum(1 for v in _rm.values() if isinstance(v, dict) and v.get("surface") == "pavers_2ft")
+    if _paved:
+        env["room_surfaces"] = {"pavers_2ft": _paved}
     # Live Aboard's stairs (0.38.193), only from a house with some and its 3D
     # file loaded: how many, how many the AI read off a plan and were kept,
     # how many are a few steps within one floor. Counts only.
