@@ -3124,13 +3124,13 @@ const _laPrefs = {
   get: (k) => { try { return localStorage.getItem("padspan_la3d_" + k); } catch (_) { return null; } },
   set: (k, v) => { try { localStorage.setItem("padspan_la3d_" + k, String(v)); } catch (_) {} },
 };
+let _LA = null;                       // views/live_aboard.js, once loaded
 /** What a screen's ⋯ list (live_aboard_show.js) says of a line it keeps per screen, or undefined: the flat map's
  *  flatShow, and the Atlas header's tip (lights_panel.js) for "light_taps" (review 2026-11-11, C10). */
 export const screenShowLine = (slot, key) => {
   if (!slot) return undefined;
   try { const o = JSON.parse(_laPrefs.get(`show_${slot}`) || "{}"); return o && typeof o[key] === "boolean" ? o[key] : undefined; } catch (_) { return undefined; }
 };
-let _LA = null;                       // views/live_aboard.js, once loaded
 let _laLoading = null, _laLoadFailed = false, _laNoGl = false, _laNoGlSent = false;
 const _laWaiting = new Map();         // slot -> the newest card's mount, while it loads
 const _la3dPickers = new Map();       // slot -> the newest card's Map / 3D switch (pick3d)

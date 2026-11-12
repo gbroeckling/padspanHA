@@ -196,7 +196,9 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   check("house rooms on the plan's floor, no receivers: Radios, Next: the receivers (not draw its rooms)", hr.state.maps._mode === "receivers"
     && !!q(root, '[data-next-line="receivers"]') && !q(root, '[data-next-line="rooms"]'), root.textContent.slice(0, 300));
   // Review 2026-11-11 (C2): the wizard's Finish goes to Calibration as Setup's step does (its first step), not Beacon Tune.
-  const fin = house({ tab: "edit", maps: [P({ room_bounds: ROOM })], tfs: TF1, wizard: { step: 5, mapId: "e1" } });
+  // Changed in review 2026-11-11 (item 13): Finish names the first step not done, so the plan has a receiver here and
+  // calibrating is that step (it said "Go to Calibration" whatever was left).
+  const fin = house({ tab: "edit", maps: [P({ room_bounds: ROOM, receivers: [{ id: "r1", source: "AA:BB" }] })], tfs: TF1, wizard: { step: 5, mapId: "e1" } });
   const finR = await render(fin);
   button(finR, "Go to Calibration →").click();
   check("Finish: Go to Calibration opens Setup's calibration step", fin.state._openedStep === "calibration" && fin.state._calibTabRequest !== "beacon"

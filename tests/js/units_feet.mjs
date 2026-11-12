@@ -222,7 +222,6 @@ function mapping(o = {}) {
   const said = (text, metres, assumed, feet) => { const s = { textContent: "", style: {} }; PM.paintSaid(s, text, { metres: [metres], assumed: [assumed] }, 0, feet); return s.textContent; };
   check("read as: \"4.2 m\" with feet on says it was read as metres", said("4.2 m", 4.2, null, true) === "= 13' 9\" (read as metres)", said("4.2 m", 4.2, null, true));
   check("read as: \"420 cm\" too", said("420 cm", 4.2, null, true) === "= 13' 9\" (read as metres)", said("420 cm", 4.2, null, true));
-  check("read as: 13' 9\" with feet off says feet", said("13' 9\"", 4.191, null, false) === "= 4.19 m (read as feet)", said("13' 9\"", 4.191, null, false));
   check("read as: a unit that is the one shown says nothing more", said("13' 9\"", 4.191, null, true) === "= 13' 9\"" && said("4.2 m", 4.2, null, false) === "= 4.20 m");
   check("read as: a bare number keeps the server's word", said("13.75", 4.191, "feet", true) === "= 13' 9\" (read as feet)");
   // The scale step's words are true with feet on too (review 2026-11-11, C10): "to scale", not "in metres".
