@@ -78,6 +78,12 @@ def _model(t: dict) -> ModelStore:
     return s
 
 
+def test_a_saved_scale_reads_the_model_again(built) -> None:
+    """Review 2026-11-11, item 12: after Save Scale the plan list and the model are read again, so "Current layout
+    scale" shows the new size without a reload (the click handler's own lines, run by the harness)."""
+    assert built["refreshed"] == ["maps", "model"]
+
+
 def test_the_payload_states_what_it_measured(built) -> None:
     """The control: this is a real Save Scale payload, not an empty object."""
     tx = built["payloads"]["panel agrees"]

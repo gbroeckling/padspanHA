@@ -42,7 +42,7 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
         undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers,
         setupSteps: _setupSteps, nextStep: _nextSetupStep, stepDone: _stepDone, STEP_ABOUT: _STEP_ABOUT,
-        planRoomed: _planRoomed, setupDone: _setupDone } =
+        planRoomed: _planRoomed, setupDone: _setupDone, firstOpenStep: _firstOpenStep } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // "Put my receivers in their rooms" (setup.js receiversBlock, the one block and command), where receivers are placed:
 // Edit's Radios tool, so the Setup Wizard's receivers step too (review 2026-11-13, break 3).
@@ -1666,16 +1666,30 @@ function _wizardScanners(ctx, map, maps, w){
   return wrap;
 }
 
-function _wizardFinish(ctx, map){
-  const { el } = ctx.helpers;
+// What Finish says comes next: the one step list's first step not done (setup_status.firstOpenStep), with its button.
+const _FINISH_NEXT = {
+  scale: ["set the scale, so the map is to scale.", "Set the scale →"],
+  rooms: ["draw the rooms.", "Draw the rooms →"],
+  floors: ["say how tall each floor is, so PadSpan can tell the floors apart.", "Floor heights →"],
+  receivers: ["place the receivers, each where it is mounted.", "Place the receivers →"],
+  calibration: ["calibrate, so PadSpan learns what those receivers actually hear from each room — a few minutes walking around with your phone gets you most of the way.", "Go to Calibration →"],
+};
+function _wizardFinish(ctx, map, w){
+  const { el } = ctx.helpers, st = ctx.state;
   const wrap = el("div",{class:"card"});
-  const rooms = map ? Object.keys(map.room_bounds || {}).length : 0;
-  const scanners = map ? (map.receivers||[]).length : 0;
+  // Review 2026-11-11 (item 13): rooms by the one rule (traced on this plan, or the house's rooms on its floor: the rooms
+  // helper's), receivers by setup_status.placedReceivers, and "next" from the one step list.
+  const fid = (map && map.floor_id) || "main";
+  const rooms = map ? new Set([...Object.keys(map.room_bounds || {}),
+    ...(map.floor_id ? Object.entries((st.model && st.model.room_geometry_m) || {}).filter(([, g]) => g && g.floor_id === map.floor_id).map(([n]) => n) : [])]).size : 0;
+  const scanners = map ? _placedReceivers(st, fid).size : 0;
+  const skipped = (st.settings && st.settings.setup_progress && st.settings.setup_progress.skipped) || [];
+  const next = _firstOpenStep(st, Array.isArray(skipped) ? skipped : []), say = _FINISH_NEXT[next];
   wrap.appendChild(el("div",{style:"font-weight:700;font-size:16px;margin-bottom:8px"},
     `${map ? (map.name || "This floor") : "This floor"} is set up`));
-  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;line-height:1.6"},
-    `${rooms} room${rooms===1?"":"s"} traced, ${scanners} receiver${scanners===1?"":"s"} placed. ` +
-    "Next: calibrate, so PadSpan learns what those receivers actually hear from each room — a few minutes walking around with your phone gets you most of the way."));
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;line-height:1.6", "data-wizard-finish":"summary"},
+    `${rooms} room${rooms===1?"":"s"} drawn, ${scanners} receiver${scanners===1?"":"s"} placed. ` +
+    (say ? "Next: " + say[0] : "Every set-up step is done.")));
   // What's traced here but not yet on the house the Overview draws: one
   // explicit click puts it there (wizard_build.js), missing pieces only.
   // The plan is read HERE, in the editor; the module only sees the fabric.
@@ -1742,10 +1756,13 @@ function _wizardFinish(ctx, map){
     wrap.appendChild(box);
   }
   const row = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap"});
-  const calBtn = el("button",{class:"btn primary"}, "Go to Calibration →");
-  // Setup's own way to Calibration (_goStep: its first step, Check receiver positions), not Beacon Tune (review 2026-11-11).
-  calBtn.addEventListener("click", ()=>_goStep(ctx, null, "calibration", null, false));
-  row.appendChild(calBtn);
+  // The next step's own way there (_goStep: Calibration's first step, Check receiver positions, not Beacon Tune; a
+  // wizard step in the wizard).
+  if (say) {
+    const calBtn = el("button",{class:"btn primary", "data-next": next}, say[1]);
+    calBtn.addEventListener("click", ()=>_goStep(ctx, map && map.id, next, next === "calibration" ? null : w, false));
+    row.appendChild(calBtn);
+  }
   const anotherBtn = el("button",{class:"btn inline"}, "+ Set up another floor");
   anotherBtn.addEventListener("click", ()=>{
     ctx.state.activeMapId = null;
@@ -1850,7 +1867,7 @@ function _wizard(ctx, maps, isBasic){
   else if (w.step === 3) body.appendChild(_wizardRooms(ctx, map, maps, w));
   else if (w.step === 4) body.appendChild(_wizardScanners(ctx, map, maps, w));
   else if (w.step === 6) body.appendChild(_wizardFloors(ctx, w));
-  else body.appendChild(_wizardFinish(ctx, map));
+  else body.appendChild(_wizardFinish(ctx, map, w));
   root.appendChild(body);
 
   return root;
@@ -1963,7 +1980,7 @@ function _editOrFirstScale(ctx, map, maps){
 // Advanced to Edit with that step's tool. `counted`: a Next button pressed
 // (setup_next:<step>); a Save that goes on by itself is not.
 const _STEP_TOOL = { rooms: "rooms", receivers: "receivers" };
-const _WIZ_STEP = { rooms: 3, receivers: 4, floors: 6 };
+const _WIZ_STEP = { scale: 2, rooms: 3, receivers: 4, floors: 6 };
 function _goStep(ctx, mapId, step, w, counted = true){
   const st = ctx.state, ms = st.maps || (st.maps = {});
   if (counted && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("setup_next:" + step);
@@ -3355,7 +3372,7 @@ function _edit(ctx, map, allMaps, opts){
         ctx.state.maps._draftRoomBounds[d.room] = { type:"poly", points: d.points.map(p=>[clamp01(p[0]), clamp01(p[1])]) };
         ctx.state.maps._drawing = null;
         renderAll(); refreshList(); renderTools();
-      }}, "Finish");
+      }}, "Finish outline");   // not "Finish": the wizard's own chip is (review 2026-11-11, item 13)
 
       const clearBtn = el("button",{class:"btn inline", onclick:()=>{
         const r = ctx.state.maps._selectedRoom;
@@ -3665,6 +3682,9 @@ function _edit(ctx, map, allMaps, opts){
             ctx.state.maps._measurePts = [];
             ctx.state.maps._measurements = [];
             await ctx.actions.mapsRefresh();
+            // "Current layout scale" reads the model's placement: read it again, as the one-length screen's save does
+            // (review 2026-11-11, item 12: it kept the old size until a reload).
+            if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
           } catch(e) {
             ctx.toast("Save failed: " + (e.message || e));
             applyBtn.disabled = false; applyBtn.textContent = "Apply Scale";

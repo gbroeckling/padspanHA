@@ -54,4 +54,11 @@ for (const [name, cache] of Object.entries(CACHES)) {
   payloads[name] = build(true, { rotation: 0, x_offset: 0, y_offset: 0 },
                          20.0, 15.0, 0.0, "main", MEAS, cache);
 }
-console.log(JSON.stringify({ payloads, keys: Object.keys(payloads["panel agrees"]) }));
+// After the save (review 2026-11-11, item 12): the plan list AND the model are read again, so "Current layout scale"
+// shows the new size at once. The block run as the click handler has it, with a stand-in ctx.
+const AFTER = SRC.slice(SRC.indexOf("            const _txResult = await ctx.actions.callWS"), SRC.indexOf("          } catch(e) {", SRC.indexOf("const _txResult = await ctx.actions.callWS")));
+const after = new Function("ctx", "map", "transform", "scale_x_m", "scale_y_m", "ppm", "_len1", "return (async () => {" + AFTER + "})();");
+const refreshed = [];
+await after({ toast: () => {}, state: { maps: {} }, actions: { callWS: async () => ({}), mapsRefresh: async () => refreshed.push("maps"), modelRefresh: async () => refreshed.push("model") } },
+  { id: "m1" }, {}, 10, 8, 50, (v) => String(v));
+console.log(JSON.stringify({ payloads, keys: Object.keys(payloads["panel agrees"]), refreshed }));

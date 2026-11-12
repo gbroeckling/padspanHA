@@ -329,6 +329,22 @@ for (const from of ["overview", "calibration"]) {
   check("wizard: the scale step has no Next before a scale, Skip still there; Next once there is one",
     !button(sr0, "Next: draw the rooms") && !!button(sr0, "Skip — set this later") && !!button(sr1, "Next: draw the rooms") && !button(sr1, "Skip — set this later"),
     [text(sr0).slice(0, 300), text(sr1).slice(0, 300)]);
+  // The wizard's Finish (review 2026-11-11, item 13): rooms the house has on the plan's floor count (the helper's), and
+  // next is the one step list's: floor heights, unset on two floors, before calibrating.
+  const fm = two(false); fm.room_geometry_m = { Kitchen: { floor_id: "g", type: "poly", points_m: [[0, 0], [3, 0], [3, 3]] }, Den: { floor_id: "g" }, Loft: { floor_id: "u" } };
+  const fp = plans(); fp.list[0].room_bounds = {};
+  const fc = makeCtx({ view: "maps", complexity: "basic", model: fm, maps: fp, calibration: { points: [] }, _mapsWizard: { step: 5, mapId: "m1" } });
+  const fr = MAPS.render(fc); await flush();
+  const sum = attr(fr, "data-wizard-finish", "summary");
+  check("wizard: Finish counts the house's rooms on the plan's floor and names the next step from the one list",
+    sum && /^2 rooms drawn, 0 receivers placed\. Next: say how tall each floor is/.test(text(sum)) && !!attr(fr, "data-next", "floors") && !button(fr, "Go to Calibration"),
+    sum && text(sum));
+  click(attr(fr, "data-next", "floors"));
+  check("wizard: Finish's next button goes to that wizard step", fc.state._mapsWizard && fc.state._mapsWizard.step === 6, fc.state._mapsWizard);
+  const rc = makeCtx({ view: "maps", complexity: "basic", model: two(true), maps: plans(), _mapsWizard: { step: 3, mapId: "m1" } });
+  const rr = MAPS.render(rc); await flush();
+  check("wizard: the drawing tool's button is Finish outline, not a second Finish", !!button(rr, "Finish outline")
+    && all(rr).filter(n => (n.tagName || "").toUpperCase() === "BUTTON" && text(n) === "Finish").length === 1, null);
   // The first-upload tip: no 3D Stack in Basic.
   const u = makeCtx({ view: "maps", complexity: "basic", mapsTab: "upload", maps: { list: [] } });
   const ur = MAPS.render(u); await flush();
