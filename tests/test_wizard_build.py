@@ -55,8 +55,10 @@ def test_the_module_imports_nothing_and_never_reads_the_plan() -> None:
 
 def test_only_the_finish_buttons_click_runs_it() -> None:
     maps = _src(_WWW / "views" / "maps.js")
-    assert maps.count("buildHouse(ctx") == 1
-    assert "const r = await buildHouse(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh() });" in maps
+    # Changed in review 2026-11-11 (C3): the press moved into wizard_build.putOnMap, shared with the Rooms page; the
+    # Finish button calls it (tests/js/wizard_build.mjs runs it), and nothing else in maps.js builds.
+    assert "buildHouse" not in maps
+    assert maps.count("putOnMap(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh(),") == 1
     assert '"Put it on the map"' in maps
     # The planner gets this module's own conversions, the ones the editor draws with.
     assert "if (TSP) TSP.tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });" in maps
@@ -77,15 +79,20 @@ def test_never_from_the_demo_house_and_never_a_disputed_scanner() -> None:
 
 def test_a_failed_load_never_blanks_mapping() -> None:
     maps = _src(_WWW / "views" / "maps.js")
-    assert ".catch(() => ({ planHouse: null, buildHouse: null }));" in maps
+    # Changed in review 2026-11-11 (C3): putOnMap is what maps.js takes now.
+    assert ".catch(() => ({ planHouse: null, putOnMap: null }));" in maps
     assert "const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);" in maps
 
 
 def test_one_build_at_a_time_and_checked_at_the_click() -> None:
+    # Changed in review 2026-11-11 (C3): the flag and the click's check live in wizard_build.putOnMap (run by
+    # tests/js/wizard_build.mjs, "press: ..."); maps.js hands it Tune's check.
     maps = _src(_WWW / "views" / "maps.js")
-    assert "if (ctx.state._wizardBuilding) return;" in maps
-    assert "const blockNow = TSP.tuneWriteBlock(ctx.state);" in maps
-    assert "ctx.state._wizardBuilding = false;" in maps
+    wb = _src(_WWW / "views" / "wizard_build.js")
+    assert "writeBlock: () => TSP.tuneWriteBlock(ctx.state)," in maps
+    assert "if (ctx.state._wizardBuilding) return;" in wb
+    assert "const blockNow = deps.writeBlock && deps.writeBlock();" in wb
+    assert "ctx.state._wizardBuilding = false;" in wb
 
 
 def test_the_demo_houses_radios_are_never_offered_for_a_real_plan() -> None:

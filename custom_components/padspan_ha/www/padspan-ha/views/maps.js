@@ -56,8 +56,8 @@ const { whatIfDelta } =
 // The Setup Wizard's "Put it on the map" (wizard_build.js) and the Tune
 // planner it writes scanners with, given this module's own conversions.
 // If either can't load, the Finish step just doesn't offer it.
-const { planHouse, buildHouse } = await import(`./wizard_build.js${new URL(import.meta.url).search}`)
-  .catch(() => ({ planHouse: null, buildHouse: null }));
+const { planHouse, putOnMap } = await import(`./wizard_build.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ planHouse: null, putOnMap: null }));
 const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);
 // Basic's focused views (views/focus.js): a link opens one tool or one card.
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
@@ -1675,7 +1675,7 @@ function _wizardFinish(ctx, map){
   // The plan is read HERE, in the editor; the module only sees the fabric.
   // Never while the demo house is on screen (#88): its radios would become
   // phantom scanners in the real fabric, so only what Home Assistant hears.
-  const offered = !!(map && planHouse && buildHouse && TSP);
+  const offered = !!(map && planHouse && putOnMap && TSP);
   const liveSources = new Set(((ctx.state.live?.snapshot?.ble?.radios) || []).map(r => r && r.source).filter(Boolean));
   const traced = offered ? {
     mapId: map.id,
@@ -1725,28 +1725,12 @@ function _wizardFinish(ctx, map){
       const building = !!ctx.state._wizardBuilding;
       const putBtn = el("button",{class:"btn primary"}, building ? "Putting it on the map…" : "Put it on the map");
       putBtn.disabled = building;
-      putBtn.addEventListener("click", async () => {
-        if (ctx.state._wizardBuilding) return;
-        const blockNow = TSP.tuneWriteBlock(ctx.state);   // as Tune's Save checks at the click
-        if (blockNow) { ctx.toast(blockNow, true); return; }
-        ctx.state._wizardBuilding = true;
-        putBtn.disabled = true;
-        putBtn.textContent = "Putting it on the map…";
-        try {
-          const r = await buildHouse(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh() });
-          const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "receiver") : ""].filter(Boolean).join(" and ");
-          const left = r.failed.length + r.notConvertible.length + r.otherPlan.length;
-          const where = "Mapping → Layout and Calibration → Tune show them";
-          ctx.toast(done
-            ? `${done} now on the map${left ? `; ${left} couldn't be (${where})` : ""}.`
-            : `Nothing could be put on the map${left ? `: ${left} couldn't be (${where})` : ""}.`, !done || !!left);
-        } catch (e) {
-          ctx.toast("Couldn't put it on the map: " + (e?.message || e), true);
-        } finally {
-          ctx.state._wizardBuilding = false;
-          await ctx.actions.modelRefresh();
-        }
-      });
+      // One press for every "Put it on the map" (wizard_build.putOnMap): Tune's Save check at the click, as before.
+      putBtn.addEventListener("click", () => putOnMap(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh(),
+        writeBlock: () => TSP.tuneWriteBlock(ctx.state),
+        // Basic has neither Layout nor Tune (review 2026-11-11, C5): its own words.
+        where: ctx.state.complexity === "basic" ? "the Rooms page and Calibration's first step show them" : "Mapping → Layout and Calibration → Tune show them",
+        started: () => { putBtn.disabled = true; putBtn.textContent = "Putting it on the map…"; } }));
       box.appendChild(putBtn);
     }
     wrap.appendChild(box);

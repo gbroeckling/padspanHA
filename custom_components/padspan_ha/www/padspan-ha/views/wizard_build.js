@@ -108,3 +108,30 @@ export async function buildHouse(ctx, traced, deps){
   }
   return out;
 }
+
+/** The "Put it on the map" press, from the Setup Wizard's Finish (maps.js) and from a room on the Rooms page that is
+ *  drawn on a plan only (rooms.js, review 2026-11-11 C3): Tune's write check at the click, one build at a time
+ *  (ctx.state._wizardBuilding), buildHouse, what happened said. deps: buildHouse's, plus writeBlock() (the reason no
+ *  receiver or room may be written now, or null), where (the screens that show what couldn't be put there) and
+ *  started() (the button shows it is working). */
+export async function putOnMap(ctx, traced, deps){
+  if (ctx.state._wizardBuilding) return;
+  const blockNow = deps.writeBlock && deps.writeBlock();
+  if (blockNow) { ctx.toast(blockNow, true); return; }
+  ctx.state._wizardBuilding = true;
+  if (deps.started) deps.started();
+  const n = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+  try {
+    const r = await buildHouse(ctx, traced, deps);
+    const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "receiver") : ""].filter(Boolean).join(" and ");
+    const left = r.failed.length + r.notConvertible.length + r.otherPlan.length;
+    ctx.toast(done
+      ? `${done} now on the map${left ? `; ${left} couldn't be (${deps.where})` : ""}.`
+      : `Nothing could be put on the map${left ? `: ${left} couldn't be (${deps.where})` : ""}.`, !done || !!left);
+  } catch (e) {
+    ctx.toast("Couldn't put it on the map: " + (e?.message || e), true);
+  } finally {
+    ctx.state._wizardBuilding = false;
+    await deps.refresh();
+  }
+}

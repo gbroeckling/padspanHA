@@ -12,5 +12,6 @@
 - **Mapping's Atlas tab is now called "Atlas builder"**, so it isn't mixed up with the Atlas in Home Assistant's sidebar.
 
 ### Fixed
+- **The Rooms page said "Not drawn" for a room you had drawn on a floor plan** until the Setup Wizard's last screen. A room drawn on a plan that has a scale now reads as drawn everywhere (the Rooms page and the Setup Wizard's count agree); if it isn't on the map of your house yet, the Rooms page says "Drawn on <plan>, not on the house map yet" with a **Put it on the map** button for that room. It only adds a room your house doesn't have; nothing already on the map changes, and nothing is put there without you pressing it.
 - **After "Put my receivers in their rooms", every list agrees.** The Setup Wizard's receivers step said none were placed and Getting started still showed the step as not done; now a receiver counts as placed whether it is pinned on a plan or placed on the map of your house. The message after the button now says where to drag them (Calibration's first step) and where to set their heights (there, or on the Receivers page).
 - **Basic mode no longer points to screens it doesn't have** (Mapping → Edit → Measure, Settings → AI). It names Setup's steps instead, and says plainly where rooms Claude drew can be reshaped (Advanced mode's Mapping → Layout) or taken back.

@@ -166,4 +166,24 @@ const build = (ctx, m, deps = {}) => WB.buildHouse(ctx, tracedOf(m, ctx.state.mo
   check("a house already built is left alone", calls.length === 0 && r.rooms === 0 && r.scanners === 0, { r, calls });
 }
 
+// ── the press (putOnMap: the Setup Wizard's Finish and the Rooms page, review 2026-11-11 C3) ──
+{
+  const { calls, ctx } = mkCtx(model, cands);
+  const toasts = [], started = [];
+  ctx.toast = (m, err) => toasts.push([String(m), !!err]);
+  const deps = { planPins: pinsOver([map], map, model), refresh: async () => {}, where: "THERE", started: () => started.push(1) };
+  await WB.putOnMap(ctx, tracedOf(map, model), { ...deps, writeBlock: () => "Sample mode" });
+  check("press: Tune's write check at the click: nothing written, said, the button left as it is",
+    calls.length === 0 && toasts.length === 1 && toasts[0][0] === "Sample mode" && toasts[0][1] && !started.length && !ctx.state._wizardBuilding, { calls, toasts });
+  toasts.length = 0;
+  ctx.state._wizardBuilding = true;
+  await WB.putOnMap(ctx, tracedOf(map, model), deps);
+  check("press: one build at a time", calls.length === 0 && !toasts.length);
+  ctx.state._wizardBuilding = false;
+  await WB.putOnMap(ctx, tracedOf(map, model), deps);
+  check("press: builds, says what and where the rest are, and lets the next press in", started.length === 1
+    && toasts.length === 1 && /^1 room and 1 receiver now on the map; 2 couldn't be \(THERE\)\.$/.test(toasts[0][0]) && toasts[0][1]
+    && ctx.state._wizardBuilding === false, toasts);
+}
+
 console.log(JSON.stringify({ cases, failures }));

@@ -278,4 +278,54 @@ for (const mode of ["advanced", "basic"]) {
     && maps.includes('if (activeTab !== "edit" && ctx.state.maps) ctx.state.maps._openRoom = null;'));
 }
 
+// ── a room drawn on a plan only (review 2026-11-11, C3) ────────────────────
+// One rule (setup_status.roomDrawn): traced on a plan that has a scale is drawn, and the row says where; its one button
+// is the Setup Wizard's own "Put it on the map" for that room, which only adds a room the house doesn't have.
+{
+  const SS = await import(pathToFileURL(join(WWW, "views", "setup_status.js")).href);
+  const model = MODEL();
+  model.map_transforms = { m_ground: { scale_x_m: 10, scale_y_m: 8 } };
+  const maps = [
+    { id: "m_ground", name: "Ground", floor_id: "ground", room_bounds: { "Living Room": { type: "poly", points: [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]] } } },
+    { id: "m_upper", name: "Upper", floor_id: "upper", room_bounds: { Office: { type: "poly", points: [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]] } } },
+  ];
+  const { ctx, calls, toasts } = makeCtx({ model, maps });
+  ctx.actions.wsCall = async (type, data) => {
+    calls.push({ type, ...data });
+    if (type === "padspan_ha/fabric_truth_candidates") return { fabric: { rooms: {} }, transforms: { rooms: {
+      "Living Room": { type: "poly", points_m: [[1, 1], [5, 1], [5, 5]], source_map_id: "m_ground" } } } };
+    return { ok: true };
+  };
+  const groups = R.roomGroups(ctx);
+  const lr = groups[0].rooms.find(r => r.name === "Living Room"), off = groups[1].rooms[0];
+  check("plan-only: a room traced on a plan with a scale is drawn, on that plan, not yet on the house",
+    lr.outline === true && lr.onPlan && lr.onPlan.id === "m_ground" && lr.areaM2 === null, lr);
+  check("plan-only: a room traced only on a plan with no scale is not drawn", off.outline === false && off.onPlan === null, off);
+  check("plan-only: the Setup Wizard's count reads the same rule",
+    JSON.stringify(SS.undrawnAreaNames({ model, maps: { list: maps } })) === JSON.stringify(["Office", "Hall"]));
+  const root = R.render(ctx);
+  await flush();
+  const row = roomNode(root, "Living Room");
+  check("plan-only: the row says where it is drawn", /Drawn on Ground, not on the house map yet/.test(text(row)) && q(row, "data-link", "outline").textContent === "Edit outline", text(row));
+  check("plan-only: no Put it on the map for a room the house has, or one not drawn",
+    !q(roomNode(root, "Kitchen"), "data-put", "map") && !q(roomNode(root, "Office"), "data-put", "map"));
+  q(row, "data-put", "map").click();
+  for (let i = 0; i < 6; i++) await flush();
+  const put = calls.filter(c => c.type === "padspan_ha/fabric_correct_room");
+  check("plan-only: the button puts that one room on the house, from its plan, stamped as the wizard's build",
+    put.length === 1 && put[0].room === "Living Room" && put[0].floor_id === "ground" && put[0].source_map_id === "m_ground"
+    && JSON.stringify(put[0].geometry.points_m) === "[[1,1],[5,1],[5,5]]" && calls.filter(c => c.type === "refresh").length >= 2, calls);
+  check("plan-only: and says so", toasts.some(t => /1 room now on the map/.test(t.m) && !t.err), toasts);
+  // The house already has it (another tab put it there): never rewritten.
+  calls.length = 0;
+  ctx.actions.wsCall = async (type, data) => {
+    calls.push({ type, ...data });
+    return type === "padspan_ha/fabric_truth_candidates" ? { fabric: { rooms: { "Living Room": {} } }, transforms: { rooms: {} } } : { ok: true };
+  };
+  ctx.state.model = { ...model, room_geometry_m: { ...model.room_geometry_m } };
+  q(row, "data-put", "map").click();
+  for (let i = 0; i < 6; i++) await flush();
+  check("plan-only: a room the house has is never rewritten", !calls.some(c => c.type === "padspan_ha/fabric_correct_room"), calls);
+}
+
 console.log(JSON.stringify({ cases, failures }));

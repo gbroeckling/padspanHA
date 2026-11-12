@@ -12,7 +12,9 @@
 //                 (Settings → Appearance; it merges per room and keeps heights)
 //   ceiling       padspan_ha/room_height_set {room, height_m}     (Mapping → Rooms)
 //   split level   padspan_ha/room_height_set {room, floor_raise_m} (Mapping → Rooms)
-// The outline is drawn in Mapping → Edit (linked, opened on that room).
+// The outline is drawn in Mapping → Edit (linked, opened on that room); one
+// drawn on a plan only goes onto the map of the house with the Setup Wizard's
+// own "Put it on the map" (wizard_build.putOnMap), on a press, never by itself.
 // Never calibration data.
 
 const { scannersOf, whoIsWhere, followedObj } =
@@ -31,6 +33,9 @@ const { currentEdition, surfacesForEdition } =
     .catch(() => ({ currentEdition: () => "full", surfacesForEdition: (ids) => ids.slice() }));
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// Whether a room is drawn: setup_status's one rule (review 2026-11-11, C3), and the one "Put it on the map".
+const { roomDrawn } = await import(`./setup_status.js${new URL(import.meta.url).search}`);
+const WB = await import(`./wizard_build.js${new URL(import.meta.url).search}`).catch(() => null);
 
 let _LM = null;            // lights_map.js once loaded; false if it failed
 function _roomLights(ctx) {
@@ -134,6 +139,7 @@ export function roomGroups(ctx) {
   const rows = rooms.map(r => {
     const m = meta[r.name] || null;
     const g = geo[r.name] || null;
+    const drawn = roomDrawn(ctx.state, r.name);
     const fl = floorOf(r.floorId);
     const a = areaM2(g);
     const color = (m && m.color) || (ctx.helpers.roomColor ? ctx.helpers.roomColor(r.name) : "#888888");
@@ -141,8 +147,10 @@ export function roomGroups(ctx) {
       ...r,
       color: toHex(color),
       metaFloorId: (m && m.floor_id) || r.floorId,
-      // The outline is the layout's (the fabric is the truth, never a photo).
-      outline: !!g,
+      // Drawn: on the map of the house (the layout's outline), or traced on a plan that has a scale (setup_status.roomDrawn).
+      outline: !!drawn,
+      // Drawn on a plan only, not on the house yet: {id, name, floorId} of that plan.
+      onPlan: drawn && drawn.map ? { id: drawn.map.id, name: String(drawn.map.name || "a floor plan"), floorId: String(drawn.map.floor_id || "main") } : null,
       // The floor plan Edit opens on: one on the room's floor, else the first.
       mapId: ((maps.find(mp => mp && String(mp.floor_id || "main") === r.floorId) || maps[0] || {}).id) || null,
       areaM2: a == null ? null : Math.round(a * 10) / 10,
@@ -235,6 +243,14 @@ async function _setColor(ctx, row, hex) {
   } catch (err) { ctx.toast("Colour not saved: " + (err.message || err), true); }
 }
 
+/** A room drawn on a plan only, onto the map of the house: the Setup Wizard's "Put it on the map" for this one room
+ *  (wizard_build.putOnMap: only a room the house doesn't have, never one it has). */
+function _putOnMap(ctx, row) {
+  if (_isSample(ctx.state) || !WB) return;
+  WB.putOnMap(ctx, { mapId: row.onPlan.id, floorId: row.onPlan.floorId, rooms: [row.name], scanners: [], readable: true },
+    { refresh: () => ctx.actions.modelRefresh(), where: ctx.state.complexity === "basic" ? "Edit outline opens it on its plan" : "Mapping → Layout shows them" });
+}
+
 async function _setRoom(ctx, row, msg, ok) {
   if (_isSample(ctx.state)) return;
   try {
@@ -280,7 +296,9 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
   const fields = el("div", { style: "display:flex;flex-wrap:wrap;gap:12px 16px" });
 
   // Outline.
-  const outlineKids = [el("span", {}, row.outline ? (row.areaM2 != null ? `Drawn, ${row.areaM2} m²` : "Drawn") : "Not drawn")];
+  const outlineKids = [el("span", {}, row.onPlan ? `Drawn on ${row.onPlan.name}, not on the house map yet`
+    : row.outline ? (row.areaM2 != null ? `Drawn, ${row.areaM2} m²` : "Drawn") : "Not drawn")];
+  if (row.onPlan && !readOnly && WB) outlineKids.push(el("button", { class: "btn inline", style: "font-size:12px;padding:3px 10px", "data-put": "map", onclick: () => _putOnMap(ctx, row) }, "Put it on the map"));
   if (row.mapId) {
     outlineKids.push(el("button", { style: LINKBTN, "data-link": "outline", onclick: () => _editOutline(ctx, row) }, row.outline ? "Edit outline" : "Draw outline"));
   } else {

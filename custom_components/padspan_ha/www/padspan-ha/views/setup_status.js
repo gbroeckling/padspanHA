@@ -84,23 +84,24 @@ export function hasCalibration(state) {
   return calPoints >= 5 || hasModel;
 }
 
+/** Whether a room is drawn, the one rule for every "is this room drawn" (review 2026-11-11, C3): its outline is on the
+ *  map of your house (room_geometry_m) → {house: true, map: null}; else it is traced on a floor plan that has a scale
+ *  (what "Put my receivers in their rooms" counts, ws_fabric.plan_rooms_m) → {house: false, map} (the first such plan:
+ *  "Put it on the map" copies it to the house); else null. A room traced only on a plan with no scale is not drawn yet. */
+export function roomDrawn(state, name) {
+  if (((state.model && state.model.room_geometry_m) || {})[name]) return { house: true, map: null };
+  const m = (hasMaps(state) ? state.maps.list : []).find(p => p && (p.room_bounds || {})[name] && planHasScale(state, p.id));
+  return m ? { house: false, map: m } : null;
+}
+
 /**
- * The HA areas that don't yet have a drawn room boundary on ANY map, in
- * fabric-room_geometry_m terms first (rooms are per-house, not per-photo),
- * falling back to per-map room_bounds the same way hasRooms does. Used by
- * the wizard's Rooms step to show "3 of 7 rooms drawn" instead of a bare
+ * The HA areas that don't yet have a drawn room (roomDrawn). Used by the
+ * wizard's Rooms step to show "3 of 7 rooms drawn" instead of a bare
  * yes/no.
  */
 export function undrawnAreaNames(state) {
   const areaNames = ((state.model && state.model.areas) || []).map(a => a.name).filter(Boolean);
-  const fabricDrawn = new Set(Object.keys((state.model && state.model.room_geometry_m) || {}));
-  const perMapDrawn = new Set();
-  if (hasMaps(state)) {
-    for (const m of state.maps.list) {
-      for (const room of Object.keys(m.room_bounds || {})) perMapDrawn.add(room);
-    }
-  }
-  return areaNames.filter(name => !fabricDrawn.has(name) && !perMapDrawn.has(name));
+  return areaNames.filter(name => !roomDrawn(state, name));
 }
 
 // ── Receivers: one rule for "this receiver is placed" and "the receivers step is done" (review 2026-11-13, break 4) ──
