@@ -4946,6 +4946,16 @@ class PadSpanHaApp extends HTMLElement {
   //
   // The general strategy: poll renders are "nice to have" (data freshness),
   // but user interactions are sacred (never destroy mid-action).
+  /** A view drawn as its loading placeholder (a deep link straight to it, ?view=maps&tab=lights: Atlas's "✎ Edit
+   *  map"): loaded now and drawn when it lands, once. Review 2026-11-11: nothing else asked for it (the deferred
+   *  loads draw nothing when they land, and the poll does not redraw Mapping's or Settings' tabs), so the
+   *  placeholder stayed until a menu click. */
+  _loadMissingView(v){
+    if (!_VIEW_PATHS[v] || this._viewAsked === v) return;
+    this._viewAsked = v;
+    _loadView(v).then(m => { this._viewAsked = null; if (m && this.state.view === v) this._scheduleRender(); });
+  }
+
   _renderCurrentView(fromPoll){
     if(this.state._factoryResetInProgress) return;
     // A visit to a view: counted each time a view is drawn after another one (the rooms helper's "came back later",
@@ -5317,6 +5327,7 @@ class PadSpanHaApp extends HTMLElement {
         skel.appendChild(card);
       }
       frag.appendChild(skel);
+      this._loadMissingView(v);
       // Swap only after new content is ready
       this.$content.innerHTML = "";
       this.$content.appendChild(frag);

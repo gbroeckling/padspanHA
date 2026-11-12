@@ -82,6 +82,26 @@ p = panel(0);
 if (poll(p) === "skipped" && p._lastGoodRender === 0) ok.push("never used: no stamp");
 else fail.push(`never used: expected no stamp, got stamp=${p._lastGoodRender}`);
 
+// Review 2026-11-11 (B4): a deep link straight to a view not loaded yet (?view=maps&tab=lights, the Atlas's "✎ Edit
+// map") drew its placeholder for good; the placeholder now loads the view and draws it when it lands, once.
+{
+  const loads = [];
+  let land;
+  const loadMissing = new Function("_VIEW_PATHS", "_loadView",
+    `const obj = { ${extractMethod("_loadMissingView")} }; return obj._loadMissingView;`)({ maps: "./views/maps.js" },
+    (id) => { loads.push(id); return new Promise(r => { land = r; }); });
+  const p = { state: { view: "maps" }, renders: 0, _scheduleRender() { this.renders++; } };
+  loadMissing.call(p, "maps"); loadMissing.call(p, "maps"); loadMissing.call(p, "nowhere");
+  land({ render() {} });
+  await Promise.resolve(); await Promise.resolve();
+  if (JSON.stringify(loads) === '["maps"]' && p.renders === 1) ok.push("deep link: the view loads and draws once");
+  else fail.push(`deep link: expected one load and one draw, got ${JSON.stringify(loads)} / ${p.renders}`);
+  p.state.view = "settings"; loadMissing.call(p, "maps"); land({ render() {} });
+  await Promise.resolve(); await Promise.resolve();
+  if (p.renders === 1) ok.push("deep link: left before it landed, nothing drawn");
+  else fail.push(`deep link: left before it landed, drew ${p.renders}`);
+}
+
 for (const o of ok) console.log("ok   " + o);
 for (const f of fail) console.log("FAIL " + f);
 process.exit(fail.length ? 1 : 0);
