@@ -224,6 +224,12 @@ await check("success: one call, counted, settings handed back, then the started 
   assert(after && after.getAttribute("data-trial") === "started" && /90 days left/.test(after.textContent), after.textContent);
   // ...and another surface, not the one it started on, shows nothing.
   assert(T.trialOfferCard(h.host, "atlas") === null, "another surface still offers it");
+  // Review 2026-11-11 (C5): Basic's Mapping has no Atlas builder, so in Basic the card says it is in Advanced mode.
+  assert(!/Advanced mode/.test(after.textContent) && /Mapping → Atlas builder — drag/.test(after.textContent), after.textContent);
+  const basic = T.trialOfferCard({ ...h.host, basic: true }, "maps");
+  assert(/Mapping → Atlas builder \(in Advanced mode\) — drag/.test(basic.textContent), basic.textContent);
+  assert(T.trialHostFromCtx({ helpers: { el }, state: { complexity: "basic" }, actions: {} }).basic === true
+    && T.trialHostFromCtx({ helpers: { el }, state: { complexity: "advanced" }, actions: {} }).basic === false, "host.basic");
 });
 
 await check("the server says no: the reason stays, the form stays, counted as failed", async () => {
@@ -377,6 +383,17 @@ await check("Locate and Busy Times gates carry the trial card with their own sur
     const keyed = mod.render(viewCtx({ tier: "bright", pro_has_key: true }).ctx, {});
     assert(!keyed.querySelector("[data-trial=card]"), `${surface}: offered with a key`);
   }
+});
+
+// ── Locate's "no mapped route" (review 2026-11-11, C5): Basic has no Mapping → Layout, so it says Advanced mode ──
+await check("Locate's no-route line names Mapping → Layout as Advanced mode's in Basic", () => {
+  const LS = readFileSync(join(VIEWS, "locate.js"), "utf8").replace(/\r\n/g, "\n");
+  const fn = (head) => { const a = LS.indexOf(head); assert(a >= 0, head); return LS.slice(a, LS.indexOf("\n}\n", a) + 3); };
+  const guide = new Function(["_buildGuidance", "_shortestRoomPath", "_floorDelta"].map(n => fn(`function ${n}(`)).join("\n") + "\nreturn _buildGuidance;")();
+  const say = (complexity) => guide({ helpers: { el }, state: { complexity, model: { floors: [], room_adjacency: {} } } },
+    { room: "Kitchen", floor_id: "main" }, { room: "Office", floor_id: "main" }).textContent;
+  assert(/Mapping → Layout \(in Advanced mode\) to get/.test(say("basic")), say("basic"));
+  assert(/Mapping → Layout to get/.test(say("advanced")), say("advanced"));
 });
 
 // ── Getting started (panel.js): the "someone on the map" step ───────────────

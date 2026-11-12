@@ -1104,7 +1104,9 @@ function _upload(ctx, helpBtn, isBasic){
   if(!(ctx.state.maps?.list||[]).length){
     card.appendChild(el("div",{style:"margin:10px 0 4px;padding:10px 12px;border-radius:8px;background:#0a1a0a;border:1px solid #52b788;font-size:12px;color:#a7f3d0;line-height:1.6"},
       "💡 First map tip — Upload your most precise, to-scale floor plan first. " +
-      "It makes the best Reference when you line up your other floors in 3D Stack, so accuracy starts here."
+      // Basic has no 3D Stack (review 2026-11-11, C5): what the first plan is for, in Basic's terms.
+      (isBasic ? "PadSpan lines your other floors up with it, so accuracy starts here."
+        : "It makes the best Reference when you line up your other floors in 3D Stack, so accuracy starts here.")
     ));
   }
   card.appendChild(el("div",{class:"muted",style:"margin-bottom:10px"}, isBasic
@@ -1634,7 +1636,7 @@ function _wizardFloors(ctx, w){
   const wrap = el("div",{"data-wizard-step":"floors"});
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, _STEP_ABOUT.floors +
     " Until you set them, PadSpan uses an ordinary storey height."));
-  wrap.appendChild(el("div",{class:"card"},[_floorHeights(ctx)]));
+  wrap.appendChild(el("div",{class:"card"},[_floorHeights(ctx, w)]));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: _stepDone(ctx.state, "floors") !== true, skipLabel: "Skip — set heights later", nextLabel: "Next: place the receivers →" }));
   return wrap;
 }
@@ -1994,6 +1996,25 @@ function _goStep(ctx, mapId, step, w, counted = true){
 // receivers, the receivers; receivers, calibration until it is done. Read
 // from what is saved, so Save Layout paints it again (Edit's onSaved).
 const _NEXT_BOX = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#a7f3d0;line-height:1.5;margin:6px 0;padding:6px 10px;background:#0a1f14;border:1px solid #1a4228;border-radius:8px";
+// After Save Floor Heights (review 2026-11-11, C6): the "Next: …" line the other steps have, read from what is saved
+// so the save paints it, on Setup's floors screen (Basic: the card alone; Advanced: 3D Stack) and the wizard's step.
+// Next is the first step after the floors not done; in the wizard its own footer's Next is the button.
+function _floorsNext(ctx, w){
+  const { el } = ctx.helpers, st = ctx.state;
+  if (st.kioskMode || st.dataMode !== "live" || _stepDone(st, "floors") !== true) return null;
+  const steps = _setupSteps(st).map(s => s.id), i = steps.indexOf("floors");
+  const next = i < 0 ? null : steps.slice(i + 1).find(id => _stepDone(st, id) !== true);
+  if (!next) return null;
+  const say = next === "receivers" ? ["place the receivers, each where it is mounted.", "Place the receivers →"]
+    : ["calibrate, a few minutes walking round the house with your phone.", "Calibrate →"];
+  // Setup's own step (it leaves Basic's focused card, with the bar back to Setup), as _goStep opens floors and calibration.
+  const go = () => (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], st.settings).length)
+    ? ctx.actions.openSetupStep(next) : _goStep(ctx, st.activeMapId, next, null);
+  return el("div",{"data-next-line":next, style:_NEXT_BOX},[
+    el("span",{style:"flex:1 1 220px"}, "✓ Floor heights are set. Next: " + say[0]),
+    ...(w ? [] : [el("button",{class:"btn inline primary", style:"font-size:12px", "data-next":next, onclick:go}, say[1])])]);
+}
+
 function _nextLine(ctx, map){
   const { el } = ctx.helpers, st = ctx.state;
   // Review 2026-11-11: no "Next:" on an outdoor plan, nor anywhere on a house whose every set-up step is done; a plan
@@ -5466,8 +5487,10 @@ const _LEVEL_NAMES = ["Basement", "Ground", "Level 1", "Level 2", "Level 3"];
 // Floor elevation belongs to the floor, not to a map: two maps on one floor
 // must not each carry their own copy of its height.  One batch save, because
 // the derived base of every floor above depends on the ones below it.
-function _floorHeights(ctx){
+function _floorHeights(ctx, w = null){
   const { el } = ctx.helpers;
+  // Basic has no Layout tab and no Signal walls (review 2026-11-11, C5): the Rooms page, and where the railing is.
+  const basic = ctx.state.complexity === "basic";
   const floors = (ctx.state.model?.floors || []).slice()
     .sort((a,b) => (a.level ?? 999) - (b.level ?? 999) || (a.name||"").localeCompare(b.name||""));
   const derived = ctx.state.model?.floor_elevations || {};
@@ -5477,9 +5500,13 @@ function _floorHeights(ctx){
     el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},
       "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
       "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
-      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height), or on the Layout tab: select it, then Rises to (the same value). "+
-      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing where you set one (Railing, on its open edge in Signal walls), and a mezzanine gets its real base elevation here and sits under the room's roof."),
+      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height)"+
+      (basic ? ". Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it can have a railing (set in Advanced mode), and a mezzanine gets its real base elevation here and sits under the room's roof."
+        : ", or on the Layout tab: select it, then Rises to (the same value). "+
+      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing where you set one (Railing, on its open edge in Signal walls), and a mezzanine gets its real base elevation here and sits under the room's roof.")),
   ]);
+  const nx = _floorsNext(ctx, w);
+  if (nx) wrap.appendChild(nx);
   if(!floors.length){
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"No floors defined in Home Assistant yet."));
     return wrap;

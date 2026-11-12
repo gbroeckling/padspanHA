@@ -1234,7 +1234,8 @@ export function renderClassic(ctx){
       s += `</defs>`;
 
       if(!sortedIsoLevels.length){
-        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet — draw them in Mapping → Layout to build the map</text>`;
+        // Basic has no Mapping → Layout (review 2026-11-11, C5): Setup's rooms step, which Basic has.
+        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet — draw them in ${isBasic ? "Setup's Draw the rooms step" : "Mapping → Layout"} to build the map</text>`;
         return _finishIso(s);
       }
 

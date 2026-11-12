@@ -191,13 +191,13 @@ export function _resetTrialOffer() {
  * The card, or null when there is nothing to offer.
  *
  * host = { el, settings, isAdmin, callWS(type, data) -> Promise, telemetry(name),
- *          toast(msg, isErr), rerender(), onStarted(result) }
+ *          toast(msg, isErr), rerender(), onStarted(result), basic (Basic mode) }
  * opts = { feature, buy (default true), onDismiss, compact }
  */
 export function trialOfferCard(host, surface, opts = {}) {
   const el = host.el;
   const st = _st(surface);
-  if (st.done) return _startedCard(el, st.done);
+  if (st.done) return _startedCard(el, st.done, host.basic);
   if (!trialOfferable(host.settings)) return null;
   const tel = (name) => { try { if (host.telemetry) host.telemetry(name); } catch (e) { /* never fatal */ } };
   if (!_shown.has(surface)) { _shown.add(surface); tel("trial_offer_shown:" + surface); }
@@ -317,12 +317,13 @@ export function trialOfferCard(host, surface, opts = {}) {
   return card;
 }
 
-function _startedCard(el, done) {
+function _startedCard(el, done, basic) {
   const days = Number(done && done.days_left);
   return el("div", { "data-trial": "started",
     style: "padding:10px 12px;border:1px solid #2d5a3d;border-radius:8px;background:#0a1f14;margin:8px 0;font-size:12px;color:#a7f3d0;line-height:1.55" },
     "✓ Your 90-day PadSpan Pro trial has started" + (Number.isFinite(days) && days > 0 ? ` (${days} days left)` : "") +
-    ". Start by placing your lights in Mapping → Atlas builder — drag each one to where it really hangs." +
+    // Basic's Mapping has no Atlas builder (review 2026-11-11, C5): say it is in Advanced mode.
+    `. Start by placing your lights in Mapping → Atlas builder${basic ? " (in Advanced mode)" : ""} — drag each one to where it really hangs.` +
     (trialLaunchLine() ? " " + trialLaunchLine() : ""));
 }
 
@@ -354,6 +355,7 @@ export function trialHostFromCtx(ctx) {
     settings: ctx.state.settings,
     isAdmin: !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin),
     kiosk: !!(ctx.state && ctx.state.kioskMode),
+    basic: !!(ctx.state && ctx.state.complexity === "basic"),
     callWS: (type, data) => ctx.actions.wsCall(type, data),
     telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     toast: (m, isErr) => { if (ctx.toast) ctx.toast(m, isErr); },

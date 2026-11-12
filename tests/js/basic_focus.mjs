@@ -276,6 +276,55 @@ for (const from of ["overview", "calibration"]) {
   check("heights: Setup's ← Back to Setup leaves the focus", ctx.state.view === "setup" && !ctx.state._focus, [ctx.state.view, ctx.state._focus]);
 }
 
+// ── heights: Basic's own words, and the "Next: …" after a save (review 2026-11-11, C5 and C6) ──
+{
+  const two = (heights) => ({ floors: [{ id: "g", name: "Ground", level: 0, ...(heights ? { floor_to_floor_m: 2.7 } : {}) }, { id: "u", name: "Upper", level: 1 }],
+    areas: [{ name: "Kitchen" }], room_meta: {}, room_geometry_m: {}, map_transforms: { m1: { scale_x_m: 10, scale_y_m: 8 } }, scanner_positions_m: {} });
+  // One plan, no receivers pinned on it yet.
+  const plans = () => ({ list: [{ id: "m1", name: "Ground", floor_id: "g", image: { width: 800, height: 600, filename: "m1.png" }, receivers: [],
+    room_bounds: { Kitchen: { type: "poly", points: [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4]] } } }] });
+  const open = (complexity, model, extra = {}) => {
+    const calls = [];
+    const ctx = makeCtx({ view: "setup", complexity, model, maps: plans(), ...extra }, calls);
+    ctx.actions.openSetupStep = (id) => calls.push(["openSetupStep", id]);
+    FOCUS.openFocus(ctx, FOCUS.part("floorHeights"));
+    return { ctx, calls, root: MAPS.render(ctx) };
+  };
+  const b = open("basic", two(false)), a = open("development", two(false));
+  check("heights: Basic's text names no Layout tab and no Signal walls; Advanced's still does",
+    !/Layout tab|Signal walls|Rises to/.test(text(b.root)) && /Rooms page \(Ceiling height\)/.test(text(b.root)) && /Advanced mode/.test(text(b.root))
+    && /Layout tab/.test(text(a.root)) && /Signal walls/.test(text(a.root)), text(b.root).slice(0, 900));
+  check("heights: no Next before the heights are set", !attr(b.root, "data-next-line"));
+  await flush();
+  const s = open("basic", two(true));
+  await flush();
+  const line = attr(s.root, "data-next-line");
+  check("heights: saved, the Next line names the receivers, with its button", line && line.getAttribute("data-next-line") === "receivers"
+    && /✓ Floor heights are set\. Next: place the receivers/.test(text(line)) && !!attr(line, "data-next", "receivers"), line && text(line));
+  click(attr(line, "data-next", "receivers"));
+  check("heights: its button opens Setup's receivers step", JSON.stringify(s.calls.filter(c => c[0] === "openSetupStep")) === '[["openSetupStep","receivers"]]', s.calls);
+  const m = two(true); m.scanner_positions_m = { "AA:BB": { x_m: 1, y_m: 1, z_m: 2.4, floor_id: "g" } };
+  const c = open("development", m, { calibration: { points: [] } });
+  await flush();
+  check("heights: receivers placed, Next is calibrating (3D Stack's card too)",
+    !!attr(c.root, "data-next-line", "calibration") && !!attr(c.root, "data-next", "calibration"), text(c.root).slice(0, 300));
+  const k = open("basic", two(true), { kioskMode: true });
+  check("heights: never on a wall screen", !attr(k.root, "data-next-line"));
+  // The Setup Wizard's floors step: the line says it, its own footer's Next is the button.
+  const wc = makeCtx({ view: "maps", complexity: "basic", model: two(true), maps: plans(), _mapsWizard: { step: 6, mapId: "m1" } });
+  const wr = MAPS.render(wc); await flush();
+  const wl = attr(wr, "data-next-line", "receivers");
+  check("heights: in the Setup Wizard's floors step the line, and no second button", !!attr(wr, "data-wizard-step", "floors") && !!wl && !attr(wl, "data-next"),
+    text(wr).slice(0, 400));
+  // The first-upload tip: no 3D Stack in Basic.
+  const u = makeCtx({ view: "maps", complexity: "basic", mapsTab: "upload", maps: { list: [] } });
+  const ur = MAPS.render(u); await flush();
+  const ua = makeCtx({ view: "maps", complexity: "advanced", mapsTab: "upload", maps: { list: [] } });
+  const uar = MAPS.render(ua); await flush();
+  check("upload: Basic's first-plan tip names no 3D Stack (Advanced's does)", /First map tip/.test(text(ur)) && !/3D Stack/.test(text(ur))
+    && /line up your other floors in 3D Stack/.test(text(uar)), text(ur).slice(0, 300));
+}
+
 // ── expert: links to expert screens are not shown in Basic ──────────────────
 {
   const b = MAN.render(makeCtx({ view: "manage", manageTab: "ha_entities" }));
