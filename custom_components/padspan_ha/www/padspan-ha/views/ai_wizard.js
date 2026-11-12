@@ -996,7 +996,11 @@ function introScreen(ctx, S, box) {
     return !f || !f.name || nm.trim().toLowerCase() === String(f.name).trim().toLowerCase() ? nm : `${nm} (${f.name})`;
   };
   const doneLine = () => el("div", { "data-aiw": "plans-done", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" },
-    `Already has rooms, so not read again here: ${done.map(label).join(", ")}. Change those rooms in Mapping.`);
+    `Already has rooms, so not read again here: ${done.map(label).join(", ")}. ` + (st.complexity === "basic"
+      // Basic has no screen that reshapes the rooms Claude drew (they are on the map of the house; Setup's Draw the rooms
+      // step edits a plan's own outlines): said plainly (review 2026-11-13, break 7).
+      ? "Rooms you drew yourself are changed in Setup's Draw the rooms step; rooms Claude drew can be reshaped in Advanced mode (Mapping → Layout), or taken back with that step's Undo and drawn again."
+      : "Change those rooms in Mapping."));
   // The plan a stored step pointed at was deleted: said first, in words for the plans that are left.
   if (S.gone) box.appendChild(el("div", { "data-aiw": "plan-gone", style: "font-size:13px;color:#f59e0b;line-height:1.5;margin:6px 0" },
     "The plan you were working on isn't there any more." + (open.length === 1 ? " Claude will read the plan that is left instead." : open.length ? " Choose a plan to go on." : "")));
@@ -1360,9 +1364,9 @@ export function scaleNoticeWords(sc, feet = false) {
 /** Where "Check the scale" can't take the scale back here (u.code): what a correction affects, and where it is made. */
 export const SCALE_ELSEWHERE = {
   changed_since: "Things placed in metres sit on this scale now (receivers, calibration spots, or another plan lined up with it), so it isn't " +
-    "taken back here: a new measurement in Mapping → Edit → Measure moves them with it. Come back here after: the rooms are drawn again " +
+    "taken back here: a new measurement in Setup's Set the scale step (the button below) moves them with it. Come back here after: the rooms are drawn again " +
     "from the same reading, with no new read.",
-  other: "This plan's scale wasn't set here, so it is changed where it was set, in Mapping → Edit → Measure. Come back here after: the rooms " +
+  other: "This plan's scale wasn't set here, so it is measured again in Setup's Set the scale step (the button below). Come back here after: the rooms " +
     "are drawn again from the same reading, with no new read.",
 };
 
@@ -1624,7 +1628,9 @@ function savedScreen(ctx, S, box) {
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
     btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } }), MUTED(ctx, READ_TWICE)]));
   box.appendChild(row(ctx, [MUTED(ctx, "Something wrong?"), btn(ctx, "Undo", () => undo(ctx, S), { disabled: S.busy, attrs: { "data-aiw": "undo" } }),
-    MUTED(ctx, "takes back the rooms, and the plan's scale if it was set here. Later, the same Undo is on Setup's Draw the rooms step and in Settings → AI.")]));
+    // Settings → AI is not a Basic screen (review 2026-11-13, break 7): Basic is told of Setup's row only.
+    MUTED(ctx, "takes back the rooms, and the plan's scale if it was set here. Later, the same Undo is on Setup's Draw the rooms step" +
+      (st.complexity === "basic" ? "." : " and in Settings → AI."))]));
 }
 
 export function render(ctx) {

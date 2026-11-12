@@ -290,6 +290,9 @@ const TF = { p2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } }
     check(`${cx}: the wizard's scale step on a plan with no scale is the one-length screen, says one distance, no Later`, !!q(gr, '[data-nudge="card"]')
       && !q(gr, '[data-nudge="later"]') && !gr.textContent.includes("Measurement 1 of 2") && gr.textContent.includes("Measure one distance you know"),
       gr.textContent.slice(0, 400));
+    // Review 2026-11-13, break 7: Basic has no Edit → Measure; it is told Setup's scale step.
+    check(`${cx}: where to measure again, in words for the mode`, cx === "basic" ? gr.textContent.includes(N.SAVE_SAYS_BASIC) && !gr.textContent.includes("Edit → Measure")
+      : gr.textContent.includes(N.SAVE_SAYS), gr.textContent.slice(-300));
     tap(gr, 80, 300); gr = await render(g); tap(gr, 480, 300); await tick(); gr = await render(g);
     await typeIn(gr, "scale-length", "5 m");
     q(gr, '[data-nudge="save"]').click();

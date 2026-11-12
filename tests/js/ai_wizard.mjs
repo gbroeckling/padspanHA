@@ -818,6 +818,12 @@ for (const k of Object.keys(W.FAILS)) texts.push(W.FAILS[k].text);
   check("next floor: the plan on the floor with no rooms is picked; the one with rooms is said apart, not choosable",
     h2.ctx.state._aiw.plan.id === "m2" && !q(r2, '[data-aiw="plan-m1"]')
     && q(r2, '[data-aiw="plans-done"]').textContent === "Already has rooms, so not read again here: Main plan (Main). Change those rooms in Mapping.", r2.textContent.slice(0, 500));
+  // Basic (review 2026-11-13, break 7): no Basic screen reshapes the rooms Claude drew; said plainly, with what Basic can do.
+  h2.ctx.state.complexity = "basic";
+  const r2b = await view(h2);
+  check("next floor, Basic: where rooms are changed, said truly", q(r2b, '[data-aiw="plans-done"]').textContent.includes("Setup's Draw the rooms step")
+    && q(r2b, '[data-aiw="plans-done"]').textContent.includes("Advanced mode (Mapping → Layout)"), q(r2b, '[data-aiw="plans-done"]') && q(r2b, '[data-aiw="plans-done"]').textContent);
+  h2.ctx.state.complexity = "advanced";
   const h4 = house({ unlock: { ok: true, why: "ok" }, master: true, maps, floors, tfs, rooms: { Kitchen: { floor_id: "main" }, Den: { floor_id: "upper" } } });
   const r4 = await view(h4);
   check("every floor with rooms: said, nothing to start", r4.textContent.includes("Every floor with a plan already has rooms.") && !q(r4, '[data-aiw="start"]'), r4.textContent.slice(0, 400));
@@ -1422,6 +1428,14 @@ for (const [main, other] of [["x", "y"], ["y", "x"]]) {
   check("undone: draw them myself opens Setup's rooms step, counted", h.steps.at(-1) === "rooms" && h.tele.includes("ai_wizard:undo_next_by_hand"), [h.steps, h.tele]);
   check("done: says where the later Undo is", W.FAILS && (await view(house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans })))
     .textContent.includes("Later, the same Undo is on Setup's Draw the rooms step and in Settings → AI."));
+  // Review 2026-11-13, break 7: Basic has no Settings → AI, so its Done names Setup's row only.
+  const hb = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } }, ans });
+  hb.ctx.state.complexity = "basic";
+  const rb = await view(hb);
+  check("done, Basic: the later Undo is on Setup's row; no Settings → AI", rb.textContent.includes("Later, the same Undo is on Setup's Draw the rooms step.")
+    && !rb.textContent.includes("Settings → AI"), rb.textContent.slice(0, 400));
+  check("the Undo's words name Setup's scale step, not Edit → Measure", O.undoSure({ scale: "goes" }).includes("Setup's Set the scale step")
+    && O.undoDone({ n: 2, scale: "back" }).includes("Setup's Set the scale step") && !/Edit → Measure/.test(O.undoSure({ scale: "goes" }) + O.undoDone({ n: 2, scale: "back" })));
 }
 // ── 2026-11-12: "Put my receivers in their rooms" on the Done screen too (Setup's one copy) ──
 {

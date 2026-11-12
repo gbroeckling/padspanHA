@@ -29,6 +29,8 @@ export const SECOND = "Add a length the other way";
 export const SECOND_WHY = "Optional: a second length, running the other way, checks that the plan picture isn't stretched.";
 export const ONE_ONLY = "Use only the first length";
 export const SAVE_SAYS = "Saved as Mapping → Edit → Measure saves a scale. You can measure again there at any time.";
+// Basic has no Edit tab (review 2026-11-13, break 7): the way back to measuring there is Setup's scale step.
+export const SAVE_SAYS_BASIC = "You can measure it again at any time in Setup's Set the scale step.";
 export const REMINDER = "No scale yet";
 export const DIFFER_PCT = 5;
 // The doors a first scale comes through, counted at Save (scale_nudge:via_<door>; telemetry.SCALE_NUDGE_WORDS).
@@ -191,7 +193,7 @@ export function render(ctx, map, opts = {}) {
   const saveBtn = btn(ctx, d.busy ? "Saving…" : "Save the scale", () => { if (ready(d)) save(ctx, map, d, opts); }, { primary: true, attrs: { "data-nudge": "save" } });
   const laterBtn = opts.later === false ? null : btn(ctx, "Later", () => later(ctx, map, opts), { disabled: d.busy, attrs: { "data-nudge": "later" } });
   card.appendChild(el("div", { "data-nudge": "bar", style: PM.STICKY_BAR }, [row(ctx, [saveBtn, laterBtn].filter(Boolean), "margin:0"),
-    el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4" }, SAVE_SAYS)]));
+    el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4" }, ctx.state.complexity === "basic" ? SAVE_SAYS_BASIC : SAVE_SAYS)]));
   d.paint = () => paint(ctx, d, said, sized, saveBtn);
   d.paint();
   return card;

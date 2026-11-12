@@ -177,11 +177,11 @@ export const undoWhat = (u) => `The last rooms Let Claude draw your rooms saved 
   "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. " +
   (u.scale === "goes" ? "It also removes this plan's scale, which was set in the helper: the plan will need measuring again." :
     u.scale === "changed_since" ? "The plan's scale set in the helper stays: something placed in metres was added or changed since (rooms, walls, zones, receivers, calibration points, the 3D house or another plan's scale), and it is placed by that scale." : "");
-export const undoSure = (u) => u.scale === "goes" ? "Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Mapping → Edit → Measure)."
+export const undoSure = (u) => u.scale === "goes" ? "Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Setup's Set the scale step)."
   : "Take back the rooms Let Claude draw your rooms saved?";
 /** After it: the rooms' count, then what happened to the scale. */
 export const undoDone = (out) => `${out.n} taken back${out.skipped ? `; ${out.skipped} changed since left as ${out.skipped === 1 ? "it is" : "they are"}` : ""}.` +
-  (out.scale === "back" ? " The plan's scale was removed too: measure it again in Mapping → Edit → Measure."
+  (out.scale === "back" ? " The plan's scale was removed too: measure it again in Setup's Set the scale step."
     : out.scale === "kept" ? (out.scaleWords ? ` The plan's scale stays: ${out.scaleWords}` : " The plan's scale stays.") : "");
 
 /** Run it: {ok, n, skipped, scale: "back" | "kept" | null, scaleWords} or {ok: false, message}. */

@@ -274,7 +274,7 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
     el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, row.name),
     row.haId
       ? _haLink(el, `/config/areas/area/${encodeURIComponent(row.haId)}`, "Rename in Home Assistant")
-      : el("span", { class: "muted", style: "font-size:11px", title: "Drawn in PadSpan's layout (Mapping → Layout) but not an area in Home Assistant" }, "PadSpan only, not a Home Assistant area"),
+      : el("span", { class: "muted", style: "font-size:11px", title: ctx.state.complexity === "basic" ? "A room PadSpan has that isn't an area in Home Assistant" : "Drawn in PadSpan's layout (Mapping → Layout) but not an area in Home Assistant" }, "PadSpan only, not a Home Assistant area"),
   ]));
 
   const fields = el("div", { style: "display:flex;flex-wrap:wrap;gap:12px 16px" });

@@ -168,7 +168,7 @@ function _heightCell(ctx, el, row, editable) {
   if (!editable) return el("span", { class: "rx-num" }, `${row.height} m`);
   const zInp = el("input", { type: "number", min: "0", max: "100", step: "0.1", style: INPUT, "aria-label": `Height above floor (m) for ${row.name}` });
   zInp.value = String(row.height);
-  const zBtn = el("button", { class: "btn inline rx-save", title: "Mounting height above this receiver's own floor. Same value as Calibration → Tune and Mapping → Edit → Radios." }, "Save");
+  const zBtn = el("button", { class: "btn inline rx-save", title: "Mounting height above this receiver's own floor. Same value as Calibration → Tune and Mapping's receivers step." }, "Save");
   zBtn.addEventListener("click", async () => {
     const src = row.source;
     const v = parseFloat(zInp.value);
