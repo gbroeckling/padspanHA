@@ -564,5 +564,25 @@ await tryCase("plans: Open Mapping → Atlas leaves 3D for Map on that room, ask
   NodeCls.prototype.getContext = realGetContext;
 });
 
+// Review 2026-11-11: one ⋯ per look. The flat Map's rail ⋯ steps aside while the 3D look shows (it has its own), and
+// is there with the flat Map.
+await tryCase("flat ⋯: hidden while the 3D look shows, there with the flat Map", async () => {
+  const flatMore = (c) => c._all().find(n => typeof n.className === "string" && n.className.includes("la3d-flatmore"));
+  // A fresh module on a screen with WebGL (nothing remembered from the fallback cases above).
+  NodeCls.prototype.getContext = glThrows;
+  sessionStorage.removeItem(FAILED); localStorage.removeItem(FAILED);
+  const M = await reload("?page=flatmore");
+  const opts = { house3d: H3(true, "atlas"), layoutV2: true, display: true, M, more: { screen: { slot: "atlas", shownAt: 1 } } };
+  localStorage.setItem(PICK("atlas"), "1");
+  const three = card(opts);
+  localStorage.setItem(PICK("atlas"), "0");
+  const flat = card(opts);
+  localStorage.removeItem(PICK("atlas"));
+  NodeCls.prototype.getContext = realGetContext;
+  const a = flatMore(three.c), b = flatMore(flat.c);
+  check("flat ⋯: hidden while the 3D look shows, there with the flat Map", !!a && !!b && a.style.display === "none" && b.style.display !== "none",
+    { three: a && a.style.display, flat: b && b.style.display });
+});
+
 console.log(JSON.stringify({ cases, failures, loaded: threeLoads().map(u => u.replace(/^.*\/padspan-ha\//, "")) }));
 process.exit(failures.length ? 1 : 0);

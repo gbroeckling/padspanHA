@@ -195,6 +195,85 @@ await tryCase("reset: Back to house defaults on the flat Map forgets its lines o
   check("reset: Back to house defaults on the flat Map forgets its lines only",
     JSON.stringify(JSON.parse(kept.get("padspan_la3d_show_flat-g"))) === JSON.stringify({ roof: false }), kept.get("padspan_la3d_show_flat-g"));
 });
+// ── review 2026-11-11 ───────────────────────────────────────────────────────
+// Live Aboard off, as the sidebar hands it: the Atlas screen's 3D part with its admin and its way to Settings (goTo).
+const hp3 = (slot, extra = {}) => ({ house3d: { slot, settings: { atlas_3d_enabled: false }, telemetry: (n) => SENT.push(n), ...extra } });
+await tryCase("go: Settings → Atlas › opens Settings → Atlas the 3D look's way (goShow); not shown where it can't go", async () => {
+  kept.clear();
+  const went = [];
+  const k = card(newView(), { slot: "flat-h", ...hp3("flat-h", { admin: true, goTo: (t) => went.push(t) }) });
+  await openList(k);
+  click(k.c._all().find(n => n.className === "la3d-sset"));
+  const shut = !k.c._all().some(n => n.getAttribute && n.getAttribute("data-la3d-show") !== null);
+  const none = card(newView(), { slot: "flat-i", ...hp3("flat-i", { admin: true }) }), guest = card(newView(), { slot: "flat-j", ...hp3("flat-j", { admin: false, goTo: () => {} }) });
+  await openList(none); await openList(guest);
+  const set = (x) => x.c._all().some(n => n.className === "la3d-sset");
+  check("go: Settings → Atlas › opens Settings → Atlas the 3D look's way (goShow); not shown where it can't go",
+    JSON.stringify(went) === JSON.stringify([{ view: "settings", tab: "atlas", where: "atlas" }]) && shut && !set(none) && !set(guest), { went, shut });
+});
+await tryCase("dot: a screen with ticks of its own wears ⋯'s dot on a fresh card; one without, none", async () => {
+  kept.clear();
+  kept.set("padspan_la3d_show_flat-k", JSON.stringify({ other_floors: true }));
+  const k = card(newView(), { slot: "flat-k" }), plain = card(newView(), { slot: "flat-l" });
+  await later();
+  check("dot: a screen with ticks of its own wears ⋯'s dot on a fresh card; one without, none",
+    k.more.classList.contains("la3d-changed") && !plain.more.classList.contains("la3d-changed"));
+});
+await tryCase("kept: ⋯ opened over an open drawer stays through the poll; its window listeners go with it", async () => {
+  kept.clear();
+  const wins = [];
+  globalThis.addEventListener = (t, f) => wins.push([t, f]);
+  globalThis.removeEventListener = (t, f) => { const i = wins.findIndex(w => w[0] === t && w[1] === f); if (i >= 0) wins.splice(i, 1); };
+  try {
+    const view = { ...newView(), drawer: "layers" }, keepCard = {};
+    const k = card(view, { slot: "flat-m", keepCard });
+    Object.defineProperty(k.c, "isConnected", { value: true, configurable: true });   // on the page (the shim keeps no document)
+    await openList(k);
+    const open = () => k.c._all().some(n => n.getAttribute && n.getAttribute("data-la3d-show") !== null);
+    const was = { drawer: view.drawer, open: open(), wins: wins.length };
+    const again = LM.buildLightsMapCard({ el, view, floors: MODEL.floors, model: MODEL, byRoom: L.byRoom, hiddenEids: new Set(), lightsByEid: L.byEid,
+      lightsLoading: false, tier: "pro", layoutV2: true, displayMode: true, codeChip: true, hitHalo: true, saveView: async () => {}, onHexesBuilt() {},
+      screen: { slot: "flat-m", shownAt: 1 }, keepCard });
+    const polled = { same: again === k.c, open: open() };
+    // A new card all the same (the page built one): the open list is closed first, its listeners gone.
+    const fresh = LM.buildLightsMapCard({ el, view, floors: MODEL.floors, model: MODEL, byRoom: L.byRoom, hiddenEids: new Set(), lightsByEid: L.byEid,
+      lightsLoading: false, tier: "pro", layoutV2: true, displayMode: true, codeChip: true, hitHalo: true, saveView: async () => {}, onHexesBuilt() {},
+      screen: { slot: "flat-m", shownAt: 1 }, keepCard: { ...keepCard, refresh: () => false } });
+    const after = { fresh: fresh !== k.c, wins: wins.length };
+    check("kept: ⋯ opened over an open drawer stays through the poll; its window listeners go with it",
+      was.drawer === null && was.open && was.wins === 2 && polled.same && polled.open && after.fresh && after.wins === 0, { was, polled, after });
+  } finally { delete globalThis.addEventListener; delete globalThis.removeEventListener; }
+});
+await tryCase("lines: offered only where they can do something (no light to tap, one floor: said, not tickable)", async () => {
+  kept.clear();
+  const one = { ...MODEL, floors: [MODEL.floors[0]], light_positions_m: {} };
+  const k = card(newView(), { slot: "flat-n", model: one, floors: one.floors });
+  await openList(k);
+  const notes = Object.fromEntries(k.c._all().filter(n => n.getAttribute && n.getAttribute("data-setup")).map(n => [n.getAttribute("data-setup"), n.textContent]));
+  check("lines: offered only where they can do something (no light to tap, one floor: said, not tickable)",
+    tickOf(k, "light_taps").getAttribute("aria-disabled") === "true" && tickOf(k, "other_floors").getAttribute("aria-disabled") === "true"
+    && /No lights are placed yet/.test(notes.light_taps || "") && /one floor/.test(notes.other_floors || ""), notes);
+});
+await tryCase("layer: Vacation Mode's banner steps under the open list, as under the 3D look's, and back once it closes", async () => {
+  kept.clear();
+  const k = card(newView(), { slot: "flat-o" });
+  await openList(k);
+  const card0 = k.c._all().find(n => typeof n.className === "string" && n.className.split(" ").includes("lv-mapcard")) || k.c;
+  const during = card0.getAttribute("data-la3d-flatmenu") !== null;
+  const sheet = k.c._all().filter(n => n.localName === "style").map(n => n.textContent).join("\n");
+  click(k.c._all().find(n => n.className === "la3d-sx"));
+  check("layer: Vacation Mode's banner steps under the open list, as under the 3D look's, and back once it closes",
+    during && card0.getAttribute("data-la3d-flatmenu") === null && sheet.includes(".lv-mapcard[data-la3d-flatmenu] > .lv-vacation{z-index:4}"), { during });
+});
+await tryCase("under: the hover box's Under pick asks the line as a tap does (tapSwitches)", async () => {
+  const stage = document.createElement("div");
+  const l = L.byEid["light.hall"];
+  const before = LM.tapSwitches(stage, "light.hall", l);
+  stage._psLightTaps = () => false;
+  const off = LM.tapSwitches(stage, "light.hall", l), lock = LM.tapSwitches(stage, "lock.back", { entity_id: "lock.back" });
+  stage._psLightTaps = () => true;
+  check("under: the hover box's Under pick asks the line as a tap does (tapSwitches)", before && !off && lock && LM.tapSwitches(stage, "light.hall", l));
+});
 
 console.log(JSON.stringify({ cases, failures }));
 process.exit(failures.length ? 1 : 0);

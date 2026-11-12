@@ -24,7 +24,7 @@ const { hasControlCard } =
 // two tools always show the identical map. All lights-view edits go in there.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity, atlasLookFromSettings,
-        wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
+        wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
         vacationOptionsOf, vacationEndsText, layChildren } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
@@ -1292,7 +1292,7 @@ class PadSpanLightsApp extends HTMLElement {
               if (!l0) return;
               if (l0.isMotion) api.openActivity(eid);
               else if (api.controlsFor(l0)) api.openControls(eid);
-              else api.toggle(eid);
+              else if (tapSwitches(isoDiv, eid, l0)) api.toggle(eid);   // as a tap on it: not while ⋯'s "Tap a light" is unticked
             },
             underTitle: "Act on this one instead — it's under the marker on top",
             stackHint: null,

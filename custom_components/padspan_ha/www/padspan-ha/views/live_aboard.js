@@ -5183,10 +5183,7 @@ function createSlot(slotKey){
   /** The host's way to Settings or Mapping (p.goTo(where)); false where it has none.
    *  A new scene: the scene row's own way to Home Assistant's editor. */
   function showGo(where){
-    if (where === "scene_new") { const sc = scenesOf(houseP); if (typeof sc.add !== "function") return false; sc.add("show"); return true; }
-    const g = houseP && typeof houseP.goTo === "function" ? houseP.goTo : null, t = SHOW.GO_TO[where];
-    if (!g || !t) return false;
-    try { g({ ...t, where: String(where) }); return true; } catch (_) { return false; }
+    return SHOW.goShow(where, houseP && houseP.goTo, where === "scene_new" ? scenesOf(houseP) : null);   // the flat Map's ⋯ goes the same way
   }
   function makeShowMenu(){
     return SHOW.createShowMenu({

@@ -1124,12 +1124,13 @@ export function screenHeight(slot, model, eid, l){
 /** Is this what Live Aboard's ⋯ "Tap a light to switch it" covers: a light
  *  or an LED strip (never a fan, a lock or a reading)? Both looks ask it. */
 export const isTapLight = (eid, l) => String(eid).startsWith("light.") && !!l && castsLight(l);
+/** The screen's ⋯ "Tap a light to switch it" (buildLightsMapCard hands it over as isoDiv._psLightTaps; read at each
+ *  tap): unticked, a tap on a light switches nothing. Without it (any other host), as ever. The marker's tap and the
+ *  hover box's "Under" pick (lights_panel.js) both ask this. */
+export const tapSwitches = (isoDiv, eid, l0) => !(isTapLight(eid, l0) && typeof isoDiv._psLightTaps === "function" && !isoDiv._psLightTaps());
 export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);
-  // The screen's ⋯ "Tap a light to switch it" (buildLightsMapCard hands it
-  // over as isoDiv._psLightTaps; read at each tap): unticked, a tap on a
-  // light switches nothing. Without it (any other host), as ever.
-  const switches = (eid, l0) => !(isTapLight(eid, l0) && typeof isoDiv._psLightTaps === "function" && !isoDiv._psLightTaps());
+  const switches = (eid, l0) => tapSwitches(isoDiv, eid, l0);
   const svg = isoDiv.querySelector("svg");
   // A drawing the poll patched keeps its parts (drawStageSvg): the last
   // wiring comes off them first, so each is wired once, to this api: its
@@ -3425,8 +3426,9 @@ export function buildLightsMapCard(hostIn){
   // A new card: the last one leaves the page first, so its drawing can move
   // into this one (drawStageSvg patches only a drawing no longer on screen).
   if (keep) {
+    if (keep.drop) keep.drop();               // its ⋯ list, if open, closed: its window listeners go with it
     if (keep.card && keep.card.parentNode) keep.card.parentNode.removeChild(keep.card);
-    keep.card = null; keep.refresh = null;
+    keep.card = null; keep.refresh = null; keep.drop = null;
   }
   // The tier decides what is drawn, whatever the host asked for. One place,
   // for both hosts — see lightsHostForTier.
@@ -3625,6 +3627,7 @@ export function buildLightsMapCard(hostIn){
   }
   const la3dPaints = [];
   let la3dCloseDrawer = null;
+  let flatMenu = null;              // the flat Map's ⋯ list once wired (an open one keeps this card: refresh, keep.drop)
 
   // ── The scene row (scene_row.js) ─────────────────────────────────────────
   // host.scenes is the sidebar's {slot, states, entities, admin, kiosk,
@@ -5057,15 +5060,27 @@ export function buildLightsMapCard(hostIn){
         "aria-label": "Show on this screen: pick what the map shows", "aria-haspopup": "true", "aria-expanded": "false",
         style: "order:99;position:relative;font-weight:800;letter-spacing:1px" }, "⋯");
       rail.appendChild(more);
+      la3dPaints.push(() => { more.style.display = la3dOn() ? "none" : ""; });   // one ⋯ per look: the 3D look has its own
       const wire = (M) => {
-        const sc = () => (sceneRow && host.scenes ? scenesNow() : null);
+        // Review 2026-11-11: its buttons go where the 3D look's go (live_aboard_show.js goShow), shown only where they
+        // can; a line is offered only where it can do something (lights to tap, floors to fade), as the 3D list's are.
+        const sc = () => (sceneRow && host.scenes ? scenesNow() : null), hp = host.house3d || {};
+        const canGo = (where) => (where === "scene_new" || hp.admin === true) && M.canGoTo(where, hp.goTo, sc());
+        const tapLights = () => Object.keys((host.model && host.model.light_positions_m) || {}).some(eid => isTapLight(eid, (host.lightsByEid || {})[eid]));
         return M.createShowMenu({ root: mapCard, button: more, guard: (fn) => fn,
-          onOpen: () => { if (view.drawer) setDrawer(view.drawer); },
+          onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
+          onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
             lines: () => ["light_taps", "other_floors", ...(sc() ? ["scenes"] : [])],
-            ready: () => { const s = sc(); return s && !s.tiles.length ? { scenes: M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk) } : {}; },
-            canGo: () => { const s = sc(); return !!(s && s.add); },
-            go: (where) => { const s = sc(); if (where === "scene_new" && s && s.add) s.add("show"); },
+            ready: () => {
+              const s = sc(), out = {};
+              if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);
+              if (!tapLights()) out.light_taps = M.setupLine("light_taps", hp.admin === true, typeof hp.goTo === "function", null, hp.kiosk === true);
+              if (sortedLevels.length < 2) out.other_floors = M.setupLine("other_floors", hp.admin === true, false, "This house has one floor: there is nothing to fade.");
+              return out;
+            },
+            canGo,
+            go: (where) => { if (canGo(where)) M.goShow(where, hp.goTo, sc()); },
             count: (name) => {
               const t = h3 && typeof h3.telemetry === "function" ? h3.telemetry : host.scenes && host.scenes.telemetry;
               try { if (typeof t === "function") t(name); } catch (_) { /* the report is never the error */ }
@@ -5073,11 +5088,13 @@ export function buildLightsMapCard(hostIn){
             // A tap reads its line when it lands; the floors and the scene row are drawn again.
             changed: (key) => { if (key === "light_taps") return; if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });
       };
-      if (_showList) wire(_showList);
+      // ⋯'s dot from the saved pref as the card is built (review 2026-11-11: no mark() was ever called): wired at once
+      // where the list is loaded, and where this screen has ticks of its own as soon as it loads; else at the first press.
+      const wired = (M) => { flatMenu = wire(M); flatMenu.mark(); return flatMenu; };
+      if (_showList) wired(_showList);
       else {
-        let menu = null;                                            // its own listener takes over once wired
-        more.addEventListener("click", () => { if (!menu) _loadShowList().then(M => { if (M && !menu) { menu = wire(M); menu.open(); } }); });
-        if (_laPrefs.get(`show_${flatSlot}`)) _loadShowList();      // ticks of its own: ⋯'s dot from the next card
+        more.addEventListener("click", () => { if (!flatMenu) _loadShowList().then(M => { if (M && !flatMenu) wired(M).open(); }); });
+        if (_laPrefs.get(`show_${flatSlot}`)) _loadShowList().then(M => { if (M && !flatMenu) wired(M); });
       }
     }
     const railToggle = railBtn(view.railHidden ? "›" : "‹", view.railHidden ? "Show the controls" : "Hide the controls", () => {
@@ -5130,6 +5147,10 @@ export function buildLightsMapCard(hostIn){
     const sigOf = (h, a, lg) => _cardSig(h, [view.floorGap, view.horizGap, view.focusIdx, view.drawer || null, !!view.railHidden,
       !!_AB, _vacOptsOpen, Date.now() < _vacAskUntil, alertKeyOf(a), lg, heatKindsOf(h, Object.values(h.lightsByEid || {}))]);
     const refresh = (next) => {
+      // ⋯'s list open (review 2026-11-11: closing a drawer as it opened changed this card's signature, so the next poll
+      // built a new card under it): this card stays as it is until the list closes, as the panel holds a screen still
+      // while someone works in it.
+      if (flatMenu && flatMenu.isOpen) return true;
       if (next.model !== hostIn.model || next.floors !== hostIn.floors || next.view !== view) return false;
       const h = lightsHostForTier(next), a = _cardAlerts(h), h3n = _cardH3(h), lg = legendOf(h, h3n);
       if (sigOf(h, a.alerts, lg.key) !== keep.sig) return false;
@@ -5155,7 +5176,7 @@ export function buildLightsMapCard(hostIn){
       }
       return true;
     };
-    Object.assign(keep, { card: mapCard, refresh, sig: sigOf(host, alerts, legend.key) });
+    Object.assign(keep, { card: mapCard, refresh, sig: sigOf(host, alerts, legend.key), drop: () => { if (flatMenu) flatMenu.close(); } });
   }
   // Restore the pan position a previous rebuild of this same card saved
   // (see the scroll listener above) — skipped on the very first-ever

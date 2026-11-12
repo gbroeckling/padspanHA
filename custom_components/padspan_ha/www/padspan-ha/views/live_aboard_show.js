@@ -116,6 +116,18 @@ export const GO_TO = {
   la3d: { view: "settings", tab: "atlas", part: "la3d" }, weather: { view: "settings", tab: "atlas", part: "atlas_weather" },
   atlas: { view: "settings", tab: "atlas" },
 };
+/** Where a line, a "Set it up" or "Settings → Atlas ›" goes, from either look (one way, review 2026-11-11): a new
+ *  scene through the scene row's own way to Home Assistant (scenes.add), else the host's goTo to GO_TO's place.
+ *  False where there is no way (the list shows no button for it: canGoTo). */
+export function goShow(where, goTo, scenes){
+  if (!canGoTo(where, goTo, scenes)) return false;
+  if (where === "scene_new") { scenes.add("show"); return true; }
+  try { goTo({ ...GO_TO[where], where: String(where) }); return true; } catch (_) { return false; }
+}
+/** Whether goShow has a way to `where`. */
+export function canGoTo(where, goTo, scenes){
+  return where === "scene_new" ? !!(scenes && typeof scenes.add === "function") : typeof goTo === "function" && !!GO_TO[where];
+}
 
 // ── the opt-in report's words (telemetry.py HOUSE3D_SHOW_EVENTS holds the same)
 // Counts only, never a name, a room or an address: the list opened, each line
@@ -237,7 +249,7 @@ export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
  * screen has), on this screen's own pref, so a tick here is the 3D look's
  * too and the reverse. Returns createShowMenu's v (but root, anchor, guard).
  * o = { prefs: {get, set}, slot, lines() → keys shown, ready() → {key:
- * setupLine} not set up, go(where, key), canGo(), count(name), changed(key):
+ * setupLine} not set up, go(where, key), canGo(where), count(name), changed(key):
  * the flat Map follows a tick (null: every line) }.
  */
 export function flatMenu(o){
@@ -261,7 +273,7 @@ export function flatMenu(o){
     },
     setup: (row) => { if (row.setup && row.setup.go) { o.count(`house3d_show:setup_go:${row.key}`); o.go(row.setup.go, row.key); } },
     go: (where, key) => o.go(where, key),
-    canGo: () => !!o.canGo(),
+    canGo: (where) => !!o.canGo(where),
     reset: () => {
       const keys = lines();
       save(Object.fromEntries(Object.entries(over()).filter(([k]) => !keys.includes(k))));
@@ -285,6 +297,9 @@ const CSS = `
 /* On the flat Map: a rail button (styles.css .lv-railbtn, lights_map.js), with the same dot. */
 .la3d-flatmore.la3d-changed::after{content:"";position:absolute;right:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent,#52b788);
   border:2px solid rgba(6,14,9,.95)}
+/* Vacation Mode's banner (z-index 40) steps under the flat Map's open list, as it does under the 3D look's
+   (live_aboard.js: data-la3d-menu); lights_map.js marks the card while the list is open. */
+.lv-mapcard[data-la3d-flatmenu] > .lv-vacation{z-index:4}
 .la3d-show{position:absolute;left:10px;top:66px;z-index:5;box-sizing:border-box;width:min(640px,calc(100% - 20px));
   max-height:calc(100% - 132px);display:flex;flex-direction:column;border-radius:14px;background:rgba(6,14,9,.96);
   border:1px solid rgba(120,190,155,.3);box-shadow:0 12px 32px rgba(0,0,0,.55);color:#e2e8f0;font:13px/1.35 system-ui,"Segoe UI",Roboto,sans-serif}
@@ -348,7 +363,7 @@ const CSS = `
  *   toggle(key)      tick or untick a line; the view redraws
  *   setup(row)       a "not set up" line's button
  *   go(where)        a link (null: the host has no way there)
- *   canGo()          can the host go anywhere at all?
+ *   canGo(where)     can the host go there (the 3D look: anywhere at all)?
  *   reset()          Back to house defaults
  *   opened()         the list opened (the report)
  *   seen(rows)       the lines shown (the report: "not set up" seen)
@@ -416,7 +431,7 @@ export function createShowMenu(v){
         if (r.always || (r.setup && !r.setup.perm)) { tick.setAttribute("aria-disabled", "true"); if (r.setup) tick.title = r.setup.text; }
         else tick.addEventListener("click", v.guard((e) => { stop(e); v.toggle(r.key); paint(); }));
         row.appendChild(tick);
-        if (r.link && v.canGo() && !(r.setup && r.setup.button)) {
+        if (r.link && v.canGo(r.link.where) && !(r.setup && r.setup.button)) {
           const a = d("button", "la3d-slink", `${r.link.words} ›`);
           a.type = "button";
           a.title = `Open ${r.link.title}`;
@@ -429,7 +444,7 @@ export function createShowMenu(v){
           const s = d("div", "la3d-setup");
           s.setAttribute("data-setup", r.key);
           s.appendChild(d("span", null, r.setup.text));
-          if (r.setup.button && (r.setup.perm || (r.setup.go && v.canGo()))) {
+          if (r.setup.button && (r.setup.perm || (r.setup.go && v.canGo(r.setup.go)))) {
             const b = d("button", null, r.setup.button);
             b.type = "button";
             b.addEventListener("click", v.guard((e) => { stop(e); close(); v.setup(r); }));
@@ -469,7 +484,7 @@ export function createShowMenu(v){
     reset.title = "Show everything as the house's settings say, on this screen";
     reset.addEventListener("click", v.guard((e) => { stop(e); if (!v.changed()) return; v.reset(); paint(); }));
     foot.appendChild(reset);
-    if (v.canGo()) {
+    if (v.canGo("atlas")) {
       const set = d("button", "la3d-sset", "Settings → Atlas ›");
       set.type = "button"; set.title = "Open Settings → Atlas: the house's own settings";
       set.addEventListener("click", v.guard((e) => { stop(e); close(); v.go("atlas", null); }));
