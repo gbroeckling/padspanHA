@@ -88,6 +88,65 @@ def test_the_helpers_preview_and_save_read_the_same_way(monkeypatch, tmp_path, d
     assert mdl.map_transform("n1")["scale_x_m"] == pytest.approx(10.0, abs=1e-3)
 
 
+# Claude's printed readings as Use it sends them, and the metres they were accepted as (plan_ai._save_text reads metric).
+_READINGS = [("12.48", 12.48), ("4200", 4.2), ("2 400", 2.4), ("30'-5 1/2\"", 9.2837)]
+
+
+def _reading_session(h, ms, sid="sc_read"):
+    import time
+    from custom_components.padspan_ha import plan_ai as A
+    from tests.test_house3d_store import _run
+    _run(A.async_get_store(h)).data.setdefault("scales", {})[sid] = {"started_at": time.time(), "map_id": "n1", "plans": [{"image_sig": A.image_sig(ms.get_map("n1"))}]}
+    return sid
+
+
+@pytest.mark.parametrize(("text", "metres"), _READINGS)
+@pytest.mark.parametrize("feet", [True, False])
+def test_use_it_saves_claudes_reading_the_same_whatever_the_switch(monkeypatch, tmp_path, disk, feet, text, metres):  # noqa: F811
+    """Review of 2026-11-11: Claude's text was chosen because its METRIC reading agreed with Claude; the feet switch
+    read a bare "12.48" as feet (the plan 7.61 m across, not 24.96), refused "4200" and made "2 400" 731 m."""
+    h, conn, mdl, ms = _house(monkeypatch, tmp_path, disk, feet)
+    sid = _reading_session(h, ms)
+    pv = _call(WP.ws_plan_build_scale_preview, h, conn, map_id="n1", measures=[{**_ENDS, "text": text}], source="plan_dimension", via="wizard")
+    assert pv["metres"][0] == pytest.approx(metres, abs=1e-3) and pv["across_m"] == pytest.approx(2 * metres, rel=1e-3)
+    out = _call(WP.ws_plan_build_scale_save, h, conn, map_id="n1", sig="nn", measures=[{**_ENDS, "text": text}],
+                source="plan_dimension", session=sid, via="wizard")
+    assert out["ok"] is True and mdl.map_transform("n1")["scale_x_m"] == pytest.approx(2 * metres, rel=1e-3)
+    assert mdl.map_transform("n1")["reference_measurements"][0]["distance_m"] == pytest.approx(metres, abs=1e-3)
+
+
+@pytest.mark.parametrize("feet", [True, False])
+def test_check_the_scale_replaces_with_claudes_reading_the_same_whatever_the_switch(monkeypatch, tmp_path, disk, feet):  # noqa: F811
+    h, conn, mdl, ms = _house(monkeypatch, tmp_path, disk, feet)
+    assert _call(WP.ws_plan_build_scale_save, h, conn, map_id="n1", sig="nn", measures=[{**_ENDS, "text": "5 m"}], source="guided", via="wizard")["ok"]
+    sid = _reading_session(h, ms)
+    out = _call(WP.ws_plan_build_scale_save, h, conn, map_id="n1", sig="nn", measures=[{**_ENDS, "text": "12.48"}],
+                source="plan_dimension", session=sid, replace=True, via="wizard")
+    assert out["ok"] is True and out.get("replaced") and mdl.map_transform("n1")["scale_x_m"] == pytest.approx(24.96, rel=1e-3)
+
+
+@pytest.mark.parametrize(("feet", "across"), [(True, 2 * 12.48 * _FT), (False, 24.96)])
+def test_a_person_typing_a_bare_number_is_feet_only_with_the_switch(monkeypatch, tmp_path, disk, feet, across):  # noqa: F811
+    """Typed by the person (guided, and a replace of the helper's scale): the switch applies, as before."""
+    h, conn, mdl, ms = _house(monkeypatch, tmp_path, disk, feet)
+    out = _call(WP.ws_plan_build_scale_save, h, conn, map_id="n1", sig="nn", measures=[{**_ENDS, "text": "12.48"}], source="guided", via="wizard")
+    assert out["ok"] is True and mdl.map_transform("n1")["scale_x_m"] == pytest.approx(across, rel=1e-3)
+    out = _call(WP.ws_plan_build_scale_save, h, conn, map_id="n1", sig="nn", measures=[{**_ENDS, "text": "6"}], source="guided", replace=True, via="wizard")
+    assert out["ok"] is True and mdl.map_transform("n1")["scale_x_m"] == pytest.approx(12 * (_FT if feet else 1), rel=1e-3)
+
+
+def test_a_corrected_number_is_banded_as_the_save_read_it(monkeypatch):
+    from custom_components.padspan_ha import plan_ai as A
+    got = []
+    monkeypatch.setattr(A, "_bump", lambda hass, key: got.append(key))
+    sess = {"proposal": {"main": "x", "axes": {"x": {"metres": 12 * _FT}}}}
+    A.count_scale_check(None, sess, "plan_dimension_corrected", [{"text": "12"}], True)
+    A.count_scale_check(None, sess, "plan_dimension_corrected", [{"text": "12"}], False)
+    assert got[0] == got[2] == "plan_build_scale_check:corrected"
+    assert got[1] == f"plan_build_scale_fix:{A._scale_band(0.0)}"   # noqa: SLF001  (12 typed in feet IS Claude's 12 ft)
+    assert got[3] != got[1]                                      # 12 m against Claude's 12 ft: banded far off
+
+
 def test_a_length_that_isnt_one_is_said_in_the_persons_units(monkeypatch, tmp_path, disk):  # noqa: F811
     h, conn, mdl, ms = _house(monkeypatch, tmp_path, disk, True)
     pv = _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=[{"text": "lots"}])

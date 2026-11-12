@@ -737,7 +737,9 @@ async function scalePreview(ctx, S) {
   if (sc.timer) { clearTimeout(sc.timer); sc.timer = null; }
   const measures = ask.filter(m => m.text);
   try {
-    const pv = await ws(ctx, { type: "padspan_ha/plan_build_scale_preview", map_id: S.plan.id, measures, ...(rechecking(S) ? { replace: true } : {}), via: VIA });
+    // Use it's text untouched is Claude's reading: read as Save will read it (metric, whatever the feet switch).
+    const pv = await ws(ctx, { type: "padspan_ha/plan_build_scale_preview", map_id: S.plan.id, measures, ...(rechecking(S) ? { replace: true } : {}),
+      ...(scaleUsed(sc) ? { source: "plan_dimension" } : {}), via: VIA });
     if (seq !== sc.seq || S.sc !== sc) return;
     sc.pv = pv; sc.pvFor = ask;
     if (pv && pv.floor_known === false && !_done.has("step:floor_pick")) {

@@ -581,6 +581,9 @@ async function useIt(h, root) {
   check("use it: its two ends and its length put down, the close-up shown, nothing saved yet", JSON.stringify(S.sc.pts) === "[[0.1,0.9],[0.9,0.9]]"
     && q(root, '[data-aiw="scale-length"]').value === "30'-5 1/2\"" && !!q(root, '[data-aiw="scale-inset"]')
     && !h.calls.some(c => c.type === "padspan_ha/plan_build_scale_save"), [S.sc.pts, q(root, '[data-aiw="scale-length"]').value]);
+  // Review 2026-11-11: Claude's printed text is read as Save reads it (metric), whatever the feet switch: the preview says so.
+  const upv = h.calls.filter(c => c.type === "padspan_ha/plan_build_scale_preview").pop();
+  check("use it: the preview asked as Claude's reading", upv && upv.source === "plan_dimension", upv);
   check("use it: the whole picture's size said as the picture's", q(root, '[data-aiw="scale-size"]').textContent.includes("The whole picture, margins and all, will be")
     && !q(root, '[data-aiw="scale-differs"]'), q(root, '[data-aiw="scale-size"]').textContent);
   q(root, '[data-aiw="scale-save"]').click();
@@ -605,6 +608,8 @@ async function useIt(h, root) {
   check("held: an end moved, the person's line against Claude's reading said", !!q(root, '[data-aiw="scale-differs"]')
     && q(root, '[data-aiw="scale-differs"]').textContent.startsWith("Claude's reading makes the picture 11.5 m across; your line makes it")
     && q(root, '[data-aiw="scale-save"]').disabled === false, root.textContent.slice(0, 600));
+  const mpv = h.calls.filter(c => c.type === "padspan_ha/plan_build_scale_preview").pop();
+  check("held: an end moved, the preview asked as the person's own", mpv && !("source" in mpv), mpv);
   q(root, '[data-aiw="scale-save"]').click();
   for (let i = 0; i < 6; i++) await tick();
   const sv = h.calls.find(c => c.type === "padspan_ha/plan_build_scale_save");

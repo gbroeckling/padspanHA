@@ -1918,6 +1918,12 @@ def feet_on(hass: HomeAssistant) -> bool:
     return bool(((st.data if st else {}) or {}).get("units_feet"))
 
 
+def typed_feet(hass: HomeAssistant, source: str | None) -> bool:
+    """feet_on for a length a PERSON typed only. Claude's reading (plan_dimension: its printed text, sent unchanged by
+    Use it) is read as it was when it was accepted (plan_ai._save_text reads it metric), whatever the switch."""
+    return source != "plan_dimension" and feet_on(hass)
+
+
 def type_length(feet: bool) -> str:
     """The refusal of a length that isn't one, its examples in the person's units first."""
     return "Type a length such as 13' 9\", 13.5 or 4.2 m." if feet else "Type a length such as 4.2 m, 420 cm or 13' 9\"."
@@ -2046,12 +2052,13 @@ def scale_check(hass: HomeAssistant, map_id: str, sig: str | None, floor_id: str
     return m, fid
 
 
-def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bool = False) -> dict[str, Any]:
+def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bool = False, source: str | None = None) -> dict[str, Any]:
     """What the screen shows while the person types: the plan's picture
     signature (sent back with Save), whether its floor is one of the house's,
     whether it may be measured here at all (`stop`), the unit a length typed
     with none was read in (`assumed`), and, once a length and two points are
-    given, the plan's size from them. Writes nothing."""
+    given, the plan's size from them. Writes nothing. `source`: as Save will
+    send it (Claude's reading is read as typed_feet reads it)."""
     mdl, ms, _cal = _house_stores(hass)
     m = ms.get_map(map_id) if ms is not None else None
     size = _picture_size(m)
@@ -2063,7 +2070,7 @@ def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bo
         out["stop"] = None
     except Refused as err:
         out.update(stop=err.code, stop_message=err.message)
-    out.update(measures_preview(size, measures, feet_on(hass)))
+    out.update(measures_preview(size, measures, typed_feet(hass, source)))
     return out
 
 
@@ -2198,7 +2205,7 @@ async def scale_save(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: str, 
     try:
         m, fid = scale_check(hass, map_id, sig, floor_id)
         _reading_of(store, source, session, map_id, m)
-        got =scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()), feet_on(hass))   # type: ignore[arg-type]  (UTC, as Measure dates it)
+        got =scale_from_measures(_picture_size(m), measures, source, time.strftime("%Y-%m-%d", time.gmtime()), typed_feet(hass, source))   # type: ignore[arg-type]  (UTC, as Measure dates it)
     except Refused as err:
         raise stop(err) from None
     mdl, _ms, _cal = _house_stores(hass)
@@ -2401,7 +2408,7 @@ async def scale_replace(hass: HomeAssistant, store: A.PlanAiStore, *, map_id: st
     if size is None or A.image_sig(m) != sig:
         raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
     _reading_of(store, source, session, map_id, m)
-    got = scale_from_measures(size, measures, source, time.strftime("%Y-%m-%d", time.gmtime()), feet_on(hass))
+    got = scale_from_measures(size, measures, source, time.strftime("%Y-%m-%d", time.gmtime()), typed_feet(hass, source))
     fid = str(old.get("floor_id") or m.get("floor_id") or "")
     if all(abs(float(got["transform"][k]) / float(old.get(k) or 1e-9) - 1) < 0.002 for k in ("scale_x_m", "scale_y_m")):
         return {"ok": True, "unchanged": True, "map_id": map_id, "floor_id": fid}

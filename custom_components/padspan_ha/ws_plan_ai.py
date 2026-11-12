@@ -1432,6 +1432,7 @@ _DRAFT = vol.Schema({vol.Optional("p1"): [vol.Coerce(float)], vol.Optional("p2")
     vol.Required("map_id"): str,
     vol.Optional("measures"): [_DRAFT],
     vol.Optional("replace"): bool,
+    vol.Optional("source"): vol.In(C.SCALE_SOURCES),
     vol.Optional("via"): VIA,
 })
 @websocket_api.require_admin
@@ -1442,7 +1443,7 @@ async def ws_plan_build_scale_preview(hass: HomeAssistant, connection, msg) -> N
     store = await _build_refused(hass, connection, msg)
     if store is None:
         return
-    out = C.scale_preview(hass, msg["map_id"], msg.get("measures") or [], bool(msg.get("replace")))
+    out = C.scale_preview(hass, msg["map_id"], msg.get("measures") or [], bool(msg.get("replace")), msg.get("source"))
     if msg.get("replace"):                     # "Check the scale": whether the helper's own scale may be replaced here (scale_replace's rule)
         try:
             out["replace"] = await C.scale_replace_word(hass, store, msg["map_id"])
@@ -1480,7 +1481,7 @@ async def ws_plan_build_scale_save(hass: HomeAssistant, connection, msg) -> None
         connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message, **(err.extra or {})})
         return
     # Saved: what the person did with Claude's reading (design J.4), counted after the write.
-    A.count_scale_check(hass, store.scale_session(msg.get("session")), msg["source"], msg["measures"])
+    A.count_scale_check(hass, store.scale_session(msg.get("session")), msg["source"], msg["measures"], C.typed_feet(hass, msg["source"]))
     connection.send_result(msg["id"], answer)
 
 

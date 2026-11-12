@@ -4680,9 +4680,10 @@ def count_scale_read(hass: HomeAssistant, prop: dict | None) -> None:
         _bump(hass, f"plan_build_scale_stretch:{_scale_band(float(prop['stretch_pct']))}")
 
 
-def count_scale_check(hass: HomeAssistant, sess: dict | None, source: str, measures: Any) -> None:
+def count_scale_check(hass: HomeAssistant, sess: dict | None, source: str, measures: Any, feet: bool = False) -> None:
     """A save from the scale read (design J.4): the person's Yes, or a number
-    they corrected and how far it was from what Claude read (bands)."""
+    they corrected and how far it was from what Claude read (bands). `feet`:
+    the corrected number read as the save read it (plan_ai_write.typed_feet)."""
     if source == "plan_dimension":
         _bump(hass, "plan_build_scale_check:yes")
     elif source == "plan_dimension_corrected":
@@ -4690,7 +4691,7 @@ def count_scale_check(hass: HomeAssistant, sess: dict | None, source: str, measu
         prop = (sess or {}).get("proposal") or {}
         claude = ((prop.get("axes") or {}).get(prop.get("main")) or {}).get("metres")
         first = measures[0] if isinstance(measures, list) and measures and isinstance(measures[0], dict) else {}
-        typed = G.parse_length(first.get("text"))
+        typed = G.parse_length(first.get("text"), feet=feet)
         if claude and typed:
             _bump(hass, f"plan_build_scale_fix:{_scale_band(abs(typed / float(claude) - 1) * 100)}")
 
