@@ -3518,17 +3518,30 @@ function _edit(ctx, map, allMaps, opts){
 
         const inputRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
         const distInput = document.createElement("input");
-        distInput.type = "number"; distInput.min = "0.1"; distInput.max = "500"; distInput.step = "0.1";
-        distInput.placeholder = _ft ? "feet" : "metres";
+        // Feet (review 2026-11-11): a text field read by the server's length reader with the feet switch, as the
+        // one-length screen reads it (88' 10", 13.5, 4.2 m); off, the number field exactly as it was.
+        if (_ft) { distInput.type = "text"; distInput.setAttribute("data-measure-length", ""); }
+        else { distInput.type = "number"; distInput.min = "0.1"; distInput.max = "500"; distInput.step = "0.1"; }
+        distInput.placeholder = _ft ? "13' 9\", 13.5 or 4.2 m" : "metres";
         distInput.style.cssText = "width:100px;padding:4px 8px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:12px";
         inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Real distance:"));
         inputRow.appendChild(distInput);
-        inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},_ft ? "ft" : "m"));
+        if (!_ft) inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"m"));
 
         const addBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:4px 12px;color:#7dd3fc;border-color:#1e4976"},
           meas.length === 0 ? "Add 1st Measurement" : "Add 2nd Measurement");
-        addBtn.addEventListener("click", () => {
-          const realDist = _ft ? Math.round(parseFloat(distInput.value) * 0.3048 * 10000) / 10000 : parseFloat(distInput.value);
+        addBtn.addEventListener("click", async () => {
+          let realDist;
+          if (_ft) {
+            // What the server reads it as (padspan_ha/maps_scale_measure's preview: no write), said, nonsense refused.
+            let pv = null;
+            try { pv = await ctx.actions.callWS({ type: "padspan_ha/maps_scale_measure", map_id: map.id, measures: [{ text: String(distInput.value || "").slice(0, 40) }] }); } catch (_) { pv = null; }
+            const m0 = pv && Array.isArray(pv.metres) ? pv.metres[0] : null;
+            if (!pv || pv.invalid || !(m0 >= 0.05 && m0 <= 1000)) { ctx.toast((pv && pv.invalid) || "Type a length such as 13' 9\", 13.5 or 4.2 m.", true); return; }
+            realDist = Math.round(m0 * 10000) / 10000;
+            const unit = { feet: "feet", metres: "metres", millimetres: "millimetres", centimetres: "centimetres" }[(pv.assumed || [])[0]];
+            ctx.state.maps._measRead = `${distInput.value} read as ${PM.feetText(realDist)} (${realDist.toFixed(2)} m)${unit ? `, a bare number in ${unit}` : ""}.`;
+          } else realDist = parseFloat(distInput.value);
           if (!realDist || realDist <= 0) { ctx.toast("Enter a valid distance"); return; }
           const ppm = dist_px / realDist;
           meas.push({
@@ -3550,6 +3563,7 @@ function _edit(ctx, map, allMaps, opts){
           measDiv.appendChild(el("div",{style:"font-size:11px;color:#7dd3fc;margin-bottom:2px"},
             `#${i+1}: ${_ft ? PM.feetText(m2.distance_m) : `${m2.distance_m}m`} \u2192 ${m2.px_per_meter.toFixed(1)} px/m at ${m2.angle_deg}\u00b0`));
         }
+        if (_ft && ctx.state.maps._measRead) measDiv.appendChild(el("div",{"data-measure-read":"", style:"font-size:11px;color:#a7f3d0;margin-bottom:2px"}, ctx.state.maps._measRead));
         mPanel.appendChild(measDiv);
       }
 

@@ -178,13 +178,24 @@ function mapping(o = {}) {
     && t.includes("Save Scale: 100.0 px/m → 32' 10\" × 26' 3\"") && !/\d(\.\d)?m\b/.test(t.replace(/px\/m/g, "")), t.slice(t.indexOf("Reference Distance"), t.indexOf("Reference Distance") + 900));
   const one = mapping({ maps: [{ ...plan }], tfs: {}, meas: [] });
   mr = await measuring(one, { _measurements: [], _measurePts: [[0.1, 0.5], [0.6, 0.5]] });
-  const inp = mr.querySelectorAll("input").find(i => i.placeholder === "feet");
-  check("Measure, feet: the field says feet", !!inp && mr.textContent.includes("ft"), mr.querySelectorAll("input").map(i => i.placeholder));
+  // Review 2026-11-11 (B5): with feet on, the field is text read by the server's length reader (the one-length screen's:
+  // 88' 10", 13.5, 4.2 m), said "read as", nonsense refused; it was a number field that took 88' 10" as 8810.
+  const inp = mr.querySelectorAll("input").find(i => i.hasAttribute && i.hasAttribute("data-measure-length"));
+  check("Measure, feet: the field reads feet, inches or metres", !!inp && inp.type === "text" && inp.placeholder === "13' 9\", 13.5 or 4.2 m", mr.querySelectorAll("input").map(i => i.placeholder));
   if (inp) {
-    inp.value = "16.4042";
+    inp.value = "13.75";
     mr.querySelectorAll("button").find(b => /Add 1st Measurement/.test(b.textContent)).click();
-    const got = one.state.maps._measurements[0];
-    check("Measure, feet: 16.4042 ft stored as 5 m", got && got.distance_m === 5 && Math.abs(got.px_per_meter - 100) < 1e-9, got);
+    for (let i = 0; i < 4; i++) await tick();
+    const got = one.state.maps._measurements[0], ask = one.calls.find(c => c.type === "padspan_ha/maps_scale_measure");
+    check("Measure, feet: 13.75 read by the server as feet, stored in metres, said", got && got.distance_m === 4.191 && ask && ask.measures[0].text === "13.75" && !ask.save
+      && /13\.75 read as 13' 9" \(4\.19 m\), a bare number in feet/.test(one.state.maps._measRead || ""), [got, one.state.maps._measRead]);
+    one.state.maps._measurements = []; one.state.maps._measurePts = [[0.1, 0.5], [0.6, 0.5]];
+    const r2 = MAPS.render(one.ctx); await shim.flush();
+    const in2 = r2.querySelectorAll("input").find(i => i.hasAttribute && i.hasAttribute("data-measure-length"));
+    in2.value = "8810 parsecs";
+    r2.querySelectorAll("button").find(b => /Add 1st Measurement/.test(b.textContent)).click();
+    for (let i = 0; i < 4; i++) await tick();
+    check("Measure, feet: a length that isn't one is refused", one.state.maps._measurements.length === 0 && one.toasts.length > 0, one.toasts);
   }
   const offM = mapping({ maps: [{ ...plan }], tfs: {}, feet: false });
   const to = (await measuring(offM, { _measurements: meas })).textContent;
