@@ -405,6 +405,32 @@ await tryCase("taps: a lock, a leak mark, a motion marker pressed on answer, a l
   check("taps: a lock, a leak mark, a motion marker pressed on answer, a light 22 px away or not; pressed on the light, the light",
     Object.entries(out).every(([eid, o]) => o.apart > 3 && o.apart <= 22 && o.onIt === "device:" + eid && o.onLight === "device:light.near"), out);
 });
+// Review 2026-11-11 (item 8): a tag and a person, pressed on, answer with a light 22 px away or less; pressed on the
+// light, the light (the nearest under the finger, as for the lock, the leak mark and the motion marker above).
+await tryCase("taps: a tag and a person pressed on answer, a light 22 px away or not; pressed on the light, the light", async () => {
+  const out = {};
+  const p = MODEL.light_positions_m["binary_sensor.kitchen_leak"];
+  const OBJ = (key, kind, more) => ({ key, kind, x_m: p.x_m, y_m: p.y_m, floor_id: "main", age_s: 2, ...more });
+  for (const [what, obj, opts] of [
+    ["tag", OBJ("ble:keys", "ble", { user_label: "Keys", room: "Kitchen" }), (snap) => ({ tags: { snapshot: () => snap } })],
+    ["person", OBJ("irk:pixel", "private_ble", { private_ble_name: "Pixel", linked_entities: ["device_tracker.pixel"] }), (snap) => ({ people: { snapshot: () => snap } })],
+  ]) {
+    const st = { ...STATES0, "light.near": { state: "off", attributes: { friendly_name: "Near light" } },
+      "person.garry": { state: "home", attributes: { friendly_name: "Garry", device_trackers: ["device_tracker.pixel"] } } };
+    const states = Object.fromEntries(Object.entries(st).map(([k, v]) => [k, { entity_id: k, last_changed: v.last_changed || iso(NOW - 600e3), ...v }]));
+    const lbe = Object.fromEntries(LM.gatherLights(states, { ...AREAS, "light.near": AREAS["binary_sensor.kitchen_leak"] }, {}, "pro", {}, {}, {}, {}, NOW).map(l => [l.entity_id, l]));
+    const model = { ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.near": { x_m: p.x_m - 0.3, y_m: p.y_m, floor_id: "main" } } };
+    const key = "ctl-near-" + what;
+    const slot = await newSlot(key, { model, lightsByEid: lbe, mapOnly: true, topFloorIds: ["main"], states, ...opts({ objects: { list: [obj] } }) });
+    slot._look(0, 0.05, [p.x_m, 1.2, p.y_m], 14); await settle();
+    const T = (S(slot).tracked || []).find(x => x.kind === (what === "tag" ? "beacon" : "person"));
+    const a = T ? slot._where({ tracked: T.key }) : null, b = slot._where({ eid: "light.near" });
+    out[what] = { key: T && T.key, apart: a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : null, onIt: a ? hitOf(slot._pick(a[0], a[1])) : null, onLight: b ? hitOf(slot._pick(b[0], b[1])) : null };
+    LA.releaseLiveAboardSlot(key);
+  }
+  check("taps: a tag and a person pressed on answer, a light 22 px away or not; pressed on the light, the light",
+    Object.values(out).every(o => o.key && o.apart > 3 && o.apart <= 22 && o.onIt === o.key && o.onLight === "device:light.near"), out);
+});
 await tryCase("taps: a fan in reach does not beat a chip it never beat", async () => {
   // The kitchen's light swapped for a fan in the same spot; where the chip shows (mapped with no fan there) within the
   // fan's reach, the chip still answers.

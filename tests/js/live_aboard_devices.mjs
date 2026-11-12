@@ -356,6 +356,28 @@ function flatSurface(states, lbe){
   LM.wireUseSurface(isoDiv, rec.api);
   return { ...rec, marks };
 }
+// Review 2026-11-11 (item 8): a piece that is a device, pressed on, answers with a light within reach (22 px, farther
+// than PIECE_D, the 11 px inside which a marker beats a piece by design); pressed on the light, the light. Beside the
+// tag, person, lock, leak and motion cases in live_aboard_controls.mjs, here where the pieces are.
+await tryCase("taps: a device piece pressed on answers, a light 22 px away or not; pressed on the light, the light", async () => {
+  let got = null;
+  for (const dy of [-0.25, -0.2, -0.3, -0.15, -0.35]) {
+    MODEL.light_positions_m["light.near"] = { x_m: 3.5, y_m: 4.4 - dy, floor_id: "main" };
+    const N = mount("devices-near", "low");
+    N.states = { ...N.states, "light.near": { entity_id: "light.near", state: "off", attributes: { friendly_name: "Near light" } } };
+    N.topIds = ["main"]; N.poll();
+    N.slot._look(0, 0.25, [3.5, 0, 4.4], 15);
+    await settle();
+    const a = N.slot._wherePiece(ID["tv:media_player.tv"], 0.4), b = N.slot._where({ eid: "light.near" });
+    const apart = a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : null;
+    if (apart > 12 && apart <= 22) got = { dy, apart, onIt: N.slot._pick(a[0], a[1]), onLight: N.slot._pick(b[0], b[1]) };
+    LA.releaseLiveAboardSlot("devices-near");
+    delete MODEL.light_positions_m["light.near"];
+    if (got) break;
+  }
+  check("taps: a device piece pressed on answers, a light 22 px away or not; pressed on the light, the light",
+    got && got.onIt && got.onIt.hit === "entity:media_player.tv" && got.onLight && got.onLight.hit === "device:light.near", got);
+});
 const ev = (type, t, extra = {}) => ({ type, button: 0, pointerType: "touch", pointerId: 7, clientX: 100, clientY: 100, timeStamp: t,
   stopPropagation() {}, preventDefault() {}, ...extra });
 const runTimers = () => { for (const t of shim.timerQueue.splice(0, shim.timerQueue.length)) if (t) t.fn(...t.a); };
