@@ -1753,13 +1753,8 @@ function _wizardFinish(ctx, map){
   }
   const row = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap"});
   const calBtn = el("button",{class:"btn primary"}, "Go to Calibration →");
-  calBtn.addEventListener("click", ()=>{
-    ctx.state._mapsWizard = null;
-    ctx.state.view = "calibration";
-    ctx.state._calibTabRequest = "beacon";
-    ctx.actions.renderNav();
-    ctx.actions.renderRooms();
-  });
+  // Setup's own way to Calibration (_goStep: its first step, Check receiver positions), not Beacon Tune (review 2026-11-11).
+  calBtn.addEventListener("click", ()=>_goStep(ctx, null, "calibration", null, false));
   row.appendChild(calBtn);
   const anotherBtn = el("button",{class:"btn inline"}, "+ Set up another floor");
   anotherBtn.addEventListener("click", ()=>{
@@ -1983,7 +1978,7 @@ function _goStep(ctx, mapId, step, w, counted = true){
     st._mapsWizard = null;
     if (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], st.settings).length) { ctx.actions.openSetupStep("calibration"); return; }
     st.view = "calibration";
-    st._calibTabRequest = "beacon";
+    st._calibWizard = { step: 1 };      // as Setup's step opens it (setup.js openStep): Check receiver positions
     if (ctx.actions.renderNav) ctx.actions.renderNav();
     ctx.actions.renderRooms();
     return;

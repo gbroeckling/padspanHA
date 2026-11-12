@@ -195,6 +195,12 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   root = await render(hr);
   check("house rooms on the plan's floor, no receivers: Radios, Next: the receivers (not draw its rooms)", hr.state.maps._mode === "receivers"
     && !!q(root, '[data-next-line="receivers"]') && !q(root, '[data-next-line="rooms"]'), root.textContent.slice(0, 300));
+  // Review 2026-11-11 (C2): the wizard's Finish goes to Calibration as Setup's step does (its first step), not Beacon Tune.
+  const fin = house({ tab: "edit", maps: [P({ room_bounds: ROOM })], tfs: TF1, wizard: { step: 5, mapId: "e1" } });
+  const finR = await render(fin);
+  button(finR, "Go to Calibration →").click();
+  check("Finish: Go to Calibration opens Setup's calibration step", fin.state._openedStep === "calibration" && fin.state._calibTabRequest !== "beacon"
+    && !fin.state._mapsWizard, [fin.state._openedStep, fin.state._calibTabRequest]);
   // Review 2026-11-11 (B1): an area with no floor in Home Assistant is offered on every floor's plan; one on another
   // floor only is not; with none to choose, the step says so and makes one in Home Assistant on this plan's floor.
   const withAreas = async (areas) => {
