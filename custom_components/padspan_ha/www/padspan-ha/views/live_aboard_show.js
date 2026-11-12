@@ -95,14 +95,14 @@ export const FLAT_KEYS = SHOW_ITEMS.filter(it => it.flat).map(it => it.key);
 export const SHOW_KEYS = SHOW_ITEMS.filter(it => !it.always && !it.later).map(it => it.key);
 /** Where each place a line links to is, in words (the host's goTo knows the way). */
 export const LINK_WORDS = {
-  place: ["Mapping", "Mapping → Atlas, where devices are placed"],
+  place: ["Mapping", "Mapping → Atlas builder, where devices are placed"],
   walls: ["Mapping", "Mapping → Edit, where walls, doors and windows are drawn"],
   rooms: ["Mapping", "Mapping → Edit, where rooms are drawn and named"],
   receivers: ["Mapping", "Mapping → Edit, where receivers are placed"],
   furnish: ["Mapping", "Mapping → Furnish"],
   la3d: ["Settings", "Settings → Atlas → Live Aboard"],
   weather: ["Settings", "Settings → Atlas → Outdoor weather"],
-  showcase: ["Mapping", "Mapping → Atlas → Showcase options"],
+  showcase: ["Mapping", "Mapping → Atlas builder → Showcase options"],
   atlas: ["Settings", "Settings → Atlas"],
   // Home Assistant's own scene editor (scene_row.js SCENE_PLACE), not a PadSpan page.
   scene_new: ["Home Assistant", "Home Assistant → Settings → Automations & scenes → Scenes"],

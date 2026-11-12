@@ -310,7 +310,7 @@ export function missingLines(fid, sugList, plans, stairs, same = (a, b) => Strin
   }
   const here = sugList.filter(s => same(s.floor_id, fid));
   const unmatched = here.filter(s => s.state === "unmatched").length;
-  if (unmatched) out.push(`${unmatched} fixture symbol${unmatched === 1 ? "" : "s"} had no placed light (Mapping → Atlas).`);
+  if (unmatched) out.push(`${unmatched} fixture symbol${unmatched === 1 ? "" : "s"} had no placed light (Mapping → Atlas builder).`);
   const ignored = here.filter(s => s.state === "failure" && s.verdict && s.verdict.remembered).length;
   if (ignored) out.push(`${ignored} ignored before.`);
   return out;
@@ -528,7 +528,7 @@ export function createPlans(ctx){
     if (ok) ctx.hint("Its kind is in your draft: nothing is kept until Save. Undo takes it back.");
     redraw();
   }
-  /** Mapping → Atlas on the room a symbol with no placed light is in. */
+  /** Mapping → Atlas builder on the room a symbol with no placed light is in. */
   function openAtlas(sug){
     const h = ctx.host();
     if (h && typeof h.openAtlasRoom === "function") h.openAtlasRoom(sug.floor_id, roomOf(sug));
@@ -999,7 +999,7 @@ export function createPlans(ctx){
     group("No placed light here", ss.filter(s => s.state === "unmatched"), (s) => {
       if (!canOpenAtlas()) return null;
       const a = d("div", "pl-acts");
-      a.appendChild(btn("Open Mapping → Atlas", "Place a light there yourself: the plans never place one", () => openAtlas(s)));
+      a.appendChild(btn("Open Mapping → Atlas builder", "Place a light there yourself: the plans never place one", () => openAtlas(s)));
       return a;
     });
     group("Kept", ss.filter(s => String(s.state).startsWith("committed")), null);
@@ -1814,9 +1814,9 @@ export function createPlans(ctx){
     } else if (st === "unmatched") {
       if (canOpenAtlas()) {
         const a = d("div", "pl-v");
-        a.appendChild(vbtn("Open Mapping → Atlas", "Place a light there yourself: the plans never place one", () => openAtlas(s), "wide"));
+        a.appendChild(vbtn("Open Mapping → Atlas builder", "Place a light there yourself: the plans never place one", () => openAtlas(s), "wide"));
         sheet.appendChild(a);
-      } else say("Place one in Mapping → Atlas.");
+      } else say("Place one in Mapping → Atlas builder.");
     } else if (st === "kept_new" || st === "kept_correction") {
       say(st === "kept_new" ? "Kept as new. Undo this session is under More." : "Kept as a correction. Undo this session is under More.");
     } else if (st === "failure") {

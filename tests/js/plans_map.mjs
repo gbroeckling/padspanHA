@@ -496,12 +496,12 @@ const openMap = async (M) => { M.tool.show(true); await settle(); M.redraw(); aw
   await click(buttons(M.sheet).find(b => text(b) === "›") || button(M.sheet, "Done") || button(M.sheet, "Stay here"));
   await walk(M, "lu");
   if (M.state().card !== "item") { M.tool.show(false); M.tool.show(true); await settle(); M.redraw(); await settle(); await walk(M, "lu"); }
-  check("lights: unmatched is listed, with the Atlas button and no verdict", M.state().cur === "lu" && text(M.sheet).includes("A fixture symbol with no placed light here") && !!button(M.sheet, "Open Mapping → Atlas") && !button(M.sheet, "Failure") && !button(M.sheet, "Later"), { cur: M.state().cur, card: M.state().card, t: text(M.sheet) });
-  await click(button(M.sheet, "Open Mapping → Atlas"));
+  check("lights: unmatched is listed, with the Atlas button and no verdict", M.state().cur === "lu" && text(M.sheet).includes("A fixture symbol with no placed light here") && !!button(M.sheet, "Open Mapping → Atlas builder") && !button(M.sheet, "Failure") && !button(M.sheet, "Later"), { cur: M.state().cur, card: M.state().card, t: text(M.sheet) });
+  await click(button(M.sheet, "Open Mapping → Atlas builder"));
   check("lights: the button opens Mapping → Atlas on that room", opened.length === 1 && opened[0][0] === "main" && opened[0][1] === "Hall", opened);
   await key(M, "f");
   check("lights: F on an unmatched symbol does nothing", M.sent("plan_ai_verdict").length === 0 && !text(M.sheet).includes("What's wrong with it?"), M.sent("plan_ai_verdict"));
-  check("lights: the floor's pass counts the symbol, not as a failure", P.missingLines("main", Object.values(M.sess.suggestions), [], []).includes("1 fixture symbol had no placed light (Mapping → Atlas)."), "");
+  check("lights: the floor's pass counts the symbol, not as a failure", P.missingLines("main", Object.values(M.sess.suggestions), [], []).includes("1 fixture symbol had no placed light (Mapping → Atlas builder)."), "");
   // Save: items say which suggestion, and the server takes the kind from the symbol it read.
   let got = null;
   const commitAnswer = (m) => { got = m; return { ok: true, rev: 9, batch: "pb_1", piece_ids: { lc: "light.hall" }, suggestions: {}, undo: null,
