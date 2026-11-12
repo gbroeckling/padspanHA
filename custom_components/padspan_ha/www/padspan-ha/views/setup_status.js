@@ -85,3 +85,37 @@ export function undrawnAreaNames(state) {
   }
   return areaNames.filter(name => !fabricDrawn.has(name) && !perMapDrawn.has(name));
 }
+
+// ── Receivers: one rule for "this receiver is placed" and "the receivers step is done" (review 2026-11-13, break 4) ──
+// Setup, the Setup Wizard's receivers step, Getting started and Mapping → Edit all read these. A receiver is placed
+// when it is a pin on a floor plan, or has a position on the map of your house (scanner_positions_m: "Put my receivers
+// in their rooms", Calibration → Tune, Mapping → Layout), which the plan's own pins never showed.
+const _isNum = (v) => typeof v === "number" && Number.isFinite(v);
+const _housePlaced = (state) => Object.entries((state.model && state.model.scanner_positions_m) || {})
+  .filter(([, v]) => v && typeof v === "object" && !Array.isArray(v));
+
+/** The receivers placed, by source (a pin with none: its own key); `floorId`: only that floor's. */
+export function placedReceivers(state, floorId = null) {
+  const out = new Set();
+  const on = (f) => !floorId || String(f || "main") === String(floorId);
+  for (const m of hasMaps(state) ? state.maps.list : []) {
+    if (!m || !on(m.floor_id)) continue;
+    (m.receivers || []).forEach((r, i) => out.add((r && (r.source || r.id)) || `${m.id}#${i}`));
+  }
+  for (const [src, p] of _housePlaced(state)) if (on(p.floor_id)) out.add(src);
+  return out;
+}
+
+/** The receivers' heights say something: setup_checks' receiver_heights tip does not apply (a house of two floors or
+ * more, two receivers with a position or more, all at one height or none given). */
+export function receiverHeightsOk(state) {
+  const placed = _housePlaced(state).map(([, v]) => v);
+  const floors = ((state.model && state.model.floors) || []).filter(f => f && typeof f === "object");
+  const zs = new Set(placed.map(v => v.z_m).filter(_isNum).map(z => Math.round(z * 100) / 100));
+  return !(floors.length > 1 && placed.length > 1 && zs.size <= 1);
+}
+
+/** The receivers step is done: a receiver placed, and their heights say something. */
+export function receiversDone(state) {
+  return placedReceivers(state).size > 0 && receiverHeightsOk(state);
+}

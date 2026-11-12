@@ -367,6 +367,39 @@ def test_receivers_go_into_their_rooms_never_move_one_placed_and_undo_in_one_ste
         assert T.event_allowed(e)
 
 
+def test_rooms_drawn_on_a_plan_count_for_the_receivers_button(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-13, break 5: a room drawn by hand reached the house only through the Setup Wizard's "Put it on the
+    map", after the receivers step, so "Put my receivers in their rooms" said "no outline". Now a room drawn on a plan
+    with a scale counts as soon as it is drawn (in metres by the arithmetic "Put it on the map" previews), and no room is
+    written to the house; a room drawn only on a plan with no scale says so, with that plan, so the panel offers its scale."""
+    from custom_components.padspan_ha import fabric_truth as FT
+    from custom_components.padspan_ha import ws_fabric as WF
+    from custom_components.padspan_ha import ws_radios as WR
+    from custom_components.padspan_ha.const import DATA_MAPS
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    mdl, ms = h.data[DOMAIN][DATA_MODEL], h.data[DOMAIN][DATA_MAPS]
+    plan = ms.list_maps()[0]
+    assert FT.placement_is_readable(mdl.map_transform(plan["id"]) or {})
+    plan["room_bounds"] = {"Den": {"type": "poly", "points": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4], [0.1, 0.4]]}}
+    plan["receivers"] = []
+    ms.list_maps().append({"id": "noscale", "name": "Attic plan", "floor_id": "main", "receivers": [],
+                            "room_bounds": {"Attic": {"type": "poly", "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]}}})
+
+    async def backup(_h, note, keys):
+        return "bk_1"
+    monkeypatch.setattr(WF, "_auto_backup", backup)
+    monkeypatch.setattr(WR, "live_radios", lambda _h: [{"source": s} for s in ("den1", "attic1")])
+    mdl.data["scanners"] = {"den1": {"room": "Den", "floor_id": "main"}, "attic1": {"room": "Attic", "floor_id": "main"}}
+    assert "Den" not in mdl.room_geometry_m()
+    dry = _call(WF.ws_receivers_to_rooms, h, conn, dry_run=True)
+    assert [r["source"] for r in dry["ready"]] == ["den1"]
+    assert dry["skipped"] == [{"source": "attic1", "why": "no_scale", "map_id": "noscale"}]
+    got = _call(WF.ws_receivers_to_rooms, h, conn)
+    den = FT.recompute_room_from_map(plan, "Den", mdl)
+    assert [p["source"] for p in got["placed"]] == ["den1"] and A.G.inside(got["placed"][0]["x_m"], got["placed"][0]["y_m"], den["points_m"])
+    assert "Den" not in mdl.room_geometry_m() and mdl.scanner_positions_m()["den1"]["floor_id"] == "main"   # the room itself stays on the plan
+
+
 # "The scale may be off": homes, laid out side by side and read at a range of scales. The promise (fourth review,
 # 2026-11-12; it replaces the second review's "quiet from 0.67x to 1.5x"): NO NOTICE AT THE CORRECT SCALE, on every home
 # in the table, read at 0.9x, 1.0x and 1.1x (a false alarm offers to replace a right scale). FIRE at the unit mix-ups on

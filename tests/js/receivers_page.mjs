@@ -325,7 +325,9 @@ const maps = await import(pathToFileURL(join(VIEWS_DIR, "maps.js")).href);
     [ctx.state.maps._mode, ctx.state.maps._selectedRxId]);
   check("move: the one-shot is used up", ctx.state.maps._openRadios === null);
   maps.render(ctx); await flush();
-  check("move: no position is written", !calls.some(c => c[0] === "callWS" || c[0] === "mapsUpdate"), calls);
+  // 2026-11-13: Edit's Radios tool carries "Put my receivers in their rooms", which asks the server what a press would
+  // do (a dry run, nothing written): that one read is allowed.
+  check("move: no position is written", !calls.some(c => (c[0] === "callWS" && !(c[1] && c[1].dry_run === true)) || c[0] === "mapsUpdate"), calls);
 }
 {
   const ctx = makeCtx([]);

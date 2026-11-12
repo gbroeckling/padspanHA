@@ -76,6 +76,7 @@ function house(o = {}) {
       ...(p.scale_nudge ? { scale_nudge: true } : {}) }; state.maps.list.push(m); return { map: m }; },
     "padspan_ha/maps_scale_measure": (p) => measure(p, h),
     "padspan_ha/maps_scale_nudge_end": () => ({ ok: true, ended: true }),
+    "padspan_ha/receivers_to_rooms": () => ({ ok: true, ready: o.ready || [], skipped: [], undo: 0 }),
     "padspan_ha/settings_set": (p) => ({ settings: { ...state.settings, ...p } }),
   };
   const actions = {
@@ -323,6 +324,26 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     check(`${name}: the Library has no line`, !q(root, '[data-nudge="reminder"]'), root.textContent.slice(0, 200));
     check(`${name}: nothing counted`, !h.tele.some(t => t.startsWith("scale_nudge:")), h.tele);
   }
+}
+
+// ── Receivers where receivers are placed (review 2026-11-13, breaks 3 and 4): the wizard's receivers step and Edit's Radios
+// carry "Put my receivers in their rooms"; the step's count is the one rule (on the house map counts) ──
+{
+  const SETUP_MOD = await import(pathToFileURL(join(WWW, "views", "setup.js")).href);
+  for (const cx of ["basic", "advanced"]) {
+    SETUP_MOD._resetReceivers();
+    const h = house({ complexity: cx, ready: [{ source: "k1", room: "Kitchen" }], tfs: { r1: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } },
+      maps: [{ id: "r1", name: "Main", floor_id: "main", image: { width: 1000, height: 800 }, receivers: [], room_bounds: { Kitchen: { type: "poly", points: [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4]] } } }],
+      wizard: { step: 4, mapId: "r1" } });
+    h.state.model.scanner_positions_m = { h1: { x_m: 1, y_m: 1, z_m: 2.4, floor_id: "main" } };
+    await render(h); await tick();
+    const root = await render(h);
+    const cnt = q(root, '[data-wizard-count="receivers"]');
+    check(`${cx}: the wizard's receivers step has the button`, !!q(root, '[data-setup="receivers-place"]'), root.textContent.slice(0, 500));
+    check(`${cx}: its count includes a receiver on the house map, and says where it is moved`, cnt && cnt.textContent.startsWith("1 receiver placed on this floor.")
+      && cnt.textContent.includes("Check receiver positions"), cnt && cnt.textContent);
+  }
+  SETUP_MOD._resetReceivers();
 }
 
 console.log(JSON.stringify({ cases, failures }));

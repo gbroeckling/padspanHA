@@ -294,7 +294,7 @@ function _noScaleCard(ctx, el, cs) {
 }
 
 const CALIB_WIZARD_STEPS = [
-  { n: 1, id: "tune",  label: "Check scanner positions" },
+  { n: 1, id: "tune",  label: "Check receiver positions" },
   { n: 2, id: "setup", label: "Choose your device" },
   { n: 3, id: "roam",  label: "Walk your home" },
   { n: 4, id: "model", label: "Compute your model" },

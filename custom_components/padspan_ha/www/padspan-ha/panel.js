@@ -125,6 +125,12 @@ let AIW = null;
 import(`./views/ai_wizard_offer.js?b=${BUILD_ID}`)
   .then(m => { AIW = m; })
   .catch(err => console.warn("PadSpan: ai_wizard_offer module failed to load", err));
+// "Is this setup step done?": views/setup_status.js, the one rule Setup, the
+// Setup Wizard and Mapping read; the Getting started card waits for it.
+let SETUP_STATUS = null;
+import(`./views/setup_status.js?b=${BUILD_ID}`)
+  .then(m => { SETUP_STATUS = m; })
+  .catch(err => console.warn("PadSpan: setup_status module failed to load", err));
 // Basic's focused views (views/focus.js): a link from Basic opens just the
 // part it is about. Settings and Mapping load it too; the panel's own links
 // (an Overview tip, the tester card) wait for it.
@@ -5083,7 +5089,9 @@ class PadSpanHaApp extends HTMLElement {
       // still evaluate the shipped condition standalone, and
       // setup_status_parity.mjs asserts the two never drift apart.
       const _hasMaps = !!(this.state.maps && this.state.maps.list && this.state.maps.list.length);
-      const _hasReceivers = _hasMaps && this.state.maps.list.some(m => (m.receivers || []).length > 0);
+      // Receivers: setup_status's one rule (review 2026-11-13, break 4): pinned on a plan or on the map of the house
+      // ("Put my receivers in their rooms" puts them there), heights that say something, as Setup counts them.
+      const _hasReceivers = !!SETUP_STATUS && SETUP_STATUS.receiversDone(this.state);
       // "Have you got rooms yet" is a question about the FABRIC. Asking it of
       // per-photo room_bounds told anyone who built their rooms without a
       // plan — or who has since deleted one — that they had not done the step
@@ -5152,7 +5160,7 @@ class PadSpanHaApp extends HTMLElement {
       // arrived. A new install still sees the card the moment they settle -
       // an empty maps list is an answer; an unfetched one is not.
       const _setupKnown = this.state._mapsLoaded && this.state._modelLoaded;
-      if (_setupKnown && !_onboardingDone && !_allDone && _posKnown && !this.state._onboardingDismissed && this.state.view === "overview") {
+      if (_setupKnown && !_onboardingDone && !_allDone && _posKnown && SETUP_STATUS && !this.state._onboardingDismissed && this.state.view === "overview") {
         // Opt-in usage report: the card was seen, once per page.
         if (!this._gettingStartedCounted) { this._gettingStartedCounted = true; this._telemetryEvent("getting_started_shown"); }
         this._overviewCardShown = true;   // the trial milestone waits for another page load

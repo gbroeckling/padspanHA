@@ -31,7 +31,9 @@ const check = (name, ok, detail) => {
 // onboarding_gate.mjs ────────────────────────────────────────────────────
 const PAIRS = [
   ["_hasMaps", "hasMaps"],
-  ["_hasReceivers", "hasReceivers"],
+  // 2026-11-13: Getting started reads the receivers rule from setup_status itself (receiversDone: on a plan or on the
+  // map of the house, heights that say something), as Setup does; run with the module in its scope.
+  ["_hasReceivers", "receiversDone"],
   ["_hasRooms", "hasRooms"],
   ["_hasScale", "hasScale"],
   ["_hasCal", "hasCalibration"],
@@ -59,7 +61,7 @@ if (Object.keys(lifted).length === PAIRS.length) {
 
   const panel = {};
   for (const [varName] of PAIRS) {
-    panel[varName] = new Function("state", `
+    panel[varName] = new Function("state", "SETUP_STATUS", `
       ${helperSrc}
       const _hasMaps = ${lifted["_hasMaps"]};
       const _hasReceivers = ${lifted["_hasReceivers"]};
@@ -82,6 +84,9 @@ if (Object.keys(lifted).length === PAIRS.length) {
     { name: "4 cal points",      state: { maps: { list: [] }, model: {}, calibration: { points: [1, 2, 3, 4] } } },
     { name: "fitted cal model",  state: { maps: { list: [] }, model: {}, calibration: { model: { a: 1 } } } },
     { name: "fabric scanners",   state: { maps: { list: [] }, model: { scanner_positions_m: { s1: [0, 0] } }, calibration: {} } },
+    { name: "a receiver on the house map", state: { maps: { list: [] }, model: { scanner_positions_m: { s1: { x_m: 1, y_m: 2, z_m: 2.4, floor_id: "main" } } }, calibration: {} } },
+    { name: "two floors, receivers at one height", state: { maps: { list: [] }, model: { floors: [{ id: "a" }, { id: "b" }],
+        scanner_positions_m: { s1: { x_m: 1, y_m: 2, z_m: 2.4 }, s2: { x_m: 3, y_m: 2, z_m: 2.4 } } }, calibration: {} } },
     { name: "fabric scanners, 4 cal points", state: { maps: { list: [] }, model: { scanner_positions_m: { s1: [0, 0] } }, calibration: { points: [1, 2, 3, 4] } } },
     { name: "everything done",   state: {
         maps: { list: [{ id: "m1", receivers: [{ id: "r1" }], room_bounds: { Kitchen: {} } }] },
@@ -92,7 +97,7 @@ if (Object.keys(lifted).length === PAIRS.length) {
 
   for (const { name, state } of battery) {
     for (const [varName, fnName] of PAIRS) {
-      const fromPanel = panel[varName](state);
+      const fromPanel = panel[varName](state, STATUS);
       const fromModule = fnName === "hasCalibration" ? STATUS.hasCalibration(state) : STATUS[fnName](state);
       check(`${fnName} agrees with panel.js's ${varName} — ${name}`,
         fromPanel === fromModule,

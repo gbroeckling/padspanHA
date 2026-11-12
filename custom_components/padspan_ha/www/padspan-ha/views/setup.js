@@ -13,7 +13,7 @@
 // tips (setup_checks.py); only where someone is, and what they skipped, is
 // stored (settings.setup_progress, cleaned by setup_checks.clean_setup_progress).
 
-const { hasMaps, hasScale, hasRooms, hasReceivers, hasCalibration, undrawnAreaNames } =
+const { hasMaps, hasScale, hasRooms, hasCalibration, undrawnAreaNames, placedReceivers, receiverHeightsOk, receiversDone } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
@@ -48,16 +48,6 @@ const _num = (v) => typeof v === "number" && Number.isFinite(v);
 const _floors = (state) => ((state.model && state.model.floors) || []).filter(f => f && typeof f === "object");
 // setup_checks.floor_has_height: a real storey height or elevation.
 const _floorHasHeight = (f) => _num(f.floor_to_floor_m) || _num(f.base_elevation_m);
-const _placed = (state) => Object.values((state.model && state.model.scanner_positions_m) || {}).filter(v => v && typeof v === "object");
-
-/** The receivers' heights say something: setup_checks' receiver_heights tip
- * does not apply (a house of two floors or more, two placed receivers or
- * more, all at one height or none given). */
-function _heightsOk(state) {
-  const placed = _placed(state);
-  const zs = new Set(placed.map(v => v.z_m).filter(_num).map(z => Math.round(z * 100) / 100));
-  return !(_floors(state).length > 1 && placed.length > 1 && zs.size <= 1);
-}
 
 function _calPoints(state) {
   const c = state.calibration;
@@ -71,7 +61,8 @@ const DONE = {
   // One floor has nothing to set: the floor_heights tip's own rule.
   floors: (s) => _floors(s).length <= 1 || _floors(s).some(_floorHasHeight),
   rooms: (s) => hasRooms(s),
-  receivers: (s) => (hasReceivers(s) || _placed(s).length > 0) && _heightsOk(s),
+  // The one rule (setup_status.receiversDone): on a plan or on the map of the house, and heights that say something.
+  receivers: (s) => receiversDone(s),
   // The Overview checklist's own rule (setup_status.js): five points or a fitted model.
   calibration: (s) => (s.calibration ? hasCalibration(s) : null),
 };
@@ -94,8 +85,8 @@ function _detail(state, id, done) {
     if (done && total) return `${total - undrawnAreaNames(state).length} of ${total} rooms drawn.`;
   }
   if (id === "receivers") {
-    const n = Math.max(_placed(state).length, ...((state.maps && state.maps.list) || []).map(m => (m.receivers || []).length), 0);
-    if (n && !_heightsOk(state)) return `${n} placed, all at one height. Say how high each one is mounted.`;
+    const n = placedReceivers(state).size;
+    if (n && !receiverHeightsOk(state)) return `${n} placed, all at one height. Say how high each one is mounted.`;
     if (done) return `${n} placed.`;
   }
   if (id === "calibration") {
@@ -238,7 +229,20 @@ function _whyWords(skipped) {
   const why = (w) => (skipped || []).filter(x => x.why === w).map(x => x.source), bits = [];
   if (why("no_area").length) bits.push(`no Home Assistant area: ${_names(why("no_area"))} (give it an area in Home Assistant, or place it by hand)`);
   if (why("no_outline").length) bits.push(`its room has no outline yet: ${_names(why("no_outline"))}`);
+  if (why("no_scale").length) bits.push(`its room is drawn on a floor plan with no scale yet: ${_names(why("no_scale"))}`);
   return bits;
+}
+
+/** A room drawn only on a plan with no scale: the one press that makes it count, that plan's scale (the server's
+ *  no_scale reason names the plan). One button, for the first such plan. */
+function _scaleFirst(ctx, skipped) {
+  const mapId = ((skipped || []).find(x => x.why === "no_scale") || {}).map_id;
+  const map = mapId && ((ctx.state.maps && ctx.state.maps.list) || []).find(m => m.id === mapId);
+  if (!map) return null;
+  const x = ctx.helpers.el("button", { class: "btn inline", style: "font-size:12px;margin:4px 6px 0 0", "data-setup": "receivers-scale" },
+    `Set the scale of ${map.name || "that plan"}`);
+  x.addEventListener("click", () => openStep(ctx, "scale", map.id));
+  return x;
 }
 
 /** What a press would do now: the server's one rule (a dry run of the same command), asked once a visit to the view
@@ -261,7 +265,8 @@ async function _placeReceivers(ctx) {
     const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms" });
     const placed = (r && r.placed) || [], skipped = (r && r.skipped) || [];
     const bits = [placed.length ? `Placed ${placed.length} receiver${placed.length === 1 ? "" : "s"} inside ${placed.length === 1 ? "its room" : "their rooms"} ` +
-      `(${_names(placed.map(p => `${p.source} in ${p.room}`))}). Drag each to where it is mounted: Mapping → Edit → Radios.` : "No receiver was placed."];
+      `(${_names(placed.map(p => `${p.source} in ${p.room}`))}), on the map of your house. Drag each to where it is mounted, and set its height, ` +
+      `in Calibration's first step, "Check receiver positions"; the Receivers page sets heights too.` : "No receiver was placed."];
     const not = _whyWords(skipped);
     if (not.length) bits.push(`Not placed, ${not.join("; ")}.`);
     const already = skipped.filter(x => x.why === "placed_already").length;
@@ -302,9 +307,12 @@ export function receiversBlock(ctx, opts = {}) {
   const rooms = hasRooms(st);                       // any rooms, drawn by hand or by the helper (setup_status: the button is for everyone)
   if (!n && !_rcv.said && !undo) {
     if ((opts && opts.quiet) || !rooms) return null;
-    return el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length
+    const later = el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length
       ? `PadSpan can put a receiver in its room once it has an area that is one of your rooms with an outline. Not ready: ${not.join("; ")}.`
       : "Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here.");
+    const sc = _scaleFirst(ctx, p.skipped);
+    if (sc) later.appendChild(el("div", {}, [sc]));
+    return later;
   }
   const box = el("div", { "data-setup": "receivers-rooms", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" });
   const b = (label, attr, on, primary) => {
@@ -321,6 +329,8 @@ export function receiversBlock(ctx, opts = {}) {
       (not.length ? ` Not ready: ${not.join("; ")}.` : "")));
     box.appendChild(b("Put my receivers in their rooms", "receivers-place", () => _placeReceivers(ctx), true));
   }
+  const sc = _scaleFirst(ctx, p.skipped);
+  if (sc) box.appendChild(sc);
   return box;
 }
 

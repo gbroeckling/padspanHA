@@ -40,8 +40,11 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 // "Is this map-setup step done?" — shared with the Overview onboarding
 // checklist (panel.js) so the two can never disagree about what's finished.
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
-        undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal } =
+        undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
+// "Put my receivers in their rooms" (setup.js receiversBlock, the one block and command), where receivers are placed:
+// Edit's Radios tool, so the Setup Wizard's receivers step too (review 2026-11-13, break 3).
+const SETUP = await import(`./setup.js${new URL(import.meta.url).search}`).catch(() => null);
 // What-if scanner placement (gap #9, best-in-class roadmap) — pure scoring,
 // see its own header for why this isn't a duplicate of anything else here.
 const { whatIfDelta } =
@@ -1594,13 +1597,20 @@ function _wizardScanners(ctx, map, maps, w){
   const { el } = ctx.helpers;
   _wizardForceEditMode(ctx, w, "receivers");
   const wrap = el("div",{});
-  const count = map && map.receivers ? map.receivers.length : 0;
+  // The one rule (setup_status.placedReceivers): pins on this floor's plans, and receivers on the map of the house on
+  // this floor ("Put my receivers in their rooms" puts them there; the plan's own pins never counted them).
+  const fid = (map && map.floor_id) || "main";
+  const count = map ? _placedReceivers(ctx.state, fid).size : 0;
+  const onHouse = map ? count - _placedReceivers({ maps: { list: (ctx.state.maps?.list || []).filter(m => (m.floor_id || "main") === fid) } }, fid).size : 0;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    "Place a marker for every Bluetooth scanner on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position."));
-  wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
-    count ? `${count} scanner${count===1?"":"s"} placed on this floor.` : "No scanners placed on this floor yet."));
+    "Place a marker for every Bluetooth receiver on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position. " +
+    "Or let PadSpan put each one in its room first (below, beside the receiver tools)."));
+  wrap.appendChild(el("div",{"data-wizard-count":"receivers", style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
+    count ? `${count} receiver${count===1?"":"s"} placed on this floor.` + (onHouse > 0
+      ? ` ${onHouse} ${onHouse===1?"is":"are"} on the map of your house, not pinned on this plan: drag ${onHouse===1?"it":"them"} to where ${onHouse===1?"it is":"they are"} mounted in Calibration's first step, "Check receiver positions".` : "")
+    : "No receivers placed on this floor yet."));
   wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "receivers")));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: count === 0, skipLabel: "Skip — place scanners later", nextLabel: "Finish →" }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: count === 0, skipLabel: "Skip — place receivers later", nextLabel: "Finish →" }));
   return wrap;
 }
 
@@ -1960,7 +1970,7 @@ function _nextLine(ctx, map){
         go("Draw the rooms →", "rooms")]),
       ...(aiw ? [aiw] : [])]);
   }
-  if (!(map.receivers || []).length) return el("div",{"data-next-line":"receivers", style:_NEXT_BOX},[
+  if (!_placedReceivers(st, map.floor_id || "main").size) return el("div",{"data-next-line":"receivers", style:_NEXT_BOX},[
     el("span",{style:"flex:1 1 220px"}, "✓ This plan has rooms. Next: place the receivers, each where it is mounted."), go("Place the receivers →", "receivers")]);
   if (st.calibration && _wizHasCal(st)) return null;
   return el("div",{"data-next-line":"calibration", style:_NEXT_BOX},[
@@ -2790,6 +2800,9 @@ function _edit(ctx, map, allMaps, opts){
     }
 
     if(ctx.state.maps._mode==="receivers"){
+      // "Put my receivers in their rooms": Setup's one block and command, here where receivers are placed.
+      const _rb = !_focused && SETUP && SETUP.receiversBlock ? SETUP.receiversBlock(ctx) : null;
+      if(_rb) right.appendChild(_rb);
       right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "Receiver tools"));
       right.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"},[
         el("button",{class:"btn inline", onclick:()=>{

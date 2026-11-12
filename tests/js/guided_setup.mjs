@@ -395,6 +395,31 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   const rb = S.receiversBlock(n4.ctx);
   check("receivers: after a reload, Undo is still offered", rb && rb.querySelector('[data-setup="receivers-undo"]')?.textContent === "Undo the 2 placed last", rb && rb.textContent);
   S._resetReceivers();
+  // Review 2026-11-13, break 5: a room drawn only on a plan with no scale says so, and offers that plan's scale (one press).
+  const ns = house(3, { calibration: { points: [], model: {} } });
+  ns.maps.list[0].room_bounds = { Kitchen: { points: [[0, 0], [1, 0], [1, 1]] } };
+  const n6 = fake(ns, [{ ok: true, ready: [], skipped: [{ source: "attic-proxy", why: "no_scale", map_id: "m1" }], undo: 0 }]);
+  S.receiversBlock(n6.ctx);
+  await flush();
+  const nsb = S.receiversBlock(n6.ctx);
+  check("receivers: a room on a plan with no scale says so, with that plan's Set the scale", nsb && nsb.textContent.includes("its room is drawn on a floor plan with no scale yet: attic-proxy")
+    && btn(nsb, "receivers-scale") && btn(nsb, "receivers-scale").textContent === "Set the scale of Ground", nsb && nsb.textContent);
+  btn(nsb, "receivers-scale").click();
+  check("receivers: its press opens that plan's scale step", ns._mapsWizard && ns._mapsWizard.step === 2 && ns._mapsWizard.mapId === "m1" && ns._setupReturn === "scale", ns._mapsWizard);
+  // What a press placed names where they are moved: Calibration's first step (they are on the map of the house, not pins).
+  check("receivers: the press's words name where they are dragged", said && said.textContent.includes("on the map of your house")
+    && said.textContent.includes("Check receiver positions") && !said.textContent.includes("Edit → Radios"), said && said.textContent);
+  S._resetReceivers();
+}
+
+// Review 2026-11-13, break 4: one rule for "placed" — receivers only on the map of the house (the button's) count, in Setup.
+{
+  const st = house(4);
+  st.model.scanner_positions_m = { aa: { x_m: 1, y_m: 1, z_m: 2.2, floor_id: "ground" }, bb: { x_m: 2, y_m: 2, z_m: 0.9, floor_id: "ground" } };
+  const STATUS = await import(pathToFileURL(join(WWW, "views", "setup_status.js")).href);
+  const d = S.deriveSetup(st);
+  check("one rule: receivers only on the house map make the receivers step done", d.steps.find(x => x.id === "receivers").done === true
+    && STATUS.placedReceivers(st, "ground").size === 2 && STATUS.placedReceivers(st, "up").size === 0, d.steps.map(x => [x.id, x.done]));
 }
 
 // No Skip for the plan: every step after it draws on one.
