@@ -67,5 +67,4 @@ const MONTH = { month: "2026-11", main_maker: "claude", claude_reads: 0, reads: 
   check("no AI Task now, but reads this month: shown", read.style.display !== "none" && text(read).includes("AI reads this month: 4"), text(read));
 }
 
-console.log(JSON.stringify(results));
-process.exit(0);
+process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

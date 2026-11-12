@@ -123,5 +123,4 @@ check("no device: nothing shown", DN.labelLines(el, null, acts()) === null);
   check("a press doesn't open the row behind it", stopped);
 }
 
-console.log(JSON.stringify({ cases: results.length, failed }));
-process.exit(failed ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases: results.length, failed }) + "\n", () => process.exit(failed ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

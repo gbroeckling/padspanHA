@@ -270,5 +270,4 @@ await tryCase("turned: the sizes are the laid-out ones and the offsets go along 
   check("turned: not turned", same(flat, want), flat);
 });
 
-console.log(JSON.stringify({ cases, failures, counts }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures, counts }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

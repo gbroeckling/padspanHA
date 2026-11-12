@@ -202,5 +202,4 @@ try {
     { checked: bad.cb.checked, display: bad.more.style.display });
 } catch (e) { failures.push({ name: "harness", detail: String(e && e.stack || e).slice(0, 800) }); }
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

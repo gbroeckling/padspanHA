@@ -255,5 +255,4 @@ await tryCase("rooms: in Sample mode it shows but is switched off, and sends not
   check("rooms: in Sample mode it shows but is switched off, and sends nothing", p.disabled && calls.length === 0, calls);
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

@@ -159,5 +159,4 @@ const tab = await import(pathToFileURL(join(VIEWS_DIR, "occupancy.js")).href);
 }
 
 for (const r of results) console.log(JSON.stringify(r));
-console.log(JSON.stringify({ summary: true, cases: results.length, failed }));
-process.exit(failed ? 1 : 0);
+process.stdout.write(JSON.stringify({ summary: true, cases: results.length, failed }) + "\n", () => process.exit(failed ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

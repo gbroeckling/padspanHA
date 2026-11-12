@@ -45,5 +45,4 @@ check("merge after: another room's unsaved edit stays", JSON.stringify(d2.D.poin
 const d3 = { A: { type: "poly", points_m: sq }, B: { type: "poly", points_m: sq } };
 maps._roomsAfterMerge(d3, null, "A", ["B"], { ok: false, removed: [], failed: ["B"], points_m: big });
 check("merge after: a room whose delete failed stays in the draft", "B" in d3, d3);
-console.log(JSON.stringify(results));
-process.exit(0);
+process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

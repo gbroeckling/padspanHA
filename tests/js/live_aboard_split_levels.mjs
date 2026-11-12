@@ -544,5 +544,4 @@ await tryCase("big: a gigantic house with split levels reads in good time, every
     { timing, wrong: wrong.slice(0, 5), lightsOff });
 });
 
-console.log(JSON.stringify({ cases, failures, timing }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures, timing }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

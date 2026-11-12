@@ -100,5 +100,4 @@ await run("off_three_running", () => toggle({ ...KEY, license_homes_used: 3, lic
 await run("list_down_to_two", () => listed({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, ["A", "B"]));
 await run("list_still_three", () => listed({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, ["A", "B", "C"]));
 await run("on_three",() => toggle({ ...KEY, telemetry_enabled: false, license_homes_used: 3 }, true));
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

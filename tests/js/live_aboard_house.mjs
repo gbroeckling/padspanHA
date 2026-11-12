@@ -1015,5 +1015,4 @@ tryCase("open edges: the stamp reads a split level's copies, and one word that c
   check(name, rails(c2.h) === rails(c.h), { before: rails(c.h), after: rails(c2.h) });
 });
 
-console.log(JSON.stringify({ cases, failures, lists: { fallbacks: H.HOUSE3D_FALLBACK_KINDS, events: H.HOUSE3D_EVENTS } }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures, lists: { fallbacks: H.HOUSE3D_FALLBACK_KINDS, events: H.HOUSE3D_EVENTS } }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

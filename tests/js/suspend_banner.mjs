@@ -59,5 +59,4 @@ const first = poll();
 const dotsWhileWaiting = dots;
 now += 5000;
 const later = poll();
-console.log(JSON.stringify({ first, later, dotsWhileWaiting }));
-process.exit(first === "skipped" && later === "rebuilt" && dotsWhileWaiting === 1 ? 0 : 1);
+process.stdout.write(JSON.stringify({ first, later, dotsWhileWaiting }) + "\n", () => process.exit(first === "skipped" && later === "rebuilt" && dotsWhileWaiting === 1 ? 0 : 1));   // exit only once the result is written (a pipe holds 64 KiB)

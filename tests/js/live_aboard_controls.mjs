@@ -759,5 +759,4 @@ await tryCase("off: with a class picked, latches and codes hidden, off and below
 
 // The copies this file keeps of the Atlas's (held equal to the originals by
 // tests/test_live_aboard_controls.py, which reads iso_lights.js itself).
-console.log(JSON.stringify({ cases, failures, copies: { FLOOD_RIPPLE: MK.FLOOD_RIPPLE, LOCK_LOOK: MK.LOCK_LOOK, DIM_K: MK.DIM_K } }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures, copies: { FLOOD_RIPPLE: MK.FLOOD_RIPPLE, LOCK_LOOK: MK.LOCK_LOOK, DIM_K: MK.DIM_K } }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

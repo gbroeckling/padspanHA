@@ -293,5 +293,4 @@ for (const [name, go, offered] of [["the helper offered", true, true], ["the hel
   check("few spots: shown, not judged", t.includes("Only 3 calibration spots on this floor: too few to judge (3 inside their room now, 2 with these). Experimental."), t);
   M.tool.dispose();
 }
-console.log(JSON.stringify(results));
-process.exit(0);
+process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

@@ -691,5 +691,4 @@ for (const how of ["undo", "discard"]) {
   check("S7: the time as measured", text(Q.sheet).includes("2.5-3 minutes a plan") && !text(Q.sheet).includes("a minute and a half"), text(Q.sheet));
   Q.tool.dispose();
 }
-console.log(JSON.stringify(results));
-process.exit(0);
+process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

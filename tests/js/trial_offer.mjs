@@ -481,5 +481,4 @@ if (/"step-trial"/.test(SRC)) steps.push("trial");
 
 for (const o of ok) console.log(`  ok   ${o}`);
 for (const f of fail) console.log(`  FAIL ${f}`);
-console.log(JSON.stringify({ passed: ok.length, failed: fail, surfaces: [...T.TRIAL_SURFACES], steps }));
-process.exit(fail.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ passed: ok.length, failed: fail, surfaces: [...T.TRIAL_SURFACES], steps }) + "\n", () => process.exit(fail.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

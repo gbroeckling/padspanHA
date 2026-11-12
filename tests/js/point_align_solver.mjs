@@ -226,5 +226,4 @@ for (const [what, bad] of [["omitted", undefined], ["zero", 0], ["negative", -0.
     _solvePtAlignRigid(REF_OK, TGT, RJ.ar, bad) === null);
 }
 
-console.log(JSON.stringify({ checks, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ checks, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

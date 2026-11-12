@@ -152,5 +152,4 @@ await tryCase("on: people and tags off, the trails go and nothing more is read",
   check("on: people and tags off, the trails go and nothing more is read", s.trails.length === 0 && reads === was, { reads, was, trails: s.trails });
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

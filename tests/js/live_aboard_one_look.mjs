@@ -328,5 +328,4 @@ await tryCase("safety: with the emergency dial in the cover's corner, ☰ sits u
   await settle();
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

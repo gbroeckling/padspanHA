@@ -325,5 +325,4 @@ for (const name of NAMES) for (const floor of ["main", "basement", "outside", "_
     table.push([name, floor, stored, within, over, S.outdoorKind({ name, ground: ISO.isOutdoorFloorId(floor), stored, within, over })]);
 check("parity: the table was built", table.length === NAMES.length * 6 * 5 * 4);
 
-console.log(JSON.stringify({ cases, failures, table }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures, table }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

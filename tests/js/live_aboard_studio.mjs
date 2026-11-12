@@ -230,5 +230,4 @@ await tryCase("pure: the module's own numbers", async () => {
     { day, gold, dark, lo, hi });
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

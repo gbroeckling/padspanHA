@@ -281,5 +281,4 @@ await tryCase("under: the hover box's Under pick asks the line as a tap does (ta
   check("under: the hover box's Under pick asks the line as a tap does (tapSwitches)", before && !off && lock && LM.tapSwitches(stage, "light.hall", l));
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

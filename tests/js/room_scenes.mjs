@@ -62,5 +62,4 @@ check("sheet: ▶ per scene; a tap runs it through Home Assistant",
   !!play && JSON.stringify(calls) === JSON.stringify([["scene", "turn_on", "scene.cooking"]]) && toasts.includes("Cooking"),
   { labels: btns.map(b => b.textContent), calls, toasts });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

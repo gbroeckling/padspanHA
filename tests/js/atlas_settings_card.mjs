@@ -83,5 +83,4 @@ try {
   out.restartNotes = kids.filter(n => /restart/i.test(n._text || "")).map(n => n._text);
 } catch (e) { failures.push(String(e && e.stack || e).slice(0, 800)); }
 
-console.log(JSON.stringify(out));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify(out) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

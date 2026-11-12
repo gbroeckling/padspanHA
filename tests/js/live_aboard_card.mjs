@@ -584,5 +584,4 @@ await tryCase("flat ⋯: hidden while the 3D look shows, there with the flat Map
     { three: a && a.style.display, flat: b && b.style.display });
 });
 
-console.log(JSON.stringify({ cases, failures, loaded: threeLoads().map(u => u.replace(/^.*\/padspan-ha\//, "")) }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures, loaded: threeLoads().map(u => u.replace(/^.*\/padspan-ha\//, "")) }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

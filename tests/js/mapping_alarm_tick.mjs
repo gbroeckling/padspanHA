@@ -77,5 +77,4 @@ listeners.length = 0;
   await p._mappingAlarmTick();
   check("empty: a reply with no latches leaves them", p.state.settings.flood_latches === had && p.banners === 0);
 }
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

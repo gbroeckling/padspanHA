@@ -1680,5 +1680,4 @@ check("example named", W.scaleNoticeWords({ k: 0.33, source: "rooms", example: {
   root = await view(h);
   check("then Save again goes through", commits === 2 && root.textContent.includes("saved on Main"), root.textContent.slice(0, 300));
 }
-console.log(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures, texts, fails: Object.keys(W.FAILS) }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

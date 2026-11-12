@@ -298,5 +298,4 @@ for (const [name, go, offered] of [["the helper offered", GO(true), true], ["the
   check("progress: what it reads, and Stop", t().includes("Reading Scan (1 of 2)… experimental.") && !!button(M.sheet, "Stop (experimental)"), t());
   M.tool.dispose();
 }
-console.log(JSON.stringify(results));
-process.exit(0);
+process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

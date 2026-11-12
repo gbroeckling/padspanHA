@@ -235,5 +235,4 @@ tryCase("contract: the card's drawing is the same with no chip and the chip off"
     a && a === b && !/lheat/.test(a) && /lheat/.test(c || ""), { a: a && a.length, b: b && b.length });
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

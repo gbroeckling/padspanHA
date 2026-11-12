@@ -532,5 +532,4 @@ proto.focus = realFocus;
   check("S7: only unread marks: nothing called already there", !o.includes("already there") && !o.includes("Already in your house") && o.includes("1 mark near a placed light wasn't read closely enough to say what it is."), o);
   O.tool.dispose();
 }
-console.log(JSON.stringify(results));
-process.exit(0);
+process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

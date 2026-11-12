@@ -119,5 +119,4 @@ if (a > 0 && b > a) {
   try { localStorage.removeItem("padspan_setup_line"); } catch (e) {}
 }
 
-console.log(JSON.stringify({ checks, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ checks, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

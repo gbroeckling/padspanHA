@@ -665,5 +665,4 @@ await tryCase("hover: the sidebar's hover box says the height Live Aboard draws,
     && /Living lamp · 1\.20 m up/.test(words) && fileCalls === calls, { lamp, temp, fan, rec, dflt, gone, hall, unplaced, words, calls, now: fileCalls });
 });
 
-console.log(JSON.stringify({ cases, failures, house: houseRan }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures, house: houseRan }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

@@ -75,5 +75,4 @@ for (const st of [{ tier: "free" }, { tier: "bright" }, { tier: "free", pro_has_
   check(`pitch for ${r.kind} has a call to action`, !!r.cta && !!r.url);
 }
 
-console.log(JSON.stringify({ checks, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ checks, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

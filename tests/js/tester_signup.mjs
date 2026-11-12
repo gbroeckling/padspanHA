@@ -397,5 +397,4 @@ const vocab = {
   patterns: Object.fromEntries(Object.entries(T.TESTER_PATTERNS).map(([k, rx]) => [k, rx.source])),
   secrets: T.TESTER_SECRETS.map(([what, rx]) => [what, rx.source, rx.flags]),
 };
-console.log(JSON.stringify({ passed: ok.length, failed: fail, verdicts, vocab }));
-process.exit(fail.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ passed: ok.length, failed: fail, verdicts, vocab }) + "\n", () => process.exit(fail.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

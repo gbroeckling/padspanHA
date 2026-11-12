@@ -275,5 +275,4 @@ await tryCase("words: a room's name and an outdoor chip on it stand apart once t
   LA.releaseLiveAboardSlot("raised-words");
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

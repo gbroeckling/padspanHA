@@ -132,5 +132,4 @@ const rows = (card) => card ? card.querySelectorAll("[data-accuracy-tips]").map(
     { f: [f.state.view, f.state.mapsTab, f.state.complexity, f.toasts], r: [r.state.view, r.state._calibTabRequest, r.state.complexity], s: [s.state.view, s.state._mapsWizard] });
 }
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

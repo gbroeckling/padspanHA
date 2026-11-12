@@ -193,5 +193,4 @@ await check("the cards are counted, once per page where it matters, never with t
 
 for (const n of ok) console.log("ok   " + n);
 for (const f of fail) console.log("FAIL " + f);
-console.log(JSON.stringify({ passed: ok.length, failed: fail }));
-process.exit(fail.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ passed: ok.length, failed: fail }) + "\n", () => process.exit(fail.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

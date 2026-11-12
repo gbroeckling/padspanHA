@@ -612,5 +612,4 @@ if (Cls) {
   } catch (e) { fail("a saved floor when the page opens", "lifecycle", e); }
 }
 
-console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

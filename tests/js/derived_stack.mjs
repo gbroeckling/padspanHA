@@ -179,5 +179,4 @@ for (const c of CASES.point_align) {
     JSON.stringify({ js: solved, py: c.expected }));
 }
 
-console.log(JSON.stringify({ checks, failures, worst }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ checks, failures, worst }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

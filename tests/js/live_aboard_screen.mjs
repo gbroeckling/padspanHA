@@ -674,5 +674,4 @@ await tryCase("hint: a first-time card, once per browser", async () => {
   check("hint: a first-time card, once per browser", first && !!card1 && gone && !again, { first, gone, again });
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

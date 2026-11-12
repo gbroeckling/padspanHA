@@ -114,5 +114,4 @@ check("nothing is asked about any row", asked.slice(askedBefore).filter(m => /ve
 check("no switch for a lookup in the list", !nodes.some(n => n.tagName === "BUTTON" && /look up makers/i.test(n.textContent)));
 
 for (const r of results) console.log(JSON.stringify(r));
-console.log(JSON.stringify({ summary: true, cases: results.length, failed }));
-process.exit(failed ? 1 : 0);
+process.stdout.write(JSON.stringify({ summary: true, cases: results.length, failed }) + "\n", () => process.exit(failed ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

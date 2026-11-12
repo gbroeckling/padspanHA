@@ -316,5 +316,4 @@ tryCase("draft: a height moves the fixture and the light on its wall, not where 
   check("draft: a height moves the fixture and the light on its wall, not where the light lands", ok, { lifted: [lifted.z, lifted.zDefault] });
 });
 
-console.log(JSON.stringify({ cases, failures }));
-process.exit(failures.length ? 1 : 0);
+process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)
