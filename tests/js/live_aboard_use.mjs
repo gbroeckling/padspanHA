@@ -201,6 +201,21 @@ await tryCase("parity: every gesture on every kind of device makes the Atlas's o
   check("parity: every gesture on every kind of device makes the Atlas's own calls", runs.length === 30 && !bad.length && !wrong.length,
     { bad: bad.slice(0, 4), wrong });
 });
+// A finger rolls as it lands (a wall screen, 2026-11-12): 12 px is still the tap; a mouse moved that far is a drag.
+await tryCase("a finger that rolls a little still taps", async () => {
+  const run = async (move, extra) => {
+    d3.log.length = 0; aim = { hit: device("light.dim"), under: [] };
+    const t0 = now() - 60;
+    use.down(ev("pointerdown", 100, 100, t0, extra));
+    const r = use.move(ev("pointermove", 100 + move, 100, t0 + 30, extra));
+    if (r !== "cancel") use.up(ev("pointerup", 100 + move, 100, now(), extra));
+    await settle();
+    return JSON.stringify(d3.log);
+  };
+  const tapped = JSON.stringify([["toggle", "light.dim"]]);
+  const got = { finger12: await run(12, {}), finger20: await run(20, {}), mouse12: await run(12, { pointerType: "mouse" }) };
+  check("a finger that rolls a little still taps", got.finger12 === tapped && got.finger20 === "[]" && got.mouse12 === "[]", got);
+});
 // A room's name, a floor's badge and a door's line take a click on the flat
 // Atlas (whether the press was short or long); the 3D view's press makes the
 // same call, from a tap or a hold. A drag across one clicks on the flat map;

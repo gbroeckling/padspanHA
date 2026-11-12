@@ -33,6 +33,7 @@ const { createHoldTracker, dragBrightness, setLightBrightness, exactDeviceOf, la
 const NS = "http://www.w3.org/2000/svg";
 const RING_R = 18;                         // the pressed ring, px
 const HOVER_R = 15;                        // the hover mark, px
+const TOUCH_SLOP_PX = 16;                  // a finger may roll this far and still be a press (a mouse: lights_map.js SLOP_PX)
 const HIDE_GRACE_MS = 450;                 // the hover box lingers this long over nothing (as on the Atlas)
 /** A piece of furniture linked to a device the Atlas has no marker for (a TV,
  *  a washer, a robot; P5): a tap or a hold opens Home Assistant's own
@@ -362,7 +363,9 @@ export function createUseSurface(o){
         canDrag = !!l0.dimmable && String(t.eid).startsWith("light.");
       }
       if (t.kind === "door" && doorMover(t.bar)) holdable = true;   // a door that moves: hold for Home Assistant's own controls
-      const tracker = createHoldTracker({ canDrag });
+      // A finger rolls a few millimetres as it lands and lifts: on a wall screen that passed the mouse's 8 px, the press
+      // was dropped for a turn of the house too small to see, and the tap did nothing at all (his wall, 2026-11-12).
+      const tracker = createHoldTracker(e.pointerType === "touch" ? { canDrag, slopPx: TOUCH_SLOP_PX } : { canDrag });
       tracker.down(e.clientX, e.clientY, stamp(e));
       press = { target: t, api, tracker, holdable, t0: stamp(e), x: e.clientX, y: e.clientY, ring: null, armed: false, dragBri: null, dragTo: null,
                 bubble: null, lastSend: 0, touch: e.pointerType === "touch" };
