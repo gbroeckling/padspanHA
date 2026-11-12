@@ -68,7 +68,7 @@ const STUDIO = await import(`./live_aboard_studio.js${new URL(import.meta.url).s
 // The Atlas's own word for the air (its room sheet's "Air Good").
 const { airQualityWord, airQualityBadness } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // The heights in Live Aboard's file no view reads (out of date: the map's).
-const { withoutGone } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
+const { withoutGone, isTapLight } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // P5: furniture that is a device behaves like it (optional too: missing, the
 // pieces are only furniture and the fixtures stay where they are).
 const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url).search}`)
@@ -168,6 +168,7 @@ const STILL = { active: meanOf(HOUSE.MOTION_PULSE.fill), recent: meanOf(HOUSE.MO
 const PICK_R = 22;                         // a device's reach for a tap (the Atlas's 44 px target)
 const PIECE_D = PICK_R / 2;                // a press on a linked piece: a marker nearer than this wins
 const CLOSE_PX = 8;                        // lights this much alike in reach of a tap: the chosen floor's, else the one in front
+const TIE_PX = 2;                          // any other two devices this near alike on screen: the one in front wins
 const PEOPLE_MS = 5000;                    // the people layer reads the live snapshot at most this often
 const READ_H = 0.45, READ_PX = [22, 30];   // a readout chip's height (m), and never under / over this on screen (px)
 const READ_W = 520, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
@@ -1421,7 +1422,7 @@ function createSlot(slotKey){
     for (let i = 0; i < 8; i++) { const pl = new THREE.PointLight(0xffffff, 0, 7.5, 2); lampPool.push(pl); scene.add(pl); }
     // The press, the hover box and the rings: the Atlas's, over the house.
     use = USE.createUseSurface({
-      root, pick: (x, y) => pickAt(x, y), screenOf,
+      root, pick: (x, y, noLights) => pickAt(x, y, noLights), screenOf,
       // Built once per poll, on first need: the host's api for this card.
       api: () => apiNow || (apiNow = apiOf ? apiOf() : null),
       frame: () => { if (!pending && !failed && renderer) { pending = true; requestAnimationFrame(frame); } },
@@ -3951,7 +3952,7 @@ function createSlot(slotKey){
     return { kind: "device", key: "device:" + c.eid, eid: c.eid, anchor: c.v,
              label: said || (l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || c.eid}` : c.eid) };
   }
-  function pickAt(clientX, clientY){
+  function pickAt(clientX, clientY, noLights = false){
     if (!renderer || failed || !house) return null;
     const rect = view3Rect();
     if (!rect.width || !rect.height) return null;
@@ -3974,8 +3975,11 @@ function createSlot(slotKey){
     // its points (bulbs, glow, a run; on a cut-away wall the glow on the
     // floor) that no wall or floor hides from here, not merely the nearest
     // one. Mapping's builder picks as it always has.
+    // `noLights`: a tap while "Tap a light to switch it" is unticked (live_aboard_use up): a light is no target for it at
+    // all (review 2026-11-11: its glow on a cut-away wall took a tap a door or a room's name answered); a hold still is.
     for (const L of lights) {
       if (!L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || (!mapOnly && L.wall && L.wall.cut)) continue;
+      if (noLights && isTapLight(L.eid, lbe[L.eid])) continue;
       const near = (mapOnly ? lightPoints(L) : L.pick).map(v => ({ v, d: dist(v) })).filter(c => c.d <= PICK_R).sort((a, b) => a.d - b.d);
       const seen = mapOnly ? near.find(c => !blocked(c.v, null, true)) : near[0];
       if (seen) devs.push({ eid: L.eid, ...seen, light: L, clear: mapOnly });
@@ -4005,7 +4009,7 @@ function createSlot(slotKey){
       const y0 = Math.min(q[0][1], q[2][1]) - 4, y1 = Math.max(q[0][1], q[2][1]) + 4;
       if (Math.abs(clientX - cx) <= half && clientY >= y0 && clientY <= y1) {
         [...C.sensors].filter(S => !dimOf(S.eid)).sort((a, b) => (CHIP_ORDER[a.kind] ?? 3) - (CHIP_ORDER[b.kind] ?? 3))
-          .forEach((S, i) => devs.push({ eid: S.eid, d: i * 1e-3, v: C.sprite.position, top: true }));
+          .forEach((S, i) => devs.push({ eid: S.eid, d: i * 1e-3, v: C.sprite.position, top: true, chip: true }));
       }
     }
     // A piece that is a device (P5): anywhere on it, its device. A marker
@@ -4024,20 +4028,23 @@ function createSlot(slotKey){
     devs.sort((a, b) => a.d - b.d);
     const ok = [];
     for (const c of devs.filter((c, i) => i < 8 || (mapOnly && c.light))) if (!ok.some(x => x.eid === c.eid) && (c.top || c.clear || !blocked(c.v, null, true))) ok.push(c);
-    // While a tap switches lights (the ⋯ line), a light (or a fan: a fixture)
-    // within its reach wins over a chip, a marker, a tag or a room's name.
-    // Fixtures of other floors about as near (CLOSE_PX): the chosen floor's,
-    // else the floor in front; on one floor, the nearest on screen.
-    const lit = mapOnly && lightTapsOn() ? ok.filter(c => c.light) : [];
-    if (lit.length) {
-      const near = lit.filter(c => c.d <= lit[0].d + CLOSE_PX), cam2 = (c) => camera.position.distanceToSquared(c.v);
+    // The nearest under the finger wins, as before this build: a tag, a person, a motion marker, an alarm, a lock, a
+    // device piece. One exception (review 2026-11-11), while a tap switches lights (the ⋯ line): a LIGHT (not a fan)
+    // within its reach beats a code chip pressed over it (and a room's name, which is looked at only when no device is
+    // in reach). A light winning: of the lights of other floors about as near (CLOSE_PX), the chosen floor's, else the
+    // floor in front.
+    const taps = mapOnly && lightTapsOn();
+    const aLight = (c) => !!c.light && !(c.light.drawn === "fan" || (c.light.l && c.light.l.isFan));
+    let win = ok[0];
+    if (win && win.chip && taps) win = ok.find(aLight) || win;
+    if (win && aLight(win) && taps) {
+      const lit = ok.filter(aLight), near = lit.filter(c => c.d <= win.d + CLOSE_PX), cam2 = (c) => camera.position.distanceToSquared(c.v);
       const mine = (c) => (selIds && selIds.has(String(c.light.F.fl.id)) ? 0 : 1);
-      const F = near.some(c => c.light.F !== lit[0].light.F) ? [...near].sort((a, b) => mine(a) - mine(b) || cam2(a) - cam2(b))[0].light.F : lit[0].light.F;
-      const win = lit.find(c => c.light.F === F);
-      return { hit: deviceTarget(win), under: ok.filter(c => c !== win).map(deviceTarget) };
-    }
-    if (tagHit && (!ok.length || tagHit.d <= ok[0].d)) return { hit: tagHit.hit, under: ok.map(deviceTarget) };
-    if (ok.length) return { hit: deviceTarget(ok[0]), under: ok.slice(1).map(deviceTarget) };
+      if (near.some(c => c.light.F !== win.light.F)) win = [...near].sort((a, b) => mine(a) - mine(b) || cam2(a) - cam2(b))[0];
+    } else if (ok.length > 1 && !ok[0].top && !ok[1].top && ok[1].d - ok[0].d <= TIE_PX
+        && camera.position.distanceToSquared(ok[1].v) < camera.position.distanceToSquared(ok[0].v)) win = ok[1];   // two as near: the one in front
+    if (tagHit && (!win || tagHit.d <= win.d)) return { hit: tagHit.hit, under: ok.map(deviceTarget) };
+    if (win) return { hit: deviceTarget(win), under: ok.filter(c => c !== win).map(deviceTarget) };
     const surf = [];
     for (const F of floorsUi) {
       if (!F.group.visible) continue;

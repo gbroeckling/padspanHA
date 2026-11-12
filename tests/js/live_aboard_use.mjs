@@ -71,7 +71,8 @@ function makeApi(){
   };
   const api = {
     hass, lightsByEid: LBE, lights: LIGHTS, controlsFor: LC.hasControlCard,
-    toggle: (eid) => log.push(["toggle", eid]),
+    // Resolves true once switched, as toggleEntity does: a tap is counted ok and ringed only then (review 2026-11-11).
+    toggle: (eid) => { log.push(["toggle", eid]); return true; },
     openControls: (eid) => log.push(["openControls", eid]),
     openActivity: (eid) => log.push(["openActivity", eid]),
     setMany: (eids, on) => log.push(["setMany", eids, on]),

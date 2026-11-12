@@ -79,7 +79,8 @@ export function doorMover(bar){
  *   cursor(on)      the pointer over something to press, or not
  *   marked(t)       optional: what is hovered or pressed now (t), or null
  *   lightTaps()     optional: false while a tap switches no light (the ⋯
- *                     list's "Tap a light to switch it" unticked)
+ *                     list's "Tap a light to switch it" unticked); a tap is
+ *                     then picked again with pick(x, y, true): no lights
  *   switched(ok)    optional: a light was switched by a press (ok), or the
  *                     switch failed (the opt-in report's count)
  * }
@@ -248,9 +249,9 @@ export function createUseSurface(o){
   function tapSwitch(api, eid, l0, t){
     if (!isTapLight(eid, l0)) { api.toggle(eid); return; }
     if (o.lightTaps && !o.lightTaps()) return;
-    const done = (ok) => { if (o.switched) o.switched(ok !== false); };
+    // Counted and ringed only once it switched (toggleEntity: true); a failure counted; nothing sent (no hass), neither.
+    const done = (ok) => { if (ok === true) pulse(t); if (o.switched && typeof ok === "boolean") o.switched(ok); };
     Promise.resolve(api.toggle(eid)).then(done, () => done(false));
-    pulse(t);
   }
   // A light switched by a tap: one ring opening out from it in the pressed
   // ring's gold, so a tap that worked is seen even where its glow changes
@@ -363,7 +364,7 @@ export function createUseSurface(o){
       if (t.kind === "door" && doorMover(t.bar)) holdable = true;   // a door that moves: hold for Home Assistant's own controls
       const tracker = createHoldTracker({ canDrag });
       tracker.down(e.clientX, e.clientY, stamp(e));
-      press = { target: t, api, tracker, holdable, t0: stamp(e), ring: null, armed: false, dragBri: null, dragTo: null,
+      press = { target: t, api, tracker, holdable, t0: stamp(e), x: e.clientX, y: e.clientY, ring: null, armed: false, dragBri: null, dragTo: null,
                 bubble: null, lastSend: 0, touch: e.pointerType === "touch" };
       hover = null;
       mark(t, hoverG);
@@ -386,6 +387,14 @@ export function createUseSurface(o){
       const p = press, r = p.tracker.up(stamp(e));
       if (p.touch) mark(null, hoverG);
       endPress();
+      // "Tap a light to switch it" unticked: a tap is never a light's (review 2026-11-11); what is there without the
+      // lights answers it (a door, a room's name, a marker), as before the lights were tappable. A hold is the light's.
+      const t = p.target, l0 = t.kind === "device" && p.api.lightsByEid ? p.api.lightsByEid[t.eid] : null;
+      if (r === "tap" && l0 && isTapLight(t.eid, l0) && o.lightTaps && !o.lightTaps()) {
+        const again = o.pick(p.x, p.y, true), h = again && again.hit;
+        if (h && (h.kind !== "device" || p.api.lightsByEid[h.eid])) act({ ...p, target: h }, r);
+        return;
+      }
       act(p, r);
     },
     cancel(){

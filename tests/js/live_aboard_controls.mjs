@@ -129,7 +129,8 @@ const records = (over = {}) => {
 };
 const LBE = records();
 const calls = [];
-const api = { toast(){}, toggle: (e) => calls.push(["toggle", e]), openRoom: (r) => calls.push(["openRoom", r]), openFloor(){},
+// toggle resolves true once switched, as toggleEntity does (a tap is counted ok and ringed only then: review 2026-11-11).
+const api = { toast(){}, toggle: (e) => { calls.push(["toggle", e]); return true; }, openRoom: (r) => calls.push(["openRoom", r]), openFloor(){},
               openControls: (e) => calls.push(["openControls", e]), openActivity: (e) => calls.push(["openActivity", e]),
               controlsFor: (l) => (l && (l.isLock || l.dimmable) ? {} : null), lightsByEid: LBE, hass: null };
 const DAY = { "sun.sun": { entity_id: "sun.sun", state: "above_horizon", attributes: { azimuth: 160, elevation: 40 } } };
@@ -381,6 +382,79 @@ await tryCase("taps: a light within its reach wins over a chip; outside it, the 
     && outside.length > 0 && outside.every(q => on.get(q.join()) === "device:sensor.kitchen_temp"),
     { chip, light, inside: inside.length, outside: outside.length, wrongIn: inside.filter(q => on.get(q.join()) !== "device:light.kitchen").slice(0, 3),
       wrongOut: outside.filter(q => on.get(q.join()) !== "device:sensor.kitchen_temp").slice(0, 3).map(q => [q, on.get(q.join())]) });
+});
+// Review 2026-11-11: only a chip (and a room's name) loses to a light in reach; a lock, a leak mark or a motion marker
+// pressed on answers, as before this build (the nearest under the finger); the light answers when it is pressed on.
+await tryCase("taps: a lock, a leak mark, a motion marker pressed on answer, a light 22 px away or not; pressed on the light, the light", async () => {
+  const out = {};
+  let n = 0;
+  for (const eid of ["lock.back", "binary_sensor.kitchen_leak", "binary_sensor.hall_motion"]) {
+    const p = MODEL.light_positions_m[eid];
+    const st = { ...STATES0, "light.near": { state: "off", attributes: { friendly_name: "Near light" } } };
+    const lbe = Object.fromEntries(LM.gatherLights(Object.fromEntries(Object.entries(st).map(([k, v]) => [k, { entity_id: k, last_changed: v.last_changed || iso(NOW - 600e3), ...v }])),
+      { ...AREAS, "light.near": AREAS[eid] }, {}, "pro", {}, {}, {}, {}, NOW).map(l => [l.entity_id, l]));
+    const dx = eid === "lock.back" ? 0 : -0.3;                // the lock's mark sits off its point, on its door: the light over it
+    const model = { ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.near": { x_m: p.x_m + dx, y_m: p.y_m, floor_id: "main" } } };
+    const key = "ctl-near-" + (n++);
+    const slot = await newSlot(key, { model, lightsByEid: lbe, mapOnly: true, topFloorIds: ["main"] });
+    slot._look(0, 0.05, [p.x_m, 1.2, p.y_m], 14); await settle();
+    const a = slot._where({ eid }), b = slot._where({ eid: "light.near" });
+    out[eid] = { a, b, apart: a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : null, onIt: hitOf(slot._pick(a[0], a[1])), onLight: hitOf(slot._pick(b[0], b[1])) };
+    LA.releaseLiveAboardSlot(key);
+  }
+  check("taps: a lock, a leak mark, a motion marker pressed on answer, a light 22 px away or not; pressed on the light, the light",
+    Object.entries(out).every(([eid, o]) => o.apart > 3 && o.apart <= 22 && o.onIt === "device:" + eid && o.onLight === "device:light.near"), out);
+});
+await tryCase("taps: a fan in reach does not beat a chip it never beat", async () => {
+  // The kitchen's light swapped for a fan in the same spot; where the chip shows (mapped with no fan there) within the
+  // fan's reach, the chip still answers.
+  const lbeOf = (st, areas) => Object.fromEntries(LM.gatherLights(Object.fromEntries(Object.entries(st).map(([k, v]) => [k, { entity_id: k, last_changed: v.last_changed || iso(NOW - 600e3), ...v }])),
+    areas, {}, "pro", {}, {}, {}, {}, NOW).map(l => [l.entity_id, l]));
+  const st = { ...STATES0, "fan.kitchen": { state: "on", attributes: { friendly_name: "Kitchen fan" } } };
+  delete st["light.kitchen"];
+  const lp = { ...MODEL.light_positions_m, "fan.kitchen": MODEL.light_positions_m["light.kitchen"] };
+  delete lp["light.kitchen"];
+  const bare = { ...lp }; delete bare["fan.kitchen"];
+  const look = async (s) => { s._look(0, 0.05, [3, 1.2, 2], 40); await settle(); };
+  const a = await newSlot("ctl-fan-a", { model: { ...MODEL, light_positions_m: bare }, lightsByEid: lbeOf(st, AREAS), mapOnly: true, topFloorIds: ["main"] });
+  const b = await newSlot("ctl-fan-b", { model: { ...MODEL, light_positions_m: lp }, lightsByEid: lbeOf(st, { ...AREAS, "fan.kitchen": "Kitchen" }), mapOnly: true, topFloorIds: ["main"] });
+  await look(a); await look(b);
+  const chip = a._where({ eid: "sensor.kitchen_temp" }), fan = b._where({ eid: "fan.kitchen" });
+  const grid = [];
+  for (let dx = -60; dx <= 60; dx += 2) for (let dy = -40; dy <= 40; dy += 2) grid.push([chip[0] + dx, chip[1] + dy]);
+  const onChip = grid.filter(q => hitOf(a._pick(q[0], q[1])) === "device:sensor.kitchen_temp" && Math.hypot(q[0] - fan[0], q[1] - fan[1]) <= 20);
+  const lost = onChip.filter(q => hitOf(b._pick(q[0], q[1])) !== "device:sensor.kitchen_temp");
+  LA.releaseLiveAboardSlot("ctl-fan-a"); LA.releaseLiveAboardSlot("ctl-fan-b");
+  check("taps: a fan in reach does not beat a chip it never beat", fan && onChip.length > 0 && lost.length === 0,
+    { chip, fan, onChip: onChip.length, lost: lost.slice(0, 3).map(q => [q, hitOf(b._pick(q[0], q[1]))]) });
+});
+// Review 2026-11-11: unticked, a tap is never a light's: what is under it without the lights answers (the chip here);
+// a hold still opens the light's controls. Only a switch that worked is counted ok and ringed (nothing sent: neither).
+await tryCase("taps: unticked, a tap on a light goes to what is under it; a hold is still the light's; only a real switch counts", async () => {
+  const SENT = [], prefs = screenPrefs({ "show_ctl-under": JSON.stringify({ light_taps: false }) });
+  const slot = await newSlot("ctl-under", { topFloorIds: ["main"], prefs, mapOnly: true, telemetry: (n) => SENT.push(n) });
+  slot._look(0, 0.05, [3, 1.2, 2], 40); await settle();
+  const light = slot._where({ eid: "light.kitchen" });
+  calls.length = 0; await tapAt(slot, light);
+  const tapped = calls.slice();
+  const cv = canvasOf(slot), t0 = performance.now();
+  calls.length = 0;
+  cv.dispatchEvent(ev("pointerdown", light[0], light[1], { timeStamp: t0 }));
+  clockOff += 900; await settle(4);
+  cv.dispatchEvent(ev("pointerup", light[0], light[1], { timeStamp: t0 + 900 }));
+  await settle(4); clockOff -= 900;
+  const held = calls.slice();
+  prefs.set("show_ctl-under", "{}");
+  const quiet = { ...api, toggle: (e) => { calls.push(["toggle", e]); return undefined; } };
+  card(slot, { topFloorIds: ["main"], prefs, mapOnly: true, telemetry: (n) => SENT.push(n), useApi: () => quiet }); await settle();
+  slot._look(0, 0.05, [3, 1.2, 2], 40); await settle();
+  calls.length = 0; await tapAt(slot, slot._where({ eid: "light.kitchen" }));
+  const unsent = { calls: calls.slice(), sent: SENT.filter(x => x.includes("light_tap")), rings: slot.element.querySelectorAll(".la3d-tapped").length };
+  LA.releaseLiveAboardSlot("ctl-under");
+  check("taps: unticked, a tap on a light goes to what is under it; a hold is still the light's; only a real switch counts",
+    !tapped.some(c => c[0] === "toggle" && c[1] === "light.kitchen") && JSON.stringify(held) === JSON.stringify([["openControls", "light.kitchen"]])
+    && JSON.stringify(unsent.calls) === JSON.stringify([["toggle", "light.kitchen"]]) && unsent.sent.length === 0 && unsent.rings === 0,
+    { tapped, held, unsent });
 });
 await tryCase("taps: two floors' lights in line on screen: the floor in front, or the chosen one", async () => {
   // A light on the landing upstairs (no room under it there) over the hall's below.
