@@ -84,7 +84,9 @@ def test_the_four_offers_are_wired_and_the_view_is_unlisted():
     assert 'ai_wizard:    "./views/ai_wizard.js",' in panel and '_VIEW_PATHS_HIDDEN_OK.add("ai_wizard");' in panel
     assert "AIW.gettingStartedRow(this._ctx())" in panel and "this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned)" in panel
     assert 'AIW.offerLine(ctx, "setup", s.done)' in _src("setup.js")   # s.done: a Done row isn't "Stuck?" (guided_setup.mjs runs it)
-    assert _src("maps.js").count('AIW.offerLine(ctx, "maps_wizard")') == 2
+    # The wizard's scale and rooms steps, and (2026-11-13) Edit's "Next: draw its rooms" line after a scale is saved:
+    # the same surface and rule, where the person now lands.
+    assert _src("maps.js").count('AIW.offerLine(ctx, "maps_wizard")') == 3
 
 
 def test_one_list_of_outlines_and_one_home_assistant_link():

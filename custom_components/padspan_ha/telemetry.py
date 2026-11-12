@@ -952,10 +952,13 @@ CAL_RESULTS_EVENTS: frozenset[str] = frozenset(
 # step skipped, and the whole sequence finished (once per install, only by a
 # house that used it). Where people stop, beside the two wizards' own funnels.
 from .setup_checks import SETUP_STEPS  # noqa: E402
+SETUP_NEXT: tuple[str, ...] = ("rooms", "receivers", "calibration")
 SETUP_EVENTS: frozenset[str] = frozenset(
     {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"}
     # "Put my receivers in their rooms" (ws_fabric.ws_receivers_to_rooms, 2026-11-12): pressed, how many it placed, undone.
-    | {f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")} | {f"setup_receivers_placed:{b}" for b in ROOMS_BANDS})
+    | {f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")} | {f"setup_receivers_placed:{b}" for b in ROOMS_BANDS}
+    # The "Next: …" buttons that lead a step on to the next in the product's order (2026-11-13): which was pressed.
+    | {f"setup_next:{s}" for s in SETUP_NEXT})
 # "Set this plan's scale now" right after Mapping → Upload (views/scale_nudge.js): shown, saved with one length or
 # two, put off with Later, and the quiet "No scale yet" line's Measure (Mapping → Library, Setup) pressed. Since
 # 2026-11-13 the same screen is every plan's first scale: at Save, which door it came through (via_<door>,

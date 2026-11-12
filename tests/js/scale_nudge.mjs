@@ -84,6 +84,7 @@ function house(o = {}) {
     telemetryEvent: (n) => tele.push(n), renderRooms: () => { renders.n++; }, renderNav: () => {},
     setMapsTab: (t) => { state.mapsTab = t; }, mapsSetActive: (id) => { state.activeMapId = id; }, showView: (v) => { state.view = v; },
     mapsRefresh: () => {}, modelRefresh: () => {}, calibrationGet: () => Promise.resolve({ points: [] }),
+    openSetupStep: (id) => { state._openedStep = id; },
   };
   h.ctx = {
     state, hass: { user: { is_admin: o.admin !== false }, states: {} }, toast: (m) => toasts.push(m),
@@ -140,6 +141,51 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
     && JSON.stringify(sv.measures[0]) === JSON.stringify({ text: "5 m", p1: [0.1, 0.5], p2: [0.6, 0.5] }), sv);
   check("Save: counted measured_one, said, the nudge over", count(h, "measured_one") === 1 && h.toasts.some(t => t.includes("10.0 m across"))
     && !N.pending(h.ctx, h.state.maps.list[0]) && !h.state._scaleNudge, [h.tele, h.toasts]);
+  // Save leads on (review 2026-11-13, break 2): Edit on the same plan, the Rooms tool, one line saying the scale is set and what's next.
+  check("Save: counted by its door, after an upload", count(h, "via_upload") === 1, h.tele);
+  root = await render(h);
+  const tools = all(root, "[data-edit-tool]").map(b => b.getAttribute("data-edit-tool"));
+  check("Save goes on to Edit, the Rooms tool, on that plan", h.state.mapsTab === "edit" && h.state.activeMapId === "up1" && h.state.maps._mode === "rooms"
+    && !q(root, '[data-nudge="card"]'), [h.state.mapsTab, h.state.maps._mode]);
+  const nl = q(root, '[data-next-line="rooms"]');
+  check("Save: the line at the top says the scale is set and the rooms are next, with one button", nl && nl.textContent.includes("scale is set")
+    && nl.textContent.includes("Next: draw its rooms") && !!q(root, '[data-next="rooms"]'), root.textContent.slice(0, 600));
+  check("Edit's tools are in build order: Measure, Rooms, Radios, Signal walls", JSON.stringify(tools.slice(0, 4)) === '["measure","rooms","receivers","barriers"]', tools);
+  check("a Save that goes on by itself is not a Next press", !h.tele.some(t => t.startsWith("setup_next:")), h.tele);
+}
+
+// ── Next: … in Edit, from what is saved: rooms → receivers → calibration; each button counted ──
+{
+  const P = (o) => ({ id: "e1", name: "Main", floor_id: "main", image: { width: 1000, height: 800 }, receivers: [], room_bounds: {}, ...o });
+  const TF1 = { e1: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } };
+  const ROOM = { Kitchen: { type: "poly", points: [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4]] } };
+  const h = house({ tab: "edit", maps: [P({ room_bounds: ROOM })], tfs: TF1 });
+  h.state.activeMapId = "e1";
+  let root = await render(h);
+  check("Edit with rooms and no receivers: Next: place the receivers", !!q(root, '[data-next-line="receivers"]') && h.state.maps._mode === "receivers", root.textContent.slice(0, 300));
+  h.state.maps._mode = "rooms";
+  q(root, '[data-next="receivers"]').click();
+  check("its button: the Radios tool on that plan, counted", h.state.maps._mode === "receivers" && h.tele.includes("setup_next:receivers"), [h.state.maps._mode, h.tele]);
+  const r = house({ tab: "edit", maps: [P({ room_bounds: ROOM, receivers: [{ id: "r1", source: "aa", x: 0.2, y: 0.2 }] })], tfs: TF1 });
+  r.state.activeMapId = "e1";
+  root = await render(r);
+  check("Edit with receivers: Next: calibrate", !!q(root, '[data-next-line="calibration"]'), root.textContent.slice(0, 300));
+  q(root, '[data-next="calibration"]').click();
+  check("its button: Setup's calibration step, counted", r.state._openedStep === "calibration" && r.tele.includes("setup_next:calibration"), [r.state._openedStep, r.tele]);
+  const n = house({ tab: "edit", maps: [P({})], tfs: TF1 });
+  n.state.activeMapId = "e1";
+  root = await render(n);
+  check("Edit on a plan with no rooms opens on the Rooms tool", n.state.maps._mode === "rooms", n.state.maps._mode);
+  // In the wizard: Save goes on to its rooms step, which says the scale is set; its Next names the next step.
+  const w = house({ maps: [P({})], wizard: { step: 2, mapId: "e1" } });
+  let wr = await render(w);
+  tap(wr, 80, 300); wr = await render(w); tap(wr, 480, 300); await tick(); wr = await render(w);
+  await typeIn(wr, "scale-length", "5 m");
+  q(wr, '[data-nudge="save"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  wr = await render(w);
+  check("wizard: Save goes on to Draw rooms, saying the scale is set", w.state._mapsWizard.step === 3 && !!q(wr, '[data-next-line="scale-set"]')
+    && !!button(wr, "Next: place the receivers →"), [w.state._mapsWizard, wr.textContent.slice(0, 400)]);
 }
 
 // ── A second length the other way that disagrees: said plainly; both saved ──

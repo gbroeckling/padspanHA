@@ -560,6 +560,8 @@ _WIZARD_FUNNEL = (
     + tuple(f"plan_build_scale_remeasured:{k}" for k in ("lt1", "1_3", "3_10", "gt10")))
 # "Put my receivers in their rooms" (Setup's receivers step and the helper's Done, 2026-11-12; telemetry.SETUP_EVENTS).
 _RECEIVERS_ROOMS = tuple(f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")) + tuple(f"setup_receivers_placed:{b}" for b in _WIZ_BANDS)
+# The "Next: …" buttons from one step to the next (telemetry.SETUP_NEXT, 2026-11-13).
+_SETUP_NEXT = tuple(f"setup_next:{s}" for s in ("rooms", "receivers", "calibration"))
 # "Set this plan's scale now" after Mapping → Upload, and the quiet "No scale yet" line's Measure (telemetry.SCALE_NUDGE_EVENTS).
 _SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "measured_one", "measured_two", "later", "reminder_measure")
                      + tuple(f"via_{d}" for d in ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")))
@@ -599,7 +601,7 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     who: dict[str, set] = defaultdict(set)
     for r in reports:
         for k, v in (r.get("usage") or {}).items():
-            if k in _MAPPING_FUNNEL or k in _WIZARD_FUNNEL or k in _RECEIVERS_ROOMS or k in _SCALE_NUDGE:
+            if k in _MAPPING_FUNNEL or k in _WIZARD_FUNNEL or k in _RECEIVERS_ROOMS or k in _SCALE_NUDGE or k in _SETUP_NEXT:
                 use[k] += v
                 who[k].add(r.get("install_id"))
     out.append("  The Plans tool (events over the window; installs)")
@@ -615,6 +617,9 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
             out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
     out.append("  Set this plan's scale now, after an upload (events over the window; installs)")
     for k in _SCALE_NUDGE:
+        out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
+    out.append("  Next: from one setup step to the next (events over the window; installs)")
+    for k in _SETUP_NEXT:
         out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
     return out
 

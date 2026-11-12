@@ -88,6 +88,20 @@ def test_the_report_counts_steps_skips_and_finishing() -> None:
     assert "setup" in telemetry.VIEWS          # tab:setup and ui_error:setup
 
 
+def test_the_next_buttons_are_counted_summed_and_labelled() -> None:
+    """2026-11-13: the "Next: …" buttons from one step to the next (maps.js _goStep), which was pressed."""
+    import importlib.util
+    for s in telemetry.SETUP_NEXT:
+        assert telemetry.event_allowed(f"setup_next:{s}")
+    assert not telemetry.event_allowed("setup_next:other")
+    spec = importlib.util.spec_from_file_location("telemetry_summary", Path(__file__).resolve().parents[1] / "server" / "telemetry_summary.py")
+    S = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(S)
+    assert S._SETUP_NEXT == tuple(f"setup_next:{s}" for s in telemetry.SETUP_NEXT)
+    assert 'ctx.actions.telemetryEvent("setup_next:" + step)' in _read("views/maps.js")
+    assert 'a === "setup_next"' in _read("views/installbase.js")
+
+
 def test_entry_points() -> None:
     panel = _read("panel.js")
     assert 'setup:        "./views/setup.js",' in panel

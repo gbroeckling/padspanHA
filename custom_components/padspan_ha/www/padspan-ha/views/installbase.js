@@ -1086,6 +1086,7 @@ function word(kind, k) {
         via_upload: "a first scale saved after an upload", via_setup: "a first scale saved from Setup", via_getting_started: "a first scale saved from Getting started",
         via_wizard: "a first scale saved in the Setup Wizard", via_reminder: "a first scale saved from a \"No scale yet\" line",
         via_plans: "a first scale saved from the Plans tool", via_stack: "a first scale saved from 3D Stack" }[b] || b}`;
+      if (a === "setup_next") return `Setup: "Next" pressed, on to the ${{ rooms: "rooms", floors: "floor heights", receivers: "receivers", calibration: "calibration" }[b] || b} step`;
       if (a === "setup_receivers_rooms") return `Setup: "Put my receivers in their rooms" ${{ pressed: "pressed", undone: "undone" }[b] || b}`;
       if (a === "setup_receivers_placed") return `Setup: "Put my receivers in their rooms" placed ${W_ROOMS_BAND[b] ? W_ROOMS_BAND[b].replace("room", "receiver") : b}`;
       if (a === "setup_step" || a === "setup_skip") {

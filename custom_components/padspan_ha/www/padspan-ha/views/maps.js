@@ -40,7 +40,7 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 // "Is this map-setup step done?" — shared with the Overview onboarding
 // checklist (panel.js) so the two can never disagree about what's finished.
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
-        undrawnAreaNames: _wizUndrawnAreas } =
+        undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // What-if scanner placement (gap #9, best-in-class roadmap) — pure scoring,
 // see its own header for why this isn't a duplicate of anything else here.
@@ -1549,9 +1549,9 @@ function _wizardScale(ctx, map, maps, w){
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
   if (aiw) wrap.appendChild(aiw);
   wrap.appendChild(first
-    ? NUDGE.render(ctx, map, { door: w.door || (ctx.state._setupReturn ? "setup" : "wizard"), later: false })
+    ? NUDGE.render(ctx, map, { door: w.door || (ctx.state._setupReturn ? "setup" : "wizard"), later: false, onSaved: () => _goStep(ctx, map.id, "rooms", w, false) })
     : _edit(ctx, map, maps, _wizardTools(ctx, "measure")));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later" }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later", nextLabel: "Next: draw the rooms →" }));
   return wrap;
 }
 
@@ -1564,6 +1564,9 @@ function _wizardRooms(ctx, map, maps, w){
   const drawnCount = areaNames.length - undrawn.length;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
     "Trace the outline of each room from your Home Assistant areas onto the floor plan. Pick a room from the dropdown below the map, click around its outline, then Save Layout."));
+  // Just come from the scale (or a plan with a scale and no rooms yet): say so, and what this step is.
+  if (map && _planHasScale(ctx.state, map.id) && !Object.keys(map.room_bounds || {}).length)
+    wrap.appendChild(el("div",{"data-next-line":"scale-set", style:_NEXT_BOX}, "✓ This plan's scale is set. This step: draw its rooms."));
   if (AIW && AIW.stepSeen && !drawnCount) AIW.stepSeen(ctx, "rooms");     // the rooms helper's pull trigger: met again, unfinished
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
   if (aiw) wrap.appendChild(aiw);
@@ -1583,7 +1586,7 @@ function _wizardRooms(ctx, map, maps, w){
     wrap.appendChild(check);
   }
   wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "rooms")));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: "Skip — finish rooms later" }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: "Skip — finish rooms later", nextLabel: "Next: place the receivers →" }));
   return wrap;
 }
 
@@ -1897,9 +1900,71 @@ function _editOrFirstScale(ctx, map, maps){
   const fs = ctx.state._firstScale;
   const asked = !!(fs && map && fs.mapId === map.id && _firstScale(ctx, map));
   if (NUDGE && map && (asked || NUDGE.pending(ctx, map))) {
-    return NUDGE.render(ctx, map, { door: asked ? fs.door : "upload", onLater: () => { ctx.state._firstScale = null; } });
+    return NUDGE.render(ctx, map, { door: asked ? fs.door : "upload", onLater: () => { ctx.state._firstScale = null; },
+      onSaved: () => { ctx.state._firstScale = null; _goStep(ctx, map.id, "rooms", null, false); } });
   }
-  return _edit(ctx, map, maps);
+  return _edit(ctx, map, maps, { next: true });
+}
+
+// ── The product's order, step to step (review 2026-11-13, break 2) ──────────
+// Save leads on: a first scale saved takes the person to drawing that plan's
+// rooms; a screen where they may want to keep working (drawing more rooms,
+// placing more receivers) shows "Next: …" with one button instead. In the
+// Setup Wizard its own steps; outside it, Basic goes to the wizard's step and
+// Advanced to Edit with that step's tool. `counted`: a Next button pressed
+// (setup_next:<step>); a Save that goes on by itself is not.
+const _STEP_TOOL = { rooms: "rooms", receivers: "receivers" };
+const _WIZ_STEP = { rooms: 3, receivers: 4 };
+function _goStep(ctx, mapId, step, w, counted = true){
+  const st = ctx.state, ms = st.maps || (st.maps = {});
+  if (counted && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("setup_next:" + step);
+  if (step === "calibration") {
+    st._mapsWizard = null;
+    if (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], st.settings).length) { ctx.actions.openSetupStep("calibration"); return; }
+    st.view = "calibration";
+    st._calibTabRequest = "beacon";
+    if (ctx.actions.renderNav) ctx.actions.renderNav();
+    ctx.actions.renderRooms();
+    return;
+  }
+  if (w) { w.step = _WIZ_STEP[step]; ctx.actions.renderRooms(); return; }
+  if (st.complexity === "basic") {
+    ctx.actions.mapsSetActive(mapId);
+    st._mapsWizard = { step: _WIZ_STEP[step], mapId };
+    ctx.actions.renderRooms();
+    return;
+  }
+  // Advanced: Edit on that plan with the step's tool (at once on the open draft, else one-shot as _openMeasure does).
+  if (ms._draftMapId === mapId) { ms._mode = _STEP_TOOL[step]; ms._drawing = null; ms._selectedRxId = null; }
+  else ms._openMode = _STEP_TOOL[step];
+  ctx.actions.mapsSetActive(mapId);
+  ctx.actions.setMapsTab("edit");
+  ctx.actions.renderRooms();
+}
+
+// What the plan open in Edit needs next, as one line: no scale, the quiet
+// "No scale yet: Measure"; a scale and no rooms, the scale set and the rooms
+// next (with the rooms helper's line where its rule offers it); rooms and no
+// receivers, the receivers; receivers, calibration until it is done. Read
+// from what is saved, so Save Layout paints it again (Edit's onSaved).
+const _NEXT_BOX = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#a7f3d0;line-height:1.5;margin:6px 0;padding:6px 10px;background:#0a1f14;border:1px solid #1a4228;border-radius:8px";
+function _nextLine(ctx, map){
+  const { el } = ctx.helpers, st = ctx.state;
+  if (!map || st.kioskMode || st.dataMode !== "live") return null;
+  if (!_planHasScale(st, map.id)) return NUDGE ? NUDGE.reminderLine(ctx, map, () => _openMeasure(ctx, map.id, "reminder")) : null;
+  const go = (label, step) => el("button",{class:"btn inline primary", style:"font-size:12px", "data-next":step, onclick:()=>_goStep(ctx, map.id, step, null)}, label);
+  if (!Object.keys(map.room_bounds || {}).length) {
+    const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
+    return el("div",{"data-next-line":"rooms"},[
+      el("div",{style:_NEXT_BOX},[el("span",{style:"flex:1 1 220px"}, "✓ This plan's scale is set. Next: draw its rooms. Pick a room under the plan and click around its outline."),
+        go("Draw the rooms →", "rooms")]),
+      ...(aiw ? [aiw] : [])]);
+  }
+  if (!(map.receivers || []).length) return el("div",{"data-next-line":"receivers", style:_NEXT_BOX},[
+    el("span",{style:"flex:1 1 220px"}, "✓ This plan has rooms. Next: place the receivers, each where it is mounted."), go("Place the receivers →", "receivers")]);
+  if (st.calibration && _wizHasCal(st)) return null;
+  return el("div",{"data-next-line":"calibration", style:_NEXT_BOX},[
+    el("span",{style:"flex:1 1 220px"}, "✓ This plan has receivers. Next: calibrate, a few minutes walking round the house with your phone."), go("Calibrate →", "calibration")]);
 }
 
 function _edit(ctx, map, allMaps, opts){
@@ -1962,7 +2027,8 @@ function _edit(ctx, map, allMaps, opts){
     // receivers | rooms | barriers | measure. _openMode: a one-shot tool to
     // open in, set by the Rooms page's "Edit outline" (rooms.js), so loading
     // the plan does not put it back on Radios.
-    ctx.state.maps._mode = (opts && opts.openTool) || ctx.state.maps._openMode || "receivers";
+    // With nothing asked for, the tool the plan needs next: Rooms while it has none, else Radios (review 2026-11-13).
+    ctx.state.maps._mode = (opts && opts.openTool) || ctx.state.maps._openMode || (Object.keys(map.room_bounds || {}).length ? "receivers" : "rooms");
     ctx.state.maps._openMode = null;
     // _openRoom: the room the Rooms page's "Edit outline" opened it on.
     ctx.state.maps._selectedRoom = ctx.state.maps._openRoom || "";
@@ -2050,7 +2116,7 @@ function _edit(ctx, map, allMaps, opts){
   const title = el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},[
     el("div",{},[
       el("div",{style:"font-weight:700"}, `Edit: ${map.name || map.id}`),
-      el("div",{class:"muted", style:"font-size:12px"}, !_focused ? "Place receivers and then draw room boundaries. Save when done."
+      el("div",{class:"muted", style:"font-size:12px"}, !_focused ? "Draw the rooms, then place the receivers. Save when done."
         : _toolOk("rooms") ? "Draw the room's outline on the plan, then Save Layout."
         : "Drag the receiver to where it is mounted and set its height, then Save Layout."),
     ]),
@@ -2370,10 +2436,11 @@ function _edit(ctx, map, allMaps, opts){
   // tool in use. A tool's own tint goes while it is lit: as an inline style it
   // would hide .primary.
   const modeRow = () => el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
-    _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios") : null,
-    _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms") : null,
-    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:ctx.state.maps._mode==="barriers"?"":"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._openEdgeTap=false; renderAll(); renderTools(); }}, "Signal walls") : null,
+    // In build order (review 2026-11-13): measure the plan, draw its rooms, place its receivers, then signal walls.
     _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:ctx.state.maps._mode==="measure"?"":"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure") : null,
+    _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms") : null,
+    _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios") : null,
+    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:ctx.state.maps._mode==="barriers"?"":"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._openEdgeTap=false; renderAll(); renderTools(); }}, "Signal walls") : null,
     ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), "data-edit-tool":"subzones", onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []).filter(() => _toolOk("subzones")),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
     helpBtn("maps_edit"),
@@ -2413,6 +2480,7 @@ function _edit(ctx, map, allMaps, opts){
         } else {
           ctx.toast("Layout saved \u2714");
         }
+        if(_saved) _paintNext(_saved);
       }catch(err){ ctx.toast("Save failed: "+String(err), true); }
       btn.disabled = false; btn.textContent = "\ud83d\udcbe Save Layout"; btn.classList.remove("save-pulse");
   }});
@@ -3865,6 +3933,11 @@ function _edit(ctx, map, allMaps, opts){
   }
 
   card.appendChild(title);
+  // What this plan needs next (Mapping → Edit outside the wizard): painted again after Save Layout.
+  const _nextBox = opts && opts.next ? el("div",{"data-next":"box"}) : null;
+  const _paintNext = (m)=>{ if(_nextBox){ const n = _nextLine(ctx, m); _nextBox.replaceChildren(...(n ? [n] : [])); } };
+  _paintNext(map);
+  if(_nextBox) card.appendChild(_nextBox);
   // A map restored from a backup that had no picture (maps_store
   // allow_no_image): its rooms, pins and calibration are all here, only the
   // picture is not. The new one is drawn at the stored size, so every
