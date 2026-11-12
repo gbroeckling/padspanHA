@@ -264,6 +264,10 @@ await tryCase("layer: Vacation Mode's banner steps under the open list, as under
   click(k.c._all().find(n => n.className === "la3d-sx"));
   check("layer: Vacation Mode's banner steps under the open list, as under the 3D look's, and back once it closes",
     during && card0.getAttribute("data-la3d-flatmenu") === null && sheet.includes(".lv-mapcard[data-la3d-flatmenu] > .lv-vacation{z-index:4}"), { during });
+  // B3: the list keeps a sensible height on a short (phone) card, its lines scrolling inside; the 3D look's rule unchanged.
+  check("phone: the flat list keeps its lines on a short card; the 3D list's rule as it was",
+    sheet.includes(".lv-mapcard > .la3d-show{top:8px;max-height:max(260px,calc(100% - 16px))}") && sheet.includes(".lv-mapcard > .la3d-show .la3d-sbody{flex:1 1 auto;min-height:120px}")
+    && sheet.includes("max-height:calc(100% - 132px);display:flex;flex-direction:column"));
 });
 await tryCase("under: the hover box's Under pick asks the line as a tap does (tapSwitches)", async () => {
   const stage = document.createElement("div");
