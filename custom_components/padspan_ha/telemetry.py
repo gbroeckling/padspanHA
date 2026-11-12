@@ -226,7 +226,7 @@ EVENTS: frozenset[str] = frozenset({
     # click before the Finish step — the funnel alone cannot tell a
     # deliberate exit from someone who just has not come back yet.
     "wizard_maps_step_upload", "wizard_maps_step_scale", "wizard_maps_step_rooms",
-    "wizard_maps_step_scanners", "wizard_maps_step_finish", "wizard_maps_exited_early",
+    "wizard_maps_step_scanners", "wizard_maps_step_finish", "wizard_maps_exited_early", "wizard_maps_step_floors",
     "wizard_calib_step_tune", "wizard_calib_step_setup", "wizard_calib_step_roam",
     "wizard_calib_step_model", "wizard_calib_step_finish", "wizard_calib_exited_early",
     # The Lights builder's guided tour: opened (button or auto-open on first
@@ -548,7 +548,7 @@ def ui_error_at_allowed(name: str) -> bool:
 # "No thanks" / ✕), and the quiet entry under the PadSpan sidebar menu.
 TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
                                    "update_banner", "milestone", "sidebar", "ai_wizard")
-GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "floors", "rooms", "scanners", "calibrate", "positioned", "trial")
+GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "floors", "scanners", "calibrate", "positioned", "trial")
 # The free-Pro cards (views/pro_invite.js): an invite shown (once per page, on
 # Overview or in Settings → PadSpan licence), put off, claimed, refused by the
 # server, or declined; the one-time "test it, get Pro free" card shown, and
@@ -952,7 +952,7 @@ CAL_RESULTS_EVENTS: frozenset[str] = frozenset(
 # step skipped, and the whole sequence finished (once per install, only by a
 # house that used it). Where people stop, beside the two wizards' own funnels.
 from .setup_checks import SETUP_STEPS  # noqa: E402
-SETUP_NEXT: tuple[str, ...] = ("rooms", "receivers", "calibration")
+SETUP_NEXT: tuple[str, ...] = ("rooms", "floors", "receivers", "calibration")
 SETUP_EVENTS: frozenset[str] = frozenset(
     {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"}
     # "Put my receivers in their rooms" (ws_fabric.ws_receivers_to_rooms, 2026-11-12): pressed, how many it placed, undone.

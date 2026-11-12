@@ -11,6 +11,9 @@
 // "have you finished this step" instead of "what shape is this light" — so
 // it lives here once, pure functions over `state`, nothing else.
 
+// Which floors are indoors: Outside (a garden, a yard) is never a storey (iso_lights' one rule).
+const { isOutdoorFloorId } = await import(`./iso_lights.js${new URL(import.meta.url).search}`);
+
 /** At least one map has been uploaded. */
 export function hasMaps(state) {
   return !!(state.maps && state.maps.list && state.maps.list.length);
@@ -110,9 +113,8 @@ export function placedReceivers(state, floorId = null) {
  * more, two receivers with a position or more, all at one height or none given). */
 export function receiverHeightsOk(state) {
   const placed = _housePlaced(state).map(([, v]) => v);
-  const floors = ((state.model && state.model.floors) || []).filter(f => f && typeof f === "object");
   const zs = new Set(placed.map(v => v.z_m).filter(_isNum).map(z => Math.round(z * 100) / 100));
-  return !(floors.length > 1 && placed.length > 1 && zs.size <= 1);
+  return !(indoorFloors(state).length > 1 && placed.length > 1 && zs.size <= 1);
 }
 
 /** The receivers step is done: a receiver placed, and their heights say something. */
@@ -123,7 +125,10 @@ export function receiversDone(state) {
 // ── The product's order, one list for every list (review 2026-11-13, break 6) ──
 // Setup, the Overview's Getting started and the Setup Wizard name the same steps in the same order with the same
 // numbers, from here. setup_checks.SETUP_STEPS holds the same ids (tests/test_guided_setup.py).
-export const SETUP_STEPS = ["plan", "scale", "floors", "rooms", "receivers", "calibration"];
+// Owner's D5 (2026-11-13): "After rooms, 2+ floors only": floor heights come after the rooms, and only a house of two
+// indoor floors or more has the step (setupSteps). Nothing before it needs a height: rooms, the rooms helper, receivers'
+// heights (above their own floor) and the 3D house use the default storey height until one is set.
+export const SETUP_STEPS = ["plan", "scale", "rooms", "floors", "receivers", "calibration"];
 export const STEP_LABELS = {
   plan: "Upload a floor plan",
   scale: "Set the scale",
@@ -141,7 +146,9 @@ export const STEP_ABOUT = {
   calibration: "Walk around the house with your phone so PadSpan learns what each spot sounds like.",
 };
 
-const _floorsOf = (state) => ((state.model && state.model.floors) || []).filter(f => f && typeof f === "object");
+/** The house's indoor floors (Outside does not count). */
+export const indoorFloors = (state) => ((state.model && state.model.floors) || [])
+  .filter(f => f && typeof f === "object" && !isOutdoorFloorId(f.floor_id || f.id) && !isOutdoorFloorId(f.name));
 /** setup_checks.floor_has_height: a real storey height or elevation. */
 export const floorHasHeight = (f) => _isNum(f.floor_to_floor_m) || _isNum(f.base_elevation_m);
 
@@ -150,7 +157,7 @@ const DONE = {
   plan: (s) => hasMaps(s),
   scale: (s) => hasScale(s),
   // One floor has nothing to set: the floor_heights tip's own rule.
-  floors: (s) => _floorsOf(s).length <= 1 || _floorsOf(s).some(floorHasHeight),
+  floors: (s) => indoorFloors(s).length <= 1 || indoorFloors(s).some(floorHasHeight),
   rooms: (s) => hasRooms(s),
   receivers: (s) => receiversDone(s),
   // The Overview checklist's own rule: five points or a fitted model; unknown until Calibration's points are read.
@@ -158,7 +165,15 @@ const DONE = {
 };
 export function stepDone(state, id) { return DONE[id] ? DONE[id](state) : false; }
 
-/** The steps this house has, in order, each with its number: [{id, n, label}]. */
+/** The steps this house has, in order, each with its number: [{id, n, label}]. Floor heights only with two indoor
+ *  floors or more (D5). */
 export function setupSteps(state) {
-  return SETUP_STEPS.map((id, i) => ({ id, n: i + 1, label: STEP_LABELS[id] }));
+  const multi = indoorFloors(state).length > 1;
+  return SETUP_STEPS.filter(id => id !== "floors" || multi).map((id, i) => ({ id, n: i + 1, label: STEP_LABELS[id] }));
+}
+
+/** The step after `id` in this house's order (null after the last). */
+export function nextStep(state, id) {
+  const steps = setupSteps(state), i = steps.findIndex(s => s.id === id);
+  return i >= 0 && steps[i + 1] ? steps[i + 1].id : null;
 }

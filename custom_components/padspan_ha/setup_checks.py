@@ -28,7 +28,8 @@ TIPS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
 # The guided Setup's steps, in order (views/setup.js SETUP_STEPS, held equal
 # by tests/test_guided_setup.py): settings["setup_progress"] names only these,
 # and so do the report's setup_step:/setup_skip: counters.
-SETUP_STEPS: tuple[str, ...] = ("plan", "scale", "floors", "rooms", "receivers", "calibration")
+# Owner's D5 (2026-11-13): floor heights after the rooms (and shown only for two indoor floors or more).
+SETUP_STEPS: tuple[str, ...] = ("plan", "scale", "rooms", "floors", "receivers", "calibration")
 
 
 def clean_setup_progress(raw: Any) -> dict[str, Any]:

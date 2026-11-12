@@ -62,9 +62,13 @@ function house(stage, extra = {}) {
   const all = S.deriveSetup(house(6));
   check("derive: every step done → all done, nothing current", all.allDone && all.current === null && all.doneCount === 6, all);
 
+  // Owner's D5 (2026-11-13): floor heights after the rooms, and only for two indoor floors or more: a one-floor house
+  // (Outside never counts as a floor) has no such step at all; it used to be shown as done.
   const one = house(2, {});
-  one.model.floors = [F2[0]];
-  check("derive: a one-floor house has no floor heights to set", S.deriveSetup(one).steps[2].done === true);
+  one.model.floors = [F2[0], { floor_id: "__outside__", name: "Outside", level: 0 }];
+  const od = S.deriveSetup(one);
+  check("derive: a one-floor house has no floor heights step; rooms then receivers", JSON.stringify(od.steps.map(x => `${x.n}.${x.id}`))
+    === '["1.plan","2.scale","3.rooms","4.receivers","5.calibration"]', od.steps.map(x => `${x.n}.${x.id}`));
 
   const same = house(5);
   for (const v of Object.values(same.model.scanner_positions_m)) v.z_m = 2.4;
@@ -114,11 +118,12 @@ function house(stage, extra = {}) {
   const sk = S.skipStep(st, fresh, "scale");
   const d = S.deriveSetup(st, sk);
   check("skip: a skipped step is marked skipped and the next one is current",
-    JSON.stringify(sk.skipped) === '["scale"]' && sk.at === "floors" && d.steps[1].status === "skipped" && d.current === "floors", { sk, d: d.steps });
+    JSON.stringify(sk.skipped) === '["scale"]' && sk.at === "rooms" && d.steps[1].status === "skipped" && d.current === "rooms", { sk, d: d.steps });
+  // D5's order: rooms, then floor heights (this is a two-floor house).
   const ahead = S.skipStep(st, { at: "rooms", skipped: [] }, "rooms");
-  check("skip: skipping a step jumped ahead to moves on to the step after it", ahead.at === "receivers", ahead);
+  check("skip: skipping a step jumped ahead to moves on to the step after it", ahead.at === "floors", ahead);
   let q = fresh;
-  for (const id of ["scale", "floors", "rooms", "receivers", "calibration"]) q = S.skipStep({ ...st, calibration: { points: [] } }, q, id);
+  for (const id of ["scale", "rooms", "floors", "receivers", "calibration"]) q = S.skipStep({ ...st, calibration: { points: [] } }, q, id);
   check("skip: with everything left skipped, the first skipped step comes back",
     S.deriveSetup({ ...st, calibration: { points: [] } }, q).current === "scale" && q.at === null, q);
   const back = S.openProgress(sk, "scale");
@@ -153,7 +158,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   const { ctx, calls, events } = mkCtx(st);
   const root = S.render(ctx);
   check("view: six rows in order with done / current / to do",
-    JSON.stringify(rows(root)) === JSON.stringify([["plan", "done"], ["scale", "current"], ["floors", "todo"], ["rooms", "todo"], ["receivers", "todo"], ["calibration", "todo"]]), rows(root));
+    JSON.stringify(rows(root)) === JSON.stringify([["plan", "done"], ["scale", "current"], ["rooms", "todo"], ["floors", "todo"], ["receivers", "todo"], ["calibration", "todo"]]), rows(root));
   check("view: the current step is counted as reached once per page",
     events.filter(e => e === "setup_step:scale").length === 1, events);
   S.render(ctx);
@@ -161,9 +166,9 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
 
   btn(S.render(ctx), "skip-scale").click();
   check("view: Skip counts setup_skip and stores the step as skipped",
-    events.includes("setup_skip:scale") && saved(calls).some(p => p.skipped.includes("scale") && p.at === "floors"), { events, saved: saved(calls) });
+    events.includes("setup_skip:scale") && saved(calls).some(p => p.skipped.includes("scale") && p.at === "rooms"), { events, saved: saved(calls) });
   await shim.flush();
-  check("view: after Skip the next step is current", JSON.stringify(rows(S.render(ctx)).slice(1, 3)) === '[["scale","skipped"],["floors","current"]]', rows(S.render(ctx)));
+  check("view: after Skip the next step is current", JSON.stringify(rows(S.render(ctx)).slice(1, 3)) === '[["scale","skipped"],["rooms","current"]]', rows(S.render(ctx)));
 
   const tool = (id) => { calls.length = 0; btn(S.render(ctx), "open-" + id).click(); return calls; };
   tool("rooms");
@@ -230,7 +235,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     const root = S.render(ctx);
     return root.querySelectorAll("[data-setup-status]").filter(n => n.querySelector('[data-aiw="line"]')).map(n => n.getAttribute("data-setup").slice(5));
   };
-  const floorsNow = house(2, { calibration: { points: [], model: {} } });
+  const floorsNow = house(3, { calibration: { points: [], model: {} } });   // D5 (2026-11-13): floor heights come after the rooms
   check("helper line: Floors current, the line under Rooms", S.deriveSetup(floorsNow).current === "floors" && (await lineRow(floorsNow)).join() === "rooms");
   const scaleNow = house(1, { calibration: { points: [], model: {} } });
   check("helper line: Scale current, under Scale only", (await lineRow(scaleNow)).join() === "scale");

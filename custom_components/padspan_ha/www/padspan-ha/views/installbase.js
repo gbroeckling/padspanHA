@@ -771,7 +771,7 @@ const W_EVENT = {
   wizard_calib_step_finish: "Calibration wizard: finished", wizard_calib_exited_early: "Calibration wizard: left early",
   wizard_maps_step_upload: "Maps wizard: upload a plan", wizard_maps_step_scale: "Maps wizard: set the scale",
   wizard_maps_step_rooms: "Maps wizard: rooms", wizard_maps_step_scanners: "Maps wizard: receivers",
-  wizard_maps_step_finish: "Maps wizard: finished", wizard_maps_exited_early: "Maps wizard: left early",
+  wizard_maps_step_finish: "Maps wizard: finished", wizard_maps_exited_early: "Maps wizard: left early", wizard_maps_step_floors: "Maps wizard: floor heights",
   wizard_tiers_step_free: "Editions tour: Free", wizard_tiers_step_ladder: "Editions tour: compare",
   wizard_tiers_step_upgrade: "Editions tour: upgrade", wizard_tiers_completed: "Editions tour: finished",
   wizard_la_opened: "3D house setup: opened", wizard_la_finished: "3D house setup: finished",

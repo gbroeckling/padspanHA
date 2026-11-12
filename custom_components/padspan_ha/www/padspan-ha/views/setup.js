@@ -14,7 +14,7 @@
 // stored (settings.setup_progress, cleaned by setup_checks.clean_setup_progress).
 
 const STATUS = await import(`./setup_status.js${new URL(import.meta.url).search}`);
-const { hasRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight } = STATUS;
+const { hasRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight, indoorFloors } = STATUS;
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Let Claude draw your rooms (experimental): one line under the scale and rooms steps, where the rule offers it.
@@ -29,7 +29,6 @@ const LABELS = STATUS.STEP_LABELS, ABOUT = STATUS.STEP_ABOUT;
 // calibration_store fits a model from five points.
 export const CAL_POINTS_NEEDED = 5;
 
-const _floors = (state) => ((state.model && state.model.floors) || []).filter(f => f && typeof f === "object");
 
 function _calPoints(state) {
   const c = state.calibration;
@@ -44,7 +43,7 @@ function _detail(state, id, done) {
   }
   if (id === "scale" && done) return "The scale is set.";
   if (id === "floors") {
-    const fl = _floors(state);
+    const fl = indoorFloors(state);
     if (fl.length <= 1) return "One floor: nothing to set here.";
     const k = fl.filter(floorHasHeight).length;
     return k ? `${k} of ${fl.length} floors have a height.` : `Every one of the ${fl.length} floors is at the default height. ${ABOUT.floors}`;
@@ -172,12 +171,13 @@ export function openStep(ctx, id, mapId = null, door = null) {
 export function returnBar(ctx) {
   const id = ctx.state._setupReturn;
   const steps = setupSteps(ctx.state), i = steps.findIndex(s => s.id === id);
-  if (i < 0) return null;
+  if (!SETUP_STEPS.includes(id)) return null;
   const { el } = ctx.helpers;
   const bar = el("div", { "data-setup": "return", style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:6px 12px;margin-bottom:12px" });
   bar.appendChild(el("div", { style: "flex:1 1 auto;min-width:0;font-size:12px;color:#94a3b8" }, [
     el("span", { style: "color:#52b788;font-weight:700" }, "Setup"),
-    ` · step ${steps[i].n} of ${steps.length}: ${LABELS[id]}`,
+    // A step this house's list leaves out (floor heights on one floor, opened by a link): its name, no number.
+    i < 0 ? ` · ${LABELS[id]}` : ` · step ${steps[i].n} of ${steps.length}: ${LABELS[id]}`,
   ]));
   const back = el("button", { class: "btn inline", style: "font-size:12px;white-space:nowrap", "data-setup": "back" }, "← Back to Setup");
   back.addEventListener("click", () => { ctx.state._setupReturn = null; ctx.actions.showView("setup"); });

@@ -561,7 +561,7 @@ _WIZARD_FUNNEL = (
 # "Put my receivers in their rooms" (Setup's receivers step and the helper's Done, 2026-11-12; telemetry.SETUP_EVENTS).
 _RECEIVERS_ROOMS = tuple(f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")) + tuple(f"setup_receivers_placed:{b}" for b in _WIZ_BANDS)
 # The "Next: …" buttons from one step to the next (telemetry.SETUP_NEXT, 2026-11-13).
-_SETUP_NEXT = tuple(f"setup_next:{s}" for s in ("rooms", "receivers", "calibration"))
+_SETUP_NEXT = tuple(f"setup_next:{s}" for s in ("rooms", "floors", "receivers", "calibration"))
 # "Set this plan's scale now" after Mapping → Upload, and the quiet "No scale yet" line's Measure (telemetry.SCALE_NUDGE_EVENTS).
 _SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "measured_one", "measured_two", "later", "reminder_measure")
                      + tuple(f"via_{d}" for d in ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")))

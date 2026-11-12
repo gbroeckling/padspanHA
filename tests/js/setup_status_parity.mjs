@@ -46,6 +46,8 @@ if (a > 0 && b > a) {
     { name: "three floors, receivers at one height", state: { maps: { list: [] }, model: { floors: F3,
         scanner_positions_m: { s1: { x_m: 1, y_m: 2, z_m: 2.4 }, s2: { x_m: 3, y_m: 2, z_m: 2.4 } } } } },
     { name: "three floors, one with a height", state: { maps: { list: [] }, model: { floors: [{ ...F3[0], floor_to_floor_m: 2.7 }, F3[1], F3[2]] } } },
+    { name: "two floors and Outside, no heights", state: { maps: { list: [] }, model: { floors: [{ id: "g" }, { id: "u" }, { id: "__outside__", name: "Outside" }] } } },
+    { name: "one floor and Outside", state: { maps: { list: [] }, model: { floors: [{ id: "g" }, { id: "__outside__", name: "Outside" }] } } },
     { name: "calibration not read yet", state: { maps: { list: [] }, model: { floors: F1 } } },
     { name: "five calibration points", state: { maps: { list: [] }, model: { floors: F1 }, calibration: { points: [1, 2, 3, 4, 5] } } },
     { name: "everything done", state: {

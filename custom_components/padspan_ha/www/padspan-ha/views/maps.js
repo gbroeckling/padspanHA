@@ -41,7 +41,7 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 // checklist (panel.js) so the two can never disagree about what's finished.
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
         undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers,
-        setupSteps: _setupSteps } =
+        setupSteps: _setupSteps, nextStep: _nextSetupStep, stepDone: _stepDone, STEP_ABOUT: _STEP_ABOUT } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // "Put my receivers in their rooms" (setup.js receiversBlock, the one block and command), where receivers are placed:
 // Edit's Radios tool, so the Setup Wizard's receivers step too (review 2026-11-13, break 3).
@@ -1471,7 +1471,23 @@ const WIZARD_STEPS = [
   { n: 3, id: "rooms",    setup: "rooms" },
   { n: 4, id: "scanners", setup: "receivers" },
   { n: 5, id: "finish",   label: "Finish" },
+  // Owner's D5 (2026-11-13): floor heights after the rooms, for a house of two indoor floors or more only. Its `n` is
+  // new (6) so every saved step and counter keeps its meaning; where it goes is _wizardOrder's.
+  { n: 6, id: "floors",   setup: "floors" },
 ];
+// The wizard's steps in this house's order (Setup's, setup_status.setupSteps), Finish last.
+function _wizardOrder(ctx){
+  const has = new Set(_setupSteps(ctx.state).map(x => x.id));
+  const by = Object.fromEntries(WIZARD_STEPS.map(s => [s.setup || s.id, s]));
+  return [..._setupSteps(ctx.state).map(x => by[x.id]).filter(Boolean), by.finish].filter(s => !s.setup || has.has(s.setup));
+}
+// One step on (or back) in that order.
+function _wizardMove(ctx, w, by){
+  const o = _wizardOrder(ctx), i = o.findIndex(s => s.n === w.step);
+  const t = o[Math.max(0, Math.min(o.length - 1, (i < 0 ? 0 : i) + by))];
+  w.step = t.n;
+  ctx.actions.renderRooms();
+}
 function _wizardChipLabel(ctx, s){
   const st = s.setup && _setupSteps(ctx.state).find(x => x.id === s.setup);
   return st ? `${st.n}. ${st.label}` : s.label;
@@ -1506,20 +1522,20 @@ function _wizardFooter(ctx, w, opts){
   const left = el("div",{});
   if (w.step > 1) {
     const b = el("button",{class:"btn inline"}, "← Back");
-    b.addEventListener("click", ()=>{ w.step -= 1; ctx.actions.renderRooms(); });
+    b.addEventListener("click", ()=>_wizardMove(ctx, w, -1));
     left.appendChild(b);
   }
   bar.appendChild(left);
   const right = el("div",{style:"display:flex;gap:8px"});
   if (opts.skip) {
     const sk = el("button",{class:"btn inline", style:"color:#94a3b8"}, opts.skipLabel || "Skip for now");
-    sk.addEventListener("click", ()=>{ w.step += 1; ctx.actions.renderRooms(); });
+    sk.addEventListener("click", ()=>_wizardMove(ctx, w, 1));
     right.appendChild(sk);
   }
   const nx = el("button",{class:"btn primary"}, opts.nextLabel || "Next →");
   nx.addEventListener("click", ()=>{
     if (opts.onNext) opts.onNext();
-    else { w.step += 1; ctx.actions.renderRooms(); }
+    else _wizardMove(ctx, w, 1);
   });
   right.appendChild(nx);
   bar.appendChild(right);
@@ -1597,7 +1613,20 @@ function _wizardRooms(ctx, map, maps, w){
     wrap.appendChild(check);
   }
   wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "rooms")));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: "Skip — finish rooms later", nextLabel: "Next: place the receivers →" }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: "Skip — finish rooms later",
+    nextLabel: _nextSetupStep(ctx.state, "rooms") === "floors" ? "Next: floor heights →" : "Next: place the receivers →" }));
+  return wrap;
+}
+
+// Floors and their heights (D5: after the rooms, two indoor floors or more): Setup's own screen, 3D Stack's Floor
+// Heights card (the one Setup's step opens), here as a wizard step.
+function _wizardFloors(ctx, w){
+  const { el } = ctx.helpers;
+  const wrap = el("div",{"data-wizard-step":"floors"});
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, _STEP_ABOUT.floors +
+    " Until you set them, PadSpan uses an ordinary storey height."));
+  wrap.appendChild(el("div",{class:"card"},[_floorHeights(ctx)]));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: _stepDone(ctx.state, "floors") !== true, skipLabel: "Skip — set heights later", nextLabel: "Next: place the receivers →" }));
   return wrap;
 }
 
@@ -1760,6 +1789,8 @@ function _wizard(ctx, maps, isBasic){
   if (w.step === 1 && map) w.step = 2;
   // Every step past Upload needs a map to draw on.
   if (w.step > 1 && !map) w.step = 1;
+  // Floor heights only where this house has the step (a floor removed meanwhile): on to the receivers.
+  if (w.step === 6 && !_wizardOrder(ctx).some(s => s.n === 6)) w.step = 4;
 
   // Opt-in usage report: which step was REACHED, once per distinct visit —
   // guarded the same way _wizardForceEditMode guards its own re-force, so a
@@ -1772,6 +1803,7 @@ function _wizard(ctx, maps, isBasic){
       else if (w.step === 3) ctx.actions.telemetryEvent("wizard_maps_step_rooms");
       else if (w.step === 4) ctx.actions.telemetryEvent("wizard_maps_step_scanners");
       else if (w.step === 5) ctx.actions.telemetryEvent("wizard_maps_step_finish");
+      else if (w.step === 6) ctx.actions.telemetryEvent("wizard_maps_step_floors");
     }
   }
 
@@ -1788,7 +1820,7 @@ function _wizard(ctx, maps, isBasic){
   closeBtn.addEventListener("click", ()=>{
     // Reaching Finish already counts as the step-5 funnel entry above —
     // this is only for someone who left before getting there.
-    if (w.step < 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_maps_exited_early");
+    if (w.step !== 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_maps_exited_early");
     ctx.state._mapsWizard = null;
     ctx.state.mapsTab = map ? "edit" : "library";
     ctx.actions.renderRooms();
@@ -1798,10 +1830,11 @@ function _wizard(ctx, maps, isBasic){
 
   const dots = el("div",{style:"display:flex;gap:6px;margin-top:12px"});
   const stepList = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:8px"});
-  for (const s of WIZARD_STEPS){
+  const _order = _wizardOrder(ctx), _at = _order.findIndex(s => s.n === w.step);
+  for (const [i, s] of _order.entries()){
     const isCurrent = s.n === w.step;
     const reachable = s.n === 1 || !!map;
-    dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${s.n < w.step ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}`}));
+    dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${i < _at ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}`}));
     const chip = el("button",{
       class: "btn inline" + (isCurrent ? " primary" : ""),
       style: `font-size:11px;padding:3px 10px;` + (reachable ? "" : "opacity:.4;cursor:not-allowed"),
@@ -1819,6 +1852,7 @@ function _wizard(ctx, maps, isBasic){
   else if (w.step === 2) body.appendChild(_wizardScale(ctx, map, maps, w));
   else if (w.step === 3) body.appendChild(_wizardRooms(ctx, map, maps, w));
   else if (w.step === 4) body.appendChild(_wizardScanners(ctx, map, maps, w));
+  else if (w.step === 6) body.appendChild(_wizardFloors(ctx, w));
   else body.appendChild(_wizardFinish(ctx, map));
   root.appendChild(body);
 
@@ -1932,7 +1966,7 @@ function _editOrFirstScale(ctx, map, maps){
 // Advanced to Edit with that step's tool. `counted`: a Next button pressed
 // (setup_next:<step>); a Save that goes on by itself is not.
 const _STEP_TOOL = { rooms: "rooms", receivers: "receivers" };
-const _WIZ_STEP = { rooms: 3, receivers: 4 };
+const _WIZ_STEP = { rooms: 3, receivers: 4, floors: 6 };
 function _goStep(ctx, mapId, step, w, counted = true){
   const st = ctx.state, ms = st.maps || (st.maps = {});
   if (counted && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("setup_next:" + step);
@@ -1946,6 +1980,12 @@ function _goStep(ctx, mapId, step, w, counted = true){
     return;
   }
   if (w) { w.step = _WIZ_STEP[step]; ctx.actions.renderRooms(); return; }
+  if (step === "floors") {            // Setup's own floors screen (Basic: that card alone; Advanced: 3D Stack)
+    if (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], st.settings).length) { ctx.actions.openSetupStep("floors"); return; }
+    ctx.actions.setMapsTab("stack");
+    ctx.actions.renderRooms();
+    return;
+  }
   if (st.complexity === "basic") {
     ctx.actions.mapsSetActive(mapId);
     st._mapsWizard = { step: _WIZ_STEP[step], mapId };
@@ -1978,6 +2018,8 @@ function _nextLine(ctx, map){
         go("Draw the rooms →", "rooms")]),
       ...(aiw ? [aiw] : [])]);
   }
+  if (_nextSetupStep(st, "rooms") === "floors" && _stepDone(st, "floors") !== true) return el("div",{"data-next-line":"floors", style:_NEXT_BOX},[
+    el("span",{style:"flex:1 1 220px"}, "✓ This plan has rooms. Next: say how tall each floor is, so PadSpan can tell the floors apart."), go("Floor heights →", "floors")]);
   if (!_placedReceivers(st, map.floor_id || "main").size) return el("div",{"data-next-line":"receivers", style:_NEXT_BOX},[
     el("span",{style:"flex:1 1 220px"}, "✓ This plan has rooms. Next: place the receivers, each where it is mounted."), go("Place the receivers →", "receivers")]);
   if (st.calibration && _wizHasCal(st)) return null;

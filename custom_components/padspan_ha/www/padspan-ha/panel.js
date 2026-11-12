@@ -5103,8 +5103,8 @@ class PadSpanHaApp extends HTMLElement {
       const _steps = [
         { id: "upload",   label: _lbl("plan"),        step: "plan" },
         { id: "scale",    label: _lbl("scale"),       step: "scale" },
-        { id: "floors",   label: _lbl("floors"),      step: "floors" },
         { id: "rooms",    label: _lbl("rooms"),       step: "rooms" },
+        { id: "floors",   label: _lbl("floors"),      step: "floors" },
         { id: "scanners", label: _lbl("receivers"),   step: "receivers" },
         { id: "calibrate", label: _lbl("calibration"), step: "calibration" },
         { id: "positioned", label: "See someone on the map", done: _hasPositioned, view: "follow",
