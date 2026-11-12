@@ -85,7 +85,9 @@ def test_links_and_fixes_ask_for_their_tab() -> None:
     assert 'if (s.step) { this._ctx().actions.openSetupStep(s.step, null, "getting_started"); return; }' in panel
     assert "st._calibWizard = { step: 1 };" in _read("views/setup.js")
     assert "_calib.tab = " not in panel
-    assert 'ctx.state._calibTabRequest = "beacon";' in _read("views/maps.js")
+    # Review 2026-11-11 (C2): the Mapping wizard's Finish goes to Calibration as Setup's step does (its first step, Check
+    # receiver positions), not the experimental Beacon Tune tab.
+    assert '_goStep(ctx, null, "calibration", null, false)' in _read("views/maps.js") and 'st._calibWizard = { step: 1 };' in _read("views/maps.js")
 
 
 def test_the_report_counts_openings_and_actions() -> None:

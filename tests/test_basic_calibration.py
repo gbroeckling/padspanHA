@@ -57,7 +57,8 @@ def test_opening_calibration_never_switches_basic_to_advanced() -> None:
     # Mapping's set-up wizard ends with "Go to Calibration": no switch either.
     maps = _read("views/maps.js")
     fin = maps[maps.index("function _wizardFinish("):maps.index("function _wizard(ctx")]
-    assert 'ctx.state.view = "calibration"' in fin
+    # Review 2026-11-11 (C2): Finish goes the way Setup's step goes (_goStep → openSetupStep), which never switches the mode.
+    assert '_goStep(ctx, null, "calibration", null, false)' in fin
     assert "setComplexity" not in fin
 
 

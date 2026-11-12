@@ -29,4 +29,5 @@ def test_an_idle_focused_field_no_longer_hides_a_stall():
     r = subprocess.run([_NODE, str(_SCRIPT), str(_PANEL)],
                        capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr
-    assert r.stdout.count("ok   ") == 3, r.stdout
+    # Review 2026-11-11 (B4): two more cases, a deep link's view loaded and drawn once.
+    assert r.stdout.count("ok   ") == 5, r.stdout
