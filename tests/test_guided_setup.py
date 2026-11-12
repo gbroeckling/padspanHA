@@ -107,8 +107,10 @@ def test_the_next_buttons_are_counted_summed_and_labelled() -> None:
 def test_entry_points() -> None:
     panel = _read("panel.js")
     assert 'setup:        "./views/setup.js",' in panel
-    assert '"devices", "setup"]);' in panel                    # reached by link, never a menu tab
-    assert '["setup",' not in panel[panel.index("const MENU = ["):panel.index("];", panel.index("const MENU = ["))]
+    assert '"devices", "setup"]);' in panel                    # reached by link when out of the menu
+    # Owner's D4 (2026-11-13): a menu tab at the top of the build group until every step is done (menu_more_tools.mjs runs it).
+    assert '["setup","Setup",' in panel[panel.index("const MENU = ["):panel.index("];", panel.index("const MENU = ["))]
+    assert 'if (!this._setupInMenu()) out.delete("setup");' in panel
     assert "showView: (id, opts) => {" in panel
     # The Overview's Getting started: Open Setup, and each step's bar back to it.
     assert '{"data-getting-started":"setup"' in panel and 'this.state.view = "setup";' in panel

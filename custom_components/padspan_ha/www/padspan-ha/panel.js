@@ -219,8 +219,9 @@ const _VIEW_PATHS = {
   occupancy:    "./views/occupancy.js",
   guests:       "./views/guests.js",
   installbase:  "./views/installbase.js",
-  // The guided Setup (plan → … → calibration): reached from the Overview's
-  // Getting started and from Mapping, never a menu tab.
+  // The guided Setup (plan → … → calibration): a menu tab at the top of the
+  // build group until every step is done (owner's D4, 2026-11-13, _setupInMenu),
+  // and always reached from the Overview's Getting started and from Mapping.
   setup:        "./views/setup.js",
   // Let Claude draw your rooms (experimental): opened from its offers
   // (views/ai_wizard_offer.js), never a menu tab.
@@ -359,6 +360,7 @@ const MENU = [
   ["bluetooth","Bluetooth","mdi:bluetooth"],
   ["presence","Presence","mdi:map-marker-radius-outline"],
   ["monitor","Monitor","mdi:monitor-dashboard"],
+  ["setup","Setup","mdi:format-list-checks"],
   ["maps","Mapping","mdi:map"],
   ["rooms","Rooms","mdi:floor-plan"],
   ["receivers","Receivers","mdi:access-point"],
@@ -392,8 +394,9 @@ const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — the same menu as Advanced; it changes detail inside screens
 // DEV_ONLY_TABS: the screens only Development used to list.
-const BASIC_TABS = new Set(["follow", "overview", "maps", "rooms", "receivers", "calibration", "settings", "training"]);
-const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","rooms","receivers","settings","training","manage","calibration","traceback","occupancy","health"]);
+// Setup is a main tab in every mode while it is in the menu at all (_setupInMenu).
+const BASIC_TABS = new Set(["follow", "overview", "setup", "maps", "rooms", "receivers", "calibration", "settings", "training"]);
+const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","setup","maps","rooms","receivers","settings","training","manage","calibration","traceback","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
@@ -407,6 +410,7 @@ const MENU_COLORS = {
   zones: "#81c784",
   history: "#90a4ae",
   monitor: "#f06292",
+  setup: "#5eead4",
   maps: "#4caf50",
   rooms: "#66bb6a",
   events: "#ffb74d",
@@ -442,6 +446,7 @@ const MENU_ICONS = {
   follow:      '<path d="M21 3 3 10.5l7.5 3L14 21l7-18z"/>',
   guests:      '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><circle cx="17.5" cy="16.5" r="4"/><path d="M17.5 14.6v2l1.3 1"/>',
   occupancy:   '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.6a3.2 3.2 0 0 1 0 6.1M17.2 20c0-2.6-.9-4.2-2.4-5"/>',
+  setup:       '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11"/><circle cx="5" cy="18" r="1.4"/>',
   maps:        '<path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
   rooms:       '<rect x="3" y="3" width="18" height="18" rx="1.6"/><path d="M3 12h7M14 12h7M12 3v6M12 15v6"/>',
   calibration: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>',
@@ -466,7 +471,7 @@ const MENU_ICONS = {
 // adding a tab without touching this file can never make it disappear.
 const MENU_GROUPS = [
   ["Live",      ["overview","purelive","follow","occupancy","guests"]],
-  ["Build",     ["maps","rooms","receivers","calibration","training","manage","settings"]],
+  ["Build",     ["setup","maps","rooms","receivers","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];
@@ -3455,6 +3460,7 @@ class PadSpanHaApp extends HTMLElement {
     let out = new Set(MENU.map(x => x[0]));
     if (!forensicsOn) out.delete("forensics");
     if (!guestsOn) out.delete("guests");
+    if (!this._setupInMenu()) out.delete("setup");
     // The EDITION decides last: a Bright build shows its lighting surfaces
     // (and the rest only behind the reveal switch). The full edition is
     // untouched by this — surfacesForEdition returns its input.
@@ -3462,6 +3468,27 @@ class PadSpanHaApp extends HTMLElement {
       out = new Set(EDITIONS.surfacesForEdition([...out], this.state.settings || {}));
     }
     return out;
+  }
+
+  /** Setup in the menu (owner's D4, 2026-11-13): at the top of the build
+   *  group until every step is done, then out of it (still reached from
+   *  Getting started and Mapping's Setup button). Only on the house's own
+   *  data, once the stores that answer it are in: Calibration's points are
+   *  asked once for it, and the menu is drawn again when they come. */
+  _setupInMenu(){
+    const st = this.state;
+    if (st.dataMode !== "live" || !SETUP_STATUS) return false;
+    if (!st.calibration) {
+      if (!this._menuCalAsked && this._callWS) {
+        this._menuCalAsked = true;
+        this._callWS({ type: "padspan_ha/calibration_get" })
+          .then(d => { if (!this.state.calibration && d) { this.state.calibration = d; this._renderNav(); } })
+          .catch(() => {});
+      }
+      return false;
+    }
+    if (!st._mapsLoaded || !st._modelLoaded) return false;
+    return !SETUP_STATUS.setupSteps(st).every(x => SETUP_STATUS.stepDone(st, x.id) === true);
   }
 
   /** The tabs in the main groups for the current mode; every other visible
@@ -4915,6 +4942,8 @@ class PadSpanHaApp extends HTMLElement {
     // A visit to a view: counted each time a view is drawn after another one (the rooms helper's "came back later",
     // views/ai_wizard_offer.js stepSeen, means a later visit, not only a reload).
     if(this.state.view !== this._visitView){ this._visitView = this.state.view; this.state._viewVisit = (this.state._viewVisit || 0) + 1; }
+    // Setup steps into or out of the menu as the house's steps get done (_setupInMenu): the menu follows.
+    { const _inMenu = this._setupInMenu(); if(_inMenu !== this._setupMenuShown){ this._setupMenuShown = _inMenu; this._renderNav(); } }
     // Training is the manual: its translated help is fetched on first open.
     if(this.state.view === "training" && !this._helpLoad) this._loadHelpLanguage();
     // Left the Overview holding a slim snapshot (Optimize for scale): fetch

@@ -13,6 +13,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import * as shim from "./dom_shim.mjs";
 
 const WWW = process.argv[2];
@@ -36,17 +37,18 @@ const consts = [
   fn("function esc(s){"),
   fn("function el(tag, attrs={}, children=[]){"),
 ].join("\n");
-const methods = ["_getVisibleTabs", "_getMainTabs", "_moreToolsOpen", "_toggleMoreTools",
+const methods = ["_getVisibleTabs", "_setupInMenu", "_getMainTabs", "_moreToolsOpen", "_toggleMoreTools",
                  "_keepsLinkedView", "_renderNav", "_setComplexity"].map(method).join("\n");
 // The constructor's ?view= block, as a method.
 const deepLink = cut("      const q = new URLSearchParams(window.location.search);", "\n    } catch(e) { /* ignore */ }");
 
-const make = new Function("EDITIONS", "VIEWS", "_loadView",
+const make = new Function("EDITIONS", "VIEWS", "_loadView", "SETUP_STATUS",
   consts + "\nclass P {\n" + methods + "\n_deepLink(){\n" + deepLink + "\n}\n}\n"
   + "return { P, MENU, BASIC_TABS, ADVANCED_DEFAULT, DEV_ONLY_TABS, MENU_GROUPS, _VIEW_PATHS };");
 
 const EDITIONS = { surfacesForEdition: (ids) => ids.slice() };
-const { P, MENU, BASIC_TABS, ADVANCED_DEFAULT, DEV_ONLY_TABS, _VIEW_PATHS } = make(EDITIONS, {}, async () => null);
+const SETUP_STATUS = await import(pathToFileURL(join(WWW, "views", "setup_status.js")).href);
+const { P, MENU, BASIC_TABS, ADVANCED_DEFAULT, DEV_ONLY_TABS, MENU_GROUPS, _VIEW_PATHS } = make(EDITIONS, {}, async () => null, SETUP_STATUS);
 
 const failures = [];
 const cases = {};
@@ -77,7 +79,8 @@ const moreBtn = (p) => p.$nav.children.find(n => n.classList.contains("navmore")
 const afterMore = (p) => { const i = p.$nav.children.indexOf(moreBtn(p)); return i < 0 ? [] : navIds({ $nav: { children: p.$nav.children.slice(i + 1) } }); };
 const beforeMore = (p) => { const i = p.$nav.children.indexOf(moreBtn(p)); return navIds({ $nav: { children: i < 0 ? p.$nav.children : p.$nav.children.slice(0, i) } }); };
 const allIds = MENU.map(x => x[0]);
-const gated = new Set(["forensics", "guests"]);
+// Setup is in the menu only while the house's steps are not all done (owner's D4, 2026-11-13; its own block below).
+const gated = new Set(["forensics", "guests", "setup"]);
 const menus = {};
 
 for (const skin of ["2025", "classic"]) {
@@ -90,7 +93,7 @@ for (const skin of ["2025", "classic"]) {
     const btn = moreBtn(p);
     check(`closed: ${tag}: More tools is there and closed by default`,
       btn && btn.getAttribute("aria-expanded") === "false" && afterMore(p).length === 0, { main, after: afterMore(p) });
-    const wantMain = [...(mode === "basic" ? BASIC_TABS : ADVANCED_DEFAULT)];
+    const wantMain = [...(mode === "basic" ? BASIC_TABS : ADVANCED_DEFAULT)].filter(id => id !== "setup");
     check(`main: ${tag}: the main groups are the mode's everyday screens`,
       main.length === wantMain.length && wantMain.every(id => main.includes(id)), { main, wantMain });
     btn.click();
@@ -204,6 +207,48 @@ for (const view of ["devices", "traceback", "qa"]) {
   const bar = p.shadowRoot.querySelector("#mobileBottomNav").children.map(n => n.innerHTML.replace(/<[^>]+>/g, ""));
   check("phone: the bottom bar keeps its pinned tabs and More; the drawer (the sidebar) has More tools",
     JSON.stringify(bar) === JSON.stringify(["Follow", "Overview", "Mapping", "Settings", "More"]) && !!moreBtn(p), { bar });
+}
+
+// Setup in the menu (owner's D4, 2026-11-13): at the top of the build group until every step is done, in every mode and
+// both skins, in the phone's drawer too (the drawer is the sidebar); then out of it; never before the answer is known.
+{
+  const house = (done) => ({
+    dataMode: "live", _mapsLoaded: true, _modelLoaded: true,
+    maps: { list: done ? [{ id: "m1", receivers: [{ id: "r1" }], room_bounds: { K: {} } }] : [] },
+    model: { floors: [{ id: "main" }], room_geometry_m: done ? { K: {} } : {}, map_transforms: done ? { m1: { reference_measurements: [{}] } } : {} },
+    calibration: { points: done ? [1, 2, 3, 4, 5] : [] },
+  });
+  for (const skin of ["2025", "classic"]) {
+    for (const mode of ["basic", "advanced", "development"]) {
+      const tag = `${mode}/${skin}`;
+      localStorage.clear();
+      const p = panel({ mode, skin });
+      Object.assign(p.state, house(false));
+      p._renderNav();
+      const main = beforeMore(p);
+      const build = MENU_GROUPS.find(g => g[0] === "Build")[1].filter(id => main.includes(id));
+      check(`setup: ${tag}: unfinished, Setup is a main tab at the top of the build group`, main.includes("setup") && build[0] === "setup"
+        && main.indexOf("setup") === main.indexOf("maps") - 1, main);
+      const f = panel({ mode, skin });
+      Object.assign(f.state, house(true));
+      f._renderNav();
+      moreBtn(f) && moreBtn(f).click();
+      check(`setup: ${tag}: every step done, Setup steps out of the menu (More tools too)`, ![...beforeMore(f), ...afterMore(f)].includes("setup"), beforeMore(f));
+    }
+  }
+  const asked = [];
+  const u = panel({ mode: "basic" });
+  Object.assign(u.state, house(false), { calibration: null });
+  u._callWS = (m) => { asked.push(m.type); return new Promise(() => {}); };
+  u._renderNav(); u._renderNav();
+  check("setup: not shown before Calibration's points are known; asked for once", !beforeMore(u).includes("setup")
+    && JSON.stringify(asked) === '["padspan_ha/calibration_get"]', asked);
+  const sm = panel({ mode: "basic" });
+  Object.assign(sm.state, house(false), { dataMode: "sample" });
+  sm._renderNav();
+  check("setup: not in the menu while the demo house shows", !beforeMore(sm).includes("setup"));
+  // The phone: the drawer is the sidebar, so Setup is in it; still reached by link when out of the menu.
+  check("setup: Setup stays reachable when out of the menu (a hidden-OK view)", _VIEW_PATHS.setup && src.includes('"devices", "setup"]);'));
 }
 
 console.log(JSON.stringify({ cases, failures, menus }));

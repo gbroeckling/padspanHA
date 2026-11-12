@@ -36,7 +36,8 @@ def test_mappings_rooms_tab_is_called_layout_with_its_id_kept() -> None:
 def test_the_menus_setup_group_is_called_build_with_its_screens_kept() -> None:
     panel = _read(_WWW / "panel.js")
     groups = panel.split("const MENU_GROUPS = [")[1].split("];")[0]
-    assert '["Build",     ["maps","rooms","receivers","calibration","training","manage","settings"]],' in groups
+    # Setup at the top of the build group while unfinished (owner's D4, 2026-11-13).
+    assert '["Build",     ["setup","maps","rooms","receivers","calibration","training","manage","settings"]],' in groups
     assert '"Setup"' not in groups
     # The guided Setup keeps its name.
     assert 'this.state.view === "setup" ? "Setup"' in panel

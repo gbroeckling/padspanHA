@@ -61,7 +61,7 @@ def test_rooms_is_a_main_setup_screen_in_every_mode() -> None:
         body = re.search(rf"const {name} = new Set\(\[(.*?)\]\)", src).group(1)
         assert '"rooms"' in body, name
     assert '"rooms"' not in src.split("const DEV_ONLY_TABS")[1].split("\n")[0]
-    assert '["Build",     ["maps","rooms",' in src
+    assert '["Build",     ["setup","maps","rooms",' in src     # Setup first while unfinished (owner's D4, 2026-11-13)
     assert "rooms:" in src.split("const MENU_ICONS = {")[1].split("};")[0]
 
 
