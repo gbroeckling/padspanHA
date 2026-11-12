@@ -1576,7 +1576,7 @@ function _wizardScale(ctx, map, maps, w){
   // This plan's first scale: the one-length screen (D1). One with a scale: Edit → Measure, to measure it again.
   const first = _firstScale(ctx, map);
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, first
-    ? "Measure one distance you know, a doorway or a wall, so the map is in metres. Rooms, receivers and the AI tools that read your plans need it."
+    ? "Measure one distance you know, a doorway or a wall, so the map is to scale. Rooms, receivers and the AI tools that read your plans need it."
     // Review 2026-11-11: say what is true (an Outside plan or Sample mode gets no one-length screen, scale or not).
     : _planHasScale(ctx.state, map && map.id)
       ? "This plan has a scale. To measure it again, mark two lengths at different angles below; the two together check that the plan picture isn't stretched."
@@ -1820,15 +1820,18 @@ function _wizard(ctx, maps, isBasic){
 
   const dots = el("div",{style:"display:flex;gap:6px;margin-top:12px"});
   const stepList = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:8px"});
-  const _order = _wizardOrder(ctx), _at = _order.findIndex(s => s.n === w.step);
-  for (const [i, s] of _order.entries()){
+  const _order = _wizardOrder(ctx);
+  for (const s of _order){
     const isCurrent = s.n === w.step;
     const reachable = s.n === 1 || !!map;
-    dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${i < _at ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}`}));
+    // Done marks from the one rule Setup and Getting started read (setup_status.stepDone; review 2026-11-11, C8): the
+    // dots and chips said only how far along the wizard's own pages someone was.
+    const done = !!s.setup && _stepDone(ctx.state, s.setup) === true;
+    dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${done ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}`}));
     const chip = el("button",{
-      class: "btn inline" + (isCurrent ? " primary" : ""),
+      class: "btn inline" + (isCurrent ? " primary" : ""), "data-wizard-chip": s.setup || s.id, "data-done": done ? "1" : "0",
       style: `font-size:11px;padding:3px 10px;` + (reachable ? "" : "opacity:.4;cursor:not-allowed"),
-    }, _wizardChipLabel(ctx, s));
+    }, (done ? "✓ " : "") + _wizardChipLabel(ctx, s));
     chip.disabled = !reachable;
     if (reachable) chip.addEventListener("click", ()=>{ w.step = s.n; ctx.actions.renderRooms(); });
     stepList.appendChild(chip);

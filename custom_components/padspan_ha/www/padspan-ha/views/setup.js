@@ -14,7 +14,7 @@
 // stored (settings.setup_progress, cleaned by setup_checks.clean_setup_progress).
 
 const STATUS = await import(`./setup_status.js${new URL(import.meta.url).search}`);
-const { hasRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight, indoorFloors } = STATUS;
+const { hasRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight, indoorFloors, firstOpenStep } = STATUS;
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Let Claude draw your rooms (experimental): one line under the scale and rooms steps, where the rule offers it.
@@ -78,8 +78,10 @@ export function progressOf(state) {
 
 /**
  * Every step's status from the house and the stored progress. The current
- * step is where someone left off (`at`) while it is not done, else the
- * first step neither done nor skipped, else the first one skipped.
+ * step ("Next") is setup_status.firstOpenStep, as Getting started's ▶ and the
+ * Setup Wizard read it (review 2026-11-11, C8: it was where someone left off,
+ * so the lists disagreed): the first step neither done nor skipped, else the
+ * first one skipped.
  * Returns { known, steps: [{id, n, label, done, status}], current, allDone, doneCount }
  * with status "done" | "current" | "skipped" | "todo".
  */
@@ -90,8 +92,8 @@ export function deriveSetup(state, progress) {
     const d = stepDone(state, id);
     return { id, n, label, done: d === true, unknown: d === null, skipped: d !== true && skipped.has(id) };
   });
-  const cur = steps.find(s => s.id === progress.at && !s.done)
-    || steps.find(s => !s.done && !s.skipped) || steps.find(s => !s.done) || null;
+  const next = firstOpenStep(state, [...skipped]);
+  const cur = steps.find(s => s.id === next) || null;
   for (const s of steps) s.status = s.done ? "done" : s === cur ? "current" : s.skipped ? "skipped" : "todo";
   const doneCount = steps.filter(s => s.done).length;
   return {
@@ -463,7 +465,8 @@ export function render(ctx) {
     }, s.done ? "✓" : String(s.n)));
     const info = el("div", { style: "flex:1 1 200px;min-width:0" }, [
       el("div", { style: `font-size:13px;font-weight:${cur ? 700 : 600};color:${c.text}` }, [
-        `${s.n}. ${s.label}`,
+        // The number is in the ring beside it (review 2026-11-11, C8: it was shown twice).
+        s.label,
         el("span", { style: `margin-left:8px;font-size:10px;font-weight:600;color:${s.done ? "#52b788" : cur ? "#5eead4" : "#64748b"}` }, _WORD[s.status]),
       ]),
       el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.4;margin-top:2px" }, _detail(st, s.id, s.unknown ? null : s.done)),

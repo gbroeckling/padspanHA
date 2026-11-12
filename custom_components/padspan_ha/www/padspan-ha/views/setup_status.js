@@ -154,7 +154,7 @@ export const STEP_LABELS = {
 };
 export const STEP_ABOUT = {
   plan: "A photo or scan of each floor. It doesn't need to be perfect.",
-  scale: "Measure one distance you know, a doorway or a wall, so the map is in metres.",
+  scale: "Measure one distance you know, a doorway or a wall, so the map is to scale.",
   floors: "How tall each floor is, so PadSpan can tell the floors apart.",
   rooms: "Trace each Home Assistant room onto its floor plan.",
   receivers: "Put each Bluetooth receiver where it is mounted, and say how high.",
@@ -190,6 +190,14 @@ export function setupSteps(state) {
 /** Every step this house has is done (an unknown one is not): Setup leaves the menu, Mapping → Edit says no "Next:". */
 export function setupDone(state) {
   return setupSteps(state).every(x => stepDone(state, x.id) === true);
+}
+
+/** The step to do next, the one rule for Setup's "Next", Getting started's ▶ and the Setup Wizard (review 2026-11-11,
+ *  C8): the first step not done that wasn't skipped (`skipped`: setup_progress.skipped), else the first not done; null
+ *  when every step is done. */
+export function firstOpenStep(state, skipped = []) {
+  const open = setupSteps(state).filter(x => stepDone(state, x.id) !== true);
+  return ((open.find(x => !skipped.includes(x.id)) || open[0]) || {}).id || null;
 }
 
 /** The step after `id` in this house's order (null after the last). */

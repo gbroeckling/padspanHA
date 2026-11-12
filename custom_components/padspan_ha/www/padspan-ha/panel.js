@@ -5159,7 +5159,12 @@ class PadSpanHaApp extends HTMLElement {
           hint: this.state.dataMode === "live" ? "Follow \u2192 pick your phone or a tag" : "Switch the top bar to Live first" },
       ].filter(s => !s.step || _order.some(t => t.id === s.step))
         .map(s => s.step ? { ...s, done: _ss.stepDone(this.state, s.step) === true, hint: _ss.STEP_ABOUT[s.step] } : s);
-      const _completedCount = _steps.filter(s => s.done).length;
+      // Counted and dotted: the set-up steps only, as Setup counts them; "See someone on the map" is shown after them as
+      // what comes next, never a step (review 2026-11-11, C8). ▶ is setup_status.firstOpenStep, Setup's "Next".
+      const _setupRows = _steps.filter(s => s.step);
+      const _completedCount = _setupRows.filter(s => s.done).length;
+      const _skipped = ((this.state.settings && this.state.settings.setup_progress) || {}).skipped;
+      const _nextStep = _ss ? _ss.firstOpenStep(this.state, Array.isArray(_skipped) ? _skipped : []) : null;
       // Setup is the map-building steps. "See someone on the map" depends on
       // who is home right now (and on sample mode), so it is shown as a step
       // but never decides "done": a house set up long ago must not get the
@@ -5202,7 +5207,7 @@ class PadSpanHaApp extends HTMLElement {
         // step, not a gate in front of seeing anything.
         const _mapOptional = this.state.dataMode === "live" && !Object.keys((this.state.model || {}).room_geometry_m || {}).length;
         hdr.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788"},
-          _mapOptional ? `Make it a map (optional) \u2014 ${_completedCount}/${_steps.length}` : `Getting started \u2014 ${_completedCount}/${_steps.length}`));
+          _mapOptional ? `Make it a map (optional) \u2014 ${_completedCount}/${_setupRows.length}` : `Getting started \u2014 ${_completedCount}/${_setupRows.length}`));
         const skipBtn = el("span",{"data-getting-started":"dismiss",style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, "Skip setup");
         skipBtn.addEventListener("click", () => {
           this.state._onboardingDismissed = true;
@@ -5229,7 +5234,7 @@ class PadSpanHaApp extends HTMLElement {
 
         // Progress dots
         const dots = el("div",{style:"display:flex;gap:4px;margin-bottom:8px"});
-        for (const s of _steps) {
+        for (const s of _setupRows) {
           dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${s.done ? "#52b788" : "#1b3526"}`}));
         }
         bar.appendChild(dots);
@@ -5238,10 +5243,11 @@ class PadSpanHaApp extends HTMLElement {
         const list = el("div",{style:"display:flex;flex-direction:column;gap:4px"});
         for (let i = 0; i < _steps.length; i++) {
           const s = _steps[i];
-          const isNext = !s.done && (i === 0 || _steps[i-1].done);
-          const row = el("div",{style:`display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;${isNext ? "background:#0f2a1a;cursor:pointer" : "cursor:pointer"}`});
-          row.appendChild(el("span",{style:`font-size:14px`}, s.done ? "\u2705" : isNext ? "\u25b6\ufe0f" : "\u2b1c"));
-          row.appendChild(el("span",{style:`color:${s.done ? "#52b788" : isNext ? "#5eead4" : "#64748b"};font-weight:${isNext ? "700" : "400"}`}, s.label));
+          const isNext = !!s.step && s.step === _nextStep;
+          const then = !s.step;   // See someone on the map: what the steps lead to, after them
+          const row = el("div",{style:`display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;${isNext ? "background:#0f2a1a;cursor:pointer" : "cursor:pointer"}${then ? ";margin-top:4px;border-top:1px solid #1b3526" : ""}`});
+          row.appendChild(el("span",{style:`font-size:14px`}, s.done ? "\u2705" : isNext ? "\u25b6\ufe0f" : then ? "\u27a1\ufe0f" : "\u2b1c"));
+          row.appendChild(el("span",{style:`color:${s.done ? "#52b788" : isNext ? "#5eead4" : "#64748b"};font-weight:${isNext ? "700" : "400"}`}, then ? "Then: " + s.label : s.label));
           if (isNext) row.appendChild(el("span",{style:"font-size:10px;color:#94a3b8;margin-left:auto"}, s.hint));
           row.setAttribute("data-getting-started", "step-" + s.id);
           row.addEventListener("click", () => {

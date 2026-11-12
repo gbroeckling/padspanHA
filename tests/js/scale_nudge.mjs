@@ -413,8 +413,9 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     const cnt = q(root, '[data-wizard-count="receivers"]');
     check(`${cx}: the wizard's receivers step has the button`, !!q(root, '[data-setup="receivers-place"]'), root.textContent.slice(0, 500));
     // One vocabulary (review 2026-11-13): the wizard's chips are Setup's steps, numbered and named as Setup does.
-    const chips = all(root, "button").map(b => b.textContent).filter(t => /^\d\. |^Finish$/.test(t));
-    const want = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration").map(x => `${x.n}. ${x.label}`).concat(["Finish"]);
+    // Changed in review 2026-11-11 (C8): a done step's chip starts with "✓ " (Setup's rule), so the mark is read too.
+    const chips = all(root, "button").map(b => b.textContent).filter(t => /^(✓ )?\d\. |^Finish$/.test(t));
+    const want = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration").map(x => `${x.done ? "✓ " : ""}${x.n}. ${x.label}`).concat(["Finish"]);
     check(`${cx}: the wizard's chips are Setup's numbers and names`, JSON.stringify(chips) === JSON.stringify(want), [chips, want]);
     check(`${cx}: its count includes a receiver on the house map, and says where it is moved`, cnt && cnt.textContent.startsWith("1 receiver placed on this floor.")
       && cnt.textContent.includes("Check receiver positions"), cnt && cnt.textContent);
@@ -439,9 +440,10 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     check(`${name}: Setup's steps in the one order`, JSON.stringify(setupIds) === JSON.stringify(want), setupIds);
     check(`${name}: the same list Getting started reads`, JSON.stringify(STATUS.setupSteps(h.state).map(x => x.id)) === JSON.stringify(want));
     let root = await render(h);
-    const chips0 = all(root, "button").map(b => b.textContent).filter(t => /^\d\. |^Finish$/.test(t));
+    // Changed in review 2026-11-11 (C8): a done step's chip starts with "✓ " (Setup's rule), so the mark is read too.
+    const chips0 = all(root, "button").map(b => b.textContent).filter(t => /^(✓ )?\d\. |^Finish$/.test(t));
     const chips = chips0.slice(0, chips0.indexOf("Finish") + 1);          // the head's chips (the Rooms tool has its own Finish)
-    const wantChips = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration").map(x => `${x.n}. ${x.label}`).concat(["Finish"]);
+    const wantChips = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration").map(x => `${x.done ? "✓ " : ""}${x.n}. ${x.label}`).concat(["Finish"]);
     check(`${name}: the wizard's chips, the same steps, numbers and order`, JSON.stringify(chips) === JSON.stringify(wantChips), [chips, wantChips]);
     const nx = all(root, "button").find(b => /^Next: /.test(b.textContent));
     check(`${name}: the rooms step's Next names the next step`, nx && nx.textContent === (want.includes("floors") ? "Next: floor heights →" : "Next: place the receivers →"), nx && nx.textContent);

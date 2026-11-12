@@ -316,6 +316,10 @@ for (const from of ["overview", "calibration"]) {
   const wl = attr(wr, "data-next-line", "receivers");
   check("heights: in the Setup Wizard's floors step the line, and no second button", !!attr(wr, "data-wizard-step", "floors") && !!wl && !attr(wl, "data-next"),
     text(wr).slice(0, 400));
+  // The wizard's chips carry done marks from Setup's rule (review 2026-11-11, C8): here everything but the receivers.
+  const chips = all(wr).filter(n => n.getAttribute && n.getAttribute("data-wizard-chip") !== null).map(n => [n.getAttribute("data-wizard-chip"), n.getAttribute("data-done"), text(n)]);
+  check("wizard: chips in Setup's order, done ones marked ✓", JSON.stringify(chips.map(c => c[0])) === '["plan","scale","rooms","floors","receivers","finish"]'
+    && chips.every(c => (c[1] === "1") === ["plan", "scale", "rooms", "floors"].includes(c[0]) && c[2].startsWith("✓ ") === (c[1] === "1")), chips);
   // The first-upload tip: no 3D Stack in Basic.
   const u = makeCtx({ view: "maps", complexity: "basic", mapsTab: "upload", maps: { list: [] } });
   const ur = MAPS.render(u); await flush();

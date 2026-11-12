@@ -17,6 +17,10 @@ const PANEL_PATH = process.argv[2];
 const VIEWS_DIR = process.argv[3];
 const SRC = readFileSync(PANEL_PATH, "utf8").replace(/\r\n/g, "\n");
 const STATUS = await import(pathToFileURL(join(VIEWS_DIR, "setup_status.js")).href);
+// Setup's own list (views/setup.js deriveSetup), and the Setup Wizard's chips (views/maps.js), for "next" and the count.
+const { install, flush } = await import(pathToFileURL(join(VIEWS_DIR, "..", "..", "..", "..", "..", "tests", "js", "dom_shim.mjs")).href);
+install(globalThis);
+const SETUP = await import(pathToFileURL(join(VIEWS_DIR, "setup.js")).href);
 
 const checks = [], failures = [];
 const check = (name, ok, detail) => {
@@ -30,11 +34,13 @@ for (const v of ["_hasReceivers", "_hasRooms", "_hasScale", "_hasCal", "_hasFabr
 }
 
 const a = SRC.indexOf("      const _ss = SETUP_STATUS;");
-const b = SRC.indexOf("      const _completedCount = _steps.filter(s => s.done).length;");
+// Changed in review 2026-11-11 (C8): the lifted block now runs to the card's count and its ▶ (_setupRows, _nextStep).
+const b = SRC.indexOf("      // Setup is the map-building steps.");
 check("panel.js's card reads SETUP_STATUS", a > 0 && b > a);
 if (a > 0 && b > a) {
   const body = SRC.slice(a, b).replace(/this\.state/g, "state");
-  const rows = new Function("state", "SETUP_STATUS", "SAMPLE_SNAPSHOT", body + "\nreturn _steps;");
+  const card = new Function("state", "SETUP_STATUS", "SAMPLE_SNAPSHOT", body + "\nreturn { _steps, _setupRows, _completedCount, _nextStep };");
+  const rows = (...a) => card(...a)._steps;
   const F1 = [{ id: "main", name: "Main" }];
   const F3 = [{ id: "g", name: "Ground" }, { id: "u", name: "Upstairs" }, { id: "a", name: "Attic" }];
   const battery = [
@@ -64,6 +70,17 @@ if (a > 0 && b > a) {
     check(`same numbers and names — ${name}`, got.every((r, i) => want[i] && r.label === `${want[i].n}. ${want[i].label}`), got.map(r => r.label).join(" | "));
     check(`same "done" — ${name}`, got.every(r => r.done === (STATUS.stepDone(state, r.step) === true)), got.map(r => `${r.step}:${r.done}`).join(" "));
     check(`Setup's words as each step's hint — ${name}`, got.every(r => r.hint === STATUS.STEP_ABOUT[r.step]));
+    // One count and one "next" (review 2026-11-11, C8): the card counts the set-up steps only, as Setup does ("See
+    // someone on the map" comes after them, not counted), and its ▶ is Setup's "Next", the first step not done.
+    const c = card(state, STATUS, null), d = SETUP.deriveSetup({ ...state, _mapsLoaded: true, _modelLoaded: true }, { at: null, skipped: [], done: false });
+    check(`one count — ${name}`, c._setupRows.length === d.steps.length && c._completedCount === d.doneCount
+      && c._steps.length === d.steps.length + 1 && c._steps[c._steps.length - 1].id === "positioned", [c._completedCount, c._setupRows.length, d.doneCount, d.steps.length]);
+    check(`one "next" — ${name}`, c._nextStep === d.current, [c._nextStep, d.current]);
+    check(`skipped steps: one "next" — ${name}`, (() => {
+      const sk = d.current ? [d.current] : [];
+      const st2 = { ...state, settings: { setup_progress: { skipped: sk } } };
+      return card(st2, STATUS, null)._nextStep === SETUP.deriveSetup({ ...st2, _mapsLoaded: true, _modelLoaded: true }).current;
+    })());
   }
 }
 

@@ -106,8 +106,10 @@ function house(stage, extra = {}) {
 // ── resume and skip ─────────────────────────────────────────────────────────
 {
   const st = house(1);   // plan done, scale not
-  check("resume: the step someone left off at is current while it is not done",
-    S.deriveSetup(st, { at: "rooms", skipped: [] }).current === "rooms");
+  // Changed in review 2026-11-11 (C8): this asserted the step left off at ("rooms") was current; Setup's "Next" now is
+  // the first step not done (setup_status.firstOpenStep), as Getting started's ▶ and the wizard read it.
+  check("resume: the first step not done is current, wherever someone left off",
+    S.deriveSetup(st, { at: "rooms", skipped: [] }).current === "scale");
   check("resume: a step left off at that is now done gives way to the first to do",
     S.deriveSetup(st, { at: "plan", skipped: [] }).current === "scale");
   st.settings.setup_progress = { at: "floors", skipped: ["scale", "nonsense"], done: "yes" };
@@ -521,7 +523,8 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     settings: { setup_progress: { at: "floors", skipped: [], done: false } } });
   const { ctx, calls, events } = mkCtx(st);
   const root = S.render(ctx);
-  const open = btn(root, "open-floors"), skip = btn(root, "skip-floors");
+  // Changed in review 2026-11-11 (C8): the current step is the first not done (rooms here), not the one left off at.
+  const open = btn(root, "open-rooms"), skip = btn(root, "skip-rooms");
   check("sample: the step buttons are off", open && open.disabled && skip && skip.disabled);
   open.click(); skip.click();
   check("sample: nothing opened, stored or counted", st.view === "setup" && !saved(calls).length && !events.length, { calls, events });
