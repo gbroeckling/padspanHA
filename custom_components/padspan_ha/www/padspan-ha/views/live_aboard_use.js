@@ -8,7 +8,8 @@
 // (lights_map.js wireUseSurface), on the same state machine
 // (createHoldTracker) and calling the very same actions through the host's
 // own api (lights_panel.js _useApi, maps.js previewApi). A tap switches a
-// light; a hold opens its controls; a hold then a drag dims it; a room's
+// light (unless this screen's ⋯ "Tap a light to switch it" is unticked); a
+// hold opens its controls; a hold then a drag dims it; a room's
 // name opens the room sheet, a floor's badge the floor sheet, a door the
 // barrier card (a garage door or a gate only its card of what it reads), a
 // motion sensor its activity calendar; a read-only tile says it is read-only. Nothing here calls Home Assistant itself: the host's api
@@ -26,7 +27,7 @@
 // is pressed.
 
 const { createHoldTracker, dragBrightness, setLightBrightness, exactDeviceOf, lastBrightness, openBarrierCard,
-        HOLD_MS, PRESS_RING_MS, _exactBrightness, _tellProblems } =
+        HOLD_MS, PRESS_RING_MS, _exactBrightness, _tellProblems, isTapLight } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 
 const NS = "http://www.w3.org/2000/svg";
@@ -77,6 +78,10 @@ export function doorMover(bar){
  *   frame()         asks the view for a frame (the hold is timed on frames)
  *   cursor(on)      the pointer over something to press, or not
  *   marked(t)       optional: what is hovered or pressed now (t), or null
+ *   lightTaps()     optional: false while a tap switches no light (the ⋯
+ *                     list's "Tap a light to switch it" unticked)
+ *   switched(ok)    optional: a light was switched by a press (ok), or the
+ *                     switch failed (the opt-in report's count)
  * }
  */
 export function createUseSurface(o){
@@ -233,7 +238,35 @@ export function createUseSurface(o){
     if (!l0) return;
     if (l0.isMotion) api.openActivity(u.eid);
     else if (api.controlsFor(l0)) api.openControls(u.eid);
-    else api.toggle(u.eid);
+    else tapSwitch(api, u.eid, l0, u);
+  }
+  // Where the flat Atlas switches (api.toggle), here too; a light or an LED
+  // strip (lights_map.js isTapLight) not while this screen's ⋯ "Tap a light
+  // to switch it" is unticked (o.lightTaps), and each one switched counted
+  // (o.switched). The switch is the Atlas's own: its look flipped at once,
+  // its "Could not toggle" on a failure.
+  function tapSwitch(api, eid, l0, t){
+    if (!isTapLight(eid, l0)) { api.toggle(eid); return; }
+    if (o.lightTaps && !o.lightTaps()) return;
+    const done = (ok) => { if (o.switched) o.switched(ok !== false); };
+    Promise.resolve(api.toggle(eid)).then(done, () => done(false));
+    pulse(t);
+  }
+  // A light switched by a tap: one ring opening out from it in the pressed
+  // ring's gold, so a tap that worked is seen even where its glow changes
+  // little (a wall at a distance). One Web Animation on the overlay, gone
+  // when it ends: no frames of the 3D view, nothing running between taps.
+  function pulse(t){
+    const at = t && o.screenOf(t);
+    if (!at) return;
+    const p = pointOf(at);
+    const c = shape("circle", { class: "la3d-tapped", cx: p[0].toFixed(1), cy: p[1].toFixed(1), r: RING_R, fill: "none",
+      stroke: "#fbbf24", "stroke-width": "3", "pointer-events": "none" });
+    svg.appendChild(c);
+    if (typeof c.animate !== "function") { c.remove(); return; }
+    c.style.transformBox = "fill-box"; c.style.transformOrigin = "center";
+    const a = c.animate([{ transform: "scale(0.6)", opacity: 0.95 }, { transform: "scale(1.8)", opacity: 0 }], { duration: 520, easing: "ease-out" });
+    a.onfinish = () => c.remove();
   }
 
   // ── a press ───────────────────────────────────────────────────────────────
@@ -253,8 +286,8 @@ export function createUseSurface(o){
     if (t.kind === "device") {
       const eid = t.eid, l0 = api.lightsByEid[eid];
       if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }
-      if (r === "tap") { api.toggle(eid); return; }
-      if (r === "open") { if (p.holdable) api.openControls(eid); else api.toggle(eid); return; }
+      if (r === "tap") { tapSwitch(api, eid, l0, t); return; }
+      if (r === "open") { if (p.holdable) api.openControls(eid); else tapSwitch(api, eid, l0, t); return; }
       if (r === "drag-end") {
         const b = p.dragTo;
         if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(q => _tellProblems(api.toast, q)).catch(() => api.toast("Could not set brightness", true));

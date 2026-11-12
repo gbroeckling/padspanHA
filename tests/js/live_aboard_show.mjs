@@ -255,6 +255,26 @@ await tryCase("button: in full screen an open list leaves Vacation Mode's banner
 });
 
 // ── a tick is this screen's ─────────────────────────────────────────────────
+// "Tap a light to switch it" is on for every house (a tap switched a light
+// before the line existed); a screen unticks it (a wall in a busy room), and
+// ticked again it is forgotten (the house's own again). Counted like any line.
+await tryCase("prefs: Tap a light to switch it is on for the house, in Lights; unticked it is this screen's, ticked again forgotten", async () => {
+  click(more()); await settle();
+  const grp = qa(".la3d-sgrp").find(g => g.getAttribute("aria-label") === "Lights");
+  const inLights = !!grp && grp.querySelectorAll(".la3d-srow").some(r => r.getAttribute("data-show") === "light_taps");
+  const first = { on: S().show.on.light_taps, ticked: ticked("light_taps"), text: row("light_taps").textContent, pref: showPref() };
+  await toggle("light_taps");
+  const off = { pref: showPref(), on: S().show.on.light_taps, ticked: ticked("light_taps"), dot: S().show.menu.changed };
+  await toggle("light_taps");
+  const back = { pref: showPref(), on: S().show.on.light_taps, ticked: ticked("light_taps"), dot: S().show.menu.changed };
+  click(q(".la3d-sx")); await settle();
+  check("prefs: Tap a light to switch it is on for the house, in Lights; unticked it is this screen's, ticked again forgotten",
+    inLights && first.on === true && first.ticked === true && /Tap a light to switch it/.test(first.text) && /Here and on the flat Map/.test(first.text)
+    && !("light_taps" in first.pref) && off.pref.light_taps === false && off.on === false && off.ticked === false && off.dot
+    && !("light_taps" in back.pref) && back.on === true && back.ticked === true && !back.dot && !store.has("show_show-b")
+    && H.sent.includes("house3d_show:hide:light_taps") && H.sent.includes("house3d_show:show:light_taps") && H.saved.length === 0,
+    { inLights, first, off, back });
+});
 await tryCase("prefs: a tick is this screen's; back at the house's own it is forgotten; nothing of the house is written", async () => {
   click(more()); await settle();
   await toggle("motion_sensors");

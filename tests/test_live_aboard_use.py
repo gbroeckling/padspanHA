@@ -89,6 +89,16 @@ def test_nothing_is_pressed_without_the_host_api(use) -> None:
     _case(use, "quiet:")
 
 
+def test_tap_a_light_to_switch_it(use) -> None:
+    """The ⋯ list's "Tap a light to switch it" (on unless a screen unticks
+    it): on, a tap on a light is the Atlas's own toggle (lights_map.js
+    toggleEntity: turn_off / turn_on, flipped at once, put back with "Could
+    not toggle" on a failure), counted, with a ring opening out from the
+    light; unticked, no light or strip switches by a tap, while fans, locks
+    and readings do what they always did."""
+    _case(use, "switches:")
+
+
 def test_every_use_case_passes(use) -> None:
     assert not use["failures"], json.dumps(use["failures"][:6], indent=2, ensure_ascii=False)
     assert len(use["cases"]) >= 5

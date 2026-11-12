@@ -108,9 +108,16 @@ LM.wireUseSurface(isoDiv, flat.api);
 // ── the 3D view's use surface, with a pick that answers what the test aims at
 const d3 = makeApi();
 let aim = null, apiOn = true;
+// The ⋯ list's "Tap a light to switch it" (on unless a screen unticks it),
+// what each switch by a press counted, and the pulse each one shows.
+let tapsOn = true;
+const SWITCHED = [], PULSES = [];
 const root = document.createElement("div");
 const use = U.createUseSurface({ root, pick: () => aim, screenOf: () => ({ x: 40, y: 50 }), api: () => (apiOn ? d3.api : null),
-                                 frame() {}, cursor() {} });
+                                 frame() {}, cursor() {}, lightTaps: () => tapsOn, switched: (ok) => SWITCHED.push(ok) });
+// The pulse is one Web Animation (the DOM shim has none): recorded here.
+globalThis.Node.prototype.animate = function(frames, opts){ PULSES.push([this.getAttribute("class"), this.getAttribute("cx"), opts && opts.duration]);
+  const self = this; return { set onfinish(fn){ self._finish = fn; } }; };
 const device = (eid) => ({ kind: "device", key: "device:" + eid, eid, label: `${LBE[eid].code} · ${LBE[eid].friendly_name}` });
 const TARGETS = {
   room: { kind: "room", key: "room:Kitchen", room: "Kitchen", label: "Kitchen — opens its 2 devices" },
@@ -240,6 +247,73 @@ await tryCase("parity: a held drag dims even when no frame came during the hold"
   check("parity: a held drag dims even when no frame came during the hold",
     r === "dim" && JSON.stringify(flat.log) === JSON.stringify(d3.log) && d3.log.filter(x => x[0] === "callService").length === 2,
     { r, flat: flat.log, d3: d3.log });
+});
+
+// ── "Tap a light to switch it" (the ⋯ list's light_taps) ────────────────────
+// On (the default): a tap on a light is the Atlas's toggle, counted, and a
+// ring opens out from it. Unticked on a screen: a tap (or a hold on a light
+// with no controls) on a light or a strip switches nothing; a fan, a lock and
+// a reading do what they always did; a hold still opens a light's controls.
+await tryCase("switches: on, a tap on a light is the Atlas's toggle, counted, with a pulse; unticked, no light switches, fans and locks as ever", async () => {
+  const run = async (eid, g = {}) => { d3.log.length = 0; await d3Gesture(device(eid), g); return d3.log.slice(); };
+  tapsOn = true; SWITCHED.length = 0; PULSES.length = 0;
+  const on = { dim: await run("light.dim"), plain: await run("light.plain"), fan: await run("fan.ceiling"), lock: await run("lock.front") };
+  await settle();
+  on.counted = SWITCHED.slice(); on.pulses = PULSES.slice();
+  tapsOn = false; SWITCHED.length = 0; PULSES.length = 0;
+  const off = { dim: await run("light.dim"), plain: await run("light.plain"), plainHold: await run("light.plain", { held: 700 }),
+                dimHold: await run("light.dim", { held: 700 }), fan: await run("fan.ceiling"), lock: await run("lock.front"),
+                temp: await run("sensor.hall_temp") };
+  off.counted = SWITCHED.length; off.pulses = PULSES.length;
+  tapsOn = true;
+  check("switches: on, a tap on a light is the Atlas's toggle, counted, with a pulse; unticked, no light switches, fans and locks as ever",
+    JSON.stringify(on.dim) === JSON.stringify([["toggle", "light.dim"]]) && JSON.stringify(on.plain) === JSON.stringify([["toggle", "light.plain"]])
+    && JSON.stringify(on.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(on.lock) === JSON.stringify([["toggle", "lock.front"]])
+    && JSON.stringify(on.counted) === "[true,true]" && on.pulses.length === 2 && on.pulses.every(x => x[0] === "la3d-tapped" && x[1] === "40.0" && x[2] > 0)
+    && JSON.stringify(off.dim) === "[]" && JSON.stringify(off.plain) === "[]" && JSON.stringify(off.plainHold) === "[]"
+    && JSON.stringify(off.dimHold) === JSON.stringify([["openControls", "light.dim"]])
+    && JSON.stringify(off.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(off.lock) === JSON.stringify([["toggle", "lock.front"]])
+    && JSON.stringify(off.temp) === JSON.stringify([["toggle", "sensor.hall_temp"]]) && off.counted === 0 && off.pulses === 0, { on, off });
+  // Each ring goes when its animation ends.
+  const rings = () => root.children.find(n => n.localName === "svg").children.filter(n => n.getAttribute && n.getAttribute("class") === "la3d-tapped");
+  const had = rings().length;
+  for (const c of rings()) c._finish && c._finish();
+  check("switches: each pulse's ring is gone once its animation ends", had > 0 && rings().length === 0, { had, left: rings().length });
+});
+// The switch itself is lights_map.js toggleEntity, as the hosts' toggle is:
+// on → turn_off, off → turn_on, the look flipped at once (effectiveState)
+// and put back, with the Atlas's "Could not toggle", when Home Assistant refuses.
+await tryCase("switches: the Atlas's own toggle: on → turn_off, off → turn_on, flipped at once, put back and counted on a failure", async () => {
+  const calls = [], toasts = [];
+  let refuse = false;
+  const hass = { states: STATES, callService: async (d, s, data) => { calls.push([d, s, data.entity_id]); if (refuse) throw new Error("refused"); } };
+  const was = d3.api.toggle;
+  d3.api.toggle = (eid) => LM.toggleEntity(hass, eid, { render() {}, toast: (m, e) => toasts.push([m, !!e]) });
+  tapsOn = true;
+  SWITCHED.length = 0;
+  try {
+    await d3Gesture(device("light.dim"));
+    const dimNow = LM.effectiveState("light.dim", "on");
+    await d3Gesture(device("light.plain"));
+    const plainNow = LM.effectiveState("light.plain", "off");
+    LM.clearOptimistic("light.dim"); LM.clearOptimistic("light.plain");
+    refuse = true;
+    aim = { hit: device("light.dim"), under: [] };
+    use.down(ev("pointerdown", 100, 100, now()));
+    use.up(ev("pointerup", 100, 100, now()));
+    const during = LM.effectiveState("light.dim", "on");          // flipped before Home Assistant answers
+    await settle();
+    const after = LM.effectiveState("light.dim", "on");
+    check("switches: the Atlas's own toggle: on → turn_off, off → turn_on, flipped at once, put back and counted on a failure",
+      JSON.stringify(calls) === JSON.stringify([["light", "turn_off", "light.dim"], ["light", "turn_on", "light.plain"], ["light", "turn_off", "light.dim"]])
+      && dimNow.state === "off" && dimNow.optimistic && plainNow.state === "on" && plainNow.optimistic
+      && during.state === "off" && during.optimistic && after.state === "on" && !after.optimistic
+      && JSON.stringify(toasts) === JSON.stringify([["Could not toggle light.dim", true]]) && JSON.stringify(SWITCHED) === "[true,true,false]",
+      { calls, dimNow, plainNow, during, after, toasts, SWITCHED });
+  } finally {
+    d3.api.toggle = was;
+    LM.clearOptimistic("light.dim"); LM.clearOptimistic("light.plain");
+  }
 });
 
 // ── the pressed ring ────────────────────────────────────────────────────────

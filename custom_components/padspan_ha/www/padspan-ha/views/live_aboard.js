@@ -167,6 +167,7 @@ const meanOf = (v) => v.slice(1).reduce((a, x, i) => a + (x + v[i]) / 2, 0) / (v
 const STILL = { active: meanOf(HOUSE.MOTION_PULSE.fill), recent: meanOf(HOUSE.MOTION_RECENT.op) };   // a pulse's, a breath's mean
 const PICK_R = 22;                         // a device's reach for a tap (the Atlas's 44 px target)
 const PIECE_D = PICK_R / 2;                // a press on a linked piece: a marker nearer than this wins
+const CLOSE_PX = 8;                        // lights this much alike in reach of a tap: the chosen floor's, else the one in front
 const PEOPLE_MS = 5000;                    // the people layer reads the live snapshot at most this often
 const READ_H = 0.45, READ_PX = [22, 30];   // a readout chip's height (m), and never under / over this on screen (px)
 const READ_W = 520, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
@@ -258,8 +259,8 @@ const CSS = `
 .la3d .la3d-north.on{display:inline-flex}
 .la3d-toast{position:absolute;left:50%;bottom:64px;z-index:3;transform:translateX(-50%);display:flex;align-items:center;gap:10px;
   padding:6px 7px 6px 14px;border-radius:12px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
-  color:#e2e8f0;font-size:13px;white-space:nowrap;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:la3d-toast 6s ease forwards}
-.la3d-toast button{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 11px;border-radius:8px;font-weight:700;
+  color:#e2e8f0;font-size:13px;white-space:nowrap;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:la3d-toast 6s ease forwards;pointer-events:none}
+.la3d-toast button{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 11px;border-radius:8px;font-weight:700;pointer-events:auto;
   color:#f59e0b;background:rgba(245,158,11,.12)}
 @keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
@@ -343,7 +344,12 @@ const CSS = `
 /* Vacation Mode's banner (styles.css .lv-vacation) is pinned dead centre over
    the map. While the ⋯ list or a menu is open (the panel's element carries
    data-la3d-menu) it steps under them, and is on top again once they close. */
-:host([data-la3d-menu]) .lv-mapcard > .lv-vacation{z-index:4}`;
+:host([data-la3d-menu]) .lv-mapcard > .lv-vacation{z-index:4}
+/* Over the 3D house (this sheet is in the page only while it shows) the
+   banner takes a tap only on its controls: a light under it is still tapped.
+   The flat map's banner is left exactly as it is. */
+.lv-mapcard > .lv-vacation:not([role]):not(.lv-vacation-opts){pointer-events:none}
+.lv-mapcard > .lv-vacation:not([role]):not(.lv-vacation-opts) :is(button,input){pointer-events:auto}`;
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint
 // gives way to the view's own, and on a narrow screen the emergency pill
@@ -1426,6 +1432,10 @@ function createSlot(slotKey){
         const a = !!(motionL && motionL.focus(eid)), b = plumbTo(eid);
         if (a || b) requestRender();
       },
+      // The ⋯ list's "Tap a light to switch it" (on unless this screen unticks it), on the
+      // Atlas tab and its walls (mapOnly); Mapping's builder does not offer it.
+      lightTaps: () => lightTapsOn(),
+      switched: (ok) => showSend(`house3d_show:light_tap:${ok ? "ok" : "failed"}`),
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
@@ -2464,6 +2474,8 @@ function createSlot(slotKey){
         // Where a press finds it: every bulb and glow, and all along a run.
         L.pick = [...parts.bulbs, ...parts.halos, ...parts.picks].map(q => new THREE.Vector3(q.x, F.fl.elev + q.h, q.y));
         if (parts.poolH !== null) for (const pl of parts.pools) { L.refs.pools.push(pools.length); pools.push({ h: parts.poolH, ...pl }); }
+        // On a cut-away wall its fixture is gone but its glow still lands on the floor: pressed there.
+        L.poolPick = parts.poolH !== null ? parts.pools.map(pl => new THREE.Vector3(pl.at[0], F.fl.elev + parts.poolH, pl.at[1])) : [];
         // A ceiling fan's blades turn while it runs.
         if (parts.spin) L.spin = { x: parts.spin.x, y: parts.spin.y, angle: 0, rps: 0, blades: parts.spin.blades.map(b => ({ a: b.a, r: b.r, ref: L.refs.houses[b.i] })) };
         const n = Math.max(1, parts.bulbs.length), mh = sh / n;
@@ -3919,6 +3931,11 @@ function createSlot(slotKey){
     const z1 = F.fl.elev + (P.cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1);
     return [[pc.x0, z0, pc.y0], [pc.x1, z0, pc.y1], [pc.x1, z1, pc.y1], [pc.x0, z1, pc.y0]].map(a => new THREE.Vector3(...a));
   }
+  // The ⋯ list's "Tap a light to switch it" (on unless this screen unticks it), on the
+  // Atlas tab and its walls (mapOnly); Mapping's builder does not offer it, and switches as ever.
+  const lightTapsOn = () => !mapOnly || !(showOn && showOn.light_taps === false);
+  /** Where a light shows: its bulbs, glow and run, or on a cut-away wall the glow on its floor. */
+  const lightPoints = (L) => ((L.wall && L.wall.cut) ? L.poolPick : L.pick) || [];
   const nearPoly = (x, y, poly, slop) => HOUSE.inPoly(x, y, poly)
     || poly.some((a, i) => { const b = poly[(i + 1) % poly.length]; return HOUSE.segDist(x, y, a[0], a[1], b[0], b[1])[0] <= slop; });
   function deviceTarget(c){
@@ -3953,11 +3970,15 @@ function createSlot(slotKey){
                                                         card: T.kind === "person" && panel ? panel.cardOf(T.key, T.card) : T.card } };
     }
     const devs = [];
+    // On the Atlas tab (mapOnly) a light by what of it shows: the nearest of
+    // its points (bulbs, glow, a run; on a cut-away wall the glow on the
+    // floor) that no wall or floor hides from here, not merely the nearest
+    // one. Mapping's builder picks as it always has.
     for (const L of lights) {
-      if (!L.F.group.visible || (L.wall && L.wall.cut) || !L.pick || L.swap || dimOf(L.eid)) continue;
-      let best = null;
-      for (const v of L.pick) { const d = dist(v); if (d <= PICK_R && (!best || d < best.d)) best = { d, v }; }
-      if (best) devs.push({ eid: L.eid, ...best });
+      if (!L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || (!mapOnly && L.wall && L.wall.cut)) continue;
+      const near = (mapOnly ? lightPoints(L) : L.pick).map(v => ({ v, d: dist(v) })).filter(c => c.d <= PICK_R).sort((a, b) => a.d - b.d);
+      const seen = mapOnly ? near.find(c => !blocked(c.v, null, true)) : near[0];
+      if (seen) devs.push({ eid: L.eid, ...seen, light: L, clear: mapOnly });
     }
     for (const S of sensorsUi) {
       if (!S.F.group.visible || S.chip || dimOf(S.eid) || (motionL && S.kind === "motion")) continue;
@@ -4002,7 +4023,19 @@ function createSlot(slotKey){
     }
     devs.sort((a, b) => a.d - b.d);
     const ok = [];
-    for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && (c.top || !blocked(c.v, null, true))) ok.push(c);
+    for (const c of devs.filter((c, i) => i < 8 || (mapOnly && c.light))) if (!ok.some(x => x.eid === c.eid) && (c.top || c.clear || !blocked(c.v, null, true))) ok.push(c);
+    // While a tap switches lights (the ⋯ line), a light (or a fan: a fixture)
+    // within its reach wins over a chip, a marker, a tag or a room's name.
+    // Fixtures of other floors about as near (CLOSE_PX): the chosen floor's,
+    // else the floor in front; on one floor, the nearest on screen.
+    const lit = mapOnly && lightTapsOn() ? ok.filter(c => c.light) : [];
+    if (lit.length) {
+      const near = lit.filter(c => c.d <= lit[0].d + CLOSE_PX), cam2 = (c) => camera.position.distanceToSquared(c.v);
+      const mine = (c) => (selIds && selIds.has(String(c.light.F.fl.id)) ? 0 : 1);
+      const F = near.some(c => c.light.F !== lit[0].light.F) ? [...near].sort((a, b) => mine(a) - mine(b) || cam2(a) - cam2(b))[0].light.F : lit[0].light.F;
+      const win = lit.find(c => c.light.F === F);
+      return { hit: deviceTarget(win), under: ok.filter(c => c !== win).map(deviceTarget) };
+    }
     if (tagHit && (!ok.length || tagHit.d <= ok[0].d)) return { hit: tagHit.hit, under: ok.map(deviceTarget) };
     if (ok.length) return { hit: deviceTarget(ok[0]), under: ok.slice(1).map(deviceTarget) };
     const surf = [];
@@ -4955,7 +4988,7 @@ function createSlot(slotKey){
     const people = s ? s.atlas_3d_people === true && onObj(p.people) : onObj(p.people);
     const tags = s ? s.atlas_3d_tags === true && onObj(p.tags) : onObj(p.tags);
     return { people, tags, radios: tags || looked, rain: p.weather3d !== false, codes: onObj(p.codes),
-             trails: prefGet(PREF_TRAILS) === "1", roof: roofPick() !== "off", other_floors: false };
+             trails: prefGet(PREF_TRAILS) === "1", roof: roofPick() !== "off" };
   }
   /** The eids the list leaves out (lights, strips, fans, readouts, locks: never an alarm). */
   function showHidden(p, on){
@@ -5026,7 +5059,7 @@ function createSlot(slotKey){
     const look = p.look3d === "atlas" ? (LOOKS ? LOOKS.atlasLook(p.atlasLook) : null) : null;
     const admin = p.admin === true;
     const not = {
-      lights: !n.light, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
+      lights: !n.light, light_taps: !n.light && !n.strip, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
       readouts: !n.readout, locks: !n.lock && !openings.some(({ P }) => P.open && P.open.lock),
       doors: !has("door"), windows: !has("window"), covers: !openings.some(({ P }) => P.open && P.open.cover),
       railings: !walls.some(P => P.els.some(e => !e.cuttable))
@@ -5057,6 +5090,8 @@ function createSlot(slotKey){
     const groups = SHOW.rowsOf(on, ready);
     // The scene row only where the host hands in scenes (the sidebar's Atlas), and its link only to make the first one.
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "scenes" || !!(houseP && houseP.scenes));
+    // "Tap a light to switch it" only on the Atlas tab and its walls (the host's mapOnly), never in Mapping's builder.
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);
     for (const g of groups) for (const r of g.rows) {
       if (r.key === "scenes" && !ready.scenes) r.link = null;
       if (ready[r.key]) continue;
@@ -5078,7 +5113,7 @@ function createSlot(slotKey){
     const was = shownHere(key);
     if (key === "trails") toggleTrails();
     else if (key === "roof") setRoof(was ? "off" : "auto");
-    else prefSet(SHOW.prefKey(slotKey), JSON.stringify(SHOW.withTick(showOver(), key, !was, showHouse[key] !== false)));
+    else prefSet(SHOW.prefKey(slotKey), JSON.stringify(SHOW.withTick(showOver(), key, !was, SHOW.houseOn(showHouse, key))));
     showSend(`house3d_show:${was ? "hide" : "show"}:${key}`);
     applyShow();
   }
@@ -5438,7 +5473,7 @@ function createSlot(slotKey){
                fixtures: lights.map(L => ({ eid: L.eid, kind: L.drawn, guess: L.guess, bulbs: L.refs.bulbs.length, washes: L.refs.washes.length,
                                             house: L.F.houses && L.refs.houses.length ? ((c) => { L.F.houses.getColorAt(L.refs.houses[0].i, c); return "#" + c.getHexString(); })(new THREE.Color()) : null,
                                             pools: L.refs.pools.length, halos: L.refs.halos.length, rps: L.spin ? L.spin.rps : null,
-                                            angle: L.spin ? L.spin.angle : null })),
+                                            angle: L.spin ? L.spin.angle : null, cut: !!(L.wall && L.wall.cut) })),
                walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0),
                // The house itself: each storey's floor and roof, the roof's pick, the doors with no sensor.
                house: storeyL ? { ...storeyL.state(), roofPick: roofPick(), roofWant, rainShell: rainShell() } : null,
@@ -5614,8 +5649,10 @@ function createSlot(slotKey){
       }
       const L = lights.find(x => x.eid === q.eid);
       if (L && L.pick && L.pick.length) {
-        const c = L.pick.reduce((a, v) => a.add(v), new THREE.Vector3()).multiplyScalar(1 / L.pick.length);
-        return at(L.pick.reduce((b, v) => (v.distanceTo(c) < b.distanceTo(c) ? v : b)));
+        // Where it shows: of its points (lightPoints), those nothing hides, nearest their middle.
+        const all = lightPoints(L).length ? lightPoints(L) : L.pick, shows = all.filter(v => !blocked(v, null, true)), pts = shows.length ? shows : all;
+        const c = pts.reduce((a, v) => a.add(v), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+        return at(pts.reduce((b, v) => (v.distanceTo(c) < b.distanceTo(c) ? v : b)));
       }
       if (q.tracked) { const T = (tracked ? tracked.pickable() : []).find(x => x.key === q.tracked); return T ? at(T.at) : null; }
       const S = sensorsUi.find(x => x.eid === q.eid);

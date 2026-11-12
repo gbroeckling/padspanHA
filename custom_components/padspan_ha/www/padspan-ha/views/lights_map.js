@@ -34,6 +34,13 @@ const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}
 // missing, the map is as it always was, with no row.
 const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: scene_row failed to load", err); return null; });
+// Live Aboard's ⋯ "Show on this screen" list (live_aboard_show.js), also on
+// the flat Map of the Atlas tab and its walls: loaded at the first press of ⋯
+// (or at once where the screen already has a tick of its own, for ⋯'s dot),
+// so a card nobody touches loads nothing it did not before.
+let _showList = null, _showLoading = null;
+const _loadShowList = () => _showLoading || (_showLoading = import(`./live_aboard_show.js${new URL(import.meta.url).search}`)
+  .then(m => (_showList = m), err => { console.warn("PadSpan: live_aboard_show failed to load", err); _showLoading = null; return null; }));
 
 // ── What a tier is shown ─────────────────────────────────────────────────────
 // Below `bright` — PadSpan HA with no key, PadSpan Bright with no key — the
@@ -264,7 +271,8 @@ export async function setLightBrightness(hass, eid, bri){
 // two independently hand-maintained copies; the builder's had never grown
 // the lock branch, so a lock's Turn On/Off button called `lock.turn_on` —
 // not a real HA service — and always failed). One copy, one lock branch,
-// one read-only-sensor message.
+// one read-only-sensor message. Resolves true once switched, false when the
+// call failed (Live Aboard counts both), undefined when nothing was sent.
 export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   if (!hass) return;
   // Service domain is the entity's own: light.* -> light, fan.* -> fan.
@@ -297,8 +305,9 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
       if (render) render();
       if (shake) shake(eid);
       if (toast) toast("Could not toggle " + eid, true);
+      return false;
     }
-    return;
+    return true;
   }
   // Optimistic: the marker flips NOW (this claim is read by both views, so
   // the index row flips with it), and HA's next state reconciles it.
@@ -321,7 +330,9 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
     if (render) render();
     if (shake) shake(eid);
     if (toast) toast("Could not toggle " + eid, true);
+    return false;
   }
+  return true;
 }
 
 // ── Device classes on the map ────────────────────────────────────────────────
@@ -1110,8 +1121,15 @@ export function screenHeight(slot, model, eid, l){
   if (!rec || typeof rec !== "object") return null;
   return heightNow(eid, m.light_positions_m, null, withoutGone(screenFile(slot), m.light_heights_gone), isFixture(l) ? "lights" : "devices");
 }
+/** Is this what Live Aboard's ⋯ "Tap a light to switch it" covers: a light
+ *  or an LED strip (never a fan, a lock or a reading)? Both looks ask it. */
+export const isTapLight = (eid, l) => String(eid).startsWith("light.") && !!l && castsLight(l);
 export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);
+  // The screen's ⋯ "Tap a light to switch it" (buildLightsMapCard hands it
+  // over as isoDiv._psLightTaps; read at each tap): unticked, a tap on a
+  // light switches nothing. Without it (any other host), as ever.
+  const switches = (eid, l0) => !(isTapLight(eid, l0) && typeof isoDiv._psLightTaps === "function" && !isoDiv._psLightTaps());
   const svg = isoDiv.querySelector("svg");
   // A drawing the poll patched keeps its parts (drawStageSvg): the last
   // wiring comes off them first, so each is wired once, to this api: its
@@ -1191,8 +1209,8 @@ export function wireUseSurface(isoDiv, api){
       // never arm below and every real tap (quick or long) opens its own
       // activity history instead of toggling into the read-only refusal.
       if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }
-      if (r === "tap") { if (!_tapAgain(eid, e)) api.toggle(eid); return; }
-      if (r === "open") { if (holdable) api.openControls(eid); else api.toggle(eid); return; }
+      if (r === "tap") { if (!_tapAgain(eid, e) && switches(eid, l0)) api.toggle(eid); return; }
+      if (r === "open") { if (holdable) api.openControls(eid); else if (switches(eid, l0)) api.toggle(eid); return; }
       if (r === "drag-end") {
         const b = g._dragTarget;
         if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(p => _tellProblems(api.toast, p)).catch(() => api.toast("Could not set brightness", true));
@@ -3696,9 +3714,11 @@ export function buildLightsMapCard(hostIn){
       return r.top > vh - 160 ? null : { left: r.left + (view.railHidden ? 8 : 52), right: r.right - 64, bottom: Math.min(vh, r.bottom) };
     } : null }) : null;
   // What this screen's ⋯ list (live_aboard_show.js) says of a line the flat map goes by, or undefined.
+  // Its screen: Live Aboard's slot, else (Live Aboard off) the Atlas tab's own (host.screen).
+  const showSlot = () => (h3 ? h3.slot : host.screen && host.screen.slot) || null;
   const flatShow = (key) => {
-    if (!h3) return undefined;
-    try { const o = JSON.parse(_laPrefs.get(`show_${h3.slot}`) || "{}"); return o && typeof o[key] === "boolean" ? o[key] : undefined; } catch (_) { return undefined; }
+    if (!showSlot()) return undefined;
+    try { const o = JSON.parse(_laPrefs.get(`show_${showSlot()}`) || "{}"); return o && typeof o[key] === "boolean" ? o[key] : undefined; } catch (_) { return undefined; }
   };
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
@@ -4114,6 +4134,8 @@ export function buildLightsMapCard(hostIn){
     mountForest(svgStr);
     mountWeather(svgStr);
     applyZoom();
+    // The sidebar's flat map follows this screen's ⋯ "Tap a light to switch it" (wireUseSurface).
+    isoDiv._psLightTaps = DISPLAY ? () => flatShow("light_taps") !== false : null;
     host.onHexesBuilt(isoDiv, rebuildISO);
     if (h3) mount3d();
   };
@@ -5025,6 +5047,38 @@ export function buildLightsMapCard(hostIn){
         b3.setAttribute("title", why || (on ? "Back to the flat map" : "Live Aboard (experimental)"));
       });
       la3dCloseDrawer = () => { if (view.drawer) setDrawer(view.drawer); };
+    }
+    // ⋯ "Show on this screen" on the Atlas tab and its walls (host.screen):
+    // the 3D look's own list (live_aboard_show.js flatMenu) with the lines the
+    // flat Map honours, drawn after ‹ (order) so nothing in the rail moves.
+    const flatSlot = host.screen && host.screen.slot;
+    if (flatSlot) {
+      const more = el("button", { class: "lv-railbtn la3d-flatmore", type: "button", title: "Show on this screen: pick what the map shows",
+        "aria-label": "Show on this screen: pick what the map shows", "aria-haspopup": "true", "aria-expanded": "false",
+        style: "order:99;position:relative;font-weight:800;letter-spacing:1px" }, "⋯");
+      rail.appendChild(more);
+      const wire = (M) => {
+        const sc = () => (sceneRow && host.scenes ? scenesNow() : null);
+        return M.createShowMenu({ root: mapCard, button: more, guard: (fn) => fn,
+          onOpen: () => { if (view.drawer) setDrawer(view.drawer); },
+          ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
+            lines: () => ["light_taps", "other_floors", ...(sc() ? ["scenes"] : [])],
+            ready: () => { const s = sc(); return s && !s.tiles.length ? { scenes: M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk) } : {}; },
+            canGo: () => { const s = sc(); return !!(s && s.add); },
+            go: (where) => { const s = sc(); if (where === "scene_new" && s && s.add) s.add("show"); },
+            count: (name) => {
+              const t = h3 && typeof h3.telemetry === "function" ? h3.telemetry : host.scenes && host.scenes.telemetry;
+              try { if (typeof t === "function") t(name); } catch (_) { /* the report is never the error */ }
+            },
+            // A tap reads its line when it lands; the floors and the scene row are drawn again.
+            changed: (key) => { if (key === "light_taps") return; if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });
+      };
+      if (_showList) wire(_showList);
+      else {
+        let menu = null;                                            // its own listener takes over once wired
+        more.addEventListener("click", () => { if (!menu) _loadShowList().then(M => { if (M && !menu) { menu = wire(M); menu.open(); } }); });
+        if (_laPrefs.get(`show_${flatSlot}`)) _loadShowList();      // ticks of its own: ⋯'s dot from the next card
+      }
     }
     const railToggle = railBtn(view.railHidden ? "›" : "‹", view.railHidden ? "Show the controls" : "Hide the controls", () => {
       view.railHidden = !view.railHidden;
