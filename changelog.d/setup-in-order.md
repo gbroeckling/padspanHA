@@ -1,0 +1,16 @@
+# Setting up in order: each step leads to the next
+
+### Changed
+- **One order, everywhere.** Setup, the Overview's Getting started and the Setup Wizard now list the same steps, with the same names and numbers: upload a floor plan, set the scale, draw the rooms, floor heights, place the receivers, calibrate. Floor heights now come after the rooms, and only a house with two floors or more is asked for them (an Outside plan isn't a floor). Until you set them, PadSpan uses an ordinary storey height, so nothing earlier needs them. The Setup Wizard has a floor-heights step for those houses too.
+- **Setup is in the menu** at the top, beside Mapping, until every step is done. Then it leaves the menu; Getting started and Mapping's Setup button still open it.
+- **A plan's first scale is always the simple screen**: click both ends of something you know the length of and type it. That's now true from Setup, the Setup Wizard (Basic and Advanced), Getting started, every "No scale yet: Measure" and right after any upload, not only after an upload in Advanced. Mapping → Edit → Measure is still there for measuring a plan again.
+- **Saving leads on.** After you save a plan's first scale you go straight to drawing its rooms, with a line saying the scale is set. Mapping → Edit says what the plan needs next (the rooms, floor heights, the receivers, then calibrating), with one button to it, and never moves you on while you may still be drawing. The Setup Wizard's Next buttons say where they go. Edit's tools are in the order you need them (Measure, Rooms, Radios, Signal walls), and a plan with no rooms opens on Rooms.
+- **"Put my receivers in their rooms" is where you place receivers** too: on Edit's Radios tool and the Setup Wizard's receivers step, as well as Setup.
+- **Rooms you drew yourself count right away** for "Put my receivers in their rooms", as soon as the plan has a scale; you no longer have to finish the Setup Wizard first. A room drawn on a plan with no scale is said, with a button to set that plan's scale.
+- **"Receivers" throughout setup** (it said "scanners" in some places). Calibration's first step is now "Check receiver positions".
+- **Getting started's "Or let Claude draw the rooms"** now shows once you've opened the scale or rooms step and left it unfinished, as Setup's line does, instead of after a week. If you told the Overview card "Don't ask again", it stays away.
+- **Mapping's Atlas tab is now called "Atlas builder"**, so it isn't mixed up with the Atlas in Home Assistant's sidebar.
+
+### Fixed
+- **After "Put my receivers in their rooms", every list agrees.** The Setup Wizard's receivers step said none were placed and Getting started still showed the step as not done; now a receiver counts as placed whether it is pinned on a plan or placed on the map of your house. The message after the button now says where to drag them (Calibration's first step) and where to set their heights (there, or on the Receivers page).
+- **Basic mode no longer points to screens it doesn't have** (Mapping → Edit → Measure, Settings → AI). It names Setup's steps instead, and says plainly where rooms Claude drew can be reshaped (Advanced mode's Mapping → Layout) or taken back.
