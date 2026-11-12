@@ -34,7 +34,7 @@ from .telemetry import AI_WIZARD_STEPS, AI_WIZARD_SURFACES, INSTALL_AGE_WORDS, i
 
 OFFER_AFTER_DAYS = 7    # a plan this many days old with no rooms is stuck (the field's median stuck house: 18 days)
 SCALE_BUILT = True      # piece 3: the helper sets a plan's scale by one measurement, so no_scale is never the answer (kept in REASONS for older reports)
-SURFACES: tuple[str, ...] = ("push", "pull")   # push: the Overview (respects Not now / Don't ask again); pull: Setup, the Mapping wizard
+SURFACES: tuple[str, ...] = ("push", "pull")   # push: the Overview card (respects Not now / Don't ask again); pull: Setup, the Mapping wizard, Getting started's row (2026-11-13)
 REASONS: tuple[str, ...] = ("not_admin", "not_live", "wall_screen", "edition", "has_rooms", "no_plan",
                             "age_unknown", "plan_too_new", "not_struggled", "dismissed", "undone", "snoozed",
                             "tool_used", "no_pro_path", "no_scale", "offer")

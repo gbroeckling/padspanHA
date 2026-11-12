@@ -227,6 +227,22 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     m.ctx.actions.callWS = async (msg) => (msg.type === "padspan_ha/ai_wizard_info" ? { reason: "offer", offer: true, wizard: {} } : real(msg));
     return m;
   };
+  // Owner's D8 (2026-11-13): Getting started's row follows the pull rule (Setup's: tried the step and stopped), not the
+  // push rule's week; "Don't ask again" on the Overview card keeps it away, "Not now" doesn't.
+  for (const [name, pull, push, want] of [["pull offers, push says too new", { offer: true, wizard: {} }, { offer: false, reason: "plan_too_new" }, true],
+    ["pull says not stuck yet", { offer: false, reason: "not_struggled", wizard: {} }, { offer: true, wizard: {} }, false],
+    ["the card was refused (Don't ask again)", { offer: true, wizard: { dismissed: true } }, { offer: false, reason: "dismissed" }, false],
+    ["the card was put off (Not now)", { offer: true, wizard: { snooze_until: 9e12 } }, { offer: false, reason: "snoozed" }, true]]) {
+    AIWO._reset();
+    const m = mkCtx(house(2));
+    const asked = [];
+    m.ctx.actions.callWS = async (msg) => { if (msg.type === "padspan_ha/ai_wizard_info") { asked.push(msg.surface); return msg.surface === "pull" ? pull : push; } return {}; };
+    AIWO.gettingStartedRow(m.ctx);
+    for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
+    const row = AIWO.gettingStartedRow(m.ctx);
+    check(`getting started's helper row: ${name}`, !!row === want && asked.every(x => x === "pull"), [asked, !!row]);
+  }
+  AIWO._reset();
   const lineRow = async (st) => {
     AIWO._reset();
     const { ctx } = offering(st);

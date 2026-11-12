@@ -16,7 +16,9 @@
 
 // telemetry.AI_WIZARD_SURFACES, the report's words for where it was offered.
 export const SURFACES = Object.freeze(["overview", "getting_started", "setup", "maps_wizard", "plans_tool"]);
-const RULE = { overview: "push", getting_started: "push", setup: "pull", maps_wizard: "pull", plans_tool: "pull" };
+// Getting started's row sits beside Draw the rooms, so it follows the pull rule as Setup's line does (owner's D8,
+// 2026-11-13: "Same as Setup: tried and stopped"); the Overview card keeps the push rule's week and cautions.
+const RULE = { overview: "push", getting_started: "pull", setup: "pull", maps_wizard: "pull", plans_tool: "pull" };
 
 // Why Claude can't be used here, in plain words (plan_build_info's unlock.why), one copy: the helper's
 // Connect Claude screen (views/ai_wizard.js) and Settings → AI's line where Build from plans is hidden.
@@ -215,8 +217,12 @@ export function offerLine(ctx, surface, done = false) {
   return el("div", { "data-aiw": "line", style: "font-size:12px;color:#94a3b8;margin:6px 0;line-height:1.5" }, [w.text, go]);
 }
 
-/** The Getting started card's row, under Draw Rooms. */
+/** The Getting started card's row, under Draw Rooms: the pull rule (tried the Scale or Rooms step and stopped). Someone
+ *  who said "Don't ask again" on the Overview card is not asked here either (a refusal of the offer as such); "Not now"
+ *  doesn't hide it, as it doesn't hide Setup's line (that was about the card, at that moment). */
 export function gettingStartedRow(ctx) {
+  const i = infoFor(ctx, "getting_started");
+  if (i && i.wizard && i.wizard.dismissed) return null;
   if (!offered(ctx, "getting_started")) return null;
   const { el } = ctx.helpers;
   const row = el("div", { "data-aiw": "gs-row", style: "display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;background:#0f2a1a;margin-left:22px" }, [
