@@ -319,7 +319,8 @@ def test_the_plan_ais_one_writer_is_one_module(monkeypatch, tmp_path, disk):
     # ws_maps (the upload's hand measurement, 2026-11-12) takes only the pure reading and working-out of a length;
     # its one write is Measure's own (ws_fabric.async_write_measured_transform), never one of the plan AI's.
     used = set(re.findall(r"\bC\.(\w+)", (_PKG / "ws_maps.py").read_text(encoding="utf-8")))
-    assert used <= {"measures_preview", "scale_from_measures", "feet_on", "_picture_size", "Refused", "SCALE_WORDS"}, used
+    # Review 2026-11-11: and the first-scale stops it shares with the helper's save (scale_stops: reads, never writes).
+    assert used <= {"measures_preview", "scale_from_measures", "feet_on", "_picture_size", "Refused", "SCALE_WORDS", "scale_stops"}, used
     # And the ordinary Save can't keep a suggestion by mistake (ws_house3d.house3d_edit).
     with pytest.raises(H.EditError):
         H.apply_edit(H.empty(), {"pieces": {"fur_11111111": {**_stair("fur_11111111", "main", 1.0, 1.0), "plan_ai_pending": {"session": "s", "sugs": {}}}}})

@@ -298,7 +298,7 @@ const CSS = `
 .la3d-flatmore.la3d-changed::after{content:"";position:absolute;right:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent,#52b788);
   border:2px solid rgba(6,14,9,.95)}
 /* Vacation Mode's banner (z-index 40) steps under the flat Map's open list, as it does under the 3D look's
-   (live_aboard.js: data-la3d-menu); lights_map.js marks the card while the list is open. */
+   (its data-la3d-menu rule); lights_map.js marks the card while the list is open. */
 .lv-mapcard[data-la3d-flatmenu] > .lv-vacation{z-index:4}
 /* The flat Map's list (review 2026-11-11: on a phone the card is short, and 100% - 132px left its lines 4 px): from
    the card's top, never under a sensible height, its lines scrolling inside. The 3D look's list is as it was. */
