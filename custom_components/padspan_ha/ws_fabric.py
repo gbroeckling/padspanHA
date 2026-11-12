@@ -485,48 +485,59 @@ async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -
     connection.send_result(msg["id"], {"ok": True, "source": source})
 
 
-def plan_rooms_m(maps_list: list[dict], mdl: Any) -> tuple[dict[str, dict], dict[str, str]]:
+def plan_rooms_m(maps_list: list[dict], mdl: Any) -> tuple[dict[str, dict], dict[str, str], dict[str, dict[str, dict]]]:
     """Rooms drawn on a floor plan, for "Put my receivers in their rooms" (review 2026-11-13, break 5: a room drawn by
     hand reached the house only through the Setup Wizard's "Put it on the map", after the receivers step, so the button
     could not use it). In metres, on its plan's floor, for a plan with a scale: the arithmetic "Put it on the map"
     previews (fabric_truth.recompute_room_from_map). Read only: no room is written to the house here. And the rooms
-    drawn only on a plan with no scale yet, {room: map_id}, so the button can say what is missing."""
+    drawn only on a plan with no scale yet, {room: map_id}, so the button can say what is missing. And (review
+    2026-11-11) a room of one name traced on plans of two floors or more, {room: {floor_id: outline}}: never one picked
+    blind (the last plan's was), receivers_to_rooms takes the one on the receiver's area's floor."""
     from . import fabric_truth  # noqa: PLC0415
-    rooms: dict[str, dict] = {}
+    found: dict[str, dict[str, dict]] = {}
     waiting: dict[str, str] = {}
     for m in maps_list or []:
         if not isinstance(m, dict) or not m.get("id"):
             continue
         readable = fabric_truth.placement_is_readable(mdl.map_transform(m["id"]) or {})
+        fid = str(m.get("floor_id") or DEFAULT_FLOOR_ID)
         for room in (m.get("room_bounds") or {}):
             geo = fabric_truth.recompute_room_from_map(m, room, mdl) if readable else None
             if geo and geo.get("type") == "poly":
-                rooms[room] = {**geo, "floor_id": str(m.get("floor_id") or DEFAULT_FLOOR_ID)}
+                found.setdefault(room, {})[fid] = {**geo, "floor_id": fid}
             elif not readable:
                 waiting.setdefault(room, str(m["id"]))
-    return rooms, {r: mid for r, mid in waiting.items() if r not in rooms}
+    rooms = {r: next(iter(f.values())) for r, f in found.items() if len(f) == 1}
+    return rooms, {r: mid for r, mid in waiting.items() if r not in found}, {r: f for r, f in found.items() if len(f) > 1}
 
 
 def receivers_to_rooms(scanners: dict[str, Any], rooms: dict[str, Any], placed: set[str], live: set[str],
-                       waiting: dict[str, str] | None = None) -> tuple[dict[str, dict], list[dict]]:
+                       waiting: dict[str, str] | None = None, split: dict[str, dict[str, dict]] | None = None,
+                       area_floor: dict[str, str] | None = None) -> tuple[dict[str, dict], list[dict]]:
     """Pure. "Put my receivers in their rooms" (owner, 2026-11-12): each live receiver (`live`: ws_radios.live_radios,
     the one rule; the model's scanners also keep other devices that have an area) whose room (its Home Assistant area,
     or the room set by hand) has an outline goes to a point inside that outline (plan_geom.inner_point: never out in an
     L's notch), on its floor, at the default height, to be dragged to where it is mounted. Never one that already has a
     position (`placed`: in metres or on a plan). `waiting`: rooms drawn only on a plan with no scale yet ({room:
-    map_id}, plan_rooms_m). (positions {source: {x_m, y_m, z_m, floor_id}}, skipped [{source, why: placed_already |
-    no_area | no_outline | no_scale (with map_id)}])."""
+    map_id}, plan_rooms_m). `split`: a room traced on plans of two floors or more (plan_rooms_m), the one on the floor of
+    the receiver's room's Home Assistant area (`area_floor`, {area name: floor id}) taken, else the receiver skipped:
+    two_plans. (positions {source: {x_m, y_m, z_m, floor_id}}, skipped [{source, why: placed_already | no_area |
+    two_plans | no_outline | no_scale (with map_id)}])."""
     from .plan_geom import inner_point  # noqa: PLC0415
     out: dict[str, dict] = {}
     skipped: list[dict] = []
     for src in sorted(live):
         s = (scanners or {}).get(src)
         room = s.get("room") if isinstance(s, dict) else None
-        pts = ((rooms or {}).get(room) or {}).get("points_m") or [] if room else []
+        many = (split or {}).get(room) if room and room not in (rooms or {}) else None
+        geo = many.get((area_floor or {}).get(room)) if many else ((rooms or {}).get(room) if room else None)
+        pts = (geo or {}).get("points_m") or []
         if src in placed:
             skipped.append({"source": src, "why": "placed_already"})
         elif not room:
             skipped.append({"source": src, "why": "no_area"})
+        elif many and geo is None:
+            skipped.append({"source": src, "why": "two_plans"})
         elif len(pts) < 3 and room in (waiting or {}):
             skipped.append({"source": src, "why": "no_scale", "map_id": waiting[room]})
         elif len(pts) < 3:
@@ -534,7 +545,7 @@ def receivers_to_rooms(scanners: dict[str, Any], rooms: dict[str, Any], placed: 
         else:
             x, y = inner_point(pts)
             out[src] = {"x_m": round(float(x), 3), "y_m": round(float(y), 3), "z_m": 2.4,
-                        "floor_id": str(rooms[room].get("floor_id") or DEFAULT_FLOOR_ID), "map_id": None}
+                        "floor_id": str(geo.get("floor_id") or DEFAULT_FLOOR_ID), "map_id": None}
     return out, skipped
 
 
@@ -586,10 +597,15 @@ async def ws_receivers_to_rooms(hass: HomeAssistant, connection, msg) -> None:
     live = {str(r.get("source")) for r in live_radios(hass) if isinstance(r, dict) and r.get("source")}
     # The house's own rooms, and (review 2026-11-13) rooms drawn on a plan with a scale that aren't on the house yet:
     # those count as soon as they are drawn; the house's outline wins where both have one.
-    plan_rooms, waiting = plan_rooms_m(maps.list_maps() if maps is not None else [], mdl)
+    plan_rooms, waiting, split = plan_rooms_m(maps.list_maps() if maps is not None else [], mdl)
     house_rooms = mdl.room_geometry_m()
+    split = {r: f for r, f in split.items() if r not in house_rooms}
+    area_floor: dict[str, str] = {}
+    if split:                                    # a room traced on two floors' plans: its Home Assistant area's floor decides
+        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+        area_floor = {a.name: str(a.floor_id) for a in ar.async_get(hass).async_list_areas() if a.name and getattr(a, "floor_id", None)}
     pos, skipped = receivers_to_rooms(mdl.data.get("scanners") or {}, {**plan_rooms, **house_rooms}, set(now) | on_plans, live,
-                                      {r: mid for r, mid in waiting.items() if r not in house_rooms})
+                                      {r: mid for r, mid in waiting.items() if r not in house_rooms}, split, area_floor)
     if msg.get("dry_run"):                       # what a press would do now, and what its Undo would take back: Setup's count and reasons
         kept = (((st.data if st else {}) or {}).get("ai_map_wizard") or {}).get("receivers_placed") or {}
         connection.send_result(msg["id"], {"ok": True, "ready": [{"source": s, "room": (mdl.data.get("scanners") or {}).get(s, {}).get("room")} for s in pos],

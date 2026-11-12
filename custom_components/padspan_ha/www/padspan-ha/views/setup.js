@@ -197,6 +197,7 @@ const _names = (xs) => xs.length > 4 ? `${xs.slice(0, 4).join(", ")} and ${xs.le
 function _whyWords(skipped) {
   const why = (w) => (skipped || []).filter(x => x.why === w).map(x => x.source), bits = [];
   if (why("no_area").length) bits.push(`no Home Assistant area: ${_names(why("no_area"))} (give it an area in Home Assistant, or place it by hand)`);
+  if (why("two_plans").length) bits.push(`its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: ${_names(why("two_plans"))} (place it by hand)`);
   if (why("no_outline").length) bits.push(`its room has no outline yet: ${_names(why("no_outline"))}`);
   if (why("no_scale").length) bits.push(`its room is drawn on a floor plan with no scale yet: ${_names(why("no_scale"))}`);
   return bits;

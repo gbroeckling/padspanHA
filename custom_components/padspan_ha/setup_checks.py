@@ -23,6 +23,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_FABRIC, DATA_HOUSE3D, DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
+from .presence_rules import is_outdoor_floor
 
 TIPS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
 # The guided Setup's steps, in order (views/setup.js SETUP_STEPS, held equal
@@ -168,7 +169,10 @@ def setup_tips(hass: HomeAssistant) -> list[str]:
     mdl_store = dom.get(DATA_MODEL)
     mdl = getattr(mdl_store, "data", None) or {}
     fab = getattr(dom.get(DATA_FABRIC), "data", None) or {}
-    floors = [f for f in (mdl.get("floors") or []) if isinstance(f, dict)]
+    # Indoor floors only: Outside is never a storey (presence_rules' one outdoor rule, as setup_status.indoorFloors reads
+    # it). The report's floors_all_default and scanner_z_uniform (telemetry) keep counting every floor, as they always have.
+    floors = [f for f in (mdl.get("floors") or []) if isinstance(f, dict)
+              and not is_outdoor_floor(f.get("floor_id") or f.get("id")) and not is_outdoor_floor(f.get("name"))]
     multi = len(floors) > 1
     out = []
     if multi and not any(floor_has_height(f) for f in floors):

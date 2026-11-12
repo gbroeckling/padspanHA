@@ -111,6 +111,12 @@ def test_the_tips_follow_the_reports_own_rules(monkeypatch):
     assert C.setup_tips(_home([{"id": "main"}], same)) == ["scale"]
     assert C.setup_tips(_home(two, {"a": {}}, maps=False)) == ["floor_heights"]
     assert C.setup_tips(_home(two, {"a": {}, "b": {}}, maps=False)) == ["floor_heights", "receiver_heights"], "none given counts as one height"
+    # Review 2026-11-11: one indoor floor and Outside is a bungalow, as Setup says ("One floor: nothing to set here");
+    # by id or by name, as setup_status.indoorFloors reads it.
+    for out in ({"id": "__outside__"}, {"id": "yard_floor", "name": "Garden"}):
+        assert C.setup_tips(_home([{"id": "main"}, out], same, maps=False)) == []
+    assert C.setup_tips(_home([{"id": "main"}, {"id": "up"}, {"id": "__outside__", "floor_to_floor_m": 3.0}], same, maps=False)) == [
+        "floor_heights", "receiver_heights"], "an outdoor height is no storey's height"
 
 
 def _ws(h, admin=True):

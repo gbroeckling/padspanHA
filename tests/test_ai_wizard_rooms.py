@@ -400,6 +400,43 @@ def test_rooms_drawn_on_a_plan_count_for_the_receivers_button(monkeypatch, tmp_p
     assert "Den" not in mdl.room_geometry_m() and mdl.scanner_positions_m()["den1"]["floor_id"] == "main"   # the room itself stays on the plan
 
 
+def test_a_room_traced_on_two_floors_plans_goes_by_its_areas_floor_or_is_skipped(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-11: two plans tracing one room name, the room not on the house: the LAST plan's was taken, so a
+    receiver could land on the wrong floor. Now the plan on the floor of the receiver's Home Assistant area; when that
+    can't be told (no floor, or none of the plans is on it), skipped with its reason, never guessed."""
+    import copy
+    from types import SimpleNamespace
+    from homeassistant.helpers import area_registry as ar
+    from custom_components.padspan_ha import ws_fabric as WF
+    from custom_components.padspan_ha import ws_radios as WR
+    from custom_components.padspan_ha.const import DATA_MAPS
+    h, conn, _ai = _bare(monkeypatch, tmp_path, disk)
+    mdl, ms = h.data[DOMAIN][DATA_MODEL], h.data[DOMAIN][DATA_MAPS]
+    plan = ms.list_maps()[0]
+    sq = {"type": "poly", "points": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4], [0.1, 0.4]]}
+    plan.update(floor_id="main", room_bounds={"Office": sq}, receivers=[])
+    up = {**copy.deepcopy(plan), "id": "upper_plan", "floor_id": "upper", "receivers": []}
+    ms.list_maps().append(up)
+    mdl.data["map_transforms"]["upper_plan"] = {**copy.deepcopy(mdl.map_transform(plan["id"])), "floor_id": "upper"}
+    rooms, waiting, split = WF.plan_rooms_m(ms.list_maps(), mdl)
+    assert "Office" not in rooms and set(split["Office"]) == {"main", "upper"} and not waiting
+
+    async def backup(_h, note, keys):
+        return "bk_1"
+    monkeypatch.setattr(WF, "_auto_backup", backup)
+    monkeypatch.setattr(WR, "live_radios", lambda _h: [{"source": "r1"}])
+    mdl.data["scanners"] = {"r1": {"room": "Office", "floor_id": "main"}}
+    areas = []
+    monkeypatch.setattr(ar, "async_get", lambda _h: SimpleNamespace(async_list_areas=lambda: areas))
+    for floor in (None, "basement"):                          # no floor on the area, or none of the plans on it: skipped
+        areas[:] = [SimpleNamespace(name="Office", floor_id=floor)]
+        dry = _call(WF.ws_receivers_to_rooms, h, conn, dry_run=True)
+        assert dry["ready"] == [] and dry["skipped"] == [{"source": "r1", "why": "two_plans"}], floor
+    areas[:] = [SimpleNamespace(name="Office", floor_id="upper")]
+    got = _call(WF.ws_receivers_to_rooms, h, conn)
+    assert [p["source"] for p in got["placed"]] == ["r1"] and mdl.scanner_positions_m()["r1"]["floor_id"] == "upper"
+
+
 # "The scale may be off": homes, laid out side by side and read at a range of scales. The promise (fourth review,
 # 2026-11-12; it replaces the second review's "quiet from 0.67x to 1.5x"): NO NOTICE AT THE CORRECT SCALE, on every home
 # in the table, read at 0.9x, 1.0x and 1.1x (a false alarm offers to replace a right scale). FIRE at the unit mix-ups on
