@@ -46,6 +46,7 @@ export const ROOF_MIN_M = 0.4;             // a part of a roof narrower than thi
 export const ROOF_MAX_PARTS = 16;          // the most rectangles one storey's roof is made of
 export const ROOF_FADE_MS = 300;           // the roof lifts away (or comes back) over this
 export const LID_UP = 0.02;                // a flat lid sits this far over the walls' tops
+export const PORCH_ROOF_T = 0.1;           // a covered porch's own roof (nothing over it): a thin slab
 // Zoomed out past the whole-house fit, a little: the view opens at the fit
 // with the rooms and their lights in sight, and a step out shows the
 // building, roof and all.
@@ -754,6 +755,23 @@ export function createStoreyLayer(ctx){
           roofs.push({ mesh, elev: s.elev, parts: s.roof.length, tris });
         }
       }
+      // A porch chosen Covered with nothing over it (live_aboard_house.js
+      // readRooms: roofed): a thin slab over its outline at its ceiling, part
+      // of the roof (it shows and fades with it). No posts, nothing else.
+      for (const r of (h && h.rooms) || []) {
+        const F = r && r.roofed ? (floorsUi || []).find(G => G.fl === r.floor && G.group) : null;
+        if (!F) continue;
+        const g = coloured(new THREE.ExtrudeGeometry(new THREE.Shape(r.pts.map(p => new THREE.Vector2(p[0], p[1]))), { depth: PORCH_ROOF_T, bevelEnabled: false }), cRoof, cFascia);
+        g.rotateX(Math.PI / 2);                                // plan (x, y) -> world (x, ·, y); the extrusion goes down
+        g.translate(0, r.floor.elev + r.coverH + PORCH_ROOF_T, 0);   // its underside where the porch's lights hang from
+        free.push(g);
+        const mesh = new THREE.Mesh(g, roofMat());
+        mesh.name = "porch-roof";
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.renderOrder = 3;
+        F.group.add(mesh);
+        roofs.push({ mesh, elev: r.floor.elev, parts: 1, tris: g.attributes.position.count / 3, porch: r.name });
+      }
       paint();
       return free;
     },
@@ -789,7 +807,8 @@ export function createStoreyLayer(ctx){
                storeys: model ? model.storeys.map(s => ({ elev: s.elev, floors: s.floors, shapes: s.shapes.length, roofParts: s.roof.length, lids: s.lids.length })) : [],
                slabs: slabs.map(S => ({ elev: S.elev, shapes: S.shapes, holes: S.holes, shown: !!(S.mesh.parent && S.mesh.parent.visible) })),
                roofs: roofs.map(R => ({ elev: R.elev, parts: R.parts, tris: R.tris, visible: R.mesh.visible, opacity: R.mesh.material.opacity,
-                                        shadow: R.mesh.castShadow })) };
+                                        shadow: R.mesh.castShadow, ...(R.porch ? { porch: R.porch,
+                                        y: Array.from(R.mesh.geometry.attributes.position.array).filter((_, i) => i % 3 === 1) } : {}) })) };
     },
     /** The ground plan's own: is (x, y) inside storey `elev`'s floor? (tests, and the harness) */
     floorAt(elev, x, y){

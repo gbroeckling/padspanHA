@@ -13,6 +13,7 @@
 //   ceiling       padspan_ha/room_height_set {room, height_m}     (Mapping → Rooms)
 //   split level   padspan_ha/room_height_set {room, floor_raise_m} (Mapping → Rooms)
 //   surface       padspan_ha/room_height_set {room, surface}       (outdoor rooms only)
+//   kind of space padspan_ha/room_height_set {room, space}         (rooms on a house floor)
 // The outline is drawn in Mapping → Edit (linked, opened on that room).
 // Never calibration data.
 
@@ -32,13 +33,31 @@ const { currentEdition, surfacesForEdition } =
     .catch(() => ({ currentEdition: () => "full", surfacesForEdition: (ids) => ids.slice() }));
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
-// Outdoor rooms (the flat Atlas's rule: its floor, else its name) and their surface.
-const { outdoorRoom } = await import(`./door_types.js${new URL(import.meta.url).search}`)
-  .catch(() => ({ outdoorRoom: () => false }));
+// What kind of space each room is (outdoor_space.js's one rule, from the
+// facts it reads of the house: a room of a higher floor over it, a gallery
+// in a hall), and an outdoor room's surface.
 const { isOutdoorFloorId } = await import(`./iso_lights.js${new URL(import.meta.url).search}`)
   .catch(() => ({ isOutdoorFloorId: () => false }));
-const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`)
-  .catch(() => ({ roomSurface: () => null }));
+const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`).catch(() => null);
+const SPACE_WORDS = { indoor: "Indoors", open: "Open deck or patio", covered: "Covered patio or porch" };
+
+/** Each drawn room's facts for the one rule ({within, over} by name): its
+ *  floor at the server's level (floor_elevations) plus its split level, as
+ *  tall as its floor or its own height. */
+function _spaceFacts(model){
+  if (!SURF) return {};
+  const elev = model.floor_elevations || {}, meta = model.room_meta || {};
+  const fh = (fid) => Number(((model.floors || []).find(f => String(f.id) === fid) || {}).floor_to_floor_m) || 2.8;
+  const list = [];
+  for (const [name, g] of Object.entries(model.room_geometry_m || {})) {
+    const fid = String((g && g.floor_id) || "main"), m = meta[name] || {};
+    if (!g || !Array.isArray(g.points_m) || g.points_m.length < 3) continue;
+    list.push({ name, pts: g.points_m.map(p => [Number(p[0]), Number(p[1])]), elev: (Number(elev[fid]) || 0) + (Number(m.floor_raise_m) || 0),
+                h: Math.max(Number(m.height_m) || 0, fh(fid)), ground: isOutdoorFloorId(fid), stored: SURF.storedSpace(model, name) });
+  }
+  const f = SURF.spaceFacts(list);
+  return Object.fromEntries(list.map((r, i) => [r.name, { within: f[i].within, over: f[i].over }]));
+}
 
 let _LM = null;            // lights_map.js once loaded; false if it failed
 function _roomLights(ctx) {
@@ -139,7 +158,12 @@ export function roomGroups(ctx) {
   }
 
   const floorOf = (id) => floors.find(f => String(f.id) === id) || null;
+  const facts = _spaceFacts(model);
   const rows = rooms.map(r => {
+    // The one rule: as stored (space), and as worked out (shown beside the choice).
+    const f = { name: r.name, ground: isOutdoorFloorId(r.floorId), ...(facts[r.name] || {}) };
+    const stored = SURF ? SURF.storedSpace(model, r.name) : null;
+    const spaceNow = SURF ? SURF.outdoorKind({ ...f, stored }) : "indoor";
     const m = meta[r.name] || null;
     const g = geo[r.name] || null;
     const fl = floorOf(r.floorId);
@@ -157,8 +181,9 @@ export function roomGroups(ctx) {
       heightM: m && m.height_m != null ? Number(m.height_m) : null,
       floorHeightM: Number(fl && fl.floor_to_floor_m) || 2.8,
       raiseM: m && m.floor_raise_m != null ? Number(m.floor_raise_m) : null,
-      outdoor: outdoorRoom({ name: r.name, outdoor: isOutdoorFloorId(r.floorId) || undefined }),
-      surface: SURF.roomSurface(model, r.name),
+      space: stored, spaceWorked: SURF ? SURF.outdoorKind(f) : "indoor", spaceNow,
+      outdoor: spaceNow !== "indoor",
+      surface: SURF ? SURF.roomSurface(model, r.name) : null,
       // room_height_set refuses a room it has no record or outline of.
       heightEditable: !!(m || g),
       receivers: rx[r.name] ? rx[r.name].size : 0,
@@ -332,6 +357,29 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
   const rLink = el("button", { style: LINKBTN + `;display:${row.raiseM || !row.heightEditable || readOnly ? "none" : ""}`, "data-link": "split",
     onclick: () => { rEdit.style.display = "inline-flex"; rText.style.display = "none"; rLink.style.display = "none"; } }, "Change");
   fields.appendChild(_field(el, "Split level (m up or down)", [rText, rLink, rEdit]));
+
+  // What kind of space: a room on a house floor (a room on an Outside floor is outside ground).
+  if (row.spaceNow !== "ground") {
+    const kSel = el("select", { style: INPUT + ";width:auto", "data-edit": "space",
+      title: "Indoors, open to the sky, or covered (a roof, deck or floor over it, open sides). Used for the 3D view: walls, rain, where ceiling lights hang. Never for positioning." }, [
+      el("option", { value: "" }, "Work it out"),
+      el("option", { value: "indoor" }, SPACE_WORDS.indoor),
+      el("option", { value: "open" }, SPACE_WORDS.open + " (open to the sky)"),
+      el("option", { value: "covered" }, SPACE_WORDS.covered + " (a roof, deck or floor over it)"),
+    ]);
+    kSel.value = row.space || "";
+    kSel.addEventListener("change", () => {
+      const v = kSel.value || null;
+      _setRoom(ctx, row, { space: v }, v ? `"${row.name}" is ${SPACE_WORDS[v].toLowerCase()}` : `"${row.name}" is worked out again`);
+    });
+    if (!row.heightEditable || readOnly) kSel.disabled = true;
+    fields.appendChild(_field(el, "Kind of space", [kSel,
+      el("span", { class: "muted", style: "font-size:11px", "data-space-worked": row.spaceWorked },
+        "Worked out: " + SPACE_WORDS[row.spaceWorked].toLowerCase())], 220));
+  } else if (SURF && SURF.FLOOR_SPACE_NAME.test(row.name)) {
+    fields.appendChild(_field(el, "Kind of space", [el("span", { class: "muted", style: "font-size:11px", "data-space-note": "1" },
+      "A deck or patio usually belongs to the floor it is level with")], 220));
+  }
 
   // Surface: outdoor rooms only (a deck, a patio, or a room on an outdoor floor).
   if (row.outdoor) {

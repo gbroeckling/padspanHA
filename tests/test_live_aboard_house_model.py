@@ -102,9 +102,11 @@ def test_it_imports_nothing_keeps_no_clock_and_writes_nothing() -> None:
     """three.js is handed in; only the view's capped clock moves the fade; it
     reads the house the view read and never calls Home Assistant."""
     src, doors = _code(_VIEWS / "live_aboard_storey.js"), _code(_VIEWS / "door_types.js")
-    # Its one import: the doors' rules it shares with the flat Atlas, which import nothing.
+    # Its one import: the doors' rules it shares with the flat Atlas, which
+    # import only the one outdoor-rooms rule (outdoor_space.js), which imports nothing.
     assert re.findall(r"\bimport\b[^;]*", src) == ["import(`./door_types.js${new URL(import.meta.url).search}`)"]
-    assert not re.search(r"\bimport\b", doors)
+    assert re.findall(r"\bimport\b[^;]*", doors) == ["import(`./outdoor_space.js${new URL(import.meta.url).search}`)"]
+    assert not re.search(r"\bimport\b", _code(_VIEWS / "outdoor_space.js"))
     for bad in ("setInterval(", "setTimeout(", "requestAnimationFrame(", "callWS(", "callService(", "subscribe", "fetch(",
                 "localStorage", "document."):
         assert bad not in src and bad not in doors, bad

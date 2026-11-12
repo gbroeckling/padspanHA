@@ -22,13 +22,15 @@
 //   coverAt        a cover's position as how open a door is; coverWords
 //                  and movedWords, what a door's card says of it
 //
-// Imports nothing and draws nothing; node runs it as it is. Nothing here
-// writes anything.
+// Imports only outdoor_space.js (the one rule for which rooms are outdoors,
+// which imports nothing) and draws nothing; node runs it as it is. Nothing
+// here writes anything.
 
+const { outdoorKind } = await import(`./outdoor_space.js${new URL(import.meta.url).search}`);
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-// A room outdoors: as its floor says (outdoor), else by its name (a deck, a patio...).
-const OUTDOOR_NAME = /\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoor)\b/i;
-export const outdoorRoom = (r) => (typeof r.outdoor === "boolean" ? r.outdoor : OUTDOOR_NAME.test(String(r.name || "")));
+// A room outdoors: as its reader says (outdoor), else by the one rule from
+// its name and its stored kind of space (space: room_meta's, if any).
+export const outdoorRoom = (r) => (typeof r.outdoor === "boolean" ? r.outdoor : outdoorKind({ name: r.name, stored: r.space }) !== "indoor");
 function inside(x, y, P){
   let c = false;
   for (let i = 0, j = P.length - 1; i < P.length; j = i++) {

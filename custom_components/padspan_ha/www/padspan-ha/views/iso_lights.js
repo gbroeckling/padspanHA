@@ -3663,13 +3663,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   if(heatByZ.size) emitRoomClips();
   // And the Alert pulse's rings.
   if(alertFx.length) emitRoomClips();
-  // A paved outdoor room (outdoor_space.js; outdoors by door_types.js's
-  // rule): its own pattern, one tile a unit, laid from the room's corner
+  // A paved outdoor room (outdoor_space.js; outdoors by its one rule, as
+  // door_types.js reads it): its own pattern, one tile a unit, laid from the room's corner
   // along its longest edge and carried into the drawing's isometric plane,
   // so it is square to the room and true to scale. No paved room: nothing.
   const paveIds=new Map();
   if(SURF && DOORS) rooms.forEach((r,ri)=>{
-    if(!SURF.paved(DOORS.outdoorRoom({name:r.room}), SURF.roomSurface(model, r.room))) return;
+    if(!SURF.paved(DOORS.outdoorRoom({name:r.room, space:SURF.storedSpace(model, r.room)}), SURF.roomSurface(model, r.room))) return;
     const f=SURF.paverFrame(r.pts), P=SURF.PAVER_M;
     const o=iso(f.ox,f.oy,r.z), e=iso(f.ox+f.ex*P,f.oy+f.ey*P,r.z), n=iso(f.ox-f.ey*P,f.oy+f.ex*P,r.z);
     const m=[e[0]-o[0],e[1]-o[1],n[0]-o[0],n[1]-o[1],o[0],o[1]].map(v=>+v.toFixed(3)).join(" ");
@@ -5991,7 +5991,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const rooms=[];
         for(const [name, g] of Object.entries((model && model.room_geometry_m) || {})){
           if(!g || String(g.floor_id||"main")!==fid || !Array.isArray(g.points_m) || g.points_m.length<3) continue;
-          rooms.push({ name, outdoor: outFloor || undefined, pts: g.points_m.map(p=>[Number(p[0]), Number(p[1])]) });
+          rooms.push({ name, outdoor: outFloor || undefined, space: SURF ? SURF.storedSpace(model, name) : null, pts: g.points_m.map(p=>[Number(p[0]), Number(p[1])]) });
         }
         const n=DOORS.barrierNormal(a, b, rooms);           // the side its wall faces, as Live Aboard's walls have it
         const pc={ x0:a[0], y0:a[1], x1:b[0], y1:b[1], nx:n[0], ny:n[1], mat, barrier:bar,

@@ -43,7 +43,9 @@ const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).sea
 const RUNS = await import(`./live_aboard_runs.js${new URL(import.meta.url).search}`);
 // The ⋯ list's words for the usage report (it imports nothing itself).
 const SHOW = await import(`./live_aboard_show.js${new URL(import.meta.url).search}`);
-// An outdoor room's surface (room_meta[name].surface; it imports nothing itself).
+// Which rooms are outdoors, covered or open (outdoor_space.js outdoorKind: a
+// room on an indoor floor that is outdoors has no walls, a rail if raised),
+// and an outdoor room's surface. It imports nothing itself.
 const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`);
 export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArrowDeg } = COMPASS;
 
@@ -134,8 +136,6 @@ const BAR_TOL = 0.40, BAR_COS = Math.cos(8 * Math.PI / 180);   // a barrier this
 // 30 in: a step down, a split level, gets none).
 export const GUARD_DROP_M = 0.76;
 export const DOOR_H = DRAFT.DOOR_HEAD_M, SILL_H = DRAFT.WINDOW_SILL_M, HEAD_H = DRAFT.WINDOW_HEAD_M, RAIL_H = 1.0;
-// A room on an indoor floor that is really outdoors (no walls, a rail if raised).
-const OUTDOOR_ROOM = /\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoor)\b/i;
 const WALL_EXT = "#d6cfc2", WALL_INT = "#ebe6dd", DOOR_COL = "#8b6a4f", GARAGE_DOOR_COL = "#c3c9d0";
 const RAIL_COL = "#6a6157", RAIL_GLASS = "#c9d6de", WINDOW_GLASS = "#9fd2f2";
 // rf_barriers_m materials that tint a solid wall (glass and open are openings).
@@ -283,7 +283,7 @@ export function splitLevels(model){
       return [k, S ? { ...v, floor_id: S.id } : v];
     }));
   }
-  if (Array.isArray(model.rf_barriers_m) && model.rf_barriers_m.length) out.rf_barriers_m = splitBarriersOnce(model.rf_barriers_m, subs, geo, polyOf);
+  if (Array.isArray(model.rf_barriers_m) && model.rf_barriers_m.length) out.rf_barriers_m = splitBarriersOnce(model.rf_barriers_m, subs, geo, polyOf, rm);
   out.split_levels = subs;
   return out;
 }
@@ -316,17 +316,18 @@ const sensorDoor = (b) => {
  *  (a gallery) goes by the rooms either side of it all along: it stays on its
  *  floor if any stretch of it runs along a room left there, and opens the wall
  *  of every level it passes (railed over a drop). */
-function splitBarriers(barriers, subs, geo, polyOf){
+function splitBarriers(barriers, subs, geo, polyOf, rm){
   const N = SPLIT_BAR_NEAR;
   const area = (P) => {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const q of P) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
     return { P, box: [x0 - N, y0 - N, x1 + N, y1 + N] };
   };
-  // Each split floor's indoor rooms left on it (never an outdoor one: OUTDOOR_ROOM).
+  // Each split floor's indoor rooms left on it (never an outdoor one: outdoor_space.js's rule).
   const stay = new Map();
   for (const [n, g] of Object.entries(geo)) {
-    if (!g || typeof g !== "object" || OUTDOOR_ROOM.test(n) || subs.some(S => S.rooms.includes(n))) continue;
+    if (!g || typeof g !== "object" || SURF.outdoorKind({ name: n, stored: SURF.storedSpace({ room_meta: rm }, n) }) !== "indoor"
+        || subs.some(S => S.rooms.includes(n))) continue;
     const fid = String(g.floor_id || "main"), P = polyOf(g);
     if (P.length < 3 || isOutdoorFloorId(fid) || !subs.some(S => S.fid === fid)) continue;
     if (!stay.has(fid)) stay.set(fid, []);
@@ -405,7 +406,7 @@ function splitBarriers(barriers, subs, geo, polyOf){
 // update): again only when the list or the levels changed (a barrier moved
 // or added in place, a room raised or lowered).
 const _barrierSplits = new WeakMap();
-function splitBarriersOnce(barriers, subs, geo, polyOf){
+function splitBarriersOnce(barriers, subs, geo, polyOf, rm){
   // Each point weighed by where it is in the list, so a move that keeps a sum still counts.
   let acc = barriers.length;
   barriers.forEach((b, i) => {
@@ -420,10 +421,12 @@ function splitBarriersOnce(barriers, subs, geo, polyOf){
       if (Array.isArray(p)) acc += ((Number(p[0]) || 0) * 31 + (Number(p[1]) || 0) * 17) * ((i * 7 + k) % 101 + 1);
     });
   });
-  const sig = `${acc}|${subs.map(S => `${S.id}:${S.rooms.join(",")}`).join(";")}`;
+  // ...and the kinds of space stored (which rooms are outdoors).
+  const spaces = Object.entries(rm || {}).filter(([, m]) => m && m.space).map(([n, m]) => `${n}=${m.space}`).join(",");
+  const sig = `${acc}|${subs.map(S => `${S.id}:${S.rooms.join(",")}`).join(";")}|${spaces}`;
   const was = _barrierSplits.get(barriers);
   if (was && was.sig === sig && was.geo === geo) return was.out;
-  const out = splitBarriers(barriers, subs, geo, polyOf);
+  const out = splitBarriers(barriers, subs, geo, polyOf, rm);
   _barrierSplits.set(barriers, { sig, geo, out });
   return out;
 }
@@ -549,19 +552,31 @@ export function readRooms(model, F){
     const pts = raw ? cleanPoly(raw) : [];
     if (!fl || pts.length < 3) continue;
     const surface = SURF.roomSurface(model, name);           // only where one is set: every other room as before
+    const stored = SURF.storedSpace(model, name);
     rooms.push({ name, floor: fl, pts, idx: i++, color: roomColor(name, model),
-                 outdoor: fl.outdoor || OUTDOOR_ROOM.test(name), spot: labelSpot(pts), h: Math.max(roomHeight(model, name) ?? fl.h, fl.h),
-                 ...(surface ? { surface } : {}) });
+                 outdoor: SURF.outdoorKind({ name, ground: fl.outdoor, stored }) !== "indoor", spot: labelSpot(pts), h: Math.max(roomHeight(model, name) ?? fl.h, fl.h),
+                 stored, ...(surface ? { surface } : {}) });
   }
-  // A name alone (a mezzanine called "Deck A") does not take a room outdoors
-  // where it stands inside a lower floor's room that rises past it (a
-  // gallery in a hall, under the hall's roof). A deck on a plain storey
-  // (the floor under it no taller than its own) is outdoors as before.
-  for (const r of rooms) {
-    if (!r.outdoor || r.floor.outdoor) continue;
-    if (rooms.some(R => !R.outdoor && !R.floor.outdoor && R.floor.elev0 < r.floor.elev0 - 1e-3
-                        && R.floor.elev0 + R.h >= r.floor.elev0 + RAIL_H && overlapOnPlan(R, r))) r.outdoor = false;
-  }
+  // What kind of space each room is: outdoor_space.js's one rule, from the
+  // facts it reads of the house (spaceFacts, as the Rooms page does): a name
+  // alone (a gallery called "Deck A") does not take a room outdoors where it
+  // stands in a lower floor's room that rises past it (within); an outdoor
+  // room with a room of a higher floor over most of it is covered (over),
+  // its ceiling the underside of what covers it (coverH). Covered with
+  // nothing over it (a porch with its own roof, chosen): roofed at its
+  // floor's height (the view draws that roof).
+  const facts = SURF.spaceFacts(rooms.map(r => ({ name: r.name, pts: r.pts, spot: r.spot, elev: r.floor.elev0, h: r.h,
+                                                  ground: r.floor.outdoor, stored: r.stored })), overlapOnPlan);
+  rooms.forEach((r, k) => {
+    const f = facts[k];
+    r.within = f.within; r.over = f.over;
+    r.kind = SURF.outdoorKind({ name: r.name, ground: r.floor.outdoor, stored: r.stored, within: f.within, over: f.over });
+    r.outdoor = r.kind !== "indoor";
+    if (r.kind !== "covered") return;
+    r.covered = true;
+    r.coverH = f.over ? f.coverH : r.floor.h;
+    if (!f.over) r.roofed = true;
+  });
   return rooms;
 }
 export function roomAt(rooms, x, y){
@@ -575,8 +590,9 @@ export function ceilAt(rooms, floor, x, y){
   const fh = floor ? floor.h : FLOOR_TO_FLOOR_M;
   if (num(x) === null || num(y) === null) return fh;
   for (const r of rooms || []) {
-    if (r.outdoor || !(r.floor === floor || (r.floor && floor && r.floor.id === floor.id))) continue;
-    if (inPoly(x, y, r.pts)) return Math.max(fh, num(r.h) ?? fh);
+    if ((r.outdoor && !r.covered) || !(r.floor === floor || (r.floor && floor && r.floor.id === floor.id))) continue;
+    // A covered patio: the underside of what covers it (readRooms coverH).
+    if (inPoly(x, y, r.pts)) return r.covered ? r.coverH : Math.max(fh, num(r.h) ?? fh);
   }
   return fh;
 }
@@ -1373,6 +1389,9 @@ export function fixtureParts(L, ctx){
   // in no room, i.e. on the outside of the building.
   const where = fl.outdoor ? "out" : !room ? "none" : room.outdoor ? "out" : "in";
   const outdoor = where !== "in";
+  // Pots on a covered patio hang from what covers it (readRooms coverH, ceil);
+  // on an open deck or patio there is no ceiling: set into the floor.
+  const sunk = outdoor && !(room && room.covered && !fl.outdoor);
   const align = L.fp && L.fp.la >= 0.9 ? unit(L.fp.a) : null;
   const snap = outdoor ? nearestWall(pieces, L.x, L.y, where === "none" ? 2.5 : 1.5, true, align) : null;
   const onGround = fl.elev <= (ctx.ground || 0) + 0.5;
@@ -1407,17 +1426,17 @@ export function fixtureParts(L, ctx){
           pool([px + snap.n[0] * 0.4, py + snap.n[1] * 0.4], ring(0.9));
         }
       } else {
-        const h = outdoor ? 0.015 : at("pot");               // decks and patios have no ceiling: set into the floor
+        const h = sunk ? 0.015 : at("pot");                  // open decks and patios have no ceiling: set into the floor
         for (const [dx, dy] of grid(fp, 1.25, 5)) {
-          bulb("puck", x + dx, y + dy, h, 0.075, 0.024, 0.075); halo(x + dx, y + dy, outdoor ? 0.05 : h - 0.04, "s");
-          pool([x + dx, y + dy], outdoor ? ring(0.5) : poolR(h));
+          bulb("puck", x + dx, y + dy, h, 0.075, 0.024, 0.075); halo(x + dx, y + dy, sunk ? 0.05 : h - 0.04, "s");
+          pool([x + dx, y + dy], sunk ? ring(0.5) : poolR(h));
         }
       }
       P.kf = 1.25;
       break;
     }
     case "pot_ring": {                                       // pots round the room, each its own; no bar between them
-      const deck = room.outdoor || fl.outdoor;
+      const deck = sunk;
       const want = deck ? 0.25 : L.marginM !== null && L.marginM >= 0.3 ? Math.min(L.marginM, 1.2) : 0.6;
       const loop = offsetPolygonInward(room.pts, Math.min(want, room.spot.r * 0.85));
       const h = deck ? 0.012 : at("pot_ring");

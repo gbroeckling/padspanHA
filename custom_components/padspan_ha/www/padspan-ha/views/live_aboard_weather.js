@@ -118,9 +118,10 @@ function nearPoly(x, y, R, g){
 /** The patch of sky the weather falls through, from the house as the view
  *  reads it: h = {rooms: [{pts, outdoor, floor: {elev, h}}], ground (the
  *  drawn ground's height), shown(floor) → whether the floor chips show it}.
- *   indoor   every indoor room on EVERY floor: nothing falls on or through
- *            one (the cut-away house has no roof), whatever the chips show
- *   decks    outdoor rooms on floors that show (decks, patios, a yard's
+ *   indoor   every indoor room and covered patio (readRooms: covered) on
+ *            EVERY floor: nothing falls on or through one (the cut-away house
+ *            has no roof), whatever the chips show
+ *   decks    open outdoor rooms on floors that show (decks, patios, a yard's
  *            plates): what falls there lands on them, the highest first
  *   patches  a round patch round the house, its edge fading out, and a
  *            patch of its own for any deck or yard beyond it
@@ -138,12 +139,13 @@ export function weatherArea(h){
     if (!r || !r.floor || !Array.isArray(r.pts) || r.pts.length < 3) continue;
     const bb = bboxOf(r.pts);
     if (![bb.x0, bb.y0, bb.x1, bb.y1].every(Number.isFinite)) continue;
-    if (!r.outdoor) { indoor.push({ pts: r.pts, bb }); box = grow(box, bb); }
+    const open = r.outdoor && !r.covered;                   // a covered patio stays dry, as a room does
+    if (!open) { indoor.push({ pts: r.pts, bb }); box = grow(box, bb); }
     if (!shown(r.floor)) continue;
     const elev = Number(r.floor.elev) || 0;
-    if (r.outdoor) decks.push({ pts: r.pts, bb, y: elev });
-    else tops.push({ pts: r.pts, y: elev, h: Number(r.h ?? r.floor.h) || 2.8 });     // a room's own height, else its floor's
-    top = Math.max(top, elev + (r.outdoor ? 1 : (Number(r.h ?? r.floor.h) || 2.8)));
+    if (open) decks.push({ pts: r.pts, bb, y: elev });
+    else tops.push({ pts: r.pts, y: elev, h: Number(r.covered ? r.coverH : r.h ?? r.floor.h) || 2.8 });     // a room's own height, else its floor's
+    top = Math.max(top, elev + (open ? 1 : (Number(r.covered ? r.coverH : r.h ?? r.floor.h) || 2.8)));
   }
   if (!box) for (const d of decks) box = grow(box, d.bb);       // a garden alone still gets its weather
   if (!box) return null;
