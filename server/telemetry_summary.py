@@ -729,11 +729,13 @@ def main() -> int:
         print("  none reported")
     print()
 
-    # Live Aboard's Light switches (views/live_aboard_show.js light_taps, off
-    # unless a screen ticks it in ⋯): ticked on a screen, a light switched by a
-    # tap, a tap Home Assistant refused (telemetry.py HOUSE3D_SHOW_EVENTS).
-    print("Live Aboard light switches (events over the window; installs)")
-    taps = [(k, usage.get(k, 0)) for k in ("house3d_show:show:light_taps", "house3d_show:light_tap:ok", "house3d_show:light_tap:failed")]
+    # "Tap a light to switch it" (views/live_aboard_show.js light_taps, on
+    # unless a screen unticks it in ⋯): unticked on a screen, ticked again, a
+    # light switched by a tap in 3D, a tap Home Assistant refused
+    # (telemetry.py HOUSE3D_SHOW_EVENTS); and ⋯ opened on the flat Map.
+    print("Tap a light to switch it, and the flat Map's ⋯ (events over the window; installs)")
+    taps = [(k, usage.get(k, 0)) for k in ("house3d_show:hide:light_taps", "house3d_show:show:light_taps", "house3d_show:light_tap:ok",
+                                           "house3d_show:light_tap:failed", "house3d_show:opened:flat")]
     for k, v in taps:
         if v:
             print(f"  {k[len('house3d_show:'):]:<34} {v:>7}  {len(usage_installs[k]):>4} installs")

@@ -223,9 +223,7 @@ function mount(slotKey, quality, pieces = PIECES, lights = null){
   h.P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: lbeOf(h.states), hidden: new Set(), topFloorIds: h.topIds, quality,
     telemetry: () => {}, onTouch: () => {}, states: h.states, config: {}, bearing: 0, saveNorth: null, useApi: () => h.d3.api,
     haStartedMs: 0, load: async () => ({ data: clone(h.file) }), edit: null, entities: null, regIds: h.regIds, emergency: h.emergency,
-    classFilter: h.cls || null,
-    // The Atlas tab (mapOnly) with this screen's ⋯ Light switches ticked: a tap on a light switches it there.
-    ...(h.taps ? { mapOnly: true, prefs: { get: (k) => (k === `show_${slotKey}` ? JSON.stringify({ light_taps: true }) : null), set() {} } } : {}) });
+    classFilter: h.cls || null });
   h.poll = () => {
     const card = document.createElement("div"), stage = document.createElement("div");
     card.appendChild(stage);
@@ -376,7 +374,6 @@ await tryCase("taps: a press on a linked piece is its device, as the Atlas's own
     { lamp, tv, sofa, hits: [hit(lamp), hit(tv), hit(sofa), kitchen && hit(kitchen)] });
 });
 await tryCase("taps: tap and hold on the lamp make the same calls as on the light on the flat Atlas", async () => {
-  H.taps = true; H.poll(); await settle(4);                     // the Atlas tab, Light switches ticked
   const canvas = H.slot._state().canvas, p = H.slot._wherePiece(ID["lamp:light.dim"], 0.4);
   const flat = flatSurface(H.states, lbeOf(H.states));
   const runs = {};
@@ -402,7 +399,6 @@ await tryCase("taps: tap and hold on the lamp make the same calls as on the ligh
   flat.marks["light.dim"].dispatchEvent(ev("pointerup", performance.now()));
   await settle(2); runTimers(); await settle(2);
   runs.holdFlat = flat.log.slice();
-  H.taps = false; H.poll(); await settle(4);
   check("taps: tap and hold on the lamp make the same calls as on the light on the flat Atlas",
     runs.tap3d.length > 0 && JSON.stringify(runs.tap3d) === JSON.stringify(runs.tapFlat)
     && runs.hold3d.length > 0 && JSON.stringify(runs.hold3d) === JSON.stringify(runs.holdFlat), runs);

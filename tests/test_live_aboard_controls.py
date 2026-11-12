@@ -11,15 +11,17 @@ showing its floor first; ⚙'s Zoom drives the camera (100% is the whole-house
 fit); Mapping's Layout & view steps Spacing and L / R aside and points Save
 view and Reset view at Live Aboard while it shows; leak sensors alarm as the
 Atlas's do (wet or latched), moving only while they alarm; locks sit on their
-wall, coloured by state, a tap or a hold opening their controls; a door sensor
+wall, coloured by state, tapped and held through the use api; a door sensor
 placed as a point draws nothing, as on the Atlas; codes show at room scale in
 the theme's chip colours, none while hidden; heights by kind and from the 3D
-file. Off, below Pro or on Map, the card is the flat card. ⋯ → Light
-switches (taps:), on the Atlas tab and its walls (the host's mapOnly): off
-unless this screen ticks it; ticked, a tap on a light is the use api's toggle,
-counted, a drag turns the house instead, and the light's look flips at once
-through the host's own records and goes back with the Atlas's message when
-Home Assistant refuses. Mapping's builder neither lists the line nor switches.
+file. Off, below Pro or on Map, the card is the flat card. ⋯ "Tap a light to
+switch it" (taps:), on the Atlas tab (mapOnly): on unless this screen
+unticks it, then no light switches (a lock as ever, a drag never); Mapping's
+builder neither lists it nor changes; a light is pressed where it shows (a
+sconce on a cut-away wall by its glow on the floor), wins over a chip within
+its reach and loses outside it; of two floors' lights in line on screen the
+floor in front, or the chosen one; the switch is the host's toggle, its look
+flipped at once and back with the Atlas's message when Home Assistant refuses.
 
 The rest is held here: the copies the marks file keeps of the Atlas's numbers
 (the flood ripple, the lock glyph's colours, the class chips' fade) equal the
@@ -56,7 +58,7 @@ def ctl() -> dict:
 
 @pytest.mark.parametrize("prefix,least", [
     ("class:", 1), ("find:", 1), ("zoom:", 1), ("card:", 1), ("flood:", 2), ("lock:", 1), ("door:", 1), ("codes:", 1),
-    ("heights:", 1), ("off:", 1), ("taps:", 3),
+    ("heights:", 1), ("off:", 1), ("taps:", 5),
 ])
 def test_the_controls_harness_covers_each_part(ctl, prefix, least) -> None:
     got = [k for k in ctl["cases"] if k.startswith(prefix)]
@@ -109,3 +111,19 @@ def test_the_marks_use_the_atlas_functions() -> None:
     assert "deviceClassOf" in src and "function lightClassOf" not in src and "FLOOD_ACTIVE_WINDOW_S" not in src
     # No three.js of its own: the view hands it in.
     assert "vendor/three" not in src
+
+
+def test_overlays_over_the_3d_house_take_taps_only_on_their_controls() -> None:
+    """The Find toast, the tip, the bar and Vacation Mode's banner over the 3D
+    house: a tap outside their buttons reaches the house (a light under them).
+    The banner's rule is in the 3D view's own sheet, in the page only while
+    the 3D house shows: the flat map's banner is left exactly as it was."""
+    la = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
+    assert "animation:la3d-toast 6s ease forwards;pointer-events:none}" in la
+    assert ".la3d-toast button{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 11px;border-radius:8px;font-weight:700;pointer-events:auto;" in la
+    assert "text-overflow:ellipsis;pointer-events:none}" in la                       # the tip
+    assert "justify-content:space-between;align-items:flex-end;pointer-events:none}\n.la3d-bar > *{pointer-events:auto}" in la
+    assert ".lv-mapcard > .lv-vacation:not([role]):not(.lv-vacation-opts){pointer-events:none}" in la
+    assert ".lv-mapcard > .lv-vacation:not([role]):not(.lv-vacation-opts) :is(button,input){pointer-events:auto}" in la
+    assert "style.textContent = CSS + (FPS ? FPS.FPS_CSS : \"\");\n    root.appendChild(style);" in la   # in the view's root: gone with it
+    assert "pointer-events" not in (_WWW / "styles.css").read_text(encoding="utf-8").split(".lv-vacation{", 1)[1].split("}", 1)[0]

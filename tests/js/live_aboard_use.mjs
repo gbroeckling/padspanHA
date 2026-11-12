@@ -108,13 +108,16 @@ LM.wireUseSurface(isoDiv, flat.api);
 // ── the 3D view's use surface, with a pick that answers what the test aims at
 const d3 = makeApi();
 let aim = null, apiOn = true;
-// The ⋯ list's Light switches (ticked for the parity runs: a tap on a light
-// is then the Atlas's), and what each switch by a press counted.
+// The ⋯ list's "Tap a light to switch it" (on unless a screen unticks it),
+// what each switch by a press counted, and the pulse each one shows.
 let tapsOn = true;
-const SWITCHED = [];
+const SWITCHED = [], PULSES = [];
 const root = document.createElement("div");
 const use = U.createUseSurface({ root, pick: () => aim, screenOf: () => ({ x: 40, y: 50 }), api: () => (apiOn ? d3.api : null),
                                  frame() {}, cursor() {}, lightTaps: () => tapsOn, switched: (ok) => SWITCHED.push(ok) });
+// The pulse is one Web Animation (the DOM shim has none): recorded here.
+globalThis.Node.prototype.animate = function(frames, opts){ PULSES.push([this.getAttribute("class"), this.getAttribute("cx"), opts && opts.duration]);
+  const self = this; return { set onfinish(fn){ self._finish = fn; } }; };
 const device = (eid) => ({ kind: "device", key: "device:" + eid, eid, label: `${LBE[eid].code} · ${LBE[eid].friendly_name}` });
 const TARGETS = {
   room: { kind: "room", key: "room:Kitchen", room: "Kitchen", label: "Kitchen — opens its 2 devices" },
@@ -177,12 +180,7 @@ await tryCase("parity: every gesture on every kind of device makes the Atlas's o
   for (const eid of Object.keys(marks)) {
     for (const [g, opts] of Object.entries(gestures)) runs.push(await both(`${eid} ${g}`, marks[eid], device(eid), opts));
   }
-  // The one difference: a fan or a lock is never switched by a tap in 3D
-  // (a wall's stray touch); its controls open, where the flat Atlas switches it.
-  const NEVER = { "fan.ceiling tap": "fan.ceiling", "lock.front tap": "lock.front" };
-  const bad = runs.filter(r => !r.same && !(r.name in NEVER));
-  const never = Object.entries(NEVER).filter(([n, eid]) => { const r = runs.find(x => x.name === n) || {};
-    return JSON.stringify(r.flat) !== JSON.stringify([["toggle", eid]]) || JSON.stringify(r.d3) !== JSON.stringify([["openControls", eid]]); });
+  const bad = runs.filter(r => !r.same);
   const did = (n) => (runs.find(r => r.name === n) || {}).d3 || [];
   // And they are the Atlas's actions, not merely equal to each other.
   const want = {
@@ -196,12 +194,11 @@ await tryCase("parity: every gesture on every kind of device makes the Atlas's o
     "binary_sensor.hall_motion tap": [["openActivity", "binary_sensor.hall_motion"]],
     "binary_sensor.hall_motion hold": [["openActivity", "binary_sensor.hall_motion"]],
     "sensor.hall_temp tap": [["toggle", "sensor.hall_temp"]], "sensor.hall_temp hold": [["toggle", "sensor.hall_temp"]],
-    "lock.front tap": [["openControls", "lock.front"]], "lock.front hold": [["openControls", "lock.front"]],
-    "fan.ceiling tap": [["openControls", "fan.ceiling"]],
+    "lock.front tap": [["toggle", "lock.front"]], "lock.front hold": [["openControls", "lock.front"]],
   };
   const wrong = Object.entries(want).filter(([n, w]) => JSON.stringify(did(n)) !== JSON.stringify(w)).map(([n]) => ({ n, got: did(n) }));
-  check("parity: every gesture on every kind of device makes the Atlas's own calls", runs.length === 30 && !bad.length && !wrong.length && !never.length,
-    { bad: bad.slice(0, 4), wrong, never });
+  check("parity: every gesture on every kind of device makes the Atlas's own calls", runs.length === 30 && !bad.length && !wrong.length,
+    { bad: bad.slice(0, 4), wrong });
 });
 // A room's name, a floor's badge and a door's line take a click on the flat
 // Atlas (whether the press was short or long); the 3D view's press makes the
@@ -252,29 +249,36 @@ await tryCase("parity: a held drag dims even when no frame came during the hold"
     { r, flat: flat.log, d3: d3.log });
 });
 
-// ── Light switches (the ⋯ list's light_taps) ────────────────────────────────
-// Off: a tap (or a hold on a light with no controls) on a light or a strip
-// switches nothing; a fan or a lock opens its controls; a reading says it is
-// read-only as on the Atlas. On: the tap is the Atlas's toggle, counted.
-await tryCase("switches: off, a tap on a light switches nothing; a fan or a lock opens its controls; on, the Atlas's toggle, counted", async () => {
+// ── "Tap a light to switch it" (the ⋯ list's light_taps) ────────────────────
+// On (the default): a tap on a light is the Atlas's toggle, counted, and a
+// ring opens out from it. Unticked on a screen: a tap (or a hold on a light
+// with no controls) on a light or a strip switches nothing; a fan, a lock and
+// a reading do what they always did; a hold still opens a light's controls.
+await tryCase("switches: on, a tap on a light is the Atlas's toggle, counted, with a pulse; unticked, no light switches, fans and locks as ever", async () => {
   const run = async (eid, g = {}) => { d3.log.length = 0; await d3Gesture(device(eid), g); return d3.log.slice(); };
-  tapsOn = false;
-  SWITCHED.length = 0;
-  const off = { dim: await run("light.dim"), plain: await run("light.plain"), plainHold: await run("light.plain", { held: 700 }),
-                dimHold: await run("light.dim", { held: 700 }), fan: await run("fan.ceiling"), lock: await run("lock.front"),
-                temp: await run("sensor.hall_temp"), counted: SWITCHED.length };
-  tapsOn = true;
+  tapsOn = true; SWITCHED.length = 0; PULSES.length = 0;
   const on = { dim: await run("light.dim"), plain: await run("light.plain"), fan: await run("fan.ceiling"), lock: await run("lock.front") };
   await settle();
-  on.counted = SWITCHED.slice();
-  check("switches: off, a tap on a light switches nothing; a fan or a lock opens its controls; on, the Atlas's toggle, counted",
-    JSON.stringify(off.dim) === "[]" && JSON.stringify(off.plain) === "[]" && JSON.stringify(off.plainHold) === "[]"
+  on.counted = SWITCHED.slice(); on.pulses = PULSES.slice();
+  tapsOn = false; SWITCHED.length = 0; PULSES.length = 0;
+  const off = { dim: await run("light.dim"), plain: await run("light.plain"), plainHold: await run("light.plain", { held: 700 }),
+                dimHold: await run("light.dim", { held: 700 }), fan: await run("fan.ceiling"), lock: await run("lock.front"),
+                temp: await run("sensor.hall_temp") };
+  off.counted = SWITCHED.length; off.pulses = PULSES.length;
+  tapsOn = true;
+  check("switches: on, a tap on a light is the Atlas's toggle, counted, with a pulse; unticked, no light switches, fans and locks as ever",
+    JSON.stringify(on.dim) === JSON.stringify([["toggle", "light.dim"]]) && JSON.stringify(on.plain) === JSON.stringify([["toggle", "light.plain"]])
+    && JSON.stringify(on.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(on.lock) === JSON.stringify([["toggle", "lock.front"]])
+    && JSON.stringify(on.counted) === "[true,true]" && on.pulses.length === 2 && on.pulses.every(x => x[0] === "la3d-tapped" && x[1] === "40.0" && x[2] > 0)
+    && JSON.stringify(off.dim) === "[]" && JSON.stringify(off.plain) === "[]" && JSON.stringify(off.plainHold) === "[]"
     && JSON.stringify(off.dimHold) === JSON.stringify([["openControls", "light.dim"]])
-    && JSON.stringify(off.fan) === JSON.stringify([["openControls", "fan.ceiling"]]) && JSON.stringify(off.lock) === JSON.stringify([["openControls", "lock.front"]])
-    && JSON.stringify(off.temp) === JSON.stringify([["toggle", "sensor.hall_temp"]]) && off.counted === 0
-    && JSON.stringify(on.dim) === JSON.stringify([["toggle", "light.dim"]]) && JSON.stringify(on.plain) === JSON.stringify([["toggle", "light.plain"]])
-    && JSON.stringify(on.fan) === JSON.stringify([["openControls", "fan.ceiling"]]) && JSON.stringify(on.lock) === JSON.stringify([["openControls", "lock.front"]])
-    && JSON.stringify(on.counted) === "[true,true]", { off, on });
+    && JSON.stringify(off.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(off.lock) === JSON.stringify([["toggle", "lock.front"]])
+    && JSON.stringify(off.temp) === JSON.stringify([["toggle", "sensor.hall_temp"]]) && off.counted === 0 && off.pulses === 0, { on, off });
+  // Each ring goes when its animation ends.
+  const rings = () => root.children.find(n => n.localName === "svg").children.filter(n => n.getAttribute && n.getAttribute("class") === "la3d-tapped");
+  const had = rings().length;
+  for (const c of rings()) c._finish && c._finish();
+  check("switches: each pulse's ring is gone once its animation ends", had > 0 && rings().length === 0, { had, left: rings().length });
 });
 // The switch itself is lights_map.js toggleEntity, as the hosts' toggle is:
 // on → turn_off, off → turn_on, the look flipped at once (effectiveState)

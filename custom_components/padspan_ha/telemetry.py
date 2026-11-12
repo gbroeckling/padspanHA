@@ -641,8 +641,9 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 # or turned off (a Home Assistant scene or a Whole house preset), a new scene
 # opened in Home Assistant (from the row, the ⋯ list or Settings) and an edit
 # opened (a scene, one not made in the editor, a preset). Never a name.
-# And Light switches (light_taps, off unless ticked): a light switched by a tap
+# And "Tap a light to switch it" (light_taps, on unless a screen unticks it: hide:light_taps): a light switched by a tap
 # in Live Aboard (light_tap:ok), or one Home Assistant refused (light_tap:failed).
+# The list opened from the flat Map's own ⋯ (opened:flat), apart from the 3D look's (opened).
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
     "lights", "glow", "strips", "fans", "scenes", "light_taps", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
@@ -650,7 +651,7 @@ HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
     "rain", "theme", "forest",
 )
 HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
-    {"house3d_show:opened", "house3d_show:reset", "house3d_show:permission:people", "house3d_show:permission:tags"}
+    {"house3d_show:opened", "house3d_show:opened:flat", "house3d_show:reset", "house3d_show:permission:people", "house3d_show:permission:tags"}
     | {f"house3d_show:{a}:{k}" for a in ("hide", "show", "setup_seen", "setup_go") for k in HOUSE3D_SHOW_ITEMS}
     | {f"house3d_show:scene_{w}" for w in ("row:atlas", "row:aboard", "run:scene", "run:preset", "off:scene", "off:preset",
                                            "new:row", "new:show", "new:settings", "edit:scene", "edit:yaml", "edit:preset")}

@@ -708,7 +708,7 @@ const W_SURFACE = {
 const W_PLAN_KIND = { stairs: "stairs", railing: "a railing hint", light: "a light" };
 // Live Aboard's ⋯ list: each line's plain name (views/live_aboard_show.js SHOW_ITEMS).
 const W_SHOW_LINE = {
-  lights: "lights", glow: "light glow", strips: "LED strips", fans: "ceiling fans", scenes: "the scene row", light_taps: "light switches (tap a light)", motion_sensors: "motion sensors",
+  lights: "lights", glow: "light glow", strips: "LED strips", fans: "ceiling fans", scenes: "the scene row", light_taps: "tap a light to switch it", motion_sensors: "motion sensors",
   motion_rooms: "motion in rooms", motion_reach: "motion reach", readouts: "temperature and air", doors: "doors", windows: "windows",
   covers: "garage doors and gates", locks: "locks", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
   trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", stairs: "stairs",
@@ -1057,7 +1057,7 @@ function word(kind, k) {
       if (a === "house3d_show") {
         // Live Aboard's ⋯ list, "Show on this screen" (views/live_aboard_show.js).
         const line = W_SHOW_LINE[c] || tidy(c || "");
-        if (b === "opened") return "Live Aboard: opened Show on this screen (⋯)";
+        if (b === "opened") return c === "flat" ? "Atlas: opened Show on this screen (⋯) on the flat Map" : "Live Aboard: opened Show on this screen (⋯)";
         if (b === "reset") return "Live Aboard: Show on this screen put back to the house's defaults";
         if (b === "hide") return `Live Aboard: hid ${line} on a screen`;
         if (b === "show") return `Live Aboard: showed ${line} again on a screen`;

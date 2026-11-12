@@ -53,11 +53,11 @@ export const SHOW_ITEMS = [
   // The scene row under the map (scene_row.js): on wherever the house has a
   // scene or a one-floor preset; not set up, the line opens Home Assistant's
   // new-scene editor (an administrator's, never on a wall).
-  { key: "scenes", group: "lights", words: "Scene row", hint: "The lighting scenes under the map: tap one to run it, again to turn it off", link: "scene_new" },
-  // Not a drawing: a tap on a light or an LED strip switches it (live_aboard_use.js
-  // tapSwitch). Off unless ticked (live_aboard.js showHouseOf): a wall's stray touch switches nothing.
-  // The Atlas tab and its walls only (live_aboard.js showRows: the host's mapOnly), never Mapping's builder.
-  { key: "light_taps", group: "lights", words: "Light switches", hint: "Tap a light here to turn it on or off (on the flat Map a tap always does)" },
+  { key: "scenes", group: "lights", words: "Scene row", hint: "The lighting scenes under the map: tap one to run it, again to turn it off", link: "scene_new", flat: true },
+  // Not a drawing: a tap on a light or an LED strip switches it, in 3D and on the flat Map
+  // (live_aboard_use.js tapSwitch, lights_map.js wireUseSurface). On unless a screen unticks it
+  // (a wall in a busy room). The Atlas tab and its walls only (live_aboard.js showRows: mapOnly).
+  { key: "light_taps", group: "lights", words: "Tap a light to switch it", hint: "Here and on the flat Map. Off: a tap on a light switches nothing on this screen; holding still opens its controls", flat: true },
   { key: "motion_sensors", group: "motion", words: "Motion sensors", hint: "The sensors on the walls and their markers", link: "place" },
   { key: "motion_rooms", group: "motion", words: "Motion in rooms", hint: "A room's floor glowing after motion, and the Motion chip" },
   { key: "motion_reach", group: "motion", words: "Motion reach", hint: "The patch of floor a sensor sees, shown on a trigger or a tap" },
@@ -81,14 +81,16 @@ export const SHOW_ITEMS = [
   { key: "room_outlines", group: "house", words: "Room outlines", hint: "The coloured line round each room", link: "rooms" },
   { key: "floor_outlines", group: "house", words: "Floor outlines", hint: "The faint line round each floor", link: "la3d" },
   // The flat Map's (lights_map.js focusAlone): with one floor chosen it is drawn alone, as big as the screen,
-  // unless this is ticked. Off unless ticked (live_aboard.js showHouseOf).
-  { key: "other_floors", group: "house", words: "Other floors, faded", hint: "On the flat Map with one floor chosen: the other floors stay, faded. Off: the chosen floor fills the screen" },
+  // unless this is ticked. Off unless ticked (dflt: false, the house's own for every house).
+  { key: "other_floors", group: "house", words: "Other floors, faded", hint: "On the flat Map with one floor chosen: the other floors stay, faded. Off: the chosen floor fills the screen", flat: true, dflt: false },
   { key: "roof", group: "house", words: "Roof", hint: "The roof, seen from outside (the Roof button too)" },
   { key: "rain", group: "look", words: "Rain and snow", hint: "Rain and snow falling round the house", link: "weather" },
   { key: "theme", group: "look", words: "Theme colours", hint: "Off: the Classic look on this screen", link: "showcase" },
   { key: "forest", group: "look", words: "West Coast Forest trees", hint: "The trees round the house", link: "showcase" },
 ];
 const BY_KEY = new Map(SHOW_ITEMS.map(it => [it.key, it]));
+/** The lines the flat Map honours too (lights_map.js flatShow): the only ones its own ⋯ list shows. */
+export const FLAT_KEYS = SHOW_ITEMS.filter(it => it.flat).map(it => it.key);
 /** The lines a person can tick (not the alarms, not a line still to come). */
 export const SHOW_KEYS = SHOW_ITEMS.filter(it => !it.always && !it.later).map(it => it.key);
 /** Where each place a line links to is, in words (the host's goTo knows the way). */
@@ -121,14 +123,15 @@ export const GO_TO = {
 // load) and followed, someone sent to where people or tags are switched on,
 // and Back to house defaults. And the scene row's (scene_row.js SCENE_EVENTS,
 // the same words): the row shown, a scene run or turned off, a new scene or
-// an edit opened. And Light switches': a light switched by a tap, or not.
-export const SHOW_EVENTS = ["house3d_show:opened", "house3d_show:reset",
+// an edit opened. And "Tap a light to switch it": a light switched by a tap, or not;
+// and the list opened from the flat Map's own ⋯.
+export const SHOW_EVENTS = ["house3d_show:opened", "house3d_show:opened:flat", "house3d_show:reset",
   ...SHOW_KEYS.flatMap(k => [`house3d_show:hide:${k}`, `house3d_show:show:${k}`]),
   ...SHOW_KEYS.flatMap(k => [`house3d_show:setup_seen:${k}`, `house3d_show:setup_go:${k}`]),
   "house3d_show:permission:people", "house3d_show:permission:tags",
   ...["row:atlas", "row:aboard", "run:scene", "run:preset", "off:scene", "off:preset", "new:row", "new:show", "new:settings",
       "edit:scene", "edit:yaml", "edit:preset"].map(w => `house3d_show:scene_${w}`),
-  // Light switches: a light switched by a tap, or one that could not be.
+  // A light switched by a tap in 3D, or one that could not be.
   "house3d_show:light_tap:ok", "house3d_show:light_tap:failed"];
 
 /** The pref this screen keeps its ticks in. */
@@ -153,10 +156,16 @@ export function withTick(over, key, on, house){
   return out;
 }
 
+/** A line's own for the house: what the view says (house), else the line's default. */
+export function houseOn(house, key){
+  const it = BY_KEY.get(key);
+  return (house && typeof house[key] === "boolean" ? house[key] : !(it && it.dflt === false)) !== false;
+}
+
 /** Every line's state: {key: true|false}; house: {key: the house's own}. */
 export function resolveShown(over, house){
   const out = {};
-  for (const it of SHOW_ITEMS) out[it.key] = it.always ? true : (over && typeof over[it.key] === "boolean") ? over[it.key] : house[it.key] !== false;
+  for (const it of SHOW_ITEMS) out[it.key] = it.always ? true : (over && typeof over[it.key] === "boolean") ? over[it.key] : houseOn(house, it.key);
   return out;
 }
 
@@ -222,6 +231,47 @@ export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
   return { text, go: can ? go : null, perm: null, button: can && go ? "Yes ›" : null };
 }
 
+/**
+ * The flat Map's ⋯ list (lights_map.js, the Atlas tab and its walls): this
+ * same list, with only the lines the flat Map honours (FLAT_KEYS that this
+ * screen has), on this screen's own pref, so a tick here is the 3D look's
+ * too and the reverse. Returns createShowMenu's v (but root, anchor, guard).
+ * o = { prefs: {get, set}, slot, lines() → keys shown, ready() → {key:
+ * setupLine} not set up, go(where, key), canGo(), count(name), changed(key):
+ * the flat Map follows a tick (null: every line) }.
+ */
+export function flatMenu(o){
+  const over = () => readShown(o.prefs.get(prefKey(o.slot)));
+  const save = (x) => o.prefs.set(prefKey(o.slot), JSON.stringify(x));
+  const lines = () => o.lines().filter(k => FLAT_KEYS.includes(k));
+  return {
+    rows: () => {
+      const ready = o.ready(), on = resolveShown(over(), {}), keys = lines();
+      for (const k of Object.keys(ready)) on[k] = false;
+      return rowsOf(on, ready).map(g => ({ ...g, rows: g.rows.filter(r => keys.includes(r.key)).map(r => (r.key === "scenes" ? { ...r, link: null } : r)) }))
+        .filter(g => g.rows.length);
+    },
+    changed: () => lines().some(k => k in over()),
+    toggle: (key) => {
+      if (o.ready()[key]) return;
+      const was = resolveShown(over(), {})[key];
+      save(withTick(over(), key, !was, houseOn({}, key)));
+      o.count(`house3d_show:${was ? "hide" : "show"}:${key}`);
+      o.changed(key);
+    },
+    setup: (row) => { if (row.setup && row.setup.go) { o.count(`house3d_show:setup_go:${row.key}`); o.go(row.setup.go, row.key); } },
+    go: (where, key) => o.go(where, key),
+    canGo: () => !!o.canGo(),
+    reset: () => {
+      const keys = lines();
+      save(Object.fromEntries(Object.entries(over()).filter(([k]) => !keys.includes(k))));
+      o.count("house3d_show:reset");
+      o.changed(null);
+    },
+    opened: () => o.count("house3d_show:opened:flat"),
+  };
+}
+
 // ── the dropdown ─────────────────────────────────────────────────────────────
 const CSS = `
 .la3d-more{all:unset;box-sizing:border-box;position:absolute;left:70px;top:14px;z-index:2;width:44px;height:44px;border-radius:50%;
@@ -232,6 +282,9 @@ const CSS = `
 .la3d-more.la3d-changed::after{content:"";position:absolute;right:-3px;top:-3px;width:14px;height:14px;border-radius:50%;background:var(--accent,#52b788);
   border:2px solid rgba(6,14,9,.95);box-shadow:0 0 6px var(--accent,#52b788)}
 .la3d.la3d-bare .la3d-more,.la3d.la3d-bare .la3d-show{opacity:0;visibility:hidden;pointer-events:none}
+/* On the flat Map: a rail button (styles.css .lv-railbtn, lights_map.js), with the same dot. */
+.la3d-flatmore.la3d-changed::after{content:"";position:absolute;right:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent,#52b788);
+  border:2px solid rgba(6,14,9,.95)}
 .la3d-show{position:absolute;left:10px;top:66px;z-index:5;box-sizing:border-box;width:min(640px,calc(100% - 20px));
   max-height:calc(100% - 132px);display:flex;flex-direction:column;border-radius:14px;background:rgba(6,14,9,.96);
   border:1px solid rgba(120,190,155,.3);box-shadow:0 12px 32px rgba(0,0,0,.55);color:#e2e8f0;font:13px/1.35 system-ui,"Segoe UI",Roboto,sans-serif}
@@ -308,14 +361,18 @@ export function createShowMenu(v){
   const css = d("style");
   css.textContent = CSS;
   v.root.appendChild(css);
-  const btn = d("button", "la3d-more", "⋯");
-  btn.type = "button";
-  btn.title = "Show on this screen: pick what the map shows";
-  btn.setAttribute("aria-label", "Show on this screen: pick what the map shows");
-  btn.setAttribute("aria-haspopup", "true");
-  btn.setAttribute("aria-expanded", "false");
-  btn.setAttribute("data-la3d-more", "");
-  v.root.appendChild(btn);
+  // v.button: a ⋯ the host already drew (the flat Map's, in its rail), the
+  // list opening over v.root; else this one, beside the compass.
+  const btn = v.button || d("button", "la3d-more", "⋯");
+  if (!v.button) {
+    btn.type = "button";
+    btn.title = "Show on this screen: pick what the map shows";
+    btn.setAttribute("aria-label", "Show on this screen: pick what the map shows");
+    btn.setAttribute("aria-haspopup", "true");
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("data-la3d-more", "");
+    v.root.appendChild(btn);
+  }
   let box = null, off = null;
   const stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
   for (const ev of ["pointerup", "wheel", "dblclick"]) btn.addEventListener(ev, stop);

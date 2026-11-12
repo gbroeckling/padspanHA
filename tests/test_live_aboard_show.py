@@ -137,20 +137,37 @@ def test_the_help_says_where_the_list_is_in_every_language() -> None:
         assert m.group(1) in data and data[m.group(1)].startswith("⋯"), lang
 
 
-def test_the_help_and_the_first_card_say_a_tap_switches_only_with_light_switches() -> None:
-    """Light switches is off until a screen ticks it, so nothing in Live
-    Aboard says a tap switches a light without saying where it is turned on."""
+def test_tap_a_light_to_switch_it_is_on_for_every_house_and_governs_both_looks() -> None:
+    """The line is on unless a screen unticks it (the house default is the
+    line's own: no view hands one in), it is offered on the Atlas tab and its
+    walls only (mapOnly), and the flat Map reads the same pref (flatShow)."""
+    import re as _re
+    show = _js(_VIEWS / "live_aboard_show.js")
+    line = _re.search(r'\{ key: "light_taps"[^\n]*\}', show).group(0)
+    assert 'words: "Tap a light to switch it"' in line and "flat: true" in line and "dflt" not in line
+    assert 'flat: true, dflt: false }' in show                    # Other floors, faded: off unless ticked, as before
+    la = _js(_VIEWS / "live_aboard.js")
+    assert "light_taps" not in la[la.index("function showHouseOf(p){"):la.index("function showHidden(p, on){")]
+    assert "const lightTapsOn = () => !mapOnly || !(showOn && showOn.light_taps === false);" in la
+    assert 'for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);' in la
+    lm = _js(_VIEWS / "lights_map.js")
+    assert 'isoDiv._psLightTaps = DISPLAY ? () => flatShow("light_taps") !== false : null;' in lm
+
+
+def test_the_help_says_a_tap_switches_and_where_it_is_turned_off_in_every_language() -> None:
     help_js = _js(_WWW / "help_content.js")
     aboard = help_js[help_js.index("aboard_3d: {"):help_js.index("settings_presence: {")]
     m = re.search(r't\("(Moving around:[^"]*)"\)', aboard)
-    assert m and "tick Light switches in ⋯" in m.group(1) and "Atlas tab" in m.group(1) and "Tap a light to switch it" not in m.group(1)
+    assert m and "Tap a light to switch it; hold it for brightness and colour." in m.group(1)
+    assert "Untick Tap a light to switch it in ⋯ and a tap on a light switches nothing on that screen, on the flat Map too." in m.group(1)
+    atlas = help_js[help_js.index("atlas_page: {"):help_js.index("vacation_mode: {")]
+    f = re.search(r't\("(⋯ at the foot of the controls rail[^"]*)"\)', atlas)
+    assert f and "Tap a light to switch it" in f.group(1) and "Other floors, faded" in f.group(1) and "Scene row" in f.group(1)
     for lang in ("de", "fr", "nl"):
         data = json.loads((_WWW / "i18n" / lang / "help.json").read_text(encoding="utf-8"))
-        assert m.group(1) in data and "Light switches" in data[m.group(1)], lang
+        assert "Tap a light to switch it" in data[m.group(1)] and "Tap a light to switch it" in data[f.group(1)], lang
     la = _js(_VIEWS / "live_aboard.js")
-    assert ('mapOnly ? "Hold a light for brightness and colour. To switch lights with a tap, tick Light switches in ⋯."'
-            ' : "Hold a light for brightness and colour.",') in la
-    assert "tap a light ·" not in la
+    assert '"Tap a light to switch it. Hold it for brightness and colour.",' in la and "tap a light · hold for controls" in la
 
 
 def test_on_a_wall_the_whole_list_fits_the_screen_without_scrolling() -> None:
