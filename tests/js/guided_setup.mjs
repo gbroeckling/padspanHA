@@ -204,6 +204,18 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("bar: Back to Setup opens Setup and ends the step's bar", st.view === "setup" && st._setupReturn === null);
   st._setupReturn = "nonsense";
   check("bar: nothing for a step that is not one", S.returnBar(ctx) === null);
+  // Review 2026-11-11 (C1): the bar says the step the person is on NOW (it kept the one Setup opened).
+  Object.assign(st, { _setupReturn: "plan", view: "maps", _mapsWizard: { step: 3, mapId: "m1" } });
+  const now3 = S.returnBar(ctx).textContent;
+  st._mapsWizard = { step: 5, mapId: "m1" };
+  const fin = S.returnBar(ctx).textContent;
+  Object.assign(st, { _mapsWizard: null, mapsTab: "edit" }); st.maps._mode = "measure";
+  const meas = S.returnBar(ctx).textContent;
+  st.view = "calibration";
+  const cal = S.returnBar(ctx).textContent;
+  check("bar: the step it is on now: the wizard's, none at Finish, Edit's tool, Calibration",
+    /: Draw the rooms/.test(now3) && !/step \d/.test(fin) && /: Set the scale/.test(meas) && /: Calibrate/.test(cal), [now3, fin, meas, cal]);
+  st._setupReturn = null; st.view = "setup";
 }
 
 // The rooms helper's Done (end-to-end test 2026-11-11): its receivers step opens on the plan it just saved, not the

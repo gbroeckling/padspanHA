@@ -168,16 +168,30 @@ export function openStep(ctx, id, mapId = null, door = null) {
 }
 
 /** The bar over a step's tool: which step this is, and the way back. */
+/** The step the person is on now, from where they are (review 2026-11-11: the bar kept the step Setup opened, "step 1 of
+ *  5: Upload" on the scale and rooms steps): the Mapping wizard's step, Edit's tool or Mapping's tab, Calibration. null
+ *  where it can't be told (the wizard's Finish): the bar names no step there. */
+export function stepNow(st) {
+  if (st.view === "calibration") return "calibration";
+  const w = st._mapsWizard;
+  if (w) return { 1: "plan", 2: "scale", 3: "rooms", 4: "receivers", 6: "floors" }[w.step] || null;
+  const tab = st.mapsTab, mode = st.maps && st.maps._mode;
+  if (tab === "upload") return "plan";
+  if (tab === "stack") return "floors";
+  if (tab === "edit") return { measure: "scale", rooms: "rooms", receivers: "receivers" }[mode] || st._setupReturn;
+  return st._setupReturn;
+}
+
 export function returnBar(ctx) {
-  const id = ctx.state._setupReturn;
+  if (!SETUP_STEPS.includes(ctx.state._setupReturn)) return null;
+  const id = stepNow(ctx.state);
   const steps = setupSteps(ctx.state), i = steps.findIndex(s => s.id === id);
-  if (!SETUP_STEPS.includes(id)) return null;
   const { el } = ctx.helpers;
   const bar = el("div", { "data-setup": "return", style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:6px 12px;margin-bottom:12px" });
   bar.appendChild(el("div", { style: "flex:1 1 auto;min-width:0;font-size:12px;color:#94a3b8" }, [
     el("span", { style: "color:#52b788;font-weight:700" }, "Setup"),
     // A step this house's list leaves out (floor heights on one floor, opened by a link): its name, no number.
-    i < 0 ? ` · ${LABELS[id]}` : ` · step ${steps[i].n} of ${steps.length}: ${LABELS[id]}`,
+    !id ? "" : i < 0 ? ` · ${LABELS[id]}` : ` · step ${steps[i].n} of ${steps.length}: ${LABELS[id]}`,
   ]));
   const back = el("button", { class: "btn inline", style: "font-size:12px;white-space:nowrap", "data-setup": "back" }, "← Back to Setup");
   back.addEventListener("click", () => { ctx.state._setupReturn = null; ctx.actions.showView("setup"); });
