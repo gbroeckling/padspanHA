@@ -27,6 +27,7 @@ from .const import (
 )
 import time as _time
 from .map_image_view import signed_image_urls
+from .presence_rules import is_outdoor_floor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -178,13 +179,17 @@ async def ws_maps_scale_measure(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"ok": False, "code": "no_picture_size", "message": C.SCALE_WORDS["no_picture_size"]})
         return
     try:
+        # A FIRST scale only (a stale second tab must not re-scale a measured plan; Edit → Measure re-measures), as the
+        # rooms helper's save stops it (plan_ai_write.scale_stops), and never the outdoors'.
+        if is_outdoor_floor(m.get("floor_id")):
+            raise C.Refused("outdoor", C.SCALE_WORDS["outdoor"])
+        C.scale_stops(hass, msg["map_id"])
         got = C.scale_from_measures(size, measures, None, _time.strftime("%Y-%m-%d", _time.gmtime()), C.feet_on(hass))
     except C.Refused as err:
         connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message})
         return
     # Measure's own rule: the plan's floor as it is (a first measurement of a plan with none: the main floor).
     stored = await async_write_measured_transform(hass, msg["map_id"], {**got["transform"], "floor_id": m.get("floor_id") or DEFAULT_FLOOR_ID})
-    await ms.async_end_scale_nudge(msg["map_id"])
     connection.send_result(msg["id"], {"ok": True, "map_id": msg["map_id"], "scale_x_m": stored.get("scale_x_m"),
                                        "scale_y_m": stored.get("scale_y_m"), "lengths": len(measures)})
 

@@ -102,6 +102,40 @@ def test_a_save_that_cant_go_writes_nothing(monkeypatch, tmp_path, disk):  # noq
     assert out["error"] == "not_found"
 
 
+def test_the_first_scale_command_refuses_a_measured_an_outdoor_or_a_calibrated_plan(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-11: a stale second tab must never re-scale a measured plan (Edit → Measure re-measures); the same
+    stops as the rooms helper's save (plan_ai_write.scale_stops), and never an outdoor plan. Each in plain words."""
+    from custom_components.padspan_ha import plan_ai_write as C
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    assert _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=[dict(_ACROSS)], save=True)["ok"] is True
+    before = json.dumps([mdl.data, ms.data, cal.data])
+    out = _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=[dict(_DOWN_OFF)], save=True)
+    assert out == {"ok": False, "code": "already_placed", "message": C.SCALE_WORDS["already_placed"]} and json.dumps([mdl.data, ms.data, cal.data]) == before
+    mdl.data["map_transforms"].pop("n1")
+    cal.data.setdefault("points", []).append({"id": "p1", "map_id": "n1", "x_m": 1.0, "y_m": 1.0})
+    out = _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=[dict(_ACROSS)], save=True)
+    assert out["ok"] is False and out["code"] == "points_on_plan" and mdl.map_transform("n1") is None
+    cal.data["points"].pop()
+    ms.get_map("n1")["floor_id"] = "__outside__"
+    out = _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=[dict(_ACROSS)], save=True)
+    assert out["ok"] is False and out["code"] == "outdoor" and "Measure" in out["message"] and mdl.map_transform("n1") is None
+
+
+def test_any_first_scale_ends_the_wait_so_a_scale_taken_back_never_brings_it_back(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-11: Measure's Save (and the helper's) ended nothing, so the helper's Undo brought the upload's
+    screen back saying the plan "is uploaded". The one writer every first scale comes through ends it."""
+    from custom_components.padspan_ha import ws_plan_ai as WP
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    _run(F.async_write_measured_transform(h, "n1", {"scale_x_m": 10.0, "scale_y_m": 8.0, "reference_measurements": []}))
+    assert "scale_nudge" not in ms.get_map("n1")                     # Mapping → Edit → Measure's write
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)           # the helper's house, as its own tests set it up
+    ms.get_map("n1")["scale_nudge"] = True
+    out = _call(WP.ws_plan_build_scale_save, h, conn, map_id="n1", sig="nn", measures=[dict(_ACROSS)], source="guided", via="wizard")
+    assert out["ok"] is True and "scale_nudge" not in ms.get_map("n1")   # the helper's
+    assert _call(WP.ws_plan_build_scale_undo, h, conn, map_id="n1", via="wizard")["ok"] is True
+    assert mdl.map_transform("n1") is None and "scale_nudge" not in ms.get_map("n1")
+
+
 def test_later_ends_it_for_good_and_the_upload_marks_only_an_indoor_plan(monkeypatch, tmp_path, disk):  # noqa: F811
     h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
     assert _call(WM.ws_maps_scale_nudge_end, h, conn, map_id="n1") == {"ok": True, "ended": True}

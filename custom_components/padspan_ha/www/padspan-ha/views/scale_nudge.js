@@ -173,7 +173,7 @@ export function render(ctx, map, opts = {}) {
   if (!_shown.has(map.id)) { _shown.add(map.id); tel(ctx, "shown"); }
   const card = el("div", { class: "card", "data-nudge": "card" });
   card.appendChild(el("div", { class: "h2" }, TITLE));
-  card.appendChild(P(ctx, `${map.name || "Your plan"} ${map.scale_nudge === true || opts.door === "upload" ? "is uploaded" : "has no scale yet"}. ${WHY}`));
+  card.appendChild(P(ctx, `${map.name || "Your plan"} ${opts.door === "upload" ? "is uploaded" : "has no scale yet"}. ${WHY}`));
   card.appendChild(P(ctx, PM.measureHow(tap)));
   const cols = el("div", { style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:0 1 240px;min-width:220px" });

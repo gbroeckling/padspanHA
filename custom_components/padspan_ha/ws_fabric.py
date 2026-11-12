@@ -1148,6 +1148,11 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
     except Exception:
         pass
     _stored = (mdl.data.get("map_transforms") or {}).get(map_id, {})
+    # The plan has a scale, by whichever door it came (Measure, the helper, the upload's own screen): the upload's
+    # "Set this plan's scale now" no longer waits on it, so a scale taken away later never brings that screen back.
+    _ms_nudge = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if _ms_nudge is not None and _stored.get("scale_x_m"):
+        await _ms_nudge.async_end_scale_nudge(map_id)
     try:
         _new_refs = [r for r in _stored.get("reference_measurements") or [] if isinstance(r, dict)]
         if _by_helper and _new_refs and not any(r.get("source") in HELPER_SCALE_SOURCES for r in _new_refs):

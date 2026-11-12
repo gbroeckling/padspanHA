@@ -269,6 +269,13 @@ const TF = { p2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } }
   q(root, '[data-nudge="save"]').click();
   for (let i = 0; i < 4; i++) await tick();
   check("Library: Save counts the door it came through", count(h, "via_reminder") === 1 && count(h, "measured_one") === 1, h.tele);
+  // Review 2026-11-11: "is uploaded" only on the upload's own screen; a flagged plan opened by another door has no scale yet.
+  const f = house({ maps: plain().map(m => (m.id === "p1" ? { ...m, scale_nudge: true } : m)), tfs: TF });
+  f.state._firstScale = { mapId: "p1", door: "reminder" };
+  Object.assign(f.state, { mapsTab: "edit", activeMapId: "p1" });
+  const fr = await render(f);
+  check("a flagged plan by another door: has no scale yet, not uploaded", fr.textContent.includes("Ground has no scale yet") && !fr.textContent.includes("is uploaded"),
+    fr.textContent.slice(0, 200));
   // Later on a screen a door opened: back to Edit on that plan.
   const l = house({ maps: plain(), tfs: TF });
   let lr = await render(l);

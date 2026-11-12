@@ -1882,6 +1882,7 @@ SCALE_WORDS: dict[str, str] = {
     "no_picture_size": "This plan's picture has no size on record, so its scale can't be worked out here. "
                        "Use Mapping → Edit → Measure.",
     "floor_unknown": "Pick which floor this plan shows.",
+    "outdoor": "This plan is of the outdoors, so its scale isn't set here. To set it, use Mapping → Edit → Measure.",
     "backup_failed": "The safety backup couldn't be made, so nothing was saved. Check Home Assistant's storage and try again.",
     "changed_since": "Something in metres changed since the scale was saved (a room, a wall, a receiver, a zone, something in 3D, "
                      "another plan's scale, or calibration points were recorded since, some of them automatically), so the scale "
@@ -2033,6 +2034,16 @@ def _floor_side(hass: HomeAssistant, m: dict, fid: str | None = None) -> dict[st
             "stack_level": side["stack_level"] if level is None else level, "stack_height": side["stack_height"] if height is None else height}
 
 
+def scale_stops(hass: HomeAssistant, map_id: str, replacing: bool = False) -> None:
+    """The stops every first scale shares (the helper's save, the upload's hand measurement, ws_maps): a plan that
+    has a scale already (`replacing`: the helper's own, scale_replace's own check) or calibration points on it."""
+    mdl, _ms, _cal = _house_stores(hass)
+    if mdl.map_transform(map_id) is not None and not replacing:
+        raise Refused("already_placed", SCALE_WORDS["already_placed"])
+    if _points_on(hass, map_id):
+        raise Refused("points_on_plan", SCALE_WORDS["points_on_plan"])
+
+
 def scale_check(hass: HomeAssistant, map_id: str, sig: str | None, floor_id: str | None, replacing: bool = False) -> tuple[dict, str]:
     """The data-safety checks, in order; (the plan, its floor) when all pass. Refused with the stop's word. `replacing`:
     the helper's own scale is to be replaced (scale_replace makes that check itself), so a scale already there is no stop."""
@@ -2042,10 +2053,7 @@ def scale_check(hass: HomeAssistant, map_id: str, sig: str | None, floor_id: str
         raise Refused("plan_changed", SCALE_WORDS["plan_changed"])
     if _picture_size(m) is None:
         raise Refused("no_picture_size", SCALE_WORDS["no_picture_size"])
-    if mdl.map_transform(map_id) is not None and not replacing:
-        raise Refused("already_placed", SCALE_WORDS["already_placed"])
-    if _points_on(hass, map_id):
-        raise Refused("points_on_plan", SCALE_WORDS["points_on_plan"])
+    scale_stops(hass, map_id, replacing)
     fid = str(floor_id or m.get("floor_id") or "")
     if fid not in _indoor(hass):
         raise Refused("floor_unknown", SCALE_WORDS["floor_unknown"], {"floors": [f["id"] for f in A.floor_order(mdl)]})
