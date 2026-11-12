@@ -957,8 +957,12 @@ SETUP_EVENTS: frozenset[str] = frozenset(
     # "Put my receivers in their rooms" (ws_fabric.ws_receivers_to_rooms, 2026-11-12): pressed, how many it placed, undone.
     | {f"setup_receivers_rooms:{k}" for k in ("pressed", "undone")} | {f"setup_receivers_placed:{b}" for b in ROOMS_BANDS})
 # "Set this plan's scale now" right after Mapping → Upload (views/scale_nudge.js): shown, saved with one length or
-# two, put off with Later, and the quiet "No scale yet" line's Measure (Mapping → Library, Setup) pressed.
-SCALE_NUDGE_WORDS: tuple[str, ...] = ("shown", "measured_one", "measured_two", "later", "reminder_measure")
+# two, put off with Later, and the quiet "No scale yet" line's Measure (Mapping → Library, Setup) pressed. Since
+# 2026-11-13 the same screen is every plan's first scale: at Save, which door it came through (via_<door>,
+# scale_nudge.DOORS: after an upload, Setup, Getting started, the Setup Wizard, a "No scale yet" line, the Plans tool,
+# 3D Stack).
+SCALE_NUDGE_DOORS: tuple[str, ...] = ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")
+SCALE_NUDGE_WORDS: tuple[str, ...] = ("shown", "measured_one", "measured_two", "later", "reminder_measure") + tuple(f"via_{d}" for d in SCALE_NUDGE_DOORS)
 SCALE_NUDGE_EVENTS: frozenset[str] = frozenset(f"scale_nudge:{k}" for k in SCALE_NUDGE_WORDS)
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),

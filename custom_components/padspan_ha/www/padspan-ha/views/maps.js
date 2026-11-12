@@ -171,6 +171,8 @@ export function render(ctx){
   const activeTab = ctx.state.mapsTab || "library";
   // "Edit outline" is for the Edit tab only: anywhere else it is dropped.
   if (activeTab !== "edit" && ctx.state.maps) ctx.state.maps._openRoom = null;
+  // The first-scale screen _openMeasure asked for belongs to Edit on that plan: leaving either ends it.
+  if (ctx.state._firstScale && (activeTab !== "edit" || !active || active.id !== ctx.state._firstScale.mapId)) ctx.state._firstScale = null;
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
   const _setupShown = !!(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView);
@@ -207,7 +209,7 @@ export function render(ctx){
   const body = el("div",{},[
     activeTab==="library" ? _library(ctx, maps, activeId, helpBtn, isBasic) :
     activeTab==="upload" ? _upload(ctx, helpBtn, isBasic) :
-    activeTab==="edit" ? (NUDGE && NUDGE.pending(ctx, active) ? NUDGE.render(ctx, active) : _edit(ctx, active, maps)) :
+    activeTab==="edit" ? _editOrFirstScale(ctx, active, maps) :
     activeTab==="stack" ? _stack(ctx, maps, helpBtn) :
     activeTab==="rooms" ? _roomsTab(ctx, maps) :
     activeTab==="lights" ? _lightsTab(ctx, maps, active) :
@@ -421,22 +423,37 @@ function _compareAllMaps(ctx, maps, resultDiv) {
 // Basic it opens the plan in the Setup Wizard at its scale step: Basic's own
 // way through a plan (scale, rooms, scanners), each step with only its tool.
 // Advanced and Development open Edit.
-function _openForEdit(ctx, mapId){
+function _openForEdit(ctx, mapId, wiz = {}){
   ctx.actions.mapsSetActive(mapId);
   if (ctx.state.complexity === "basic") {
-    ctx.state._mapsWizard = { step: 2, mapId };
+    ctx.state._mapsWizard = { step: 2, mapId, ...wiz };
     ctx.actions.renderRooms();
     return;
   }
   ctx.actions.setMapsTab("edit");
 }
 
-// "Measure this plan" (the Plans tool's floors with no scale yet, 3D Stack's
-// reference with none): the plan opened as Open does, on the Measure tool.
-// Basic's wizard step 2 is Measure already; Advanced, Edit's one-shot
-// _openMode, or the tool itself when that plan's draft is already open.
-function _openMeasure(ctx, mapId){
+// The one rule for a plan's first scale (owner, 2026-11-13, D1): a plan with
+// no scale gets the one-length screen (scale_nudge.js); one that has a scale
+// is measured again in Edit → Measure. `offered` also keeps it to an
+// administrator on the house's own data, never a wall screen.
+const _firstScale = (ctx, map) => !!(NUDGE && map && NUDGE.offered(ctx, map));
+
+// "Measure this plan", every door to it: the Library's and Setup's "No scale
+// yet: Measure", the Plans tool's floors with no scale, 3D Stack's reference
+// with none, Basic's upload. `door`: where it came from (counted at Save).
+// A first scale: Basic's wizard step 2, Advanced Edit, each showing the
+// one-length screen on that plan. A plan that has a scale: the plan opened as
+// Open does, on the Measure tool (Basic's wizard step 2 is Measure already;
+// Advanced, Edit's one-shot _openMode, or the tool itself when that plan's
+// draft is already open).
+function _openMeasure(ctx, mapId, door = "reminder"){
   const ms = ctx.state.maps || (ctx.state.maps = {});
+  if (_firstScale(ctx, (ms.list || []).find(m => m.id === mapId))) {
+    if (ctx.state.complexity !== "basic") ctx.state._firstScale = { mapId, door };
+    _openForEdit(ctx, mapId, { door });
+    return;
+  }
   if (ctx.state.complexity !== "basic") {
     if (ms._draftMapId === mapId) { ms._mode = "measure"; ms._measurePts = []; ms._drawing = null; ms._selectedRxId = null; }
     else { ms._openMode = "measure"; ms._measurePts = []; ms._measurements = []; }
@@ -632,7 +649,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
       el("div",{class:"muted", style:"font-size:12px"}, `updated: ${m.updated || ""}` + (reco ? " • gap detected" : "")
         + (_placed ? (PM.feetOn(ctx) ? ` • ${PM.feetText(_pl.scale_x_m)} × ${PM.feetText(_pl.scale_y_m)}` : ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m`) : " • not placed")),
     ]);
-    { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id)); if (n) left.appendChild(n); }
+    { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id, "reminder")); if (n) left.appendChild(n); }
 
     const actions = el("div",{style:"display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap"});
     actions.appendChild(el("button",{class:"btn inline", onclick:()=>_openForEdit(ctx, m.id)}, "Open"));
@@ -1253,7 +1270,8 @@ function _upload(ctx, helpBtn, isBasic){
       ctx.state._mapsUploadFile = null;
       ctx.state._mapsUploadFloorId = null;
       const _newMap = uploadRes?.map?.id ? (ctx.state.maps?.list || []).find(m => m.id === uploadRes.map.id) || uploadRes.map : null;
-      if(_askScale && isBasic && _newMap && NUDGE && NUDGE.offered(ctx, _newMap)){ _openMeasure(ctx, _newMap.id); return; }
+      if(_askScale && isBasic && _newMap && NUDGE && NUDGE.offered(ctx, _newMap)){ _openMeasure(ctx, _newMap.id, "upload"); return; }
+      if(ctx.state._mapsWizard) ctx.state._mapsWizard.door = "upload";   // the wizard goes on to its scale step: a first scale after an upload
       // Open the newly uploaded map in the edit tab
       if(uploadRes?.map?.id) ctx.state.activeMapId = uploadRes.map.id;
       ctx.state.mapsTab = "edit";
@@ -1520,16 +1538,19 @@ function _wizardScale(ctx, map, maps, w){
   _wizardForceEditMode(ctx, w, "measure");
   const wrap = el("div",{});
   const done = _wizHasScale(ctx.state);
-  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    "Measure two points you know the real distance between — a doorway, a wall — so distances on the map match distances in the house. " +
-    "Rooms can be drawn without this, but wall attenuation and any real-world measurement need it, so it's worth doing now while you're here. " +
-    "The AI tools that read your plans need it too."));
-  if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
+  // This plan's first scale: the one-length screen (D1). One with a scale: Edit → Measure, to measure it again.
+  const first = _firstScale(ctx, map);
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, first
+    ? "Measure one distance you know, a doorway or a wall, so the map is in metres. Rooms, receivers and the AI tools that read your plans need it."
+    : "This plan has a scale. To measure it again, mark two lengths at different angles below; the two together check that the plan picture isn't stretched."));
+  if (done && !first) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     "✓ Scale is set for this house."));
   if (AIW && AIW.stepSeen && !done) AIW.stepSeen(ctx, "scale");          // the rooms helper's pull trigger: met again, unfinished
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
   if (aiw) wrap.appendChild(aiw);
-  wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "measure")));
+  wrap.appendChild(first
+    ? NUDGE.render(ctx, map, { door: w.door || (ctx.state._setupReturn ? "setup" : "wizard"), later: false })
+    : _edit(ctx, map, maps, _wizardTools(ctx, "measure")));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later" }));
   return wrap;
 }
@@ -1869,6 +1890,18 @@ function _rxHeightRow(ctx, sel, rerender){
 // Radios. opts.focused (Basic, a link's part, views/focus.js): no map or
 // floor switch, Trim, Rotate, Suggest Placement or "All rooms / receivers"
 // either, so the one task is all there is.
+// Mapping → Edit on a plan, or in its place the one-length screen: while the
+// upload's nudge waits on the plan (door "upload"), or when _openMeasure asked
+// for that plan's first scale (ctx.state._firstScale). Later ends it here.
+function _editOrFirstScale(ctx, map, maps){
+  const fs = ctx.state._firstScale;
+  const asked = !!(fs && map && fs.mapId === map.id && _firstScale(ctx, map));
+  if (NUDGE && map && (asked || NUDGE.pending(ctx, map))) {
+    return NUDGE.render(ctx, map, { door: asked ? fs.door : "upload", onLater: () => { ctx.state._firstScale = null; } });
+  }
+  return _edit(ctx, map, maps);
+}
+
 function _edit(ctx, map, allMaps, opts){
   const { el, roomColor, helpBtn } = ctx.helpers;
   const card = el("div",{class:"card"});
@@ -5865,7 +5898,7 @@ function _stack(ctx, maps, helpBtn){
     noScaleRef.style.display = ref && !_placeOf(ref.id) ? "" : "none";
     if (!ref || _placeOf(ref.id)) return;
     noScaleRef.appendChild(el("span",{}, `${ref.name || "The Reference plan"} has no scale yet, so nothing can be lined up to it. `));
-    noScaleRef.appendChild(el("button",{class:"btn inline", "data-stack-go":"measure", onclick:()=>_openMeasure(ctx, ref.id)}, "\ud83d\udccf Measure it"));
+    noScaleRef.appendChild(el("button",{class:"btn inline", "data-stack-go":"measure", onclick:()=>_openMeasure(ctx, ref.id, "stack")}, "\ud83d\udccf Measure it"));
   };
   refSel.addEventListener("change", paintNoScaleRef);
   paintNoScaleRef();
@@ -9828,7 +9861,7 @@ function _lightsTab(ctx, maps, active) {
   // the rooms helper where its rule offers it ("pull", ai_wizard_offer.js), Settings → AI. None on a wall
   // screen: nothing there navigates away, the tool says where to do it instead.
   const plansGo = ctx.state.kioskMode ? null : {
-    measure: (mapId) => _openMeasure(ctx, mapId),
+    measure: (mapId) => _openMeasure(ctx, mapId, "plans"),
     helperOffered: () => !!(AIW && AIW.offered(ctx, "plans_tool")),
     helperWords: () => (AIW && AIW.lineWords ? AIW.lineWords(ctx, "plans_tool") : null),     // Carry on or Try it, as Setup says it
     helper: () => { if (AIW) AIW.openWizard(ctx, "plans_tool"); },

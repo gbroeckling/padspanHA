@@ -117,7 +117,9 @@ def test_later_ends_it_for_good_and_the_upload_marks_only_an_indoor_plan(monkeyp
 
 
 def test_the_counters_are_allowed_summed_and_labelled():
-    words = {f"scale_nudge:{k}" for k in ("shown", "measured_one", "measured_two", "later", "reminder_measure")}
+    # 2026-11-13: the screen is every plan's first scale (D1); at Save, which door it came through (scale_nudge.DOORS).
+    doors = ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")
+    words = {f"scale_nudge:{k}" for k in ("shown", "measured_one", "measured_two", "later", "reminder_measure")} | {f"scale_nudge:via_{d}" for d in doors}
     assert T.SCALE_NUDGE_EVENTS == words and all(T.event_allowed(e) for e in words)
     spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
     S = importlib.util.module_from_spec(spec)
@@ -125,9 +127,12 @@ def test_the_counters_are_allowed_summed_and_labelled():
     assert set(S._SCALE_NUDGE) == words
     js = (_WWW / "views" / "scale_nudge.js").read_text(encoding="utf-8")
     sent = set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', js)) | set(re.findall(r'"(measured_[a-z]+)"', js))
+    m = re.search(r"export const DOORS = Object\.freeze\(\[([^\]]*)\]\)", js)
+    assert m and tuple(re.findall(r'"([a-z_]+)"', m.group(1))) == doors and 'tel(ctx, "via_" + opts.door)' in js
+    sent |= {f"via_{d}" for d in doors}
     assert {f"scale_nudge:{w}" for w in sent} == words
     ib = (_WWW / "views" / "installbase.js").read_text(encoding="utf-8")
-    assert all(f"{k}:" in ib for k in ("measured_one", "measured_two", "reminder_measure")) and 'a === "scale_nudge"' in ib
+    assert all(f"{k}:" in ib for k in ("measured_one", "measured_two", "reminder_measure", *(f"via_{d}" for d in doors))) and 'a === "scale_nudge"' in ib
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")

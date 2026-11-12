@@ -97,6 +97,9 @@ for (const mode of ["basic", "advanced"]) {
       (function walk(n){ if (n.getAttribute && n.getAttribute("data-edit-tool")) t.push(n.getAttribute("data-edit-tool")); for (const c of n.childNodes || []) walk(c); })(r);
       return { t, r };
     };
+    // 2026-11-13 (D1): step 2 is Edit → Measure on a plan that has a scale; one with none gets the one-length screen
+    // (tests/js/scale_nudge.mjs).
+    ctx.state.model.map_transforms = { m1: { scale_x_m: 10, scale_y_m: 8 } };
     const sc = await toolsAt(2), ro = await toolsAt(3), rx = await toolsAt(4);
     check("basic: the wizard's steps have one tool each (Measure, Rooms, Radios)",
       JSON.stringify(sc.t) === '["measure"]' && JSON.stringify(ro.t) === '["rooms"]' && JSON.stringify(rx.t) === '["receivers"]', [sc.t, ro.t, rx.t]);

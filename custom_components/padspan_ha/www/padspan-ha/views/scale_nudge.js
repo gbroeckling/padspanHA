@@ -12,6 +12,10 @@
 // Later puts it off for good. Both end it for that plan (the plan's own record: scale_nudge, set by the upload).
 // After that a plan with no scale has one quiet line, "No scale yet: Measure", in Mapping → Library and in Setup.
 // Only for an administrator on the house's own data, never on a wall screen.
+// Owner, 2026-11-13 (D1): this screen is used wherever a plan gets its FIRST scale (maps.js _openMeasure and the Setup
+// Wizard's scale step decide, by `offered`); Mapping → Edit → Measure stays for measuring a scaled plan again. `opts`
+// of render: `door` (which door it came through, counted at Save), `onSaved` (where Save goes on to), `later: false`
+// (no Later: the Setup Wizard's own Skip is there), `onLater`.
 
 const V = new URL(import.meta.url).search;
 const PM = await import(`./plan_measure.js${V}`);
@@ -26,7 +30,9 @@ export const SECOND_WHY = "Optional: a second length, running the other way, che
 export const ONE_ONLY = "Use only the first length";
 export const SAVE_SAYS = "Saved as Mapping → Edit → Measure saves a scale. You can measure again there at any time.";
 export const REMINDER = "No scale yet";
-export const DIFFER_PCT = 5;      // two lengths this far apart are said, never refused (Save takes their average, as Measure does)
+export const DIFFER_PCT = 5;
+// The doors a first scale comes through, counted at Save (scale_nudge:via_<door>; telemetry.SCALE_NUDGE_WORDS).
+export const DOORS = Object.freeze(["upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack"]);      // two lengths this far apart are said, never refused (Save takes their average, as Measure does)
 
 /** The two lengths' agreement in plain words (the server's differ_pct: how far apart the scales they give are). */
 export function differWords(pct) {
@@ -103,7 +109,7 @@ function oneOnly(ctx, d) {
   redraw(ctx);
 }
 
-async function save(ctx, map, d) {
+async function save(ctx, map, d, opts = {}) {
   const a = ask(d);
   d.busy = true; d.msg = ""; redraw(ctx);
   let r;
@@ -119,19 +125,22 @@ async function save(ctx, map, d) {
     return;
   }
   tel(ctx, a.length === 2 ? "measured_two" : "measured_one");
+  if (DOORS.includes(opts.door)) tel(ctx, "via_" + opts.door);
   map.scale_nudge = false;
   ctx.state._scaleNudge = null;
   if (ctx.toast) ctx.toast(`Scale saved: the plan is ${PM.lengthText(r.scale_x_m, PM.feetOn(ctx))} across and ${PM.lengthText(r.scale_y_m, PM.feetOn(ctx))} down.`);
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   if (ctx.actions.mapsRefresh) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
+  if (opts.onSaved) opts.onSaved(map);
   redraw(ctx);
 }
 
-function later(ctx, map) {
+function later(ctx, map, opts = {}) {
   tel(ctx, "later");
   map.scale_nudge = false;
   ctx.state._scaleNudge = null;
   ctx.actions.callWS({ type: "padspan_ha/maps_scale_nudge_end", map_id: map.id }).catch(() => {});
+  if (opts.onLater) opts.onLater(map);
   redraw(ctx);
 }
 
@@ -155,13 +164,14 @@ function paint(ctx, d, said, sized, saveBtn) {
   saveBtn.disabled = !ready(d);
 }
 
-/** The nudge for this plan, in place of Mapping → Edit while it waits. */
-export function render(ctx, map) {
+/** The one-length screen for this plan: in place of Mapping → Edit while the upload's nudge waits, or wherever the plan
+ *  gets its first scale (`opts`: see the header). */
+export function render(ctx, map, opts = {}) {
   const { el } = ctx.helpers, d = draft(ctx, map), tap = PM.tapWord();
   if (!_shown.has(map.id)) { _shown.add(map.id); tel(ctx, "shown"); }
   const card = el("div", { class: "card", "data-nudge": "card" });
   card.appendChild(el("div", { class: "h2" }, TITLE));
-  card.appendChild(P(ctx, `${map.name || "Your plan"} is uploaded. ${WHY}`));
+  card.appendChild(P(ctx, `${map.name || "Your plan"} ${map.scale_nudge === true || opts.door === "upload" ? "is uploaded" : "has no scale yet"}. ${WHY}`));
   card.appendChild(P(ctx, PM.measureHow(tap)));
   const cols = el("div", { style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:0 1 240px;min-width:220px" });
@@ -178,9 +188,9 @@ export function render(ctx, map) {
     key: d.first ? "scale-length-2" : "scale-length", label: d.first ? "The second length:" : "Its length:" });
   const sized = el("div", { "data-nudge": "size" });
   side.appendChild(sized);
-  const saveBtn = btn(ctx, d.busy ? "Saving…" : "Save the scale", () => { if (ready(d)) save(ctx, map, d); }, { primary: true, attrs: { "data-nudge": "save" } });
-  const laterBtn = btn(ctx, "Later", () => later(ctx, map), { disabled: d.busy, attrs: { "data-nudge": "later" } });
-  card.appendChild(el("div", { "data-nudge": "bar", style: PM.STICKY_BAR }, [row(ctx, [saveBtn, laterBtn], "margin:0"),
+  const saveBtn = btn(ctx, d.busy ? "Saving…" : "Save the scale", () => { if (ready(d)) save(ctx, map, d, opts); }, { primary: true, attrs: { "data-nudge": "save" } });
+  const laterBtn = opts.later === false ? null : btn(ctx, "Later", () => later(ctx, map, opts), { disabled: d.busy, attrs: { "data-nudge": "later" } });
+  card.appendChild(el("div", { "data-nudge": "bar", style: PM.STICKY_BAR }, [row(ctx, [saveBtn, laterBtn].filter(Boolean), "margin:0"),
     el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4" }, SAVE_SAYS)]));
   d.paint = () => paint(ctx, d, said, sized, saveBtn);
   d.paint();

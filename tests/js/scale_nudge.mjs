@@ -67,7 +67,7 @@ function house(o = {}) {
   const state = {
     complexity: o.complexity || "advanced", mapsTab: o.tab || "library", dataMode: o.dataMode || "live", view: "maps", kioskMode: !!o.kiosk,
     settings: { setup_progress: {} }, _mapsLoaded: true, _modelLoaded: true, calibration: { points: [] },
-    maps: { list: o.maps || [] }, model: { floors: [{ id: "main", floor_id: "main", name: "Main" }], map_transforms: o.tfs || {}, areas: [] },
+    maps: { list: o.maps || [] }, model: { floors: [{ id: "main", floor_id: "main", name: "Main" }], map_transforms: JSON.parse(JSON.stringify(o.tfs || {})), areas: [] },
     ...(o.wizard ? { _mapsWizard: o.wizard } : {}),
   };
   const h = { calls, tele, renders, toasts, state };
@@ -211,8 +211,50 @@ const TF = { p2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } }
   const lines = all(root, '[data-nudge="reminder"]');
   check("Library: one quiet line, on the plan with no scale only", lines.length === 1 && lines[0].textContent.includes("No scale yet"), lines.map(l => l.textContent));
   button(lines[0], "Measure").click();
-  check("Library: its Measure counted, the plan opened on Measure", count(h, "reminder_measure") === 1 && h.state.mapsTab === "edit"
-    && h.state.activeMapId === "p1" && h.state.maps._openMode === "measure", [h.tele, h.state.mapsTab, h.state.maps._openMode]);
+  // 2026-11-13 (D1): a plan's first scale is the one-length screen wherever it is asked for; it used to open Edit → Measure.
+  check("Library: its Measure counted, the plan opened on the one-length screen", count(h, "reminder_measure") === 1 && h.state.mapsTab === "edit"
+    && h.state.activeMapId === "p1" && h.state._firstScale && h.state._firstScale.door === "reminder", [h.tele, h.state.mapsTab, h.state._firstScale]);
+  root = await render(h);
+  check("Library: Edit shows the one-length screen, with Later, not Edit → Measure", !!q(root, '[data-nudge="card"]') && !!q(root, '[data-nudge="later"]')
+    && !root.textContent.includes("Measurement 1 of 2") && root.textContent.includes("Ground has no scale yet"), root.textContent.slice(0, 300));
+  tap(root, 80, 300); root = await render(h); tap(root, 480, 300); await tick(); root = await render(h);
+  await typeIn(root, "scale-length", "5 m");
+  q(root, '[data-nudge="save"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  check("Library: Save counts the door it came through", count(h, "via_reminder") === 1 && count(h, "measured_one") === 1, h.tele);
+  // Later on a screen a door opened: back to Edit on that plan.
+  const l = house({ maps: plain(), tfs: TF });
+  let lr = await render(l);
+  button(all(lr, '[data-nudge="reminder"]')[0], "Measure").click();
+  lr = await render(l);
+  q(lr, '[data-nudge="later"]').click(); await tick();
+  lr = await render(l);
+  check("Library: Later leaves the screen for Edit on that plan", !l.state._firstScale && !q(lr, '[data-nudge="card"]') && l.state.mapsTab === "edit", l.state._firstScale);
+  // A plan that has a scale is measured again in Edit → Measure, as before.
+  const m2 = house({ maps: plain(), tfs: TF, wizard: { step: 2, mapId: "p2" } });
+  const mr = await render(m2);
+  check("a plan with a scale: the wizard's scale step is Edit → Measure", !q(mr, '[data-nudge="card"]') && mr.textContent.includes("Measurement 1 of 2")
+    && mr.textContent.includes("This plan has a scale"), mr.textContent.slice(0, 400));
+  // The wizard's scale step on a plan with none: the one-length screen, no Later (the wizard's Skip is there), counted by its door.
+  for (const cx of ["basic", "advanced"]) {
+    const g = house({ complexity: cx, maps: plain(), tfs: TF, wizard: { step: 2, mapId: "p1" } });
+    g.state._setupReturn = "scale";
+    let gr = await render(g);
+    check(`${cx}: the wizard's scale step on a plan with no scale is the one-length screen, says one distance, no Later`, !!q(gr, '[data-nudge="card"]')
+      && !q(gr, '[data-nudge="later"]') && !gr.textContent.includes("Measurement 1 of 2") && gr.textContent.includes("Measure one distance you know"),
+      gr.textContent.slice(0, 400));
+    tap(gr, 80, 300); gr = await render(g); tap(gr, 480, 300); await tick(); gr = await render(g);
+    await typeIn(gr, "scale-length", "5 m");
+    q(gr, '[data-nudge="save"]').click();
+    for (let i = 0; i < 4; i++) await tick();
+    check(`${cx}: saved from Setup's door, counted so`, count(g, "via_setup") === 1 && g.calls.some(c => c.type === "padspan_ha/maps_scale_measure" && c.save && c.map_id === "p1"), g.tele);
+  }
+  // Basic's upload: the wizard's scale step, the one-length screen, counted as after an upload.
+  const bu = house({ complexity: "basic" });
+  await upload(bu);
+  let br = await render(bu);
+  check("basic upload: the wizard's scale step shows the one-length screen", !!q(br, '[data-nudge="card"]') && bu.state._mapsWizard.door === "upload"
+    && br.textContent.includes("is uploaded"), [bu.state._mapsWizard, br.textContent.slice(0, 300)]);
   const s = house({ maps: plain(), tfs: TF });
   s.state.view = "setup";
   const sr = SETUP.render(s.ctx);

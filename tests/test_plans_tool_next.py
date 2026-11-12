@@ -49,15 +49,20 @@ def test_measure_opens_that_plan_on_the_measure_tool():
     another plan's draft is open, the tool at once when it is this one's); Basic, the wizard's scale step."""
     src = _src("maps.js")
     fns = src[src.index("function _openForEdit("):src.index("function _library(")]
-    js = fns + r"""
-const mk = (complexity, draft) => { const calls = [];
-  const ctx = { state: { complexity, maps: { _draftMapId: draft, _mode: "rooms", _measurePts: [[1, 2]], _measurements: [{ m: 3 }] } },
+    # 2026-11-13 (D1): a plan with no scale opens the one-length screen instead (scale_nudge.offered decides: faked here by `first`).
+    js = "const NUDGE = { offered: (ctx, m) => !!(m && m.first) };" + chr(10) + fns + r"""
+const mk = (complexity, draft, first = false) => { const calls = [];
+  const ctx = { state: { complexity, maps: { list: [{ id: "p1", first }], _draftMapId: draft, _mode: "rooms", _measurePts: [[1, 2]], _measurements: [{ m: 3 }] } },
     actions: { mapsSetActive: (id) => calls.push("active:" + id), setMapsTab: (t) => calls.push("tab:" + t), renderRooms: () => calls.push("render") } };
   return { ctx, calls }; };
 const out = {};
 for (const [k, cx, dr] of [["other", "advanced", "p9"], ["same", "advanced", "p1"], ["basic", "basic", "p9"]]) {
   const a = mk(cx, dr); _openMeasure(a.ctx, "p1");
   out[k] = { calls: a.calls, open: a.ctx.state.maps._openMode || null, mode: a.ctx.state.maps._mode, wiz: a.ctx.state._mapsWizard || null, pts: a.ctx.state.maps._measurePts.length, meas: a.ctx.state.maps._measurements.length };
+}
+for (const [k, cx] of [["first", "advanced"], ["first_basic", "basic"]]) {
+  const a = mk(cx, "p1", true); _openMeasure(a.ctx, "p1", "plans");
+  out[k] = { calls: a.calls, open: a.ctx.state.maps._openMode || null, mode: a.ctx.state.maps._mode, wiz: a.ctx.state._mapsWizard || null, fs: a.ctx.state._firstScale || null };
 }
 console.log(JSON.stringify(out));
 """
@@ -67,13 +72,16 @@ console.log(JSON.stringify(out));
     assert out["other"] == {"calls": ["active:p1", "tab:edit"], "open": "measure", "mode": "rooms", "wiz": None, "pts": 0, "meas": 0}   # another plan's half-made measurement is not carried over
     assert out["same"] == {"calls": ["active:p1", "tab:edit"], "open": None, "mode": "measure", "wiz": None, "pts": 0, "meas": 1}       # this plan's own earlier length is kept
     assert out["basic"]["wiz"] == {"step": 2, "mapId": "p1"} and out["basic"]["open"] is None and "tab:edit" not in out["basic"]["calls"]
+    # A first scale: Edit on that plan shows the one-length screen (no Measure tool armed); Basic, the wizard's scale step, with its door.
+    assert out["first"] == {"calls": ["active:p1", "tab:edit"], "open": None, "mode": "rooms", "wiz": None, "fs": {"mapId": "p1", "door": "plans"}}
+    assert out["first_basic"]["wiz"] == {"step": 2, "mapId": "p1", "door": "plans"} and out["first_basic"]["fs"] is None
 
 
 def test_the_host_hands_the_next_actions_and_none_on_a_wall_screen():
     maps = _src("maps.js")
     go = maps[maps.index("const plansGo = "):maps.index("// Asked once a page, with the experimental switch on")]
     assert go.startswith("const plansGo = ctx.state.kioskMode ? null : {")
-    assert "measure: (mapId) => _openMeasure(ctx, mapId)" in go
+    assert 'measure: (mapId) => _openMeasure(ctx, mapId, "plans")' in go     # its door counted (2026-11-13)
     assert 'AIW.offered(ctx, "plans_tool")' in go and 'AIW.openWizard(ctx, "plans_tool")' in go     # the helper's own rule and door, no second copy
     assert 'FOCUS.openFocus(ctx, FOCUS.part("aiTask"))' in go
     assert 'if (plansGo && AIW && ctx.state.settings?.ai_plans_enabled === true) AIW.infoFor(ctx, "plans_tool");' in maps
@@ -88,13 +96,14 @@ def test_3d_stack_says_the_reference_has_no_scale_and_offers_measure():
     maps = _src("maps.js")
     assert "has no placement yet" not in maps
     assert "The Reference plan has no scale yet: measure it first" in maps
-    assert '"data-stack-go":"measure", onclick:()=>_openMeasure(ctx, ref.id)' in maps
+    assert '"data-stack-go":"measure", onclick:()=>_openMeasure(ctx, ref.id, "stack")' in maps
 
 
 def test_the_wizard_scale_step_says_the_ai_tools_need_it():
     maps = _src("maps.js")
     step = maps[maps.index("function _wizardScale("):maps.index("function _wizardScale(") + 1200]
-    assert "Rooms can be drawn without this" in step and "The AI tools that read your plans need it too." in step
+    # 2026-11-13 (D1): a first scale is one distance (Setup's own words); rooms, receivers and the AI tools need it.
+    assert "Measure one distance you know" in step and "the AI tools that read your plans need it." in step
 
 
 def test_the_two_tabs_speak_plain_words():

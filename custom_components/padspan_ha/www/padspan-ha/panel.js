@@ -5221,7 +5221,7 @@ class PadSpanHaApp extends HTMLElement {
               const _mapId = (this.state.activeMapId && _maps.some(m => m.id === this.state.activeMapId))
                 ? this.state.activeMapId
                 : ((_maps[0] && _maps[0].id) || null);
-              this.state._mapsWizard = { step: s.wizardStep, mapId: _mapId };
+              this.state._mapsWizard = { step: s.wizardStep, mapId: _mapId, door: "getting_started" };
               if (this.actions?.renderRooms) this.actions.renderRooms();
               else this._scheduleRender();
               return;

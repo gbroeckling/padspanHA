@@ -98,6 +98,9 @@ const maps = await import(pathToFileURL(join(VIEWS_DIR, "maps.js")).href);
 for (const [complexity, step, want] of [["advanced", 2, "measure"], ["advanced", 3, "rooms"], ["advanced", 4, "receivers"], ["basic", 2, "measure"]]) {
   const ctx = makeCtx(complexity);
   ctx.state._mapsWizard = { step, mapId: "m1" };
+  // 2026-11-13 (D1): step 2 is Edit → Measure on a plan that has a scale (measuring it again); a plan with none gets the
+  // one-length screen instead (tests/js/scale_nudge.mjs).
+  if (step === 2) ctx.state.model.map_transforms = { m1: { origin_x_m: 0, origin_y_m: 0, scale_x_m: 10, scale_y_m: 10 } };
   const root = maps.render(ctx); await flush();
   check(`${complexity} wizard step ${step} opens on ${want}`, ctx.state.maps._mode === want && JSON.stringify(lit(root)) === JSON.stringify([want]), [ctx.state.maps._mode, lit(root)]);
 }
