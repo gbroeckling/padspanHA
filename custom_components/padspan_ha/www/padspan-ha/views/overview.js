@@ -351,7 +351,7 @@ export function renderClassic(ctx){
         el("td",{}, assignBtn),
       ]);
       tr.style.cursor = "pointer";
-      tr.title = "Click for scanner details";
+      tr.title = "Click for receiver details";
       tr.addEventListener("click",(e)=>{
         if(e.target.tagName==="BUTTON") return;
         ctx.actions.closeModal(); ctx.actions.showScannerDetail(x);
@@ -452,7 +452,7 @@ export function renderClassic(ctx){
       el("div",{class:"muted", style:"margin-bottom:8px"}, `Radio: ${radioLabel}`),
       radio.lost     ? el("div",{style:"color:#f59e0b;font-size:12px;margin-bottom:8px"}, "⚠ Currently marked as Lost. Select a room to restore it.") : null,
       radio.disabled ? el("div",{style:"color:#c084fc;font-size:12px;margin-bottom:8px"}, "⊘ Currently Disabled. Select a room to re-enable it.") : null,
-      el("div",{style:"color:#94a3b8;font-size:12px;margin-bottom:10px"}, areas.length ? "Select an HA area for this scanner:" : "No HA areas found. Add areas in HA Settings → Areas & Zones."),
+      el("div",{style:"color:#94a3b8;font-size:12px;margin-bottom:10px"}, areas.length ? "Select an HA area for this receiver:" : "No HA areas found. Add areas in HA Settings → Areas & Zones."),
       el("div",{class:"row",style:"gap:8px;flex-wrap:wrap"},[sel, saveBtn, cancelBtn]),
       status,
     ].filter(Boolean));
@@ -1586,7 +1586,7 @@ export function renderClassic(ctx){
           const a = Number(o.age_s);
           parts.push(`Seen: ${a<60 ? Math.round(a)+"s ago" : Math.floor(a/60)+"m ago"}`);
         }
-        if(o.sources && o.sources.length) parts.push(`Scanners: ${o.sources.map(s => typeof s === "object" ? (s.source || "") : String(s)).join(", ")}`);
+        if(o.sources && o.sources.length) parts.push(`Receivers: ${o.sources.map(s => typeof s === "object" ? (s.source || "") : String(s)).join(", ")}`);
         if(!o.user_label) parts.push("Click to tag / view details");
         return parts.join("|");  // pipe-delimited for data attribute, rendered as lines
       };
@@ -3096,7 +3096,7 @@ export function renderClassic(ctx){
       ]),
       el("div",{style:"text-align:center"},[
         el("div",{class:"basic-summary-num"}, liveLoading ? "--" : String(radiosCount)),
-        el("div",{class:"basic-summary-lbl"}, "Scanners"),
+        el("div",{class:"basic-summary-lbl"}, "Receivers"),
       ]),
       (() => {
         const cs = liveSnap?.calibration_status;
@@ -3621,7 +3621,7 @@ export function renderClassic(ctx){
           else if (phone.is_transmitting) statusParts.push("BLE active");
           else statusParts.push("BLE off");
           if (!phone.is_disabled) {
-            if (phone.is_visible) statusParts.push("visible to scanners");
+            if (phone.is_visible) statusParts.push("visible to receivers");
             else statusParts.push("not seen yet");
           }
           if (phone.existing_label) statusParts.push(`labelled: ${phone.existing_label}`);
@@ -3834,11 +3834,11 @@ export function renderClassic(ctx){
                   if (phone.is_visible) {
                     btn.textContent = "Tracked!";
                     btn.style.cssText = "font-size:12px;padding:4px 14px;color:#4ade80;border-color:#065f46;font-weight:600";
-                    meta.textContent = `Tagged as "${r.verified_label}" · visible to scanners`;
+                    meta.textContent = `Tagged as "${r.verified_label}" · visible to receivers`;
                   } else if (phone.is_transmitting || r.transmitter_enabled) {
                     btn.textContent = "Registered — waiting for signal";
                     btn.style.cssText = "font-size:12px;padding:4px 14px;color:#fbbf24;border-color:#92400e;font-weight:600";
-                    meta.textContent = `Tagged as "${r.verified_label}" · BLE active but not yet seen by scanners. Walk near a scanner.`;
+                    meta.textContent = `Tagged as "${r.verified_label}" · BLE active but not yet seen by receivers. Walk near a receiver.`;
                   } else {
                     btn.textContent = "Registered — enable BLE";
                     btn.style.cssText = "font-size:12px;padding:4px 14px;color:#f59e0b;border-color:#92400e;font-weight:600";

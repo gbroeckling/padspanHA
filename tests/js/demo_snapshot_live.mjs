@@ -411,7 +411,8 @@ async function renderTune(stateOver) {
 }
 
 const WAITING = "Waiting for live data from Home Assistant";
-const NO_SCANNERS = "Home Assistant isn't reporting any Bluetooth scanners yet";
+// "receivers" now, the word a person reads (review 2026-11-11, C7); the line itself is unchanged.
+const NO_SCANNERS = "Home Assistant isn't reporting any Bluetooth receivers yet";
 const SWITCH = "Switch to Live mode";
 
 await run("wizard: Live with no snapshot yet says it is waiting, not 'Switch to Live mode'", async () => {

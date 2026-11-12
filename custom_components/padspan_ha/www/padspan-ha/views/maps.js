@@ -199,7 +199,7 @@ export function render(ctx){
           helpBtn("maps"),
         ]),
         el("div",{class:"muted"}, isBasic
-          ? "Upload a photo of your floor plan to visualise where your Bluetooth scanners are placed."
+          ? "Upload a photo of your floor plan to visualise where your Bluetooth receivers are placed."
           : "Upload floorplans (any image type), auto-size to PNG, then place BLE receivers. Export maps + receiver layout."),
       ]),
       el("div",{style:"display:flex;gap:8px;align-items:center;flex:none"},[
@@ -2505,7 +2505,7 @@ function _edit(ctx, map, allMaps, opts){
 
   // --- Right panel (tools) ---
   const right = el("div",{class:"card", style:"margin-top:10px"},[]);
-  const _modeHelp = {"receivers":"Double-click map to place radio; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between","subzones":"Click points around the bed, couch or desk; double-click to finish"};
+  const _modeHelp = {"receivers":"Double-click map to place receiver; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between","subzones":"Click points around the bed, couch or desk; double-click to finish"};
   // Built each time renderTools draws, so the lit tool and the hint follow the
   // tool in use. A tool's own tint goes while it is lit: as an inline style it
   // would hide .primary.
@@ -2513,7 +2513,7 @@ function _edit(ctx, map, allMaps, opts){
     // In build order (review 2026-11-13): measure the plan, draw its rooms, place its receivers, then signal walls.
     _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:ctx.state.maps._mode==="measure"?"":"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure") : null,
     _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms") : null,
-    _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios") : null,
+    _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Receivers") : null,
     _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:ctx.state.maps._mode==="barriers"?"":"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._openEdgeTap=false; renderAll(); renderTools(); }}, "Signal walls") : null,
     ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), "data-edit-tool":"subzones", onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []).filter(() => _toolOk("subzones")),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
@@ -2840,7 +2840,7 @@ function _edit(ctx, map, allMaps, opts){
       recoBtn.disabled = !hasData;
       if(!hasData) recoBtn.style.opacity = "0.4";
       recoBtn.title = hasData
-        ? "Analyse coverage gaps and highlight the best area to place a new scanner"
+        ? "Analyse coverage gaps and highlight the best area to place a new receiver"
         : "Draw room boundaries first to enable coverage gap analysis";
       recoBtn.textContent = isActive ? "Clear Suggestion" : "Suggest Placement";
       recoBtn.addEventListener("click", ()=>{
@@ -2934,7 +2934,7 @@ function _edit(ctx, map, allMaps, opts){
       const liveRadios = (snap2 && snap2.ble && Array.isArray(snap2.ble.radios)) ? snap2.ble.radios : [];
       const _sid = ctx.helpers.radioShortId || (src => src.slice(0,3).toUpperCase());
       right.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:14px"},[
-        el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, "Live BLE Radios"),
+        el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, "Live BLE Receivers"),
         !_focused && ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
       ].filter(Boolean)));
       // #88: in Sample mode these are the demo house's radios. Placed on a
@@ -2995,7 +2995,7 @@ function _edit(ctx, map, allMaps, opts){
         right.appendChild(radList);
       } else {
         right.appendChild(el("div",{class:"muted", style:"margin-top:4px;font-size:11px"},
-          snap2 ? "No live BLE radios detected. Enable Bluetooth proxy in HA." : "Switch to Live mode to see your BLE scanners."));
+          snap2 ? "No live BLE receivers detected. Enable Bluetooth proxy in HA." : "Switch to Live mode to see your BLE receivers."));
       }
     } else if(ctx.state.maps._mode==="subzones" && _szOn()){
       right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"},
@@ -5181,7 +5181,7 @@ const BRIGHT_PRO_MANUAL = [
       },
       {
         "heading": "Checking Health",
-        "body": "Health shows the UI version and build, data mode, refresh time, discovered rooms, scanners and objects, scanner reliability, positioning checks and the Problems found list. Check it when the map is missing data or a scanner or room is behaving unexpectedly.",
+        "body": "Health shows the UI version and build, data mode, refresh time, discovered rooms, receivers and objects, receiver reliability, positioning checks and the Problems found list. Check it when the map is missing data or a receiver or room is behaving unexpectedly.",
         "steps": [],
         "notes": []
       }
@@ -5305,7 +5305,7 @@ function _sampleDemo(ctx){
   // Legend
   const legend = el("div",{style:"display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#94a3b8"});
   [
-    ["#52b788", "BLE Scanner"],
+    ["#52b788", "BLE Receiver"],
     ["#52b788", "HA Entity (phone/tracker)", "circle"],
     ["#5eead4", "Tagged BLE object", "square"],
     ["#f59e0b", "Unidentified BLE", "triangle"],
@@ -5570,9 +5570,9 @@ export function _staleReceivers(maps, isLive){
 export function _staleReceiversBox(el, list){
   return el("div",{class:"stale-rx-box",style:"margin-top:8px;padding:8px 10px;border:1px solid #92400e;border-radius:6px;font-size:12px"},[
     el("div",{style:"color:#ffd54f;margin-bottom:4px"},
-      `${list.length} receiver${list.length !== 1 ? "s" : ""} on your maps that no live scanner matches right now`),
+      `${list.length} receiver${list.length !== 1 ? "s" : ""} on your maps that Home Assistant doesn't hear right now`),
     el("div",{class:"muted",style:"margin-bottom:6px"},
-      "A scanner that is offline, unplugged or renamed in Home Assistant shows here too. Nothing has been removed."),
+      "A receiver that is offline, unplugged or renamed in Home Assistant shows here too. Nothing has been removed."),
     el("ul",{style:"margin:0 0 6px 18px;padding:0"},
       list.map(s => el("li",{}, `${s.name}${s.source && !s.name.includes(s.source) ? ` (${s.source})` : ""} — ${s.map}`))),
     el("div",{class:"muted"},
@@ -7600,7 +7600,7 @@ function _stack(ctx, maps, helpBtn){
   const staleBox = staleCount > 0 ? _staleReceiversBox(el, staleList) : null;
   if(staleBox && !ctx.state.maps._staleListOpen) staleBox.style.display = "none";
   const cleanBtn = el("button",{class:"btn inline",style:"padding:2px 10px;font-size:12px" + (staleCount > 0 ? ";color:#ffd54f;border-color:#92400e" : ";opacity:0.5"),
-    title: staleCount > 0 ? `${staleCount} receiver(s) not matching any live BLE scanner — click to see which` : "All receivers match live scanners",
+    title: staleCount > 0 ? `${staleCount} receiver(s) Home Assistant doesn't hear right now — click to see which` : "Home Assistant hears every receiver on your maps",
     onclick: ()=>{
       if(!staleCount){ cleanLbl.textContent = "All clean"; setTimeout(()=>{ cleanLbl.textContent = ""; }, 2000); return; }
       ctx.state.maps._staleListOpen = !ctx.state.maps._staleListOpen;
@@ -11646,7 +11646,7 @@ function _roomsTab(ctx, maps) {
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "The real-world model the positioning engine uses — edited directly, in metres, with no floor " +
-    "plan involved. Green pins are your scanners: drag one to say where it actually is. " +
+    "plan involved. Green pins are your receivers: drag one to say where it actually is. " +
     "Compare the saved layout against the other forms of truth (your hand-tuned stack alignment, " +
     "or each photo's own calibration), refine, and only then commit the best layout. " +
     "Click a room to select it (Shift-click for a group), drag to move, drag a corner to reshape."));
@@ -12220,7 +12220,7 @@ function _roomsTab(ctx, maps) {
     style: committed ? "background:#14331f;color:#52b788;font-weight:700" : "background:#332714;color:#f59e0b;font-weight:700",
   }, committed ? "🔒 Committed" : "Not committed"));
   readout.appendChild(el("span", { class: "mono", style: "color:#94a3b8" },
-    `${geoms.length} rooms · ${Object.keys(scanDraft).length} scanners · footprint ${(bbox.width).toFixed(1)}m × ${(bbox.height).toFixed(1)}m`));
+    `${geoms.length} rooms · ${Object.keys(scanDraft).length} receivers · footprint ${(bbox.width).toFixed(1)}m × ${(bbox.height).toFixed(1)}m`));
   const movedCount = movedScanners.length + movedBeacons.length + movedBarriers.length;
   if (movedCount) {
     readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" },
@@ -12775,7 +12775,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         const mb = el("button", { class: "btn inline", "data-rooms-merge": "", title: m.ok ? "One outline round them all; the others are deleted" : m.why, onclick: async (e) => {
           if (!m.ok) { ctx.toast(m.why, true); return; }
           const keep = keepSel.value, others = [...sel].filter(r => r !== keep);
-          if (!confirm(`Merge ${others.map(r => `"${r}"`).join(", ")} into "${keep}"? "${keep}" gets one outline round them all; ${others.length === 1 ? "the other room is" : "the others are"} deleted with ${others.length === 1 ? "its" : "their"} adjacency and scanner assignments. A safety backup is taken first.`)) return;
+          if (!confirm(`Merge ${others.map(r => `"${r}"`).join(", ")} into "${keep}"? "${keep}" gets one outline round them all; ${others.length === 1 ? "the other room is" : "the others are"} deleted with ${others.length === 1 ? "its" : "their"} adjacency and receiver assignments. A safety backup is taken first.`)) return;
           const btn = e.currentTarget; btn.disabled = true;
           try {
             const res = await ctx.actions.wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others }) || {};
@@ -12844,7 +12844,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         tools.appendChild(el("button", {
           class: "btn inline", style: "color:#f87171;border-color:#f8717140",
           onclick: async () => {
-            if (!confirm(`Delete room "${only}" from the layout? Its shape, adjacency and scanner assignments go with it.`)) return;
+            if (!confirm(`Delete room "${only}" from the layout? Its shape, adjacency and receiver assignments go with it.`)) return;
             try {
               await ctx.actions.wsCall("padspan_ha/fabric_room_remove", { room: only });
               ctx.toast(`Deleted "${only}"`);
@@ -13019,7 +13019,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin:8px 0" },
       floorMapsAll.length
         ? "No room shapes saved for this floor yet. Switch Layout above to Map placements, then Commit this layout or Load into the layout editor."
-        : "Nothing on this floor yet. Scanners appear here as soon as Home Assistant sees them — drag one to place it in metres. Room shapes are optional; trace them on a photo in the Edit tab if you want them."));
+        : "Nothing on this floor yet. Receivers appear here as soon as Home Assistant sees them — drag one to place it in metres. Room shapes are optional; trace them on a photo in the Edit tab if you want them."));
   }
 
   // ── Finalize controls ───────────────────────────────────────────────────

@@ -347,7 +347,7 @@ ok(JSON.stringify(W.walkRow({a: {rssi: -60}, b: {rssi: -70}}, last, accept)) ===
 ok(JSON.stringify(W.walkRow({a: {rssi: -60}, b: {rssi: -71}}, last, accept)) === '{"b":-71}', 'dedup');
 ok(W.ringSvg(0.5, '45').includes('>45</text>') && W.ringSvg(2, 'x').includes('stroke-dashoffset="0.0"'), 'ring');
 ok(W.summaryText({samples: 9, scanners: 1, polls: 9, looks: 'similar', nearest_room: 'Den', gap_db: 2.1})
-   .startsWith('9 samples from 1 scanner over 9 polls. Reads much like Den'), 'summary');
+   .startsWith('9 samples from 1 receiver over 9 polls. Reads much like Den'), 'summary');  // "receiver": review 2026-11-11, C7
 // a tiny el(): text of the tree, enough to see what each state draws
 const el = (tag, attrs, kids) => ({ tag, attrs: attrs || {}, kids: [].concat(kids ?? []), appendChild(k) { this.kids.push(k); },
   addEventListener() {}, set innerHTML(v) { this.kids.push(v); } });

@@ -330,7 +330,7 @@ function _calibWizardFooter(ctx, el, w, opts) {
 function _calibWizardTune(ctx, el, cs, calData, w) {
   const wrap = el("div", {});
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
-    "Optional, but worth a look before you start walking: drag any scanner marker that isn't quite where the real device is mounted. This step is about scanner positions, not signal samples — nothing here is collected or timed."));
+    "Optional, but worth a look before you start walking: drag any receiver marker that isn't quite where the real device is mounted. This step is about receiver positions, not signal samples — nothing here is collected or timed."));
   wrap.appendChild(_tuneTab(ctx, el, cs, calData));
   wrap.appendChild(_calibWizardFooter(ctx, el, w, { skip: true, skipLabel: "Skip — positions look fine" }));
   return wrap;
@@ -796,9 +796,9 @@ function _setup(ctx, el, cs, calData) {
       "Phone-Based Calibration (Beacon and floor)"),
     el("div", { style: "font-size:13px;line-height:1.7;color:#b0c4b1" }, [
       el("div", {}, "This tab configures phone-based calibration (Pin & Listen / Roam)."),
-      el("div", { style: "margin-top:4px" }, "1. Your phone broadcasts BLE. The house scanners hear it."),
+      el("div", { style: "margin-top:4px" }, "1. Your phone broadcasts BLE. The house receivers hear it."),
       el("div", { style: "margin-top:4px" }, "2. You stand at a known spot on the map and tap it."),
-      el("div", { style: "margin-top:4px" }, "3. PadSpan records the RSSI fingerprint — which scanners saw you and how strongly."),
+      el("div", { style: "margin-top:4px" }, "3. PadSpan records the RSSI fingerprint — which receivers saw you and how strongly."),
       el("div", { style: "margin-top:4px" }, "4. Repeat at 10–20 locations spread across each floor."),
       el("div", { style: "margin-top:4px" }, "All calibration methods (Tune, Beacon Tune, Pin & Listen, Roam) feed the same model."),
     ]),
@@ -810,7 +810,7 @@ function _setup(ctx, el, cs, calData) {
   const deviceCard = el("div", { class: "card" });
   deviceCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, "Beacon Device"));
   deviceCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Select the phone or tag that will act as your calibration beacon. It must be visible to your scanners (Bluetooth on, HA companion app running)."));
+    "Select the phone or tag that will act as your calibration beacon. It must be visible to your receivers (Bluetooth on, HA companion app running)."));
 
   if (allDevices) {
     const deviceItems = [];
@@ -846,7 +846,7 @@ function _setup(ctx, el, cs, calData) {
     deviceCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:10px" },
       _noLiveDataText(ctx,
         "No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone.",
-        "Home Assistant isn't reporting any BLE devices yet. Make sure Bluetooth is active on your phone and your scanners are online.")));
+        "Home Assistant isn't reporting any BLE devices yet. Make sure Bluetooth is active on your phone and your receivers are online.")));
   }
 
   // Manual MAC entry
@@ -917,7 +917,7 @@ function _setup(ctx, el, cs, calData) {
           `⚠ ${obj ? pickName(obj, cs.deviceId) : cs.deviceId} — entity data only (no direct BLE advertisements)`));
         if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, `Room: ${obj.room}`));
         if (entityRssi) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `RSSI: ${entityRssi} dBm (from entity attributes)`));
-        if (entityScanner) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `Nearest scanner: ${entityScanner}`));
+        if (entityScanner) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `Nearest receiver: ${entityScanner}`));
         box.appendChild(el("div", { style: "font-size:11px;color:#78909c;margin-top:8px;line-height:1.5" },
           "This device uses private BLE (rotating MAC). To get per-radio RSSI, set up the Private BLE Device integration in HA " +
           "(Settings → Devices & Services → Add → Private BLE Device), or enable iBeacon transmitter in the HA Companion App."));
@@ -928,7 +928,7 @@ function _setup(ctx, el, cs, calData) {
         warnBox.appendChild(el("div", {}, "If this is a phone or watch (rotating MAC), you need one of:"));
         warnBox.appendChild(el("div", { style: "padding-left:12px;margin-top:4px" }, "• Private BLE Device integration (Settings → Devices & Services → Add Integration)"));
         warnBox.appendChild(el("div", { style: "padding-left:12px" }, "• HA Companion App with iBeacon transmitter enabled"));
-        warnBox.appendChild(el("div", { style: "margin-top:4px" }, "For other devices: make sure Bluetooth is on and the device is near a scanner."));
+        warnBox.appendChild(el("div", { style: "margin-top:4px" }, "For other devices: make sure Bluetooth is on and the device is near a receiver."));
         deviceCard.appendChild(warnBox);
       }
     }
@@ -1051,7 +1051,7 @@ function _setup(ctx, el, cs, calData) {
       radioCard.appendChild(el("div", { class: "muted", style: "font-size:12px" },
         _noLiveDataText(ctx,
           "No radios in snapshot. Switch to Live mode.",
-          "Home Assistant isn't reporting any Bluetooth scanners yet.")));
+          "Home Assistant isn't reporting any Bluetooth receivers yet.")));
     }
     // Total advertisement count
     const totalAds = (snap?.ble?.advertisements || []).length;
@@ -1172,7 +1172,7 @@ function _pinAndListen(ctx, el, cs, calData) {
     const py = p.y_frac * vbH;
     const sc = (p.scanner_readings || []).length;
     return `<circle cx="${px}" cy="${py}" r="3.5" fill="#52b788" stroke="white" stroke-width="1" opacity="0.85"/>
-            <title>${ctx.helpers.esc(p.room || p.label || "")} (${sc} scanners)</title>`;
+            <title>${ctx.helpers.esc(p.room || p.label || "")} (${sc} receivers)</title>`;
   }).join("");
 
   // Current pin
@@ -1419,7 +1419,7 @@ function _startCollection(ctx, cs, _snap, _mapData) {
         }
       } else {
         cs._scanEl.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;text-align:center;padding:8px" },
-          "Beacon not detected yet. Make sure Bluetooth is on and device is near a scanner."));
+          "Beacon not detected yet. Make sure Bluetooth is on and device is near a receiver."));
       }
     }
 
@@ -1446,7 +1446,7 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
   wrap.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#52b788" },
     "✓ Collection complete"));
   wrap.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:10px" },
-    `${readingsEntries.length} scanner${readingsEntries.length !== 1 ? "s" : ""} · ${totalSamples} total samples · ${cs.pinRoom || "unknown room"}`));
+    `${readingsEntries.length} receiver${readingsEntries.length !== 1 ? "s" : ""} · ${totalSamples} total samples · ${cs.pinRoom || "unknown room"}`));
 
   // Per-scanner summary
   if (readingsEntries.length) {
@@ -1456,7 +1456,7 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
     }
   } else {
     wrap.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:8px" },
-      "No scanner data captured. The device was not visible during collection."));
+      "No receiver data captured. The device was not visible during collection."));
   }
 
   // Buttons
@@ -1908,7 +1908,7 @@ function _modelTab(ctx, el, cs, calData) {
     el("div", { style: "font-size:11px;color:#78909c;margin-top:2px" }, label),
   ]);
   statGrid.appendChild(stat("Calibration Points", pts.length));
-  statGrid.appendChild(stat("Scanners Seen", scanners.size));
+  statGrid.appendChild(stat("Receivers Seen", scanners.size));
   statGrid.appendChild(stat("Floors Calibrated", floorIds.length || 1));
 
   const loo = model.loo_accuracy;
@@ -2059,7 +2059,7 @@ function _modelTab(ctx, el, cs, calData) {
     }
     plCard.appendChild(el("table", { class: "table" }, [
       el("thead", {}, el("tr", {}, [
-        el("th", {}, "Scanner"), el("th", {}, "n"), el("th", {}, "RSSI@1m"), el("th", {}, "R²"), el("th", {}, "Pts"),
+        el("th", {}, "Receiver"), el("th", {}, "n"), el("th", {}, "RSSI@1m"), el("th", {}, "R²"), el("th", {}, "Pts"),
       ])),
       tbody,
     ]));
@@ -2069,7 +2069,7 @@ function _modelTab(ctx, el, cs, calData) {
   // Per-scanner general stats
   if (model.scanner_stats && Object.keys(model.scanner_stats).length) {
     const ssCard = el("div", { class: "card" });
-    ssCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Scanner Coverage"));
+    ssCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Receiver Coverage"));
     const tbody = el("tbody");
     for (const [src, st] of Object.entries(model.scanner_stats)) {
       tbody.appendChild(el("tr", {}, [
@@ -2082,7 +2082,7 @@ function _modelTab(ctx, el, cs, calData) {
     }
     ssCard.appendChild(el("table", { class: "table" }, [
       el("thead", {}, el("tr", {}, [
-        el("th", {}, "Scanner"), el("th", {}, "Mean RSSI"), el("th", {}, "Std"), el("th", {}, "Pts"),
+        el("th", {}, "Receiver"), el("th", {}, "Mean RSSI"), el("th", {}, "Std"), el("th", {}, "Pts"),
       ])),
       tbody,
     ]));
@@ -2105,7 +2105,7 @@ function _modelTab(ctx, el, cs, calData) {
     rowWrap.appendChild(el("div", { style: "flex:1;min-width:0" }, [
       el("div", { style: "font-size:12px;font-weight:600" }, pt.label || pt.room || "Unlabeled"),
       el("div", { style: "font-size:11px;color:#78909c" },
-        `${mapName} · ${sc} scanner${sc !== 1 ? "s" : ""} · ${pt.collected_at?.slice(0, 10) || ""}`),
+        `${mapName} · ${sc} receiver${sc !== 1 ? "s" : ""} · ${pt.collected_at?.slice(0, 10) || ""}`),
     ]));
     const delWrap = el("div");
     const makeDelBtn = () => {
@@ -2237,7 +2237,7 @@ function _matrixTab(ctx, el, cs, calData) {
   const infoCard = el("div", { class: "card" });
   infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, ["Accuracy by spot ", ctx.helpers.helpBtn("calibration_matrix")]));
   infoCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Each cell compares a point's known distance to a scanner (from the room and receiver layout) against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
+    "Each cell compares a point's known distance to a receiver (from the room and receiver layout) against the distance that receiver's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that receiver never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
 
   if (anchors.length) {
     const driftColor = { ok: "#52b788", warn: "#f59e0b", bad: "#f87171", unknown: "#4a6052" };
@@ -2300,13 +2300,13 @@ function _matrixTab(ctx, el, cs, calData) {
 
   if (!matrix.rows.length || !matrix.scanners.length) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "No metre-space calibration points (or anchored beacons) against a positioned, metre-fitted scanner yet."),
+      el("div", { class: "muted" }, "No metre-space calibration points (or anchored beacons) against a positioned, metre-fitted receiver yet."),
     ]));
     return wrap;
   }
 
   const gridCard = el("div", { class: "card" });
-  gridCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Point × Scanner error (metres)"));
+  gridCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Point × Receiver error (metres)"));
   const tableWrap = el("div", { style: "overflow-x:auto" });
   const thead = el("thead", {}, el("tr", {}, [
     el("th", {}, "Point"),
@@ -2611,7 +2611,7 @@ function _tuneTab(ctx, el, cs, calData) {
   wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788" }, [
     el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "Receiver Position Tuning"),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
-      "Drag BLE scanner markers to match their real-world positions. The 3D view matches the Overview map. Saves go to the room and receiver layout."),
+      "Drag BLE receiver markers to match their real-world positions. The 3D view matches the Overview map. Saves go to the room and receiver layout."),
   ]));
 
   // ── Constants & state ─────────────────────────────────────────────────────
@@ -3499,7 +3499,7 @@ function _tuneTab(ctx, el, cs, calData) {
       zBtn.className = "btn inline";
       zBtn.style.cssText = "font-size:10px;padding:2px 10px";
       zBtn.textContent = "Save height";
-      zBtn.title = "Mounting height above this scanner's own floor. Used for 3D distance; survives map syncs.";
+      zBtn.title = "Mounting height above this receiver's own floor. Used for 3D distance; survives map syncs.";
       zBtn.addEventListener("click", async () => {
         const v = parseFloat(zInp.value);
         if (!Number.isFinite(v) || v < 0 || v > 100) {
@@ -3656,8 +3656,8 @@ function _tuneTab(ctx, el, cs, calData) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:12px;color:#94a3b8";
       msg.textContent = _noLiveDataText(ctx,
-        "No live radios detected. Switch to Live mode and ensure Bluetooth scanners are active.",
-        "Home Assistant isn't reporting any Bluetooth scanners yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart.");
+        "No live receivers detected. Switch to Live mode and ensure Bluetooth receivers are active.",
+        "Home Assistant isn't reporting any Bluetooth receivers yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart.");
       radiosCard.appendChild(msg);
       return;
     }
@@ -4019,7 +4019,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       ctx.helpers.helpBtn("calibration_beacon"),
     ]),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
-      "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second radio capture starts automatically. After the timer finishes, calibration data is saved. A beacon you place from the list is pinned there as a fixed beacon, unless PadSpan knows it moves (a phone with its IRK, a Find My tag it has followed across an address change, anything you follow): that one goes back to live tracking after the capture, as does a labelled device shown at its room's centre. Moving a beacon that is already pinned moves its pin. Follow a tag that moves before placing it. Green circles show scanner positions for reference."),
+      "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second capture of what the receivers hear starts automatically. After the timer finishes, calibration data is saved. A beacon you place from the list is pinned there as a fixed beacon, unless PadSpan knows it moves (a phone with its IRK, a Find My tag it has followed across an address change, anything you follow): that one goes back to live tracking after the capture, as does a labelled device shown at its room's centre. Moving a beacon that is already pinned moves its pin. Follow a tag that moves before placing it. Green circles show scanner positions for reference."),
   ]));
 
   // ── Constants & state ─────────────────────────────────────────────────────
@@ -4361,7 +4361,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const rx = Math.round(px), ry = Math.round(py);
           const _full = _rxShown(ctx, r.source, r.label || r.id) || "R";
           const lbl = _full.length > 20 ? _full.substring(0, 19) + "…" : _full;
-          const tip = `Scanner: ${_rxShown(ctx, r.source, r.label || r.id) || "Receiver"}${r.room ? " | Room: " + r.room : ""}${!_isLive ? " (offline)" : ""}`;
+          const tip = `Receiver: ${_rxShown(ctx, r.source, r.label || r.id) || "Receiver"}${r.room ? " | Room: " + r.room : ""}${!_isLive ? " (offline)" : ""}`;
           const _rxCol = _isLive ? "#52b788" : "#4a6052";
           s += `<g data-tip="${_esc(tip)}" style="cursor:default;opacity:${_isLive ? 0.6 : 0.3}">`;
           s += `<circle cx="${rx}" cy="${ry}" r="10" fill="none" stroke="${_rxCol}" stroke-width="1.2" opacity="0.5"/>`;
@@ -4603,7 +4603,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const rd = (bs._calibRounds[t.bk.key] || 0) + 1;
         span.style.cssText = "font-size:12px;color:#f59e0b;font-weight:600;white-space:nowrap";
         span.textContent = `${t.bk.label || t.bk.key} \u2014 live in ${rem}s`;
-        if (sm > 0) span.textContent += ` (${sc} scanners, ${sm} samples)`;
+        if (sm > 0) span.textContent += ` (${sc} receivers, ${sm} samples)`;
         if (rd > 1) span.textContent += ` [round ${rd}]`;
       } else {
         span.style.cssText = "font-size:12px;color:#52b788;font-weight:600;white-space:nowrap";
@@ -5391,9 +5391,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const elapsed = Date.now() - entry.startTime;
       const scannerCount = Object.keys(entry.readings).length;
       if (scannerCount === 0 && elapsed > 10000) {
-        entry.warning = "\u26a0 No signal \u2014 beacon invisible to all scanners";
+        entry.warning = "\u26a0 No signal \u2014 beacon invisible to all receivers";
       } else if (scannerCount === 1 && elapsed > 15000) {
-        entry.warning = "\u26a0 Single scanner \u2014 only 1 scanner detecting this beacon";
+        entry.warning = "\u26a0 Single receiver \u2014 only 1 receiver detecting this beacon";
       } else if (scannerCount > 0) {
         const allWeak = Object.values(entry.readings).every(r => {
           if (!r.samples.length) return true;
@@ -5401,7 +5401,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           return mean < -90;
         });
         if (allWeak && elapsed > 5000) {
-          entry.warning = "\u26a0 Weak signal \u2014 all scanners below -90 dBm";
+          entry.warning = "\u26a0 Weak signal \u2014 all receivers below -90 dBm";
         } else {
           // Check for wild variance on any scanner
           let highVar = "";
@@ -5434,7 +5434,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       // Save calibration point — weight increases with each round
       const readingCount = Object.keys(entry.readings).length;
       if (readingCount === 0) {
-        ctx.toast(`No signal: ${entry.bk.label || entry.bk.key} — no scanners detected this beacon during 60s capture`, "warning");
+        ctx.toast(`No signal: ${entry.bk.label || entry.bk.key} — no receivers detected this beacon during 60s capture`, "warning");
       }
       if (readingCount > 0) {
         const bkKey = entry.bk.key;
@@ -5546,10 +5546,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           }
           if (doRelocation) await _purgeOldPoints(new Set(bs._relocSavedIds[bkKey]));
           const _bkName = entry.bk.label || entry.bk.key;
-          const _scanInfo = `${_tActiveRadios.length} scanner(s), ${_tTotalSamples} samples`;
+          const _scanInfo = `${_tActiveRadios.length} receiver(s), ${_tTotalSamples} samples`;
           const _roomInfo = room ? `, room: ${room}` : ", room: (undetected)";
           const _warns = [];
-          if (_tActiveRadios.length === 1) _warns.push("1 scanner only");
+          if (_tActiveRadios.length === 1) _warns.push("1 receiver only");
           if (_tTotalSamples < 10) _warns.push("low samples");
           if (!room) _warns.push("no room detected");
           const _warnStr = _warns.length ? " | " + _warns.join(", ") : "";
@@ -6495,7 +6495,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const prog = document.createElement("div");
       prog.style.cssText = "text-align:center;padding:4px;font-size:12px;color:#3b82f6;font-weight:700";
       const scannerCount = Object.keys(bs._guideReadings).length;
-      prog.textContent = `Capturing... ${rem}s \u2022 ${scannerCount} scanner${scannerCount !== 1 ? "s" : ""}`;
+      prog.textContent = `Capturing... ${rem}s \u2022 ${scannerCount} receiver${scannerCount !== 1 ? "s" : ""}`;
       guideCard.appendChild(prog);
       const stopBtn = document.createElement("button");
       stopBtn.className = "btn inline";
@@ -6571,7 +6571,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       + `<b style="color:#5eead4">${_esc(tgt.room)}</b>`
       + (flName ? ` \u2022 ${_esc(flName)}` : "")
       + ` \u2022 ${tgtMap ? _esc(tgtMap.name || tgtMap.id) : "?"}`
-      + ` <span style="color:#94a3b8">(${tgt.radioCount} scanner${tgt.radioCount !== 1 ? "s" : ""}, ${bs._guideSkipped.length} skipped)</span>`
+      + ` <span style="color:#94a3b8">(${tgt.radioCount} receiver${tgt.radioCount !== 1 ? "s" : ""}, ${bs._guideSkipped.length} skipped)</span>`
       + `<br><span style="color:#60a5fa">Place beacon at the <b>blue spiral</b> on the map, then Start.</span>`;
     guideCard.appendChild(suggest);
 
@@ -6684,7 +6684,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
       if (!_activeRadios.length) {
         bs._guideSaved = "no_signal";
-        bs._guideReport = "No scanners detected this beacon during 60s capture. Move closer to a scanner or check that the beacon is broadcasting.";
+        bs._guideReport = "No receivers detected this beacon during 60s capture. Move closer to a receiver or check that the beacon is broadcasting.";
         bs._guideReadings = {};
         ctx.actions.renderRooms();
         setTimeout(() => {
@@ -6708,15 +6708,15 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
       // Build report lines
       const _reportLines = [];
-      _reportLines.push(`${_activeRadios.length} scanner(s), ${_totalSamples} RSSI samples`);
+      _reportLines.push(`${_activeRadios.length} receiver(s), ${_totalSamples} RSSI samples`);
       if (room) _reportLines.push(`Room: ${room}`);
       else _reportLines.push("Room: (not detected — position outside room boundaries)");
       _reportLines.push(`Weight: ${weight.toFixed(1)}x (round ${rounds})`);
       const _warnings = [];
-      if (_activeRadios.length === 1) _warnings.push("Only 1 scanner heard — accuracy will be limited");
+      if (_activeRadios.length === 1) _warnings.push("Only 1 receiver heard — accuracy will be limited");
       if (_totalSamples < 10) _warnings.push("Very few samples collected — signal may be weak");
       const _emptyRadios = scannerReadings.length - _activeRadios.length;
-      if (_emptyRadios > 0) _warnings.push(`${_emptyRadios} scanner(s) had no usable samples`);
+      if (_emptyRadios > 0) _warnings.push(`${_emptyRadios} receiver(s) had no usable samples`);
 
       let _saveOk = false;
       let _saveError = "";
@@ -6872,7 +6872,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       row.style.cssText = "display:flex;align-items:center;gap:8px";
       row.innerHTML = `<span style="font-size:14px">📏</span>`
         + `<span style="font-weight:700;font-size:13px;color:#f59e0b">1 m Reference</span>`
-        + `<span style="font-size:11px;color:#94a3b8;flex:1">Hold a known tag 1 m from each scanner to auto-set per-scanner RSSI offsets.</span>`;
+        + `<span style="font-size:11px;color:#94a3b8;flex:1">Hold a known tag 1 m from each receiver to auto-set per-receiver RSSI offsets.</span>`;
       row.appendChild(mkBtn("Start", "color:#f59e0b;border-color:#f59e0b;font-weight:700;font-size:12px;padding:3px 12px", () => {
         Object.assign(rc, { active: true, idx: 0, receivers: _refReceivers(), results: {}, sampling: false, samples: [], done: false, status: "" });
         _refreshRefCard();
@@ -6917,7 +6917,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     } else if (!rc.bkKey) {
       body.innerHTML = `<span style="color:#64748b">Select a known tag to begin.</span>`;
     } else if (!rc.receivers.length) {
-      body.innerHTML = `<span style="color:#f59e0b">No positioned receivers found — place scanners in the Tune tab first.</span>`;
+      body.innerHTML = `<span style="color:#f59e0b">No positioned receivers found — place receivers in the Tune tab first.</span>`;
     } else {
       const r = rc.receivers[rc.idx];
       body.innerHTML = `<span style="color:#94a3b8">Step ${rc.idx + 1}/${rc.receivers.length}:</span> `
@@ -6981,7 +6981,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           + `<animateTransform attributeName="transform" type="rotate" from="0 ${tx} ${ty}" to="360 ${tx} ${ty}" dur="3s" repeatCount="indefinite"/>`
           + `</circle>`
           + `<circle cx="${tx}" cy="${ty}" r="5" fill="#3b82f6" opacity="0.9"/>`
-          + `<text x="${tx}" y="${ty + 42}" text-anchor="middle" fill="#3b82f6" font-size="10" font-weight="700">${rem}s \u2022 ${scanners} radio${scanners !== 1 ? "s" : ""}</text>`
+          + `<text x="${tx}" y="${ty + 42}" text-anchor="middle" fill="#3b82f6" font-size="10" font-weight="700">${rem}s \u2022 ${scanners} receiver${scanners !== 1 ? "s" : ""}</text>`
           + `</svg>`
         );
       }

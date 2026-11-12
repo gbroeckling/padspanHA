@@ -36,13 +36,14 @@ check("scannersOf keeps real scanners, an area only when it is one", sc.length =
 check("scannersOf copes with no snapshot", WW.scannersOf(null).length === 0 && WW.scannersOf({}).length === 0);
 
 const line = (radios) => WW.scannerLine(WW.scannersOf(snapOf(radios, [])));
-check("no scanner: how to get one", line([]).tone === "none" && /No Bluetooth scanners found yet/.test(line([]).text));
-check("no area anywhere: home or away, not rooms", line([radio("AA", ""), radio("BB", "")]).tone === "warn" && /None of your 2 scanners has/.test(line([radio("AA", ""), radio("BB", "")]).text));
-check("one scanner, no area", /^Your scanner has no Home Assistant area yet, so PadSpan can tell home from away but not rooms/.test(line([radio("AA", "")]).text), line([radio("AA", "")]).text);
+// The person-facing word is "receiver" now (review 2026-11-11, C7): the texts below changed from "scanner" with it.
+check("no scanner: how to get one", line([]).tone === "none" && /No Bluetooth receivers found yet/.test(line([]).text));
+check("no area anywhere: home or away, not rooms", line([radio("AA", ""), radio("BB", "")]).tone === "warn" && /None of your 2 receivers has/.test(line([radio("AA", ""), radio("BB", "")]).text));
+check("one scanner, no area", /^Your receiver has no Home Assistant area yet, so PadSpan can tell home from away but not rooms/.test(line([radio("AA", "")]).text), line([radio("AA", "")]).text);
 check("one room: home or away", /cover one room|covers one room/.test(line([radio("AA", "Kitchen")]).text) && /home or away/.test(line([radio("AA", "Kitchen")]).text));
-check("two scanners in one room: still one room", /2 scanners cover one room/.test(line([radio("AA", "Kitchen"), radio("BB", "Kitchen")]).text));
+check("two scanners in one room: still one room", /2 receivers cover one room/.test(line([radio("AA", "Kitchen"), radio("BB", "Kitchen")]).text));
 const three = line([radio("AA", "Kitchen"), radio("BB", "Den"), radio("CC", "Hall")]);
-check("rooms: nearest scanner, and what three placed add", three.tone === "ok" && /3 scanners cover 3 rooms/.test(three.text) && /three or more placed on a floor plan/.test(three.text), three);
+check("rooms: nearest scanner, and what three placed add", three.tone === "ok" && /3 receivers cover 3 rooms/.test(three.text) && /three or more placed on a floor plan/.test(three.text), three);
 
 // ── who is where ─────────────────────────────────────────────────────────────
 const objects = [

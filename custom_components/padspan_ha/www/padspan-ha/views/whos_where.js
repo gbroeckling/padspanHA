@@ -42,10 +42,10 @@ export function scannersOf(snap){
 export function scannerLine(scanners){
   const n = scanners.length;
   const areas = new Set(scanners.map(s => s.area).filter(Boolean)).size;
-  if (!n) return { tone: "none", text: "No Bluetooth scanners found yet. Add an ESPHome Bluetooth proxy (or use your Home Assistant machine's own Bluetooth) and it shows up here within a minute." };
-  if (!areas) return { tone: "warn", text: `${n === 1 ? "Your scanner has no" : `None of your ${n} scanners has a`} Home Assistant area yet, so PadSpan can tell home from away but not rooms. Give each scanner the area it's in.` };
-  if (areas === 1) return { tone: "ok", text: `Your ${n === 1 ? "scanner covers" : `${n} scanners cover`} one room, so you get home or away. Put one in each room you want told apart.` };
-  return { tone: "ok", text: `Your ${n} scanners cover ${areas} rooms. Each device goes to the room whose scanner hears it best. With three or more placed on a floor plan, PadSpan can also place devices between them, even in rooms with no scanner of their own.` };
+  if (!n) return { tone: "none", text: "No Bluetooth receivers found yet. Add an ESPHome Bluetooth proxy (or use your Home Assistant machine's own Bluetooth) and it shows up here within a minute." };
+  if (!areas) return { tone: "warn", text: `${n === 1 ? "Your receiver has no" : `None of your ${n} receivers has a`} Home Assistant area yet, so PadSpan can tell home from away but not rooms. Give each receiver the area it's in.` };
+  if (areas === 1) return { tone: "ok", text: `Your ${n === 1 ? "receiver covers" : `${n} receivers cover`} one room, so you get home or away. Put one in each room you want told apart.` };
+  return { tone: "ok", text: `Your ${n} receivers cover ${areas} rooms. Each device goes to the room whose receiver hears it best. With three or more placed on a floor plan, PadSpan can also place devices between them, even in rooms with no receiver of their own.` };
 }
 
 /** Rooms and who is in them, for a snapshot's objects:
@@ -128,7 +128,7 @@ export function whosWhereCard(ctx){
   const card = el("div", { class: "card", style: "border-color:#2d6a4f;margin-bottom:10px", "data-whos-where": "1" });
   card.appendChild(el("div", { style: "display:flex;align-items:baseline;gap:10px;flex-wrap:wrap" }, [
     el("div", { class: "h2", style: "margin:0" }, "Who's where now"),
-    el("span", { class: "muted", style: "font-size:12px" }, "From your Bluetooth scanners and the Home Assistant area each one is in. No floor plan needed."),
+    el("span", { class: "muted", style: "font-size:12px" }, "From your Bluetooth receivers and the Home Assistant area each one is in. No floor plan needed."),
     ctx.helpers.helpBtn ? ctx.helpers.helpBtn("whos_where") : null,
   ].filter(Boolean)));
   const lineEl = el("div", { style: "font-size:12px;margin:8px 0" });
@@ -194,7 +194,7 @@ export function whosWhereCard(ctx){
     lineEl.style.color = line.tone === "ok" ? "#cbd5e1" : "#fbbf24";
     const noArea = scanners.filter(x => !x.area);
     if (noArea.length && noArea.length < scanners.length) {
-      lineEl.textContent += ` ${noArea.length === 1 ? "One scanner has" : `${noArea.length} scanners have`} no Home Assistant area yet, so ${noArea.length === 1 ? "it gives" : "they give"} no room: ${noArea.map(x => x.name).join(", ")}.`;
+      lineEl.textContent += ` ${noArea.length === 1 ? "One receiver has" : `${noArea.length} receivers have`} no Home Assistant area yet, so ${noArea.length === 1 ? "it gives" : "they give"} no room: ${noArea.map(x => x.name).join(", ")}.`;
     }
     roomsEl.replaceChildren();
     for (const r of rows) {

@@ -75,12 +75,15 @@ const maps = await import(pathToFileURL(join(VIEWS_DIR, "maps.js")).href);
   const ctx = makeCtx("advanced");
   const root = maps.render(ctx); await flush();
   check("a plan opens on Radios, lit", JSON.stringify(lit(root)) === '["receivers"]' && ctx.state.maps._mode === "receivers", lit(root));
-  for (const [t, hint] of [["rooms", "Click map to add points"], ["barriers", "Click to draw wall"], ["measure", "Click two points"], ["receivers", "Double-click map to place radio"]]) {
+  for (const [t, hint] of [["rooms", "Click map to add points"], ["barriers", "Click to draw wall"], ["measure", "Click two points"], ["receivers", "Double-click map to place receiver"]]) {  // "radio" → "receiver" (review 2026-11-11, C7)
     tool(root, t).click();
     await flush();
     check(`${t}: lit, and the only one`, JSON.stringify(lit(root)) === JSON.stringify([t]) && ctx.state.maps._mode === t, lit(root));
     check(`${t}: its hint`, textOf(root).includes(hint), textOf(root).slice(0, 300));
   }
+  // Review 2026-11-11 (C7): the tool a person reads is "Receivers" (it said Radios), and its list "Live BLE Receivers".
+  check("the receivers tool reads Receivers, its list Live BLE Receivers", tool(root, "receivers").textContent === "Receivers"
+    && !/\bRadios?\b/.test(textOf(root)) && /Live BLE Receivers|No live BLE receivers|see your BLE receivers/.test(textOf(root)), textOf(root).slice(0, 400));
   tool(root, "barriers").click(); await flush();
   check("Signal walls lit loses its tint, which would hide the highlight", !tool(root, "barriers").getAttribute("style"), tool(root, "barriers").getAttribute("style"));
   check("Measure, not lit, keeps its tint", /background/.test(tool(root, "measure").getAttribute("style") || ""), tool(root, "measure").getAttribute("style"));

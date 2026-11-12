@@ -63,7 +63,7 @@ export function walkLeft(ctx, cs) {
 }
 
 export function summaryText(s) {
-  return `${s.samples} samples from ${s.scanners} scanner${s.scanners !== 1 ? "s" : ""} over ${s.polls} polls. ` +
+  return `${s.samples} samples from ${s.scanners} receiver${s.scanners !== 1 ? "s" : ""} over ${s.polls} polls. ` +
     (LOOKS[s.looks] || LOOKS.unknown)(s);
 }
 
@@ -117,7 +117,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
     if (ho) card.appendChild(ho);
     if (!s.enough) {
       card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-top:8px" },
-        "Too little was heard to save. Check the device is on and near the scanners, then walk again."));
+        "Too little was heard to save. Check the device is on and near the receivers, then walk again."));
     }
     if (s.previous_walk_points) {
       card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-top:8px" },
@@ -181,7 +181,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
   // Idle: pick the room and start.
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.5;margin-bottom:10px" },
     `Carrying ${cs.deviceLabel || cs.deviceId}. Pick a room, press Start and walk slowly around it for ${WALK_S} seconds. ` +
-    "PadSpan listens to every scanner while you walk, then shows what it heard before anything is saved."));
+    "PadSpan listens to every receiver while you walk, then shows what it heard before anything is saved."));
   if (!rooms.length) {
     card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b" }, "This floor has no rooms drawn yet. Draw them in Mapping first."));
     return wrap;
