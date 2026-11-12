@@ -64,6 +64,7 @@ export function chip(el) {
 
 // The rule's answer, per rule, once a page (cleared by a mark or a save).
 const _info = { push: null, pull: null };
+const _for = { push: null, pull: null };            // the house each answer was asked for: [model, plan list]
 const _asking = { push: false, pull: false };
 const _offered = new Set();
 
@@ -78,7 +79,7 @@ const _steps = new Set();
 const _shown = {};                                  // step -> the visit it was last drawn on (this page load)
 
 export function _reset() {
-  _info.push = _info.pull = null; _asking.push = _asking.pull = false; _offered.clear(); _steps.clear();
+  _info.push = _info.pull = null; _for.push = _for.pull = null; _asking.push = _asking.pull = false; _offered.clear(); _steps.clear();
   for (const k of Object.keys(_shown)) delete _shown[k];
 }
 
@@ -110,12 +111,17 @@ const _admin = (ctx) => !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
 export function infoFor(ctx, surface) {
   const rule = RULE[surface];
   if (!rule || !_admin(ctx) || ctx.state.dataMode !== "live") return null;
-  if (_info[rule]) return _info[rule];
+  // The answer is for the house as it was read (review 2026-11-11: once a page said "another of your plans" and "Stuck?"
+  // after rooms were saved): a new model or plan list (a save of rooms, a scale, an undo, an upload: the panel's
+  // refresh replaces them) asks again.
+  const house = [ctx.state.model, ctx.state.maps && ctx.state.maps.list];
+  const fresh = _for[rule] && _for[rule][0] === house[0] && _for[rule][1] === house[1];
+  if (_info[rule] && fresh) return _info[rule];
   if (!_asking[rule] && ctx.actions.callWS) {
     _asking[rule] = true;
     ctx.actions.callWS({ type: "padspan_ha/ai_wizard_info", surface: rule, kiosk: !!ctx.state.kioskMode, live: true })
-      .then(r => { _info[rule] = r || { offer: false }; if (_info[rule].offer || _info[rule].undo) ctx.actions.renderRooms(); })   // nothing to offer: nothing to draw again
-      .catch(() => { _info[rule] = { offer: false }; })
+      .then(r => { _info[rule] = r || { offer: false }; _for[rule] = house; if (_info[rule].offer || _info[rule].undo) ctx.actions.renderRooms(); })   // nothing to offer: nothing to draw again
+      .catch(() => { _info[rule] = { offer: false }; _for[rule] = house; })
       .finally(() => { _asking[rule] = false; });
   }
   return null;

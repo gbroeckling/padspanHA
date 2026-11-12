@@ -243,6 +243,25 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     const row = AIWO.gettingStartedRow(m.ctx);
     check(`getting started's helper row: ${name}`, !!row === want && asked.every(x => x === "pull"), [asked, !!row]);
   }
+  // Review 2026-11-11 (C4): the answer is for the house as read; rooms saved (a new model from the panel's refresh)
+  // ask again, the same house does not.
+  {
+    AIWO._reset();
+    const m = mkCtx(house(2));
+    const asked = [];
+    let ans = { offer: true, wizard: {} };
+    m.ctx.actions.callWS = async (msg) => { if (msg.type === "padspan_ha/ai_wizard_info") { asked.push(msg.surface); return ans; } return {}; };
+    const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r)); };
+    AIWO.gettingStartedRow(m.ctx); await flush();
+    const before = !!AIWO.gettingStartedRow(m.ctx);
+    AIWO.gettingStartedRow(m.ctx); await flush();
+    const same = asked.length;
+    ans = { offer: false, reason: "has_rooms", wizard: {} };
+    m.ctx.state.model = { ...m.ctx.state.model, room_geometry_m: { Kitchen: {} } };
+    AIWO.gettingStartedRow(m.ctx); await flush();
+    const after = !!AIWO.gettingStartedRow(m.ctx);
+    check("helper offer: asked again for a new house model, not for the same one", before && same === 1 && asked.length === 2 && !after, [asked, before, after]);
+  }
   AIWO._reset();
   const lineRow = async (st) => {
     AIWO._reset();
