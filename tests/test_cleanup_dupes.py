@@ -67,7 +67,7 @@ def test_the_switch_to_advanced_workarounds_are_gone() -> None:
         assert 'etComplexity("advanced")' not in src, f.name
         assert "switched to Advanced" not in src, f.name
     links = {
-        "views/maps.js": "ctx.state._mapsWizard = { step: 2, mapId };",
+        "views/maps.js": "ctx.state._mapsWizard = { step: 2, mapId, ...wiz };",   # 2026-11-13: with the first scale's door
         "views/rooms.js": 'FOCUS.openFocus(ctx, FOCUS.part("roomOutline"',
         "views/receivers.js": 'FOCUS.openFocus(ctx, FOCUS.part("receiverPlace"',
         "panel.js": 'F.openFocus(this._ctx(), F.part("floorHeights"))',

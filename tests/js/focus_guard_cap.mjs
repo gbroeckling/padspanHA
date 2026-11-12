@@ -55,6 +55,8 @@ function panel(lastInteraction) {
     // Past the guard means a real render was attempted; stop there.
     get $content() { throw new Error("rendered"); },
     shadowRoot: { querySelector: (q) => (q === ":focus" ? { tagName: "SELECT" } : null) },
+    // 2026-11-13: each render first asks whether Setup is in the menu (owner's D4); not what this test is about.
+    _setupInMenu: () => false, _setupMenuShown: false,
   };
 }
 

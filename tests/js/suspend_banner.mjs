@@ -48,6 +48,8 @@ const p = {
   // Past the guards means the full rebuild was reached; stop there.
   get $content() { throw new Error("rendered"); },
   shadowRoot: { querySelector: () => null },
+  // 2026-11-13: each render first asks whether Setup is in the menu (owner's D4); not what this test is about.
+  _setupInMenu: () => false, _setupMenuShown: false,
 };
 const poll = () => {
   try { render.call(p, true); return "skipped"; }

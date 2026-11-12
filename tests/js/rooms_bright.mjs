@@ -178,8 +178,9 @@ async function editsOf(settings) {
     cut("const MENU = [", "// ── DOM Utility Functions"),
   ].join("\n");
   const method = (name) => cut(`\n  ${name}(`, "\n  }\n").slice(1) + "\n  }\n";
-  const make = new Function("EDITIONS", consts + "\nclass P {\n" + method("_getVisibleTabs") + method("_getMainTabs") + "\n}\nreturn P;");
-  const P = make(ED);
+  // 2026-11-13: Setup is in the menu only while unfinished (_setupInMenu, owner's D4); no house state here, so not shown.
+  const make = new Function("EDITIONS", "SETUP_STATUS", consts + "\nclass P {\n" + method("_getVisibleTabs") + method("_setupInMenu") + method("_getMainTabs") + "\n}\nreturn P;");
+  const P = make(ED, null);
   const tabs = (settings, complexity = "advanced") => { const p = new P(); p.state = { settings, complexity }; return p; };
   const vis = [...tabs(BRIGHT)._getVisibleTabs()].sort();
   check("menu: Bright's screens are Mapping, Rooms, Health and Settings",

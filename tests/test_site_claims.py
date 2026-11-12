@@ -245,7 +245,9 @@ def _real_menu_count() -> int:
     panel = (_ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
     block = _bracket_extract(panel, "const MENU = [")
     import re
-    return len(re.findall(r'^\s*\["[a-z0-9_]+",', block, re.M))
+    # Setup (2026-11-13, owner's D4) is listed only until the house is set up, and was a view before it was listed:
+    # it is not one more dedicated view.
+    return len([i for i in re.findall(r'^\s*\["([a-z0-9_]+)",', block, re.M) if i != "setup"])
 
 
 def _real_walkthrough_count() -> int:

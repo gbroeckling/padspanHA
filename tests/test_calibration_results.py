@@ -81,7 +81,9 @@ def test_links_and_fixes_ask_for_their_tab() -> None:
     panel = _read("panel.js")
     assert 'if (reqView === "calibration" && reqTab && /^[a-z]+$/.test(reqTab)) this.state._calibTabRequest = reqTab;' in panel
     assert 'this.state._calibTabRequest = "tune";' in panel                       # the accuracy tip
-    assert "if (s.calibTab) this.state._calibTabRequest = s.calibTab;" in panel   # Getting started
+    # Getting started's Calibrate opens as Setup's step does since 2026-11-13: the guided calibration (setup.js openStep).
+    assert 'if (s.step) { this._ctx().actions.openSetupStep(s.step, null, "getting_started"); return; }' in panel
+    assert "st._calibWizard = { step: 1 };" in _read("views/setup.js")
     assert "_calib.tab = " not in panel
     assert 'ctx.state._calibTabRequest = "beacon";' in _read("views/maps.js")
 
