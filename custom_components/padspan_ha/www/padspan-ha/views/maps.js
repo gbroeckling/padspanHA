@@ -9765,7 +9765,7 @@ function _lightsTab(ctx, maps, active) {
   try { hintClosed = localStorage.getItem("padspan_ha_lights_hint_closed") === "1"; } catch(e) {}
   const head = el("div", { class: "card lv-mapcard", style: "margin-bottom:12px" }, [
     el("div", { class: "card-head", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap" }, [
-      el("div", { class: "lv-hero-title", style: "font-size:16px" }, "Atlas"),
+      el("div", { class: "lv-hero-title", style: "font-size:16px" }, "Atlas builder"),   // the tab's own name (D7)
       // The mode, unmistakably: this tab EDITS the map the sidebar shows. A
       // map that both operates and moves devices is a mode error waiting to
       // happen, so the badge (and the drafting grid on the stage) say which

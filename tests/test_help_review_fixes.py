@@ -27,7 +27,10 @@ def _read(p: Path) -> str:
 
 def test_no_pointers_to_tabs_that_moved() -> None:
     panel = _read(_WWW / "panel.js")
-    assert 'hint: "Maps \\u2192' not in panel and panel.count('hint: "Mapping \\u2192') == 4
+    # 2026-11-13: Getting started's hints are Setup's own words for each step (setup_status.STEP_ABOUT), naming no tab
+    # (one vocabulary; no Basic hint pointing at Mapping → Edit); none points at the old Maps tab either.
+    assert 'hint: "Maps \\u2192' not in panel and panel.count('hint: "Mapping \\u2192') == 0
+    assert "hint: _ss.STEP_ABOUT[s.step]" in panel
     assert "Maps tab" not in _read(_WWW / "views" / "calibration.js")
     assert "Maps \\u2192 Edit" not in _read(_PKG / "ws_fabric.py")
     diag = _read(_PKG / "ws_diagnostics.py")

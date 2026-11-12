@@ -30,7 +30,8 @@ def _set(src: str, name: str) -> set[str]:
 def test_basic_mode_lists_calibration() -> None:
     src = _read("panel.js")
     basic = _set(src, "BASIC_TABS")
-    assert basic == {"follow", "overview", "maps", "rooms", "receivers", "calibration", "settings", "training"}, sorted(basic)
+    # Owner's D4 (2026-11-13): Setup joins the short list (shown only while unfinished, panel.js _setupInMenu); nothing else.
+    assert basic == {"follow", "overview", "setup", "maps", "rooms", "receivers", "calibration", "settings", "training"}, sorted(basic)
     assert "calibration" in _set(src, "ADVANCED_DEFAULT")
     assert "calibration" not in _set(src, "DEV_ONLY_TABS")
 
@@ -40,10 +41,14 @@ def test_opening_calibration_never_switches_basic_to_advanced() -> None:
     tip = src[src.index("  _accuracyTipsCard(){"):src.index("\n  _proInviteOverviewCard(){")]
     assert 'this.state.view = "calibration"' in tip
     assert 'complexity = "advanced"' not in tip
-    # Getting started's steps: the only promotion left in that handler is none.
-    gs = src[src.index("if (s.wizardStep) {"):]
+    # Getting started's steps: the only promotion left in that handler is none. Since 2026-11-13 each step opens as
+    # Setup's own Start does (setup.js openStep), which switches no mode either.
+    gs = src[src.index('this._telemetryEvent("getting_started_step:" + s.id);'):]
     gs = gs[:gs.index("this.state.view = s.view;")]
-    assert 'complexity = "advanced"' not in gs
+    assert 'openSetupStep(s.step, null, "getting_started")' in gs and 'complexity = "advanced"' not in gs
+    step = _read("views/setup.js")
+    step = step[step.index("export function openStep("):step.index("export function returnBar(")]
+    assert "complexity" not in step
     # Nor does the tester sign-up: in Basic it opens the report's card alone.
     signup = src[src.index("  _openTesterSignup(){"):]
     signup = signup[:signup.index("\n  }\n")]
