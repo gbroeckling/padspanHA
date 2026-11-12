@@ -30,6 +30,9 @@ const DOORS = await import(`./door_types.js${new URL(import.meta.url).search}`).
 // The temperature / humidity / CO2 heatmap (atlas_heatmap.js). Optional the
 // same way: missing, the Atlas simply has no heatmap.
 const HEATMAP = await import(`./atlas_heatmap.js${new URL(import.meta.url).search}`).catch(() => null);
+// An outdoor room's surface (outdoor_space.js): paved, a pattern of grey
+// tiles at true scale. Optional the same way: missing, every room as before.
+const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`).catch(() => null);
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
 
@@ -3660,6 +3663,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   if(heatByZ.size) emitRoomClips();
   // And the Alert pulse's rings.
   if(alertFx.length) emitRoomClips();
+  // A paved outdoor room (outdoor_space.js; outdoors by door_types.js's
+  // rule): its own pattern, one tile a unit, laid from the room's corner
+  // along its longest edge and carried into the drawing's isometric plane,
+  // so it is square to the room and true to scale. No paved room: nothing.
+  const paveIds=new Map();
+  if(SURF && DOORS) rooms.forEach((r,ri)=>{
+    if(!SURF.paved(DOORS.outdoorRoom({name:r.room}), SURF.roomSurface(model, r.room))) return;
+    const f=SURF.paverFrame(r.pts), P=SURF.PAVER_M;
+    const o=iso(f.ox,f.oy,r.z), e=iso(f.ox+f.ex*P,f.oy+f.ey*P,r.z), n=iso(f.ox-f.ey*P,f.oy+f.ex*P,r.z);
+    const m=[e[0]-o[0],e[1]-o[1],n[0]-o[0],n[1]-o[1],o[0],o[1]].map(v=>+v.toFixed(3)).join(" ");
+    paveIds.set(r, `pspave_${ri}`);
+    s+=`<pattern id="pspave_${ri}" width="1" height="1" patternUnits="userSpaceOnUse" patternTransform="matrix(${m})">`+
+      `<rect width="1" height="1" fill="${SURF.PAVER_GREY}"/><path d="M0,0H1V0.04H0ZM0,0H0.04V1H0Z" fill="${SURF.PAVER_JOINT}"/></pattern>`;
+  });
   s+=`</defs>`;
   if(SHOW) s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="url(#psvig)" pointer-events="none"/>`;
 
@@ -5774,17 +5791,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         }
         placedLabels.push({x:lix, y:liy, w:rw, h:rh});
       }
+      // A paved room is filled with its tiles (paveIds), half strength on the dark plate.
+      const pave=paveIds.get(r), fillOf=(op)=>pave?`fill="url(#${pave})" fill-opacity="0.5"`:`fill="${color}" fill-opacity="${op}"`;
       if(SHOW){
         // Same polygon, given depth: a soft dark edge seats the room on the
         // slab, the fill carries the room colour, one sheen from the shared
         // upper-left light source keeps every room lit from the same place,
         // and the room's own soft centre-glow (see roomGlowIds) rounds it out.
         s+=`<polygon points="${pp}" fill="none" stroke="${THEME.roomEdgeStroke}" stroke-width="4" stroke-linejoin="round" opacity="0.5"/>`;
-        s+=`<polygon points="${pp}" fill="${color}" fill-opacity="${THEME.roomFillOpacity}" stroke="${color}" stroke-width="${THEME.roomStrokeWidth}" stroke-opacity="${THEME.roomStrokeOpacity}" stroke-linejoin="round"/>`;
+        s+=`<polygon points="${pp}" ${fillOf(THEME.roomFillOpacity)} stroke="${color}" stroke-width="${THEME.roomStrokeWidth}" stroke-opacity="${THEME.roomStrokeOpacity}" stroke-linejoin="round"/>`;
         s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
         s+=`<polygon points="${pp}" fill="url(#pswash)" stroke="none" pointer-events="none"/>`;
       } else {
-        s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="1.6" opacity="1"/>`;
+        s+=`<polygon points="${pp}" ${fillOf("0.16")} stroke="${color}" stroke-width="1.6" opacity="1"/>`;
         s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
       }
       // Deferred to labelJobs (see above): the name itself, plus everything

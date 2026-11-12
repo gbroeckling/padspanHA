@@ -43,6 +43,8 @@ const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).sea
 const RUNS = await import(`./live_aboard_runs.js${new URL(import.meta.url).search}`);
 // The ⋯ list's words for the usage report (it imports nothing itself).
 const SHOW = await import(`./live_aboard_show.js${new URL(import.meta.url).search}`);
+// An outdoor room's surface (room_meta[name].surface; it imports nothing itself).
+const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`);
 export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArrowDeg } = COMPASS;
 
 // ── The usage report's words (telemetry.py HOUSE3D_EVENTS holds the same) ────
@@ -546,8 +548,10 @@ export function readRooms(model, F){
     else if (Array.isArray(g.points_m)) raw = g.points_m;
     const pts = raw ? cleanPoly(raw) : [];
     if (!fl || pts.length < 3) continue;
+    const surface = SURF.roomSurface(model, name);           // only where one is set: every other room as before
     rooms.push({ name, floor: fl, pts, idx: i++, color: roomColor(name, model),
-                 outdoor: fl.outdoor || OUTDOOR_ROOM.test(name), spot: labelSpot(pts), h: Math.max(roomHeight(model, name) ?? fl.h, fl.h) });
+                 outdoor: fl.outdoor || OUTDOOR_ROOM.test(name), spot: labelSpot(pts), h: Math.max(roomHeight(model, name) ?? fl.h, fl.h),
+                 ...(surface ? { surface } : {}) });
   }
   // A name alone (a mezzanine called "Deck A") does not take a room outdoors
   // where it stands inside a lower floor's room that rises past it (a

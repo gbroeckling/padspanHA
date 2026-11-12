@@ -28,7 +28,7 @@
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 // A room outdoors: as its floor says (outdoor), else by its name (a deck, a patio...).
 const OUTDOOR_NAME = /\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoor)\b/i;
-const outdoorRoom = (r) => (typeof r.outdoor === "boolean" ? r.outdoor : OUTDOOR_NAME.test(String(r.name || "")));
+export const outdoorRoom = (r) => (typeof r.outdoor === "boolean" ? r.outdoor : OUTDOOR_NAME.test(String(r.name || "")));
 function inside(x, y, P){
   let c = false;
   for (let i = 0, j = P.length - 1; i < P.length; j = i++) {

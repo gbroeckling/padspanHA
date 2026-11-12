@@ -120,6 +120,9 @@ const FPS = await import(`./live_aboard_fps.js${new URL(import.meta.url).search}
 // (optional: missing, the house is drawn as it was).
 const STOREY = await import(`./live_aboard_storey.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_storey failed to load", err); return null; });
+// An outdoor room's surface (outdoor_space.js): grey paving tiles, laid from its own corner.
+const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: outdoor_space failed to load", err); return null; });
 
 // West Coast Forest's trees (live_aboard_forest.js): fetched the first time a
 // view follows the Atlas with that theme on (syncForest); otherwise never.
@@ -486,6 +489,15 @@ function mergeGeometries(geos){
   }
   parts.forEach((g, i) => { if (g !== geos[i]) g.dispose(); });
   return out;
+}
+
+/** A paved room's outline, flat (as the floor tiles: plan (x, y) to world
+ *  (x, ·, y)), each point's uv its place in tiles from the room's own corner
+ *  (outdoor_space.js paverFrame): the grid square to the room, true to scale. */
+function pavingGeometry(shapes, frame){
+  const g = new THREE.ShapeGeometry(shapes), p = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < p.count; i++) { const [u, v] = SURF.paverUv(frame, p.getX(i), p.getY(i)); uv.setXY(i, u, v); }
+  return g.rotateX(Math.PI / 2);
 }
 
 function createSlot(slotKey){
@@ -1593,6 +1605,19 @@ function createSlot(slotKey){
     return m;
   }
   const profileOf = () => HOUSE.QUALITY_PROFILES[quality.profile || quality.measuring || "low"];
+  /** The paving's joints: one small repeating picture made here (nothing
+   *  downloaded), clear but for a thin line along two edges of each tile;
+   *  one material for every paved room, made the first time one is drawn. */
+  function pavingMat(){
+    if (shared.pavingMat) return shared.pavingMat;
+    const c = document.createElement("canvas"); c.width = c.height = 64;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, 64, 2); g.fillRect(0, 0, 2, 64);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return (shared.pavingMat = new THREE.MeshLambertMaterial({ map: t, color: SURF.PAVER_JOINT, transparent: true, depthWrite: false,
+      side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -3 }));
+  }
 
   // ── the house ─────────────────────────────────────────────────────────────
   function clearShell(){
@@ -1685,16 +1710,21 @@ function createSlot(slotKey){
       floorsUi.push(F);
       // Floor tiles: each room extruded down by its slab — the room's colour
       // on top, the Atlas's beige on the sides — merged into one per floor.
-      const geos = [];
+      const geos = [], paving = [];
       per.rooms.forEach((r, i) => {
         const holes = cuts && cuts.get(fl.id);
-        const g = new THREE.ExtrudeGeometry((holes ? STOREY.minusAll(r.pts, holes) : [r.pts]).map(P => new THREE.Shape(P.map(p => new THREE.Vector2(p[0], p[1])))),
-                                            { depth: HOUSE.SLAB_T, bevelEnabled: false });
+        const shapes = (holes ? STOREY.minusAll(r.pts, holes) : [r.pts]).map(P => new THREE.Shape(P.map(p => new THREE.Vector2(p[0], p[1]))));
+        const g = new THREE.ExtrudeGeometry(shapes, { depth: HOUSE.SLAB_T, bevelEnabled: false });
         g.rotateX(Math.PI / 2);                              // plan (x, y) -> world (x, ·, y); the extrusion goes down
         g.translate(0, (i % 8) * 0.0005, 0);                 // overlapping hand-drawn rooms must not z-fight
         const tm = theme3d ? theme3d.tile : 0.38;            // the Showcase look's mix (Classic: 0.38, a deck 0.5)
+        // Paved (outdoor_space.js): the tiles' grey (the Atlas's look: half its floor's),
+        // and their joints laid over it from the room's own corner (pavingGeometry).
+        const paved = !!SURF && SURF.paved(r.outdoor, r.surface);
+        if (paved) paving.push(pavingGeometry(shapes, SURF.paverFrame(r.pts)).translate(0, (i % 8) * 0.0005 + 0.002, 0));
         // The Atlas's look: the floor's own colour with the room's mixed in, faintly.
-        const top = atlas ? new THREE.Color(atlas.floor).lerp(colorOf(r.color), r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
+        const top = paved ? (atlas ? new THREE.Color(atlas.floor).lerp(new THREE.Color(SURF.PAVER_GREY), 0.5) : new THREE.Color(SURF.PAVER_GREY))
+          : atlas ? new THREE.Color(atlas.floor).lerp(colorOf(r.color), r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
           : colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
         const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : atlas ? atlas.side : SLAB_SIDE);
         if (!r.outdoor) { tileSum.r += top.r; tileSum.g += top.g; tileSum.b += top.b; tileSum.n++; }
@@ -1730,6 +1760,17 @@ function createSlot(slotKey){
         F.lift = new THREE.Mesh(merged, liftMat);
         F.lift.visible = false;
         group.add(F.lift);
+        // The paved rooms' joints: one mesh per floor, drawn after the tiles
+        // and the night's lift (so they show by day and night), under snow.
+        if (paving.length) {
+          const pg = mergeGeometries(paving);
+          paving.forEach(g => g.dispose());
+          pg.translate(0, fl.elev, 0);
+          shellRes.push(pg);
+          F.paving = new THREE.Mesh(pg, pavingMat());
+          F.paving.renderOrder = 1;
+          group.add(F.paving);
+        }
         // ...and each room's outline in its own colour, as the flat Atlas draws it
         // (at night; with the Atlas's look, always).
         const eg = edgeRibbons(per.rooms, fl.elev + 0.012, atlas);
@@ -5518,6 +5559,10 @@ function createSlot(slotKey){
                         edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)), grid: gridLines ? gridLines.material.opacity : null,
                         ...offBulb() },
                wallMat: (floorsUi.find(F => F.solid) || { solid: null }).solid ? floorsUi.find(F => F.solid).solid.material : null,
+               // Paved rooms' joints as drawn, per floor: points (x, y, z), uv (tiles), the one material.
+               paving: floorsUi.filter(F => F.paving).map(F => ({ floor: F.fl.id, inGroup: F.paving.parent === F.group, order: F.paving.renderOrder,
+                 pos: Array.from(F.paving.geometry.attributes.position.array), uv: Array.from(F.paving.geometry.attributes.uv.array),
+                 mat: F.paving.material })),
                flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
                animating: liveMs > 0, liveMs, use: use ? use.state() : null, work: { ...work },
                // What of the host's it still holds (nothing, once switched off).

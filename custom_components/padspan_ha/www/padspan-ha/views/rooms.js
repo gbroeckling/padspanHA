@@ -12,6 +12,7 @@
 //                 (Settings → Appearance; it merges per room and keeps heights)
 //   ceiling       padspan_ha/room_height_set {room, height_m}     (Mapping → Rooms)
 //   split level   padspan_ha/room_height_set {room, floor_raise_m} (Mapping → Rooms)
+//   surface       padspan_ha/room_height_set {room, surface}       (outdoor rooms only)
 // The outline is drawn in Mapping → Edit (linked, opened on that room).
 // Never calibration data.
 
@@ -31,6 +32,13 @@ const { currentEdition, surfacesForEdition } =
     .catch(() => ({ currentEdition: () => "full", surfacesForEdition: (ids) => ids.slice() }));
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// Outdoor rooms (the flat Atlas's rule: its floor, else its name) and their surface.
+const { outdoorRoom } = await import(`./door_types.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ outdoorRoom: () => false }));
+const { isOutdoorFloorId } = await import(`./iso_lights.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ isOutdoorFloorId: () => false }));
+const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ roomSurface: () => null }));
 
 let _LM = null;            // lights_map.js once loaded; false if it failed
 function _roomLights(ctx) {
@@ -149,6 +157,8 @@ export function roomGroups(ctx) {
       heightM: m && m.height_m != null ? Number(m.height_m) : null,
       floorHeightM: Number(fl && fl.floor_to_floor_m) || 2.8,
       raiseM: m && m.floor_raise_m != null ? Number(m.floor_raise_m) : null,
+      outdoor: outdoorRoom({ name: r.name, outdoor: isOutdoorFloorId(r.floorId) || undefined }),
+      surface: SURF.roomSurface(model, r.name),
       // room_height_set refuses a room it has no record or outline of.
       heightEditable: !!(m || g),
       receivers: rx[r.name] ? rx[r.name].size : 0,
@@ -322,6 +332,22 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
   const rLink = el("button", { style: LINKBTN + `;display:${row.raiseM || !row.heightEditable || readOnly ? "none" : ""}`, "data-link": "split",
     onclick: () => { rEdit.style.display = "inline-flex"; rText.style.display = "none"; rLink.style.display = "none"; } }, "Change");
   fields.appendChild(_field(el, "Split level (m up or down)", [rText, rLink, rEdit]));
+
+  // Surface: outdoor rooms only (a deck, a patio, or a room on an outdoor floor).
+  if (row.outdoor) {
+    const sSel = el("select", { style: INPUT + ";width:auto", "data-edit": "surface",
+      title: "What the 3D view and the map draw on this outdoor space's floor. Drawing only, never positioning." }, [
+      el("option", { value: "" }, "Standard"),
+      el("option", { value: "pavers_2ft" }, "Grey paving tiles (2 ft × 2 ft)"),
+    ]);
+    sSel.value = row.surface || "";
+    sSel.addEventListener("change", () => {
+      const v = sSel.value || null;
+      _setRoom(ctx, row, { surface: v }, v ? `"${row.name}" is paved with grey tiles` : `"${row.name}" has the standard surface`);
+    });
+    if (!row.heightEditable || readOnly) sSel.disabled = true;
+    fields.appendChild(_field(el, "Surface", [sSel]));
+  }
 
   // Lights (Bright): how many the Atlas has in the room, and how many are on.
   if ("lights" in row) {
