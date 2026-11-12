@@ -707,6 +707,28 @@ await tryCase("panel: the index and the map card stay on screen, the rest is bui
     && t3 !== t2 && card3 !== card2 && keptPage === fullPage && again && none && back,
     { sameTable: t2 === t1, sameCard: card2 === card1, onScreen, changed, equal: keptPage === fullPage, again, none, back });
 });
+// The header's tip follows this screen's ⋯ "Tap a light to switch it" where the flat map honours it (review 2026-11-11, C10).
+await tryCase("panel: the header's tip follows Tap a light to switch it, on Pro's layout only", async () => {
+  const p = new Panel();
+  p.connectedCallback();
+  p.hass = mkHass(BASE);
+  await p._boot(); await flush(); await flush();
+  const hint = () => { p._render(); const h = p.shadowRoot.querySelector("#content")._all().find(n => (n.className || "") === "lv-hint"); return h ? h.textContent : null; };
+  const was = localStorage.getItem("padspan_la3d_show_atlas");
+  const ticked = hint();
+  localStorage.setItem("padspan_la3d_show_atlas", JSON.stringify({ light_taps: false }));
+  p.state._tier = "pro"; p.state._atlasLayoutV2 = true;
+  const off = hint();
+  p.state._atlasLayoutV2 = false;
+  const notV2 = hint();
+  p.state._tier = "free"; p.state._atlasLayoutV2 = true;
+  const free = hint();
+  if (was === null) localStorage.removeItem("padspan_la3d_show_atlas"); else localStorage.setItem("padspan_la3d_show_atlas", was);
+  p.disconnectedCallback();
+  check("panel: the header's tip follows Tap a light to switch it, on Pro's layout only",
+    /^Tap a light to switch it · /.test(ticked) && /^A tap doesn't switch a light on this screen · tap its code or hold it for controls · tap a room name/.test(off)
+    && notV2 === ticked && free === ticked, { ticked, off, notV2, free });
+});
 // The emergency button sits right before the stage; a kept card holds one, never two.
 await tryCase("panel: a kept card holds one emergency button, right before the stage", async () => {
   const p = new Panel();

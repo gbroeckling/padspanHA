@@ -3124,6 +3124,12 @@ const _laPrefs = {
   get: (k) => { try { return localStorage.getItem("padspan_la3d_" + k); } catch (_) { return null; } },
   set: (k, v) => { try { localStorage.setItem("padspan_la3d_" + k, String(v)); } catch (_) {} },
 };
+/** What a screen's ⋯ list (live_aboard_show.js) says of a line it keeps per screen, or undefined: the flat map's
+ *  flatShow, and the Atlas header's tip (lights_panel.js) for "light_taps" (review 2026-11-11, C10). */
+export const screenShowLine = (slot, key) => {
+  if (!slot) return undefined;
+  try { const o = JSON.parse(_laPrefs.get(`show_${slot}`) || "{}"); return o && typeof o[key] === "boolean" ? o[key] : undefined; } catch (_) { return undefined; }
+};
 let _LA = null;                       // views/live_aboard.js, once loaded
 let _laLoading = null, _laLoadFailed = false, _laNoGl = false, _laNoGlSent = false;
 const _laWaiting = new Map();         // slot -> the newest card's mount, while it loads
@@ -3719,10 +3725,7 @@ export function buildLightsMapCard(hostIn){
   // What this screen's ⋯ list (live_aboard_show.js) says of a line the flat map goes by, or undefined.
   // Its screen: Live Aboard's slot, else (Live Aboard off) the Atlas tab's own (host.screen).
   const showSlot = () => (h3 ? h3.slot : host.screen && host.screen.slot) || null;
-  const flatShow = (key) => {
-    if (!showSlot()) return undefined;
-    try { const o = JSON.parse(_laPrefs.get(`show_${showSlot()}`) || "{}"); return o && typeof o[key] === "boolean" ? o[key] : undefined; } catch (_) { return undefined; }
-  };
+  const flatShow = (key) => screenShowLine(showSlot(), key);
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard

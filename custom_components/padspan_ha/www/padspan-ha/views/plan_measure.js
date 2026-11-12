@@ -213,7 +213,10 @@ export function lengthField(ctx, side, text, { busy = false, onInput, key = "sca
  *  bare number was read in, or why it isn't a length. Nothing while the field is empty. */
 export function paintSaid(said, text, pv, i = 0, feet = false) {
   const m = pv && Array.isArray(pv.metres) && pv.metres[i];
-  const unit = pv && Array.isArray(pv.assumed) && pv.assumed[i];
+  // A unit typed that isn't the one shown is said too (review 2026-11-11, C10): "4.2 m" with feet on is
+  // "= 13' 9" (read as metres)", "13' 9"" with them off "= 4.19 m (read as feet)".
+  const unit = (pv && Array.isArray(pv.assumed) && pv.assumed[i])
+    || (feet && /\d\s*(mm|cm|m|metres?|meters?)\b/i.test(text) ? "metres" : !feet && /\d\s*(['"′″]|ft\b|feet\b|foot\b|in\b|inch)/i.test(text) ? "feet" : null);
   said.textContent = !String(text || "").trim() ? "" : m ? `= ${feet ? feetText(m) : `${Number(m).toFixed(2)} m`}${unit ? ` (read as ${unit})` : ""}` : (pv && pv.invalid) || "";
   said.style.color = m ? "#a7f3d0" : "#f59e0b";
 }

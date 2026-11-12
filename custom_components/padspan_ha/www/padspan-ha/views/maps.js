@@ -1540,12 +1540,15 @@ function _wizardFooter(ctx, w, opts){
     sk.addEventListener("click", ()=>_wizardMove(ctx, w, 1));
     right.appendChild(sk);
   }
-  const nx = el("button",{class:"btn primary"}, opts.nextLabel || "Next →");
-  nx.addEventListener("click", ()=>{
-    if (opts.onNext) opts.onNext();
-    else _wizardMove(ctx, w, 1);
-  });
-  right.appendChild(nx);
+  // opts.next === false: no Next yet, the step's own Save is the main action (Skip still moves on).
+  if (opts.next !== false) {
+    const nx = el("button",{class:"btn primary"}, opts.nextLabel || "Next →");
+    nx.addEventListener("click", ()=>{
+      if (opts.onNext) opts.onNext();
+      else _wizardMove(ctx, w, 1);
+    });
+    right.appendChild(nx);
+  }
   bar.appendChild(right);
   return bar;
 }
@@ -1589,7 +1592,8 @@ function _wizardScale(ctx, map, maps, w){
   wrap.appendChild(first
     ? NUDGE.render(ctx, map, { door: w.door || (ctx.state._setupReturn ? "setup" : "wizard"), later: false, onSaved: () => _goStep(ctx, map.id, "rooms", w, false) })
     : _edit(ctx, map, maps, _wizardTools(ctx, "measure")));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later", nextLabel: "Next: draw the rooms →" }));
+  // Before any scale, saving it is the step's main action, and Save goes on to the rooms (review 2026-11-11, C10): no Next.
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later", nextLabel: "Next: draw the rooms →", next: done }));
   return wrap;
 }
 

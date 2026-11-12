@@ -1006,7 +1006,7 @@ function introScreen(ctx, S, box) {
   const measure = needsScale(st, S.plan);
   box.appendChild(P(ctx, measure ? "Three steps, a few minutes:" : "Two steps, a few minutes:"));
   box.appendChild(el("ol", { "data-aiw": "steps", style: "font-size:13px;color:#cbd5e1;line-height:1.55;margin:4px 0 4px 18px;padding:0" }, [
-    ...(measure ? [el("li", {}, "You measure one length on your plan (a wall, a doorway or the whole house), so the map is in metres.")] : []),
+    ...(measure ? [el("li", {}, "You measure one length on your plan (a wall, a doorway or the whole house), so the map is to scale.")] : []),
     el("li", {}, "Claude finds the rooms on your plan and their names. Rooms that match your Home Assistant rooms get their names."),
     el("li", {}, "You check the rooms and press Save."),
   ]));

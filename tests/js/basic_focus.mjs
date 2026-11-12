@@ -320,6 +320,15 @@ for (const from of ["overview", "calibration"]) {
   const chips = all(wr).filter(n => n.getAttribute && n.getAttribute("data-wizard-chip") !== null).map(n => [n.getAttribute("data-wizard-chip"), n.getAttribute("data-done"), text(n)]);
   check("wizard: chips in Setup's order, done ones marked ✓", JSON.stringify(chips.map(c => c[0])) === '["plan","scale","rooms","floors","receivers","finish"]'
     && chips.every(c => (c[1] === "1") === ["plan", "scale", "rooms", "floors"].includes(c[0]) && c[2].startsWith("✓ ") === (c[1] === "1")), chips);
+  // The wizard's scale step (review 2026-11-11, C10): before any scale, Save is the main action and there is no Next; once
+  // one is set, Next leads on.
+  const sc0 = makeCtx({ view: "maps", complexity: "basic", _mapsWizard: { step: 2, mapId: "m1" } });
+  const sr0 = MAPS.render(sc0); await flush();
+  const sc1 = makeCtx({ view: "maps", complexity: "basic", model: two(true), maps: plans(), _mapsWizard: { step: 2, mapId: "m1" } });
+  const sr1 = MAPS.render(sc1); await flush();
+  check("wizard: the scale step has no Next before a scale, Skip still there; Next once there is one",
+    !button(sr0, "Next: draw the rooms") && !!button(sr0, "Skip — set this later") && !!button(sr1, "Next: draw the rooms") && !button(sr1, "Skip — set this later"),
+    [text(sr0).slice(0, 300), text(sr1).slice(0, 300)]);
   // The first-upload tip: no 3D Stack in Basic.
   const u = makeCtx({ view: "maps", complexity: "basic", mapsTab: "upload", maps: { list: [] } });
   const ur = MAPS.render(u); await flush();

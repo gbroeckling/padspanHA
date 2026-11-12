@@ -26,7 +26,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
-        vacationOptionsOf, vacationEndsText, layChildren } =
+        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
@@ -881,7 +881,11 @@ class PadSpanLightsApp extends HTMLElement {
     parts.push(el("div",{class:"lv-hero"},[
       el("div",{class:"lv-hero-title"},"Atlas"),
       el("span",{class:"lv-ver"},`v${APP_VERSION}`),
-      el("span",{class:"lv-hint"},"Tap a light to switch it \u00b7 tap its code or hold for controls \u00b7 tap a room name for the whole room \u00b7 motion, temperature and air-quality tiles are read-only"),
+      // The tip follows this screen's ⋯ "Tap a light to switch it" where the flat map honours it (Pro's layout, as
+      // host.layoutV2 below; review 2026-11-11, C10): unticked, a tap switches nothing here.
+      el("span",{class:"lv-hint"},(String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2 && screenShowLine("atlas","light_taps")===false
+        ? "A tap doesn't switch a light on this screen \u00b7 tap its code or hold it for controls" : "Tap a light to switch it \u00b7 tap its code or hold for controls")
+        +" \u00b7 tap a room name for the whole room \u00b7 motion, temperature and air-quality tiles are read-only"),
       // Admin only: the pencil to the builder. Same map, the other tool.
       // Not in Basic, as a light's ✎ (Basic's Mapping would land on Library).
       el("span",{style:"margin-left:auto"}),
