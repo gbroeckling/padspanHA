@@ -119,3 +119,46 @@ export function receiverHeightsOk(state) {
 export function receiversDone(state) {
   return placedReceivers(state).size > 0 && receiverHeightsOk(state);
 }
+
+// ── The product's order, one list for every list (review 2026-11-13, break 6) ──
+// Setup, the Overview's Getting started and the Setup Wizard name the same steps in the same order with the same
+// numbers, from here. setup_checks.SETUP_STEPS holds the same ids (tests/test_guided_setup.py).
+export const SETUP_STEPS = ["plan", "scale", "floors", "rooms", "receivers", "calibration"];
+export const STEP_LABELS = {
+  plan: "Upload a floor plan",
+  scale: "Set the scale",
+  floors: "Floors and their heights",
+  rooms: "Draw the rooms",
+  receivers: "Place receivers and set their heights",
+  calibration: "Calibrate",
+};
+export const STEP_ABOUT = {
+  plan: "A photo or scan of each floor. It doesn't need to be perfect.",
+  scale: "Measure one distance you know, a doorway or a wall, so the map is in metres.",
+  floors: "How tall each floor is, so PadSpan can tell the floors apart.",
+  rooms: "Trace each Home Assistant room onto its floor plan.",
+  receivers: "Put each Bluetooth receiver where it is mounted, and say how high.",
+  calibration: "Walk around the house with your phone so PadSpan learns what each spot sounds like.",
+};
+
+const _floorsOf = (state) => ((state.model && state.model.floors) || []).filter(f => f && typeof f === "object");
+/** setup_checks.floor_has_height: a real storey height or elevation. */
+export const floorHasHeight = (f) => _isNum(f.floor_to_floor_m) || _isNum(f.base_elevation_m);
+
+/** Each step's "done", from the house: true, false, or null (not known yet). */
+const DONE = {
+  plan: (s) => hasMaps(s),
+  scale: (s) => hasScale(s),
+  // One floor has nothing to set: the floor_heights tip's own rule.
+  floors: (s) => _floorsOf(s).length <= 1 || _floorsOf(s).some(floorHasHeight),
+  rooms: (s) => hasRooms(s),
+  receivers: (s) => receiversDone(s),
+  // The Overview checklist's own rule: five points or a fitted model; unknown until Calibration's points are read.
+  calibration: (s) => (s.calibration ? hasCalibration(s) : null),
+};
+export function stepDone(state, id) { return DONE[id] ? DONE[id](state) : false; }
+
+/** The steps this house has, in order, each with its number: [{id, n, label}]. */
+export function setupSteps(state) {
+  return SETUP_STEPS.map((id, i) => ({ id, n: i + 1, label: STEP_LABELS[id] }));
+}

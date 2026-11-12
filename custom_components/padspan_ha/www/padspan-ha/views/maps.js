@@ -40,7 +40,8 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 // "Is this map-setup step done?" — shared with the Overview onboarding
 // checklist (panel.js) so the two can never disagree about what's finished.
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
-        undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers } =
+        undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers,
+        setupSteps: _setupSteps } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // "Put my receivers in their rooms" (setup.js receiversBlock, the one block and command), where receivers are placed:
 // Edit's Radios tool, so the Setup Wizard's receivers step too (review 2026-11-13, break 3).
@@ -503,7 +504,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const empty = el("div",{style:"margin-top:14px;padding:18px;border-radius:10px;background:#0a1a12;border:1px solid #1a4228;text-align:center"});
     empty.appendChild(el("div",{style:"font-weight:700;font-size:15px;margin-bottom:6px"}, "No floor plans yet"));
     empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:13px"},
-      "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing scanners, one step at a time."));
+      "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing receivers, one step at a time."));
     const startBtn = el("button",{class:"btn primary", style:"font-size:13px;padding:8px 18px"}, "Start Setup Wizard");
     startBtn.setAttribute("data-maps-start", "setup");
     startBtn.addEventListener("click", ()=>{
@@ -1461,13 +1462,20 @@ async function _preparePngFromUrl(imgUrl, maxDim, crop=null){
 //     the onboarding checklist uses — a second, driftable copy of "is this
 //     finished" is exactly the bug class this session already fixed once
 //     for LIGHT_SHAPES and the in-app help system
+// `setup`: the guided Setup's step it is; its chip shows Setup's own number
+// and name (setup_status.setupSteps: one order, one vocabulary, review
+// 2026-11-13). `n` is the wizard's own step, kept for its state and counters.
 const WIZARD_STEPS = [
-  { n: 1, id: "upload",   label: "Upload floor plan" },
-  { n: 2, id: "scale",    label: "Set the scale" },
-  { n: 3, id: "rooms",    label: "Draw rooms" },
-  { n: 4, id: "scanners", label: "Place scanners" },
+  { n: 1, id: "upload",   setup: "plan" },
+  { n: 2, id: "scale",    setup: "scale" },
+  { n: 3, id: "rooms",    setup: "rooms" },
+  { n: 4, id: "scanners", setup: "receivers" },
   { n: 5, id: "finish",   label: "Finish" },
 ];
+function _wizardChipLabel(ctx, s){
+  const st = s.setup && _setupSteps(ctx.state).find(x => x.id === s.setup);
+  return st ? `${st.n}. ${st.label}` : s.label;
+}
 
 // Only re-force the underlying Edit tool's mode when the wizard STEP
 // changes, not on every render — otherwise switching to Rooms mode by hand
@@ -1622,8 +1630,8 @@ function _wizardFinish(ctx, map){
   wrap.appendChild(el("div",{style:"font-weight:700;font-size:16px;margin-bottom:8px"},
     `${map ? (map.name || "This floor") : "This floor"} is set up`));
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;line-height:1.6"},
-    `${rooms} room${rooms===1?"":"s"} traced, ${scanners} scanner${scanners===1?"":"s"} placed. ` +
-    "Next: calibrate, so PadSpan learns what those scanners actually see from each room — a few minutes walking around with your phone gets you most of the way."));
+    `${rooms} room${rooms===1?"":"s"} traced, ${scanners} receiver${scanners===1?"":"s"} placed. ` +
+    "Next: calibrate, so PadSpan learns what those receivers actually hear from each room — a few minutes walking around with your phone gets you most of the way."));
   // What's traced here but not yet on the house the Overview draws: one
   // explicit click puts it there (wizard_build.js), missing pieces only.
   // The plan is read HERE, in the editor; the module only sees the fabric.
@@ -1669,9 +1677,9 @@ function _wizardFinish(ctx, map){
       box.appendChild(el("div",{style:"font-size:13px"}, writeBlock));
     } else if (!plan.readable) {
       box.appendChild(el("div",{style:"font-size:13px"},
-        "Set this floor's scale first (step 2): PadSpan needs to know how big it is before it can put these rooms and scanners on the map of your house."));
+        "Set this floor's scale first (step 2): PadSpan needs to know how big it is before it can put these rooms and receivers on the map of your house."));
     } else {
-      const what = [plan.rooms.length ? n(plan.rooms.length, "room") : "", plan.scanners.length ? n(plan.scanners.length, "scanner") : ""].filter(Boolean).join(" and ");
+      const what = [plan.rooms.length ? n(plan.rooms.length, "room") : "", plan.scanners.length ? n(plan.scanners.length, "receiver") : ""].filter(Boolean).join(" and ");
       box.appendChild(el("div",{style:"font-size:13px;margin-bottom:8px;line-height:1.5"},
         `${what} ${plan.rooms.length + plan.scanners.length === 1 ? "is" : "are"} on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.`));
       // Re-reading the model redraws this step mid-write: the flag keeps the
@@ -1688,7 +1696,7 @@ function _wizardFinish(ctx, map){
         putBtn.textContent = "Putting it on the map…";
         try {
           const r = await buildHouse(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh() });
-          const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "scanner") : ""].filter(Boolean).join(" and ");
+          const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "receiver") : ""].filter(Boolean).join(" and ");
           const left = r.failed.length + r.notConvertible.length + r.otherPlan.length;
           const where = "Mapping → Layout and Calibration → Tune show them";
           ctx.toast(done
@@ -1797,7 +1805,7 @@ function _wizard(ctx, maps, isBasic){
     const chip = el("button",{
       class: "btn inline" + (isCurrent ? " primary" : ""),
       style: `font-size:11px;padding:3px 10px;` + (reachable ? "" : "opacity:.4;cursor:not-allowed"),
-    }, `${s.n}. ${s.label}`);
+    }, _wizardChipLabel(ctx, s));
     chip.disabled = !reachable;
     if (reachable) chip.addEventListener("click", ()=>{ w.step = s.n; ctx.actions.renderRooms(); });
     stepList.appendChild(chip);

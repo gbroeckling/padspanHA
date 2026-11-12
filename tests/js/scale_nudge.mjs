@@ -340,6 +340,10 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     const root = await render(h);
     const cnt = q(root, '[data-wizard-count="receivers"]');
     check(`${cx}: the wizard's receivers step has the button`, !!q(root, '[data-setup="receivers-place"]'), root.textContent.slice(0, 500));
+    // One vocabulary (review 2026-11-13): the wizard's chips are Setup's steps, numbered and named as Setup does.
+    const chips = all(root, "button").map(b => b.textContent).filter(t => /^\d\. |^Finish$/.test(t));
+    const want = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "floors" && x.id !== "calibration").map(x => `${x.n}. ${x.label}`).concat(["Finish"]);
+    check(`${cx}: the wizard's chips are Setup's numbers and names`, JSON.stringify(chips) === JSON.stringify(want), [chips, want]);
     check(`${cx}: its count includes a receiver on the house map, and says where it is moved`, cnt && cnt.textContent.startsWith("1 receiver placed on this floor.")
       && cnt.textContent.includes("Check receiver positions"), cnt && cnt.textContent);
   }

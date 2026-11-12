@@ -56,7 +56,9 @@ def test_the_setup(run: dict, prefix: str, least: int) -> None:
 
 
 def test_the_steps_are_the_servers() -> None:
-    m = re.search(r"export const SETUP_STEPS = \[([^\]]*)\]", _read("views/setup.js"))
+    # 2026-11-13: the order lives in setup_status.js (Setup, Getting started and the Setup Wizard read it there).
+    m = re.search(r"export const SETUP_STEPS = \[([^\]]*)\]", _read("views/setup_status.js"))
+    assert "export const SETUP_STEPS = STATUS.SETUP_STEPS;" in _read("views/setup.js")
     assert m and tuple(re.findall(r'"([a-z_]+)"', m.group(1))) == setup_checks.SETUP_STEPS
 
 
@@ -110,7 +112,8 @@ def test_entry_points() -> None:
     assert "showView: (id, opts) => {" in panel
     # The Overview's Getting started: Open Setup, and each step's bar back to it.
     assert '{"data-getting-started":"setup"' in panel and 'this.state.view = "setup";' in panel
-    assert 'scanners: "receivers", calibrate: "calibration" }[s.id] || null;' in panel
+    # 2026-11-13: each Getting started step opens as Setup's own Start does (setup.js openStep), with its door counted.
+    assert 'if (s.step) { this._ctx().actions.openSetupStep(s.step, null, "getting_started"); return; }' in panel
     assert "VIEWS.setup.returnBar(this._ctx())" in panel
     assert "this.state._setupReturn = null;   // a menu pick" in panel
     # Mapping: a Setup button beside Refresh, the tab bar as it was.
@@ -127,7 +130,8 @@ def test_entry_points() -> None:
     assert "...(_setupShown && !_noPlansYet" in maps
     start = maps.split('startBtn.setAttribute("data-maps-start", "setup");')[1].split("empty.appendChild(startBtn);")[0]
     assert 'ctx.actions.openSetupStep("plan");' in start and "ctx.state._mapsWizard = { step: 1, mapId: null };" in start
-    assert 'openSetupStep: (id, mapId=null)=>{' in panel and "m.openStep(this._ctx(), id, mapId)" in panel   # mapId: the rooms helper's saved plan
+    # mapId: the rooms helper's saved plan; door (2026-11-13): Getting started's, counted at a first scale's Save.
+    assert 'openSetupStep: (id, mapId=null, door=null)=>{' in panel and "m.openStep(this._ctx(), id, mapId, door)" in panel
     # The old wizards stay reachable directly.
     assert '"Start Setup Wizard"' in maps and '"+ Add a floor"' in maps
     assert "🧭 Guided calibration" in _read("views/calibration.js")

@@ -548,7 +548,7 @@ def ui_error_at_allowed(name: str) -> bool:
 # "No thanks" / ✕), and the quiet entry under the PadSpan sidebar menu.
 TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
                                    "update_banner", "milestone", "sidebar", "ai_wizard")
-GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "scanners", "calibrate", "positioned", "trial")
+GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "floors", "rooms", "scanners", "calibrate", "positioned", "trial")
 # The free-Pro cards (views/pro_invite.js): an invite shown (once per page, on
 # Overview or in Settings → PadSpan licence), put off, claimed, refused by the
 # server, or declined; the one-time "test it, get Pro free" card shown, and

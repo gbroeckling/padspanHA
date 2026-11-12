@@ -1,7 +1,10 @@
 """panel.js's onboarding checklist and views/setup_status.js must never
-disagree about whether a map-setup step is done.
+disagree about the setup steps: which, in what order, numbered and named how,
+and whether each is done. Since 2026-11-13 the checklist has no copy of its
+own (it reads setup_status.js, as Setup and the Setup Wizard do); the harness
+runs the card's step list, lifted by text, against the module.
 
-They are, on purpose, two separate copies: onboarding_gate.mjs needs
+Before, they were, on purpose, two separate copies: onboarding_gate.mjs needs
 panel.js's checks self-contained enough to lift by text (see that test and
 the comment above the checks in panel.js), so they were not collapsed into
 a shared import. But two copies of the same question is exactly the defect
@@ -49,4 +52,4 @@ def test_the_checklist_and_the_wizard_never_disagree(result) -> None:
 
 
 def test_the_harness_actually_checked_something(result) -> None:
-    assert len(result["checks"]) >= 60, result["checks"]
+    assert len(result["checks"]) >= 40, result["checks"]     # 2026-11-13: ten houses x four checks, and no inline copy

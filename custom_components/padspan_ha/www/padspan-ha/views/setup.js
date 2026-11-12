@@ -13,8 +13,8 @@
 // tips (setup_checks.py); only where someone is, and what they skipped, is
 // stored (settings.setup_progress, cleaned by setup_checks.clean_setup_progress).
 
-const { hasMaps, hasScale, hasRooms, hasCalibration, undrawnAreaNames, placedReceivers, receiverHeightsOk, receiversDone } =
-  await import(`./setup_status.js${new URL(import.meta.url).search}`);
+const STATUS = await import(`./setup_status.js${new URL(import.meta.url).search}`);
+const { hasRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight } = STATUS;
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Let Claude draw your rooms (experimental): one line under the scale and rooms steps, where the rule offers it.
@@ -22,50 +22,19 @@ const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}
 // "No scale yet: Measure" under the scale step, for each plan that has none (scale_nudge.js).
 const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
 
-// setup_checks.SETUP_STEPS, in order (tests/test_guided_setup.py holds them equal).
-export const SETUP_STEPS = ["plan", "scale", "floors", "rooms", "receivers", "calibration"];
+// The steps, their names and their words are setup_status.js's: Getting started and the Setup Wizard read the same
+// (review 2026-11-13: one order, one vocabulary). setup_checks.SETUP_STEPS holds the same ids.
+export const SETUP_STEPS = STATUS.SETUP_STEPS;
+const LABELS = STATUS.STEP_LABELS, ABOUT = STATUS.STEP_ABOUT;
 // calibration_store fits a model from five points.
 export const CAL_POINTS_NEEDED = 5;
 
-const LABELS = {
-  plan: "Upload a floor plan",
-  scale: "Set the scale",
-  floors: "Floors and their heights",
-  rooms: "Draw the rooms",
-  receivers: "Place receivers and set their heights",
-  calibration: "Calibrate",
-};
-const ABOUT = {
-  plan: "A photo or scan of each floor. It doesn't need to be perfect.",
-  scale: "Measure one distance you know, a doorway or a wall, so the map is in metres.",
-  floors: "How tall each floor is, so PadSpan can tell the floors apart.",
-  rooms: "Trace each Home Assistant room onto its floor plan.",
-  receivers: "Put each Bluetooth receiver where it is mounted, and say how high.",
-  calibration: "Walk around the house with your phone so PadSpan learns what each spot sounds like.",
-};
-
-const _num = (v) => typeof v === "number" && Number.isFinite(v);
 const _floors = (state) => ((state.model && state.model.floors) || []).filter(f => f && typeof f === "object");
-// setup_checks.floor_has_height: a real storey height or elevation.
-const _floorHasHeight = (f) => _num(f.floor_to_floor_m) || _num(f.base_elevation_m);
 
 function _calPoints(state) {
   const c = state.calibration;
   return c && Array.isArray(c.points) ? c.points.length : 0;
 }
-
-/** Each step's "done", from the house: true, false, or null (not known yet). */
-const DONE = {
-  plan: (s) => hasMaps(s),
-  scale: (s) => hasScale(s),
-  // One floor has nothing to set: the floor_heights tip's own rule.
-  floors: (s) => _floors(s).length <= 1 || _floors(s).some(_floorHasHeight),
-  rooms: (s) => hasRooms(s),
-  // The one rule (setup_status.receiversDone): on a plan or on the map of the house, and heights that say something.
-  receivers: (s) => receiversDone(s),
-  // The Overview checklist's own rule (setup_status.js): five points or a fitted model.
-  calibration: (s) => (s.calibration ? hasCalibration(s) : null),
-};
 
 /** What a step's line says under its name. */
 function _detail(state, id, done) {
@@ -77,7 +46,7 @@ function _detail(state, id, done) {
   if (id === "floors") {
     const fl = _floors(state);
     if (fl.length <= 1) return "One floor: nothing to set here.";
-    const k = fl.filter(_floorHasHeight).length;
+    const k = fl.filter(floorHasHeight).length;
     return k ? `${k} of ${fl.length} floors have a height.` : `Every one of the ${fl.length} floors is at the default height. ${ABOUT.floors}`;
   }
   if (id === "rooms") {
@@ -118,9 +87,9 @@ export function progressOf(state) {
 export function deriveSetup(state, progress) {
   progress = progress || progressOf(state);
   const skipped = new Set(progress.skipped || []);
-  const steps = SETUP_STEPS.map((id, i) => {
-    const d = DONE[id](state);
-    return { id, n: i + 1, label: LABELS[id], done: d === true, unknown: d === null, skipped: d !== true && skipped.has(id) };
+  const steps = setupSteps(state).map(({ id, n, label }) => {
+    const d = stepDone(state, id);
+    return { id, n, label, done: d === true, unknown: d === null, skipped: d !== true && skipped.has(id) };
   });
   const cur = steps.find(s => s.id === progress.at && !s.done)
     || steps.find(s => !s.done && !s.skipped) || steps.find(s => !s.done) || null;
@@ -137,7 +106,7 @@ export function deriveSetup(state, progress) {
 export function skipStep(state, progress, id) {
   const skipped = [...new Set([...(progress.skipped || []), id])];
   const d = deriveSetup(state, { ...progress, skipped, at: null });
-  const after = d.steps.slice(SETUP_STEPS.indexOf(id) + 1).find(s => s.status !== "done" && !s.skipped);
+  const after = d.steps.slice(d.steps.findIndex(s => s.id === id) + 1).find(s => s.status !== "done" && !s.skipped);
   return { ...progress, skipped: SETUP_STEPS.filter(s => skipped.includes(s)), at: after ? after.id : null };
 }
 
@@ -173,7 +142,7 @@ function _save(ctx, p) {
 
 /** Open a step's own tool, with the bar back to Setup over it. `mapId`: on that plan (the rooms helper's Done opens
  *  receivers on the plan it just saved), else the plan open in Mapping, else the first. */
-export function openStep(ctx, id, mapId = null) {
+export function openStep(ctx, id, mapId = null, door = null) {
   const st = ctx.state;
   _save(ctx, openProgress(progressOf(st), id));
   _countStep(ctx, id);
@@ -195,20 +164,20 @@ export function openStep(ctx, id, mapId = null) {
   if (has(mapId)) st.activeMapId = mapId;
   // A plan already uploaded: the wizard's Upload adds another floor ("+ Add a floor").
   if (id === "plan") st.activeMapId = null;
-  st._mapsWizard = { step: { plan: 1, scale: 2, rooms: 3, receivers: 4 }[id], mapId: id === "plan" ? null : on };
+  st._mapsWizard = { step: { plan: 1, scale: 2, rooms: 3, receivers: 4 }[id], mapId: id === "plan" ? null : on, ...(door ? { door } : {}) };
   ctx.actions.showView("maps");
 }
 
 /** The bar over a step's tool: which step this is, and the way back. */
 export function returnBar(ctx) {
   const id = ctx.state._setupReturn;
-  const i = SETUP_STEPS.indexOf(id);
+  const steps = setupSteps(ctx.state), i = steps.findIndex(s => s.id === id);
   if (i < 0) return null;
   const { el } = ctx.helpers;
   const bar = el("div", { "data-setup": "return", style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:6px 12px;margin-bottom:12px" });
   bar.appendChild(el("div", { style: "flex:1 1 auto;min-width:0;font-size:12px;color:#94a3b8" }, [
     el("span", { style: "color:#52b788;font-weight:700" }, "Setup"),
-    ` · step ${i + 1} of ${SETUP_STEPS.length}: ${LABELS[id]}`,
+    ` · step ${steps[i].n} of ${steps.length}: ${LABELS[id]}`,
   ]));
   const back = el("button", { class: "btn inline", style: "font-size:12px;white-space:nowrap", "data-setup": "back" }, "← Back to Setup");
   back.addEventListener("click", () => { ctx.state._setupReturn = null; ctx.actions.showView("setup"); });
@@ -406,7 +375,7 @@ export function render(ctx) {
     el("div", { class: "muted", style: "font-size:12px", "data-setup": "count" }, d.known ? `${d.doneCount} of ${d.steps.length} done` : "Checking…"),
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:13px;line-height:1.5;margin-top:4px" },
-    "Six steps, in this order. Each one opens the tool for it; come back here when it's done. " +
+    `${["", "One", "Two", "Three", "Four", "Five", "Six"][d.steps.length] || d.steps.length} steps, in this order. Each one opens the tool for it; come back here when it's done. ` +
     "Skip any step and come back to it later: Setup remembers where you were."));
 
   if (_demo(st)) {

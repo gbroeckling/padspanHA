@@ -3867,8 +3867,8 @@ class PadSpanHaApp extends HTMLElement {
         // A guided Setup step's own tool, with the bar back to Setup
         // (views/setup.js openStep), loading Setup first if need be;
         // `mapId`: on that plan.
-        openSetupStep: (id, mapId=null)=>{
-          _loadView("setup").then(m => { if (m && m.openStep) m.openStep(this._ctx(), id, mapId); });
+        openSetupStep: (id, mapId=null, door=null)=>{
+          _loadView("setup").then(m => { if (m && m.openStep) m.openStep(this._ctx(), id, mapId, door); });
         },
         // Targeted tag-list re-render — avoids a full view rebuild which would
         // cause infinite loops in the Objects view's search/filter interaction
@@ -5080,34 +5080,12 @@ class PadSpanHaApp extends HTMLElement {
     // step's completion from live state. Navigates to the right view on click.
     {
       const _onboardingDone = !!(this.state.settings && this.state.settings.onboarding_completed);
-      // These five checks are lifted BY TEXT into tests/js/onboarding_gate.mjs
-      // and tests/js/setup_status_parity.mjs, so keep them self-contained,
-      // inline boolean expressions — not a call out to another module. That
-      // is also why they read identically to views/setup_status.js's pure
-      // functions of the same name: the wizard (maps.js) uses that module
-      // directly; this card keeps its own copy so onboarding_gate.mjs can
-      // still evaluate the shipped condition standalone, and
-      // setup_status_parity.mjs asserts the two never drift apart.
-      const _hasMaps = !!(this.state.maps && this.state.maps.list && this.state.maps.list.length);
-      // Receivers: setup_status's one rule (review 2026-11-13, break 4): pinned on a plan or on the map of the house
-      // ("Put my receivers in their rooms" puts them there), heights that say something, as Setup counts them.
-      const _hasReceivers = !!SETUP_STATUS && SETUP_STATUS.receiversDone(this.state);
-      // "Have you got rooms yet" is a question about the FABRIC. Asking it of
-      // per-photo room_bounds told anyone who built their rooms without a
-      // plan — or who has since deleted one — that they had not done the step
-      // they had in fact finished.
-      const _hasFabricRooms = !!(this.state.model && this.state.model.room_geometry_m
-        && Object.keys(this.state.model.room_geometry_m).length > 0);
-      const _hasRooms = _hasFabricRooms
-        || (_hasMaps && this.state.maps.list.some(m => Object.keys(m.room_bounds || {}).length > 0));
-      const _hasScale = !!(this.state.model && this.state.model.map_transforms && Object.values(this.state.model.map_transforms).some(t => t && t.reference_measurements && t.reference_measurements.length > 0));
-      // Calibrated: five calibration points or a fitted model, the guided
-      // Setup's rule (setup_status.js hasCalibration). Receivers placed in
-      // the layout are the Place Scanners step, not this one; a checklist
-      // already finished keeps onboarding_completed.
-      const _calPoints = (this.state.calibration && this.state.calibration.points) ? this.state.calibration.points.length : 0;
-      const _hasModel = !!(this.state.calibration && this.state.calibration.model && Object.keys(this.state.calibration.model).length > 0);
-      const _hasCal = _calPoints >= 5 || _hasModel;
+      // Each step's name, number, words and "done" are setup_status.js's, the one
+      // rule Setup and the Setup Wizard read (review 2026-11-13: one order, one
+      // vocabulary; this card kept its own inline copy before, held equal by
+      // tests/js/setup_status_parity.mjs). The card waits for the module.
+      const _ss = SETUP_STATUS;
+      const _order = _ss ? _ss.setupSteps(this.state) : [];
       // Someone on the map NOW: what the steps above are for. An object the
       // engine counts as the house's own (presence_coordinator
       // is_identified_object: labelled, identified, or an IRK phone) with a
@@ -5120,21 +5098,25 @@ class PadSpanHaApp extends HTMLElement {
       const _hasPositioned = !!_liveSnap && ((_liveSnap.objects && _liveSnap.objects.list) || []).some(o => o
         && !o._stale && !o._ghost && (o.user_label || o.identified || o.kind === "private_ble")
         && typeof o.x_m === "number" && Number.isFinite(o.x_m) && typeof o.y_m === "number" && Number.isFinite(o.y_m));
+      // The ids are the report's (telemetry.GETTING_STARTED_STEPS); `step` is Setup's.
+      const _lbl = (step) => { const x = _order.find(t => t.id === step); return x ? `${x.n}. ${x.label}` : step; };
       const _steps = [
-        { id: "upload",   label: "Upload Floor Plan",  done: _hasMaps,      wizardStep: 1, view: "maps",        mapsTab: "upload", hint: "Mapping \u2192 Upload a floor plan image" },
-        { id: "scale",    label: "Set Scale",           done: _hasScale,     wizardStep: 2, view: "maps",        mapsTab: "edit",   hint: "Mapping \u2192 Edit \u2192 Measure tool" },
-        { id: "rooms",    label: "Draw Rooms",          done: _hasRooms,     wizardStep: 3, view: "maps",        mapsTab: "edit",   hint: "Mapping \u2192 Edit \u2192 draw room boundaries" },
-        { id: "scanners", label: "Place Scanners",      done: _hasReceivers, wizardStep: 4, view: "maps",        mapsTab: "edit",   hint: "Mapping \u2192 Edit \u2192 drag scanners onto the plan" },
-        { id: "calibrate",label: "Calibrate",           done: _hasCal,       calibWizard: true,   view: "calibration", calibTab: "beacon", hint: "Calibration \u2192 guided walk-through" },
+        { id: "upload",   label: _lbl("plan"),        step: "plan" },
+        { id: "scale",    label: _lbl("scale"),       step: "scale" },
+        { id: "floors",   label: _lbl("floors"),      step: "floors" },
+        { id: "rooms",    label: _lbl("rooms"),       step: "rooms" },
+        { id: "scanners", label: _lbl("receivers"),   step: "receivers" },
+        { id: "calibrate", label: _lbl("calibration"), step: "calibration" },
         { id: "positioned", label: "See someone on the map", done: _hasPositioned, view: "follow",
           hint: this.state.dataMode === "live" ? "Follow \u2192 pick your phone or a tag" : "Switch the top bar to Live first" },
-      ];
+      ].filter(s => !s.step || _order.some(t => t.id === s.step))
+        .map(s => s.step ? { ...s, done: _ss.stepDone(this.state, s.step) === true, hint: _ss.STEP_ABOUT[s.step] } : s);
       const _completedCount = _steps.filter(s => s.done).length;
       // Setup is the map-building steps. "See someone on the map" depends on
       // who is home right now (and on sample mode), so it is shown as a step
       // but never decides "done": a house set up long ago must not get the
       // card back on the day nobody is in.
-      const _allDone = _steps.every(s => s.done || s.id === "positioned");
+      const _allDone = !!_ss && _steps.every(s => s.done || s.id === "positioned");
       // Persisted per install (settings.onboarding_completed), straight to
       // the wire: `this.actions` is never assigned on the element, so the
       // settingsSet these two used to optional-chain was never called and
@@ -5160,7 +5142,7 @@ class PadSpanHaApp extends HTMLElement {
       // arrived. A new install still sees the card the moment they settle -
       // an empty maps list is an answer; an unfetched one is not.
       const _setupKnown = this.state._mapsLoaded && this.state._modelLoaded;
-      if (_setupKnown && !_onboardingDone && !_allDone && _posKnown && SETUP_STATUS && !this.state._onboardingDismissed && this.state.view === "overview") {
+      if (_setupKnown && !_onboardingDone && !_allDone && _posKnown && _ss && !this.state._onboardingDismissed && this.state.view === "overview") {
         // Opt-in usage report: the card was seen, once per page.
         if (!this._gettingStartedCounted) { this._gettingStartedCounted = true; this._telemetryEvent("getting_started_shown"); }
         this._overviewCardShown = true;   // the trial milestone waits for another page load
@@ -5195,7 +5177,7 @@ class PadSpanHaApp extends HTMLElement {
         hdr.appendChild(el("span",{style:"display:flex;align-items:baseline"},[setupBtn, skipBtn, gsHelp]));
         bar.appendChild(hdr);
         if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
-          "Who's where already works below. A floor plan adds the map, and with three or more scanners placed on it, positions between them."));
+          "Who's where already works below. A floor plan adds the map, and with three or more receivers placed on it, positions between them."));
 
         // Progress dots
         const dots = el("div",{style:"display:flex;gap:4px;margin-bottom:8px"});
@@ -5216,35 +5198,9 @@ class PadSpanHaApp extends HTMLElement {
           row.setAttribute("data-getting-started", "step-" + s.id);
           row.addEventListener("click", () => {
             this._telemetryEvent("getting_started_step:" + s.id);
-            // The guided Setup's step this is (views/setup.js): its bar leads back there.
-            this.state._setupReturn = { upload: "plan", scale: "scale", rooms: "rooms", scanners: "receivers", calibrate: "calibration" }[s.id] || null;
-            // The four map-building steps launch the Setup Wizard AT that
-            // step, on whatever map is already active (or the first one, or
-            // none yet — the wizard's own Upload step handles that) — rather
-            // than just dropping the household on a bare tab and leaving
-            // them to find the right tool inside it themselves.
-            if (s.wizardStep) {
-              this.state.view = "maps";
-              const _maps = (this.state.maps && this.state.maps.list) || [];
-              const _mapId = (this.state.activeMapId && _maps.some(m => m.id === this.state.activeMapId))
-                ? this.state.activeMapId
-                : ((_maps[0] && _maps[0].id) || null);
-              this.state._mapsWizard = { step: s.wizardStep, mapId: _mapId, door: "getting_started" };
-              if (this.actions?.renderRooms) this.actions.renderRooms();
-              else this._scheduleRender();
-              return;
-            }
-            if (s.calibWizard) {
-              this.state.view = "calibration";
-              this.state._calibWizard = { step: 1 };
-              if (this.actions?.renderRooms) this.actions.renderRooms();
-              else this._scheduleRender();
-              return;
-            }
+            // A Setup step opens as Setup's own Start does (views/setup.js openStep): its tool, the bar back to Setup.
+            if (s.step) { this._ctx().actions.openSetupStep(s.step, null, "getting_started"); return; }
             this.state.view = s.view;
-            // Route to the correct sub-tab
-            if (s.mapsTab) this.state.mapsTab = s.mapsTab;
-            if (s.calibTab) this.state._calibTabRequest = s.calibTab;
             // A view reached from here is highlighted like one picked from
             // the menu, and loads if the background load has not reached it.
             this._renderNav();

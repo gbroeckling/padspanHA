@@ -18,8 +18,13 @@
 // The gate is lifted from the shipped source by text rather than reimplemented,
 // so this test fails if the real condition changes.
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const SRC = readFileSync(process.argv[2], "utf8");
+// 2026-11-13: the card reads "is this step done" from views/setup_status.js (one rule for every setup list); its
+// hasMaps is the expression this test used to lift from panel.js.
+const STATUS = await import(pathToFileURL(join(dirname(process.argv[2]), "views", "setup_status.js")).href);
 const checks = [], failures = [];
 const check = (name, ok, detail) => {
   checks.push(name);
@@ -34,8 +39,8 @@ const ifLine = SRC.match(/if\s*\(\s*_setupKnown\s*&&\s*!_onboardingDone[^)]*\)\s
 check("the onboarding card is gated on _setupKnown", !!ifLine,
       "the card renders without waiting for the stores that answer it");
 
-const hasMapsLine = SRC.match(/const\s+_hasMaps\s*=\s*([^;]+);/);
-check("panel.js still derives _hasMaps", !!hasMapsLine);
+const hasMapsLine = /SETUP_STATUS/.test(SRC.slice(SRC.indexOf("const _setupKnown") - 6000, SRC.indexOf("const _setupKnown")));
+check("the card still reads setup_status.js for its steps", !!hasMapsLine);
 
 // The gate is only worth anything if the flags START false. Evaluating the gate
 // against fabricated state cannot see the initial value, so assert it directly:
@@ -54,8 +59,7 @@ if (knownLine && ifLine && hasMapsLine) {
   const gate = new Function("state", `const this_ = {state}; const t = this_;
     const _setupKnown = ${knownLine[1].replace(/this\.state/g, "state")};
     return !!_setupKnown;`);
-  const hasMaps = new Function("state",
-    `return !!(${hasMapsLine[1].replace(/this\.state/g, "state")});`);
+  const hasMaps = (state) => STATUS.hasMaps(state);
 
   const loading   = { maps: { list: [] }, model: {}, _mapsLoaded: false, _modelLoaded: false };
   const mapsOnly  = { maps: { list: [] }, model: {}, _mapsLoaded: true,  _modelLoaded: false };
