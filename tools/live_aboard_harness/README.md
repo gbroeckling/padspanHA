@@ -90,6 +90,7 @@ the Playwright scripts for those (`pip install playwright`; they use the install
 | `pw_load.py` | Load the page, list visible buttons and any errors |
 | `pw_plans.py <out_dir> [desktop\|phone]` | The Plans tool's vetting map by real clicks: pins, verdicts, keys, undo, floors, recap, the plan; screenshots in `out_dir` |
 | `pw_raised.py [outprefix]` | What stands on a line against the words: overlaps before and after at several orbits, rest afterwards |
+| `pw_dimmed.py` | With a device-type chip picked (`cls=motion`), a tap on a dimmed light says why nothing happened and "Show all" asks the host for every class; with every class, no note |
 | `pw_tool.py [light]` | The setup wizard's way in (`?edit=1&tool=<t>&teid=<light>`): Edit opens at Heights, Door, Window, Strip (with the light picked) |
 
 Run them with `python -X utf8 <script> ...` (the page uses characters a Windows console can't

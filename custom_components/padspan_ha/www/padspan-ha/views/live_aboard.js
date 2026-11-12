@@ -2185,7 +2185,7 @@ function createSlot(slotKey){
     }), guard(() => toast("Could not put north back", null)));
   }
   // A note over the view that fades out by itself (CSS), with an action.
-  function toast(text, act){
+  function toast(text, act, word = "Undo"){
     if (!root) return;
     for (const old of root.querySelectorAll(".la3d-toast")) old.remove();
     const t = document.createElement("div");
@@ -2196,7 +2196,7 @@ function createSlot(slotKey){
     t.appendChild(span);
     if (act) {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = "Undo";
+      b.type = "button"; b.textContent = word;
       b.addEventListener("click", guard((e) => { e.stopPropagation(); t.remove(); act(); }));
       t.appendChild(b);
     }
@@ -3707,6 +3707,7 @@ function createSlot(slotKey){
         const t = performance.now(), prev = tapAt;
         tapAt = { x: e.clientX, y: e.clientY, t };
         if (prev && t - prev.t <= TAP2_MS && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <= TAP2_PX && flyToRoomAt(e.clientX, e.clientY)) tapAt = null;
+        else dimmedNote(e.clientX, e.clientY);
       }
       tap = null;
       pts.delete(e.pointerId);
@@ -4667,7 +4668,20 @@ function createSlot(slotKey){
   // code shows under it at room scale unless codes are hidden. ⚙'s Zoom,
   // ◎ Find active, Save view and Reset view drive this camera while it shows.
   let clsDrawn = null;
-  const dimOf = (eid) => !!(classF && MARKS && MARKS.dimmed(lbe[eid], classF));
+  // seeDim: one pick that also finds what the class chips dim (dimmedNote).
+  let seeDim = false, classCb = null, classWord = null;
+  const dimOf = (eid) => !seeDim && !!(classF && MARKS && MARKS.dimmed(lbe[eid], classF));
+  /** A tap on nothing, while ☰'s class chips dim the rest: if a dimmed device is under it, say why it did nothing
+   *  (his wall, 2026-11-12: left on Motion, no light answered a tap and nothing said so), with the way back. */
+  function dimmedNote(x, y){
+    if (!classF || !mapOnly) return;
+    let f = null;
+    seeDim = true;
+    try { f = pickAt(x, y); } finally { seeDim = false; }
+    const h = f && f.hit;
+    if (!h || h.kind !== "device" || !MARKS.dimmed(lbe[h.eid], classF)) return;
+    toast(`Only ${classWord || "one kind of device"} takes taps now: the rest is dimmed.`, classCb ? () => classCb("all") : null, "Show all");
+  }
   const fadeHex = (hex) => "#" + new THREE.Color(hex).lerp(scene.background, 1 - MARKS.DIM_K).getHexString();
   /** A room tint's strength: faded while every sensor in it is another class. */
   const tintK = (list) => (classF && list.length && list.every(S => dimOf(S.eid)) ? MARKS.DIM_K : 1);
@@ -4676,6 +4690,8 @@ function createSlot(slotKey){
   function takeDrawers(p){
     const cls = MARKS && p.classFilter && p.classFilter !== "all" ? String(p.classFilter) : null;
     if (cls !== classF) { classF = cls; for (const L of lights) L.key = null; }
+    classCb = typeof p.onClassFilter === "function" ? p.onClassFilter : null;
+    classWord = typeof p.classLabel === "string" && p.classLabel ? p.classLabel : null;
     zoomCb = typeof p.onZoom === "function" ? p.onZoom : null;
     zoomShown = null;
   }

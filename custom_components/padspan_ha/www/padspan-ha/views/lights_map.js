@@ -3852,6 +3852,9 @@ export function buildLightsMapCard(hostIn){
           // ☰'s class chips, the leak sensors' 2-day latch, the codes (none
           // while "Hide device codes" is on), and ⚙'s zoom label to keep up.
           classFilter: host.classFilter || null, floodLatches: host.floodLatches || {},
+          // A tap on what those chips dim says so, and can show everything again (live_aboard.js dimmedNote).
+          onClassFilter: typeof host.onClassFilter === "function" ? host.onClassFilter : null,
+          classLabel: (LIGHT_CLASSES.find(([c]) => c === host.classFilter) || [])[1] || null,
           codes: host.hideDeviceCodes ? null : { showcase: !!host.showcase },
           // The wall panel and its people (live_aboard_panel.js): the settings
           // read there (who carries what, the return to the home view), and

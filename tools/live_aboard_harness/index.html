@@ -64,7 +64,7 @@ host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: n
     // tool=heights|door|window|doorway|strip[&teid=light.x]: the setup wizard's way in (taken once).
     openTool: q.get("tool") ? { take: (() => { let t = { tool: q.get("tool"), eid: q.get("teid") || null }; return () => { const r = t; t = null; return r; }; })() } : undefined,
     states: STATES, people: { read: () => Promise.resolve({ objects: { list: [] } }), everyMs: 5000 }, load: () => Promise.resolve({ data: FILE }) },
-  classFilter: q.get("cls") || "all", onClassFilter: () => {},
+  classFilter: q.get("cls") || "all", onClassFilter: (c) => { (window.__cls ||= []).push(c); },   // the chips' picks, recorded
   weather: { settings: { atlas_weather_enabled: true }, states: STATES, entities: {} },
   saveView: async () => {}, onHexesBuilt() {}, render, rerender: render, states: STATES };
 render();
