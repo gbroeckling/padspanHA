@@ -265,8 +265,10 @@ await tryCase("layer: Vacation Mode's banner steps under the open list, as under
   check("layer: Vacation Mode's banner steps under the open list, as under the 3D look's, and back once it closes",
     during && card0.getAttribute("data-la3d-flatmenu") === null && sheet.includes(".lv-mapcard[data-la3d-flatmenu] > .lv-vacation{z-index:4}"), { during });
   // B3: the list keeps a sensible height on a short (phone) card, its lines scrolling inside; the 3D look's rule unchanged.
+  // Changed in review 2026-11-11 (item 11): this asserted a 260 px floor, which overflowed a 247 px phone card (it clips)
+  // and cut the footer row; now capped to the card, the lines scrolling (min-height 0) between heading and footer.
   check("phone: the flat list keeps its lines on a short card; the 3D list's rule as it was",
-    sheet.includes(".lv-mapcard > .la3d-show{top:8px;max-height:max(260px,calc(100% - 16px))}") && sheet.includes(".lv-mapcard > .la3d-show .la3d-sbody{flex:1 1 auto;min-height:120px}")
+    sheet.includes(".lv-mapcard > .la3d-show{top:8px;max-height:calc(100% - 16px)}") && sheet.includes(".lv-mapcard > .la3d-show .la3d-sbody{flex:1 1 auto;min-height:0}")
     && sheet.includes("max-height:calc(100% - 132px);display:flex;flex-direction:column"));
 });
 await tryCase("under: the hover box's Under pick asks the line as a tap does (tapSwitches)", async () => {

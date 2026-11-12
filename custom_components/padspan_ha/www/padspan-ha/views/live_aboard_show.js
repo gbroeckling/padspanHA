@@ -301,9 +301,10 @@ const CSS = `
    (its data-la3d-menu rule); lights_map.js marks the card while the list is open. */
 .lv-mapcard[data-la3d-flatmenu] > .lv-vacation{z-index:4}
 /* The flat Map's list (review 2026-11-11: on a phone the card is short, and 100% - 132px left its lines 4 px): from
-   the card's top, never under a sensible height, its lines scrolling inside. The 3D look's list is as it was. */
-.lv-mapcard > .la3d-show{top:8px;max-height:max(260px,calc(100% - 16px))}
-.lv-mapcard > .la3d-show .la3d-sbody{flex:1 1 auto;min-height:120px}
+   the card's top, inside the card whatever its height (the card clips: a 260 px floor cut the footer row off a 247 px
+   card, item 11), its lines scrolling between the heading and the footer. The 3D look's list is as it was. */
+.lv-mapcard > .la3d-show{top:8px;max-height:calc(100% - 16px)}
+.lv-mapcard > .la3d-show .la3d-sbody{flex:1 1 auto;min-height:0}
 .la3d-show{position:absolute;left:10px;top:66px;z-index:5;box-sizing:border-box;width:min(640px,calc(100% - 20px));
   max-height:calc(100% - 132px);display:flex;flex-direction:column;border-radius:14px;background:rgba(6,14,9,.96);
   border:1px solid rgba(120,190,155,.3);box-shadow:0 12px 32px rgba(0,0,0,.55);color:#e2e8f0;font:13px/1.35 system-ui,"Segoe UI",Roboto,sans-serif}
