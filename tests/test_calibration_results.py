@@ -87,7 +87,8 @@ def test_links_and_fixes_ask_for_their_tab() -> None:
     assert "_calib.tab = " not in panel
     # Review 2026-11-11 (C2): the Mapping wizard's Finish goes to Calibration as Setup's step does (its first step, Check
     # receiver positions), not the experimental Beacon Tune tab.
-    assert '_goStep(ctx, null, "calibration", null, false)' in _read("views/maps.js") and 'st._calibWizard = { step: 1 };' in _read("views/maps.js")
+    # Changed in review 2026-11-11 (item 13): Finish's button is the next step's; calibration by the same _goStep.
+    assert '_goStep(ctx, map && map.id, next, next === "calibration" ? null : w, false)' in _read("views/maps.js") and 'st._calibWizard = { step: 1 };' in _read("views/maps.js")
 
 
 def test_the_report_counts_openings_and_actions() -> None:

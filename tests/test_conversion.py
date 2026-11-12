@@ -288,7 +288,8 @@ def test_the_panel_placements_are_wired() -> None:
     wn = panel[panel.index("  _whatsNewCard(){"):panel.index("  _trialMilestoneCard(")]
     assert 'trialOfferFromCtx(this._ctx(), "update_banner"' in wn
     i = panel.index('} else if (this.state.view === "overview") {')
-    tail = panel[i:i + 1500]
+    # Changed in review 2026-11-11 (item 10): the skip line back to Setup comes first in this branch, so read further.
+    tail = panel[i:i + 4500]
     assert "this._trialMilestoneCard(_hasPositioned)" in tail and "_setupKnown && _posKnown" in tail
     nav = panel[panel.index("  _renderNav(){"):panel.index("  _showHelp(")]
     assert "this._renderSidebarTrial();" in nav
