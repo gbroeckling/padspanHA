@@ -2845,6 +2845,8 @@ function _edit(ctx, map, allMaps, opts){
   };
 
   const renderTools = ()=>{
+    // Setup's bar names the step of the tool now chosen (item 9): drawn again in place, Mapping left as it is.
+    if (ctx.actions.setupBar) ctx.actions.setupBar();
     // A tool button pressed from the keyboard keeps the focus over the redraw.
     const _toolFocused = right.querySelector("[data-edit-tool]:focus")?.getAttribute("data-edit-tool");
     right.innerHTML = "";

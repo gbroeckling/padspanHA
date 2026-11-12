@@ -84,5 +84,33 @@ if (a > 0 && b > a) {
   }
 }
 
+// After Skip setup (review 2026-11-11, item 10): one quiet line back to Setup where the card was, for a house skipped but
+// not finished; none for a finished house, a wall, Sample mode, or once hidden. The block run as panel.js has it.
+{
+  const i0 = SRC.indexOf("        // Set-up skipped but not finished"), i1 = SRC.indexOf("        // Setup is done or was skipped", i0);
+  check("skip line: panel.js has it", i0 > 0 && i1 > i0);
+  const el = (tag, attrs = {}, kids = []) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    for (const c of [].concat(kids)) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); return n; };
+  const run = (st, allDone, onboarded) => {
+    const frag = document.createElement("div"), self = { state: st, _renderNav() {}, _scheduleRender() {} };
+    new Function("el", "frag", "_setupKnown", "_ss", "_allDone", "_onboardingDone", "_completedCount", "_setupRows", "VIEWS", "_loadView",
+      SRC.slice(i0, i1)).call(self, el, frag, true, STATUS, allDone, onboarded, 2, [1, 2, 3, 4, 5], { setup: {} }, async () => null);
+    return frag.children[0] || null;
+  };
+  try { localStorage.removeItem("padspan_setup_line"); } catch (e) {}
+  const live = { dataMode: "live", settings: {} };
+  const line = run(live, false, true);
+  check("skip line: skipped, not finished: Set-up n of m done · Open Setup", line && /^Set-up: 2 of 5 done · Open Setup/.test(line.textContent), line && line.textContent);
+  check("skip line: Setup's own Finish counts as skipped", !!run({ dataMode: "live", settings: { setup_progress: { done: true } } }, false, false));
+  check("skip line: none for a finished house, a wall, Sample mode, or a house still in set-up", !run(live, true, true)
+    && !run({ ...live, kioskMode: true }, false, true) && !run({ dataMode: "sample", settings: {} }, false, true) && !run(live, false, false));
+  const st2 = { dataMode: "live", settings: {} }, l2 = run(st2, false, true);
+  l2.querySelector('[data-setup-line="open"]').dispatchEvent(new Event("click"));
+  check("skip line: Open Setup opens Setup", st2.view === "setup");
+  l2.querySelector('[data-setup-line="hide"]').dispatchEvent(new Event("click"));
+  check("skip line: hidden stays hidden in this browser", !run(live, false, true));
+  try { localStorage.removeItem("padspan_setup_line"); } catch (e) {}
+}
+
 console.log(JSON.stringify({ checks, failures }));
 process.exit(failures.length ? 1 : 0);

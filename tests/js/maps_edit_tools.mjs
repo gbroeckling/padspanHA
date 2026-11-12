@@ -147,4 +147,20 @@ for (const [complexity, step, want] of [["advanced", 2, "measure"], ["advanced",
   }
 }
 
+// Review 2026-11-11 (item 9): a tool button asks for Setup's bar again (panel.js setupBar draws setup.js returnBar in
+// place), and the bar then names the step of the tool chosen: Measure the scale, Rooms the rooms.
+{
+  const SETUP = await import(pathToFileURL(join(VIEWS_DIR, "setup.js")).href);
+  const ctx = makeCtx("advanced");
+  ctx.state._setupReturn = "receivers";
+  const bars = [];
+  ctx.actions.setupBar = () => { const b = SETUP.returnBar(ctx); bars.push(b ? b.textContent : null); };
+  const root = maps.render(ctx); await flush();
+  tool(root, "measure").click(); await flush();
+  const m = bars[bars.length - 1];
+  tool(root, "rooms").click(); await flush();
+  const r = bars[bars.length - 1];
+  check("setup bar: a tool chosen draws it again, naming that tool's step", /Set the scale/.test(m || "") && /Draw the rooms/.test(r || ""), [m, r]);
+}
+
 console.log(JSON.stringify(results));

@@ -3903,6 +3903,14 @@ class PadSpanHaApp extends HTMLElement {
         // A guided Setup step's own tool, with the bar back to Setup
         // (views/setup.js openStep), loading Setup first if need be;
         // `mapId`: on that plan.
+        // Setup's bar over a step's tool drawn again in place, from the step now (setup.js stepNow): Edit's tool buttons
+        // redraw only the editor, and the refresh skips the Edit tab (review 2026-11-11, item 9).
+        setupBar: ()=>{
+          const old = this.$content && this.$content.querySelector('[data-setup="return"]');
+          if (!old || !VIEWS.setup || !VIEWS.setup.returnBar) return;
+          const nb = VIEWS.setup.returnBar(this._ctx());
+          if (nb) old.replaceWith(nb); else old.remove();
+        },
         openSetupStep: (id, mapId=null, door=null)=>{
           _loadView("setup").then(m => { if (m && m.openStep) m.openStep(this._ctx(), id, mapId, door); });
         },
@@ -5295,6 +5303,33 @@ class PadSpanHaApp extends HTMLElement {
         if (_ask) bar.appendChild(_ask);
         frag.appendChild(bar);
       } else if (this.state.view === "overview") {
+        // Set-up skipped but not finished (Skip setup, or Setup's own Finish): one quiet way back where the card was
+        // (review 2026-11-11, item 10), on the house's own data, never on a wall; ✕ hides it in this browser. A
+        // finished house has none.
+        const _p = (this.state.settings && this.state.settings.setup_progress) || {};
+        let _lineHidden = false;
+        try { _lineHidden = localStorage.getItem("padspan_setup_line") === "hidden"; } catch (e) { _lineHidden = !!this._setupLineHidden; }
+        if (_setupKnown && _ss && !_allDone && (_onboardingDone || _p.done === true) && this.state.dataMode === "live"
+            && !this.state.kioskMode && !_lineHidden && !this._setupLineHidden) {
+          const line = el("div",{"data-setup-line":"",style:"display:flex;align-items:center;gap:10px;font-size:12px;color:#94a3b8;margin-bottom:10px"});
+          line.appendChild(el("span",{}, `Set-up: ${_completedCount} of ${_setupRows.length} done \u00b7 `));
+          const open = el("span",{"data-setup-line":"open",style:"cursor:pointer;color:#5eead4;text-decoration:underline"}, "Open Setup");
+          open.addEventListener("click", () => {
+            this.state.view = "setup";
+            this._renderNav();
+            if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
+            this._scheduleRender();
+          });
+          const hide = el("span",{"data-setup-line":"hide",title:"Hide this line in this browser",style:"cursor:pointer;margin-left:auto;color:#64748b"}, "\u2715");
+          hide.addEventListener("click", () => {
+            this._setupLineHidden = true;
+            try { localStorage.setItem("padspan_setup_line", "hidden"); } catch (e) { /* this page only */ }
+            line.remove();
+          });
+          line.appendChild(open);
+          line.appendChild(hide);
+          frag.appendChild(line);
+        }
         // Setup is done or was skipped — the checklist is gone, so these cards
         // stand on their own. What changed first: it is the more perishable of
         // the two, and it is the reason the panel looks different today.
