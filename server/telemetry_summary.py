@@ -729,6 +729,18 @@ def main() -> int:
         print("  none reported")
     print()
 
+    # Live Aboard's Light switches (views/live_aboard_show.js light_taps, off
+    # unless a screen ticks it in ⋯): ticked on a screen, a light switched by a
+    # tap, a tap Home Assistant refused (telemetry.py HOUSE3D_SHOW_EVENTS).
+    print("Live Aboard light switches (events over the window; installs)")
+    taps = [(k, usage.get(k, 0)) for k in ("house3d_show:show:light_taps", "house3d_show:light_tap:ok", "house3d_show:light_tap:failed")]
+    for k, v in taps:
+        if v:
+            print(f"  {k[len('house3d_show:'):]:<34} {v:>7}  {len(usage_installs[k]):>4} installs")
+    if not any(v for _, v in taps):
+        print("  none reported")
+    print()
+
     # Uncaught panel errors (telemetry.py UI_ERRORS). A build that names the
     # module that threw always sends ui_error_while:<tab> beside it; a report
     # with ui_error:* and no ui_error_while:* is from a build that counted ANY

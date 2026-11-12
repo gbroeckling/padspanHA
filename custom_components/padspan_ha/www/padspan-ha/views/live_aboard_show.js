@@ -54,6 +54,10 @@ export const SHOW_ITEMS = [
   // scene or a one-floor preset; not set up, the line opens Home Assistant's
   // new-scene editor (an administrator's, never on a wall).
   { key: "scenes", group: "lights", words: "Scene row", hint: "The lighting scenes under the map: tap one to run it, again to turn it off", link: "scene_new" },
+  // Not a drawing: a tap on a light or an LED strip switches it (live_aboard_use.js
+  // tapSwitch). Off unless ticked (live_aboard.js showHouseOf): a wall's stray touch switches nothing.
+  // The Atlas tab and its walls only (live_aboard.js showRows: the host's mapOnly), never Mapping's builder.
+  { key: "light_taps", group: "lights", words: "Light switches", hint: "Tap a light here to turn it on or off (on the flat Map a tap always does)" },
   { key: "motion_sensors", group: "motion", words: "Motion sensors", hint: "The sensors on the walls and their markers", link: "place" },
   { key: "motion_rooms", group: "motion", words: "Motion in rooms", hint: "A room's floor glowing after motion, and the Motion chip" },
   { key: "motion_reach", group: "motion", words: "Motion reach", hint: "The patch of floor a sensor sees, shown on a trigger or a tap" },
@@ -117,13 +121,15 @@ export const GO_TO = {
 // load) and followed, someone sent to where people or tags are switched on,
 // and Back to house defaults. And the scene row's (scene_row.js SCENE_EVENTS,
 // the same words): the row shown, a scene run or turned off, a new scene or
-// an edit opened.
+// an edit opened. And Light switches': a light switched by a tap, or not.
 export const SHOW_EVENTS = ["house3d_show:opened", "house3d_show:reset",
   ...SHOW_KEYS.flatMap(k => [`house3d_show:hide:${k}`, `house3d_show:show:${k}`]),
   ...SHOW_KEYS.flatMap(k => [`house3d_show:setup_seen:${k}`, `house3d_show:setup_go:${k}`]),
   "house3d_show:permission:people", "house3d_show:permission:tags",
   ...["row:atlas", "row:aboard", "run:scene", "run:preset", "off:scene", "off:preset", "new:row", "new:show", "new:settings",
-      "edit:scene", "edit:yaml", "edit:preset"].map(w => `house3d_show:scene_${w}`)];
+      "edit:scene", "edit:yaml", "edit:preset"].map(w => `house3d_show:scene_${w}`),
+  // Light switches: a light switched by a tap, or one that could not be.
+  "house3d_show:light_tap:ok", "house3d_show:light_tap:failed"];
 
 /** The pref this screen keeps its ticks in. */
 export const prefKey = (slotKey) => `show_${slotKey}`;
@@ -190,7 +196,7 @@ export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
              go: null, perm: key, button: admin ? "Show me the switch ›" : null };
   }
   const SAYS = {
-    lights: "No lights are placed yet.", strips: "No LED strips are placed yet.", fans: "No ceiling fans are placed yet.",
+    lights: "No lights are placed yet.", light_taps: "No lights are placed yet.", strips: "No LED strips are placed yet.", fans: "No ceiling fans are placed yet.",
     motion_sensors: "No motion sensors are placed yet.", motion_rooms: "No motion sensors are placed yet.", motion_reach: "No motion sensors are placed yet.",
     readouts: "No temperature or air sensors are placed yet.", locks: "No locks are placed yet.",
     doors: "No doors are drawn yet.", windows: "No windows are drawn yet.", covers: "No door follows a garage door or gate yet.",

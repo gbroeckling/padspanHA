@@ -23,7 +23,12 @@
 //            alarm (rings across its room, the floor tinted, its word over
 //            everything), moving only while it alarms
 //   lock     a lock on the wall nearest its spot, coloured by state as the
-//            Atlas's glyph; a tap and a hold go through the use api
+//            Atlas's glyph; a tap and a hold open its controls (never a switch)
+//   taps     ⋯ → Light switches, on the Atlas tab (mapOnly) and its walls:
+//            off unless this screen ticks it; ticked, a tap on a light goes
+//            through the use api's toggle (counted), a drag turns the house,
+//            and the light's look flips at once and goes back when Home
+//            Assistant refuses. Mapping's builder neither lists nor switches
 //   door     a door sensor placed as a point draws nothing (as on the
 //            Atlas); one linked to a barrier stays its opening
 //   codes    the Atlas's code chips at room scale, in the theme's chip
@@ -241,7 +246,7 @@ await tryCase("flood: the Atlas's own rule — live wet or latched within two da
 });
 
 // ── lock ────────────────────────────────────────────────────────────────────
-await tryCase("lock: on the wall nearest its spot, coloured by state; a tap and a hold go through the use api", async () => {
+await tryCase("lock: on the wall nearest its spot, coloured by state; a tap and a hold open its controls", async () => {
   const slot = await newSlot("ctl-lock");
   const looks = {};
   for (const st of ["locked", "unlocked", "jammed", "unavailable"]) {
@@ -267,12 +272,122 @@ await tryCase("lock: on the wall nearest its spot, coloured by state; a tap and 
   await settle(4);
   const hold = calls.slice();
   LA.releaseLiveAboardSlot("ctl-lock");
-  check("lock: on the wall nearest its spot, coloured by state; a tap and a hold go through the use api",
+  check("lock: on the wall nearest its spot, coloured by state; a tap and a hold open its controls",
     looks.locked.body === "#fbbf24" && looks.unlocked.body === "#374151" && looks.jammed.body === "#374151" && looks.jammed.state === "jammed"
     && looks.unavailable.body === "#64748b" && looks.unavailable.state === "none" && looks.locked.wall
     && Math.abs(looks.locked.at[0] - 9.92) < 0.08 && Math.abs(looks.locked.at[1] - 1.0) < 0.01
-    && JSON.stringify(tap) === JSON.stringify([["toggle", "lock.back"]]) && JSON.stringify(hold) === JSON.stringify([["openControls", "lock.back"]]),
+    && JSON.stringify(tap) === JSON.stringify([["openControls", "lock.back"]]) && JSON.stringify(hold) === JSON.stringify([["openControls", "lock.back"]]),
     { looks, tap, hold });
+});
+
+// ── taps: ⋯ → Light switches ─────────────────────────────────────────────────
+const screenPrefs = (init = {}) => { const store = new Map(Object.entries(init)); return { store, get: (k) => store.get(k) ?? null, set: (k, v) => store.set(k, String(v)) }; };
+async function tapAt(slot, p){
+  const cv = canvasOf(slot);
+  cv.dispatchEvent(ev("pointerdown", p[0], p[1], { timeStamp: performance.now() }));
+  cv.dispatchEvent(ev("pointerup", p[0], p[1], { timeStamp: performance.now() + 40 }));
+  await settle(4);
+}
+await tryCase("taps: off unless this screen ticks it; ticked, a tap on a light is the use api's toggle, counted; a drag turns the house; a lock opens its controls", async () => {
+  const prefs = screenPrefs(), SENT = [];
+  let touched = 0;
+  const over = { topFloorIds: ["main"], prefs, telemetry: (n) => SENT.push(n), onTouch: () => { touched++; }, mapOnly: true };
+  const slot = await newSlot("ctl-taps", over);
+  const at = slot._where({ eid: "light.kitchen" });
+  const first = { on: S(slot).show.on.light_taps, house: S(slot).show.house.light_taps, row: !!S(slot).show };
+  calls.length = 0;
+  await tapAt(slot, at);
+  const off = { calls: calls.slice(), touched };
+  prefs.set("show_ctl-taps", JSON.stringify({ light_taps: true }));
+  card(slot, over);
+  await settle();
+  const ticked = S(slot).show.on.light_taps;
+  calls.length = 0;
+  await tapAt(slot, at);
+  const on = calls.slice();
+  // A drag that starts on the light turns the house and switches nothing.
+  calls.length = 0;
+  const theta0 = S(slot).cam.theta, cv = canvasOf(slot), t0 = performance.now();
+  cv.dispatchEvent(ev("pointerdown", at[0], at[1], { timeStamp: t0 }));
+  for (let i = 1; i <= 6; i++) cv.dispatchEvent(ev("pointermove", at[0] + i * 8, at[1], { timeStamp: t0 + i * 10 }));
+  cv.dispatchEvent(ev("pointerup", at[0] + 48, at[1], { timeStamp: t0 + 80 }));
+  await settle(4);
+  const drag = { calls: calls.slice(), turned: S(slot).cam.theta !== theta0 };
+  calls.length = 0;
+  await tapAt(slot, slot._where({ eid: "lock.back" }));
+  const lock = calls.slice();
+  // Another screen keeps its own list: off there.
+  const other = await newSlot("ctl-taps-b", over);
+  calls.length = 0;
+  await tapAt(other, other._where({ eid: "light.kitchen" }));
+  const elsewhere = { on: S(other).show.on.light_taps, calls: calls.slice() };
+  LA.releaseLiveAboardSlot("ctl-taps");
+  LA.releaseLiveAboardSlot("ctl-taps-b");
+  check("taps: off unless this screen ticks it; ticked, a tap on a light is the use api's toggle, counted; a drag turns the house; a lock opens its controls",
+    first.on === false && first.house === false && off.calls.length === 0 && off.touched > 0
+    && ticked === true && JSON.stringify(on) === JSON.stringify([["toggle", "light.kitchen"]])
+    && SENT.filter(n => n === "house3d_show:light_tap:ok").length === 1 && !SENT.includes("house3d_show:light_tap:failed")
+    && drag.calls.length === 0 && drag.turned && JSON.stringify(lock) === JSON.stringify([["openControls", "lock.back"]])
+    && elsewhere.on === false && elsewhere.calls.length === 0, { first, off, ticked, on, drag, lock, elsewhere, sent: SENT });
+});
+const listed = async (slot) => {
+  const more = slot.element.querySelector("[data-la3d-more]");
+  more.dispatchEvent({ type: "click", detail: 1, stopPropagation() {}, preventDefault() {}, composedPath: () => [more] });
+  await settle();
+  const rows = S(slot).show.menu.rows;
+  more.dispatchEvent({ type: "click", detail: 1, stopPropagation() {}, preventDefault() {}, composedPath: () => [more] });
+  await settle();
+  return rows;
+};
+await tryCase("taps: Mapping's builder (no mapOnly) neither lists Light switches nor switches a light, ticked or not; the Atlas tab lists it", async () => {
+  const prefs = screenPrefs({ "show_ctl-taps-m": JSON.stringify({ light_taps: true }) });
+  const builder = await newSlot("ctl-taps-m", { topFloorIds: ["main"], prefs });
+  const bRows = await listed(builder);
+  calls.length = 0;
+  await tapAt(builder, builder._where({ eid: "light.kitchen" }));
+  const bCalls = calls.slice();
+  const atlas = await newSlot("ctl-taps-a", { topFloorIds: ["main"], prefs: screenPrefs(), mapOnly: true });
+  const aRows = await listed(atlas);
+  LA.releaseLiveAboardSlot("ctl-taps-m");
+  LA.releaseLiveAboardSlot("ctl-taps-a");
+  check("taps: Mapping's builder (no mapOnly) neither lists Light switches nor switches a light, ticked or not; the Atlas tab lists it",
+    bRows.length > 5 && bRows.includes("lights") && !bRows.includes("light_taps") && bCalls.length === 0 && aRows.includes("light_taps"),
+    { bRows, bCalls, aRows });
+});
+await tryCase("taps: the light in 3D flips at once and settles; refused, it goes back with the Atlas's message, counted", async () => {
+  const prefs = screenPrefs({ "show_ctl-look": JSON.stringify({ light_taps: true }) }), SENT = [], toasts = [], svc = [];
+  let refuse = false, reported = {}, slot = null;
+  const states = Object.fromEntries(Object.entries(STATES0).map(([k, v]) => [k, { entity_id: k, ...v }]));
+  const hass = { states, callService: async (d, sv, data) => { svc.push([d, sv, data.entity_id]); if (refuse) throw new Error("refused"); } };
+  // The host's own api: its toggle is the flat map's (lights_map.js toggleEntity), its
+  // render a new card from the records gathered again (gatherLights reads the claim).
+  const over = () => ({ topFloorIds: ["main"], prefs, telemetry: (n) => SENT.push(n), lightsByEid: records(reported), useApi: () => host, mapOnly: true });
+  const host = { ...api, hass, toggle: (eid) => LM.toggleEntity(hass, eid, { render: () => card(slot, over()), toast: (m, e) => toasts.push([m, !!e]) }) };
+  slot = await newSlot("ctl-look", over());
+  const lit0 = S(slot).look.halos, at = slot._where({ eid: "light.kitchen" });
+  await tapAt(slot, at);
+  const flipped = S(slot).look.halos;
+  reported = { "light.kitchen": { state: "off" } };                // Home Assistant agrees
+  card(slot, over());
+  await settle();
+  const settled = { halos: S(slot).look.halos, claim: LM.effectiveState("light.kitchen", "off").optimistic };
+  reported = {};
+  card(slot, over());
+  await settle();
+  const back0 = S(slot).look.halos;
+  refuse = true;
+  await tapAt(slot, at);
+  await settle();
+  const refused = { halos: S(slot).look.halos, claim: LM.effectiveState("light.kitchen", "on").optimistic };
+  LA.releaseLiveAboardSlot("ctl-look");
+  LM.clearOptimistic("light.kitchen");
+  check("taps: the light in 3D flips at once and settles; refused, it goes back with the Atlas's message, counted",
+    lit0 > 0 && flipped < lit0 * 0.7 && settled.halos === flipped && !settled.claim && back0 === lit0
+    && Math.abs(refused.halos - lit0) < 1e-9 && !refused.claim
+    && JSON.stringify(svc) === JSON.stringify([["light", "turn_off", "light.kitchen"], ["light", "turn_off", "light.kitchen"]])
+    && JSON.stringify(toasts) === JSON.stringify([["Could not toggle light.kitchen", true]])
+    && SENT.includes("house3d_show:light_tap:ok") && SENT.includes("house3d_show:light_tap:failed"),
+    { lit0, flipped, settled, back0, refused, svc, toasts, sent: SENT.filter(n => n.includes("light_tap")) });
 });
 
 // ── door ────────────────────────────────────────────────────────────────────

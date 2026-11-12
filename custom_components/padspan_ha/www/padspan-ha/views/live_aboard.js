@@ -167,6 +167,7 @@ const meanOf = (v) => v.slice(1).reduce((a, x, i) => a + (x + v[i]) / 2, 0) / (v
 const STILL = { active: meanOf(HOUSE.MOTION_PULSE.fill), recent: meanOf(HOUSE.MOTION_RECENT.op) };   // a pulse's, a breath's mean
 const PICK_R = 22;                         // a device's reach for a tap (the Atlas's 44 px target)
 const PIECE_D = PICK_R / 2;                // a press on a linked piece: a marker nearer than this wins
+const TIE_PX = 2;                          // two devices this near alike on screen: the one in front wins
 const PEOPLE_MS = 5000;                    // the people layer reads the live snapshot at most this often
 const READ_H = 0.45, READ_PX = [22, 30];   // a readout chip's height (m), and never under / over this on screen (px)
 const READ_W = 520, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
@@ -834,7 +835,7 @@ function createSlot(slotKey){
     cornerEl.addEventListener("animationend", guard(() => { cornerOn = false; cornerEl.classList.remove("on"); }));
     root.appendChild(cornerEl);
     tipEl = d("div", "la3d-tip");
-    tipEl.textContent = "Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there";
+    tipEl.textContent = "Drag to turn · pinch or wheel to zoom · hold a light for controls · double-tap a room to go there";
     root.appendChild(tipEl);
     mchip = MOTION ? MOTION.createMotionChip({ root, fly: (eid) => findDevice(eid) }) : null;
     // A window open while it rains: one line under the Motion chip; a tap flies there.
@@ -1355,7 +1356,7 @@ function createSlot(slotKey){
     card.setAttribute("aria-label", "How Live Aboard works");
     const ul = d("ul");
     for (const t of ["Live Aboard is experimental: it is still changing, and some of your house may not show yet.",
-                     "Tap a light to switch it. Hold it for brightness and colour.",
+                     mapOnly ? "Hold a light for brightness and colour. To switch lights with a tap, tick Light switches in ⋯." : "Hold a light for brightness and colour.",
                      "Drag to turn the house. Two fingers (or the right mouse button) move it; pinch or the wheel zooms.",
                      "Double-tap a room to go there.",
                      "Walls: Cut, Up or Down. ▲ and ▼ change the floor you see.",
@@ -1426,6 +1427,10 @@ function createSlot(slotKey){
         const a = !!(motionL && motionL.focus(eid)), b = plumbTo(eid);
         if (a || b) requestRender();
       },
+      // The ⋯ list's Light switches, this screen's (off unless ticked), on the Atlas
+      // tab and its walls only (mapOnly): Mapping's builder never switches a light by a tap.
+      lightTaps: () => mapOnly && !!(showOn && showOn.light_taps === true),
+      switched: (ok) => showSend(`house3d_show:light_tap:${ok ? "ok" : "failed"}`),
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
@@ -4003,6 +4008,9 @@ function createSlot(slotKey){
     devs.sort((a, b) => a.d - b.d);
     const ok = [];
     for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && (c.top || !blocked(c.v, null, true))) ok.push(c);
+    // Two as near on screen (a light over another, the floors pulled apart): the one in front.
+    if (ok.length > 1 && !ok[0].top && !ok[1].top && ok[1].d - ok[0].d <= TIE_PX
+        && camera.position.distanceToSquared(ok[1].v) < camera.position.distanceToSquared(ok[0].v)) ok.unshift(ok.splice(1, 1)[0]);
     if (tagHit && (!ok.length || tagHit.d <= ok[0].d)) return { hit: tagHit.hit, under: ok.map(deviceTarget) };
     if (ok.length) return { hit: deviceTarget(ok[0]), under: ok.slice(1).map(deviceTarget) };
     const surf = [];
@@ -4955,7 +4963,7 @@ function createSlot(slotKey){
     const people = s ? s.atlas_3d_people === true && onObj(p.people) : onObj(p.people);
     const tags = s ? s.atlas_3d_tags === true && onObj(p.tags) : onObj(p.tags);
     return { people, tags, radios: tags || looked, rain: p.weather3d !== false, codes: onObj(p.codes),
-             trails: prefGet(PREF_TRAILS) === "1", roof: roofPick() !== "off", other_floors: false };
+             trails: prefGet(PREF_TRAILS) === "1", roof: roofPick() !== "off", other_floors: false, light_taps: false };
   }
   /** The eids the list leaves out (lights, strips, fans, readouts, locks: never an alarm). */
   function showHidden(p, on){
@@ -5026,7 +5034,7 @@ function createSlot(slotKey){
     const look = p.look3d === "atlas" ? (LOOKS ? LOOKS.atlasLook(p.atlasLook) : null) : null;
     const admin = p.admin === true;
     const not = {
-      lights: !n.light, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
+      lights: !n.light, light_taps: !n.light && !n.strip, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
       readouts: !n.readout, locks: !n.lock && !openings.some(({ P }) => P.open && P.open.lock),
       doors: !has("door"), windows: !has("window"), covers: !openings.some(({ P }) => P.open && P.open.cover),
       railings: !walls.some(P => P.els.some(e => !e.cuttable))
@@ -5057,6 +5065,8 @@ function createSlot(slotKey){
     const groups = SHOW.rowsOf(on, ready);
     // The scene row only where the host hands in scenes (the sidebar's Atlas), and its link only to make the first one.
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "scenes" || !!(houseP && houseP.scenes));
+    // Light switches only on the Atlas tab and its walls (the host's mapOnly), never in Mapping's builder.
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);
     for (const g of groups) for (const r of g.rows) {
       if (r.key === "scenes" && !ready.scenes) r.link = null;
       if (ready[r.key]) continue;

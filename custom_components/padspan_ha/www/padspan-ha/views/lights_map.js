@@ -264,7 +264,8 @@ export async function setLightBrightness(hass, eid, bri){
 // two independently hand-maintained copies; the builder's had never grown
 // the lock branch, so a lock's Turn On/Off button called `lock.turn_on` —
 // not a real HA service — and always failed). One copy, one lock branch,
-// one read-only-sensor message.
+// one read-only-sensor message. Resolves true once switched, false when the
+// call failed (Live Aboard counts both), undefined when nothing was sent.
 export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   if (!hass) return;
   // Service domain is the entity's own: light.* -> light, fan.* -> fan.
@@ -297,8 +298,9 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
       if (render) render();
       if (shake) shake(eid);
       if (toast) toast("Could not toggle " + eid, true);
+      return false;
     }
-    return;
+    return true;
   }
   // Optimistic: the marker flips NOW (this claim is read by both views, so
   // the index row flips with it), and HA's next state reconciles it.
@@ -321,7 +323,9 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
     if (render) render();
     if (shake) shake(eid);
     if (toast) toast("Could not toggle " + eid, true);
+    return false;
   }
+  return true;
 }
 
 // ── Device classes on the map ────────────────────────────────────────────────

@@ -9,7 +9,9 @@ wireUseSurface): every gesture — tap, hold, hold-and-drag, moved before it
 was held, a right button — on every kind of device, and on a room's name, a
 floor's badge and a door, makes the very same calls with the very same
 arguments through the host's use api and Home Assistant; the pressed ring and
-the hover box are the Atlas's. The browser run (headless Chromium, Garry's
+the hover box are the Atlas's. Two differences, on purpose: a tap switches a
+light only where the ⋯ list's Light switches is ticked, and a tap on a fan or
+a lock opens its controls instead of switching it. The browser run (headless Chromium, Garry's
 house) proves the same against the real panel and its real api.
 
 The rest is held here: the hosts hand over the api they already build, and
@@ -87,6 +89,15 @@ def test_a_piece_that_is_a_device_acts_as_it(use) -> None:
 
 def test_nothing_is_pressed_without_the_host_api(use) -> None:
     _case(use, "quiet:")
+
+
+def test_light_switches_tap_a_light_only_when_ticked_and_never_a_fan_or_a_lock(use) -> None:
+    """The ⋯ list's Light switches (off unless ticked): off, a tap on a light
+    sends nothing; on, it is the Atlas's own toggle (lights_map.js
+    toggleEntity: turn_off / turn_on, flipped at once, put back with "Could
+    not toggle" on a failure), each one counted. A fan or a lock is never
+    switched by a tap in 3D: its controls open."""
+    _case(use, "switches:")
 
 
 def test_every_use_case_passes(use) -> None:

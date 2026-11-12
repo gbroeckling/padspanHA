@@ -137,6 +137,22 @@ def test_the_help_says_where_the_list_is_in_every_language() -> None:
         assert m.group(1) in data and data[m.group(1)].startswith("⋯"), lang
 
 
+def test_the_help_and_the_first_card_say_a_tap_switches_only_with_light_switches() -> None:
+    """Light switches is off until a screen ticks it, so nothing in Live
+    Aboard says a tap switches a light without saying where it is turned on."""
+    help_js = _js(_WWW / "help_content.js")
+    aboard = help_js[help_js.index("aboard_3d: {"):help_js.index("settings_presence: {")]
+    m = re.search(r't\("(Moving around:[^"]*)"\)', aboard)
+    assert m and "tick Light switches in ⋯" in m.group(1) and "Atlas tab" in m.group(1) and "Tap a light to switch it" not in m.group(1)
+    for lang in ("de", "fr", "nl"):
+        data = json.loads((_WWW / "i18n" / lang / "help.json").read_text(encoding="utf-8"))
+        assert m.group(1) in data and "Light switches" in data[m.group(1)], lang
+    la = _js(_VIEWS / "live_aboard.js")
+    assert ('mapOnly ? "Hold a light for brightness and colour. To switch lights with a tap, tick Light switches in ⋯."'
+            ' : "Hold a light for brightness and colour.",') in la
+    assert "tap a light ·" not in la
+
+
 def test_on_a_wall_the_whole_list_fits_the_screen_without_scrolling() -> None:
     """Garry's wall (1280x720 at 1.5, touch), 2026-11-09, "fits the wall": the
     list scrolled 1248 px of lines in a 475 px box. On a wall it is as wide and

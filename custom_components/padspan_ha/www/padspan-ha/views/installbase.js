@@ -708,7 +708,7 @@ const W_SURFACE = {
 const W_PLAN_KIND = { stairs: "stairs", railing: "a railing hint", light: "a light" };
 // Live Aboard's ⋯ list: each line's plain name (views/live_aboard_show.js SHOW_ITEMS).
 const W_SHOW_LINE = {
-  lights: "lights", glow: "light glow", strips: "LED strips", fans: "ceiling fans", scenes: "the scene row", motion_sensors: "motion sensors",
+  lights: "lights", glow: "light glow", strips: "LED strips", fans: "ceiling fans", scenes: "the scene row", light_taps: "light switches (tap a light)", motion_sensors: "motion sensors",
   motion_rooms: "motion in rooms", motion_reach: "motion reach", readouts: "temperature and air", doors: "doors", windows: "windows",
   covers: "garage doors and gates", locks: "locks", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
   trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", stairs: "stairs",
@@ -1064,6 +1064,7 @@ function word(kind, k) {
         if (b === "setup_seen") return `Live Aboard: saw "${line} isn't set up yet"`;
         if (b === "setup_go") return `Live Aboard: followed "set it up" for ${line}`;
         if (b === "permission") return `Live Aboard: sent to where ${c === "tags" ? "tags" : "people"} are turned on for the house`;
+        if (b === "light_tap") return c === "failed" ? "Live Aboard: a tapped light could not be switched" : "Live Aboard: switched a light with a tap";
         // The scene row (views/scene_row.js), under the flat Atlas and in Live Aboard.
         const sk = c === "preset" ? "a Whole house preset" : "a Home Assistant scene";
         if (b === "scene_row") return `Scene row shown ${c === "aboard" ? "in Live Aboard" : "under the Atlas"}`;

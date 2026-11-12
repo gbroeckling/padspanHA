@@ -108,9 +108,13 @@ LM.wireUseSurface(isoDiv, flat.api);
 // ── the 3D view's use surface, with a pick that answers what the test aims at
 const d3 = makeApi();
 let aim = null, apiOn = true;
+// The ⋯ list's Light switches (ticked for the parity runs: a tap on a light
+// is then the Atlas's), and what each switch by a press counted.
+let tapsOn = true;
+const SWITCHED = [];
 const root = document.createElement("div");
 const use = U.createUseSurface({ root, pick: () => aim, screenOf: () => ({ x: 40, y: 50 }), api: () => (apiOn ? d3.api : null),
-                                 frame() {}, cursor() {} });
+                                 frame() {}, cursor() {}, lightTaps: () => tapsOn, switched: (ok) => SWITCHED.push(ok) });
 const device = (eid) => ({ kind: "device", key: "device:" + eid, eid, label: `${LBE[eid].code} · ${LBE[eid].friendly_name}` });
 const TARGETS = {
   room: { kind: "room", key: "room:Kitchen", room: "Kitchen", label: "Kitchen — opens its 2 devices" },
@@ -173,7 +177,12 @@ await tryCase("parity: every gesture on every kind of device makes the Atlas's o
   for (const eid of Object.keys(marks)) {
     for (const [g, opts] of Object.entries(gestures)) runs.push(await both(`${eid} ${g}`, marks[eid], device(eid), opts));
   }
-  const bad = runs.filter(r => !r.same);
+  // The one difference: a fan or a lock is never switched by a tap in 3D
+  // (a wall's stray touch); its controls open, where the flat Atlas switches it.
+  const NEVER = { "fan.ceiling tap": "fan.ceiling", "lock.front tap": "lock.front" };
+  const bad = runs.filter(r => !r.same && !(r.name in NEVER));
+  const never = Object.entries(NEVER).filter(([n, eid]) => { const r = runs.find(x => x.name === n) || {};
+    return JSON.stringify(r.flat) !== JSON.stringify([["toggle", eid]]) || JSON.stringify(r.d3) !== JSON.stringify([["openControls", eid]]); });
   const did = (n) => (runs.find(r => r.name === n) || {}).d3 || [];
   // And they are the Atlas's actions, not merely equal to each other.
   const want = {
@@ -187,11 +196,12 @@ await tryCase("parity: every gesture on every kind of device makes the Atlas's o
     "binary_sensor.hall_motion tap": [["openActivity", "binary_sensor.hall_motion"]],
     "binary_sensor.hall_motion hold": [["openActivity", "binary_sensor.hall_motion"]],
     "sensor.hall_temp tap": [["toggle", "sensor.hall_temp"]], "sensor.hall_temp hold": [["toggle", "sensor.hall_temp"]],
-    "lock.front tap": [["toggle", "lock.front"]], "lock.front hold": [["openControls", "lock.front"]],
+    "lock.front tap": [["openControls", "lock.front"]], "lock.front hold": [["openControls", "lock.front"]],
+    "fan.ceiling tap": [["openControls", "fan.ceiling"]],
   };
   const wrong = Object.entries(want).filter(([n, w]) => JSON.stringify(did(n)) !== JSON.stringify(w)).map(([n]) => ({ n, got: did(n) }));
-  check("parity: every gesture on every kind of device makes the Atlas's own calls", runs.length === 30 && !bad.length && !wrong.length,
-    { bad: bad.slice(0, 4), wrong });
+  check("parity: every gesture on every kind of device makes the Atlas's own calls", runs.length === 30 && !bad.length && !wrong.length && !never.length,
+    { bad: bad.slice(0, 4), wrong, never });
 });
 // A room's name, a floor's badge and a door's line take a click on the flat
 // Atlas (whether the press was short or long); the 3D view's press makes the
@@ -240,6 +250,66 @@ await tryCase("parity: a held drag dims even when no frame came during the hold"
   check("parity: a held drag dims even when no frame came during the hold",
     r === "dim" && JSON.stringify(flat.log) === JSON.stringify(d3.log) && d3.log.filter(x => x[0] === "callService").length === 2,
     { r, flat: flat.log, d3: d3.log });
+});
+
+// ── Light switches (the ⋯ list's light_taps) ────────────────────────────────
+// Off: a tap (or a hold on a light with no controls) on a light or a strip
+// switches nothing; a fan or a lock opens its controls; a reading says it is
+// read-only as on the Atlas. On: the tap is the Atlas's toggle, counted.
+await tryCase("switches: off, a tap on a light switches nothing; a fan or a lock opens its controls; on, the Atlas's toggle, counted", async () => {
+  const run = async (eid, g = {}) => { d3.log.length = 0; await d3Gesture(device(eid), g); return d3.log.slice(); };
+  tapsOn = false;
+  SWITCHED.length = 0;
+  const off = { dim: await run("light.dim"), plain: await run("light.plain"), plainHold: await run("light.plain", { held: 700 }),
+                dimHold: await run("light.dim", { held: 700 }), fan: await run("fan.ceiling"), lock: await run("lock.front"),
+                temp: await run("sensor.hall_temp"), counted: SWITCHED.length };
+  tapsOn = true;
+  const on = { dim: await run("light.dim"), plain: await run("light.plain"), fan: await run("fan.ceiling"), lock: await run("lock.front") };
+  await settle();
+  on.counted = SWITCHED.slice();
+  check("switches: off, a tap on a light switches nothing; a fan or a lock opens its controls; on, the Atlas's toggle, counted",
+    JSON.stringify(off.dim) === "[]" && JSON.stringify(off.plain) === "[]" && JSON.stringify(off.plainHold) === "[]"
+    && JSON.stringify(off.dimHold) === JSON.stringify([["openControls", "light.dim"]])
+    && JSON.stringify(off.fan) === JSON.stringify([["openControls", "fan.ceiling"]]) && JSON.stringify(off.lock) === JSON.stringify([["openControls", "lock.front"]])
+    && JSON.stringify(off.temp) === JSON.stringify([["toggle", "sensor.hall_temp"]]) && off.counted === 0
+    && JSON.stringify(on.dim) === JSON.stringify([["toggle", "light.dim"]]) && JSON.stringify(on.plain) === JSON.stringify([["toggle", "light.plain"]])
+    && JSON.stringify(on.fan) === JSON.stringify([["openControls", "fan.ceiling"]]) && JSON.stringify(on.lock) === JSON.stringify([["openControls", "lock.front"]])
+    && JSON.stringify(on.counted) === "[true,true]", { off, on });
+});
+// The switch itself is lights_map.js toggleEntity, as the hosts' toggle is:
+// on → turn_off, off → turn_on, the look flipped at once (effectiveState)
+// and put back, with the Atlas's "Could not toggle", when Home Assistant refuses.
+await tryCase("switches: the Atlas's own toggle: on → turn_off, off → turn_on, flipped at once, put back and counted on a failure", async () => {
+  const calls = [], toasts = [];
+  let refuse = false;
+  const hass = { states: STATES, callService: async (d, s, data) => { calls.push([d, s, data.entity_id]); if (refuse) throw new Error("refused"); } };
+  const was = d3.api.toggle;
+  d3.api.toggle = (eid) => LM.toggleEntity(hass, eid, { render() {}, toast: (m, e) => toasts.push([m, !!e]) });
+  tapsOn = true;
+  SWITCHED.length = 0;
+  try {
+    await d3Gesture(device("light.dim"));
+    const dimNow = LM.effectiveState("light.dim", "on");
+    await d3Gesture(device("light.plain"));
+    const plainNow = LM.effectiveState("light.plain", "off");
+    LM.clearOptimistic("light.dim"); LM.clearOptimistic("light.plain");
+    refuse = true;
+    aim = { hit: device("light.dim"), under: [] };
+    use.down(ev("pointerdown", 100, 100, now()));
+    use.up(ev("pointerup", 100, 100, now()));
+    const during = LM.effectiveState("light.dim", "on");          // flipped before Home Assistant answers
+    await settle();
+    const after = LM.effectiveState("light.dim", "on");
+    check("switches: the Atlas's own toggle: on → turn_off, off → turn_on, flipped at once, put back and counted on a failure",
+      JSON.stringify(calls) === JSON.stringify([["light", "turn_off", "light.dim"], ["light", "turn_on", "light.plain"], ["light", "turn_off", "light.dim"]])
+      && dimNow.state === "off" && dimNow.optimistic && plainNow.state === "on" && plainNow.optimistic
+      && during.state === "off" && during.optimistic && after.state === "on" && !after.optimistic
+      && JSON.stringify(toasts) === JSON.stringify([["Could not toggle light.dim", true]]) && JSON.stringify(SWITCHED) === "[true,true,false]",
+      { calls, dimNow, plainNow, during, after, toasts, SWITCHED });
+  } finally {
+    d3.api.toggle = was;
+    LM.clearOptimistic("light.dim"); LM.clearOptimistic("light.plain");
+  }
 });
 
 // ── the pressed ring ────────────────────────────────────────────────────────

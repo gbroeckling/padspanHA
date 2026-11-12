@@ -11,10 +11,15 @@ showing its floor first; ⚙'s Zoom drives the camera (100% is the whole-house
 fit); Mapping's Layout & view steps Spacing and L / R aside and points Save
 view and Reset view at Live Aboard while it shows; leak sensors alarm as the
 Atlas's do (wet or latched), moving only while they alarm; locks sit on their
-wall, coloured by state, tapped and held through the use api; a door sensor
+wall, coloured by state, a tap or a hold opening their controls; a door sensor
 placed as a point draws nothing, as on the Atlas; codes show at room scale in
 the theme's chip colours, none while hidden; heights by kind and from the 3D
-file. Off, below Pro or on Map, the card is the flat card.
+file. Off, below Pro or on Map, the card is the flat card. ⋯ → Light
+switches (taps:), on the Atlas tab and its walls (the host's mapOnly): off
+unless this screen ticks it; ticked, a tap on a light is the use api's toggle,
+counted, a drag turns the house instead, and the light's look flips at once
+through the host's own records and goes back with the Atlas's message when
+Home Assistant refuses. Mapping's builder neither lists the line nor switches.
 
 The rest is held here: the copies the marks file keeps of the Atlas's numbers
 (the flood ripple, the lock glyph's colours, the class chips' fade) equal the
@@ -51,7 +56,7 @@ def ctl() -> dict:
 
 @pytest.mark.parametrize("prefix,least", [
     ("class:", 1), ("find:", 1), ("zoom:", 1), ("card:", 1), ("flood:", 2), ("lock:", 1), ("door:", 1), ("codes:", 1),
-    ("heights:", 1), ("off:", 1),
+    ("heights:", 1), ("off:", 1), ("taps:", 3),
 ])
 def test_the_controls_harness_covers_each_part(ctl, prefix, least) -> None:
     got = [k for k in ctl["cases"] if k.startswith(prefix)]

@@ -8,7 +8,9 @@
 // (lights_map.js wireUseSurface), on the same state machine
 // (createHoldTracker) and calling the very same actions through the host's
 // own api (lights_panel.js _useApi, maps.js previewApi). A tap switches a
-// light; a hold opens its controls; a hold then a drag dims it; a room's
+// light where this screen's ⋯ list has Light switches ticked (off unless
+// ticked: a wall's stray touch switches nothing), and never a fan or a lock,
+// whose tap opens its controls; a hold opens its controls; a hold then a drag dims it; a room's
 // name opens the room sheet, a floor's badge the floor sheet, a door the
 // barrier card (a garage door or a gate only its card of what it reads), a
 // motion sensor its activity calendar; a read-only tile says it is read-only. Nothing here calls Home Assistant itself: the host's api
@@ -28,6 +30,7 @@
 const { createHoldTracker, dragBrightness, setLightBrightness, exactDeviceOf, lastBrightness, openBarrierCard,
         HOLD_MS, PRESS_RING_MS, _exactBrightness, _tellProblems } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
+const { castsLight, isControllable } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 const NS = "http://www.w3.org/2000/svg";
 const RING_R = 18;                         // the pressed ring, px
@@ -77,6 +80,10 @@ export function doorMover(bar){
  *   frame()         asks the view for a frame (the hold is timed on frames)
  *   cursor(on)      the pointer over something to press, or not
  *   marked(t)       optional: what is hovered or pressed now (t), or null
+ *   lightTaps()     optional: true while a tap switches a light (the ⋯
+ *                     list's Light switches); without it, none does
+ *   switched(ok)    optional: a light was switched by a press (ok), or the
+ *                     switch failed (the opt-in report's count)
  * }
  */
 export function createUseSurface(o){
@@ -233,7 +240,21 @@ export function createUseSurface(o){
     if (!l0) return;
     if (l0.isMotion) api.openActivity(u.eid);
     else if (api.controlsFor(l0)) api.openControls(u.eid);
-    else api.toggle(u.eid);
+    else tapSwitch(api, u.eid, l0);
+  }
+  // Where the flat Atlas switches (api.toggle), here: a light (castsLight: a
+  // light or an LED strip) only while this screen's ⋯ list has Light switches
+  // ticked (o.lightTaps), through the Atlas's own toggle, its look flipped at
+  // once and its "Could not toggle" alike, each one counted (o.switched); a
+  // fan or a lock never from a press here (a wall's stray touch): its
+  // controls open; a reading says it is read-only, as on the Atlas.
+  function tapSwitch(api, eid, l0){
+    if (String(eid).startsWith("light.") && castsLight(l0)) {
+      if (!(o.lightTaps && o.lightTaps())) return;
+      const done = (ok) => { if (o.switched) o.switched(ok !== false); };
+      Promise.resolve(api.toggle(eid)).then(done, () => done(false));
+    } else if (isControllable(l0)) api.openControls(eid);
+    else api.toggle(eid);
   }
 
   // ── a press ───────────────────────────────────────────────────────────────
@@ -253,8 +274,8 @@ export function createUseSurface(o){
     if (t.kind === "device") {
       const eid = t.eid, l0 = api.lightsByEid[eid];
       if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }
-      if (r === "tap") { api.toggle(eid); return; }
-      if (r === "open") { if (p.holdable) api.openControls(eid); else api.toggle(eid); return; }
+      if (r === "tap") { tapSwitch(api, eid, l0); return; }
+      if (r === "open") { if (p.holdable) api.openControls(eid); else tapSwitch(api, eid, l0); return; }
       if (r === "drag-end") {
         const b = p.dragTo;
         if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(q => _tellProblems(api.toast, q)).catch(() => api.toast("Could not set brightness", true));
