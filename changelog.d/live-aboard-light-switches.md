@@ -1,7 +1,7 @@
 # Tapping lights in Live Aboard; ⋯ on the flat Map
 
 ### New
-- **⋯ on the flat Map too.** The Atlas's flat Map (the sidebar and wall screens) has the same ⋯ "Show on this screen" list as Live Aboard, at the foot of the controls rail on the left, with the lines that change the flat Map: Tap a light to switch it, Scene row, and Other floors, faded. It works with Live Aboard turned off, and a tick made in either look applies to that screen's other look.
+- **⋯ on the flat Map too.** The Atlas's flat Map (the sidebar and wall screens) has the same ⋯ "Show on this screen" list as Live Aboard, at the foot of the controls rail on the left, with the lines that change the flat Map: Tap a light to switch it, Scene row, and Other floors, faded. It works with Live Aboard turned off, and a tick made in either look applies to that screen's other look. The controls rail is part of PadSpan Pro, as Live Aboard is, so on a free install there is no ⋯ on the flat Map and these lines can't be changed per screen there.
 - **Tap a light to switch it**, a new line in ⋯. It is on, as before: a tap on a light switches it on the flat Map and in Live Aboard. Untick it on a screen (a wall in a busy room, say) and a tap on a light switches nothing there, in either look; holding a light still opens its brightness and colour. Mapping is unchanged.
 
 ### Fixed
