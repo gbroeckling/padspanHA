@@ -177,6 +177,28 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   n.state.activeMapId = "e1";
   root = await render(n);
   check("Edit on a plan with no rooms opens on the Rooms tool", n.state.maps._mode === "rooms", n.state.maps._mode);
+  check("a new house: the Rooms Next line", !!q(root, '[data-next-line="rooms"]'), root.textContent.slice(0, 300));
+  check("on the Rooms tool, the receivers' dry run is not asked", !n.calls.some(c => c.type === "padspan_ha/receivers_to_rooms"), n.calls.map(c => c.type));
+  // Review 2026-11-11: rooms on the HOUSE (Layout, the rooms helper, a vacuum, Rooms from plans) count for a plan with no
+  // traced outlines (setup_status.planRoomed); a finished house opens on Radios as before, with no Next line at all.
+  const geo = { Kitchen: { floor_id: "main", points_m: [[0, 0], [4, 0], [4, 3]] } };
+  const f = house({ tab: "edit", maps: [P({})], tfs: TF1 });
+  Object.assign(f.state, { activeMapId: "e1", calibration: { points: [1, 2, 3, 4, 5].map(i => ({ id: "c" + i })) } });
+  f.state.model.room_geometry_m = geo;
+  f.state.model.scanner_positions_m = { aa: { x_m: 1, y_m: 1, z_m: 2.4, floor_id: "main" } };
+  root = await render(f);
+  check("a finished house, rooms on the house only: Radios, no Next line", f.state.maps._mode === "receivers" && !q(root, "[data-next-line]"),
+    [f.state.maps._mode, root.textContent.slice(0, 300)]);
+  const hr = house({ tab: "edit", maps: [P({})], tfs: TF1 });
+  hr.state.activeMapId = "e1";
+  hr.state.model.room_geometry_m = geo;
+  root = await render(hr);
+  check("house rooms on the plan's floor, no receivers: Radios, Next: the receivers (not draw its rooms)", hr.state.maps._mode === "receivers"
+    && !!q(root, '[data-next-line="receivers"]') && !q(root, '[data-next-line="rooms"]'), root.textContent.slice(0, 300));
+  const o = house({ tab: "edit", maps: [P({ id: "o1", floor_id: "__outside__", room_bounds: ROOM })], tfs: { o1: TF1.e1 } });
+  o.state.activeMapId = "o1";
+  root = await render(o);
+  check("an Outside plan with rooms and no receivers: no Next line", !q(root, "[data-next-line]"), root.textContent.slice(0, 300));
   // In the wizard: Save goes on to its rooms step, which says the scale is set; its Next names the next step.
   const w = house({ maps: [P({})], wizard: { step: 2, mapId: "e1" } });
   let wr = await render(w);
@@ -289,6 +311,11 @@ const TF = { p2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } }
   const mr = await render(m2);
   check("a plan with a scale: the wizard's scale step is Edit → Measure", !q(mr, '[data-nudge="card"]') && mr.textContent.includes("Measurement 1 of 2")
     && mr.textContent.includes("This plan has a scale"), mr.textContent.slice(0, 400));
+  // Review 2026-11-11: an Outside plan with no scale gets no one-length screen; its step says what is true.
+  const ow = house({ maps: [{ ...plain()[0], floor_id: "__outside__" }], tfs: {}, wizard: { step: 2, mapId: "p1" } });
+  const owr = await render(ow);
+  check("an unscaled Outside plan: the scale step says it has no scale yet", !owr.textContent.includes("This plan has a scale")
+    && owr.textContent.includes("This plan has no scale yet"), owr.textContent.slice(0, 400));
   // The wizard's scale step on a plan with none: the one-length screen, no Later (the wizard's Skip is there), counted by its door.
   for (const cx of ["basic", "advanced"]) {
     const g = house({ complexity: cx, maps: plain(), tfs: TF, wizard: { step: 2, mapId: "p1" } });

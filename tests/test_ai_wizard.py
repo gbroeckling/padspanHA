@@ -487,6 +487,10 @@ _SETUP_BATTERY = [
     {"maps": {"list": [{"id": "m1"}]}, "model": {"room_geometry_m": {"Kitchen": {}}}, "calibration": {}},
     {"maps": {"list": [{"id": "m1"}]}, "model": {"map_transforms": {"m1": {"reference_measurements": [{}]}}}, "calibration": {}},
     {"maps": {"list": [{"id": "m1"}]}, "model": {"map_transforms": {"m1": {"reference_measurements": []}, "m2": {}}}, "calibration": {}},
+    # Review 2026-11-11: a scale is the placement's positive size (a vacuum import has no measurement on record).
+    {"maps": {"list": [{"id": "m1"}]}, "model": {"map_transforms": {"m1": {"scale_x_m": 12.5, "scale_y_m": 9}}}, "calibration": {}},
+    {"maps": {"list": [{"id": "m1"}]}, "model": {"map_transforms": {"m1": {"scale_x_m": 0, "scale_y_m": 9}, "m2": {"scale_x_m": None}}}, "calibration": {}},
+    {"maps": {"list": [{"id": "m1"}]}, "model": {"map_transforms": {"m1": {"scale_x_m": "7", "scale_y_m": "x"}}}, "calibration": {}},
     {"maps": {"list": []}, "model": {}, "calibration": {"points": [1, 2, 3, 4, 5]}},
     {"maps": {"list": []}, "model": {}, "calibration": {"points": [1, 2, 3, 4]}},
     {"maps": {"list": []}, "model": {}, "calibration": {"model": {"a": 1}}},

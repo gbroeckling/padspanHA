@@ -171,17 +171,9 @@ export function needsScale(state, plan) {
   return !!(plan && plan.id) && !tfs[plan.id];
 }
 
-/** Whether a plan's floor has rooms already (ai_wizard.plan_roomed is this rule): rooms drawn on the plan itself, or on
- *  its floor; a plan with no floor never takes another floor's rooms, only those drawn on it (its room_bounds, or a room
- *  whose outline was made from it). */
-export function planRoomed(state, m) {
-  if (!m) return false;
-  if (Object.keys(m.room_bounds || {}).length) return true;
-  const geo = Object.values((state.model && state.model.room_geometry_m) || {});
-  if (!m.floor_id) return geo.some(r => r && r.source_map_id === m.id);
-  return geo.some(r => r && r.floor_id === m.floor_id)
-    || ((state.maps && state.maps.list) || []).some(o => o && o.floor_id === m.floor_id && Object.keys(o.room_bounds || {}).length);
-}
+/** Whether a plan's floor has rooms already: setup_status.planRoomed, the one rule (Mapping → Edit reads it too). */
+const SS = await import(`./setup_status.js${V}`);
+export const { planRoomed } = SS;
 
 /** Plans the helper can read, best first: inside the house, with a scale or none at all yet (it measures that one first);
  *  one on a floor with no rooms yet before one on a floor that has them (the next floor after a save), then a plan with
@@ -1594,6 +1586,13 @@ function checkScreen(ctx, S, box) {
         "Experimental. A backup is taken first; one Undo takes it all back.")])]));
 }
 
+/** Done's way on, by the next set-up step: [what it is, its button]. */
+const NEXT_WORDS = {
+  floors: ["Next: say how tall each floor is, so PadSpan can tell the floors apart.", "Floor heights →"],
+  receivers: ["Next: put your Bluetooth receivers on the map, so PadSpan can tell which room each phone is in.", "Place receivers →"],
+  calibration: ["Next: calibrate, a few minutes walking round the house with your phone.", "Calibrate →"],
+};
+
 function savedScreen(ctx, S, box) {
   const { el } = ctx.helpers, st = ctx.state;
   const sess = S.ans && S.ans.session;
@@ -1622,10 +1621,15 @@ function savedScreen(ctx, S, box) {
     haLink(ctx, HA_AREAS_PATH, "Areas page", "ha_areas")]));
   const rb = SETUP && SETUP.receiversBlock ? SETUP.receiversBlock(ctx, { quiet: true }) : null;
   if (rb) box.appendChild(rb);
-  box.appendChild(row(ctx, [P(ctx, "Next: put your Bluetooth receivers on the map, so PadSpan can tell which room each phone is in.", "margin:0"),
-    btn(ctx, "Place receivers →", () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "handoff" }).catch(() => {});
+  // The next step in the product's order (setup_status's one list): the first after the rooms not done yet (review
+  // 2026-11-11: two indoor floors with no heights set go to floor heights, not past them to the receivers).
+  const ids = SS.setupSteps(st).map(x => x.id), after = ids.slice(ids.indexOf("rooms") + 1);
+  const step = after.find(id => SS.stepDone(st, id) !== true) || after[0];
+  const [said, label] = NEXT_WORDS[step] || NEXT_WORDS.receivers;
+  box.appendChild(row(ctx, [P(ctx, said, "margin:0"),
+    btn(ctx, label, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "handoff" }).catch(() => {});
       const mid = ((((sess && sess.plans) || [])[0]) || {}).map_id || (S.plan && S.plan.id);   // the plan just saved, never Setup's own pick
-      st._aiw = null; ctx.actions.openSetupStep("receivers", mid); }, { primary: true, attrs: { "data-aiw": "receivers" } })]));
+      st._aiw = null; ctx.actions.openSetupStep(step, mid); }, { primary: true, attrs: { "data-aiw": step === "receivers" ? "receivers" : "next-" + step } })]));
   const next = plansOf(st).find(m => m.floor_id !== fid && !planRoomed(st, m));
   if (next) box.appendChild(row(ctx, [MUTED(ctx, `${floorName(st, next.floor_id)} has a plan too.`),
     btn(ctx, `Do ${floorName(st, next.floor_id)} next →`, () => { ws(ctx, { type: "padspan_ha/ai_wizard_mark", what: "step", step: "next_floor" }).catch(() => {}); begin(ctx, S, next); }, { attrs: { "data-aiw": "next-floor" } }), MUTED(ctx, READ_TWICE)]));

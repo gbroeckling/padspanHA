@@ -212,10 +212,13 @@ for (const view of ["devices", "traceback", "qa"]) {
 // Setup in the menu (owner's D4, 2026-11-13): at the top of the build group until every step is done, in every mode and
 // both skins, in the phone's drawer too (the drawer is the sidebar); then out of it; never before the answer is known.
 {
+  // Review 2026-11-11: an unfinished house is one that has STARTED (a plan uploaded: it was an empty house, which now is
+  // not pinned), and a scale is the placement's positive size (setup_status.hasScale), as Measure writes it.
   const house = (done) => ({
     dataMode: "live", _mapsLoaded: true, _modelLoaded: true,
-    maps: { list: done ? [{ id: "m1", receivers: [{ id: "r1" }], room_bounds: { K: {} } }] : [] },
-    model: { floors: [{ id: "main" }], room_geometry_m: done ? { K: {} } : {}, map_transforms: done ? { m1: { reference_measurements: [{}] } } : {} },
+    maps: { list: done ? [{ id: "m1", receivers: [{ id: "r1" }], room_bounds: { K: {} } }] : [{ id: "m1", receivers: [], room_bounds: {} }] },
+    model: { floors: [{ id: "main" }], room_geometry_m: done ? { K: {} } : {},
+      map_transforms: done ? { m1: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } } : {} },
     calibration: { points: done ? [1, 2, 3, 4, 5] : [] },
   });
   for (const skin of ["2025", "classic"]) {
@@ -236,13 +239,39 @@ for (const view of ["devices", "traceback", "qa"]) {
       check(`setup: ${tag}: every step done, Setup steps out of the menu (More tools too)`, ![...beforeMore(f), ...afterMore(f)].includes("setup"), beforeMore(f));
     }
   }
+  // Review 2026-11-11: Calibration's points are asked only when calibration is the step that decides (every other one
+  // done): once a page load, never on a wall screen, not on the Overview (it asks them itself); a failure, never again.
   const asked = [];
-  const u = panel({ mode: "basic" });
-  Object.assign(u.state, house(false), { calibration: null });
+  const u = panel({ mode: "basic", view: "devices" });
+  Object.assign(u.state, house(true), { calibration: null });
   u._callWS = (m) => { asked.push(m.type); return new Promise(() => {}); };
   u._renderNav(); u._renderNav();
   check("setup: not shown before Calibration's points are known; asked for once", !beforeMore(u).includes("setup")
     && JSON.stringify(asked) === '["padspan_ha/calibration_get"]', asked);
+  const fails = [];
+  const uf = panel({ mode: "basic", view: "devices" });
+  Object.assign(uf.state, house(true), { calibration: null });
+  uf._callWS = (m) => { fails.push(m.type); return Promise.reject(new Error("down")); };
+  uf._renderNav(); for (let i = 0; i < 4; i++) await Promise.resolve(); uf._renderNav(); uf._renderNav();
+  check("setup: a failed ask leaves the menu as it is, and is not asked again on this page", fails.length === 1 && !beforeMore(uf).includes("setup"), fails);
+  for (const [tag, o] of [["a wall screen", { kioskMode: true }], ["the Overview (it asks itself)", { view: "overview" }],
+    ["a plan still to measure (calibration decides nothing)", { maps: { list: [{ id: "m1", receivers: [], room_bounds: {} }] }, model: { floors: [{ id: "main" }], map_transforms: {} } }]]) {
+    const w = [], pw = panel({ mode: "basic", view: "devices" });
+    Object.assign(pw.state, house(true), { calibration: null }, o);
+    pw._callWS = (m) => { w.push(m.type); return new Promise(() => {}); };
+    pw._renderNav();
+    check(`setup: calibration not asked on ${tag}`, w.length === 0, w);
+  }
+  // Started, finished, skipped: one rule (panel.js _setupInMenu).
+  const inMenu = (st) => { const x = panel({ mode: "advanced" }); Object.assign(x.state, house(false), st); x._renderNav(); return beforeMore(x).includes("setup"); };
+  check("setup: an empty house that never started set-up is not pinned (Make it a map is optional)",
+    !inMenu({ maps: { list: [] } }) && inMenu({ maps: { list: [] }, settings: { setup_progress: { at: "plan" } } }));
+  check("setup: Skip setup takes it out of the menu", !inMenu({ settings: { onboarding_completed: true } }));
+  check("setup: every step left skipped takes it out of the menu", !inMenu({ settings: { setup_progress: { skipped: ["scale", "rooms", "receivers", "calibration"] } } })
+    && inMenu({ settings: { setup_progress: { skipped: ["scale", "rooms"] } } }));
+  check("setup: a wall screen never has it", !inMenu({ kioskMode: true }));
+  // A vacuum import's scale (no measurement on record) is a scale: the house is finished, Setup steps out.
+  check("setup: a vacuum-scaled finished house is out of the menu", !inMenu({ ...house(true), model: { ...house(true).model, map_transforms: { m1: { scale_x_m: 12, scale_y_m: 9 } } } }));
   const sm = panel({ mode: "basic" });
   Object.assign(sm.state, house(false), { dataMode: "sample" });
   sm._renderNav();

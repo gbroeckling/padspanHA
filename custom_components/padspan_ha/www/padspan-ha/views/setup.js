@@ -189,8 +189,8 @@ export function returnBar(ctx) {
 // Done. No AI. Each live receiver whose room (its Home Assistant area) has an outline, and that has no position yet, goes
 // inside that room on the server (ws_fabric.ws_receivers_to_rooms: a backup, then the one spatial writer), to be
 // dragged to where it is mounted. It says what it placed and what it couldn't, and why; one Undo takes them back. ──
-const _rcv = { busy: false, said: "", plan: null, asked: null };
-export function _resetReceivers() { Object.assign(_rcv, { busy: false, said: "", plan: null, asked: null }); }   // a test's new page
+const _rcv = { busy: false, said: "", plan: null, asked: null, waiting: false, fill: null };
+export function _resetReceivers() { Object.assign(_rcv, { busy: false, said: "", plan: null, asked: null, waiting: false, fill: null }); }   // a test's new page
 
 const _names = (xs) => xs.length > 4 ? `${xs.slice(0, 4).join(", ")} and ${xs.length - 4} more` : xs.join(", ");
 /** Why the server's one rule leaves receivers where they are, in words (placed_already is left unsaid). */
@@ -216,15 +216,14 @@ function _scaleFirst(ctx, skipped) {
 }
 
 /** What a press would do now: the server's one rule (a dry run of the same command), asked once a visit to the view
- *  and again after a press or an Undo; null while it is asked. Setup's count and its reasons are never the panel's own. */
+ *  and again after a press or an Undo; null while it is asked. Setup's count and its reasons are never the panel's own.
+ *  While it is asked (_rcv.waiting) the answer is drawn in place (_rcv.fill), never by a redraw of the whole view. */
 function _plan(ctx) {
   const visit = ctx.state._viewVisit || 0;
-  if (_rcv.plan && _rcv.asked === visit) return _rcv.plan;
   if (_rcv.asked !== visit && ctx.actions.callWS) {
-    _rcv.asked = visit;
-    ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms", dry_run: true })
-      .then(r => { _rcv.plan = r || { ready: [], skipped: [], undo: 0 }; ctx.actions.renderRooms(); })
-      .catch(() => { _rcv.plan = { ready: [], skipped: [], undo: 0 }; });
+    _rcv.asked = visit; _rcv.waiting = true;
+    const got = (r) => { _rcv.plan = r || { ready: [], skipped: [], undo: 0 }; _rcv.waiting = false; if (_rcv.fill) _rcv.fill(); };
+    ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms", dry_run: true }).then(got).catch(() => got(null));
   }
   return _rcv.plan;
 }
@@ -266,17 +265,31 @@ async function _unplaceReceivers(ctx) {
 
 /** The button with its count, what the last press did, and its Undo (the last press's: earlier ones are simply placed);
  *  when nothing can be placed, why; null on the demo house, for a non-administrator, on a wall screen, while the server
- *  is asked, and on the helper's Done (opts.quiet) when there is nothing to do. */
+ *  is asked, and on the helper's Done (opts.quiet) when there is nothing to do; nothing either when every receiver is
+ *  placed already (review 2026-11-11: a finished house was told "Once your Bluetooth receivers are in Home Assistant…").
+ *  Asked of the server once a visit, only where it is shown (Edit's Radios tool, the receivers step, the helper's Done):
+ *  the answer fills the block in place (a holder while it is asked), with no redraw of the whole view. */
 export function receiversBlock(ctx, opts = {}) {
-  const { el } = ctx.helpers;
   const st = ctx.state;
   if (_demo(st) || st.kioskMode || !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin)) return null;
   const p = _plan(ctx);
-  if (!p) return null;
+  if (!_rcv.waiting) { _rcv.fill = null; return p ? _block(ctx, opts, p) : null; }
+  const holder = ctx.helpers.el("div", { "data-setup": "receivers-slot" });
+  _rcv.fill = () => { const b = _rcv.plan && _block(ctx, opts, _rcv.plan); holder.replaceChildren(...(b ? [b] : [])); };
+  _rcv.fill();
+  return holder;
+}
+
+function _block(ctx, opts, p) {
+  const { el } = ctx.helpers;
+  const st = ctx.state;
   const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(p.skipped);
   const rooms = hasRooms(st);                       // any rooms, drawn by hand or by the helper (setup_status: the button is for everyone)
   if (!n && !_rcv.said && !undo) {
     if ((opts && opts.quiet) || !rooms) return null;
+    // Every receiver the server knows is placed already: nothing to say. The "once they are in Home Assistant" line only
+    // for a house with no receiver at all (none live: nothing ready, nothing skipped).
+    if (!not.length && (p.skipped || []).length) return null;
     const later = el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length
       ? `PadSpan can put a receiver in its room once it has an area that is one of your rooms with an outline. Not ready: ${not.join("; ")}.`
       : "Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here.");

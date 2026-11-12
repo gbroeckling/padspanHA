@@ -121,8 +121,17 @@ def has_rooms(s: dict) -> bool:
     return has_fabric_rooms(s) or any(len(m.get("room_bounds") or {}) > 0 for m in _maps(s))
 
 
+def _positive(v: Any) -> bool:
+    """JavaScript's Number(v) > 0."""
+    try:
+        return float(v) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def has_scale(s: dict) -> bool:
-    return any(isinstance(t, dict) and len(t.get("reference_measurements") or []) > 0
+    """A plan with a real-world size (setup_status.planHasScale: both scales positive), a vacuum import's too."""
+    return any(isinstance(t, dict) and _positive(t.get("scale_x_m")) and _positive(t.get("scale_y_m"))
                for t in ((s.get("model") or {}).get("map_transforms") or {}).values())
 
 

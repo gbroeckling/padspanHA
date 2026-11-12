@@ -37,7 +37,8 @@ function house(stage, extra = {}) {
   };
   const at = (k) => S.SETUP_STEPS.indexOf(k) < stage;
   if (at("plan")) st.maps.list = [{ id: "m1", name: "Ground", floor_id: "ground", receivers: [], room_bounds: {} }];
-  if (at("scale")) st.model.map_transforms.m1 = { reference_measurements: [{ px: 100, m: 2 }] };
+  // A scale is the placement's positive size (setup_status.hasScale, review 2026-11-11), as Measure writes it with its record.
+  if (at("scale")) st.model.map_transforms.m1 = { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{ px: 100, m: 2 }] };
   if (at("floors")) st.model.floors[0].floor_to_floor_m = 2.7;
   if (at("rooms")) st.model.room_geometry_m.Kitchen = { floor_id: "ground", points_m: [[0, 0], [3, 0], [3, 3]] };
   if (at("receivers")) {
@@ -430,6 +431,24 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   // What a press placed names where they are moved: Calibration's first step (they are on the map of the house, not pins).
   check("receivers: the press's words name where they are dragged", said && said.textContent.includes("on the map of your house")
     && said.textContent.includes("Check receiver positions") && !said.textContent.includes("Edit → Radios"), said && said.textContent);
+  S._resetReceivers();
+  // Review 2026-11-11: every receiver placed already: nothing at all (a finished house was told "Once your Bluetooth
+  // receivers are in Home Assistant…"). The answer is drawn in place: no redraw of the whole view.
+  const fin = house(3, { calibration: { points: [], model: {} } });
+  fin.maps.list[0].room_bounds = { Kitchen: { points: [[0, 0], [1, 0], [1, 1]] } };
+  const nf = fake(fin, [{ ok: true, ready: [], skipped: [{ source: "aa", why: "placed_already" }, { source: "bb", why: "placed_already" }], undo: 0 }]);
+  let redraws = 0;
+  nf.ctx.actions.renderRooms = () => { redraws++; };
+  const slot = S.receiversBlock(nf.ctx);
+  await flush();
+  check("receivers: all placed already, nothing said, no redraw", slot && !slot.textContent && !S.receiversBlock(nf.ctx) && redraws === 0
+    && nf.sent.filter(x => x.dry_run).length === 1, [slot && slot.textContent, redraws]);
+  S._resetReceivers();
+  const nr = fake(fin, [{ ok: true, ready: [{ source: "cc", room: "Kitchen" }], skipped: [], undo: 0 }]);
+  nr.ctx.actions.renderRooms = () => { redraws++; };
+  const slot2 = S.receiversBlock(nr.ctx);
+  await flush();
+  check("receivers: the answer fills the block in place", slot2 && !!slot2.querySelector('[data-setup="receivers-place"]') && redraws === 0, slot2 && slot2.textContent);
   S._resetReceivers();
 }
 

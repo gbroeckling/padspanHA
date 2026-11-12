@@ -43,10 +43,24 @@ export function hasRooms(state) {
     || (hasMaps(state) && state.maps.list.some(m => Object.keys(m.room_bounds || {}).length > 0));
 }
 
-/** At least one map has had its real-world scale set (a measurement taken). */
+/** Whether a plan's floor has rooms already (ai_wizard.plan_roomed is this rule; the rooms helper and Mapping → Edit read
+ *  it): rooms drawn on the plan itself, or on its floor (the house's rooms too: Mapping → Layout, the rooms helper, a
+ *  vacuum import, Rooms from plans); a plan with no floor never takes another floor's rooms, only those drawn on it (its
+ *  room_bounds, or a room whose outline was made from it). */
+export function planRoomed(state, m) {
+  if (!m) return false;
+  if (Object.keys(m.room_bounds || {}).length) return true;
+  const geo = Object.values((state.model && state.model.room_geometry_m) || {});
+  if (!m.floor_id) return geo.some(r => r && r.source_map_id === m.id);
+  return geo.some(r => r && r.floor_id === m.floor_id)
+    || ((state.maps && state.maps.list) || []).some(o => o && o.floor_id === m.floor_id && Object.keys(o.room_bounds || {}).length);
+}
+
+/** At least one plan has a real-world size: planHasScale, the Library's and the first-scale routing's one rule (review
+ *  2026-11-11: a vacuum import's scale has no measurement on record, and a measurement record was asked for here, so
+ *  that house kept Setup in its menu for ever). ai_wizard.has_scale is this rule. */
 export function hasScale(state) {
-  return !!(state.model && state.model.map_transforms
-    && Object.values(state.model.map_transforms).some(t => t && t.reference_measurements && t.reference_measurements.length > 0));
+  return Object.keys((state.model && state.model.map_transforms) || {}).some(id => planHasScale(state, id));
 }
 
 /** This plan has a real-world size (the Library's "not placed" is the opposite): what "No scale yet" asks about. */
@@ -170,6 +184,11 @@ export function stepDone(state, id) { return DONE[id] ? DONE[id](state) : false;
 export function setupSteps(state) {
   const multi = indoorFloors(state).length > 1;
   return SETUP_STEPS.filter(id => id !== "floors" || multi).map((id, i) => ({ id, n: i + 1, label: STEP_LABELS[id] }));
+}
+
+/** Every step this house has is done (an unknown one is not): Setup leaves the menu, Mapping → Edit says no "Next:". */
+export function setupDone(state) {
+  return setupSteps(state).every(x => stepDone(state, x.id) === true);
 }
 
 /** The step after `id` in this house's order (null after the last). */

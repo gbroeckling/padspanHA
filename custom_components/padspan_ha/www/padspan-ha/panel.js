@@ -3470,25 +3470,34 @@ class PadSpanHaApp extends HTMLElement {
     return out;
   }
 
-  /** Setup in the menu (owner's D4, 2026-11-13): at the top of the build
-   *  group until every step is done, then out of it (still reached from
-   *  Getting started and Mapping's Setup button). Only on the house's own
-   *  data, once the stores that answer it are in: Calibration's points are
-   *  asked once for it, and the menu is drawn again when they come. */
+  /** Setup in the menu (owner's D4, 2026-11-13; review 2026-11-11): at the
+   *  top of the build group only while the house has STARTED set-up (a floor
+   *  plan uploaded, or a step opened or skipped in Setup) and has neither
+   *  FINISHED it (every step done) nor SKIPPED it (Getting started's "Skip
+   *  setup", onboarding_completed; Setup's Finish, setup_progress.done; or
+   *  every step not done skipped). Out of it Setup is still reached from
+   *  Getting started and Mapping's Setup button. Only on the house's own
+   *  data, never on a wall screen, once the stores that answer it are in.
+   *  Calibration's points are asked only when calibration is the one step
+   *  that decides, once a page load (never on a wall; not on the Overview,
+   *  which asks them itself and draws the menu again when they come); a
+   *  failure leaves the menu as it is until the next page load. */
   _setupInMenu(){
-    const st = this.state;
-    if (st.dataMode !== "live" || !SETUP_STATUS) return false;
-    if (!st.calibration) {
-      if (!this._menuCalAsked && this._callWS) {
-        this._menuCalAsked = true;
-        this._callWS({ type: "padspan_ha/calibration_get" })
-          .then(d => { if (!this.state.calibration && d) { this.state.calibration = d; this._renderNav(); } })
-          .catch(() => {});
-      }
-      return false;
+    const st = this.state, ss = SETUP_STATUS;
+    if (st.dataMode !== "live" || st.kioskMode || !ss || !st._mapsLoaded || !st._modelLoaded) return false;
+    const s = st.settings || {}, p = s.setup_progress || {};
+    const skipped = Array.isArray(p.skipped) ? p.skipped : [];
+    if (s.onboarding_completed || p.done === true || !(ss.hasMaps(st) || p.at || skipped.length)) return false;
+    const open = ss.setupSteps(st).filter(x => ss.stepDone(st, x.id) !== true && !skipped.includes(x.id));
+    if (!open.length) return false;
+    if (st.calibration || open.some(x => x.id !== "calibration")) return true;
+    if (!this._menuCalAsked && this._callWS && st.view !== "overview") {
+      this._menuCalAsked = true;
+      this._callWS({ type: "padspan_ha/calibration_get" })
+        .then(d => { if (!this.state.calibration && d) { this.state.calibration = d; this._renderNav(); } })
+        .catch(() => {});
     }
-    if (!st._mapsLoaded || !st._modelLoaded) return false;
-    return !SETUP_STATUS.setupSteps(st).every(x => SETUP_STATUS.stepDone(st, x.id) === true);
+    return false;
   }
 
   /** The tabs in the main groups for the current mode; every other visible

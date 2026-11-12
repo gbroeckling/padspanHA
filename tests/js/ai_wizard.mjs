@@ -306,6 +306,16 @@ check("check: Save says how many", q(root, '[data-aiw="save"]').textContent === 
   check("done: the hand-off is Setup's receivers step, on the plan just saved", h.steps.join() === "receivers" && h.stepMaps.join() === "m1"
     && h.calls.some(x => x.what === "step" && x.step === "handoff"), h.stepMaps);
   h.ctx.state._aiw = null;
+  // Review 2026-11-11: two indoor floors with no heights set: Done's way on is floor heights, the next step in the order.
+  const hf = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } },
+    floors: [{ floor_id: "main", name: "Main", level: 0 }, { floor_id: "upper", name: "Upper", level: 1 }, { floor_id: "__outside__", name: "Outside" }],
+    ans: { session: SESS({ saved: { "space:a": "rb" } }), areas: [], undo: { session: "rb_1" }, wizard: WIZ } });
+  root = await view(hf);
+  check("done, two floors with no heights: Floor heights next, not the receivers", !q(root, '[data-aiw="receivers"]')
+    && q(root, '[data-aiw="next-floors"]')?.textContent === "Floor heights →", root.textContent.slice(0, 400));
+  q(root, '[data-aiw="next-floors"]').click();
+  check("done, two floors: it opens Setup's floors step", hf.steps.join() === "floors", hf.steps);
+  hf.ctx.state._aiw = null;
   // Undo: the rooms, through the helper.
   const h2 = house({ unlock: { ok: true }, master: true, wizard: { started: { at: "saved", map_id: "m1", rooms_session: "rb_1" } },
     ans: { session: SESS({ saved: { "space:a": "rb" } }), areas: [], undo: { session: "rb_1" }, wizard: WIZ } });

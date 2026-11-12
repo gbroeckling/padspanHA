@@ -41,7 +41,8 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 // checklist (panel.js) so the two can never disagree about what's finished.
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
         undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers,
-        setupSteps: _setupSteps, nextStep: _nextSetupStep, stepDone: _stepDone, STEP_ABOUT: _STEP_ABOUT } =
+        setupSteps: _setupSteps, nextStep: _nextSetupStep, stepDone: _stepDone, STEP_ABOUT: _STEP_ABOUT,
+        planRoomed: _planRoomed, setupDone: _setupDone } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // "Put my receivers in their rooms" (setup.js receiversBlock, the one block and command), where receivers are placed:
 // Edit's Radios tool, so the Setup Wizard's receivers step too (review 2026-11-13, break 3).
@@ -1569,7 +1570,10 @@ function _wizardScale(ctx, map, maps, w){
   const first = _firstScale(ctx, map);
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, first
     ? "Measure one distance you know, a doorway or a wall, so the map is in metres. Rooms, receivers and the AI tools that read your plans need it."
-    : "This plan has a scale. To measure it again, mark two lengths at different angles below; the two together check that the plan picture isn't stretched."));
+    // Review 2026-11-11: say what is true (an Outside plan or Sample mode gets no one-length screen, scale or not).
+    : _planHasScale(ctx.state, map && map.id)
+      ? "This plan has a scale. To measure it again, mark two lengths at different angles below; the two together check that the plan picture isn't stretched."
+      : "This plan has no scale yet. To set it, mark two lengths at different angles below; the two together check that the plan picture isn't stretched."));
   if (done && !first) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     "✓ Scale is set for this house."));
   if (AIW && AIW.stepSeen && !done) AIW.stepSeen(ctx, "scale");          // the rooms helper's pull trigger: met again, unfinished
@@ -2008,10 +2012,13 @@ function _goStep(ctx, mapId, step, w, counted = true){
 const _NEXT_BOX = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#a7f3d0;line-height:1.5;margin:6px 0;padding:6px 10px;background:#0a1f14;border:1px solid #1a4228;border-radius:8px";
 function _nextLine(ctx, map){
   const { el } = ctx.helpers, st = ctx.state;
-  if (!map || st.kioskMode || st.dataMode !== "live") return null;
+  // Review 2026-11-11: no "Next:" on an outdoor plan, nor anywhere on a house whose every set-up step is done; a plan
+  // has rooms by the one rule (setup_status.planRoomed: traced on it, or the house's rooms on its floor).
+  if (!map || st.kioskMode || st.dataMode !== "live" || isOutdoorFloorId(map.floor_id)) return null;
   if (!_planHasScale(st, map.id)) return NUDGE ? NUDGE.reminderLine(ctx, map, () => _openMeasure(ctx, map.id, "reminder")) : null;
+  if (_setupDone(st)) return null;
   const go = (label, step) => el("button",{class:"btn inline primary", style:"font-size:12px", "data-next":step, onclick:()=>_goStep(ctx, map.id, step, null)}, label);
-  if (!Object.keys(map.room_bounds || {}).length) {
+  if (!_planRoomed(st, map)) {
     const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
     return el("div",{"data-next-line":"rooms"},[
       el("div",{style:_NEXT_BOX},[el("span",{style:"flex:1 1 220px"}, "✓ This plan's scale is set. Next: draw its rooms. Pick a room under the plan and click around its outline."),
@@ -2087,8 +2094,10 @@ function _edit(ctx, map, allMaps, opts){
     // receivers | rooms | barriers | measure. _openMode: a one-shot tool to
     // open in, set by the Rooms page's "Edit outline" (rooms.js), so loading
     // the plan does not put it back on Radios.
-    // With nothing asked for, the tool the plan needs next: Rooms while it has none, else Radios (review 2026-11-13).
-    ctx.state.maps._mode = (opts && opts.openTool) || ctx.state.maps._openMode || (Object.keys(map.room_bounds || {}).length ? "receivers" : "rooms");
+    // With nothing asked for, the tool the plan needs next: Rooms while it has none (setup_status.planRoomed: its own or
+    // the house's on its floor), else Radios (review 2026-11-13); a house whose set-up is done opens on Radios as ever.
+    ctx.state.maps._mode = (opts && opts.openTool) || ctx.state.maps._openMode
+      || (_planRoomed(ctx.state, map) || _setupDone(ctx.state) ? "receivers" : "rooms");
     ctx.state.maps._openMode = null;
     // _openRoom: the room the Rooms page's "Edit outline" opened it on.
     ctx.state.maps._selectedRoom = ctx.state.maps._openRoom || "";
