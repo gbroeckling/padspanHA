@@ -195,6 +195,23 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   root = await render(hr);
   check("house rooms on the plan's floor, no receivers: Radios, Next: the receivers (not draw its rooms)", hr.state.maps._mode === "receivers"
     && !!q(root, '[data-next-line="receivers"]') && !q(root, '[data-next-line="rooms"]'), root.textContent.slice(0, 300));
+  // Review 2026-11-11 (B1): an area with no floor in Home Assistant is offered on every floor's plan; one on another
+  // floor only is not; with none to choose, the step says so and makes one in Home Assistant on this plan's floor.
+  const withAreas = async (areas) => {
+    const x = house({ tab: "edit", maps: [P({ floor_id: "ground" })], tfs: TF1 });
+    x.state.activeMapId = "e1"; x.state.model.areas = areas;
+    const r = await render(x);
+    return { x, r, rooms: all(r, "select").flatMap(s => s.children.map(op => op.value)).filter(v => ["Kitchen", "Den"].includes(v)), box: q(r, '[data-area-add="box"]') };
+  };
+  const fl = await withAreas([{ id: "kitchen", name: "Kitchen", floor_id: null }, { id: "den", name: "Den", floor_id: "upper" }]);
+  const other = await withAreas([{ id: "den", name: "Den", floor_id: "upper" }]), none = await withAreas([]);
+  check("rooms: a floorless area on every floor's list, another floor's not", JSON.stringify(fl.rooms) === '["Kitchen"]' && !fl.box, fl.rooms);
+  check("rooms: none to choose, said, with Add to Home Assistant", !!other.box && other.rooms.length === 0 && !!none.box, [other.rooms, !!none.box]);
+  q(none.r, '[data-area-add="name"]').value = "Kitchen";
+  q(none.r, '[data-area-add="go"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  const add = none.x.calls.find(c => c.type === "padspan_ha/area_add");
+  check("rooms: Add to Home Assistant makes the area on this plan's floor", add && add.name === "Kitchen" && add.floor_id === "ground", add);
   const o = house({ tab: "edit", maps: [P({ id: "o1", floor_id: "__outside__", room_bounds: ROOM })], tfs: { o1: TF1.e1 } });
   o.state.activeMapId = "o1";
   root = await render(o);

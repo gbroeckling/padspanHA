@@ -3357,6 +3357,26 @@ function _edit(ctx, map, allMaps, opts){
         roomSel,
         !_focused && (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"edit", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
       ]));
+      // No room to choose (review 2026-11-11): said, with the one press that helps: a Home Assistant area made here,
+      // on this plan's floor, as the room helper's "Also add to Home Assistant" makes one (padspan_ha/area_add).
+      if(!eligibleRooms.length && ctx.state.dataMode === "live" && !ctx.state.kioskMode){
+        const nameIn = el("input",{class:"input", type:"text", maxlength:"60", placeholder:"Room name, e.g. Kitchen", "data-area-add":"name", style:"flex:1 1 160px;min-width:0"});
+        const addBtn = el("button",{class:"btn inline primary", "data-area-add":"go", onclick: async ()=>{
+          const name = String(nameIn.value || "").trim();
+          if(!name){ ctx.toast("Type the room's name first.", true); return; }
+          addBtn.disabled = true;
+          let r = null;
+          try { r = await ctx.actions.callWS({ type:"padspan_ha/area_add", name, floor_id: ctx.state.maps._draftFloorId || map.floor_id || null }); } catch(e){ r = null; }
+          if(!r || r.result === "failed"){ addBtn.disabled = false; ctx.toast("Home Assistant couldn't add that room. Add it on Home Assistant's Areas page.", true); return; }
+          ctx.state.maps._selectedRoom = name;
+          if(ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(()=>{});
+          renderAll(); renderTools();
+        }}, "Add to Home Assistant");
+        right.appendChild(el("div",{"data-area-add":"box", style:"margin-top:6px;padding:8px 10px;border-radius:8px;background:#0a1f14;border:1px solid #1a4228;font-size:12px;color:#cbd5e1;line-height:1.5"},[
+          el("div",{}, "There is no room to choose for this floor yet: rooms are Home Assistant's areas. Name one and it is added to Home Assistant, on this plan's floor."),
+          el("div",{style:"display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"},[nameIn, addBtn]),
+        ]));
+      }
 
       // Warning if selected room is already drawn on another map
       const _selRoom = ctx.state.maps._selectedRoom;

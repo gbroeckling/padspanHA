@@ -879,4 +879,14 @@ async def ws_ai_wizard_check_claude(hass: HomeAssistant, connection, msg) -> Non
     connection.send_result(msg["id"], {"ok": why == "ok", **({} if why == "ok" else {"why": why})})
 
 
-WS_COMMANDS = (ws_ai_wizard_info, ws_ai_wizard_mark, ws_ai_wizard_check_claude)
+@websocket_api.websocket_command({"type": "padspan_ha/area_add", vol.Required("name"): vol.All(str, vol.Strip, vol.Length(min=1, max=60)),
+                                  vol.Optional("floor_id"): vol.Any(str, None)})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_area_add(hass: HomeAssistant, connection, msg) -> None:
+    """Mapping → Edit's Rooms tool with no Home Assistant area to choose (review 2026-11-11): one area of this name, on
+    this floor where Home Assistant has it, as the room helper's "Also add to Home Assistant" makes one (ensure_area)."""
+    connection.send_result(msg["id"], {"result": ensure_area(hass, msg["name"], msg.get("floor_id"))})
+
+
+WS_COMMANDS = (ws_ai_wizard_info, ws_ai_wizard_mark, ws_ai_wizard_check_claude, ws_area_add)

@@ -584,8 +584,10 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
     areas: list[dict[str, Any]] = []
     try:
         ar_r = area_registry.async_get(hass)
+        # An area with no floor in Home Assistant says so (None): it is offered on every floor (Mapping → Edit's room
+        # list); renaming its floor "main" here hid it from every other floor's plan (review 2026-11-11).
         areas = [
-            {"id": a.id, "name": a.name, "floor_id": getattr(a, "floor_id", None) or DEFAULT_FLOOR_ID}
+            {"id": a.id, "name": a.name, "floor_id": getattr(a, "floor_id", None) or None}
             for a in sorted(ar_r.async_list_areas(), key=lambda x: x.name)
         ]
     except Exception:
