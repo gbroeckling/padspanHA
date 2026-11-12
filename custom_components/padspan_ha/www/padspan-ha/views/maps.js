@@ -2028,7 +2028,7 @@ function _floorsNext(ctx, w){
   if (st.kioskMode || st.dataMode !== "live" || _stepDone(st, "floors") !== true) return null;
   const steps = _setupSteps(st).map(s => s.id), i = steps.indexOf("floors");
   const next = i < 0 ? null : steps.slice(i + 1).find(id => _stepDone(st, id) !== true);
-  if (!next) return null;
+  if (!next || _stepDone(st, next) === null) return null;   // not known yet (calibration's points not read): say nothing
   const say = next === "receivers" ? ["place the receivers, each where it is mounted.", "Place the receivers →"]
     : ["calibrate, a few minutes walking round the house with your phone.", "Calibrate →"];
   // Setup's own step (it leaves Basic's focused card, with the bar back to Setup), as _goStep opens floors and calibration.

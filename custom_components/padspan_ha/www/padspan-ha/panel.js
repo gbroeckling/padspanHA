@@ -5309,7 +5309,10 @@ class PadSpanHaApp extends HTMLElement {
         const _p = (this.state.settings && this.state.settings.setup_progress) || {};
         let _lineHidden = false;
         try { _lineHidden = localStorage.getItem("padspan_setup_line") === "hidden"; } catch (e) { _lineHidden = !!this._setupLineHidden; }
-        if (_setupKnown && _ss && !_allDone && (_onboardingDone || _p.done === true) && this.state.dataMode === "live"
+        // Only while calibration is known to be not done: a calibrated house is in use and is never asked back to
+        // Setup for an older step, and "not known yet" (its points not read) shows nothing (review 2026-11-14).
+        if (_setupKnown && _ss && !_allDone && _ss.stepDone(this.state, "calibration") === false
+            && (_onboardingDone || _p.done === true) && this.state.dataMode === "live"
             && !this.state.kioskMode && !_lineHidden && !this._setupLineHidden) {
           const line = el("div",{"data-setup-line":"",style:"display:flex;align-items:center;gap:10px;font-size:12px;color:#94a3b8;margin-bottom:10px"});
           line.appendChild(el("span",{}, `Set-up: ${_completedCount} of ${_setupRows.length} done \u00b7 `));

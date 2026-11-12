@@ -98,13 +98,20 @@ if (a > 0 && b > a) {
     return frag.children[0] || null;
   };
   try { localStorage.removeItem("padspan_setup_line"); } catch (e) {}
-  const live = { dataMode: "live", settings: {} };
+  // Calibration's points read, and too few: known to be not done (2026-11-14: the line shows only then).
+  const CAL0 = { points: [] };
+  const live = { dataMode: "live", settings: {}, calibration: CAL0 };
   const line = run(live, false, true);
   check("skip line: skipped, not finished: Set-up n of m done · Open Setup", line && /^Set-up: 2 of 5 done · Open Setup/.test(line.textContent), line && line.textContent);
-  check("skip line: Setup's own Finish counts as skipped", !!run({ dataMode: "live", settings: { setup_progress: { done: true } } }, false, false));
+  check("skip line: Setup's own Finish counts as skipped", !!run({ dataMode: "live", settings: { setup_progress: { done: true } }, calibration: CAL0 }, false, false));
+  // A house in use is never asked back (review 2026-11-14): calibration not read yet says nothing (the line used to
+  // flash, or stay, on a finished house), and a calibrated house has none even with an older step open.
+  check("skip line: none while calibration is not known yet", !run({ dataMode: "live", settings: {} }, false, true));
+  check("skip line: none for a calibrated house", !run({ dataMode: "live", settings: {},
+    calibration: { points: [1, 2, 3, 4, 5].map(i => ({ id: "p" + i })) } }, false, true));
   check("skip line: none for a finished house, a wall, Sample mode, or a house still in set-up", !run(live, true, true)
-    && !run({ ...live, kioskMode: true }, false, true) && !run({ dataMode: "sample", settings: {} }, false, true) && !run(live, false, false));
-  const st2 = { dataMode: "live", settings: {} }, l2 = run(st2, false, true);
+    && !run({ ...live, kioskMode: true }, false, true) && !run({ dataMode: "sample", settings: {}, calibration: CAL0 }, false, true) && !run(live, false, false));
+  const st2 = { dataMode: "live", settings: {}, calibration: CAL0 }, l2 = run(st2, false, true);
   l2.querySelector('[data-setup-line="open"]').dispatchEvent(new Event("click"));
   check("skip line: Open Setup opens Setup", st2.view === "setup");
   l2.querySelector('[data-setup-line="hide"]').dispatchEvent(new Event("click"));
