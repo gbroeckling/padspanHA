@@ -338,6 +338,29 @@ await tryCase("taps: on unless this screen unticks it (then no light switches, a
     && !bRows.includes("light_taps") && bRows.includes("lights") && JSON.stringify(bTap) === JSON.stringify([["toggle", "light.kitchen"]]),
     { on, rows, off, lock, drag, bRows, bTap, sent: SENT.filter(n => n.includes("light_tap")) });
 });
+// Garry, 2026-11-13 ("make use more intuitive"): the nearest light takes a tap that lands on nothing, and a light
+// switched says so with Undo.
+await tryCase("aim: a tap on nothing goes to the nearest light within 60 px, not past it; the switch is said, with Undo; the builder as before", async () => {
+  const over = { topFloorIds: ["main"], prefs: screenPrefs(), mapOnly: true };
+  const slot = await newSlot("ctl-aim", over);
+  const at = slot._where({ eid: "light.kitchen" });
+  const spot = [[-45, 0], [45, 0], [0, 45], [0, -45]].map(d => [at[0] + d[0], at[1] + d[1]])
+    .find(q => { const h = slot._pick(q[0], q[1]); return h && h.hit === "device:light.kitchen" && h.under.length === 0; }) || null;
+  calls.length = 0; if (spot) await tapAt(slot, spot);
+  const near = calls.slice();
+  const line = slot.element.querySelector(".la3d-toast");
+  const said = line ? line.textContent : null;
+  calls.length = 0; if (line) { line.querySelector("button").click(); await settle(4); }
+  const undone = calls.slice();
+  const far = hitOf(slot._pick(at[0] - 90, at[1] - 70)) === "device:light.kitchen";
+  const builder = await newSlot("ctl-aim-m", { topFloorIds: ["main"] });
+  const b = builder._where({ eid: "light.kitchen" });
+  const bNear = [[-45, 0], [45, 0], [0, 45], [0, -45]].some(d => hitOf(builder._pick(b[0] + d[0], b[1] + d[1])) === "device:light.kitchen");
+  LA.releaseLiveAboardSlot("ctl-aim"); LA.releaseLiveAboardSlot("ctl-aim-m");
+  check("aim: a tap on nothing goes to the nearest light within 60 px, not past it; the switch is said, with Undo; the builder as before",
+    !!spot && JSON.stringify(near) === JSON.stringify([["toggle", "light.kitchen"]]) && /Kitchen light off/.test(said || "") && /Undo/.test(said || "")
+    && JSON.stringify(undone) === JSON.stringify([["toggle", "light.kitchen"]]) && !far && !bNear, { spot, near, said, undone, far, bNear });
+});
 await tryCase("taps: a sconce on a cut-away wall is pressed where its glow lands on the floor (the builder: as before, not at all)", async () => {
   const over = { topFloorIds: ["main"], shapeOverrides: { "light.kitchen": "sconce" } };
   const slot = await newSlot("ctl-sconce", { ...over, mapOnly: true }), builder = await newSlot("ctl-sconce-m", over);
@@ -441,9 +464,10 @@ await tryCase("buttons: off unless ticked; then each light a button, two that ov
     { rows: rows.includes("light_buttons"), before, leakBefore, below, onFixture, btns, tapFar, tapNear, tapTwin, tapLeak, floor, tapFloor, bRows: bRows.includes("light_buttons"), bButtons,
       sent: SENT.filter(n => n.includes("button_tap")) });
 });
-// Review 2026-11-11: only a chip (and a room's name) loses to a light in reach; a lock, a leak mark or a motion marker
-// pressed on answers, as before this build (the nearest under the finger); the light answers when it is pressed on.
-await tryCase("taps: a lock, a leak mark, a motion marker pressed on answer, a light 22 px away or not; pressed on the light, the light", async () => {
+// Garry, 2026-11-13 ("make use more intuitive"): while a tap switches lights, a light in reach beats a lock, a leak mark
+// and a motion marker pressed on (a tap meant for a light found the sensor beside it); with no light in reach each
+// answers as ever (the lock and the motion cases above). Before: review 2026-11-11 had only a chip lose to a light.
+await tryCase("taps: a light in reach beats a lock, a leak mark and a motion marker pressed on; pressed on the light, the light", async () => {
   const out = {};
   let n = 0;
   for (const eid of ["lock.back", "binary_sensor.kitchen_leak", "binary_sensor.hall_motion"]) {
@@ -460,8 +484,8 @@ await tryCase("taps: a lock, a leak mark, a motion marker pressed on answer, a l
     out[eid] = { a, b, apart: a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : null, onIt: hitOf(slot._pick(a[0], a[1])), onLight: hitOf(slot._pick(b[0], b[1])) };
     LA.releaseLiveAboardSlot(key);
   }
-  check("taps: a lock, a leak mark, a motion marker pressed on answer, a light 22 px away or not; pressed on the light, the light",
-    Object.entries(out).every(([eid, o]) => o.apart > 3 && o.apart <= 22 && o.onIt === "device:" + eid && o.onLight === "device:light.near"), out);
+  check("taps: a light in reach beats a lock, a leak mark and a motion marker pressed on; pressed on the light, the light",
+    Object.entries(out).every(([eid, o]) => o.apart > 3 && o.apart <= 22 && o.onIt === "device:light.near" && o.onLight === "device:light.near"), out);
 });
 // Review 2026-11-11 (item 8): a tag and a person, pressed on, answer with a light 22 px away or less; pressed on the
 // light, the light (the nearest under the finger, as for the lock, the leak mark and the motion marker above).

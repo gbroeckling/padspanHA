@@ -86,6 +86,8 @@ export function doorMover(bar){
  *                     then picked again with pick(x, y, true): no lights
  *   switched(ok)    optional: a light was switched by a press (ok), or the
  *                     switch failed (the opt-in report's count)
+ *   switchedTo(eid, on, undo)  optional: a tap switched light `eid` on or off;
+ *                     undo() switches it back (the host says so, with Undo)
  *   buttons()       optional: the ⋯ list's "Lights as buttons" as they stand,
  *                     [{x, y (px from root), n, on: "all" | "some" | "none" |
  *                     "gone"}] ([] while it is off): painted over the house on
@@ -164,6 +166,15 @@ export function createUseSurface(o){
       const words = b.n > 1 ? String(b.n) : "";
       if (g.lastChild.textContent !== words) g.lastChild.textContent = words;
     });
+  }
+  // What is pressed says its name beside the finger (proposal 3), so a finger that has landed on the wrong thing sees
+  // it before it lifts (sliding away hands the press back: nothing happens). Gone with the press.
+  function nameTag(t){
+    const at = t && t.label ? o.screenOf(t) : null;
+    if (!at) return;
+    const p = pointOf(at), n = shape("text", { class: "la3d-pressname", x: p[0].toFixed(1), y: (p[1] - HOVER_R - 12).toFixed(1) });
+    n.textContent = t.label;
+    hoverG.appendChild(n);
   }
   // Where a target stands on the screen: its point, or the middle of its
   // outline (a door, a room). The pressed ring and a card both go there.
@@ -301,7 +312,11 @@ export function createUseSurface(o){
     if (!isTapLight(eid, l0)) { api.toggle(eid); return; }
     if (o.lightTaps && !o.lightTaps()) return;
     // Counted and ringed only once it switched (toggleEntity: true); a failure counted; nothing sent (no hass), neither.
-    const done = (ok) => { if (ok === true) pulse(t); if (o.switched && typeof ok === "boolean") o.switched(ok); };
+    const wasOn = l0.state === "on";
+    const done = (ok) => {
+      if (ok === true) { pulse(t); if (o.switchedTo) o.switchedTo(eid, !wasOn, () => api.toggle(eid)); }
+      if (o.switched && typeof ok === "boolean") o.switched(ok);
+    };
     Promise.resolve(api.toggle(eid)).then(done, () => done(false));
   }
   // A light switched by a tap: one ring opening out from it in the pressed
@@ -424,6 +439,7 @@ export function createUseSurface(o){
                 bubble: null, lastSend: 0, touch: e.pointerType === "touch" };
       hover = null;
       mark(t, hoverG);
+      nameTag(t);
       showHud(t, []);
       o.frame();
       return true;

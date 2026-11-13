@@ -210,6 +210,7 @@ const FLOOR_MARK_R = 0.12, FLOOR_MARK_UP = 0.02;
 // panel and a cluster of small bulbs (a chandelier) keep their own. Off, it is solid (OFF_OP) and leans less to the
 // theme's dark (OFF_LEAN).
 const SEEN_R = 0.13, SEEN_MAX = 3, OFF_OP = 0.9;
+const MAGNET_R = 60;                       // with nothing under the finger, the nearest light this near takes the press, px
 const seenK = (b, n) => (b.mat || b.prim === "box" || (b.prim === "sphere" && n > 2) ? 1 : Math.min(SEEN_MAX, Math.max(1, SEEN_R / Math.max(b.sx, b.sz))));
 const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
 // A split level's floor's walls this close to the level's own rooms stand round them (sizeNames).
@@ -277,6 +278,7 @@ const CSS = `
   color:#f59e0b;background:rgba(245,158,11,.12)}
 @keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
+.la3d-pressname{fill:#fff;font:800 15px Inter,system-ui,sans-serif;text-anchor:middle;paint-order:stroke;stroke:rgba(4,10,6,.92);stroke-width:5px;stroke-linejoin:round}
 .la3d-btn circle{fill:rgba(8,16,11,.84);stroke:#cbd5e1;stroke-width:2}
 .la3d-btn path{fill:none;stroke:#cbd5e1;stroke-linecap:round}
 .la3d-btn .stem{stroke-width:1.5;stroke-opacity:.75;stroke-dasharray:1 4}
@@ -1468,6 +1470,8 @@ function createSlot(slotKey){
       // Atlas tab and its walls (mapOnly); Mapping's builder does not offer it.
       lightTaps: () => lightTapsOn(),
       switched: (ok) => showSend(`house3d_show:light_tap:${ok ? "ok" : "failed"}`),
+      // A light a tap switched says so, with the way back (proposal 4): a wrong one costs one more tap.
+      switchedTo: (eid, on, undo) => { const l = lbe[eid]; toast(`${(l && l.friendly_name) || eid} ${on ? "on" : "off"}`, undo, "Undo"); },
       // The ⋯ list's "Lights as buttons": the buttons to paint; a tap on a sensor, a readout or a lock goes to its room
       // (not while a class chip picks its kind out: then it is what the screen is for); each button tap counted.
       buttons: () => buttonsUi(),
@@ -4231,7 +4235,10 @@ function createSlot(slotKey){
     const taps = mapOnly && lightTapsOn();
     const aLight = (c) => !!c.light && !(c.light.drawn === "fan" || (c.light.l && c.light.l.isFan));
     let win = ok[0];
-    if (win && win.chip && taps) win = ok.find(aLight) || win;
+    // Garry, 2026-11-13 ("make use more intuitive", proposal 1): while a tap switches lights, a LIGHT in reach beats
+    // whatever else is in reach (a sensor, a readout's chip, a lock, a leak mark, a motion marker): a tap meant for a
+    // light found the sensor beside it. A tag or a person nearer still wins (below).
+    if (win && taps && !aLight(win)) win = ok.find(aLight) || win;
     if (win && aLight(win) && taps) {
       const lit = ok.filter(aLight), near = lit.filter(c => c.d <= win.d + CLOSE_PX), cam2 = (c) => camera.position.distanceToSquared(c.v);
       const mine = (c) => (selIds && selIds.has(String(c.light.F.fl.id)) ? 0 : 1);
@@ -4279,6 +4286,16 @@ function createSlot(slotKey){
                       label: `${name} · ${said}` }, under: [] };
     }
     if (btnOn) { const t = roomTarget(clientX, clientY); if (t) return { hit: t, under: [] }; }
+    // Nothing under the finger (proposal 2): the nearest light within MAGNET_R that nothing hides takes the press, so
+    // a fixture a few pixels across need not be hit exactly. Only while a tap switches lights, and never a fan.
+    if (taps && !noLights && !btnOn) {
+      let best = null;
+      for (const L of lights) {
+        if (!L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || L.drawn === "fan" || (L.l && L.l.isFan)) continue;
+        for (const v of lightPoints(L)) { const d = dist(v); if (d <= MAGNET_R && (!best || d < best.d)) best = { d, v, L }; }
+      }
+      if (best && !blocked(best.v, null, true)) return { hit: { ...deviceTarget({ eid: best.L.eid, v: best.v }), near: true }, under: [] };
+    }
     return null;
   }
   /** Where a target is, in px from the view's own corner (for its marks). */

@@ -26,7 +26,7 @@ def test_off_a_press_is_picked_as_before() -> None:
     la = _read(_VIEWS / "live_aboard.js")
     pick = la[la.index("  function pickAt(clientX, clientY, noLights = false){"):la.index("  /** Where a target is, in px from the view's own corner")]
     # Every new branch in the picking waits on the line.
-    assert pick.count("btnOn") == 4 and "const btnOn = buttonsOn();" in pick
+    assert pick.count("btnOn") == 5 and "const btnOn = buttonsOn();" in pick
     assert "if (btnOn) {" in pick and "if (btnOn || !L.F.group.visible" in pick and "if (btnOn) { const t = roomTarget(clientX, clientY);" in pick
     assert "const at = buttonsOn() ? roomAtScreen(x, y) : null" in la
 
