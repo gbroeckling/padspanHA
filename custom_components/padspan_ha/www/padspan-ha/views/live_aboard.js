@@ -204,6 +204,13 @@ const PREF_FPS = "fps";                    // the frame-rate readout on this scr
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
 // The ring on a covered patio's floor under an off ceiling light (its size, how far up).
 const FLOOR_MARK_R = 0.12, FLOOR_MARK_UP = 0.02;
+// A fixture seen from across a room (Garry, 2026-11-13, "Fixture bigger": a pot light its real 15 cm, a plain light a
+// 7 cm ball, were a few pixels on a wall screen, and off they were half see-through and dark). A round fixture (a pot,
+// a dome, a single ball) is drawn no smaller than SEEN_R in radius, at most SEEN_MAX times its size; a strip, a tube, a
+// panel and a cluster of small bulbs (a chandelier) keep their own. Off, it is solid (OFF_OP) and leans less to the
+// theme's dark (OFF_LEAN).
+const SEEN_R = 0.13, SEEN_MAX = 3, OFF_OP = 0.9;
+const seenK = (b, n) => (b.mat || b.prim === "box" || (b.prim === "sphere" && n > 2) ? 1 : Math.min(SEEN_MAX, Math.max(1, SEEN_R / Math.max(b.sx, b.sz))));
 const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
 // A split level's floor's walls this close to the level's own rooms stand round them (sizeNames).
 const OWN_WALL_M = 0.5;
@@ -2532,7 +2539,8 @@ function createSlot(slotKey){
         if (parts.wall) L.wall = onWall(parts.wall);
         let sx = 0, sy = 0, sh = 0;
         for (const b of parts.bulbs) {
-          const m = b.mat ? lift3(b.mat, F.fl.elev) : compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx, b.sy, b.sz).clone();
+          const sk = seenK(b, parts.bulbs.length);
+          const m = b.mat ? lift3(b.mat, F.fl.elev) : compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx * sk, b.sy * sk, b.sz * sk).clone();
           L.refs.bulbs.push({ prim: b.prim, i: bulbs[b.prim].length, off: new THREE.Color(b.off), m, hideOff: !!b.hideOff, wall: onWall(b.wall) });
           bulbs[b.prim].push({ m, off: b.off, hideOff: !!b.hideOff });
           sx += b.x; sy += b.y; sh += b.h;
@@ -2567,7 +2575,7 @@ function createSlot(slotKey){
       F.bulbs = {}; F.bulbsOff = {};
       for (const [prim, list] of Object.entries(bulbs)) {
         if (!list.length) continue;
-        const spec = { r: 0.7, tr: true, op: 0.5 };
+        const spec = { r: 0.7, tr: true, op: OFF_OP };
         const im = new THREE.InstancedMesh(shared.prim[prim], shared.bulbMat, list.length);
         const dark = new THREE.InstancedMesh(shared.prim[prim], mat(spec), list.length);
         dark.userData.spec = spec;
@@ -2652,7 +2660,7 @@ function createSlot(slotKey){
   const _white = new THREE.Color(1, 1, 1);
   /** A fixture that is off: with the Atlas's look, leaning to the theme's
    *  dark fixture (fixtureOffFill), its parts still told apart. */
-  const OFF_LEAN = 0.6, _c2 = new THREE.Color();
+  const OFF_LEAN = 0.35, _c2 = new THREE.Color();
   function offColour(c){ return atlas ? c.lerp(_c2.set(atlas.offFill), OFF_LEAN) : c; }
   function paintLight(L){
     // The ⋯ list's Light glow off: the bulbs only, no pool, glow or wash.
@@ -4042,8 +4050,8 @@ function createSlot(slotKey){
   // them); the button is what a tap lands on. Buttons that would overlap are one, with their count: a tap on it lists
   // its lights. Anywhere else in a room, a tap opens the room's sheet.
   // Where a button stands (Garry, 2026-11-13: on the fixture, a ceiling light's button hung in the air over another
-  // room once the ceiling was cut away, "not clearly visible where the light actually exists"): on the FLOOR, straight
-  // under the fixture, where a spot in a picture of a house is one place only (a point up in the air is anywhere along
+  // room once the ceiling was cut away, "not clearly visible where the light actually exists"): on the FLOOR, at the
+  // spot it was placed on the map, where a spot in a picture of a house is one place only (a point up in the air is anywhere along
   // the line of sight: the ground is what places it, as a pin's line to the ground does in Google Earth and a drop
   // line in a 3D chart), with a plumb line up to the fixture itself and a dot on it.
   const BTN_JOIN = 28;                       // buttons nearer than this on screen are one, px
@@ -4067,11 +4075,17 @@ function createSlot(slotKey){
     if (!buttonsOn() || !house || !rect.width || !rect.height) return out;
     for (const L of lights) {
       if (!L.at || !L.F.group.visible || L.swap || dimOf(L.eid)) continue;
-      const foot = _foot.set(L.at.x, L.F.fl.elev + FOOT_UP, L.at.z);
+      // Where it was PLACED (its spot on the map), not the middle of what is drawn for it: a ring of pots round a room
+      // has its middle nowhere near any of them, and a strip drawn on a wall is metres from its spot (his house,
+      // 2026-11-13: 15 of 58 lights drawn over 0.3 m from their spot, up to 3.4 m). The line goes to the nearest of
+      // what is drawn for it.
+      const foot = _foot.set(L.x, L.F.fl.elev + FOOT_UP, L.y);
       if (underFloor(foot, L.F)) continue;
       const s = screenPt(foot, rect);
       if (!s) continue;
-      const top = screenPt(L.at, rect), b = out.find(q => Math.hypot(q.x - s[0], q.y - s[1]) < BTN_JOIN);
+      const flat = (v) => Math.hypot(v.x - L.x, v.z - L.y);
+      const near = L.pick && L.pick.length ? L.pick.reduce((a, v) => (flat(v) < flat(a) ? v : a)) : L.at;
+      const top = screenPt(near, rect), b = out.find(q => Math.hypot(q.x - s[0], q.y - s[1]) < BTN_JOIN);
       if (!b) { out.push({ x: s[0], y: s[1], v: foot.clone(), lights: [L], tops: [top] }); continue; }
       const n = b.lights.push(L);
       b.tops.push(top);
