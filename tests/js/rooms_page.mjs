@@ -309,7 +309,9 @@ for (const mode of ["advanced", "basic"]) {
   check("plan-only: the row says where it is drawn", /Drawn on Ground, not on the house map yet/.test(text(row)) && q(row, "data-link", "outline").textContent === "Edit outline", text(row));
   check("plan-only: no Put it on the map for a room the house has, or one not drawn",
     !q(roomNode(root, "Kitchen"), "data-put", "map") && !q(roomNode(root, "Office"), "data-put", "map"));
-  q(row, "data-put", "map").click();
+  const putBtn = q(row, "data-put", "map");
+  putBtn.click();
+  check("plan-only: the button is busy while it writes", putBtn.disabled === true && /Putting it on the map/.test(putBtn.textContent), putBtn.textContent);
   for (let i = 0; i < 6; i++) await flush();
   const put = calls.filter(c => c.type === "padspan_ha/fabric_correct_room");
   check("plan-only: the button puts that one room on the house, from its plan, stamped as the wizard's build",

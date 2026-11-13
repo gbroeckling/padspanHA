@@ -9914,6 +9914,9 @@ function _lightsTab(ctx, maps, active) {
     try { seen = localStorage.getItem("padspan_ha_lights_tour_seen") === "1"; } catch(e) {}
     if (!seen) {
       ctx.state._lightsTour = { step: 1 };
+      // Seen once it has opened by itself, not only once it is closed: left open and walked away from, it came back on
+      // every visit. "Guide me" opens it again.
+      try { localStorage.setItem("padspan_ha_lights_tour_seen", "1"); } catch(e) {}
       if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_opened");
     }
   }

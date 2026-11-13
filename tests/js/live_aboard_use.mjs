@@ -463,5 +463,20 @@ await tryCase("card: a tapped tag or scanner says what it is beside it, calls no
     { pressed, one, two, gone, log: d3.log });
 });
 
+await tryCase("card: Escape closes it, and the key is listened for only while a card is open", async () => {
+  const had = Object.prototype.hasOwnProperty.call(globalThis, "window"), was = globalThis.window, on = new Set();
+  globalThis.window = { addEventListener: (t, f) => { if (t === "keydown") on.add(f); }, removeEventListener: (t, f) => { if (t === "keydown") on.delete(f); } };
+  try {
+    const cards = () => root.children.filter(n => n && n.className === "la3d-tagcard");
+    await d3Gesture({ kind: "tag", key: "tag:ble:keys", label: "Keys · tag", card: { title: "Keys", lines: ["In Kitchen"] } });
+    const open = { n: cards().length, on: on.size };
+    for (const f of [...on]) f({ key: "a" });
+    const other = cards().length;
+    for (const f of [...on]) f({ key: "Escape" });
+    check("card: Escape closes it, and the key is listened for only while a card is open",
+      open.n === 1 && open.on === 1 && other === 1 && cards().length === 0 && use.state().card === null && on.size === 0, { open, other, left: on.size });
+  } finally { if (had) globalThis.window = was; else delete globalThis.window; }
+});
+
 void rafQueue;
 process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

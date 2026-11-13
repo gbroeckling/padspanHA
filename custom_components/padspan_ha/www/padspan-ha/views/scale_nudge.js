@@ -192,7 +192,10 @@ export function render(ctx, map, opts = {}) {
   side.appendChild(sized);
   const saveBtn = btn(ctx, d.busy ? "Saving…" : "Save the scale", () => { if (ready(d)) save(ctx, map, d, opts); }, { primary: true, attrs: { "data-nudge": "save" } });
   const laterBtn = opts.later === false ? null : btn(ctx, "Later", () => later(ctx, map, opts), { disabled: d.busy, attrs: { "data-nudge": "later" } });
-  card.appendChild(el("div", { "data-nudge": "bar", style: PM.STICKY_BAR }, [row(ctx, [saveBtn, laterBtn].filter(Boolean), "margin:0"),
+  // On a phone the picture and the length stack: a bar held at the bottom of the screen would lie over the picture, where
+  // the two ends are tapped. There it comes after the length, as an ordinary row (real-panel run 2026-11-12, 390 px).
+  const stacked = typeof matchMedia === "function" && matchMedia("(max-width: 600px)").matches;
+  card.appendChild(el("div", { "data-nudge": "bar", style: stacked ? PM.STICKY_BAR.replace("position:sticky;bottom:0;", "") : PM.STICKY_BAR }, [row(ctx, [saveBtn, laterBtn].filter(Boolean), "margin:0"),
     el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4" }, ctx.state.complexity === "basic" ? SAVE_SAYS_BASIC : SAVE_SAYS)]));
   d.paint = () => paint(ctx, d, said, sized, saveBtn);
   d.paint();

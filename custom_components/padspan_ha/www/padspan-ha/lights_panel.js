@@ -871,6 +871,12 @@ class PadSpanLightsApp extends HTMLElement {
     if(this._emergCard) this._emergCard.refresh();
   }
 
+  _tipText(){
+    return (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2 && screenShowLine("atlas","light_taps")===false
+        ? "A tap doesn't switch a light on this screen \u00b7 tap its code or hold it for controls" : "Tap a light to switch it \u00b7 tap its code or hold for controls")
+        +" \u00b7 tap a room name for the whole room \u00b7 motion, temperature and air-quality tiles are read-only";
+  }
+
   _buildUI(){
     this._wallOn();
     const parts=[];   // the page, top to bottom (_render lays them)
@@ -883,9 +889,7 @@ class PadSpanLightsApp extends HTMLElement {
       el("span",{class:"lv-ver"},`v${APP_VERSION}`),
       // The tip follows this screen's ⋯ "Tap a light to switch it" where the flat map honours it (Pro's layout, as
       // host.layoutV2 below; review 2026-11-11, C10): unticked, a tap switches nothing here.
-      el("span",{class:"lv-hint"},(String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2 && screenShowLine("atlas","light_taps")===false
-        ? "A tap doesn't switch a light on this screen \u00b7 tap its code or hold it for controls" : "Tap a light to switch it \u00b7 tap its code or hold for controls")
-        +" \u00b7 tap a room name for the whole room \u00b7 motion, temperature and air-quality tiles are read-only"),
+      (this._tipEl = el("span",{class:"lv-hint"},this._tipText())),
       // Admin only: the pencil to the builder. Same map, the other tool.
       // Not in Basic, as a light's ✎ (Basic's Mapping would land on Library).
       el("span",{style:"margin-left:auto"}),
@@ -1263,6 +1267,8 @@ class PadSpanLightsApp extends HTMLElement {
       hitHalo: true,
       collapseUnplaced: true,
       classFilter: this.state._classFilter,
+      // The header's tip follows the ⋯ "Tap a light" tick as it is pressed, not at the next redraw.
+      onShowLine: ()=>{ if(this._tipEl) this._tipEl.textContent = this._tipText(); },
       onClassFilter: (cls)=>{
         this.state._classFilter=cls;
         try{ localStorage.setItem(LS_CLASS, cls); }catch(_){}

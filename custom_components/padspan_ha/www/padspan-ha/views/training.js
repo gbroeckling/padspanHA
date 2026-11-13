@@ -402,7 +402,7 @@ function _svgKpiCards() {
 </g>
 <g class="k3">
   <rect x="272" y="24" width="112" height="78" rx="8" fill="#0d2318" stroke="#43a047" stroke-width="1.5"/>
-  <text x="328" y="48" text-anchor="middle" fill="#43a047" font-size="11" font-family="system-ui">Radios</text>
+  <text x="328" y="48" text-anchor="middle" fill="#43a047" font-size="11" font-family="system-ui">Receivers</text>
   <text x="328" y="80" text-anchor="middle" fill="#43a047" font-size="30" font-weight="700" font-family="system-ui">3</text>
   <text class="hint" x="328" y="96" text-anchor="middle" fill="#43a047" font-size="9" font-family="system-ui">↗ tap to list</text>
 </g>
@@ -2032,7 +2032,7 @@ const MANUAL_SECTIONS = [
       "The status dot in the top bar is amber or red — click it to open Health, which says what is wrong. Amber: a receiver is silent or hearing less than usual, or learning is suspended. Red: PadSpan isn't answering, positioning has stopped, or no receiver is reporting. Training → Full Manual → Health → The status dot explains when it shows.",
       "A receiver shows Silent or Hearing less (Receivers page, Health) — restart it; on ESPHome, also check its version and Wi-Fi. Rooms near it can be wrong until it recovers.",
       "Devices not appearing — the device must be in range of at least one receiver and sending Bluetooth. Check first that your receivers are reporting: the Receivers page shows each one's status, and Bluetooth → Scanners shows what each one hears.",
-      "Location seems wrong (device in wrong room) — signal strength can be affected by walls, interference, or receiver placement, and more receivers improve accuracy. Health → Problems found often names the cause. Make sure each receiver is in the right room: set it in Overview → View radios list → Assign or Change, or in Mapping → Edit → Radios → Room (Advanced and Development modes). If one receiver reads consistently stronger or weaker, give it a signal adjustment on the Receivers page (the same value as Settings → Tracking → Receivers and Bluetooth → Scanners → RSSI offset).",
+      "Location seems wrong (device in wrong room) — signal strength can be affected by walls, interference, or receiver placement, and more receivers improve accuracy. Health → Problems found often names the cause. Make sure each receiver is in the right room: set it in Overview → View radios list → Assign or Change, or in Mapping → Edit → Receivers → Room (Advanced and Development modes). If one receiver reads consistently stronger or weaker, give it a signal adjustment on the Receivers page (the same value as Settings → Tracking → Receivers and Bluetooth → Scanners → RSSI offset).",
       "Device keeps flickering between two rooms — raise the Room Change Delay in Settings → Tracking. 20–60 seconds is usually enough to stabilise a device on a room boundary.",
       "device_tracker shows not_home too quickly — raise the Home/Away Timeout in Settings → Tracking. If a device is briefly out of range in a thick-walled room, try 10–30 minutes.",
       "device_tracker shows not_home too slowly — lower the timeout. The minimum is 1 minute.",

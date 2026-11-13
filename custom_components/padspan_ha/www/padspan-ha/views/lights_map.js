@@ -5092,7 +5092,7 @@ export function buildLightsMapCard(hostIn){
               try { if (typeof t === "function") t(name); } catch (_) { /* the report is never the error */ }
             },
             // A tap reads its line when it lands; the floors and the scene row are drawn again.
-            changed: (key) => { if (key === "light_taps") return; if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });
+            changed: (key) => { if (key === "light_taps") { if (typeof host.onShowLine === "function") host.onShowLine(key); return; } if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });
       };
       // ⋯'s dot from the saved pref as the card is built (review 2026-11-11: no mark() was ever called): wired at once
       // where the list is loaded, and where this screen has ticks of its own as soon as it loads; else at the first press.

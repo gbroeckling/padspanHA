@@ -195,7 +195,15 @@ export function createUseSurface(o){
     if (H && y + h > H - 6) y = Math.max(6, ay - h - 52);
     card.el.style.left = `${Math.round(x)}px`; card.el.style.top = `${Math.round(y)}px`; card.el.style.visibility = "";
   }
-  function closeCard(){ if (card) { try { card.el.remove(); } catch (_) { /* gone with the view */ } card = null; } }
+  // Escape closes the card, as ✕ does (a keyboard has no other way to it).
+  const onEsc = (e) => { if (e.key === "Escape") closeCard(); };
+  const keys = () => (typeof window !== "undefined" && typeof window.addEventListener === "function" ? window : null);
+  function closeCard(){
+    if (!card) return;
+    { const w = keys(); if (w) w.removeEventListener("keydown", onEsc); }
+    try { card.el.remove(); } catch (_) { /* gone with the view */ }
+    card = null;
+  }
   function showCard(t){
     closeCard();
     const c = t.card || { title: t.label, lines: [] }, el = document.createElement("div");
@@ -228,6 +236,7 @@ export function createUseSurface(o){
     for (const ev of ["pointerdown", "pointerup", "click", "wheel"]) el.addEventListener(ev, (e) => e.stopPropagation());
     o.root.appendChild(el);
     card = { t, el };
+    { const w = keys(); if (w) w.addEventListener("keydown", onEsc); }
     placeCard();
   }
   // An "Under" pick does what a tap on that device does (the sidebar's

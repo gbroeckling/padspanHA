@@ -1172,7 +1172,7 @@ function _pinAndListen(ctx, el, cs, calData) {
     const py = p.y_frac * vbH;
     const sc = (p.scanner_readings || []).length;
     return `<circle cx="${px}" cy="${py}" r="3.5" fill="#52b788" stroke="white" stroke-width="1" opacity="0.85"/>
-            <title>${ctx.helpers.esc(p.room || p.label || "")} (${sc} receivers)</title>`;
+            <title>${ctx.helpers.esc(p.room || p.label || "")} (${sc} receiver${sc === 1 ? "" : "s"})</title>`;
   }).join("");
 
   // Current pin

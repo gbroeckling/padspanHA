@@ -55,10 +55,10 @@ def test_the_calibration_tooltip_carries_the_name():
     """The point tooltip (a beacon's advertised name can be the label)."""
     html = "\n".join(_render(HOSTILE)["calibration.js"]["html"])
     # "receivers", the word a person reads (review 2026-11-11, C7); the escaping is what is tested.
-    assert f"<title>{SHOWN} (1 receivers)</title>" in html
+    assert f"<title>{SHOWN} (1 receiver)</title>" in html
 
 
 def test_a_normal_name_is_unchanged():
     out = _render("Kitchen ESP32")
     assert "Kitchen ESP32 (40% agreement)" in "\n".join(out["health.js"]["html"])
-    assert "<title>Kitchen ESP32 (1 receivers)</title>" in "\n".join(out["calibration.js"]["html"])
+    assert "<title>Kitchen ESP32 (1 receiver)</title>" in "\n".join(out["calibration.js"]["html"])

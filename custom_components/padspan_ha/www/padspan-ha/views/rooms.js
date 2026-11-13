@@ -267,7 +267,7 @@ async function _setColor(ctx, row, hex) {
  *  (wizard_build.putOnMap: only a room the house doesn't have, never one it has). */
 function _putOnMap(ctx, row) {
   if (_isSample(ctx.state) || !WB) return;
-  WB.putOnMap(ctx, { mapId: row.onPlan.id, floorId: row.onPlan.floorId, rooms: [row.name], scanners: [], readable: true },
+  return WB.putOnMap(ctx, { mapId: row.onPlan.id, floorId: row.onPlan.floorId, rooms: [row.name], scanners: [], readable: true },
     { refresh: () => ctx.actions.modelRefresh(), where: ctx.state.complexity === "basic" ? "Edit outline opens it on its plan" : "Mapping → Layout shows them" });
 }
 
@@ -318,7 +318,14 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
   // Outline.
   const outlineKids = [el("span", {}, row.onPlan ? `Drawn on ${row.onPlan.name}, not on the house map yet`
     : row.outline ? (row.areaM2 != null ? `Drawn, ${row.areaM2} m²` : "Drawn") : "Not drawn")];
-  if (row.onPlan && !readOnly && WB) outlineKids.push(el("button", { class: "btn inline", style: "font-size:12px;padding:3px 10px", "data-put": "map", onclick: () => _putOnMap(ctx, row) }, "Put it on the map"));
+  if (row.onPlan && !readOnly && WB) {
+    // Busy while it writes (the page is drawn again when it is done; a press that did nothing gets its button back).
+    const put = el("button", { class: "btn inline", style: "font-size:12px;padding:3px 10px", "data-put": "map", onclick: async () => {
+      put.disabled = true; put.textContent = "Putting it on the map…";
+      try { await _putOnMap(ctx, row); } finally { put.disabled = false; put.textContent = "Put it on the map"; }
+    } }, "Put it on the map");
+    outlineKids.push(put);
+  }
   if (row.mapId) {
     outlineKids.push(el("button", { style: LINKBTN, "data-link": "outline", onclick: () => _editOutline(ctx, row) }, row.outline ? "Edit outline" : "Draw outline"));
   } else {
