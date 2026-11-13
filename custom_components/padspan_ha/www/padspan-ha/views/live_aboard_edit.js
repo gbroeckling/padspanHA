@@ -156,6 +156,8 @@ const CSS = `
 export function createEditor(ctx){
   const { THREE, HOUSE, DRAFT, root, canvas, bar, guard } = ctx;
   let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
+  // Heights' "Move it": the device waiting for its new place (placing), and where the last one moved was (moved).
+  let placing = null, moved = null;
   let saving = false, afterSave = null, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
   let moveDue = null, sliding = null;        // a slider being dragged: what it moves, drawn in place once a frame
   let resheet = false;                       // a light's kind changed: its sheet again once it is drawn as it
@@ -688,7 +690,7 @@ export function createEditor(ctx){
   function pickTool(t){
     const was = tool;
     tool = tool === t ? null : t;
-    pending = null; gesture = null; line.visible = false;
+    pending = null; gesture = null; line.visible = false; placing = null;
     const drawing = (x) => x === "door" || x === "window" || x === "doorway";
     if (drawing(tool) && !drawing(was)) { const F = currentFloor(); if (F) ctx.topDown(F); }
     if (tool === "plans" && was !== "plans") { const F = currentFloor(); if (F) ctx.topDown(F); }   // the list under the plan, straight down
@@ -740,7 +742,7 @@ export function createEditor(ctx){
   }
 
   // ── the sheet: what is picked ─────────────────────────────────────────────
-  function select(s){ sel = s; pending = null; sheetFor(); paint(); }
+  function select(s){ sel = s; pending = null; if (!s || s.eid !== placing) placing = null; sheetFor(); paint(); }
   function sheetFor(){
     sheet.innerHTML = "";
     sheetRefresh = null;
@@ -987,6 +989,49 @@ export function createEditor(ctx){
     sheetRefresh();
     acts.appendChild(seg(reset));
     sheet.appendChild(acts);
+    moveRow(eid, info);
+  }
+  // Where it stands on its floor. Its place is the map's own (Mapping → Atlas builder's drag), so a move is written
+  // to its placement record at once: not part of this editor's Save, Undo or Discard. "Put it back" undoes the last.
+  const baseFloor = (F) => String(F.fl.id).split("~")[0];   // a raised room is drawn as a level of its own floor
+  function moveRow(eid, info){
+    if (!(ctx.canMove && ctx.canMove())) return;
+    const acts = d("div", "la3d-acts");
+    const mv = btn(placing === eid ? "Tap its new place…" : "Move it", "Then tap where on this floor it should be. Saved at once.", () => {
+      placing = placing === eid ? null : eid;
+      hint(placing ? "Tap its new place, on the same floor. It is saved at once." : "Tap a light, a sensor or a readout.");
+      sheetFor();
+    });
+    mv.setAttribute("aria-pressed", String(placing === eid));
+    acts.appendChild(seg(mv));
+    if (moved && moved.eid === eid) acts.appendChild(seg(btn("Put it back", "Back to where it was before the last move", () => moveTo(eid, moved.x, moved.y, true))));
+    sheet.appendChild(acts);
+    // A kind that goes on a wall or round its room is drawn away from its spot: said, with the way to change it.
+    const far = info.drawn ? Math.hypot(info.drawn.x - info.x, info.drawn.z - info.y) : 0;
+    if (far > 0.5) sheet.appendChild(d("p", "la3d-sub", `Drawn ${DRAFT.metres(far)} from where it is placed: what it is puts it on the nearest wall, or round its room. "What is this?" changes that.`));
+  }
+  function placeAt(x, y){
+    const eid = placing, info = eid ? ctx.device(eid) : null, at = info && ctx.floorAt ? ctx.floorAt(x, y) : null;
+    if (!info) { placing = null; sheetFor(); return; }
+    if (!at) { flash("Tap on a room's floor."); return; }
+    if (baseFloor(at.F) !== baseFloor(info.F)) { flash("That is another floor. A device changes floor on the flat map: Mapping → Atlas builder."); return; }
+    moveTo(eid, at.x, at.y);
+  }
+  async function moveTo(eid, x, y, back = false){
+    const info = ctx.device(eid);
+    if (!info || saving) return;
+    const was = { eid, x: info.x, y: info.y };
+    placing = null;
+    saving = true; paint();
+    try {
+      await ctx.move(eid, DRAFT.mm(x), DRAFT.mm(y));
+      moved = back ? null : was;
+      hint(back ? "Back where it was." : "Moved, and saved. \"Put it back\" undoes it.");
+    } catch (err) {
+      flash(`It couldn't be moved (${String((err && err.message) || err)}). Nothing was changed.`);
+    }
+    saving = false;
+    sheetFor(); paint(); ctx.render();
   }
 
   /** "What is this?": a light's kind in Live Aboard (3D only), or PadSpan's guess. */
@@ -1121,6 +1166,8 @@ export function createEditor(ctx){
     if (stripping()) return strip.down(e);               // a handle: "drag"; a wall while drawing: "line"; a light: "tap"
     if (planning() && plans.mapShown()) return plans.down(e);   // the vetting map: a stair being moved by hand: "drag"; it never turns
     const x = e.clientX, y = e.clientY, k = kindOfPtr(e);
+    // "Move it" waits for its place: the next tap is that (a drag still turns the house).
+    if (placing) { gesture = { kind: "tap", target: { place: true }, x0: x, y0: y }; return "tap"; }
     const s = shown();
     if (s && s.handles && sel) {
       const mid = (s.z[0] + s.z[1]) / 2;
@@ -1205,6 +1252,7 @@ export function createEditor(ctx){
     if (stripping()) { strip.tap(e); return; }
     gesture = null;
     if (!g || !g.target) return;
+    if (g.target.place) { placeAt(g.x0, g.y0); return; }
     if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? "Drag either end to change its width." : "From the map: set it for Live Aboard."); }
     else if (g.target.eid) select({ eid: g.target.eid });
   }
@@ -1385,7 +1433,7 @@ export function createEditor(ctx){
                canRedo: !!(draft && draft.canRedo), saving, asking: askEl.classList.contains("on"), hint: hintMsg, hintBad,
                sel: sel ? (sel.opening ? { opening: { id: sel.opening.id, added: sel.opening.added, kind: sel.opening.kind } } : { eid: sel.eid }) : null,
                draft: draft ? JSON.parse(JSON.stringify(draft.cur)) : null, changes: draft ? draft.changes() : null,
-               gesture: gesture ? { kind: gesture.kind, span: gesture.span || null } : null, pending: !!pending,
+               gesture: gesture ? { kind: gesture.kind, span: gesture.span || null } : null, pending: !!pending, placing, moved,
                line: line.visible, arcs: arcs.length / 3, cantEdit: cantEdit(), editWhy: editWhy.style.display === "none" ? "" : editWhy.textContent,
                editAvailable: bEdit.getAttribute("aria-disabled") !== "true",
                furnishOn, furnish: fur ? fur.state() : null, strip: strip ? strip.state() : null, planPending: draft ? DRAFT.planPending(draft.cur) : [] };

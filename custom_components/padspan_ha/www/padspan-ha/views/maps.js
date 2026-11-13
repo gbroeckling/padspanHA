@@ -784,6 +784,22 @@ export function _laFileHeights(ctx, mapState, eids, r) {
   if (r && Array.isArray(r.light_heights_gone) && ctx.state.model) ctx.state.model.light_heights_gone = r.light_heights_gone;
   ctx.actions.renderRooms();
 }
+// Live Aboard's "Move it" (Edit → Heights): a placed device's spot on its own floor, on its placement record (the Atlas's
+// own command and gate). The rest of the record goes as it is and its height never (left out, the stored one stays: a
+// move never sends back an old copy of a height); then the map is read again, so both views have it. A place dragged
+// on the flat map and not yet saved is let go: this one is newer.
+export function _laMovePut(ctx, mapState) {
+  return (eid, x_m, y_m) => {
+    const pos = ctx.state.model && ctx.state.model.light_positions_m, rec = pos && pos[eid];
+    if (!rec) return Promise.reject(new Error("it has no place on the map yet"));
+    const { z_m, ...lp } = rec;
+    return ctx.actions.wsCall("padspan_ha/fabric_light_position_set", { entity_id: eid, ...lp, x_m, y_m })
+      .then((r) => {
+        if (mapState && mapState._lightsDraftM) delete mapState._lightsDraftM[eid];
+        return Promise.resolve(ctx.actions.modelRefresh()).then(() => r);
+      });
+  };
+}
 // Live Aboard's heights, on the placement records (the Atlas's own command
 // and gate), then the map read again so both views have them.
 export function _laHeightsPut(ctx, mapState) {
@@ -10814,6 +10830,8 @@ function _lightsTab(ctx, maps, active) {
         .then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); return r; }) : null,
       // Its heights, on the placement records (_laHeightsPut).
       heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null,
+      // Its "Move it": a device's spot on its floor, on its placement record (_laMovePut), on the same gate.
+      moves: paid && !preview ? _laMovePut(ctx, mapState) : null,
       // Open (Loft) edges' railing words, {barrier id: word}, each put on its
       // stored record by the server (live_aboard.js stampEdgeRails: the railings
       // from before become choices after a Save), on the same gate as Save.

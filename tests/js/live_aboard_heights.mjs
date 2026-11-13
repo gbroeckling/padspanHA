@@ -74,6 +74,7 @@ const tryCase = async (name, fn) => { try { await fn(); } catch (e) { failures.p
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const settle = async (rounds = 12) => { await shim.flush(rounds); await new Promise(r => globalThis._realSetTimeout(r, 0)); };
 const near = (a, b) => typeof a === "number" && Math.abs(a - b) < 1e-6;
+const about = (a, b) => typeof a === "number" && Math.abs(a - b) < 0.06;   // a spot tapped on the screen
 
 // ── rules ───────────────────────────────────────────────────────────────────
 await tryCase("rules: only real heights and Default chosen; none in any record: the file itself", async () => {
@@ -181,12 +182,19 @@ const heightsFn = async (heights) => {
   }
   return { ok: true, heights };
 };
+const moveCalls = [];
+const movesFn = async (eid, x, y) => {
+  moveCalls.push([eid, x, y]);
+  if (server.failMove) { const f = server.failMove; server.failMove = null; throw f; }
+  Object.assign(server.model.light_positions_m[eid], { x_m: x, y_m: y });
+  return { ok: true };
+};
 const api = { calls: [], toast(){}, toggle(){}, openRoom(){}, openFloor(){}, openControls(){}, openActivity(){}, controlsFor: () => null,
               lightsByEid: {}, hass: null };
-let slotN = 0, slot = null, withHeights = true, draftOnly = null, mapping = null;
+let slotN = 0, slot = null, withHeights = true, withMoves = true, draftOnly = null, mapping = null;
 const P = () => ({ model: clone(server.model), floors: server.model.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: null, quality: "low",
   telemetry: () => {}, states: {}, config: {}, bearing: 0, saveNorth: null, useApi: () => api, haStartedMs: 0,
-  load: async () => ({ data: clone(server.file) }), edit: editFn, heights: withHeights ? heightsFn : null,
+  load: async () => ({ data: clone(server.file) }), edit: editFn, heights: withHeights ? heightsFn : null, moves: withMoves ? movesFn : null,
   // Mapping: the draft adds a device just dropped (draftOnly), not yet saved.
   ...(draftOnly ? { records: () => clone(server.model.light_positions_m) } : null),
   // Mapping for real (startMapping): its own heights hook, its model as read,
@@ -287,6 +295,57 @@ await tryCase("read: with no height in any record, the house is drawn from the f
 });
 
 // ── save ────────────────────────────────────────────────────────────────────
+await tryCase("move: the host sends the record with its new spot, never its height, and lets go of an unsaved drag of it", async () => {
+  const sentWs = [], mapState = { _lightsDraftM: { "light.den": { x_m: 1, y_m: 1 } } };
+  const ctx = { state: { model: { light_positions_m: { "light.den": { x_m: 8, y_m: 7, floor_id: "main", shape: "pendant", z_m: 1.6 } } } },
+    actions: { wsCall: async (type, msg) => { sentWs.push([type, msg]); return { ok: true }; }, modelRefresh: async () => { sentWs.push(["refresh"]); } } };
+  await MAPS._laMovePut(ctx, mapState)("light.den", 3, 4);
+  let refused = null;
+  try { await MAPS._laMovePut(ctx, mapState)("light.none", 1, 1); } catch (e) { refused = String(e && e.message); }
+  check("move: the host sends the record with its new spot, never its height, and lets go of an unsaved drag of it",
+    JSON.stringify(sentWs) === JSON.stringify([["padspan_ha/fabric_light_position_set", { entity_id: "light.den", x_m: 3, y_m: 4, floor_id: "main", shape: "pendant" }], ["refresh"]])
+    && !("light.den" in mapState._lightsDraftM) && /no place on the map/.test(refused || ""), { sentWs, mapState, refused });
+});
+await tryCase("move: Move it then a tap on its floor writes its new spot at once, the height untouched; Put it back undoes; no host for it, no button", async () => {
+  await start(withZ({ "light.living": 1.9 }), { ...FILE, lights: {}, devices: {} });
+  moveCalls.length = 0; heightCalls.length = 0;
+  const before = payloads.length;
+  await openHeights();
+  const picked = await pickDevice("light.living");
+  const offered = !!button("Move it", "la3d-sheet");
+  click("Move it", "la3d-sheet"); await settle();
+  const waiting = ed().placing;
+  // Off every floor: said, and still waiting.
+  tap([3, 3]); await settle();
+  const missed = { hint: hint(), placing: ed().placing, calls: moveCalls.length };
+  tap(slot._whereOf("main", 4.0, 3.0, 0)); await settle(); await settle();
+  const sent = moveCalls.slice(), after = { hint: hint(), placing: ed().placing, moved: ed().moved, dirty: ed().dirty };
+  poll(); await settle();
+  const at = clone(server.model.light_positions_m["light.living"]);
+  const back = !!button("Put it back", "la3d-sheet");
+  click("Put it back", "la3d-sheet"); await settle(); await settle();
+  const undone = moveCalls.slice(1), atBack = clone(server.model.light_positions_m["light.living"]);
+  // A refused move: said, nothing changed.
+  poll(); await settle();
+  server.failMove = new Error("pro_required");
+  click("Move it", "la3d-sheet"); await settle();
+  tap(slot._whereOf("main", 5.0, 3.5, 0)); await settle(); await settle();
+  const refused = { hint: hint(), bad: ed().hintBad, at: clone(server.model.light_positions_m["light.living"]) };
+  // A host with no move command (the sidebar, Preview): the button is not there.
+  withMoves = false;
+  await start(withZ({ "light.living": 1.9 }), { ...FILE, lights: {}, devices: {} });
+  await openHeights(); await pickDevice("light.living");
+  const noHost = !!button("Move it", "la3d-sheet");
+  withMoves = true;
+  check("move: Move it then a tap on its floor writes its new spot at once, the height untouched; Put it back undoes; no host for it, no button",
+    picked && offered && waiting === "light.living" && missed.calls === 0 && missed.placing === "light.living" && /room's floor/.test(missed.hint)
+    && sent.length === 1 && sent[0][0] === "light.living" && about(sent[0][1], 4.0) && about(sent[0][2], 3.0)
+    && after.placing === null && after.moved && near(after.moved.x, 2.2) && near(after.moved.y, 4) && !after.dirty && /Moved, and saved/.test(after.hint)
+    && about(at.x_m, 4.0) && at.z_m === 1.9 && heightCalls.length === 0 && payloads.length === before
+    && back && undone.length === 1 && near(undone[0][1], 2.2) && near(undone[0][2], 4) && near(atBack.x_m, 2.2)
+    && /couldn't be moved \(pro_required\)/.test(refused.hint) && refused.bad && near(refused.at.x_m, 2.2) && !noHost,
+    { picked, offered, waiting, missed, sent, after, at, back, undone, atBack, refused, noHost });
+});
 await tryCase("save: Heights writes the record in one Save, and nothing to the file", async () => {
   await start(withZ({ "light.den": 1.6 }), { ...FILE, lights: { "light.den": { kind: "pendant" } }, devices: {} });
   heightCalls.length = 0;

@@ -1502,7 +1502,11 @@ function createSlot(slotKey){
     editor = EDIT.createEditor({
       THREE, HOUSE, DRAFT, root, canvas, bar, guard,
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
-      pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid), spotsOf: (l, kind, top) => HEIGHTS.spotsOf(l, kind, top), doorClass: (eid) => classOf(eid),
+      pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
+      // Heights' "Move it": the room floor under a point of the screen, and the host's write of a device's new spot
+      // (its placement record: maps.js _laMovePut), where the host has one.
+      floorAt: (x, y) => roomAtScreen(x, y), canMove: () => !!(lastP && typeof lastP.moves === "function"),
+      move: (eid, x, y) => lastP.moves(eid, x, y), spotsOf: (l, kind, top) => HEIGHTS.spotsOf(l, kind, top), doorClass: (eid) => classOf(eid),
       // The file with the records' heights over it (what the draft edits).
       file: () => (file ? shownFile() : null), reload: () => reloadFile(), problem: () => fileErr, newer: () => setFileErr("house3d_newer"),
       saved: (data) => { fileRaw = data; file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
@@ -3955,7 +3959,7 @@ function createSlot(slotKey){
     const h = _hit.intersectObjects(tiles, false)[0];
     const F = h && floorsUi.find(q => q.tiles === h.object);
     const r = F && HOUSE.roomAt(F.rooms, h.point.x, h.point.z);
-    return r ? { F, r } : null;
+    return r ? { F, r, x: h.point.x, y: h.point.z } : null;
   }
   function flyToRoomAt(x, y){
     const at = roomAtScreen(x, y);
@@ -4663,7 +4667,7 @@ function createSlot(slotKey){
     return { section: L ? "lights" : "devices", eid, F: X.F, z: X.z, zDefault: X.zDefault, l: l || X.l || null, x: X.x, y: X.y,
              kind: L ? L.drawn : null, guess: L ? L.guess : null,
              label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid,
-             at: new THREE.Vector3(X.x, X.F.fl.elev + X.z, X.y) };
+             at: new THREE.Vector3(X.x, X.F.fl.elev + X.z, X.y), drawn: L && L.at ? L.at : null };
   }
   // The line tool traces the plan: straight down on the floor it draws on.
   function topDownOn(F){

@@ -238,3 +238,10 @@ def test_the_new_module_carries_the_licence_header() -> None:
     for p in (_VIEWS / "atlas_heights.js", Path(HS.__file__).with_name("house3d_heights.py")):
         head = p.read_text(encoding="utf-8")[:300]
         assert "GNU General Public License v3.0" in head and "Garry Broeckling" in head, p.name
+
+
+def test_move_it_writes_a_devices_new_spot_at_once_and_never_its_height(aboard) -> None:
+    # Live Aboard's Edit → Heights → "Move it" (live_aboard_edit.js moveRow, maps.js _laMovePut).
+    _case(aboard, "move:", 2)
+    maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    assert "moves: paid && !preview ? _laMovePut(ctx, mapState) : null," in maps
