@@ -402,7 +402,10 @@ await tryCase("buttons: off unless ticked; then each light a button, two that ov
   const leakBefore = calls.slice();
   prefs.set("show_ctl-btn", JSON.stringify({ light_buttons: true }));
   card(slot, over); await settle();
-  const far = slot._where({ eid: "light.far" }), twin = slot._where({ eid: "light.twin_a" });
+  // Its button stands on the floor under it, not on the fixture up at the ceiling: pressed there.
+  const fixture = slot._where({ eid: "light.far" });
+  const far = slot._where({ button: "light.far" }), twin = slot._where({ button: "light.twin_a" });
+  const below = far[1] - fixture[1], onFixture = hitOf(slot._pick(fixture[0], fixture[1]));
   calls.length = 0; await tapAt(slot, far);
   const tapFar = calls.slice(), btns = S(slot).use.buttons;
   // 12 px off the fixture: still the button's (its disc is 15 px), where the fixture itself was a few pixels.
@@ -426,6 +429,7 @@ await tryCase("buttons: off unless ticked; then each light a button, two that ov
   const J = JSON.stringify;
   check("buttons: off unless ticked; then each light a button, two that overlap one with their count, a sensor and the floor their room",
     rows.includes("light_buttons") && before.buttons === 0 && before.far === "device:light.far" && J(leakBefore) === J([["toggle", "binary_sensor.kitchen_leak"]])
+    && below > 22 && onFixture !== "device:light.far" && btns.every(b => b.stems === (b.words === "2" ? 2 : 1))
     && btns.length === 3 && btns.filter(b => b.words === "2" && b.on === "some").length === 1
     && btns.filter(b => b.words === "" && b.on === "all").length === 1 && btns.filter(b => b.words === "" && b.on === "none").length === 1
     && J(tapFar) === J([["toggle", "light.far"]]) && J(tapNear) === J([["toggle", "light.far"]])
@@ -434,7 +438,7 @@ await tryCase("buttons: off unless ticked; then each light a button, two that ov
     && SENT.filter(n => n === "house3d_show:button_tap:light").length === 2 && SENT.filter(n => n === "house3d_show:button_tap:several").length === 1
     && SENT.filter(n => n === "house3d_show:button_tap:room").length === 2
     && !bRows.includes("light_buttons") && bButtons === 0,
-    { rows: rows.includes("light_buttons"), before, leakBefore, btns, tapFar, tapNear, tapTwin, tapLeak, floor, tapFloor, bRows: bRows.includes("light_buttons"), bButtons,
+    { rows: rows.includes("light_buttons"), before, leakBefore, below, onFixture, btns, tapFar, tapNear, tapTwin, tapLeak, floor, tapFloor, bRows: bRows.includes("light_buttons"), bButtons,
       sent: SENT.filter(n => n.includes("button_tap")) });
 });
 // Review 2026-11-11: only a chip (and a room's name) loses to a light in reach; a lock, a leak mark or a motion marker

@@ -271,6 +271,10 @@ const CSS = `
 @keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
 .la3d-btn circle{fill:rgba(8,16,11,.84);stroke:#cbd5e1;stroke-width:2}
+.la3d-btn path{fill:none;stroke:#cbd5e1;stroke-linecap:round}
+.la3d-btn .stem{stroke-width:1.5;stroke-opacity:.75;stroke-dasharray:1 4}
+.la3d-btn .tip{stroke-width:7}
+.la3d-btn[data-on="all"] path,.la3d-btn[data-on="some"] path{stroke:#fbbf24}
 .la3d-btn[data-on="all"] circle{fill:#fbbf24;stroke:#fff7d6}
 .la3d-btn[data-on="some"] circle{stroke:#fbbf24;stroke-width:3}
 .la3d-btn[data-on="gone"]{opacity:.45}
@@ -4034,10 +4038,16 @@ function createSlot(slotKey){
   // The ⋯ list's "Lights as buttons" (off unless this screen ticks it; the Atlas tab and its walls, while a tap switches
   // lights). Research 2026-11-13: a fixture that is off is drawn its real size, a few pixels from across a room, and the
   // nearest device within reach took the tap, so a tap meant for a light found the sensor beside it. With this on, every
-  // light of the floors showing is a button of one size on screen, standing on the fixture and drawn over the walls
-  // (live_aboard_use.js paints them); the button is what a tap lands on. Buttons that would overlap are one, with their
-  // count: a tap on it lists its lights. Anywhere else in a room, a tap opens the room's sheet.
+  // light of the floors showing is a button of one size on screen, drawn over the walls (live_aboard_use.js paints
+  // them); the button is what a tap lands on. Buttons that would overlap are one, with their count: a tap on it lists
+  // its lights. Anywhere else in a room, a tap opens the room's sheet.
+  // Where a button stands (Garry, 2026-11-13: on the fixture, a ceiling light's button hung in the air over another
+  // room once the ceiling was cut away, "not clearly visible where the light actually exists"): on the FLOOR, straight
+  // under the fixture, where a spot in a picture of a house is one place only (a point up in the air is anywhere along
+  // the line of sight: the ground is what places it, as a pin's line to the ground does in Google Earth and a drop
+  // line in a 3D chart), with a plumb line up to the fixture itself and a dot on it.
   const BTN_JOIN = 28;                       // buttons nearer than this on screen are one, px
+  const FOOT_UP = 0.03, _foot = new THREE.Vector3();   // a button's place: this far over its floor, under its fixture
   const buttonsOn = () => mapOnly && !!showOn && showOn.light_buttons === true && !showSuspended() && lightTapsOn();
   /** Is v under the floor of a storey that shows above it, seen from the eye? (No button shows through a floor.) */
   function underFloor(v, own){
@@ -4050,22 +4060,27 @@ function createSlot(slotKey){
     }
     return false;
   }
-  /** The buttons as they stand now: [{x, y (client px), v (its place in the house), lights: [L, …]}]. */
+  /** The buttons as they stand now: [{x, y (client px), v (its place in the house: on the floor), lights: [L, …],
+   *  tops: [each fixture's own place on screen, or null]}]. */
   function buttonsNow(rect){
     const out = [];
     if (!buttonsOn() || !house || !rect.width || !rect.height) return out;
     for (const L of lights) {
-      if (!L.at || !L.F.group.visible || L.swap || dimOf(L.eid) || underFloor(L.at, L.F)) continue;
-      const s = screenPt(L.at, rect);
+      if (!L.at || !L.F.group.visible || L.swap || dimOf(L.eid)) continue;
+      const foot = _foot.set(L.at.x, L.F.fl.elev + FOOT_UP, L.at.z);
+      if (underFloor(foot, L.F)) continue;
+      const s = screenPt(foot, rect);
       if (!s) continue;
-      const b = out.find(q => Math.hypot(q.x - s[0], q.y - s[1]) < BTN_JOIN);
-      if (!b) { out.push({ x: s[0], y: s[1], v: L.at.clone(), lights: [L] }); continue; }
+      const top = screenPt(L.at, rect), b = out.find(q => Math.hypot(q.x - s[0], q.y - s[1]) < BTN_JOIN);
+      if (!b) { out.push({ x: s[0], y: s[1], v: foot.clone(), lights: [L], tops: [top] }); continue; }
       const n = b.lights.push(L);
-      b.x += (s[0] - b.x) / n; b.y += (s[1] - b.y) / n; b.v.lerp(L.at, 1 / n);
+      b.tops.push(top);
+      b.x += (s[0] - b.x) / n; b.y += (s[1] - b.y) / n; b.v.lerp(foot, 1 / n);
     }
     return out;
   }
-  /** The buttons for the overlay: [{x, y (px from the view's own corner), n, on: "all" | "some" | "none" | "gone"}]. */
+  /** The buttons for the overlay: [{x, y (px from the view's own corner), n, on: "all" | "some" | "none" | "gone",
+   *  stems: [[dx, dy] from the button to each fixture, px]}]. */
   function buttonsUi(){
     if (!buttonsOn() || !renderer || !root || failed) return [];
     const rect = view3Rect(), r0 = root.getBoundingClientRect();
@@ -4074,7 +4089,7 @@ function createSlot(slotKey){
     return buttonsNow(rect).map(b => {
       const lit = b.lights.filter(L => L.look && L.look.on).length;
       const on = lit === b.lights.length ? "all" : lit ? "some" : b.lights.every(L => L.look && L.look.unavailable) ? "gone" : "none";
-      return { x: b.x - ox, y: b.y - oy, n: b.lights.length, on };
+      return { x: b.x - ox, y: b.y - oy, n: b.lights.length, on, stems: b.tops.filter(Boolean).map(t => [t[0] - b.x, t[1] - b.y]) };
     });
   }
   /** What a press on a button lands on: its light, or the several it stands for. */
@@ -5840,6 +5855,7 @@ function createSlot(slotKey){
         const v = openingQuad(o.F, o.P);
         return at(v[0].clone().add(v[2]).multiplyScalar(0.5));
       }
+      if (q.button) { const b = buttonsNow(rect).find(k => k.lights.some(L => L.eid === q.button)); return b ? [b.x, b.y] : null; }   // "Lights as buttons": its button
       if (q.floorOf) { const U = lights.find(x => x.eid === q.floorOf); return U && U.floorPick ? at(U.floorPick[0]) : null; }   // under a covered patio's cover: its floor spot
       const L = lights.find(x => x.eid === q.eid);
       if (L && L.pick && L.pick.length) {

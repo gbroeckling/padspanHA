@@ -34,6 +34,7 @@ const NS = "http://www.w3.org/2000/svg";
 const RING_R = 18;                         // the pressed ring, px
 const HOVER_R = 15;                        // the hover mark, px
 const BTN_R = 15;                          // a light's button ("Lights as buttons"), px
+const STEM_MIN = 22;                       // a fixture this far from its button on screen gets its plumb line, px
 const TOUCH_SLOP_PX = 16;                  // a finger may roll this far and still be a press (a mouse: lights_map.js SLOP_PX)
 const HIDE_GRACE_MS = 450;                 // the hover box lingers this long over nothing (as on the Atlas)
 /** A piece of furniture linked to a device the Atlas has no marker for (a TV,
@@ -138,8 +139,10 @@ export function createUseSurface(o){
     if (at.poly) g.appendChild(shape("polygon", { ...st, points: at.poly.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ") }));
     else g.appendChild(shape("circle", { ...st, cx: at.x.toFixed(1), cy: at.y.toFixed(1), r: HOVER_R }));
   }
-  // "Lights as buttons": one disc a light (lit: gold), or its count where several overlap. The nodes are kept and
-  // moved, so a turning house makes none.
+  // "Lights as buttons": one disc a light (lit: gold), or its count where several overlap, on the floor under it; a
+  // dotted plumb line from the disc up to each fixture and a dot on the fixture, so where the light itself is shows
+  // (none for a fixture nearer than STEM_MIN: it is under the disc). The nodes are kept and moved, so a turning
+  // house makes none.
   function paintButtons(){
     const list = typeof o.buttons === "function" ? o.buttons() || [] : [];
     while (btnG.childNodes.length > list.length) btnG.removeChild(btnG.lastChild);
@@ -147,12 +150,17 @@ export function createUseSurface(o){
       let g = btnG.childNodes[i];
       if (!g) {
         g = shape("g", { class: "la3d-btn" });
+        g.appendChild(shape("path", { class: "stem" }));
+        g.appendChild(shape("path", { class: "tip" }));
         g.appendChild(shape("circle", { r: BTN_R }));
         g.appendChild(shape("text", {}));
         btnG.appendChild(g);
       }
       g.setAttribute("transform", `translate(${b.x.toFixed(1)},${b.y.toFixed(1)})`);
       g.setAttribute("data-on", b.on);
+      const far = (b.stems || []).filter(s => Math.hypot(s[0], s[1]) >= STEM_MIN);
+      g.childNodes[0].setAttribute("d", far.map(s => { const k = BTN_R / Math.hypot(s[0], s[1]); return `M${(s[0] * k).toFixed(1)},${(s[1] * k).toFixed(1)}L${s[0].toFixed(1)},${s[1].toFixed(1)}`; }).join(""));
+      g.childNodes[1].setAttribute("d", far.map(s => `M${s[0].toFixed(1)},${s[1].toFixed(1)}h0`).join(""));
       const words = b.n > 1 ? String(b.n) : "";
       if (g.lastChild.textContent !== words) g.lastChild.textContent = words;
     });
@@ -538,7 +546,8 @@ export function createUseSurface(o){
                under: hover && hover.under ? hover.under.map(u => u.key) : [],
                press: press ? { key: press.target.key, armed: press.armed, ring: !!press.ring, dimming: press.dragBri !== null } : null,
                card: card ? { key: card.t.key, text: card.el.textContent } : null,
-               buttons: Array.from(btnG.childNodes).map(g => ({ at: g.getAttribute("transform"), on: g.getAttribute("data-on"), words: g.lastChild.textContent })) };
+               buttons: Array.from(btnG.childNodes).map(g => ({ at: g.getAttribute("transform"), on: g.getAttribute("data-on"), words: g.lastChild.textContent,
+                 stems: (g.childNodes[1].getAttribute("d") || "").split("M").length - 1 })) };
     },
   };
 }
