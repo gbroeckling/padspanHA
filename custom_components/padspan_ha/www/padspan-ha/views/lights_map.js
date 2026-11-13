@@ -1426,6 +1426,14 @@ export function openRoomSheet(api, lights, room, onlyEids){
   }
   openAggregateSheet(api, { title: only ? `Unplaced in ${room}` : room, sub: parts.join(" · "), items, actions });
 }
+/** The lights one button stands for where several overlap in the 3D look (live_aboard.js "Lights as buttons"):
+ *  each with its own switch, and all of them on or off. */
+export function openLightsSheet(api, lights, eids){
+  const only = new Set(eids), items = lights.filter(l => only.has(l.entity_id)), ids = items.map(l => l.entity_id);
+  const on = items.filter(l => l.state === "on").length;
+  openAggregateSheet(api, { title: `${items.length} lights here`, sub: `${on} on`, items,
+    actions: [{ label: "All off", run: () => api.setMany(ids, false) }, { label: "All on", primary: true, run: () => api.setMany(ids, true) }] });
+}
 // Read-only info classes the floor sheet always lists — not already counted
 // via lightEids/fanEids, and not conditional the way motion/air/flood are
 // just above (those earn their own clause because they also drive the

@@ -29,7 +29,7 @@ PATH = "/tools/live_aboard_harness/index.html"
 SEG = "main,6,10,7,10"   # the main-floor wall pw_sheet.py draws its door on
 TRIES = 3
 CHECKS = (
-    [("load", ["pw_load.py"]), ("raised", ["pw_raised.py"]), ("dimmed", ["pw_dimmed.py"]), ("help", ["pw_help.py"]), ("tool", ["pw_tool.py"]), ("sheet", ["pw_sheet.py", "sheet.png"]), ("plans", ["pw_plans.py", "plans"]), ("plan-lights", ["pw_plan_lights.py", "plan-lights"])]
+    [("load", ["pw_load.py"]), ("raised", ["pw_raised.py"]), ("dimmed", ["pw_dimmed.py"]), ("buttons", ["pw_buttons.py"]), ("help", ["pw_help.py"]), ("tool", ["pw_tool.py"]), ("sheet", ["pw_sheet.py", "sheet.png"]), ("plans", ["pw_plans.py", "plans"]), ("plan-lights", ["pw_plan_lights.py", "plan-lights"])]
     + [(f"door-{t}", ["pw_door.py", t, SEG, f"door-{t}.png"]) for t in ("Door", "Window", "Doorway")]
     + [(f"flow-{s}", ["pw_flow.py", s, f"flow-{s}"]) for s in ("draw", "corner", "taps", "resize", "undo", "keys", "strip")]
 )

@@ -645,9 +645,11 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 # opened (a scene, one not made in the editor, a preset). Never a name.
 # And "Tap a light to switch it" (light_taps, on unless a screen unticks it: hide:light_taps): a light switched by a tap
 # in Live Aboard (light_tap:ok), or one Home Assistant refused (light_tap:failed).
+# And "Lights as buttons" (light_buttons, off unless a screen ticks it: show:light_buttons): a tap on one light's button
+# (button_tap:light), on a button standing for several (:several), on a room's floor (:room).
 # The list opened from the flat Map's own ⋯ (opened:flat), apart from the 3D look's (opened).
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
-    "lights", "glow", "strips", "fans", "scenes", "light_taps", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
+    "lights", "glow", "strips", "fans", "scenes", "light_taps", "light_buttons", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
     "furniture", "devices", "stairs", "room_names", "room_outlines", "floor_outlines", "other_floors", "roof",
     "rain", "theme", "forest",
@@ -658,6 +660,7 @@ HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
     | {f"house3d_show:scene_{w}" for w in ("row:atlas", "row:aboard", "run:scene", "run:preset", "off:scene", "off:preset",
                                            "new:row", "new:show", "new:settings", "edit:scene", "edit:yaml", "edit:preset")}
     | {"house3d_show:light_tap:ok", "house3d_show:light_tap:failed"}
+    | {f"house3d_show:button_tap:{w}" for w in ("light", "several", "room")}
 )
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"}

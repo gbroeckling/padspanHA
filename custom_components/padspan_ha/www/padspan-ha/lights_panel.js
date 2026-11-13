@@ -24,7 +24,7 @@ const { hasControlCard } =
 // two tools always show the identical map. All lights-view edits go in there.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity, atlasLookFromSettings,
-        wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
+        wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openLightsSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
         vacationOptionsOf, vacationEndsText, layChildren, screenShowLine } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
@@ -845,6 +845,7 @@ class PadSpanLightsApp extends HTMLElement {
     };
     api.openRoom=(room, onlyEids)=>openRoomSheet(api, lights, room, onlyEids);
     api.openFloor=(z)=>openFloorSheet(api, lights, this.state.model, z);
+    api.openLights=(eids)=>openLightsSheet(api, lights, eids);
     return api;
   }
 

@@ -130,7 +130,7 @@ const records = (over = {}) => {
 const LBE = records();
 const calls = [];
 // toggle resolves true once switched, as toggleEntity does (a tap is counted ok and ringed only then: review 2026-11-11).
-const api = { toast(){}, toggle: (e) => { calls.push(["toggle", e]); return true; }, openRoom: (r) => calls.push(["openRoom", r]), openFloor(){},
+const api = { toast(){}, toggle: (e) => { calls.push(["toggle", e]); return true; }, openRoom: (r) => calls.push(["openRoom", r]), openLights: (e) => calls.push(["openLights", e]), openFloor(){},
               openControls: (e) => calls.push(["openControls", e]), openActivity: (e) => calls.push(["openActivity", e]),
               controlsFor: (l) => (l && (l.isLock || l.dimmable) ? {} : null), lightsByEid: LBE, hass: null };
 const DAY = { "sun.sun": { entity_id: "sun.sun", state: "above_horizon", attributes: { azimuth: 160, elevation: 40 } } };
@@ -382,6 +382,60 @@ await tryCase("taps: a light within its reach wins over a chip; outside it, the 
     && outside.length > 0 && outside.every(q => on.get(q.join()) === "device:sensor.kitchen_temp"),
     { chip, light, inside: inside.length, outside: outside.length, wrongIn: inside.filter(q => on.get(q.join()) !== "device:light.kitchen").slice(0, 3),
       wrongOut: outside.filter(q => on.get(q.join()) !== "device:sensor.kitchen_temp").slice(0, 3).map(q => [q, on.get(q.join())]) });
+});
+// ── ⋯ "Lights as buttons" ──────────────────────────────────────────────────
+await tryCase("buttons: off unless ticked; then each light a button, two that overlap one with their count, a sensor and the floor their room", async () => {
+  const SENT = [];
+  const st = { ...STATES0, "light.far": { state: "off", attributes: { friendly_name: "Far light" } },
+    "light.twin_a": { state: "off", attributes: { friendly_name: "Twin A" } }, "light.twin_b": { state: "on", attributes: { friendly_name: "Twin B" } } };
+  const lbe = Object.fromEntries(LM.gatherLights(Object.fromEntries(Object.entries(st).map(([k, v]) => [k, { entity_id: k, last_changed: v.last_changed || iso(NOW - 600e3), ...v }])),
+    { ...AREAS, "light.far": "Kitchen", "light.twin_a": "Hall", "light.twin_b": "Hall" }, {}, "pro", {}, {}, {}, {}, NOW).map(l => [l.entity_id, l]));
+  const model = { ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.far": { x_m: 1.2, y_m: 3, floor_id: "main" },
+    "light.twin_a": { x_m: 7.5, y_m: 3, floor_id: "main" }, "light.twin_b": { x_m: 7.56, y_m: 3, floor_id: "main" } } };
+  const prefs = screenPrefs();
+  const over = { model, lightsByEid: lbe, topFloorIds: ["main"], prefs, telemetry: (n) => SENT.push(n), mapOnly: true, useApi: () => ({ ...api, lightsByEid: lbe }) };
+  const slot = await newSlot("ctl-btn", over);
+  const rows = await listed(slot);
+  const before = { buttons: S(slot).use.buttons.length, far: hitOf(slot._pick(...slot._where({ eid: "light.far" }))) };
+  const leak = slot._where({ eid: "binary_sensor.kitchen_leak" });
+  calls.length = 0; await tapAt(slot, leak);
+  const leakBefore = calls.slice();
+  prefs.set("show_ctl-btn", JSON.stringify({ light_buttons: true }));
+  card(slot, over); await settle();
+  const far = slot._where({ eid: "light.far" }), twin = slot._where({ eid: "light.twin_a" });
+  calls.length = 0; await tapAt(slot, far);
+  const tapFar = calls.slice(), btns = S(slot).use.buttons;
+  // 12 px off the fixture: still the button's (its disc is 15 px), where the fixture itself was a few pixels.
+  calls.length = 0; await tapAt(slot, [far[0] + 12, far[1]]);
+  const tapNear = calls.slice();
+  calls.length = 0; await tapAt(slot, twin);
+  const tapTwin = calls.slice();
+  calls.length = 0; await tapAt(slot, leak);
+  const tapLeak = calls.slice();
+  // Bare floor, clear of every mark: the room's too.
+  const bare = [[30, 0], [0, 30], [-30, 0], [0, -30], [40, 40], [-40, -40]].map(d => [leak[0] + d[0], leak[1] + d[1]])
+    .find(q => hitOf(slot._pick(q[0], q[1])) === "room:Kitchen") || null;
+  const floor = bare ? "room:Kitchen" : null;
+  calls.length = 0; if (bare) await tapAt(slot, bare);
+  const tapFloor = calls.slice();
+  // Mapping's builder: not offered, a pref left for it changes nothing.
+  const bPrefs = screenPrefs({ "show_ctl-btn-m": JSON.stringify({ light_buttons: true }) });
+  const builder = await newSlot("ctl-btn-m", { ...over, prefs: bPrefs, mapOnly: false });
+  const bRows = await listed(builder), bButtons = S(builder).use.buttons.length;
+  LA.releaseLiveAboardSlot("ctl-btn"); LA.releaseLiveAboardSlot("ctl-btn-m");
+  const J = JSON.stringify;
+  check("buttons: off unless ticked; then each light a button, two that overlap one with their count, a sensor and the floor their room",
+    rows.includes("light_buttons") && before.buttons === 0 && before.far === "device:light.far" && J(leakBefore) === J([["toggle", "binary_sensor.kitchen_leak"]])
+    && btns.length === 3 && btns.filter(b => b.words === "2" && b.on === "some").length === 1
+    && btns.filter(b => b.words === "" && b.on === "all").length === 1 && btns.filter(b => b.words === "" && b.on === "none").length === 1
+    && J(tapFar) === J([["toggle", "light.far"]]) && J(tapNear) === J([["toggle", "light.far"]])
+    && J(tapTwin) === J([["openLights", ["light.twin_a", "light.twin_b"]]])
+    && J(tapLeak) === J([["openRoom", "Kitchen"]]) && floor === "room:Kitchen" && J(tapFloor) === J([["openRoom", "Kitchen"]])
+    && SENT.filter(n => n === "house3d_show:button_tap:light").length === 2 && SENT.filter(n => n === "house3d_show:button_tap:several").length === 1
+    && SENT.filter(n => n === "house3d_show:button_tap:room").length === 2
+    && !bRows.includes("light_buttons") && bButtons === 0,
+    { rows: rows.includes("light_buttons"), before, leakBefore, btns, tapFar, tapNear, tapTwin, tapLeak, floor, tapFloor, bRows: bRows.includes("light_buttons"), bButtons,
+      sent: SENT.filter(n => n.includes("button_tap")) });
 });
 // Review 2026-11-11: only a chip (and a room's name) loses to a light in reach; a lock, a leak mark or a motion marker
 // pressed on answers, as before this build (the nearest under the finger); the light answers when it is pressed on.

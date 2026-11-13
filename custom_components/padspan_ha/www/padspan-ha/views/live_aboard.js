@@ -270,6 +270,12 @@ const CSS = `
   color:#f59e0b;background:rgba(245,158,11,.12)}
 @keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
+.la3d-btn circle{fill:rgba(8,16,11,.84);stroke:#cbd5e1;stroke-width:2}
+.la3d-btn[data-on="all"] circle{fill:#fbbf24;stroke:#fff7d6}
+.la3d-btn[data-on="some"] circle{stroke:#fbbf24;stroke-width:3}
+.la3d-btn[data-on="gone"]{opacity:.45}
+.la3d-btn text{fill:#e2e8f0;font:800 13px Inter,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.la3d-btn[data-on="all"] text{fill:#111827}
 .la3d-hud{position:absolute;left:122px;top:10px;z-index:3;max-width:calc(100% - 134px)}
 .la3d-hud .lv-hoverhud{position:static}
 .la3d-side{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
@@ -1451,6 +1457,11 @@ function createSlot(slotKey){
       // Atlas tab and its walls (mapOnly); Mapping's builder does not offer it.
       lightTaps: () => lightTapsOn(),
       switched: (ok) => showSend(`house3d_show:light_tap:${ok ? "ok" : "failed"}`),
+      // The ⋯ list's "Lights as buttons": the buttons to paint; a tap on a sensor, a readout or a lock goes to its room
+      // (not while a class chip picks its kind out: then it is what the screen is for); each button tap counted.
+      buttons: () => buttonsUi(),
+      roomTaps: (t) => buttonsOn() && !classF && !t.btn,
+      tapped: (what) => showSend(`house3d_show:button_tap:${what}`),
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
@@ -2538,6 +2549,8 @@ function createSlot(slotKey){
         const n = Math.max(1, parts.bulbs.length), mh = sh / n;
         L.lamp = parts.lamp ? new THREE.Vector3(parts.lamp[0], F.fl.elev + parts.lamp[2], parts.lamp[1])   // a run: off its wall, into the room
           : new THREE.Vector3(sx / n, F.fl.elev + (mh > 1.5 ? mh - 0.3 : mh + 0.35), sy / n);
+        // Where its button stands ("Lights as buttons"): the middle of its bulbs, else where it is pressed.
+        L.at = parts.bulbs.length ? new THREE.Vector3(sx / n, F.fl.elev + mh, sy / n) : L.pick[0] || null;
         lights.push(L);
       }
       // Each bulb twice: lit (glowing whatever the room's light) and off
@@ -3930,9 +3943,10 @@ function createSlot(slotKey){
     flyTo({ target, radius, theta: cam.theta, phi: cam.phi }, false);
   }
   /** A double-tap on a room's floor: fly in to frame it, from the same side. */
-  function flyToRoomAt(x, y){
+  /** The room whose floor shows at client (x, y): {F, r}, or null. */
+  function roomAtScreen(x, y){
     const rect = view3Rect();
-    if (!rect.width || !rect.height) return false;
+    if (!rect.width || !rect.height) return null;
     _ndc.set((x - rect.left) / rect.width * 2 - 1, 1 - (y - rect.top) / rect.height * 2);
     camera.updateMatrixWorld();
     _hit.setFromCamera(_ndc, camera);
@@ -3941,8 +3955,12 @@ function createSlot(slotKey){
     const h = _hit.intersectObjects(tiles, false)[0];
     const F = h && floorsUi.find(q => q.tiles === h.object);
     const r = F && HOUSE.roomAt(F.rooms, h.point.x, h.point.z);
-    if (!r) return false;
-    const pts = [];
+    return r ? { F, r } : null;
+  }
+  function flyToRoomAt(x, y){
+    const at = roomAtScreen(x, y);
+    if (!at) return false;
+    const { F, r } = at, pts = [];
     for (const p of r.pts) pts.push(new THREE.Vector3(p[0], F.fl.elev, p[1]), new THREE.Vector3(p[0], F.fl.elev + Math.min(1.2, F.fl.h), p[1]));
     const g = frameFor(cam.theta, Math.max(0.35, Math.min(cam.phi, 1.05)), pts);
     g.radius = Math.max(MIN_R, g.radius * 1.12);
@@ -4009,6 +4027,66 @@ function createSlot(slotKey){
   // The ⋯ list's "Tap a light to switch it" (on unless this screen unticks it), on the
   // Atlas tab and its walls (mapOnly); Mapping's builder does not offer it, and switches as ever.
   const lightTapsOn = () => !mapOnly || !(showOn && showOn.light_taps === false);
+  // The ⋯ list's "Lights as buttons" (off unless this screen ticks it; the Atlas tab and its walls, while a tap switches
+  // lights). Research 2026-11-13: a fixture that is off is drawn its real size, a few pixels from across a room, and the
+  // nearest device within reach took the tap, so a tap meant for a light found the sensor beside it. With this on, every
+  // light of the floors showing is a button of one size on screen, standing on the fixture and drawn over the walls
+  // (live_aboard_use.js paints them); the button is what a tap lands on. Buttons that would overlap are one, with their
+  // count: a tap on it lists its lights. Anywhere else in a room, a tap opens the room's sheet.
+  const BTN_JOIN = 28;                       // buttons nearer than this on screen are one, px
+  const buttonsOn = () => mapOnly && !!showOn && showOn.light_buttons === true && !showSuspended() && lightTapsOn();
+  /** Is v under the floor of a storey that shows above it, seen from the eye? (No button shows through a floor.) */
+  function underFloor(v, own){
+    const c = camera.position;
+    for (const G of floorsUi) {
+      const e = G.fl.elev;
+      if (G === own || !G.group.visible || !(e > v.y + 0.05) || !(c.y > e)) continue;
+      const t = (c.y - e) / (c.y - v.y), x = c.x + (v.x - c.x) * t, y = c.z + (v.z - c.z) * t;
+      if (G.rooms.some(r => HOUSE.inPoly(x, y, r.pts))) return true;
+    }
+    return false;
+  }
+  /** The buttons as they stand now: [{x, y (client px), v (its place in the house), lights: [L, …]}]. */
+  function buttonsNow(rect){
+    const out = [];
+    if (!buttonsOn() || !house || !rect.width || !rect.height) return out;
+    for (const L of lights) {
+      if (!L.at || !L.F.group.visible || L.swap || dimOf(L.eid) || underFloor(L.at, L.F)) continue;
+      const s = screenPt(L.at, rect);
+      if (!s) continue;
+      const b = out.find(q => Math.hypot(q.x - s[0], q.y - s[1]) < BTN_JOIN);
+      if (!b) { out.push({ x: s[0], y: s[1], v: L.at.clone(), lights: [L] }); continue; }
+      const n = b.lights.push(L);
+      b.x += (s[0] - b.x) / n; b.y += (s[1] - b.y) / n; b.v.lerp(L.at, 1 / n);
+    }
+    return out;
+  }
+  /** The buttons for the overlay: [{x, y (px from the view's own corner), n, on: "all" | "some" | "none" | "gone"}]. */
+  function buttonsUi(){
+    if (!buttonsOn() || !renderer || !root || failed) return [];
+    const rect = view3Rect(), r0 = root.getBoundingClientRect();
+    const ox = r0.left + (root.clientLeft || 0), oy = r0.top + (root.clientTop || 0);
+    camera.updateMatrixWorld();
+    return buttonsNow(rect).map(b => {
+      const lit = b.lights.filter(L => L.look && L.look.on).length;
+      const on = lit === b.lights.length ? "all" : lit ? "some" : b.lights.every(L => L.look && L.look.unavailable) ? "gone" : "none";
+      return { x: b.x - ox, y: b.y - oy, n: b.lights.length, on };
+    });
+  }
+  /** What a press on a button lands on: its light, or the several it stands for. */
+  function buttonTarget(b){
+    if (b.lights.length === 1) return { ...deviceTarget({ eid: b.lights[0].eid, v: b.v }), btn: "light" };
+    const eids = b.lights.map(L => L.eid);
+    return { kind: "lights", key: "lights:" + eids.join(","), eids, anchor: b.v, btn: "several", label: `${eids.length} lights here — lists them` };
+  }
+  const roomWords = (room) => { const n = Object.values(lbe).filter(l => l && l.area_name === room).length; return n ? `${room} — opens its ${n} device${n === 1 ? "" : "s"}` : null; };
+  /** With the buttons on, a room's floor is pressed anywhere: its sheet (a room with nothing in it is no target). */
+  function roomTarget(x, y){
+    const at = buttonsOn() ? roomAtScreen(x, y) : null, label = at && at.r.name ? roomWords(at.r.name) : null;
+    if (!label) return null;
+    const quad = at.r.pts.map(p => new THREE.Vector3(p[0], at.F.fl.elev + 0.02, p[1]));
+    return { kind: "room", key: "room:" + at.r.name, room: at.r.name, quad, btn: "room", label };
+  }
   /** Where a light shows: its bulbs, glow and run, or on a cut-away wall the glow on its floor. */
   const lightPoints = (L) => ((L.wall && L.wall.cut) ? L.poolPick : L.floorPick ? L.pick.concat(L.floorPick) : L.pick) || [];
   const nearPoly = (x, y, poly, slop) => HOUSE.inPoly(x, y, poly)
@@ -4031,6 +4109,9 @@ function createSlot(slotKey){
     const rect = view3Rect();
     if (!rect.width || !rect.height) return null;
     camera.updateMatrixWorld();
+    // "Lights as buttons", a tap that was no button's (live_aboard_use up): the room there, and nothing else.
+    if (noLights === "room") { const t = roomTarget(clientX, clientY); return t ? { hit: t, under: [] } : null; }
+    const btnOn = buttonsOn();
     const dist = (v) => { const s = screenPt(v, rect); return s ? Math.hypot(s[0] - clientX, s[1] - clientY) : Infinity; };
     // A tag or a scanner (P6): on it, or anywhere on a tag's name (names
     // show over everything, so a press there is the tag's).
@@ -4044,6 +4125,13 @@ function createSlot(slotKey){
       if (!tagHit || d < tagHit.d) tagHit = { d, hit: { kind: T.kind, key: T.key, anchor: T.at, live: T.live, label: T.label,
                                                         card: T.kind === "person" && panel ? panel.cardOf(T.key, T.card) : T.card } };
     }
+    // "Lights as buttons": a button within reach is the target (a tag or a person nearer still wins); a light is
+    // pressed by its button alone.
+    if (btnOn) {
+      let best = null;
+      for (const b of buttonsNow(rect)) { const d = Math.hypot(b.x - clientX, b.y - clientY); if (d <= PICK_R && (!best || d < best.d)) best = { d, b }; }
+      if (best && !(tagHit && tagHit.d < best.d)) return { hit: buttonTarget(best.b), under: [] };
+    }
     const devs = [];
     // On the Atlas tab (mapOnly) a light by what of it shows: the nearest of
     // its points (bulbs, glow, a run; on a cut-away wall the glow on the
@@ -4052,7 +4140,7 @@ function createSlot(slotKey){
     // `noLights`: a tap while "Tap a light to switch it" is unticked (live_aboard_use up): a light is no target for it at
     // all (review 2026-11-11: its glow on a cut-away wall took a tap a door or a room's name answered); a hold still is.
     for (const L of lights) {
-      if (!L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || (!mapOnly && L.wall && L.wall.cut)) continue;
+      if (btnOn || !L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || (!mapOnly && L.wall && L.wall.cut)) continue;
       if (noLights && isTapLight(L.eid, lbe[L.eid])) continue;
       const near = (mapOnly ? lightPoints(L) : L.pick).map(v => ({ v, d: dist(v) })).filter(c => c.d <= PICK_R).sort((a, b) => a.d - b.d);
       const seen = mapOnly ? near.find(c => !blocked(c.v, null, true)) : near[0];
@@ -4144,9 +4232,8 @@ function createSlot(slotKey){
       const own = s.kind === "door" ? new Set(s.P.els.map(e => `${e.mesh.id}:${e.i}`)) : null;
       if (s.kind !== "room" && blocked(s.at, own, true)) continue;
       if (s.kind === "room") {
-        const n = Object.values(lbe).filter(l => l && l.area_name === s.room).length;
         return { hit: { kind: "room", key: "room:" + s.room, room: s.room, quad: s.quad,
-                        label: `${s.room} — opens its ${n} device${n === 1 ? "" : "s"}` }, under: [] };
+                        label: roomWords(s.room) || `${s.room} — opens its 0 devices` }, under: [] };
       }
       const o = s.P.open, b = o.bar, l = lbe[o.eid], st = lastP && lastP.states ? lastP.states[o.eid] : null, bar = HOUSE.barrierCardOf(b);
       const name = b.name || (l && l.friendly_name) || (st && st.attributes && st.attributes.friendly_name) || o.eid;
@@ -4158,6 +4245,7 @@ function createSlot(slotKey){
       return { hit: { kind: "door", key: `door:${o.eid}@${b.id || s.i}`, eid: o.eid, bar, quad: s.quad, card,
                       label: `${name} · ${said}` }, under: [] };
     }
+    if (btnOn) { const t = roomTarget(clientX, clientY); if (t) return { hit: t, under: [] }; }
     return null;
   }
   /** Where a target is, in px from the view's own corner (for its marks). */
@@ -5155,7 +5243,7 @@ function createSlot(slotKey){
     const look = p.look3d === "atlas" ? (LOOKS ? LOOKS.atlasLook(p.atlasLook) : null) : null;
     const admin = p.admin === true;
     const not = {
-      lights: !n.light, light_taps: !n.light && !n.strip, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
+      lights: !n.light, light_taps: !n.light && !n.strip, light_buttons: !n.light && !n.strip, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
       readouts: !n.readout, locks: !n.lock && !openings.some(({ P }) => P.open && P.open.lock),
       doors: !has("door"), windows: !has("window"), covers: !openings.some(({ P }) => P.open && P.open.cover),
       railings: !walls.some(P => P.els.some(e => !e.cuttable))
@@ -5188,6 +5276,7 @@ function createSlot(slotKey){
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "scenes" || !!(houseP && houseP.scenes));
     // "Tap a light to switch it" only on the Atlas tab and its walls (the host's mapOnly), never in Mapping's builder.
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_buttons" || mapOnly);
     for (const g of groups) for (const r of g.rows) {
       if (r.key === "scenes" && !ready.scenes) r.link = null;
       if (ready[r.key]) continue;

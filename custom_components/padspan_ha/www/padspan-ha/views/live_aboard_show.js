@@ -58,6 +58,10 @@ export const SHOW_ITEMS = [
   // (live_aboard_use.js tapSwitch, lights_map.js wireUseSurface). On unless a screen unticks it
   // (a wall in a busy room). The Atlas tab and its walls only (live_aboard.js showRows: mapOnly).
   { key: "light_taps", group: "lights", words: "Tap a light to switch it", hint: "Here and on the flat Map. Off: a tap on a light switches nothing on this screen; holding still opens its controls", flat: true },
+  // Not a drawing either: what a tap lands on (live_aboard.js buttonsOn). Every light of the floors showing is a button
+  // of one size on screen, and a tap anywhere else in a room opens the room's sheet. Off unless a screen ticks it (a
+  // wall read from across a room); the 3D look on the Atlas tab and its walls only, and only while taps switch lights.
+  { key: "light_buttons", group: "lights", words: "Lights as buttons", hint: "Each light is a round button you can see and hit from across the room; buttons that overlap list their lights. A tap anywhere else in a room opens that room's lights. Holding a sensor still opens it", dflt: false },
   { key: "motion_sensors", group: "motion", words: "Motion sensors", hint: "The sensors on the walls and their markers", link: "place" },
   { key: "motion_rooms", group: "motion", words: "Motion in rooms", hint: "A room's floor glowing after motion, and the Motion chip" },
   { key: "motion_reach", group: "motion", words: "Motion reach", hint: "The patch of floor a sensor sees, shown on a trigger or a tap" },
@@ -144,7 +148,9 @@ export const SHOW_EVENTS = ["house3d_show:opened", "house3d_show:opened:flat", "
   ...["row:atlas", "row:aboard", "run:scene", "run:preset", "off:scene", "off:preset", "new:row", "new:show", "new:settings",
       "edit:scene", "edit:yaml", "edit:preset"].map(w => `house3d_show:scene_${w}`),
   // A light switched by a tap in 3D, or one that could not be.
-  "house3d_show:light_tap:ok", "house3d_show:light_tap:failed"];
+  "house3d_show:light_tap:ok", "house3d_show:light_tap:failed",
+  // "Lights as buttons": a tap on one light's button, on a button standing for several, on a room's floor.
+  "house3d_show:button_tap:light", "house3d_show:button_tap:several", "house3d_show:button_tap:room"];
 
 /** The pref this screen keeps its ticks in. */
 export const prefKey = (slotKey) => `show_${slotKey}`;
@@ -217,7 +223,7 @@ export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
              go: null, perm: key, button: admin ? "Show me the switch ›" : null };
   }
   const SAYS = {
-    lights: "No lights are placed yet.", light_taps: "No lights are placed yet.", strips: "No LED strips are placed yet.", fans: "No ceiling fans are placed yet.",
+    lights: "No lights are placed yet.", light_taps: "No lights are placed yet.", light_buttons: "No lights are placed yet.", strips: "No LED strips are placed yet.", fans: "No ceiling fans are placed yet.",
     motion_sensors: "No motion sensors are placed yet.", motion_rooms: "No motion sensors are placed yet.", motion_reach: "No motion sensors are placed yet.",
     readouts: "No temperature or air sensors are placed yet.", locks: "No locks are placed yet.",
     doors: "No doors are drawn yet.", windows: "No windows are drawn yet.", covers: "No door follows a garage door or gate yet.",
