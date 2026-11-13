@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.236 — Taps on lights in the 3D look; Small fixes after the set-up round (2026-11-12)
+
+### Fixed
+- **A tap on something the device filter has dimmed now says why nothing happened.** With one of the ☰ chips picked (Lights, Motion, Temps and so on), everything else is dimmed and takes no taps. In the Atlas's 3D look that was silent: a wall left on Motion looked as if its lights were broken. A tap on a dimmed device now shows "Only Motion takes taps now: the rest is dimmed." with a **Show all** button that puts the filter back to All.
+- **A tap with a finger switches the light in the 3D look even if the finger rolls a little.** If it moved more than 8 pixels (about 3 mm on a wall screen) the tap was treated as the start of a turn of the house and did nothing. A finger may now move up to 16 pixels and still count as a tap. A mouse is unchanged, and so is the flat Map.
+- **On a phone, the "Save the scale" bar no longer lies over the plan.** On the one-length scale screen the bar was held at the bottom of the screen, over the lower part of the picture where the two ends are tapped. On a narrow screen it now comes after the length, as an ordinary row.
+- **The Rooms page's "Put it on the map" shows that it is working.** The button reads "Putting it on the map…" and can't be pressed twice while it writes.
+- **The Atlas header's tip follows ⋯ "Tap a light to switch it" at once.** It used to keep the old words until the page was next drawn.
+- **Escape closes a tag's, person's or receiver's card in the 3D look**, as ✕ does.
+- **The Atlas builder's guide opens by itself once.** If it was left open and never closed, it came back on every visit. "Guide me" still opens it.
+- **Wording.** The guided tour's Overview picture and its troubleshooting line say "Receivers", as the screens do. A calibration point heard by one receiver reads "(1 receiver)".
+
+---
+
 ## 0.38.234 — Tapping lights in Live Aboard; ⋯ on the flat Map; Covered patios, open decks and the Outside floor; Grey paving tiles for patios and decks; Plans tool: plain words and a way on; Let Claude draw your rooms: your changes kept, every floor reachable; Let Claude draw your rooms: simpler, and it says what it does; Setting up in order: each step leads to the next; Set the scale right after an upload; feet and inches (2026-11-11)
 
 ### New
