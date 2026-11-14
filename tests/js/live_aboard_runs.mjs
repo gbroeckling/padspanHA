@@ -260,6 +260,8 @@ tryCase("build: string lights: the wire, a bulb and a glow every so often, shade
   const P = parts("light.deck", "string", run), n = R.stringOf(run).bulbs.length;
   check("build: string lights: the wire, a bulb and a glow every so often, shaded when off", P.kind === "string" && P.bulbs.length === n
     && P.halos.length === n && P.bulbs.every(b => b.prim === "sphere" && !b.hideOff) && P.housings.length > 20 && P.housings.every(h => h.mat)
+    // Seen from across the house: a bulb 14 cm across, a wire 2.5 cm thick, lighter than the night.
+    && H.STRING_BULB_R >= 0.07 && H.STRING_WIRE >= 0.025 && P.bulbs.every(b => b.sx === H.STRING_BULB_R) && P.housings.every(h => h.sy === H.STRING_WIRE)
     && P.pools.length === 3 && P.where === "out", { bulbs: P.bulbs.length, halos: P.halos.length, wire: P.housings.length });
 });
 tryCase("build: a string with no run yet hangs one swag along its marker", () => {

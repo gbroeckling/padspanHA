@@ -1721,6 +1721,10 @@ export function fixtureParts(L, ctx){
  *  its own glow, shaded when off. The stretches that are only wire (gaps)
  *  are never lit. Parts as fixtureParts gives them; a bulb or a housing can
  *  carry its own matrix (`mat`, the floor's frame) for a sloped stretch. */
+// A string's bulb (its radius) and wire (its thickness), m: drawn to be seen from across the house, not to scale (Garry,
+// 2026-11-14, "the Christmas lights need to be more visible": a 5 cm bulb on a 6 mm dark wire was under 3 px at the
+// roof's edge on the wall screen).
+export const STRING_BULB_R = 0.07, STRING_WIRE = 0.025;
 export function runParts(L, ctx){
   const fl = L.floor, rooms = ctx.rooms || [], pieces = ctx.pieces || [], run = L.run;
   const kind = KINDS.has(L.kind) ? L.kind : "strip", str = kind === "string", face = RUNS.FACES.includes(run.face) ? run.face : "room";
@@ -1817,12 +1821,13 @@ export function runParts(L, ctx){
   if (str) {                                                   // the wire, then a bulb every so often
     const S = RUNS.stringOf(run);
     for (const [a, b] of S.wire) {
-      P.housings.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, h: (a[2] + b[2]) / 2, sx: 0.01, sy: 0.006, sz: 0.006, yaw: 0,
-                        col: "#2b2f33", mat: RUNS.boxMatrix(a, b, 0.006) });
+      P.housings.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, h: (a[2] + b[2]) / 2, sx: 0.01, sy: STRING_WIRE, sz: STRING_WIRE, yaw: 0,
+                        col: "#5f6870", mat: RUNS.boxMatrix(a, b, STRING_WIRE) });
     }
+    const r = STRING_BULB_R, drop = r * 1.3;                   // a bulb hangs just under the wire, a little taller than wide
     for (const [x, y, h] of S.bulbs) {
-      P.bulbs.push({ prim: "sphere", x, y, h: h - 0.035, sx: 0.026, sy: 0.034, sz: 0.026, yaw: 0, off: "#c9c2b4" });
-      P.halos.push({ x, y, h: h - 0.035, cls: "s" });
+      P.bulbs.push({ prim: "sphere", x, y, h: h - drop, sx: r, sy: r * 1.3, sz: r, yaw: 0, off: "#c9c2b4" });
+      P.halos.push({ x, y, h: h - drop, cls: "s" });
     }
     for (const q of st) {
       const dx = q.b[0] - q.a[0], dy = q.b[1] - q.a[1], len = Math.hypot(dx, dy);
