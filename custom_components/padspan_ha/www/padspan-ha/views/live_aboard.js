@@ -68,7 +68,7 @@ const STUDIO = await import(`./live_aboard_studio.js${new URL(import.meta.url).s
 // The Atlas's own word for the air (its room sheet's "Air Good").
 const { airQualityWord, airQualityBadness } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // The heights in Live Aboard's file no view reads (out of date: the map's).
-const { withoutGone, isTapLight } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
+const { withoutGone, isTapLight, roomAggregate } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // P5: furniture that is a device behaves like it (optional too: missing, the
 // pieces are only furniture and the fixtures stay where they are).
 const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url).search}`)
@@ -689,6 +689,7 @@ function createSlot(slotKey){
   let tapAt = null;
   // Readable night: how dark it is now (0 day, 1 night), and the wall tops' glow.
   let nightK = 0;
+  let wakeUntil = 0, wakeK = 0, nightReal = 0;   // "Rooms as light switches": the house lit up by a touch (wake)
   const topGlow = { value: 0 };
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
@@ -1477,6 +1478,11 @@ function createSlot(slotKey){
       buttons: () => buttonsUi(),
       roomTaps: (t) => buttonsOn() && !classF && !t.btn,
       tapped: (what) => showSend(`house3d_show:button_tap:${what}`),
+      // "Rooms as light switches": a room switched or dimmed from its floor says so (a switch with the way back).
+      roomSwitched: (room, what, n, undo) => {
+        showSend(`house3d_show:room_tap:${what}`);
+        if (what !== "dim") toast(`${room}: ${n} light${n === 1 ? "" : "s"} ${what}`, undo, "Undo");
+      },
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
@@ -2061,10 +2067,14 @@ function createSlot(slotKey){
     sunRead = HOUSE.readSun(p.states, p.config, Date.now());
     storedBearing = HOUSE.normBearing(p.bearing);
     if (northHold && (storedBearing === northHold.b || Date.now() > northHold.until)) northHold = null;
+    if (wakeK > 0 && performance.now() >= wakeUntil) requestRender();   // lit up by a touch, its time up: the frame that fades it back
     return drawSun(bearingNow(), false);
   }
   function drawSun(b, force){
-    const s = sunRead || { ...HOUSE.SUN_DEFAULT, source: "default" }, look = HOUSE.sunLight(s.elevation);
+    const s = sunRead || { ...HOUSE.SUN_DEFAULT, source: "default" };
+    // Lit up by a touch (wake): drawn as with the sun WAKE_ELEV up, by how far it has faded back.
+    const elev = s.elevation + (Math.max(s.elevation, WAKE_ELEV) - s.elevation) * wakeK, look = HOUSE.sunLight(elev);
+    nightReal = wakeK ? HOUSE.sunLight(s.elevation).night : look.night;
     const gap = sunNow ? Math.abs(((s.azimuth - sunNow.azimuth) % 360 + 540) % 360 - 180) : Infinity;
     if (!force && sunNow && b === sunNow.bearing && look.phase === sunNow.phase
         && gap <= SUN_STEP && Math.abs(s.elevation - sunNow.elevation) <= SUN_STEP) return false;
@@ -2073,7 +2083,7 @@ function createSlot(slotKey){
     if (Math.abs(look.night - nightK) > 1e-3) { nightK = look.night; paintNight(); }
     // A setting sun still lights from just above the horizon as it fades,
     // never from under the slabs.
-    const d = HOUSE.sunDirection(s.azimuth, Math.max(s.elevation, 2), b);
+    const d = HOUSE.sunDirection(s.azimuth, Math.max(elev, 2), b);
     sunDir.set(d.x, d.up, d.y).normalize();
     sun.intensity = SUN_I * look.sun;
     sun.color.set(SUN_HIGH).lerp(_c.set(SUN_LOW), look.warm);
@@ -3648,6 +3658,7 @@ function createSlot(slotKey){
       if (spin) endSpin(true);                               // a finger on the house: no spin
       if (typeof touchCb === "function") { try { touchCb(); } catch (_) { /* the card's, not ours */ } }
       const onlyNorth = e === northDismissed;                // this tap put north back, nothing more
+      const woke = wake();                                   // "Rooms as light switches": a dark house lit up, nothing more
       cam.fly = null;                                        // a hand on the house stops a flight
       flashCorner();                                         // the map alone: which floor this is
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -3677,7 +3688,7 @@ function createSlot(slotKey){
       // A press on something in the house (live_aboard_use.js). Moved
       // before it is held, it is no press: the drag turns the house, from
       // where it began.
-      if (mode === "orbit" && pts.size === 1 && !onlyNorth && use && use.down(e)) {
+      if (mode === "orbit" && pts.size === 1 && !onlyNorth && use && !woke && use.down(e)) {
         mode = "press";
         press = { id: e.pointerId, x0: e.clientX, y0: e.clientY };
       }
@@ -4065,6 +4076,28 @@ function createSlot(slotKey){
   const BTN_JOIN = 28;                       // buttons nearer than this on screen are one, px
   const FOOT_UP = 0.03, _foot = new THREE.Vector3();   // a button's place: this far over its floor, under its fixture
   const buttonsOn = () => mapOnly && !!showOn && showOn.light_buttons === true && !showSuspended() && lightTapsOn();
+  // The ⋯ list's "Rooms as light switches" (off unless this screen ticks it; the Atlas tab and its walls, while a tap
+  // switches lights). Garry, 2026-11-14 (lights "close to useless" in the 3D look): a room's floor is the switch for
+  // its lights (a tap: all on, or all off if any is on; a hold: its sheet; a hold then a drag: dims them), a target
+  // metres wide; a single light is on the room's sheet. And the house lights up at a touch (wake): at night the 3D
+  // look is as dark as the house, so nothing that is off can be found; a touch draws it as by day for WAKE_MS, as
+  // The Sims lights a house evenly while it is being built. The first touch on a dark house only lights it up.
+  const roomSwitchOn = () => mapOnly && !!showOn && showOn.room_switch === true && !showSuspended() && lightTapsOn();
+  const WAKE_MS = 20000, WAKE_FADE_MS = 1500, WAKE_ELEV = 30, WAKE_DARK = 0.3;
+  /** A touch on the house: true when it only lit the house up (it was dark: the press is nothing more). */
+  function wake(){
+    if (!roomSwitchOn() || (wakeK === 0 && nightReal < 0.01)) return false;   // by day there is nothing to light up
+    const only = wakeK === 0 && nightReal > WAKE_DARK;
+    wakeUntil = performance.now() + WAKE_MS;
+    if (wakeK !== 1) { wakeK = 1; drawSun(bearingNow(), true); }
+    return only;
+  }
+  /** On a frame once its time is up (no timer: the next poll's applySun asks for that frame, so it is lit WAKE_MS and
+   *  up to a poll more): back to the real night in ten steps (and at once when the line is unticked). */
+  function stepWake(t){
+    const k = roomSwitchOn() ? Math.round(Math.max(0, 1 - (t - wakeUntil) / WAKE_FADE_MS) * 10) / 10 : 0;
+    if (k !== wakeK) { wakeK = k; drawSun(bearingNow(), true); }
+  }
   /** Is v under the floor of a storey that shows above it, seen from the eye? (No button shows through a floor.) */
   function underFloor(v, own){
     const c = camera.position;
@@ -4123,9 +4156,16 @@ function createSlot(slotKey){
   const roomWords = (room) => { const n = Object.values(lbe).filter(l => l && l.area_name === room).length; return n ? `${room} — opens its ${n} device${n === 1 ? "" : "s"}` : null; };
   /** With the buttons on, a room's floor is pressed anywhere: its sheet (a room with nothing in it is no target). */
   function roomTarget(x, y){
-    const at = buttonsOn() ? roomAtScreen(x, y) : null, label = at && at.r.name ? roomWords(at.r.name) : null;
+    const sw = roomSwitchOn();
+    const at = buttonsOn() || sw ? roomAtScreen(x, y) : null, label = at && at.r.name ? roomWords(at.r.name) : null;
     if (!label) return null;
     const quad = at.r.pts.map(p => new THREE.Vector3(p[0], at.F.fl.elev + 0.02, p[1]));
+    // "Rooms as light switches": a room with lights is their switch (live_aboard_use.js act); one with none opens its sheet.
+    const agg = sw ? roomAggregate(Object.values(lbe).filter(Boolean), at.r.name) : null;
+    if (agg && agg.lightsTotal) {
+      return { kind: "room", key: "room:" + at.r.name, room: at.r.name, quad, sw: true,
+               label: `${at.r.name} — ${agg.lightsOn ? `${agg.lightsOn} of ${agg.lightsTotal} on: tap for off` : `${agg.lightsTotal} light${agg.lightsTotal === 1 ? "" : "s"}: tap for on`} · hold for its list` };
+    }
     return { kind: "room", key: "room:" + at.r.name, room: at.r.name, quad, btn: "room", label };
   }
   /** Where a light shows: its bulbs, glow and run, or on a cut-away wall the glow on its floor. */
@@ -4153,6 +4193,7 @@ function createSlot(slotKey){
     // "Lights as buttons", a tap that was no button's (live_aboard_use up): the room there, and nothing else.
     if (noLights === "room") { const t = roomTarget(clientX, clientY); return t ? { hit: t, under: [] } : null; }
     const btnOn = buttonsOn();
+    const rsOn = roomSwitchOn();
     const dist = (v) => { const s = screenPt(v, rect); return s ? Math.hypot(s[0] - clientX, s[1] - clientY) : Infinity; };
     // A tag or a scanner (P6): on it, or anywhere on a tag's name (names
     // show over everything, so a press there is the tag's).
@@ -4181,7 +4222,7 @@ function createSlot(slotKey){
     // `noLights`: a tap while "Tap a light to switch it" is unticked (live_aboard_use up): a light is no target for it at
     // all (review 2026-11-11: its glow on a cut-away wall took a tap a door or a room's name answered); a hold still is.
     for (const L of lights) {
-      if (btnOn || !L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || (!mapOnly && L.wall && L.wall.cut)) continue;
+      if (btnOn || rsOn || !L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || (!mapOnly && L.wall && L.wall.cut)) continue;   // a light is its button's, or its room's
       if (noLights && isTapLight(L.eid, lbe[L.eid])) continue;
       const near = (mapOnly ? lightPoints(L) : L.pick).map(v => ({ v, d: dist(v) })).filter(c => c.d <= PICK_R).sort((a, b) => a.d - b.d);
       const seen = mapOnly ? near.find(c => !blocked(c.v, null, true)) : near[0];
@@ -4289,10 +4330,10 @@ function createSlot(slotKey){
       return { hit: { kind: "door", key: `door:${o.eid}@${b.id || s.i}`, eid: o.eid, bar, quad: s.quad, card,
                       label: `${name} · ${said}` }, under: [] };
     }
-    if (btnOn) { const t = roomTarget(clientX, clientY); if (t) return { hit: t, under: [] }; }
+    if (btnOn || rsOn) { const t = roomTarget(clientX, clientY); if (t) return { hit: t, under: [] }; }
     // Nothing under the finger (proposal 2): the nearest light within MAGNET_R that nothing hides takes the press, so
     // a fixture a few pixels across need not be hit exactly. Only while a tap switches lights, and never a fan.
-    if (taps && !noLights && !btnOn) {
+    if (taps && !noLights && !btnOn && !rsOn) {
       let best = null;
       for (const L of lights) {
         if (!L.F.group.visible || L.swap || dimOf(L.eid) || !L.pick || L.drawn === "fan" || (L.l && L.l.isFan)) continue;
@@ -4337,6 +4378,7 @@ function createSlot(slotKey){
     }
     // A camera flight moves on every frame until it lands.
     if (cam.fly) { stepFly(performance.now()); dirty = true; }
+    if (wakeK > 0 && (performance.now() >= wakeUntil || !roomSwitchOn())) { stepWake(performance.now()); if (wakeK > 0) requestRender(); }
     // A press's ring and hold, the hover box's grace: timed on frames.
     const more = use ? use.tick(performance.now()) : false;
     if (wallSoft() && !wallMoving()) dirty = true;           // a wall that moved at less: every pixel again
@@ -5297,7 +5339,7 @@ function createSlot(slotKey){
     const look = p.look3d === "atlas" ? (LOOKS ? LOOKS.atlasLook(p.atlasLook) : null) : null;
     const admin = p.admin === true;
     const not = {
-      lights: !n.light, light_taps: !n.light && !n.strip, light_buttons: !n.light && !n.strip, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
+      lights: !n.light, light_taps: !n.light && !n.strip, light_buttons: !n.light && !n.strip, room_switch: !n.light && !n.strip, strips: !n.strip, fans: !n.fan, motion_sensors: !n.motion, motion_rooms: !n.motion, motion_reach: !n.motion,
       readouts: !n.readout, locks: !n.lock && !openings.some(({ P }) => P.open && P.open.lock),
       doors: !has("door"), windows: !has("window"), covers: !openings.some(({ P }) => P.open && P.open.cover),
       railings: !walls.some(P => P.els.some(e => !e.cuttable))
@@ -5331,6 +5373,7 @@ function createSlot(slotKey){
     // "Tap a light to switch it" only on the Atlas tab and its walls (the host's mapOnly), never in Mapping's builder.
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_buttons" || mapOnly);
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_switch" || mapOnly);
     for (const g of groups) for (const r of g.rows) {
       if (r.key === "scenes" && !ready.scenes) r.link = null;
       if (ready[r.key]) continue;

@@ -27,8 +27,10 @@ def test_off_a_press_is_picked_as_before() -> None:
     pick = la[la.index("  function pickAt(clientX, clientY, noLights = false){"):la.index("  /** Where a target is, in px from the view's own corner")]
     # Every new branch in the picking waits on the line.
     assert pick.count("btnOn") == 5 and "const btnOn = buttonsOn();" in pick
-    assert "if (btnOn) {" in pick and "if (btnOn || !L.F.group.visible" in pick and "if (btnOn) { const t = roomTarget(clientX, clientY);" in pick
-    assert "const at = buttonsOn() ? roomAtScreen(x, y) : null" in la
+    # ...or on "Rooms as light switches" (rsOn, 2026-11-14), off unless ticked too.
+    assert "const rsOn = roomSwitchOn();" in pick and "showOn.room_switch === true" in la
+    assert "if (btnOn) {" in pick and "if (btnOn || rsOn || !L.F.group.visible" in pick and "if (btnOn || rsOn) { const t = roomTarget(clientX, clientY);" in pick
+    assert "const at = buttonsOn() || sw ? roomAtScreen(x, y) : null" in la and "const sw = roomSwitchOn();" in la
 
 
 def test_the_sheet_for_several_lights_is_the_atlas_own() -> None:

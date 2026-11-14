@@ -26,7 +26,7 @@
 // the 3D view's frames time the hold (tick), so nothing runs while nothing
 // is pressed.
 
-const { createHoldTracker, dragBrightness, setLightBrightness, exactDeviceOf, lastBrightness, openBarrierCard,
+const { createHoldTracker, dragBrightness, setLightBrightness, exactDeviceOf, lastBrightness, openBarrierCard, roomAggregate,
         HOLD_MS, PRESS_RING_MS, _exactBrightness, _tellProblems, isTapLight } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 
@@ -99,6 +99,10 @@ export function doorMover(bar){
  *                     with pick(x, y, "room")
  *   tapped(what)    optional: a tap on a button ("light", "several") or on a
  *                     room's floor ("room"), for the opt-in report's count
+ *   roomSwitched(room, what, n, undo)  optional: the ⋯ list's "Rooms as light
+ *                     switches": a tap on a room's floor (pick()'s target has
+ *                     sw: true) switched its n lights "on" or "off" (undo()
+ *                     puts them back), or a hold then a drag dimmed them ("dim")
  * }
  */
 export function createUseSurface(o){
@@ -336,6 +340,18 @@ export function createUseSurface(o){
     a.onfinish = () => c.remove();
   }
 
+  // "Rooms as light switches": a room's lights as the Atlas's sheets count them (roomAggregate), switched the way the
+  // room sheet's "All lights on / off" does (the host's api.setMany). A tap: all on, or all off if any is on.
+  const roomLights = (api, room) => roomAggregate(Object.values(api.lightsByEid || {}).filter(Boolean), room).lightEids.map(e => api.lightsByEid[e]);
+  function roomSwitch(api, t){
+    const all = roomLights(api, t.room), lit = all.filter(l => l.state === "on");
+    if (!all.length || typeof api.setMany !== "function") { api.openRoom(t.room); return; }
+    const on = !lit.length, eids = (on ? all : lit).map(l => l.entity_id);
+    api.setMany(eids, on);
+    pulse(t);
+    if (o.roomSwitched) o.roomSwitched(t.room, on ? "on" : "off", eids.length, () => api.setMany(eids, !on));
+  }
+
   // ── a press ───────────────────────────────────────────────────────────────
   function endPress(){
     const p = press;
@@ -365,11 +381,20 @@ export function createUseSurface(o){
       }
       return;
     }
+    if (r === "drag-end" && t.kind === "room" && t.sw) {
+      const b = p.dragTo;
+      if (typeof b === "number" && api.hass) for (const eid of p.dimEids) setLightBrightness(api.hass, eid, b).then(q => _tellProblems(api.toast, q)).catch(() => api.toast("Could not set brightness", true));
+      if (typeof b === "number" && o.roomSwitched) o.roomSwitched(t.room, "dim", p.dimEids.length, null);
+      rerender = { at: now() + 500, api };
+      o.frame();
+      return;
+    }
     if (r !== "tap" && r !== "open") return;
     if (t.kind === "tag" || t.kind === "scanner" || t.kind === "person") { showCard(t); return; }
     // A button standing for several lights: each with its switch, on the Atlas's own sheet.
     if (t.kind === "lights") { if (typeof api.openLights === "function") api.openLights(t.eids); return; }
-    if (t.kind === "room") api.openRoom(t.room);
+    if (t.kind === "room" && t.sw && r === "tap") roomSwitch(api, t);
+    else if (t.kind === "room") api.openRoom(t.room);
     else if (t.kind === "floor") api.openFloor(t.z);
     // A door something can move (a garage door, a gate: doorMover) never
     // moves from a tap, nor from anything a tap shows: a tap shows what it
@@ -390,7 +415,7 @@ export function createUseSurface(o){
   // A hold then a drag (dimmable lights): relative brightness, sent at most
   // every 180 ms, the bubble showing the level — wirePress's own.
   function dim(e, r){
-    const p = press, api = p.api, eid = p.target.eid;
+    const p = press, api = p.api, eid = p.dimEids ? p.dimEids[0] : p.target.eid;   // a room starts from its first light's level
     if (e.preventDefault) e.preventDefault();
     if (p.dragBri === null) {
       const st = api.hass && api.hass.states ? api.hass.states[eid] : null;
@@ -407,9 +432,10 @@ export function createUseSurface(o){
     p.bubble.style.left = `${e.clientX + 16}px`; p.bubble.style.top = `${e.clientY - 14}px`;
     p.dragTo = b;
     const t = Date.now();
-    if (t - p.lastSend > 180 && api.hass) {
+    // A room's lights each get the level, less often (several calls a time).
+    if (t - p.lastSend > (p.dimEids ? 400 : 180) && api.hass) {
       p.lastSend = t;
-      setLightBrightness(api.hass, eid, b).catch(() => {});
+      for (const one of p.dimEids || [eid]) setLightBrightness(api.hass, one, b).catch(() => {});
     }
   }
 
@@ -432,12 +458,19 @@ export function createUseSurface(o){
         canDrag = !!l0.dimmable && String(t.eid).startsWith("light.");
       }
       if (t.kind === "door" && doorMover(t.bar)) holdable = true;   // a door that moves: hold for Home Assistant's own controls
+      // "Rooms as light switches": a hold is the room's sheet, a hold then a drag dims its dimmable lights.
+      let dimEids = null;
+      if (t.kind === "room" && t.sw) {
+        holdable = true;
+        const dim = roomLights(api, t.room).filter(l => l.dimmable && String(l.entity_id).startsWith("light.")).map(l => l.entity_id);
+        if (dim.length) { dimEids = dim; canDrag = true; }
+      }
       // A finger rolls a few millimetres as it lands and lifts: on a wall screen that passed the mouse's 8 px, the press
       // was dropped for a turn of the house too small to see, and the tap did nothing at all (his wall, 2026-11-12).
       const tracker = createHoldTracker(e.pointerType === "touch" ? { canDrag, slopPx: TOUCH_SLOP_PX } : { canDrag });
       tracker.down(e.clientX, e.clientY, stamp(e));
       press = { target: t, api, tracker, holdable, t0: stamp(e), x: e.clientX, y: e.clientY, ring: null, armed: false, dragBri: null, dragTo: null,
-                bubble: null, lastSend: 0, touch: e.pointerType === "touch" };
+                bubble: null, lastSend: 0, touch: e.pointerType === "touch", dimEids };
       hover = null;
       mark(t, hoverG);
       nameTag(t);
