@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.243 — String lights you can see (2026-11-14)
+
+### Changed
+- **String lights are easier to see in the 3D look.** A string of lights (Christmas lights along a roof edge, bulbs over a deck) was drawn to scale: bulbs 5 cm across on a thin dark wire, which is a couple of pixels when the whole house is on screen. The bulbs are now 14 cm across and the wire is thicker and lighter, so the string shows from across the house, lit or not.
+
+---
+
 ## 0.38.242 — Lights stay where you placed them; taps on sensors and locks; darker paving (2026-11-13)
 
 ### Changed
