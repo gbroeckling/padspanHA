@@ -75,8 +75,10 @@ def sanitize_teams(raw: Any) -> list[dict] | str:
         bulbs = t.get("bulbs")
         if not name:
             return "Each team needs a name"
-        if not _ENTITY.match(power):
-            return f"{name}: choose the wall dimmer or switch that powers the bulbs"
+        # No power source: lights that always have power (LED strings on their own supply). The team is then its
+        # lights alone: on and off are theirs, and one switched from outside takes the others with it.
+        if power and not _ENTITY.match(power):
+            return f"{name}: choose the wall dimmer or switch that powers the bulbs, or none"
         if not isinstance(bulbs, list) or not bulbs or len(bulbs) > MAX_BULBS:
             return f"{name}: choose 1 to {MAX_BULBS} bulbs"
         bulbs = [str(b) for b in bulbs]
@@ -87,7 +89,7 @@ def sanitize_teams(raw: Any) -> list[dict] | str:
             tid = uuid.uuid4().hex[:8]
         if tid in {o["id"] for o in out}:
             return f"{name}: two teams have the same id"
-        for e in [power, *bulbs]:
+        for e in [*([power] if power else []), *bulbs]:
             if e in used:
                 return f"{name}: {e} is already in a team"
             used.add(e)
@@ -120,17 +122,29 @@ class Team:
         self._power_cmd_on = False     # which way our last power command went: only a change that way is its echo
         self._sent_at = -1e9
         self._dim_seen: tuple[int, float] | None = None
+        self._rgb: dict[str, tuple] = {}   # each bulb's colour as it showed it after our last send (lights with no colour temperature to read)
 
     # what Home Assistant shows
     @property
     def adaptive(self) -> bool:
         return bool(self.cfg.get("adaptive"))
 
+    @property
+    def powerless(self) -> bool:
+        """No power source: its lights always have power, and on and off are theirs."""
+        return not self.cfg.get("power")
+
     def _power(self) -> Any:
-        return self.io.state(self.cfg["power"])
+        return None if self.powerless else self.io.state(self.cfg["power"])
+
+    def _bulb_on(self, eid: str) -> bool:
+        st = self.io.state(eid)
+        return bool(st and st.state == "on")
 
     @property
     def is_on(self) -> bool:
+        if self.powerless:
+            return any(self._bulb_on(b) for b in self.cfg["bulbs"])
         st = self._power()
         return bool(st and st.state == "on")
 
@@ -170,12 +184,28 @@ class Team:
                 self.want.pop("kelvin", None)
         elif self._follows():
             self.want = self._target()
-        await self._run(boot=not was_on)
+        await self._run(boot=not was_on and not self.powerless)   # lights that always have power have nothing to start
 
     async def turn_off(self) -> None:
         self._gen += 1
         self.manual = False
         self.phase, self.missing = "off", []
+        if self.powerless:
+            # Each light told off, again and again until it shows off (a string on weak Wi-Fi drops a command).
+            g, t0 = self._gen, self.io.now()
+            left = list(self.cfg["bulbs"])
+            while left and self._gen == g:
+                self._sent_at = self.io.now()
+                for b in left:
+                    await self._call(b, False)
+                self.io.changed()
+                await self.io.sleep(RETRY_S)
+                left = [b for b in left if self._bulb_on(b)]
+                if self.io.now() - t0 >= BOOT_DEADLINE_S:
+                    break
+            if left and self._gen == g:
+                _LOGGER.warning("Power team %s: still on after %d s: %s", self.cfg.get("name"), int(BOOT_DEADLINE_S), ", ".join(left))
+            return
         self._power_cmd_at, self._power_cmd_on = self.io.now(), False
         await self._call(self.cfg["power"], False)
         self.io.changed()
@@ -202,8 +232,8 @@ class Team:
         if not st or st.state != "on":
             return False
         a = st.attributes or {}
-        bri = _num(a.get("brightness"))
-        if bri is None or abs(bri - self.want.get("brightness", 255)) > 8:
+        bri, want = _num(a.get("brightness")), self.want.get("brightness", 255)
+        if bri is None or abs(bri - want) > (4 if want < 64 else 8):     # dim lights are told apart more finely
             return False
         k, wk = _num(a.get("color_temp_kelvin")), self.want.get("kelvin")
         return not (wk is not None and self.want.get("hs") is None and k is not None and abs(k - wk) > 150)
@@ -213,9 +243,9 @@ class Team:
         self._gen += 1
         g = self._gen
         st = self._power()
-        dimmer = self.cfg["power"].startswith("light.")
+        dimmer = str(self.cfg.get("power") or "").startswith("light.")
         level = _num((st.attributes or {}).get("brightness")) if st else None
-        if not st or st.state != "on" or (dimmer and level is not None and level < FULL):
+        if not self.powerless and (not st or st.state != "on" or (dimmer and level is not None and level < FULL)):
             self._power_cmd_at, self._power_cmd_on = self.io.now(), True
             await self._call(self.cfg["power"], True, {"brightness": 255} if dimmer and self._dims(st) else None)
         self.phase, self.missing = "starting", []
@@ -223,9 +253,9 @@ class Team:
         t0 = self.io.now()
         pending = list(self.cfg["bulbs"])
         while pending and self._gen == g:
+            self._sent_at = self.io.now()
             for b in pending:
                 await self._call(b, True, self._bulb_data())
-            self._sent_at = self.io.now()
             await self.io.sleep(RETRY_S)
             if self._gen != g:
                 return
@@ -286,15 +316,38 @@ class Team:
         self.manual, self.sleep = self.adaptive, False
         await self._run(boot=True)                     # under-fed bulbs may have dropped out: as after a power-on
 
-    def on_bulb(self, eid: str, new: Any) -> None:
-        """A bulb changed: a colour or brightness that is not ours is someone's hand, and the day stops leading."""
-        if (self.phase != "ready" or not self._follows() or self.sleep or not new or new.state != "on"
-                or self.io.now() - self._sent_at < QUIET_S):
+    async def on_bulb(self, eid: str, new: Any, old: Any = None) -> None:
+        """A bulb changed. With no power source, one switched from outside is the team switched (an automation's
+        turn-on is answered with the day's light, on all of them; one turned off takes the rest with it). And a
+        colour or brightness that is not ours is someone's hand: the day stops leading."""
+        if not new or new.state in ("unavailable", "unknown"):
             return
+        now = self.io.now()
+        if self.powerless:
+            self.io.changed()
+            ours = now - self._sent_at < OWN_S
+            was = old.state if old else None
+            if new.state == "on" and was == "off" and self.phase == "off" and not ours:
+                if self._follows():
+                    self.want = self._target()
+                await self._run(boot=False)
+                return
+            if new.state == "off" and was == "on" and self.phase != "off" and not ours:
+                await self.turn_off()
+                return
         a = new.attributes or {}
+        rgb = a.get("rgb_color")
+        rgb = tuple(rgb) if isinstance(rgb, (list, tuple)) and len(rgb) == 3 else None
+        if now - self._sent_at < QUIET_S:
+            if rgb and new.state == "on":
+                self._rgb[eid] = rgb                   # still moving to what we sent: this is ours
+            return
+        if self.phase != "ready" or not self._follows() or self.sleep or new.state != "on":
+            return
         bri, k = _num(a.get("brightness")), _num(a.get("color_temp_kelvin"))
-        wk = self.want.get("kelvin")
-        if (bri is not None and abs(bri - self.want.get("brightness", 255)) > 20) or (wk is not None and k is not None and abs(k - wk) > 300):
+        want, wk, seen = self.want.get("brightness", 255), self.want.get("kelvin"), self._rgb.get(eid)
+        if ((bri is not None and abs(bri - want) > max(6, want * 0.1)) or (wk is not None and k is not None and abs(k - wk) > 300)
+                or (k is None and rgb and seen and max(abs(x - y) for x, y in zip(rgb, seen)) > 40)):
             self.manual = True
             self.io.changed()
 
@@ -313,12 +366,24 @@ class Team:
             return
         t = self._target()
         if abs(t["brightness"] - self.want.get("brightness", 0)) < 3 and abs(t["kelvin"] - (self.want.get("kelvin") or 0)) < 25:
+            # Nothing to move. A light that does not show what was last sent (it dropped the command, or something
+            # set it again within moments of ours) is sent it once more; so is a team's light found off while the
+            # others are on (no power source: they are one).
+            if self.phase == "ready" and self.io.now() - self._sent_at >= QUIET_S:
+                def off(b: str) -> bool:
+                    st = self.io.state(b)
+                    return bool(self.powerless and st and st.state == "off")
+                stray = [b for b in self.cfg["bulbs"] if (self._bulb_on(b) and not self._answered(b)) or off(b)]
+                if stray:
+                    self._sent_at = self.io.now()      # before the sends: what they change is ours as it happens
+                for b in stray:
+                    await self._call(b, True, self._bulb_data())
             return
         self.want = t
+        self._sent_at = self.io.now()
         for b in self.cfg["bulbs"]:
             if b not in self.missing:
                 await self._call(b, True, self._bulb_data(ADAPT_FADE_S))
-        self._sent_at = self.io.now()
         self.io.changed()
 
 
@@ -396,7 +461,7 @@ class Manager:
         if not self.teams:
             return
         hass = self.hass
-        by_power = {t.cfg["power"]: t for t in self.teams.values()}
+        by_power = {t.cfg["power"]: t for t in self.teams.values() if t.cfg.get("power")}
         by_bulb = {b: t for t in self.teams.values() for b in t.cfg["bulbs"]}
 
         async def seen(event: Any) -> None:
@@ -404,7 +469,7 @@ class Manager:
             if eid in by_power:
                 await by_power[eid].on_power(new, old)
             elif eid in by_bulb:
-                by_bulb[eid].on_bulb(eid, new)
+                await by_bulb[eid].on_bulb(eid, new, old)
 
         async def tick(_now: Any) -> None:
             for t in list(self.teams.values()):

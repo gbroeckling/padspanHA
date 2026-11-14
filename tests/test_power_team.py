@@ -266,7 +266,7 @@ def test_the_day_moves_the_light_with_a_slow_fade_until_someone_chooses_and_agai
     t.manual = False
     t.want = {"brightness": 150, "kelvin": 3200}
     h.t += 600
-    t.on_bulb("light.b1", SimpleNamespace(state="on", attributes={"brightness": 40, "color_temp_kelvin": 3200}))
+    run(t.on_bulb("light.b1", SimpleNamespace(state="on", attributes={"brightness": 40, "color_temp_kelvin": 3200})))
     assert t.manual is True
     # "Adaptive" hands it back; so does off and on.
     run(t.turn_on(effect=P.EFFECT_ADAPTIVE))
@@ -307,6 +307,123 @@ def test_a_team_that_does_not_follow_the_day_comes_on_as_it_last_was_and_a_switc
     assert len(h.calls) == n
 
 
+# ── a team with no power source (Garry, 2026-11-14: the three Christmas strings, always powered) ──
+class Strings(House):
+    """Three LED strings that always have power, colour by RGB only (no colour temperature to read back). One
+    can be told to drop its next commands, as a string on weak Wi-Fi does."""
+
+    def __init__(self) -> None:
+        super().__init__(boot=0.0)
+        self.powered_at = 0.0
+        self.drop: dict[str, int] = {}
+        for b in ("light.b1", "light.b2", "light.b3"):
+            self.states[b] = SimpleNamespace(state="off", attributes={})
+        del self.states["light.dimmer"]
+
+    async def call(self, domain: str, service: str, data: dict) -> None:
+        eid = data["entity_id"]
+        self.calls.append((self.t, eid, service, {k: v for k, v in data.items() if k != "entity_id"}))
+        if self.drop.get(eid, 0) > 0:
+            self.drop[eid] -= 1
+            return
+        if service == "turn_off":
+            self.states[eid] = SimpleNamespace(state="off", attributes={})
+        else:
+            k = data.get("color_temp_kelvin")
+            self.states[eid] = SimpleNamespace(state="on", attributes={"brightness": data.get("brightness"), "rgb_color": [255, (k or 2000) // 20, 40]})
+
+    def outside(self, eid: str, on: bool, **attrs) -> tuple[SimpleNamespace, SimpleNamespace]:
+        """Something else (an automation, a person) switches one string: (new, old) as Home Assistant reports it."""
+        old = self.states[eid]
+        self.states[eid] = SimpleNamespace(state="on" if on else "off", attributes=dict(attrs))
+        return self.states[eid], old
+
+
+SCFG = {"id": "xmas0001", "name": "Christmas strings", "power": "", "bulbs": ["light.b1", "light.b2", "light.b3"], "adaptive": True, "curve": dict(C.DEFAULTS)}
+
+
+def test_lights_that_always_have_power_can_be_a_team_with_no_power_source() -> None:
+    ok = P.sanitize_teams([{"name": "Strings", "power": "", "bulbs": ["light.b1", "light.b2"]}, {"name": "Bedroom", "power": "light.dimmer", "bulbs": ["light.b3"]}])
+    assert isinstance(ok, list) and ok[0]["power"] == "" and ok[1]["power"] == "light.dimmer"
+    assert isinstance(P.sanitize_teams([{"name": "Strings", "power": "nonsense", "bulbs": ["light.b1"]}]), str)
+    h = Strings()
+    t = P.Team(dict(SCFG), h.io)
+    assert t.powerless and not t.is_on and t.phase == "off"
+    run(t.turn_on())
+    assert all(h.states[b].state == "on" and h.states[b].attributes["brightness"] == 200 for b in SCFG["bulbs"])
+    assert t.is_on and t.phase == "ready" and not any(e == "" for _, e, _, _ in h.calls)       # nothing is ever sent to "no power source"
+    assert {d.get("color_temp_kelvin") for _, e, s, d in h.calls if s == "turn_on"} == {4000}    # the same colour to each: they match
+    run(t.turn_off())
+    assert all(h.states[b].state == "off" for b in SCFG["bulbs"]) and t.phase == "off" and not t.is_on
+
+
+def test_a_string_that_drops_a_command_is_sent_it_again_on_and_off() -> None:
+    h = Strings()
+    t = P.Team(dict(SCFG), h.io)
+    h.drop["light.b2"] = 2
+    run(t.turn_on())
+    assert h.states["light.b2"].state == "on" and len(h.to("light.b2")) == 3 and len(h.to("light.b1")) == 1 and t.phase == "ready"
+    h.calls.clear()
+    h.drop["light.b2"] = 1
+    run(t.turn_off())
+    assert h.states["light.b2"].state == "off" and [s for _, s, _ in h.to("light.b2")] == ["turn_off", "turn_off"] and len(h.to("light.b1")) == 1
+
+
+def test_one_string_switched_by_an_automation_takes_the_others_with_it_in_the_days_light() -> None:
+    h = Strings()
+    t = P.Team(dict(SCFG), h.io)
+    # Sunset: the automation turns one on in its own colour (the others follow in the same call; the first is enough).
+    new, old = h.outside("light.b1", True, brightness=8, rgb_color=[255, 169, 87])
+    run(t.on_bulb("light.b1", new, old))
+    assert all(h.states[b].state == "on" and h.states[b].attributes["brightness"] == 200 for b in SCFG["bulbs"]) and t.phase == "ready"
+    # The automation's second pass, twenty seconds later, sets its own values again: the next minute puts the day's back.
+    h.t += 20
+    new, old = h.outside("light.b3", True, brightness=8, rgb_color=[255, 169, 87])
+    run(t.on_bulb("light.b3", new, old))
+    assert not t.manual                                                    # so soon after ours: not someone's hand
+    h.t += 40
+    h.calls.clear()
+    # What our own re-send changes is reported while it is being sent (as Home Assistant does): never someone's hand.
+    real_call = h.io.call
+
+    async def call_and_report(domain: str, service: str, data: dict) -> None:
+        before = h.states[data["entity_id"]]
+        await real_call(domain, service, data)
+        await t.on_bulb(data["entity_id"], h.states[data["entity_id"]], before)
+    h.io.call = call_and_report
+    run(t.tick())
+    h.io.call = real_call
+    assert [e for _, e, _, _ in h.calls] == ["light.b3"] and h.states["light.b3"].attributes["brightness"] == 200
+    assert not t.manual and t.effect == P.EFFECT_ADAPTIVE
+    # Half past nine: the automation turns one off; the team is off, all of it.
+    h.t += 600
+    h.calls.clear()
+    new, old = h.outside("light.b2", False)
+    run(t.on_bulb("light.b2", new, old))
+    assert all(h.states[b].state == "off" for b in SCFG["bulbs"]) and t.phase == "off"
+    # A string coming back from unavailable is not a switch: nothing happens.
+    h.calls.clear()
+    run(t.on_bulb("light.b1", SimpleNamespace(state="off", attributes={}), SimpleNamespace(state="unavailable", attributes={})))
+    run(t.on_bulb("light.b1", SimpleNamespace(state="on", attributes={}), SimpleNamespace(state="unavailable", attributes={})))
+    assert h.calls == []
+
+
+def test_a_colour_chosen_on_one_string_by_hand_stops_the_day_leading_the_team() -> None:
+    h = Strings()
+    t = P.Team(dict(SCFG), h.io)
+    run(t.turn_on())
+    # What each showed just after our send is remembered as ours.
+    run(t.on_bulb("light.b1", h.states["light.b1"], SimpleNamespace(state="on", attributes={})))
+    h.t += 600
+    new, old = h.outside("light.b1", True, brightness=200, rgb_color=[0, 0, 255])
+    run(t.on_bulb("light.b1", new, old))
+    assert t.manual and t.effect is None
+    h.now_target = {"brightness": 100, "kelvin": 2500}
+    h.calls.clear()
+    run(t.tick())
+    assert h.calls == []                                                   # left as chosen
+
+
 def test_it_is_wired_in_off_until_a_team_is_made() -> None:
     init = (ROOT / "custom_components/padspan_ha/__init__.py").read_text(encoding="utf-8")
     assert '["sensor", "binary_sensor", "device_tracker", "light"] if edition() == "full" else []' in init
@@ -337,7 +454,7 @@ def test_the_settings_card_makes_saves_and_removes_a_team() -> None:
     assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
     out = json.loads(lines[-1])
     assert not out["failures"], json.dumps(out["failures"][:6], indent=2, ensure_ascii=False)
-    assert len(out["cases"]) >= 5
+    assert len(out["cases"]) >= 6
     settings = (views / "settings.js").read_text(encoding="utf-8")
     assert 'if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el));' in settings
     panel = (views.parent / "panel.js").read_text(encoding="utf-8")

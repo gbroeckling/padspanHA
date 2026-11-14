@@ -37,7 +37,9 @@ export function powerTeamsSection(ctx, el){
   box.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
     "Smart colour bulbs in sockets fed by a wall dimmer or switch. A team makes them one light in Home Assistant: turning it on puts the power on at full, " +
     "waits for the bulbs to start, then sets their brightness and colour. Turning it off cuts the power. The wall button still works, and a dimmer held " +
-    "to a level at the wall sets how bright the bulbs go. With “Follow the day” the light is cool and bright at midday, warm in the evening and dim at night."));
+    "to a level at the wall sets how bright the bulbs go. With “Follow the day” the light is cool and bright at midday, warm in the evening and dim at night. " +
+    "Lights that always have power (LED strings on their own supply) can be a team with no power source: they then switch and change colour as one, " +
+    "and one of them switched by an automation takes the others with it."));
   const body = el("div"), note = el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px" });
   box.appendChild(body);
   box.appendChild(note);
@@ -55,7 +57,7 @@ export function powerTeamsSection(ctx, el){
     row("Name", name);
     const sel = document.createElement("select");
     sel.className = "select"; sel.style.maxWidth = "100%";
-    sel.appendChild(el("option", { value: "" }, "Choose the wall dimmer or switch"));
+    sel.appendChild(el("option", { value: "" }, "None: these lights always have power"));
     for (const [eid, words] of pick.power) sel.appendChild(el("option", { value: eid }, words));
     sel.value = t.power || "";
     sel.addEventListener("change", () => { t.power = sel.value; });

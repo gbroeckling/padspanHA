@@ -94,6 +94,20 @@ try {
   check("shown: what the team is doing now, and the bulb that did not answer",
     p.box.textContent.includes("Now: On, but not every bulb answered. No answer from: light.hue_2."), p.box.textContent.slice(-400));
 
+  // No power source chosen: saved as none (lights that always have power).
+  const none = page(true);
+  await settle();
+  find(none.box, "data-add")[0].click();
+  const nt = find(none.box, "data-team")[0];
+  const nn = nt._all().find(n => n.tagName === "INPUT" && n.getAttribute("type") === "text");
+  nn.value = "Strings"; fire(nn, "input");
+  for (const cb of find(nt, "data-bulb")) { cb.checked = true; fire(cb, "change"); }
+  find(none.box, "data-save")[0].click(); await settle();
+  const nset = none.sent.filter(s => s[0] === "padspan_ha/power_teams_set").pop()[1].teams;
+  check("no power source: lights that always have power are a team of their own",
+    nset.length === 1 && nset[0].power === "" && nset[0].bulbs.length === 2
+    && nt._all().some(n => n.tagName === "OPTION" && n.textContent === "None: these lights always have power"), nset);
+
   find(p.box, "data-remove")[0].click();
   find(p.box, "data-save")[0].click(); await settle();
   check("remove: gone from the list once saved",

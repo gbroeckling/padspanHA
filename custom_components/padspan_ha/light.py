@@ -94,7 +94,11 @@ class PadSpanTeamLight(LightEntity):
     @property
     def available(self) -> bool:
         t = self._team
-        st = self.hass.states.get(t.cfg["power"]) if t else None
+        if not t:
+            return False
+        if t.powerless:                                    # its lights are all there is: there while any of them is
+            return any((s := self.hass.states.get(b)) and s.state != "unavailable" for b in t.cfg["bulbs"])
+        st = self.hass.states.get(t.cfg["power"])
         return bool(st and st.state != "unavailable")
 
     @property
@@ -143,7 +147,7 @@ class PadSpanTeamLight(LightEntity):
         if not t:
             return {}
         # starting: the bulbs are being woken; failed: `missing` never answered.
-        return {"padspan_power_team": True, "power": t.cfg["power"], "bulbs": list(t.cfg["bulbs"]),
+        return {"padspan_power_team": True, "power": t.cfg.get("power") or None, "bulbs": list(t.cfg["bulbs"]),
                 "phase": t.phase, "missing": list(t.missing), "follows_the_day": t.effect == EFFECT_ADAPTIVE}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
