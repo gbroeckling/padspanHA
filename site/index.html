@@ -184,6 +184,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.245</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">14 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Power teams (Settings → Atlas → Power teams).</b> For smart colour bulbs in sockets fed by a wall dimmer or switch (Zigbee bulbs on a Control4 dimmer, say). A team makes them one light in Home Assistant, named as you name it. Turning it on puts the power on at full, sends the bulbs their brightness and colour again and again while they start up, and says which bulb never answered. Turning it off cuts the power. The wall button still works: PadSpan sees the power come on and sets the bulbs, and a dimmer held to a level at the wall sets how bright the bulbs go while the dimmer itself is put back to full, since smart bulbs need the whole wave. None exists until you make one.</li>
+          <li><b>A team can follow the day.</b> Cool and bright at midday, warm at sunrise and sunset, dim and warmer through the night, set at each turn-on and moved every minute with a slow fade. Choose a colour or a brightness yourself and it stops until the team is next turned on, or until you set its effect back to "Adaptive"; the effect "Sleep" is one fixed dim, warm setting. The curve's six numbers are yours to change. The sun curve is adapted from <a href="https://github.com/basnijholt/adaptive-lighting">Adaptive Lighting</a> by Bas Nijholt and contributors (Apache-2.0), with thanks; see THIRD_PARTY_NOTICES.md.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.244</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">14 November 2026</span>

@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.245 — Power teams: smart bulbs on a wall dimmer, as one light that follows the day (2026-11-14)
+
+### New
+- **Power teams (Settings → Atlas → Power teams).** For smart colour bulbs in sockets fed by a wall dimmer or switch (Zigbee bulbs on a Control4 dimmer, say). A team makes them one light in Home Assistant, named as you name it. Turning it on puts the power on at full, sends the bulbs their brightness and colour again and again while they start up, and says which bulb never answered. Turning it off cuts the power. The wall button still works: PadSpan sees the power come on and sets the bulbs, and a dimmer held to a level at the wall sets how bright the bulbs go while the dimmer itself is put back to full, since smart bulbs need the whole wave. None exists until you make one.
+- **A team can follow the day.** Cool and bright at midday, warm at sunrise and sunset, dim and warmer through the night, set at each turn-on and moved every minute with a slow fade. Choose a colour or a brightness yourself and it stops until the team is next turned on, or until you set its effect back to "Adaptive"; the effect "Sleep" is one fixed dim, warm setting. The curve's six numbers are yours to change. The sun curve is adapted from [Adaptive Lighting](https://github.com/basnijholt/adaptive-lighting) by Bas Nijholt and contributors (Apache-2.0), with thanks; see THIRD_PARTY_NOTICES.md.
+
+---
+
 ## 0.38.244 — Rooms as light switches (2026-11-14)
 
 ### New
