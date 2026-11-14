@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.244",
+  "title": "Rooms as light switches",
+  "date": "2026-11-14",
+  "body_markdown": "### New\n- **Rooms as light switches, in the 3D look (⋯ → Lights, off unless you tick it).** At night the 3D look is as dark as the house, so a light that is off is a dark dot nobody can find or hit. With this ticked, a room's floor is the switch for its lights: tap it and they go on together, or all off if any is on (the message has Undo). Hold for the room's list, where each light has its own switch. Hold, then drag up or down, to dim the room. And a touch lights the house up as by day for 20 seconds, so everything can be seen; on a dark house the first touch only does that. Sensors, locks and doors keep their own taps. On the Atlas tab and its wall screens, per screen."
+ },
+ {
   "version": "0.38.243",
   "title": "String lights you can see",
   "date": "2026-11-14",
@@ -76,11 +82,5 @@
   "title": "A floor shown alone gives way to an alarm on another floor",
   "date": "2026-11-10",
   "body_markdown": "### Fixed\n- **An alarm on another floor still shows.** With one floor chosen on the sidebar Atlas, a leak, smoke, CO or gas alarm going on a floor that isn't chosen (or an opening Alert pulse flags there) brings the other floors back, faded, with the alarm's ring on top, until it clears.\n- **Find active says when what is on is on another floor,** instead of doing nothing.\n- **Rooms from plans (experimental): undoing a new room keeps a receiver that was already assigned to that name.**"
- },
- {
-  "version": "0.38.229",
-  "title": "A chosen floor fills the Atlas",
-  "date": "2026-11-10",
-  "body_markdown": "### Changed\n- **Choosing a floor on the sidebar Atlas shows that floor alone, as big as the screen.** The other floors used to stay in the drawing, faded, so the chosen floor was no bigger than in the stack. On a wall screen a floor is now nearly twice the size. All shows the stack as before, and so does a floor stepped to in Live Aboard when you switch back to Map. To keep the other floors, faded, tick **Other floors, faded** in the ⋯ list (Show on this screen) in Live Aboard: it is this screen's own choice. Mapping still fades the other floors, since its tools place things by them."
  }
 ]
