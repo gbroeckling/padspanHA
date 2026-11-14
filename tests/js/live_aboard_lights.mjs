@@ -134,8 +134,8 @@ tryCase("kind: the picker's kinds are plain words and each has a height", () => 
 
 // ── strip: one line on a wall, light on what it lands on ─────────────────────
 const STRIPS = {
-  "light.valance": { l: dev("light.valance", "Kitchen Valance"), at: { x_m: 3, y_m: 2.5, ...along(300, ALONG_X) } },
-  "light.strip": { l: dev("light.strip", "LED strip"), at: { x_m: 1.0, y_m: 2.5, ...along(200, ALONG_Y) } },
+  "light.valance": { l: dev("light.valance", "Kitchen Valance"), at: { x_m: 3, y_m: 4.6, ...along(300, ALONG_X) } },
+  "light.strip": { l: dev("light.strip", "LED strip"), at: { x_m: 0.5, y_m: 2.5, ...along(200, ALONG_Y) } },
   "light.under": { l: dev("light.under", "Under cabinet"), at: { x_m: 3, y_m: 4.5, ...along(150, ALONG_X) } },
   "light.kick": { l: dev("light.kick", "Toe kick strip"), at: { x_m: 3, y_m: 0.5, ...along(150, ALONG_X) } },
   "light.tv": { l: dev("light.tv", "TV backlight"), at: { x_m: 5.5, y_m: 2.5, ...along(120, ALONG_Y) } },
@@ -159,30 +159,34 @@ tryCase("strip: a continuous line and light on the wall, never a row of glow dot
   check("strip: a continuous line and light on the wall, never a row of glow dots", ok, out);
 });
 tryCase("strip: on the wall of its room it runs along, at any distance, never mid-room", () => {
-  // Along x, 2.5 m from the walls at y = 0 and y = 5, 0.4 m from the wall at
-  // x = 0 (running across it): it goes on a wall running its way.
+  // Since 2026-11-13 (Garry: "leave things where placed unless very close"): on a wall running its way when one is
+  // within H.WALL_NEAR; further than that it stays where it was placed, turned as it was placed. (The name is kept.)
   const lights = {
+    "light.near": { l: dev("light.near", "Valance"), at: { x_m: 3, y_m: 0.5, ...along(120, ALONG_X) } },
+    // 0.4 m from the wall at x = 0, which runs across it, and 2.4 m from one running its way: it stays, unturned.
     "light.far": { l: dev("light.far", "Valance"), at: { x_m: 0.4, y_m: 2.4, ...along(120, ALONG_X) } },
     "light.mid": { l: dev("light.mid", "LED strip"), at: { x_m: 3, y_m: 2.5, ...along(80, ALONG_Y) } },
     "light.nosize": { l: dev("light.nosize", "Valance"), at: { x_m: 2, y_m: 1.2 } },
+    "light.nosize2": { l: dev("light.nosize2", "Valance"), at: { x_m: 2, y_m: 0.5 } },
   };
-  const t = house(lights, { "light.nosize": "bar" });
-  const far = t.parts("light.far"), mid = t.parts("light.mid"), ns = t.parts("light.nosize");
-  const onWall = (b) => Math.min(b.x, 6 - b.x, b.y, 5 - b.y) < 0.1;
-  const ok = near(far.bulbs[0].y, 0.012, 0.03) && Math.abs(Math.cos(far.bulbs[0].yaw)) > 0.99 && far.wall
-    && Math.min(mid.bulbs[0].x, 6 - mid.bulbs[0].x) < 0.1 && mid.wall
-    && ns.kind === "valance" && onWall(ns.bulbs[0]) && near(ns.bulbs[0].y, 0.012, 0.03) && ns.wall
-    && [far, mid, ns].every(P => onWall(P.bulbs[0]));
-  // Wherever it is placed in the room, it lands on a wall.
+  const t = house(lights, { "light.nosize": "bar", "light.nosize2": "bar" });
+  const nr = t.parts("light.near"), far = t.parts("light.far"), mid = t.parts("light.mid"), ns = t.parts("light.nosize"), ns2 = t.parts("light.nosize2");
+  const stays = (P, x, y) => near(P.bulbs[0].x, x, 0.001) && near(P.bulbs[0].y, y, 0.001) && !P.wall;
+  const ok = H.WALL_NEAR === 0.75 && near(nr.bulbs[0].y, 0.012, 0.03) && near(nr.bulbs[0].x, 3, 0.001) && nr.wall
+    && stays(far, 0.4, 2.4) && Math.abs(Math.cos(far.bulbs[0].yaw)) > 0.99 && stays(mid, 3, 2.5) && Math.abs(Math.sin(mid.bulbs[0].yaw)) > 0.99
+    && ns.kind === "valance" && stays(ns, 2, 1.2) && near(ns2.bulbs[0].y, 0.012, 0.03) && ns2.wall;
+  // Wherever it is placed in the room: on a wall running its way within reach, else exactly where it was placed.
   const bad = [];
   for (let i = 0; i < 40; i++) {
     const x = 0.3 + (i * 1.37) % 5.4, y = 0.3 + (i * 0.91) % 4.4, deg = i % 2 ? ALONG_X : ALONG_Y;
+    const d = deg === ALONG_X ? Math.min(y, 5 - y) : Math.min(x, 6 - x);
+    if (Math.abs(d - H.WALL_NEAR) < 0.06) continue;
     const tt = house({ "light.s": { l: dev("light.s", "Kitchen valance"), at: { x_m: x, y_m: y, ...along(100, deg) } } });
-    const b = tt.parts("light.s").bulbs[0];
-    if (!onWall(b)) bad.push({ x, y, b: [b.x, b.y] });
+    const P = tt.parts("light.s"), b = P.bulbs[0], onWall = Math.min(b.x, 6 - b.x, b.y, 5 - b.y) < 0.1;
+    if (d < H.WALL_NEAR ? !(onWall && P.wall) : !stays(P, x, y)) bad.push({ x, y, d, b: [b.x, b.y] });
   }
   check("strip: on the wall of its room it runs along, at any distance, never mid-room", ok && !bad.length,
-    { far: far.bulbs[0], mid: mid.bulbs[0], ns: ns.bulbs[0], bad: bad.slice(0, 4) });
+    { near: nr.bulbs[0], far: far.bulbs[0], mid: mid.bulbs[0], ns: ns.bulbs[0], ns2: ns2.bulbs[0], bad: bad.slice(0, 4) });
 });
 tryCase("strip: on a deck rail it ends where the rail does, never on past its end or its corner", () => {
   // The deck's east rail runs x = 9, y 0 to 5. A 6.65 m WLED strip on it
@@ -251,7 +255,7 @@ tryCase("ring: on a deck, small pots along its edge at floor level, never a bar 
 tryCase("wled: a lamp stands, a panel hangs on its wall, an accent lights nothing; unsure is a point and a pool", () => {
   const t = house({
     "light.gyver": { l: dev("light.gyver", "Gyver lamp", WLED), at: { x_m: 2, y_m: 2 } },
-    "light.fun": { l: dev("light.fun", "Emergency GarryOffice fun display", WLED), at: { x_m: 3, y_m: 3.8 } },
+    "light.fun": { l: dev("light.fun", "Emergency GarryOffice fun display", WLED), at: { x_m: 3, y_m: 4.5 } },
     "light.pill": { l: dev("light.pill", "PillTaker-WLED", WLED), at: { x_m: 4, y_m: 2 } },
     "light.gyver1": { l: dev("light.gyver1", "Gyver1", WLED), at: { x_m: 1, y_m: 1, width_cm: 15, height_cm: 15 } },
     "light.bath": { l: dev("light.bath", "Master Bathroom"), at: { x_m: 4, y_m: 4, ...along(200, ALONG_X) } },

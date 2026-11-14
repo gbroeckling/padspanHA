@@ -353,7 +353,8 @@ export function createUseSurface(o){
     if (t.kind === "entity") { if (r === "tap" || r === "open") moreInfo(o.root, t.eid); return; }
     if (t.kind === "device") {
       const eid = t.eid, l0 = api.lightsByEid[eid];
-      if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }
+      if (l0.isMotion) { if (r === "tap") api.toggle(eid); else if (r === "open") api.openActivity(eid); return; }   // a tap reads it, a hold opens its activity
+      if (l0.isLock) { if (r === "tap" || r === "open") api.openControls(eid); return; }   // never turned by a tap: its card has Lock and Unlock
       if (r === "tap") { tapSwitch(api, eid, l0, t); return; }
       if (r === "open") { if (p.holdable) api.openControls(eid); else tapSwitch(api, eid, l0, t); return; }
       if (r === "drag-end") {

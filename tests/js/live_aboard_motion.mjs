@@ -451,7 +451,7 @@ await tryCase("marker: a tap target over its marker opens the activity calendar 
   LA.releaseLiveAboardSlot("mo-tap");
   check("marker: a tap target over its marker opens the activity calendar through the use api; the hover box says what and when",
     k.shown && k.look.lit && k.look.size >= 28 && hit && hit.hit === "device:binary_sensor.kitchen_motion" && off18 && off18.hit === "device:binary_sensor.kitchen_motion"
-    && JSON.stringify(tap) === JSON.stringify([["openActivity", "binary_sensor.kitchen_motion"]])
+    && JSON.stringify(tap) === JSON.stringify([["toggle", "binary_sensor.kitchen_motion"]])   // a tap reads it (the Atlas's toggle says its readout); a hold opens its activity
     && hud && hud.includes("Motion · Kitchen · 3 min ago") && focus === "binary_sensor.kitchen_motion" && fan[3] > 0 && fanOff[3] === 0,
     { k, hit, off18, tap, hud, fan, fanOff });
 });

@@ -156,7 +156,8 @@ def test_wire_use_surface_quick_tap_toggles_and_only_a_real_hold_opens(tmp_path)
     pointerdown) — that carve-out is gone, so a marker's every pixel now goes
     through the SAME tracker: a quick release toggles, and only a hold that
     genuinely reaches HOLD_MS opens anything. Motion has nothing to switch,
-    so its own quick tap opens the activity calendar instead of toggling."""
+    so its own quick tap says what it reads (the toggle's readout) and a long
+    press opens its activity calendar (2026-11-13)."""
     out = _run(tmp_path, r"""
 function elx(tag, attrs) {
   const n = document.createElement(tag);
@@ -192,7 +193,7 @@ function release(g) { g.dispatchEvent({ ...noop, type: "pointerup", pointerId: 1
 
 // Quick tap on a light: released well inside HOLD_MS -> toggle, never open.
 press(lightG); release(lightG);
-// Quick tap on motion: opens its calendar, never toggles into the read-only refusal.
+// Quick tap on motion: its readout (the toggle says it), not the full-screen calendar.
 press(motionG); release(motionG);
 const quickTaps = calls.slice();
 // A REAL hold on the light: wait past HOLD_MS (500ms) for real before releasing.
@@ -204,8 +205,8 @@ release(lightG);
 console.log(JSON.stringify({ quickTaps, holdCalls: calls }));
 """)
     assert out["quickTaps"][0] == ["toggle", "light.a"], f"a quick tap must toggle, not open: {out['quickTaps']}"
-    assert out["quickTaps"][1] == ["openActivity", "binary_sensor.m"], \
-        f"a quick tap on motion must open its calendar: {out['quickTaps']}"
+    assert out["quickTaps"][1] == ["toggle", "binary_sensor.m"], \
+        f"a quick tap on motion must say its readout: {out['quickTaps']}"
     assert out["holdCalls"] == [["openControls", "light.a"]], \
         f"a genuine 500ms hold must still open the controls card: {out['holdCalls']}"
 
@@ -1127,3 +1128,23 @@ console.log(JSON.stringify({
     assert out["closedInv"]["healthy"] is True
     assert out["openInv"]["healthy"] is False and "Open for ~8h" in out["openInv"]["reason"]
     assert out["openPlain"]["healthy"] is False
+
+
+def test_a_tap_on_a_sensor_says_what_it_reads_and_switches_nothing(tmp_path):
+    """Garry, 2026-11-13 ("tap show readout"): the toggle on a sensor used to
+    say only that sensors are read-only. It says the reading; a motion sensor
+    adds how to see its activity; nothing is ever sent."""
+    out = _run(tmp_path, r"""
+const sent = [], said = [];
+const hass = { states: {
+  "sensor.t": { state: "21.4", attributes: { friendly_name: "Hall temperature", unit_of_measurement: "°C" } },
+  "binary_sensor.m": { state: "off", attributes: { friendly_name: "Hall motion", device_class: "motion" } },
+}, callService: async (...a) => { sent.push(a); } };
+for (const eid of ["sensor.t", "binary_sensor.m", "sensor.gone"]) await LM.toggleEntity(hass, eid, { toast: (m) => said.push(m) });
+hass.formatEntityState = (st) => (st.state === "off" ? "Clear" : st.state);
+await LM.toggleEntity(hass, "binary_sensor.m", { toast: (m) => said.push(m) });
+console.log(JSON.stringify({ sent, said }));
+""")
+    assert out["sent"] == []
+    assert out["said"] == ["Hall temperature: 21.4 °C", "Hall motion: off · hold for its activity",
+                           "sensor.gone: no reading", "Hall motion: Clear · hold for its activity"]

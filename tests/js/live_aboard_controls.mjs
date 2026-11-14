@@ -280,7 +280,7 @@ await tryCase("lock: on the wall nearest its spot, coloured by state; a tap and 
     looks.locked.body === "#fbbf24" && looks.unlocked.body === "#374151" && looks.jammed.body === "#374151" && looks.jammed.state === "jammed"
     && looks.unavailable.body === "#64748b" && looks.unavailable.state === "none" && looks.locked.wall
     && Math.abs(looks.locked.at[0] - 9.92) < 0.08 && Math.abs(looks.locked.at[1] - 1.0) < 0.01
-    && JSON.stringify(tap) === JSON.stringify([["toggle", "lock.back"]]) && JSON.stringify(hold) === JSON.stringify([["openControls", "lock.back"]]),
+    && JSON.stringify(tap) === JSON.stringify([["openControls", "lock.back"]]) && JSON.stringify(hold) === JSON.stringify([["openControls", "lock.back"]]),
     { looks, tap, hold });
 });
 
@@ -333,7 +333,7 @@ await tryCase("taps: on unless this screen unticks it (then no light switches, a
   LA.releaseLiveAboardSlot("ctl-taps"); LA.releaseLiveAboardSlot("ctl-taps-m");
   check("taps: on unless this screen unticks it (then no light switches, a lock as ever, a drag never); the builder neither lists it nor changes",
     JSON.stringify(on) === JSON.stringify([["toggle", "light.kitchen"]]) && rows.includes("light_taps") && off.length === 0
-    && JSON.stringify(lock) === JSON.stringify([["toggle", "lock.back"]]) && drag.calls.length === 0 && drag.turned
+    && JSON.stringify(lock) === JSON.stringify([["openControls", "lock.back"]]) && drag.calls.length === 0 && drag.turned
     && SENT.filter(n => n === "house3d_show:light_tap:ok").length === 1
     && !bRows.includes("light_taps") && bRows.includes("lights") && JSON.stringify(bTap) === JSON.stringify([["toggle", "light.kitchen"]]),
     { on, rows, off, lock, drag, bRows, bTap, sent: SENT.filter(n => n.includes("light_tap")) });
@@ -362,7 +362,9 @@ await tryCase("aim: a tap on nothing goes to the nearest light within 60 px, not
     && JSON.stringify(undone) === JSON.stringify([["toggle", "light.kitchen"]]) && !far && !bNear, { spot, near, said, undone, far, bNear });
 });
 await tryCase("taps: a sconce on a cut-away wall is pressed where its glow lands on the floor (the builder: as before, not at all)", async () => {
-  const over = { topFloorIds: ["main"], shapeOverrides: { "light.kitchen": "sconce" } };
+  // 0.4 m from the Kitchen's wall at y = 0: within reach of it (live_aboard_house.js WALL_NEAR), so it hangs there.
+  const over = { topFloorIds: ["main"], shapeOverrides: { "light.kitchen": "sconce" },
+                 model: { ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.kitchen": { x_m: 3, y_m: 0.4, floor_id: "main" } } } };
   const slot = await newSlot("ctl-sconce", { ...over, mapOnly: true }), builder = await newSlot("ctl-sconce-m", over);
   // Round the house until the wall it hangs on is the one cut away (the near side).
   const fxOf = (s) => S(s).fixtures.find(f => f.eid === "light.kitchen");

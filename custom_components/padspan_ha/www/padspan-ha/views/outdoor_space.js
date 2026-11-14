@@ -149,7 +149,14 @@ export const SURFACES = ["pavers_2ft"];
 /** One grey landscaping tile, 2 ft square, in metres; its grey and its
  *  joints' darker one (a mid grey: it reads as concrete in the Night and Day
  *  themes, and inverted in Light, as a drawing keeps its colours in each). */
-export const PAVER_M = 0.6096, PAVER_GREY = "#98968f", PAVER_JOINT = "#45443f";
+export const PAVER_M = 0.6096, PAVER_GREY = "#6f6d67", PAVER_JOINT = "#2b2a27";
+/** A tile's texture (Garry, 2026-11-13: "darker, and textured"): flecks of the joints' dark over its grey, as cast
+ *  concrete has, the same on every tile and in both looks: [u, v (0..1 across the tile), size (same unit), strength]. */
+export const PAVER_FLECKS = (() => {
+  let s = 20261113;
+  const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  return Array.from({ length: 70 }, () => [0.05 + rnd() * 0.9, 0.05 + rnd() * 0.9, 0.012 + rnd() * 0.03, 0.12 + rnd() * 0.3].map(v => +v.toFixed(3)));
+})();
 /** True for an outdoor room (by the look's own rule) paved with tiles. */
 export const paved = (outdoor, surface) => !!outdoor && surface === "pavers_2ft";
 

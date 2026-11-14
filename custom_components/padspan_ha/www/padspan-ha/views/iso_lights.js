@@ -3675,7 +3675,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const m=[e[0]-o[0],e[1]-o[1],n[0]-o[0],n[1]-o[1],o[0],o[1]].map(v=>+v.toFixed(3)).join(" ");
     paveIds.set(r, `pspave_${ri}`);
     s+=`<pattern id="pspave_${ri}" width="1" height="1" patternUnits="userSpaceOnUse" patternTransform="matrix(${m})">`+
-      `<rect width="1" height="1" fill="${SURF.PAVER_GREY}"/><path d="M0,0H1V0.04H0ZM0,0H0.04V1H0Z" fill="${SURF.PAVER_JOINT}"/></pattern>`;
+      `<rect width="1" height="1" fill="${SURF.PAVER_GREY}"/>`+
+      SURF.PAVER_FLECKS.map(([u,v,sz,a])=>`<rect x="${u}" y="${v}" width="${sz}" height="${sz}" fill="${SURF.PAVER_JOINT}" fill-opacity="${a}"/>`).join("")+
+      `<path d="M0,0H1V0.04H0ZM0,0H0.04V1H0Z" fill="${SURF.PAVER_JOINT}"/></pattern>`;
   });
   s+=`</defs>`;
   if(SHOW) s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="url(#psvig)" pointer-events="none"/>`;

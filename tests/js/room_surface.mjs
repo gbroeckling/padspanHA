@@ -128,7 +128,8 @@ for (const show of [false, true]) {
     const back = pats.length === 1 && fills.length === 1 && plainEl && paved.split(tint).length === 2
       ? paved.replace(pats[0], "").replace(tint, "").replace(fills[0], plainEl[1]) : null;
     check(`map: ${tag}: a paved patio adds one pattern, changes its fill and lays its colour over the tiles, nothing else`,
-      back === base && pats[0].includes(SURF.PAVER_GREY) && pats[0].includes(SURF.PAVER_JOINT),
+      back === base && pats[0].includes(SURF.PAVER_GREY) && pats[0].includes(SURF.PAVER_JOINT)
+      && SURF.PAVER_FLECKS.length === 70 && (pats[0].match(/fill-opacity="/g) || []).length === 70,   // each tile's flecks
       { pats: pats.length, fills: fills.length, plain: !!plainEl, same: back === base });
   });
 }

@@ -1643,14 +1643,18 @@ function createSlot(slotKey){
       mat: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide,
                                          polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }) });
   }
-  /** The paving's joints: one small repeating picture made here (nothing
-   *  downloaded), clear but for a thin line along two edges of each tile;
-   *  one material for every paved room, made the first time one is drawn. */
+  /** The paving's joints and texture: one small repeating picture made here
+   *  (nothing downloaded), clear but for a thin line along two edges of each
+   *  tile and its flecks (outdoor_space.js PAVER_FLECKS), all in the joints'
+   *  dark; one material for every paved room, made the first time one is drawn. */
   function pavingMat(){
     if (shared.pavingMat) return shared.pavingMat;
-    const c = document.createElement("canvas"); c.width = c.height = 64;
+    const N = 128, c = document.createElement("canvas"); c.width = c.height = N;
     const g = c.getContext("2d");
-    g.fillStyle = "#ffffff"; g.fillRect(0, 0, 64, 2); g.fillRect(0, 0, 2, 64);
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, N, 4); g.fillRect(0, 0, 4, N);
+    // v runs up a texture and down a canvas: flipped, so a tile's flecks lie as on the flat Map.
+    for (const [u, v, sz, a] of SURF.PAVER_FLECKS) { g.globalAlpha = a; g.fillRect(u * N, (1 - v - sz) * N, sz * N, sz * N); }
+    g.globalAlpha = 1;
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
     return (shared.pavingMat = new THREE.MeshLambertMaterial({ map: t, color: SURF.PAVER_JOINT, transparent: true, depthWrite: false,

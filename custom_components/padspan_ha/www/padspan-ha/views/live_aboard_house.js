@@ -1299,10 +1299,11 @@ export function onRail(w, x, y, len){
   const m = (lo + hi) / 2 - s;
   return { x: x + d[0] * m, y: y + d[1] * m, len: hi - lo };
 }
-/** The wall of `room` a light inside it runs along, at any distance: the
- *  nearest running `align`'s way, else the nearest. Where on it: square
- *  across from (x, y), on the room's side (as nearestWall gives it). */
-export function roomWall(pieces, room, x, y, align = null){
+/** The wall of `room` a light inside it runs along, at any distance (or within
+ *  maxD): the nearest running `align`'s way, else the nearest. Where on it:
+ *  square across from (x, y), on the room's side (as nearestWall gives it). */
+export const WALL_NEAR = 0.75;             // a wall light further than this from every wall stays where it was placed, m
+export function roomWall(pieces, room, x, y, align = null, maxD = Infinity){
   const find = (al) => {
     let best = null;
     for (const pc of pieces) {
@@ -1310,7 +1311,7 @@ export function roomWall(pieces, room, x, y, align = null){
       const dir = unit([pc.x1 - pc.x0, pc.y1 - pc.y0]);
       if (al && Math.abs(dir[0] * al[0] + dir[1] * al[1]) < ALIGN_COS) continue;
       const [d, t] = segDist(x, y, pc.x0, pc.y0, pc.x1, pc.y1);
-      if (best && d >= best.d) continue;
+      if (d >= maxD || (best && d >= best.d)) continue;
       // Its face toward the room: the side (x, y) is on, a few cm in.
       const px = pc.x0 + (pc.x1 - pc.x0) * t, py = pc.y0 + (pc.y1 - pc.y0) * t, off = pc.thick / 2 + 0.012;
       let n = Math.hypot(x - px, y - py) < 1e-3 ? [pc.nx, pc.ny] : unit([x - px, y - py]);
@@ -1324,7 +1325,8 @@ export function roomWall(pieces, room, x, y, align = null){
     }
     return best;
   };
-  const w = (align && find(align)) || find(null);
+  // Within maxD, a light with a run of its own takes only a wall running its way: the nearest other one would turn it.
+  const w = (align && find(align)) || (align && maxD !== Infinity ? null : find(null));
   return w ? { x: w.x, y: w.y, n: w.n, dir: w.dir, rail: false, pc: w.pc } : null;
 }
 function grid(fp, spacing, maxN){
@@ -1487,8 +1489,10 @@ export function fixtureParts(L, ctx){
       let dir = fp && fp.la >= 0.4 ? unit(fp.a) : null, len = fp && fp.la >= 0.4 ? fp.la : kind === "tv" ? 1.0 : 0.6;
       let cx = x, cy = y, h, n = null, w = null;
       if (!outdoor) {
-        // On the wall of its room it runs along, however far: never mid-room.
-        w = roomWall(pieces, room, x, y, dir);
+        // On the wall of its room it runs along when one is within WALL_NEAR; further than that it stays where it was
+        // placed (Garry, 2026-11-13: "leave things where placed unless very close". Before, however far: a strip
+        // placed over an island was drawn on a wall three metres away, and a press on what was seen missed it).
+        w = roomWall(pieces, room, x, y, dir, WALL_NEAR);
         h = at(kind);
       } else if (snap) {                                       // along the deck rail, or the outside of the wall
         w = snap;
@@ -1593,7 +1597,7 @@ export function fixtureParts(L, ctx){
       break;
     }
     case "sconce": case "vanity": {                          // a plate on the wall, light fanning up and down it
-      const w = room && !outdoor ? roomWall(pieces, room, x, y) : nearestWall(pieces, x, y, 1.5);
+      const w = room && !outdoor ? roomWall(pieces, room, x, y, null, WALL_NEAR) : nearestWall(pieces, x, y, 1.5);
       const px = w ? w.x : x, py = w ? w.y : y, h = at(kind), dir = w ? w.dir : [1, 0];
       if (w) P.wall = w.pc;
       if (kind === "vanity") bulb("box", px, py, h, 0.6, 0.08, 0.06, yawOf(dir));
@@ -1640,7 +1644,7 @@ export function fixtureParts(L, ctx){
       break;
     }
     case "panel": { // a flat panel on its wall, its face glowing
-      const w = room && !outdoor ? roomWall(pieces, room, x, y) : nearestWall(pieces, x, y, 1.6);
+      const w = room && !outdoor ? roomWall(pieces, room, x, y, null, WALL_NEAR) : nearestWall(pieces, x, y, 1.6);
       const wide = fp ? clamp(fp.la, 0.3, 2) : 0.5, h = at("panel");
       if (w) {
         P.wall = w.pc;

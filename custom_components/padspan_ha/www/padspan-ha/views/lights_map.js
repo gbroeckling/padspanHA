@@ -273,12 +273,21 @@ export async function setLightBrightness(hass, eid, bri){
 // not a real HA service — and always failed). One copy, one lock branch,
 // one read-only-sensor message. Resolves true once switched, false when the
 // call failed (Live Aboard counts both), undefined when nothing was sent.
+/** What a sensor reads now, in words: "Hall temperature: 21.4 °C"; a motion sensor adds how to see its activity. */
+export function readoutOf(hass, eid){
+  const st = hass.states && hass.states[eid], a = (st && st.attributes) || {};
+  if (!st) return `${eid}: no reading`;
+  const val = typeof hass.formatEntityState === "function" ? hass.formatEntityState(st) : `${st.state}${a.unit_of_measurement ? " " + a.unit_of_measurement : ""}`;
+  const motion = String(eid).startsWith("binary_sensor.") && ["motion", "occupancy"].includes(a.device_class);
+  return `${a.friendly_name || eid}: ${val}${motion ? " · hold for its activity" : ""}`;
+}
 export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   if (!hass) return;
   // Service domain is the entity's own: light.* -> light, fan.* -> fan.
   const domain = String(eid).split(".")[0];
-  if (domain === "binary_sensor") { if (toast) toast("Sensors are read-only"); return; }
-  if (domain === "sensor") { if (toast) toast("Temperature, humidity and air quality sensors are read-only"); return; }
+  // A sensor has nothing to switch: it says what it reads (Garry, 2026-11-13: "tap show readout"; before, only that
+  // it was read-only).
+  if (domain === "binary_sensor" || domain === "sensor") { if (toast) toast(readoutOf(hass, eid)); return; }
   // lock.* has no on/off at all — "locked" is its normal state, lock/unlock
   // its services.
   const isLockDomain = domain === "lock";
@@ -1207,9 +1216,13 @@ export function wireUseSurface(isoDiv, api){
       clearAll();
       try { g.releasePointerCapture(e.pointerId); } catch (_) {}
       // Motion has nothing to switch — holdable is false for it, so it can
-      // never arm below and every real tap (quick or long) opens its own
-      // activity history instead of toggling into the read-only refusal.
-      if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }
+      // never arm below. A tap says what it reads (api.toggle: toggleEntity's
+      // readout); a long press opens its activity history (Garry, 2026-11-13:
+      // a stray tap covered the house with the full-screen history).
+      if (l0.isMotion) { if (r === "tap") api.toggle(eid); else if (r === "open") api.openActivity(eid); return; }
+      // A lock is never turned by a tap: tap or hold, its card opens, and the
+      // card has Lock and Unlock (Garry, 2026-11-13).
+      if (l0.isLock) { if (r === "tap" || r === "open") api.openControls(eid); return; }
       if (r === "tap") { if (!_tapAgain(eid, e) && switches(eid, l0)) api.toggle(eid); return; }
       if (r === "open") { if (holdable) api.openControls(eid); else if (switches(eid, l0)) api.toggle(eid); return; }
       if (r === "drag-end") {

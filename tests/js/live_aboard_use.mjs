@@ -192,10 +192,10 @@ await tryCase("parity: every gesture on every kind of device makes the Atlas's o
     "light.dim moved": [], "light.dim right": [],
     "light.plain hold": [["toggle", "light.plain"]],
     "fan.ceiling hold": [["openControls", "fan.ceiling"]], "fan.ceiling dim": [["openControls", "fan.ceiling"]],
-    "binary_sensor.hall_motion tap": [["openActivity", "binary_sensor.hall_motion"]],
+    "binary_sensor.hall_motion tap": [["toggle", "binary_sensor.hall_motion"]],            // the Atlas's toggle says a sensor's readout
     "binary_sensor.hall_motion hold": [["openActivity", "binary_sensor.hall_motion"]],
     "sensor.hall_temp tap": [["toggle", "sensor.hall_temp"]], "sensor.hall_temp hold": [["toggle", "sensor.hall_temp"]],
-    "lock.front tap": [["toggle", "lock.front"]], "lock.front hold": [["openControls", "lock.front"]],
+    "lock.front tap": [["openControls", "lock.front"]], "lock.front hold": [["openControls", "lock.front"]],   // never turned by a tap
   };
   const wrong = Object.entries(want).filter(([n, w]) => JSON.stringify(did(n)) !== JSON.stringify(w)).map(([n]) => ({ n, got: did(n) }));
   check("parity: every gesture on every kind of device makes the Atlas's own calls", runs.length === 30 && !bad.length && !wrong.length,
@@ -284,11 +284,11 @@ await tryCase("switches: on, a tap on a light is the Atlas's toggle, counted, wi
   tapsOn = true;
   check("switches: on, a tap on a light is the Atlas's toggle, counted, with a pulse; unticked, no light switches, fans and locks as ever",
     JSON.stringify(on.dim) === JSON.stringify([["toggle", "light.dim"]]) && JSON.stringify(on.plain) === JSON.stringify([["toggle", "light.plain"]])
-    && JSON.stringify(on.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(on.lock) === JSON.stringify([["toggle", "lock.front"]])
+    && JSON.stringify(on.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(on.lock) === JSON.stringify([["openControls", "lock.front"]])
     && JSON.stringify(on.counted) === "[true,true]" && on.pulses.length === 2 && on.pulses.every(x => x[0] === "la3d-tapped" && x[1] === "40.0" && x[2] > 0)
     && JSON.stringify(off.dim) === "[]" && JSON.stringify(off.plain) === "[]" && JSON.stringify(off.plainHold) === "[]"
     && JSON.stringify(off.dimHold) === JSON.stringify([["openControls", "light.dim"]])
-    && JSON.stringify(off.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(off.lock) === JSON.stringify([["toggle", "lock.front"]])
+    && JSON.stringify(off.fan) === JSON.stringify([["toggle", "fan.ceiling"]]) && JSON.stringify(off.lock) === JSON.stringify([["openControls", "lock.front"]])
     && JSON.stringify(off.temp) === JSON.stringify([["toggle", "sensor.hall_temp"]]) && off.counted === 0 && off.pulses === 0, { on, off });
   // Each ring goes when its animation ends.
   const rings = () => root.children.find(n => n.localName === "svg").children.filter(n => n.getAttribute && n.getAttribute("class") === "la3d-tapped");
