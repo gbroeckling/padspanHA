@@ -340,7 +340,7 @@ function _sampleKind(payload){
     + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
     + "room_tags setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
     + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status wled_backups wled_devices "
-    + "wled_exact_list wled_get wled_look_get wled_teams_get motion_reconnects vacuum_import_preview irk_validate "
+    + "wled_exact_list wled_get wled_look_get wled_teams_get power_teams_get motion_reconnects vacuum_import_preview irk_validate "
     + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
   for (const t of ["config/entity_registry/list", "config/entity_registry/list_for_display", "config/entity_registry/get",
                    "config/device_registry/list", "config/area_registry/list", "config/floor_registry/list",

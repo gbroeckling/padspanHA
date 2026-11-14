@@ -176,6 +176,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_periods": [],          # backend-only: [[start, end], ...] earlier vacations, left out of every pattern build
     "traceback_house_focus": 0,          # Traceback's Full house activity: the Atlas floor index it opens on (its own key — overview_iso_focus indexes photo floors)
     "wled_teams": [],                     # backend-only (padspan_ha/wled_teams_set): WLED devices that act as one light — see ws_wled.py
+    "power_teams": [],                    # backend-only (padspan_ha/power_teams_set): a wall dimmer or switch and the smart bulbs it feeds, as one light — see power_team.py
     "overview_atlas": False,              # Pro: Overview shows the Atlas; Pure Live gets a switch to the classic Overview (Settings → UI Structure)
     "atlas_live_colours": False,          # the working Atlas draws a lit light in the colour it reports (Settings → UI Structure → Atlas); off: amber, as ever
     "atlas_emergency_button": True,       # show the Atlas "Test emergency lighting" button (Settings → UI Structure → Atlas)

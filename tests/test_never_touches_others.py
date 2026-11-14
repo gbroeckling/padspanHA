@@ -56,6 +56,11 @@ ALLOWED: dict[tuple[str, str, str], tuple[str, str | None, str]] = {
     ("bright_import.py", "async_import._reload", "config_entries.async_reload"):
         (OWN, "async_entries(DOMAIN)", "after a Bright import, reloads PadSpan's own entry only"),
     # ── PadSpan's own entities ───────────────────────────────────────────────
+    ("light.py", "async_gone", "registry.async_remove"):
+        (OWN, "eid = self.entity_id", "a removed power team's own light leaves the registry with it; never another entity"),
+    ("power_team.py", "_io.call", "services.async_call"):
+        (OWN, 'service not in ("turn_on", "turn_off")',
+         "a power team: turn_on/off of the wall dimmer and the bulbs its administrator put in it (padspan_ha/power_teams_set)"),
     ("ws_settings.py", "ws_settings_set", "registry.async_update_entity"):
         (OWN, "_entry.platform != DOMAIN",
          "entity on/off settings: enables/disables only entities whose platform is padspan_ha"),

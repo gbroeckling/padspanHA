@@ -40,6 +40,9 @@ const PRO = await import(`./pro_invite.js${new URL(import.meta.url).search}`)
 // and warning list need it.
 const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: atlas_weather failed to load", err); return null; });
+// Settings → Atlas → Power teams (views/power_teams.js). Optional, as the others are.
+const POWER_TEAMS = await import(`./power_teams.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: power_teams failed to load", err); return null; });
 
 export function render(ctx){
   const { el, esc, roomColor, helpBtn } = ctx.helpers;
@@ -5108,6 +5111,8 @@ function _settingsAtlas(ctx, el){
   }
   lightsCard.appendChild(_atlasScenesLine(ctx, el));
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
+  // Power teams (power_team.py, the full edition's): a wall dimmer and the smart bulbs it feeds, as one light.
+  if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el));
   // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
   // all, and whatever is stored is kept for when a key comes back.
   if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));

@@ -122,7 +122,7 @@ def test_bright_exposes_no_entities():
     """The source rule the generated tree inherits: PLATFORMS is empty when
     the edition is bright, and both forward/unload sites are guarded on it."""
     src = (_ROOT / "custom_components" / "padspan_ha" / "__init__.py").read_text(encoding="utf-8")
-    assert re.search(r'PLATFORMS: list\[str\] = \(\s*\["sensor", "binary_sensor", "device_tracker"\] if edition\(\) == "full" else \[\]', src)
+    assert re.search(r'PLATFORMS: list\[str\] = \(\s*\["sensor", "binary_sensor", "device_tracker", "light"\] if edition\(\) == "full" else \[\]', src)
     assert "if PLATFORMS:\n        try:\n            await hass.config_entries.async_forward_entry_setups" in src
     assert "if PLATFORMS:\n        try:\n            unload_ok = await hass.config_entries.async_unload_platforms" in src
 

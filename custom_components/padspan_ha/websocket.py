@@ -368,6 +368,9 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     # The Atlas WLED card's Advanced tab — a safe proxy to the device (ws_wled.py).
     from .ws_wled import async_register as _wled_register
     _wled_register(hass)
+    # Power teams: a wall dimmer and the smart bulbs it feeds, as one light (power_team.py).
+    from .power_team import async_register as _power_team_register
+    _power_team_register(hass)
     # The Atlas "Test emergency lighting" button (emergency_test.py).
     from .emergency_test import WS_COMMANDS as _emergency_commands
     for _cmd in _emergency_commands:

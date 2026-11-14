@@ -1,6 +1,17 @@
 # Third-party notices
 
-PadSpan HA bundles the following third-party software, unmodified, under its own licence.
+PadSpan HA bundles the following third-party software under its own licence, unmodified unless said otherwise.
+
+## Adaptive Lighting (adapted)
+
+- Files: `custom_components/padspan_ha/adaptive_curve.py`: the sun-position curve and the brightness and
+  colour-temperature rules, adapted from its file color_and_brightness.py
+  (`SunEvents.sun_position`, `SunLightSettings._brightness_pct_default` and `.color_temp_kelvin`). Changed: rewritten as
+  plain functions over sunrise and sunset timestamps, the night's colour always fades to the sleep colour, brightness
+  and colour only.
+- Used by: power teams (a wall dimmer and the smart bulbs it feeds), whose bulbs follow the day.
+- Source: https://github.com/basnijholt/adaptive-lighting, Copyright Bas Nijholt and contributors.
+- Licence: Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0
 
 ## three.js r170
 

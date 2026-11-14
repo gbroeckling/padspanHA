@@ -79,7 +79,7 @@ _LOGGER = logging.getLogger(__name__)
 # exposes no entities: the list is empty there and the forward/unload calls
 # below are skipped. One switch, read once, at import.
 PLATFORMS: list[str] = (
-    ["sensor", "binary_sensor", "device_tracker"] if edition() == "full" else []
+    ["sensor", "binary_sensor", "device_tracker", "light"] if edition() == "full" else []
 )
 
 SERVICE_SET_MAP = "set_room_tag_map"
@@ -832,6 +832,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as err:
             _LOGGER.warning("Platform unload error: %s", err)
             unload_ok = False
+
+    # Power teams (power_team.py): their listeners and their minute tick.
+    try:
+        from .power_team import async_stop_power_teams
+        async_stop_power_teams(hass)
+    except Exception:
+        pass
 
     # Clear panel registration flag so setup_entry re-registers with the
     # current BUILD_ID on next load (e.g. after a HACS update + reload).
