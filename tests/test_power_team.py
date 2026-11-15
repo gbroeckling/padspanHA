@@ -266,7 +266,7 @@ def test_the_day_moves_the_light_with_a_slow_fade_until_someone_chooses_and_agai
     t.manual = False
     t.want = {"brightness": 150, "kelvin": 3200}
     h.t += 600
-    run(t.on_bulb("light.b1", SimpleNamespace(state="on", attributes={"brightness": 40, "color_temp_kelvin": 3200})))
+    run(t.on_bulb("light.b1", SimpleNamespace(state="on", attributes={"brightness": 40, "color_temp_kelvin": 3200}), h.states["light.b1"]))
     assert t.manual is True
     # "Adaptive" hands it back; so does off and on.
     run(t.turn_on(effect=P.EFFECT_ADAPTIVE))
@@ -406,6 +406,32 @@ def test_one_string_switched_by_an_automation_takes_the_others_with_it_in_the_da
     run(t.on_bulb("light.b1", SimpleNamespace(state="off", attributes={}), SimpleNamespace(state="unavailable", attributes={})))
     run(t.on_bulb("light.b1", SimpleNamespace(state="on", attributes={}), SimpleNamespace(state="unavailable", attributes={})))
     assert h.calls == []
+
+
+def test_strings_found_on_after_a_restart_are_led_again_without_a_switch() -> None:
+    """Home Assistant restarts with the strings on: they are unavailable when the team is made, then heard from."""
+    h = Strings()
+    gone = SimpleNamespace(state="unavailable", attributes={})
+    for b in SCFG["bulbs"]:
+        h.states[b] = gone
+    t = P.Team(dict(SCFG), h.io)
+    assert t.phase == "off" and not t.is_on
+    h.now_target = {"brightness": 120, "kelvin": 3000}
+    for b in SCFG["bulbs"]:
+        h.states[b] = SimpleNamespace(state="on", attributes={"brightness": 255, "rgb_color": [255, 200, 150]})
+        run(t.on_bulb(b, h.states[b], gone))
+    assert t.phase == "ready" and t.is_on and h.calls == [] and t.effect == P.EFFECT_ADAPTIVE   # taken up, nothing sent yet
+    h.t += 60
+    run(t.tick())                                                           # the next minute: the day's light, on each
+    assert sorted(e for _, e, _, _ in h.calls) == sorted(SCFG["bulbs"]) and all(h.states[b].attributes["brightness"] == 120 for b in SCFG["bulbs"])
+    # Found off instead: the team stays off, and nothing is sent.
+    h2 = Strings()
+    for b in SCFG["bulbs"]:
+        h2.states[b] = gone
+    t2 = P.Team(dict(SCFG), h2.io)
+    h2.states["light.b1"] = SimpleNamespace(state="off", attributes={})
+    run(t2.on_bulb("light.b1", h2.states["light.b1"], gone))
+    assert t2.phase == "off" and h2.calls == []
 
 
 def test_a_colour_chosen_on_one_string_by_hand_stops_the_day_leading_the_team() -> None:

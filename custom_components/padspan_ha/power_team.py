@@ -335,6 +335,14 @@ class Team:
             if new.state == "off" and was == "on" and self.phase != "off" and not ours:
                 await self.turn_off()
                 return
+            if new.state == "on" and was in (None, "unavailable", "unknown") and self.phase == "off" and self._sent_at < 0:
+                # Home Assistant has just started and this light, on all along, is only now heard from: the team
+                # is on, as it was (found 2026-11-15: after a restart the lights stayed on and nothing led them).
+                # Nothing is sent here; the next minute's look puts the day's light back.
+                self.phase = "ready"
+                if self._follows():
+                    self.want = self._target()
+                return
         a = new.attributes or {}
         rgb = a.get("rgb_color")
         rgb = tuple(rgb) if isinstance(rgb, (list, tuple)) and len(rgb) == 3 else None
@@ -344,6 +352,8 @@ class Team:
             return
         if self.phase != "ready" or not self._follows() or self.sleep or new.state != "on":
             return
+        if not old or old.state in ("unavailable", "unknown"):
+            return                                     # only now heard from: what it shows is no one's hand
         bri, k = _num(a.get("brightness")), _num(a.get("color_temp_kelvin"))
         want, wk, seen = self.want.get("brightness", 255), self.want.get("kelvin"), self._rgb.get(eid)
         if ((bri is not None and abs(bri - want) > max(6, want * 0.1)) or (wk is not None and k is not None and abs(k - wk) > 300)
