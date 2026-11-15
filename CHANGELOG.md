@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.247 — 3D look: a room's lights just outside its outline (2026-11-15)
+
+### Fixed
+- **A light just outside the outline of its own room is no longer drawn as an outside light.** When a room is drawn smaller than it is, its lights stand where no room is drawn, and the 3D look treated them as being on the outside of the house: a ceiling fan became a grille low on the nearest wall, and a ceiling light lost its place under the ceiling. A light that Home Assistant files under a room of its floor, that stands between half a metre and four metres outside that room's outline with a room of a higher floor over it, is now drawn as that room's light, where it was placed, under that room's ceiling. Closer than half a metre it is taken to be in or on the wall, as before (a fireplace blower stays a grille), and a light with nothing over it stays an outside light (one on a deck by the room's wall).
+
+---
+
 ## 0.38.246 — Teams of lights that always have power (2026-11-14)
 
 ### New
