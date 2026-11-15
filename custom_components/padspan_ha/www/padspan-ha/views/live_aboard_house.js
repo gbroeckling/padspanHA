@@ -1366,6 +1366,32 @@ function ringSpots(loop, every){
   return out;
 }
 const GARAGE = /\b(garage|shop|workshop)\b/i;
+/** The room a light belongs to though it stands just outside its outline: the
+ *  indoor room of its floor that Home Assistant files it under (its area),
+ *  when that outline is OWN_ROOM_MIN to OWN_ROOM_MAX metres away and a room of
+ *  a higher floor is over the light (L.roomOver, readHouse's: it is under the
+ *  house, not out on a deck by that room's wall). A room drawn smaller than it
+ *  is leaves its lights outside the outline, and they are not outside lights
+ *  (Garry's Utility, 2026-11-15: its ceiling fan drew as a grille low on a
+ *  wall). Closer than OWN_ROOM_MIN it is in that room's wall or on its outside
+ *  face (a fireplace blower, a light by the door). */
+export const OWN_ROOM_MIN = 0.5, OWN_ROOM_MAX = 4;
+/** Is an indoor room of a higher floor over this light? (rooms: the whole house's.) */
+function roomOver(L, rooms){
+  return rooms.some(r => !r.outdoor && r.floor.elev > L.floor.elev + 1e-6 && inPoly(L.x, L.y, r.pts));
+}
+export function ownRoom(L, rooms){
+  const name = L && L.l && L.l.area_name;
+  if (!name || !L.roomOver || !L.floor || L.floor.outdoor) return null;
+  const r = (rooms || []).find(q => q.name === name && !q.outdoor && q.floor && q.floor.id === L.floor.id);
+  if (!r || inPoly(L.x, L.y, r.pts)) return null;
+  let d = Infinity;
+  for (let i = 0; i < r.pts.length; i++) {
+    const a = r.pts[i], b = r.pts[(i + 1) % r.pts.length];
+    d = Math.min(d, segDist(L.x, L.y, a[0], a[1], b[0], b[1])[0]);
+  }
+  return d >= OWN_ROOM_MIN && d <= OWN_ROOM_MAX ? r : null;
+}
 // The lights that hang from a ceiling (a covered patio's: from what covers it).
 const CEILING_KINDS = new Set(["pot", "pot_ring", "pendant", "fan", "chandelier"]);
 /** The kind a light is drawn as: its own (L.kind), with the perimeter family
@@ -1374,7 +1400,7 @@ const CEILING_KINDS = new Set(["pot", "pot_ring", "pendant", "fan", "chandelier"
 export function drawnKind(L, ctx){
   const k = KINDS.has(L.kind) || L.kind === "perimeter" ? L.kind : "glow";
   if (k !== "perimeter" && k !== "pot_ring" && k !== "cove") return k;
-  const room = roomAt((ctx && ctx.rooms) || [], L.x, L.y);
+  const room = roomAt((ctx && ctx.rooms) || [], L.x, L.y) || ownRoom(L, (ctx && ctx.rooms) || []);
   if (!room) return "glow";
   return k === "perimeter" ? (room.outdoor || L.floor.outdoor ? "pot_ring" : "cove") : k;
 }
@@ -1392,8 +1418,11 @@ export function drawnKind(L, ctx){
  *  fan's blades (housings), turned while it runs. */
 export function fixtureParts(L, ctx){
   if (L.run) return runParts(L, ctx);                        // laid out with the Strip tool
-  const fl = L.floor, rooms = ctx.rooms || [], pieces = ctx.pieces || [], ceil = ceilAt(rooms, fl, L.x, L.y) - SLAB_T;
-  const room = roomAt(rooms, L.x, L.y), kind = drawnKind(L, ctx);
+  const fl = L.floor, rooms = ctx.rooms || [], pieces = ctx.pieces || [];
+  // Its room: the one it stands in, else the one it belongs to from just outside its outline (ownRoom), under
+  // that room's ceiling.
+  const stands = roomAt(rooms, L.x, L.y), room = stands || ownRoom(L, rooms), kind = drawnKind(L, ctx);
+  const ceil = (stands || !room ? ceilAt(rooms, fl, L.x, L.y) : Math.max(fl.h, num(room.h) ?? fl.h)) - SLAB_T;
   // in: inside an indoor room. out: on a deck, patio or outdoor floor. none:
   // in no room, i.e. on the outside of the building.
   const where = fl.outdoor ? "out" : !room ? "none" : room.outdoor ? "out" : "in";
@@ -2256,7 +2285,8 @@ export function readHouse(model, floorList, lightsByEid, hidden, overrides, gap 
     perFloor.set(fl, { rooms: mine, pieces });
   }
   return { floors: F.floors, byId: F.byId, canon: F.canon, canonAt: F.canonAt, ground: F.ground, rooms, perFloor,
-           lights: readLights(model, F, lightsByEid, hidden, overrides), sensors: readSensors(model, F, lightsByEid, hidden) };
+           lights: readLights(model, F, lightsByEid, hidden, overrides).map(L => (roomOver(L, rooms) ? { ...L, roomOver: true } : L)),
+           sensors: readSensors(model, F, lightsByEid, hidden) };
 }
 
 /** A reading's walls to cut into: each floor's pieces copied, so what is

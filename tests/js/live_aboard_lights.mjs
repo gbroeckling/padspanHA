@@ -279,6 +279,28 @@ tryCase("fan: a ceiling fan's four blades, ready to turn", () => {
     && near(P.spin.x, 3) && near(P.spin.y, 2.5);
   check("fan: a ceiling fan's four blades, ready to turn", ok, P.spin);
 });
+tryCase("room: a light just outside the outline of the room it is filed under is that room's light", () => {
+  // The bedroom is drawn 6 m wide; its fan and its pots stand 1.2 m past the outline, where no room is drawn,
+  // with the loft of the floor above over them.
+  const mine = (eid, name, at) => ({ l: dev(eid, name, { area_name: "Master Bedroom" }), at: { floor_id: "ground", ...at } });
+  const rooms = { "Master Bedroom": rect("ground", 0, 0, 6, 5), Loft: rect("main", 0, -2, 4.5, 5) };
+  const t = house({ "fan.bed": mine("fan.bed", "Bedroom", { x_m: 3, y_m: -1.2 }),
+                    "light.pots": mine("light.pots", "Bedroom pots", { x_m: 2, y_m: -1.2 }),
+                    "fan.blower": mine("fan.blower", "Fireplace", { x_m: 3, y_m: -0.1 }),          // in the room's wall: a grille, as before
+                    "fan.else": { l: dev("fan.else", "Somewhere", { area_name: "Kitchen" }), at: { floor_id: "ground", x_m: 4, y_m: -1.2 } },   // no such room drawn
+                    "fan.deck": mine("fan.deck", "Bedroom", { x_m: 5, y_m: -1.2 }),                // nothing over it: out by the room's wall
+                    "fan.far": mine("fan.far", "Bedroom", { x_m: 3, y_m: -6 }) }, {}, rooms);      // too far to be the room's
+  const fan = t.parts("fan.bed"), pots = t.parts("light.pots"), blower = t.parts("fan.blower"), other = t.parts("fan.else"), far = t.parts("fan.far");
+  const deck = t.parts("fan.deck");
+  const ok = fan.where === "in" && fan.spin && fan.spin.blades.length === 4 && near(fan.spin.x, 3) && near(fan.spin.y, -1.2)
+    && near(fan.bulbs[0].h, H.mountHeight("fan", CEIL))
+    && pots.where === "in" && near(pots.bulbs[0].x, 2) && near(pots.bulbs[0].y, -1.2) && near(pots.bulbs[0].h, H.mountHeight("pot", CEIL)) && pots.poolH === 0.014
+    && blower.where === "none" && !blower.spin && near(blower.bulbs[0].h, 0.45)
+    && other.where === "none" && far.where === "none" && deck.where === "none"
+    && H.ownRoom(t.L("fan.bed"), t.h.perFloor.get(t.L("fan.bed").floor).rooms).name === "Master Bedroom";
+  check("room: a light just outside the outline of the room it is filed under is that room's light", ok,
+    { fan: [fan.where, !!fan.spin, fan.bulbs[0] && fan.bulbs[0].h], pots: [pots.where, pots.bulbs[0], pots.poolH], blower: [blower.where, blower.bulbs[0] && blower.bulbs[0].h], other: other.where, far: far.where, deck: deck.where });
+});
 tryCase("fan: every kind the picker offers draws something, in its room and outside", () => {
   const t = house({ "light.any": { l: dev("light.any", "Thing"), at: { x_m: 3, y_m: 2.5, ...along(150, ALONG_X) } },
                     "light.out": { l: dev("light.out", "Thing"), at: { x_m: 7.5, y_m: 2.5 } },
