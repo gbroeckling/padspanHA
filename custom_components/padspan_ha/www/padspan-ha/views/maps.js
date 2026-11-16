@@ -1650,7 +1650,6 @@ function _wizardScale(ctx, map, maps, w){
 
 function _wizardRooms(ctx, map, maps, w){
   const { el } = ctx.helpers;
-  ctx.state.maps._keepDraft = () => _wizKeep(ctx);
   _wizardForceEditMode(ctx, w, "rooms");
   const wrap = el("div",{});
   const areaNames = ((ctx.state.model && ctx.state.model.areas) || []).map(a=>a.name).filter(Boolean);
@@ -1926,6 +1925,9 @@ function _wizard(ctx, maps, isBasic){
   head.appendChild(stepList);
   root.appendChild(head);
 
+  // Back to Setup (views/setup.js) keeps the draft through this, on every step (2026-11-16: it was set by the rooms
+  // step alone, so a receiver placed after opening the wizard at its receivers step was lost on Back to Setup).
+  ctx.state.maps._keepDraft = () => _wizKeep(ctx);
   const body = el("div",{});
   if (w.step === 1) body.appendChild(_wizardUpload(ctx, isBasic));
   else if (w.step === 2) body.appendChild(_wizardScale(ctx, map, maps, w));

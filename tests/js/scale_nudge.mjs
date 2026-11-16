@@ -327,6 +327,17 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   at(er, "click", 80, 60); at(er, "click", 400, 60); at(er, "click", 400, 300); at(er, "dblclick", 400, 300);
   for (let i = 0; i < 4; i++) await tick();
   check("Edit outside the wizard: a finished outline waits for Save Layout", wrote.length === 0 && !!e.state.maps._draftRoomBounds.Kitchen, [wrote.length, e.state.maps._draftRoomBounds]);
+  // The wizard opened at its receivers step (the rooms step never shown): a receiver placed, then Back to Setup, is saved.
+  const r = house({ maps: [P({})], tfs: TF1, wizard: { step: 4, mapId: "e1" } });
+  const kept = [];
+  r.ctx.actions.mapsUpdateQuiet = async (p) => { kept.push(JSON.parse(JSON.stringify(p))); };
+  r.ctx.actions.mapsRefreshQuiet = async () => {};
+  const rr = await render(r);
+  at(rr, "dblclick", 300, 200);
+  check("receivers step: Back to Setup has the wizard's keeper without the rooms step", typeof r.state.maps._keepDraft === "function" && r.state.maps._draftReceivers.length === 1, r.state.maps._draftReceivers);
+  r.state.maps._keepDraft();
+  for (let i = 0; i < 6; i++) await tick();
+  check("receivers step: a placed receiver is saved on Back to Setup", kept.length === 1 && kept[0].receivers.length === 1 && kept[0].map_id === "e1", kept);
 }
 
 // ── Basic: no nudge card; the Setup Wizard's own scale step on the new plan. In the wizard: nothing more ──
