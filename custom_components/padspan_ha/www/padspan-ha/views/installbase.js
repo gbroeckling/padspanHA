@@ -1089,7 +1089,7 @@ function word(kind, k) {
         kept: "rooms or receivers saved by the Setup Wizard without Save Layout" }[b] || b}`;
       if (a === "plan_upload") return `Mapping → Upload: ${{ picked: "a picture picked", no_file: "Upload pressed with no picture", ok: "uploaded", bad_picture: "the picture couldn't be read",
         too_large: "the picture was too large", failed: "the upload failed" }[b] || b}`;
-      if (a === "scale_nudge") return `After an upload, "Set this plan's scale now": ${{ shown: "shown", first_end: "the first end tapped", both_ends: "both ends down", typed: "a length typed", refused: "a Save refused", measured_one: "saved with one length", measured_two: "saved with two lengths", later: "Later pressed", reminder_measure: "the \"No scale yet\" line's Measure pressed",
+      if (a === "scale_nudge") return `After an upload, "Set this plan's scale now": ${{ shown: "shown", first_end: "the first end tapped", both_ends: "both ends down", typed: "a length typed", refused: "a Save refused", not_to_scale: "\"This picture isn't to scale\" pressed", per_axis: "saved with each direction its own scale (a sketch)", measured_one: "saved with one length", measured_two: "saved with two lengths", later: "Later pressed", reminder_measure: "the \"No scale yet\" line's Measure pressed",
         via_upload: "a first scale saved after an upload", via_setup: "a first scale saved from Setup", via_getting_started: "a first scale saved from Getting started",
         via_wizard: "a first scale saved in the Setup Wizard", via_reminder: "a first scale saved from a \"No scale yet\" line",
         via_plans: "a first scale saved from the Plans tool", via_stack: "a first scale saved from 3D Stack" }[b] || b}`;

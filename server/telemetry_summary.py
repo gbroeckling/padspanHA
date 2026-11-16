@@ -565,7 +565,7 @@ _SETUP_NEXT = tuple(f"setup_next:{s}" for s in ("rooms", "floors", "receivers", 
 # "Set this plan's scale now" after Mapping → Upload, and the quiet "No scale yet" line's Measure (telemetry.SCALE_NUDGE_EVENTS).
 _PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "bad_picture", "too_large", "failed"))
                 + tuple(f"wizard_draw:{k}" for k in ("name", "no_room", "kept")))
-_SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "measured_one", "measured_two", "later", "reminder_measure")
+_SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "not_to_scale", "per_axis", "measured_one", "measured_two", "later", "reminder_measure")
                      + tuple(f"via_{d}" for d in ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")))
 
 

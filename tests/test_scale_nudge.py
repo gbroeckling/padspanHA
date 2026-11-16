@@ -31,6 +31,10 @@ from tests.test_plan_build import _call
 from tests.test_house3d_store import _run
 from tests.test_plan_build_scale import _setup
 
+
+def await_none(coro):
+    return _run(coro)
+
 _ROOT = Path(__file__).resolve().parents[1]
 _WWW = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
 _NODE = shutil.which("node")
@@ -153,7 +157,7 @@ def test_later_ends_it_for_good_and_the_upload_marks_only_an_indoor_plan(monkeyp
 def test_the_counters_are_allowed_summed_and_labelled():
     # 2026-11-13: the screen is every plan's first scale (D1); at Save, which door it came through (scale_nudge.DOORS).
     doors = ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")
-    words = {f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "measured_one", "measured_two", "later", "reminder_measure")} | {f"scale_nudge:via_{d}" for d in doors}
+    words = {f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "not_to_scale", "per_axis", "measured_one", "measured_two", "later", "reminder_measure")} | {f"scale_nudge:via_{d}" for d in doors}
     assert T.SCALE_NUDGE_EVENTS == words and all(T.event_allowed(e) for e in words)
     spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
     S = importlib.util.module_from_spec(spec)
@@ -166,7 +170,7 @@ def test_the_counters_are_allowed_summed_and_labelled():
     sent |= {f"via_{d}" for d in doors}
     assert {f"scale_nudge:{w}" for w in sent} == words
     ib = (_WWW / "views" / "installbase.js").read_text(encoding="utf-8")
-    assert all(f"{k}:" in ib for k in ("measured_one", "measured_two", "reminder_measure", *T.SCALE_NUDGE_STEPS, *(f"via_{d}" for d in doors))) and 'a === "scale_nudge"' in ib
+    assert all(f"{k}:" in ib for k in ("measured_one", "measured_two", "reminder_measure", *T.SCALE_NUDGE_STEPS, *T.SCALE_NUDGE_SKETCH, *(f"via_{d}" for d in doors))) and 'a === "scale_nudge"' in ib
     # Mapping → Upload's own words (2026-11-15): the panel sends exactly the allowed ones, summed and labelled.
     up = {f"plan_upload:{k}" for k in T.PLAN_UPLOAD_WORDS}
     dr = {f"wizard_draw:{k}" for k in T.WIZARD_DRAW_WORDS}
@@ -186,3 +190,58 @@ def test_the_panel_harness():
     assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
     out = json.loads(lines[-1])
     assert out["cases"] and not out["failures"], json.dumps(out["failures"], indent=1)
+
+
+# ── A picture that is not to scale, and no picture at all (2026-11-16) ──────────────────────────────────────────────
+def test_a_sketch_gets_each_direction_its_own_scale_a_proper_plan_never(monkeypatch, tmp_path, disk):  # noqa: F811
+    from custom_components.padspan_ha import plan_ai_write as C
+    # 1000 x 800 px. Across: 500 px called 5 m (100 px/m). Down: 400 px called 5 m (80 px/m): a sketch drawn too short.
+    two = [dict(_ACROSS), dict(_DOWN_OFF)]
+    avg = C.scale_from_measures((1000, 800), two, None, "", False)
+    assert avg["per_axis"] is False and avg["across_m"] == round(1000 / 90, 4) and avg["down_m"] == round(800 / 90, 4)
+    each = C.scale_from_measures((1000, 800), two, None, "", False, per_axis=True)
+    assert each["per_axis"] is True and each["across_m"] == 10.0 and each["down_m"] == 10.0 and each["differ_pct"] == 22.2
+    # Slanted lengths too: both right at once (a 3-4-5 across-and-down, and a plain down).
+    slant = [{"p1": [0.0, 0.0], "p2": [0.3, 0.5], "text": "5 m"}, {"p1": [0.5, 0.0], "p2": [0.5, 0.5], "text": "4 m"}]
+    got = C.scale_from_measures((1000, 800), slant, None, "", False, per_axis=True)
+    assert got["per_axis"] is True and got["across_m"] == 10.0 and got["down_m"] == 8.0
+    # Two lengths the same way, or one alone: the average, as ever.
+    same = [dict(_ACROSS), {"p1": [0.1, 0.2], "p2": [0.6, 0.25], "text": "5.2 m"}]
+    assert C.scale_from_measures((1000, 800), same, None, "", False, per_axis=True)["per_axis"] is False
+    assert C.scale_from_measures((1000, 800), [dict(_ACROSS)], None, "", False, per_axis=True)["per_axis"] is False
+    # The command: a proper plan averages; "not to scale" pressed gives each way its own and the plan is a sketch after.
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    assert "per_axis" not in _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=two)
+    assert _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=two, not_to_scale=True)["per_axis"] is True
+    assert "kind" not in ms.get_map("n1"), "a preview writes nothing"
+    out = _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=two, not_to_scale=True, save=True)
+    assert out["ok"] is True and out["per_axis"] is True and (out["scale_x_m"], out["scale_y_m"]) == (10.0, 10.0)
+    assert ms.get_map("n1")["kind"] == "sketch"
+    ms.maps_dir = tmp_path
+    # Uploaded as a sketch: the kind is kept, and no flag is needed; anything else is refused by the schema's own list.
+    up = {"name": "S", "filename": "s.png", "mime": "image/png", "width": 12, "height": 9, "png_base64": __import__("base64").b64encode(__import__("custom_components.padspan_ha.maps_store", fromlist=["x"]).blank_plan_png(2.0, 2.0)[0]).decode()}
+    assert _call(WM.ws_maps_upload, h, conn, **up, floor_id="main", kind="sketch")["map"]["kind"] == "sketch"
+    assert "kind" not in _call(WM.ws_maps_upload, h, conn, **up, floor_id="main")["map"]
+
+
+def test_a_blank_floor_is_to_scale_by_construction(monkeypatch, tmp_path, disk):  # noqa: F811
+    from custom_components.padspan_ha import maps_store as MS
+    png, w, hh = MS.blank_plan_png(12.0, 9.0)
+    assert png[:4] == bytes([0x89, 0x50, 0x4E, 0x47]) and (w, hh) == (1200, 900)
+    assert MS.blank_plan_png(40.0, 10.0)[1:] == (1600, 400), "the longer side is capped, the shape kept"
+    assert MS._decode_png_to_rgba(png, w, hh) is not None
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    ms.maps_dir = tmp_path
+    for bad in ({"across": "12 m", "down": "nine"}, {"across": "1 m", "down": "9 m"}, {"across": "300 m", "down": "9 m"}):
+        out = _call(WM.ws_maps_blank_create, h, conn, floor_id="main", **bad)
+        assert out["ok"] is False and out["code"] == "size"
+    assert _call(WM.ws_maps_blank_create, h, conn, floor_id="__outside__", across="12 m", down="9 m")["code"] == "outdoor"
+    n = len(ms.list_maps())
+    out = _call(WM.ws_maps_blank_create, h, conn, floor_id="main", across="12 m", down="9 m", name="")
+    m = out["map"]
+    assert out["ok"] is True and m["kind"] == "blank" and m["name"] == "Blank floor" and len(ms.list_maps()) == n + 1
+    t = mdl.map_transform(m["id"])
+    assert (t["scale_x_m"], t["scale_y_m"]) == (12.0, 9.0) and t["reference_measurements"][0]["source"] == "blank"
+    from custom_components.padspan_ha import setup_checks
+    assert setup_checks.plans_out_of_shape([dict(m, receivers=[{"id": "r"}])], {m["id"]: t}) == []
+    assert await_none(ms.async_set_kind(m["id"], "sketch")) is False, "a blank floor is never a sketch"

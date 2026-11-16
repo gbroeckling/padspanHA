@@ -1930,18 +1930,45 @@ def type_length(feet: bool) -> str:
     return "Type a length such as 13' 9\", 13.5 or 4.2 m." if feet else "Type a length such as 4.2 m, 420 cm or 13' 9\"."
 
 
-def scale_from_measures(size: tuple[int, int], measures: Any, source: str | None, today: str, feet: bool = False) -> dict[str, Any]:
+PER_AXIS_MIN_DEG = 30.0      # two lengths must run at least this far apart in direction to give each way its own scale
+
+
+def _per_axis(spans: list[tuple[float, float, float]]) -> tuple[float, float] | None:
+    """Pure. A picture not to scale (a sketch, a stretched scan): the pixels per metre across and down that make BOTH
+    lengths right, from their spans [(dx_px, dy_px, metres)]. (dx/px)^2 + (dy/py)^2 = m^2 for each, linear in 1/px^2
+    and 1/py^2. None when the two run too nearly the same way (PER_AXIS_MIN_DEG), or no such pair of scales exists."""
+    (ax, ay, am), (bx, by, bm) = spans
+    a1, a2 = math.degrees(math.atan2(abs(ay), abs(ax))), math.degrees(math.atan2(abs(by), abs(bx)))
+    if abs(a1 - a2) < PER_AXIS_MIN_DEG:
+        return None
+    det = ax * ax * by * by - bx * bx * ay * ay
+    if abs(det) < 1e-9:
+        return None
+    u = (am * am * by * by - bm * bm * ay * ay) / det          # 1 / px^2
+    v = (ax * ax * bm * bm - bx * bx * am * am) / det          # 1 / py^2
+    if not (u > 0 and v > 0 and math.isfinite(u) and math.isfinite(v)):
+        return None
+    return 1 / math.sqrt(u), 1 / math.sqrt(v)
+
+
+def scale_from_measures(size: tuple[int, int], measures: Any, source: str | None, today: str, feet: bool = False,
+                        per_axis: bool = False) -> dict[str, Any]:
     """Pure. The typed lengths parsed (plan_geom.parse_length: feet and inches,
     mm, cm, m) and the scale worked out HERE from the two points and the
     stored picture size, as Measure works it out (maps.js: px/m per
     measurement, their average, the plan's size from it, both rounded as
     Measure rounds them; `feet`: a bare number is feet, feet_on). A px/m the panel sends is never read. Refused
     ("invalid") when a length isn't one or the points aren't two on the plan.
-    Returns {transform: exactly Measure's payload, ppm, across_m, down_m, odd}."""
+    Returns {transform: exactly Measure's payload, ppm, across_m, down_m, odd}.
+
+    `per_axis`: the person said the picture is not to scale (their own sketch). Two lengths running different ways
+    then give each direction its own scale (_per_axis) in place of their average; `per_axis` in the answer says it was
+    done. One length, or two the same way, is the average as ever. Never for a proper plan: there two lengths that
+    disagree mean a slipped end far more often than a stretched picture, and the average is the safer reading."""
     w, h = size
     if not isinstance(measures, list) or not 1 <= len(measures) <= 2:
         raise Refused("invalid", "Click both ends of something on the plan, then type its length.")
-    refs, ppms = [], []
+    refs, ppms, spans = [], [], []
     for ms_ in measures:
         ms_ = ms_ if isinstance(ms_, dict) else {}
         p1, p2 = _frac_pt(ms_.get("p1")), _frac_pt(ms_.get("p2"))
@@ -1956,12 +1983,17 @@ def scale_from_measures(size: tuple[int, int], measures: Any, source: str | None
             raise Refused("invalid", "The two ends are too close together: click both ends of something longer.")
         ppm = dist_px / metres
         ppms.append(ppm)
+        spans.append((dx, dy, metres))
         refs.append({"p1": p1, "p2": p2, "distance_m": round(metres, 4), "px_per_meter": round(ppm * 100) / 100,
                      "angle_deg": round(math.degrees(math.atan2(abs(dy), abs(dx)))), "date": today, **({"source": source} if source else {})})
     ppm = round(sum(ppms) / len(ppms) * 100) / 100
     sx, sy = round(w / ppm * 10000) / 10000, round(h / ppm * 10000) / 10000
+    each = _per_axis(spans) if per_axis and len(spans) == 2 else None
+    if each:
+        sx, sy = round(w / each[0] * 10000) / 10000, round(h / each[1] * 10000) / 10000
     lo, hi = SCALE_ODD_M
     return {"transform": {"scale_x_m": sx, "scale_y_m": sy, "reference_measurements": refs}, "ppm": ppm, "across_m": sx, "down_m": sy,
+            "per_axis": bool(each),
             "metres": [r["distance_m"] for r in refs], "odd": not (lo <= sx <= hi and lo <= sy <= hi),
             "differ_pct": round(abs(ppms[0] - ppms[1]) / ((ppms[0] + ppms[1]) / 2) * 100, 1) if len(ppms) == 2 else None}
 
@@ -2082,7 +2114,7 @@ def scale_preview(hass: HomeAssistant, map_id: str, measures: Any, replacing: bo
     return out
 
 
-def measures_preview(size: tuple[int, int] | None, measures: Any, feet: bool = False) -> dict[str, Any]:
+def measures_preview(size: tuple[int, int] | None, measures: Any, feet: bool = False, per_axis: bool = False) -> dict[str, Any]:
     """Pure. What the measuring screen says of the typed lengths as they are typed (the metres, the unit a bare number
     was read in) and, once every length has its two ends, the plan's size from them (scale_from_measures, as the save
     works it out) and how far two lengths disagree. The rooms helper's preview and the upload's hand measurement
@@ -2096,8 +2128,10 @@ def measures_preview(size: tuple[int, int] | None, measures: Any, feet: bool = F
             out["invalid"] = type_length(feet)
         elif size and all(x.get("p1") is not None and x.get("p2") is not None for x in measures):
             try:
-                got = scale_from_measures(size, measures, "guided", "", feet)
+                got = scale_from_measures(size, measures, "guided", "", feet, per_axis)
                 out.update(metres=got["metres"], across_m=got["across_m"], down_m=got["down_m"], odd=got["odd"])
+                if got["per_axis"]:
+                    out["per_axis"] = True
                 if got["differ_pct"] is not None:
                     out["differ_pct"] = got["differ_pct"]
             except Refused as err:

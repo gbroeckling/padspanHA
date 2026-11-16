@@ -25,6 +25,7 @@ from .const import (
     DATA_CALIBRATION,
     DATA_TRACEBACK,
 )
+import base64
 import time as _time
 from .map_image_view import signed_image_urls
 from .presence_rules import is_outdoor_floor
@@ -95,6 +96,8 @@ async def ws_maps_image_urls(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("allow_no_image", default=False): bool,
         # Mapping → Upload: "Set this plan's scale now" waits on the new plan (views/scale_nudge.js).
         vol.Optional("scale_nudge", default=False): bool,
+        # Only when the person said so: their own sketch, not to scale (maps_store.PLAN_KINDS; "blank" is maps_blank_create's).
+        vol.Optional("kind"): vol.In(["sketch"]),
     }
 )
 @websocket_api.require_admin
@@ -128,6 +131,7 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
             floor_id,
             allow_no_image=bool(msg.get("allow_no_image")),
             scale_nudge=bool(msg.get("scale_nudge")) and floor_id != OUTSIDE_FLOOR_ID,
+            kind=msg.get("kind"),
         )
     except ValueError as exc:
         # Only the size limit is "too large"; an empty, non-PNG or garbled
@@ -155,6 +159,9 @@ _HAND_MEASURE = vol.Schema({vol.Optional("p1"): [vol.Coerce(float)], vol.Optiona
         "map_id": str,
         vol.Optional("measures", default=list): vol.All([_HAND_MEASURE], vol.Length(max=2)),
         vol.Optional("save", default=False): bool,
+        # "This picture isn't to scale" pressed on the screen (two lengths that disagree): each direction its own scale,
+        # and with `save` the plan is a sketch from then on. A plan uploaded as a sketch needs no flag.
+        vol.Optional("not_to_scale", default=False): bool,
     }
 )
 @websocket_api.require_admin
@@ -172,8 +179,9 @@ async def ws_maps_scale_measure(hass: HomeAssistant, connection, msg) -> None:
         return
     size = C._picture_size(m)  # noqa: SLF001
     measures = msg.get("measures") or []
+    per_axis = m.get("kind") == "sketch" or bool(msg.get("not_to_scale"))
     if not msg.get("save"):
-        connection.send_result(msg["id"], {"size": list(size) if size else None, **C.measures_preview(size, measures, C.feet_on(hass))})
+        connection.send_result(msg["id"], {"size": list(size) if size else None, **C.measures_preview(size, measures, C.feet_on(hass), per_axis)})
         return
     if size is None:
         connection.send_result(msg["id"], {"ok": False, "code": "no_picture_size", "message": C.SCALE_WORDS["no_picture_size"]})
@@ -184,14 +192,64 @@ async def ws_maps_scale_measure(hass: HomeAssistant, connection, msg) -> None:
         if is_outdoor_floor(m.get("floor_id")):
             raise C.Refused("outdoor", C.SCALE_WORDS["outdoor"])
         C.scale_stops(hass, msg["map_id"])
-        got = C.scale_from_measures(size, measures, None, _time.strftime("%Y-%m-%d", _time.gmtime()), C.feet_on(hass))
+        got = C.scale_from_measures(size, measures, None, _time.strftime("%Y-%m-%d", _time.gmtime()), C.feet_on(hass), per_axis)
     except C.Refused as err:
         connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": err.message})
         return
+    if msg.get("not_to_scale") and got["per_axis"]:
+        await ms.async_set_kind(msg["map_id"], "sketch")
     # Measure's own rule: the plan's floor as it is (a first measurement of a plan with none: the main floor).
     stored = await async_write_measured_transform(hass, msg["map_id"], {**got["transform"], "floor_id": m.get("floor_id") or DEFAULT_FLOOR_ID})
     connection.send_result(msg["id"], {"ok": True, "map_id": msg["map_id"], "scale_x_m": stored.get("scale_x_m"),
-                                       "scale_y_m": stored.get("scale_y_m"), "lengths": len(measures)})
+                                       "scale_y_m": stored.get("scale_y_m"), "lengths": len(measures), **({"per_axis": True} if got["per_axis"] else {})})
+
+
+# No plan picture at all (views/rough_plan.js, 2026-11-16): a blank floor of the size the person types, to scale by
+# construction, saved as any plan is and measured as Measure measures one (its whole width, the length typed).
+BLANK_WORDS: dict[str, str] = {
+    "size": "Type the floor's width and depth, each between 2 and 200 metres (or in feet): for example 12 m and 9 m.",
+    "outdoor": "A blank floor is for a floor of the house, not the outdoors.",
+}
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/maps_blank_create",
+        "floor_id": str,
+        "across": vol.All(str, vol.Length(max=40)),
+        "down": vol.All(str, vol.Length(max=40)),
+        vol.Optional("name", default=""): vol.All(str, vol.Length(max=120)),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
+    """{ok, map} or {ok: false, message}: nothing is written unless both lengths read."""
+    from . import plan_ai_write as C  # noqa: PLC0415
+    from . import plan_geom as G  # noqa: PLC0415
+    from .maps_store import BLANK_MAX_M, BLANK_MIN_M, blank_plan_png  # noqa: PLC0415
+    from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not ms:
+        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        return
+    floor_id = msg["floor_id"] or DEFAULT_FLOOR_ID
+    feet = C.feet_on(hass)
+    across, down = G.parse_length(msg["across"], feet=feet), G.parse_length(msg["down"], feet=feet)
+    if is_outdoor_floor(floor_id):
+        connection.send_result(msg["id"], {"ok": False, "code": "outdoor", "message": BLANK_WORDS["outdoor"]})
+        return
+    if across is None or down is None or not (BLANK_MIN_M <= across <= BLANK_MAX_M and BLANK_MIN_M <= down <= BLANK_MAX_M):
+        connection.send_result(msg["id"], {"ok": False, "code": "size", "message": BLANK_WORDS["size"]})
+        return
+    png, w, h = await hass.async_add_executor_job(blank_plan_png, across, down)
+    info = await ms.async_add_map(msg["name"].strip() or "Blank floor", "blank-floor.png", "image/png", w, h,
+                                  base64.b64encode(png).decode("ascii"), floor_id, kind="blank")
+    ref = {"p1": [0.0, 0.5], "p2": [1.0, 0.5], "distance_m": round(across, 4), "px_per_meter": round(w / across * 100) / 100,
+           "angle_deg": 0, "date": _time.strftime("%Y-%m-%d", _time.gmtime()), "source": "blank"}
+    await async_write_measured_transform(hass, info["id"], {"scale_x_m": round(across, 4), "scale_y_m": round(down, 4),
+                                                           "reference_measurements": [ref], "floor_id": floor_id})
+    connection.send_result(msg["id"], {"ok": True, "map": info})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/maps_scale_nudge_end", "map_id": str})

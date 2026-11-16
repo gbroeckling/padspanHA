@@ -155,6 +155,7 @@ from .ws_maps import (  # noqa: F401  (re-exported: registration, tests, callers
     ws_maps_revert_extend,
     ws_maps_scale_measure,
     ws_maps_scale_nudge_end,
+    ws_maps_blank_create,
     ws_maps_update,
     ws_maps_upload,
 )
@@ -320,6 +321,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_maps_revert_extend)
     websocket_api.async_register_command(hass, ws_maps_scale_measure)
     websocket_api.async_register_command(hass, ws_maps_scale_nudge_end)
+    websocket_api.async_register_command(hass, ws_maps_blank_create)
     websocket_api.async_register_command(hass, ws_floorplan_import_sh3d)
     websocket_api.async_register_command(hass, ws_floorplan_import_roomplan)
     for _h in _VACUUM_HANDLERS:   # robot-vacuum import (ws_vacuum.py)

@@ -28,6 +28,15 @@ export const WHY = "PadSpan needs its real size before rooms, receivers or anyth
 export const SECOND = "Add a length the other way";
 export const SECOND_WHY = "Optional: a second length, running the other way, checks that the plan picture isn't stretched.";
 export const ONE_ONLY = "Use only the first length";
+// A picture that is not to scale (2026-11-16). Every picture is taken for a proper plan unless the person says otherwise:
+// by ticking "my own sketch" at upload (map.kind), or here, once two lengths disagree.
+export const SKETCH_SAYS = "You said this picture is your own sketch. Room-by-room presence comes from calibration, so it works on a sketch; "
+  + "distances in metres will be as rough as the drawing. Measure one length across and one down, and each direction gets its own scale.";
+export const SECOND_WHY_SKETCH = "A sketch is rarely in proportion: with a second length running the other way, each direction gets its own scale.";
+export const NOT_TO_SCALE = "This picture isn't to scale";
+export const NOT_TO_SCALE_WHY = "For your own sketch or a stretched scan: each length then sets the scale for its own direction, in place of the average.";
+export const PER_AXIS_SAYS = "Each direction has its own scale: both lengths come out right.";
+export const SAME_WAY_SAYS = "Your two lengths run nearly the same way, so they can't give each direction its own scale. Measure the second one the other way.";
 export const SAVE_SAYS = "Saved as Mapping → Edit → Measure saves a scale. You can measure again there at any time.";
 // Basic has no Edit tab (review 2026-11-13, break 7): the way back to measuring there is Setup's scale step.
 export const SAVE_SAYS_BASIC = "You can measure it again at any time in Setup's Set the scale step.";
@@ -84,7 +93,7 @@ async function preview(ctx, d) {
   const seq = ++d.seq, a = ask(d);
   if (d.timer) { clearTimeout(d.timer); d.timer = null; }
   try {
-    const pv = await ctx.actions.callWS({ type: "padspan_ha/maps_scale_measure", map_id: d.map_id, measures: a });
+    const pv = await ctx.actions.callWS({ type: "padspan_ha/maps_scale_measure", map_id: d.map_id, measures: a, ...(d.nts ? { not_to_scale: true } : {}) });
     if (seq !== d.seq || ctx.state._scaleNudge !== d) return;
     d.pv = pv; d.pvFor = a; d.msg = "";
   } catch (e) {
@@ -110,7 +119,7 @@ function second(ctx, d) {
 }
 function oneOnly(ctx, d) {
   const f = d.first;
-  Object.assign(d, { first: null, pts: [f.p1, f.p2], text: f.text, pv: null, pvFor: null });
+  Object.assign(d, { first: null, pts: [f.p1, f.p2], text: f.text, pv: null, pvFor: null, nts: false });
   preview(ctx, d);
   redraw(ctx);
 }
@@ -120,7 +129,7 @@ async function save(ctx, map, d, opts = {}) {
   d.busy = true; d.msg = ""; redraw(ctx);
   let r;
   try {
-    r = await ctx.actions.callWS({ type: "padspan_ha/maps_scale_measure", map_id: map.id, measures: a, save: true });
+    r = await ctx.actions.callWS({ type: "padspan_ha/maps_scale_measure", map_id: map.id, measures: a, save: true, ...(d.nts ? { not_to_scale: true } : {}) });
   } catch (e) {
     r = { ok: false, message: e && e.message };
   }
@@ -132,6 +141,7 @@ async function save(ctx, map, d, opts = {}) {
     return;
   }
   tel(ctx, a.length === 2 ? "measured_two" : "measured_one");
+  if (r.per_axis) { tel(ctx, "per_axis"); if (d.nts) map.kind = "sketch"; }
   if (DOORS.includes(opts.door)) tel(ctx, "via_" + opts.door);
   map.scale_nudge = false;
   ctx.state._scaleNudge = null;
@@ -160,11 +170,20 @@ function paint(ctx, d, said, sized, saveBtn) {
   if (fresh(d) && complete(d) && pv.across_m) {
     lines.push(...PM.sizeLines(ctx, pv));
     if (d.first && typeof pv.differ_pct === "number") {
-      const off = pv.differ_pct > DIFFER_PCT;
-      lines.push(el("div", { "data-nudge": off ? "differs" : "agrees", style: `font-size:12px;line-height:1.5;margin:4px 0;color:${off ? "#f59e0b" : "#a7f3d0"}` },
-        differWords(pv.differ_pct)));
+      const off = pv.differ_pct > DIFFER_PCT, own = d.sketch || d.nts;
+      if (pv.per_axis) {
+        lines.push(el("div", { "data-nudge": "per-axis", style: "font-size:12px;line-height:1.5;margin:4px 0;color:#a7f3d0" }, PER_AXIS_SAYS));
+      } else if (own) {
+        lines.push(el("div", { "data-nudge": "same-way", style: "font-size:12px;line-height:1.5;margin:4px 0;color:#f59e0b" }, SAME_WAY_SAYS));
+      } else {
+        lines.push(el("div", { "data-nudge": off ? "differs" : "agrees", style: `font-size:12px;line-height:1.5;margin:4px 0;color:${off ? "#f59e0b" : "#a7f3d0"}` },
+          differWords(pv.differ_pct)));
+        // Said by the person, never assumed: a proper plan's two lengths that disagree are far more often a slipped end.
+        if (off) lines.push(row(ctx, [btn(ctx, NOT_TO_SCALE, () => { tel(ctx, "not_to_scale"); d.nts = true; d.pv = null; preview(ctx, d); },
+          { attrs: { "data-nudge": "not-to-scale" } }), MUTED(ctx, NOT_TO_SCALE_WHY)]));
+      }
     }
-    if (!d.first) lines.push(row(ctx, [btn(ctx, SECOND, () => second(ctx, d), { attrs: { "data-nudge": "second" } }), MUTED(ctx, SECOND_WHY)]));
+    if (!d.first) lines.push(row(ctx, [btn(ctx, SECOND, () => second(ctx, d), { attrs: { "data-nudge": "second" } }), MUTED(ctx, d.sketch ? SECOND_WHY_SKETCH : SECOND_WHY)]));
   }
   if (d.msg) lines.push(P(ctx, d.msg, "color:#f59e0b"));
   sized.replaceChildren(...lines);
@@ -180,6 +199,8 @@ export function render(ctx, map, opts = {}) {
   card.appendChild(el("div", { class: "h2" }, TITLE));
   card.appendChild(P(ctx, `${map.name || "Your plan"} ${opts.door === "upload" ? "is uploaded" : "has no scale yet"}. ${WHY}`));
   card.appendChild(P(ctx, PM.measureHow(tap)));
+  d.sketch = map.kind === "sketch";
+  if (d.sketch) card.appendChild(el("div", { "data-nudge": "sketch", style: "font-size:12px;line-height:1.5;margin:6px 0;color:#a7f3d0" }, SKETCH_SAYS));
   const cols = el("div", { style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:0 1 240px;min-width:220px" });
   const ends = () => {

@@ -56,8 +56,8 @@ export const MUTED = (ctx, text) => ctx.helpers.el("div", { style: "font-size:12
 export const row = (ctx, kids, style = "") => ctx.helpers.el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;" + style }, kids);
 
 /** What to do, said once above the picture. */
-export const measureHow = (tap) => `${tap} both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. ` +
-  "The longer the thing you measure, the more exact your map." + (tap === "Tap" ? " Pinch with two fingers, or use + below the plan, to look closer." : "");
+export const measureHow = (tap) => `${tap} both ends of something you know the length of (the longest wall you can, or the whole house), then type its length. ` +
+  "The longer the thing you measure, the more exact your map: a doorway is too short to trust." + (tap === "Tap" ? " Pinch with two fingers, or use + below the plan, to look closer." : "");
 /** The line under the picture: which end is next, or how to move one. */
 export const endHint = (sc, tap) => (sc.pts.length < 2 ? `${tap} the ${sc.pts.length ? "other" : "first"} end on the plan.` : `Drag an end, or ${tap.toLowerCase()} near it, to move it.`);
 

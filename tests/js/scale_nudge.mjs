@@ -54,11 +54,15 @@ function measure(p, house) {
   const ppm = ppms.reduce((a, b) => a + b, 0) / ppms.length;
   Object.assign(out, { across_m: 1000 / ppm, down_m: 800 / ppm, odd: false });
   if (ppms.length === 2) out.differ_pct = Math.round(Math.abs(ppms[0] - ppms[1]) / ppm * 1000) / 10;
+  // A picture said not to scale (the plan's own kind, or the screen's button): each way its own scale, for the one-across
+  // one-down pair these cases draw (plan_ai_write._per_axis works any two directions out).
+  const own = house.state.maps.list.find(x => x.id === p.map_id);
+  if (ppms.length === 2 && (p.not_to_scale || (own && own.kind === "sketch"))) Object.assign(out, { across_m: 1000 / ppms[0], down_m: 800 / ppms[1], per_axis: true });
   if (!p.save) return out;
   house.state.model.map_transforms[p.map_id] = { scale_x_m: out.across_m, scale_y_m: out.down_m, reference_measurements: ms };
   const m = house.state.maps.list.find(x => x.id === p.map_id);
   if (m) delete m.scale_nudge;
-  return { ok: true, map_id: p.map_id, scale_x_m: out.across_m, scale_y_m: out.down_m, lengths: ms.length };
+  return { ok: true, map_id: p.map_id, scale_x_m: out.across_m, scale_y_m: out.down_m, lengths: ms.length, ...(out.per_axis ? { per_axis: true } : {}) };
 }
 
 function house(o = {}) {
@@ -270,6 +274,44 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   tap(gr, 400, 75); gr = await render(g); tap(gr, 400, 375); await tick(); gr = await render(g);
   await typeIn(gr, "scale-length-2", "4 m");
   check("second: two that agree are said to agree", !!q(gr, '[data-nudge="agrees"]') && !q(gr, '[data-nudge="differs"]'), gr.textContent.slice(0, 1200));
+  check("a proper plan: no sketch words, and no 'not to scale' while the lengths agree", !q(gr, '[data-nudge="sketch"]') && !q(gr, '[data-nudge="not-to-scale"]'));
+  // Not to scale (2026-11-16), said by the person: two lengths that disagree offer it; each way then has its own scale.
+  const two = async (hh) => {
+    let r = await render(hh);
+    tap(r, 80, 300); r = await render(hh); tap(r, 480, 300); await tick(); r = await render(hh);
+    await typeIn(r, "scale-length", "5 m");
+    q(r, '[data-nudge="second"]').click(); r = await render(hh);
+    tap(r, 400, 75); r = await render(hh); tap(r, 400, 375); await tick(); r = await render(hh);
+    await typeIn(r, "scale-length-2", "5 m");
+    return r;
+  };
+  const n = house({ tab: "edit", maps: [{ id: "n5", name: "Up", floor_id: "main", image: { width: 1000, height: 800 }, scale_nudge: true }] });
+  n.state.activeMapId = "n5";
+  let nr = await two(n);
+  check("not to scale: offered once the two lengths disagree, nothing assumed", !!q(nr, '[data-nudge="differs"]') && !!q(nr, '[data-nudge="not-to-scale"]') && !q(nr, '[data-nudge="per-axis"]'));
+  q(nr, '[data-nudge="not-to-scale"]').click();
+  for (let i = 0; i < 3; i++) await tick();
+  nr = await render(n);
+  check("not to scale: each direction its own scale, said; the disagreement no longer", !!q(nr, '[data-nudge="per-axis"]') && !q(nr, '[data-nudge="differs"]')
+    && nr.textContent.includes("10.0 m") && count(n, "not_to_scale") === 1, nr.textContent.slice(0, 1200));
+  q(nr, '[data-nudge="save"]').click();
+  for (let i = 0; i < 4; i++) await tick();
+  const ns = n.calls.find(c => c.type === "padspan_ha/maps_scale_measure" && c.save);
+  check("not to scale: Save says so to the server, counted, the plan a sketch from then on", ns && ns.not_to_scale === true && count(n, "per_axis") === 1
+    && n.state.maps.list.find(x => x.id === "n5").kind === "sketch", [ns, n.tele]);
+  // Uploaded as a sketch: said at the top, the second length asked for in its own words, no button needed.
+  const s = house({ tab: "edit", maps: [{ id: "n6", name: "Mine", floor_id: "main", image: { width: 1000, height: 800 }, scale_nudge: true, kind: "sketch" }] });
+  s.state.activeMapId = "n6";
+  let sr = await render(s);
+  check("a sketch: said at the top of the screen", !!q(sr, '[data-nudge="sketch"]') && q(sr, '[data-nudge="sketch"]').textContent.includes("your own sketch"));
+  tap(sr, 80, 300); sr = await render(s); tap(sr, 480, 300); await tick(); sr = await render(s);
+  await typeIn(sr, "scale-length", "5 m");
+  check("a sketch: the second length is asked for in a sketch's words", sr.textContent.includes("rarely in proportion"), sr.textContent.slice(0, 900));
+  q(sr, '[data-nudge="second"]').click(); sr = await render(s);
+  tap(sr, 400, 75); sr = await render(s); tap(sr, 400, 375); await tick(); sr = await render(s);
+  await typeIn(sr, "scale-length-2", "5 m");
+  check("a sketch: each direction its own scale with no button, and no flag sent", !!q(sr, '[data-nudge="per-axis"]') && !q(sr, '[data-nudge="not-to-scale"]')
+    && !s.calls.some(c => c.not_to_scale), sr.textContent.slice(0, 1200));
 }
 
 // ── Later: ended for good, said to the server, counted; never shown again ──

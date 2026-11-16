@@ -979,7 +979,9 @@ SCALE_NUDGE_DOORS: tuple[str, ...] = ("upload", "setup", "getting_started", "wiz
 # 2026-11-15: how far a person got on the screen, each once a page per plan: the first end tapped, both ends down, a
 # length typed, a Save refused.
 SCALE_NUDGE_STEPS: tuple[str, ...] = ("first_end", "both_ends", "typed", "refused")
-SCALE_NUDGE_WORDS: tuple[str, ...] = (("shown", "measured_one", "measured_two", "later", "reminder_measure") + SCALE_NUDGE_STEPS
+# 2026-11-16: "This picture isn't to scale" pressed, and a scale saved with each direction its own (a sketch).
+SCALE_NUDGE_SKETCH: tuple[str, ...] = ("not_to_scale", "per_axis")
+SCALE_NUDGE_WORDS: tuple[str, ...] = (("shown", "measured_one", "measured_two", "later", "reminder_measure") + SCALE_NUDGE_STEPS + SCALE_NUDGE_SKETCH
                                       + tuple(f"via_{d}" for d in SCALE_NUDGE_DOORS))
 SCALE_NUDGE_EVENTS: frozenset[str] = frozenset(f"scale_nudge:{k}" for k in SCALE_NUDGE_WORDS)
 # Mapping → Upload (views/maps.js _upload, 2026-11-15): a picture picked, Upload pressed with none, and what came of

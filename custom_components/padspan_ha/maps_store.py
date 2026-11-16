@@ -267,7 +267,7 @@ class MapsStore:
             return None
         return fp
 
-    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None, *, allow_no_image: bool = False, scale_nudge: bool = False) -> dict[str, Any]:
+    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None, *, allow_no_image: bool = False, scale_nudge: bool = False, kind: str | None = None) -> dict[str, Any]:
         """Create a new map from an uploaded PNG image.
 
         Writes the image file to disk, creates the metadata dict with default
@@ -282,6 +282,11 @@ class MapsStore:
         `scale_nudge`: Mapping → Upload's "Set this plan's scale now" waits on
         this plan (`scale_nudge: True` on its record) until its Later or its
         Save ends it (async_end_scale_nudge).
+
+        `kind`: only what the person made plain (PLAN_KINDS). A picture is taken
+        for a proper, to-scale plan unless they said otherwise: "sketch" (their
+        own drawing, not to scale) or "blank" (no picture at all: a blank floor
+        of the size they typed, blank_plan_png).
         """
         # Reject oversized uploads before decoding (avoid OOM)
         max_b64_len = (MAX_MAP_BYTES * 4) // 3 + 4
@@ -337,11 +342,26 @@ class MapsStore:
             info["image"]["missing"] = True
         if scale_nudge:
             info["scale_nudge"] = True
+        if kind in PLAN_KINDS:
+            info["kind"] = kind
 
         self.data.setdefault("maps", [])
         self.data["maps"].append(info)
         await self.store.async_save(self.data)
         return info
+
+    async def async_set_kind(self, map_id: str, kind: str | None) -> bool:
+        """A plan said to be a sketch (not to scale), or no longer. False when nothing changed."""
+        m = self.get_map(map_id)
+        if not m or m.get("kind") == "blank" or (kind is not None and kind not in PLAN_KINDS) or m.get("kind") == kind:
+            return False
+        if kind is None:
+            m.pop("kind", None)
+        else:
+            m["kind"] = kind
+        m["updated"] = _now_iso()
+        await self.store.async_save(self.data)
+        return True
 
     async def async_end_scale_nudge(self, map_id: str) -> bool:
         """The upload's "Set this plan's scale now" ended for this plan, for good
@@ -1143,6 +1163,33 @@ def _unfilter_png(raw: bytes, width: int, height: int, bpp: int, stride: int) ->
         return bytes(result)
     except Exception:
         return None
+
+
+# What a plan is, where the person made it plain; no key: a proper, to-scale plan (the default, never asked).
+PLAN_KINDS: tuple[str, ...] = ("sketch", "blank")
+BLANK_PX_PER_M, BLANK_MAX_PX = 100, 1600        # a blank floor's picture: this fine, its longer side at most this
+BLANK_MIN_M, BLANK_MAX_M = 2.0, 200.0           # a floor's width and depth, typed
+
+
+def blank_plan_png(across_m: float, down_m: float) -> tuple[bytes, int, int]:
+    """A blank floor for a house with no plan picture: white, a faint line every metre, a dark edge. To scale by
+    construction (the same pixels per metre both ways), so its scale is exact. (png, width, height)."""
+    ppm = min(BLANK_PX_PER_M, BLANK_MAX_PX / max(across_m, down_m))
+    w, h = max(8, round(across_m * ppm)), max(8, round(down_m * ppm))
+    edge = 3
+    cols = bytearray(b"\xff" * w)                                   # a row's greys: white, the metre lines, the edge
+    for i in range(1, int(across_m) + 1):
+        x = round(i * ppm)
+        if edge <= x < w - edge:
+            cols[x] = 0xD8
+    for x in list(range(edge)) + list(range(w - edge, w)):
+        cols[x] = 0x30
+    grey = lambda row: b"\x00" + b"".join(bytes((v, v, v, 255)) for v in row)   # noqa: E731 — filter byte 0, then RGBA
+    plain, dark = grey(cols), grey(bytes([0x30]) * w)
+    line = grey(bytes(0x30 if (x < edge or x >= w - edge) else 0xD8 for x in range(w)))
+    metre_rows = {round(i * ppm) for i in range(1, int(down_m) + 1)}
+    rows = [dark if (y < edge or y >= h - edge) else line if y in metre_rows else plain for y in range(h)]
+    return _encode_rgba_to_png(b"".join(rows), w, h), w, h
 
 
 def _encode_rgba_to_png(filtered_data: bytes, width: int, height: int) -> bytes:
