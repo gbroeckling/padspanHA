@@ -25,7 +25,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_FABRIC, DATA_HOUSE3D, DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .presence_rules import is_outdoor_floor
 
-TIPS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
+TIPS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale", "plan_shape")
 # The guided Setup's steps, in order (views/setup.js SETUP_STEPS, held equal
 # by tests/test_guided_setup.py): settings["setup_progress"] names only these,
 # and so do the report's setup_step:/setup_skip: counters.
@@ -95,6 +95,32 @@ def _reaches_into(A: list[tuple[float, float]], B: list[tuple[float, float]]) ->
     return any(_inside(x, y, B) and _edge_dist(x, y, B) > OVERLAP_M for x, y in probes)
 
 
+# A plan placed out of shape (2026-11-16): how far its placed width-to-height may be from its picture's before it is
+# said. Garry's office plan, a nearly square picture, stood 31 % too narrow for months (an old 3D Stack drag, converted
+# as drawn): its room and three receivers were up to 1.1 m off, and nothing said so.
+SHAPE_OFF = 0.12
+
+
+def plans_out_of_shape(maps: Any, transforms: Any) -> list[dict[str, Any]]:
+    """Plans placed wider or narrower than their own picture by more than SHAPE_OFF: [{id, name, off}], `off` the
+    placed width against the picture's shape in percent (-31: 31 % too narrow). The trust order: a plan with a hand
+    measurement of its own leads and is never named here; a plan with nothing drawn on it misleads nothing, so it
+    is not named either."""
+    out: list[dict[str, Any]] = []
+    for m in maps or []:
+        t = (transforms or {}).get(m.get("id")) if isinstance(m, dict) else None
+        if not isinstance(t, dict) or t.get("reference_measurements") or not (m.get("room_bounds") or m.get("receivers")):
+            continue
+        im = m.get("image") if isinstance(m.get("image"), dict) else {}
+        w, h, sx, sy = (_num(v) for v in (im.get("width"), im.get("height"), t.get("scale_x_m"), t.get("scale_y_m")))
+        if not (w and h and sx and sy) or min(w, h, sx, sy) <= 0:
+            continue
+        k = (sx / sy) / (w / h)
+        if abs(math.log(k)) > math.log(1 + SHAPE_OFF):
+            out.append({"id": str(m.get("id")), "name": str(m.get("name") or ""), "off": round((k - 1) * 100)})
+    return out
+
+
 def rooms_overlapping(geometry: dict[str, Any]) -> int:
     """Pairs of rooms on the same floor drawn over each other by more than
     OVERLAP_M. A count, never which rooms.
@@ -162,7 +188,7 @@ def setup_tips(hass: HomeAssistant) -> list[str]:
     floor_heights (a home of two floors or more with no floor given a height),
     receiver_heights (two floors or more, two placed receivers or more, all
     at one height or none given), scale (a floor plan, and no real-world
-    scale). The report's floors_all_default, scanner_z_uniform and
+    scale), plan_shape (plans_out_of_shape names one). The report's floors_all_default, scanner_z_uniform and
     has_metre_anchor, from the same stores; receivers here are the ones
     placed on a plan (their height is what the tip is about)."""
     dom = hass.data.get(DOMAIN, {})
@@ -190,6 +216,8 @@ def setup_tips(hass: HomeAssistant) -> list[str]:
                 out.append("scale")
         except Exception:  # noqa: BLE001 — a check that can't run says nothing
             pass
+    if plans_out_of_shape(maps, mdl.get("map_transforms")):
+        out.append("plan_shape")
     return out
 
 
@@ -206,7 +234,12 @@ async def ws_setup_tips(hass: HomeAssistant, connection, msg) -> None:
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     hidden = set((getattr(st, "data", None) or {}).get("accuracy_tips_hidden") or [])
     tips = [] if "all" in hidden else [t for t in setup_tips(hass) if t not in hidden]
-    connection.send_result(msg["id"], {"tips": tips})
+    res: dict[str, Any] = {"tips": tips}
+    if "plan_shape" in tips:                    # which plans, for the tip's words and its button
+        dom = hass.data.get(DOMAIN, {})
+        res["plan_shape"] = plans_out_of_shape((getattr(dom.get(DATA_MAPS), "data", None) or {}).get("maps"),
+                                               (getattr(dom.get(DATA_MODEL), "data", None) or {}).get("map_transforms"))
+    connection.send_result(msg["id"], res)
 
 
 WS_COMMANDS = (ws_setup_tips,)

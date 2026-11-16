@@ -947,7 +947,7 @@ def rooms_band(n: int) -> str:
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
-TIP_IDS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
+TIP_IDS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale", "plan_shape")
 TIP_EVENTS: frozenset[str] = frozenset(
     {f"tip_{a}:{t}" for a in ("shown", "opened", "hidden") for t in TIP_IDS} | {"tip_hidden:all"})
 # Calibration → Results (views/calibration_results.js, 2026-10-30): each
@@ -2565,6 +2565,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         _geo = dom.get(DATA_MODEL).room_geometry_m() if dom.get(DATA_MODEL) is not None else {}
         if _geo:
             health["rooms_overlap"] = rooms_overlapping(_geo)
+    except Exception:
+        pass
+    # Plans placed out of shape (setup_checks.plans_out_of_shape, 2026-11-16): a count, only with a plan placed.
+    try:
+        from .setup_checks import plans_out_of_shape  # noqa: PLC0415
+        _tf = (getattr(dom.get(DATA_MODEL), "data", None) or {}).get("map_transforms") or {}
+        if _tf:
+            health["plans_out_of_shape"] = len(plans_out_of_shape((getattr(dom.get(DATA_MAPS), "data", None) or {}).get("maps"), _tf))
     except Exception:
         pass
     # 0.38.122's fixes, read at the report. Each is left out, not a 0, when

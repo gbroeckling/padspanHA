@@ -474,7 +474,7 @@ function renderUnlocked(ctx, root) {
       "stairs", "calibration_no_floor", "install_age", "setup_stage", "country", "language",
       "crypto_ok", "ble_callback_active", "ble_diag_ok", "maps_geometry_faulted", "geometry_anchor_faulted", "stack_desync", "irks_silent",
       "has_metre_anchor", "floors_all_default", "scanner_z_uniform", "radios_ambiguous", "radios_unresolved", "calibration_points_vanished",
-      "maps_vanished", "rooms_overlap", "radios_shelly_mac", "radios_area_via", "forensics_paused_licence", "irk_devices_resolving"]);
+      "maps_vanished", "rooms_overlap", "plans_out_of_shape", "radios_shelly_mac", "radios_area_via", "forensics_paused_licence", "irk_devices_resolving"]);
     const fieldRows = [];
     for (const [sec, map] of Object.entries((s.fields) || {})) {
       for (const [k, f] of Object.entries(map || {})) {
@@ -620,6 +620,7 @@ const W_FLAG = {
   calibration_no_floor: "Calibration points with no floor",
   radios_unresolved: "A receiver with no Home Assistant device",
   rooms_overlap: "Rooms on one floor drawn over each other",
+  plans_out_of_shape: "Plans placed wider or narrower than their picture",
 };
 const W_INTEGRATION = {
   bluetooth: "Bluetooth", mobile_app: "Home Assistant phone app", mqtt: "MQTT", ibeacon: "iBeacon tracker",
@@ -1078,7 +1079,7 @@ function word(kind, k) {
       }
       if (a === "house3d_fallback_size") return `3D house fell back, in a house of ${{ lt20: "under 20", "20_60": "20–60", "60_150": "60–150", gt150: "over 150" }[b] || b} rooms`;
       if (a === "tip_shown" || a === "tip_opened" || a === "tip_hidden") {
-        const tip = { floor_heights: "floor heights", receiver_heights: "receiver heights", scale: "a real-world scale", all: "all of them" }[b] || b;
+        const tip = { floor_heights: "floor heights", receiver_heights: "receiver heights", scale: "a real-world scale", plan_shape: "a plan placed out of shape", all: "all of them" }[b] || b;
         return `Accuracy tip ${{ tip_shown: "shown", tip_opened: "followed to its fix", tip_hidden: "hidden" }[a]}: ${tip}`;
       }
       if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",

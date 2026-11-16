@@ -119,6 +119,33 @@ def test_the_tips_follow_the_reports_own_rules(monkeypatch):
         "floor_heights", "receiver_heights"], "an outdoor height is no storey's height"
 
 
+def _plan(mid, w, h, sx, sy, measured=False, drawn=True, name=None):
+    return ({"id": mid, "name": name or mid, "image": {"width": w, "height": h}, "receivers": [{"id": "r"}] if drawn else [], "room_bounds": {}},
+            {"scale_x_m": sx, "scale_y_m": sy, **({"reference_measurements": [{}]} if measured else {})})
+
+
+def test_a_plan_placed_out_of_shape_is_named_a_measured_or_empty_one_never(monkeypatch):
+    """2026-11-16: a nearly square picture placed 4.0 x 5.7 m stood for months with nothing said."""
+    plans = [_plan("study", 975, 945, 4.0146, 5.6793, name="Study"), _plan("true", 1131, 1600, 10.0364, 14.1983),
+             _plan("near", 489, 1087, 10.5234, 22.6217), _plan("measured", 975, 945, 4.0, 5.7, measured=True),
+             _plan("empty", 700, 4530, 10.0, 22.7, drawn=False), _plan("wide", 800, 800, 9.2, 8.0), _plan("bad", 0, 0, 1, 1)]
+    maps, tf = [p[0] for p in plans], {p[0]["id"]: p[1] for p in plans}
+    assert C.plans_out_of_shape(maps, tf) == [{"id": "study", "name": "Study", "off": -31}, {"id": "wide", "name": "wide", "off": 15}]
+    assert C.plans_out_of_shape(maps, {}) == [] and C.plans_out_of_shape(None, None) == [] and C.plans_out_of_shape([None, {"id": "x"}], {"x": 3}) == []
+    # The tip, last in TIPS, with the plans for its words; hidden like any other.
+    from custom_components.padspan_ha import fabric_truth
+    monkeypatch.setattr(fabric_truth, "metre_gauge", lambda store: {"m_per_unit": 0.01})
+    h = _home([{"id": "main"}], {})
+    h.data[DOMAIN][DATA_MAPS].data["maps"] = maps
+    h.data[DOMAIN][DATA_MODEL].data["map_transforms"] = tf
+    assert C.setup_tips(h) == ["plan_shape"] and C.TIPS[-1] == "plan_shape"
+    assert _ws(h) == {"tips": ["plan_shape"], "plan_shape": C.plans_out_of_shape(maps, tf)}
+    h.data[DOMAIN][DATA_SETTINGS].data["accuracy_tips_hidden"] = ["plan_shape"]
+    assert _ws(h) == {"tips": []}
+    for e in ("tip_shown:plan_shape", "tip_opened:plan_shape", "tip_hidden:plan_shape"):
+        assert T.event_allowed(e), e
+
+
 def _ws(h, admin=True):
     conn = MagicMock()
     conn.user = SimpleNamespace(is_admin=admin)

@@ -35,13 +35,13 @@ const VIEWS = { maps: {}, calibration: {} };
 const _focusPromise = import(pathToFileURL(join(WWW, "views", "focus.js")).href);
 const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", "_focusPromise", elSrc + "\nreturn function(){" + method + "};");
 
-function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "scale"], hidden = [], kiosk = false, mode = "live" } = {}){
+function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "scale"], hidden = [], kiosk = false, mode = "live", shape = null } = {}){
   const calls = [], events = [], toasts = [];
   const p = {
     state: { settings: { accuracy_tips_hidden: hidden }, kioskMode: kiosk, _dataModeKnown: true, dataMode: mode,
              maps: { list: [{ id: "m1" }] }, activeMapId: null, complexity: "basic", _calib: { tab: "beacon" }, view: "overview" },
     _hass: { user: { is_admin: admin } },
-    _callWS: async (msg) => { calls.push(msg); return msg.type === "padspan_ha/setup_tips" ? { tips } : { settings: { ...p.state.settings, ...msg } }; },
+    _callWS: async (msg) => { calls.push(msg); return msg.type === "padspan_ha/setup_tips" ? { tips, ...(shape ? { plan_shape: shape } : {}) } : { settings: { ...p.state.settings, ...msg } }; },
     _telemetryEvent: (n) => events.push(n),
     _scheduleRender: () => {}, _renderNav: () => {},
     _setComplexity: (m) => { p.state.complexity = m; }, _toast: (t) => toasts.push(t),
@@ -130,6 +130,21 @@ const rows = (card) => card ? card.querySelectorAll("[data-accuracy-tips]").map(
     && r.state.view === "calibration" && r.state._calibTabRequest === "tune" && r.state.complexity === "basic" && r.events.includes("tip_opened:receiver_heights")
     && s.state.view === "maps" && s.state._mapsWizard && s.state._mapsWizard.step === 2 && s.state._mapsWizard.mapId === "m1" && s.events.includes("tip_opened:scale"),
     { f: [f.state.view, f.state.mapsTab, f.state.complexity, f.toasts], r: [r.state.view, r.state._calibTabRequest, r.state.complexity], s: [s.state.view, s.state._mapsWizard] });
+}
+
+// A plan placed out of shape (2026-11-16): named, with how far off; its button is Measure on that plan.
+{
+  const p = panel({ tips: ["plan_shape"], shape: [{ id: "st", name: "Study", off: -31 }, { id: "e2", name: "Upper", off: -15 }] });
+  p.card(); await tick(); await tick();
+  const card = p.card(), row = card.querySelector('[data-accuracy-tips="tip-plan_shape"]');
+  check("plan shape: the plan is named, how far and which way, and how many more", !!row && row.textContent.includes('Check the shape of "Study" and 1 more')
+    && row.textContent.includes("31% narrower than its picture") && p.events.includes("tip_shown:plan_shape"), row && row.textContent);
+  row.querySelector("button").click();
+  check("plan shape: its button opens Measure on that plan, counted", p.state.view === "maps" && p.state._mapsWizard.step === 2 && p.state._mapsWizard.mapId === "st"
+    && p.events.includes("tip_opened:plan_shape"), [p.state.view, p.state._mapsWizard, p.events]);
+  const none = panel({ tips: ["plan_shape"] });
+  none.card(); await tick(); await tick();
+  check("plan shape: with no plan named by the server, no line", none.card() === null);
 }
 
 process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)

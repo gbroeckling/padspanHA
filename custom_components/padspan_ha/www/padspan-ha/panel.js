@@ -1292,7 +1292,7 @@ class PadSpanHaApp extends HTMLElement {
     if (!T.busy && Date.now() - T.at > 600000) {
       T.busy = true;
       this._callWS({ type: "padspan_ha/setup_tips" })
-        .then(r => { T.list = Array.isArray(r && r.tips) ? r.tips : []; })
+        .then(r => { T.list = Array.isArray(r && r.tips) ? r.tips : []; T.shape = Array.isArray(r && r.plan_shape) ? r.plan_shape : []; })
         .catch(() => { T.list = T.list || []; })
         .finally(() => { T.at = Date.now(); T.busy = false; this._scheduleRender(); });
     }
@@ -1304,6 +1304,13 @@ class PadSpanHaApp extends HTMLElement {
       scale: ["Measure one distance on a floor plan",
         "With no real-world scale, positions and distances on the map are guesses.", "Measure"],
     };
+    // A plan placed out of shape (setup_checks.plans_out_of_shape): named, with how far off, and Measure on that plan.
+    const shape = (T.shape || [])[0];
+    if (shape) {
+      const more = T.shape.length - 1, pct = Math.abs(shape.off);
+      WORDS.plan_shape = [`Check the shape of "${shape.name}"` + (more > 0 ? ` and ${more} more` : ""),
+        `It is placed ${pct}% ${shape.off < 0 ? "narrower" : "wider"} than its picture, so rooms and receivers on it can be off. Measure a distance each way on it.`, "Measure"];
+    }
     const tips = (T.list || []).filter(t => WORDS[t] && !hidden.has(t));
     if (!tips.length) return null;
     const save = (list) => {
@@ -1314,7 +1321,10 @@ class PadSpanHaApp extends HTMLElement {
     };
     const go = (t) => {
       this._telemetryEvent("tip_opened:" + t);
-      if (t === "scale") {
+      if (t === "plan_shape") {
+        this.state.view = "maps";
+        this.state._mapsWizard = { step: 2, mapId: shape.id };
+      } else if (t === "scale") {
         const maps = (this.state.maps && this.state.maps.list) || [];
         const id = (this.state.activeMapId && maps.some(m => m.id === this.state.activeMapId)) ? this.state.activeMapId : ((maps[0] && maps[0].id) || null);
         this.state.view = "maps";
