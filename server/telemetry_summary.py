@@ -563,7 +563,9 @@ _RECEIVERS_ROOMS = tuple(f"setup_receivers_rooms:{k}" for k in ("pressed", "undo
 # The "Next: …" buttons from one step to the next (telemetry.SETUP_NEXT, 2026-11-13).
 _SETUP_NEXT = tuple(f"setup_next:{s}" for s in ("rooms", "floors", "receivers", "calibration"))
 # "Set this plan's scale now" after Mapping → Upload, and the quiet "No scale yet" line's Measure (telemetry.SCALE_NUDGE_EVENTS).
-_SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "measured_one", "measured_two", "later", "reminder_measure")
+_PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "bad_picture", "too_large", "failed"))
+                + tuple(f"wizard_draw:{k}" for k in ("name", "no_room", "kept")))
+_SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "measured_one", "measured_two", "later", "reminder_measure")
                      + tuple(f"via_{d}" for d in ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")))
 
 
@@ -601,7 +603,7 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     who: dict[str, set] = defaultdict(set)
     for r in reports:
         for k, v in (r.get("usage") or {}).items():
-            if k in _MAPPING_FUNNEL or k in _WIZARD_FUNNEL or k in _RECEIVERS_ROOMS or k in _SCALE_NUDGE or k in _SETUP_NEXT:
+            if k in _MAPPING_FUNNEL or k in _WIZARD_FUNNEL or k in _RECEIVERS_ROOMS or k in _SCALE_NUDGE or k in _SETUP_NEXT or k in _PLAN_UPLOAD:
                 use[k] += v
                 who[k].add(r.get("install_id"))
     out.append("  The Plans tool (events over the window; installs)")
@@ -615,6 +617,9 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     for k in _RECEIVERS_ROOMS:
         if use[k]:
             out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
+    out.append("  Mapping → Upload: a picture picked, and what came of Upload; drawing rooms in the Setup Wizard (events over the window; installs)")
+    for k in _PLAN_UPLOAD:
+        out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
     out.append("  Set this plan's scale now, after an upload (events over the window; installs)")
     for k in _SCALE_NUDGE:
         out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")

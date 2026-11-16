@@ -144,6 +144,10 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
     && !N.pending(h.ctx, h.state.maps.list[0]) && !h.state._scaleNudge, [h.tele, h.toasts]);
   // Save leads on (review 2026-11-13, break 2): Edit on the same plan, the Rooms tool, one line saying the scale is set and what's next.
   check("Save: counted by its door, after an upload", count(h, "via_upload") === 1, h.tele);
+  // How far a person got (2026-11-15): each step of the screen counted once, and the upload's own words.
+  check("the screen's steps: first end, both ends and a length typed, once each; no Save refused",
+    count(h, "first_end") === 1 && count(h, "both_ends") === 1 && count(h, "typed") === 1 && count(h, "refused") === 0, h.tele);
+  check("the upload: counted as uploaded", h.tele.filter(t => t === "plan_upload:ok").length === 1, h.tele);
   root = await render(h);
   const tools = all(root, "[data-edit-tool]").map(b => b.getAttribute("data-edit-tool"));
   check("Save goes on to Edit, the Rooms tool, on that plan", h.state.mapsTab === "edit" && h.state.activeMapId === "up1" && h.state.maps._mode === "rooms"
@@ -279,6 +283,50 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   check("Later: the server told, counted, the nudge gone", h.calls.some(c => c.type === "padspan_ha/maps_scale_nudge_end" && c.map_id === "n3")
     && count(h, "later") === 1 && !q(root, '[data-nudge="card"]') && !N.pending(h.ctx, h.state.maps.list[0]), h.tele);
   check("Later: shown once only", count(h, "shown") === 1, h.tele);
+}
+
+// ── The Setup Wizard's rooms step (2026-11-15): a room's name above the plan starts it, a click with no room chosen is
+// said, and a finished room is saved without Save Layout (a room drawn there, then Next and Finish, was never saved) ──
+{
+  const P = (o) => ({ id: "e1", name: "Main", floor_id: "main", image: { width: 1000, height: 800 }, receivers: [], room_bounds: {}, ...o });
+  const TF1 = { e1: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } };
+  const h = house({ maps: [P({})], tfs: TF1, wizard: { step: 3, mapId: "e1" } });
+  h.state.model.areas = [{ name: "Kitchen" }, { name: "Hall" }];
+  const saved = [];
+  h.ctx.actions.mapsUpdateQuiet = async (p) => { saved.push(JSON.parse(JSON.stringify(p))); h.state.maps.list.find(x => x.id === p.map_id).room_bounds = JSON.parse(JSON.stringify(p.room_bounds)); };
+  h.ctx.actions.mapsRefreshQuiet = async () => {};
+  const draws = () => h.tele.filter(t => t.startsWith("wizard_draw:"));
+  let root = await render(h);
+  const at = (r, type, x, y) => { const ov = q(r, ".mapstage"); ov.dispatchEvent({ type, clientX: x, clientY: y, target: ov, preventDefault() {}, stopPropagation() {} }); };
+  at(root, "click", 100, 100);
+  check("rooms step: a click on the plan with no room chosen is said, and counted", h.toasts.some(t => t.includes("press its name above the plan"))
+    && draws().join() === "wizard_draw:no_room" && !h.state.maps._drawing, [h.toasts, h.tele]);
+  check("rooms step: each room not drawn is a button above the plan", all(root, "[data-wiz-room]").map(b => b.getAttribute("data-wiz-room")).join() === "Kitchen,Hall");
+  q(root, '[data-wiz-room="Kitchen"]').click();
+  root = await render(h);
+  check("rooms step: its name starts that room, and says what to do", h.state.maps._drawing && h.state.maps._drawing.room === "Kitchen" && !!q(root, "[data-wiz-room-now]")
+    && draws().includes("wizard_draw:name"), [h.state.maps._drawing, h.tele]);
+  at(root, "click", 80, 60); at(root, "click", 400, 60); at(root, "click", 400, 300); at(root, "click", 400, 300); at(root, "dblclick", 400, 300);
+  for (let i = 0; i < 6; i++) await tick();
+  const kb = saved.length === 1 && saved[0].room_bounds.Kitchen;
+  check("rooms step: the finished room is saved without Save Layout, the double-click's corner once", kb && kb.points.length === 3 && saved[0].map_id === "e1"
+    && draws().includes("wizard_draw:kept") && h.toasts.some(t => t.startsWith("Saved")), [saved, h.tele, h.toasts]);
+  root = await render(h);
+  check("rooms step: the drawn room leaves the names, the count says one", all(root, "[data-wiz-room]").map(b => b.getAttribute("data-wiz-room")).join() === "Hall"
+    && root.textContent.includes("1 of 2 rooms drawn"), root.textContent.slice(0, 600));
+  button(root, "Next: place the receivers →").click();
+  for (let i = 0; i < 4; i++) await tick();
+  check("rooms step: Next with nothing new saves nothing again", saved.length === 1 && h.state._mapsWizard.step === 4, [saved.length, h.state._mapsWizard]);
+  // Outside the wizard, Edit keeps Save Layout: nothing is written by a finished outline.
+  const e = house({ tab: "edit", maps: [P({})], tfs: TF1 });
+  e.state.model.areas = [{ name: "Kitchen" }]; e.state.activeMapId = "e1";
+  const wrote = [];
+  e.ctx.actions.mapsUpdateQuiet = async (p) => { wrote.push(p); };
+  let er = await render(e);
+  e.state.maps._mode = "rooms"; e.state.maps._selectedRoom = "Kitchen";
+  at(er, "click", 80, 60); at(er, "click", 400, 60); at(er, "click", 400, 300); at(er, "dblclick", 400, 300);
+  for (let i = 0; i < 4; i++) await tick();
+  check("Edit outside the wizard: a finished outline waits for Save Layout", wrote.length === 0 && !!e.state.maps._draftRoomBounds.Kitchen, [wrote.length, e.state.maps._draftRoomBounds]);
 }
 
 // ── Basic: no nudge card; the Setup Wizard's own scale step on the new plan. In the wizard: nothing more ──

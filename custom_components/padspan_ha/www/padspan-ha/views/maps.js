@@ -1217,8 +1217,12 @@ function _upload(ctx, helpBtn, isBasic){
   // Capture selected file on ctx.state so it survives poll-triggered DOM rebuilds.
   // The file input DOM element gets destroyed on re-render, losing the selected file.
   // Also set _mapsUploadFile flag to block re-renders while file is selected.
+  // The report: a picture picked, and what came of Upload (2026-11-15: houses opened this step and ended with no plan,
+  // and nothing said whether an upload was tried). Words only (telemetry.PLAN_UPLOAD_WORDS); never on the demo house.
+  const _upTel = (w)=>{ if(ctx.state.dataMode === "live" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("plan_upload:" + w); };
   file.addEventListener("change", ()=>{
     if(!file.files||!file.files[0]) return;
+    _upTel("picked");
     ctx.state._mapsUploadFile = file.files[0];
     if(!name.value) name.value=ctx.state._mapsUploadFile.name.replace(/\.[^.]+$/,"");
     const objUrl=URL.createObjectURL(ctx.state._mapsUploadFile);
@@ -1233,6 +1237,7 @@ function _upload(ctx, helpBtn, isBasic){
     previewImg.onerror=()=>{
       URL.revokeObjectURL(objUrl);
       ctx.state._mapsUploadFile = null;
+      _upTel("bad_picture");
       status.textContent = "Could not load image. Supported formats: PNG, JPG, GIF, BMP, WebP, SVG.";
       status.style.color = "#f87171";
     };
@@ -1250,7 +1255,7 @@ function _upload(ctx, helpBtn, isBasic){
   const btn = el("button",{class:"btn inline", onclick: async ()=>{
     // Use file from ctx.state (survives re-renders), with file input as fallback
     const f = ctx.state._mapsUploadFile || (file.files && file.files[0]);
-    if(!f){ status.textContent = "Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG."; return; }
+    if(!f){ _upTel("no_file"); status.textContent = "Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG."; return; }
     // The floor the user actually chose, not whatever this <select> happens to
     // be showing right now. render() re-runs on a 5s poll regardless of what
     // the user is doing — spend that long in the native file-browse dialog and
@@ -1295,6 +1300,7 @@ function _upload(ctx, helpBtn, isBasic){
         ...(_askScale && !isBasic ? { scale_nudge: true } : {}),
       });
       status.textContent = "Uploaded \u2714";
+      _upTel("ok");
       ctx.state._mapsUploadFile = null;
       ctx.state._mapsUploadFloorId = null;
       const _newMap = uploadRes?.map?.id ? (ctx.state.maps?.list || []).find(m => m.id === uploadRes.map.id) || uploadRes.map : null;
@@ -1305,6 +1311,7 @@ function _upload(ctx, helpBtn, isBasic){
       ctx.state.mapsTab = "edit";
       ctx.actions.renderRooms();
     }catch(e){
+      _upTel(e?.code === "upload_too_large" ? "too_large" : e?.code === "invalid_image" ? "bad_picture" : "failed");
       status.textContent = "Upload failed: " + (e?.message || e?.code || String(e));
     }
   }}, "Upload & Convert");
@@ -1506,7 +1513,35 @@ function _wizardOrder(ctx){
   return [..._setupSteps(ctx.state).map(x => by[x.id]).filter(Boolean), by.finish].filter(s => !s.setup || has.has(s.setup));
 }
 // One step on (or back) in that order.
+/** The plan's draft outlines and receivers, written: Save Layout's one writer, the Setup Wizard's too. */
+async function _saveLayout(ctx, map){
+  const ms = ctx.state.maps;
+  await ctx.actions.mapsUpdateQuiet({ map_id: map.id, calibration: map.calibration||{}, notes: map.notes||"", floor_id: ms._draftFloorId,
+    room_bounds: ms._draftRoomBounds, receivers: ms._draftReceivers });
+  await ctx.actions.mapsRefreshQuiet();
+  return (ms.list||[]).find(m => m.id === map.id) || null;
+}
+const _layoutKey = (rooms, rx) => JSON.stringify([rooms||{}, (rx||[]).map(r=>[r.x,r.y,r.source,r.room])]);
+/** In the Setup Wizard nothing drawn waits for Save Layout (2026-11-15: a room drawn there, then Next and Finish, was
+ *  never saved, and the house ended with a plan and no rooms). A finished outline, and any step left, saves what the
+ *  draft holds; one write at a time, each taking the draft as it is then. Nothing on the demo house or outside the wizard. */
+let _wizKeeping = Promise.resolve();
+function _wizKeep(ctx){
+  const ms = ctx.state.maps, map = ms && (ms.list||[]).find(m => m.id === ms._draftMapId);
+  if(!ctx.state._mapsWizard || !map || ctx.state.dataMode !== "live" || ctx.state.kioskMode) return;
+  if(_layoutKey(map.room_bounds, map.receivers) === _layoutKey(ms._draftRoomBounds, ms._draftReceivers)) return;
+  _wizKeeping = _wizKeeping.then(async ()=>{
+    try{
+      await _saveLayout(ctx, map);
+      if(ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_draw:kept");
+      ctx.toast("Saved \u2714");
+    }catch(err){ ctx.toast("Not saved: " + String((err && err.message) || err) + ". Press Save Layout under the plan.", true); }
+    ctx.actions.renderRooms();
+  });
+}
+
 function _wizardMove(ctx, w, by){
+  _wizKeep(ctx);
   const o = _wizardOrder(ctx), i = o.findIndex(s => s.n === w.step);
   const t = o[Math.max(0, Math.min(o.length - 1, (i < 0 ? 0 : i) + by))];
   w.step = t.n;
@@ -1615,13 +1650,15 @@ function _wizardScale(ctx, map, maps, w){
 
 function _wizardRooms(ctx, map, maps, w){
   const { el } = ctx.helpers;
+  ctx.state.maps._keepDraft = () => _wizKeep(ctx);
   _wizardForceEditMode(ctx, w, "rooms");
   const wrap = el("div",{});
   const areaNames = ((ctx.state.model && ctx.state.model.areas) || []).map(a=>a.name).filter(Boolean);
   const undrawn = _wizUndrawnAreas(ctx.state);
   const drawnCount = areaNames.length - undrawn.length;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    "Trace the outline of each room from your Home Assistant areas onto the floor plan. Pick a room from the dropdown below the map, click around its outline, then Save Layout."));
+    "Trace the outline of each room from your Home Assistant areas onto the floor plan. Press a room's name below, click each corner of it on the plan, " +
+    "and double-click the last corner to close it. Each room is saved as you finish it."));
   // Just come from the scale (or a plan with a scale and no rooms yet): say so, and what this step is.
   if (map && _planHasScale(ctx.state, map.id) && !Object.keys(map.room_bounds || {}).length)
     wrap.appendChild(el("div",{"data-next-line":"scale-set", style:_NEXT_BOX}, "✓ This plan's scale is set. This step: draw its rooms."));
@@ -1634,9 +1671,20 @@ function _wizardRooms(ctx, map, maps, w){
       `${drawnCount} of ${areaNames.length} room${areaNames.length===1?"":"s"} drawn`));
     if (undrawn.length) {
       const list = el("div",{style:"display:flex;flex-wrap:wrap;gap:6px"});
-      for (const name of undrawn) {
-        list.appendChild(el("span",{style:"font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,.12);color:#94a3b8"}, name));
+      // Each name starts that room (2026-11-15: the room list and Start drawing are under the plan, off the screen).
+      const ms = ctx.state.maps, here = map && ms._draftMapId === map.id ? Object.keys(ms._draftRoomBounds || {}) : [];
+      const now = ms._drawing && ms._drawing.room;
+      for (const name of undrawn.filter(n => !here.includes(n))) {
+        const b = el("button",{class:"btn inline" + (now === name ? " primary" : ""), "data-wiz-room":name, style:"font-size:11px;padding:2px 10px;border-radius:10px"}, name);
+        b.addEventListener("click", ()=>{
+          if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_draw:name");
+          ms._mode = "rooms"; ms._selectedRoom = name; ms._drawing = { room: name, points: [] };
+          ctx.actions.renderRooms();
+        });
+        list.appendChild(b);
       }
+      if (now) check.appendChild(el("div",{"data-wiz-room-now":"1", style:"font-size:12px;color:#a7f3d0;margin-bottom:6px"},
+        `Drawing ${now}: click each corner on the plan, then double-click the last one to close it.`));
       check.appendChild(list);
     } else {
       check.appendChild(el("div",{style:"font-size:12px;color:#a7f3d0"}, "Every room from Home Assistant has a boundary here."));
@@ -1848,6 +1896,7 @@ function _wizard(ctx, maps, isBasic){
     // Reaching Finish already counts as the step-5 funnel entry above —
     // this is only for someone who left before getting there.
     if (w.step !== 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_maps_exited_early");
+    _wizKeep(ctx);
     ctx.state._mapsWizard = null;
     ctx.state.mapsTab = map ? "edit" : "library";
     ctx.actions.renderRooms();
@@ -1870,7 +1919,7 @@ function _wizard(ctx, maps, isBasic){
       style: `font-size:11px;padding:3px 10px;` + (reachable ? "" : "opacity:.4;cursor:not-allowed"),
     }, (done ? "✓ " : "") + _wizardChipLabel(ctx, s));
     chip.disabled = !reachable;
-    if (reachable) chip.addEventListener("click", ()=>{ w.step = s.n; ctx.actions.renderRooms(); });
+    if (reachable) chip.addEventListener("click", ()=>{ _wizKeep(ctx); w.step = s.n; ctx.actions.renderRooms(); });
     stepList.appendChild(chip);
   }
   head.appendChild(dots);
@@ -2574,17 +2623,8 @@ function _edit(ctx, map, allMaps, opts){
       const btn = e.currentTarget;
       btn.disabled = true; btn.textContent = "Saving\u2026"; btn.classList.remove("save-pulse");
       try{
-        await ctx.actions.mapsUpdateQuiet({
-          map_id: map.id,
-          calibration: map.calibration||{},
-          notes: map.notes||"",
-          floor_id: ctx.state.maps._draftFloorId,
-          room_bounds: ctx.state.maps._draftRoomBounds,
-          receivers: ctx.state.maps._draftReceivers,
-        });
-        // Verify save: re-fetch maps from backend and check room_bounds persisted
-        await ctx.actions.mapsRefreshQuiet();
-        const _saved = (ctx.state.maps.list||[]).find(m=>m.id===map.id);
+        // Verify save: the maps are fetched again, and room_bounds checked as persisted
+        const _saved = await _saveLayout(ctx, map);
         const _rbCount = _saved ? Object.keys(_saved.room_bounds||{}).length : 0;
         const _draftCount = Object.keys(ctx.state.maps._draftRoomBounds||{}).length;
         console.log("[PadSpan] Save verify: draft rooms=%d, persisted rooms=%d, map_id=%s", _draftCount, _rbCount, map.id);
@@ -3390,6 +3430,7 @@ function _edit(ctx, map, allMaps, opts){
         ctx.state.maps._draftRoomBounds[d.room] = { type:"poly", points: d.points.map(p=>[clamp01(p[0]), clamp01(p[1])]) };
         ctx.state.maps._drawing = null;
         renderAll(); refreshList(); renderTools();
+        _wizKeep(ctx);
       }}, "Finish outline");   // not "Finish": the wizard's own chip is (review 2026-11-11, item 13)
 
       const clearBtn = el("button",{class:"btn inline", onclick:()=>{
@@ -3753,11 +3794,15 @@ function _edit(ctx, map, allMaps, opts){
     // rooms mode: dblclick finishes if currently drawing
     if(ctx.state.maps._mode==="rooms" && ctx.state.maps._drawing){
       const d = ctx.state.maps._drawing;
+      // The double-click's own two clicks each put a corner down on the same spot: one corner, not two.
+      const same = (a, b) => Math.abs(a[0] - b[0]) < 0.004 && Math.abs(a[1] - b[1]) < 0.004;
+      while(d.points.length > 1 && same(d.points[d.points.length - 1], d.points[d.points.length - 2])) d.points.pop();
       if(d.points.length >= 3){
         ctx.state.maps._draftRoomBounds[d.room] = { type:"poly", points: d.points.map(p=>[clamp01(p[0]), clamp01(p[1])]) };
       }
       ctx.state.maps._drawing = null;
       renderAll(); refreshList(); renderTools();
+      _wizKeep(ctx);
     }
     // sub-zones mode: dblclick finishes the sub-zone — into its own store, in metres
     if(ctx.state.maps._mode==="subzones" && (ctx.state.maps._szDrawing || []).length){
@@ -3851,7 +3896,12 @@ function _edit(ctx, map, allMaps, opts){
     if(ev.target && ev.target.classList && ev.target.classList.contains("marker")) return;
     if(ctx.state.maps._mode==="rooms"){
       if(!ctx.state.maps._drawing){
-        if(!ctx.state.maps._selectedRoom) return;
+        if(!ctx.state.maps._selectedRoom){
+          // Said, not silent (2026-11-15): a click on the plan before a room is chosen did nothing at all.
+          if(ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_draw:no_room");
+          ctx.toast(ctx.state._mapsWizard ? "Choose a room first: press its name above the plan." : "Choose a room first, in the list under the plan.", true);
+          return;
+        }
         ctx.state.maps._drawing = { room: ctx.state.maps._selectedRoom, points: [] };
       }
     } else if(ctx.state.maps._mode==="barriers"){

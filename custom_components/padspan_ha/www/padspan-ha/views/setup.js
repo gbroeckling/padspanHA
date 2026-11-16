@@ -196,7 +196,10 @@ export function returnBar(ctx) {
     !id ? "" : i < 0 ? ` · ${LABELS[id]}` : ` · step ${steps[i].n} of ${steps.length}: ${LABELS[id]}`,
   ]));
   const back = el("button", { class: "btn inline", style: "font-size:12px;white-space:nowrap", "data-setup": "back" }, "← Back to Setup");
-  back.addEventListener("click", () => { ctx.state._setupReturn = null; ctx.actions.showView("setup"); });
+  back.addEventListener("click", () => {
+    if (ctx.state.maps && ctx.state.maps._keepDraft) ctx.state.maps._keepDraft();   // the Setup Wizard's unsaved rooms and receivers (maps.js _wizKeep)
+    ctx.state._setupReturn = null; ctx.actions.showView("setup");
+  });
   bar.appendChild(back);
   return bar;
 }

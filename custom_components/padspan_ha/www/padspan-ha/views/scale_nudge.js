@@ -47,7 +47,11 @@ export function differWords(pct) {
 const tel = (ctx, w) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("scale_nudge:" + w); };
 const redraw = (ctx) => ctx.actions.renderRooms();
 const _shown = new Set();         // counted once a page, per plan
-export function _resetCounts() { _shown.clear(); }   // a test's new page
+// How far a person got on the screen (2026-11-15: houses stop between "shown" and a saved scale, and the report could not
+// say where): the first end tapped, both ends down, a length typed, a Save refused. Each once a page, per plan.
+const _got = new Set();
+const first = (map, w) => !_got.has(map.id + ":" + w) && !!_got.add(map.id + ":" + w);
+export function _resetCounts() { _shown.clear(); _got.clear(); }   // a test's new page
 
 /** A plan the nudge and the reminder are for: inside the house, with no scale, for an administrator on the house's
  *  own data (not Sample), not on a wall screen. */
@@ -122,6 +126,7 @@ async function save(ctx, map, d, opts = {}) {
   }
   d.busy = false;
   if (!r || r.ok === false) {
+    if (first(map, "refused")) tel(ctx, "refused");
     d.msg = (r && r.message) || "The scale couldn't be saved. Try again in a moment.";
     redraw(ctx);
     return;
@@ -177,7 +182,11 @@ export function render(ctx, map, opts = {}) {
   card.appendChild(P(ctx, PM.measureHow(tap)));
   const cols = el("div", { style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:0 1 240px;min-width:220px" });
-  const pic = PM.measurePicture(ctx, d, map, { changed: () => { preview(ctx, d); redraw(ctx); }, redraw: () => redraw(ctx),
+  const ends = () => {
+    if (d.pts.length >= 1 && first(map, "first_end")) tel(ctx, "first_end");
+    if (d.pts.length === 2 && first(map, "both_ends")) tel(ctx, "both_ends");
+  };
+  const pic = PM.measurePicture(ctx, d, map, { changed: () => { ends(); preview(ctx, d); redraw(ctx); }, redraw: () => redraw(ctx),
     kept: d.first ? [[d.first.p1, d.first.p2]] : [] });
   cols.appendChild(el("div", { style: "flex:1 1 0;min-width:280px" }, [pic, MUTED(ctx, PM.endHint(d, tap))]));
   cols.appendChild(side);
@@ -186,7 +195,7 @@ export function render(ctx, map, opts = {}) {
     side.appendChild(MUTED(ctx, `First length: ${d.first.text} (the dashed line). Now the second one, running the other way.`));
     side.appendChild(btn(ctx, ONE_ONLY, () => oneOnly(ctx, d), { disabled: d.busy, attrs: { "data-nudge": "one-only" } }));
   }
-  const { said } = PM.lengthField(ctx, side, d.text, { busy: d.busy, onInput: (t) => { d.text = t; previewSoon(ctx, d); },
+  const { said } = PM.lengthField(ctx, side, d.text, { busy: d.busy, onInput: (t) => { d.text = t; if (String(t).trim() && first(map, "typed")) tel(ctx, "typed"); previewSoon(ctx, d); },
     key: d.first ? "scale-length-2" : "scale-length", label: d.first ? "The second length:" : "Its length:" });
   const sized = el("div", { "data-nudge": "size" });
   side.appendChild(sized);

@@ -153,7 +153,7 @@ def test_later_ends_it_for_good_and_the_upload_marks_only_an_indoor_plan(monkeyp
 def test_the_counters_are_allowed_summed_and_labelled():
     # 2026-11-13: the screen is every plan's first scale (D1); at Save, which door it came through (scale_nudge.DOORS).
     doors = ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")
-    words = {f"scale_nudge:{k}" for k in ("shown", "measured_one", "measured_two", "later", "reminder_measure")} | {f"scale_nudge:via_{d}" for d in doors}
+    words = {f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "measured_one", "measured_two", "later", "reminder_measure")} | {f"scale_nudge:via_{d}" for d in doors}
     assert T.SCALE_NUDGE_EVENTS == words and all(T.event_allowed(e) for e in words)
     spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
     S = importlib.util.module_from_spec(spec)
@@ -166,7 +166,17 @@ def test_the_counters_are_allowed_summed_and_labelled():
     sent |= {f"via_{d}" for d in doors}
     assert {f"scale_nudge:{w}" for w in sent} == words
     ib = (_WWW / "views" / "installbase.js").read_text(encoding="utf-8")
-    assert all(f"{k}:" in ib for k in ("measured_one", "measured_two", "reminder_measure", *(f"via_{d}" for d in doors))) and 'a === "scale_nudge"' in ib
+    assert all(f"{k}:" in ib for k in ("measured_one", "measured_two", "reminder_measure", *T.SCALE_NUDGE_STEPS, *(f"via_{d}" for d in doors))) and 'a === "scale_nudge"' in ib
+    # Mapping → Upload's own words (2026-11-15): the panel sends exactly the allowed ones, summed and labelled.
+    up = {f"plan_upload:{k}" for k in T.PLAN_UPLOAD_WORDS}
+    dr = {f"wizard_draw:{k}" for k in T.WIZARD_DRAW_WORDS}
+    assert T.PLAN_UPLOAD_EVENTS == up and T.WIZARD_DRAW_EVENTS == dr and set(S._PLAN_UPLOAD) == up | dr and all(T.event_allowed(e) for e in up | dr)
+    mj = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    part = mj[mj.index("const _upTel"):mj.index('"Upload & Convert"')]
+    sent_up = set(re.findall(r'_upTel\("([a-z_]+)"\)', part)) | set(re.findall(r'"(too_large|bad_picture|failed)"', part))
+    assert sent_up == set(T.PLAN_UPLOAD_WORDS), sent_up
+    assert all(f"{k}:" in ib for k in T.PLAN_UPLOAD_WORDS) and 'a === "plan_upload"' in ib
+    assert set(re.findall(r'telemetryEvent\("wizard_draw:([a-z_]+)"\)', mj)) == set(T.WIZARD_DRAW_WORDS) and 'a === "wizard_draw"' in ib
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")

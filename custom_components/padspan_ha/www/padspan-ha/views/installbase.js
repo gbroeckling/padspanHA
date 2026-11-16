@@ -1084,7 +1084,11 @@ function word(kind, k) {
       if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",
         floor_heights: "went to floor heights", compute: "went to work out the accuracy", room_empty: "went to add points in an empty room",
         room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
-      if (a === "scale_nudge") return `After an upload, "Set this plan's scale now": ${{ shown: "shown", measured_one: "saved with one length", measured_two: "saved with two lengths", later: "Later pressed", reminder_measure: "the \"No scale yet\" line's Measure pressed",
+      if (a === "wizard_draw") return `Drawing rooms: ${{ name: "a room's name pressed above the plan (Setup Wizard)", no_room: "the plan clicked with no room chosen",
+        kept: "rooms or receivers saved by the Setup Wizard without Save Layout" }[b] || b}`;
+      if (a === "plan_upload") return `Mapping → Upload: ${{ picked: "a picture picked", no_file: "Upload pressed with no picture", ok: "uploaded", bad_picture: "the picture couldn't be read",
+        too_large: "the picture was too large", failed: "the upload failed" }[b] || b}`;
+      if (a === "scale_nudge") return `After an upload, "Set this plan's scale now": ${{ shown: "shown", first_end: "the first end tapped", both_ends: "both ends down", typed: "a length typed", refused: "a Save refused", measured_one: "saved with one length", measured_two: "saved with two lengths", later: "Later pressed", reminder_measure: "the \"No scale yet\" line's Measure pressed",
         via_upload: "a first scale saved after an upload", via_setup: "a first scale saved from Setup", via_getting_started: "a first scale saved from Getting started",
         via_wizard: "a first scale saved in the Setup Wizard", via_reminder: "a first scale saved from a \"No scale yet\" line",
         via_plans: "a first scale saved from the Plans tool", via_stack: "a first scale saved from 3D Stack" }[b] || b}`;
