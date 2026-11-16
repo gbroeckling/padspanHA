@@ -535,7 +535,9 @@ await tryCase("scan furniture: off unless a screen ticks it; ticked, the scan's 
   const ids = () => S().pieces.map(x => String(x.id || x.key || "")).sort();
   const a = slot;
   SCAN = { scan_m_0: { id: "scan_m_0", recipe: { kind: "table", params: {}, colors: [], width_m: 1.2, depth_m: 0.8, height_m: 0.75 }, origin: "scan", label: "Table",
-                       library_id: null, submission_id: null, floor_id: MODEL.floors[0].id, x_m: 2, y_m: 2, z_m: 0, rotation: 0, entity_id: null, entity_reg_id: null } };
+                       library_id: null, submission_id: null, floor_id: PIECES.fur_00000001.floor_id, x_m: 6, y_m: 6, z_m: 0, rotation: 0, entity_id: null, entity_reg_id: null } };
+  // One the house's own sofa already stands on: one thing in one place is drawn once (review 2026-11-16).
+  SCAN.scan_m_1 = { ...SCAN.scan_m_0, id: "scan_m_1", x_m: PIECES.fur_00000001.x_m, y_m: PIECES.fur_00000001.y_m };
   await open("show-d"); await settle();
   const off = ids();                                   // the house's own: off (dflt false), though the scan has furniture
   click(more()); await settle();                       // the list, open
@@ -547,7 +549,7 @@ await tryCase("scan furniture: off unless a screen ticks it; ticked, the scan's 
   LA.releaseLiveAboardSlot("show-d");
   SCAN = null; slot = a;
   check(name, listed && !off.includes("scan_m_0") && on.includes("scan_m_0") && off.every(i => on.includes(i)) && on.length === off.length + 1
-    && pref.scan_furniture === true && !back.includes("scan_m_0") && SHOW.SHOW_ITEMS.find(i => i.key === "scan_furniture").dflt === false, { off, on, back, pref });
+    && !on.includes("scan_m_1") && pref.scan_furniture === true && !back.includes("scan_m_0") && SHOW.SHOW_ITEMS.find(i => i.key === "scan_furniture").dflt === false, { off, on, back, pref });
 });
 
 LA.releaseLiveAboardSlot("show-a");

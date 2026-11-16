@@ -50,6 +50,7 @@ import json
 import math
 import re
 import zipfile
+import zlib
 from typing import Any
 
 # The plan's single level: RoomPlan's world origin is wherever the phone
@@ -337,7 +338,7 @@ def _parse_doc(doc: dict) -> dict[str, Any]:
                if isinstance(part.get("story"), int)}
     if len(stories) > 1:
         warnings.append(f"The scan spans {len(stories)} stories; they are all placed on one level")
-    if not rooms and not extras["walls"]:
+    if not rooms and not extras["walls"] and not extras["objects"]:
         # A file in some other tool's own layout (seen: an app's "blueprint" JSON, walls as size/position/rotation).
         raise RoomPlanParseError("No walls or rooms were found in this file. It isn't a RoomPlan export (CapturedRoom or CapturedStructure): "
                                  "in the scanning app, share the scan as USDZ, or as RoomPlan JSON.", "not_scan")
@@ -363,14 +364,34 @@ def _parse_doc(doc: dict) -> dict[str, Any]:
 # The only binary files in it are optional furniture models, never read here. Each element becomes the dict
 # JSONEncoder would have written (transform as 16 numbers, dimensions), so _parse_doc reads both the same way.
 USDZ_MAX_FILES, USDZ_MAX_LAYER, USDZ_MAX_TOTAL = 4000, 2_000_000, 40_000_000
-_USD_CATEGORY = re.compile(r'string Category = "([A-Za-z]+)([^"]*)"')
-_USD_UUID = re.compile(r'string UUID = "([^"]+)"')
-_USD_SCALE = re.compile(r"double3 xformOp:scale = \(([^)]*)\)")
-_USD_POINTS = re.compile(r"point3f\[\] points = \[([^\]]*)\]")
-_USD_FACES = re.compile(r"int\[\] faceVertexIndices = \[([^\]]*)\]")
-_USD_MATRIX = re.compile(r"matrix4d xformOp:transform = \( \(([^)]*)\), \(([^)]*)\), \(([^)]*)\), \(([^)]*)\) \)")
-_USD_TUPLE = re.compile(r"\(([^()]*)\)")
-_USD_SECTION = re.compile(r'def Xform "([A-Za-z]+)\d*"[^{]*\{\s*matrix4d xformOp:transform = \( \([^)]*\), \([^)]*\), \([^)]*\), \(([^)]*)\) \)')
+# Hostile text (review 2026-11-16): a pattern that may fail after a long run and start again at the next occurrence is
+# quadratic, and a layer may be 2 MB. So a value is found with str.find, once, from its first key to the first closing
+# mark (_usd_value: linear), and the patterns below run only on those short slices or have every run bounded.
+_USD_TUPLE = re.compile(r"\(([^()]{0,200})\)")
+_USD_CATEGORY = re.compile(r"([A-Za-z]{1,40})(.{0,80})", re.DOTALL)
+_USD_SECTION = re.compile(r'def Xform "([A-Za-z]{1,60})\d{0,6}"[^{]{0,200}\{\s{0,40}matrix4d xformOp:transform = \( \([^)]{0,200}\), \([^)]{0,200}\), \([^)]{0,200}\), \(([^)]{0,200})\) \)')
+
+
+def _usd_value(text: str, key: str, close: str, cap: int) -> str | None:
+    """What stands between the first `key` and the first `close` after it, or None (no key, no close, or longer than `cap`)."""
+    i = text.find(key)
+    if i < 0:
+        return None
+    i += len(key)
+    j = text.find(close, i, i + cap + 1)
+    return text[i:j] if j >= 0 else None
+
+
+class _Found(str):
+    """A found value, read as the patterns used to be: .group(1) is the value."""
+
+    def group(self, _n: int = 1) -> str:
+        return str(self)
+
+
+def _usd_found(text: str, key: str, close: str, cap: int) -> _Found | None:
+    v = _usd_value(text, key, close, cap)
+    return _Found(v) if v is not None else None
 _USD_KINDS = {"Wall": "walls", "Door": "doors", "Window": "windows", "Opening": "openings", "Floor": "floors"}
 _FACE_Z = 0.005     # a mesh point within this of z = 0 is on the element's face (its other side is the thickness away)
 
@@ -388,15 +409,19 @@ def _usd_element(text: str) -> tuple[str, dict, int] | None:
     may pack the same element three ways (assets/Parametric, Mesh, Model: one UUID): the parametric one, a unit cube
     with its width, height and thickness as its scale, is exactly the JSON's dimensions and ranks first (0); a mesh
     (1) is measured from its face, and its walls run a thickness long at the corners."""
-    cat, pts, mat = _USD_CATEGORY.search(text), _USD_POINTS.search(text), _USD_MATRIX.search(text)
-    if not cat or not mat:
+    cat_text = _usd_value(text, 'string Category = "', '"', 120)
+    cat = _USD_CATEGORY.fullmatch(cat_text) if cat_text is not None else None
+    pts = _usd_found(text, "point3f[] points = [", "]", USDZ_MAX_LAYER)
+    mat_text = _usd_value(text, "matrix4d xformOp:transform = ( ", " )\n", 900)
+    if not cat or mat_text is None:
         return None
-    rows = [_floats(g) for g in mat.groups()]
-    if any(r is None or len(r) != 4 for r in rows):
+    rows = [_floats(g) for g in _USD_TUPLE.findall(mat_text)]
+    if len(rows) != 4 or any(r is None or len(r) != 4 for r in rows):
         return None
     m = [v for r in rows for v in r]                       # rows right, up, normal, position: Swift's column-major 16
     kind = _USD_KINDS.get(cat.group(1))
-    box = _floats(_USD_SCALE.search(text).group(1)) if _USD_SCALE.search(text) and "def Cube" in text else None
+    scale = _usd_value(text, "double3 xformOp:scale = (", ")", 200) if "def Cube" in text else None
+    box = _floats(scale) if scale is not None else None
     if box and len(box) == 3 and not pts:
         el0: dict[str, Any] = {"transform": m, "dimensions": [box[0], box[1], 0.0 if kind else box[2]]}
         if kind is None:
@@ -419,7 +444,7 @@ def _usd_element(text: str) -> tuple[str, dict, int] | None:
     if kind == "doors":
         el["category"] = {"door": {"isOpen": "true" in cat.group(2).lower()}}
     if kind == "floors":
-        ring = _face_outline(points, _USD_FACES.search(text))
+        ring = _face_outline(points, _usd_found(text, "int[] faceVertexIndices = [", "]", USDZ_MAX_LAYER))
         if ring:
             el["polygonCorners"] = [[x - cx, y - cy, 0.0] for x, y in ring]
     elif kind is None:
@@ -481,12 +506,18 @@ def parse_usdz(data: bytes) -> dict[str, Any]:
     seen: dict[str, tuple[int, str, dict]] = {}             # by UUID: the best-ranked form of each element
     for info in layers:
         try:
-            text = z.read(info).decode("utf-8", "replace")
-        except (zipfile.BadZipFile, OSError, RuntimeError):
-            continue
+            # No more than a layer may hold is ever inflated, whatever size the zip declares for it (review 2026-11-16:
+            # a 522 KB zip declaring 1,000 bytes inflated to 512 MB). One byte over is a file that is no room scan.
+            with z.open(info) as fh:
+                raw = fh.read(USDZ_MAX_LAYER + 1)
+        except (zipfile.BadZipFile, OSError, RuntimeError, ValueError, EOFError, zlib.error):
+            continue                                        # a damaged member: what else the file holds may still read
+        if len(raw) > USDZ_MAX_LAYER:
+            raise RoomPlanParseError("This USDZ is too large to be a room scan")
+        text = raw.decode("utf-8", "replace")
         got = _usd_element(text)
         if got:
-            uid = (_USD_UUID.search(text) or [None, info.filename])[1]
+            uid = _usd_value(text, 'string UUID = "', '"', 80) or info.filename
             rank = 0 if "/parametric/" in info.filename.lower() else got[2]      # a floor is a mesh in every form
             if uid not in seen or rank < seen[uid][0]:
                 seen[uid] = (rank, got[0], got[1])

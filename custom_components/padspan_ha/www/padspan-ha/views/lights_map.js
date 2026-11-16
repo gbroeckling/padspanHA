@@ -5113,8 +5113,6 @@ export function buildLightsMapCard(hostIn){
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);
               if (!tapLights()) out.light_taps = M.setupLine("light_taps", hp.admin === true, typeof hp.goTo === "function", null, hp.kiosk === true);
               if (sortedLevels.length < 2) out.other_floors = M.setupLine("other_floors", hp.admin === true, false, "This house has one floor: there is nothing to fade.");
-              // Known only once it was ticked and read: ticked, read, and no scanned plan has furniture.
-              if (scanOn() && _AB && _AB.fileData(abSlot) && !_AB.scanOf(abSlot)) out.scan_furniture = M.setupLine("scan_furniture", hp.admin === true, false, null, hp.kiosk === true);
               return out;
             },
             canGo,

@@ -890,12 +890,18 @@ async def ws_maps_revert_extend(hass: HomeAssistant, connection, msg) -> None:
 # A room scan from a phone's LiDAR (Apple's RoomPlan: the USDZ every such app can share, or its JSON), 2026-11-16: read
 # (roomplan_import), turned so its walls run along the axes, drawn as a plan picture to scale, and saved as any plan
 # is, its scale exact: nothing to measure. Its rooms' outlines and names are kept on the plan's record (`scan`).
+class _TooBig(Exception):
+    """A scan larger than a floor of a house."""
+
+
 SCAN_MAX_B64 = 16_000_000
 SCAN_WORDS: dict[str, str] = {
     "too_large": "This file is too large to be a room scan (16 MB at most).",
     "outdoor": "A room scan is of a floor of the house, not the outdoors.",
     "empty": "No walls were found in this scan, so there is nothing to draw.",
+    "too_big": "This scan is larger than a floor of a house (200 m at most, 3,000 walls), so it wasn't drawn.",
 }
+SCAN_MAX_M, SCAN_MAX_WALLS, SCAN_MAX_OBJECTS = 200.0, 3000, 2000
 
 
 @websocket_api.websocket_command(
@@ -933,13 +939,20 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
         parsed = RP.parse_roomplan(raw)
         parsed["file"] = "usdz" if raw[:2] == b"PK" else "json"
         frame = RP.plan_frame(parsed) if parsed.get("walls") else None
+        if frame and (not (0 < frame["across_m"] <= SCAN_MAX_M and 0 < frame["down_m"] <= SCAN_MAX_M) or len(frame["walls"]) > SCAN_MAX_WALLS):
+            raise _TooBig()
+        if frame:
+            frame["objects"] = frame["objects"][:SCAN_MAX_OBJECTS]
         return parsed, frame, scan_plan_png(frame) if frame else None
 
     try:
         parsed, frame, pic = await hass.async_add_executor_job(read)
     except RP.RoomPlanParseError as err:
         return no(err.code, str(err))
-    except ValueError:
+    except _TooBig:
+        return no("too_large", SCAN_WORDS["too_big"])
+    except Exception:  # noqa: BLE001 — a file from anywhere: whatever it does, the answer is that it couldn't be read
+        _LOGGER.debug("PadSpan: a scan file could not be read", exc_info=True)
         return no("unreadable", "This file could not be read.")
     if not frame or not pic:
         return no("empty", SCAN_WORDS["empty"])

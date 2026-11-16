@@ -563,6 +563,7 @@ class MapsStore:
         m = self.get_map(map_id)
         if not m:
             raise KeyError("not_found")
+        _scan_stale(m)
 
         raw = base64.b64decode(png_base64)
 
@@ -793,6 +794,7 @@ class MapsStore:
         m = self.get_map(map_id)
         if not m:
             raise KeyError("not_found")
+        _scan_stale(m)
 
         img = m.get("image") or {}
         old_w = int(img.get("width") or 800)
@@ -896,6 +898,7 @@ class MapsStore:
         pre = m.get("_pre_extend")
         if not pre:
             return None
+        _scan_stale(m)
 
         old_w = int(pre["width"])
         old_h = int(pre["height"])
@@ -1163,6 +1166,16 @@ def _unfilter_png(raw: bytes, width: int, height: int, bpp: int, stride: int) ->
         return bytes(result)
     except Exception:
         return None
+
+
+def _scan_stale(m: dict[str, Any]) -> None:
+    """A scanned plan's furniture and room outlines are places on its PICTURE (ws_maps_scan_create). Once the picture
+    is cut, turned or extended they point at the wrong spots, and nothing re-derives them (review 2026-11-16: an
+    extend to the left put a table 1.25 m off), so they go: the guide is gone, never wrong."""
+    sc = m.get("scan")
+    if isinstance(sc, dict):
+        sc.pop("furniture", None)
+        sc.pop("rooms", None)
 
 
 # What a plan is, where the person made it plain; no key: a proper, to-scale plan (the default, never asked).

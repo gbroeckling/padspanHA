@@ -138,12 +138,30 @@ export function render(ctx){
 
   // The phone's walk-through of a room scan (rough_plan.js): the whole of Mapping while it runs, as the wizard below is.
   if (ROUGH && ROUGH.walking(ctx)) {
+    // Before the server has said whether this is the house or the demo, it is not yet known who may add a plan:
+    // the link's walk-through waits, it is not thrown away (review 2026-11-16: the first draw comes before settings).
+    if (ctx.state._dataModeKnown === false) { root.appendChild(el("div",{class:"card muted","data-rough":"walk-wait"}, "One moment…")); return root; }
     if (ctx.state.dataMode === "live" && ctx.hass?.user?.is_admin !== false && !ctx.state.kioskMode) {
       root.appendChild(ROUGH.walk(ctx, { toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()), floors: _houseFloors(ctx),
         onMade: (m) => _roughMade(ctx, m), onClose: () => ctx.actions.renderRooms() }));
       return root;
     }
-    ctx.state._roughPlan.walk = null;            // only an administrator, on the house's own data, can add a plan
+    // Only an administrator, on the house's own data, can add a plan: said, with a way out (the person holding the
+    // phone may well not be one; review 2026-11-16: the link showed plain Mapping and nothing else).
+    if (!ctx.state.kioskMode) {
+      const why = ctx.state.dataMode !== "live"
+        ? "This is the demo house. Switch to your own house (Data: Live, at the top) and open the link again."
+        : "Adding a floor plan needs an administrator of this Home Assistant. Ask one to sign in on this phone, or to give the scan file to PadSpan themselves: Mapping → Upload → No floor plan? → Scan the floor.";
+      const no = el("div",{class:"card","data-rough":"walk-no",style:"max-width:560px;margin:0 auto"},[
+        el("div",{class:"h2",style:"font-size:20px"},"Scan a floor with an iPhone or iPad"),
+        el("div",{style:"font-size:16px;line-height:1.6;color:#cbd5e1;margin:8px 0"}, why)]);
+      const ok = el("button",{class:"btn inline","data-rough":"walk-close",style:"font-size:16px;padding:12px 18px;min-height:48px"},"Close");
+      ok.addEventListener("click", ()=>{ ctx.state._roughPlan.walk = null; ctx.actions.renderRooms(); });
+      no.appendChild(ok);
+      root.appendChild(no);
+      return root;
+    }
+    ctx.state._roughPlan.walk = null;            // a wall screen never shows it
   }
 
   // Setup Wizard — a guided walkthrough that takes over the whole Mapping

@@ -488,3 +488,66 @@ def test_the_furniture_is_turned_with_the_plan_and_drawn_faintly():
     cx, cy, half = 250, 200, 60                      # the table: 1.2 m across at 100 px a metre, round (2.5, 2.0)
     assert grey(cx - half, cy) == 0xB8 and grey(cx + half, cy) == 0xB8 and grey(cx + 10, cy + 13) == 0xFF, "its outline, not filled"
     assert grey(50, 200) == 0x28 or grey(51, 200) == 0x28, "a wall stays the darkest thing on the plan"
+
+
+# ── A file from anywhere (review 2026-11-16) ─────────────────────────────────────────────────────────────────────────
+def test_a_zip_that_lies_about_its_size_is_never_inflated_whole():
+    """A member declaring 1,000 bytes and holding 60 MB: no more than a layer may hold is ever read."""
+    import struct
+    import tracemalloc
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("big.usda", b" " * 60_000_000)
+    raw = bytearray(buf.getvalue())
+    for sig, off in ((b"PK\x03\x04", 22), (b"PK\x01\x02", 24)):          # the local header's and the directory's size
+        at = raw.index(sig)
+        raw[at + off:at + off + 4] = struct.pack("<I", 1000)
+    tracemalloc.start()
+    with pytest.raises(RoomPlanParseError):
+        parse_roomplan(bytes(raw))
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak < 20_000_000, peak
+    # One honestly over a layer's size is refused by its declared size, unread.
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("big.usda", b" " * 2_100_000)
+    with pytest.raises(RoomPlanParseError, match="too large"):
+        parse_roomplan(buf.getvalue())
+
+
+@pytest.mark.parametrize("text", [
+    'string Category = "' + "a" * 300_000,
+    "def Cube\n" + "double3 xformOp:scale = (" * 40_000,
+    "matrix4d xformOp:transform = ( (" * 40_000,
+    'string Category = "Wall"\nmatrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) )\n' + "point3f[] points = [" * 60_000,
+    "Section_grp " + 'def Xform "a" ' * 80_000,
+], ids=["category", "scale", "matrix", "points", "sections"])
+def test_hostile_layers_are_read_in_linear_time(text):
+    import time
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("a.usda", text)
+    t = time.perf_counter()
+    with pytest.raises(RoomPlanParseError):
+        parse_roomplan(buf.getvalue())
+    assert time.perf_counter() - t < 2.0
+
+
+def test_a_damaged_member_is_skipped_and_the_rest_still_read():
+    good = _usdz(_room(0.0, 0.0, 4.0, 3.0), forms=("Parametric",))
+    buf = io.BytesIO(good)
+    with zipfile.ZipFile(buf, "a", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("assets/Parametric/Wall/broken.usda", "x" * 5000)
+    raw = bytearray(buf.getvalue())
+    body = raw.index(b"broken.usda") + len(b"broken.usda")   # the local header's name, then its stream
+    raw[body:body + 8] = b"\xff" * 8                         # its compressed stream, spoiled
+    out = parse_roomplan(bytes(raw))
+    assert len(out["walls"]) == 4 and len(out["rooms"]) == 1
+
+
+def test_furniture_with_no_walls_is_still_a_scan_for_the_3d_import():
+    doc = _room()
+    doc["walls"], doc["floors"] = [], []
+    out = parse_roomplan(_bytes(doc))
+    assert out["rooms"] == [] and len(out["objects"]) == 1 and out["walls"] == []

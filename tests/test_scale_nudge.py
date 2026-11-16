@@ -331,3 +331,28 @@ def test_a_scans_furniture_is_kept_with_its_plan_and_follows_it(monkeypatch, tmp
     assert (HI.scan_pieces(h)[pid]["x_m"], HI.scan_pieces(h)[pid]["y_m"]) == (12.5, -2.0)
     assert HI.SCAN_FURNITURE_MAX == 150 and len(HI.scan_furniture({"across_m": 5.0, "down_m": 4.0, "objects": [
         {"category": "chair", "center_m": [1, 1], "size_m": [0.5, 0.5], "height_m": 0.9, "angle_deg": 0}] * 400})) == 150
+
+
+def test_a_scans_places_on_its_picture_go_when_the_picture_is_changed_and_a_scan_too_big_is_refused(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-16: an extend to the left left a table 1.25 m off; a wall at 1e15 m never returned."""
+    import base64
+    from custom_components.padspan_ha import maps_store as MS
+    from custom_components.padspan_ha import ws_house3d_import as HI
+    from tests.test_roomplan_import import _bytes, _room
+    m = {"id": "s1", "kind": "scan", "scan": {"furniture": [{"at": [0.5, 0.5]}], "rooms": [{"name": "A"}], "heights_m": [2.5]}}
+    MS._scan_stale(m)
+    assert m["scan"] == {"heights_m": [2.5]}
+    MS._scan_stale({"id": "p"})                                           # a plan that is no scan: nothing to do
+    src = (_ROOT / "custom_components" / "padspan_ha" / "maps_store.py").read_text(encoding="utf-8")
+    for fn in ("async_replace_image", "async_extend_canvas", "async_revert_extend"):
+        body = src[src.index(f"async def {fn}"):]
+        end = body.find("    async def ", 10)
+        assert "_scan_stale(m)" in (body[:end] if end > 0 else body), fn
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    ms.maps_dir = tmp_path
+    far = _room(0.0, 0.0, 4.0, 3.0)
+    far["walls"][0]["transform"][12] = 1e9                                # one wall a million kilometres off
+    n = len(ms.list_maps())
+    out = _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=base64.b64encode(_bytes(far)).decode(), name="")
+    assert out["ok"] is False and out["code"] == "too_large" and len(ms.list_maps()) == n
+    assert HI.scan_pieces(h) == {}

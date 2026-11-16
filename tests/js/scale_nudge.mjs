@@ -670,12 +670,26 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     q(cr, '[data-rough="walk-close"]').click(); cr = await render(c);
     check("walk-through: closed before the end is counted, with how far it got", rough(c).join() === "walk_2,walk_closed" && !q(cr, '[data-rough="walk"]'), rough(c)); }
   // Never on the demo house, for a non-admin or on a wall screen.
-  for (const [name, o] of [["Sample", { dataMode: "sample" }], ["non-admin", { admin: false }], ["wall screen", { kiosk: true }]]) {
+  // The demo house and a non-administrator are told why, with a way out (the person holding the phone may not be one).
+  for (const [name, o, says] of [["Sample", { dataMode: "sample" }, "demo house"], ["non-admin", { admin: false }, "needs an administrator"]]) {
     const x = house({ tab: "upload", ...o });
     x.state._roughPlan = { open: true, kind: "scan", across: "", down: "", busy: false, msg: "", walk: 0 };
-    const xr = await render(x);
-    check(`${name}: no walk-through`, !q(xr, '[data-rough="walk"]') && x.state._roughPlan.walk === null);
+    let xr = await render(x);
+    const said = !q(xr, '[data-rough="walk"]') && !!q(xr, '[data-rough="walk-no"]') && q(xr, '[data-rough="walk-no"]').textContent.includes(says) && !q(xr, '[data-rough="scan-file"]');
+    q(xr, '[data-rough="walk-close"]').click(); xr = await render(x);
+    check(`${name}: no walk-through, said why, Close leaves it`, said && x.state._roughPlan.walk === null && !q(xr, '[data-rough="walk-no"]'), xr.textContent.slice(0, 200));
   }
+  { const x = house({ tab: "upload", kiosk: true });
+    x.state._roughPlan = { open: true, kind: "scan", across: "", down: "", busy: false, msg: "", walk: 0 };
+    const xr = await render(x);
+    check("wall screen: no walk-through, nothing said", !q(xr, '[data-rough="walk"]') && !q(xr, '[data-rough="walk-no"]') && x.state._roughPlan.walk === null); }
+  { const x = house({ tab: "upload", dataMode: "sample" });           // the first draw, before the server has said which house this is
+    x.state._dataModeKnown = false;
+    x.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: 0, linked: true };
+    let xr = await render(x);
+    const waited = !!q(xr, '[data-rough="walk-wait"]') && x.state._roughPlan.walk === 0;
+    x.state._dataModeKnown = true; x.state.dataMode = "live"; xr = await render(x);
+    check("the link's walk-through waits for the house to be known, then shows", waited && !!q(xr, '[data-rough="walk"]'), xr.textContent.slice(0, 200)); }
   const sm = house({ tab: "upload", dataMode: "sample" });
   const smr = await render(sm);
   check("Sample: no ways to a plan, no sketch tick", !q(smr, '[data-rough="link"]') && !q(smr, '[data-upload="sketch"]'));

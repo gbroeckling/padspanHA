@@ -5307,10 +5307,25 @@ function createSlot(slotKey){
     if (typeof over.radios === "boolean") q.scanners = over.radios;
     return q;
   }
+  /** The scan's pieces no placed piece stands on (Furnish's "Place the scan's guess" puts copies exactly on them: one
+   *  thing in one place is drawn once). The rule Furnish's own guess uses: a centre inside the other's footprint. */
+  function scanLeft(pieces){
+    const P = PIECES;
+    if (!scanPieces) return scanPieces;
+    const inBox = (pt, b) => { const dx = pt[0] - b.c[0], dy = pt[1] - b.c[1];
+      return Math.abs(dx * b.u[0] + dy * b.u[1]) <= b.hu && Math.abs(dx * b.v[0] + dy * b.v[1]) <= b.hv; };
+    const placed = Object.values(pieces || {}).filter(q => q && q.recipe).map(q => [String(q.floor_id || "main"), P.boxOf(q)]);
+    const out = {};
+    for (const [id, q] of Object.entries(scanPieces)) {
+      const b = P.boxOf(q), fid = String(q.floor_id || "main");
+      if (!placed.some(([f, pb]) => f === fid && (inBox(b.c, pb) || inBox(pb.c, b)))) out[id] = q;
+    }
+    return out;
+  }
   /** The furniture as this screen shows it: furniture, devices in it, stairs (their opening stays). */
   function piecesNow(pieces){
     // A scan's furniture joins what is drawn, never what is edited: not while the list is suspended (Edit, Furnish).
-    const scan = showOn && !showSuspended() && showOn.scan_furniture === true && scanPieces ? scanPieces : null;
+    const scan = showOn && !showSuspended() && showOn.scan_furniture === true && scanPieces ? scanLeft(pieces) : null;
     if (!showOn || showSuspended() || (showOn.furniture && showOn.devices && showOn.stairs)) return scan ? { ...(pieces || {}), ...scan } : pieces;
     const out = {};
     for (const [id, q] of Object.entries(pieces || {})) {
@@ -5357,7 +5372,8 @@ function createSlot(slotKey){
       tags: s ? s.atlas_3d_tags !== true : !onObj(p.tags), people: s ? s.atlas_3d_people !== true : !onObj(p.people),
       trails: !(TRAILS && (onObj(p.people) || onObj(p.tags)) && onObj(p.trails) && typeof p.trails.read === "function"),
       furniture: !(pieces.length - stairs - dev), devices: !dev, stairs: !stairs,
-      scan_furniture: !(scanPieces && Object.keys(scanPieces).length),
+      // Said only while the line is off: ticked with no scan to draw, it stays a line a press can untick.
+      scan_furniture: !(scanPieces && Object.keys(scanPieces).length) && !(showOn && showOn.scan_furniture === true),
       room_names: !(house && house.rooms.length), room_outlines: !(house && house.rooms.length),
       floor_outlines: !look, roof: !STOREY, rain: !weatherReady(p),
       theme: !(p.look3d === "atlas" || p.look3d === "studio" || (LOOKS && p.showcase3d === true && p.showcase && p.showcase.key && p.showcase.key !== "classic")),
