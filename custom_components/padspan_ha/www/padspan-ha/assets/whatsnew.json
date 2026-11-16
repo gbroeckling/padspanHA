@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.250",
+  "title": "Setup Wizard: a placed receiver is kept on Back to Setup",
+  "date": "2026-11-16",
+  "body_markdown": "### Fixed\n- **A receiver placed in the Setup Wizard is saved when you press Back to Setup.** In 0.38.249 that only worked if the rooms step had been shown first in the same visit; opening the wizard straight at its receivers step (Setup's \"Place receivers\" does exactly that), placing a receiver and pressing Back to Setup lost it. Next, Finish, the step buttons and Exit setup already saved it."
+ },
+ {
   "version": "0.38.249",
   "title": "Setup Wizard: rooms you draw are kept",
   "date": "2026-11-15",
@@ -76,11 +82,5 @@
   "title": "Lights as buttons in the 3D look",
   "date": "2026-11-13",
   "body_markdown": "### Added\n- **⋯ → \"Lights as buttons\" (the 3D look on the Atlas tab and its wall screens; off until you tick it).** In the 3D look a light that is off is drawn its real size, which from across a room is a few pixels, and a tap meant for it could land on the sensor beside it. With this ticked:\n  - **Every light on the floors showing is a round button of one size**, standing on the light and drawn over the walls: gold when it is on, dark when it is off. The button is what a tap lands on, so what you see is what you hit. A hold still opens the light's controls, and a hold then a drag still dims it.\n  - **Buttons that would overlap become one, with their count.** A tap on it lists those lights, each with its own switch, with \"All on\" and \"All off\".\n  - **A tap anywhere else in a room opens that room's sheet**: its lights and other devices, with all lights on or off. A sensor, a temperature chip or a lock under the finger opens its room too, instead of answering the tap itself; holding it still opens it. While a class chip (Motion, Temps, …) is picked, that class answers taps as before.\n  - A light on a floor hidden under another floor has no button and takes no tap.\n  - Double-tap to fly to a room is not available while this is ticked: the first tap opens the room's sheet.\n- Each screen keeps its own tick, as for the rest of the ⋯ list. Nothing changes on a screen that leaves it unticked.\n- The opt-in usage report counts the tick, and taps on a button, on a button for several lights and on a room. Counts only, never a name."
- },
- {
-  "version": "0.38.236",
-  "title": "Taps on lights in the 3D look; Small fixes after the set-up round",
-  "date": "2026-11-12",
-  "body_markdown": "### Fixed\n- **A tap on something the device filter has dimmed now says why nothing happened.** With one of the ☰ chips picked (Lights, Motion, Temps and so on), everything else is dimmed and takes no taps. In the Atlas's 3D look that was silent: a wall left on Motion looked as if its lights were broken. A tap on a dimmed device now shows \"Only Motion takes taps now: the rest is dimmed.\" with a **Show all** button that puts the filter back to All.\n- **A tap with a finger switches the light in the 3D look even if the finger rolls a little.** If it moved more than 8 pixels (about 3 mm on a wall screen) the tap was treated as the start of a turn of the house and did nothing. A finger may now move up to 16 pixels and still count as a tap. A mouse is unchanged, and so is the flat Map.\n- **On a phone, the \"Save the scale\" bar no longer lies over the plan.** On the one-length scale screen the bar was held at the bottom of the screen, over the lower part of the picture where the two ends are tapped. On a narrow screen it now comes after the length, as an ordinary row.\n- **The Rooms page's \"Put it on the map\" shows that it is working.** The button reads \"Putting it on the map…\" and can't be pressed twice while it writes.\n- **The Atlas header's tip follows ⋯ \"Tap a light to switch it\" at once.** It used to keep the old words until the page was next drawn.\n- **Escape closes a tag's, person's or receiver's card in the 3D look**, as ✕ does.\n- **The Atlas builder's guide opens by itself once.** If it was left open and never closed, it came back on every visit. \"Guide me\" still opens it.\n- **Wording.** The guided tour's Overview picture and its troubleshooting line say \"Receivers\", as the screens do. A calibration point heard by one receiver reads \"(1 receiver)\"."
  }
 ]

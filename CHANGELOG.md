@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.250 — Setup Wizard: a placed receiver is kept on Back to Setup (2026-11-16)
+
+### Fixed
+- **A receiver placed in the Setup Wizard is saved when you press Back to Setup.** In 0.38.249 that only worked if the rooms step had been shown first in the same visit; opening the wizard straight at its receivers step (Setup's "Place receivers" does exactly that), placing a receiver and pressing Back to Setup lost it. Next, Finish, the step buttons and Exit setup already saved it.
+
+---
+
 ## 0.38.249 — Setup Wizard: rooms you draw are kept (2026-11-15)
 
 ### Changed
