@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.251",
+  "title": "A floor plan placed out of shape is said",
+  "date": "2026-11-16",
+  "body_markdown": "### Added\n- **Overview's \"Improve accuracy\" card names a floor plan placed wider or narrower than its own picture.** A plan dragged to size in the old 3D Stack could end up squeezed: a nearly square picture standing 31% too narrow, with its room and receivers up to a metre off, and nothing said so. Now a plan whose placed shape is more than 12% from its picture's is named, with how far and which way, and a Measure button that opens the scale step on that plan. A plan with a hand measurement of its own is trusted and never named; a plan with nothing drawn on it is left alone. Like the other tips, it shows to administrators only, never on a wall screen, and can be hidden.\n\n### Usage report (opt-in)\n- **How many plans are placed out of shape**, as a count, and whether the new tip was shown, followed or hidden. Never a plan's name or picture."
+ },
+ {
   "version": "0.38.250",
   "title": "Setup Wizard: a placed receiver is kept on Back to Setup",
   "date": "2026-11-16",
@@ -76,11 +82,5 @@
   "title": "Move a light in the 3D editor",
   "date": "2026-11-13",
   "body_markdown": "### Added\n- **Mapping → Atlas builder → 3D look → Edit → Heights → \"Move it\".** A light, a sensor or a readout could have its height and its kind (\"What is this?\") set in the 3D look, but its place only on the flat map. Now: tap the device, press **Move it**, then tap its new place on the same floor.\n  - The move is written to the device's place on the map at once. It is not part of the editor's Save, Undo or Discard; **Put it back** undoes the last move.\n  - Its height and everything else about it stay as they are.\n  - A tap on another floor is refused, with where a device changes floor (the flat map).\n- **The Heights sheet says when a light is drawn away from where it is placed.** A strip, a sconce and a few other kinds are drawn on the nearest wall or round their room; when that is more than half a metre from the spot, the sheet says how far, and that \"What is this?\" changes it."
- },
- {
-  "version": "0.38.237",
-  "title": "Lights as buttons in the 3D look",
-  "date": "2026-11-13",
-  "body_markdown": "### Added\n- **⋯ → \"Lights as buttons\" (the 3D look on the Atlas tab and its wall screens; off until you tick it).** In the 3D look a light that is off is drawn its real size, which from across a room is a few pixels, and a tap meant for it could land on the sensor beside it. With this ticked:\n  - **Every light on the floors showing is a round button of one size**, standing on the light and drawn over the walls: gold when it is on, dark when it is off. The button is what a tap lands on, so what you see is what you hit. A hold still opens the light's controls, and a hold then a drag still dims it.\n  - **Buttons that would overlap become one, with their count.** A tap on it lists those lights, each with its own switch, with \"All on\" and \"All off\".\n  - **A tap anywhere else in a room opens that room's sheet**: its lights and other devices, with all lights on or off. A sensor, a temperature chip or a lock under the finger opens its room too, instead of answering the tap itself; holding it still opens it. While a class chip (Motion, Temps, …) is picked, that class answers taps as before.\n  - A light on a floor hidden under another floor has no button and takes no tap.\n  - Double-tap to fly to a room is not available while this is ticked: the first tap opens the room's sheet.\n- Each screen keeps its own tick, as for the rest of the ⋯ list. Nothing changes on a screen that leaves it unticked.\n- The opt-in usage report counts the tick, and taps on a button, on a button for several lights and on a room. Counts only, never a name."
  }
 ]
