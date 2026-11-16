@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.252",
+  "title": "No floor plan? Ways to get one, a phone's room scan among them",
+  "date": "2026-11-16",
+  "body_markdown": "### Changed\n- **Measuring a plan's scale asks for the longest wall you can.** A doorway is too short to trust: a small slip there puts the whole plan out.\n\n### Added\n- **Mapping → Upload has \"No floor plan? Ways to get one\".** Five ways, each with its steps, in the order they are worth trying: a drawing you already have, a room scan from an iPhone or iPad, your robot vacuum's map, your own sketch photographed, and a blank floor. Nothing changes for a picture uploaded the usual way: it is still taken for a proper, to-scale plan.\n- **A room scan from an iPhone or iPad Pro becomes a floor plan.** Scan the floor with any app that uses Apple's RoomPlan, share the scan as a USDZ file (or RoomPlan JSON), and pick it in PadSpan. The plan is drawn from the scan's walls, doors and windows, turned so the walls run straight, and to scale: nothing to measure. The ceiling heights and room names in the scan are kept with the plan. Rooms are still drawn on it by hand in this version.\n- **A walk-through for the person holding the phone.** \"Guide me step by step\" shows the scan one step a screen, with big buttons: the right phone, the app, getting the house ready, scanning, saving the file, and giving it to PadSpan. It opens straight from a link, `/padspan-ha?view=maps&guide=scan`, so it can be sent to someone else's phone.\n- **A blank floor for a house with no picture at all.** Type the floor's width and depth; PadSpan makes an empty floor of that size with a line every metre, to scale, and opens it for drawing rooms.\n- **\"This is my own sketch, not to scale\"** on the upload. For a sketch, the scale screen takes a length each way and gives each direction its own scale, so both come out right. On any plan, two lengths that disagree now offer \"This picture isn't to scale\", which does the same. A proper plan's two lengths are averaged as before unless you say so.\n\n### Usage report (opt-in)\n- **Which way to a plan people open**, whether a scan or a blank floor was made or refused, and whether a plan was said to be a sketch. Words only: never the file, a size, a name or a picture."
+ },
+ {
   "version": "0.38.251",
   "title": "A floor plan placed out of shape is said",
   "date": "2026-11-16",
@@ -76,11 +82,5 @@
   "title": "Lights as buttons: each button under its light",
   "date": "2026-11-13",
   "body_markdown": "### Changed\n- **⋯ → \"Lights as buttons\": a light's button now sits on the floor straight under the light, with a dotted line up to the light itself and a dot on it.** In 0.38.237 the button sat on the fixture. With the ceiling cut away, a ceiling light's button then hung in the air and showed over another room, so it was not clear where the light was. On the floor, a button is in its room and at its spot, and the line shows which fixture it switches. A button for several lights has a line to each of them."
- },
- {
-  "version": "0.38.238",
-  "title": "Move a light in the 3D editor",
-  "date": "2026-11-13",
-  "body_markdown": "### Added\n- **Mapping → Atlas builder → 3D look → Edit → Heights → \"Move it\".** A light, a sensor or a readout could have its height and its kind (\"What is this?\") set in the 3D look, but its place only on the flat map. Now: tap the device, press **Move it**, then tap its new place on the same floor.\n  - The move is written to the device's place on the map at once. It is not part of the editor's Save, Undo or Discard; **Put it back** undoes the last move.\n  - Its height and everything else about it stay as they are.\n  - A tap on another floor is refused, with where a device changes floor (the flat map).\n- **The Heights sheet says when a light is drawn away from where it is placed.** A strip, a sconce and a few other kinds are drawn on the nearest wall or round their room; when that is more than half a metre from the spot, the sheet says how far, and that \"What is this?\" changes it."
  }
 ]
