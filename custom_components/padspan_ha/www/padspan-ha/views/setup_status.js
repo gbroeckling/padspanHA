@@ -153,7 +153,7 @@ export const STEP_LABELS = {
   calibration: "Calibrate",
 };
 export const STEP_ABOUT = {
-  plan: "A photo or scan of each floor. It doesn't need to be perfect.",
+  plan: "A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a phone's room scan, your own sketch or a blank floor.",
   scale: "Measure one distance you know, a doorway or a wall, so the map is to scale.",
   floors: "How tall each floor is, so PadSpan can tell the floors apart.",
   rooms: "Trace each Home Assistant room onto its floor plan.",

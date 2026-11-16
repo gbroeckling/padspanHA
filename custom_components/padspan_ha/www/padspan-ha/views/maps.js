@@ -139,8 +139,7 @@ export function render(ctx){
   // The phone's walk-through of a room scan (rough_plan.js): the whole of Mapping while it runs, as the wizard below is.
   if (ROUGH && ROUGH.walking(ctx)) {
     if (ctx.state.dataMode === "live" && ctx.hass?.user?.is_admin !== false && !ctx.state.kioskMode) {
-      root.appendChild(ROUGH.walk(ctx, { toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()),
-        floors: ((ctx.state.model && ctx.state.model.floors) || []).filter(f => f.id !== OUTSIDE_FLOOR_ID).map(f => [f.id, f.name || f.id]),
+      root.appendChild(ROUGH.walk(ctx, { toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()), floors: _houseFloors(ctx),
         onMade: (m) => _roughMade(ctx, m), onClose: () => ctx.actions.renderRooms() }));
       return root;
     }
@@ -524,7 +523,8 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const empty = el("div",{style:"margin-top:14px;padding:18px;border-radius:10px;background:#0a1a12;border:1px solid #1a4228;text-align:center"});
     empty.appendChild(el("div",{style:"font-weight:700;font-size:15px;margin-bottom:6px"}, "No floor plans yet"));
     empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:13px"},
-      "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing receivers, one step at a time."));
+      "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing receivers, one step at a time. " +
+      "No floor plan? Its first step has other ways to get one: a phone's room scan, your own sketch or a blank floor."));
     const startBtn = el("button",{class:"btn primary", style:"font-size:13px;padding:8px 18px"}, "Start Setup Wizard");
     startBtn.setAttribute("data-maps-start", "setup");
     startBtn.addEventListener("click", ()=>{
@@ -1121,6 +1121,9 @@ function _deleteMapModal(ctx, srcMap, allMaps){
 // Includes a drag-to-crop tool and floor selector (from HA Area Registry).
 // The selected file is stored on ctx.state so it survives poll-triggered
 // DOM rebuilds (the file input element gets destroyed on re-render).
+/** The floors of the house, Outside left out: [[id, name]] (a scan and a blank floor are of a floor of the house). */
+const _houseFloors = (ctx) => ((ctx.state.model && ctx.state.model.floors) || []).filter(f => f.id !== OUTSIDE_FLOOR_ID).map(f => [f.id, f.name || f.id]);
+
 /** A scan or a blank floor was saved (rough_plan.js): it has its scale, so on to its rooms, by the door the mode has. */
 async function _roughMade(ctx, map){
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
@@ -1182,7 +1185,15 @@ function _upload(ctx, helpBtn, isBasic){
   // Every picture is taken for a proper, to-scale plan unless the person says otherwise: this tick (their own sketch),
   // or one of the other ways to a plan below (rough_plan.js). Live only: the demo house's plans are what they are.
   const _roughOn = !!ROUGH && ctx.state.dataMode === "live";
-  if (_roughOn) card.appendChild(ROUGH.link(ctx));
+  // The ways to a plan open straight under their own button, above the form two of them lead to.
+  if (_roughOn) {
+    card.appendChild(ROUGH.link(ctx));
+    if (ROUGH.isOpen(ctx)) card.appendChild(ROUGH.render(ctx, {
+      floors: _houseFloors(ctx), floorId: () => ctx.state._mapsUploadFloorId || "", toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()),
+      onMade: (m) => _roughMade(ctx, m), onSketch: () => { ctx.state._mapsUploadSketch = true; ctx.actions.renderRooms(); },
+      vacuumOn: ctx.state.settings?.vacuum_import_enabled === true,
+    }));
+  }
   const sketch = el("input",{type:"checkbox", "data-upload":"sketch"});
   sketch.checked = !!ctx.state._mapsUploadSketch;
   sketch.addEventListener("change", ()=>{ ctx.state._mapsUploadSketch = sketch.checked; });
@@ -1389,15 +1400,7 @@ function _upload(ctx, helpBtn, isBasic){
     "Best practice: upload one map per floor. Floors let you keep room placement clean and avoid mixing levels."
   ));
 
-  if (!_roughOn || !ROUGH.isOpen(ctx)) return card;
-  // The ways to a plan, under the upload they lead back to. The floor is the one chosen above.
-  const _floorNow = () => (ctx.state._mapsUploadFloorId && Array.from(floorSel.options).some(o => o.value === ctx.state._mapsUploadFloorId))
-    ? ctx.state._mapsUploadFloorId : (floorSel.value || "").trim();
-  return el("div",{},[card, ROUGH.render(ctx, {
-    floorId: _floorNow, toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()), onMade: (m) => _roughMade(ctx, m),
-    onSketch: () => { ctx.state._mapsUploadSketch = true; ctx.actions.renderRooms(); },
-    vacuumOn: ctx.state.settings?.vacuum_import_enabled === true,
-  })]);
+  return card;
 }
 
 
@@ -1665,7 +1668,7 @@ function _wizardUpload(ctx, isBasic){
   const { el, helpBtn } = ctx.helpers;
   const wrap = el("div",{});
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    "First: a photo or scan of this floor. It doesn't need to be perfect — you'll set the real-world scale and trace rooms next."));
+    "First: a photo or scan of this floor, or one of the other ways to a plan below if you have none. It doesn't need to be perfect — you'll set the real-world scale and trace rooms next."));
   wrap.appendChild(_upload(ctx, helpBtn, isBasic));
   return wrap;
 }
@@ -11900,10 +11903,10 @@ function _roomsTab(ctx, maps) {
     // off, the picker and its button are exactly the .sh3d ones.
     const roomplanOn = ctx.state.settings?.roomplan_import_enabled === true;
     const fileInput = document.createElement("input");
-    fileInput.type = "file"; fileInput.accept = roomplanOn ? ".sh3d,.json" : ".sh3d"; fileInput.style.display = "none";
+    fileInput.type = "file"; fileInput.accept = roomplanOn ? ".sh3d,.json,.usdz" : ".sh3d"; fileInput.style.display = "none";
     const importStatus = el("span", { class: "muted", style: "font-size:11px" }, "");
     const importBtn = el("button", { class: "btn inline" },
-      roomplanOn ? "📐 Import floorplan (.sh3d, RoomPlan .json)" : "📐 Import floorplan (.sh3d)");
+      roomplanOn ? "📐 Import floorplan (.sh3d, RoomPlan .usdz or .json)" : "📐 Import floorplan (.sh3d)");
     importBtn.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files && fileInput.files[0];
@@ -11917,7 +11920,7 @@ function _roomsTab(ctx, maps) {
           fr.onerror = rej; fr.readAsDataURL(file);
         });
         importStatus.textContent = "Parsing…";
-        const parsed = roomplanOn && /\.json$/i.test(file.name || "")
+        const parsed = roomplanOn && /\.(json|usdz)$/i.test(file.name || "")
           ? await ctx.actions.wsCall("padspan_ha/floorplan_import_roomplan", { roomplan_base64: b64 })
           : await ctx.actions.wsCall("padspan_ha/floorplan_import_sh3d", { sh3d_base64: b64 });
         if (!parsed.rooms.length) {

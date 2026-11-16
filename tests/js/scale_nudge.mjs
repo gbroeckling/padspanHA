@@ -597,6 +597,9 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   check("no plan: the ways, in order", all(root, "[data-rough]").map(n => n.getAttribute("data-rough")).filter(k => k.startsWith("kind-")).join() === "kind-have,kind-scan,kind-vacuum,kind-sketch,kind-blank"
     && rough(g).join() === "opened", [rough(g)]);
   q(root, '[data-rough="kind-have"]').click(); root = await render(g);
+  { const kids = q(root, '[data-rough="card"]').parentNode.children;
+    const ci = kids.findIndex(k => k.getAttribute && k.getAttribute("data-rough") === "card"), fi = kids.findIndex(k => k.tagName === "INPUT");
+    check("no plan: the list opens straight under its button, above the upload form", ci > 0 && fi > ci, [ci, fi]); }
   check("no plan: a way opens its steps", !!q(root, '[data-rough="steps-have"]') && q(root, '[data-rough="steps-have"]').textContent.includes("real-estate listing"));
   // A sketch: its steps, then back to the upload with the tick set; the upload says so and is counted.
   q(root, '[data-rough="kind-sketch"]').click(); root = await render(g);
@@ -628,7 +631,9 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   check("basic: no robot-vacuum way while its setting is off", !q(root, '[data-rough="kind-vacuum"]') && !!q(root, '[data-rough="kind-scan"]'));
   q(root, '[data-rough="kind-scan"]').click(); root = await render(s);
   check("a scan: its steps, the file, the walk-through and its address for the phone", !!q(root, '[data-rough="scan-file"]') && !q(root, '[data-rough="scan-file"]').getAttribute("accept")
-    && !!q(root, '[data-rough="walk-go"]') && q(root, '[data-rough="walk-link"]').textContent.includes("/padspan-ha?view=maps&guide=scan"));
+    && !!q(root, '[data-rough="walk-go"]') && String(q(root, '[data-rough="walk-link"]').value).includes("/padspan-ha?view=maps&guide=scan") && !!q(root, '[data-rough="walk-copy"]'));
+  check("a scan: it asks its own floor, starting on the upload form's; nothing points elsewhere on the page", !!q(root, '[data-rough="floor"]') && s.state._roughPlan.floor === "main"
+    && !/above/.test(q(root, '[data-rough="card"]').textContent), q(root, '[data-rough="card"]').textContent.slice(0, 600));
   await pick(root, scanFile(false)); root = await render(s);
   check("a scan: a file that isn't one is said, nothing made", root.textContent.includes("could not be opened") && rough(s).includes("scan_refused") && !s.state.maps.list.length, root.textContent.slice(0, 400));
   await pick(root, scanFile(true));
@@ -642,7 +647,7 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   check("walk-through: only it is shown, at its first step", !!q(root, '[data-rough="walk"]') && q(root, '[data-rough="walk-step"]').textContent.includes("step 1 of 6")
     && !q(root, ".tabs") && !q(root, '[data-rough="walk-back"]'), root.textContent.slice(0, 300));
   for (let i = 0; i < 5; i++) { q(root, '[data-rough="walk-next"]').click(); root = await render(w); }
-  check("walk-through: the last step asks the floor and the file, no Next", q(root, '[data-rough="walk-step"]').textContent.includes("step 6 of 6") && !!q(root, '[data-rough="walk-floor"]')
+  check("walk-through: the last step asks the floor and the file, no Next", q(root, '[data-rough="walk-step"]').textContent.includes("step 6 of 6") && !!q(root, '[data-rough="floor"]')
     && !!q(root, '[data-rough="scan-file"]') && !q(root, '[data-rough="walk-next"]') && !!q(root, '[data-rough="walk-back"]'));
   await pick(root, scanFile(false)); root = await render(w);
   check("walk-through: a wrong file is said, with what to check", root.textContent.includes("could not be opened") && root.textContent.includes("USDZ file the scanning app saved"));

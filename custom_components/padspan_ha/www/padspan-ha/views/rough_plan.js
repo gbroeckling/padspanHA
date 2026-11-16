@@ -13,8 +13,10 @@
 //   sketch  the person's own drawing, photographed: uploaded as any picture, ticked "my own sketch" (not to scale: the
 //           scale screen then takes a length each way, scale_nudge.js)
 //   blank   nothing at all: a blank floor of the width and depth typed (padspan_ha/maps_blank_create), to scale
-// `opts` of render: floorId() (the floor chosen on the upload card), toBase64(file), onMade(map) (a scan or a blank
-// floor was saved: go on to its rooms), onSketch() (tick "my own sketch" on the upload card), vacuumOn.
+// `opts` of render: floors [[id, name]] and floorId() (the floor chosen on the upload card: the one a scan or a blank
+// floor starts on; each asks for its own, so nothing here points at another part of the page), toBase64(file),
+// onMade(map) (a scan or a blank floor was saved: go on to its rooms), onSketch() (tick "my own sketch" on the upload
+// card), vacuumOn. The list opens straight under its own button, above the upload form the first and fourth ways use.
 // Counted as words only (telemetry.ROUGH_PLAN_WORDS): opened, each kind opened, and what came of a scan or a blank floor.
 
 const V = new URL(import.meta.url).search;
@@ -36,14 +38,14 @@ const STEPS = {
   have: [
     "Places to look: the builder's or architect's drawings, the real-estate listing, the strata or council file, an insurance or appraisal report, the fire-escape plan on a wall.",
     "A photo or a screenshot of it is enough. Hold the camera straight over the page so the drawing isn't slanted, and fill the frame with it.",
-    "Upload it above as usual. You'll set its scale from one length you know, then draw the rooms over it.",
+    "Upload it with the form below. You'll set its scale from one length you know, then draw the rooms over it.",
   ],
   scan: [
     "You need an iPhone or iPad Pro with LiDAR (iPhone 12 Pro or newer Pro, iPad Pro 2020 or newer). Someone else's will do: they scan, and send you the file.",
     "Install a room-scanning app that uses Apple's RoomPlan (search the App Store for \"RoomPlan\" or \"LiDAR room scanner\"). Any of them can share the scan as a USDZ file.",
     "Scan one floor in one go if the app allows it: walk slowly round each room, point at every wall, and go through the doorways without stopping the scan. Doors open, lights on.",
     "Share or export the scan as USDZ (some apps also offer \"RoomPlan JSON\": that works too), and get the file onto this device.",
-    "Choose the floor above, then pick the file here. PadSpan draws the plan from the scan's walls, to scale, with nothing to measure.",
+    "Say which floor it is and pick the file, just below. PadSpan draws the plan from the scan's walls, to scale, with nothing to measure.",
   ],
   vacuum: [
     "A robot vacuum that Home Assistant can see (Valetudo, Dreame or Xiaomi) has a map of the floor it cleans.",
@@ -53,7 +55,7 @@ const STEPS = {
     "On plain paper, draw the outside walls of the floor first, as one shape. Then the walls between rooms, and a gap for each doorway.",
     "Keep the proportions as true as you can, and write the length of one long wall running across and one running down. You'll type those two in.",
     "Photograph it from straight above, the page filling the frame, in even light.",
-    "Upload it above with \"my own sketch\" ticked. PadSpan then takes a length each way, so each direction gets its own scale.",
+    "Press the button below: it ticks \"my own sketch\" on the upload form for you. PadSpan then takes a length each way, so each direction gets its own scale.",
   ],
   blank: [
     "Pace or measure the floor's outside walls: its width and its depth. Rough numbers are fine; you can measure again later.",
@@ -78,7 +80,7 @@ async function makeBlank(ctx, opts) {
   const s = st(ctx);
   s.busy = true; s.msg = ""; redraw(ctx);
   let r;
-  try { r = await ctx.actions.callWS({ type: "padspan_ha/maps_blank_create", floor_id: opts.floorId(), across: String(s.across).trim(), down: String(s.down).trim() }); }
+  try { r = await ctx.actions.callWS({ type: "padspan_ha/maps_blank_create", floor_id: s.floor, across: String(s.across).trim(), down: String(s.down).trim() }); }
   catch (e) { r = { ok: false, message: (e && e.message) || "That didn't work. Try again in a moment." }; }
   s.busy = false;
   if (!r || r.ok === false) { tel(ctx, "blank_refused"); s.msg = (r && r.message) || "The blank floor couldn't be made."; redraw(ctx); return; }
@@ -93,7 +95,7 @@ async function readScan(ctx, opts, file) {
   if (file.size > SCAN_MAX_BYTES) { tel(ctx, "scan_refused"); s.msg = "This file is too large to be a room scan (11 MB at most)."; redraw(ctx); return; }
   s.busy = true; s.msg = ""; redraw(ctx);
   let r;
-  try { r = await ctx.actions.callWS({ type: "padspan_ha/maps_scan_create", floor_id: opts.floorId(), file_base64: await opts.toBase64(file),
+  try { r = await ctx.actions.callWS({ type: "padspan_ha/maps_scan_create", floor_id: s.floor, file_base64: await opts.toBase64(file),
     name: String(file.name || "").replace(/\.[^.]+$/, "").slice(0, 120) }); }
   catch (e) { r = { ok: false, message: (e && e.message) || "That didn't work. Try again in a moment." }; }
   s.busy = false;
@@ -108,6 +110,16 @@ async function readScan(ctx, opts, file) {
   Object.assign(s, { open: false, kind: null });
   if (ctx.toast) ctx.toast(`Scan read: ${r.walls} wall${r.walls === 1 ? "" : "s"}, drawn to scale. Its scale is set.`);
   await opts.onMade(r.map);
+}
+
+/** "Which floor is it?": the floors of the house, starting on the one the upload form has chosen. */
+function floorPick(ctx, opts, big = false) {
+  const { el } = ctx.helpers, s = st(ctx), floors = opts.floors || [];
+  if (!floors.some(([id]) => id === s.floor)) s.floor = floors.some(([id]) => id === (opts.floorId && opts.floorId())) ? opts.floorId() : ((floors[0] || [])[0] || "");
+  const sel = el("select", { class: "select", "data-rough": "floor", style: big ? "font-size:16px;min-height:44px;max-width:100%" : "max-width:100%" });
+  for (const [id, name] of floors) { const o = el("option", { value: id }, name); if (id === s.floor) o.selected = true; sel.appendChild(o); }
+  sel.addEventListener("change", () => { s.floor = sel.value; });
+  return sel;
 }
 
 /** The scan's file picker. No `accept`: an iPhone greys out a .usdz in Files when the list names extensions only. */
@@ -160,13 +172,8 @@ export function walk(ctx, opts) {
   card.appendChild(el("div", { class: "h2", style: "font-size:20px" }, title));
   for (const t of lines) card.appendChild(P(ctx, t, "font-size:16px;line-height:1.6"));
   if (s.walk === n - 1) {
-    const sel = el("select", { class: "select", "data-rough": "walk-floor", style: "font-size:16px;min-height:44px;max-width:100%" });
-    if (!s.floor && opts.floors[0]) s.floor = opts.floors[0][0];
-    for (const [id, name] of opts.floors) { const o = el("option", { value: id }, name); if (id === s.floor) o.selected = true; sel.appendChild(o); }
-    sel.addEventListener("change", () => { s.floor = sel.value; });
-    card.appendChild(row(ctx, [el("span", { style: "font-size:16px;color:#cbd5e1" }, "The floor you scanned:"), sel]));
-    card.appendChild(row(ctx, [el("span", { style: "font-size:16px;color:#cbd5e1" }, s.busy ? "Reading the scan…" : "The scan file:"),
-      scanFile(ctx, { ...opts, floorId: () => s.floor })]));
+    card.appendChild(row(ctx, [el("span", { style: "font-size:16px;color:#cbd5e1" }, "The floor you scanned:"), floorPick(ctx, opts, true)]));
+    card.appendChild(row(ctx, [el("span", { style: "font-size:16px;color:#cbd5e1" }, s.busy ? "Reading the scan…" : "The scan file:"), scanFile(ctx, opts)]));
     if (s.msg) card.appendChild(P(ctx, s.msg + " Check it is the USDZ file the scanning app saved, and try again.", "color:#f59e0b;font-size:15px"));
   }
   card.appendChild(row(ctx, [
@@ -183,12 +190,21 @@ function body(ctx, kind, opts) {
   for (const t of STEPS[kind]) ol.appendChild(el("li", { style: "margin:3px 0" }, t));
   wrap.appendChild(ol);
   if (kind === "scan") {
+    wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, "Which floor is it?"), floorPick(ctx, opts)]));
     wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, s.busy ? "Reading the scan…" : "The scan file (.usdz or .json):"), scanFile(ctx, opts)]));
     // The person holding the phone may not be the one at this screen: the same steps one at a time, made for a phone.
-    wrap.appendChild(row(ctx, [btn(ctx, "Guide me step by step", () => startWalk(ctx), { attrs: { "data-rough": "walk-go" } }),
-      MUTED(ctx, "One step a screen, made for the phone doing the scan.")]));
-    wrap.appendChild(el("div", { "data-rough": "walk-link", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0;word-break:break-all" },
-      `To open that guide on the phone itself, open this address in its Home Assistant app or browser: ${walkLink()}`));
+    const hand = el("div", { "data-rough": "phone", style: "margin-top:10px;padding:8px 10px;border:1px solid #1a4228;border-radius:8px;background:#0a1a12" });
+    hand.appendChild(el("div", { style: "font-size:13px;color:#e2e8f0;font-weight:600" }, "Is someone else doing the scan, or are you on the phone now?"));
+    hand.appendChild(row(ctx, [btn(ctx, "Guide me step by step", () => startWalk(ctx), { attrs: { "data-rough": "walk-go" } }),
+      MUTED(ctx, "The same steps, one a screen, with big buttons: made for the phone.")]));
+    const addr = el("input", { type: "text", readonly: "readonly", "data-rough": "walk-link", value: walkLink(),
+      style: "flex:1 1 260px;min-width:0;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:12px" });
+    addr.value = walkLink();
+    addr.addEventListener("focus", () => { if (addr.select) addr.select(); });
+    hand.appendChild(MUTED(ctx, "To open the guide on their phone, send them this address. It opens in the Home Assistant app or a browser signed in to this house:"));
+    hand.appendChild(row(ctx, [addr, btn(ctx, "Copy", () => { try { navigator.clipboard.writeText(walkLink()).then(() => ctx.toast && ctx.toast("Address copied")).catch(() => {}); } catch (_e) { if (addr.select) addr.select(); } },
+      { attrs: { "data-rough": "walk-copy" } })], "margin:4px 0"));
+    wrap.appendChild(hand);
   } else if (kind === "sketch") {
     wrap.appendChild(row(ctx, [btn(ctx, "I have my sketch: upload it", () => { tel(ctx, "sketch_upload"); s.open = false; opts.onSketch(); }, { attrs: { "data-rough": "sketch-go" } })]));
   } else if (kind === "blank") {
@@ -196,8 +212,8 @@ function body(ctx, kind, opts) {
     PM.lengthField(ctx, side, s.across, { busy: s.busy, onInput: (t) => { s.across = t; }, key: "blank-across", label: "The floor's width, across:" });
     PM.lengthField(ctx, side, s.down, { busy: s.busy, onInput: (t) => { s.down = t; }, key: "blank-down", label: "Its depth, front to back:" });
     wrap.appendChild(side);
-    wrap.appendChild(row(ctx, [btn(ctx, s.busy ? "Making it…" : "Make the blank floor", () => { if (!s.busy) makeBlank(ctx, opts); }, { primary: true, disabled: s.busy, attrs: { "data-rough": "blank-go" } }),
-      MUTED(ctx, "On the floor chosen above.")]));
+    wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, "Which floor is it?"), floorPick(ctx, opts)]));
+    wrap.appendChild(row(ctx, [btn(ctx, s.busy ? "Making it…" : "Make the blank floor", () => { if (!s.busy) makeBlank(ctx, opts); }, { primary: true, disabled: s.busy, attrs: { "data-rough": "blank-go" } })]));
   }
   if (s.msg && s.kind === kind) wrap.appendChild(P(ctx, s.msg, "color:#f59e0b"));
   return wrap;
@@ -206,9 +222,9 @@ function body(ctx, kind, opts) {
 /** The ways to a plan, each with its steps (one open at a time). */
 export function render(ctx, opts) {
   const { el } = ctx.helpers, s = st(ctx);
-  const card = el("div", { class: "card", "data-rough": "card" });
-  card.appendChild(el("div", { class: "h2" }, "Ways to get a floor plan"));
-  card.appendChild(P(ctx, "PadSpan needs a picture of each floor to place rooms and receivers on. It doesn't have to be an architect's drawing. " +
+  const card = el("div", { "data-rough": "card", style: "margin:4px 0 14px;padding:10px 12px;border:1px solid #1a4228;border-radius:8px;background:#0a1a12" });
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, "Ways to get a floor plan"));
+  card.appendChild(P(ctx, "PadSpan needs a plan of each floor to place rooms and receivers on. It doesn't have to be an architect's drawing. " +
     "Take the first of these you can; the further down the list, the rougher the plan."));
   for (const kind of KINDS) {
     if (kind === "vacuum" && !opts.vacuumOn && ctx.state.complexity === "basic") continue;      // Basic has no Settings → Features to send them to
@@ -219,5 +235,7 @@ export function render(ctx, opts) {
       [head, el("span", { style: "font-size:12px;color:#94a3b8" }, why)]));
     if (open) card.appendChild(body(ctx, kind, opts));
   }
+  card.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-top:10px;border-top:1px solid #12301f;padding-top:8px" },
+    "Have a picture now? Upload it with the form below."));
   return card;
 }
