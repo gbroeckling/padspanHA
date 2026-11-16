@@ -3991,8 +3991,14 @@ export function buildLightsMapCard(hostIn){
   const abReader = (pp) => (scr && SCREEN ? SCREEN.sharedReader(abSlot, pp) : pp);
   const abFurnKey = `padspan_lv_furniture_${abSlot}`;
   const abFurn = () => { try { return localStorage.getItem(abFurnKey) === "1"; } catch (_) { return false; } };
+  // A scanned plan's furniture (the ⋯ list's "Furniture from scans") comes beside the 3D file, and is for every house:
+  // read through the host's own loader whether or not Live Aboard is on, but ONLY once this screen has the line ticked
+  // (off unless ticked: with nothing on, nothing is fetched, as ever).
+  const scanLoad = scr && host.house3d && typeof host.house3d.load === "function" ? host.house3d.load : null;
+  const scanOn = () => !!scanLoad && flatShow("scan_furniture") === true;
   if (abLive || abFile) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
   else if (scr) { _abRedraw.delete(abSlot); if (_AB) _AB.liveLayer(abSlot).clear(); }
+  if (scanOn() && !(abLive || abFile)) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
   let abData = null;
   const abDraw = (snapshot) => {
     if (!_AB || !abLive) return;
@@ -4087,6 +4093,7 @@ export function buildLightsMapCard(hostIn){
     codesShown = host.codeChip ? codesVisibleAtZoom(view.zoom) : true;
     // Live Aboard's light kinds and furniture (atlas_aboard.js; none: as ever).
     abData = _AB && abFile ? _AB.fileOf(abSlot, h3.load, host.screen.shownAt, () => { const f = _abRedraw.get(abSlot); if (f) f(); }) : null;
+    if (_AB && scanOn() && !abFile) _AB.fileOf(abSlot, scanLoad, host.screen.shownAt, () => { const f = _abRedraw.get(abSlot); if (f) f(); });   // for scanOf below
     const abDrawn = abData ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abData, host.lightsByEid, h3.settings.light_shapes)) : null;
     const isoOpts =
       { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
@@ -4134,8 +4141,8 @@ export function buildLightsMapCard(hostIn){
         automorphStyle: host.automorphStyle || "glow",
         automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0),
         // Furnish's furniture (its own Show furniture button), and a scan's (the ⋯ list's "Furniture from scans", off unless ticked).
-        underlay: [...(abData && abFurn() ? _AB.underlayOf(abData) : []),
-                   ...(_AB && abFile && flatShow("scan_furniture") === true && _AB.scanOf(abSlot) ? _AB.underlayOf({ pieces: _AB.scanOf(abSlot) }) : [])],
+        underlay: ((u) => (u.length ? u : null))([...(abData && abFurn() ? _AB.underlayOf(abData) : []),
+                   ...(_AB && scanOn() && _AB.scanOf(abSlot) ? _AB.underlayOf({ pieces: _AB.scanOf(abSlot) }) : [])]),
         // Live Aboard's own hinge, swing, type and Shown for a door, when it is on.
         doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null,
         // The sidebar Atlas draws a chosen floor alone, as big as the screen; Mapping keeps the others, faded.
@@ -5100,12 +5107,14 @@ export function buildLightsMapCard(hostIn){
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
           onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
-            lines: () => ["light_taps", "other_floors", ...(_AB && _AB.scanOf(abSlot) ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
+            lines: () => ["light_taps", "other_floors", ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
             ready: () => {
               const s = sc(), out = {};
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);
               if (!tapLights()) out.light_taps = M.setupLine("light_taps", hp.admin === true, typeof hp.goTo === "function", null, hp.kiosk === true);
               if (sortedLevels.length < 2) out.other_floors = M.setupLine("other_floors", hp.admin === true, false, "This house has one floor: there is nothing to fade.");
+              // Known only once it was ticked and read: ticked, read, and no scanned plan has furniture.
+              if (scanOn() && _AB && _AB.fileData(abSlot) && !_AB.scanOf(abSlot)) out.scan_furniture = M.setupLine("scan_furniture", hp.admin === true, false, null, hp.kiosk === true);
               return out;
             },
             canGo,
@@ -5115,7 +5124,10 @@ export function buildLightsMapCard(hostIn){
               try { if (typeof t === "function") t(name); } catch (_) { /* the report is never the error */ }
             },
             // A tap reads its line when it lands; the floors and the scene row are drawn again.
-            changed: (key) => { if (key === "light_taps") { if (typeof host.onShowLine === "function") host.onShowLine(key); return; } if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });
+            changed: (key) => { if (key === "light_taps") { if (typeof host.onShowLine === "function") host.onShowLine(key); return; }
+              // "Furniture from scans" ticked: its reader is fetched now, and the map drawn again when it arrives.
+              if (key === "scan_furniture" && scanOn()) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
+              if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });
       };
       // ⋯'s dot from the saved pref as the card is built (review 2026-11-11: no mark() was ever called): wired at once
       // where the list is loaded, and where this screen has ticks of its own as soon as it loads; else at the first press.

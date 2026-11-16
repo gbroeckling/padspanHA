@@ -467,8 +467,11 @@ def test_nothing_converts_photo_coordinates_into_data() -> None:
     # plan_ai.py (2026-11, experimental): the same conversion for the plan
     # AI's finds and a plan's corners; its store holds metres, and no view
     # reads a placement.
+    # ws_house3d_import.py (2026-11-16): a scanned plan's furniture (scan_pieces) is worked out at each READ from where
+    # the plan stands, as a guide to draw, and stored nowhere by it: Furnish's "Place the scan's guess" adds pieces
+    # unsaved, as the stairs' guess does, and Save keeps metres.
     allowed = {"migrations.py", "model_store.py", "fabric_truth.py",
-               "calibration_store.py", "ws_maps.py", "ws_house3d_stairs.py", "plan_ai.py"}
+               "calibration_store.py", "ws_maps.py", "ws_house3d_stairs.py", "plan_ai.py", "ws_house3d_import.py"}
     for path in src.glob("*.py"):
         text = path.read_text(encoding="utf-8")
         if path.name not in allowed:
