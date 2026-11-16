@@ -25,7 +25,7 @@ const { btn, P, MUTED, row } = PM;
 
 export const LINK = "No floor plan? Ways to get one";
 export const KINDS = Object.freeze(["have", "scan", "vacuum", "sketch", "blank"]);
-export const SCAN_MAX_BYTES = 11_000_000;      // the server's cap is on the base64 (ws_maps.SCAN_MAX_B64)
+export const SCAN_MAX_BYTES = 2_800_000;      // the server's cap is on the base64 (ws_maps.SCAN_MAX_B64)
 
 const TITLES = {
   have: ["Look for a drawing you already have", "The quickest, and the most exact."],
@@ -102,7 +102,7 @@ async function makeBlank(ctx, opts) {
 async function readScan(ctx, opts, file) {
   const s = st(ctx);
   if (!file) return;
-  if (file.size > SCAN_MAX_BYTES) { tel(ctx, "scan_refused"); tel(ctx, "scan_refused_size"); s.msg = "This file is too large to be a room scan (11 MB at most)."; redraw(ctx); return; }
+  if (file.size > SCAN_MAX_BYTES) { tel(ctx, "scan_refused"); tel(ctx, "scan_refused_size"); s.msg = "This file is too large to be a room scan (2.8 MB at most). A scan of a whole floor is usually under 2 MB: in the scanning app, share the room scan itself (USDZ), not a 3D photo model of it."; redraw(ctx); return; }
   s.busy = true; s.msg = ""; redraw(ctx);
   let r;
   try { r = await ctx.actions.callWS({ type: "padspan_ha/maps_scan_create", floor_id: s.floor, file_base64: await opts.toBase64(file),

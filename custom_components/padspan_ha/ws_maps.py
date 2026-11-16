@@ -894,9 +894,11 @@ class _TooBig(Exception):
     """A scan larger than a floor of a house."""
 
 
-SCAN_MAX_B64 = 16_000_000
+# Home Assistant drops a websocket message over about 4 MiB (seen 2026-11-16: a 5 MB file never arrived), so a scan is
+# at most 2.8 MB, about 3.75 MB as base64. Real scans seen: 0.13 to 1.45 MB.
+SCAN_MAX_B64 = 3_800_000
 SCAN_WORDS: dict[str, str] = {
-    "too_large": "This file is too large to be a room scan (16 MB at most).",
+    "too_large": "This file is too large to be a room scan (2.8 MB at most).",
     "outdoor": "A room scan is of a floor of the house, not the outdoors.",
     "empty": "No walls were found in this scan, so there is nothing to draw.",
     "too_big": "This scan is larger than a floor of a house (200 m at most, 3,000 walls), so it wasn't drawn.",
