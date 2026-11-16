@@ -47,7 +47,7 @@ const STEPS = {
   ],
   vacuum: [
     "A robot vacuum that Home Assistant can see (Valetudo, Dreame or Xiaomi) has a map of the floor it cleans.",
-    "Turn on Settings → Features → Robot Vacuum Import, then use Mapping → Rooms → \"Import from a robot vacuum\". It becomes a floor plan with its rooms.",
+    "Turn on Settings → Features → Robot Vacuum Import, then use Mapping → Layout → \"Import from a robot vacuum\". It becomes a floor plan with its rooms.",
   ],
   sketch: [
     "On plain paper, draw the outside walls of the floor first, as one shape. Then the walls between rooms, and a gap for each doorway.",
@@ -113,7 +113,7 @@ async function readScan(ctx, opts, file) {
 /** The scan's file picker. No `accept`: an iPhone greys out a .usdz in Files when the list names extensions only. */
 function scanFile(ctx, opts) {
   const { el } = ctx.helpers, s = st(ctx);
-  const file = el("input", { type: "file", "data-rough": "scan-file", style: "font-size:14px;max-width:100%" });
+  const file = el("input", { type: "file", "data-rough": "scan-file", style: (walking(ctx) ? "font-size:17px;padding:10px 0;" : "font-size:14px;") + "max-width:100%" });
   if (s.busy) file.disabled = true;
   file.addEventListener("change", () => readScan(ctx, opts, file.files && file.files[0]));
   return file;

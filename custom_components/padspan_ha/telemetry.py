@@ -470,6 +470,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "device_name",
     "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
+    "rough_plan",                                   # "No floor plan? Ways to get one" and the phone's walk-through of a room scan
     "plan_measure", "scale_nudge",                  # the hand measurement (the helper's and the upload's "Set this plan's scale now")
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
