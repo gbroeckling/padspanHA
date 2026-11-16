@@ -45,9 +45,11 @@ hand-made fixture in this structure. Treat the first real import as the true
 validation, as with the .sh3d importer.
 """
 
+import io
 import json
 import math
 import re
+import zipfile
 from typing import Any
 
 # The plan's single level: RoomPlan's world origin is wherever the phone
@@ -282,9 +284,7 @@ def parse_roomplan(data: bytes) -> dict[str, Any]:
     CapturedStructure JSON export.
     """
     if data[:2] == b"PK":
-        raise RoomPlanParseError(
-            "This looks like a USDZ (3D model) export. Export the scan as JSON "
-            "(CapturedRoom or CapturedStructure) and import that instead.")
+        return parse_usdz(data)
     try:
         text = data.decode("utf-8-sig")
         # Refuse absurd nesting before parsing: whether json.loads gives up on
@@ -305,7 +305,12 @@ def parse_roomplan(data: bytes) -> dict[str, Any]:
         raise RoomPlanParseError("Not a valid RoomPlan JSON file (could not read it as JSON)") from exc
     if not isinstance(doc, dict):
         raise RoomPlanParseError("Not a RoomPlan export (expected a JSON object)")
+    return _parse_doc(doc)
 
+
+def _parse_doc(doc: dict) -> dict[str, Any]:
+    """A CapturedRoom or CapturedStructure, as a dict, into parse_sh3d's contract (parse_roomplan's and
+    parse_usdz's one body)."""
     warnings: list[str] = []
     rooms: list[dict[str, Any]] = []
     if isinstance(doc.get("rooms"), list):
@@ -337,3 +342,171 @@ def parse_roomplan(data: bytes) -> dict[str, Any]:
         "source": "roomplan",
         **extras,
     }
+
+
+# ── RoomPlan's USDZ (2026-11-16) ─────────────────────────────────────────────────────────────────────────────────────
+# What every RoomPlan app can share: CapturedRoom.export(to:) writes a zip of TEXT layers (.usda), one per wall, door,
+# window, opening, floor and object, each with its category in customData, its mesh points in its own frame and its
+# place as `matrix4d xformOp:transform` (rows: right, up, normal, position; metres, Y up). Checked against two real
+# exports from two apps, one of them with the same room's JSON beside it: the walls' ends agree to the centimetre.
+# The only binary files in it are optional furniture models, never read here. Each element becomes the dict
+# JSONEncoder would have written (transform as 16 numbers, dimensions), so _parse_doc reads both the same way.
+USDZ_MAX_FILES, USDZ_MAX_LAYER, USDZ_MAX_TOTAL = 4000, 2_000_000, 40_000_000
+_USD_CATEGORY = re.compile(r'string Category = "([A-Za-z]+)([^"]*)"')
+_USD_UUID = re.compile(r'string UUID = "([^"]+)"')
+_USD_SCALE = re.compile(r"double3 xformOp:scale = \(([^)]*)\)")
+_USD_POINTS = re.compile(r"point3f\[\] points = \[([^\]]*)\]")
+_USD_FACES = re.compile(r"int\[\] faceVertexIndices = \[([^\]]*)\]")
+_USD_MATRIX = re.compile(r"matrix4d xformOp:transform = \( \(([^)]*)\), \(([^)]*)\), \(([^)]*)\), \(([^)]*)\) \)")
+_USD_TUPLE = re.compile(r"\(([^()]*)\)")
+_USD_SECTION = re.compile(r'def Xform "([A-Za-z]+)\d*"[^{]*\{\s*matrix4d xformOp:transform = \( \([^)]*\), \([^)]*\), \([^)]*\), \(([^)]*)\) \)')
+_USD_KINDS = {"Wall": "walls", "Door": "doors", "Window": "windows", "Opening": "openings", "Floor": "floors"}
+_FACE_Z = 0.005     # a mesh point within this of z = 0 is on the element's face (its other side is the thickness away)
+
+
+def _floats(text: str) -> list[float] | None:
+    try:
+        v = [float(x) for x in text.split(",")]
+    except ValueError:
+        return None
+    return v if all(math.isfinite(x) for x in v) else None
+
+
+def _usd_element(text: str) -> tuple[str, dict, int] | None:
+    """One layer → (its list in a CapturedRoom, the element as JSONEncoder would write it, its rank), or None. An app
+    may pack the same element three ways (assets/Parametric, Mesh, Model: one UUID): the parametric one, a unit cube
+    with its width, height and thickness as its scale, is exactly the JSON's dimensions and ranks first (0); a mesh
+    (1) is measured from its face, and its walls run a thickness long at the corners."""
+    cat, pts, mat = _USD_CATEGORY.search(text), _USD_POINTS.search(text), _USD_MATRIX.search(text)
+    if not cat or not mat:
+        return None
+    rows = [_floats(g) for g in mat.groups()]
+    if any(r is None or len(r) != 4 for r in rows):
+        return None
+    m = [v for r in rows for v in r]                       # rows right, up, normal, position: Swift's column-major 16
+    kind = _USD_KINDS.get(cat.group(1))
+    box = _floats(_USD_SCALE.search(text).group(1)) if _USD_SCALE.search(text) and "def Cube" in text else None
+    if box and len(box) == 3 and not pts:
+        el0: dict[str, Any] = {"transform": m, "dimensions": [box[0], box[1], 0.0 if kind else box[2]]}
+        if kind is None:
+            el0["category"] = cat.group(1)[:1].lower() + cat.group(1)[1:]
+        elif kind == "doors":
+            el0["category"] = {"door": {"isOpen": "true" in cat.group(2).lower()}}
+        return kind or "objects", el0, 0
+    if not pts:
+        return None
+    points = [p for p in (_floats(t) for t in _USD_TUPLE.findall(pts.group(1))) if p and len(p) == 3]
+    if len(points) < 3:
+        return None
+    face = [p for p in points if abs(p[2]) <= _FACE_Z] or points
+    x0, x1 = min(p[0] for p in face), max(p[0] for p in face)
+    y0, y1 = min(p[1] for p in face), max(p[1] for p in face)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2                   # the face's centre, should the mesh not sit on its origin
+    for i in range(3):
+        m[12 + i] += m[i] * cx + m[4 + i] * cy
+    el: dict[str, Any] = {"transform": m, "dimensions": [x1 - x0, y1 - y0, 0.0]}
+    if kind == "doors":
+        el["category"] = {"door": {"isOpen": "true" in cat.group(2).lower()}}
+    if kind == "floors":
+        ring = _face_outline(points, _USD_FACES.search(text))
+        if ring:
+            el["polygonCorners"] = [[x - cx, y - cy, 0.0] for x, y in ring]
+    elif kind is None:
+        el["category"] = cat.group(1)[:1].lower() + cat.group(1)[1:]
+        el["dimensions"] = [x1 - x0, y1 - y0, max(p[2] for p in points) - min(p[2] for p in points)]
+        kind = "objects"
+    return kind, el, 1
+
+
+def _face_outline(points: list[list[float]], faces: Any) -> list[tuple[float, float]] | None:
+    """A floor's outline from its mesh: the edges of its top face (z = 0) that belong to one triangle only, chained.
+    None when they don't close into one ring (the floor's rectangle is used then)."""
+    idx = [int(v) for v in re.findall(r"-?\d+", faces.group(1))] if faces else []
+    key = lambda i: (round(points[i][0], 3), round(points[i][1], 3))  # noqa: E731 — the mesh repeats a corner per face
+    edges: dict[tuple, int] = {}
+    for t in range(0, len(idx) - 2, 3):
+        tri = idx[t:t + 3]
+        if any(i < 0 or i >= len(points) or abs(points[i][2]) > _FACE_Z for i in tri):
+            continue
+        for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+            e = tuple(sorted((key(a), key(b))))
+            if e[0] != e[1]:
+                edges[e] = edges.get(e, 0) + 1
+    rim = [e for e, n in edges.items() if n == 1]
+    if len(rim) < 3:
+        return None
+    ring = [rim[0][0], rim[0][1]]
+    left = rim[1:]
+    while left:
+        nxt = next((e for e in left if ring[-1] in e), None)
+        if nxt is None:
+            return None
+        left.remove(nxt)
+        ring.append(nxt[1] if nxt[0] == ring[-1] else nxt[0])
+    return ring[:-1] if ring[0] == ring[-1] and len(ring) > 3 else None
+
+
+def parse_usdz(data: bytes) -> dict[str, Any]:
+    """A RoomPlan USDZ's raw bytes into parse_roomplan's contract. Raises RoomPlanParseError for a zip that is not a
+    RoomPlan export (a mesh scan, a model from another tool), or one too large to be one."""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+        infos = z.infolist()
+    except (zipfile.BadZipFile, ValueError, OSError) as exc:
+        raise RoomPlanParseError("Not a USDZ file (it could not be opened)") from exc
+    layers = [i for i in infos if i.filename.lower().endswith(".usda")]
+    if len(infos) > USDZ_MAX_FILES or sum(i.file_size for i in layers) > USDZ_MAX_TOTAL or any(i.file_size > USDZ_MAX_LAYER for i in layers):
+        raise RoomPlanParseError("This USDZ is too large to be a room scan")
+    doc: dict[str, Any] = {k: [] for k in (*_USD_KINDS.values(), "objects", "sections")}
+    seen: dict[str, tuple[int, str, dict]] = {}             # by UUID: the best-ranked form of each element
+    for info in layers:
+        try:
+            text = z.read(info).decode("utf-8", "replace")
+        except (zipfile.BadZipFile, OSError, RuntimeError):
+            continue
+        got = _usd_element(text)
+        if got:
+            uid = (_USD_UUID.search(text) or [None, info.filename])[1]
+            rank = 0 if "/parametric/" in info.filename.lower() else got[2]      # a floor is a mesh in every form
+            if uid not in seen or rank < seen[uid][0]:
+                seen[uid] = (rank, got[0], got[1])
+        elif "Section_grp" in text:                         # the root layer: the room types the phone recognised
+            for label, pos in _USD_SECTION.findall(text):
+                c = _floats(pos)
+                if c and len(c) == 4 and not label.endswith("grp"):
+                    doc["sections"].append({"label": label, "center": c[:3]})
+    for _rank, kind, el in seen.values():
+        doc[kind].append(el)
+    if not doc["walls"] and not doc["floors"]:
+        raise RoomPlanParseError("No walls or floors were found in this USDZ. A room scan made with Apple's RoomPlan has them; "
+                                 "a mesh scan (a photo-like 3D model) does not.")
+    out = _parse_doc(doc)
+    out["heights_m"] = sorted({round(w["dimensions"][1], 2) for w in doc["walls"] if w["dimensions"][1] > 0})
+    return out
+
+
+def plan_frame(parsed: dict[str, Any], margin_m: float = 0.5) -> dict[str, Any] | None:
+    """Pure. A scan turned and shifted into a plan's own frame: a scan's axes are wherever the phone pointed when it
+    started, so everything is turned until the walls' main direction (by length, modulo a quarter turn) runs along
+    the axes, then shifted so its box, `margin_m` round it, starts at 0, 0. {across_m, down_m, walls, openings, rooms
+    [{name, points_m}]}, or None with no wall or room to draw."""
+    walls = [(w["a_m"], w["b_m"]) for w in parsed.get("walls") or []]
+    rooms = [r for r in parsed.get("rooms") or [] if len(r.get("points_m") or []) >= 3]
+    edges = walls or [(r["points_m"][i - 1], r["points_m"][i]) for r in rooms for i in range(len(r["points_m"]))]
+    if not edges:
+        return None
+    sx = sy = 0.0
+    for a, b in edges:                                      # the mean direction of 4x the angle: quarter turns agree
+        ln, ang = math.dist(a, b), math.atan2(b[1] - a[1], b[0] - a[0])
+        sx += ln * math.cos(4 * ang)
+        sy += ln * math.sin(4 * ang)
+    turn = -math.atan2(sy, sx) / 4
+    c, s = math.cos(turn), math.sin(turn)
+    rot = lambda p: (p[0] * c - p[1] * s, p[0] * s + p[1] * c)  # noqa: E731
+    pts = [rot(p) for e in edges for p in e] + [rot(p) for r in rooms for p in r["points_m"]]
+    x0, y0 = min(p[0] for p in pts) - margin_m, min(p[1] for p in pts) - margin_m
+    put = lambda p: [round(rot(p)[0] - x0, 3), round(rot(p)[1] - y0, 3)]  # noqa: E731
+    return {"across_m": round(max(p[0] for p in pts) + margin_m - x0, 3), "down_m": round(max(p[1] for p in pts) + margin_m - y0, 3),
+            "walls": [[put(a), put(b)] for a, b in walls],
+            "openings": [{"kind": o.get("kind"), "a_m": put(o["a_m"]), "b_m": put(o["b_m"])} for o in parsed.get("openings") or []],
+            "rooms": [{"name": r.get("name"), "points_m": [put(p) for p in r["points_m"]]} for r in rooms]}

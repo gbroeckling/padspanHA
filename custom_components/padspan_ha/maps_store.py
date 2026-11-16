@@ -353,7 +353,7 @@ class MapsStore:
     async def async_set_kind(self, map_id: str, kind: str | None) -> bool:
         """A plan said to be a sketch (not to scale), or no longer. False when nothing changed."""
         m = self.get_map(map_id)
-        if not m or m.get("kind") == "blank" or (kind is not None and kind not in PLAN_KINDS) or m.get("kind") == kind:
+        if not m or m.get("kind") in ("blank", "scan") or (kind is not None and kind not in PLAN_KINDS) or m.get("kind") == kind:
             return False
         if kind is None:
             m.pop("kind", None)
@@ -1166,7 +1166,7 @@ def _unfilter_png(raw: bytes, width: int, height: int, bpp: int, stride: int) ->
 
 
 # What a plan is, where the person made it plain; no key: a proper, to-scale plan (the default, never asked).
-PLAN_KINDS: tuple[str, ...] = ("sketch", "blank")
+PLAN_KINDS: tuple[str, ...] = ("sketch", "blank", "scan")
 BLANK_PX_PER_M, BLANK_MAX_PX = 100, 1600        # a blank floor's picture: this fine, its longer side at most this
 BLANK_MIN_M, BLANK_MAX_M = 2.0, 200.0           # a floor's width and depth, typed
 
@@ -1174,22 +1174,64 @@ BLANK_MIN_M, BLANK_MAX_M = 2.0, 200.0           # a floor's width and depth, typ
 def blank_plan_png(across_m: float, down_m: float) -> tuple[bytes, int, int]:
     """A blank floor for a house with no plan picture: white, a faint line every metre, a dark edge. To scale by
     construction (the same pixels per metre both ways), so its scale is exact. (png, width, height)."""
+    g, w, h, _ppm = _metre_sheet(across_m, down_m, edge=3)
+    return _grey_png(g, w, h), w, h
+
+
+def _metre_sheet(across_m: float, down_m: float, edge: int = 0) -> tuple[list[bytearray], int, int, float]:
+    """A white sheet to scale, a faint line every metre, a dark edge `edge` pixels wide: (rows of greys, w, h, px/m)."""
     ppm = min(BLANK_PX_PER_M, BLANK_MAX_PX / max(across_m, down_m))
     w, h = max(8, round(across_m * ppm)), max(8, round(down_m * ppm))
-    edge = 3
-    cols = bytearray(b"\xff" * w)                                   # a row's greys: white, the metre lines, the edge
+    cols = bytearray(b"\xff" * w)
     for i in range(1, int(across_m) + 1):
         x = round(i * ppm)
-        if edge <= x < w - edge:
+        if x < w:
             cols[x] = 0xD8
-    for x in list(range(edge)) + list(range(w - edge, w)):
-        cols[x] = 0x30
-    grey = lambda row: b"\x00" + b"".join(bytes((v, v, v, 255)) for v in row)   # noqa: E731 — filter byte 0, then RGBA
-    plain, dark = grey(cols), grey(bytes([0x30]) * w)
-    line = grey(bytes(0x30 if (x < edge or x >= w - edge) else 0xD8 for x in range(w)))
     metre_rows = {round(i * ppm) for i in range(1, int(down_m) + 1)}
-    rows = [dark if (y < edge or y >= h - edge) else line if y in metre_rows else plain for y in range(h)]
-    return _encode_rgba_to_png(b"".join(rows), w, h), w, h
+    g = [bytearray(b"\xd8" * w) if y in metre_rows else bytearray(cols) for y in range(h)]
+    for y in range(h):
+        if y < edge or y >= h - edge:
+            g[y] = bytearray(b"\x30" * w)
+        else:
+            for x in list(range(edge)) + list(range(w - edge, w)):
+                g[y][x] = 0x30
+    return g, w, h, ppm
+
+
+def _grey_png(g: list[bytearray], w: int, h: int) -> bytes:
+    return _encode_rgba_to_png(b"".join(b"\x00" + b"".join(bytes((v, v, v, 255)) for v in row) for row in g), w, h)
+
+
+SCAN_WALL_M, SCAN_GAP_M = 0.14, 0.06          # a scanned wall as drawn; a door's or window's line in the gap it leaves
+
+
+def _stroke(g: list[bytearray], w: int, h: int, a: tuple[float, float], b: tuple[float, float], half: float, grey: int) -> None:
+    """A line from a to b (pixels), `half` pixels either side, painted `grey`."""
+    (ax, ay), (bx, by) = a, b
+    dx, dy = bx - ax, by - ay
+    ln2 = dx * dx + dy * dy
+    for y in range(max(0, int(min(ay, by) - half)), min(h, int(max(ay, by) + half) + 2)):
+        row = g[y]
+        for x in range(max(0, int(min(ax, bx) - half)), min(w, int(max(ax, bx) + half) + 2)):
+            t = 0.0 if ln2 == 0 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / ln2))
+            if (x - ax - t * dx) ** 2 + (y - ay - t * dy) ** 2 <= half * half:
+                row[x] = grey
+
+
+def scan_plan_png(frame: dict[str, Any]) -> tuple[bytes, int, int]:
+    """A room scan as a floor plan picture (roomplan_import.plan_frame's walls and openings, in metres from the
+    picture's corner): the metre sheet, each wall a dark line, a doorway cut out of it with a thin line across, a
+    window a lighter line in the wall. To scale by construction. (png, width, height)."""
+    g, w, h, ppm = _metre_sheet(frame["across_m"], frame["down_m"])
+    px = lambda p: (p[0] * ppm, p[1] * ppm)  # noqa: E731
+    half = max(1.5, SCAN_WALL_M * ppm / 2)
+    for a, b in frame.get("walls") or []:
+        _stroke(g, w, h, px(a), px(b), half, 0x28)
+    for o in frame.get("openings") or []:
+        window = o.get("kind") == "window"
+        _stroke(g, w, h, px(o["a_m"]), px(o["b_m"]), half + 0.5, 0xB0 if window else 0xFF)
+        _stroke(g, w, h, px(o["a_m"]), px(o["b_m"]), max(0.8, SCAN_GAP_M * ppm / 2), 0x28 if window else 0x90)
+    return _grey_png(g, w, h), w, h
 
 
 def _encode_rgba_to_png(filtered_data: bytes, width: int, height: int) -> bytes:

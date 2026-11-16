@@ -361,7 +361,7 @@ const tap = (layer, x, y) => layer.dispatchEvent({ type: "click", clientX: x, cl
   // 2026-11-12, measure first: nothing read, so nothing "found"; Claude is asked only by the person (said with its cost).
   check("scale: the measurement at once, Claude only if asked", !root.textContent.includes(W.SCALE_NONE) && !!q(root, '[data-aiw="scale-ask"]') && !q(root, '[data-aiw="scale-again"]'),
     root.textContent.slice(0, 300));
-  check("scale: the screen, its words, the chip", !!q(root, '[data-aiw="measure"]') && root.textContent.includes("Click both ends of something you know the length of (a wall, a doorway, the whole house), then type its length. The longer the thing you measure, the more exact your map.") && chipOn(root), root.textContent.slice(0, 300));
+  check("scale: the screen, its words, the chip", !!q(root, '[data-aiw="measure"]') && root.textContent.includes("Click both ends of something you know the length of (the longest wall you can, or the whole house), then type its length. The longer the thing you measure, the more exact your map: a doorway is too short to trust.") && chipOn(root), root.textContent.slice(0, 300));
   check("scale: no read before the measurement", !h.calls.some(c => c.type === "padspan_ha/plan_build_rooms_start"));
   check("scale: counted as guided, step marked", h.tele.includes("plan_build_scale:guided") && h.calls.some(c => c.what === "step" && c.step === "scale_guided"), h.tele);
   check("scale: no floor question when the plan's floor is the house's", !q(root, '[data-aiw="floor-main"]') && !root.textContent.includes("Which floor"));

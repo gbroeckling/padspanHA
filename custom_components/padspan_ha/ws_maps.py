@@ -885,3 +885,72 @@ async def ws_maps_revert_extend(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"ok": True})
     else:
         connection.send_result(msg["id"], {"ok": False, "reason": "no_extend_snapshot"})
+
+
+# A room scan from a phone's LiDAR (Apple's RoomPlan: the USDZ every such app can share, or its JSON), 2026-11-16: read
+# (roomplan_import), turned so its walls run along the axes, drawn as a plan picture to scale, and saved as any plan
+# is, its scale exact: nothing to measure. Its rooms' outlines and names are kept on the plan's record (`scan`).
+SCAN_MAX_B64 = 16_000_000
+SCAN_WORDS: dict[str, str] = {
+    "too_large": "This file is too large to be a room scan (16 MB at most).",
+    "outdoor": "A room scan is of a floor of the house, not the outdoors.",
+    "empty": "No walls were found in this scan, so there is nothing to draw.",
+}
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/maps_scan_create",
+        "floor_id": str,
+        "file_base64": str,
+        vol.Optional("name", default=""): vol.All(str, vol.Length(max=120)),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
+    """{ok, map, rooms, heights_m, warnings} or {ok: false, message}: nothing is written unless the scan reads."""
+    from . import roomplan_import as RP  # noqa: PLC0415
+    from .maps_store import scan_plan_png  # noqa: PLC0415
+    from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not ms:
+        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        return
+    floor_id = msg["floor_id"] or DEFAULT_FLOOR_ID
+
+    def no(code: str, message: str) -> None:
+        connection.send_result(msg["id"], {"ok": False, "code": code, "message": message})
+
+    if is_outdoor_floor(floor_id):
+        return no("outdoor", SCAN_WORDS["outdoor"])
+    if len(msg["file_base64"]) > SCAN_MAX_B64:
+        return no("too_large", SCAN_WORDS["too_large"])
+
+    def read() -> tuple[dict, dict | None, tuple | None]:
+        parsed = RP.parse_roomplan(base64.b64decode(msg["file_base64"]))
+        frame = RP.plan_frame(parsed) if parsed.get("walls") else None
+        return parsed, frame, scan_plan_png(frame) if frame else None
+
+    try:
+        parsed, frame, pic = await hass.async_add_executor_job(read)
+    except RP.RoomPlanParseError as err:
+        return no("unreadable", str(err))
+    except ValueError:
+        return no("unreadable", "This file could not be read.")
+    if not frame or not pic:
+        return no("empty", SCAN_WORDS["empty"])
+    png, w, h = pic
+    info = await ms.async_add_map(msg["name"].strip() or "Room scan", "room-scan.png", "image/png", w, h,
+                                  base64.b64encode(png).decode("ascii"), floor_id, kind="scan")
+    across, down = frame["across_m"], frame["down_m"]
+    info["scan"] = {"rooms": [{"name": r.get("name"), "points": [[round(p[0] / across, 4), round(p[1] / down, 4)] for p in r["points_m"]]}
+                              for r in frame["rooms"]][:60],
+                    "heights_m": (parsed.get("heights_m") or [])[:40]}
+    await ms.store.async_save(ms.data)
+    ref = {"p1": [0.0, 0.5], "p2": [1.0, 0.5], "distance_m": round(across, 4), "px_per_meter": round(w / across * 100) / 100,
+           "angle_deg": 0, "date": _time.strftime("%Y-%m-%d", _time.gmtime()), "source": "scan"}
+    await async_write_measured_transform(hass, info["id"], {"scale_x_m": round(across, 4), "scale_y_m": round(down, 4),
+                                                           "reference_measurements": [ref], "floor_id": floor_id})
+    connection.send_result(msg["id"], {"ok": True, "map": info, "rooms": len(frame["rooms"]), "walls": len(frame["walls"]),
+                                       "heights_m": info["scan"]["heights_m"], "warnings": parsed.get("warnings") or []})
