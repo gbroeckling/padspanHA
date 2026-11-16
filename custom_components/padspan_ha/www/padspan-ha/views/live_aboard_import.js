@@ -335,7 +335,7 @@ export function importFlow(ctx){
     // A RoomPlan JSON scan too, where RoomPlan import is on (Settings → Features): its furniture and stairs.
     const rp = !!(ctx.settings && ctx.settings.roomplan_import_enabled === true);
     const title = rp ? "Import from Sweet Home 3D or RoomPlan" : "Import from Sweet Home 3D";
-    const input = h("input", { type: "file", accept: rp ? ".sh3d,.json" : ".sh3d", style: "display:none", onchange: () => pick() });
+    const input = h("input", { type: "file", accept: rp ? ".sh3d,.json,.usdz" : ".sh3d", style: "display:none", onchange: () => pick() });
     const screen = (kids) => el.replaceChildren(h("div", { class: "la-import", style: CSS.wrap }, kids));
     const cancelBtn = () => h("button", { class: "btn inline", onclick: () => finish(null) }, "Cancel");
     const chooseBtn = (label, primary) => h("button", { class: "btn inline" + (primary ? " primary" : ""), onclick: () => input.click() }, label);
@@ -366,7 +366,7 @@ export function importFlow(ctx){
         const b64 = await readBase64(file);
         if (mine !== token) return;
         const [prev, model, file3d] = await Promise.all([
-          call(rp && /\.json$/i.test(file.name || "") ? { type: PREVIEW_TYPE, sh3d_base64: b64, format: "roomplan" } : { type: PREVIEW_TYPE, sh3d_base64: b64 }),
+          call(rp && /\.(json|usdz)$/i.test(file.name || "") ? { type: PREVIEW_TYPE, sh3d_base64: b64, format: "roomplan" } : { type: PREVIEW_TYPE, sh3d_base64: b64 }),
           Promise.resolve().then(() => call({ type: "padspan_ha/model_get" })).catch(() => null),
           // Furnish's draft, unsaved doors and windows too; else the saved file.
           ctx.draft ? { data: ctx.draft } : Promise.resolve().then(() => call({ type: "padspan_ha/house3d_get" })).catch(() => null),

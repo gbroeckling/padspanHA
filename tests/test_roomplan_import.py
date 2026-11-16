@@ -355,10 +355,11 @@ def _usd_layer(name: str, category: str, uid: str, tf: list[float], dims: list[f
     head = (f'#usda 1.0\ndef Xform "{name}" (\n    customData = {{\n        string Category = "{category}"\n'
             f'        string UUID = "{uid}"\n    }}\n)\n{{\n')
     if not mesh:
-        return head + (f'    def Cube "{name}"\n    {{\n        double size = 1\n        double3 xformOp:scale = ({dims[0]}, {dims[1]}, 0.0001)\n'
+        return head + (f'    def Cube "{name}"\n    {{\n        double size = 1\n        double3 xformOp:scale = ({dims[0]}, {dims[1]}, {dims[2] or 0.0001})\n'
                        f"        matrix4d xformOp:transform = {_usd_matrix(tf)}\n    }}\n}}\n")
     hw, hh = dims[0] / 2 + grow, dims[1] / 2
-    pts = [(-hw, -hh, 0), (hw, -hh, 0), (hw, hh, 0), (-hw, hh, 0), (-hw, -hh, -0.16), (hw, -hh, -0.16), (hw, hh, -0.16), (-hw, hh, -0.16)]
+    dz = -(dims[2] or 0.16)
+    pts = [(-hw, -hh, 0), (hw, -hh, 0), (hw, hh, 0), (-hw, hh, 0), (-hw, -hh, dz), (hw, -hh, dz), (hw, hh, dz), (-hw, hh, dz)]
     return head + (f'    def Mesh "{name}"\n    {{\n        int[] faceVertexIndices = [0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6]\n'
                    f"        point3f[] points = [{', '.join(str(p) for p in pts)}]\n"
                    f"        matrix4d xformOp:transform = {_usd_matrix(tf)}\n    }}\n}}\n")
@@ -431,3 +432,59 @@ def test_a_scan_is_turned_to_its_walls_and_drawn_to_scale():
     png, w, h = MS.scan_plan_png(f)
     assert (w, h) == (round(f["across_m"] * 100), round(f["down_m"] * 100)) and MS._decode_png_to_rgba(png, w, h) is not None
     assert plan_frame({"walls": [], "rooms": []}) is None
+
+
+# ── Tuned against fourteen real exports (2026-11-16) ─────────────────────────────────────────────────────────────────
+def _l_floor_layer(thick: float) -> str:
+    """An L-shaped floor as RoomPlan's mesh has it: its top face at z = 0 as triangles, its underside `thick` below
+    (0.0001 m in the parametric form: the underside must not be taken for the top), a corner repeated per triangle."""
+    top = [(-2, -1.5), (2, -1.5), (2, 0.5), (0, 0.5), (0, 1.5), (-2, 1.5)]
+    tris = [(0, 1, 2), (0, 2, 3), (0, 3, 4), (0, 4, 5)]
+    pts, idx = [], []
+    for z, flip in ((0.0, False), (-thick, True)):
+        for a, b, c in tris:
+            idx += [len(pts) + k for k in ((0, 2, 1) if flip else (0, 1, 2))]
+            pts += [(top[a][0], top[a][1], z), (top[b][0], top[b][1], z), (top[c][0], top[c][1], z)]
+    return ('#usda 1.0\ndef Xform "Floor0" (\n    customData = {\n        string Category = "Floor"\n        string UUID = "F-1"\n    }\n)\n{\n'
+            f'    def Mesh "Floor0"\n    {{\n        int[] faceVertexIndices = [{", ".join(map(str, idx))}]\n'
+            f"        point3f[] points = [{', '.join(str(p) for p in pts)}]\n"
+            f"        matrix4d xformOp:transform = {_usd_matrix(_floor_tf(5.0, 5.0))}\n    }}\n}}\n")
+
+
+@pytest.mark.parametrize("thick", [0.0001, 0.16], ids=["parametric", "mesh"])
+def test_an_l_shaped_floor_keeps_its_six_corners_in_a_usdz(thick):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("assets/Parametric/Floors/Floor0.usda", _l_floor_layer(thick))
+    room = parse_roomplan(buf.getvalue())["rooms"][0]["points_m"]
+    assert _ring_set(room) == {(3.0, 3.5), (7.0, 3.5), (7.0, 5.5), (5.0, 5.5), (5.0, 6.5), (3.0, 6.5)}, room
+
+
+def test_the_walls_heights_come_with_either_file_and_say_a_sloped_ceiling():
+    doc = _room()
+    doc["walls"][1]["dimensions"][1] = 3.6            # one wall taller: a sloped or stepped ceiling
+    assert parse_roomplan(_bytes(doc))["heights_m"] == [2.5, 3.6] == parse_roomplan(_usdz(doc))["heights_m"]
+
+
+def test_a_file_with_nothing_to_draw_is_refused_as_no_room_scan():
+    """Seen: another tool's own JSON, walls as size/position/rotation under the same key names."""
+    other = {"format": "blueprint", "rooms": [{"name": "Hall", "center": {"x": 0, "y": 0}}], "walls": [{"id": "w1", "size": {"w": 3}, "transform": [1] * 16}]}
+    with pytest.raises(RoomPlanParseError, match="isn't a RoomPlan export") as err:
+        parse_roomplan(_bytes(other))
+    assert err.value.code == "not_scan"
+    with pytest.raises(RoomPlanParseError) as err:
+        parse_roomplan(b"{not json")
+    assert err.value.code == "unreadable"
+
+
+def test_the_furniture_is_turned_with_the_plan_and_drawn_faintly():
+    from custom_components.padspan_ha import maps_store as MS
+    from custom_components.padspan_ha.roomplan_import import plan_frame
+    f = plan_frame(parse_roomplan(_usdz(_room(0.0, 0.0, 4.0, 3.0))))
+    assert len(f["objects"]) == 1 and f["objects"][0]["category"] == "table" and f["objects"][0]["center_m"] == [2.5, 2.0], f["objects"]
+    png, w, h = MS.scan_plan_png(f)
+    rgba = MS._decode_png_to_rgba(png, w, h)
+    grey = lambda x, y: rgba[(y * w + x) * 4]  # noqa: E731
+    cx, cy, half = 250, 200, 60                      # the table: 1.2 m across at 100 px a metre, round (2.5, 2.0)
+    assert grey(cx - half, cy) == 0xB8 and grey(cx + half, cy) == 0xB8 and grey(cx + 10, cy + 13) == 0xFF, "its outline, not filled"
+    assert grey(50, 200) == 0x28 or grey(51, 200) == 0x28, "a wall stays the darkest thing on the plan"

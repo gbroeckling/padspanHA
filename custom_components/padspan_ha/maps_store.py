@@ -1225,6 +1225,14 @@ def scan_plan_png(frame: dict[str, Any]) -> tuple[bytes, int, int]:
     g, w, h, ppm = _metre_sheet(frame["across_m"], frame["down_m"])
     px = lambda p: (p[0] * ppm, p[1] * ppm)  # noqa: E731
     half = max(1.5, SCAN_WALL_M * ppm / 2)
+    for o in frame.get("objects") or []:                    # furniture, faint: what makes a room recognisable
+        (cx, cy), (sx, sy), ang = o["center_m"], o["size_m"], math.radians(float(o.get("angle_deg") or 0.0))
+        if not (0.2 <= sx <= 6 and 0.2 <= sy <= 6):
+            continue
+        c, s = math.cos(ang), math.sin(ang)
+        box = [px((cx + dx * c - dy * s, cy + dx * s + dy * c)) for dx, dy in ((-sx / 2, -sy / 2), (sx / 2, -sy / 2), (sx / 2, sy / 2), (-sx / 2, sy / 2))]
+        for i in range(4):
+            _stroke(g, w, h, box[i - 1], box[i], 0.8, 0xB8)
     for a, b in frame.get("walls") or []:
         _stroke(g, w, h, px(a), px(b), half, 0x28)
     for o in frame.get("openings") or []:

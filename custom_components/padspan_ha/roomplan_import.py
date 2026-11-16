@@ -337,14 +337,20 @@ def _parse_doc(doc: dict) -> dict[str, Any]:
                if isinstance(part.get("story"), int)}
     if len(stories) > 1:
         warnings.append(f"The scan spans {len(stories)} stories; they are all placed on one level")
+    if not rooms and not extras["walls"]:
+        # A file in some other tool's own layout (seen: an app's "blueprint" JSON, walls as size/position/rotation).
+        raise RoomPlanParseError("No walls or rooms were found in this file. It isn't a RoomPlan export (CapturedRoom or CapturedStructure): "
+                                 "in the scanning app, share the scan as USDZ, or as RoomPlan JSON.", "not_scan")
     if not rooms:
         warnings.append("No rooms with a usable polygon were found in this file")
+    heights = sorted({round(d[1], 2) for cap in captures for w in _list(cap, "walls") for d in [_vec3(w.get("dimensions"))] if d and d[1] > 0})
 
     return {
         "levels": [{"id": LEVEL_ID, "name": LEVEL_NAME, "elevation_m": 0.0}],
         "rooms": rooms,
         "warnings": warnings,
         "source": "roomplan",
+        "heights_m": heights,        # the walls' heights: one for a flat ceiling, several under a sloped or stepped one
         **extras,
     }
 
@@ -428,10 +434,13 @@ def _face_outline(points: list[list[float]], faces: Any) -> list[tuple[float, fl
     None when they don't close into one ring (the floor's rectangle is used then)."""
     idx = [int(v) for v in re.findall(r"-?\d+", faces.group(1))] if faces else []
     key = lambda i: (round(points[i][0], 3), round(points[i][1], 3))  # noqa: E731 — the mesh repeats a corner per face
+    zs = [p[2] for p in points]
+    top = max(zs)
+    near = min(_FACE_Z, (top - min(zs)) / 2) or _FACE_Z      # the top face alone: a parametric floor is 0.0001 m thick
     edges: dict[tuple, int] = {}
     for t in range(0, len(idx) - 2, 3):
         tri = idx[t:t + 3]
-        if any(i < 0 or i >= len(points) or abs(points[i][2]) > _FACE_Z for i in tri):
+        if any(i < 0 or i >= len(points) or abs(points[i][2] - top) >= near for i in tri):
             continue
         for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
             e = tuple(sorted((key(a), key(b))))
@@ -448,7 +457,13 @@ def _face_outline(points: list[list[float]], faces: Any) -> list[tuple[float, fl
             return None
         left.remove(nxt)
         ring.append(nxt[1] if nxt[0] == ring[-1] else nxt[0])
-    return ring[:-1] if ring[0] == ring[-1] and len(ring) > 3 else None
+    if ring[0] != ring[-1] or len(ring) <= 3:
+        return None
+    ring = ring[:-1]
+    # A straight edge is cut where two triangles meet: a corner is a point the outline turns at.
+    turns = [p for i, p in enumerate(ring) if abs((p[0] - ring[i - 1][0]) * (ring[(i + 1) % len(ring)][1] - p[1])
+                                                 - (p[1] - ring[i - 1][1]) * (ring[(i + 1) % len(ring)][0] - p[0])) > 1e-6]
+    return turns if len(turns) >= 3 else None
 
 
 def parse_usdz(data: bytes) -> dict[str, Any]:
@@ -484,10 +499,8 @@ def parse_usdz(data: bytes) -> dict[str, Any]:
         doc[kind].append(el)
     if not doc["walls"] and not doc["floors"]:
         raise RoomPlanParseError("No walls or floors were found in this USDZ. A room scan made with Apple's RoomPlan has them; "
-                                 "a mesh scan (a photo-like 3D model) does not.", "not_scan")
-    out = _parse_doc(doc)
-    out["heights_m"] = sorted({round(w["dimensions"][1], 2) for w in doc["walls"] if w["dimensions"][1] > 0})
-    return out
+                                 "a mesh scan (a photo-like 3D model) does not. In the scanning app, use its room or floor-plan mode.", "not_scan")
+    return _parse_doc(doc)
 
 
 def plan_frame(parsed: dict[str, Any], margin_m: float = 0.5) -> dict[str, Any] | None:
@@ -514,4 +527,7 @@ def plan_frame(parsed: dict[str, Any], margin_m: float = 0.5) -> dict[str, Any] 
     return {"across_m": round(max(p[0] for p in pts) + margin_m - x0, 3), "down_m": round(max(p[1] for p in pts) + margin_m - y0, 3),
             "walls": [[put(a), put(b)] for a, b in walls],
             "openings": [{"kind": o.get("kind"), "a_m": put(o["a_m"]), "b_m": put(o["b_m"])} for o in parsed.get("openings") or []],
-            "rooms": [{"name": r.get("name"), "points_m": [put(p) for p in r["points_m"]]} for r in rooms]}
+            "rooms": [{"name": r.get("name"), "points_m": [put(p) for p in r["points_m"]]} for r in rooms],
+            "objects": [{"category": o.get("category"), "center_m": put(o["center_m"]), "size_m": o["size_m"],
+                         "angle_deg": round(float(o.get("angle_deg") or 0.0) + math.degrees(turn), 1)}
+                        for o in parsed.get("objects") or [] if o.get("center_m") and o.get("size_m")]}
