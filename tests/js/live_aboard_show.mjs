@@ -124,6 +124,7 @@ const LBE = Object.fromEntries(LM.gatherLights(STATES, {}, {}, "pro", {}, {}, {}
 
 // ── the host: the sidebar's, with its settings ──────────────────────────────
 const SENT = [];
+let SCAN = null;                 // a scanned plan's furniture, beside the file (house3d_get's scan_pieces)
 const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [] };
 const store = new Map();
 const prefs = { get: (k) => store.get(k) ?? null, set: (k, v) => store.set(k, String(v)) };
@@ -136,7 +137,7 @@ const SNAP = { objects: { list: [{ key: "ble:keys", kind: "ble", x_m: 4, y_m: 2,
 const SET = (over = {}) => ({ atlas_3d_enabled: true, atlas_3d_people: true, atlas_3d_tags: true, atlas_3d_home_idle_s: 60, ...over });
 const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: null, quality: "low",
   telemetry: (name) => { H.sent.push(name); SENT.push(name); }, onTouch: () => {}, states: STATES, config: {}, bearing: 0, saveNorth: null, useApi: () => null,
-  haStartedMs: 0, load: async () => ({ data: { schema: 1, pieces: PIECES, lights: {}, openings: {}, devices: {}, figures: {} } }),
+  haStartedMs: 0, load: async () => ({ data: { schema: 1, pieces: PIECES, lights: {}, openings: {}, devices: {}, figures: {} }, ...(SCAN ? { scan_pieces: SCAN } : {}) }),
   edit: null, furnish: null, mapOnly: true, floorSteps: null, prefs,
   weather: H.weather, weather3d: H.settings && H.settings.atlas_3d_weather,
   showcase: { key: "classic", theme: {} }, look3d: "atlas", atlasLook: { on: false, key: "classic", theme: {} },
@@ -526,6 +527,27 @@ await tryCase("button: a screen opened with ticks of its own wears the dot from 
   slot = a;
   check("button: a screen opened with ticks of its own wears the dot from the start, in the accent, plainly",
     dot && m && Number(m[1]) >= 14 && Number(m[2]) >= 14, { dot, css: m && m[0] });
+});
+
+// ── furniture from a phone's room scan (2026-11-16) ─────────────────────────────────────────────────────────────────
+await tryCase("scan furniture: off unless a screen ticks it; ticked, the scan's pieces are drawn beside the file's; unticked, gone", async () => {
+  const name = "scan furniture: off unless a screen ticks it; ticked, the scan's pieces are drawn beside the file's; unticked, gone";
+  const ids = () => S().pieces.map(x => String(x.id || x.key || "")).sort();
+  const a = slot;
+  SCAN = { scan_m_0: { id: "scan_m_0", recipe: { kind: "table", params: {}, colors: [], width_m: 1.2, depth_m: 0.8, height_m: 0.75 }, origin: "scan", label: "Table",
+                       library_id: null, submission_id: null, floor_id: MODEL.floors[0].id, x_m: 2, y_m: 2, z_m: 0, rotation: 0, entity_id: null, entity_reg_id: null } };
+  await open("show-d"); await settle();
+  const off = ids();                                   // the house's own: off (dflt false), though the scan has furniture
+  click(more()); await settle();                       // the list, open
+  const listed = !!row("scan_furniture") && ticked("scan_furniture") === false;
+  await toggle("scan_furniture");
+  const on = ids(), pref = JSON.parse(store.get("show_show-d") || "{}");
+  await toggle("scan_furniture");
+  const back = ids();
+  LA.releaseLiveAboardSlot("show-d");
+  SCAN = null; slot = a;
+  check(name, listed && !off.includes("scan_m_0") && on.includes("scan_m_0") && off.every(i => on.includes(i)) && on.length === off.length + 1
+    && pref.scan_furniture === true && !back.includes("scan_m_0") && SHOW.SHOW_ITEMS.find(i => i.key === "scan_furniture").dflt === false, { off, on, back, pref });
 });
 
 LA.releaseLiveAboardSlot("show-a");
