@@ -245,3 +245,22 @@ def test_a_blank_floor_is_to_scale_by_construction(monkeypatch, tmp_path, disk):
     from custom_components.padspan_ha import setup_checks
     assert setup_checks.plans_out_of_shape([dict(m, receivers=[{"id": "r"}])], {m["id"]: t}) == []
     assert await_none(ms.async_set_kind(m["id"], "sketch")) is False, "a blank floor is never a sketch"
+
+
+def test_a_room_scan_becomes_a_plan_to_scale_with_nothing_to_measure(monkeypatch, tmp_path, disk):  # noqa: F811
+    import base64
+    from tests.test_roomplan_import import _room, _usdz
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    ms.maps_dir = tmp_path
+    b64 = base64.b64encode(_usdz(_room(0.0, 0.0, 4.0, 3.0))).decode()
+    assert _call(WM.ws_maps_scan_create, h, conn, floor_id="__outside__", file_base64=b64)["code"] == "outdoor"
+    assert _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=base64.b64encode(b"not a scan").decode())["code"] == "unreadable"
+    n = len(ms.list_maps())
+    out = _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=b64, name="")
+    m = out["map"]
+    assert out["ok"] is True and (out["rooms"], out["walls"], out["heights_m"]) == (1, 4, [2.5]) and len(ms.list_maps()) == n + 1
+    assert m["kind"] == "scan" and m["name"] == "Room scan" and (m["image"]["width"], m["image"]["height"]) == (500, 400)
+    assert m["scan"]["rooms"][0]["name"] == "Kitchen" and all(0 <= v <= 1 for p in m["scan"]["rooms"][0]["points"] for v in p)
+    t = mdl.map_transform(m["id"])
+    assert (t["scale_x_m"], t["scale_y_m"]) == (5.0, 4.0) and t["reference_measurements"][0]["source"] == "scan"
+    assert (tmp_path / m["image"]["filename"]).read_bytes()[:4] == bytes([0x89, 0x50, 0x4E, 0x47])

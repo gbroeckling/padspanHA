@@ -195,7 +195,7 @@ def test_several_stories_are_one_level_with_a_note():
 # ── refusals ─────────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("data,words", [
-    (b"PK\x03\x04usdz", "USDZ"),
+    (b"PK\x03\x04usdz", "could not be opened"),
     (b"{not json", "could not read it as JSON"),
     (b"\xff\xfe\x00", "could not read it as JSON"),
     (b"[1, 2]", "expected a JSON object"),
@@ -341,3 +341,93 @@ def test_brackets_in_strings_still_do_not_count_toward_the_nesting_limit():
     assert parse_roomplan(_bytes(doc))["rooms"][0]["name"] == "Kitchen"
     with pytest.raises(RoomPlanParseError, match="could not read it as JSON"):
         parse_roomplan(b'{"a": "[[[", "b": ' + b"[" * 201 + b"]" * 201 + b"}")
+
+
+# ── RoomPlan's USDZ (2026-11-16): the zip of text layers every RoomPlan app can share ───────────────────────────────
+# Built here in the layout two real exports had (roomplan_import.py's note): a layer per element with its category and
+# UUID in customData, the parametric form a unit cube scaled to its width and height, the mesh form its points, each
+# with `matrix4d xformOp:transform` (rows right, up, normal, position), and a root layer naming the room.
+def _usd_matrix(tf: list[float]) -> str:
+    return "( " + ", ".join("(" + ", ".join(repr(float(v)) for v in tf[i:i + 4]) + ")" for i in (0, 4, 8, 12)) + " )"
+
+
+def _usd_layer(name: str, category: str, uid: str, tf: list[float], dims: list[float], mesh: bool, grow: float = 0.0) -> str:
+    head = (f'#usda 1.0\ndef Xform "{name}" (\n    customData = {{\n        string Category = "{category}"\n'
+            f'        string UUID = "{uid}"\n    }}\n)\n{{\n')
+    if not mesh:
+        return head + (f'    def Cube "{name}"\n    {{\n        double size = 1\n        double3 xformOp:scale = ({dims[0]}, {dims[1]}, 0.0001)\n'
+                       f"        matrix4d xformOp:transform = {_usd_matrix(tf)}\n    }}\n}}\n")
+    hw, hh = dims[0] / 2 + grow, dims[1] / 2
+    pts = [(-hw, -hh, 0), (hw, -hh, 0), (hw, hh, 0), (-hw, hh, 0), (-hw, -hh, -0.16), (hw, -hh, -0.16), (hw, hh, -0.16), (-hw, hh, -0.16)]
+    return head + (f'    def Mesh "{name}"\n    {{\n        int[] faceVertexIndices = [0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6]\n'
+                   f"        point3f[] points = [{', '.join(str(p) for p in pts)}]\n"
+                   f"        matrix4d xformOp:transform = {_usd_matrix(tf)}\n    }}\n}}\n")
+
+
+def _usdz(doc: dict, forms=("Parametric", "Mesh", "Model"), section="kitchen0") -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
+        z.writestr("Room.usda", '#usda 1.0\ndef Xform "Room"\n{\n    def Xform "Section_grp" (\n        kind = "group"\n    )\n    {\n'
+                   f'        def Xform "{section}" (\n            kind = "assembly"\n        )\n        {{\n'
+                   "            matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (2.0, 0.7, 1.5, 1) )\n        }\n    }\n}\n")
+        n = 0
+        for key, cat in (("walls", "Wall"), ("doors", "Door(Isopen: True)"), ("windows", "Window"), ("floors", "Floor"), ("objects", "Table")):
+            for el in doc.get(key) or []:
+                n += 1
+                for form in forms:
+                    mesh = form != "Parametric" or key == "floors"
+                    grow = 0.16 if mesh and key == "walls" else 0.0
+                    z.writestr(f"assets/{form}/{cat[:4]}/{cat[:4]}{n}.usda", _usd_layer(f"{cat[:4]}{n}", cat, f"UUID-{n}", el["transform"], el["dimensions"], mesh, grow))
+        z.writestr("assets/Model/Table/Table.rooms.usdc", b"PXR-USDC binary, never read")
+    return buf.getvalue()
+
+
+def test_a_usdz_reads_as_the_same_rooms_walls_and_openings_as_its_json():
+    from custom_components.padspan_ha.roomplan_import import parse_usdz
+    doc = _room(1.0, 2.0, 4.0, 3.0)
+    j, u = parse_roomplan(_bytes(doc)), parse_roomplan(_usdz(doc))        # the one door: a zip goes to parse_usdz
+    assert u["rooms"] == j["rooms"] and u["rooms"][0]["name"] == "Kitchen"
+    key = lambda xs: sorted(json.dumps(x, sort_keys=True) for x in xs)  # noqa: E731
+    assert key(u["walls"]) == key(j["walls"]) and len(u["walls"]) == 4, "each element once, its exact form"
+    assert key(u["openings"]) == key(j["openings"]) and {o["kind"] for o in u["openings"]} == {"door", "window"}
+    assert [o["is_open"] for o in u["openings"] if o["kind"] == "door"] == [True]
+    assert len(u["objects"]) == 1 and u["objects"][0]["category"] == "table" and u["heights_m"] == [2.5]
+    # Only the mesh form in the file (an app that packs no parametric one): walls a thickness long at each end, the
+    # room the same.
+    m = parse_usdz(_usdz(doc, forms=("Mesh",)))
+    assert len(m["walls"]) == 4 and sorted(round(math.dist(w["a_m"], w["b_m"]), 2) for w in m["walls"]) == [3.32, 3.32, 4.32, 4.32]
+    assert _ring_set(m["rooms"][0]["points_m"]) == _ring_set(j["rooms"][0]["points_m"])
+
+
+def test_a_zip_that_is_no_room_scan_is_refused_plainly():
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("model.usda", "#usda 1.0\ndef Mesh \"scan\"\n{\n}\n")
+    with pytest.raises(RoomPlanParseError, match="No walls or floors"):
+        parse_roomplan(buf.getvalue())
+
+
+def test_a_scan_is_turned_to_its_walls_and_drawn_to_scale():
+    from custom_components.padspan_ha import maps_store as MS
+    from custom_components.padspan_ha.roomplan_import import plan_frame
+    doc = _room(0.0, 0.0, 4.0, 3.0)
+    # The phone pointed 25 degrees off the walls: every transform turned about the origin.
+    c, s = math.cos(math.radians(25)), math.sin(math.radians(25))
+
+    def turn(tf):
+        out = list(tf)
+        for i in (0, 4, 8, 12):
+            x, z = tf[i], tf[i + 2]
+            out[i], out[i + 2] = x * c - z * s, x * s + z * c
+        return out
+
+    for key in ("walls", "doors", "windows", "floors", "objects"):
+        for el in doc[key]:
+            el["transform"] = turn(el["transform"])
+    f = plan_frame(parse_roomplan(_usdz(doc)))
+    assert (f["across_m"], f["down_m"]) in ((5.0, 4.0), (4.0, 5.0)), "the room's 4 x 3 m and half a metre round it, whichever way up"
+    assert all(abs(a[0] - b[0]) < 0.002 or abs(a[1] - b[1]) < 0.002 for a, b in f["walls"]), "every wall along an axis"
+    assert len(f["rooms"]) == 1 and len(f["openings"]) == 2
+    png, w, h = MS.scan_plan_png(f)
+    assert (w, h) == (round(f["across_m"] * 100), round(f["down_m"] * 100)) and MS._decode_png_to_rgba(png, w, h) is not None
+    assert plan_frame({"walls": [], "rooms": []}) is None
