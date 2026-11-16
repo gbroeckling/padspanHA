@@ -986,8 +986,15 @@ SCALE_NUDGE_WORDS: tuple[str, ...] = (("shown", "measured_one", "measured_two", 
 SCALE_NUDGE_EVENTS: frozenset[str] = frozenset(f"scale_nudge:{k}" for k in SCALE_NUDGE_WORDS)
 # Mapping → Upload (views/maps.js _upload, 2026-11-15): a picture picked, Upload pressed with none, and what came of
 # an upload. Never the picture, its name or its size.
-PLAN_UPLOAD_WORDS: tuple[str, ...] = ("picked", "no_file", "ok", "bad_picture", "too_large", "failed")
+# 2026-11-16: "sketch": a picture uploaded with "my own sketch, not to scale" ticked.
+PLAN_UPLOAD_WORDS: tuple[str, ...] = ("picked", "no_file", "ok", "bad_picture", "too_large", "failed", "sketch")
 PLAN_UPLOAD_EVENTS: frozenset[str] = frozenset(f"plan_upload:{k}" for k in PLAN_UPLOAD_WORDS)
+# "No floor plan? Ways to get one" (views/rough_plan.js, 2026-11-16): the list opened, each way opened (a drawing they
+# have, a LiDAR room scan, the robot's map, their own sketch, a blank floor), the phone's walk-through started, and
+# what came of a scan or a blank floor. Words only: never the file, a size or a name.
+ROUGH_PLAN_WORDS: tuple[str, ...] = ("opened", "have", "scan", "vacuum", "sketch", "blank", "walk", "sketch_upload",
+                                     "scan_made", "scan_refused", "blank_made", "blank_refused")
+ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS)
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.
 WIZARD_DRAW_WORDS: tuple[str, ...] = ("name", "no_room", "kept")
@@ -1451,7 +1458,7 @@ def event_allowed(name: str) -> bool:
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
-            or name in WIZARD_DRAW_EVENTS)
+            or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

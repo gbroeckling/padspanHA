@@ -62,6 +62,9 @@ const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`
 // Basic's focused views (views/focus.js): a link opens one tool or one card.
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 if (TSP) TSP.tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
+// "No floor plan? Ways to get one" on Mapping → Upload, and the phone's walk-through of a room scan (rough_plan.js).
+const ROUGH = await import(`./rough_plan.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: rough_plan failed to load", err); return null; });
 const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: vacuum_import failed to load", err); return null; });
 // The 90-day trial card, shared by every paid wall (trial_offer.js).
@@ -131,6 +134,17 @@ export function render(ctx){
     root.appendChild(FOCUS.focusBar(ctx, focus));
     root.appendChild(_focused(ctx, focus, active, maps));
     return root;
+  }
+
+  // The phone's walk-through of a room scan (rough_plan.js): the whole of Mapping while it runs, as the wizard below is.
+  if (ROUGH && ROUGH.walking(ctx)) {
+    if (ctx.state.dataMode === "live" && ctx.hass?.user?.is_admin !== false && !ctx.state.kioskMode) {
+      root.appendChild(ROUGH.walk(ctx, { toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()),
+        floors: ((ctx.state.model && ctx.state.model.floors) || []).filter(f => f.id !== OUTSIDE_FLOOR_ID).map(f => [f.id, f.name || f.id]),
+        onMade: (m) => _roughMade(ctx, m), onClose: () => ctx.actions.renderRooms() }));
+      return root;
+    }
+    ctx.state._roughPlan.walk = null;            // only an administrator, on the house's own data, can add a plan
   }
 
   // Setup Wizard — a guided walkthrough that takes over the whole Mapping
@@ -1107,6 +1121,19 @@ function _deleteMapModal(ctx, srcMap, allMaps){
 // Includes a drag-to-crop tool and floor selector (from HA Area Registry).
 // The selected file is stored on ctx.state so it survives poll-triggered
 // DOM rebuilds (the file input element gets destroyed on re-render).
+/** A scan or a blank floor was saved (rough_plan.js): it has its scale, so on to its rooms, by the door the mode has. */
+async function _roughMade(ctx, map){
+  if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+  if (ctx.actions.mapsRefresh) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
+  ctx.state.activeMapId = map.id;
+  if (ctx.state._mapsWizard || ctx.state.complexity === "basic") {
+    ctx.state._mapsWizard = { ...(ctx.state._mapsWizard || {}), step: 3, mapId: map.id };
+  } else {
+    ctx.state.mapsTab = "edit";
+  }
+  ctx.actions.renderRooms();
+}
+
 function _upload(ctx, helpBtn, isBasic){
   helpBtn = helpBtn || (()=>null);
   const { el } = ctx.helpers;
@@ -1151,6 +1178,14 @@ function _upload(ctx, helpBtn, isBasic){
     floorSel.value = floors[0].id;
   }
   floorSel.addEventListener("change", ()=>{ ctx.state._mapsUploadFloorId = floorSel.value; });
+
+  // Every picture is taken for a proper, to-scale plan unless the person says otherwise: this tick (their own sketch),
+  // or one of the other ways to a plan below (rough_plan.js). Live only: the demo house's plans are what they are.
+  const _roughOn = !!ROUGH && ctx.state.dataMode === "live";
+  if (_roughOn) card.appendChild(ROUGH.link(ctx));
+  const sketch = el("input",{type:"checkbox", "data-upload":"sketch"});
+  sketch.checked = !!ctx.state._mapsUploadSketch;
+  sketch.addEventListener("change", ()=>{ ctx.state._mapsUploadSketch = sketch.checked; });
 
   const name = el("input",{type:"text", placeholder:"Map name (e.g., Main Floor)"});
   const maxw = el("input",{type:"text", placeholder:"Max size (e.g., 1600). Default 1600"});
@@ -1298,9 +1333,12 @@ function _upload(ctx, helpBtn, isBasic){
         png_base64: res.pngBase64,
         floor_id,
         ...(_askScale && !isBasic ? { scale_nudge: true } : {}),
+        ...(ctx.state._mapsUploadSketch && floor_id !== OUTSIDE_FLOOR_ID ? { kind: "sketch" } : {}),
       });
       status.textContent = "Uploaded \u2714";
       _upTel("ok");
+      if (ctx.state._mapsUploadSketch) _upTel("sketch");
+      ctx.state._mapsUploadSketch = false;
       ctx.state._mapsUploadFile = null;
       ctx.state._mapsUploadFloorId = null;
       const _newMap = uploadRes?.map?.id ? (ctx.state.maps?.list || []).find(m => m.id === uploadRes.map.id) || uploadRes.map : null;
@@ -1324,6 +1362,8 @@ function _upload(ctx, helpBtn, isBasic){
   card.appendChild(name);
   card.appendChild(maxw);
   card.appendChild(file);
+  if (_roughOn) card.appendChild(el("label",{style:"display:flex;gap:8px;align-items:center;font-size:12px;color:#94a3b8;margin:8px 0"},
+    [sketch, el("span",{}, "This is my own sketch, not to scale (PadSpan then takes a length each way)")]));
   card.appendChild(previewOuter);
   card.appendChild(btn);
   card.appendChild(status);
@@ -1349,7 +1389,15 @@ function _upload(ctx, helpBtn, isBasic){
     "Best practice: upload one map per floor. Floors let you keep room placement clean and avoid mixing levels."
   ));
 
-  return card;
+  if (!_roughOn || !ROUGH.isOpen(ctx)) return card;
+  // The ways to a plan, under the upload they lead back to. The floor is the one chosen above.
+  const _floorNow = () => (ctx.state._mapsUploadFloorId && Array.from(floorSel.options).some(o => o.value === ctx.state._mapsUploadFloorId))
+    ? ctx.state._mapsUploadFloorId : (floorSel.value || "").trim();
+  return el("div",{},[card, ROUGH.render(ctx, {
+    floorId: _floorNow, toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()), onMade: (m) => _roughMade(ctx, m),
+    onSketch: () => { ctx.state._mapsUploadSketch = true; ctx.actions.renderRooms(); },
+    vacuumOn: ctx.state.settings?.vacuum_import_enabled === true,
+  })]);
 }
 
 

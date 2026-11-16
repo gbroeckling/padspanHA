@@ -1085,9 +1085,13 @@ function word(kind, k) {
       if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",
         floor_heights: "went to floor heights", compute: "went to work out the accuracy", room_empty: "went to add points in an empty room",
         room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
+      if (a === "rough_plan") return `No floor plan: ${{ opened: "the ways to get one opened", have: "\"a drawing you already have\" opened", scan: "the LiDAR room scan opened",
+        vacuum: "the robot vacuum's map opened", sketch: "\"draw it yourself\" opened", blank: "the blank floor opened", walk: "the phone's walk-through started",
+        sketch_upload: "\"I have my sketch\" pressed", scan_made: "a plan drawn from a room scan", scan_refused: "a scan file refused",
+        blank_made: "a blank floor made", blank_refused: "a blank floor's size refused" }[b] || b}`;
       if (a === "wizard_draw") return `Drawing rooms: ${{ name: "a room's name pressed above the plan (Setup Wizard)", no_room: "the plan clicked with no room chosen",
         kept: "rooms or receivers saved by the Setup Wizard without Save Layout" }[b] || b}`;
-      if (a === "plan_upload") return `Mapping → Upload: ${{ picked: "a picture picked", no_file: "Upload pressed with no picture", ok: "uploaded", bad_picture: "the picture couldn't be read",
+      if (a === "plan_upload") return `Mapping → Upload: ${{ sketch: "uploaded as their own sketch, not to scale", picked: "a picture picked", no_file: "Upload pressed with no picture", ok: "uploaded", bad_picture: "the picture couldn't be read",
         too_large: "the picture was too large", failed: "the upload failed" }[b] || b}`;
       if (a === "scale_nudge") return `After an upload, "Set this plan's scale now": ${{ shown: "shown", first_end: "the first end tapped", both_ends: "both ends down", typed: "a length typed", refused: "a Save refused", not_to_scale: "\"This picture isn't to scale\" pressed", per_axis: "saved with each direction its own scale (a sketch)", measured_one: "saved with one length", measured_two: "saved with two lengths", later: "Later pressed", reminder_measure: "the \"No scale yet\" line's Measure pressed",
         via_upload: "a first scale saved after an upload", via_setup: "a first scale saved from Setup", via_getting_started: "a first scale saved from Getting started",

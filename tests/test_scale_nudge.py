@@ -174,7 +174,13 @@ def test_the_counters_are_allowed_summed_and_labelled():
     # Mapping → Upload's own words (2026-11-15): the panel sends exactly the allowed ones, summed and labelled.
     up = {f"plan_upload:{k}" for k in T.PLAN_UPLOAD_WORDS}
     dr = {f"wizard_draw:{k}" for k in T.WIZARD_DRAW_WORDS}
-    assert T.PLAN_UPLOAD_EVENTS == up and T.WIZARD_DRAW_EVENTS == dr and set(S._PLAN_UPLOAD) == up | dr and all(T.event_allowed(e) for e in up | dr)
+    rg = {f"rough_plan:{k}" for k in T.ROUGH_PLAN_WORDS}
+    assert T.PLAN_UPLOAD_EVENTS == up and T.WIZARD_DRAW_EVENTS == dr and T.ROUGH_PLAN_EVENTS == rg
+    assert set(S._PLAN_UPLOAD) == up | dr | rg and all(T.event_allowed(e) for e in up | dr | rg)
+    rj = (_WWW / "views" / "rough_plan.js").read_text(encoding="utf-8")
+    sent_rg = set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', rj)) | set(re.findall(r'KINDS = Object\.freeze\(\[([^\]]*)\]', rj)[0].replace('"', "").replace(" ", "").split(","))
+    assert sent_rg == set(T.ROUGH_PLAN_WORDS), sent_rg
+    assert all(f"{k}:" in ib for k in T.ROUGH_PLAN_WORDS) and 'a === "rough_plan"' in ib
     mj = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     part = mj[mj.index("const _upTel"):mj.index('"Upload & Convert"')]
     sent_up = set(re.findall(r'_upTel\("([a-z_]+)"\)', part)) | set(re.findall(r'"(too_large|bad_picture|failed)"', part))
