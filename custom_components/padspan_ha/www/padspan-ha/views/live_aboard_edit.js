@@ -259,6 +259,8 @@ export function createEditor(ctx){
     setTopFloor: (fid) => ctx.setTopFloor(fid), viewAt: (x, y) => ctx.viewAt(x, y), centre: () => ctx.centre(),
     host: () => ctx.host(), base: ctx.base || "", paintEditor: () => paint(),
     STOREY: ctx.STOREY || null,                              // stairs: the floor they reach and their rise
+    scan: () => (typeof ctx.scan === "function" ? ctx.scan() : null),   // a scanned plan's furniture: "Size to the scan"
+    count: (name) => { if (typeof ctx.count === "function") ctx.count(name); },
   }) : null;
   const furnishing = () => !!fur && active() && tool === "furnish";
   // The Strip tool (live_aboard_strip.js): a light's run, on this same draft.

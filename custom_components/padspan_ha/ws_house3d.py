@@ -41,6 +41,8 @@ changed), and the writes take turns (House3dStore.lock).
 
 from __future__ import annotations
 
+import logging
+
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
@@ -50,6 +52,8 @@ from .house3d_library import carried_over, without_tokens
 from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStore, NewerFile, ReadFailed,
                             apply_edit, async_get_store, empty, enabled, without_pieces, writable)
 from .ws_common import admin_if_enhanced_security, _tier_at_least
+
+_LOGGER = logging.getLogger(__name__)
 
 OFF_CODE = "house3d_off"
 OFF_MESSAGE = "Live Aboard is off. Turn it on in Settings → Atlas → Live Aboard."
@@ -77,8 +81,16 @@ async def ws_house3d_get(hass: HomeAssistant, connection, msg) -> None:
     store = await _loaded(hass, connection, msg)
     if store is None:
         return
-    connection.send_result(msg["id"], {"enabled": enabled(hass), "data": without_tokens(store.data),
-                                       "writable": writable(store.data), "counts": store.counts()})
+    out = {"enabled": enabled(hass), "data": without_tokens(store.data), "writable": writable(store.data), "counts": store.counts()}
+    # A scanned plan's furniture, beside the file and never in it (ws_house3d_import.scan_pieces): only where there is some.
+    try:
+        from .ws_house3d_import import scan_pieces  # noqa: PLC0415
+        sp = scan_pieces(hass)
+        if sp:
+            out["scan_pieces"] = sp
+    except Exception:  # noqa: BLE001 — a guide to draw; the file is what the view came for
+        _LOGGER.debug("PadSpan: scan furniture not read", exc_info=True)
+    connection.send_result(msg["id"], out)
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/house3d_clear", vol.Optional("only"): vol.In(("pieces",))})

@@ -548,6 +548,6 @@ def test_only_the_sidebar_atlas_draws_a_floor_alone() -> None:
     src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
     # ... unless this screen's ⋯ list has "Other floors, faded" ticked; and the choice makes a new drawing.
     assert 'focusAlone: DISPLAY && flatShow("other_floors") !== true' in src
-    assert "!!o.underlay, o.focusAlone])" in src
+    assert "o.underlay ? o.underlay.length : 0, o.focusAlone])" in src     # 2026-11-16: a scan's furniture joins the underlay
     # Mapping's tools go by the faded floors (plate lookup, the door circle's toast).
     assert "focusAlone" not in (_VIEWS / "maps.js").read_text(encoding="utf-8")

@@ -653,7 +653,7 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
     "lights", "glow", "strips", "fans", "scenes", "light_taps", "light_buttons", "room_switch", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
-    "furniture", "devices", "stairs", "room_names", "room_outlines", "floor_outlines", "other_floors", "roof",
+    "furniture", "devices", "scan_furniture", "stairs", "room_names", "room_outlines", "floor_outlines", "other_floors", "roof",
     "rain", "theme", "forest",
 )
 HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
@@ -667,7 +667,9 @@ HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
     | {f"house3d_show:room_tap:{w}" for w in ("on", "off", "dim")}
 )
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
-    {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"}
+    {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped",
+     # Furnish, from a phone's room scan (2026-11-16): a piece sized to the scan's, and a room filled with the scan's guess.
+     "house3d_scan_size", "house3d_scan_fill"}
     | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
     | {f"house3d_wall_draw:{k}" for k in ("high", "high_still", "high_capped", "low")}
     | {f"house3d_fallback_size:{b}" for b in HOUSE_SIZE_BANDS}

@@ -84,6 +84,10 @@ export const SHOW_ITEMS = [
   { key: "codes", group: "tracked", words: "Device codes", hint: "The small code chips beside devices", link: "place" },
   { key: "furniture", group: "house", words: "Furniture", hint: "Every piece placed in Furnish", link: "furnish" },
   { key: "devices", group: "house", words: "Devices in furniture", hint: "Pieces that are a device (a TV, a washer): their screens and lights", link: "furnish" },
+  // A phone's room scan (views/rough_plan.js) knows where the furniture stood that day. Never pieces the person placed:
+  // a faint guide, read beside the 3D file (house3d_get's scan_pieces), in 3D and on the flat Map. Off unless a screen
+  // ticks it (owner, 2026-11-16: "an option in the pulldown, normally off").
+  { key: "scan_furniture", group: "house", words: "Furniture from scans", hint: "Where the furniture stood when a phone scanned the floor: a faint guide, not pieces you placed", flat: true, dflt: false },
   { key: "stairs", group: "house", words: "Stairs", hint: "The flights (the opening in the floor stays)", link: "furnish" },
   { key: "room_names", group: "house", words: "Room names", hint: "Each room's name on its floor", link: "rooms" },
   { key: "room_outlines", group: "house", words: "Room outlines", hint: "The coloured line round each room", link: "rooms" },
@@ -234,7 +238,8 @@ export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
     readouts: "No temperature or air sensors are placed yet.", locks: "No locks are placed yet.",
     doors: "No doors are drawn yet.", windows: "No windows are drawn yet.", covers: "No door follows a garage door or gate yet.",
     railings: "No deck or stair rails yet.", radios: "No receivers are placed yet.", furniture: "No furniture yet.",
-    devices: "No furniture is a device yet.", stairs: "No stairs yet.", room_names: "No rooms are drawn yet.",
+    devices: "No furniture is a device yet.", stairs: "No stairs yet.",
+    scan_furniture: "No floor plan here came from a phone's room scan with furniture in it (Mapping → Upload → No floor plan? → Scan the floor).", room_names: "No rooms are drawn yet.",
     room_outlines: "No rooms are drawn yet.", rain: "Rain and snow aren't set up yet: they need a weather source.",
     theme: "No theme is on yet.", forest: "The trees come with the West Coast Forest theme.",
     floor_outlines: "Floor outlines come with the Atlas's look.",

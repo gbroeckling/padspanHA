@@ -584,6 +584,9 @@ function createSlot(slotKey){
   // each has ({entity id: {over, gone}}: what the map said of it then; see
   // recordsNow and goneNow).
   let fileRaw = null, recZ = {}, fileZ = {}, shownMemo = null, shownSig = "";
+  // A scanned plan's furniture ({id: piece}; house3d_get's scan_pieces): beside the file, never in it or in a draft.
+  // Drawn only while this screen's ⋯ list has "Furniture from scans" ticked (piecesNow).
+  let scanPieces = null;
   // Railings became choices (2026-11-02): after a Save of the person's own, the
   // Open edges from before get the word for what they show (stampEdgeRails).
   // True while that runs.
@@ -1530,6 +1533,9 @@ function createSlot(slotKey){
       move: (eid, x, y) => lastP.moves(eid, x, y), spotsOf: (l, kind, top) => HEIGHTS.spotsOf(l, kind, top), doorClass: (eid) => classOf(eid),
       // The file with the records' heights over it (what the draft edits).
       file: () => (file ? shownFile() : null), reload: () => reloadFile(), problem: () => fileErr, newer: () => setFileErr("house3d_newer"),
+      // A scanned plan's furniture (house3d_get's scan_pieces), for Furnish's "Size to the scan".
+      scan: () => scanPieces,
+      count: (name) => { try { if (lastP && typeof lastP.telemetry === "function") lastP.telemetry(name); } catch (_) { /* the report is never the error */ } },
       saved: (data) => { fileRaw = data; file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
       redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },
@@ -4701,6 +4707,7 @@ function createSlot(slotKey){
       if (fileLoad !== mine) return false;
       fileRaw = (r && r.data) || null;
       file = DRAFT.ownedOf(r && r.data);
+      scanPieces = r && r.scan_pieces && typeof r.scan_pieces === "object" ? r.scan_pieces : null;
       // Sample mode's house is read-only for its own reason (sample_house.js), not a newer file.
       setFileErr(DRAFT.writable(r && r.data, r && r.writable) ? null : (r && r.sample ? "house3d_sample" : "house3d_newer"));
       if (editor) editor.fileChanged();                   // an open draft follows what was removed elsewhere
@@ -5302,13 +5309,15 @@ function createSlot(slotKey){
   }
   /** The furniture as this screen shows it: furniture, devices in it, stairs (their opening stays). */
   function piecesNow(pieces){
-    if (!showOn || showSuspended() || (showOn.furniture && showOn.devices && showOn.stairs)) return pieces;
+    // A scan's furniture joins what is drawn, never what is edited: not while the list is suspended (Edit, Furnish).
+    const scan = showOn && !showSuspended() && showOn.scan_furniture === true && scanPieces ? scanPieces : null;
+    if (!showOn || showSuspended() || (showOn.furniture && showOn.devices && showOn.stairs)) return scan ? { ...(pieces || {}), ...scan } : pieces;
     const out = {};
     for (const [id, q] of Object.entries(pieces || {})) {
       const stairs = !!(STOREY && STOREY.isStairs(q)), dev = !!(q && typeof q.entity_id === "string" && q.entity_id);
       if (stairs ? showOn.stairs : dev ? showOn.devices : showOn.furniture) out[id] = q;
     }
-    return out;
+    return scan ? { ...out, ...scan } : out;
   }
   /** A wall piece's part the list hides: a door's or a window's leaf, a garage door's, a railing. */
   function goneHere(P, e){
@@ -5348,6 +5357,7 @@ function createSlot(slotKey){
       tags: s ? s.atlas_3d_tags !== true : !onObj(p.tags), people: s ? s.atlas_3d_people !== true : !onObj(p.people),
       trails: !(TRAILS && (onObj(p.people) || onObj(p.tags)) && onObj(p.trails) && typeof p.trails.read === "function"),
       furniture: !(pieces.length - stairs - dev), devices: !dev, stairs: !stairs,
+      scan_furniture: !(scanPieces && Object.keys(scanPieces).length),
       room_names: !(house && house.rooms.length), room_outlines: !(house && house.rooms.length),
       floor_outlines: !look, roof: !STOREY, rain: !weatherReady(p),
       theme: !(p.look3d === "atlas" || p.look3d === "studio" || (LOOKS && p.showcase3d === true && p.showcase && p.showcase.key && p.showcase.key !== "classic")),

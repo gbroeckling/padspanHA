@@ -46,7 +46,7 @@ from .house3d_store import DOOR_MIN_M, WINDOW_MIN_M, enabled
 from .roomplan_import import RoomPlanParseError, parse_roomplan
 from .sh3d_import import Sh3dParseError, parse_sh3d_furniture
 from .ws_common import _tier_at_least
-from .const import DATA_SETTINGS, DOMAIN
+from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DEFAULT_FLOOR_ID, DOMAIN
 from .ws_floorplan_import import MAX_SH3D_BYTES, ROOMPLAN_OFF_CODE
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 
@@ -277,6 +277,76 @@ ROOMPLAN_KINDS: dict[str, str] = {
 }
 
 
+def roomplan_piece(o: dict[str, Any], pid: str) -> dict[str, Any] | None:
+    """One object of a scan (roomplan_import's: category, center_m, size_m, height_m, angle_deg) as a piece, its floor
+    not yet said; None when it has no size. The import's candidates and a scanned plan's furniture (scan_pieces) are
+    both made here."""
+    cat = str(o.get("category") or "unknown")
+    kind = ROOMPLAN_KINDS.get(cat, BOX)
+    w, d = (float(v) for v in o["size_m"])
+    h, turn = float(o["height_m"]), float(o["angle_deg"])
+    if min(w, d, h) <= 0:
+        return None
+    params: dict[str, Any] = {}
+    if kind == "stairs":
+        if w > d:                                    # the run along the long side
+            w, d, turn = d, w, turn + 90.0
+        params = {"shape": "straight", "turn": "left", "style": "closed"}
+    name = cat[:1].upper() + re.sub("([a-z])([A-Z])", lambda m: m.group(1) + " " + m.group(2), cat[1:]).lower()
+    return {
+        "id": pid,
+        "recipe": {"kind": kind, "params": params, "colors": [],
+                   "width_m": _mm(w), "depth_m": _mm(d), "height_m": _mm(h)},
+        "origin": "import", "label": name, "library_id": None, "submission_id": None,
+        "floor_id": None, "x_m": _mm(float(o["center_m"][0])), "y_m": _mm(float(o["center_m"][1])),
+        "z_m": 0.0, "rotation": round(turn % 360.0, 1) % 360.0,
+        "entity_id": None, "entity_reg_id": None,
+    }
+
+
+SCAN_FURNITURE_MAX = 150     # pieces kept with one scanned plan
+
+
+def scan_furniture(frame: dict[str, Any]) -> list[dict[str, Any]]:
+    """A scanned plan's furniture as it is kept on the plan's record (ws_maps.ws_maps_scan_create): each piece's recipe
+    and name, where it stands as fractions of the plan picture, and its turn on the picture. Stairs are left out: a
+    scan's guess at a flight is for Furnish to place, not a guide to draw."""
+    out = []
+    across, down = float(frame["across_m"]), float(frame["down_m"])
+    for o in frame.get("objects") or []:
+        piece = roomplan_piece(o, "x") if o.get("height_m") else None
+        if piece is None or piece["recipe"]["kind"] == "stairs":
+            continue
+        out.append({"recipe": piece["recipe"], "label": piece["label"], "at": [round(piece["x_m"] / across, 4), round(piece["y_m"] / down, 4)],
+                    "rotation": piece["rotation"]})
+    return out[:SCAN_FURNITURE_MAX]
+
+
+def scan_pieces(hass: HomeAssistant) -> dict[str, Any]:
+    """The furniture of every scanned plan, as pieces in the house's metres, where each plan stands NOW (its own
+    placement: move the plan and they move with it). Read only, never part of the 3D file: the ⋯ list's "Furniture
+    from scans" draws them, off unless a screen ticks it (views/live_aboard_show.js)."""
+    dom = hass.data.get(DOMAIN, {})
+    ms, mdl = dom.get(DATA_MAPS), dom.get(DATA_MODEL)
+    out: dict[str, Any] = {}
+    for m in (ms.list_maps() if ms else []):
+        items = ((m.get("scan") or {}).get("furniture") or []) if isinstance(m, dict) and m.get("kind") == "scan" else []
+        t = mdl.map_transform(m["id"]) if (items and mdl is not None) else None
+        if not t:
+            continue
+        turn = math.degrees(float(t.get("rotation_rad") or 0.0))
+        for i, it in enumerate(items):
+            at = mdl.map_frac_to_metres(float(it["at"][0]), float(it["at"][1]), m["id"])
+            if at is None:
+                continue
+            pid = f"scan_{m['id']}_{i}"
+            out[pid] = {"id": pid, "recipe": it["recipe"], "origin": "scan", "label": it.get("label") or "", "library_id": None,
+                        "submission_id": None, "floor_id": str(m.get("floor_id") or DEFAULT_FLOOR_ID), "x_m": _mm(at[0]), "y_m": _mm(at[1]),
+                        "z_m": 0.0, "rotation": round((float(it.get("rotation") or 0.0) + turn) % 360.0, 1) % 360.0,
+                        "entity_id": None, "entity_reg_id": None}
+    return out
+
+
 def preview_roomplan(data: bytes) -> dict[str, Any]:
     """A RoomPlan JSON scan's furniture as candidates, in preview()'s shape
     (one level; no doors or windows: the scan's openings carry no heights).
@@ -290,30 +360,15 @@ def preview_roomplan(data: bytes) -> dict[str, Any]:
     skipped: list[dict[str, str]] = []
     for o in parsed.get("objects") or []:
         cat = str(o.get("category") or "unknown")
-        kind = ROOMPLAN_KINDS.get(cat, BOX)
-        w, d = (float(v) for v in o["size_m"])
-        h, turn = float(o["height_m"]), float(o["angle_deg"])
-        if min(w, d, h) <= 0:
+        pid = _new_id("fur", used)
+        piece = roomplan_piece(o, pid)
+        if piece is None:
+            used.discard(pid)
             skipped.append({"name": cat, "why": "it has no size"})
             continue
-        params: dict[str, Any] = {}
-        if kind == "stairs":
-            if w > d:                                    # the run along the long side
-                w, d, turn = d, w, turn + 90.0
-            params = {"shape": "straight", "turn": "left", "style": "closed"}
-        pid = _new_id("fur", used)
-        name = cat[:1].upper() + re.sub("([a-z])([A-Z])", lambda m: m.group(1) + " " + m.group(2), cat[1:]).lower()
-        pieces[pid] = {
-            "id": pid,
-            "recipe": {"kind": kind, "params": params, "colors": [],
-                       "width_m": _mm(w), "depth_m": _mm(d), "height_m": _mm(h)},
-            "origin": "import", "label": name, "library_id": None, "submission_id": None,
-            "floor_id": None, "x_m": _mm(float(o["center_m"][0])), "y_m": _mm(float(o["center_m"][1])),
-            "z_m": 0.0, "rotation": round(turn % 360.0, 1) % 360.0,
-            "entity_id": None, "entity_reg_id": None,
-        }
-        rep_p[pid] = {"name": name, "level_id": parsed["levels"][0]["id"] if parsed.get("levels") else None,
-                      "word": cat, "kind": kind}
+        pieces[pid] = piece
+        rep_p[pid] = {"name": piece["label"], "level_id": parsed["levels"][0]["id"] if parsed.get("levels") else None,
+                      "word": cat, "kind": piece["recipe"]["kind"]}
     return {"levels": parsed.get("levels") or [], "pieces": pieces, "openings": {},
             "report": {"pieces": rep_p, "openings": {}, "skipped": skipped, "warnings": list(parsed.get("warnings") or [])}}
 

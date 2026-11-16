@@ -307,3 +307,27 @@ def test_the_report_says_where_plans_came_from_and_how_far_each_kind_got():
     assert rows["picture"] == ["2", "1", "0", "0", "1", "0"] and rows["scan"] == ["2", "0", "0", "0", "1", "1"]
     tiers = [ln for ln in text.splitlines() if ln.strip().startswith(("none told", "unscaled", "rooms", "full"))]
     assert any(ln.split() == ["none", "told", "1", "0", "0"] for ln in tiers) and any(ln.split() == ["full", "0", "1", "0"] for ln in tiers), tiers
+
+
+def test_a_scans_furniture_is_kept_with_its_plan_and_follows_it(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-16: the furniture a scan saw, as an option to draw ("normally off"), never part of the 3D file."""
+    import base64
+    from custom_components.padspan_ha import ws_house3d_import as HI
+    from tests.test_roomplan_import import _bytes, _room
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    ms.maps_dir = tmp_path
+    assert HI.scan_pieces(h) == {}, "no scanned plan, nothing"
+    doc = _room(0.0, 0.0, 4.0, 3.0)
+    doc["objects"].append({**doc["objects"][0], "category": {"stairs": {}}})          # a scan's stairs are for Furnish, not a guide
+    m = _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=base64.b64encode(_bytes(doc)).decode(), name="")["map"]
+    kept = m["scan"]["furniture"]
+    assert len(kept) == 1 and kept[0]["recipe"]["kind"] == "table" and kept[0]["at"] == [0.5, 0.5] and kept[0]["label"] == "Table"
+    assert (kept[0]["recipe"]["width_m"], kept[0]["recipe"]["depth_m"], kept[0]["recipe"]["height_m"]) == (1.2, 0.8, 0.75)
+    got = HI.scan_pieces(h)
+    pid = f"scan_{m['id']}_0"
+    assert list(got) == [pid] and (got[pid]["x_m"], got[pid]["y_m"], got[pid]["floor_id"], got[pid]["origin"]) == (2.5, 2.0, "main", "scan")
+    # The plan moved: its furniture with it, worked out at the read.
+    mdl.data["map_transforms"][m["id"]].update(origin_x_m=10.0, origin_y_m=-4.0)      # as 3D Stack's Save Alignment leaves it
+    assert (HI.scan_pieces(h)[pid]["x_m"], HI.scan_pieces(h)[pid]["y_m"]) == (12.5, -2.0)
+    assert HI.SCAN_FURNITURE_MAX == 150 and len(HI.scan_furniture({"across_m": 5.0, "down_m": 4.0, "objects": [
+        {"category": "chair", "center_m": [1, 1], "size_m": [0.5, 0.5], "height_m": 0.9, "angle_deg": 0}] * 400})) == 150

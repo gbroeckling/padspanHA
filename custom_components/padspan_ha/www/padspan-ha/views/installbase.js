@@ -712,7 +712,7 @@ const W_SHOW_LINE = {
   lights: "lights", glow: "light glow", strips: "LED strips", fans: "ceiling fans", scenes: "the scene row", light_taps: "tap a light to switch it", light_buttons: "lights as buttons", room_switch: "rooms as light switches", motion_sensors: "motion sensors",
   motion_rooms: "motion in rooms", motion_reach: "motion reach", readouts: "temperature and air", doors: "doors", windows: "windows",
   covers: "garage doors and gates", locks: "locks", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
-  trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", stairs: "stairs",
+  trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", scan_furniture: "furniture from scans", stairs: "stairs",
   room_names: "room names", room_outlines: "room outlines", floor_outlines: "floor outlines", other_floors: "other floors, faded", roof: "the roof",
   rain: "rain and snow", theme: "theme colours", forest: "forest trees",
 };
@@ -741,7 +741,7 @@ const W_EVENT = {
   label_link_old_back: "A name went back by itself: the old address came back",
   label_link_capped: "A very large home reached the cap on a name's search, so it waited a turn",
   forensics_query: "Ran a Forensics search", free_pro_card_shown: "Saw the free-Pro card",
-  getting_started_shown: "Saw the Getting Started card", house3d_opened: "Opened the 3D house",
+  getting_started_shown: "Saw the Getting Started card", house3d_opened: "Opened the 3D house", house3d_scan_size: "Furnish: a piece sized to a room scan's", house3d_scan_fill: "Furnish: a room filled with a room scan's guess",
   "house3d_wall_draw:high": "Wall: every pixel, always",
   "house3d_wall_draw:high_still": "Wall: every pixel, less while moving",
   "house3d_wall_draw:high_capped": "Wall: about 1440p, always",

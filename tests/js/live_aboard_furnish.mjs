@@ -137,10 +137,12 @@ globalThis.FileReader = class {
 const slot = LA.liveAboardSlot("furnish-harness");
 let topIds = null;                               // the host's floor chips (null: every floor)
 let over = {};                                   // the card's data on another screen (furnish: null is Mapping → Atlas)
+let SCAN = null;                                 // a scanned plan's furniture, beside the file (house3d_get's scan_pieces)
+const SENT_F = [];                               // the report words Furnish sent
 const P = () => ({ ...P0(), ...over });
 const P0 = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: topIds, quality: "low",
-  telemetry: () => {}, states, config: {}, bearing: 0, saveNorth: null, useApi: () => null, haStartedMs: 0,
-  load: async () => ({ data: clone(server.file) }), edit: editFn,
+  telemetry: (n) => { SENT_F.push(n); }, states, config: {}, bearing: 0, saveNorth: null, useApi: () => null, haStartedMs: 0,
+  load: async () => ({ data: clone(server.file), ...(SCAN ? { scan_pieces: clone(SCAN) } : {}) }), edit: editFn,
   furnish: { callWS, toast: () => {}, settings: { atlas_3d_enabled: true }, entities: {} },
   setTopFloor: (fid) => { tops.push(fid); topIds = new Set([fid]); poll(); } });
 function poll(){
@@ -747,6 +749,46 @@ await tryCase("hang: Enter in the height box hangs it at the height just typed (
   check("hang: Enter in the height box hangs it at the height just typed (no change event first)",
     near(p.z_m + s.h / 2, 1.8, 1e-3) && /^On the wall, its middle 1\.80 m up\.$/.test(hint), { p, hint });
   click("Delete", "la3d-sheet"); await settle();
+});
+
+// ── from a phone's room scan (2026-11-16): Size to the scan, and Place the scan's guess ─────────────────────────────
+// The scan's furniture comes beside the file (scan_pieces) and is never in the draft: a piece standing on one of the
+// scan's can take its measured size, and the rest of the room's can be placed as pieces of their own, one Undo.
+await tryCase("scan: no button without a scan; Size to the scan sets the measured size, a quarter turn swapped; the guess fills the room, one Undo", async () => {
+  const name = "scan: no button without a scan; Size to the scan sets the measured size, a quarter turn swapped; the guess fills the room, one Undo";
+  const inSheet = (starts) => buttonsIn("la3d-sheet").find(b => b.textContent.startsWith(starts)) || null;
+  removeAll(); await settle();                            // an empty house: nothing of an earlier case stands in the way
+  click("Build ▾", "la3d-tools"); click("Box", "la3d-furmenu"); await settle();
+  const id = fur().sel, p0 = clone(draftPieces()[id]);
+  const none = !inSheet("Size to the scan") && !inSheet("Place the scan's guess");
+  const mk = (pid, kind, x, y, w, dd, h, rot, floor = p0.floor_id) => ({ id: pid, recipe: { kind, params: {}, colors: [], width_m: w, depth_m: dd, height_m: h }, origin: "scan",
+    label: kind === "table" ? "Table" : "Sofa", library_id: null, submission_id: null, floor_id: floor, x_m: x, y_m: y, z_m: 0, rotation: rot, entity_id: null, entity_reg_id: null });
+  // Under the box: a table a quarter turn from it. In its room: a sofa a metre off. Elsewhere: one on another floor.
+  const other = MODEL.floors.map(f => f.id).find(f => f !== p0.floor_id);
+  SCAN = { scan_m_0: mk("scan_m_0", "table", p0.x_m, p0.y_m, 1.6, 0.9, 0.75, (p0.rotation + 90) % 360),
+           scan_m_1: mk("scan_m_1", "sofa", p0.x_m + (p0.x_m > 5 ? 1.5 : -1.5 > -p0.x_m + 1.2 ? -1.5 : 1.5), p0.y_m + 2.0, 2.0, 0.9, 0.8, 0),
+           scan_m_2: mk("scan_m_2", "sofa", p0.x_m, p0.y_m, 2.0, 0.9, 0.8, 0, other) };
+  slot.reload(); await settle(30);
+  slide("Width", p0.recipe.width_m); await settle();          // the sheet drawn again, its width as it was
+  const sizeB = inSheet("Size to the scan"), fillB = inSheet("Place the scan's guess (1)");
+  const before = Object.keys(draftPieces()).length;
+  const said = sheetText().includes("The scan found table here: 1.60 m × 0.90 m") && sheetText().includes("The scan saw 1 more in");
+  if (sizeB) sizeB.click();
+  await settle();
+  const p1 = clone(draftPieces()[id] || {});
+  const sized = p1.recipe && near(p1.recipe.width_m, 0.9, 1e-3) && near(p1.recipe.depth_m, 1.6, 1e-3) && near(p1.recipe.height_m, 0.75, 1e-3)
+    && near(p1.x_m, p0.x_m) && near(p1.y_m, p0.y_m) && p1.rotation === p0.rotation;
+  const fill2 = inSheet("Place the scan's guess (1)");
+  if (fill2) fill2.click();
+  await settle();
+  const after = draftPieces(), added = Object.values(after).filter(q => q.id !== id && q.origin === "import" && q.recipe.kind === "sofa" && near(q.y_m, p0.y_m + 2.0, 1e-3));
+  const filled = Object.keys(after).length === before + 1 && added.length === 1 && !/^scan_/.test(added[0].id) && added[0].floor_id === p0.floor_id;
+  click("Undo", "la3d-tools"); await settle();
+  const undone = Object.keys(draftPieces()).length === before;
+  check(name, none && !!sizeB && !!fillB && said && sized && filled && undone && SENT_F.includes("house3d_scan_size") && SENT_F.includes("house3d_scan_fill")
+    && !Object.keys(draftPieces()).some(k => /^scan_/.test(k)),
+    { none, sizeB: !!sizeB, fillB: !!fillB, said, sized, p1: p1.recipe, filled, undone, sent: SENT_F.filter(n => /scan/.test(n)), sheet: sheetText().slice(0, 400) });
+  SCAN = null; slot.reload(); await settle(20);
 });
 
 console.log(JSON.stringify({ cases, failures, payloads, live: LIVE }));

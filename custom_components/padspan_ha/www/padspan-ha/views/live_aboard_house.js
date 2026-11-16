@@ -77,7 +77,7 @@ export const WALL_DRAW_KINDS = ["high", "high_still", "high_capped", "low"];
 // people or tags are switched on, Back to house defaults. Counts only.
 export const SHOW_EVENTS = SHOW.SHOW_EVENTS;
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), ...WALL_DRAW_KINDS.map(k => `house3d_wall_draw:${k}`), "house3d_wet_window",
-  "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
+  "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", "house3d_scan_size", "house3d_scan_fill", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
   ...STAIR_USE_EVENTS, ...SHOW_EVENTS];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();

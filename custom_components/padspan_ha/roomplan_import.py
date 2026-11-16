@@ -528,6 +528,6 @@ def plan_frame(parsed: dict[str, Any], margin_m: float = 0.5) -> dict[str, Any] 
             "walls": [[put(a), put(b)] for a, b in walls],
             "openings": [{"kind": o.get("kind"), "a_m": put(o["a_m"]), "b_m": put(o["b_m"])} for o in parsed.get("openings") or []],
             "rooms": [{"name": r.get("name"), "points_m": [put(p) for p in r["points_m"]]} for r in rooms],
-            "objects": [{"category": o.get("category"), "center_m": put(o["center_m"]), "size_m": o["size_m"],
+            "objects": [{"category": o.get("category"), "center_m": put(o["center_m"]), "size_m": o["size_m"], "height_m": o.get("height_m"),
                          "angle_deg": round(float(o.get("angle_deg") or 0.0) + math.degrees(turn), 1)}
                         for o in parsed.get("objects") or [] if o.get("center_m") and o.get("size_m")]}

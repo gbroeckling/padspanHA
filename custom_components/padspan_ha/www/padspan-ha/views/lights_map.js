@@ -4133,7 +4133,9 @@ export function buildLightsMapCard(hostIn){
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
         automorphStyle: host.automorphStyle || "glow",
         automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0),
-        underlay: abData && abFurn() ? _AB.underlayOf(abData) : null,
+        // Furnish's furniture (its own Show furniture button), and a scan's (the ⋯ list's "Furniture from scans", off unless ticked).
+        underlay: [...(abData && abFurn() ? _AB.underlayOf(abData) : []),
+                   ...(_AB && abFile && flatShow("scan_furniture") === true && _AB.scanOf(abSlot) ? _AB.underlayOf({ pieces: _AB.scanOf(abSlot) }) : [])],
         // Live Aboard's own hinge, swing, type and Shown for a door, when it is on.
         doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null,
         // The sidebar Atlas draws a chosen floor alone, as big as the screen; Mapping keeps the others, faded.
@@ -4150,7 +4152,7 @@ export function buildLightsMapCard(hostIn){
         getFocusZ(view.focusIdx), view.floorGap, view.horizGap, view.zoom, V2, WALL, o.showcase, o.showcaseTheme, o.liveColours,
         o.fitRooms, o.isolux, o.sceneField, o.codeChip, o.hideCodes, o.classFilter, o.hitHalo, o.collapseUnplaced, o.dropMarker,
         o.labelScale, o.heatmap, o.barrierHit, o.automorph, o.automorphRoomPct, o.automorphHardness, o.automorphStyle,
-        o.automorphSubtlety, !!o.underlay, o.focusAlone]) }).full;
+        o.automorphSubtlety, o.underlay ? o.underlay.length : 0, o.focusAlone]) }).full;
     } else { isoDiv.innerHTML = svgStr; drawnWhole = true; }
     // People, tags and scanners over it, then the newest positions (while
     // the flat map shows and the page is in sight).
@@ -5098,7 +5100,7 @@ export function buildLightsMapCard(hostIn){
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
           onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
-            lines: () => ["light_taps", "other_floors", ...(sc() ? ["scenes"] : [])],
+            lines: () => ["light_taps", "other_floors", ...(_AB && _AB.scanOf(abSlot) ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
             ready: () => {
               const s = sc(), out = {};
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);

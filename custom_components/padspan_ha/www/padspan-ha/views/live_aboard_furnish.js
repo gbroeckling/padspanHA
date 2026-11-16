@@ -295,6 +295,8 @@ export function createFurnish(ctx){
   const pendingCount = () => { const d = ctx.draft(), ch = d && typeof d.changes === "function" ? d.changes() : null;
     return ch ? Object.values(ch).reduce((n, sec) => n + Object.keys(sec || {}).length, 0) : 0; };
   const pieceOf = (id) => { const c = cur(); return (c && c.pieces && c.pieces[id]) || null; };
+  /** The opt-in report's count of a Furnish action (the view's own sender; never an error). */
+  const tele = (name) => { try { if (typeof ctx.count === "function") ctx.count(name); } catch (_) { /* the report is never the error */ } };
 
   // ── the page ──────────────────────────────────────────────────────────────
   const d = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
@@ -632,6 +634,27 @@ export function createFurnish(ctx){
         tidyRecipe(q);
         if (k === "height_m") { const F = floorById(q.floor_id); if (F) q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h); }
       }, g), name));
+    }
+    // Size to the scan (owner, 2026-11-16): where a phone's room scan found a piece of furniture under this one, its
+    // measured size, in one press. The scan's piece is never placed or changed: only this piece's size is set from it.
+    const under = stairs ? null : scanUnder(p);
+    if (under) {
+      const us = PIECES.sizeOf(under.recipe), row = d("div", "la3d-acts");
+      const b = btn("Size to the scan", `Make it the size the phone's scan measured here: ${metres(us.w)} × ${metres(us.d)}, ${metres(us.h)} high`, () => sizeToScan(under));
+      b.setAttribute("data-la3d-scan-size", "1");
+      row.append(seg(b), d("span", "la3d-sub", `The scan found ${String(under.label || "a piece").toLowerCase()} here: ${metres(us.w)} × ${metres(us.d)}`));
+      el.appendChild(row);
+    }
+    // Place the scan's guess (owner, 2026-11-16): the rest of this room's furniture as the phone's scan saw it, as real
+    // pieces to drag and change, in one step with one Undo. Only what no piece already stands on.
+    const guess = stairs ? null : scanGuess(p);
+    if (guess && guess.list.length) {
+      const n = guess.list.length, row = d("div", "la3d-acts");
+      const b = btn(`Place the scan's guess (${n})`, `Put the ${n === 1 ? "piece" : n + " pieces"} of furniture the phone's scan saw in ${guess.where} here, where they stood. A guess to drag and change; one Undo takes them all back`,
+        () => placeGuess(guess));
+      b.setAttribute("data-la3d-scan-fill", "1");
+      row.append(seg(b), d("span", "la3d-sub", `The scan saw ${n} more in ${guess.where}`));
+      el.appendChild(row);
     }
     // The builder's own settings, and its colours.
     const params = spec && Array.isArray(spec.params) ? spec.params : [];
@@ -1139,6 +1162,66 @@ export function createFurnish(ctx){
     ctx.hint(`Moved ${towards(from, F, dir)} ${F.fl.name}.`);
     sheet();
   }
+  /** The scanned furniture this piece stands on, or null: on its floor, the nearest whose footprint holds this piece's
+   *  centre (or whose centre this piece's footprint holds), by how close their centres are. */
+  function scanUnder(p){
+    const all = typeof ctx.scan === "function" ? ctx.scan() : null;
+    if (!all || !p) return null;
+    const inBox = (pt, b) => { const dx = pt[0] - b.c[0], dy = pt[1] - b.c[1];
+      return Math.abs(dx * b.u[0] + dy * b.u[1]) <= b.hu && Math.abs(dx * b.v[0] + dy * b.v[1]) <= b.hv; };
+    const mine = PIECES.boxOf(p);
+    let best = null, bestD = Infinity;
+    for (const q of Object.values(all)) {
+      if (!q || String(q.floor_id || "main") !== String(p.floor_id || "main")) continue;
+      const theirs = PIECES.boxOf(q), dist = Math.hypot(theirs.c[0] - mine.c[0], theirs.c[1] - mine.c[1]);
+      if ((inBox(mine.c, theirs) || inBox(theirs.c, mine)) && dist < bestD) { best = q; bestD = dist; }
+    }
+    return best;
+  }
+  /** The scan's furniture for the room this piece stands in (its whole floor when it is in no room), less whatever a
+   *  placed piece already stands on: {list: [scan pieces], where: the room's name, or "this floor"}. */
+  function scanGuess(p){
+    const all = typeof ctx.scan === "function" ? ctx.scan() : null, c = cur();
+    if (!all || !p || !c) return null;
+    const fid = String(p.floor_id || "main"), F = floorById(fid);
+    const room = F && F.rooms.find(r => !r.outdoor && Array.isArray(r.pts) && r.pts.length >= 3 && ctx.HOUSE.inPoly(num(p.x_m) ?? 0, num(p.y_m) ?? 0, r.pts));
+    const inBox = (pt, b) => { const dx = pt[0] - b.c[0], dy = pt[1] - b.c[1];
+      return Math.abs(dx * b.u[0] + dy * b.u[1]) <= b.hu && Math.abs(dx * b.v[0] + dy * b.v[1]) <= b.hv; };
+    const placed = Object.values(c.pieces || {}).filter(q => q && String(q.floor_id || "main") === fid).map(q => PIECES.boxOf(q));
+    const list = Object.values(all).filter(q => q && q.recipe && String(q.floor_id || "main") === fid
+      && (!room || ctx.HOUSE.inPoly(num(q.x_m) ?? 0, num(q.y_m) ?? 0, room.pts))
+      && !placed.some(b => inBox([num(q.x_m) ?? 0, num(q.y_m) ?? 0], b) || inBox(b.c, PIECES.boxOf(q))));
+    return { list, where: room && room.name ? String(room.name) : "this floor" };
+  }
+  /** The scan's guess into the draft, as pieces of their own (new ids, "Imported"), one step. */
+  function placeGuess(guess){
+    const list = guess.list.map(q => ({ piece: { ...copy(q), id: PIECES.newPieceId(), origin: "import" } }));
+    if (!list.length) return;
+    tele("house3d_scan_fill");
+    add(list, null, `Placed the scan's guess for ${guess.where} (${list.length})`);
+  }
+  /** This piece's size set from the scan's: across and deep as the scan measured them, the two swapped where this piece
+   *  stands a quarter turn from the scan's, so the footprints lie the same way; its height the scan's. Never moved or turned. */
+  function sizeToScan(under){
+    const p = sel && pieceOf(sel);
+    if (!p || !under) return;
+    const us = PIECES.sizeOf(under.recipe);
+    const off = (((Number(p.rotation) || 0) - (Number(under.rotation) || 0)) % 180 + 180) % 180;
+    const quarter = off > 45 && off < 135;
+    if (edit((q) => {
+      q.recipe.width_m = Math.round((quarter ? us.d : us.w) * 1000) / 1000;
+      q.recipe.depth_m = Math.round((quarter ? us.w : us.d) * 1000) / 1000;
+      q.recipe.height_m = Math.round(us.h * 1000) / 1000;
+      tidyRecipe(q);
+      const F = floorById(q.floor_id);
+      if (F) q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h);
+    }) !== false) {
+      tele("house3d_scan_size");
+      ctx.hint("Sized to the scan. Undo puts it back.");
+      sheet();
+    }
+  }
+
   function duplicate(){
     const p = sel && pieceOf(sel);
     if (!p) return;

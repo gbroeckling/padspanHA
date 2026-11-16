@@ -120,11 +120,14 @@ export function fileOf(slot, load, shownAt, arrived){
       if (f.p !== mine) return;
       f.p = null;
       f.data = r && r.data && typeof r.data === "object" ? r.data : {};
+      f.scan = r && r.scan_pieces && typeof r.scan_pieces === "object" ? r.scan_pieces : null;     // a scanned plan's furniture, beside the file
       if (typeof arrived === "function") arrived();
     }, () => { if (f.p === mine) { f.p = null; f.stale = true; } });   // failed: the next card asks again
   }
   return f.data;
 }
+/** A scanned plan's furniture as last read for this screen ({id: piece}, or null): the ⋯ list's "Furniture from scans". */
+export const scanOf = (slot) => ((_files.get(String(slot || "atlas")) || {}).scan || null);
 /** What was last read for this screen, without asking again (null before the first answer). */
 export const fileData = (slot) => ((_files.get(String(slot || "atlas")) || {}).data || null);
 /** For the tests: forget what was read. */

@@ -913,6 +913,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     from . import roomplan_import as RP  # noqa: PLC0415
     from .maps_store import scan_plan_png  # noqa: PLC0415
     from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    from .ws_house3d_import import scan_furniture  # noqa: PLC0415
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
@@ -948,7 +949,8 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     across, down = frame["across_m"], frame["down_m"]
     info["scan"] = {"rooms": [{"name": r.get("name"), "points": [[round(p[0] / across, 4), round(p[1] / down, 4)] for p in r["points_m"]]}
                               for r in frame["rooms"]][:60],
-                    "heights_m": (parsed.get("heights_m") or [])[:40]}
+                    "heights_m": (parsed.get("heights_m") or [])[:40],
+                    "furniture": scan_furniture(frame)}
     await ms.store.async_save(ms.data)
     ref = {"p1": [0.0, 0.5], "p2": [1.0, 0.5], "distance_m": round(across, 4), "px_per_meter": round(w / across * 100) / 100,
            "angle_deg": 0, "date": _time.strftime("%Y-%m-%d", _time.gmtime()), "source": "scan"}
