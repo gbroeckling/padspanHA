@@ -63,7 +63,12 @@ _JOIN_M = 0.5   # wall ends further apart than this don't join into an outline
 
 class RoomPlanParseError(Exception):
     """A file could not be read as a RoomPlan JSON export. Raised rather
-    than returning a partial or guessed result."""
+    than returning a partial or guessed result. `code`: "unreadable" (not a
+    zip or JSON that opens) or "not_scan" (it opened, and holds no room scan)."""
+
+    def __init__(self, message: str, code: str = "unreadable") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def _enum_name(value: Any) -> str | None:
@@ -326,7 +331,7 @@ def _parse_doc(doc: dict) -> dict[str, Any]:
         rooms = _rooms_of(doc, "the scanned room", [], warnings)
         extras = _extras(captures)
     else:
-        raise RoomPlanParseError("Not a RoomPlan export (no rooms, walls or floors found)")
+        raise RoomPlanParseError("Not a RoomPlan export (no rooms, walls or floors found)", "not_scan")
 
     stories = {part.get("story") for cap in captures for part in [cap, *_list(cap, "floors")]
                if isinstance(part.get("story"), int)}
@@ -479,7 +484,7 @@ def parse_usdz(data: bytes) -> dict[str, Any]:
         doc[kind].append(el)
     if not doc["walls"] and not doc["floors"]:
         raise RoomPlanParseError("No walls or floors were found in this USDZ. A room scan made with Apple's RoomPlan has them; "
-                                 "a mesh scan (a photo-like 3D model) does not.")
+                                 "a mesh scan (a photo-like 3D model) does not.", "not_scan")
     out = _parse_doc(doc)
     out["heights_m"] = sorted({round(w["dimensions"][1], 2) for w in doc["walls"] if w["dimensions"][1] > 0})
     return out

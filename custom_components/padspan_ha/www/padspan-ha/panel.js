@@ -1064,7 +1064,7 @@ class PadSpanHaApp extends HTMLElement {
       const reqTab = q.get("tab");
       if (reqView === "maps" && reqTab && /^[a-z]+$/.test(reqTab)) this.state.mapsTab = reqTab;
       // ?view=maps&guide=scan: the phone's walk-through of a room scan (views/rough_plan.js), for the person holding the phone.
-      if (reqView === "maps" && q.get("guide") === "scan") this.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: 0 };
+      if (reqView === "maps" && q.get("guide") === "scan") this.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: 0, linked: true };
       // ?view=calibration&tab=tune opens that Calibration tab (Results otherwise).
       if (reqView === "calibration" && reqTab && /^[a-z]+$/.test(reqTab)) this.state._calibTabRequest = reqTab;
       // ?view=settings&tab=atlas&part=atlas_weather (Live Aboard's ⋯ list):

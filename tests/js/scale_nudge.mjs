@@ -31,6 +31,7 @@ const el = new Function("return " + src.slice(elStart, src.indexOf("\n}\n", elSt
 const MAPS = await import(pathToFileURL(join(WWW, "views", "maps.js")).href);
 const SETUP = await import(pathToFileURL(join(WWW, "views", "setup.js")).href);
 const N = await import(pathToFileURL(join(WWW, "views", "scale_nudge.js")).href);
+const RP = await import(pathToFileURL(join(WWW, "views", "rough_plan.js")).href);
 
 const failures = [], cases = {};
 const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push({ name, detail: detail === undefined ? null : detail }); };
@@ -67,7 +68,7 @@ function measure(p, house) {
 
 function house(o = {}) {
   const calls = [], tele = [], renders = { n: 0 }, toasts = [];
-  N._resetCounts();
+  N._resetCounts(); RP._resetCounts();
   const state = {
     complexity: o.complexity || "advanced", mapsTab: o.tab || "library", dataMode: o.dataMode || "live", view: "maps", kioskMode: !!o.kiosk,
     settings: { setup_progress: {} }, _mapsLoaded: true, _modelLoaded: true, calibration: { points: [] },
@@ -84,9 +85,9 @@ function house(o = {}) {
     "padspan_ha/maps_blank_create": (p) => { if (!/m$/.test(p.across) || !/m$/.test(p.down)) return { ok: false, code: "size", message: "Type the floor's width and depth." };
       const m = { id: "bl1", name: "Blank floor", floor_id: p.floor_id, kind: "blank", image: { width: 1200, height: 900 }, receivers: [], room_bounds: {} };
       state.maps.list.push(m); state.model.map_transforms.bl1 = { scale_x_m: 12, scale_y_m: 9, reference_measurements: [{}] }; return { ok: true, map: m }; },
-    "padspan_ha/maps_scan_create": (p) => { if (p.file_base64 !== "AAAAAAAAAAA=") return { ok: false, code: "unreadable", message: "Not a USDZ file (it could not be opened)" };
+    "padspan_ha/maps_scan_create": (p) => { if (p.file_base64 !== "AAAAAAAAAAA=") return { ok: false, code: "not_scan", message: "Not a USDZ file (it could not be opened)" };
       const m = { id: "sc1", name: p.name || "Room scan", floor_id: p.floor_id, kind: "scan", image: { width: 500, height: 400 }, receivers: [], room_bounds: {} };
-      state.maps.list.push(m); state.model.map_transforms.sc1 = { scale_x_m: 5, scale_y_m: 4, reference_measurements: [{}] }; return { ok: true, map: m, walls: 4, rooms: 1, heights_m: [2.5], warnings: [] }; },
+      state.maps.list.push(m); state.model.map_transforms.sc1 = { scale_x_m: 5, scale_y_m: 4, reference_measurements: [{}] }; return { ok: true, map: m, walls: 4, rooms: 1, heights_m: [2.5], warnings: [], file: "usdz", named: true }; },
     "padspan_ha/receivers_to_rooms": () => ({ ok: true, ready: o.ready || [], skipped: [], undo: 0 }),
     "padspan_ha/settings_set": (p) => ({ settings: { ...state.settings, ...p } }),
   };
@@ -595,7 +596,7 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   root = await render(g);
   q(root, '[data-rough="link"]').click(); root = await render(g);
   check("no plan: the ways, in order", all(root, "[data-rough]").map(n => n.getAttribute("data-rough")).filter(k => k.startsWith("kind-")).join() === "kind-have,kind-scan,kind-vacuum,kind-sketch,kind-blank"
-    && rough(g).join() === "opened", [rough(g)]);
+    && rough(g).join() === "seen,opened", [rough(g)]);
   q(root, '[data-rough="kind-have"]').click(); root = await render(g);
   { const kids = q(root, '[data-rough="card"]').parentNode.children;
     const ci = kids.findIndex(k => k.getAttribute && k.getAttribute("data-rough") === "card"), fi = kids.findIndex(k => k.tagName === "INPUT");
@@ -640,9 +641,12 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   const sc = s.calls.filter(c => c.type === "padspan_ha/maps_scan_create").pop();
   check("a scan: sent with its floor and name, the plan opened on its rooms step", sc && sc.floor_id === "main" && sc.name === "Main floor" && s.state.activeMapId === "sc1"
     && s.state._mapsWizard && s.state._mapsWizard.step === 3 && s.state._mapsWizard.mapId === "sc1" && rough(s).includes("scan_made"), [sc, s.state._mapsWizard, rough(s)]);
+  // Told in full (owner, 2026-11-16: "no maps means not purchasing"): the button seen, why a scan was refused, what a read one held.
+  check("a scan: counted in full: seen once, the refusal's reason, the file's kind, its walls as a band, named", rough(s).filter(w => w === "seen").length === 1
+    && rough(s).includes("scan_refused_not_scan") && ["scan_usdz", "scan_walls_1_4", "scan_named"].every(w => rough(s).includes(w)) && !rough(s).includes("scan_phone"), rough(s));
   // The walk-through: the whole of Mapping while it runs, one step a screen, the floor chosen on its last, done said.
   const w = house({ tab: "library", complexity: "basic" });
-  w.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: 0 };      // as the link ?view=maps&guide=scan sets it
+  w.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: 0, linked: true };      // as the link ?view=maps&guide=scan sets it
   root = await render(w);
   check("walk-through: only it is shown, at its first step", !!q(root, '[data-rough="walk"]') && q(root, '[data-rough="walk-step"]').textContent.includes("step 1 of 6")
     && !q(root, ".tabs") && !q(root, '[data-rough="walk-back"]'), root.textContent.slice(0, 300));
@@ -656,7 +660,15 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   check("walk-through: the scan is in, on the floor chosen, and Done is said with what comes next", wc && wc.floor_id === "main" && !!q(root, '[data-rough="walk-done"]')
     && root.textContent.includes("4 walls") && root.textContent.includes("easier on a computer"), root.textContent.slice(0, 400));
   q(root, '[data-rough="walk-see"]').click(); for (let i = 0; i < 6; i++) await tick(); root = await render(w);
+  check("walk-through: counted: opened by its address, each screen reached once, finished; not closed early", ["walk", "walk_link", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_done"]
+    .every(k => rough(w).filter(x => x === k).length === 1) && !rough(w).includes("walk_closed"), rough(w));
   check("walk-through: See the plan ends it on that plan", !q(root, '[data-rough="walk"]') && w.state.activeMapId === "sc1" && w.state._roughPlan.walk === null, [w.state.activeMapId, w.state._roughPlan]);
+  { const c = house({ tab: "library" });
+    c.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: 0 };
+    let cr = await render(c);
+    q(cr, '[data-rough="walk-next"]').click(); cr = await render(c);
+    q(cr, '[data-rough="walk-close"]').click(); cr = await render(c);
+    check("walk-through: closed before the end is counted, with how far it got", rough(c).join() === "walk_2,walk_closed" && !q(cr, '[data-rough="walk"]'), rough(c)); }
   // Never on the demo house, for a non-admin or on a wall screen.
   for (const [name, o] of [["Sample", { dataMode: "sample" }], ["non-admin", { admin: false }], ["wall screen", { kiosk: true }]]) {
     const x = house({ tab: "upload", ...o });

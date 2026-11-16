@@ -995,7 +995,45 @@ PLAN_UPLOAD_EVENTS: frozenset[str] = frozenset(f"plan_upload:{k}" for k in PLAN_
 # what came of a scan or a blank floor. Words only: never the file, a size or a name.
 ROUGH_PLAN_WORDS: tuple[str, ...] = ("opened", "have", "scan", "vacuum", "sketch", "blank", "walk", "sketch_upload",
                                      "scan_made", "scan_refused", "blank_made", "blank_refused")
-ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS)
+# Owner, 2026-11-16: "no maps means not purchasing", so how each way to a plan goes is told in full. The button shown
+# on an upload screen (the base every count above is a share of); the walk-through opened from its address, each of
+# its screens reached, closed before the end, finished, and gone round again for another floor; why a scan was refused
+# (too large, not openable, opened but no room scan in it, nothing to draw); and of a scan that was read: the file's
+# kind, how many walls it had as a band, whether the phone named its rooms, and whether it was given from a phone.
+ROUGH_PLAN_WALK: tuple[str, ...] = ("seen", "walk_link", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_closed", "walk_done", "walk_again")
+ROUGH_PLAN_SCAN: tuple[str, ...] = ("scan_refused_size", "scan_refused_unreadable", "scan_refused_not_scan", "scan_refused_empty",
+                                    "scan_usdz", "scan_json", "scan_walls_1_4", "scan_walls_5_12", "scan_walls_13_30", "scan_walls_gt30",
+                                    "scan_named", "scan_phone")
+ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS + ROUGH_PLAN_WALK + ROUGH_PLAN_SCAN)
+
+
+# env.plans (2026-11-16): the house's plans by where they came from, and how far the furthest of each kind has got.
+# A plan is a "picture" unless the person said otherwise (maps_store.PLAN_KINDS). Words only, a count as a band.
+PLAN_SOURCES: tuple[str, ...] = ("picture", "sketch", "blank", "scan")
+PLAN_STAGES: tuple[str, ...] = ("unscaled", "scaled", "receivers", "rooms", "full")       # in order: the furthest wins
+PLAN_COUNT_WORDS: tuple[str, ...] = ("1", "2_3", "4_plus")
+
+
+def plan_sources(maps: Any, transforms: Any) -> dict[str, str]:
+    """{source: its furthest stage, source_n: how many, as a band} for the plans of the house, Outside's left out.
+    unscaled: no scale; scaled: a scale and nothing on it; receivers / rooms: one of them placed or drawn on it; full:
+    both. Empty with no plan."""
+    from .presence_rules import is_outdoor_floor  # noqa: PLC0415
+    got: dict[str, list[int]] = {}
+    for m in maps or []:
+        if not isinstance(m, dict) or is_outdoor_floor(m.get("floor_id")):
+            continue
+        t = (transforms or {}).get(m.get("id")) if isinstance(transforms, dict) else None
+        scaled = isinstance(t, dict) and bool(t.get("scale_x_m")) and bool(t.get("scale_y_m"))
+        rooms, rx = bool(m.get("room_bounds")), bool(m.get("receivers"))
+        stage = "unscaled" if not scaled else "full" if rooms and rx else "rooms" if rooms else "receivers" if rx else "scaled"
+        src = m.get("kind") if m.get("kind") in PLAN_SOURCES else "picture"
+        got.setdefault(src, []).append(PLAN_STAGES.index(stage))
+    out: dict[str, str] = {}
+    for src, stages in got.items():
+        out[src] = PLAN_STAGES[max(stages)]
+        out[src + "_n"] = "1" if len(stages) == 1 else "2_3" if len(stages) <= 3 else "4_plus"
+    return out
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.
 WIZARD_DRAW_WORDS: tuple[str, ...] = ("name", "no_room", "kept")
@@ -2415,6 +2453,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             env["presence_cfg"] = _pc
     except Exception:
         pass
+    # The plans by where they came from and how far each kind has got (plan_sources), only with a plan.
+    try:
+        _ps = plan_sources((getattr(dom.get(DATA_MAPS), "data", None) or {}).get("maps"),
+                           (getattr(dom.get(DATA_MODEL), "data", None) or {}).get("map_transforms"))
+        if _ps:
+            env["plans"] = _ps
+    except Exception:
+        pass
     # The AI Task chosen for photos (ai_task_word), only where one is chosen.
     try:
         _ai = ai_task_word(hass)
@@ -2834,6 +2880,12 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         mp = env["mapping"]
         if not isinstance(mp, dict) or "stuck" not in mp or not all(k in MAPPING_WORDS and v in MAPPING_WORDS[k] for k, v in mp.items()):
             raise ValueError("env.mapping not in the vocabulary")
+    if isinstance(env, dict) and "plans" in env:
+        pl = env["plans"]
+        if not isinstance(pl, dict) or not pl or not all(
+                (k in PLAN_SOURCES and v in PLAN_STAGES) or (k.endswith("_n") and k[:-2] in PLAN_SOURCES and v in PLAN_COUNT_WORDS)
+                for k, v in pl.items()):
+            raise ValueError("env.plans not in the vocabulary")
     if isinstance(env, dict) and "presence_cfg" in env:
         pc = env["presence_cfg"]
         if not isinstance(pc, dict) or not all(k in PRESENCE_CFG_WORDS and v in PRESENCE_CFG_WORDS[k] for k, v in pc.items()):

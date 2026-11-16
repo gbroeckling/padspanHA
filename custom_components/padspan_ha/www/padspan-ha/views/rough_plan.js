@@ -68,9 +68,18 @@ const tel = (ctx, w) => { if (ctx.state.dataMode === "live" && ctx.actions.telem
 const st = (ctx) => ctx.state._roughPlan || (ctx.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: null });
 const redraw = (ctx) => ctx.actions.renderRooms();
 
+// Counted once a page each (telemetry.ROUGH_PLAN_WALK): the button shown, a walk-through screen reached.
+const _once = new Set();
+const once = (ctx, w) => { if (!_once.has(w)) { _once.add(w); tel(ctx, w); } };
+export function _resetCounts() { _once.clear(); }      // a test's new page
+const REFUSED = { too_large: "size", unreadable: "unreadable", not_scan: "not_scan", empty: "empty" };
+const wallsBand = (n) => (n <= 4 ? "1_4" : n <= 12 ? "5_12" : n <= 30 ? "13_30" : "gt30");
+const onPhone = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
 /** The quiet line on the upload card. */
 export function link(ctx) {
   const { el } = ctx.helpers, s = st(ctx);
+  once(ctx, "seen");
   const a = el("button", { class: "btn inline", "data-rough": "link", style: "font-size:12px" }, s.open ? "Hide the ways to get a floor plan" : LINK);
   a.addEventListener("click", () => { s.open = !s.open; if (s.open) tel(ctx, "opened"); redraw(ctx); });
   return el("div", { style: "margin:8px 0" }, [a]);
@@ -93,15 +102,23 @@ async function makeBlank(ctx, opts) {
 async function readScan(ctx, opts, file) {
   const s = st(ctx);
   if (!file) return;
-  if (file.size > SCAN_MAX_BYTES) { tel(ctx, "scan_refused"); s.msg = "This file is too large to be a room scan (11 MB at most)."; redraw(ctx); return; }
+  if (file.size > SCAN_MAX_BYTES) { tel(ctx, "scan_refused"); tel(ctx, "scan_refused_size"); s.msg = "This file is too large to be a room scan (11 MB at most)."; redraw(ctx); return; }
   s.busy = true; s.msg = ""; redraw(ctx);
   let r;
   try { r = await ctx.actions.callWS({ type: "padspan_ha/maps_scan_create", floor_id: s.floor, file_base64: await opts.toBase64(file),
     name: String(file.name || "").replace(/\.[^.]+$/, "").slice(0, 120) }); }
   catch (e) { r = { ok: false, message: (e && e.message) || "That didn't work. Try again in a moment." }; }
   s.busy = false;
-  if (!r || r.ok === false) { tel(ctx, "scan_refused"); s.msg = (r && r.message) || "The scan couldn't be read."; redraw(ctx); return; }
+  if (!r || r.ok === false) {
+    tel(ctx, "scan_refused");
+    tel(ctx, "scan_refused_" + (REFUSED[r && r.code] || "unreadable"));
+    s.msg = (r && r.message) || "The scan couldn't be read."; redraw(ctx); return;
+  }
   tel(ctx, "scan_made");
+  tel(ctx, r.file === "json" ? "scan_json" : "scan_usdz");
+  tel(ctx, "scan_walls_" + wallsBand(Number(r.walls) || 0));
+  if (r.named) tel(ctx, "scan_named");
+  if (onPhone()) tel(ctx, "scan_phone");
   if (walking(ctx)) {                          // the walk-through says so itself, on its last screen
     Object.assign(s, { walk: WALK.length, made: { id: r.map.id, walls: r.walls } });
     if (ctx.actions.mapsRefresh) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
@@ -158,14 +175,17 @@ const BIG = "font-size:16px;padding:12px 18px;min-height:48px";
 export function walk(ctx, opts) {
   const { el } = ctx.helpers, s = st(ctx), n = WALK.length;
   const card = el("div", { class: "card", "data-rough": "walk", style: "max-width:560px;margin:0 auto" });
-  const close = () => { Object.assign(s, { walk: null, made: null, msg: "" }); opts.onClose(); };
+  const close = () => { if (s.walk < n) tel(ctx, "walk_closed"); Object.assign(s, { walk: null, made: null, msg: "" }); opts.onClose(); };
+  if (s.linked) { s.linked = false; tel(ctx, "walk"); tel(ctx, "walk_link"); }       // opened by its address (panel.js)
+  if (s.walk > 0 && s.walk < n) once(ctx, "walk_" + (s.walk + 1));
   if (s.walk >= n) {                                      // the scan is in
     const made = s.made || {};
+    once(ctx, "walk_done");
     card.appendChild(el("div", { class: "h2", "data-rough": "walk-done", style: "font-size:20px" }, "Done: the plan is drawn"));
     card.appendChild(P(ctx, `PadSpan read ${made.walls || "the"} walls from the scan and drew this floor's plan to scale. Nothing needs measuring.`, "font-size:16px;line-height:1.6"));
     card.appendChild(P(ctx, "Next, the rooms are drawn on it and the receivers placed. That is easier on a computer or a tablet than on a phone.", "font-size:16px;line-height:1.6"));
     card.appendChild(row(ctx, [btn(ctx, "See the plan", () => { const id = made.id; close(); if (id) opts.onMade({ id }); }, { primary: true, attrs: { "data-rough": "walk-see", style: BIG } }),
-      btn(ctx, "Scan another floor", () => { Object.assign(s, { walk: 2, made: null, msg: "" }); redraw(ctx); }, { attrs: { "data-rough": "walk-again", style: BIG } })]));
+      btn(ctx, "Scan another floor", () => { tel(ctx, "walk_again"); _once.delete("walk_done"); Object.assign(s, { walk: 2, made: null, msg: "" }); redraw(ctx); }, { attrs: { "data-rough": "walk-again", style: BIG } })]));
     return card;
   }
   const [title, lines] = WALK[s.walk];

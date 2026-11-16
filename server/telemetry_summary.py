@@ -565,8 +565,12 @@ _SETUP_NEXT = tuple(f"setup_next:{s}" for s in ("rooms", "floors", "receivers", 
 # "Set this plan's scale now" after Mapping → Upload, and the quiet "No scale yet" line's Measure (telemetry.SCALE_NUDGE_EVENTS).
 _PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "bad_picture", "too_large", "failed", "sketch"))
                 + tuple(f"wizard_draw:{k}" for k in ("name", "no_room", "kept"))
-                + tuple(f"rough_plan:{k}" for k in ("opened", "have", "scan", "vacuum", "sketch", "blank", "walk", "sketch_upload",
-                                                    "scan_made", "scan_refused", "blank_made", "blank_refused")))
+                + tuple(f"rough_plan:{k}" for k in ("seen", "opened", "have", "scan", "vacuum", "sketch", "blank", "sketch_upload",
+                                                    "scan_made", "scan_refused", "blank_made", "blank_refused",
+                                                    "walk", "walk_link", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_closed", "walk_done", "walk_again",
+                                                    "scan_refused_size", "scan_refused_unreadable", "scan_refused_not_scan", "scan_refused_empty",
+                                                    "scan_usdz", "scan_json", "scan_walls_1_4", "scan_walls_5_12", "scan_walls_13_30", "scan_walls_gt30",
+                                                    "scan_named", "scan_phone")))
 _SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "not_to_scale", "per_axis", "measured_one", "measured_two", "later", "reminder_measure")
                      + tuple(f"via_{d}" for d in ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")))
 
@@ -619,7 +623,8 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     for k in _RECEIVERS_ROOMS:
         if use[k]:
             out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
-    out.append("  Mapping → Upload: a picture picked, and what came of Upload; drawing rooms in the Setup Wizard (events over the window; installs)")
+    out.append("  Mapping → Upload: a picture picked, and what came of Upload; drawing rooms in the Setup Wizard; the ways to a plan "
+               "(rough_plan: seen is the base; the walk-through's screens; why a scan was refused; what a read scan held) (events over the window; installs)")
     for k in _PLAN_UPLOAD:
         out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
     out.append("  Set this plan's scale now, after an upload (events over the window; installs)")
@@ -628,6 +633,40 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     out.append("  Next: from one setup step to the next (events over the window; installs)")
     for k in _SETUP_NEXT:
         out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
+    return out
+
+
+# Getting a map, and buying (2026-11-16, owner: "no maps means not purchasing"): env.plans of each install's latest
+# report (telemetry.plan_sources: where its plans came from, and how far the furthest of each kind has got), set
+# against its tier. An install that sends no env.plans has no plan, or runs a version from before it was sent.
+_PLAN_SOURCES = ("picture", "sketch", "blank", "scan")
+_PLAN_STAGES = ("unscaled", "scaled", "receivers", "rooms", "full")
+
+
+def plans_section(latest: dict[str, dict]) -> list[str]:
+    out = ["Getting a map, and buying (latest report per install; installs)"]
+    told = {iid: (r.get("env") or {}).get("plans") for iid, r in latest.items()}
+    told = {iid: p for iid, p in told.items() if isinstance(p, dict) and p}
+    out.append(f"  installs saying where their plans came from: {len(told)} of {len(latest)}")
+    if not told:
+        return out
+
+    def furthest(p: dict) -> str:
+        return _PLAN_STAGES[max((_PLAN_STAGES.index(p[s]) for s in _PLAN_SOURCES if p.get(s) in _PLAN_STAGES), default=0)]
+
+    out.append("  by where the plan came from: installs with one, and how far its furthest has got")
+    out.append(f"    {'source':<10}{'installs':>9}  " + "".join(f"{s:>11}" for s in _PLAN_STAGES))
+    for src in _PLAN_SOURCES:
+        c = Counter(p[src] for p in told.values() if p.get(src) in _PLAN_STAGES)
+        if c:
+            out.append(f"    {src:<10}{sum(c.values()):>9}  " + "".join(f"{c[s]:>11}" for s in _PLAN_STAGES))
+    out.append("  tier by how far the house's furthest plan has got (no plan told: its own row)")
+    tiers = sorted({str(r.get("tier") or "?") for r in latest.values()})
+    out.append(f"    {'furthest plan':<14}" + "".join(f"{t:>12}" for t in tiers))
+    rows = Counter((furthest(told[iid]) if iid in told else "none told", str(r.get("tier") or "?")) for iid, r in latest.items())
+    for st in ("none told", *_PLAN_STAGES):
+        if any(rows[(st, t)] for t in tiers):
+            out.append(f"    {st:<14}" + "".join(f"{rows[(st, t)]:>12}" for t in tiers))
     return out
 
 
@@ -649,6 +688,9 @@ def main() -> int:
         print(line)
     print()
     for line in mapping_section(rows, reports):
+        print(line)
+    print()
+    for line in plans_section(latest):
         print(line)
     print()
 

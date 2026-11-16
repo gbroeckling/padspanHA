@@ -1088,7 +1088,15 @@ function word(kind, k) {
       if (a === "rough_plan") return `No floor plan: ${{ opened: "the ways to get one opened", have: "\"a drawing you already have\" opened", scan: "the LiDAR room scan opened",
         vacuum: "the robot vacuum's map opened", sketch: "\"draw it yourself\" opened", blank: "the blank floor opened", walk: "the phone's walk-through started",
         sketch_upload: "\"I have my sketch\" pressed", scan_made: "a plan drawn from a room scan", scan_refused: "a scan file refused",
-        blank_made: "a blank floor made", blank_refused: "a blank floor's size refused" }[b] || b}`;
+        blank_made: "a blank floor made", blank_refused: "a blank floor's size refused",
+        seen: "the button shown on an upload screen", walk_link: "the walk-through opened from its address", walk_2: "the walk-through's 2nd screen (the app)",
+        walk_3: "the walk-through's 3rd screen (the house ready)", walk_4: "the walk-through's 4th screen (scanning)", walk_5: "the walk-through's 5th screen (saving the file)",
+        walk_6: "the walk-through's last screen (the file asked for)", walk_closed: "the walk-through closed before the end", walk_done: "the walk-through finished: a plan drawn",
+        walk_again: "the walk-through gone round again for another floor", scan_refused_size: "a scan refused: too large", scan_refused_unreadable: "a scan refused: the file wouldn't open",
+        scan_refused_not_scan: "a scan refused: it opened, but held no room scan", scan_refused_empty: "a scan refused: no walls to draw",
+        scan_usdz: "a scan read from a USDZ", scan_json: "a scan read from RoomPlan JSON", scan_walls_1_4: "a scan of 1 to 4 walls (one room)", scan_walls_5_12: "a scan of 5 to 12 walls",
+        scan_walls_13_30: "a scan of 13 to 30 walls (a floor)", scan_walls_gt30: "a scan of over 30 walls", scan_named: "a scan whose rooms the phone had named",
+        scan_phone: "a scan given from a phone or tablet" }[b] || b}`;
       if (a === "wizard_draw") return `Drawing rooms: ${{ name: "a room's name pressed above the plan (Setup Wizard)", no_room: "the plan clicked with no room chosen",
         kept: "rooms or receivers saved by the Setup Wizard without Save Layout" }[b] || b}`;
       if (a === "plan_upload") return `Mapping → Upload: ${{ sketch: "uploaded as their own sketch, not to scale", picked: "a picture picked", no_file: "Upload pressed with no picture", ok: "uploaded", bad_picture: "the picture couldn't be read",

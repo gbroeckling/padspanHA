@@ -174,13 +174,19 @@ def test_the_counters_are_allowed_summed_and_labelled():
     # Mapping → Upload's own words (2026-11-15): the panel sends exactly the allowed ones, summed and labelled.
     up = {f"plan_upload:{k}" for k in T.PLAN_UPLOAD_WORDS}
     dr = {f"wizard_draw:{k}" for k in T.WIZARD_DRAW_WORDS}
-    rg = {f"rough_plan:{k}" for k in T.ROUGH_PLAN_WORDS}
+    rg = {f"rough_plan:{k}" for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN}
     assert T.PLAN_UPLOAD_EVENTS == up and T.WIZARD_DRAW_EVENTS == dr and T.ROUGH_PLAN_EVENTS == rg
     assert set(S._PLAN_UPLOAD) == up | dr | rg and all(T.event_allowed(e) for e in up | dr | rg)
     rj = (_WWW / "views" / "rough_plan.js").read_text(encoding="utf-8")
     sent_rg = set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', rj)) | set(re.findall(r'KINDS = Object\.freeze\(\[([^\]]*)\]', rj)[0].replace('"', "").replace(" ", "").split(","))
-    assert sent_rg == set(T.ROUGH_PLAN_WORDS), sent_rg
-    assert all(f"{k}:" in ib for k in T.ROUGH_PLAN_WORDS) and 'a === "rough_plan"' in ib
+    # Words the panel builds: the walk-through's screens ("walk_" + n), a refusal's reason, a scan's kind and walls band.
+    assert 'once(ctx, "walk_" + (s.walk + 1))' in rj and 'tel(ctx, "scan_refused_" + (REFUSED[r && r.code] || "unreadable"))' in rj and 'tel(ctx, "scan_walls_" + wallsBand(' in rj
+    built = ({f"walk_{n}" for n in range(2, 7)} | {f"scan_refused_{v}" for v in re.findall(r'(?:too_large|unreadable|not_scan|empty): "([a-z_]+)"', rj)}
+             | {f"scan_walls_{b}" for b in re.findall(r'"(1_4|5_12|13_30|gt30)"', rj)} | {"scan_json", "scan_usdz"})
+    sent_rg |= set(re.findall(r'once\(ctx, "([a-z_]+)"\)', rj)) | built
+    sent_rg.discard("scan_refused_size") or sent_rg.add("scan_refused_size")
+    assert sent_rg == {e.split(":", 1)[1] for e in rg}, sorted(sent_rg ^ {e.split(":", 1)[1] for e in rg})
+    assert all(f"{k}:" in ib for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN) and 'a === "rough_plan"' in ib
     mj = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     part = mj[mj.index("const _upTel"):mj.index('"Upload & Convert"')]
     sent_up = set(re.findall(r'_upTel\("([a-z_]+)"\)', part)) | set(re.findall(r'"(too_large|bad_picture|failed)"', part))
@@ -270,3 +276,34 @@ def test_a_room_scan_becomes_a_plan_to_scale_with_nothing_to_measure(monkeypatch
     t = mdl.map_transform(m["id"])
     assert (t["scale_x_m"], t["scale_y_m"]) == (5.0, 4.0) and t["reference_measurements"][0]["source"] == "scan"
     assert (tmp_path / m["image"]["filename"]).read_bytes()[:4] == bytes([0x89, 0x50, 0x4E, 0x47])
+
+
+def test_the_report_says_where_plans_came_from_and_how_far_each_kind_got():
+    """Owner, 2026-11-16: "no maps means not purchasing": env.plans, words only, and the summary sets it against the tier."""
+    P = lambda mid, kind=None, rooms=False, rx=False, floor="main": {"id": mid, "floor_id": floor, **({"kind": kind} if kind else {}),  # noqa: E731
+                                                                      "room_bounds": {"A": {}} if rooms else {}, "receivers": [{"id": "r"}] if rx else []}
+    sc = {"scale_x_m": 10.0, "scale_y_m": 8.0}
+    maps = [P("a"), P("b", rooms=True), P("c", "scan", rooms=True, rx=True), P("d", "sketch"), P("e", "blank", rx=True), P("o", floor="__outside__", rooms=True),
+            P("f"), P("g"), P("h")]
+    tf = {"b": sc, "c": sc, "e": sc, "o": sc, "d": {"scale_x_m": 0}}
+    got = T.plan_sources(maps, tf)
+    assert got == {"picture": "rooms", "picture_n": "4_plus", "scan": "full", "scan_n": "1", "sketch": "unscaled", "sketch_n": "1", "blank": "receivers", "blank_n": "1"}
+    assert T.plan_sources([], {}) == {} and T.plan_sources(None, None) == {} and T.plan_sources([P("o", floor="__outside__")], {}) == {}
+    assert T.plan_sources([P("x", "something else")], {"x": sc}) == {"picture": "scaled", "picture_n": "1"}
+    base = {"install_id": "", "env": {"plans": got}}
+    T.assert_shareable(base)
+    for bad in ({"picture": "nearly"}, {"house": "full"}, {"picture_n": "9"}, {}, {"picture": "full", "picture_n": 3}):
+        with pytest.raises(ValueError, match="env.plans"):
+            T.assert_shareable({"install_id": "", "env": {"plans": bad}})
+    spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
+    S = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(S)
+    assert tuple(S._PLAN_SOURCES) == T.PLAN_SOURCES and tuple(S._PLAN_STAGES) == T.PLAN_STAGES
+    latest = {"i1": {"tier": "free", "env": {"plans": {"picture": "unscaled", "picture_n": "1"}}}, "i2": {"tier": "pro", "env": {"plans": got}},
+              "i3": {"tier": "free", "env": {}}, "i4": {"tier": "trial", "env": {"plans": {"scan": "rooms", "scan_n": "1"}}}}
+    text = "\n".join(S.plans_section(latest))
+    assert "installs saying where their plans came from: 3 of 4" in text
+    rows = {ln.split()[0]: ln.split()[1:] for ln in text.splitlines() if ln.strip().split()[:1] and ln.strip().split()[0] in ("picture", "scan", "sketch", "blank")}
+    assert rows["picture"] == ["2", "1", "0", "0", "1", "0"] and rows["scan"] == ["2", "0", "0", "0", "1", "1"]
+    tiers = [ln for ln in text.splitlines() if ln.strip().startswith(("none told", "unscaled", "rooms", "full"))]
+    assert any(ln.split() == ["none", "told", "1", "0", "0"] for ln in tiers) and any(ln.split() == ["full", "0", "1", "0"] for ln in tiers), tiers

@@ -928,14 +928,16 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
         return no("too_large", SCAN_WORDS["too_large"])
 
     def read() -> tuple[dict, dict | None, tuple | None]:
-        parsed = RP.parse_roomplan(base64.b64decode(msg["file_base64"]))
+        raw = base64.b64decode(msg["file_base64"])
+        parsed = RP.parse_roomplan(raw)
+        parsed["file"] = "usdz" if raw[:2] == b"PK" else "json"
         frame = RP.plan_frame(parsed) if parsed.get("walls") else None
         return parsed, frame, scan_plan_png(frame) if frame else None
 
     try:
         parsed, frame, pic = await hass.async_add_executor_job(read)
     except RP.RoomPlanParseError as err:
-        return no("unreadable", str(err))
+        return no(err.code, str(err))
     except ValueError:
         return no("unreadable", "This file could not be read.")
     if not frame or not pic:
@@ -953,4 +955,5 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     await async_write_measured_transform(hass, info["id"], {"scale_x_m": round(across, 4), "scale_y_m": round(down, 4),
                                                            "reference_measurements": [ref], "floor_id": floor_id})
     connection.send_result(msg["id"], {"ok": True, "map": info, "rooms": len(frame["rooms"]), "walls": len(frame["walls"]),
-                                       "heights_m": info["scan"]["heights_m"], "warnings": parsed.get("warnings") or []})
+                                       "heights_m": info["scan"]["heights_m"], "warnings": parsed.get("warnings") or [],
+                                       "file": parsed["file"], "named": any(r.get("name") for r in frame["rooms"])})
