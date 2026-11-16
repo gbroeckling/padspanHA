@@ -29,7 +29,8 @@ export const SCAN_MAX_BYTES = 11_000_000;      // the server's cap is on the bas
 
 const TITLES = {
   have: ["Look for a drawing you already have", "The quickest, and the most exact."],
-  scan: ["Scan the rooms with an iPhone or iPad", "For a Pro model with LiDAR. Exact, and nothing to measure."],
+  // The scan gives the floor's walls, not its rooms (owner, 2026-11-16: in an open house a room is a matter of opinion).
+  scan: ["Scan the floor with an iPhone or iPad", "For a Pro model with LiDAR. Exact walls, and nothing to measure. You still say where each room is."],
   vacuum: ["Use your robot vacuum's map", "If the robot has already mapped the floor."],
   sketch: ["Draw it yourself and photograph it", "Rough is fine: rooms are told apart by calibration, not by the drawing."],
   blank: ["Start from a blank floor", "No picture at all: type the floor's size and draw the rooms on a grid."],
