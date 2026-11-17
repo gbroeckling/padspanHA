@@ -184,6 +184,35 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.254</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">16 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>A scanned plan shows the furniture, faintly.</b> Tables, sofas, beds and the rest are drawn as light outlines where the phone found them, so the plan is recognisable at a glance. Walls stay the darkest thing on it.</li>
+          <li><b>An L-shaped or stepped room keeps its true outline from a USDZ.</b> It was read as its bounding rectangle.</li>
+          <li><b>The scan's wall heights are kept from either file</b>, USDZ or JSON. Several heights in one room mean a sloped or stepped ceiling.</li>
+          <li><b>A file that isn't a room scan is refused in plain words</b>, saying what to share from the scanning app in its place: another tool's own JSON, or a 3D mesh scan with no walls in it.</li>
+          <li><b>Live Aboard's import takes a RoomPlan USDZ as well as its JSON</b>, while RoomPlan Import is on in Settings.</li>
+          <li><b>"Scan the floor with an iPhone or iPad"</b> in the ways to a plan: a scan gives the floor's walls, and you still say where each room is.</li>
+          <li><b>A scan file is at most 2.8 MB, and a larger one is refused in plain words.</b> Home Assistant drops anything bigger on the way in, so the earlier limit could never be reached: a 5 MB file just said "That didn't work". A whole floor's scan is usually under 2 MB.</li>
+          <li><b>The phone guide's link says why when it can't run.</b> Opened by someone who isn't an administrator, or on the demo house, it showed plain Mapping and nothing else. It now says what is needed, with a Close button, and waits for the house to load in place of giving up.</li>
+          <li><b>A damaged or oversized scan file can't tie Home Assistant up.</b> No more than a scan can hold is ever unpacked, whatever the file claims, and reading it stays quick however the file is made.</li>
+          <li><b>A scanned plan's furniture guide is dropped when its picture is trimmed, turned or extended</b>, in place of being drawn in the wrong spots.</li>
+          <li><b>"Furniture from scans" in the ⋯ list</b>, on the 3D house and the flat Map, off unless a screen ticks it. Where a floor plan came from a phone's room scan, the furniture the phone saw is drawn where it stood: faint footprints on the flat Map, pieces in 3D. A guide only, never part of your 3D house, and it moves with its plan.</li>
+          <li><b>Furnish: "Size to the scan".</b> Select a piece that stands where the scan found one, and one press gives it the scan's measured width, depth and height. It is not moved or turned.</li>
+          <li><b>Furnish: "Place the scan's guess".</b> Under it, one press puts the rest of that room's scanned furniture in as real pieces to drag and change, skipping anything a piece already stands on. One Undo takes them all back.</li>
+          <li>Counts of the two Furnish buttons used, and the ⋯ list's new line ticked or unticked, as every other line is.</li>
+          <li><b>Where each house's plans came from, and how far each kind has got.</b> A count and a word per kind (a picture, a sketch, a blank floor, a room scan): no scale yet, a scale, rooms drawn, receivers placed, or both. So it can be seen whether a scanned plan goes on to get its rooms, and whether a sketch gets stuck at its scale.</li>
+          <li><b>The ways to a plan, step by step.</b> The "No floor plan?" button shown (what every other count is a share of); the phone's walk-through opened from its address, each of its screens reached, closed early or finished; why a scan was refused (too large, wouldn't open, opened but held no room scan, nothing to draw); and of a scan that was read: USDZ or JSON, how many walls as a band, whether the phone had named its rooms, and whether it was given from a phone.</li>
+          <li><b>Set against the tier in the nightly summary:</b> how far a house's furthest plan has got, by free, trial and paid.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.253</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">16 November 2026</span>

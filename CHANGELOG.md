@@ -4,6 +4,36 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.254 — Furniture from a phone's room scan; How getting a floor plan goes, in the usage report; Room scans, tuned against real files; Scan upload, checked before release (2026-11-16)
+
+### Changed
+- **A scanned plan shows the furniture, faintly.** Tables, sofas, beds and the rest are drawn as light outlines where the phone found them, so the plan is recognisable at a glance. Walls stay the darkest thing on it.
+- **An L-shaped or stepped room keeps its true outline from a USDZ.** It was read as its bounding rectangle.
+- **The scan's wall heights are kept from either file**, USDZ or JSON. Several heights in one room mean a sloped or stepped ceiling.
+- **A file that isn't a room scan is refused in plain words**, saying what to share from the scanning app in its place: another tool's own JSON, or a 3D mesh scan with no walls in it.
+- **Live Aboard's import takes a RoomPlan USDZ as well as its JSON**, while RoomPlan Import is on in Settings.
+- **"Scan the floor with an iPhone or iPad"** in the ways to a plan: a scan gives the floor's walls, and you still say where each room is.
+
+### Fixed
+- **A scan file is at most 2.8 MB, and a larger one is refused in plain words.** Home Assistant drops anything bigger on the way in, so the earlier limit could never be reached: a 5 MB file just said "That didn't work". A whole floor's scan is usually under 2 MB.
+- **The phone guide's link says why when it can't run.** Opened by someone who isn't an administrator, or on the demo house, it showed plain Mapping and nothing else. It now says what is needed, with a Close button, and waits for the house to load in place of giving up.
+- **A damaged or oversized scan file can't tie Home Assistant up.** No more than a scan can hold is ever unpacked, whatever the file claims, and reading it stays quick however the file is made.
+- **A scanned plan's furniture guide is dropped when its picture is trimmed, turned or extended**, in place of being drawn in the wrong spots.
+
+### Added
+- **"Furniture from scans" in the ⋯ list**, on the 3D house and the flat Map, off unless a screen ticks it. Where a floor plan came from a phone's room scan, the furniture the phone saw is drawn where it stood: faint footprints on the flat Map, pieces in 3D. A guide only, never part of your 3D house, and it moves with its plan.
+- **Furnish: "Size to the scan".** Select a piece that stands where the scan found one, and one press gives it the scan's measured width, depth and height. It is not moved or turned.
+- **Furnish: "Place the scan's guess".** Under it, one press puts the rest of that room's scanned furniture in as real pieces to drag and change, skipping anything a piece already stands on. One Undo takes them all back.
+
+### Usage report (opt-in)
+- Counts of the two Furnish buttons used, and the ⋯ list's new line ticked or unticked, as every other line is.
+- **Where each house's plans came from, and how far each kind has got.** A count and a word per kind (a picture, a sketch, a blank floor, a room scan): no scale yet, a scale, rooms drawn, receivers placed, or both. So it can be seen whether a scanned plan goes on to get its rooms, and whether a sketch gets stuck at its scale.
+- **The ways to a plan, step by step.** The "No floor plan?" button shown (what every other count is a share of); the phone's walk-through opened from its address, each of its screens reached, closed early or finished; why a scan was refused (too large, wouldn't open, opened but held no room scan, nothing to draw); and of a scan that was read: USDZ or JSON, how many walls as a band, whether the phone had named its rooms, and whether it was given from a phone.
+- **Set against the tier in the nightly summary:** how far a house's furthest plan has got, by free, trial and paid.
+As ever: words and bands only. Never a file, a name, a size, a picture or a place.
+
+---
+
 ## 0.38.253 — The ways to a floor plan, tidied (2026-11-16)
 
 ### Changed
