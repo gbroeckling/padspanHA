@@ -755,4 +755,20 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   }
 }
 
+// ── Rooms on a scanned plan (rough_plan.scanCorner / scanRoomAt, 2026-11-16): a corner lands on a scanned wall end; a
+// scanned outline can be taken whole; nothing of it on a plan that is no scan ──
+{
+  const SC = { kind: "scan", image: { width: 1000, height: 500 }, scan: { rooms: [
+    { name: null, points: [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]] }, { name: "Closet", points: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.4], [0.1, 0.4]] }] } };
+  check("scan rooms: a click near a scanned corner lands on it, by the picture's own shape; one further off stays where it was",
+    JSON.stringify(RP.scanCorner(SC, 0.905, 0.11)) === "[0.9,0.1]" && RP.scanCorner(SC, 0.9, 0.13) && RP.scanCorner(SC, 0.9, 0.15) === null && RP.scanCorner(SC, 0.5, 0.5) === null,
+    [RP.scanCorner(SC, 0.905, 0.11), RP.scanCorner(SC, 0.9, 0.13), RP.scanCorner(SC, 0.9, 0.15)]);
+  const inner = RP.scanRoomAt(SC, 0.2, 0.2), outer = RP.scanRoomAt(SC, 0.6, 0.6);
+  check("scan rooms: the outline clicked in is given, the smaller where two overlap, none outside them all",
+    inner && inner.length === 4 && inner[2][0] === 0.3 && outer && outer[1][0] === 0.9 && RP.scanRoomAt(SC, 0.95, 0.95) === null && inner !== SC.scan.rooms[1].points, [inner, outer]);
+  check("scan rooms: a plan that is no scan, or a scan with its outlines gone, offers neither",
+    !RP.hasScanRooms({ kind: "sketch", scan: SC.scan }) && !RP.hasScanRooms({ kind: "scan" }) && RP.hasScanRooms(SC)
+    && RP.scanCorner({ kind: "sketch", scan: SC.scan }, 0.9, 0.1) === null && RP.scanRoomAt({ kind: "scan" }, 0.5, 0.5) === null);
+}
+
 console.log(JSON.stringify({ cases, failures }));

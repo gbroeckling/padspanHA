@@ -3575,6 +3575,18 @@ function _edit(ctx, map, allMaps, opts){
       right.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"},[
         startBtn, undoPt, finishBtn, clearBtn, _toolOk("barriers") ? encloseBtn : null,
       ]));
+      // A scanned plan: corners land on the scanned wall ends, and (the lesser option) a scanned room's own outline
+      // can be taken for the room chosen. A drawn room comes first; this only saves the clicks.
+      if(ROUGH && ROUGH.hasScanRooms(map)){
+        const picking = !!ctx.state.maps._scanPick && !!ctx.state.maps._selectedRoom && !ctx.state.maps._drawing;
+        if(!picking) ctx.state.maps._scanPick = false;
+        right.appendChild(el("div",{"data-scan-rooms":"line", style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:12px;color:#94a3b8"},[
+          el("span",{}, picking ? `Click inside the scanned room that is ${ctx.state.maps._selectedRoom}.` : "Corners you click near a scanned wall end land on it."),
+          ctx.state.maps._selectedRoom && !ctx.state.maps._drawing ? el("button",{class:"btn inline", "data-scan-rooms":"use", style:"font-size:11px;padding:2px 10px", onclick:()=>{
+            ctx.state.maps._scanPick = !picking; renderTools();
+          }}, picking ? "Cancel" : "Use a scanned outline instead") : null,
+        ]));
+      }
 
       const r = ctx.state.maps._selectedRoom;
       if(r){
@@ -3971,6 +3983,18 @@ function _edit(ctx, map, allMaps, opts){
     if(ctx.state.maps._mode!=="rooms" && ctx.state.maps._mode!=="barriers") return;
     // ignore marker clicks (they stopPropagation already, but defensive)
     if(ev.target && ev.target.classList && ev.target.classList.contains("marker")) return;
+    if(ctx.state.maps._mode==="rooms" && ctx.state.maps._scanPick && !ctx.state.maps._drawing && ctx.state.maps._selectedRoom){
+      // "Use a scanned outline": the scanned room clicked in becomes the chosen room's outline, to keep or redraw.
+      const rect = overlay.getBoundingClientRect();
+      const pts = ROUGH && ROUGH.scanRoomAt(map, (ev.clientX - rect.left) / rect.width, (ev.clientY - rect.top) / rect.height);
+      if(!pts){ ctx.toast("Click inside one of the scanned rooms.", true); return; }
+      ctx.state.maps._scanPick = false;
+      ctx.state.maps._draftRoomBounds[ctx.state.maps._selectedRoom] = { type:"poly", points: pts.map(p=>[clamp01(p[0]), clamp01(p[1])]) };
+      ROUGH.scanCounted(ctx, "scan_room_used");
+      renderAll(); refreshList(); renderTools();
+      _wizKeep(ctx);
+      return;
+    }
     if(ctx.state.maps._mode==="rooms"){
       if(!ctx.state.maps._drawing){
         if(!ctx.state.maps._selectedRoom){
@@ -3989,7 +4013,10 @@ function _edit(ctx, map, allMaps, opts){
     const rect = overlay.getBoundingClientRect();
     const x = (ev.clientX - rect.left) / rect.width;
     const y = (ev.clientY - rect.top) / rect.height;
-    ctx.state.maps._drawing.points.push([clamp01(x), clamp01(y)]);
+    // On a scanned plan a room's corner clicked close to a scanned wall end lands on it (rough_plan.scanCorner).
+    const onScan = ctx.state.maps._mode==="rooms" && ROUGH ? ROUGH.scanCorner(map, x, y) : null;
+    if(onScan) ROUGH.scanCounted(ctx, "scan_snap");
+    ctx.state.maps._drawing.points.push(onScan || [clamp01(x), clamp01(y)]);
     renderAll(); renderTools();
   });
 
@@ -7332,8 +7359,17 @@ function _stack(ctx, maps, helpBtn){
       panelsRow.appendChild(previewPanel);
     };
 
+    // What to click, said once under the toolbar: between two floors, only what runs through both is the same point.
+    const guide = document.createElement("div");
+    guide.setAttribute("data-point-align", "guide");
+    guide.style.cssText = "padding:6px 16px;background:#071210;border-bottom:1px solid #12301f;font-size:12px;color:#94a3b8;line-height:1.5;flex-shrink:0";
+    guide.textContent = (refMap.floor_id || "") !== (tgtMap.floor_id || "")
+      ? "These plans are of different floors. Click what runs through both: the corners of the stairwell, an elevator or chimney, a plumbing wall, the outside corners of the house. Three or more, spread well apart, fit best; furniture and inside doors don't line up between floors."
+      : "Click the same real spot on each plan: wall corners and door frames. Three or more, spread well apart, fit best.";
+
     // Assemble modal and render
     overlay.appendChild(toolbar);
+    overlay.appendChild(guide);
     overlay.appendChild(panelsRow);
     _rebuild();
 

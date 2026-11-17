@@ -192,6 +192,10 @@ def test_the_counters_are_allowed_summed_and_labelled():
     sent_rg.discard("scan_refused_size") or sent_rg.add("scan_refused_size")
     assert 'tel(ctx, r.placed.fit ? (r.placed.fits_both_ways ? "scan_placed_both" : "scan_placed") : "scan_unplaced");' in rj
     sent_rg |= {"scan_placed_both", "scan_placed", "scan_unplaced"}
+    # Rooms on a scanned plan are drawn in the plan editor, which counts them through rough_plan.scanCounted.
+    mj0 = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    assert "export const scanCounted" in rj and all(f'ROUGH.scanCounted(ctx, "{w}")' in mj0 for w in ("scan_snap", "scan_room_used"))
+    sent_rg |= {"scan_snap", "scan_room_used"}
     assert sent_rg == {e.split(":", 1)[1] for e in rg}, sorted(sent_rg ^ {e.split(":", 1)[1] for e in rg})
     assert all(f"{k}:" in ib for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN) and 'a === "rough_plan"' in ib
     mj = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")

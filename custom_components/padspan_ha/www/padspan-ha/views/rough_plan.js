@@ -75,6 +75,32 @@ export function _resetCounts() { _once.clear(); }      // a test's new page
 const REFUSED = { too_large: "size", unreadable: "unreadable", not_scan: "not_scan", empty: "empty" };
 const wallsBand = (n) => (n <= 4 ? "1_4" : n <= 12 ? "5_12" : n <= 30 ? "13_30" : "gt30");
 const onPhone = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+// Rooms on a scanned plan (owner, 2026-11-16: a drawn room is the person's decision and comes first; the scan's own
+// outline is an option beside it). A corner clicked close to a scanned wall end lands on it, and a scanned room's
+// outline can be taken whole for the room chosen. Both read the plan's own `scan.rooms` (fractions of the picture).
+export const SNAP_FRAC = 0.02;    // how close, as a share of the picture's width, a click must be to a scanned corner
+const scanRooms = (map) => (map && map.kind === "scan" && map.scan && Array.isArray(map.scan.rooms) ? map.scan.rooms : []).filter(r => Array.isArray(r.points) && r.points.length >= 3);
+export const hasScanRooms = (map) => scanRooms(map).length > 0;
+/** The scanned corner nearest [x, y] (fractions) within SNAP_FRAC, or null. */
+export function scanCorner(map, x, y) {
+  const ar = map && map.image && map.image.width > 0 && map.image.height > 0 ? map.image.height / map.image.width : 1;
+  let best = null, bd = SNAP_FRAC;
+  for (const r of scanRooms(map)) for (const p of r.points) {
+    const d = Math.hypot(p[0] - x, (p[1] - y) * ar);
+    if (d < bd) { bd = d; best = [p[0], p[1]]; }
+  }
+  return best;
+}
+/** The outline of the scanned room [x, y] is inside (the smallest, where they overlap), or null. */
+export function scanRoomAt(map, x, y) {
+  const inside = (pts) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i], b = pts[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const area = (pts) => Math.abs(pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0));
+  const hit = scanRooms(map).filter(r => inside(r.points)).sort((a, b) => area(a.points) - area(b.points))[0];
+  return hit ? hit.points.map(p => [p[0], p[1]]) : null;
+}
+/** Counted: a corner landed on a scanned wall end (once a page), a scanned outline taken for a room. */
+export const scanCounted = (ctx, w) => (w === "scan_snap" ? once(ctx, w) : tel(ctx, w));
 export const SIZE_OFF = 0.1;      // a drawn room this far from the scan's measured size (either way) is said to be off
 /** How far a drawn room's size is from the scan's, as a share (the two compared long side to long side). */
 const sizeOff = (p) => { const a = [...(p.size_scan_m || [])].sort((x, y) => x - y), b = [...(p.size_room_m || [])].sort((x, y) => x - y);

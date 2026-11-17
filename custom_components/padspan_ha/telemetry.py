@@ -1006,7 +1006,7 @@ ROUGH_PLAN_WORDS: tuple[str, ...] = ("opened", "have", "scan", "vacuum", "sketch
 ROUGH_PLAN_WALK: tuple[str, ...] = ("seen", "walk_link", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_closed", "walk_done", "walk_again")
 ROUGH_PLAN_SCAN: tuple[str, ...] = ("scan_refused_size", "scan_refused_unreadable", "scan_refused_not_scan", "scan_refused_empty",
                                     "scan_usdz", "scan_json", "scan_walls_1_4", "scan_walls_5_12", "scan_walls_13_30", "scan_walls_gt30",
-                                    "scan_named", "scan_phone",
+                                    "scan_named", "scan_phone", "scan_snap", "scan_room_used",
                                     # Autoplace: put on the room it fits (its outline fitting both ways round or one), or
                                     # not placed; and a drawn room over a tenth off the scan's measured size.
                                     "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs")
