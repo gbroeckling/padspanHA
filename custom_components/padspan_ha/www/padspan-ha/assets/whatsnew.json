@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.257",
+  "title": "Suggest a fit answers",
+  "date": "2026-11-17",
+  "body_markdown": "### Fixed\n- **\"Suggest a fit\" in Mapping → 3D Stack always said there was no fit** (0.38.256). It now works; expect it within about half a metre, to finish with the nudge buttons or Point Align."
+ },
+ {
   "version": "0.38.256",
   "title": "Carry-along covers walls, beacons and sub-zones; Align can suggest a fit",
   "date": "2026-11-16",
@@ -76,11 +82,5 @@
   "title": "Rooms as light switches",
   "date": "2026-11-14",
   "body_markdown": "### New\n- **Rooms as light switches, in the 3D look (⋯ → Lights, off unless you tick it).** At night the 3D look is as dark as the house, so a light that is off is a dark dot nobody can find or hit. With this ticked, a room's floor is the switch for its lights: tap it and they go on together, or all off if any is on (the message has Undo). Hold for the room's list, where each light has its own switch. Hold, then drag up or down, to dim the room. And a touch lights the house up as by day for 20 seconds, so everything can be seen; on a dark house the first touch only does that. Sensors, locks and doors keep their own taps. On the Atlas tab and its wall screens, per screen."
- },
- {
-  "version": "0.38.243",
-  "title": "String lights you can see",
-  "date": "2026-11-14",
-  "body_markdown": "### Changed\n- **String lights are easier to see in the 3D look.** A string of lights (Christmas lights along a roof edge, bulbs over a deck) was drawn to scale: bulbs 5 cm across on a thin dark wire, which is a couple of pixels when the whole house is on screen. The bulbs are now 14 cm across and the wire is thicker and lighter, so the string shows from across the house, lit or not."
  }
 ]

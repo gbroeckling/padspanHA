@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.257 — Suggest a fit answers (2026-11-17)
+
+### Fixed
+- **"Suggest a fit" in Mapping → 3D Stack always said there was no fit** (0.38.256). It now works; expect it within about half a metre, to finish with the nudge buttons or Point Align.
+
+---
+
 ## 0.38.256 — Carry-along covers walls, beacons and sub-zones; Align can suggest a fit (2026-11-16)
 
 ### Changed
