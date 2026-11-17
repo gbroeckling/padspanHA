@@ -922,6 +922,7 @@ async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
     t = mdl.map_transform(msg["map_id"]) if (mdl is not None and m) else None
     fit = None
     try:
+        from . import roomplan_import as RP  # noqa: PLC0415
         if m and ref and t and float(t.get("scale_x_m") or 0) > 0 and float(t.get("scale_y_m") or 0) > 0:
             floor = str(ref.get("floor_id") or DEFAULT_FLOOR_ID)
             sx, sy = float(t["scale_x_m"]), float(t["scale_y_m"])

@@ -230,3 +230,20 @@ def test_the_commands_are_an_administrators_and_registered():
     assert "from .plan_carry import WS_COMMANDS as _plan_carry_commands" in src
     assert C.WS_COMMANDS == (C.ws_plan_carry_list, C.ws_plan_carry_apply, C.ws_plan_carry_dismiss)
     assert DOMAIN and C.KINDS == ("rooms", "receivers", "points", "devices", "walls", "beacons", "zones")
+
+
+def test_suggest_a_fit_answers_through_its_command(monkeypatch, tmp_path, disk):  # noqa: F811
+    """0.38.256 shipped this command answering "no fit" always (a name it never imported, swallowed): held end to end."""
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    fab = h.data[DOMAIN][DATA_FABRIC]
+    # The floor below: three rooms filling 9 x 7 m, the outside walls the plan's rooms share. The plan "n1" (10 x 8 m of picture) is of the floor above them.
+    for name, pts in (("A", [[0, 0], [5, 0], [5, 3], [0, 3]]), ("B", [[5, 0], [9, 0], [9, 3], [5, 3]]), ("Cc", [[0, 3], [9, 3], [9, 7], [0, 7]])):
+        _run(fab.async_correct_room("below", name, {"type": "poly", "points_m": pts}))
+    ms.data["maps"].append({"id": "ref", "name": "Below", "floor_id": "below", "image": {"width": 100, "height": 100}, "room_bounds": {}, "receivers": []})
+    m = ms.get_map("n1")
+    f = lambda pts: {"type": "poly", "points": [[x / 10, y / 8] for x, y in pts]}  # noqa: E731
+    m["room_bounds"] = {"X": f([[0.5, 0.5], [4, 0.5], [4, 7.5], [0.5, 7.5]]), "Y": f([[4, 0.5], [9.5, 0.5], [9.5, 4], [4, 4]]), "Z": f([[4, 4], [9.5, 4], [9.5, 7.5], [4, 7.5]])}
+    out = _call(WM.ws_maps_fit_suggest, h, conn, map_id="n1", ref_map_id="ref")
+    assert out["fit"] and set(out["fit"]) == {"origin_x_m", "origin_y_m", "rotation_rad", "score"}, out
+    assert abs(out["fit"]["origin_x_m"] + 0.5) <= 0.3 and abs(out["fit"]["origin_y_m"] + 0.5) <= 0.3 and out["fit"]["rotation_rad"] == 0, out
+    assert _call(WM.ws_maps_fit_suggest, h, conn, map_id="n1", ref_map_id="nope") == {"fit": None}
