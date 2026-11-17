@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.258",
+  "title": "People and cars drawn again in Live Aboard",
+  "date": "2026-11-17",
+  "body_markdown": "### Changed\n- **Cars look like cars.** A car in the 3D house was a slab with a box on top. It now has a real side view with wheel arches cut into it, glass that leans in under a roof, and satin paint in place of shiny plastic. There are two characters:\n  - **Sedan and Hatch: a low coupe.** A low nose with round lamps, one sweep of roof down to the tail, five-spoke wheels and a red light bar across the back.\n  - **SUV and Pickup: a boxy 4x4.** A flat hood, round lamps at the ends of a dark grille with a bar of light between them, flared arches over big tyres, and a dark top. The SUV carries a spare on the back; the pickup has its bed.\n- **People are tokens.** A person was a box with stick arms and legs. A person is now one smooth body in two colours (the top over the bottom) under a head: no arms or legs. Height, build, hair, glasses, cap and colours all still apply, and a child still has a bigger head for its height.\n- Nothing needs setting up again. Each car keeps its size, colours, body style and charge-port light, and each person keeps their figure's settings."
+ },
+ {
   "version": "0.38.257",
   "title": "Suggest a fit answers",
   "date": "2026-11-17",
@@ -76,11 +82,5 @@
   "title": "Power teams: smart bulbs on a wall dimmer, as one light that follows the day",
   "date": "2026-11-14",
   "body_markdown": "### New\n- **Power teams (Settings → Atlas → Power teams).** For smart colour bulbs in sockets fed by a wall dimmer or switch (Zigbee bulbs on a Control4 dimmer, say). A team makes them one light in Home Assistant, named as you name it. Turning it on puts the power on at full, sends the bulbs their brightness and colour again and again while they start up, and says which bulb never answered. Turning it off cuts the power. The wall button still works: PadSpan sees the power come on and sets the bulbs, and a dimmer held to a level at the wall sets how bright the bulbs go while the dimmer itself is put back to full, since smart bulbs need the whole wave. None exists until you make one.\n- **A team can follow the day.** Cool and bright at midday, warm at sunrise and sunset, dim and warmer through the night, set at each turn-on and moved every minute with a slow fade. Choose a colour or a brightness yourself and it stops until the team is next turned on, or until you set its effect back to \"Adaptive\"; the effect \"Sleep\" is one fixed dim, warm setting. The curve's six numbers are yours to change. The sun curve is adapted from [Adaptive Lighting](https://github.com/basnijholt/adaptive-lighting) by Bas Nijholt and contributors (Apache-2.0), with thanks; see THIRD_PARTY_NOTICES.md."
- },
- {
-  "version": "0.38.244",
-  "title": "Rooms as light switches",
-  "date": "2026-11-14",
-  "body_markdown": "### New\n- **Rooms as light switches, in the 3D look (⋯ → Lights, off unless you tick it).** At night the 3D look is as dark as the house, so a light that is off is a dark dot nobody can find or hit. With this ticked, a room's floor is the switch for its lights: tap it and they go on together, or all off if any is on (the message has Undo). Hold for the room's list, where each light has its own switch. Hold, then drag up or down, to dim the room. And a touch lights the house up as by day for 20 seconds, so everything can be seen; on a dark house the first touch only does that. Sensors, locks and doors keep their own taps. On the Atlas tab and its wall screens, per screen."
  }
 ]
