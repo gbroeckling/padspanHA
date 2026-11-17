@@ -7,3 +7,6 @@
 
 ### Usage report (opt-in)
 - Whether a scan was placed, placed with its outline fitting both ways, or not placed; and whether the drawn room was over a tenth off the scan's size. Words only.
+
+### Changed
+- **Furnish's Build menu offers "Place the scan's guess"** for the floor showing, so a floor with nothing placed can be filled from its room scan without picking a piece first.

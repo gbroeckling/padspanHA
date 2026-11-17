@@ -455,6 +455,16 @@ export function createFurnish(ctx){
     // Ready-made pieces first (the builders' STARTER_SET: the preview's sofa
     // and bed, then the everyday pieces), each placed like any other.
     const starters = B && Array.isArray(B.STARTER_SET) ? B.STARTER_SET.filter(s => s && s.name && s.recipe) : [];
+    // A phone's room scan of this floor (owner, 2026-11-16): its furniture as a first guess, for a floor with nothing
+    // on it to pick yet. Listed only where the scan has pieces no placed piece already stands on.
+    const AF = addFloor(), guess = AF ? scanGuess(null, AF.fl.id) : null;
+    if (guess && guess.list.length) {
+      menu.appendChild(d("h5", null, "From a room scan"));
+      const gb = btn(`Place the scan's guess (${guess.list.length})`, "Put the furniture a phone's room scan saw on this floor here, where it stood. A guess to drag and change; one Undo takes it all back",
+        () => { closeMenu(); placeGuess(guess); });
+      gb.setAttribute("data-la3d-scan-fill", "menu");
+      menu.appendChild(gb);
+    }
     if (starters.length) {
       menu.appendChild(d("h5", null, "Starter set"));
       for (const s of starters) menu.appendChild(btn(s.name, `Add a ${s.name.toLowerCase()}, ready made`, () => { closeMenu(); add([{ recipe: copy(s.recipe) }]); }));
@@ -1180,11 +1190,12 @@ export function createFurnish(ctx){
   }
   /** The scan's furniture for the room this piece stands in (its whole floor when it is in no room), less whatever a
    *  placed piece already stands on: {list: [scan pieces], where: the room's name, or "this floor"}. */
-  function scanGuess(p){
+  function scanGuess(p, floorId = null){
     const all = typeof ctx.scan === "function" ? ctx.scan() : null, c = cur();
-    if (!all || !p || !c) return null;
-    const fid = String(p.floor_id || "main"), F = floorById(fid);
-    const room = F && F.rooms.find(r => !r.outdoor && Array.isArray(r.pts) && r.pts.length >= 3 && ctx.HOUSE.inPoly(num(p.x_m) ?? 0, num(p.y_m) ?? 0, r.pts));
+    if (!all || (!p && !floorId) || !c) return null;
+    const fid = String(p ? (p.floor_id || "main") : floorId), F = floorById(fid);
+    // With a piece picked: its room. From the Build menu, nothing picked: the whole floor showing.
+    const room = p && F && F.rooms.find(r => !r.outdoor && Array.isArray(r.pts) && r.pts.length >= 3 && ctx.HOUSE.inPoly(num(p.x_m) ?? 0, num(p.y_m) ?? 0, r.pts));
     const inBox = (pt, b) => { const dx = pt[0] - b.c[0], dy = pt[1] - b.c[1];
       return Math.abs(dx * b.u[0] + dy * b.u[1]) <= b.hu && Math.abs(dx * b.v[0] + dy * b.v[1]) <= b.hv; };
     const placed = Object.values(c.pieces || {}).filter(q => q && String(q.floor_id || "main") === fid).map(q => PIECES.boxOf(q));

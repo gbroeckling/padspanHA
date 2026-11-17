@@ -788,6 +788,18 @@ await tryCase("scan: no button without a scan; Size to the scan sets the measure
   check(name, none && !!sizeB && !!fillB && said && sized && filled && undone && SENT_F.includes("house3d_scan_size") && SENT_F.includes("house3d_scan_fill")
     && !Object.keys(draftPieces()).some(k => /^scan_/.test(k)),
     { none, sizeB: !!sizeB, fillB: !!fillB, said, sized, p1: p1.recipe, filled, undone, sent: SENT_F.filter(n => /scan/.test(n)), sheet: sheetText().slice(0, 400) });
+  // With nothing picked: the Build menu offers the scan's guess for the floor showing, and takes it.
+  // (The box of this case still stands on the scan's table, so the floor's guess is the sofa alone.)
+  const had = Object.keys(draftPieces()).length;
+  click("Build ▾", "la3d-tools");
+  const mb = root().querySelectorAll(".la3d-furmenu")[0].querySelectorAll("button").find(b => b.textContent.startsWith("Place the scan's guess"));
+  const offered = !!mb && mb.textContent === "Place the scan's guess (1)";
+  if (mb) mb.click();
+  await settle();
+  const got = Object.values(draftPieces()), added2 = got.filter(q => q.origin === "import" && q.recipe.kind === "sofa");
+  check("scan: the Build menu places the floor's guess with nothing picked", offered && got.length === had + 1 && added2.length === 1 && !/^scan_/.test(added2[0].id) && added2[0].floor_id === p0.floor_id,
+    { offered, menu: mb && mb.textContent, got: got.map(q => [q.id, q.floor_id, q.recipe.kind]) });
+  click("Undo", "la3d-tools"); await settle();
   SCAN = null; slot.reload(); await settle(20);
 });
 
