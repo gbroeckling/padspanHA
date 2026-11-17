@@ -87,7 +87,7 @@ function house(o = {}) {
       state.maps.list.push(m); state.model.map_transforms.bl1 = { scale_x_m: 12, scale_y_m: 9, reference_measurements: [{}] }; return { ok: true, map: m }; },
     "padspan_ha/maps_scan_create": (p) => { if (p.file_base64 !== "AAAAAAAAAAA=") return { ok: false, code: "not_scan", message: "Not a USDZ file (it could not be opened)" };
       const m = { id: "sc1", name: p.name || "Room scan", floor_id: p.floor_id, kind: "scan", image: { width: 500, height: 400 }, receivers: [], room_bounds: {} };
-      state.maps.list.push(m); state.model.map_transforms.sc1 = { scale_x_m: 5, scale_y_m: 4, reference_measurements: [{}] }; return { ok: true, map: m, walls: 4, rooms: 1, heights_m: [2.5], warnings: [], file: "usdz", named: true }; },
+      state.maps.list.push(m); state.model.map_transforms.sc1 = { scale_x_m: 5, scale_y_m: 4, reference_measurements: [{}] }; return { ok: true, map: m, walls: 4, rooms: 1, heights_m: [2.5], warnings: [], file: "usdz", named: true, ...(o.placed ? { placed: o.placed } : {}) }; },
     "padspan_ha/receivers_to_rooms": () => ({ ok: true, ready: o.ready || [], skipped: [], undo: 0 }),
     "padspan_ha/settings_set": (p) => ({ settings: { ...state.settings, ...p } }),
   };
@@ -644,6 +644,21 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   // Told in full (owner, 2026-11-16: "no maps means not purchasing"): the button seen, why a scan was refused, what a read one held.
   check("a scan: counted in full: seen once, the refusal's reason, the file's kind, its walls as a band, named", rough(s).filter(w => w === "seen").length === 1
     && rough(s).includes("scan_refused_not_scan") && ["scan_usdz", "scan_walls_1_4", "scan_named"].every(w => rough(s).includes(w)) && !rough(s).includes("scan_phone"), rough(s));
+  // Autoplace, said: where the scan was put, the two sizes, a drawn room that is off, an outline fitting both ways; not placed.
+  for (const [name, placed, says, words] of [
+    ["placed", { fit: true, room: "Kitchen", score: 0.97, fits_both_ways: false, size_scan_m: [4, 3], size_room_m: [4.05, 3] }, ["placed over Kitchen", "4.0 m by 3.0 m", "drawn 4.0 m by 3.0 m"], ["scan_placed"]],
+    ["placed, the drawn room off, both ways", { fit: true, room: "Study", score: 0.9, fits_both_ways: true, size_scan_m: [5.3, 4.9], size_room_m: [3.6, 5.1] },
+      ["placed over Study", "the drawn room is off", "fits both ways round"], ["scan_placed_both", "scan_size_differs"]],
+    ["not placed", { fit: false }, ["couldn't be matched to this floor's rooms", "3D Stack"], ["scan_unplaced"]]]) {
+    const a = house({ tab: "upload", placed });
+    let ar = await render(a);
+    q(ar, '[data-rough="link"]').click(); ar = await render(a);
+    q(ar, '[data-rough="kind-scan"]').click(); ar = await render(a);
+    await pick(ar, scanFile(true));
+    const toast = a.toasts.join(" ");
+    check(`autoplace, ${name}: said, and counted`, says.every(w => toast.includes(w)) && words.every(w => rough(a).includes(w))
+      && (name !== "placed" || (!toast.includes("is off") && !rough(a).includes("scan_size_differs"))), [toast, rough(a)]);
+  }
   // The walk-through: the whole of Mapping while it runs, one step a screen, the floor chosen on its last, done said.
   const w = house({ tab: "library", complexity: "basic" });
   w.state._roughPlan = { open: false, kind: null, across: "", down: "", busy: false, msg: "", walk: 0, linked: true };      // as the link ?view=maps&guide=scan sets it

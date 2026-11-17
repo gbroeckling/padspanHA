@@ -75,6 +75,24 @@ export function _resetCounts() { _once.clear(); }      // a test's new page
 const REFUSED = { too_large: "size", unreadable: "unreadable", not_scan: "not_scan", empty: "empty" };
 const wallsBand = (n) => (n <= 4 ? "1_4" : n <= 12 ? "5_12" : n <= 30 ? "13_30" : "gt30");
 const onPhone = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+export const SIZE_OFF = 0.1;      // a drawn room this far from the scan's measured size (either way) is said to be off
+/** How far a drawn room's size is from the scan's, as a share (the two compared long side to long side). */
+const sizeOff = (p) => { const a = [...(p.size_scan_m || [])].sort((x, y) => x - y), b = [...(p.size_room_m || [])].sort((x, y) => x - y);
+  return a.length === 2 && b.length === 2 && b[0] > 0 && b[1] > 0 ? Math.max(Math.abs(a[0] - b[0]) / b[0], Math.abs(a[1] - b[1]) / b[1]) : 0; };
+/** What came of placing the scan among the floor's rooms (the server's `placed`), in words; "" where the floor has none. */
+export function placedWords(ctx, p) {
+  if (!p) return "";
+  if (!p.fit) return " It couldn't be matched to this floor's rooms, so it starts where every new plan does: line it up in Mapping → 3D Stack.";
+  const L = (m) => PM.lengthText(m, PM.feetOn(ctx)), where = p.room || "this floor's rooms";
+  let t = ` It was placed over ${where}`;
+  if (p.room && p.size_scan_m && p.size_room_m) {
+    const [a, b] = [...p.size_scan_m].sort((x, y) => y - x), [c, d] = [...p.size_room_m].sort((x, y) => y - x);
+    t += `: the scan measures ${L(a)} by ${L(b)}, and ${p.room} is drawn ${L(c)} by ${L(d)}` + (sizeOff(p) > SIZE_OFF ? ". The scan is the measured one, so the drawn room is off" : "");
+  }
+  t += ".";
+  if (p.fits_both_ways) t += " Its outline fits both ways round: check its doors are on the right walls, and turn it in Mapping → 3D Stack if not.";
+  return t;
+}
 
 /** The quiet line on the upload card. */
 export function link(ctx) {
@@ -119,14 +137,19 @@ async function readScan(ctx, opts, file) {
   tel(ctx, "scan_walls_" + wallsBand(Number(r.walls) || 0));
   if (r.named) tel(ctx, "scan_named");
   if (onPhone()) tel(ctx, "scan_phone");
+  if (r.placed) {
+    tel(ctx, r.placed.fit ? (r.placed.fits_both_ways ? "scan_placed_both" : "scan_placed") : "scan_unplaced");
+    if (r.placed.fit && sizeOff(r.placed) > SIZE_OFF) tel(ctx, "scan_size_differs");
+  }
+  const where = placedWords(ctx, r.placed);
   if (walking(ctx)) {                          // the walk-through says so itself, on its last screen
-    Object.assign(s, { walk: WALK.length, made: { id: r.map.id, walls: r.walls } });
+    Object.assign(s, { walk: WALK.length, made: { id: r.map.id, walls: r.walls, where } });
     if (ctx.actions.mapsRefresh) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
     redraw(ctx);
     return;
   }
   Object.assign(s, { open: false, kind: null });
-  if (ctx.toast) ctx.toast(`Scan read: ${r.walls} wall${r.walls === 1 ? "" : "s"}, drawn to scale. Its scale is set.`);
+  if (ctx.toast) ctx.toast(`Scan read: ${r.walls} wall${r.walls === 1 ? "" : "s"}, drawn to scale. Its scale is set.${where}`);
   await opts.onMade(r.map);
 }
 
@@ -182,7 +205,7 @@ export function walk(ctx, opts) {
     const made = s.made || {};
     once(ctx, "walk_done");
     card.appendChild(el("div", { class: "h2", "data-rough": "walk-done", style: "font-size:20px" }, "Done: the plan is drawn"));
-    card.appendChild(P(ctx, `PadSpan read ${made.walls || "the"} walls from the scan and drew this floor's plan to scale. Nothing needs measuring.`, "font-size:16px;line-height:1.6"));
+    card.appendChild(P(ctx, `PadSpan read ${made.walls || "the"} walls from the scan and drew this floor's plan to scale. Nothing needs measuring.${made.where || ""}`, "font-size:16px;line-height:1.6"));
     card.appendChild(P(ctx, "Next, the rooms are drawn on it and the receivers placed. That is easier on a computer or a tablet than on a phone.", "font-size:16px;line-height:1.6"));
     card.appendChild(row(ctx, [btn(ctx, "See the plan", () => { const id = made.id; close(); if (id) opts.onMade({ id }); }, { primary: true, attrs: { "data-rough": "walk-see", style: BIG } }),
       btn(ctx, "Scan another floor", () => { tel(ctx, "walk_again"); _once.delete("walk_done"); Object.assign(s, { walk: 2, made: null, msg: "" }); redraw(ctx); }, { attrs: { "data-rough": "walk-again", style: BIG } })]));

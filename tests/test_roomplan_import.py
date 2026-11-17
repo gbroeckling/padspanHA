@@ -551,3 +551,70 @@ def test_furniture_with_no_walls_is_still_a_scan_for_the_3d_import():
     doc["walls"], doc["floors"] = [], []
     out = parse_roomplan(_bytes(doc))
     assert out["rooms"] == [] and len(out["objects"]) == 1 and out["walls"] == []
+
+
+# ── Autoplace (2026-11-16): a scan put where its outline fits a floor's drawn rooms ──────────────────────────────────
+def _scan_of(poly, turn_deg=0.0, shift=(0.0, 0.0), doors=()):
+    """A scan of one room whose outline in the house is `poly`, as a phone that started elsewhere and pointed another
+    way would have it, put through plan_frame (its own frame: walls along the axes, half a metre round it)."""
+    from custom_components.padspan_ha.roomplan_import import plan_frame
+    c, s = math.cos(math.radians(turn_deg)), math.sin(math.radians(turn_deg))
+    mv = lambda p: [p[0] * c - p[1] * s + shift[0], p[0] * s + p[1] * c + shift[1]]  # noqa: E731
+    q = [mv(p) for p in poly]
+    return plan_frame({"walls": [{"a_m": q[i - 1], "b_m": q[i]} for i in range(len(q))], "rooms": [{"name": None, "points_m": q}],
+                       "openings": [{"kind": "door", "a_m": mv(a), "b_m": mv(b)} for a, b in doors], "objects": []})
+
+
+def _landed(frame, fit):
+    c, s = math.cos(fit["rotation_rad"]), math.sin(fit["rotation_rad"])
+    return [[fit["origin_x_m"] + p[0] * c - p[1] * s, fit["origin_y_m"] + p[0] * s + p[1] * c] for p in frame["rooms"][0]["points_m"]]
+
+
+_HOUSE = {"Kitchen": [[10, 5], [14, 5], [14, 8], [10, 8]],                              # 4 x 3
+          "Living": [[14, 5], [20.5, 5], [20.5, 9.5], [14, 9.5]],                       # 6.5 x 4.5
+          "Den": [[10, 8], [13, 8], [13, 10], [12, 10], [12, 12], [10, 12]]}            # an L
+
+
+@pytest.mark.parametrize("name,turn,shift", [("Kitchen", 25, (-30, 12)), ("Living", 200, (7, -40)), ("Den", 118, (55, 3))])
+def test_a_scan_is_placed_on_the_drawn_room_it_fits(name, turn, shift):
+    from custom_components.padspan_ha.roomplan_import import autoplace
+    f = _scan_of(_HOUSE[name], turn, shift)
+    fit = autoplace(f, _HOUSE)
+    assert fit and fit["room"] == name and fit["score"] >= 0.9, fit
+    land = _landed(f, fit)
+    off = max(min(math.dist(l, p) for p in _HOUSE[name]) for l in land)
+    if name == "Den":
+        assert off < 0.2 and fit["fits_both_ways"] is False, (off, fit)          # an L fits one way only
+    else:
+        assert fit["fits_both_ways"] is True, fit                               # a plain rectangle fits turned round too
+        assert sorted(fit["size_scan_m"]) == pytest.approx(sorted(fit["size_room_m"]), abs=0.05)
+
+
+def test_the_doors_say_which_way_round_and_a_room_off_square_is_still_placed():
+    from custom_components.padspan_ha.roomplan_import import autoplace
+    door = ([10.5, 5], [11.4, 5])                                # the Kitchen's door, near one end of its long wall
+    f = _scan_of(_HOUSE["Kitchen"], 25, (-30, 12), doors=[door])
+    fit = autoplace(f, _HOUSE, [list(door)])
+    assert fit and fit["room"] == "Kitchen" and fit["fits_both_ways"] is False
+    c, s = math.cos(fit["rotation_rad"]), math.sin(fit["rotation_rad"])
+    o = f["openings"][0]
+    mid = [(o["a_m"][0] + o["b_m"][0]) / 2, (o["a_m"][1] + o["b_m"][1]) / 2]
+    at = [fit["origin_x_m"] + mid[0] * c - mid[1] * s, fit["origin_y_m"] + mid[0] * s + mid[1] * c]
+    assert math.dist(at, [10.95, 5]) < 0.3, at
+    # A room drawn seven degrees off its plan's axes (a plan placed a little turned): still its own room, in place.
+    t = math.radians(7)
+    skew = {"Suite": [[30 + x * math.cos(t) - y * math.sin(t), 30 + x * math.sin(t) + y * math.cos(t)] for x, y in ((0, 0), (5, 0), (5, 2), (3, 2), (3, 4), (0, 4))],
+            "Hall": [[40, 30], [42, 30], [42, 38], [40, 38]]}
+    f2 = _scan_of(skew["Suite"], 140, (3, 3))
+    fit2 = autoplace(f2, skew)
+    assert fit2 and fit2["room"] == "Suite"
+    assert max(min(math.dist(l, p) for p in skew["Suite"]) for l in _landed(f2, fit2)) < 0.25
+
+
+def test_a_scan_that_fits_nowhere_or_two_rooms_alike_is_not_placed():
+    from custom_components.padspan_ha.roomplan_import import autoplace
+    twins = {"Bed 1": [[0, 0], [4, 0], [4, 3], [0, 3]], "Bed 2": [[10, 0], [14, 0], [14, 3], [10, 3]]}
+    assert autoplace(_scan_of(twins["Bed 1"], 30, (9, 9)), twins) is None, "two rooms alike: it can't be told which"
+    assert autoplace(_scan_of([[0, 0], [9, 0], [9, 7], [0, 7]]), _HOUSE) is None, "no drawn room of its size"
+    assert autoplace(_scan_of([[0, 0], [2.5, 0], [2.5, 6], [0, 6]]), _HOUSE) is None, "about a room's area, not its shape"
+    assert autoplace(_scan_of(_HOUSE["Kitchen"]), {}) is None and autoplace({"walls": [], "rooms": []}, _HOUSE) is None

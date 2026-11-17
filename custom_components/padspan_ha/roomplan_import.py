@@ -562,3 +562,209 @@ def plan_frame(parsed: dict[str, Any], margin_m: float = 0.5) -> dict[str, Any] 
             "objects": [{"category": o.get("category"), "center_m": put(o["center_m"]), "size_m": o["size_m"], "height_m": o.get("height_m"),
                          "angle_deg": round(float(o.get("angle_deg") or 0.0) + math.degrees(turn), 1)}
                         for o in parsed.get("objects") or [] if o.get("center_m") and o.get("size_m")]}
+
+
+# ── Autoplace (owner, 2026-11-16: "a test in a house like mine with plans would be an autoplace for lidar files") ────
+# A scan is in true metres and so are the rooms a house already has, so there is no scale to guess: only where the scan
+# sits and which way round. Its walls are laid over the edges of the floor's rooms at each quarter turn, from each
+# room's middle and the floor's, and slid until as much wall as possible lies on a drawn edge. Pure, and it only
+# answers: the caller decides whether to place the new plan there, and nothing that exists is ever moved.
+PLACE_CELL_M = 0.1            # the grid the drawn edges are stamped on
+PLACE_NEAR_M = (0.5, 0.2)     # a wall sample counts within this of a drawn edge: to search, then to score
+PLACE_MIN = 0.7               # the share of the scan's walls that must lie on drawn edges
+PLACE_CLEAR = 0.1             # ...and by this much more than anywhere else it could go
+PLACE_TIE = 0.03              # two turns this close in score: the outline fits both ways round
+PLACE_MAX_SAMPLES = 4000      # wall samples scored (a whole floor: thinned to this)
+
+
+def _samples(edges: list, step: float) -> list[tuple[float, float]]:
+    out = []
+    for a, b in edges:
+        ln = math.dist(a, b)
+        n = max(1, int(ln / step))
+        out += [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n + 1)]
+    return out
+
+
+def _stamp(points: list[tuple[float, float]], near_m: float) -> set[tuple[int, int]]:
+    """The grid cells within `near_m` of any of the points."""
+    r = int(round(near_m / PLACE_CELL_M))
+    disc = [(i, j) for i in range(-r, r + 1) for j in range(-r, r + 1) if i * i + j * j <= r * r]
+    out: set[tuple[int, int]] = set()
+    for x, y in points:
+        cx, cy = int(round(x / PLACE_CELL_M)), int(round(y / PLACE_CELL_M))
+        out.update((cx + i, cy + j) for i, j in disc)
+    return out
+
+
+PLACE_ROOM_MIN = 0.75         # a scanned room and a drawn one must cover each other this much (area in both / area in either)
+PLACE_TURN = math.radians(15)    # how far from a quarter turn a scanned room may be turned to fit
+PLACE_ROOM_SIZES = (0.55, 1.8)   # ...and be of about one size: the scan's area over the drawn room's
+
+
+def _poly_area(P: list) -> float:
+    return abs(sum(P[i - 1][0] * P[i][1] - P[i][0] * P[i - 1][1] for i in range(len(P)))) / 2
+
+
+def _place_room(S: list, rooms: dict[str, list], frame: dict[str, Any], openings: list | None) -> dict[str, Any] | None:
+    """autoplace for a scan of one closed room `S` (its outline in the plan's own metres)."""
+    area_s = _poly_area(S)
+    if area_s < 1.0:
+        return None
+    g = max(0.2, math.sqrt(area_s / 400))                     # about 400 samples, whatever the room's size
+    x0, x1 = min(p[0] for p in S), max(p[0] for p in S)
+    y0, y1 = min(p[1] for p in S), max(p[1] for p in S)
+    Sl = [list(p) for p in S]
+    pts = [(x0 + g / 2 + i * g, y0 + g / 2 + j * g) for i in range(int((x1 - x0) / g) + 1) for j in range(int((y1 - y0) / g) + 1)]
+    pts = [p for p in pts if _inside([p[0], p[1]], Sl)]
+    if len(pts) < 12:
+        return None
+    cx, cy = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+    cell = area_s / len(pts)
+    found: list[tuple[float, int, float, float, str, float]] = []
+    for name, P in rooms.items():
+        area_r = _poly_area(P)
+        if area_r <= 0 or not PLACE_ROOM_SIZES[0] <= area_s / area_r <= PLACE_ROOM_SIZES[1]:
+            continue
+        Pl = [list(p) for p in P]
+        bx0, bx1 = min(p[0] for p in P), max(p[0] for p in P)
+        by0, by1 = min(p[1] for p in P), max(p[1] for p in P)
+
+        def cover(th: float, tx: float, ty: float) -> float:
+            c, s = math.cos(th), math.sin(th)
+            n = 0
+            for x, y in pts:
+                dx, dy = x - cx, y - cy
+                hx, hy = cx + dx * c - dy * s + tx, cy + dx * s + dy * c + ty
+                if bx0 <= hx <= bx1 and by0 <= hy <= by1 and _inside([hx, hy], Pl):
+                    n += 1
+            both = n * cell
+            return both / (area_s + area_r - both)
+
+        for k in range(4):
+            # From each quarter turn: slid and turned a little at a time while the cover grows. A room is seldom drawn
+            # exactly square to its plan (a slanted garage wall, a plan placed a few degrees off), so the turn is free
+            # within PLACE_TURN of the quarter.
+            th, tx, ty = k * math.pi / 2, (bx0 + bx1) / 2 - cx, (by0 + by1) / 2 - cy
+            best = cover(th, tx, ty)
+            for st, da in ((0.4, math.radians(4)), (0.15, math.radians(1)), (0.05, math.radians(0.25))):
+                moved = True
+                while moved:
+                    moved = False
+                    for dx, dy, dt in ((st, 0, 0), (-st, 0, 0), (0, st, 0), (0, -st, 0), (0, 0, da), (0, 0, -da)):
+                        if abs(th + dt - k * math.pi / 2) > PLACE_TURN:
+                            continue
+                        v = cover(th + dt, tx + dx, ty + dy)
+                        if v > best + 1e-9:
+                            best, th, tx, ty, moved = v, th + dt, tx + dx, ty + dy, True
+            found.append((best, k, tx, ty, name, th))
+    if not found:
+        return None
+    found.sort(reverse=True)
+    top = found[0]
+    other = next((f for f in found[1:] if f[4] != top[4]), None)
+    if top[0] < PLACE_ROOM_MIN or (other and other[0] > top[0] - PLACE_CLEAR):
+        return None
+    turns = [f for f in found if f[4] == top[4] and f[1] != top[1] and f[0] >= top[0] - PLACE_TIE]
+    both_ways = bool(turns)
+    put_k = lambda f, x, y: (cx + (x - cx) * math.cos(f[5]) - (y - cy) * math.sin(f[5]) + f[2],  # noqa: E731
+                             cy + (x - cx) * math.sin(f[5]) + (y - cy) * math.cos(f[5]) + f[3])
+    doors = [((o["a_m"][0] + o["b_m"][0]) / 2, (o["a_m"][1] + o["b_m"][1]) / 2) for o in frame.get("openings") or []]
+    if both_ways and openings and doors:                   # the house's drawn doors and windows say which way round
+        near = _stamp([((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in openings], 0.6)
+        hits = lambda f: sum(1 for d in doors if (int(round(put_k(f, *d)[0] / PLACE_CELL_M)), int(round(put_k(f, *d)[1] / PLACE_CELL_M))) in near)  # noqa: E731
+        ranked = sorted([top, *turns], key=hits, reverse=True)
+        if hits(ranked[0]) > hits(ranked[1]):
+            top, both_ways = ranked[0], False
+    ox, oy = put_k(top, 0.0, 0.0)
+    P = rooms[top[4]]
+    wx, wy = x1 - x0, y1 - y0
+    return {"origin_x_m": round(ox, 3), "origin_y_m": round(oy, 3), "rotation_rad": round(top[5] % (2 * math.pi), 6), "score": round(top[0], 2),
+            "room": top[4], "fits_both_ways": both_ways, "size_scan_m": [round(wy if top[1] % 2 else wx, 2), round(wx if top[1] % 2 else wy, 2)],
+            "size_room_m": [round(max(p[0] for p in P) - min(p[0] for p in P), 2), round(max(p[1] for p in P) - min(p[1] for p in P), 2)]}
+
+
+def autoplace(frame: dict[str, Any], house_rooms: dict[str, list], openings: list | None = None) -> dict[str, Any] | None:
+    """Where a scan (plan_frame's) belongs among a floor's drawn rooms ({name: [[x_m, y_m], ...]}), or None when it
+    fits nowhere well, or as well in two places. {origin_x_m, origin_y_m, rotation_rad: the plan's placement; score:
+    the share of its walls on drawn edges; room: the room it lies in, when it lies in one; fits_both_ways: its outline
+    fits as well turned round (a plain rectangle), so its doors may be on the wrong walls; size_scan_m / size_room_m:
+    the scan's own width and depth and that room's, the scan's turned to match}. `openings`: the house's drawn doors
+    and windows on this floor ([[a_m, b_m], ...], Live Aboard's), which settle which way round where they exist."""
+    walls = [(tuple(a), tuple(b)) for a, b in frame.get("walls") or [] if math.dist(a, b) > 0.05]
+    rooms = {n: [tuple(p[:2]) for p in pts] for n, pts in (house_rooms or {}).items() if isinstance(pts, list) and len(pts) >= 3}
+    if len(walls) < 3 or not rooms:
+        return None
+    # One closed room in the scan: laid over each drawn room of about its size, scored by how much of the two cover
+    # each other. (Walls on drawn edges alone let a small room slide along a neighbour's long wall: on a real house's
+    # outlines that placed 10 of 21 right; this places it in its room or not at all.)
+    one = [r["points_m"] for r in frame.get("rooms") or [] if len(r.get("points_m") or []) >= 3]
+    if len(one) == 1:
+        return _place_room([tuple(p[:2]) for p in one[0]], rooms, frame, openings)
+    drawn = [(pts[i - 1], pts[i]) for pts in rooms.values() for i in range(len(pts))]
+    edge_pts = _samples(drawn, PLACE_CELL_M)
+    coarse, fine = _stamp(edge_pts, PLACE_NEAR_M[0]), _stamp(edge_pts, PLACE_NEAR_M[1])
+    pts = _samples(walls, 0.2)
+    if len(pts) > PLACE_MAX_SAMPLES:
+        pts = pts[::len(pts) // PLACE_MAX_SAMPLES + 1]
+    door_pts = [((o["a_m"][0] + o["b_m"][0]) / 2, (o["a_m"][1] + o["b_m"][1]) / 2) for o in frame.get("openings") or []]
+    door_near = _stamp([((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in (openings or [])], 0.6) if openings and door_pts else None
+    cx = sum(p[0] for p in pts) / len(pts)
+    cy = sum(p[1] for p in pts) / len(pts)
+    box = lambda P: ((min(p[0] for p in P) + max(p[0] for p in P)) / 2, (min(p[1] for p in P) + max(p[1] for p in P)) / 2)  # noqa: E731
+    anchors = [box(P) for P in rooms.values()] + [box([p for P in rooms.values() for p in P])]
+
+    def score(k: int, tx: float, ty: float, cells: set, of: list) -> float:
+        c, s = ((1, 0), (0, 1), (-1, 0), (0, -1))[k]
+        hit = 0
+        for x, y in of:
+            dx, dy = x - cx, y - cy
+            if (int(round((cx + dx * c - dy * s + tx) / PLACE_CELL_M)), int(round((cy + dx * s + dy * c + ty) / PLACE_CELL_M))) in cells:
+                hit += 1
+        return hit / len(of)
+
+    found: list[tuple[float, int, float, float]] = []
+    for k in range(4):
+        for ax, ay in anchors:
+            tx, ty = ax - cx, ay - cy
+            best = score(k, tx, ty, coarse, pts)
+            for cells, steps in ((coarse, (0.6, 0.3, 0.1)), (fine, (0.1, 0.05))):
+                best = score(k, tx, ty, cells, pts)
+                for st in steps:
+                    moved = True
+                    while moved:
+                        moved = False
+                        for dx, dy in ((st, 0), (-st, 0), (0, st), (0, -st)):
+                            v = score(k, tx + dx, ty + dy, cells, pts)
+                            if v > best + 1e-9:
+                                best, tx, ty, moved = v, tx + dx, ty + dy, True
+            found.append((best, k, round(tx, 2), round(ty, 2)))
+    found.sort(reverse=True)
+    top = found[0]
+    if top[0] < PLACE_MIN:
+        return None
+    same_spot = lambda a, b: math.hypot(a[2] - b[2], a[3] - b[3]) <= 0.5  # noqa: E731
+    elsewhere = next((f for f in found[1:] if not same_spot(f, top)), None)
+    if elsewhere and elsewhere[0] > top[0] - PLACE_CLEAR:
+        return None                                        # as good a fit somewhere else: two rooms alike
+    turns = [f for f in found if same_spot(f, top) and f[1] != top[1] and f[0] >= top[0] - PLACE_TIE]
+    both = bool(turns)
+    if both and door_near is not None:                     # the doors and windows say which way round
+        ranked = sorted([top, *turns], key=lambda f: score(f[1], f[2], f[3], door_near, door_pts), reverse=True)
+        if score(ranked[0][1], ranked[0][2], ranked[0][3], door_near, door_pts) > score(ranked[1][1], ranked[1][2], ranked[1][3], door_near, door_pts) + 1e-9:
+            top, both = ranked[0], False
+    _best, k, tx, ty = top
+    c, s = ((1, 0), (0, 1), (-1, 0), (0, -1))[k]
+    put = lambda x, y: (cx + (x - cx) * c - (y - cy) * s + tx, cy + (x - cx) * s + (y - cy) * c + ty)  # noqa: E731
+    ox, oy = put(0.0, 0.0)
+    mx, my = put(cx, cy)
+    inside = [n for n, P in rooms.items() if _inside([mx, my], [list(p) for p in P])]
+    wx = max(p[0] for p in pts) - min(p[0] for p in pts)
+    wy = max(p[1] for p in pts) - min(p[1] for p in pts)
+    out: dict[str, Any] = {"origin_x_m": round(ox, 3), "origin_y_m": round(oy, 3), "rotation_rad": round(k * math.pi / 2, 6),
+                           "score": round(top[0], 2), "room": inside[0] if len(inside) == 1 else None, "fits_both_ways": both,
+                           "size_scan_m": [round(wy if k % 2 else wx, 2), round(wx if k % 2 else wy, 2)]}
+    if out["room"]:
+        P = rooms[out["room"]]
+        out["size_room_m"] = [round(max(p[0] for p in P) - min(p[0] for p in P), 2), round(max(p[1] for p in P) - min(p[1] for p in P), 2)]
+    return out

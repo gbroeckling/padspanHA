@@ -1096,7 +1096,8 @@ function word(kind, k) {
         scan_refused_not_scan: "a scan refused: it opened, but held no room scan", scan_refused_empty: "a scan refused: no walls to draw",
         scan_usdz: "a scan read from a USDZ", scan_json: "a scan read from RoomPlan JSON", scan_walls_1_4: "a scan of 1 to 4 walls (one room)", scan_walls_5_12: "a scan of 5 to 12 walls",
         scan_walls_13_30: "a scan of 13 to 30 walls (a floor)", scan_walls_gt30: "a scan of over 30 walls", scan_named: "a scan whose rooms the phone had named",
-        scan_phone: "a scan given from a phone or tablet" }[b] || b}`;
+        scan_phone: "a scan given from a phone or tablet", scan_placed: "a scan placed on the drawn room it fits", scan_placed_both: "a scan placed, its outline fitting both ways round",
+        scan_unplaced: "a scan that couldn't be matched to the floor's rooms", scan_size_differs: "a drawn room over a tenth off the scan's measured size" }[b] || b}`;
       if (a === "wizard_draw") return `Drawing rooms: ${{ name: "a room's name pressed above the plan (Setup Wizard)", no_room: "the plan clicked with no room chosen",
         kept: "rooms or receivers saved by the Setup Wizard without Save Layout" }[b] || b}`;
       if (a === "plan_upload") return `Mapping → Upload: ${{ sketch: "uploaded as their own sketch, not to scale", picked: "a picture picked", no_file: "Upload pressed with no picture", ok: "uploaded", bad_picture: "the picture couldn't be read",

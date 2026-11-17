@@ -185,6 +185,8 @@ def test_the_counters_are_allowed_summed_and_labelled():
              | {f"scan_walls_{b}" for b in re.findall(r'"(1_4|5_12|13_30|gt30)"', rj)} | {"scan_json", "scan_usdz"})
     sent_rg |= set(re.findall(r'once\(ctx, "([a-z_]+)"\)', rj)) | built
     sent_rg.discard("scan_refused_size") or sent_rg.add("scan_refused_size")
+    assert 'tel(ctx, r.placed.fit ? (r.placed.fits_both_ways ? "scan_placed_both" : "scan_placed") : "scan_unplaced");' in rj
+    sent_rg |= {"scan_placed_both", "scan_placed", "scan_unplaced"}
     assert sent_rg == {e.split(":", 1)[1] for e in rg}, sorted(sent_rg ^ {e.split(":", 1)[1] for e in rg})
     assert all(f"{k}:" in ib for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN) and 'a === "rough_plan"' in ib
     mj = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
@@ -356,3 +358,36 @@ def test_a_scans_places_on_its_picture_go_when_the_picture_is_changed_and_a_scan
     out = _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=base64.b64encode(_bytes(far)).decode(), name="")
     assert out["ok"] is False and out["code"] == "too_large" and len(ms.list_maps()) == n
     assert HI.scan_pieces(h) == {}
+
+
+def test_a_scan_is_placed_among_the_floors_rooms_and_nothing_else_moves(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Owner, 2026-11-16: "a test in a house like mine with plans would be an autoplace for lidar files"."""
+    import base64
+    import math
+    from tests.test_roomplan_import import _bytes, _room
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    ms.maps_dir = tmp_path
+    scan = base64.b64encode(_bytes(_room(0.0, 0.0, 4.0, 3.0))).decode()
+    # No room drawn on the floor: the plan starts where every new plan does, and nothing is said of placing.
+    monkeypatch.setattr(mdl, "room_geometry_m", lambda: {})
+    out = _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=scan, name="")
+    assert out["ok"] is True and "placed" not in out
+    # A room of its shape on the floor, elsewhere in the house, and one on another floor that must not be looked at.
+    rooms = {"Kitchen": {"floor_id": "main", "points_m": [[20, 10], [24, 10], [24, 13], [20, 13]]},
+             "Loft": {"floor_id": "upper", "points_m": [[0, 0], [4, 0], [4, 3], [0, 3]]},
+             "Hall": {"floor_id": "main", "points_m": [[24, 10], [26, 10], [26, 18], [24, 18]]}}
+    monkeypatch.setattr(mdl, "room_geometry_m", lambda: rooms)
+    before = json.dumps({k: v for k, v in mdl.data.get("map_transforms", {}).items()}, sort_keys=True)
+    out = _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=scan, name="")
+    p, m = out["placed"], out["map"]
+    assert p["fit"] is True and p["room"] == "Kitchen" and p["score"] >= 0.9 and sorted(p["size_scan_m"]) == sorted(p["size_room_m"]) == [3.0, 4.0]
+    t = mdl.map_transform(m["id"])
+    c, s = math.cos(t["rotation_rad"]), math.sin(t["rotation_rad"])
+    mid = [t["origin_x_m"] + 2.5 * c - 2.0 * s, t["origin_y_m"] + 2.5 * s + 2.0 * c]       # the plan's middle (5 x 4 m), in the house
+    assert math.dist(mid, [22.0, 11.5]) < 0.15, (t, mid)
+    after = {k: v for k, v in mdl.data.get("map_transforms", {}).items() if k != m["id"]}
+    assert json.dumps(after, sort_keys=True) == before, "no other plan moved"
+    # A floor whose rooms it fits none of: saved, said not placed, left where a new plan starts.
+    monkeypatch.setattr(mdl, "room_geometry_m", lambda: {"Hall": rooms["Hall"]})
+    out = _call(WM.ws_maps_scan_create, h, conn, floor_id="main", file_base64=scan, name="")
+    assert out["ok"] is True and out["placed"] == {"fit": False}

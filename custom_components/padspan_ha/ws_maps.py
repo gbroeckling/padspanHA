@@ -23,6 +23,7 @@ from .const import (
     DEFAULT_FLOOR_ID,
     OUTSIDE_FLOOR_ID,
     DATA_CALIBRATION,
+    DATA_HOUSE3D,
     DATA_TRACEBACK,
 )
 import base64
@@ -971,6 +972,32 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
            "angle_deg": 0, "date": _time.strftime("%Y-%m-%d", _time.gmtime()), "source": "scan"}
     await async_write_measured_transform(hass, info["id"], {"scale_x_m": round(across, 4), "scale_y_m": round(down, 4),
                                                            "reference_measurements": [ref], "floor_id": floor_id})
+    # Autoplace (roomplan_import.autoplace): on a floor that already has rooms, the scan is put where its outline
+    # fits them, by the Align editor's own writer. Only the new plan is placed; nothing that exists is moved. Where it
+    # fits nowhere, or as well in two places, it stays where every new plan starts and the answer says so.
+    placed: dict | None = None
+    try:
+        mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        geo = mdl.room_geometry_m() if mdl is not None else {}
+        house = {n: [p[:2] for p in (g.get("points_m") or [])] for n, g in (geo or {}).items()
+                 if isinstance(g, dict) and str(g.get("floor_id") or DEFAULT_FLOOR_ID) == floor_id}
+        if house:
+            h3 = getattr(hass.data.get(DOMAIN, {}).get(DATA_HOUSE3D), "data", None) or {}
+            doors = [[o["a_m"], o["b_m"]] for o in (h3.get("openings") or {}).values()
+                     if isinstance(o, dict) and str(o.get("floor_id") or DEFAULT_FLOOR_ID) == floor_id and o.get("a_m") and o.get("b_m")]
+            fit = await hass.async_add_executor_job(RP.autoplace, frame, house, doors or None)
+            placed = {"fit": False}
+            if fit:
+                res = await mdl.async_reanchor_map(info["id"], info, hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION),
+                                                   origin_x_m=fit["origin_x_m"], origin_y_m=fit["origin_y_m"], rotation_rad=fit["rotation_rad"])
+                if res.get("ok"):
+                    if res.get("map_items_rederived"):
+                        await ms.store.async_save(ms.data)
+                    placed = {"fit": True, **{k: fit[k] for k in ("room", "score", "fits_both_ways", "size_scan_m") if k in fit},
+                              **({"size_room_m": fit["size_room_m"]} if fit.get("size_room_m") else {})}
+    except Exception:  # noqa: BLE001 — the plan is saved either way: it is only not placed
+        _LOGGER.debug("PadSpan: a scan could not be placed among the floor's rooms", exc_info=True)
     connection.send_result(msg["id"], {"ok": True, "map": info, "rooms": len(frame["rooms"]), "walls": len(frame["walls"]),
+                                       **({"placed": placed} if placed is not None else {}),
                                        "heights_m": info["scan"]["heights_m"], "warnings": parsed.get("warnings") or [],
                                        "file": parsed["file"], "named": any(r.get("name") for r in frame["rooms"])})
