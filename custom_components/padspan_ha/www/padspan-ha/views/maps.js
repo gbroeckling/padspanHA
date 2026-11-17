@@ -65,6 +65,9 @@ if (TSP) TSP.tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 // "No floor plan? Ways to get one" on Mapping → Upload, and the phone's walk-through of a room scan (rough_plan.js).
 const ROUGH = await import(`./rough_plan.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: rough_plan failed to load", err); return null; });
+// Carry-along (plan_carry.js): a moved plan's line on its Library row, and the list of what could move with it.
+const CARRY = await import(`./plan_carry.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: plan_carry failed to load", err); return null; });
 const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: vacuum_import failed to load", err); return null; });
 // The 90-day trial card, shared by every paid wall (trial_offer.js).
@@ -503,6 +506,7 @@ function _openMeasure(ctx, mapId, door = "reminder"){
 }
 
 function _library(ctx, maps, activeId, helpBtn, isBasic){
+  if (CARRY) CARRY.ensure(ctx);            // which plans were moved with things still where they stood (read on a change, never on a poll)
   const { el } = ctx.helpers;
   helpBtn = helpBtn || (()=>null);
   const _compareResultDiv = el("div",{});
@@ -692,6 +696,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
         + (_placed ? (PM.feetOn(ctx) ? ` • ${PM.feetText(_pl.scale_x_m)} × ${PM.feetText(_pl.scale_y_m)}` : ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m`) : " • not placed")),
     ]);
     { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id, "reminder")); if (n) left.appendChild(n); }
+    { const c = CARRY && CARRY.line(ctx, m); if (c) left.appendChild(c); }
 
     const actions = el("div",{style:"display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap"});
     actions.appendChild(el("button",{class:"btn inline", onclick:()=>_openForEdit(ctx, m.id)}, "Open"));

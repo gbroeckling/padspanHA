@@ -81,6 +81,11 @@ function house(o = {}) {
       ...(p.scale_nudge ? { scale_nudge: true } : {}), ...(p.kind ? { kind: p.kind } : {}) }; state.maps.list.push(m); return { map: m }; },
     "padspan_ha/maps_scale_measure": (p) => measure(p, h),
     "padspan_ha/maps_scale_nudge_end": () => ({ ok: true, ended: true }),
+    // Carry-along (views/plan_carry.js): the plans moved with things still where they stood, and what came of an answer.
+    "padspan_ha/plan_carry_list": () => ({ plans: o.carry || [] }),
+    "padspan_ha/plan_carry_apply": (p) => (o.carryFails ? { ok: false, code: "backup_failed", message: "The safety backup couldn't be made, so nothing was moved." }
+      : { ok: true, moved: Object.fromEntries(p.kinds.map(k => [k, k === "points" ? 32 : 1])), backup_id: "bk_1" }),
+    "padspan_ha/plan_carry_dismiss": () => ({ ok: true }),
     // No plan picture (views/rough_plan.js): a blank floor of a typed size, and a plan drawn from a room scan; each has its scale.
     "padspan_ha/maps_blank_create": (p) => { if (!/m$/.test(p.across) || !/m$/.test(p.down)) return { ok: false, code: "size", message: "Type the floor's width and depth." };
       const m = { id: "bl1", name: "Blank floor", floor_id: p.floor_id, kind: "blank", image: { width: 1200, height: 900 }, receivers: [], room_bounds: {} };
@@ -708,6 +713,46 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   const sm = house({ tab: "upload", dataMode: "sample" });
   const smr = await render(sm);
   check("Sample: no ways to a plan, no sketch tick", !q(smr, '[data-rough="link"]') && !q(smr, '[data-upload="sketch"]'));
+}
+
+// ── Carry-along (views/plan_carry.js, 2026-11-16): a moved plan's line in the Library; nothing ticked; only the ticked move ──
+{
+  const carry = (h) => h.tele.filter(t => t.startsWith("plan_carry:")).map(t => t.slice(11));
+  const PL = [{ id: "c1", name: "Study", floor_id: "main", image: { width: 1000, height: 800 }, receivers: [], room_bounds: {} },
+              { id: "c2", name: "Main", floor_id: "main", image: { width: 1000, height: 800 }, receivers: [], room_bounds: {} }];
+  const TFS = { c1: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] }, c2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } };
+  const C1 = { map_id: "c1", name: "Study", floor_id: "main", at: "2026-11-16T00:00:00Z", shift_m: 1.7, rooms: ["Office"], receivers: 3, points: 32, points_hand: 13, devices: 0 };
+  const open = async (o) => { const h = house({ tab: "library", maps: JSON.parse(JSON.stringify(PL)), tfs: TFS, ...o }); await render(h); for (let i = 0; i < 4; i++) await tick(); return [h, await render(h)]; };
+  let [h, root] = await open({ carry: [C1] });
+  const lines = all(root, '[data-carry="line"]');
+  check("carry: the moved plan's row says what still stands where it was; no other row says anything", lines.length === 1
+    && lines[0].textContent.includes("1 room, 3 receivers and 32 calibration points placed on it still stand where it used to be, up to 1.7 m off")
+    && !q(root, '[data-carry="card"]') && carry(h).join() === "offered" && h.calls.filter(c => c.type === "padspan_ha/plan_carry_list").length === 1, [lines.map(l => l.textContent), carry(h)]);
+  q(root, '[data-carry="review"]').click(); root = await render(h);
+  const ticks = ["rooms", "receivers", "points", "devices"].map(k => q(root, `[data-carry="tick-${k}"]`));
+  check("carry: its list, nothing ticked, no line for a kind it has none of, Move waiting for a tick", ticks[0] && ticks[1] && ticks[2] && !ticks[3]
+    && ticks.slice(0, 3).every(t => t.checked === false) && q(root, '[data-carry="apply"]').disabled === true
+    && q(root, '[data-carry="card"]').textContent.includes("13 placed by hand") && q(root, '[data-carry="card"]').textContent.includes("Nothing is ticked for you, and a backup is taken first"),
+    q(root, '[data-carry="card"]') && q(root, '[data-carry="card"]').textContent.slice(0, 500));
+  ticks[1].checked = true; ticks[1].dispatchEvent({ type: "change" }); root = await render(h);
+  q(root, '[data-carry="apply"]').click(); for (let i = 0; i < 8; i++) await tick(); root = await render(h);
+  const ap = h.calls.find(c => c.type === "padspan_ha/plan_carry_apply");
+  check("carry: only the ticked kind is asked for; said, counted, the line gone", ap && JSON.stringify(ap.kinds) === '["receivers"]' && ap.map_id === "c1"
+    && h.toasts.some(t => t.includes("Moved 1 thing with the plan") && t.includes("backup")) && ["opened", "moved", "moved_receivers"].every(w => carry(h).includes(w))
+    && !carry(h).includes("moved_points") && !q(root, '[data-carry="line"]'), [ap, h.toasts, carry(h)]);
+  // A refusal (no backup) is said and nothing is forgotten; Leave ends it without a move.
+  [h, root] = await open({ carry: [C1], carryFails: true });
+  q(root, '[data-carry="review"]').click(); root = await render(h);
+  const t2 = q(root, '[data-carry="tick-points"]'); t2.checked = true; t2.dispatchEvent({ type: "change" }); root = await render(h);
+  q(root, '[data-carry="apply"]').click(); for (let i = 0; i < 8; i++) await tick(); root = await render(h);
+  check("carry: a move refused is said, counted, and still offered", root.textContent.includes("safety backup couldn't be made") && carry(h).includes("refused") && !!q(root, '[data-carry="line"]'));
+  q(root, '[data-carry="leave"]').click(); for (let i = 0; i < 4; i++) await tick(); root = await render(h);
+  check("carry: Leave them where they are ends it, moving nothing", !q(root, '[data-carry="line"]') && h.calls.some(c => c.type === "padspan_ha/plan_carry_dismiss" && c.map_id === "c1")
+    && carry(h).includes("dismissed") && h.calls.filter(c => c.type === "padspan_ha/plan_carry_apply").length === 1);
+  for (const [name, o] of [["Sample", { dataMode: "sample" }], ["non-admin", { admin: false }], ["wall screen", { kiosk: true }]]) {
+    const [x, xr] = await open({ carry: [C1], ...o });
+    check(`${name}: no carry line, and the list never asked for`, !q(xr, '[data-carry="line"]') && !x.calls.some(c => c.type === "padspan_ha/plan_carry_list"));
+  }
 }
 
 console.log(JSON.stringify({ cases, failures }));

@@ -571,7 +571,8 @@ _PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "b
                                                     "scan_refused_size", "scan_refused_unreadable", "scan_refused_not_scan", "scan_refused_empty",
                                                     "scan_usdz", "scan_json", "scan_walls_1_4", "scan_walls_5_12", "scan_walls_13_30", "scan_walls_gt30",
                                                     "scan_named", "scan_phone",
-                                                    "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs")))
+                                                    "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs"))
+                + tuple(f"plan_carry:{k}" for k in ("offered", "opened", "moved", "dismissed", "refused", "moved_rooms", "moved_receivers", "moved_points", "moved_devices")))
 _SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "not_to_scale", "per_axis", "measured_one", "measured_two", "later", "reminder_measure")
                      + tuple(f"via_{d}" for d in ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")))
 

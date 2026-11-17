@@ -471,6 +471,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "device_name",
     "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
     "rough_plan",                                   # "No floor plan? Ways to get one" and the phone's walk-through of a room scan
+    "plan_carry",                                   # a moved plan's line in the Library, and what could move with it
     "plan_measure", "scale_nudge",                  # the hand measurement (the helper's and the upload's "Set this plan's scale now")
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
@@ -1009,6 +1010,10 @@ ROUGH_PLAN_SCAN: tuple[str, ...] = ("scan_refused_size", "scan_refused_unreadabl
                                     # Autoplace: put on the room it fits (its outline fitting both ways round or one), or
                                     # not placed; and a drawn room over a tenth off the scan's measured size.
                                     "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs")
+# Carry-along (views/plan_carry.js, plan_carry.py; 2026-11-16): a moved plan's line shown, its list opened, what was
+# ticked moved (and which kinds), left where it was, or a move refused (no backup). Words only.
+PLAN_CARRY_WORDS: tuple[str, ...] = ("offered", "opened", "moved", "dismissed", "refused", "moved_rooms", "moved_receivers", "moved_points", "moved_devices")
+PLAN_CARRY_EVENTS: frozenset[str] = frozenset(f"plan_carry:{k}" for k in PLAN_CARRY_WORDS)
 ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS + ROUGH_PLAN_WALK + ROUGH_PLAN_SCAN)
 
 
@@ -1502,7 +1507,7 @@ def event_allowed(name: str) -> bool:
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
-            or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS)
+            or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
