@@ -1,0 +1,146 @@
+"""Carry-along (plan_carry.py, 2026-11-16): what was placed on a floor plan, moved with it when the plan is.
+
+A plan's place in the house is corrected now and then, and everything put on it is stored in metres, so it stays where
+the plan used to be (the owner's basement, 2026-11: two receivers 1.1 m off and four devices outside their room, put
+right by hand). Held here: where a plan stood is noted the first time it is moved and never on its first placing; the
+list says what would move and moves nothing; only the kinds asked for move, each to the same spot on the picture, after
+a backup; a dismissal forgets it; nothing of a calibration point but its place changes. No real house data.
+"""
+from __future__ import annotations
+
+import copy
+import json
+
+import pytest
+
+from custom_components.padspan_ha import plan_carry as C
+from custom_components.padspan_ha import ws_maps as WM
+from custom_components.padspan_ha.const import DATA_FABRIC, DOMAIN
+from tests.test_fabric_store import _make_fabric
+from tests.test_house3d_edit import disk  # noqa: F401
+from tests.test_house3d_store import _run
+from tests.test_plan_build import _call
+from tests.test_plan_build_scale import _setup
+
+_ACROSS = {"p1": [0.1, 0.5], "p2": [0.6, 0.5], "text": "5 m"}       # the 1000 x 800 plan "n1": 10 m across, 8 m down
+
+
+def _house(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _setup(monkeypatch, tmp_path, disk)
+    out = _call(WM.ws_maps_scale_measure, h, conn, map_id="n1", measures=[dict(_ACROSS)], save=True)
+    assert out["ok"] is True and (out["scale_x_m"], out["scale_y_m"]) == (10.0, 8.0)
+    fab = _make_fabric()                                    # the house's metres, in the real store (the fixture's is read-only)
+    mdl.fabric = fab
+    h.data[DOMAIN][DATA_FABRIC] = fab
+    m = ms.get_map("n1")
+    # On the plan: a room traced on it, a receiver pinned on it; in that room a light; elsewhere a light and a receiver.
+    m["room_bounds"] = {"Kitchen": {"type": "poly", "points": [[0.1, 0.125], [0.5, 0.125], [0.5, 0.5], [0.1, 0.5]]}}
+    m["receivers"] = [{"id": "r1", "source": "AA:BB", "x": 0.2, "y": 0.25, "room": "Kitchen"}]
+    _run(fab.async_correct_room("main", "Kitchen", {"type": "poly", "points_m": [[1, 1], [5, 1], [5, 4], [1, 4]]}))
+    _run(fab.async_correct_room("main", "Hall", {"type": "poly", "points_m": [[6, 1], [9, 1], [9, 7], [6, 7]]}))
+    _run(mdl.async_set_scanner_position_m("AA:BB", 2.0, 2.0, 2.2, "main"))
+    _run(mdl.async_set_scanner_position_m("CC:DD", 8.0, 6.0, 2.4, "main"))            # not pinned on this plan
+    _run(mdl.async_set_light_position_m("light.kitchen", 3.0, 3.0, "main", label="Kitchen light"))
+    _run(mdl.async_set_light_position_m("light.hall", 8.0, 2.0, "main"))               # in a room not traced on this plan
+    for pid, label, x, y, mid in (("cp_a", "Phone", 2.0, 3.0, "n1"), ("cp_b", "[auto] tag", 4.0, 2.0, "n1"), ("cp_c", "Phone", 7.0, 5.0, "other")):
+        cal.data.setdefault("points", []).append({"id": pid, "label": label, "room": "Kitchen", "map_id": mid, "floor_id": "main",
+                                                  "x_m": x, "y_m": y, "x_frac": x / 10, "y_frac": y / 8, "scanner_readings": {"AA:BB": -60}})
+    return h, conn, mdl, ms, cal
+
+
+def _move(mdl, ms, cal, **pose):
+    res = _run(mdl.async_reanchor_map("n1", ms.get_map("n1"), cal, **pose))
+    assert res.get("ok"), res
+    return res
+
+
+# The plan moved a metre east and made a fifth wider: a spot at fraction f of its width goes from 10 f to 1 + 12 f.
+_POSE = {"origin_x_m": 1.0, "origin_y_m": 0.0, "scale_x_m": 12.0, "scale_y_m": 8.0}
+_to = lambda x, y: [round(1 + x / 10 * 12, 3), y]  # noqa: E731
+
+
+def test_a_first_placing_notes_nothing_and_a_move_notes_where_the_plan_stood(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    assert not mdl.data.get(C.MOVED_KEY), "measured for the first time: there was nowhere it stood before"
+    assert _run(C.carry_list(h)) == []
+    _move(mdl, ms, cal, **_POSE)
+    was = mdl.data[C.MOVED_KEY]["n1"]
+    assert (was["origin_x_m"], was["scale_x_m"], was["scale_y_m"]) == (0.0, 10.0, 8.0) and was["at"]
+    _move(mdl, ms, cal, origin_x_m=1.5)                       # moved again: still where the things were put
+    assert mdl.data[C.MOVED_KEY]["n1"]["scale_x_m"] == 10.0 and mdl.data[C.MOVED_KEY]["n1"]["origin_x_m"] == 0.0
+
+
+def test_the_list_says_what_would_move_and_moves_nothing(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    _move(mdl, ms, cal, **_POSE)
+    before = json.dumps([mdl.room_geometry_m(), mdl.scanner_positions_m(), mdl.light_positions_m(), cal.data], sort_keys=True, default=str)
+    got = _call(C.ws_plan_carry_list, h, conn)["plans"]
+    assert len(got) == 1
+    p = got[0]
+    assert (p["map_id"], p["rooms"], p["receivers"], p["points"], p["points_hand"], p["devices"]) == ("n1", ["Kitchen"], 1, 2, 1, 1), p
+    assert p["shift_m"] == pytest.approx(2.0, abs=0.01), "the room's far corner: 5 m across goes to 7 m"
+    assert json.dumps([mdl.room_geometry_m(), mdl.scanner_positions_m(), mdl.light_positions_m(), cal.data], sort_keys=True, default=str) == before
+    plan = C.carry_plan(h, "n1")
+    assert plan["receivers"] == {"AA:BB": _to(2.0, 2.0)} and plan["devices"] == {"light.kitchen": _to(3.0, 3.0)}
+    assert plan["points"] == {"cp_a": _to(2.0, 3.0), "cp_b": _to(4.0, 2.0)}
+    assert plan["rooms"]["Kitchen"] == [_to(1, 1), _to(5, 1), _to(5, 4), _to(1, 4)]
+
+
+def test_only_what_is_ticked_moves_after_a_backup_and_the_rest_is_untouched(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    _move(mdl, ms, cal, **_POSE)
+    assert _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=[])["code"] == "none_chosen"
+    pts0, rooms0, lights0 = copy.deepcopy(cal.data["points"]), copy.deepcopy(mdl.room_geometry_m()), copy.deepcopy(mdl.light_positions_m())
+    out = _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=["receivers"])
+    assert out["ok"] is True and out["moved"] == {"rooms": 0, "receivers": 1, "points": 0, "devices": 0} and out["backup_id"]
+    pos = mdl.scanner_positions_m()
+    assert [pos["AA:BB"]["x_m"], pos["AA:BB"]["y_m"], pos["AA:BB"]["z_m"]] == [*_to(2.0, 2.0), 2.2], "its height kept"
+    assert (pos["CC:DD"]["x_m"], pos["CC:DD"]["y_m"]) == (8.0, 6.0), "a receiver not pinned on the plan stays"
+    assert cal.data["points"] == pts0 and mdl.room_geometry_m() == rooms0 and mdl.light_positions_m() == lights0
+    assert _run(C.carry_list(h)) == [] and "n1" not in (mdl.data.get(C.MOVED_KEY) or {}), "answered: no longer listed"
+
+
+def test_everything_ticked_goes_to_the_same_spot_on_the_picture(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    _move(mdl, ms, cal, **_POSE)
+    out = _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=list(C.KINDS))
+    assert out["ok"] is True and out["moved"] == {"rooms": 1, "receivers": 1, "points": 2, "devices": 1}
+    geo, lp = mdl.room_geometry_m(), mdl.light_positions_m()
+    assert [list(p[:2]) for p in geo["Kitchen"]["points_m"]] == [_to(1, 1), _to(5, 1), _to(5, 4), _to(1, 4)]
+    assert [list(p[:2]) for p in geo["Hall"]["points_m"]] == [[6, 1], [9, 1], [9, 7], [6, 7]], "a room not traced on the plan stays"
+    assert [lp["light.kitchen"]["x_m"], lp["light.kitchen"]["y_m"]] == _to(3.0, 3.0) and lp["light.kitchen"]["label"] == "Kitchen light"
+    assert (lp["light.hall"]["x_m"], lp["light.hall"]["y_m"]) == (8.0, 2.0)
+    by = {p["id"]: p for p in cal.data["points"]}
+    assert [by["cp_a"]["x_m"], by["cp_a"]["y_m"]] == _to(2.0, 3.0) and [by["cp_b"]["x_m"], by["cp_b"]["y_m"]] == _to(4.0, 2.0)
+    assert (by["cp_c"]["x_m"], by["cp_c"]["y_m"]) == (7.0, 5.0), "a point recorded on another plan stays"
+    assert all(by[k]["scanner_readings"] == {"AA:BB": -60} and by[k]["room"] == "Kitchen" for k in ("cp_a", "cp_b", "cp_c")), "only a point's place changes"
+    assert by["cp_a"]["x_frac"] == pytest.approx(0.2, abs=1e-3), "back on the spot of the picture it was clicked on"
+
+
+def test_a_dismissal_forgets_it_and_a_backup_that_fails_moves_nothing(monkeypatch, tmp_path, disk):  # noqa: F811
+    from custom_components.padspan_ha import ws_backup
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    _move(mdl, ms, cal, **_POSE)
+
+    async def no_backup(*a, **k):
+        return None
+
+    real = ws_backup._auto_backup
+    monkeypatch.setattr(ws_backup, "_auto_backup", no_backup)
+    before = json.dumps([mdl.room_geometry_m(), mdl.scanner_positions_m(), cal.data], sort_keys=True, default=str)
+    out = _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=list(C.KINDS))
+    assert out["ok"] is False and out["code"] == "backup_failed"
+    assert json.dumps([mdl.room_geometry_m(), mdl.scanner_positions_m(), cal.data], sort_keys=True, default=str) == before
+    assert len(_run(C.carry_list(h))) == 1, "still offered"
+    monkeypatch.setattr(ws_backup, "_auto_backup", real)
+    assert _call(C.ws_plan_carry_dismiss, h, conn, map_id="n1") == {"ok": True}
+    assert _run(C.carry_list(h)) == [] and json.dumps([mdl.room_geometry_m(), mdl.scanner_positions_m(), cal.data], sort_keys=True, default=str) == before
+    assert _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=["rooms"])["code"] == "nothing"
+
+
+def test_the_commands_are_an_administrators_and_registered():
+    from custom_components.padspan_ha import websocket as W
+    src = (W.__file__ and open(W.__file__, encoding="utf-8").read()) or ""
+    assert "from .plan_carry import WS_COMMANDS as _plan_carry_commands" in src
+    assert C.WS_COMMANDS == (C.ws_plan_carry_list, C.ws_plan_carry_apply, C.ws_plan_carry_dismiss)
+    assert DOMAIN and C.KINDS == ("rooms", "receivers", "points", "devices")

@@ -422,6 +422,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_flood_reset)
     # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most.
     from .setup_checks import WS_COMMANDS as _setup_tip_commands
+    # Carry-along (plan_carry.py): what was placed on a plan, moved with it when asked.
+    from .plan_carry import WS_COMMANDS as _plan_carry_commands
+    for _c in _plan_carry_commands:
+        websocket_api.async_register_command(hass, _c)
     for _cmd in _setup_tip_commands:
         websocket_api.async_register_command(hass, _cmd)
     # A motion sensor's last real change across an offline blip (motion_reconnects.py).

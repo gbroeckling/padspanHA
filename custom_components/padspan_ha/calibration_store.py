@@ -579,6 +579,26 @@ class CalibrationStore:
             await self.store.async_save(self.data)
         return count
 
+    async def async_move_points(self, moves: dict[str, tuple[float, float]], map_id: str | None = None) -> int:
+        """Set where these points are, in metres ({point id: (x_m, y_m)}): carry-along's write (plan_carry.py), only
+        ever at the person's asking and after a backup. Nothing else of a point changes: its readings, its room, its
+        label. Their places on `map_id`'s picture are worked out again afterwards. Returns how many moved."""
+        n = 0
+        for p in self.data.get("points") or []:
+            to = moves.get(str(p.get("id"))) if isinstance(p, dict) else None
+            if to is None:
+                continue
+            x, y = float(to[0]), float(to[1])
+            if not (math.isfinite(x) and math.isfinite(y)):
+                continue
+            p["x_m"], p["y_m"] = round(x, 3), round(y, 3)
+            n += 1
+        if n:
+            await self.store.async_save(self.data)
+            if map_id:
+                await self.async_remap_from_metres(map_id)
+        return n
+
     async def async_remap_from_metres(self, map_id: str) -> int:
         """Re-derive x_frac/y_frac from metre coords for points on this map.
 

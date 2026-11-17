@@ -42,6 +42,7 @@ import hashlib
 import logging
 import math
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -1353,6 +1354,14 @@ class ModelStore:
         for _k in _CARRIED_FIELDS:
             if _k not in transform and _k in old:
                 transform[_k] = old[_k]
+        # Carry-along (plan_carry.py): where a placed plan stood before it was FIRST moved is noted, so what was put on
+        # it can be offered the same move. The oldest note is kept: until it is carried or dismissed, the things on the
+        # plan still stand where that placement had them. A plan placed for the first time has nothing to note.
+        _was = fabric_truth.placement_snapshot(old)
+        if _was is not None and fabric_truth.placement_is_readable(transform) and not fabric_truth.placements_agree(old, transform):
+            _moved = self.data.setdefault("plans_moved_from", {})
+            if str(map_id) not in _moved:
+                _moved[str(map_id)] = {**_was, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
         self.data.setdefault("map_transforms", {})[str(map_id)] = transform
         return transform
 
@@ -2054,6 +2063,11 @@ class ModelStore:
         # still a placement, and _put_map_transform is what makes "everything
         # that can move a map" a list of one.
         self._put_map_transform(map_id, new_t)
+        # Carry-along's note (plan_carry.py) also keeps which receivers were pinned on this plan BEFORE the move: the
+        # re-derivation below lists every receiver of the floor that now falls on the picture, pinned on it or not.
+        _note = (self.data.get("plans_moved_from") or {}).get(str(map_id))
+        if isinstance(_note, dict) and "receivers" not in _note:
+            _note["receivers"] = [str(r["source"]) for r in (map_dict.get("receivers") or []) if isinstance(r, dict) and r.get("source")]
         owned = owned_bad = 0
         for p in (cal_store.data.get("points") or []) if cal_store else []:
             if p.get("x_m") is None or p.get("map_id", "") != map_id:
