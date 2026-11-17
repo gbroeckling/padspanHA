@@ -44,7 +44,8 @@ def _house(monkeypatch, tmp_path, disk):  # noqa: F811
     _run(mdl.async_set_light_position_m("light.hall", 8.0, 2.0, "main"))               # in a room not traced on this plan
     for pid, label, x, y, mid in (("cp_a", "Phone", 2.0, 3.0, "n1"), ("cp_b", "[auto] tag", 4.0, 2.0, "n1"), ("cp_c", "Phone", 7.0, 5.0, "other")):
         cal.data.setdefault("points", []).append({"id": pid, "label": label, "room": "Kitchen", "map_id": mid, "floor_id": "main",
-                                                  "x_m": x, "y_m": y, "x_frac": x / 10, "y_frac": y / 8, "scanner_readings": {"AA:BB": -60}})
+                                                  "x_m": x, "y_m": y, "x_frac": x / 10, "y_frac": y / 8, "scanner_readings": {"AA:BB": -60},
+                                                  "collected_at": "2026-01-01T00:00:00+00:00"})
     return h, conn, mdl, ms, cal
 
 
@@ -136,6 +137,55 @@ def test_a_dismissal_forgets_it_and_a_backup_that_fails_moves_nothing(monkeypatc
     assert _call(C.ws_plan_carry_dismiss, h, conn, map_id="n1") == {"ok": True}
     assert _run(C.carry_list(h)) == [] and json.dumps([mdl.room_geometry_m(), mdl.scanner_positions_m(), cal.data], sort_keys=True, default=str) == before
     assert _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=["rooms"])["code"] == "nothing"
+
+
+def test_only_what_stood_there_then_and_still_does_is_offered(monkeypatch, tmp_path, disk):  # noqa: F811
+    """Review 2026-11-16: a room traced after the move, a receiver put right by hand, a point recorded afterwards and a
+    room Reconcile had already fixed were each offered the move. Only what the note saw, untouched since, is."""
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    fab = h.data[DOMAIN][DATA_FABRIC]
+    _move(mdl, ms, cal, **_POSE)
+    assert set(mdl.data[C.MOVED_KEY]["n1"]["stood"]) == {"rooms", "receivers", "devices"}
+    _run(mdl.async_set_scanner_position_m("AA:BB", 3.4, 2.0, 2.2, "main"))                       # put right by hand
+    _run(fab.async_correct_room("main", "Kitchen", {"type": "poly", "points_m": [[2.2, 1], [7, 1], [7, 4], [2.2, 4]]}))   # fixed since
+    ms.get_map("n1")["room_bounds"]["Hall"] = {"type": "poly", "points": [[0.5, 0.1], [0.7, 0.1], [0.7, 0.8], [0.5, 0.8]]}   # traced since
+    cal.data["points"].append({"id": "cp_new", "label": "Phone", "room": "Kitchen", "map_id": "n1", "floor_id": "main", "x_m": 6.0, "y_m": 2.0,
+                               "scanner_readings": {"AA:BB": -55}, "collected_at": "2099-01-01T00:00:00+00:00"})
+    cal.data["points"].append({"id": "cp_undated", "label": "Phone", "room": "Kitchen", "map_id": "n1", "floor_id": "main", "x_m": 6.0, "y_m": 3.0,
+                               "scanner_readings": {"AA:BB": -55}})
+    plan = C.carry_plan(h, "n1")
+    assert plan["rooms"] == {} and plan["receivers"] == {} and set(plan["points"]) == {"cp_a", "cp_b"}, plan
+    assert plan["devices"] == {}, "its room is no longer where the note saw it, so what is in it is not guessed at"
+    # A plan moved with nothing on it (a scan just placed) offers nothing, whatever is put on it afterwards.
+    mdl.data[C.MOVED_KEY]["n1"]["stood"] = {"rooms": {}, "receivers": {}, "devices": {}}
+    cal.data["points"] = [p for p in cal.data["points"] if p["id"] in ("cp_new", "cp_undated")]
+    assert C.carry_plan(h, "n1") is None
+    mdl.data[C.MOVED_KEY]["n1"].pop("stood")                    # a note with no picture of what stood: nothing offered
+    assert C.carry_plan(h, "n1") is None
+
+
+def test_a_picture_cut_or_extended_is_no_move_and_a_move_cut_short_is_never_made_twice(monkeypatch, tmp_path, disk):  # noqa: F811
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+    assert _run(mdl.async_rebase_placement("n1", -0.2, 0.0, 1.2, 1.0)) is True                  # the canvas padded on the left
+    assert not mdl.data.get(C.MOVED_KEY) and _run(C.carry_list(h)) == [], "nothing moved in the house"
+    _move(mdl, ms, cal, origin_x_m=1.0, origin_y_m=0.0, scale_x_m=14.0, scale_y_m=8.0)
+    assert len(_run(C.carry_list(h))) == 1
+    assert _run(mdl.async_rebase_placement("n1", 0.0, 0.0, 0.5, 1.0)) is True                   # then cut: the note described a picture that is gone
+    assert not mdl.data.get(C.MOVED_KEY)
+    mdl.data[C.MOVED_KEY] = "not a dict"                                                          # a damaged store never stops a placement
+    _move(mdl, ms, cal, origin_x_m=3.0)
+    assert isinstance(mdl.data[C.MOVED_KEY], dict)
+    # A move that fails part-way has already been answered: asked again, nothing moves a second time.
+    h2, conn2, mdl2, ms2, cal2 = _house(monkeypatch, tmp_path, disk)
+    _move(mdl2, ms2, cal2, **_POSE)
+
+    async def boom(*a, **k):
+        raise RuntimeError("disk")
+
+    monkeypatch.setattr(mdl2, "async_set_light_position_m", boom)
+    with pytest.raises(RuntimeError):
+        _run(C.carry_apply(h2, "n1", list(C.KINDS)))
+    assert "n1" not in (mdl2.data.get(C.MOVED_KEY) or {}) and _call(C.ws_plan_carry_apply, h2, conn2, map_id="n1", kinds=["rooms"])["code"] == "nothing"
 
 
 def test_the_commands_are_an_administrators_and_registered():

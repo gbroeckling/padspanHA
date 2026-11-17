@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import math
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
@@ -59,6 +60,11 @@ def _inside(x: float, y: float, P: list) -> bool:
     return c
 
 
+def _when(value: Any) -> datetime:
+    dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 def _stores(hass: HomeAssistant) -> tuple[Any, Any, Any, Any]:
     dom = hass.data.get(DOMAIN, {})
     return dom.get(DATA_MODEL), dom.get(DATA_MAPS), dom.get(DATA_CALIBRATION), dom.get(DATA_FABRIC)
@@ -79,6 +85,26 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
         return None
     if fabric_truth.placements_agree(was, now):
         return None
+    # Only what stood there when the plan was moved, and stands there still: a thing placed or put right since then is
+    # where the person wants it (the note's `stood`; a calibration point by when it was recorded).
+    stood = was.get("stood")
+    if not isinstance(stood, dict):
+        return None
+
+    def still(kind: str, key: Any, pts: list) -> bool:
+        s = (stood.get(kind) or {}).get(key)
+        if kind != "rooms":
+            s, pts = [s], [pts]
+        try:
+            return isinstance(s, list) and len(s) == len(pts) and all(math.dist((float(a[0]), float(a[1])), (float(b[0]), float(b[1]))) < 0.002 for a, b in zip(s, pts))
+        except (TypeError, ValueError, IndexError):
+            return False
+
+    def before(p: dict) -> bool:
+        try:
+            return _when(p.get("collected_at")) < _when(was.get("at"))
+        except (TypeError, ValueError):
+            return False
     # A spot in the house, read as its place on the picture where the plan WAS, then put where the plan IS. The inverse
     # is ModelStore's own (one arithmetic for a placement and its inverse), asked of the old record.
     old = SimpleNamespace(data={"map_transforms": {"was": was}})
@@ -101,10 +127,13 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
                            "rooms": {}, "receivers": {}, "points": {}, "points_hand": 0, "devices": {}}
     geo = mdl.room_geometry_m() or {}
     old_rooms: list[list] = []
+    traced = was["traced"] if isinstance(was.get("traced"), list) else None       # the rooms on it when it was moved
     for name in (m.get("room_bounds") or {}):
+        if traced is not None and name not in traced:
+            continue
         g = geo.get(name)
         pts = (g or {}).get("points_m") if on_floor(g) else None
-        if not isinstance(pts, list) or len(pts) < 3:
+        if not isinstance(pts, list) or len(pts) < 3 or not still("rooms", name, pts):
             continue
         new = [to(p[0], p[1]) for p in pts]
         if any(n is None for n in new):
@@ -119,13 +148,13 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
     pinned = was["receivers"] if isinstance(was.get("receivers"), list) else [r.get("source") for r in m.get("receivers") or [] if isinstance(r, dict)]
     for src in pinned:
         v = pos.get(src) if src else None
-        if on_floor(v) and v.get("x_m") is not None and v.get("y_m") is not None:
+        if on_floor(v) and v.get("x_m") is not None and v.get("y_m") is not None and still("receivers", src, [v["x_m"], v["y_m"]]):
             n = to(v["x_m"], v["y_m"])
             if far((v["x_m"], v["y_m"]), n):
                 out["receivers"][src] = n
                 shift = max(shift, math.dist((float(v["x_m"]), float(v["y_m"])), n))
     for p in ((getattr(cal, "data", None) or {}).get("points") or []) if cal is not None else []:
-        if isinstance(p, dict) and p.get("map_id") == map_id and p.get("x_m") is not None and p.get("y_m") is not None and p.get("id"):
+        if isinstance(p, dict) and p.get("map_id") == map_id and p.get("x_m") is not None and p.get("y_m") is not None and p.get("id") and before(p):
             n = to(p["x_m"], p["y_m"])
             if far((p["x_m"], p["y_m"]), n):
                 out["points"][str(p["id"])] = n
@@ -133,7 +162,7 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
                 shift = max(shift, math.dist((float(p["x_m"]), float(p["y_m"])), n))
     for eid, v in (mdl.light_positions_m() or {}).items():
         if on_floor(v) and v.get("x_m") is not None and v.get("y_m") is not None \
-                and any(_inside(float(v["x_m"]), float(v["y_m"]), P) for P in old_rooms):
+                and still("devices", eid, [v["x_m"], v["y_m"]]) and any(_inside(float(v["x_m"]), float(v["y_m"]), P) for P in old_rooms):
             n = to(v["x_m"], v["y_m"])
             if far((v["x_m"], v["y_m"]), n):
                 out["devices"][eid] = n
@@ -191,6 +220,9 @@ async def carry_apply(hass: HomeAssistant, map_id: str, kinds: list[str]) -> dic
     if not backup_id:
         return {"ok": False, "code": "backup_failed",
                 "message": "The safety backup couldn't be made, so nothing was moved. Check Home Assistant's storage and try again."}
+    # Answered, before the first write: a move cut short (a write that fails, a restart) is never made a second time
+    # from the same note. The backup just taken holds everything as it was.
+    await _forget(hass, [map_id])
     moved = dict.fromkeys(KINDS, 0)
     floor = plan["floor_id"]
     if "rooms" in kinds and fab is not None:
@@ -212,7 +244,6 @@ async def carry_apply(hass: HomeAssistant, map_id: str, kinds: list[str]) -> dic
             moved["devices"] += 1
     if "points" in kinds and cal is not None:
         moved["points"] = await cal.async_move_points({pid: (x, y) for pid, (x, y) in plan["points"].items()}, map_id)
-    await _forget(hass, [map_id])
     try:
         from .ws_common import _invalidate_snapshot_cache  # noqa: PLC0415
         _invalidate_snapshot_cache(hass)

@@ -1357,13 +1357,38 @@ class ModelStore:
         # Carry-along (plan_carry.py): where a placed plan stood before it was FIRST moved is noted, so what was put on
         # it can be offered the same move. The oldest note is kept: until it is carried or dismissed, the things on the
         # plan still stand where that placement had them. A plan placed for the first time has nothing to note.
-        _was = fabric_truth.placement_snapshot(old)
-        if _was is not None and fabric_truth.placement_is_readable(transform) and not fabric_truth.placements_agree(old, transform):
-            _moved = self.data.setdefault("plans_moved_from", {})
-            if str(map_id) not in _moved:
-                _moved[str(map_id)] = {**_was, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        # With it, where everything stood at that moment (`stood`): only a thing that was there then, and has not been
+        # touched since, is ever offered the move (review 2026-11-16: a room traced afterwards, a receiver put right by
+        # hand, a room Reconcile had fixed were each offered it). Noting can never stop a placement being written.
+        try:
+            _was = fabric_truth.placement_snapshot(old)
+            if _was is not None and fabric_truth.placement_is_readable(transform) and not fabric_truth.placements_agree(old, transform):
+                _moved = self.data.get("plans_moved_from")
+                if not isinstance(_moved, dict):
+                    _moved = self.data["plans_moved_from"] = {}
+                if str(map_id) not in _moved:
+                    _moved[str(map_id)] = {**_was, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "stood": self._carry_stood()}
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("carry-along: no note for %s", map_id, exc_info=True)
         self.data.setdefault("map_transforms", {})[str(map_id)] = transform
         return transform
+
+    def _carry_stood(self) -> dict[str, Any]:
+        """Where each room, receiver and placed device stands now, for carry-along's note (plan_carry.carry_plan)."""
+        xy = lambda v: [round(float(v["x_m"]), 3), round(float(v["y_m"]), 3)]  # noqa: E731
+        ok = lambda v: isinstance(v, dict) and v.get("x_m") is not None and v.get("y_m") is not None  # noqa: E731
+        return {"rooms": {n: [[round(float(p[0]), 3), round(float(p[1]), 3)] for p in g["points_m"]]
+                          for n, g in (self.room_geometry_m() or {}).items() if isinstance(g, dict) and isinstance(g.get("points_m"), list)},
+                "receivers": {s: xy(v) for s, v in (self.scanner_positions_m() or {}).items() if ok(v)},
+                "devices": {e: xy(v) for e, v in (self.light_positions_m() or {}).items() if ok(v)}}
+
+    def _carry_forget(self, map_id: str) -> None:
+        """A plan's PICTURE was cut, turned or extended: its placement was rewritten to keep every pixel on the same
+        square metre, so nothing moved in the house, and a note of where it stood describes a picture that is gone.
+        The note goes (review 2026-11-16: a canvas padded on the left offered a 1.8 m move of everything on it)."""
+        moved = self.data.get("plans_moved_from")
+        if isinstance(moved, dict):
+            moved.pop(str(map_id), None)
 
     async def async_set_map_transform(
         self, map_id: str, transform: dict, *, reanchor: bool = False
@@ -1842,6 +1867,7 @@ class ModelStore:
         if composed and "shear_rad" in composed:
             new_t["shear_rad"] = round(composed["shear_rad"], 6)
         self._put_map_transform(map_id, new_t)
+        self._carry_forget(map_id)
         await self.store.async_save(self.data)
         return True
 
@@ -1878,6 +1904,7 @@ class ModelStore:
             "rotation_rad": round(rebased["rotation_rad"], 6),
             "shear_rad": round(rebased["shear_rad"], 6),
         })
+        self._carry_forget(map_id)
         await self.store.async_save(self.data)
         return True
 
@@ -2068,6 +2095,7 @@ class ModelStore:
         _note = (self.data.get("plans_moved_from") or {}).get(str(map_id))
         if isinstance(_note, dict) and "receivers" not in _note:
             _note["receivers"] = [str(r["source"]) for r in (map_dict.get("receivers") or []) if isinstance(r, dict) and r.get("source")]
+            _note["traced"] = [str(n) for n in (map_dict.get("room_bounds") or {})]      # ...and the rooms traced on it then
         owned = owned_bad = 0
         for p in (cal_store.data.get("points") or []) if cal_store else []:
             if p.get("x_m") is None or p.get("map_id", "") != map_id:

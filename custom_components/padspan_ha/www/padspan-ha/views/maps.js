@@ -3983,6 +3983,7 @@ function _edit(ctx, map, allMaps, opts){
     if(ctx.state.maps._mode!=="rooms" && ctx.state.maps._mode!=="barriers") return;
     // ignore marker clicks (they stopPropagation already, but defensive)
     if(ev.target && ev.target.classList && ev.target.classList.contains("marker")) return;
+    if(ctx.state.maps._scanPick && !(ROUGH && ROUGH.hasScanRooms(map))) ctx.state.maps._scanPick = false;   // another plan was opened
     if(ctx.state.maps._mode==="rooms" && ctx.state.maps._scanPick && !ctx.state.maps._drawing && ctx.state.maps._selectedRoom){
       // "Use a scanned outline": the scanned room clicked in becomes the chosen room's outline, to keep or redraw.
       const rect = overlay.getBoundingClientRect();

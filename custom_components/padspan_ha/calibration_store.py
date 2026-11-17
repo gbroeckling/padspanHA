@@ -597,6 +597,7 @@ class CalibrationStore:
             await self.store.async_save(self.data)
             if map_id:
                 await self.async_remap_from_metres(map_id)
+            await self._async_train_rf()
         return n
 
     async def async_remap_from_metres(self, map_id: str) -> int:
