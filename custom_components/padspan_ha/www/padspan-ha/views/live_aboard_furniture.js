@@ -507,6 +507,63 @@ function merge(THREE, geos){
   return out;
 }
 
+// A closed outline with its corners rounded: pts [[a, b, r], ...], r that
+// corner's radius (0 or none: sharp), each rounded in n steps. Never repeats
+// a point (a repeat makes a crumpled bevel).
+function roundedPath(pts, n){
+  const out = [], N = pts.length;
+  const add = (x, y) => { const l = out[out.length - 1]; if (!l || Math.hypot(l[0] - x, l[1] - y) > 1e-4) out.push([x, y]); };
+  for (let i = 0; i < N; i++) {
+    const a = pts[(i + N - 1) % N], b = pts[i], c = pts[(i + 1) % N];
+    const ab = Math.hypot(b[0] - a[0], b[1] - a[1]), bc = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    const r = Math.min(b[2] || 0, ab * 0.45, bc * 0.45);
+    if (!(r > 1e-4) || n < 1) { add(b[0], b[1]); continue; }
+    const p0 = [b[0] + (a[0] - b[0]) / ab * r, b[1] + (a[1] - b[1]) / ab * r], p1 = [b[0] + (c[0] - b[0]) / bc * r, b[1] + (c[1] - b[1]) / bc * r];
+    for (let k = 0; k <= n; k++) {
+      const u = k / n, v = 1 - u;
+      add(v * v * p0[0] + 2 * v * u * b[0] + u * u * p1[0], v * v * p0[1] + 2 * v * u * b[1] + u * u * p1[1]);
+    }
+  }
+  return out;
+}
+// Normals for a faceted shape (an extrusion, which has none shared): faces
+// that meet at less than deg blend into one curve, a sharper edge stays an
+// edge. Bigger faces weigh more.
+function creaseNormals(THREE, g, deg){
+  const p = g.attributes.position, n = p.count, cosT = Math.cos(deg * Math.PI / 180);
+  const fn = new Float32Array(n * 3), un = new Float32Array(n * 3);
+  for (let i = 0; i + 2 < n; i += 3) {
+    const ax = p.getX(i), ay = p.getY(i), az = p.getZ(i);
+    const ux = p.getX(i + 1) - ax, uy = p.getY(i + 1) - ay, uz = p.getZ(i + 1) - az;
+    const vx = p.getX(i + 2) - ax, vy = p.getY(i + 2) - ay, vz = p.getZ(i + 2) - az;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, len = Math.hypot(nx, ny, nz) || 1;
+    for (let k = 0; k < 3; k++) {
+      const o = (i + k) * 3;
+      fn[o] = nx; fn[o + 1] = ny; fn[o + 2] = nz;
+      un[o] = nx / len; un[o + 1] = ny / len; un[o + 2] = nz / len;
+    }
+  }
+  const at = new Map();
+  for (let i = 0; i < n; i++) {
+    const key = Math.round(p.getX(i) * 1e4) + "," + Math.round(p.getY(i) * 1e4) + "," + Math.round(p.getZ(i) * 1e4);
+    let l = at.get(key);
+    if (!l) at.set(key, l = []);
+    l.push(i);
+  }
+  const out = new Float32Array(n * 3);
+  for (const l of at.values()) for (const i of l) {
+    let x = 0, y = 0, z = 0;
+    for (const j of l) {
+      if (un[i * 3] * un[j * 3] + un[i * 3 + 1] * un[j * 3 + 1] + un[i * 3 + 2] * un[j * 3 + 2] < cosT) continue;
+      x += fn[j * 3]; y += fn[j * 3 + 1]; z += fn[j * 3 + 2];
+    }
+    const len = Math.hypot(x, y, z) || 1;
+    out[i * 3] = x / len; out[i * 3 + 1] = y / len; out[i * 3 + 2] = z / len;
+  }
+  g.setAttribute("normal", new THREE.BufferAttribute(out, 3));
+  return g;
+}
+
 // ── looks: shared, counted materials and finishes ────────────────────────────
 // A look is {c: "#rrggbb", f: finish}. Low draws flat colours; High a
 // physically based material with the finish's pattern as a small greyscale
@@ -517,6 +574,7 @@ const FINISH = {
   fabric: { r: 0.97, m: 0, tex: "fabric" },
   metal:  { r: 0.36, m: 0.55, tex: "metal" },
   gloss:  { r: 0.22, m: 0 },
+  satin:  { r: 0.5, m: 0 },
   soft:   { r: 0.75, m: 0 },
 };
 const CACHES = new WeakMap();           // per three.js instance: {mats, texs}
@@ -657,6 +715,35 @@ function makeKit(THREE, quality, root){
     torus(rad, tube, x, y, z, look, rot = null){
       const g = scaleUv(new THREE.TorusGeometry(rad, tube, hi ? 10 : 6, hi ? 32 : 16), 2 * Math.PI * tube / TILE, 2 * Math.PI * rad / TILE);
       add(look, place(THREE, g, x, y, z, rot));
+    },
+    // A side view pulled across the width: pts [[z, y], ...] the outline seen
+    // from the side, w wide, centred on x, its long edges softened by bevel.
+    // taper(y, z) is the share of the width kept at that point (a cabin
+    // narrower at the roof, a nose narrower than the doors).
+    prism(pts, w, x, y, z, look, bevel = 0.02, taper = null, crease = 42){
+      const bt = Math.max(0, Math.min(bevel, w / 4)), depth = Math.max(w - 2 * bt, 1e-4);
+      let g = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map((q) => new THREE.Vector2(q[0], q[1]))), { depth, bevelEnabled: bt > 1e-4,
+        bevelThickness: bt, bevelSize: bt, bevelOffset: -bt, bevelSegments: hi ? 3 : 1, curveSegments: 1 });
+      if (g.index) g = g.toNonIndexed();
+      g.translate(0, 0, -depth / 2);
+      g.rotateY(-Math.PI / 2);
+      g.clearGroups();
+      if (taper) { const a = g.attributes.position; for (let i = 0; i < a.count; i++) a.setX(i, a.getX(i) * taper(a.getY(i), a.getZ(i))); }
+      creaseNormals(THREE, g, crease);
+      add(look, place(THREE, scaleUv(g, 1 / TILE, 1 / TILE), x, y, z));
+    },
+    // A turned shape: prof [[radius, y], ...] from the bottom up, round its
+    // own y axis, drawn as one smooth curve through those points and closed
+    // on the axis at both ends. scl flattens it (a body is wider than deep).
+    lathe(prof, x, y, z, look, seg = 12, scl = null, rot = null){
+      const n = Math.max(6, Math.round(hi ? seg : seg * 0.6));
+      const curve = new THREE.SplineCurve(prof.map((q) => new THREE.Vector2(q[0], q[1]))).getPoints(hi ? Math.round(prof.length * 1.6) : prof.length - 1);
+      const y0 = prof[0][1], y1 = prof[prof.length - 1][1];
+      const pts = [new THREE.Vector2(1e-5, y0), ...curve.map((v) => new THREE.Vector2(Math.max(v.x, 1e-5), clamp(v.y, y0, y1))), new THREE.Vector2(1e-5, y1)];
+      let r = 0;
+      for (const v of pts) r = Math.max(r, v.x);
+      const g = scaleUv(new THREE.LatheGeometry(pts, n), 2 * Math.PI * r / TILE, Math.max(y1 - y0, 1e-3) / TILE);
+      add(look, place(THREE, g, x, y, z, rot, scl));
     },
     // A part of its own (one that moves, or a stretch): a group under this one.
     child(pos = null, scl = null, rot = null){
@@ -1710,34 +1797,151 @@ function buildMowerDock(K, S, p, C, parts){
   mower.box(mw * 0.4, 0.01, ml * 0.3, 0, mh + 0.005, -ml * 0.1, dark);
 }
 
-// Car: the nose toward +z, a cabin by body style, its charge-port light (parts.glow).
+// Car: the nose toward +z, its charge-port light (parts.glow). Two characters, few details, satin paint:
+//   sedan, hatch   a low sports coupe: round lamps on raised front wings, a
+//                  low nose, one sweep of roof down to the tail, wide hips,
+//                  a light bar across the tail
+//   suv, pickup    a boxy 4x4: a flat hood, round lamps in a dark grille,
+//                  flared arches over big tyres, a dark top, a spare on the
+//                  back (the pickup: a bed)
 function buildCar(K, S, p, C, parts){
-  const { w: W, d: D, h: H } = S;
-  const body = L(C[0], "gloss"), glass = L(C[1], "gloss"), tyre = L("#1c1c1e"), rim = L("#9ba3ab", "metal");
-  const wr = clamp(Math.min(H * 0.22, D * 0.075), 0.2, 0.4), ww = Math.min(0.24, W * 0.13);
-  const clear = wr * 0.45, belt = Math.min(H * 0.55, clear + wr * 1.9);
-  K.box(W - 0.04, belt - clear, D - 0.024, 0, clear + (belt - clear) / 2, 0, body, 0.09);
-  const cab = { sedan: [-0.24, 0.18], hatch: [-0.42, 0.14], suv: [-0.42, 0.2], pickup: [-0.06, 0.22] }[p.body];
-  const z0 = cab[0] * D, z1 = cab[1] * D, roofT = Math.min(0.06, (H - belt) * 0.15);
-  K.box(W * 0.84, H - belt - roofT + 0.02, z1 - z0, 0, belt + (H - belt - roofT) / 2 - 0.01, (z0 + z1) / 2, glass, 0.08);
-  K.box(W * 0.84, roofT, (z1 - z0) * 0.9, 0, H - roofT / 2, (z0 + z1) / 2, body, Math.min(0.03, roofT / 2));
-  if (p.body === "pickup") {
-    const bz0 = -D / 2 + 0.05, bz1 = z0 - 0.06, wallH = Math.min(0.32, (H - belt) * 0.5);
-    for (const s of [-1, 1]) K.box(0.05, wallH, bz1 - bz0, s * (W / 2 - 0.045), belt + wallH / 2, (bz0 + bz1) / 2, body, 0.01);
-    K.box(W - 0.09, wallH, 0.05, 0, belt + wallH / 2, bz0 + 0.025, body, 0.01);
-  }
-  const wz = D / 2 - Math.max(wr * 1.6, D * 0.17);
-  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
-    const x = sx * (W / 2 - ww / 2 - 0.003);
-    K.cyl(wr, wr, ww, x, wr, sz2 * wz, tyre, 22, [0, 0, Math.PI / 2]);
-    K.cyl(wr * 0.55, wr * 0.55, ww + 0.004, x, wr, sz2 * wz, rim, 16, [0, 0, Math.PI / 2]);
-  }
-  const ly = belt - Math.min(0.12, (belt - clear) * 0.35);
+  return (p.body === "suv" || p.body === "pickup" ? buildCarRugged : buildCarSleek)(K, S, p, C, parts);
+}
+const carSoft = (u) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+// A wheel arch of radius r round (cz, cy), cut off at height `floor`: its points front to back over the top.
+function carArch(cz, cy, r, floor, m){
+  const dx = Math.sqrt(Math.max(r * r - (cy - floor) * (cy - floor), 1e-6)), a0 = Math.atan2(floor - cy, dx), a1 = Math.PI - a0, out = [];
+  for (let i = 0; i <= m; i++) { const a = a0 + (a1 - a0) * i / m; out.push([cz + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  return out;
+}
+
+function buildCarSleek(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S, hi = K.hi, hatch = p.body === "hatch";
+  const body = L(C[0], "satin"), glass = L(C[1], "gloss"), tyre = L("#141517", "soft"), rim = L("#b9bfc5", "satin"), dark = L("#17191c", "soft"), lamp = L("#f4f1e6", "gloss");
+  const wr = clamp(Math.min(H * 0.235, D * 0.074), 0.16, 0.42), ww = Math.min(0.27, W * 0.14);
+  const clear = wr * 0.42;
+  const belt = clamp(H * 0.585, clear + wr * 1.85, H * 0.74), bh = belt - clear, top = H - belt;
+  const side = W / 2 - 0.004, zr = -D / 2, zf = D / 2;
+  const wzf = zf - Math.max(wr * 1.55, D * 0.165), wzr = zr + Math.max(wr * 1.5, D * 0.16), ra = wr * 1.1;
+  // Seen from above: widest over the back wheels, narrower along the doors, narrower again at the nose and the tail.
+  const plan = (z) => z >= wzr ? 1 - 0.085 * carSoft((z - wzr) / (D * 0.26)) - 0.07 * carSoft((z - D * 0.3) / (D * 0.2))
+    : 1 - 0.08 * carSoft((wzr - z) / Math.max(wzr - zr, 1e-3));
+  const tumble = (y) => 1 - 0.045 * carSoft((y - (belt - bh * 0.4)) / (bh * 0.4));
+  const n = hi ? 6 : 2, m = hi ? 12 : 6, r1 = Math.min(0.13, bh * 0.3);
+  const z1 = D * (hatch ? 0.17 : 0.2), z0 = D * (hatch ? -0.44 : -0.42), span = z1 - z0;
+  K.prism(roundedPath([
+    [zr + D * 0.03, clear, r1 * 0.6], [zr, clear + bh * 0.36, r1 * 1.2], [zr + D * 0.012, belt - bh * 0.05, r1 * 1.2], [zr + D * 0.075, belt, r1 * 2],
+    [z1, belt, 0], [zf - D * 0.085, belt - bh * 0.13, r1 * 3], [zf, belt - bh * 0.4, r1 * 1.6],
+    [zf - D * 0.006, clear + bh * 0.16, r1], [zf - D * 0.035, clear, r1 * 0.6],
+  ], n).concat(carArch(wzf, wr, ra, clear, m), carArch(wzr, wr, ra, clear, m)), side * 2, 0, 0, 0, body, Math.min(0.075, W * 0.042), (y, z) => plan(z) * tumble(y));
+  // The cabin: glass under one sweep of roof, narrower toward the tail.
+  const rf = Math.min(top * 1.25, span * 0.32), roofT = Math.min(0.04, top * 0.11), gw = side * 2 * 0.8;
+  const lean = (y) => 1 - 0.2 * clamp((y - belt) / top, 0, 1), tear = (z) => 1 - (hatch ? 0.05 : 0.15) * carSoft((z1 - rf - z) / (span * 0.8));
+  const peak = [z1 - rf - span * 0.1, H - roofT], fall = hatch ? [z0 + top * 0.5, H - roofT - top * 0.1] : [z0 + span * 0.46, H - roofT - top * 0.24];
+  K.prism(roundedPath([[z0, belt - 0.02, 0], [fall[0], fall[1], span * 0.3], [peak[0], peak[1], span * 0.2], [z1 - rf, H - roofT, Math.min(0.12, top * 0.3)], [z1, belt - 0.02, 0]], n),
+    gw, 0, 0, 0, glass, 0.035, (y, z) => lean(y) * tear(z));
+  K.prism(roundedPath([[fall[0] + 0.02, fall[1] - 0.004, 0], [peak[0], peak[1] - 0.004, 0], [z1 - rf - 0.01, H - roofT - 0.004, 0],
+                       [z1 - rf - 0.05, H, roofT * 2], [peak[0], H, span * 0.2], [fall[0] + 0.06, fall[1] + roofT, 0]], n),
+    gw * 0.8, 0, 0, 0, body, roofT * 0.3, (y, z) => tear(z));
+  const pr = Math.min(0.024, W * 0.013);
   for (const s of [-1, 1]) {
-    K.box(W * 0.2, 0.07, 0.02, s * W * 0.32, ly, D / 2 - 0.012, L("#f4f1e6", "gloss"), 0.01);
-    K.box(W * 0.2, 0.06, 0.02, s * W * 0.32, ly, -D / 2 + 0.012, L("#9b1c1c", "gloss"), 0.01);
+    K.rod([s * (gw / 2 - pr * 0.3), belt, z1], [s * (gw / 2 * 0.8 - pr * 0.3) * tear(z1 - rf), H - roofT * 0.7, z1 - rf], pr, body, 8);
+    K.box(0.075, 0.055, 0.1, s * (gw / 2 + 0.03), belt + 0.035, z1 - 0.05, body, 0.02);
   }
-  parts.glow = [K.own(L("#2f3a33", "gloss"), (k) => k.box(0.006, 0.05, 0.08, -W / 2 + 0.023, belt - 0.08, D * 0.3, L("#2f3a33")))];
+  // Wheels: a tyre, an alloy with five spokes.
+  const turn = [0, 0, Math.PI / 2];
+  for (const cz of [wzf, wzr]) {
+    K.box(side * 1.7, wr + ra * 0.98 - clear, ra * 1.96, 0, (clear + wr + ra * 0.98) / 2, cz, dark);
+    for (const s of [-1, 1]) {
+      const x = s * (side * plan(cz) * 0.975 - ww / 2), face = x + s * ww / 2;
+      K.cyl(wr, wr, ww, x, wr, cz, tyre, hi ? 24 : 20, turn);
+      K.cyl(wr * 0.72, wr * 0.72, 0.012, face, wr, cz, rim, hi ? 20 : 16, turn);
+      if (hi) {
+        K.cyl(wr * 0.62, wr * 0.62, 0.016, face, wr, cz, dark, 18, turn);
+        for (let i = 0; i < 5; i++) {
+          const a = i * 2 * Math.PI / 5;
+          K.box(0.012, wr * 0.56, wr * 0.17, face + s * 0.007, wr + Math.cos(a) * wr * 0.32, cz + Math.sin(a) * wr * 0.32, rim, 0, [a, 0, 0]);
+        }
+      }
+      K.cyl(wr * 0.17, wr * 0.17, 0.03, face, wr, cz, hi ? rim : dark, 10, turn);
+    }
+  }
+  // Round lamps set in the nose, a dark intake under it, one red bar across the tail.
+  const nose = side * plan(zf), tail = side * plan(zr), rl = Math.min(bh * 0.1, W * 0.045);
+  for (const s of [-1, 1]) K.cyl(rl, rl, 0.03, s * nose * 0.66, clear + bh * 0.42, zf - 0.016, lamp, 18, [Math.PI / 2, 0, 0]);
+  K.box(nose * 1.3, bh * 0.13, 0.02, 0, clear + bh * 0.2, zf - D * 0.006 - 0.004, dark, 0.008);
+  K.box(tail * 1.6, bh * 0.05, 0.03, 0, clear + bh * 0.76, zr + D * 0.012 + 0.004, L("#c3202a", "gloss"), 0.012);
+  const py = belt - Math.min(0.16, bh * 0.3), pz = D * 0.02;
+  parts.glow = [K.own(L("#2f3a33", "gloss"), (k) => k.box(0.012, 0.05, 0.08, -side * plan(pz) * tumble(py), py, pz, L("#2f3a33")))];
+}
+
+function buildCarRugged(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S, hi = K.hi, pickup = p.body === "pickup";
+  const body = L(C[0], "satin"), glass = L(C[1], "gloss"), tyre = L("#141517", "soft"), steel = L("#42474d", "satin"), dark = L("#17191c", "soft"), lamp = L("#f4f1e6", "gloss");
+  const wr = clamp(Math.min(H * 0.235, D * 0.088), 0.18, 0.46), ww = Math.min(0.3, W * 0.155);
+  const clear = wr * 0.72;
+  const belt = clamp(H * 0.6, clear + wr * 1.82, H * 0.75), bh = belt - clear, top = H - belt;
+  const flare = 0.024, side = W / 2 - flare - 0.004;
+  const spare = pickup ? 0 : Math.min(ww * 0.8, D * 0.05), zr = -D / 2 + (pickup ? 0.03 : spare + 0.01), zf = D / 2 - 0.05;
+  const wzf = zf - Math.max(wr * 1.4, D * 0.15), wzr = zr + Math.max(wr * 1.4, D * 0.15), ra = wr * 1.12;
+  const plan = (z) => 1 - 0.035 * carSoft((Math.abs(z) / (D / 2) - 0.6) / 0.4);
+  const tumble = (y) => 1 - 0.02 * carSoft((y - (belt - bh * 0.3)) / (bh * 0.3));
+  const n = hi ? 4 : 2, m = hi ? 12 : 6, r1 = Math.min(0.06, bh * 0.14);
+  K.prism(roundedPath([
+    [zr + 0.03, clear, r1], [zr, clear + bh * 0.16, r1], [zr, belt, r1],
+    [zf - 0.012, belt - bh * 0.03, r1 * 1.6], [zf, belt - bh * 0.14, r1], [zf, clear + bh * 0.18, r1], [zf - 0.04, clear, r1],
+  ], n).concat(carArch(wzf, wr, ra, clear, m), carArch(wzr, wr, ra, clear, m)), side * 2, 0, 0, 0, body, Math.min(0.045, W * 0.025), (y, z) => plan(z) * tumble(y));
+  // Flares round the arches, and a step between them.
+  for (const cz of [wzf, wzr]) {
+    K.prism(carArch(cz, wr, ra * 1.2, clear, m).concat(carArch(cz, wr, ra * 1.005, clear, m).reverse()), (side + flare) * 2, 0, 0, 0, dark, 0.012);
+    K.box(side * 1.7, wr + ra * 0.98 - clear, ra * 1.96, 0, (clear + wr + ra * 0.98) / 2, cz, dark);
+  }
+  for (const s of [-1, 1]) K.box(0.07, 0.05, wzf - wzr - ra * 2.5, s * (side - 0.012), clear + 0.03, (wzf + wzr) / 2, dark, 0.015);
+  // The cabin: upright glass under a dark top.
+  const z1 = D * (pickup ? 0.16 : 0.14), z0 = pickup ? -D * 0.06 : zr + 0.03, rf = top * 0.4, rr = top * (pickup ? 0.08 : 0.1);
+  const roofT = Math.min(0.06, top * 0.14), gw = side * 2 * 0.94, lean = (y) => 1 - 0.075 * clamp((y - belt) / top, 0, 1), gr = Math.min(0.06, top * 0.14);
+  K.prism(roundedPath([[z0, belt - 0.02, 0], [z0 + rr, H - roofT, gr], [z1 - rf, H - roofT, gr], [z1, belt - 0.02, 0]], n), gw, 0, 0, 0, glass, 0.025,
+    (y, z) => lean(y) * plan(z));
+  K.prism(roundedPath([[z0 + rr - 0.03, H - roofT, 0], [z0 + rr - 0.01, H, roofT], [z1 - rf - 0.05, H, roofT * 1.5], [z1 - rf + 0.03, H - roofT, 0]], n),
+    gw * 0.955, 0, 0, 0, dark, roofT * 0.3, (y, z) => plan(z));
+  const pr = Math.min(0.034, W * 0.018), xb = gw / 2 - pr * 0.3, xt = gw / 2 * 0.925 - pr * 0.3, yt = H - roofT * 0.8, zm = (z0 + rr + z1 - rf) / 2 + (pickup ? 0 : (z1 - z0) * 0.12);
+  for (const s of [-1, 1]) {
+    K.rod([s * xb * plan(z1), belt, z1], [s * xt * plan(z1 - rf), yt, z1 - rf], pr, body, 8);
+    K.rod([s * xb * plan(z0), belt, z0], [s * xt * plan(z0 + rr), yt, z0 + rr], pr * 1.3, dark, 8);
+    if (!pickup && hi) K.rod([s * xb * plan(zm), belt, zm], [s * xt * plan(zm), yt, zm], pr, dark, 8);
+    K.box(0.064, 0.09, 0.05, s * (W / 2 - 0.036), belt + 0.06, z1 - 0.04, dark, 0.015);
+  }
+  if (pickup) {
+    // The bed: a dark floor between the sides and a tailgate.
+    const b0 = zr + 0.02, b1 = z0 - 0.04, railH = Math.min(0.14, top * 0.26), bx = side * 0.97;
+    K.box(bx * 2 - 0.16, 0.02, b1 - b0 - 0.1, 0, belt + 0.004, (b0 + b1) / 2, dark);
+    for (const s of [-1, 1]) K.box(0.07, railH, b1 - b0, s * (bx - 0.035), belt + railH / 2 - 0.01, (b0 + b1) / 2, body, 0.02);
+    K.box(bx * 2 - 0.07, railH, 0.06, 0, belt + railH / 2 - 0.01, b0 + 0.03, body, 0.02);
+  }
+  // Big tyres on plain steel wheels.
+  const turn = [0, 0, Math.PI / 2], flat = [Math.PI / 2, 0, 0];
+  for (const cz of [wzf, wzr]) for (const s of [-1, 1]) {
+    const x = s * (side + flare - 0.006 - ww / 2), face = x + s * ww / 2;
+    K.cyl(wr, wr, ww, x, wr, cz, tyre, hi ? 24 : 20, turn);
+    K.cyl(wr * 0.54, wr * 0.54, 0.014, face - s * 0.004, wr, cz, steel, hi ? 20 : 16, turn);
+    K.cyl(wr * 0.16, wr * 0.16, 0.024, face - s * 0.004, wr, cz, L("#b9bfc5", "satin"), 10, turn);
+  }
+  // The face: round lamps at the ends of a dark grille, a bar of light between them, a bumper.
+  const gy = belt - bh * 0.3, rl = Math.min(bh * 0.12, W * 0.06);
+  K.box(side * 1.84, bh * 0.3, 0.03, 0, gy, zf + 0.002, dark, 0.01);
+  for (const s of [-1, 1]) K.cyl(rl, rl, 0.03, s * (side * 0.92 - rl * 1.25), gy, zf + 0.008, lamp, 20, flat);
+  K.box(side * 1.84 - rl * 5.2, bh * 0.035, 0.02, 0, gy, zf + 0.012, lamp);
+  K.box(side * 1.96, bh * 0.16, 0.085, 0, clear + bh * 0.1, zf + 0.006, dark, 0.02);
+  // Behind: upright lamps, a bumper, and the spare.
+  for (const s of [-1, 1]) K.box(0.06, bh * 0.3, 0.02, s * side * 0.88, belt - bh * 0.3, zr - 0.004, L("#c3202a", "gloss"), 0.008);
+  K.box(side * 1.96, bh * 0.14, 0.05, 0, clear + bh * 0.09, zr - 0.002, dark, 0.015);
+  if (!pickup) {
+    const sy = clamp(clear + bh * 0.7, wr * 0.95, H - wr * 0.95 - 0.01);
+    K.cyl(wr * 0.94, wr * 0.94, spare * 0.9, 0, sy, zr - spare * 0.5, tyre, 24, flat);
+    K.cyl(wr * 0.5, wr * 0.5, 0.02, 0, sy, zr - spare * 0.93, steel, 18, flat);
+  }
+  const py = belt - Math.min(0.16, bh * 0.3), pz = D * 0.02;
+  parts.glow = [K.own(L("#2f3a33", "gloss"), (k) => k.box(0.012, 0.05, 0.08, -side * plan(pz) * tumble(py), py, pz, L("#2f3a33")))];
 }
 
 // Car charger: a wall box (or one on a post), its light ring toward +z (parts.glow).
@@ -1949,7 +2153,7 @@ export function disposePiece(group){
 }
 
 // ── the people figure ────────────────────────────────────────────────────────
-// Stylised, Sims-like, never a likeness: height, build, hair, colours, and
+// A token, never a likeness: height, build (how wide), hair, colours, and
 // glasses or a cap. No face beyond two dots for eyes, which show where it faces.
 export const FIGURE = {
   name: "Person",
@@ -1974,47 +2178,33 @@ function clampFigure(params){
   return out;
 }
 
+// One smooth body in two colours (the top over the bottom) and a head. No
+// arms or legs: a figure on a plan says who and where, not what they do.
 function drawFigure(K, S, p){
   const H = p.height_m, c = p.colors;
-  const skin = L(c.skin, "soft"), top = L(c.top, "fabric"), bottom = L(c.bottom, "fabric"), hair = L(c.hair, "soft");
-  const shoe = L("#2a2624", "soft"), dark = L("#1d1d1f", "gloss");
-  // A child's head is bigger for its height, as in the Sims; everything
-  // else hangs from it: chin, shoulders, hips, knees.
-  const kid = clamp((1.6 - H) / 0.6, 0, 1);
-  const hr = (0.075 + 0.022 * kid) * H, hy = H * 0.988 - hr;
-  const shoulder = hy - hr * 0.85 - 0.03 * H, hip = shoulder * (0.6 - 0.05 * kid), ankle = 0.035 * H;
-  const wide = 1 + 0.1 * kid;
-  const tw = { slim: 0.2, medium: 0.23, broad: 0.27 }[p.build] * H * wide, td = { slim: 0.12, medium: 0.13, broad: 0.15 }[p.build] * H * wide;
-  // Legs and shoes.
-  const legR = tw * 0.17;
-  for (const s of [-1, 1]) {
-    K.cyl(legR, legR * 0.85, hip - ankle, s * tw * 0.24, ankle + (hip - ankle) / 2, 0, bottom, 12);
-    K.box(legR * 2.1, ankle, legR * 2 + ankle, s * tw * 0.24, ankle / 2, ankle / 2, shoe, 0.012 * H);
-  }
-  // Hips in the bottom colour, the body in the top colour.
-  K.box(tw, 0.08 * H, td, 0, hip, 0, bottom, 0.03 * H);
-  K.box(tw, shoulder - hip, td, 0, hip + (shoulder - hip) / 2 + 0.01 * H, 0, top, 0.035 * H);
-  // Arms: sleeve, forearm, hand.
-  const armR = 0.03 * H, ax = tw / 2 + armR + 0.004 * H, elbow = shoulder - (shoulder - hip) * 0.55, wrist = hip - 0.02 * H;
-  for (const s of [-1, 1]) {
-    K.ball(armR * 1.05, s * ax, shoulder, 0, top, null, null, 10);
-    K.cyl(armR, armR * 0.9, shoulder - elbow, s * ax, (shoulder + elbow) / 2, 0, top, 10);
-    K.cyl(armR * 0.85, armR * 0.75, elbow - wrist, s * ax, (elbow + wrist) / 2, 0, skin, 10);
-    K.ball(armR * 1.0, s * ax, wrist - armR * 0.6, 0, skin, null, null, 10);
-  }
-  K.cyl(0.035 * H, 0.04 * H, hy - shoulder - hr * 0.5, 0, shoulder + (hy - shoulder - hr * 0.5) / 2, 0, skin, 12);
-  // The head: two dots for eyes, which show which way it faces; no face beyond that.
-  K.ball(hr, 0, hy, 0, skin, null, null, 18);
-  for (const s of [-1, 1]) K.ball(hr * 0.12, s * hr * 0.36, hy + hr * 0.1, hr * 0.93, dark, null, null, 8);
+  const skin = L(c.skin, "soft"), top = L(c.top, "fabric"), bottom = L(c.bottom, "fabric"), hair = L(c.hair, "soft"), dark = L("#1d1d1f", "gloss");
+  const kid = clamp((1.6 - H) / 0.6, 0, 1), wide = 1 + 0.08 * kid;
+  const hr = (0.1 + 0.02 * kid) * H, hy = H * 0.965 - hr, bodyTop = hy - hr - 0.012 * H, split = bodyTop * 0.44;
+  const rb = { slim: 0.118, medium: 0.134, broad: 0.152 }[p.build] * H * wide, flat = [1, 1, 0.86];
+  K.lathe([[rb * 0.9, 0], [rb, 0.022 * H], [rb * 0.975, split * 0.6], [rb * 0.955, split]], 0, 0, 0, bottom, 18, flat);
+  K.lathe([[rb * 0.955, split], [rb * 0.9, split + (bodyTop - split) * 0.45], [rb * 0.76, bodyTop - 0.07 * H], [rb * 0.5, bodyTop - 0.016 * H],
+           [rb * 0.2, bodyTop]], 0, 0, 0, top, 18, flat);
+  drawHead(K, p, hr, hy, skin, hair, dark, c);
+}
+
+// The head every figure shares: two dots for eyes, which show which way it faces; no face beyond that.
+function drawHead(K, p, hr, hy, skin, hair, dark, c){
+  K.ball(hr, 0, hy, 0, skin, [0.93, 1.04, 0.98], null, 18);
+  for (const s of [-1, 1]) K.ball(hr * 0.11, s * hr * 0.33, hy + hr * 0.08, hr * 0.9, dark, null, null, 8);
   if (p.hair !== "none") {
-    K.ball(hr * 1.07, 0, hy + hr * 0.05, -hr * 0.05, hair, null, [-0.45, 0, 0], 18, Math.PI * 0.55);
-    if (p.hair === "long") K.box(hr * 1.9, hr * 2.0, hr * 0.45, 0, hy - hr * 0.8, -hr * 0.78, hair, hr * 0.2);
-    if (p.hair === "bun") K.ball(hr * 0.45, 0, hy + hr * 0.65, -hr * 0.8, hair, null, null, 12);
+    K.ball(hr * 1.07, 0, hy + hr * 0.06, -hr * 0.04, hair, [0.95, 1.02, 1], [-0.5, 0, 0], 18, Math.PI * 0.56);
+    if (p.hair === "long") K.ball(hr, 0, hy - hr * 0.62, -hr * 0.42, hair, [0.98, 1.3, 0.62], null, 12);
+    if (p.hair === "bun") K.ball(hr * 0.42, 0, hy + hr * 0.62, -hr * 0.82, hair, null, null, 12);
   }
-  if (p.glasses) K.box(hr * 1.5, hr * 0.28, hr * 0.08, 0, hy + hr * 0.1, hr * 0.98, dark);
+  if (p.glasses) K.box(hr * 1.5, hr * 0.26, hr * 0.08, 0, hy + hr * 0.08, hr * 0.95, dark);
   if (p.hat) {
-    K.ball(hr * 1.1, 0, hy + hr * 0.08, 0, L(c.top, "fabric"), [1, 0.92, 1], [-0.25, 0, 0], 18, Math.PI * 0.48);
-    K.box(hr * 1.3, hr * 0.1, hr * 0.8, 0, hy + hr * 0.42, hr * 1.1, L(c.top, "fabric"));
+    K.ball(hr * 1.1, 0, hy + hr * 0.1, 0, L(c.top, "fabric"), [1, 0.92, 1], [-0.25, 0, 0], 16, Math.PI * 0.48);
+    K.box(hr * 1.3, hr * 0.1, hr * 0.5, 0, hy + hr * 0.42, hr * 0.95, L(c.top, "fabric"));
   }
 }
 
