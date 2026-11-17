@@ -27,6 +27,7 @@ from .const import (
     DATA_TRACEBACK,
 )
 import base64
+import math
 import time as _time
 from .map_image_view import signed_image_urls
 from .presence_rules import is_outdoor_floor
@@ -905,6 +906,7 @@ SCAN_WORDS: dict[str, str] = {
     "too_big": "This scan is larger than a floor of a house (200 m at most, 3,000 walls), so it wasn't drawn.",
 }
 SCAN_MAX_M, SCAN_MAX_WALLS, SCAN_MAX_OBJECTS = 200.0, 3000, 2000
+SCAN_CORNER_M = 0.35          # a room outline's corner this near a wall end is that wall end
 
 
 @websocket_api.websocket_command(
@@ -963,8 +965,18 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     info = await ms.async_add_map(msg["name"].strip() or "Room scan", "room-scan.png", "image/png", w, h,
                                   base64.b64encode(png).decode("ascii"), floor_id, kind="scan")
     across, down = frame["across_m"], frame["down_m"]
-    info["scan"] = {"rooms": [{"name": r.get("name"), "points": [[round(p[0] / across, 4), round(p[1] / down, 4)] for p in r["points_m"]]}
-                              for r in frame["rooms"]][:60],
+    # The walls are what the phone measured; a scan's floor outline can run a little outside them (a sample's ran
+    # 0.18 m out on every side). So the wall ends are kept as the corners a drawn room lands on, and each corner of a
+    # room's outline within SCAN_CORNER_M of a wall end is put on it.
+    ends = list({(e[0], e[1]) for w_ in frame["walls"] for e in w_})[:400]
+    frac = lambda p: [round(p[0] / across, 4), round(p[1] / down, 4)]  # noqa: E731
+
+    def _on_wall(p):
+        e = min(ends, key=lambda q: math.dist(q, p), default=None)
+        return e if e is not None and math.dist(e, p) <= SCAN_CORNER_M else p
+
+    info["scan"] = {"rooms": [{"name": r.get("name"), "points": [frac(_on_wall(p)) for p in r["points_m"]]} for r in frame["rooms"]][:60],
+                    "corners": [frac(e) for e in ends],
                     "heights_m": (parsed.get("heights_m") or [])[:40],
                     "furniture": scan_furniture(frame)}
     await ms.store.async_save(ms.data)

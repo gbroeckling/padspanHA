@@ -284,6 +284,9 @@ def test_a_room_scan_becomes_a_plan_to_scale_with_nothing_to_measure(monkeypatch
     assert out["ok"] is True and (out["rooms"], out["walls"], out["heights_m"]) == (1, 4, [2.5]) and len(ms.list_maps()) == n + 1
     assert m["kind"] == "scan" and m["name"] == "Room scan" and (m["image"]["width"], m["image"]["height"]) == (500, 400)
     assert m["scan"]["rooms"][0]["name"] == "Kitchen" and all(0 <= v <= 1 for p in m["scan"]["rooms"][0]["points"] for v in p)
+    # The walls' ends are kept as the corners a drawn room lands on, and the room's outline has its corners on them.
+    ends = {tuple(c) for c in m["scan"]["corners"]}
+    assert len(ends) == 4 and all(tuple(p) in ends for p in m["scan"]["rooms"][0]["points"]), m["scan"]
     t = mdl.map_transform(m["id"])
     assert (t["scale_x_m"], t["scale_y_m"]) == (5.0, 4.0) and t["reference_measurements"][0]["source"] == "scan"
     assert (tmp_path / m["image"]["filename"]).read_bytes()[:4] == bytes([0x89, 0x50, 0x4E, 0x47])
@@ -350,7 +353,7 @@ def test_a_scans_places_on_its_picture_go_when_the_picture_is_changed_and_a_scan
     from custom_components.padspan_ha import maps_store as MS
     from custom_components.padspan_ha import ws_house3d_import as HI
     from tests.test_roomplan_import import _bytes, _room
-    m = {"id": "s1", "kind": "scan", "scan": {"furniture": [{"at": [0.5, 0.5]}], "rooms": [{"name": "A"}], "heights_m": [2.5]}}
+    m = {"id": "s1", "kind": "scan", "scan": {"furniture": [{"at": [0.5, 0.5]}], "rooms": [{"name": "A"}], "corners": [[0.1, 0.1]], "heights_m": [2.5]}}
     MS._scan_stale(m)
     assert m["scan"] == {"heights_m": [2.5]}
     MS._scan_stale({"id": "p"})                                           # a plan that is no scan: nothing to do

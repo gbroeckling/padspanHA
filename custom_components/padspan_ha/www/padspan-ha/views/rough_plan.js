@@ -81,11 +81,13 @@ const onPhone = () => typeof matchMedia === "function" && matchMedia("(pointer: 
 export const SNAP_FRAC = 0.02;    // how close, as a share of the picture's width, a click must be to a scanned corner
 const scanRooms = (map) => (map && map.kind === "scan" && map.scan && Array.isArray(map.scan.rooms) ? map.scan.rooms : []).filter(r => Array.isArray(r.points) && r.points.length >= 3);
 export const hasScanRooms = (map) => scanRooms(map).length > 0;
-/** The scanned corner nearest [x, y] (fractions) within SNAP_FRAC, or null. */
+/** The scanned wall end nearest [x, y] (fractions) within SNAP_FRAC, or null. (`scan.corners`, the walls' own ends;
+ *  a scan from before they were kept: its outlines' corners.) */
 export function scanCorner(map, x, y) {
   const ar = map && map.image && map.image.width > 0 && map.image.height > 0 ? map.image.height / map.image.width : 1;
   let best = null, bd = SNAP_FRAC;
-  for (const r of scanRooms(map)) for (const p of r.points) {
+  const ends = hasScanRooms(map) && Array.isArray(map.scan.corners) && map.scan.corners.length ? map.scan.corners : scanRooms(map).flatMap(r => r.points);
+  for (const p of ends) {
     const d = Math.hypot(p[0] - x, (p[1] - y) * ar);
     if (d < bd) { bd = d; best = [p[0], p[1]]; }
   }

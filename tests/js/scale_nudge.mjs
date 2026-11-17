@@ -766,6 +766,9 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   const inner = RP.scanRoomAt(SC, 0.2, 0.2), outer = RP.scanRoomAt(SC, 0.6, 0.6);
   check("scan rooms: the outline clicked in is given, the smaller where two overlap, none outside them all",
     inner && inner.length === 4 && inner[2][0] === 0.3 && outer && outer[1][0] === 0.9 && RP.scanRoomAt(SC, 0.95, 0.95) === null && inner !== SC.scan.rooms[1].points, [inner, outer]);
+  const WE = { ...SC, scan: { ...SC.scan, corners: [[0.12, 0.12], [0.88, 0.12]] } };
+  check("scan rooms: where the walls' own ends were kept, a corner lands on those and not on the outline's",
+    JSON.stringify(RP.scanCorner(WE, 0.11, 0.11)) === "[0.12,0.12]" && RP.scanCorner(WE, 0.9, 0.9) === null, [RP.scanCorner(WE, 0.11, 0.11), RP.scanCorner(WE, 0.9, 0.9)]);
   check("scan rooms: a plan that is no scan, or a scan with its outlines gone, offers neither",
     !RP.hasScanRooms({ kind: "sketch", scan: SC.scan }) && !RP.hasScanRooms({ kind: "scan" }) && RP.hasScanRooms(SC)
     && RP.scanCorner({ kind: "sketch", scan: SC.scan }, 0.9, 0.1) === null && RP.scanRoomAt({ kind: "scan" }, 0.5, 0.5) === null);

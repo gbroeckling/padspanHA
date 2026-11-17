@@ -1176,6 +1176,7 @@ def _scan_stale(m: dict[str, Any]) -> None:
     if isinstance(sc, dict):
         sc.pop("furniture", None)
         sc.pop("rooms", None)
+        sc.pop("corners", None)
 
 
 # What a plan is, where the person made it plain; no key: a proper, to-scale plan (the default, never asked).
