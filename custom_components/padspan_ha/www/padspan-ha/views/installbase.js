@@ -1087,7 +1087,8 @@ function word(kind, k) {
         room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
       if (a === "plan_carry") return `A moved plan: ${{ offered: "its line shown (things still where it stood)", opened: "the list of what could move opened", moved: "the ticked moved with the plan",
         dismissed: "left where they are", refused: "a move refused (no backup)", moved_rooms: "rooms moved with it", moved_receivers: "receivers moved with it",
-        moved_points: "calibration points moved with it", moved_devices: "lights and sensors moved with it" }[b] || b}`;
+        moved_points: "calibration points moved with it", moved_devices: "lights and sensors moved with it",
+        moved_walls: "signal walls moved with it", moved_beacons: "fixed beacons moved with it", moved_zones: "sub-zones moved with it" }[b] || b}`;
       if (a === "rough_plan") return `No floor plan: ${{ opened: "the ways to get one opened", have: "\"a drawing you already have\" opened", scan: "the LiDAR room scan opened",
         vacuum: "the robot vacuum's map opened", sketch: "\"draw it yourself\" opened", blank: "the blank floor opened", walk: "the phone's walk-through started",
         sketch_upload: "\"I have my sketch\" pressed", scan_made: "a plan drawn from a room scan", scan_refused: "a scan file refused",

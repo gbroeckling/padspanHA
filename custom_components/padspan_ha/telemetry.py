@@ -1012,7 +1012,7 @@ ROUGH_PLAN_SCAN: tuple[str, ...] = ("scan_refused_size", "scan_refused_unreadabl
                                     "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs")
 # Carry-along (views/plan_carry.js, plan_carry.py; 2026-11-16): a moved plan's line shown, its list opened, what was
 # ticked moved (and which kinds), left where it was, or a move refused (no backup). Words only.
-PLAN_CARRY_WORDS: tuple[str, ...] = ("offered", "opened", "moved", "dismissed", "refused", "moved_rooms", "moved_receivers", "moved_points", "moved_devices")
+PLAN_CARRY_WORDS: tuple[str, ...] = ("offered", "opened", "moved", "dismissed", "refused", "moved_rooms", "moved_receivers", "moved_points", "moved_devices", "moved_walls", "moved_beacons", "moved_zones")
 PLAN_CARRY_EVENTS: frozenset[str] = frozenset(f"plan_carry:{k}" for k in PLAN_CARRY_WORDS)
 ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS + ROUGH_PLAN_WALK + ROUGH_PLAN_SCAN)
 

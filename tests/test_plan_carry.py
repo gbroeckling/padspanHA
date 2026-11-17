@@ -42,6 +42,10 @@ def _house(monkeypatch, tmp_path, disk):  # noqa: F811
     _run(mdl.async_set_scanner_position_m("CC:DD", 8.0, 6.0, 2.4, "main"))            # not pinned on this plan
     _run(mdl.async_set_light_position_m("light.kitchen", 3.0, 3.0, "main", label="Kitchen light"))
     _run(mdl.async_set_light_position_m("light.hall", 8.0, 2.0, "main"))               # in a room not traced on this plan
+    _run(mdl.async_set_rf_barrier_m({"name": "Kitchen north", "floor_id": "main", "points_m": [[1, 1], [5, 1]], "attenuation_dbm": 6}))
+    _run(mdl.async_set_rf_barrier_m({"name": "Hall wall", "floor_id": "main", "points_m": [[6, 1], [6, 7]], "attenuation_dbm": 6}))
+    _run(mdl.async_set_beacon_position_m("bk", 2.0, 3.5, "main", room="Kitchen", kind="tag", label="Fridge tag"))
+    _run(mdl.async_set_beacon_position_m("bh", 8.0, 5.0, "main", room="Hall"))
     for pid, label, x, y, mid in (("cp_a", "Phone", 2.0, 3.0, "n1"), ("cp_b", "[auto] tag", 4.0, 2.0, "n1"), ("cp_c", "Phone", 7.0, 5.0, "other")):
         cal.data.setdefault("points", []).append({"id": pid, "label": label, "room": "Kitchen", "map_id": mid, "floor_id": "main",
                                                   "x_m": x, "y_m": y, "x_frac": x / 10, "y_frac": y / 8, "scanner_readings": {"AA:BB": -60},
@@ -93,7 +97,7 @@ def test_only_what_is_ticked_moves_after_a_backup_and_the_rest_is_untouched(monk
     assert _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=[])["code"] == "none_chosen"
     pts0, rooms0, lights0 = copy.deepcopy(cal.data["points"]), copy.deepcopy(mdl.room_geometry_m()), copy.deepcopy(mdl.light_positions_m())
     out = _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=["receivers"])
-    assert out["ok"] is True and out["moved"] == {"rooms": 0, "receivers": 1, "points": 0, "devices": 0} and out["backup_id"]
+    assert out["ok"] is True and out["moved"] == {**dict.fromkeys(C.KINDS, 0), "receivers": 1} and out["backup_id"]
     pos = mdl.scanner_positions_m()
     assert [pos["AA:BB"]["x_m"], pos["AA:BB"]["y_m"], pos["AA:BB"]["z_m"]] == [*_to(2.0, 2.0), 2.2], "its height kept"
     assert (pos["CC:DD"]["x_m"], pos["CC:DD"]["y_m"]) == (8.0, 6.0), "a receiver not pinned on the plan stays"
@@ -105,7 +109,11 @@ def test_everything_ticked_goes_to_the_same_spot_on_the_picture(monkeypatch, tmp
     h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
     _move(mdl, ms, cal, **_POSE)
     out = _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=list(C.KINDS))
-    assert out["ok"] is True and out["moved"] == {"rooms": 1, "receivers": 1, "points": 2, "devices": 1}
+    assert out["ok"] is True and out["moved"] == {"rooms": 1, "receivers": 1, "points": 2, "devices": 1, "walls": 1, "beacons": 1, "zones": 0}
+    bars = {b["name"]: b["points_m"] for b in mdl.rf_barriers_m()}
+    assert bars["Kitchen north"] == [_to(1, 1), _to(5, 1)] and bars["Hall wall"] == [[6.0, 1.0], [6.0, 7.0]], "a wall of another room stays"
+    bp = mdl.beacon_positions_m()
+    assert [bp["bk"]["x_m"], bp["bk"]["y_m"]] == _to(2.0, 3.5) and bp["bk"]["label"] == "Fridge tag" and (bp["bh"]["x_m"], bp["bh"]["y_m"]) == (8.0, 5.0)
     geo, lp = mdl.room_geometry_m(), mdl.light_positions_m()
     assert [list(p[:2]) for p in geo["Kitchen"]["points_m"]] == [_to(1, 1), _to(5, 1), _to(5, 4), _to(1, 4)]
     assert [list(p[:2]) for p in geo["Hall"]["points_m"]] == [[6, 1], [9, 1], [9, 7], [6, 7]], "a room not traced on the plan stays"
@@ -145,7 +153,7 @@ def test_only_what_stood_there_then_and_still_does_is_offered(monkeypatch, tmp_p
     h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
     fab = h.data[DOMAIN][DATA_FABRIC]
     _move(mdl, ms, cal, **_POSE)
-    assert set(mdl.data[C.MOVED_KEY]["n1"]["stood"]) == {"rooms", "receivers", "devices"}
+    assert set(mdl.data[C.MOVED_KEY]["n1"]["stood"]) == {"rooms", "receivers", "devices", "walls", "beacons", "zones"}
     _run(mdl.async_set_scanner_position_m("AA:BB", 3.4, 2.0, 2.2, "main"))                       # put right by hand
     _run(fab.async_correct_room("main", "Kitchen", {"type": "poly", "points_m": [[2.2, 1], [7, 1], [7, 4], [2.2, 4]]}))   # fixed since
     ms.get_map("n1")["room_bounds"]["Hall"] = {"type": "poly", "points": [[0.5, 0.1], [0.7, 0.1], [0.7, 0.8], [0.5, 0.8]]}   # traced since
@@ -188,9 +196,35 @@ def test_a_picture_cut_or_extended_is_no_move_and_a_move_cut_short_is_never_made
     assert "n1" not in (mdl2.data.get(C.MOVED_KEY) or {}) and _call(C.ws_plan_carry_apply, h2, conn2, map_id="n1", kinds=["rooms"])["code"] == "nothing"
 
 
+def test_a_sub_zone_in_a_moved_room_goes_with_it_a_circle_by_its_centre(monkeypatch, tmp_path, disk):  # noqa: F811
+    from custom_components.padspan_ha.const import DATA_SUBZONES
+    h, conn, mdl, ms, cal = _house(monkeypatch, tmp_path, disk)
+
+    class Zones:
+        def __init__(self):
+            self.z = {"sz_a": {"id": "sz_a", "name": "Desk", "floor_id": "main", "type": "poly", "points_m": [[2, 2], [3, 2], [3, 3]], "dwell_s": 5},
+                      "sz_c": {"id": "sz_c", "name": "Sink", "floor_id": "main", "type": "circle", "cx_m": 4.0, "cy_m": 3.0, "r_m": 0.5},
+                      "sz_h": {"id": "sz_h", "name": "Bench", "floor_id": "main", "type": "circle", "cx_m": 8.0, "cy_m": 3.0, "r_m": 0.5}}
+
+        def zones(self):
+            return self.z
+
+        async def async_put(self, zid, zone):
+            self.z[zid] = zone
+            return zone
+
+    zs = h.data[DOMAIN][DATA_SUBZONES] = Zones()
+    _move(mdl, ms, cal, **_POSE)
+    assert _call(C.ws_plan_carry_list, h, conn)["plans"][0]["zones"] == 2
+    out = _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=["zones"])
+    assert out["ok"] is True and out["moved"]["zones"] == 2 and out["moved"]["rooms"] == 0
+    assert zs.z["sz_a"]["points_m"] == [_to(2, 2), _to(3, 2), _to(3, 3)] and zs.z["sz_a"]["dwell_s"] == 5
+    assert [zs.z["sz_c"]["cx_m"], zs.z["sz_c"]["cy_m"], zs.z["sz_c"]["r_m"]] == [*_to(4.0, 3.0), 0.5] and zs.z["sz_h"]["cx_m"] == 8.0
+
+
 def test_the_commands_are_an_administrators_and_registered():
     from custom_components.padspan_ha import websocket as W
     src = (W.__file__ and open(W.__file__, encoding="utf-8").read()) or ""
     assert "from .plan_carry import WS_COMMANDS as _plan_carry_commands" in src
     assert C.WS_COMMANDS == (C.ws_plan_carry_list, C.ws_plan_carry_apply, C.ws_plan_carry_dismiss)
-    assert DOMAIN and C.KINDS == ("rooms", "receivers", "points", "devices")
+    assert DOMAIN and C.KINDS == ("rooms", "receivers", "points", "devices", "walls", "beacons", "zones")

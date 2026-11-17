@@ -179,8 +179,8 @@ def test_the_counters_are_allowed_summed_and_labelled():
     pc = {f"plan_carry:{k}" for k in T.PLAN_CARRY_WORDS}
     assert T.PLAN_CARRY_EVENTS == pc and set(S._PLAN_UPLOAD) == up | dr | rg | pc and all(T.event_allowed(e) for e in up | dr | rg | pc)
     cj = (_WWW / "views" / "plan_carry.js").read_text(encoding="utf-8")
-    assert 'tel(ctx, "moved_" + k)' in cj and 'export const KINDS = Object.freeze(["rooms", "receivers", "points", "devices"]);' in cj
-    assert set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', cj)) | {f"moved_{k}" for k in ("rooms", "receivers", "points", "devices")} == set(T.PLAN_CARRY_WORDS)
+    assert 'tel(ctx, "moved_" + k)' in cj and 'export const KINDS = Object.freeze(["rooms", "receivers", "points", "devices", "walls", "beacons", "zones"]);' in cj
+    assert set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', cj)) | {f"moved_{k}" for k in ("rooms", "receivers", "points", "devices", "walls", "beacons", "zones")} == set(T.PLAN_CARRY_WORDS)
     assert all(f"{k}:" in (_WWW / "views" / "installbase.js").read_text(encoding="utf-8") for k in T.PLAN_CARRY_WORDS)
     rj = (_WWW / "views" / "rough_plan.js").read_text(encoding="utf-8")
     sent_rg = set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', rj)) | set(re.findall(r'KINDS = Object\.freeze\(\[([^\]]*)\]', rj)[0].replace('"', "").replace(" ", "").split(","))

@@ -58,6 +58,16 @@ from .util import ha_device_config_entries, ha_devices
 _LOGGER = logging.getLogger(__name__)
 
 
+def _zone_points(z: Any) -> list[list[float]]:
+    """A sub-zone's shape as the points that place it: a polygon's corners, a circle's centre. [] if it has neither."""
+    try:
+        if isinstance(z, dict) and z.get("type") == "circle":
+            return [[round(float(z["cx_m"]), 3), round(float(z["cy_m"]), 3)]]
+        return [[round(float(p[0]), 3), round(float(p[1]), 3)] for p in (z.get("points_m") or [])] if isinstance(z, dict) else []
+    except (TypeError, ValueError, KeyError, IndexError):
+        return []
+
+
 def _slug(s: str) -> str:
     s = (s or "").strip().lower()
     s = re.sub(r"[^a-z0-9]+", "-", s)
@@ -1380,7 +1390,19 @@ class ModelStore:
         return {"rooms": {n: [[round(float(p[0]), 3), round(float(p[1]), 3)] for p in g["points_m"]]
                           for n, g in (self.room_geometry_m() or {}).items() if isinstance(g, dict) and isinstance(g.get("points_m"), list)},
                 "receivers": {s: xy(v) for s, v in (self.scanner_positions_m() or {}).items() if ok(v)},
-                "devices": {e: xy(v) for e, v in (self.light_positions_m() or {}).items() if ok(v)}}
+                "devices": {e: xy(v) for e, v in (self.light_positions_m() or {}).items() if ok(v)},
+                # Signal walls, fixed beacons and (where their store is loaded) sub-zones: they sit in and around the
+                # rooms, so a room that moves without them leaves them behind.
+                "walls": {str(b["id"]): [[round(float(p[0]), 3), round(float(p[1]), 3)] for p in b["points_m"]]
+                          for b in (self.rf_barriers_m() or []) if isinstance(b, dict) and b.get("id") and isinstance(b.get("points_m"), list)},
+                "beacons": {k: xy(v) for k, v in (self.beacon_positions_m() or {}).items() if ok(v)},
+                "zones": {z: _zone_points(v) for z, v in self._carry_zones().items() if _zone_points(v)}}
+
+    def _carry_zones(self) -> dict[str, dict]:
+        from .const import DATA_SUBZONES, DOMAIN  # noqa: PLC0415
+        st = self.hass.data.get(DOMAIN, {}).get(DATA_SUBZONES)
+        z = st.zones() if hasattr(st, "zones") else {}
+        return z if isinstance(z, dict) else {}
 
     def _carry_forget(self, map_id: str) -> None:
         """A plan's PICTURE was cut, turned or extended: its placement was rewritten to keep every pixel on the same

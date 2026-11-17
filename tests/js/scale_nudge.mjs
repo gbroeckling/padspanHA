@@ -721,12 +721,12 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   const PL = [{ id: "c1", name: "Study", floor_id: "main", image: { width: 1000, height: 800 }, receivers: [], room_bounds: {} },
               { id: "c2", name: "Main", floor_id: "main", image: { width: 1000, height: 800 }, receivers: [], room_bounds: {} }];
   const TFS = { c1: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] }, c2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } };
-  const C1 = { map_id: "c1", name: "Study", floor_id: "main", at: "2026-11-16T00:00:00Z", shift_m: 1.7, rooms: ["Office"], receivers: 3, points: 32, points_hand: 13, devices: 0 };
+  const C1 = { map_id: "c1", name: "Study", floor_id: "main", at: "2026-11-16T00:00:00Z", shift_m: 1.7, rooms: ["Office"], receivers: 3, points: 32, points_hand: 13, devices: 0, walls: 2, beacons: 0, zones: 0 };
   const open = async (o) => { const h = house({ tab: "library", maps: JSON.parse(JSON.stringify(PL)), tfs: TFS, ...o }); await render(h); for (let i = 0; i < 4; i++) await tick(); return [h, await render(h)]; };
   let [h, root] = await open({ carry: [C1] });
   const lines = all(root, '[data-carry="line"]');
   check("carry: the moved plan's row says what still stands where it was; no other row says anything", lines.length === 1
-    && lines[0].textContent.includes("1 room, 3 receivers and 32 calibration points placed on it still stand where it used to be, up to 1.7 m off")
+    && lines[0].textContent.includes("1 room, 3 receivers, 32 calibration points and 2 signal walls placed on it still stand where it used to be, up to 1.7 m off")
     && !q(root, '[data-carry="card"]') && carry(h).join() === "offered" && h.calls.filter(c => c.type === "padspan_ha/plan_carry_list").length === 1, [lines.map(l => l.textContent), carry(h)]);
   q(root, '[data-carry="review"]').click(); root = await render(h);
   const ticks = ["rooms", "receivers", "points", "devices"].map(k => q(root, `[data-carry="tick-${k}"]`));

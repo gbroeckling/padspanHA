@@ -16,7 +16,7 @@ const V = new URL(import.meta.url).search;
 const PM = await import(`./plan_measure.js${V}`);
 const { btn, P, MUTED, row } = PM;
 
-export const KINDS = Object.freeze(["rooms", "receivers", "points", "devices"]);
+export const KINDS = Object.freeze(["rooms", "receivers", "points", "devices", "walls", "beacons", "zones"]);
 const tel = (ctx, w) => { if (ctx.state.dataMode === "live" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("plan_carry:" + w); };
 const st = (ctx) => ctx.state._planCarry || (ctx.state._planCarry = { list: null, busy: false, open: null, ticks: {}, msg: "", offered: new Set() });
 const allowed = (ctx) => ctx.state.dataMode === "live" && !ctx.state.kioskMode && !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin === false);
@@ -25,7 +25,8 @@ const many = (n, one, more) => `${n} ${n === 1 ? one : more}`;
 /** What stands where the plan used to be, in words: "1 room, 3 receivers and 32 calibration points". */
 export function whatWords(c) {
   const parts = [c.rooms.length ? many(c.rooms.length, "room", "rooms") : "", c.receivers ? many(c.receivers, "receiver", "receivers") : "",
-    c.points ? many(c.points, "calibration point", "calibration points") : "", c.devices ? many(c.devices, "light or sensor", "lights and sensors") : ""].filter(Boolean);
+    c.points ? many(c.points, "calibration point", "calibration points") : "", c.devices ? many(c.devices, "light or sensor", "lights and sensors") : "", c.walls ? many(c.walls, "signal wall", "signal walls") : "",
+    c.beacons ? many(c.beacons, "fixed beacon", "fixed beacons") : "", c.zones ? many(c.zones, "sub-zone", "sub-zones") : ""].filter(Boolean);
   return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1] : parts[0] || "";
 }
 
@@ -82,7 +83,7 @@ export function line(ctx, map) {
   if (!s.offered.has(c.map_id)) { s.offered.add(c.map_id); tel(ctx, "offered"); }
   const wrap = el("div", { "data-carry": "line", style: "margin-top:4px" });
   const head = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#fbbf24" }, [
-    el("span", {}, `This plan was moved: ${whatWords(c)} placed on it still ${c.rooms.length + c.receivers + c.points + c.devices === 1 ? "stands" : "stand"} where it used to be, up to ${PM.lengthText(c.shift_m, PM.feetOn(ctx))} off.`),
+    el("span", {}, `This plan was moved: ${whatWords(c)} placed on it still ${c.rooms.length + c.receivers + c.points + c.devices + (c.walls || 0) + (c.beacons || 0) + (c.zones || 0) === 1 ? "stands" : "stand"} where it used to be, up to ${PM.lengthText(c.shift_m, PM.feetOn(ctx))} off.`),
     btn(ctx, open ? "Close" : "Review", () => { s.open = open ? null : c.map_id; s.ticks = {}; s.msg = ""; if (!open) tel(ctx, "opened"); ctx.actions.renderRooms(); }, { attrs: { "data-carry": "review" } })]);
   wrap.appendChild(head);
   if (!open) return wrap;
@@ -95,6 +96,9 @@ export function line(ctx, map) {
     points: c.points ? [`${many(c.points, "calibration point", "calibration points")}${c.points_hand ? ` (${c.points_hand} placed by hand)` : ""}`,
       "Each goes back to the spot on the picture you clicked when you recorded it. Their readings are not touched."] : null,
     devices: c.devices ? [many(c.devices, "light or sensor", "lights and sensors"), "The ones standing in those rooms, so they stay in their room."] : null,
+    walls: c.walls ? [many(c.walls, "signal wall", "signal walls"), "The walls drawn in and along those rooms, so they stay on the rooms' edges."] : null,
+    beacons: c.beacons ? [many(c.beacons, "fixed beacon", "fixed beacons"), "The ones standing in those rooms."] : null,
+    zones: c.zones ? [many(c.zones, "sub-zone", "sub-zones"), "The named areas inside those rooms."] : null,
   };
   for (const k of KINDS) {
     if (!OPTS[k]) continue;

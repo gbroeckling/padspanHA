@@ -40,12 +40,14 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from . import fabric_truth
+from .model_store import _zone_points
 from .const import (CALIBRATION_STORE_KEY, DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN, FABRIC_STORE_KEY,
                     MAPS_STORE_KEY, MODEL_STORE_KEY)
 
 _LOGGER = logging.getLogger(__name__)
 
-KINDS: tuple[str, ...] = ("rooms", "receivers", "points", "devices")
+KINDS: tuple[str, ...] = ("rooms", "receivers", "points", "devices", "walls", "beacons", "zones")
+NEAR_ROOM_M = 0.5            # a signal wall belongs to a room when every point of it is in the room or this near its edge
 MOVED_KEY = "plans_moved_from"
 MIN_SHIFT_M = 0.05           # a thing that would move less than this is where it belongs
 
@@ -58,6 +60,16 @@ def _inside(x: float, y: float, P: list) -> bool:
         if (y0 > y) != (y1 > y) and x < (x1 - x0) * (y - y0) / (y1 - y0) + x0:
             c = not c
     return c
+
+
+def _edge_dist(x: float, y: float, P: list) -> float:
+    best = math.inf
+    for i in range(len(P)):
+        ax, ay, bx, by = float(P[i - 1][0]), float(P[i - 1][1]), float(P[i][0]), float(P[i][1])
+        dx, dy = bx - ax, by - ay
+        t = 0.0 if not (dx or dy) else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
+        best = min(best, math.hypot(x - ax - t * dx, y - ay - t * dy))
+    return best
 
 
 def _when(value: Any) -> datetime:
@@ -93,7 +105,7 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
 
     def still(kind: str, key: Any, pts: list) -> bool:
         s = (stood.get(kind) or {}).get(key)
-        if kind != "rooms":
+        if kind in ("receivers", "devices", "beacons"):
             s, pts = [s], [pts]
         try:
             return isinstance(s, list) and len(s) == len(pts) and all(math.dist((float(a[0]), float(a[1])), (float(b[0]), float(b[1]))) < 0.002 for a, b in zip(s, pts))
@@ -124,7 +136,7 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
     far = lambda a, b: b is not None and math.dist((float(a[0]), float(a[1])), b) >= MIN_SHIFT_M  # noqa: E731
     shift = 0.0
     out: dict[str, Any] = {"map_id": map_id, "name": str(m.get("name") or ""), "floor_id": floor, "at": was.get("at"),
-                           "rooms": {}, "receivers": {}, "points": {}, "points_hand": 0, "devices": {}}
+                           "rooms": {}, "receivers": {}, "points": {}, "points_hand": 0, "devices": {}, "walls": {}, "beacons": {}, "zones": {}}
     geo = mdl.room_geometry_m() or {}
     old_rooms: list[list] = []
     traced = was["traced"] if isinstance(was.get("traced"), list) else None       # the rooms on it when it was moved
@@ -167,6 +179,32 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
             if far((v["x_m"], v["y_m"]), n):
                 out["devices"][eid] = n
                 shift = max(shift, math.dist((float(v["x_m"]), float(v["y_m"])), n))
+    # What sits in and around those rooms: a signal wall every point of which is in one of them or on its edge, a fixed
+    # beacon standing in one, a sub-zone whose middle is in one. Each only as the note saw it.
+    in_room = lambda x, y: any(_inside(float(x), float(y), R) for R in old_rooms)  # noqa: E731
+    by_room = lambda x, y: any(_inside(float(x), float(y), R) or _edge_dist(float(x), float(y), R) <= NEAR_ROOM_M for R in old_rooms)  # noqa: E731
+
+    def carried(kind: str, key: str, pts: list) -> None:
+        nonlocal shift
+        new = [to(p[0], p[1]) for p in pts]
+        if any(n is None for n in new):
+            return
+        d = max(math.dist((float(p[0]), float(p[1])), n) for p, n in zip(pts, new))
+        if d >= MIN_SHIFT_M:
+            out[kind][key] = new
+            shift = max(shift, d)
+
+    for b in (mdl.rf_barriers_m() or []) if old_rooms else []:
+        pts = b.get("points_m") if on_floor(b) and b.get("id") else None
+        if isinstance(pts, list) and len(pts) >= 2 and still("walls", str(b["id"]), pts) and all(by_room(p[0], p[1]) for p in pts):
+            carried("walls", str(b["id"]), pts)
+    for key, v in (mdl.beacon_positions_m() or {}).items() if old_rooms else []:
+        if on_floor(v) and v.get("x_m") is not None and v.get("y_m") is not None and still("beacons", key, [v["x_m"], v["y_m"]]) and in_room(v["x_m"], v["y_m"]):
+            carried("beacons", key, [[v["x_m"], v["y_m"]]])
+    for zid, z in mdl._carry_zones().items() if old_rooms else []:
+        pts = _zone_points(z)
+        if pts and on_floor(z) and still("zones", zid, pts) and in_room(sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)):
+            carried("zones", zid, pts)
     if not any(out[k] for k in KINDS):
         return None
     out["shift_m"] = round(shift, 2)
@@ -177,7 +215,8 @@ def _summary(plan: dict[str, Any]) -> dict[str, Any]:
     """The plan's carry as the panel lists it: counts and names, never a coordinate it has no use for."""
     return {"map_id": plan["map_id"], "name": plan["name"], "floor_id": plan["floor_id"], "at": plan["at"], "shift_m": plan["shift_m"],
             "rooms": sorted(plan["rooms"]), "receivers": len(plan["receivers"]), "points": len(plan["points"]),
-            "points_hand": plan["points_hand"], "devices": len(plan["devices"])}
+            "points_hand": plan["points_hand"], "devices": len(plan["devices"]),
+            "walls": len(plan["walls"]), "beacons": len(plan["beacons"]), "zones": len(plan["zones"])}
 
 
 async def _forget(hass: HomeAssistant, map_ids: list[str]) -> None:
@@ -242,6 +281,28 @@ async def carry_apply(hass: HomeAssistant, map_id: str, kinds: list[str]) -> dic
             keep = {k: v[k] for k in ("color", "shape", "rotation", "width_cm", "height_cm", "margin_cm", "label") if v.get(k) is not None}
             await mdl.async_set_light_position_m(eid, x, y, floor, **keep)       # its height is kept (KEEP_HEIGHT)
             moved["devices"] += 1
+    if "walls" in kinds:
+        bars = {str(b.get("id")): b for b in (mdl.rf_barriers_m() or []) if isinstance(b, dict)}
+        for bid, pts in plan["walls"].items():
+            if bid in bars and await mdl.async_set_rf_barrier_m({**bars[bid], "points_m": pts}):
+                moved["walls"] += 1
+    if "beacons" in kinds:
+        bp = mdl.beacon_positions_m() or {}
+        for key, pts in plan["beacons"].items():
+            v = bp.get(key) or {}
+            await mdl.async_set_beacon_position_m(key, pts[0][0], pts[0][1], floor, room=str(v.get("room") or ""), kind=str(v.get("kind") or ""),
+                                                  label=str(v.get("label") or ""), map_id=v.get("map_id"))      # its height is kept
+            moved["beacons"] += 1
+    if "zones" in kinds and plan["zones"]:
+        from .const import DATA_SUBZONES  # noqa: PLC0415
+        zs = hass.data.get(DOMAIN, {}).get(DATA_SUBZONES)
+        for zid, pts in plan["zones"].items():
+            z = (zs.zones() if zs is not None else {}).get(zid)
+            if not z:
+                continue
+            new = {**z, "cx_m": pts[0][0], "cy_m": pts[0][1]} if z.get("type") == "circle" else {**z, "points_m": pts}
+            await zs.async_put(zid, new)
+            moved["zones"] += 1
     if "points" in kinds and cal is not None:
         moved["points"] = await cal.async_move_points({pid: (x, y) for pid, (x, y) in plan["points"].items()}, map_id)
     try:
