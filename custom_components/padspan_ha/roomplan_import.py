@@ -684,7 +684,33 @@ def _place_room(S: list, rooms: dict[str, list], frame: dict[str, Any], openings
             "size_room_m": [round(max(p[0] for p in P) - min(p[0] for p in P), 2), round(max(p[1] for p in P) - min(p[1] for p in P), 2)]}
 
 
-def autoplace(frame: dict[str, Any], house_rooms: dict[str, list], openings: list | None = None) -> dict[str, Any] | None:
+# ── A plan lined up to another floor's rooms: a suggestion (owner, 2026-11-16) ───────────────────────────────────────
+# Two floors of a house share their outside walls and little else, so far less of one floor's walls lie on the other's
+# than a scan's do on its own room: the bar is lower, and the answer is only ever SHOWN in the Align editor for the
+# person to check and save. On a real house's plans (2026-11-16) a floor of two rooms or more against a floor at least
+# its size landed within 0.2 to 0.5 m five times in five; a single room against another floor landed in the wrong
+# place with a high score, so one room is never suggested.
+FIT_MIN, FIT_CLEAR = 0.35, 0.05
+FIT_ROOMS = (2, 3)            # rooms the plan needs traced on it, and rooms the other floor needs
+
+
+def _area(P: list) -> float:
+    return abs(sum(P[i - 1][0] * P[i][1] - P[i][0] * P[i - 1][1] for i in range(len(P)))) / 2
+
+
+def fit_to_floor(plan_rooms: dict[str, list], house_rooms: dict[str, list]) -> dict[str, Any] | None:
+    """Pure. Where a plan belongs over another floor's rooms, from the rooms traced on it, in the plan's own metres
+    from its top-left corner ({name: [[x_m, y_m], ...]}): autoplace's answer, or None where it would be a guess."""
+    mine = [[list(p[:2]) for p in pts] for pts in (plan_rooms or {}).values() if isinstance(pts, list) and len(pts) >= 3]
+    theirs = [pts for pts in (house_rooms or {}).values() if isinstance(pts, list) and len(pts) >= 3]
+    if len(mine) < FIT_ROOMS[0] or len(theirs) < FIT_ROOMS[1] or sum(map(_area, theirs)) < sum(map(_area, mine)):
+        return None
+    walls = [[pts[i - 1], pts[i]] for pts in mine for i in range(len(pts))]
+    return autoplace({"walls": walls, "rooms": []}, house_rooms, None, least=FIT_MIN, clear=FIT_CLEAR)
+
+
+def autoplace(frame: dict[str, Any], house_rooms: dict[str, list], openings: list | None = None,
+              least: float | None = None, clear: float | None = None) -> dict[str, Any] | None:
     """Where a scan (plan_frame's) belongs among a floor's drawn rooms ({name: [[x_m, y_m], ...]}), or None when it
     fits nowhere well, or as well in two places. {origin_x_m, origin_y_m, rotation_rad: the plan's placement; score:
     the share of its walls on drawn edges; room: the room it lies in, when it lies in one; fits_both_ways: its outline
@@ -741,11 +767,11 @@ def autoplace(frame: dict[str, Any], house_rooms: dict[str, list], openings: lis
             found.append((best, k, round(tx, 2), round(ty, 2)))
     found.sort(reverse=True)
     top = found[0]
-    if top[0] < PLACE_MIN:
+    if top[0] < (PLACE_MIN if least is None else least):
         return None
     same_spot = lambda a, b: math.hypot(a[2] - b[2], a[3] - b[3]) <= 0.5  # noqa: E731
     elsewhere = next((f for f in found[1:] if not same_spot(f, top)), None)
-    if elsewhere and elsewhere[0] > top[0] - PLACE_CLEAR:
+    if elsewhere and elsewhere[0] > top[0] - (PLACE_CLEAR if clear is None else clear):
         return None                                        # as good a fit somewhere else: two rooms alike
     turns = [f for f in found if same_spot(f, top) and f[1] != top[1] and f[0] >= top[0] - PLACE_TIE]
     both = bool(turns)

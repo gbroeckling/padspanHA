@@ -177,7 +177,10 @@ def test_the_counters_are_allowed_summed_and_labelled():
     rg = {f"rough_plan:{k}" for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN}
     assert T.PLAN_UPLOAD_EVENTS == up and T.WIZARD_DRAW_EVENTS == dr and T.ROUGH_PLAN_EVENTS == rg
     pc = {f"plan_carry:{k}" for k in T.PLAN_CARRY_WORDS}
-    assert T.PLAN_CARRY_EVENTS == pc and set(S._PLAN_UPLOAD) == up | dr | rg | pc and all(T.event_allowed(e) for e in up | dr | rg | pc)
+    fs = {"fit_suggest:shown", "fit_suggest:none"}                # Align's "Suggest a fit"
+    assert T.FIT_SUGGEST_EVENTS == fs and 'telemetryEvent("fit_suggest:" + w)' in (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    assert 'a === "fit_suggest"' in (_WWW / "views" / "installbase.js").read_text(encoding="utf-8")
+    assert T.PLAN_CARRY_EVENTS == pc and set(S._PLAN_UPLOAD) == up | dr | rg | pc | fs and all(T.event_allowed(e) for e in up | dr | rg | pc | fs)
     cj = (_WWW / "views" / "plan_carry.js").read_text(encoding="utf-8")
     assert 'tel(ctx, "moved_" + k)' in cj and 'export const KINDS = Object.freeze(["rooms", "receivers", "points", "devices", "walls", "beacons", "zones"]);' in cj
     assert set(re.findall(r'tel\(ctx, "([a-z_]+)"\)', cj)) | {f"moved_{k}" for k in ("rooms", "receivers", "points", "devices", "walls", "beacons", "zones")} == set(T.PLAN_CARRY_WORDS)

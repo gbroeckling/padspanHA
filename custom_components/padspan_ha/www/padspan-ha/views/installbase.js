@@ -1085,6 +1085,7 @@ function word(kind, k) {
       if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",
         floor_heights: "went to floor heights", compute: "went to work out the accuracy", room_empty: "went to add points in an empty room",
         room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
+      if (a === "fit_suggest") return b === "shown" ? "Align: a suggested fit shown" : "Align: no fit to suggest";
       if (a === "plan_carry") return `A moved plan: ${{ offered: "its line shown (things still where it stood)", opened: "the list of what could move opened", moved: "the ticked moved with the plan",
         dismissed: "left where they are", refused: "a move refused (no backup)", moved_rooms: "rooms moved with it", moved_receivers: "receivers moved with it",
         moved_points: "calibration points moved with it", moved_devices: "lights and sensors moved with it",

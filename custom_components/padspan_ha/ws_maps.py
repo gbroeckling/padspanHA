@@ -909,6 +909,34 @@ SCAN_MAX_M, SCAN_MAX_WALLS, SCAN_MAX_OBJECTS = 200.0, 3000, 2000
 SCAN_CORNER_M = 0.35          # a room outline's corner this near a wall end is that wall end
 
 
+@websocket_api.websocket_command({"type": "padspan_ha/maps_fit_suggest", "map_id": str, "ref_map_id": str})
+@websocket_api.async_response
+async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
+    """Where this plan would sit over the Reference plan's floor, from the rooms traced on it (roomplan_import.
+    fit_to_floor). Reads only: the Align editor shows it and the person saves it or not. {fit: {origin_x_m,
+    origin_y_m, rotation_rad, score} | None}."""
+    dom = hass.data.get(DOMAIN, {})
+    ms, mdl = dom.get(DATA_MAPS), dom.get(DATA_MODEL)
+    m, ref = (ms.get_map(msg["map_id"]), ms.get_map(msg["ref_map_id"])) if ms else (None, None)
+    t = mdl.map_transform(msg["map_id"]) if (mdl is not None and m) else None
+    fit = None
+    try:
+        if m and ref and t and float(t.get("scale_x_m") or 0) > 0 and float(t.get("scale_y_m") or 0) > 0:
+            floor = str(ref.get("floor_id") or DEFAULT_FLOOR_ID)
+            sx, sy = float(t["scale_x_m"]), float(t["scale_y_m"])
+            mine = {n: [[float(p[0]) * sx, float(p[1]) * sy] for p in (b.get("points") or [])] for n, b in (m.get("room_bounds") or {}).items()
+                    if isinstance(b, dict) and b.get("type", "poly") == "poly"}
+            on_it = set(m.get("room_bounds") or {})
+            house = {n: [p[:2] for p in (g.get("points_m") or [])] for n, g in (mdl.room_geometry_m() or {}).items()
+                     if isinstance(g, dict) and str(g.get("floor_id") or DEFAULT_FLOOR_ID) == floor and n not in on_it}
+            got = await hass.async_add_executor_job(RP.fit_to_floor, mine, house)
+            if got:
+                fit = {k: got[k] for k in ("origin_x_m", "origin_y_m", "rotation_rad", "score")}
+    except Exception:  # noqa: BLE001 — a suggestion that can't be worked out is no suggestion
+        _LOGGER.debug("PadSpan: no fit suggested", exc_info=True)
+    connection.send_result(msg["id"], {"fit": fit})
+
+
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/maps_scan_create",

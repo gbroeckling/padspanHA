@@ -618,3 +618,17 @@ def test_a_scan_that_fits_nowhere_or_two_rooms_alike_is_not_placed():
     assert autoplace(_scan_of([[0, 0], [9, 0], [9, 7], [0, 7]]), _HOUSE) is None, "no drawn room of its size"
     assert autoplace(_scan_of([[0, 0], [2.5, 0], [2.5, 6], [0, 6]]), _HOUSE) is None, "about a room's area, not its shape"
     assert autoplace(_scan_of(_HOUSE["Kitchen"]), {}) is None and autoplace({"walls": [], "rooms": []}, _HOUSE) is None
+
+
+def test_a_plan_is_fitted_to_another_floor_only_where_it_is_no_guess():
+    """Align's "Suggest a fit" (fit_to_floor, 2026-11-16): a floor's rooms over the floor below share the outside
+    walls; one room alone, or a floor smaller than the plan, is never suggested."""
+    from custom_components.padspan_ha import roomplan_import as RP
+    below = {"A": [[0, 0], [6, 0], [6, 5], [0, 5]], "B": [[6, 0], [11, 0], [11, 5], [6, 5]], "C": [[0, 5], [11, 5], [11, 9], [0, 9]]}
+    # The floor above, in its plan's own metres from the plan's corner (a 1 m margin): the same outside walls, other rooms inside.
+    above = {"X": [[1, 1], [5, 1], [5, 10], [1, 10]], "Y": [[5, 1], [12, 1], [12, 6], [5, 6]], "Z": [[5, 6], [12, 6], [12, 10], [5, 10]]}
+    fit = RP.fit_to_floor(above, below)
+    assert fit and abs(fit["origin_x_m"] + 1) <= 0.15 and abs(fit["origin_y_m"] + 1) <= 0.15 and fit["rotation_rad"] == 0, fit
+    assert RP.fit_to_floor({"X": above["X"]}, below) is None, "one room is a guess"
+    assert RP.fit_to_floor(above, {"A": below["A"], "B": below["B"]}) is None, "the other floor needs three rooms"
+    assert RP.fit_to_floor(above, {k: [[p[0] / 3, p[1] / 3] for p in v] for k, v in below.items()}) is None, "a floor smaller than the plan"

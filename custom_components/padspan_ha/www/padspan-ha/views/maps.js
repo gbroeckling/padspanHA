@@ -7390,6 +7390,27 @@ function _stack(ctx, maps, helpBtn){
   // Point Align button — opens the modal overlay
   const ptAlignBtn = el("button",{class:"btn inline",style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc;font-size:11px;padding:3px 12px", onclick: _openPointAlignModal}, "Point Align");
   alignHdrRow.appendChild(ptAlignBtn);
+  // Suggest a fit: where this plan would sit over the Reference plan's floor, worked out from the rooms traced on it
+  // (padspan_ha/maps_fit_suggest). Only SHOWN here, like a Point Align: it is saved by Save, or not at all.
+  const fitBtn = el("button",{class:"btn inline","data-stack":"fit",style:"font-size:11px;padding:3px 12px",title:"Works out where this plan sits over the Reference plan's floor from the rooms drawn on both. Check it, then Save.", onclick: async ()=>{
+    const refId = alignState.refId||refSel.value, tgtId = alignState.targetId||tgtSel.value, cur = alignState.place || _placeOf(tgtId);
+    const tele = (w) => { if (ctx.state.dataMode === "live" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("fit_suggest:" + w); };
+    if(!refId || !tgtId || refId === tgtId || !cur){ ctx.toast("Choose a Reference plan and a different, measured plan to line up first.", true); return; }
+    fitBtn.disabled = true;
+    let r = null;
+    try { r = await ctx.actions.callWS({ type:"padspan_ha/maps_fit_suggest", map_id: tgtId, ref_map_id: refId }); } catch (_e) { r = null; }
+    fitBtn.disabled = false;
+    if(!r || !r.fit){
+      tele("none");
+      ctx.toast("No fit to suggest: it needs two or more rooms drawn on this plan and three or more on the Reference plan's floor, and one clear best place. Use Point Align instead.", true);
+      return;
+    }
+    tele("shown");
+    alignState.place = { ...cur, origin_x_m: r.fit.origin_x_m, origin_y_m: r.fit.origin_y_m, rotation_rad: r.fit.rotation_rad };
+    buildStage();
+    ctx.toast("Suggested fit shown: check the walls against the Reference plan, then Save, or Reset to go back.");
+  }}, "Suggest a fit");
+  alignHdrRow.appendChild(fitBtn);
 
   // Conflict warning div (created early so save/tie-in closures can reference it)
   const warnDiv = el("div",{style:"display:none;margin-top:12px;padding:12px;border-radius:8px;background:#1a0d00;border:1px solid #d97706;font-size:12px"});
