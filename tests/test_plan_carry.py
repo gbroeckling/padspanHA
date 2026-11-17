@@ -50,6 +50,7 @@ def _house(monkeypatch, tmp_path, disk):  # noqa: F811
         cal.data.setdefault("points", []).append({"id": pid, "label": label, "room": "Kitchen", "map_id": mid, "floor_id": "main",
                                                   "x_m": x, "y_m": y, "x_frac": x / 10, "y_frac": y / 8, "scanner_readings": {"AA:BB": -60},
                                                   "collected_at": "2026-01-01T00:00:00+00:00"})
+    C.attach(h)                                             # as websocket registration does
     return h, conn, mdl, ms, cal
 
 
@@ -214,6 +215,7 @@ def test_a_sub_zone_in_a_moved_room_goes_with_it_a_circle_by_its_centre(monkeypa
             return zone
 
     zs = h.data[DOMAIN][DATA_SUBZONES] = Zones()
+    C.attach(h)
     _move(mdl, ms, cal, **_POSE)
     assert _call(C.ws_plan_carry_list, h, conn)["plans"][0]["zones"] == 2
     out = _call(C.ws_plan_carry_apply, h, conn, map_id="n1", kinds=["zones"])

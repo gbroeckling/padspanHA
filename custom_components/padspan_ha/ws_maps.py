@@ -910,6 +910,7 @@ SCAN_CORNER_M = 0.35          # a room outline's corner this near a wall end is 
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/maps_fit_suggest", "map_id": str, "ref_map_id": str})
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
     """Where this plan would sit over the Reference plan's floor, from the rooms traced on it (roomplan_import.

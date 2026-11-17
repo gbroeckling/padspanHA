@@ -428,6 +428,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .plan_carry import WS_COMMANDS as _plan_carry_commands
     for _c in _plan_carry_commands:
         websocket_api.async_register_command(hass, _c)
+    from .plan_carry import attach as _plan_carry_attach
+    _plan_carry_attach(hass)
     for _cmd in _setup_tip_commands:
         websocket_api.async_register_command(hass, _cmd)
     # A motion sensor's last real change across an offline blip (motion_reconnects.py).

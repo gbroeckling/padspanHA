@@ -40,7 +40,6 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from . import fabric_truth
-from .model_store import _zone_points
 from .const import (CALIBRATION_STORE_KEY, DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN, FABRIC_STORE_KEY,
                     MAPS_STORE_KEY, MODEL_STORE_KEY)
 
@@ -70,6 +69,32 @@ def _edge_dist(x: float, y: float, P: list) -> float:
         t = 0.0 if not (dx or dy) else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
         best = min(best, math.hypot(x - ax - t * dx, y - ay - t * dy))
     return best
+
+
+def _zone_points(z: Any) -> list[list[float]]:
+    """A sub-zone's shape as the points that place it: a polygon's corners, a circle's centre. [] if it has neither."""
+    try:
+        if isinstance(z, dict) and z.get("type") == "circle":
+            return [[round(float(z["cx_m"]), 3), round(float(z["cy_m"]), 3)]]
+        return [[round(float(p[0]), 3), round(float(p[1]), 3)] for p in (z.get("points_m") or [])] if isinstance(z, dict) else []
+    except (TypeError, ValueError, KeyError, IndexError):
+        return []
+
+
+def _zones(hass: HomeAssistant) -> dict[str, dict]:
+    """The sub-zones, where their store has been loaded (it loads on first use); {} otherwise."""
+    from .const import DATA_SUBZONES  # noqa: PLC0415
+    st = hass.data.get(DOMAIN, {}).get(DATA_SUBZONES)
+    z = st.zones() if hasattr(st, "zones") else {}
+    return z if isinstance(z, dict) else {}
+
+
+def attach(hass: HomeAssistant) -> None:
+    """Give the placement writer's note the sub-zones' places too: the model store reads only its own data, so what
+    else stood on a plan when it moved is handed to it from here."""
+    mdl = _stores(hass)[0]
+    if mdl is not None and not callable(getattr(mdl, "carry_more", None)):
+        mdl.carry_more = lambda: {"zones": {z: _zone_points(v) for z, v in _zones(hass).items() if _zone_points(v)}}
 
 
 def _when(value: Any) -> datetime:
@@ -201,7 +226,7 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
     for key, v in (mdl.beacon_positions_m() or {}).items() if old_rooms else []:
         if on_floor(v) and v.get("x_m") is not None and v.get("y_m") is not None and still("beacons", key, [v["x_m"], v["y_m"]]) and in_room(v["x_m"], v["y_m"]):
             carried("beacons", key, [[v["x_m"], v["y_m"]]])
-    for zid, z in mdl._carry_zones().items() if old_rooms else []:
+    for zid, z in _zones(hass).items() if old_rooms else []:
         pts = _zone_points(z)
         if pts and on_floor(z) and still("zones", zid, pts) and in_room(sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)):
             carried("zones", zid, pts)
@@ -229,6 +254,7 @@ async def _forget(hass: HomeAssistant, map_ids: list[str]) -> None:
 async def carry_list(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Every plan that has moved with something still standing where it was. A plan noted as moved with nothing left
     to carry (a new plan placed for the first time, one deleted, one moved back) is forgotten here."""
+    attach(hass)
     mdl = _stores(hass)[0]
     moved = dict((mdl.data.get(MOVED_KEY) or {}) if mdl is not None else {})
     out, gone = [], []
