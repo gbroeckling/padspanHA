@@ -29,9 +29,10 @@ export function whatWords(c) {
   return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1] : parts[0] || "";
 }
 
-/** The Library's call on each draw: the list is read when it never was, and again when any plan's placement changed. */
-export function ensure(ctx) {
-  const s = st(ctx), sig = JSON.stringify((ctx.state.model && ctx.state.model.map_transforms) || {});
+/** The Library's call on each draw: the list is read when it never was, and again when `sig` changes (the plan
+ *  editor's own word for where its plans stand now: this file reads no placement itself). */
+export function ensure(ctx, sig) {
+  const s = st(ctx);
   if (allowed(ctx) && s.sig !== sig && !s.busy) { s.sig = sig; refresh(ctx); }
 }
 

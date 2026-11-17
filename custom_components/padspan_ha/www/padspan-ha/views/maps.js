@@ -506,7 +506,8 @@ function _openMeasure(ctx, mapId, door = "reminder"){
 }
 
 function _library(ctx, maps, activeId, helpBtn, isBasic){
-  if (CARRY) CARRY.ensure(ctx);            // which plans were moved with things still where they stood (read on a change, never on a poll)
+  // Which plans were moved with things still where they stood: read when a placement changes, never on a poll.
+  if (CARRY) CARRY.ensure(ctx, JSON.stringify((ctx.state.model && ctx.state.model.map_transforms) || {}));
   const { el } = ctx.helpers;
   helpBtn = helpBtn || (()=>null);
   const _compareResultDiv = el("div",{});
