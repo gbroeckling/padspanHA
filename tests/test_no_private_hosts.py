@@ -27,7 +27,7 @@ SCRIPTS = ("scripts/release.py", "scripts/deploy_site.py", "scripts/make_social_
 BINARY = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svgz", ".woff", ".woff2", ".ttf", ".otf",
           ".zip", ".gz", ".tgz", ".7z", ".mp4", ".webm", ".mov", ".glb", ".gltf", ".bin", ".pdf", ".xlsx",
           ".usdz", ".npz", ".pyc"}
-# user@1.2.3.4: an ssh login to a numeric address.
+# A login name, an at sign, then a dotted numeric address: an ssh login to a numeric address.
 USER_AT_IP = re.compile(r"[A-Za-z0-9_.-]+@(?:\d{1,3}\.){3}\d{1,3}\b")
 
 
