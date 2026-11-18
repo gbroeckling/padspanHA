@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nightly pull of the PadSpan opt-in usage reports: colo bcmail (75.157.233.12)
+# Nightly pull of the PadSpan opt-in usage reports: the colo web server
 # -> home 5810 RAID. The web host holds a WRITE-ONLY spool; the data lives here,
 # inside the knowledge tree that already gets backed up to UNAS weekly.
 #
@@ -15,7 +15,8 @@
 # separate file WITH contact details, kept in its own folder; see that block.
 set -euo pipefail
 
-SRC_HOST="administrator@75.157.233.12"
+# An ssh Host name defined in this machine's ~/.ssh/config, so the address is not in the repo.
+SRC_HOST="${PADSPAN_COLO:-padspan-colo}"
 SRC_DIR="/var/www/clients/client1/web10/private/padspan-telemetry/"
 DEST="/mnt/storage/knowledge/padspan-telemetry"
 LOG="$DEST/pull.log"

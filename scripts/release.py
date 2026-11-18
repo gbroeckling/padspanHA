@@ -402,12 +402,34 @@ def gather_notes(version):
     return len(notes)
 
 
+def colo_host_problem(host=None, run_=None):
+    """Why the colo web server can't be reached by name, or None. `ssh -G` prints
+    the settings ssh would use without connecting; a name with no Host entry
+    comes back as its own hostname. Checked before anything is tagged or pushed,
+    so a release never stops halfway at the update-check manifest."""
+    host = host or COLO_HOST
+    run_ = run_ or (lambda c: subprocess.run(c, shell=True, capture_output=True, text=True))
+    res = run_(f"ssh -G {host}")
+    if res.returncode != 0:
+        return f"ssh could not read its settings for {host!r}: {(res.stderr or '').strip()[:200]}"
+    name = next((ln.split(None, 1)[1].strip() for ln in (res.stdout or "").splitlines() if ln.startswith("hostname ")), "")
+    if not name or name == host:
+        return (f"{host!r} is not defined in this machine's ~/.ssh/config. Add a Host {host} entry "
+                "with the colo server's HostName and User (or set PADSPAN_COLO to a host that is).")
+    return None
+
+
 def preflight_checks():
     """
     Validate repo structure before doing anything destructive.
     Catches the mistakes that previously broke HACS downloads.
     """
     errors = []
+
+    # 0. The colo web server must be reachable by name (the update-check manifest goes there)
+    colo = colo_host_problem()
+    if colo:
+        errors.append(colo)
 
     # 1. hacs.json must exist and have correct settings
     hacs_path = ROOT / "hacs.json"
@@ -816,7 +838,11 @@ def create_github_release(tag, channel, message=None):
 # 0.35.0 went stable on 2026-08-18 and five days later the manifest still said
 # 0.21.13, which is why two thirds of the pinging install base sat on 0.21.13.
 # The release that creates a version now tells the manifest about it.
-MANIFEST_HOST = "administrator@75.157.233.12"
+# The colo web server is reached by an SSH host name that each machine defines in its own
+# ~/.ssh/config (Host padspan-colo, with its HostName, User and key), so the server's
+# address never sits in this public repository. PADSPAN_COLO overrides the name.
+COLO_HOST = os.environ.get("PADSPAN_COLO", "padspan-colo")
+MANIFEST_HOST = COLO_HOST
 MANIFEST_PATH = "/var/www/clients/client1/web10/web/padspan/api/latest.json"
 MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
 _SSH = "ssh -o BatchMode=yes -o ConnectTimeout=15"

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import pathlib
 import re
 import secrets
@@ -46,7 +47,10 @@ SRC = ROOT / "site" / "index.html"
 # release.py stamps. VERSION.txt is prose ("padspanHA package version: X.Y.Z").
 MANIFEST = ROOT / "custom_components" / "padspan_ha" / "manifest.json"
 
-HOST = "administrator@75.157.233.12"
+# The colo web server is reached by an SSH host name that each machine defines in its own
+# ~/.ssh/config (Host padspan-colo, with its HostName, User and key), so the server's
+# address never sits in this public repository. PADSPAN_COLO overrides the name.
+HOST = os.environ.get("PADSPAN_COLO", "padspan-colo")
 REMOTE_DIR = "/var/www/clients/client1/web10/web/padspan"
 REMOTE = REMOTE_DIR + "/index.html"
 # The German page. It is built from SRC on every deploy (scripts/build_site_de.py),

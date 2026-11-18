@@ -20,6 +20,7 @@ version in manifest.json, so it can be re-run at any release and never drift.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -116,7 +117,7 @@ def main() -> None:
         print("not deployed (pass --deploy to upload)")
         return
 
-    host = "administrator@75.157.233.12"
+    host = os.environ.get("PADSPAN_COLO", "padspan-colo")   # an ssh Host name each machine defines (see release.py)
     remote = "/var/www/clients/client1/web10/web/padspan/images/social-preview.png"
     ssh = "ssh -o BatchMode=yes -o ConnectTimeout=20"
     subprocess.run(
