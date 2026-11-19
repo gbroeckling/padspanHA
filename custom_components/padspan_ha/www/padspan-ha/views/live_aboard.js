@@ -4522,11 +4522,20 @@ function createSlot(slotKey){
     const into = roomPanel.open(name);
     if (!roomSheet) roomSheet = openRoomSheet(panelApi(api, name), lightsOf(api), name, null, { into, stay: true, onClose: () => roomPanel.close() });
     paintRoomMore(api);
+    fitRoomPanel();
     if (roomChips) roomChips.sync();
     if (at) flyToRoom(at);
     return true;
   }
   function closeRoomPanel(){ if (roomPanel) roomPanel.close(); }
+  /** Beside the house the panel stops above the bar (and its scene row), whatever their height. */
+  function fitRoomPanel(){
+    const el = roomPanel && roomPanel.el;
+    if (!el || !bar || !root || typeof bar.getBoundingClientRect !== "function") return;
+    const rr = root.getBoundingClientRect(), br = bar.getBoundingClientRect(), k = wallUiOf(root, "--wall-ctl");
+    const h = br.height > 0 && !narrow ? (br.top - rr.top - 8) / k - 10 : 0;
+    if (h > 120) el.style.setProperty("--la3d-roomh", `${Math.round(h)}px`); else el.style.removeProperty("--la3d-roomh");
+  }
   /** The panel's "More devices of the area (n)": what Home Assistant puts in the room's area that the sheet doesn't list. */
   function paintRoomMore(api){
     if (!roomPanel || !roomPanel.isOpen || !api) return;
@@ -4541,6 +4550,7 @@ function createSlot(slotKey){
     if (!api) return;
     if (roomSheet && !roomSheet.update(panelApi(api, roomPanel.room), lightsOf(api))) roomSheet = null;
     paintRoomMore(api);
+    fitRoomPanel();
   }
   /** The host's api as the panel uses it: a switch it makes is said over the
    *  view with Undo, as a tap's is (a lock's never: unlocking asks first). */

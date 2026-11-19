@@ -98,7 +98,7 @@ const CSS = `
 .la3d.la3d-roomrow .la3d-wet{top:100px}
 .la3d.la3d-roomon:not(.la3d-narrow) .la3d-rchips:not(.la3d-rcompact){right:380px}
 :host([data-wall]) .la3d-rchips{zoom:var(--wall-ctl,var(--wall-ui,1))}
-.la3d-room{position:absolute;right:10px;top:10px;z-index:4;box-sizing:border-box;width:min(360px,calc(100% - 20px));max-height:calc(100% - 78px);
+.la3d-room{position:absolute;right:10px;top:10px;z-index:4;box-sizing:border-box;width:min(360px,calc(100% - 20px));max-height:var(--la3d-roomh,calc(100% - 78px));
   overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-radius:14px;background:linear-gradient(180deg,rgba(16,31,21,.97),rgba(11,23,16,.97));
   border:1px solid rgba(120,190,155,.3);box-shadow:0 12px 36px rgba(0,0,0,.55);color:#e2e8f0}
 .la3d.la3d-bare .la3d-room{top:62px;max-height:calc(100% - 72px)}
