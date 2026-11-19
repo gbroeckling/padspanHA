@@ -2,10 +2,18 @@
 
 A synthetic walk (tests/room_speed_sim.py says why it is synthetic and what it
 models) runs through PadSpan's own pipeline on a simulated clock: the scanner
-lists and callbacks, BluetoothLive, the coordinator's ingestion and
-_smooth_room. Nothing here reads the wall clock.
+lists and callbacks, BluetoothLive, and one real coordinator poll every 5 s.
+Nothing here reads the wall clock, so the numbers are the same on any machine.
 
-PADSPAN_ROOM_SPEED_REPORT=1 prints the full table (more walks).
+Before the change (0.38.258's code on these same walks): a move took a minute
+and a half to show (median; many were never shown before the device left),
+with 8.7 wrong switches an hour while still, 47 with the house drawn. The
+bounds below sit between that and what it does now, so a slide back fails.
+
+The full table (8 walks a mode, or PADSPAN_ROOM_SPEED_SEEDS of them; settings
+to try in PADSPAN_ROOM_SPEED_SETTINGS as JSON):
+
+    PADSPAN_ROOM_SPEED_REPORT=1 pytest tests/test_room_speed.py -s -k report
 """
 
 from __future__ import annotations
@@ -18,6 +26,40 @@ import pytest
 from tests import room_speed_sim as sim
 
 
+@pytest.fixture(scope="module")
+def walks() -> dict[str, list[sim.Trace]]:
+    return {
+        "no-map": sim.run_set(seeds=range(2)),              # a phone and a tag, 2 walks each
+        "map": sim.run_set(seeds=range(1), fabric=True),
+    }
+
+
+def test_a_move_is_shown_in_seconds_not_a_minute(walks) -> None:
+    s = sim.summary(sim.score(walks["no-map"]))
+    assert s["missed"] == 0, s                 # every room shown before the device left it
+    assert s["median_s"] <= 25.0, s            # was 90 s
+    assert s["p90_s"] <= 60.0, s               # was never, for 16 of 52 moves
+
+
+def test_a_move_into_a_room_whose_scanner_hears_well_takes_about_ten_seconds(walks) -> None:
+    s = sim.summary(sim.score(walks["no-map"], rooms=sim.TUNED_ROOMS))
+    assert s["median_s"] <= 15.0, s            # was 50 s
+    assert s["p90_s"] <= 30.0, s               # was 105 s
+
+
+def test_a_still_device_flickers_no_more_than_before(walks) -> None:
+    s = sim.summary(sim.score(walks["no-map"]))
+    assert s["flicker_per_h"] <= 10.0, s       # 8.7 before on these walks
+
+
+def test_with_the_house_drawn_too(walks) -> None:
+    s = sim.summary(sim.score(walks["map"]))
+    assert s["missed"] == 0, s
+    assert s["median_s"] <= 35.0, s            # was 82 s
+    assert s["p90_s"] <= 90.0, s               # was never
+    assert s["flicker_per_h"] <= 20.0, s       # was 47
+
+
 @pytest.mark.skipif(not os.environ.get("PADSPAN_ROOM_SPEED_REPORT"), reason="report mode only")
 def test_report() -> None:
     seeds = range(int(os.environ.get("PADSPAN_ROOM_SPEED_SEEDS", "8")))
@@ -28,3 +70,6 @@ def test_report() -> None:
         by_dev["all"] = by_dev["phone"] + by_dev["tag"]
         for label, traces in by_dev.items():
             print("map" if fabric else "no-map", label, json.dumps(sim.summary(sim.score(traces))))
+        for label, rooms in (("tuned-scanner rooms", sim.TUNED_ROOMS), ("default-window rooms", sim.SPARSE_ROOMS)):
+            print("map" if fabric else "no-map", label,
+                  json.dumps(sim.summary(sim.score(by_dev["all"], rooms=rooms))))

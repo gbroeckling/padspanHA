@@ -20,8 +20,8 @@ Only the radio and Home Assistant's Bluetooth manager are modelled (below).
 Time is a Clock that the walk advances; nothing reads the wall clock, so the
 numbers do not depend on how fast the machine runs.
 
-Used by tests/test_room_speed.py (the regression bounds) and by
-tools/benchmark/room_speed.py (the full report).
+Used by tests/test_room_speed.py: the regression bounds, and the full report
+(PADSPAN_ROOM_SPEED_REPORT=1).
 """
 
 from __future__ import annotations
@@ -72,6 +72,10 @@ SCANNERS: dict[str, tuple[float, float, str, float]] = {
     "AA:00:00:00:00:05": (9.4, 6.0, "Bedroom", 0.85),
     "AA:00:00:00:00:06": (9.4, 9.4, "Bath", 0.09),
 }
+# Rooms whose scanner catches most adverts, and those left at the default
+# scan window (where a move can only show once that scanner hears one).
+TUNED_ROOMS = {v[2] for v in SCANNERS.values() if v[3] >= 0.5}
+SPARSE_ROOMS = set(ROOMS) - TUNED_ROOMS
 SCANNER_Z_M = 1.5
 DEVICE_Z_M = 1.0
 WALL_DB = 4.0             # one interior wall
@@ -429,7 +433,7 @@ class Trace:
 
 def run_walk(dev: Device, seed: int, *, settings: dict[str, Any] | None = None,
              poll_s: float = 5.0, stays: list[Stay] | None = None,
-             fabric: bool = False) -> Trace:
+             fabric: bool = False, on_poll=None) -> Trace:
     """Walk one device through the house; the room PadSpan shows at each poll.
     fabric: the house is drawn (rooms, scanner positions, walls), so rooms come
     from the spatial solve; otherwise from the strongest scanner per room."""
@@ -510,6 +514,8 @@ def run_walk(dev: Device, seed: int, *, settings: dict[str, Any] | None = None,
                 snap_box[0] = {"objects": {"list": [obj]}, "ble": ble}
                 result = loop.run_until_complete(coord._async_update_data())
                 trace.shown.append((t, (result.get(dev.address) or {}).get("room")))
+                if on_poll is not None:
+                    on_poll(t, coord, bl)
                 next_poll = t + poll_s
     loop.close()
     return trace
@@ -520,8 +526,8 @@ def run_walk(dev: Device, seed: int, *, settings: dict[str, Any] | None = None,
 class Score:
     delays: list[float]          # seconds from entering the room to it being shown
     missed: int                  # stays it never showed
-    wrong_switches: int          # switches away from the right room while still
-    still_s: float               # seconds standing still with the right room shown
+    wrong_switches: int          # changes of the shown room while still (not the move's own)
+    still_s: float               # seconds standing still
     moves: int
 
     @property
@@ -537,36 +543,49 @@ class Score:
         return xs[i]
 
 
-def score(traces: list[Trace], min_stay_s: float = 30.0) -> Score:
-    """Per destination (a stay of at least min_stay_s after a walk), the delay
-    from crossing into it to PadSpan showing it. Once shown, any switch away
-    while the device stands still is a wrong switch (flicker)."""
+def score(traces: list[Trace], min_stay_s: float = 30.0, rooms: set[str] | None = None) -> Score:
+    """Delay: per room change (a walk into a different room, then a stay of
+    at least min_stay_s; the two still sits are for flicker only), the seconds
+    from crossing into the room to PadSpan showing it.
+
+    Flicker: every change of the shown room while the device stands still,
+    except the one change that shows the move itself. A detour (a room passed
+    through shown after the device stopped) counts; so does a doorway spot
+    switching back and forth, whichever room is right there.
+
+    rooms: count only stays in these rooms (e.g. the ones whose scanner is
+    tuned, TUNED_ROOMS)."""
     delays: list[float] = []
     missed = wrong = moves = 0
     still = 0.0
     for tr in traces:
         for i, leg in enumerate(tr.legs):
-            if i == 0 or leg.stay.seconds < min_stay_s:
+            if i == 0 or (rooms is not None and leg.stay.room not in rooms):
+                continue
+            stand0 = leg.t0 + leg.walk_s
+            still += leg.t1 - stand0
+            t_in = entry_time(leg)
+            room = leg.stay.room
+            seen_room = any(r == room for t, r in tr.shown if t_in <= t < stand0)
+            prev = next((r for t, r in reversed(tr.shown) if t < stand0), None)
+            for t, r in tr.shown:
+                if not (stand0 <= t < leg.t1):
+                    continue
+                if r != prev:
+                    if r == room and not seen_room:
+                        seen_room = True
+                    else:
+                        wrong += 1
+                prev = r
+            if (leg.stay.note or leg.stay.seconds < min_stay_s
+                    or tr.legs[i - 1].stay.room == room):
                 continue
             moves += 1
-            t_in = entry_time(leg)
-            stand0 = leg.t0 + leg.walk_s
-            polls = [(t, r) for t, r in tr.shown if t_in <= t < leg.t1]
-            shown_at = next((t for t, r in polls if r == leg.stay.room), None)
+            shown_at = next((t for t, r in tr.shown if t_in <= t < leg.t1 and r == room), None)
             if shown_at is None:
                 missed += 1
-                continue
-            delays.append(shown_at - t_in)
-            # Flicker: from when it was shown (or the device stopped, if later)
-            prev = leg.stay.room
-            t_from = max(shown_at, stand0)
-            still += leg.t1 - t_from
-            for t, r in polls:
-                if t <= t_from:
-                    continue
-                if r != prev and prev == leg.stay.room:
-                    wrong += 1
-                prev = r
+            else:
+                delays.append(shown_at - t_in)
     return Score(delays, missed, wrong, still, moves)
 
 
