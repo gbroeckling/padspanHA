@@ -513,6 +513,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
     "atlas_forest",                                 # the trees behind the flat map (Showcase theme "West Coast Forest")
+    "atlas_fit",                                    # how big the house is drawn on a wall: the arrangement and the check
     "live_aboard_forest",                           # the same theme's trees in Live Aboard
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "power_teams",                                  # Settings → Atlas → Power teams (power_team.py)
@@ -1177,6 +1178,9 @@ SCREEN_EVENTS: frozenset[str] = frozenset(
     # Sized from the screen's resolution (auto) or from its size and the
     # viewing distance (room: Settings → Wall screens, or the screen's link).
     | {"wall_fit:auto", "wall_fit:room"}
+    # How full a wall's flat map opened (views/atlas_fit.js): fine, far back
+    # (a small house in a lot of space), or far back and moved in by the wall.
+    | {"wall_fill:ok", "wall_fill:low", "wall_fill:closer"}
 )
 
 # What the Overview tab actually drew (views/overview.js OVERVIEW_SHOWN, held

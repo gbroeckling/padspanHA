@@ -1714,6 +1714,9 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-mapcard.lv-display.lv-wall > .lv-stage{flex:1 1 auto;min-height:0;container-type:size;
   width:calc(100% - 44px * var(--wall-ctl,var(--wall-ui,1)));margin-left:calc(44px * var(--wall-ctl,var(--wall-ui,1)))}
 .lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
+/* A wall has no scroll bars: zoomed in, it is dragged (or pinched), and a bar across a wall's foot is clutter. */
+.lv-mapcard.lv-display.lv-wall > .lv-stage{scrollbar-width:none}
+.lv-mapcard.lv-display.lv-wall > .lv-stage::-webkit-scrollbar{display:none}
 .lv-mapcard.lv-display.lv-wall > .lv-rail,
 .lv-mapcard.lv-display.lv-wall > .lv-drawer,.lv-mapcard.lv-display.lv-wall .lv-alone-anchor > button{zoom:var(--wall-ctl,var(--wall-ui,1))}
 /* A wall shows the overview only (control-room practice: the big screen is

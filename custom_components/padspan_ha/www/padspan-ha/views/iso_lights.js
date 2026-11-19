@@ -2905,6 +2905,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const slabPad=Math.max(0.4, Math.max(slabHalfW,slabHalfH)*0.08);
   slabHalfW+=slabPad; slabHalfH+=slabPad;
   const slabWZ=18/FG;
+  // A plate is 18 units thick, straight down, whatever the spacing or the L/R offset.
+  const slabDown=(p)=>[p[0], p[1]+18];
 
   // Where the building actually ends on screen, not the fixed worst-case
   // canvas BASE_H/W were allocated for (2026-09-11: "why is there such
@@ -2963,9 +2965,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const ccx=(box.x0+box.x1)/2, ccy=(box.y0+box.y1)/2;
     const halfW=(box.x1-box.x0)/2+slabPad, halfH=(box.y1-box.y0)/2+slabPad;
     const x0=ccx-halfW, x1=ccx+halfW, y0_=ccy-halfH, y1_=ccy+halfH;
-    const zb=rankOf(z)-slabWZ;
-    for(const pt of [iso(x0,y0_,z), iso(x1,y0_,z), iso(x1,y1_,z), iso(x0,y1_,z),
-                      iso(x0,y0_,zb), iso(x1,y0_,zb), iso(x1,y1_,zb), iso(x0,y1_,zb)]){
+    // The bottom face is straight under the top one (slabDown, below): a storey's fraction through iso() also moved it
+    // sideways by that fraction of the L/R spacing, which skewed a plate's sides once floors stood well apart sideways.
+    const tops=[iso(x0,y0_,z), iso(x1,y0_,z), iso(x1,y1_,z), iso(x0,y1_,z)];
+    for(const pt of [...tops, ...tops.map(slabDown)]){
       growX(pt[0]);
       // Alone, the plate is the picture: its own corners count for the height too.
       if(ALONE){ if(pt[1]>contentMaxY) contentMaxY=pt[1]; if(pt[1]<contentMinY) contentMinY=pt[1]; }
@@ -3000,8 +3003,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // all, so a floor whose slab corners land left of x=0 or right of x=W
   // (a nonzero L/R spacing shifts every floor's slab sideways by its own
   // storey's worth of that offset) drew straight past the canvas edge.
-  const viewX0 = isFinite(contentMinX) ? Math.min(0, contentMinX - 30) : 0;
-  const viewX1 = isFinite(contentMaxX) ? Math.max(W, contentMaxX + 30) : W;
+  // opts.hugX (a wall, whose floors are arranged for its own shape: atlas_fit.js): the box is the house's own width,
+  // never the old 0..760 canvas, which left dead space beside a house drawn narrower and put it off-centre.
+  const viewX0 = isFinite(contentMinX) ? (opts.hugX ? contentMinX - 30 : Math.min(0, contentMinX - 30)) : 0;
+  const viewX1 = isFinite(contentMaxX) ? (opts.hugX ? contentMaxX + 30 : Math.max(W, contentMaxX + 30)) : W;
   const WTOTAL = viewX1 - viewX0;
 
   // width:100% with NO height cap. `max-height:${HTOTAL}px` pinned the drawing
@@ -3803,7 +3808,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const x0=ccx-halfW, x1=ccx+halfW, y0_=ccy-halfH, y1_=ccy+halfH;
 
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
-    const TR_b=iso(x1,y0_,rankOf(z)-slabWZ), BR_b=iso(x1,y1_,rankOf(z)-slabWZ), BL_b=iso(x0,y1_,rankOf(z)-slabWZ);
+    const TR_b=slabDown(TR), BR_b=slabDown(BR), BL_b=slabDown(BL);
 
     // One gloss ramp per FLOOR for the Automorph aura's gloss FILL (the
     // rim is per-shape by design — see psglossrim in the aura defs):
@@ -6600,7 +6605,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // corner past the edge and the badge was drawn half outside the frame.
     // It is a TAP TARGET too (data-role="floor"): the sidebar's floor sheet —
     // everything on this storey, all off — hangs off it.
-    const badgeX=Math.max(18, Math.min(W-18, Math.round(BL[0])));
+    // On a wall (opts.hugX) the box is the house's own, and the badge stands at its floor's corner inside it. Elsewhere
+    // it keeps to the old 760 canvas, as it always has.
+    const badgeX=opts.hugX ? Math.max(viewX0+18, Math.min(viewX1-18, Math.round(BL[0]))) : Math.max(18, Math.min(W-18, Math.round(BL[0])));
     const badgeY=Math.round(BL[1]);
     // pointer-events="all" here is belt-and-suspenders, not the fix itself
     // (the floorslab group this used to sit inside, above, is what actually
