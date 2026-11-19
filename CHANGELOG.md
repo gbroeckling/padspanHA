@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.260 — Live Aboard: a look for each screen, room chips and a room panel; A sink under the window (2026-11-19)
+
+### New
+- **A look for each screen.** Live Aboard's **Views ▾** has a new **Look** line: pick **Classic**, **Studio** or one of the Showcase themes, each shown with a small swatch of its colours. The screen you pick it on keeps it; **Same as Settings** puts it back to what Settings → Atlas → 🏠 Live Aboard says. Showcase themes come with PadSpan Bright Pro or PadSpan Pro, as on the flat Atlas.
+- **One look by day, another after sunset.** In the same list, tick **By the sun** and pick a look for the day and one for after sunset. It switches by Home Assistant's sun.
+- **Room chips.** Every named room is now along the top of Live Aboard, under its floor's name. Tap one and its floor shows, the view flies to the room and tints it, and its panel opens. On a phone and on a wall screen they are in **Rooms ▾**. They step aside with the bars when the map is alone.
+- **A room panel beside the house.** A tap on a room's name opens its panel beside the house (at the bottom on a phone) instead of a sheet over the whole page, so you still see the room while you use it. It has the same lines and buttons as before, shows **Undo** after each switch, and lists **More devices of the area (n)**: what Home Assistant has in that room's area that the map doesn't show. Tap one for its own controls.
+
+### Changed
+- **The room you go to is tinted.** A room opened by a double-tap, a chip or its panel now has a light green tint on its floor, while the other rooms fade back as before.
+
+### Fixed
+- **A sink fits under a window.** A window's sill is measured against a sink's worktop (a basin's rim), not the top of its tap, which stands in front of the glass as a real one does. So a sink under a kitchen window gets no warning, and the kitchen room sets put the sink under a window when the base units pass under one. Room sets also keep wall cabinets off a window's glass.
+
+---
+
 ## 0.38.259 — Live Aboard opens on the whole house, labels by zoom level, Glass walls; Android phones: a warning when the transmitter is set too weak; Unlock asks first; white bulbs, Details and a live room sheet in the Atlas; Calibration tips that make the walk count; iPhone and Apple Watch keys from irk-capture, step by step; Licence and update checks, done more carefully; Drawing rooms: corners that line up, straight edges, overlaps named; Modern furniture; kitchens, bathrooms and one-tap room sets; People who are home stay in the house; A lighter Home Assistant database; Devices known only by their room, and room names, sit inside the room; Room changes in seconds, not a minute; A phone scan's doors and windows come into Live Aboard; The update dialog says what changed (2026-11-18)
 
 ### New
