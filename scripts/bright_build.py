@@ -83,6 +83,10 @@ COPY: tuple[str, ...] = (
     "hacs.json", "LICENSE", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "requirements_test.txt",
     "eslint.config.mjs", "VERSION.txt", ".gitignore", "icon.png", "logo.png",
 )
+# Copied above but the main repository's alone: the hourly live check probes
+# padspanHA's own release zip and the servers both editions share, and in the
+# Bright repository it would fail every hour on a zip name the rename changed.
+MAIN_ONLY: tuple[str, ...] = (".github/workflows/live-check.yml",)
 SKIP_DIRS = {"__pycache__", ".pytest_cache", ".git"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".zip"}
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2", ".ttf", ".otf", ".pdf", ".bin"}
@@ -229,6 +233,9 @@ def build(out: Path, root: Path = ROOT) -> Path:
             _copy_tree(src, out / name)
         else:
             shutil.copy2(src, out / name)
+
+    for rel in MAIN_ONLY:
+        (out / rel).unlink(missing_ok=True)
 
     # Directories first, so every path the text pass touches is final.
     (out / "custom_components" / FULL_DOMAIN).rename(out / "custom_components" / BRIGHT_DOMAIN)
