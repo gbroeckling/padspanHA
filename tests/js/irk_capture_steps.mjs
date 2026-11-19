@@ -181,7 +181,7 @@ const DETECT = {
   check("marker: a Home Assistant Bluetooth bond's key is not one", !!add && !("via" in add[1]), add);
 }
 {
-  // Add & validate, even with the ESP32's key pasted in: saved as before.
+  // Add & validate with no Auto-detect run: saved as before.
   const s = screen(DETECT);
   const { root } = s.draw();
   const inputs = root.querySelectorAll("input");
@@ -192,6 +192,28 @@ const DETECT = {
   await wait(12);
   const add = s.calls.find(c => c[0] === "padspan_ha/irk_add");
   check("marker: Add & validate sends none", !!add && add[1].name === "Sam's iPad" && !("via" in add[1]), add);
+}
+// The IRK Manager: Auto-detect puts an irk-capture ESP32's key in the box; that
+// key, added as it is (straight away, or after Test only), is one; edited to
+// another key first, it is not.
+for (const [label, test, edit] of [["added as Auto-detect put it", false, ""], ["after Test only", true, ""],
+                                   ["edited to another key first", false, "ffeeddccbbaa99887766554433221100"]]) {
+  const s = screen({ ...DETECT, "padspan_ha/irk_validate": { matched_count: 2, matched_addresses: [], rpa_count: 3 } });
+  const { root } = s.draw();
+  const btn = (t) => root.querySelectorAll("button").find(b => b.textContent === t);
+  btn("Auto-detect IRKs").click();
+  await wait(12);
+  const inputs = root.querySelectorAll("input");
+  const keyBox = inputs.find(i => (i.attributes.placeholder || "").startsWith("IRK (hex, base64"));
+  inputs.find(i => (i.attributes.placeholder || "").startsWith("Device name")).value = "Jordan's iPhone";
+  if (edit) keyBox.value = edit;
+  if (test) { btn("Test only").click(); await wait(12); }
+  btn("Add & validate").click();
+  await wait(12);
+  const add = s.calls.find(c => c[0] === "padspan_ha/irk_add");
+  const tested = !test || s.calls.some(c => c[0] === "padspan_ha/irk_validate");
+  check(`marker: the IRK Manager, ${label}`, !!add && tested && add[1].irk_hex === (edit || KEY)
+    && (edit ? !("via" in add[1]) : add[1].via === "irk_capture"), add);
 }
 
 // ── Why there is nothing to save ────────────────────────────────────────────

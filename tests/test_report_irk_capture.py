@@ -5,8 +5,9 @@ people get an iPhone's or Apple Watch's key. A key the phone wizard saved from
 one counted as "padspan", like any other key saved in PadSpan, so the report
 could not say how many homes get keys that way or whether those keys work.
 
-Now the wizard's irk-capture path saves the key with `via: "irk_capture"`
-(that one value, and only from that path), the resolver counts such a key
+Now a key that came from an irk-capture ESP32 is saved with `via:
+"irk_capture"` (that one value; from the phone wizard's irk-capture path, or
+the IRK Manager once Auto-detect found it there), the resolver counts such a key
 under the label "irk_capture" in irks_by_source / irks_resolving_by_source,
 and the report carries how many irk-capture ESP32s Home Assistant has
 (health.irk_capture_boards) — counts only, and only when the report is on.

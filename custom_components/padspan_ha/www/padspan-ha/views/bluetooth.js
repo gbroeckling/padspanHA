@@ -143,8 +143,8 @@ function emptyState(el, mark, title, hint) {
 // no amount of waiting will make a UUID resolve an address.
 //   msgEl   — where the outcome is written
 //   after() — called once something was saved
-//   via     — "irk_capture" for a key from an irk-capture ESP32 in the phone
-//             wizard (kept on the key, so the usage report counts those apart)
+//   via     — "irk_capture" for a key from an irk-capture ESP32 (kept on the
+//             key, so the usage report counts those apart)
 async function _addIrk(ctx, name, irk, msgEl, after, force = false, via = "") {
   const { el } = ctx.helpers;
   msgEl.textContent = force ? "Saving unverified\u2026" : "Checking against live traffic\u2026";
@@ -2509,6 +2509,10 @@ function renderIrkPanel(ctx, snap) {
   const addBtn = el("button", { class: "btn inline" }, "Add & validate");
   const validateBtn = el("button", { class: "btn inline" }, "Test only");
   const autoDetectBtn = el("button", { class: "btn inline bt-btn-info", style: "margin-left:auto" }, "Auto-detect IRKs");
+  // The keys Auto-detect found on irk-capture ESP32s. One of them added from
+  // the box as it is (not edited to another key) is saved as one, so the
+  // usage report counts it with the phone wizard's.
+  let captureKeys = new Set();
 
   // Add & validate — the backend does the validating and refuses what
   // cannot work; the flow only has to show what it said and offer the one
@@ -2522,7 +2526,7 @@ function renderIrkPanel(ctx, snap) {
       nameInp.value = ""; irkInp.value = "";
       ctx.state._irkPanelStatus = null;
       setTimeout(() => ctx.actions.renderRooms(), 500);
-    });
+    }, false, captureKeys.has(irk.toLowerCase()) ? "irk_capture" : "");
     addBtn.disabled = false; addBtn.textContent = "Add & validate";
   });
 
@@ -2559,6 +2563,7 @@ function renderIrkPanel(ctx, snap) {
     try {
       const res = await ctx.actions.wsCall("padspan_ha/irk_auto_detect", {});
       const found = res.found || [];
+      captureKeys = new Set(found.filter(f => f.source === "irk_capture").map(f => String(f.irk_hex || "").toLowerCase()));
       if (found.length === 0) {
         addMsg.style.color = "var(--bt-ok)";
         addMsg.textContent = `No system Bluetooth bonds found (${res.system_bond_count || 0} bonds scanned, ${res.rpa_count || 0} RPAs tested).`;

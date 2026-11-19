@@ -2570,8 +2570,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "has_any_identity": bool(_identity.get("has_any")),
         # Which door the identities came in by, and which door actually works.
         # Fixed labels from PrivateBLEResolver.IDENTITY_SOURCES — no names.
-        # "irk_capture" is a key saved from an irk-capture ESP32 in the phone
-        # wizard; irk_capture_boards below counts the ESP32s themselves.
+        # "irk_capture" is a key saved from an irk-capture ESP32 (the phone
+        # wizard, or the IRK Manager after Auto-detect); irk_capture_boards
+        # below counts the ESP32s themselves.
         "irks_by_source": {k: v.get("total", 0)
                            for k, v in (_identity.get("by_source") or {}).items()},
         "irks_resolving_by_source": {k: v.get("resolving", 0)

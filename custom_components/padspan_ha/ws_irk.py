@@ -124,7 +124,8 @@ async def ws_private_ble_status(hass: HomeAssistant, connection, msg) -> None:
         vol.Required("name"): str,
         vol.Required("irk_hex"): str,
         vol.Optional("force", default=False): bool,
-        # The phone wizard's irk-capture path says so; nothing else sends it.
+        # A key from an irk-capture ESP32 (the phone wizard's irk-capture path,
+        # or the IRK Manager's Auto-detect) says so; nothing else sends it.
         vol.Optional("via"): vol.In(["irk_capture"]),
     }
 )
@@ -144,7 +145,8 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     equals an iBeacon UUID currently broadcasting is refused outright, with
     the beacon named: that is the mistake that reads "0 resolved" for weeks.
 
-    A key saved from an irk-capture ESP32 in the phone wizard comes with
+    A key saved from an irk-capture ESP32 (the phone wizard, or the IRK
+    Manager after Auto-detect found it) comes with
     `via: "irk_capture"` and keeps it on its record, so the opt-in report can
     count those keys apart (PrivateBLEResolver.identity_breakdown).
     """

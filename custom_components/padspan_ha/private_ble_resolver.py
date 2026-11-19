@@ -382,8 +382,8 @@ class PrivateBLEResolver:
 
     # The identity sources async_load() draws from. Fixed set, so an
     # unexpected value can never travel in the usage report as a label.
-    # "irk_capture": a PadSpan key saved from an irk-capture ESP32 in the
-    # phone wizard (its record's `via`), counted apart from "padspan".
+    # "irk_capture": a PadSpan key saved from an irk-capture ESP32 (its
+    # record's `via`), counted apart from "padspan".
     IDENTITY_SOURCES = ("private_ble_device", "bluetooth_bond", "mobile_app",
                         "companion_sensor", "padspan", "irk_capture", "other")
 

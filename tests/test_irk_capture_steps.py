@@ -174,7 +174,7 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("steps:", 7), ("save:", 6), ("findings:", 4), ("manager:", 2), ("card:", 1), ("marker:", 5)])
+@pytest.mark.parametrize("prefix,least", [("steps:", 7), ("save:", 6), ("findings:", 4), ("manager:", 2), ("card:", 1), ("marker:", 8)])
 def test_the_capture_steps(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"
