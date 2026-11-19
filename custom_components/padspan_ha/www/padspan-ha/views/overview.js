@@ -35,6 +35,10 @@ const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TE
 const { whosWhereCard } =
   await import(`./whos_where.js${new URL(import.meta.url).search}`)
     .catch(() => ({ whosWhereCard: () => null }));
+// Where a device known only by its room stands in it (room_spot.js, Live
+// Aboard's own rule): inside the room, and apart from the others there.
+const { middleOf, spotIn } =
+  await import(`./room_spot.js${new URL(import.meta.url).search}`);
 
 // What the Overview tab actually drew, for the opt-in report (telemetry.py
 // OVERVIEW_SHOWN, held equal by tests/test_telemetry.py): the classic screen
@@ -1044,19 +1048,25 @@ export function renderClassic(ctx){
       return zArr.map(_floorLabelForLevel).join(" + ");
     };
 
-    // Room centroids on screen, for an object that has a room but no
-    // position. Rebuilt whenever the projection changes (sliders). Straight
-    // out of the fabric, in metres; the storey is the room's own.
+    // Each room's middle, for an object that has a room but no position:
+    // room_spot.js's, a point inside the room even when the mean of its
+    // corners is not (an L-shaped room). Rebuilt whenever the projection
+    // changes (sliders). Straight out of the fabric, in metres; the storey is
+    // the room's own. roomIsoPos is the middle on screen, _roomMidM in metres
+    // (floor_id: its storey) for spreading several out (_roomSpot).
     const _isoFabricW = _fabOK
       ? Object.fromEntries(_fabF.rooms.map(r => [r.room, { floor_id: r.floor_id, pts: r.pts }]))
       : null;
     const roomIsoPos = {};
+    const _roomMidM = {};
     function _rebuildPositions(){
       for(const k of Object.keys(roomIsoPos)) delete roomIsoPos[k];
+      for(const k of Object.keys(_roomMidM)) delete _roomMidM[k];
       for(const r of (_fabOK ? _fabF.rooms : [])){
-        const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
-        const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
-        roomIsoPos[r.room] = iso(cx, cy, r.z);
+        const m = middleOf(r.pts);
+        if(!m) continue;
+        _roomMidM[r.room] = { x: m[0], y: m[1], floor_id: r.z, pts: r.pts };
+        roomIsoPos[r.room] = iso(m[0], m[1], r.z);
       }
     }
 
@@ -1600,6 +1610,26 @@ export function renderClassic(ctx){
       const followedObjects = allObjects.filter(o =>
         ctx.actions.followedHas(o.address || "") || ctx.actions.followedHas(o.entity_id || "") || ctx.actions.followedHas(o.key || "")
       );
+      // Objects known only by their room (followed ones and named ones
+      // alike): each at its own spot inside the room (room_spot.js spotIn),
+      // the first at the room's middle and the next stepping out round it,
+      // clear of every object drawn at its own position and of each other.
+      // They all used to sit on the mean of the room's corners, one on top of
+      // another, and outside an L-shaped room.
+      const _followedSet = new Set(followedObjects);
+      const _roomStands = [];
+      for(const o of allObjects){
+        if(typeof o.x_m !== "number" || typeof o.y_m !== "number") continue;
+        if(!_followedSet.has(o) && (o._stale || o._ghost || !(o.user_label || o.identified))) continue;
+        const z = _objZ(o);
+        if(z !== undefined) _roomStands.push({ x: o.x_m, y: o.y_m, floor_id: z });
+      }
+      const _roomSpot = (room) => {
+        const mid = _roomMidM[room];
+        const at = spotIn(mid, _roomStands);
+        _roomStands.push(at);
+        return iso(at.x, at.y, mid.floor_id);
+      };
       // Everything from here on is an OBJECT, not structure. The building is
       // fully drawn, so its extent is the frame — freeze it before any marker
       // can stretch it.
@@ -1610,7 +1640,7 @@ export function renderClassic(ctx){
       // kept on ctx.state so it survives the poll-to-poll rebuild (this
       // whole function reruns from scratch every 5s; the trail buffer
       // must not). Only real server-positioned points go in (never the
-      // room-centroid stagger a few lines below) — that stagger is a
+      // in-room spot of _roomSpot below) — that spot is a
       // layout fan-out for objects with no known position, and its little
       // per-render jitter is not movement worth remembering.
       if(!ctx.state._overviewTrails) ctx.state._overviewTrails = new Map();
@@ -1662,7 +1692,7 @@ export function renderClassic(ctx){
         // second and third opinion computed from raw advertisements — so a
         // beacon the server had not placed was put somewhere by the browser,
         // in a spot no other view agreed with. Not positioned by the server
-        // means: room centroid if it has a room, otherwise not on the map.
+        // means: a spot inside its room if it has one, otherwise not on the map.
         if(typeof o.x_m === "number" && typeof o.y_m === "number"){
           const z = _objZ(o);
           if(z !== undefined){
@@ -1677,7 +1707,7 @@ export function renderClassic(ctx){
           }
         }
         if(bx == null && o.room && roomIsoPos[o.room]){
-          [bx,by] = roomIsoPos[o.room];
+          [bx,by] = _roomSpot(o.room);
         }
         if(bx == null) continue;
 
@@ -1787,7 +1817,6 @@ export function renderClassic(ctx){
           if (!o.user_label && !o.identified) return false;
           return true;
         });
-        const _roomObjCount = {};
         for(const obj of _mapObjs){
           const oKey = obj.key || obj.address || obj.entity_id || "";
           _renderedObjKeys.add(oKey);
@@ -1795,8 +1824,8 @@ export function renderClassic(ctx){
           const isAway = ctx.helpers.isAway(obj, ctx.helpers.awayTimeoutS(ctx.state.settings));
           const objLabel = _guestName(obj) || deviceName(obj, "");
 
-          // The server's position, else the room centroid with a small
-          // stagger so several room-only objects do not stack on one point.
+          // The server's position, else a spot inside its room (_roomSpot),
+          // so several room-only objects do not stack on one point.
           let px, py;
           const _oz = (typeof obj.x_m === "number" && typeof obj.y_m === "number") ? _objZ(obj) : undefined;
           if(_oz !== undefined){
@@ -1804,13 +1833,8 @@ export function renderClassic(ctx){
             [px,py]=[Math.round(ix), Math.round(iy)];
             if(ctx.state._overviewShowTrails) trailPush(_trails, oKey, px, py, _trailNow);
           } else if (obj.room && roomIsoPos[obj.room]) {
-            const pos = roomIsoPos[obj.room];
-            const idx = (_roomObjCount[obj.room] || 0);
-            _roomObjCount[obj.room] = idx + 1;
-            const angle = idx * 2.4;
-            const radius = 8 + idx * 6;
-            px = Math.round(pos[0] + Math.cos(angle) * Math.min(radius, 40));
-            py = Math.round(pos[1] + Math.sin(angle) * Math.min(radius, 25));
+            const [ix,iy] = _roomSpot(obj.room);
+            [px,py] = [Math.round(ix), Math.round(iy)];
           }
           // Skip if no position could be determined
           if(px == null || py == null) continue;

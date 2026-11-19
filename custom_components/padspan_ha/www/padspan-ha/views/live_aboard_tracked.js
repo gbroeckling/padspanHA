@@ -23,8 +23,8 @@
 //             each carries can be picked (settings.atlas_3d_carries, People
 //             & devices): picked, it is theirs, whatever the names say. One
 //             known only by its room stands in the middle of that room
-//             (Overview's own rule), nudged apart from others there, dimmed,
-//             and their card says "room only"
+//             (room_spot.js, Overview's own rule), nudged apart from others
+//             there, dimmed, and their card says "room only"
 //   pinned    a tag pinned on the map (model.beacon_positions_m) stands at
 //             its pin, never wandering with each reading
 //
@@ -40,6 +40,10 @@
 // person and tag drawn went in the last half hour, a ribbon on its floor in
 // its own colour, fading with age. Each lies on the floor it was walked on,
 // so only the floors showing show theirs.
+
+const _q = new URL(import.meta.url).search;
+const { middleOf, roomStagger, spotIn } = await import(`./room_spot.js${_q}`);
+export { roomStagger };
 
 /** How often someone walking is drawn (ms), by profile. */
 export const WALK_MS = { high: 40, low: 100 };
@@ -59,9 +63,8 @@ export const HALO_M = [0.3, 1.5];
 const LABEL_PX = 22;                       // a tag's name: this tall on screen, any distance, either camera
 const HEARD_MAX = 4;                       // scanners named in a tag's card
 const RIBBON_M = 0.08, TRAIL_LIFT = 0.025;   // a trail: this wide, this far over its floor (m)
-// Someone known only by their room: a step out from its middle for each one
-// there before them (m, up to the second), and drawn this opaque.
-const ROOM_FAN_M = [0.3, 1.2], APART_M = 0.5;
+// Someone known only by their room: where in it they stand is room_spot.js's
+// (the Overview's too), and they are drawn this opaque.
 export const ROOM_ONLY_OPACITY = 0.55;
 export const ROOM_ONLY_WORDS = "Room only: PadSpan knows the room, not the spot";
 
@@ -178,47 +181,10 @@ export function peopleOf(states, tracked, carries){
   return out;
 }
 
-/** Is (x, y) inside the outline P? */
-function inside(x, y, P){
-  let c = false;
-  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-    const a = P[i], b = P[j];
-    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
-  }
-  return c;
-}
-/** How far (x, y) is from the nearest side of P. */
-function clearance(x, y, P){
-  let best = Infinity;
-  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-    const [ax, ay] = P[j], [bx, by] = P[i], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
-    const t = L2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)) : 0;
-    best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
-  }
-  return best;
-}
-/** The point of P furthest from its sides (searched on a grid, then a finer
- *  one round the best): always inside it, whatever its shape. */
-function deepest(P){
-  const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
-  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), best = null;
-  for (let round = 0; round < 2; round++) {
-    const N = 24, sx = (x1 - x0) / N, sy = (y1 - y0) / N;
-    for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
-      const x = x0 + i * sx, y = y0 + j * sy;
-      if (!inside(x, y, P)) continue;
-      const c = clearance(x, y, P);
-      if (!best || c > best.c) best = { x, y, c };
-    }
-    if (!best) break;
-    x0 = best.x - sx; x1 = best.x + sx; y0 = best.y - sy; y1 = best.y + sy;
-  }
-  return best;
-}
-/** A room's middle on the map: Overview's (the mean of its corners; a round
- *  room's centre) when that is inside it, else the point furthest inside it
- *  (an L or a U whose mean falls in a wall or the room next door). {x, y,
- *  floor_id, pts (its outline, or null)}, or null for no such room. */
+/** A room's middle on the map: Overview's own (room_spot.js middleOf: the
+ *  mean of its corners when that is inside it, else the point furthest inside
+ *  it; a round room's centre). {x, y, floor_id, pts (its outline, or null)},
+ *  or null for no such room. */
 export function roomMiddle(model, room){
   const g = model && model.room_geometry_m && typeof model.room_geometry_m === "object" ? model.room_geometry_m[room] : null;
   if (!g || typeof g !== "object") return null;
@@ -228,33 +194,8 @@ export function roomMiddle(model, room){
     return x === null || y === null ? null : { x, y, floor_id, pts: null };
   }
   const pts = Array.isArray(g.points_m) ? g.points_m.map(p => [Number(p && p[0]), Number(p && p[1])]) : [];
-  if (pts.length < 3 || pts.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
-  const x = pts.reduce((a, p) => a + p[0], 0) / pts.length, y = pts.reduce((a, p) => a + p[1], 0) / pts.length;
-  if (inside(x, y, pts)) return { x, y, floor_id, pts };
-  const d = deepest(pts);
-  return d ? { x: d.x, y: d.y, floor_id, pts } : { x, y, floor_id, pts };
-}
-/** The i-th one known only by a room stands this far (m) and this way from
- *  its middle: the first at the middle, the next stepping out round it
- *  (Overview's own stagger: 2.4 rad a step, a little further each time). */
-export function roomStagger(i){
-  if (!i) return [0, 0];
-  const r = Math.min(ROOM_FAN_M[1], ROOM_FAN_M[0] * (1 + i));
-  return [Math.cos(i * 2.4) * r, Math.sin(i * 2.4) * r];
-}
-/** Where in a room (roomMiddle's mid) someone known only by it stands: its
- *  middle, else the first step out round it (roomStagger) that is inside the
- *  room and APART_M from everyone standing on that floor already. */
-function spotIn(mid, stands){
-  const near = (x, y) => stands.some(s => s.floor_id === mid.floor_id && Math.hypot(s.x - x, s.y - y) < APART_M);
-  let first = null;
-  for (let i = 0; i < 24; i++) {
-    const [dx, dy] = roomStagger(i), x = mid.x + dx, y = mid.y + dy;
-    if (mid.pts && !inside(x, y, mid.pts)) continue;
-    if (!first) first = { x, y, floor_id: mid.floor_id };
-    if (!near(x, y)) return { x, y, floor_id: mid.floor_id };
-  }
-  return first || { x: mid.x, y: mid.y, floor_id: mid.floor_id };
+  const mid = middleOf(pts);
+  return mid ? { x: mid[0], y: mid[1], floor_id, pts } : null;
 }
 /** A tag's pin on the map (model.beacon_positions_m): {x, y, floor_id, z}, or null. */
 export function pinOf(model, key){

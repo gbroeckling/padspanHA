@@ -27,6 +27,9 @@ const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSetting
         sunElevationDeg, ambientFromElevation, sunAmbient } = await import(`./lights_map.js${_q}`);
 const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEntity, readingNeedsPlacement } =
   await import(`./light_codes.js${_q}`);
+// A room's middle, inside it even in an L-shaped room (room_spot.js, the
+// Overview's and Live Aboard's own).
+const { middleOf } = await import(`./room_spot.js${_q}`);
 
 /** Normalise one HA history row (compressed WS or full REST shape) to ms times. */
 function _row(r) {
@@ -469,24 +472,22 @@ export function atlasFocusPositions(model, floorGap = 150, horizGap = 0) {
   return { positions, labelOf };
 }
 
-/** Metre centroid of a room, from the fabric's own room geometry. */
+/** A room's middle in metres, from the fabric's own room geometry: inside
+ *  the room (room_spot.js middleOf), even where the mean of its corners is not. */
 function _roomCentroidM(model, room) {
   const g = (model && model.room_geometry_m) || {};
   const key = g[room] ? room : Object.keys(g).find(k => k.toLowerCase() === String(room || "").toLowerCase());
   const r = key && g[key];
   if (!r || !Array.isArray(r.points_m) || r.points_m.length < 3) return null;
-  const n = r.points_m.length;
-  return {
-    x: r.points_m.reduce((a, p) => a + p[0], 0) / n,
-    y: r.points_m.reduce((a, p) => a + p[1], 0) / n,
-    floor_id: r.floor_id || null,
-  };
+  const m = middleOf(r.points_m);
+  return m ? { x: m[0], y: m[1], floor_id: r.floor_id || null } : null;
 }
 
 /**
  * One frame's beacons for buildIsoSVG, in Traceback's style: colour, label,
  * room and the last few positions as a trail. A room-only record (no metre
- * fix) sits at its room's centroid, as Traceback's own map places it.
+ * fix) sits at its room's middle (inside the room), as Traceback's own map
+ * places it.
  */
 export function beaconsForFrame(frames, idx, model, { keep, colorOf, labelOf, trailLen = 12 } = {}) {
   const f = frames[idx];
