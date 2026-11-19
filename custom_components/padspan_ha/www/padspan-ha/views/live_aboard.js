@@ -4480,11 +4480,11 @@ function createSlot(slotKey){
   }
 
   // ── the rooms by name: the chips and a room's panel (live_aboard_rooms.js) ──
+  /** The room chips' row instead of Rooms ▾: ticked in ⋯ on this screen, and a wide screen that is not a wall. */
+  function roomRowOn(){ return !narrow && !wallScreen() && !!(showOn && showOn.room_row === true); }
   /** The chips for the house as it is drawn: every floor's named rooms (a
    *  split level's under its storey); none while Edit, Furnish or the Plans
    *  tool's map has the view. */
-  /** The room chips' row instead of Rooms ▾: ticked in ⋯ on this screen, and a wide screen that is not a wall. */
-  function roomRowOn(){ return !narrow && !wallScreen() && !!(showOn && showOn.room_row === true); }
   function chipGroups(){
     if (!house || showSuspended()) return [];
     return ROOMS.roomChipGroups(floorsUi.map(F => ({ id: F.fl.id, name: F.fl.name, elev: F.fl.elev, outdoor: !!F.fl.outdoor,
