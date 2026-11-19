@@ -54,7 +54,7 @@ def harness() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("look:", 7), ("chips:", 3), ("panel:", 4), ("taps:", 1)])
+@pytest.mark.parametrize("prefix,least", [("look:", 7), ("chips:", 4), ("panel:", 4), ("taps:", 1), ("report:", 1)])
 def test_the_harness_covers_each_part(harness, prefix, least) -> None:
     got = {k: v for k, v in harness["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} cases: {sorted(harness['cases'])}"

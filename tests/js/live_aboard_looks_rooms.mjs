@@ -30,6 +30,9 @@
 //           leaving close it; the flight home waits while it is open
 //   taps    a light's tap still switches it with Undo, a hold its controls,
 //           a double-tap on a room's floor still flies in with no panel
+//   report  the opt-in report's words, each time: a Look's kind (classic,
+//           studio, theme, sun), a room gone to from Rooms ▾ or a chip;
+//           never a theme's or a room's name, nothing for Same as Settings
 //
 // usage: live_aboard_looks_rooms.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -552,6 +555,31 @@ await tryCase("panel: ✕ and Escape close it; Furnish, leaving the view and its
   check("panel: ✕ and Escape close it; Furnish, leaving the view and its floor hidden close it; the flight home waits while it is open",
     !out.x.open && !out.x.el && out.x.room === "Den" && !out.esc && !out.furnish && out.loft === "Loft" && !out.hidden
     && !out.detach.open && !out.detach.el && out.held && out.went, out);
+});
+
+// ── report ──────────────────────────────────────────────────────────────────
+await tryCase("report: a Look's kind and the way to a room are counted each time, never a theme's or a room's name", async () => {
+  const sent = [];
+  const telemetry = (n) => sent.push(n);
+  const slot = await newSlot("rp-look", { telemetry });
+  await pickLook(slot, "Classic"); await pickLook(slot, "Studio"); await pickLook(slot, "Aurora"); await pickLook(slot, "Aurora");
+  await pickLook(slot, "Same as Settings (the Atlas's look)");
+  await openLook(slot);
+  click(menuBtns(slot).find(b => b.textContent === "By the sun: another look after sunset")); await settle(4);
+  const looks = sent.splice(0);
+  // Rooms ▾ (the default), then a chip on a screen with the row ticked.
+  click(slot.element.querySelector("[data-la3d-rooms]")); await settle(2);
+  click(menuBtns(slot).find(x => x.textContent === "Kitchen")); await later(900, 30);
+  LA.releaseLiveAboardSlot("rp-look");
+  const row = await rowSlot("rp-chip", { telemetry });
+  click(row.element.querySelector('[data-la3d-rchip="main|Den"]')); await later(900, 30);
+  LA.releaseLiveAboardSlot("rp-chip");
+  const rooms = sent.filter(n => n.startsWith("house3d_rooms:"));
+  const named = [...looks, ...sent].filter(n => /aurora|kitchen|den/i.test(n));
+  check("report: a Look's kind and the way to a room are counted each time, never a theme's or a room's name",
+    J(looks) === J(["house3d_look:classic", "house3d_look:studio", "house3d_look:theme", "house3d_look:theme", "house3d_look:sun"])
+    && J(rooms) === J(["house3d_rooms:list", "house3d_rooms:chip"]) && !named.length && looks.every(n => LA.HOUSE3D_EVENTS.includes(n))
+    && rooms.every(n => LA.HOUSE3D_EVENTS.includes(n)), { looks, rooms, named, sent });
 });
 
 // ── taps ────────────────────────────────────────────────────────────────────

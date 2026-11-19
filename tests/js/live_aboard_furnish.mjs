@@ -264,7 +264,7 @@ await tryCase("sets: a room set furnishes the room in the view along its walls, 
   const name = "sets: a room set furnishes the room in the view along its walls, in one step that one Undo takes back";
   if (!FURN || !Array.isArray(FURN.ROOM_SETS)) { check(name, false, "no ROOM_SETS"); return; }
   const before = clone(draftPieces()), ids0 = new Set(Object.keys(before));
-  const kept = [];
+  const kept = [], sent0 = SENT_F.length;
   for (const set of FURN.ROOM_SETS) {
     click("Build ▾", "la3d-tools");
     click(set.name, "la3d-furmenu");
@@ -281,7 +281,10 @@ await tryCase("sets: a room set furnishes the room in the view along its walls, 
     await settle();
     kept[kept.length - 1].undone = JSON.stringify(draftPieces()) === JSON.stringify(before);
   }
-  check(name, kept.length === FURN.ROOM_SETS.length && kept.every(k => k.one && k.inLiving && !k.clash && k.undone), kept);
+  // The opt-in report: one word per set placed, never which set or where.
+  const sets = SENT_F.slice(sent0);
+  check(name, kept.length === FURN.ROOM_SETS.length && kept.every(k => k.one && k.inLiving && !k.clash && k.undone)
+    && sets.length === FURN.ROOM_SETS.length && sets.every(n => n === "house3d_room_set"), { kept, sets });
 });
 
 // ── drag ────────────────────────────────────────────────────────────────────

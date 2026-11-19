@@ -528,6 +528,7 @@ export function createFurnish(ctx){
     const where = room.name ? String(room.name) : "this room";
     if (!got.pieces.length) { ctx.hint(`Nothing from the ${set.name.toLowerCase()} set fits in ${where}.`, true); return; }
     add(got.pieces.map(q => ({ piece: { ...PIECES.makePiece(q.recipe, F.fl.id, { x: q.x_m, y: q.y_m, rotation: q.rotation }, "build"), z_m: q.z_m } })));
+    tele("house3d_room_set");                                // the opt-in report: a set placed (never which, or where)
     const n = got.pieces.length, out = got.left_out;
     ctx.hint(`${set.name} in ${where}: ${n} ${n === 1 ? "piece" : "pieces"}${out ? `; ${out} more had no room` : ""}. `
       + "Drag them into place; one Undo takes the set away. Nothing is kept until Save.");

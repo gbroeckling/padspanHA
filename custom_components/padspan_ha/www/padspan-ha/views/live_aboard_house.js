@@ -76,9 +76,14 @@ export const WALL_DRAW_KINDS = ["high", "high_still", "high_capped", "low"];
 // hidden or shown again, a "not set up" line seen and followed, sent to where
 // people or tags are switched on, Back to house defaults. Counts only.
 export const SHOW_EVENTS = SHOW.SHOW_EVENTS;
+// The Look and the rooms (2026-11-19, live_aboard.js), each time: a Look picked in Views ▾ by its kind only (Classic,
+// Studio, a Showcase theme, By the sun turned on; never which theme), a room gone to from Rooms ▾ or a room chip,
+// and a room set placed in Furnish (live_aboard_furnish.js). Never a room's or a theme's name.
+export const LOOK_KINDS = ["classic", "studio", "theme", "sun"];
+export const ROOM_WAYS = ["list", "chip"];
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), ...WALL_DRAW_KINDS.map(k => `house3d_wall_draw:${k}`), "house3d_wet_window",
   "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", "house3d_scan_size", "house3d_scan_fill", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
-  ...STAIR_USE_EVENTS, ...SHOW_EVENTS];
+  ...STAIR_USE_EVENTS, ...SHOW_EVENTS, ...LOOK_KINDS.map(k => `house3d_look:${k}`), ...ROOM_WAYS.map(w => `house3d_rooms:${w}`), "house3d_room_set"];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */

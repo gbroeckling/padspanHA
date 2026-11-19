@@ -133,7 +133,7 @@ function styleOnce(root){
  *   groups()         roomChipGroups(...) for the house as it is drawn
  *   compact()        true: one "Rooms ▾" button (the default; always on a narrow screen and a wall)
  *   line()           true: the rooms have the top line (a wide screen, not a wall), row or Rooms ▾
- *   go(chip)         a chip pressed: {fid, top, name, key}
+ *   go(chip, way)    a room picked: {fid, top, name, key}, and how: "chip" (the row) or "list" (Rooms ▾)
  *   list(anchor, items)   the view's own menu over `anchor` (items: {head} or {text, act})
  *   current()        the key of the room open, or null (its chip is marked)
  * } → { sync(), state(), dispose() }
@@ -158,7 +158,7 @@ export function createRoomChips(v){
   v.root.appendChild(el);
   let drawn = null, groups = [];
   const items = () => groups.flatMap(g => [...(groups.length > 1 ? [{ head: g.words }] : []),
-    ...g.rooms.map(c => ({ text: c.name, on: v.current() === c.key, act: () => v.go(c) }))]);
+    ...g.rooms.map(c => ({ text: c.name, on: v.current() === c.key, act: () => v.go(c, "list") }))]);
   function sync(){
     groups = v.groups() || [];
     const compact = !!v.compact(), line = v.line ? !!v.line() : !compact, cur = v.current ? v.current() : null;
@@ -191,7 +191,7 @@ export function createRoomChips(v){
             b.title = `Go to ${c.name}${groups.length > 1 ? ` (${g.words})` : ""}`;
             b.setAttribute("data-la3d-rchip", c.key);
             b.setAttribute("aria-pressed", "false");
-            b.addEventListener("click", v.guard((e) => { stop(e); v.go(c); }));
+            b.addEventListener("click", v.guard((e) => { stop(e); v.go(c, "chip"); }));
             el.appendChild(b);
           }
         }

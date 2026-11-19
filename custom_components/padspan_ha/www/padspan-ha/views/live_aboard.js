@@ -957,7 +957,7 @@ function createSlot(slotKey){
     // The rooms by name: one Rooms ▾, or (⋯ Room chips along the top, a wide screen only) a row of chips; and a room's panel.
     if (ROOMS) {
       roomChips = ROOMS.createRoomChips({ root, guard, groups: () => chipGroups(), compact: () => !roomRowOn(), line: () => !narrow && !wallScreen(),
-        go: (c) => goRoom(c.fid, c.top, c.name), list: (anchor, items) => openMenu(anchor, items),
+        go: (c, way) => { HOUSE.countHouse3d(`house3d_rooms:${way === "chip" ? "chip" : "list"}`, send); goRoom(c.fid, c.top, c.name); }, list: (anchor, items) => openMenu(anchor, items),
         current: () => (openRoom ? `${openRoom.fid}|${openRoom.name}` : null) });
       roomPanel = ROOMS.createRoomPanel({ root, guard, moreInfo: (eid) => USE.moreInfo(root, eid),
         onClose: () => { const s = roomSheet; roomSheet = null; if (s) s.close(); } });
@@ -1474,6 +1474,8 @@ function createSlot(slotKey){
   function setLook(pick){
     const L = lookHere(), next = L.night !== null && lookFor === "night" ? { ...L, night: pick } : { ...L, day: pick };
     prefSet(LOOKPICK.lookPrefKey(slotKey), LOOKPICK.writeLook(next));
+    // The opt-in report: its kind only, never which theme (Same as Settings is not a pick of a look).
+    if (pick !== LOOKPICK.SETTINGS) HOUSE.countHouse3d(`house3d_look:${pick === "classic" || pick === "studio" ? pick : "theme"}`, send);
     // A look with colours of its own needs this screen's ⋯ Theme colours (unticked, it stays Classic).
     if (SHOW && pick !== LOOKPICK.SETTINGS && pick !== "classic") {
       const o = showOver();
@@ -1484,6 +1486,7 @@ function createSlot(slotKey){
   /** By the sun on (after sunset starts as the day's look, picked next) or off. */
   function toggleBySun(){
     const L = lookHere(), on = L.night === null;
+    if (on) HOUSE.countHouse3d("house3d_look:sun", send);
     lookFor = on ? "night" : "day";
     prefSet(LOOKPICK.lookPrefKey(slotKey), LOOKPICK.writeLook(on ? { ...L, night: L.day } : { ...L, night: null }));
     applyShow();

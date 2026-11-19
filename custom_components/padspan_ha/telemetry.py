@@ -685,6 +685,12 @@ HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
     # "Rooms as light switches" (room_switch, off unless a screen ticks it): a room switched on, off or dimmed from its floor.
     | {f"house3d_show:room_tap:{w}" for w in ("on", "off", "dim")}
 )
+# The Look and the rooms (2026-11-19, views/live_aboard_house.js LOOK_KINDS and ROOM_WAYS, the same words), counted
+# each time: a Look picked in Live Aboard's Views ▾, by its kind only (house3d_look:classic, :studio, :theme for any
+# Showcase theme, :sun for By the sun turned on); a room gone to from Rooms ▾ (house3d_rooms:list) or a room chip
+# (:chip); a room set placed in Furnish (house3d_room_set). Never which theme, room or set.
+HOUSE3D_LOOK_KINDS: tuple[str, ...] = ("classic", "studio", "theme", "sun")
+HOUSE3D_ROOM_WAYS: tuple[str, ...] = ("list", "chip")
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped",
      # Furnish, from a phone's room scan (2026-11-16): a piece sized to the scan's, and a room filled with the scan's guess.
@@ -694,6 +700,9 @@ HOUSE3D_EVENTS: frozenset[str] = frozenset(
     | {f"house3d_fallback_size:{b}" for b in HOUSE_SIZE_BANDS}
     | STAIR_USE_EVENTS
     | HOUSE3D_SHOW_EVENTS
+    | {f"house3d_look:{k}" for k in HOUSE3D_LOOK_KINDS}
+    | {f"house3d_rooms:{w}" for w in HOUSE3D_ROOM_WAYS}
+    | {"house3d_room_set"}
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or
