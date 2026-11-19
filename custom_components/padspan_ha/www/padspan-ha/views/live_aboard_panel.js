@@ -7,10 +7,13 @@
 //
 //   home view    Views ▾ → Set as home keeps the camera and the floor showing
 //                as this screen's home, in this browser (beside its saved
-//                views). With none set, the home is the whole house on the
-//                floor with the most rooms of its own (homeFloorOf), never
-//                All, where an upper floor covers the rooms under it. The
-//                sidebar opens on it.
+//                views). With none set, the home is every floor pulled apart
+//                (All with Explode, the sidebar's own unless Explode was
+//                turned off there: homeStartOf); with Explode off, the whole
+//                house on the floor with the most rooms of its own
+//                (homeFloorOf), never All, where an upper floor covers the
+//                rooms under it. The sidebar opens on it, and opens on it
+//                again as the map arrives only while nobody has touched it.
 //   going back   the sidebar's view, untouched for a while
 //                (settings.atlas_3d_home_idle_s: 60 s, or 30 s, 5 min, off),
 //                flies back to its home by itself, closing its menus and the
@@ -91,6 +94,20 @@ export function homeFloorOf(rooms){
   return best ? { id: best.id, own: best.own, shows: best.shows } : null;
 }
 
+/**
+ * The home view's floor when none was set, as the view opens: with Explode on
+ * (pulled apart, nothing covers the rooms under an upper floor) and more than
+ * one indoor floor, every floor ({id: null, all: true}); else homeFloorOf.
+ */
+export function homeStartOf(rooms, exploded){
+  if (exploded) {
+    const floors = new Set((rooms || []).filter(r => r && r.floor && !r.floor.outdoor && !r.floor.parent && Array.isArray(r.pts) && r.pts.length >= 3)
+      .map(r => r.floor.id));
+    if (floors.size > 1) return { id: null, all: true };
+  }
+  return homeFloorOf(rooms);
+}
+
 /** Is a card or sheet the Atlas opened up (they cover the page: fixed, inset
  *  0, on the page or, full screen, in the panel)? node: the view's element. */
 export function hostCardOpen(node){
@@ -138,7 +155,8 @@ const CSS = `
  *   floorNow()        the floor showing at the top (its id), null for All
  *   onFloor(id)       is that floor (null: All) the one chosen now?
  *   setFloor(id)      choose it (null: All); the camera stays
- *   homeFloor()       homeFloorOf the house, or null
+ *   homeFloor()       homeStartOf the house ({id: null, all: true}: every
+ *                     floor), or null
  *   wholeGoal()       the whole house on the floor showing, as the view opens on it
  *   go(goal, smooth)  the camera there ({theta, phi, radius, target}), flown or at once
  *   flying()          is the camera flying?
@@ -173,6 +191,10 @@ export function createPanel(v){
   for (const ev of ["pointerup", "wheel", "dblclick"]) chip.addEventListener(ev, stop);
 
   let lastTouch = now(), atHome = false, timer = null, quiet = 0, returns = 0;
+  // Nobody has touched this showing of the view yet: the map arriving may
+  // still open it on its home (open()); after a touch (a floor chosen, a tap)
+  // it never takes the screen back by itself until the next showing.
+  let untouched = true;
   let follow = null, gliding = false, lastStep = null, visited = null, chipKey = "";
   let hostEl = null, unhook = null;
 
@@ -196,23 +218,28 @@ export function createPanel(v){
     disarm();
     v.toast("This is now this screen's home view");
   }
+  /** What home is with none set, in words. */
+  const homeWords = () => { const f = v.homeFloor(); return f && f.all ? "every floor, pulled apart" : "the whole house on the floor with the most rooms"; };
   function forgetHome(){
     v.prefSet(PREF_HOME + v.slotKey, "null");
     atHome = false;
     arm();
-    v.toast("Home view forgotten: the whole house on the floor with the most rooms");
+    v.toast(`Home view forgotten: ${homeWords()}`);
   }
-  /** Where home is now: {floor, goal (null: the whole house once that floor shows)}. */
+  /** Where home is now: {floor, goal (null: the whole house once that floor
+   *  shows), all (every floor)}. */
   function homeOf(){
     const h = readHome();
-    if (h) return { floor: h.floor, goal: { theta: h.theta, phi: h.phi, radius: h.radius, target: h.target }, set: true };
+    if (h) return { floor: h.floor, goal: { theta: h.theta, phi: h.phi, radius: h.radius, target: h.target }, set: true, all: h.floor === null };
     const f = v.homeFloor();
-    return { floor: f ? f.id : null, goal: null, set: false };
+    return { floor: f ? f.id : null, goal: null, set: false, all: !!(f && f.all) };
   }
-  /** Back home: menus and cards closed, no one followed, its floor, its camera. */
-  function goHome(smooth){
+  /** Back home: menus and cards closed, no one followed, its floor, its camera.
+   *  bars: the map alone ends too (going back by itself, or by hand); the
+   *  view opening leaves the bars as it has them (aside, on the sidebar). */
+  function goHome(smooth, bars = true){
     own(() => {
-      v.closeAll(true);
+      v.closeAll(bars);
       stopFollow(false);
       const h = homeOf();
       if (!v.onFloor(h.floor)) v.setFloor(h.floor);
@@ -247,6 +274,7 @@ export function createPanel(v){
   function touched(inView){
     lastTouch = now();
     atHome = false;
+    untouched = false;
     if (inView) stopFollow(true);
     disarm();
     arm();
@@ -355,7 +383,7 @@ export function createPanel(v){
   // ── the menu: home, and the two switches ─────────────────────────────────
   function menuItems(){
     const set = !!readHome(), out = [null,
-      { text: "Home view", title: set ? "Go to this screen's home view" : "The whole house on the floor with the most rooms", act: () => goHome(true),
+      { text: "Home view", title: set ? "Go to this screen's home view" : homeWords().replace(/^./, (c) => c.toUpperCase()), act: () => goHome(true),
         del: set ? () => forgetHome() : undefined },
       { text: "Set as home", title: "Keep this view and floor as this screen's home", act: () => setHome() }];
     const s = s3();
@@ -387,15 +415,15 @@ export function createPanel(v){
       else { hookPage(true); arm(); }
       paintChip();
     },
-    /** The view left (Map picked, switched off): nothing waits. */
-    detach(){ disarm(); hookPage(false); stopFollow(); },
-    /** The sidebar's first view (and again while nobody has moved the
-     *  camera, as the map arrives): its home, at once. False: open as ever
-     *  (not the sidebar, or no house to choose a floor from yet). */
+    /** The view left (Map picked, switched off): nothing waits, and its next showing is untouched. */
+    detach(){ disarm(); hookPage(false); stopFollow(); untouched = true; },
+    /** The sidebar's first view (and again while nobody has touched it, as
+     *  the map arrives): its home, at once. False: open as ever (not the
+     *  sidebar, touched since it showed, or no house to choose a floor from yet). */
     open(){
-      if (!v.sidebar() || !s3()) return false;
+      if (!v.sidebar() || !s3() || !untouched) return false;
       const h = homeOf();
-      return h.set || h.floor ? goHome(false) : false;
+      return h.set || h.floor || h.all ? goHome(false, false) : false;
     },
     /** The floor showing changed: by hand (the floor chips, a key, a menu) it counts as a touch. */
     floorChanged(){ if (!quiet) touched(false); },

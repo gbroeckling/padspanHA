@@ -8,10 +8,14 @@
 // shim with a stub GL, on a house shaped like Garry's (a basement of five
 // rooms under a main floor of eleven, five rooms upstairs over part of it):
 //
-//   homefloor  with no home set, the floor with the most rooms of its own:
-//              the main floor here, never All
-//   home       the sidebar opens on it; Views ▾ → Set as home keeps the
-//              camera and floor in this browser, and a new view opens there
+//   homefloor  with no home set and Explode off, the floor with the most
+//              rooms of its own: the main floor here, never All; with
+//              Explode on (the sidebar's own), every floor
+//   home       the sidebar opens on every floor, pulled apart, with the bars
+//              aside (a browser that turned Explode off: on the main floor,
+//              as before); Views ▾ → Set as home keeps the camera and floor
+//              in this browser, and a new view opens there; a floor chosen
+//              by hand is never taken back as the map arrives
 //   idle       untouched for the setting's time (60 s), it flies back home,
 //              closing the menu and a card; touched, the wait starts again;
 //              off (0), never
@@ -186,16 +190,42 @@ await tryCase("homefloor: the floor with the most rooms of its own, not All; a t
   const outdoorOnly = PANEL.homeFloorOf([{ floor: { id: "out", elev: 0, outdoor: true }, pts: rect("out", 0, 0, 4, 4).points_m }]);
   check("homefloor: the floor with the most rooms of its own, not All; a tie goes to the one that shows more",
     got && got.id === "main" && got.own === 11 && tie && tie.id === "b" && tie.shows === 3 && outdoorOnly === null, { got, tie });
+  // Pulled apart, nothing covers the rooms under an upper floor: every floor (one floor alone stays that floor).
+  const apart = PANEL.homeStartOf(rooms, true), together = PANEL.homeStartOf(rooms, false);
+  const one = PANEL.homeStartOf([{ floor: fl("a", 0), pts: rect("a", 0, 0, 4, 4).points_m }], true);
+  check("homefloor: with Explode on, every floor (All); off, the floor with the most rooms; one floor, that floor",
+    apart && apart.all === true && apart.id === null && together && together.id === "main" && one && one.id === "a" && !one.all, { apart, together, one });
 });
 
 // ── home: the sidebar opens on it; Set as home keeps it ─────────────────────
-await tryCase("home: the sidebar opens on the home floor (main), the whole house, without being touched", async () => {
-  H.settings = SET(); H.top = null; H.calls.length = 0;
+await tryCase("home: the sidebar opens on every floor pulled apart, the whole house, the bars aside, without being touched", async () => {
+  H.settings = SET(); H.top = "main"; H.calls.length = 0;          // the host's floor chips left on Main
   await open("panel-home");
-  const s = S();
-  check("home: the sidebar opens on the home floor (main), the whole house, without being touched",
-    H.top === "main" && H.calls.some(c => c[0] === "top" && c[1] === "main") && s.panel && s.panel.atHome && !s.panel.armed
-    && s.screen.fitR > 0 && near(s.cam.radius, s.screen.fitR, 1e-6) && !s.cam.moved, { calls: H.calls, panel: s.panel, cam: s.cam, fitR: s.screen.fitR });
+  const s = S(), calls = H.calls.map(c => c.join(":"));
+  check("home: the sidebar opens on every floor pulled apart, the whole house, the bars aside, without being touched",
+    H.top === null && calls.includes("go:-1") && s.panel && s.panel.atHome && !s.panel.armed && s.levels.explode === 4 && s.levels.level === "house"
+    && s.screen.bare && s.screen.cover && s.screen.fitR > 0 && near(s.cam.radius, s.screen.fitR, 1e-6) && !s.cam.moved,
+    { calls, panel: s.panel, cam: s.cam, fitR: s.screen.fitR, levels: s.levels, screen: s.screen });
+  // A floor chosen by hand (its tag) is kept as the floors come back together and the map arrives again.
+  const tag = slot.element.querySelector('[data-la3d-ftag="upper"]');
+  click(tag);
+  await settle(30);
+  poll(); await settle(10);
+  const t = S();
+  check("home: a floor chosen by hand is kept as the map arrives again: never taken back to the home",
+    !!tag && H.top === "upper" && t.levels.explode === 0 && t.levels.level === "floor" && !t.panel.atHome && t.screen.fitR > 0
+    && near(t.cam.radius, t.screen.fitR, 1e-6), { top: H.top, levels: t.levels, panel: t.panel, cam: t.cam, fitR: t.screen.fitR });
+  LA.releaseLiveAboardSlot("panel-home");
+  // A browser that turned Explode off: the floor with the most rooms, as before.
+  store.set("explode", "0"); H.top = null; H.calls.length = 0;
+  await open("panel-home");
+  const off = S();
+  store.delete("explode");
+  check("home: a browser that turned Explode off opens on the floor with the most rooms (main), as before",
+    H.top === "main" && off.levels.explode === 0 && off.panel.atHome && near(off.cam.radius, off.screen.fitR, 1e-6), { top: H.top, levels: off.levels });
+  LA.releaseLiveAboardSlot("panel-home");
+  H.top = null;
+  await open("panel-home");
 });
 await tryCase("home: Views ▾ → Set as home keeps the camera and floor in this browser; a new view opens there", async () => {
   await wheel(3);
@@ -244,9 +274,9 @@ await tryCase("idle: untouched for a minute it flies home, closing the menu and 
   await later(1000, 60);                                      // the flight
   const back = S();
   check("idle: untouched for a minute it flies home, closing the menu and a card; touched, the wait starts again",
-    home.top === "main" && moved.radius < home.radius && notYet.returns === 0 && notYet.armed && open1.card
+    home.top === null && moved.radius < home.radius && notYet.returns === 0 && notYet.armed && open1.card
     && back.panel.returns === 1 && back.panel.atHome && !back.panel.armed && near(back.cam.radius, home.radius, 1e-3)
-    && near(back.cam.target, home.target, 1e-3) && H.top === "main" && !back.screen.menu && !(back.use && back.use.card) && !back.screen.flying,
+    && near(back.cam.target, home.target, 1e-3) && H.top === null && !back.screen.menu && !(back.use && back.use.card) && !back.screen.flying,
     { home, moved: moved.radius, notYet, open1, back: { panel: back.panel, cam: back.cam, use: back.use, menu: back.screen.menu }, calls: H.calls });
 });
 await tryCase("idle: Off (0) never goes back; 5 min waits five minutes", async () => {

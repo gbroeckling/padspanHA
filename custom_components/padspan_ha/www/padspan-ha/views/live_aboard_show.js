@@ -95,6 +95,9 @@ export const SHOW_ITEMS = [
   // The flat Map's (lights_map.js focusAlone): with one floor chosen it is drawn alone, as big as the screen,
   // unless this is ticked. Off unless ticked (dflt: false, the house's own for every house).
   { key: "other_floors", group: "house", words: "Other floors, faded", hint: "On the flat Map with one floor chosen: the other floors stay, faded. Off: the chosen floor fills the screen", flat: true, dflt: false },
+  // Walls: Glass (live_aboard.js): the walls Cut takes away stand as tinted glass, the far ones solid. The same choice
+  // as Glass and Cut under Walls on this screen. Off unless a screen ticks it (Cut, as ever).
+  { key: "glass_walls", group: "house", words: "Glass walls", hint: "The walls between you and the rooms show as see-through glass instead of being cut away (Walls: Glass)", dflt: false },
   { key: "roof", group: "house", words: "Roof", hint: "The roof, seen from outside (the Roof button too)" },
   { key: "rain", group: "look", words: "Rain and snow", hint: "Rain and snow falling round the house", link: "weather" },
   { key: "theme", group: "look", words: "Theme colours", hint: "Off: the Classic look on this screen", link: "showcase" },

@@ -199,8 +199,20 @@ const WET_CSS = `.la3d-wet{position:absolute;left:50%;top:82px;z-index:2;transfo
 .la3d-wet.on{display:block}
 .la3d-wet:hover{background:rgba(12,45,70,.95)}`;
 // Explode: with All floors showing, each storey lifted this much more (m)
-// than the one under it, so the floors under the top one show too.
+// than the one under it, so the floors under the top one show too. On by
+// default on the sidebar (it opens on every floor, pulled apart); off by
+// default on a wall and in Mapping; a browser that set it keeps its own.
 const PREF_EXPLODE = "explode", EXPLODE_M = 4;
+// Labels by zoom level (2026-11-18): the whole house (every floor, not zoomed
+// in past SCREEN.SOLO_IN of its fit) shows one tag per floor and no room
+// names, readouts, markers or codes; one floor its rooms' names, readouts and
+// markers; a room opened (flown into, or zoomed into at room scale) its
+// devices' codes, the other rooms faded to ROOM_FADE. Zoomed out ROOM_OUT
+// times past where it opened, the room closes.
+const ROOM_FADE = 0.35, ROOM_OUT = 1.6;
+// Walls: Glass. What Cut takes away stands as tinted glass, its edges a little
+// brighter so each wall still reads (drawn after the house, writing no depth).
+const GHOST_COL = "#cfefff", GHOST_OP = 0.13, GHOST_EDGE_OP = 0.55;
 const PREF_TRAILS = "trails";              // Trails on this screen ("1"), off by default
 const PREF_FPS = "fps";                    // the frame-rate readout on this screen ("1"), off by default
 // Readable night: a floor keeps this much of its day colour, its outline and
@@ -342,6 +354,13 @@ const CSS = `
 .la3d-solo:hover,.la3d-solo:focus-visible{opacity:1}
 .la3d.la3d-bare .la3d-solo{display:flex}
 .la3d.la3d-cover{transition:left .25s ease,top .25s ease,width .25s ease,height .25s ease}
+/* The whole house: one tag beside each floor (paintTags), a tap shows that floor alone. Sized in em: a wall's grow with it. */
+.la3d-ftags{position:absolute;left:0;top:0;width:0;height:0;z-index:1}
+.la3d-ftag{all:unset;box-sizing:border-box;position:absolute;left:0;top:0;display:flex;flex-direction:column;gap:.1em;padding:.5em 1em .55em;
+  border-radius:1em;cursor:pointer;white-space:nowrap;background:rgba(6,14,9,.84);border:1px solid rgba(120,190,155,.34);
+  box-shadow:0 4px 14px rgba(0,0,0,.35);color:#a7c4b5;font:600 12px/1.25 system-ui,"Segoe UI",Roboto,sans-serif}
+.la3d-ftag b{font-size:1.2em;font-weight:800;color:#f3f6f4}
+.la3d-ftag:hover,.la3d-ftag:focus-visible{border-color:#52b788;background:rgba(20,48,34,.92)}
 .la3d:fullscreen{border-radius:0;border:none}
 .la3d-card{position:absolute;left:50%;top:50%;z-index:6;transform:translate(-50%,-50%);width:min(360px,calc(100% - 32px));box-sizing:border-box;
   padding:16px 18px 14px;border-radius:14px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
@@ -544,6 +563,8 @@ function createSlot(slotKey){
   const work = { reads: 0, shells: 0, lights: 0, sensors: 0, moves: 0 };   // how often each was done (the harness)
   let shellRes = [], lightRes = [];       // geometries, materials and textures a rebuild disposes
   let topElev = null, wallMode = "cut";
+  // This screen's Glass walls line (the ⋯ list) as last followed: null until the first draw reads it.
+  let glassPick = null;
   const quality = { setting: "auto", profile: null, measuring: null, measured: {}, intervals: [], t0: 0, last: 0 };
   // The camera fits the house until someone moves it (the first card may be
   // drawn before the map has arrived).
@@ -673,6 +694,9 @@ function createSlot(slotKey){
   // ☰ brought the bars back (zooming further in hides them again).
   let keepOff = null;                                       // full screen: the page's cards kept in sight
   let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
+  // The view about to show afresh (made, or back after Map): on the sidebar
+  // (not a wall, not Furnish) its first frame steps the bars aside (openBare).
+  let freshShow = true;
   let coverOff = null, coverStyle = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null;
   let floorSteps = null, floorEls = [], hintCard = null, tipEl = null, narrow = false;
   // A camera kept per floor on this screen (and one for All), as the Atlas
@@ -682,6 +706,15 @@ function createSlot(slotKey){
   // selIds: the floor chips' choice (the floor ids at the top, null: All).
   const floorCams = new Map();
   let floorKey = null, keepCam = false, selIds = null;
+  // A floor chosen with no camera kept for it, the house pulled apart or put
+  // back together by it (Explode is All's): framed again once it is drawn so.
+  let refitFloor = false;
+  // Labels by zoom level (syncLevel): "house", "floor" or "room"; the room
+  // open ({F, r, i, name, fid, r0 (the camera's distance it opened at), tx,
+  // tz (where the camera's middle was last looked at)}), or null; the floor
+  // tags beside the whole house ({fid -> {el, key, w, h, at}}).
+  let level = "floor", levelKey = null, openRoom = null, tagsEl = null, tagsOn = false;
+  const floorTags = new Map(), _fadeBg = new THREE.Color();
   // The map alone: the floor's name, faint in a corner for a moment.
   let cornerEl = null, cornerOn = false;
   // The live read's own clock (Show people, Show tags & scanners): see peopleClock.
@@ -759,6 +792,7 @@ function createSlot(slotKey){
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
+    openRoom = null; levelKey = null; level = "floor"; floorTags.clear(); tagsEl = null; tagsOn = false; glassPick = null;
     openings = []; sensorsUi = []; tints = []; readouts = []; chips = []; heats = []; liveMs = 0;
     wetEl = null; wetRows = []; wetKey = "";
     // Nothing of the host's is kept: its card, its data, its callbacks.
@@ -800,10 +834,11 @@ function createSlot(slotKey){
       }
       return s;
     };
-    const WALLS = [["Cut", "Cut away the walls between you and the rooms", "cut"], ["Up", "All walls up", "up"], ["Down", "All walls down", "down"]];
+    const WALLS = [["Cut", "Cut away the walls between you and the rooms", "cut"], ["Up", "All walls up", "up"], ["Down", "All walls down", "down"],
+                   ["Glass", "See-through glass walls between you and the rooms", "glass"]];
     const ANGLES = [["Iso", "The Atlas's angle", "iso"], ["Top", "Straight down", "top"], ["⟳ 90°", "Turn the house a quarter", "turn"],
                     ["Fit", "Fit the floors that are showing", "fit"]];
-    const walls = seg("Walls", WALLS.map(([t, title, m]) => [t, title, () => setWalls(m)]));
+    const walls = seg("Walls", WALLS.map(([t, title, m]) => [t, title, () => setWalls(m, true)]));
     walls.setAttribute("data-la3d-walls", "");
     walls.classList.add("la3d-w");
     // The roof: shown from outside (Auto) or never (Off); on a narrow screen, in Walls ▾.
@@ -836,8 +871,8 @@ function createSlot(slotKey){
     vbtn.classList.add("la3d-w");
     vbtn.setAttribute("data-la3d-saved", "");
     // A narrow screen: one row — Walls ▾, View ▾, the floor stepper, full screen.
-    const wbtn = seg(null, [["Walls ▾", "Cut, Up or Down, and the roof", () => openMenu(wbtn, [
-      ...WALLS.map(([t, , m]) => ({ text: t, on: wallMode === m, act: () => setWalls(m) })),
+    const wbtn = seg(null, [["Walls ▾", "Cut, Up, Down or Glass, and the roof", () => openMenu(wbtn, [
+      ...WALLS.map(([t, , m]) => ({ text: t, on: wallMode === m, act: () => setWalls(m, true) })),
       ...(STOREY ? [null, ...ROOF.map(([t, title, v]) => ({ text: t, title, on: roofPick() === v, act: () => setRoof(v) }))] : [])])]]);
     wbtn.classList.add("la3d-n");
     const abtn = seg(null, [["View ▾", "Angles, the floors, the whole house and your views", () => openMenu(abtn, [
@@ -881,6 +916,11 @@ function createSlot(slotKey){
     cornerEl.addEventListener("click", guard((e) => { e.stopPropagation(); if (cornerOn && bare) openFloorList(cornerEl); }));
     cornerEl.addEventListener("animationend", guard(() => { cornerOn = false; cornerEl.classList.remove("on"); }));
     root.appendChild(cornerEl);
+    // The whole house's floor tags (labels by zoom level), under the bars and menus.
+    tagsEl = d("div", "la3d-ftags");
+    tagsEl.setAttribute("data-la3d-ftags", "");
+    tagsEl.style.display = "none";
+    root.appendChild(tagsEl);
     tipEl = d("div", "la3d-tip");
     tipEl.textContent = "Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there";
     root.appendChild(tipEl);
@@ -945,7 +985,7 @@ function createSlot(slotKey){
   function paintWallButtons(){
     if (!bar) return;
     const btns = bar.querySelectorAll("[data-la3d-walls] button");
-    ["cut", "up", "down"].forEach((m, i) => { if (btns[i]) btns[i].setAttribute("aria-pressed", String(wallMode === m)); });
+    HOUSE.WALL_MODES.forEach((m, i) => { if (btns[i]) btns[i].setAttribute("aria-pressed", String(wallMode === m)); });
     const rb = bar.querySelector("[data-la3d-roof]");
     if (rb) rb.setAttribute("aria-pressed", String(roofPick() !== "off"));
   }
@@ -1027,9 +1067,19 @@ function createSlot(slotKey){
     root.classList.toggle("la3d-bare", want);
     paintCover();
   }
+  /** The sidebar's 3D opens with the bars aside, so the house fills the
+   *  window from the first frame (☰, Escape or zooming out brings them back):
+   *  once a showing, on its first frame drawn inside the panel. Not on a wall
+   *  (its page has no bars; its own carry the scene row), nor in Furnish or Edit. */
+  function openBare(){
+    if (!root || !hostEl() || !((canvas && canvas.clientWidth) > 0)) return;   // not in the panel yet: the next frame
+    freshShow = false;
+    if (mapOnly && !wallScreen() && !furnishOn && !(editor && editor.active)) setBare(true, false);
+  }
   /** After a zoom by hand (the wheel, a pinch, a double-tap): in past the
    *  fit level, the map alone; back out to it, the bars. */
   function afterZoom(inward){
+    if (inward) roomByZoom();                                // in to room scale: the room in the middle opens
     if (!mapOnly || !fitR || furnishOn || (editor && editor.active)) return;
     const s = SCREEN.soloStep({ at: cam.radius, fit: fitR, bare, hold: soloHold, inward });
     soloHold = s.hold;
@@ -1168,6 +1218,8 @@ function createSlot(slotKey){
     // is no view of that floor to keep, only the camera's starting values.
     if (!cam.needsFit) floorCams.set(was, { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() });
     const c = keepCam ? null : floorCams.get(key);
+    refitFloor = !c && !keepCam;
+    closeRoom();                                           // a room open on the floor left closes
     if (c) {
       cam.fly = null; cam.moved = true; cam.needsFit = false;
       cam.theta = c.theta; cam.phi = c.phi; cam.radius = c.radius; cam.target.fromArray(c.target);
@@ -1194,13 +1246,21 @@ function createSlot(slotKey){
     const i = s.at + d;
     if (i >= 0 && i < s.names.length && (i !== s.at || s.all)) s.go(i);
   }
+  /** A wall screen (?kiosk=1, or the page says it is a wall). */
+  const wallScreen = () => !!(lastP && lastP.kiosk === true) || onWallPage(root);
+  /** Explode as this screen has it: as this browser set it, else on for the
+   *  sidebar (not a wall) and off anywhere else. */
+  function explodeOn(){
+    const v = prefGet(PREF_EXPLODE);
+    return v === "1" || (v !== "0" && mapOnly && !wallScreen());
+  }
   /** How far Explode lifts each storey now (m): only with All picked and more than one floor. */
   function explodeGap(){
     const s = floorSteps;
-    return prefGet(PREF_EXPLODE) === "1" && s && s.all && s.names.length > 1 ? EXPLODE_M : 0;
+    return explodeOn() && s && s.all && s.names.length > 1 ? EXPLODE_M : 0;
   }
   function toggleExplode(){
-    prefSet(PREF_EXPLODE, prefGet(PREF_EXPLODE) === "1" ? "0" : "1");
+    prefSet(PREF_EXPLODE, explodeOn() ? "0" : "1");
     redraw();
     paintFloors();
     wholeHouse();
@@ -1608,6 +1668,11 @@ function createSlot(slotKey){
       glowMat: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide }),
       // A window open while it rains or snows: a still rain-blue glow over it.
       wetMat: new THREE.MeshBasicMaterial({ color: WET_INK, transparent: true, opacity: 0.6, depthWrite: false }),
+      // Walls: Glass. One unlit material for every floor: faint tinted glass,
+      // each face's edges brighter (a line about 1.5 px wide, whatever the
+      // wall's size), drawn after the house and writing no depth, so what is
+      // behind it shows through. Nothing changes as the camera turns.
+      ghostMat: ghostMaterial(),
       ringGeo: new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2),
       barsTex: barsTexture(),
       poolGeo: new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2),
@@ -1627,6 +1692,18 @@ function createSlot(slotKey){
       shared.haloMats[k] = new THREE.PointsMaterial({ size: HALO[k] / Math.tan(FOV / 2 * D2R), map: glowTex, vertexColors: true,
         transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
     }
+  }
+  function ghostMaterial(){
+    const m = new THREE.MeshBasicMaterial({ color: GHOST_COL, transparent: true, depthWrite: false, side: THREE.FrontSide });
+    m.defines = { USE_UV: "" };
+    m.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
+        vec2 la3dW = fwidth( vUv ) * 1.5;
+        vec2 la3dIn = smoothstep( vec2( 0.0 ), la3dW, vUv ) * smoothstep( vec2( 0.0 ), la3dW, 1.0 - vUv );
+        diffuseColor.a *= mix( ${GHOST_EDGE_OP.toFixed(3)}, ${GHOST_OP.toFixed(3)}, la3dIn.x * la3dIn.y );`);
+    };
+    m.customProgramCacheKey = () => "la3d-ghost";
+    return m;
   }
   // One material per look and profile: flat colours on Low, PBR on High.
   function mat(spec){
@@ -1737,7 +1814,7 @@ function createSlot(slotKey){
     shellRes.push(tex, m);
     const sp = new THREE.Sprite(m);
     sp.renderOrder = 31;                                     // over the chips too (an outdoor one may sit near a name)
-    sp.userData = { aspect: c.width / c.height, letters: px / c.height, ext, covered: false, behind: false, px: 0 };
+    sp.userData = { aspect: c.width / c.height, letters: px / c.height, ext, covered: false, behind: false, px: 0, op };
     return sp;
   }
   function lit(geo, spec, cast = true, recv = true){
@@ -1768,7 +1845,7 @@ function createSlot(slotKey){
       floorsUi.push(F);
       // Floor tiles: each room extruded down by its slab — the room's colour
       // on top, the Atlas's beige on the sides — merged into one per floor.
-      const geos = [], paving = [];
+      const geos = [], paving = [], spans = [];
       per.rooms.forEach((r, i) => {
         const holes = cuts && cuts.get(fl.id);
         const shapes = (holes ? STOREY.minusAll(r.pts, holes) : [r.pts]).map(P => new THREE.Shape(P.map(p => new THREE.Vector2(p[0], p[1]))));
@@ -1795,6 +1872,7 @@ function createSlot(slotKey){
         g.setAttribute("color", new THREE.BufferAttribute(col, 3));
         g.clearGroups();
         geos.push(g);
+        spans.push(n);
         let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
         for (const q of r.pts) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); by0 = Math.min(by0, q[1]); by1 = Math.max(by1, q[1]); }
         const span = Math.max(bx1 - bx0, by1 - by0);              // how wide the room is, near enough
@@ -1810,6 +1888,11 @@ function createSlot(slotKey){
         shellRes.push(merged);
         F.tiles = lit(merged, { vc: true, r: 0.9 }, true, true);
         group.add(F.tiles);
+        // Each room's run of the merged tiles' vertices (fadeRooms), in the rooms' order.
+        if (!merged.index && merged.attributes.position.count === spans.reduce((a, n) => a + n, 0)) {
+          let at = 0;
+          F.tileSpans = spans.map(n => { const sp = [at, n]; at += n; return sp; });
+        }
         // Readable night: an unlit copy of the tiles over them, as clear as
         // the dark is deep (paintNight), so each room keeps its colour.
         const liftMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false,
@@ -1870,6 +1953,17 @@ function createSlot(slotKey){
       };
       F.solid = inst(solids, shared.wallBox, { vc: true, r: 0.92, top: 1 }, true);
       F.glass = inst(glasses, shared.glassBox, { tr: true, op: 0.32, r: 0.08 }, false);
+      // Walls: Glass: what Cut takes off each solid piece, as glass (placePiece);
+      // not drawn at all unless Glass is picked.
+      if (solids.length) {
+        const gh = new THREE.InstancedMesh(shared.glassBox, shared.ghostMat, solids.length);
+        gh.frustumCulled = false; gh.renderOrder = 5; gh.castShadow = false; gh.receiveShadow = false;
+        for (let i = 0; i < solids.length; i++) gh.setMatrixAt(i, ZERO);
+        gh.visible = wallMode === "glass";
+        shellRes.push({ dispose: () => gh.dispose() });
+        group.add(gh);
+        F.ghost = gh;
+      }
       // Its night glow: the same panes (the glass's own matrices, shared, so a
       // window that swings carries it), warm where the room behind is lit.
       if (F.glass) {
@@ -1920,6 +2014,7 @@ function createSlot(slotKey){
     applyTop();
     paintNight();
     wallPivot = null;
+    refindRoom();
     if (!cam.moved) cam.needsFit = true;
   }
   /** The storeys' floor and roof in the look's colours, muted (the Atlas's
@@ -2032,6 +2127,7 @@ function createSlot(slotKey){
       if (F.edges) { F.edges.material.opacity = atlas ? Math.max(atlas.lineOp, NIGHT_EDGE * k) : NIGHT_EDGE * k; F.edges.visible = (!!atlas || k > 0.01) && shownHere("room_outlines"); }
     }
     topGlow.value = NIGHT_TOP * k;
+    if (shared && shared.ghostMat) shared.ghostMat.color.set(GHOST_COL).multiplyScalar(1 - 0.5 * k);   // Glass dims with the house
     if (storeyL) storeyL.night(k);                           // the roof keeps a little of its colour
     if (gridLines) gridLines.material.opacity = 1 - NIGHT_GRID * k;
     for (const L of lights) if (L.look) paintLight(L);
@@ -2294,16 +2390,30 @@ function createSlot(slotKey){
   }
   // A wall piece's instances at full height, or cut down to CUT_H; a linked
   // leaf as open as its sensor has it.
+  /** How many of an instanced mesh's slots are placed (not out of sight): the harness. */
+  function countPlaced(im){ let n = 0; for (let i = 0; i < im.count; i++) { im.getMatrixAt(i, _m); if (_m.elements[0] || _m.elements[5] || _m.elements[10]) n++; } return n; }
   function placePiece(F, P, cut){
+    const glass = wallMode === "glass";
     for (const e of P.els) {
-      let z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
-      if (F.clip !== undefined && F.clip !== null && z1 > F.clip + 0.3) z1 = Math.max(e.z0, F.clip);   // applyTop: under the hidden floors
+      // Glass: a window's pane stays whole (the window still shows in the glass wall).
+      const down = cut && e.cuttable && !(glass && e.glass);
+      let z1 = down ? Math.min(e.z1, HOUSE.CUT_H) : e.z1, full = e.z1;
+      if (F.clip !== undefined && F.clip !== null) {                   // applyTop: under the hidden floors
+        if (z1 > F.clip + 0.3) z1 = Math.max(e.z0, F.clip);
+        if (full > F.clip + 0.3) full = Math.max(e.z0, F.clip);
+      }
       const hgt = z1 - e.z0;
       e.mesh.setMatrixAt(e.i, hgt < 0.005 || goneHere(P, e) ? ZERO : P.open && e === P.open.leaf ? (P.open.slots ? ZERO : leafMatrix(F, P, e.z0, hgt, e.thick))
         : compose(P.mx, F.fl.elev + e.z0, P.my, P.yaw, P.len, hgt, e.thick));
       e.mesh.instanceMatrix.needsUpdate = true;
+      // What Cut took off a wall (never a door's leaf: its doorway stays open), as glass.
+      if (F.ghost && e.mesh === F.solid) {
+        const g0 = Math.max(e.z0, z1), gh = glass && down && !e.leaf ? full - g0 : 0;
+        F.ghost.setMatrixAt(e.i, gh < 0.005 ? ZERO : compose(P.mx, F.fl.elev + g0, P.my, P.yaw, P.len, gh, e.thick));
+        F.ghost.instanceMatrix.needsUpdate = true;
+      }
     }
-    if (P.open && P.open.wet) placeWet(F, P, cut);
+    if (P.open && P.open.wet) placeWet(F, P, cut && !glass);
     if (P.open && P.open.slots) placePanels(F, P, cut);
     if (P.open && P.open.flash) placeFlash(F, P, cut);
   }
@@ -3332,7 +3442,10 @@ function createSlot(slotKey){
             if (!underRoof(F, _v2) && !behind(_v2, occ, F)) { lbl.position.copy(_v2); u.behind = false; break; }
           }
         }
-        lbl.visible = !quiet && shownHere("room_names") && !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
+        lbl.visible = !quiet && level !== "house" && shownHere("room_names") && !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
+        // A room open: the other rooms' names fade with their floors.
+        const op = (u.op ?? 1) * (level === "room" && !isOpen(F, li) ? ROOM_FADE : 1);
+        if (lbl.material.opacity !== op) lbl.material.opacity = op;
         u.px = lbl.visible ? hPx : 0;
         lbl.scale.set(wPx * k, hPx * k, 1);
         lbl.center.set(0.5, 0.5 + (u.dy || 0) / hPx);         // moved clear of another word (wordUnits)
@@ -3347,7 +3460,11 @@ function createSlot(slotKey){
       C.px = hPx;
       centreChip(C);
       if (persp && !C.label) C.behind = underRoof(C.F, C.sprite.position) || behind(C.sprite.position, above(C.F), C.F);
-      C.sprite.visible = !quiet && !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
+      C.sprite.visible = !quiet && level !== "house" && !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
+      // A room open: the other rooms' readouts fade (over what the class chips leave of them).
+      C.fk = level === "room" && !(openRoom && C.F === openRoom.F && C.room === openRoom.r) ? ROOM_FADE : 1;
+      const op = (C.clsOp ?? 1) * C.fk;
+      if (C.sprite.material.opacity !== op) C.sprite.material.opacity = op;
     }
   }
   /** Where a chip sits on its spot: under its room's name (or where the name
@@ -3426,6 +3543,179 @@ function createSlot(slotKey){
     }
   }
 
+  // ── labels by zoom level ──────────────────────────────────────────────────
+  // The whole house (every floor, not zoomed in) shows one tag per floor beside
+  // it: its name, the lights on, the doors and windows open, the people; no
+  // room names, readouts, motion markers, receivers, tags or codes. One floor
+  // shows its rooms' names, readouts and markers. A room open (flown into with
+  // a double-tap, or zoomed into at room scale) shows its devices' codes, and
+  // the other rooms fade. Alarms always show; Edit, Furnish and the Plans
+  // tool's map show everything, as ever. Worked out on the frame, only when
+  // the level or the room changes.
+  function zoomLevel(){
+    if (!house || showSuspended()) return "floor";
+    if (openRoom) return "room";
+    const s = floorSteps;
+    return s && s.all && s.names.length > 1 && !(fitR && cam.radius < fitR * SCREEN.SOLO_IN) ? "house" : "floor";
+  }
+  /** Open the room at {F, r} (r0: the camera's distance it opens at). */
+  function openRoomOf(at, r0){
+    if (!at || !at.F || !at.r) return;
+    openRoom = { F: at.F, r: at.r, i: at.F.rooms.indexOf(at.r), name: at.r.name, fid: at.F.fl.id, r0: Math.max(MIN_R, r0), tx: null, tz: null };
+    requestRender();
+  }
+  function closeRoom(){ if (openRoom) { openRoom = null; requestRender(); } }
+  /** Zoomed in by hand to room scale with no room open: the room the view is centred on opens. */
+  function roomByZoom(){
+    if (openRoom || !camera || !house || !MARKS || showSuspended() || !MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR)) return;
+    const rc = view3Rect();
+    if (rc.width && rc.height) openRoomOf(roomAtScreen(rc.left + rc.width / 2, rc.top + rc.height / 2), cam.radius);
+  }
+  /** On the frame: the room open closes when zoomed back out or its floor
+   *  hides; panned over another room of its floor, that one is open. */
+  function checkRoom(){
+    const o = openRoom;
+    if (!o) return;
+    if (showSuspended() || !floorsUi.includes(o.F) || !o.F.group.visible || cam.radius > o.r0 * ROOM_OUT) { openRoom = null; return; }
+    if (cam.fly) return;
+    if (o.tx === null || Math.hypot(cam.target.x - o.tx, cam.target.z - o.tz) >= 0.5) {
+      const first = o.tx === null;
+      o.tx = cam.target.x; o.tz = cam.target.z;
+      if (first || HOUSE.inPoly(o.tx, o.tz, o.r.pts)) return;
+      const r = HOUSE.roomAt(o.F.rooms, o.tx, o.tz);
+      if (r && r !== o.r) { o.r = r; o.i = o.F.rooms.indexOf(r); o.name = r.name; }
+    }
+  }
+  /** The house was built again: the room open is found again on the new floors, or closes. */
+  function refindRoom(){
+    levelKey = null;
+    if (!openRoom) return;
+    const F = floorsUi.find(G => G.fl.id === openRoom.fid), i = F ? F.rooms.findIndex(r => r.name === openRoom.name) : -1;
+    openRoom = i >= 0 ? { ...openRoom, F, r: F.rooms[i], i } : null;
+  }
+  /** Is this room (F, its index) the one open? */
+  const isOpen = (F, i) => !!openRoom && openRoom.F === F && openRoom.i === i;
+  /** Motion's markers as this screen and the zoom level show them. */
+  const motionShow = () => ({ sensor: shownHere("motion_sensors") && level !== "house", room: shownHere("motion_rooms"), reach: shownHere("motion_reach") });
+  /** The level now, and what it shows (only when it or the room open changed). */
+  function syncLevel(){
+    checkRoom();
+    const lv = zoomLevel(), key = `${lv}|${openRoom ? `${openRoom.fid}|${openRoom.i}` : ""}`;
+    if (key === levelKey) return;
+    levelKey = key; level = lv;
+    if (motionL && motionL.show) motionL.show(motionShow());
+    if (tracked && tracked.hideKinds) tracked.hideKinds(lv === "house" ? ["scanner", "beacon"] : []);
+    fadeRooms();
+    if (codes && codes.recheck) codes.recheck();
+    if (raisedL) raisedL.touch();
+  }
+  /** A room open: every other room's floor fades toward the background (one
+   *  colour upload per floor, on opening and closing; nothing per frame). */
+  function fadeRooms(){
+    const bg = scene && scene.background && scene.background.isColor ? _fadeBg.copy(scene.background) : _fadeBg.set(BG);
+    for (const F of floorsUi) {
+      const a = F.tiles && F.tileSpans ? F.tiles.geometry.attributes.color : null;
+      if (!a) continue;
+      const want = openRoom ? (openRoom.F === F ? openRoom.i : -1) : null;
+      if (want === (F.fadeOf ?? null)) continue;
+      if (!F.tileCols) F.tileCols = a.array.slice();
+      const arr = a.array, k = 1 - ROOM_FADE;
+      arr.set(F.tileCols);
+      if (want !== null) {
+        F.tileSpans.forEach(([s0, n], i) => {
+          if (i === want) return;
+          for (let v = s0 * 3; v < (s0 + n) * 3; v += 3) { arr[v] += (bg.r - arr[v]) * k; arr[v + 1] += (bg.g - arr[v + 1]) * k; arr[v + 2] += (bg.b - arr[v + 2]) * k; }
+        });
+      }
+      a.needsUpdate = true;
+      F.fadeOf = want;
+    }
+  }
+  /** A floor's tag: its name, and what is on, open and who is there. */
+  function tagWords(F, byId){
+    const mine = (G) => !!G && (G === F || G.fl.parent === F.fl.id);
+    let on = 0, open = 0, ppl = 0;
+    for (const L of lights) if (mine(L.F) && L.look && L.look.on && !L.spin) on++;
+    for (const { F: G, P } of openings) if (mine(G) && (P.open.kind === "door" || P.open.kind === "window") && P.open.state === "open") open++;
+    if (tracked && shownHere("people")) for (const q of tracked.people()) if (mine(byId.get(q.floor))) ppl++;
+    const parts = [];
+    if (on) parts.push(`${on} ${on === 1 ? "light" : "lights"} on`);
+    if (open) parts.push(`${open} open`);
+    if (ppl) parts.push(`${ppl} ${ppl === 1 ? "person" : "people"}`);
+    return { name: String(F.fl.name || F.fl.id), line: parts.join(" · ") || "Nothing on" };
+  }
+  /** The whole house: a tag beside each floor, top floor first, never on each
+   *  other (each lower one keeps below the one over it). A tap shows that floor
+   *  alone. Placed only on a frame drawn, written only when it moved. */
+  function paintTags(){
+    if (!tagsEl) return;
+    if (level !== "house" || !camera) {
+      if (tagsOn) { tagsEl.style.display = "none"; tagsOn = false; }
+      return;
+    }
+    if (!tagsOn) { tagsEl.style.display = ""; tagsOn = true; }
+    const W = canvas.clientWidth || 0, H = canvas.clientHeight || 0, k = wallUiOf(root), byId = new Map(floorsUi.map(G => [G.fl.id, G]));
+    const placed = [], seen = new Set();
+    for (const F of floorsUi) {
+      if (!F.group.visible || F.fl.outdoor || F.fl.parent || !F.rooms.length) continue;
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const r of F.rooms) if (!r.outdoor) for (const q of r.pts) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+      if (!Number.isFinite(x0)) continue;
+      const fid = F.fl.id, w = tagWords(F, byId), key = `${w.name}|${w.line}|${k}`;
+      seen.add(fid);
+      let T = floorTags.get(fid);
+      if (!T) {
+        const el = document.createElement("button");
+        el.type = "button"; el.className = "la3d-ftag";
+        el.setAttribute("data-la3d-ftag", fid);
+        for (const ev of ["pointerdown", "pointerup", "wheel", "dblclick"]) el.addEventListener(ev, (e) => e.stopPropagation());
+        el.addEventListener("click", guard((e) => {
+          e.stopPropagation();
+          if (lastP && typeof lastP.setTopFloor === "function") lastP.setTopFloor(fid);
+        }));
+        tagsEl.appendChild(el);
+        T = { el, key: null, w: 0, h: 0, at: "" };
+        floorTags.set(fid, T);
+      }
+      if (T.key !== key) {
+        T.key = key;
+        const b = document.createElement("b"), sp = document.createElement("span");
+        b.textContent = w.name; sp.textContent = w.line;
+        T.el.replaceChildren(b, sp);
+        T.el.style.fontSize = `${Math.round(12 * k * 10) / 10}px`;
+        T.el.title = `${w.name}: ${w.line}. Tap to show this floor alone`;
+        T.el.setAttribute("aria-label", `${w.name}: ${w.line}. Show this floor alone`);
+        T.w = T.el.offsetWidth || 0; T.h = T.el.offsetHeight || 0;
+      }
+      // Beside the floor: left of its leftmost corner on screen (else right of its rightmost), level with it.
+      let left = null, right = null;
+      for (const [x, y] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) {
+        for (const z of [F.fl.elev, F.fl.elev + Math.min(1.2, F.fl.h)]) {
+          _v.set(x, z, y).project(camera);
+          if (!(_v.z < 1)) continue;
+          const sx = (_v.x + 1) / 2 * W, sy = (1 - _v.y) / 2 * H;
+          if (!left || sx < left.x) left = { x: sx, y: sy };
+          if (!right || sx > right.x) right = { x: sx, y: sy };
+        }
+      }
+      if (!left) { T.el.style.display = "none"; continue; }
+      T.el.style.display = "";
+      let lx = left.x - T.w - 14, ly = left.y;
+      if (lx < 8) { lx = right.x + 14; ly = right.y; }
+      placed.push({ T, elev: F.fl.elev, x: Math.max(8, Math.min(W - T.w - 8, lx)), y: ly });
+    }
+    placed.sort((a, b) => b.elev - a.elev);
+    const top = bare ? 12 : 66;
+    for (let i = 0; i < placed.length; i++) {
+      const p = placed[i], above = placed[i - 1];
+      p.y = Math.max(p.y, top + p.T.h / 2);
+      if (above) p.y = Math.max(p.y, above.y + (above.T.h + p.T.h) / 2 + 6);
+      const at = `translate(${Math.round(p.x)}px, ${Math.round(p.y - p.T.h / 2)}px)`;
+      if (at !== p.T.at) { p.T.at = at; p.T.el.style.transform = at; }
+    }
+    for (const [fid, T] of [...floorTags]) if (!seen.has(fid)) { T.el.remove(); floorTags.delete(fid); }
+  }
+
   // ── floors, walls, quality ────────────────────────────────────────────────
   function applyTop(){
     // (The Plans tool's vetting map: this floor alone, so nothing from below shows through round its plan.)
@@ -3447,9 +3737,20 @@ function createSlot(slotKey){
   }
   /** Walls or floors changed: what covers a motion marker or a code is worked out again. */
   function recheckCovers(){ if (motionL && motionL.recheck) motionL.recheck(); if (codes && codes.recheck) codes.recheck(); }
-  function setWalls(m){
+  function setWalls(m, byHand = false){
     if (!HOUSE.WALL_MODES.includes(m)) return;
+    const was = wallMode;
     wallMode = m;
+    // Cut or Glass picked by hand: this screen keeps it (the ⋯ list's Glass walls line, the same choice).
+    if (byHand && (m === "glass" || m === "cut") && SHOW) {
+      glassPick = m === "glass";
+      prefSet(SHOW.prefKey(slotKey), JSON.stringify(SHOW.withTick(showOver(), "glass_walls", glassPick, SHOW.houseOn(showHouse, "glass_walls"))));
+      if (showMenu) showMenu.mark();
+    }
+    // To or from Glass: every piece is placed again (Cut and Glass take away the same walls).
+    if ((was === "glass") !== (m === "glass")) {
+      for (const F of floorsUi) { if (F.ghost) F.ghost.visible = m === "glass"; for (const P of F.pieces) placePiece(F, P, !!P.cut); }
+    }
     paintWallButtons();
     paintWindows();
     recheckCovers();
@@ -3459,11 +3760,13 @@ function createSlot(slotKey){
   function updateCutaway(){
     const topDown = cam.phi < 0.2;
     // Under the roof the walls stand (Cut is Up while it shows).
-    const mode = roofTick() && wallMode === "cut" ? "up" : wallMode;
+    const mode = roofTick() && (wallMode === "cut" || wallMode === "glass") ? "up" : wallMode;
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
+      // Glass with a room open: that room's floor's inside walls are glass too.
+      const rooms = !!openRoom && openRoom.F === F;
       for (const P of F.pieces) {
-        const cut = HOUSE.wallCut(P.pc, camera.position.x, camera.position.z, mode, topDown);
+        const cut = HOUSE.wallCut(P.pc, camera.position.x, camera.position.z, mode, topDown, rooms);
         if (cut === P.cut) continue;
         P.cut = cut;
         placePiece(F, P, cut);
@@ -3832,7 +4135,8 @@ function createSlot(slotKey){
     const r0 = root.getBoundingClientRect();
     // A wall's bars fade when nobody is there: they don't get to shrink the house.
     const wall = onWallPage(root), rot = wall ? root.getRootNode().host.getAttribute("data-wall-rotate") : null;
-    for (const el of root.querySelectorAll(wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip, .psc-row" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
+    // The map alone: the bar, the tip and the chips are stepping aside (their fade may not have ended): only the rain line stays.
+    for (const el of root.querySelectorAll(wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip, .psc-row" : bare ? ".la3d-wet" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
       const r = el.getBoundingClientRect && el.getBoundingClientRect();
       if (!r || !(r.height > 0) || !(r.width > 0) || getComputedStyle(el).visibility === "hidden") continue;
       // A wall turned by its link: these are the turned boxes, the page's top along a side of the screen.
@@ -3917,6 +4221,7 @@ function createSlot(slotKey){
   }
   function preset(name, byHand = false){
     if (byHand) cam.moved = true;
+    if (name !== "turn") closeRoom();                        // framed whole again: no room is open
     cam.needsFit = false;
     cam.fly = null;
     if (name === "iso") { const a = isoAngle(); fit(a.theta, a.phi); }
@@ -3957,6 +4262,7 @@ function createSlot(slotKey){
   }
   // ── flying the camera (a double-tap on a room, a saved view) ──────────────
   function flyTo(goal, inward){
+    closeRoom();                                             // flown elsewhere: no room is open (flyToRoomAt opens its own)
     const from = { target: cam.target.clone(), radius: cam.radius, theta: cam.theta, phi: cam.phi };
     const dTh = ((goal.theta - from.theta) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
     cam.moved = true; cam.needsFit = false;
@@ -4010,6 +4316,7 @@ function createSlot(slotKey){
     const g = frameFor(cam.theta, Math.max(0.35, Math.min(cam.phi, 1.05)), pts);
     g.radius = Math.max(MIN_R, g.radius * 1.12);
     flyTo(g, true);
+    openRoomOf(at, g.radius);                                // the room open: its codes, the others faded
     return true;
   }
 
@@ -4395,8 +4702,10 @@ function createSlot(slotKey){
     // Something moving by itself draws on its own clock (liveRate).
     const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
+      if (freshShow) openBare();
       if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
       if (wallMoves) { const pr = ratioFor(drawnW, drawnH); if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr); }
+      syncLevel();                                           // labels by zoom level: the whole house, a floor, a room
       updateCutaway();
       // Editing, or the plan beside it: what stands on a line stands at its real height.
       const off = furnishOn || !!(editor && editor.active);
@@ -4404,6 +4713,7 @@ function createSlot(slotKey){
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
       sizeSprites();
+      paintTags();                                           // the whole house: a tag beside each floor
       if (lampsDirty || lampTarget.distanceToSquared(cam.target) > 1) assignLamps();
       const vp = viewports();
       if (studio) studio.prepare(camera);
@@ -4900,7 +5210,7 @@ function createSlot(slotKey){
     for (const C of chips) {
       // A room's readout chip fades while every sensor in it is another class.
       const op = classF && C.sensors.every(S => dimOf(S.eid)) ? MARKS.DIM_K + 0.1 : 1;
-      if (C.sprite.material.opacity !== op) { C.sprite.material.opacity = op; changed = true; }
+      if (C.clsOp !== op || C.sprite.material.opacity !== op * (C.fk ?? 1)) { C.clsOp = op; C.sprite.material.opacity = op * (C.fk ?? 1); changed = true; }
     }
     if (classF !== clsDrawn) { clsDrawn = classF; changed = true; }
     if (changed) { animateLive(performance.now()); requestRender(); }
@@ -4930,10 +5240,13 @@ function createSlot(slotKey){
   }
   /** Codes at room scale; the leak alarms' words a size you can read. */
   function sizeMarks(){
-    const H = canvas.clientHeight || 600;
-    if (codes) codes.size(camera, H, !!(lastP && lastP.codes && typeof lastP.codes === "object") && MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR));
+    const H = canvas.clientHeight || 600, near = MARKS ? MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR) : true;
+    // Codes in the room open only (labels by zoom level); while Edit, Furnish or the Plans tool's map has the view, at room scale as ever.
+    const pref = !!(lastP && lastP.codes && typeof lastP.codes === "object"), o = openRoom;
+    const keep = level === "room" && o ? Object.assign((C) => C.F === o.F && HOUSE.inPoly(C.v.x, C.v.z, o.r.pts), { key: `${o.fid}|${o.i}` }) : null;
+    if (codes) codes.size(camera, H, pref && (showSuspended() ? near : level === "room"), keep);
     if (marks) marks.size(camera, H);
-    if (motionL) motionL.size(camera, H, MARKS ? MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR) : true);
+    if (motionL) motionL.size(camera, H, near || level === "room");
   }
   /** A leak sensor or a lock, for the editor's Heights (as deviceInfo). */
   // A device hovered or pressed, up off its floor (a ceiling light, a fan, a
@@ -5046,7 +5359,7 @@ function createSlot(slotKey){
       floorNow: () => (selIds && selIds.size ? [...selIds].sort()[0] : null),
       onFloor: (fid) => (fid === null ? !selIds : !!(selIds && selIds.has(fid))),
       setFloor: (fid) => setFloor(fid),
-      homeFloor: () => (house ? PANEL.homeFloorOf(house.rooms) : null),
+      homeFloor: () => (house ? PANEL.homeStartOf(house.rooms, explodeOn()) : null),
       wholeGoal: () => homeGoal(),
       go: (g, smooth) => goTo(g, smooth),
       flying: () => !!cam.fly,
@@ -5105,6 +5418,7 @@ function createSlot(slotKey){
   function goTo(g, smooth){
     const goal = { target: new THREE.Vector3().fromArray(g.target), radius: g.radius, theta: g.theta, phi: g.phi };
     if (smooth) { flyTo(goal, false); return; }
+    closeRoom();
     cam.fly = null; cam.needsFit = false;
     cam.target.copy(goal.target); cam.radius = goal.radius; cam.theta = goal.theta; cam.phi = goal.phi;
     applyCam();
@@ -5275,6 +5589,15 @@ function createSlot(slotKey){
   const showSuspended = () => !!((editor && editor.active) || furnishOn || quiet);
   const showOver = () => (SHOW ? SHOW.readShown(prefGet(SHOW.prefKey(slotKey))) : {});
   const onObj = (x) => !!(x && typeof x === "object");
+  /** The ⋯ list's Glass walls line, followed: ticked, Cut becomes Glass;
+   *  unticked, Glass becomes Cut (Up and Down stay as they are). */
+  function syncGlass(){
+    const want = !!(showOn && showOn.glass_walls === true);
+    if (want === glassPick) return;
+    glassPick = want;
+    if (want && wallMode === "cut") setWalls("glass");
+    else if (!want && wallMode === "glass") setWalls("cut");
+  }
   /** The house's own for each line, from the card's data before the list. */
   function showHouseOf(p){
     const s = p.settings3d && typeof p.settings3d === "object" ? p.settings3d : null;
@@ -5595,6 +5918,7 @@ function createSlot(slotKey){
     houseP = p;
     if (SHOW && p) p = showP(p);
     if (showMenu) showMenu.mark();                         // the dot from the first draw (a screen opened with ticks of its own)
+    syncGlass();
     lastP = p;
     syncScenes();
     applyLook(p);
@@ -5612,7 +5936,8 @@ function createSlot(slotKey){
     shownFile();
     if (shownMemo.sig !== shownSig) { shownSig = shownMemo.sig; if (editor && file) editor.fileChanged(); }
     const vd = viewData();
-    const xGap = explodeGap();
+    const xGap = explodeGap(), gapWas = readGap, refit = refitFloor;
+    refitFloor = false;
     const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid) + (xGap ? `|explode:${xGap}` : "");
     const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden, p.shapeOverrides), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
     const sSig = mSig + DRAFT.openingsSignature(vd) + (STOREY ? STOREY.stairsSignature(vd.pieces) : "");
@@ -5639,7 +5964,7 @@ function createSlot(slotKey){
     // Furniture (P2): each piece on its floor, from the draft while editing.
     if (layer && layer.sync(piecesNow(vd.pieces), rebuilt)) requestRender();
     syncDevices(p, vd);
-    if (motionL && motionL.show && motionL.show({ sensor: shownHere("motion_sensors"), room: shownHere("motion_rooms"), reach: shownHere("motion_reach") })) requestRender();
+    if (motionL && motionL.show && motionL.show(motionShow())) requestRender();
     syncTracked(p, vd, rebuilt);
     paintLights(p.lightsByEid);
     paintWindows();
@@ -5651,6 +5976,10 @@ function createSlot(slotKey){
     selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
+    // A floor chosen from every floor pulled apart (or All chosen, pulled
+    // apart): the floors moved, so those showing are framed again from where
+    // the camera looks (untouched, the view's own opening frames them).
+    if (refit && readGap !== gapWas && !cam.needsFit && !cam.fly && camera) fit(cam.theta, cam.phi);
     applySun(p);
     syncForest();
     if (setting !== quality.setting || (!quality.profile && !quality.measuring)) {
@@ -5743,6 +6072,7 @@ function createSlot(slotKey){
         if (editor && want && want.tool) Promise.resolve(editor.startTool(want.tool, want.eid || null)).catch(() => {});
         if (failed) return false;
         place(s);
+        if (want && want.tool) freshShow = false;            // a tool asked for (the setup wizard): its bars stay
         paintFloors(); paintFull(); showHint(); peopleClock(); syncFps();
         if (panel) panel.attach();
         if (director) director.attach();
@@ -5757,7 +6087,7 @@ function createSlot(slotKey){
     /** The 3D file changed elsewhere (Settings → Remove all furniture): read
      *  again now while showing, else when the screen is next shown. */
     reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
-    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (fpsUi) fpsUi.sync(false); if (panel) panel.detach(); if (director) director.detach(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { freshShow = true; fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (fpsUi) fpsUi.sync(false); if (panel) panel.detach(); if (director) director.detach(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */
@@ -5819,7 +6149,15 @@ function createSlot(slotKey){
                                                                        onTop: !l.material.depthTest && l.renderOrder >= 30, upright: !!l.isSprite,
                                                                        ext: l.userData.ext, aspect: l.userData.aspect }))),
                chips: chips.map(C => ({ room: C.room ? C.room.name : null, text: C.text, eids: C.sensors.map(S => S.eid),
-                                        shown: C.F.group.visible && C.sprite.visible })),
+                                        shown: C.F.group.visible && C.sprite.visible, opacity: C.sprite.material.opacity })),
+               // Labels by zoom level: the level, the room open, the floors' tags, the floors' tiles faded or not, Explode.
+               levels: { level, room: openRoom ? { name: openRoom.name, floor: openRoom.fid } : null, explode: readGap, explodeOn: explodeOn(),
+                         tags: [...floorTags].map(([fid, T]) => ({ floor: fid, text: T.el.textContent, shown: tagsOn && T.el.style.display !== "none", at: T.at })),
+                         faded: floorsUi.map(F => (F.fadeOf === undefined ? null : F.fadeOf)) },
+               // Walls: Glass: each floor's glass pieces placed (not out of sight), and whether the floor's glass is drawn at all.
+               ghost: floorsUi.map(F => ({ floor: F.fl.id, drawn: !!(F.ghost && F.ghost.visible), placed: F.ghost ? countPlaced(F.ghost) : 0,
+                                           solid: F.solid ? countPlaced(F.solid) : 0, order: F.ghost ? F.ghost.renderOrder : null,
+                                           depthWrite: F.ghost ? F.ghost.material.depthWrite : null, transparent: F.ghost ? F.ghost.material.transparent : null })),
                screen: { mapOnly, bare, cover, full: fsOn, fitR, narrow, floors: floorSteps ? { names: floorSteps.names, at: floorSteps.at, all: floorSteps.all,
                                                                                                counts: floorSteps.counts } : null,
                          flying: !!cam.fly, menu: !!menuEl, hint: !!hintCard,

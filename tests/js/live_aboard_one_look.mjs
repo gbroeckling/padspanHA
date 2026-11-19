@@ -115,12 +115,16 @@ function card(slot, over){
 }
 const inTree = (n, top) => { for (let x = n; x; x = x.parentNode) if (x === top) return true; return false; };
 function rooted(slot){ const el = slot.element; if (el && !el.getRootNode) el.getRootNode = () => (inTree(el, shadow) ? shadow : el); return el; }
+// The sidebar's view opens with the bars aside (2026-11-18); these cases start
+// from the bars brought back with ☰, as a person who wants them has them.
 async function view(key, over){
   const slot = LA.liveAboardSlot(key);
   card(slot, over);
   rooted(slot);
   card(slot, over);
   await settle(30);
+  const solo = slot.element.querySelector(".la3d-solo");
+  if (slot._state().screen.bare && solo) { solo.dispatchEvent({ type: "click", detail: 1, stopPropagation() {}, preventDefault() {} }); await settle(2); }
   return slot;
 }
 const S = (slot) => slot._state();

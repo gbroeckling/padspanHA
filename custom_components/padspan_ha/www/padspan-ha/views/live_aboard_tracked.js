@@ -379,7 +379,10 @@ export function createTrackedLayer(ctx){
     const id = ctx.canon ? ctx.canon(fid) : String(fid);
     return ctx.floors().find(F => F.fl.id === id) || null;
   };
-  const shown = (I) => !!(I.F && I.F.group.visible);
+  // Kinds the view leaves out for now (the whole house shows no scanners or
+  // tags: the view's labels by zoom level), drawn again as they were when it zooms in.
+  let quietKinds = new Set();
+  const shown = (I) => !!(I.F && I.F.group.visible) && !quietKinds.has(I.kind);
   function marker(){
     if (!markerRes) {
       markerRes = {
@@ -633,7 +636,7 @@ export function createTrackedLayer(ctx){
         if (!I) {
           I = { key: w.key, kind: w.kind, root: new THREE.Group(), body: null, look: null, F: null, at: new THREE.Vector3(), to: new THREE.Vector3(),
                 yaw: 0, walking: false, placed: false, halo: null, stem: null, name: null, card: null, lift: new THREE.Vector3(), down: 0 };
-          I.root.name = "tracked:" + w.key; items.set(w.key, I); changed = true;
+          I.root.name = "tracked:" + w.key; I.root.visible = !quietKinds.has(w.kind); items.set(w.key, I); changed = true;
         }
         if (rebuilt) { I.F = null; if (I.root.parent) I.root.parent.remove(I.root); }
         const look = JSON.stringify([w.recipe || null, w.figure || null, quality, !!w.dim]);
@@ -665,6 +668,15 @@ export function createTrackedLayer(ctx){
       }
       if (syncTrails(want, (d && d.trails) || null, rebuilt)) changed = true;
       return changed;
+    },
+    /** Leave out these kinds ("scanner", "beacon", "person") for now, or none;
+     *  true when what shows changed. Nothing is built or dropped. */
+    hideKinds(kinds){
+      const next = new Set(kinds || []);
+      if (next.size === quietKinds.size && [...next].every(k => quietKinds.has(k))) return false;
+      quietKinds = next;
+      for (const I of items.values()) I.root.visible = !quietKinds.has(I.kind);
+      return true;
     },
     /** The live clock (t: performance.now()): whoever walks, a step on. */
     tick(t){

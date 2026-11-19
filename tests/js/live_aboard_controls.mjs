@@ -689,12 +689,19 @@ await tryCase("door: a door sensor placed as a point draws nothing, as on the At
 });
 
 // ── codes ───────────────────────────────────────────────────────────────────
+// Labels by zoom level (2026-11-18): codes show in the room open only; zoomed
+// in by hand to room scale, the room in the middle of the view opens.
+const wheelIn = (slot) => { const cv = slot.element.querySelector("canvas");
+  cv.dispatchEvent({ type: "wheel", clientX: 400, clientY: 300, deltaY: -20, deltaMode: 0, stopPropagation() {}, preventDefault() {} }); };
 await tryCase("codes: the Atlas's chips at room scale, in its theme's colours; none at the whole house, none while hidden", async () => {
   const slot = await newSlot("ctl-codes", { codes: { showcase: false }, topFloorIds: ["main"] });
   const whole = S(slot).codes;
   slot._look(Math.PI / 4, 0.9, [3, 1, 2], 7);
   await settle();
-  const near = S(slot).codes;
+  const scaleOnly = S(slot).codes.shown;                   // room scale by itself opens no room: no codes
+  wheelIn(slot);                                           // a zoom by hand: the Kitchen, in the middle, opens
+  await settle();
+  const near = S(slot).codes, room = S(slot).levels.room;
   const byEid = Object.fromEntries(near.chips.map(c => [c.eid, c]));
   card(slot, { codes: null, topFloorIds: ["main"] });
   await settle();
@@ -703,11 +710,13 @@ await tryCase("codes: the Atlas's chips at room scale, in its theme's colours; n
   LA.releaseLiveAboardSlot("ctl-codes");
   const leak = byEid["binary_sensor.kitchen_leak"], light = byEid["light.kitchen"];
   check("codes: the Atlas's chips at room scale, in its theme's colours; none at the whole house, none while hidden",
-    whole.shown === 0 && whole.chips.length >= 6 && near.shown > 0 && light && light.on && light.text === LBE["light.kitchen"].code
+    whole.shown === 0 && whole.chips.length >= 6 && scaleOnly === 0 && room && room.name === "Kitchen" && near.shown > 0
+    && light && light.on && light.text === LBE["light.kitchen"].code
     && leak && leak.on && leak.text === LBE["binary_sensor.kitchen_leak"].code
+    && byEid["binary_sensor.hall_leak"] && !byEid["binary_sensor.hall_leak"].on && byEid["binary_sensor.hall_motion"] && !byEid["binary_sensor.hall_motion"].on
     && light.key.bg === SHOWCASE_THEMES.classic.codeChipBg && light.key.bgOp === SHOWCASE_THEMES.classic.codeChipBgOpacity && light.key.ink === "#e2e8f0"
     && !byEid["sensor.kitchen_temp"] && hidden.chips.length === 0 && hidden.shown === 0 && span(8) && !span(40) && span(8, 20) && !span(8, 9),
-    { whole, near: near.chips.map(c => [c.eid, c.text, c.on]), hidden });
+    { whole, scaleOnly, room, near: near.chips.map(c => [c.eid, c.text, c.on]), hidden });
 });
 
 // ── heights ─────────────────────────────────────────────────────────────────

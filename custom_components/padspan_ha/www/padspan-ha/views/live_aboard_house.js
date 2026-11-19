@@ -1001,16 +1001,20 @@ export function wallElements(pc, floorH){
 }
 
 // ── The whole-house cut-away ─────────────────────────────────────────────────
-// Walls: Cut (the default), Up or Down. Cut drops the walls between you and
-// the rooms: an outside wall when its outside faces you, an inside wall
-// unless you see it nearly edge-on. Looking straight down nothing is cut (the
-// plan is already open). Deck rails never drop. (camX, camY) is the camera's
-// plan position; a cut wall keeps CUT_H of itself.
-export const WALL_MODES = ["cut", "up", "down"];
-export function wallCut(pc, camX, camY, mode, topDown){
+// Walls: Cut (the default), Up, Down or Glass. Cut drops the walls between you
+// and the rooms: an outside wall when its outside faces you, an inside wall
+// unless you see it nearly edge-on. Glass picks the same walls, and the view
+// draws what Cut drops as tinted glass instead (live_aboard.js placePiece);
+// with a room open (rooms: true), every inside wall of that room's floor is
+// glass too. Looking straight down nothing is cut (the plan is already open).
+// Deck rails never drop. (camX, camY) is the camera's plan position; a cut
+// wall keeps CUT_H of itself.
+export const WALL_MODES = ["cut", "up", "down", "glass"];
+export function wallCut(pc, camX, camY, mode, topDown, rooms = false){
   if (pc.kind === "rail") return false;
   if (mode === "down") return true;
-  if (mode !== "cut" || topDown) return false;
+  if ((mode !== "cut" && mode !== "glass") || topDown) return false;
+  if (mode === "glass" && rooms && pc.cls !== "ext") return true;
   const mx = (pc.x0 + pc.x1) / 2, my = (pc.y0 + pc.y1) / 2;
   const vx = camX - mx, vy = camY - my, vl = Math.hypot(vx, vy);
   if (vl <= 0.3) return false;

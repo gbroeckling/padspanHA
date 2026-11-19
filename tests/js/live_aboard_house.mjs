@@ -219,7 +219,22 @@ tryCase("cutaway: Cut drops what is between you and the rooms; Up none; Down all
   const want = { extFacing: true, extAway: false, extEdge: false, intFacing: true, intEdgeOn: false, topDown: false,
     up: false, down: true, downInt: true, railCut: false, railDown: false, above: false };
   check("cutaway: Cut drops what is between you and the rooms; Up none; Down all",
-    JSON.stringify(got) === JSON.stringify(want) && H.WALL_MODES.join() === "cut,up,down", got);
+    JSON.stringify(got) === JSON.stringify(want) && H.WALL_MODES.join() === "cut,up,down,glass", got);
+});
+tryCase("cutaway: Glass takes the walls Cut takes; with a room open, every inside wall of its floor too, never an outside wall turned away", () => {
+  const ext = { kind: "wall", cls: "ext", x0: 0, y0: 0, x1: 4, y1: 0, nx: 0, ny: -1 };
+  const intW = { kind: "wall", cls: "int", x0: 2, y0: 0, x1: 2, y1: 3, nx: 1, ny: 0 };
+  const rail = { kind: "rail", cls: "rail", x0: 0, y0: 0, x1: 4, y1: 0, nx: 0, ny: -1 };
+  const c = (pc, x, y, top = false, rooms = false) => H.wallCut(pc, x, y, "glass", top, rooms);
+  const got = {
+    extFacing: c(ext, 2, -10), extAway: c(ext, 2, 10), intFacing: c(intW, 12, 1.5), intEdgeOn: c(intW, 2.3, 40), topDown: c(ext, 2, -10, true),
+    roomInt: c(intW, 2.3, 40, false, true), roomExtAway: c(ext, 2, 10, false, true), roomTop: c(intW, 2.3, 40, true, true), railRoom: c(rail, 2, -10, false, true),
+    cutRoomInt: H.wallCut(intW, 2.3, 40, "cut", false, true),
+  };
+  const want = { extFacing: true, extAway: false, intFacing: true, intEdgeOn: false, topDown: false,
+    roomInt: true, roomExtAway: false, roomTop: false, railRoom: false, cutRoomInt: false };
+  check("cutaway: Glass takes the walls Cut takes; with a room open, every inside wall of its floor too, never an outside wall turned away",
+    JSON.stringify(got) === JSON.stringify(want), got);
 });
 
 // ── quality ─────────────────────────────────────────────────────────────────

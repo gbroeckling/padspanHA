@@ -167,12 +167,18 @@ async function tapAt(slot, x, y, id = 1){
 }
 const btnByText = (slot, t) => slot.element.querySelectorAll("button").find(b => b.textContent === t) || null;
 const click = (b) => b.dispatchEvent({ type: "click", detail: 1, stopPropagation() {}, preventDefault() {} });
-async function newSlot(key, over){
+// The cases below test the view's ways on a screen whose person set it as it
+// opened before 2026-11-18: Explode turned off (this browser's own), the bars
+// brought back with ☰. The opening itself (every floor pulled apart, the bars
+// aside) has its own cases (opening:), which pass { opening: true }.
+async function newSlot(key, over, opts = {}){
+  if (!opts.opening && !store.has("explode")) store.set("explode", "0");
   const slot = LA.liveAboardSlot(key);
   card(slot, over);
   rooted(slot);
   const first = card(slot, over);                       // now in the panel's tree: full screen can be offered
   await settle(30);
+  if (!opts.opening && S(slot).screen.bare) { click(slot.element.querySelector(".la3d-solo")); await settle(2); }
   return { slot, first };
 }
 
@@ -609,8 +615,11 @@ await tryCase("night: floors keep their colour, outlines and wall tops show, off
 });
 
 // ── names and chips ─────────────────────────────────────────────────────────
+// Names and readouts show with a floor chosen (labels by zoom level: the whole
+// house shows a tag per floor instead, the opening: cases); the floor under it still draws.
+const ON_MAIN = { floorSteps: steps({ at: 1, all: false }) };
 await tryCase("names: upright over the fixtures, never under a floor above, readable or hidden", async () => {
-  const { slot } = await newSlot("scr-names");
+  const { slot } = await newSlot("scr-names", ON_MAIN);
   const st = S(slot), by = Object.fromEntries(st.names.map(n => [n.room, n]));
   check("names: upright over the fixtures, never under a floor above, readable or hidden",
     by["Living room"] && by["Living room"].shown && by["Living room"].onTop && by.Den.shown && by.Den.px >= 12
@@ -633,7 +642,7 @@ await tryCase("names: upright over the fixtures, never under a floor above, read
 await tryCase("names: a sunken room's name shows with its own floor, which is open over it", async () => {
   const SUNK = { ...MODEL, floors: [{ id: "basement", name: "Basement", floor_to_floor_m: 3 }, { id: "main", name: "Main", floor_to_floor_m: 2.8 }],
                  floor_elevations: { basement: -3, main: 0 }, room_meta: { Den: { floor_id: "main", color: "#3a6ea5", floor_raise_m: -0.55 } } };
-  const { slot } = await newSlot("scr-sunk", { model: SUNK, floors: SUNK.floors });
+  const { slot } = await newSlot("scr-sunk", { model: SUNK, floors: SUNK.floors, ...ON_MAIN });
   const st = S(slot), by = Object.fromEntries(st.names.map(n => [n.room, n])), den = st.chips.find(c => c.room === "Den");
   check("names: a sunken room's name shows with its own floor, which is open over it",
     by.Den && by.Den.shown && !by.Den.covered && by["Living room"] && by["Living room"].shown && den && den.shown,

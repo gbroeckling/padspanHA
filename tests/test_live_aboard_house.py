@@ -53,7 +53,7 @@ def _case(h: dict, prefix: str) -> None:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("floors:", 3), ("floorsTop:", 1), ("walls:", 6), ("cutaway:", 1), ("quality:", 3), ("lights:", 5),
+    ("floors:", 3), ("floorsTop:", 1), ("walls:", 6), ("cutaway:", 2), ("quality:", 3), ("lights:", 5),
     ("sun:", 5), ("compass:", 1), ("north:", 1), ("spin:", 4), ("room height:", 5), ("telemetry:", 1),
 ])
 def test_the_house_harness_covers_each_part(house, prefix, least) -> None:
@@ -196,5 +196,8 @@ def test_hidden_floors_cut_a_tall_rooms_walls() -> None:
     assert "const hid = floorsUi.filter(F => !F.fl.outdoor && !F.group.visible).map(F => F.fl.elev);" in top
     assert "clip = over.length ? Math.min(...over) - F.fl.elev - HOUSE.SLAB_T : null;" in top
     assert "for (const P of F.pieces) placePiece(F, P, P.cut);" in top
-    place = la[la.index("  function placePiece(F, P, cut){"):la.index("    if (P.open && P.open.wet) placeWet(F, P, cut);")]
-    assert "if (F.clip !== undefined && F.clip !== null && z1 > F.clip + 0.3) z1 = Math.max(e.z0, F.clip);" in place
+    place = la[la.index("  function placePiece(F, P, cut){"):la.index("    if (P.open && P.open.wet) placeWet(F, P, cut && !glass);")]
+    # The wall as drawn, and (Walls: Glass) the whole wall its glass reaches up to, both stop there.
+    assert "if (F.clip !== undefined && F.clip !== null) {" in place
+    assert "if (z1 > F.clip + 0.3) z1 = Math.max(e.z0, F.clip);" in place
+    assert "if (full > F.clip + 0.3) full = Math.max(e.z0, F.clip);" in place

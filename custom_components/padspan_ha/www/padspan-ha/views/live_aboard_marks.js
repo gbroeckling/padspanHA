@@ -481,17 +481,19 @@ export function createCodeLayer(ctx){
       return out;
     },
     /** Sized and shown for camera c over a view H px high; show: codes on
-     *  at all (the preference, and room scale). */
-    size(c, H, show){
+     *  at all (the preference, and the zoom); keep(C): only the codes it
+     *  keeps (a room opened: its own devices'), or every code. */
+    size(c, H, show, keep = null){
       const k = 2 * Math.tan((c.fov || 40) / 2 * Math.PI / 180) / Math.max(1, H);
       // A covered code (behind a wall, under a floor) is worked out only when the camera moved.
-      const key = show ? c.matrixWorld.elements.map(v => v.toFixed(3)).join(",") + H : "off";
+      const key = show ? c.matrixWorld.elements.map(v => v.toFixed(3)).join(",") + H + (keep ? `|${keep.key || "keep"}` : "") : "off";
       const again = key !== camKey;
       camKey = key;
       shownN = 0;
       const W = H * (c.aspect || 1), seen = [];
+      const want = (C) => !!show && C.F.group.visible && (!keep || keep(C));
       for (const C of chips.values()) {
-        let on = !!show && C.F.group.visible;
+        let on = want(C);
         if (on && again) {
           _p.copy(C.v).project(c);
           C.out = !(_p.z > -1 && _p.z < 1 && Math.abs(_p.x) <= 1.05 && Math.abs(_p.y) <= 1.05);
@@ -513,7 +515,7 @@ export function createCodeLayer(ctx){
         }
       }
       for (const C of chips.values()) {
-        let on = !!show && C.F.group.visible;
+        let on = want(C);
         on = on && !C.out && !C.hid && !C.crowd;
         C.sprite.visible = on;
         if (!on) continue;
