@@ -647,6 +647,7 @@ export function helpTexts() { return {
       t("Hold Room Through Short Gaps — when a device goes quiet for a moment and comes back, the panel keeps showing the room it was in for up to this many seconds, instead of no room. It only changes what is shown, not how rooms are decided. Default 0 (off), range 0–600 s."),
       t("Why This Room (Sensor Attribute) — adds a room_reason attribute to each area sensor in Home Assistant saying why the device is in that room, such as the votes for it and the top room scores. Handy for fixing a room that keeps flipping. Off by default; it adds to what Home Assistant's recorder stores."),
       t("Home/Away Timeout — how long a device can go unheard before Home Assistant marks it away (not_home); its device tracker and area sensor both change. Raise it if devices drop out for a moment in normal use. Default 5 minutes, range 1 minute to 24 hours."),
+      t("Things keep their room — keys, tags and anything else no person carries stay in the room they were last seen in for this long before Home Assistant marks them away (not_home); the Home/Away Timeout is for what people carry. A device is carried when it is added to a person in Home Assistant (Settings → People → Track devices), picked for them in Live Aboard (Furnish → People & devices), or has the person's name. Default 6 hours, range 0.5 to 48 hours; 0 makes things go away after the Home/Away Timeout too."),
       t("Each number box has its own Save button."),
     ],
   },
