@@ -29,6 +29,41 @@ The other ways in:
   them first and pick what to keep; nothing is written until you commit.
 - **People & devices:** see below.
 
+## Kitchens and bathrooms
+
+Build ▾ has a **Kitchen** and a **Bathroom** heading:
+
+- **Kitchen:** base cabinets (doors, drawers, or a drawer over doors), wall cabinets (doors, glass,
+  lift-up or open), tall cabinets (doors, an oven, or an oven and a microwave), a sink with one or
+  two bowls, a hob or a freestanding cooker (induction or gas), a dishwasher and a fridge (tall,
+  double or under the counter). Each base unit has its own worktop, so a row of them side by side
+  reads as one.
+- **Bathroom:** a toilet (on the floor or hung on the wall), a basin (on a vanity, a pedestal or the
+  wall; one or two), a bath (built-in or freestanding) and a shower (a glass enclosure or a walk-in
+  screen).
+- A sink's or a basin's **Height** goes up to the top of its tap: a 1.2 m sink has its worktop at
+  0.9 m, level with the cabinets beside it. Under a window only the worktop counts, so a sink fits
+  under a sill as high as its worktop, its tap in front of the glass.
+- To put up a wall cabinet, set its **Height in room** to 1.45 m (the usual height over a 0.9 m
+  worktop) and drag it to the wall, or use **Hang on wall**.
+- **Library** has ready-made kitchen and bathroom pieces too, with the shared library on or off.
+
+## Room sets
+
+**Build ▾ → Room sets** furnishes a whole room in one tap: **Kitchen, one wall**, **Kitchen,
+L-shaped**, **Bathroom**, **Bedroom**, **Living room**, **Dining room** or **Office**.
+
+- Turn the view so the room is in the middle, then pick a set.
+- Pieces go along the walls with their backs to them. They step past doors, windows and anything
+  already in the room, and always stay inside it. PadSpan tries each wall in turn and keeps the
+  one that fits the most.
+- In a kitchen, the wall cabinets hang over the base units, and when the base units pass under a
+  window, the sink goes under it.
+- A piece with no room is left out, and the message says how many.
+- It's a first go to adjust: drag, turn, change or delete any piece. In an odd-shaped room expect
+  fewer pieces, and an L-shaped kitchen can leave a small gap in its corner. One **Undo** takes the
+  whole set away, and nothing is kept until **Save**.
+
 ## Moving and setting a piece
 
 - **Drag** a piece across the floor. Its back snaps to the walls, and two short lines show how far
