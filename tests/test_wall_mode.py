@@ -166,7 +166,7 @@ def test_live_aboard_re_reads_the_scale_when_settings_change_it():
 def test_a_portrait_wall_opens_on_the_whole_house_not_room_scale():
     la = _src("views/live_aboard.js")
     assert "if (camera.aspect >= 0.8 || onWallPage(root)) return;" in la, "the first view"
-    assert "if (camera.aspect < 0.8 && !onWallPage(root)) g.radius" in la, "and the sidebar's home view"
+    assert "if (camera.aspect < 0.8 && !onWallPage(root) && !explodeGap()) g.radius" in la, "and the sidebar's home view (floors pulled apart: whole)"
 
 
 def test_a_wall_is_the_map_alone_no_table_under_it():
