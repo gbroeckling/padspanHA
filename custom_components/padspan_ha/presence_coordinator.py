@@ -185,6 +185,24 @@ _EMA_PRUNE_DBM: float = -98.0
 # Phantom RSSI injected each poll for sources that have gone silent (drives decay).
 _EMA_SILENCE_DBM: float = -100.0
 
+# A reading more than this many standard deviations (of the estimate plus
+# the measurement noise) above a scanner's estimate is taken as movement and
+# followed with at least _RISE_GAIN (_smooth_room, Stage 1).
+_RISE_SIGMAS: float = 3.0
+_RISE_GAIN: float = 0.8
+# A drop further than this many standard deviations, with no move behind it,
+# counts only as far as this: a multipath fade must not drag the estimate.
+_FADE_SIGMAS: float = 2.0
+
+# A source counts as silent after this many times its longest recent gap
+# between adverts from the device (at least the 20 s grace, at most
+# _SILENCE_CAP_S; _smooth_room). The record of the longest gap fades by
+# _SILENCE_GAP_FADE with each new advert, so a scanner retuned to hear more
+# is trusted again within a few minutes.
+_SILENCE_GAPS: float = 2.5
+_SILENCE_CAP_S: float = 120.0
+_SILENCE_GAP_FADE: float = 0.9
+
 # Number of consecutive missed polls before a device starts accumulating age_s.
 # Away grace is expressed in SECONDS and converted to polls at runtime —
 # poll-count constants would silently retune whenever the user changes
@@ -295,6 +313,14 @@ _UNSURE_FP_CONF: float = 1.0 / (1.0 + 8.0 ** 2 / 25.0)
 # positioning_unsure: polls in a row of thin evidence for the same new room
 # after which it counts anyway (a 2-scanner corner must still change rooms).
 _UNSURE_HOLD_POLLS: int = 5
+# A move whose new room's strongest scanner leads the shown room's by this
+# much is a clear move: held for half of Room Change Delay (at least two
+# polls) it is shown then, if the room is next door (_smooth_room). Well over
+# the 3 dB hysteresis, so a doorway's near-tie is never clear.
+_CLEAR_LEAD_DB: float = 8.0
+# A move counts as one this house usually makes when at least this share of
+# the moves out of the room (adaptive learning's counts) went there.
+_USUAL_MOVE_SHARE: float = 0.10
 # positioning_sensor_fusion: rooms within this many dB of the candidate's
 # strongest scanner are close enough for sensors to break the tie.
 _FUSION_MARGIN_DB: float = 3.0
@@ -429,6 +455,11 @@ def _range_weight(d_h: float, d_slant: float) -> float:
 # receiver positions, i.e. "somewhere among these radios" — rather than a
 # confident-looking point.
 _POSITION_MAX_SIGMA_M = 5.0
+
+# How far into the next room a solved position must be before it counts for
+# that room rather than the one the device is shown in (_smooth_room, Path A):
+# the metre twin of the strongest-scanner path's 3 dB.
+_SPATIAL_HYST_M: float = 0.75
 
 # The standard error of a single range, in metres, below which we do not
 # believe our own measurements.
@@ -779,6 +810,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._kalman_p: dict[str, dict[str, float]] = {}
         # {addr: {source: consecutive_miss_count}} — silence grace tracking
         self._silence_miss: dict[str, dict[str, int]] = {}
+        # {(addr, source): last_seen} — the advert each reading came from on
+        # the last poll, so the next one uses it only once (_async_poll).
+        self._adverts_used: dict[tuple[str, str], Any] = {}
+        # {addr: {source: polls}} — how many polls apart this scanner's new
+        # adverts from the device usually are (its silence grace scales with it)
+        self._advert_gap: dict[str, dict[str, float]] = {}
         # Sources masked out of positioning (issue #59), read from settings.
         self._excluded_cache: frozenset[str] = frozenset()
         self._floor_cache: dict[str, float] = {}
@@ -804,6 +841,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # positioning_unsure holds a device's room on thin evidence.
         self._room_unsure: dict[str, str] = {}
         self._unsure_run: dict[str, tuple[str | None, int]] = {}
+        # {key: (room, polls)} — polls in a row a move to `room` has been clear
+        # (_CLEAR_LEAD_DB ahead of the shown room); a clear move is shown sooner.
+        self._clear_run: dict[str, tuple[str, int]] = {}
         # {room: (monotonic, corroborated)} — motion/occupancy/presence per
         # area for positioning_sensor_fusion, looked up at most every 5 s.
         self._corr_cache: dict[str, tuple[float, bool | None]] = {}
@@ -1022,12 +1062,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._ema_rssi.clear()
         self._kalman_p.clear()
         self._silence_miss.clear()
+        self._advert_gap.clear()
         self._kalman_addr_key.clear()
         self._room_votes.clear()
         self._confirmed_room.clear()
         self._room_confidence.clear()
         self._room_unsure.clear()
         self._unsure_run.clear()
+        self._clear_run.clear()
         self._rssi_margin_confidence.clear()
         self._knn_position.clear()
         self._smooth_xy.clear()
@@ -1262,6 +1304,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _cal_ages: dict[tuple[str, str], float] = {}
         _es_map: dict[str, dict[str, float]] = {}
         _ad_ages: dict[tuple[str, str], float] = {}
+        _ad_seen: dict[tuple[str, str], Any] = {}
         for ad in (snap.get("ble") or {}).get("advertisements") or []:
             raw_addr = str(ad.get("address") or "").upper()
             addr = _rpa_map.get(raw_addr, raw_addr)  # canonical or raw
@@ -1301,6 +1344,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             or (abs(_a - _prev_a) <= 0.5 and float(rssi) > existing[str(src)])):
                         existing[str(src)] = float(rssi)
                         _ages[_k2] = _a
+                        if _ages is _ad_ages:
+                            _ad_seen[_k2] = ad.get("last_seen")
             if _floored:
                 continue
             # ESPresense nodes publish a node-calibrated, node-filtered
@@ -1313,6 +1358,20 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except (TypeError, ValueError):
                     pass
         self._espresense_dist = _es_map
+        # ── Each advert once ────────────────────────────────────────────────
+        # A reading is kept for positioning while it is under three polls old,
+        # so a scanner with nothing new handed the Kalman the same advert two
+        # or three polls running, and each time the filter took it as fresh
+        # evidence: the old reading pulled harder than one reading should, and
+        # the filter grew surer than it was. An advert the last poll already
+        # used (the same scanner, the same time heard) is left out now; to the
+        # Kalman that scanner simply has nothing new this poll, which its
+        # silence grace already handles. Readings with no time are kept.
+        _used_prev = self._adverts_used
+        self._adverts_used = {k: v for k, v in _ad_seen.items() if v}
+        for (_ua, _us), _seen in self._adverts_used.items():
+            if _used_prev.get((_ua, _us)) == _seen:
+                (addr_src_rssi.get(_ua) or {}).pop(_us, None)
         if _floors:
             # Readings the receivers' floors kept out this poll (opt-in report).
             record_duration(self.hass, "floor_drop", float(_floor_drops))
@@ -1584,6 +1643,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._room_confidence.pop(key, None)
                         self._room_unsure.pop(key, None)
                         self._unsure_run.pop(key, None)
+                        self._clear_run.pop(key, None)
                         # A device that was away and is back must not be judged on
                         # readings from before it left. That applies to every kind
                         # of location evidence, not just the coverage window —
@@ -1616,10 +1676,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             self._ema_rssi.pop(addr_clear, None)
                             self._kalman_p.pop(addr_clear, None)
                             self._silence_miss.pop(addr_clear, None)
+                            self._advert_gap.pop(addr_clear, None)
                         elif obj.get("kind") == "ibeacon":
                             self._ema_rssi.pop(key, None)
                             self._kalman_p.pop(key, None)
                             self._silence_miss.pop(key, None)
+                            self._advert_gap.pop(key, None)
 
                     # Cache the live copy for home/away persistence
                     self._last_seen[key] = now
@@ -1645,7 +1707,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         smoothed_room = self._smooth_room(
                             key, smooth_addr, addr_src_rssi, source_to_area,
                             _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
-                            _fabric_rooms)
+                            _fabric_rooms, now)
                         if smoothed_room:
                             obj["room"] = smoothed_room
                         obj["_smoothed"] = True
@@ -1699,7 +1761,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         smoothed_room = self._smooth_room(
                             key, key, synthetic, source_to_area,
                             _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
-                            _fabric_rooms)
+                            _fabric_rooms, now)
                         if smoothed_room:
                             obj["room"] = smoothed_room
                         obj["_smoothed"] = True
@@ -2278,6 +2340,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         vote_threshold: int = _VOTE_THRESHOLD,
         source_to_floor: dict[str, str] | None = None,
         fabric_rooms: set[str] | None = None,
+        now: float | None = None,
     ) -> str | None:
         """Run one poll cycle of the full smoothing pipeline for a single BLE device.
 
@@ -2298,6 +2361,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             vote_window / vote_threshold: Dynamic sizing from room_change_delay_s
             source_to_floor: {scanner_source: floor_id} for cross-floor logic
             fabric_rooms: Room names from fabric geometry (tie-breaking)
+            now: the poll's time (monotonic seconds); a replay passes the
+                recorded time, so a dwell is measured in the recording's
+                seconds, not in how fast the replay runs. Default: now.
             (Map-centric parameters removed — fabric is the sole authority)
 
         Returns the confirmed (stable) room name, or None if not yet established.
@@ -2308,6 +2374,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # all) access sites; a None source_to_floor crashed the
         # _scanners_per_floor loop below.
         source_to_floor = source_to_floor or {}
+        _t_now = time.monotonic() if now is None else float(now)
         # Phase 1/2: resolve ModelStore for fabric adjacency + metre thresholds
         _model = self.hass.data.get(DOMAIN, {}).get(DATA_MODEL)
 
@@ -2351,6 +2418,31 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _poll_s = max(1.0, self.update_interval.total_seconds())
         _Q = _Q * (_poll_s / 10.0)
 
+        if addr not in self._silence_miss:
+            self._silence_miss[addr] = {}
+        _miss = self._silence_miss[addr]
+
+        def _p_now(src: str) -> float:
+            # The held value is as old as the polls the scanner had nothing
+            # new: its uncertainty grew by Q for each, so the first reading
+            # after a quiet spell counts for more.
+            return kp.get(src, _R) + _Q * _miss.get(src, 0)
+
+        def _jump(src: str, rssi: float) -> float:
+            # How far a reading is from the estimate, in standard deviations
+            # of the estimate plus the measurement noise.
+            _rs = _R * 0.25 if src.startswith("espresense_") else _R
+            return (rssi - ema[src]) / math.sqrt(_p_now(src) + _rs)
+
+        # Far stronger than the noise allows at some scanner: the device came
+        # closer to it, so it moved. BLE noise is lopsided — a multipath fade
+        # takes 10 dB off a reading, nothing adds 10 dB — so a reading that far
+        # ABOVE the estimate is movement and is followed at once, and so is a
+        # drop that size elsewhere in the same poll (the scanner it walked away
+        # from). A drop alone may be a fade and keeps the ordinary gain.
+        _moved = any(src in ema and _jump(src, rssi) > _RISE_SIGMAS for src, rssi in live_srcs.items())
+        _first_heard = {src for src in live_srcs if src not in ema}
+
         # Kalman update for sources that reported this poll.
         # K (Kalman gain) adapts automatically: high P (uncertainty) → K≈1
         # (trust new measurement); low P → K≈0 (trust existing estimate).
@@ -2360,9 +2452,17 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # with the same R as raw proxy advertisements.
             _r_src = _R * 0.25 if src.startswith("espresense_") else _R
             if src in ema:
-                p = kp.get(src, _R)
+                p = _p_now(src)
                 K = p / (p + _r_src)                    # Kalman gain
-                ema[src] = ema[src] + K * (rssi - ema[src])  # state update
+                _nu = rssi - ema[src]
+                _z = _jump(src, rssi)
+                if _moved and abs(_z) > _RISE_SIGMAS:
+                    K = max(K, _RISE_GAIN)
+                elif _z < -_FADE_SIGMAS:
+                    # A drop with no move behind it: most likely a fade. It
+                    # counts, but only as far as a drop the noise allows.
+                    _nu = -_FADE_SIGMAS * math.sqrt(p + _r_src)
+                ema[src] = ema[src] + K * _nu           # state update
                 kp[src] = (1.0 - K) * p + _Q            # covariance update
             else:
                 ema[src] = rssi   # first observation — seed directly
@@ -2379,21 +2479,45 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ~20 s of silence before decay starts, expressed in polls at the
         # current interval (2 at the historical 10 s poll, 4 at 5 s)
         _SILENCE_GRACE = max(1, round(20.0 / _poll_s))
-        if addr not in self._silence_miss:
-            self._silence_miss[addr] = {}
-        _miss = self._silence_miss[addr]
+        # ...or longer for a scanner that goes longer between adverts from
+        # this device. A proxy left at ESPHome's default scan window catches
+        # about one advert in ten, so 20-60 s without one is normal while the
+        # device sits beside it; counting that as silence decayed the room's
+        # own scanner and moved a still device next door. Silence is now
+        # judged against the longest gaps this scanner has had lately
+        # (_SILENCE_GAPS times them, up to _SILENCE_CAP_S). A device that
+        # really leaves shows up elsewhere: that ends the grace at once (the
+        # move rule below), so a long grace does not hold a departure.
+        _gaps = self._advert_gap.setdefault(addr, {})
+        _grace_cap = max(_SILENCE_GRACE, round(_SILENCE_CAP_S / _poll_s))
+
+        def _grace(src: str) -> int:
+            _g = _gaps.get(src, 0.0)
+            if _g <= 1.0:                      # heard every poll: the plain grace
+                return _SILENCE_GRACE
+            return max(_SILENCE_GRACE, min(_grace_cap, math.ceil(_SILENCE_GAPS * _g)))
 
         _all_silent = len(live_srcs) == 0 and len(ema) > 0
         _decay_target = -95.0 if _all_silent else _EMA_SILENCE_DBM
 
-        # Reset miss counter for sources that reported this poll
+        # Reset miss counter for sources that reported this poll, after
+        # noting how many polls this advert came after: a slowly fading
+        # record of the longest gap.
         for src in live_srcs:
-            _miss.pop(src, None)
+            _gap = _miss.pop(src, 0) + 1
+            if src not in _first_heard:        # a first reading follows no gap
+                _gaps[src] = max(float(_gap), _gaps.get(src, 0.0) * _SILENCE_GAP_FADE)
 
         for src in list(ema):
             if src not in live_srcs:
                 _miss[src] = _miss.get(src, 0) + 1
-                if _miss[src] < _SILENCE_GRACE:
+                # The grace holds a scanner's last reading on the assumption
+                # that the device is where it was. It has just moved (above):
+                # a held reading now says where it WAS, so the grace is over
+                # for every scanner with nothing new.
+                if _moved:
+                    _miss[src] = max(_miss[src], _grace(src))
+                if _miss[src] < _grace(src):
                     continue  # grace period — hold RSSI steady, don't decay
                 # Hard cap: the all-silent decay target (-95) sits ABOVE the
                 # -98 prune threshold, so entries asymptotically approach -95
@@ -2402,6 +2526,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     del ema[src]
                     kp.pop(src, None)
                     _miss.pop(src, None)
+                    _gaps.pop(src, None)
                     continue
                 p = kp.get(src, _R)
                 K = p / (p + _R)
@@ -2411,6 +2536,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     del ema[src]
                     kp.pop(src, None)
                     _miss.pop(src, None)
+                    _gaps.pop(src, None)
 
         # Live subset: only sources that reported THIS poll.  Synthetic
         # hold/decay values stay in `ema` for room-score hysteresis and
@@ -2458,7 +2584,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # for an outdoor device from indoor scanners is a centroid inside the
         # house, which is exactly how a parked vehicle came to live in a
         # closet. Without outdoor evidence the rule changes nothing.
-        _live_fresh = {s_: v_ for s_, v_ in ema.items() if _miss.get(s_, 0) < _SILENCE_GRACE}
+        _live_fresh = {s_: v_ for s_, v_ in ema.items() if _miss.get(s_, 0) < _grace(s_)}
         _best_live = max(_live_fresh.values()) if _live_fresh else None
         # Decide from the trailing window, not this poll. A scanner dropping out
         # of the silence grace takes the instantaneous max down with it, and the
@@ -2539,7 +2665,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # and four more moved back on the recovery poll.
                 _src_list: list[tuple[str, float, float, float, str]] = []
                 for _src, _rssi in ema.items():
-                    if _miss.get(_src, 0) >= _SILENCE_GRACE:
+                    if _miss.get(_src, 0) >= _grace(_src):
                         continue
                     _sp = self._scanner_positions.get(_src)
                     if not _sp:
@@ -2759,6 +2885,19 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _in_building = _fabric_truth.inside_building_footprint(
                                 _est_x, _est_y, self._floor_rooms.get(str(_best_floor or "main"))
                             )
+                            # Hysteresis, as the strongest-scanner path has in
+                            # dB: a position only just over the line into the
+                            # next room is still the room it is in. A still
+                            # device's solved position wanders a metre or two
+                            # with the noise, and with no margin every wander
+                            # across a wall was a vote for next door.
+                            if _geo_room and _cur_confirmed and _geo_room != _cur_confirmed:
+                                _d_cur = _fabric_truth.room_distance_m(
+                                    (self._floor_rooms.get(str(_best_floor or "main")) or {}).get(_cur_confirmed),
+                                    _est_x, _est_y)
+                                if _d_cur is not None and _d_cur < _SPATIAL_HYST_M:
+                                    self._spatial_debug[key] += f">{_geo_room}(held:{_d_cur:.1f}m)"
+                                    _geo_room = _cur_confirmed
                             if _geo_room:
                                 # Inside a drawn room: position AND room.
                                 _spatial_xy = (_est_x, _est_y, _best_floor)
@@ -2816,7 +2955,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # a held-fresh value inside the grace still votes). One window,
             # the same one the RSSI stage holds through.
             for _src, _rssi in ema.items():
-                if _miss.get(_src, 0) > _SILENCE_GRACE:
+                if _miss.get(_src, 0) > _grace(_src):
                     continue
                 _room = source_to_area.get(_src)
                 if not _room:
@@ -3234,6 +3373,29 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if candidate is not None and not _hold:
             votes.append(candidate)
 
+        # ── A clear move ─────────────────────────────────────────────────────
+        # This poll's room is a clear move when its strongest scanner leads the
+        # shown room's by _CLEAR_LEAD_DB (and the solved position, if there is
+        # one, is in it too). Held for half of Room Change Delay (at least two
+        # polls), a clear move to a next-door room is shown then, rather than
+        # after the full vote; a close call, a far room, another floor or
+        # outdoors still waits for all of it. A doorway reads about the same
+        # from both sides, so it is never clear, which is what Room Change
+        # Delay is there for.
+        _shown = self._confirmed_room.get(key)
+        _clear_n = 0
+        if (_shown and candidate and candidate != _shown and not _hold
+                and room_scores.get(candidate) is not None
+                and (not _spatial_candidate or _spatial_candidate == candidate)
+                and room_scores[candidate] - room_scores.get(_shown, _EMA_SILENCE_DBM) >= _CLEAR_LEAD_DB):
+            _prev_clear = self._clear_run.get(key)
+            _clear_n = _prev_clear[1] + 1 if _prev_clear and _prev_clear[0] == candidate else 1
+            self._clear_run[key] = (candidate, _clear_n)
+        else:
+            self._clear_run.pop(key, None)
+        # Half of Room Change Delay, in polls (two at the default 20 s).
+        _fast_n = min(vote_threshold, max(2, round(vote_window / 2)))
+
         # Count votes per room and check if any room meets the threshold
         counts: dict[str, int] = {}
         for v in votes:
@@ -3251,7 +3413,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # single poll after a state reset must not report 1.0 and satisfy
             # the adaptive-learning / scanner-reliability confidence gates.
             confidence = round(top_count / vote_window, 2)
-            if top_count >= vote_threshold:
+            # A clear move is judged on its own room, even while the shown
+            # room still holds as many votes.
+            _clear_move = _clear_n >= _fast_n
+            if _clear_move:
+                top_room, top_count = candidate, counts.get(candidate, 0)
+            if top_count >= vote_threshold or _clear_move:
                 if top_room != confirmed:
                     # ── Velocity gate ────────────────────────────────────
                     # Three checks prevent teleportation:
@@ -3265,7 +3432,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # not block transitions entirely.
                     _vg_block = False
                     if confirmed is not None:
-                        _now_mono = time.monotonic()
+                        _now_mono = _t_now
                         # Check 1: dwell-proportional transition gate
                         # Short dwell (<30s): require unanimous (just arrived, likely noise)
                         # Medium dwell (30-120s): require supermajority
@@ -3325,7 +3492,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _required = min(len(votes), vote_threshold + 1)
                         else:
                             _required = vote_threshold  # normal
-                        if top_count < _required:
+                        # The clear move (above) needs no more, unless it
+                        # is to a far room, another floor or outdoors. A
+                        # move this house usually makes counts as near.
+                        _fast_ok = (_clear_move and not _is_outdoor_cross and not _is_cross_floor
+                                    and (not _is_distant or self._usual_move(confirmed, top_room)))
+                        if not _fast_ok and (top_count < _required or top_count < vote_threshold):
                             _vg_block = True
                             _LOGGER.debug(
                                 "Velocity gate blocked %s: %s → %s (dwell=%.0fs, rapid=%s, distant=%s, cross_floor=%s, votes=%d/%d need %d)",
@@ -3341,7 +3513,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         _from_room = confirmed if confirmed is not None else self._room_before_gap.pop(key, None)
                         if _from_room != top_room:
                             self._pending_room_changes.append((key, _from_room, top_room))
-                        _change_mono = time.monotonic()
+                        _change_mono = _t_now
                         self._last_room_change_mono[key] = _change_mono
                         self._room_dwell_start[key] = _change_mono
                         # Floor transition learning
@@ -3406,7 +3578,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _is_identified_device = self.is_identified_object(key)
         if _adaptive_on and confirmed and confidence >= 0.7 and _live_ema and _is_identified_device:
             try:
-                _now_mono = time.monotonic()
+                _now_mono = _t_now
                 _last = self._adaptive_last_obs.get(key, 0.0)
                 if (_now_mono - _last >= 300.0
                         and self._adaptive_obs_quality_ok(key, confirmed, dict(_live_ema), _now_mono)):
@@ -3594,6 +3766,17 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as _corr_err:
             _LOGGER.debug("Corroboration check for %s failed: %s", room, _corr_err)
             return None
+
+    def _usual_move(self, from_room: str, to_room: str) -> bool:
+        """A move this house makes often (adaptive learning's transition
+        counts, kept only while Adaptive learning is on)."""
+        try:
+            _ad = self.hass.data.get(DOMAIN, {}).get(DATA_ADAPTIVE)
+            if _ad is None or not hasattr(_ad, "transition_prior"):
+                return False
+            return float((_ad.transition_prior(from_room, [to_room]) or {}).get(to_room, 0.0)) >= _USUAL_MOVE_SHARE
+        except Exception:
+            return False
 
     def _prefer_knn_now(self) -> bool:
         """positioning_pick_better is on and the held-out test chose k-NN."""
@@ -3861,6 +4044,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._rssi_margin_confidence.pop(key, None)
         self._room_unsure.pop(key, None)
         self._unsure_run.pop(key, None)
+        self._clear_run.pop(key, None)
         self._knn_position.pop(key, None)
         self._smooth_xy.pop(key, None)
         self._spatial_position.pop(key, None)
@@ -3889,6 +4073,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._ema_rssi.pop(key, None)
         self._kalman_p.pop(key, None)
         self._silence_miss.pop(key, None)
+        self._advert_gap.pop(key, None)
         # Kalman state for ble/private_ble is keyed by (RPA-resolved) address,
         # not the object key — pop that too or a returning device resurrects
         # its pre-departure RSSI and transient devices leak state forever.
@@ -3897,6 +4082,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._ema_rssi.pop(_addr, None)
             self._kalman_p.pop(_addr, None)
             self._silence_miss.pop(_addr, None)
+            self._advert_gap.pop(_addr, None)
 
     def _rekey_kalman_state(self, key: str, smooth_addr: str) -> None:
         """Point an object's Kalman state at ``smooth_addr``, dropping any orphan.
@@ -3914,6 +4100,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._ema_rssi.pop(prev_addr, None)
             self._kalman_p.pop(prev_addr, None)
             self._silence_miss.pop(prev_addr, None)
+            self._advert_gap.pop(prev_addr, None)
         self._kalman_addr_key[key] = smooth_addr
 
     def _source_distances_m(self, source_rssi: dict[str, float], obj: dict) -> dict[str, float]:
@@ -4572,6 +4759,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._silence_miss[addr] = rest
             else:
                 self._silence_miss.pop(addr, None)
+        for gaps in self._advert_gap.values():
+            gaps.pop(source, None)
         return cleared
 
     async def _record_movement(self, result: dict[str, Any]) -> None:

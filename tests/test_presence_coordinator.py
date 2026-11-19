@@ -106,10 +106,11 @@ class TestKalmanUpdate:
         # Poll 2: P from previous = (1-K_prev)*P_prev + Q... wait, the P update happens in same poll.
         # Let's verify: after seed, P[scanner1] = R = 8.0
         # Poll 2 update: p=8.0, K = 8/(8+8) = 0.5, x_new = -60 + 0.5*(-50 - (-60)) = -60 + 5 = -55
-        # p_new = (1-0.5)*8 + Q = 4 + 0.125 = 4.125
+        # p_new = (1-0.5)*8 + Q, Q scaled by poll/10 s (10 s here)
         filtered = coord._ema_rssi["AA:BB"]["scanner1"]
         assert filtered == pytest.approx(-55.0)
-        assert coord._kalman_p["AA:BB"]["scanner1"] == pytest.approx(4.125)
+        poll_s = coord.update_interval.total_seconds()
+        assert coord._kalman_p["AA:BB"]["scanner1"] == pytest.approx(4.0 + DEFAULT_KALMAN_Q * poll_s / 10.0)
 
     def test_kalman_converges_to_stable_rssi(self) -> None:
         """Repeated identical measurements should converge the filter to the true value."""

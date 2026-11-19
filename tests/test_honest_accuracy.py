@@ -155,8 +155,12 @@ def digest(rows: list[Any]) -> str:
     return hashlib.sha256(json.dumps(rows, sort_keys=True, default=str).encode()).hexdigest()
 
 
-# Recorded from 0.38.164's presence_coordinator on walk() above.
-GOLDEN_0_38_164 = "b5d6d0d9cca7454ef5fd6546ba2d122ebf9d028058a5401a9f1172e5174e3dc9"
+# Recorded from 0.38.164's presence_coordinator on walk() above, and again
+# when room changes got faster (November 2026: the Kalman stage follows a move
+# at once and discounts a lone fade, a seldom-heard scanner is held for its own
+# gaps, a clear move next door takes half the vote). With the three settings
+# off, the pipeline must give exactly this.
+GOLDEN_0_38_164 = "afbeb76270f8f91149327d261eed79022d17b630b4956db644b80588527c6361"
 
 
 def test_settings_off_give_exactly_what_0_38_164_gave():

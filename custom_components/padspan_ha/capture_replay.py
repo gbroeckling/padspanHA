@@ -200,8 +200,10 @@ def replay(header: dict[str, Any], frames: list[dict[str, Any]],
                 seeded.add(key)
                 seed_warm_state(coord, key, addr, obj.get("w") or {})
                 continue   # its inputs produced the state we just seeded
+            # The recorded time, so the vote's dwell rules see the walk's
+            # seconds rather than how fast this loop runs.
             got = coord._smooth_room(key, addr, {addr: obj.get("v") or {}},
-                                     s2a, vw, vt, s2f, rooms)
+                                     s2a, vw, vt, s2f, rooms, frame.get("ts"))
             out.append({
                 "ts": frame["ts"], "k": key,
                 "got": got,
