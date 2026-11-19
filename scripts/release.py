@@ -766,87 +766,178 @@ def push_release(tag, attempts=3, run_=None, sleep=time.sleep):
 
 # ───────────────────────── GitHub release ────────────────────────────
 
-# Every release's notes end with this. HACS shows the notes to everyone who
-# updates, the widest audience PadSpan has (Garry, 2026-10-15). Change or
-# empty it here; an empty string adds nothing.
+# The GitHub release's notes are what HACS and the Home Assistant Marketplace
+# show in the update dialog, to everyone who updates: the widest audience
+# PadSpan has. They carry the CHANGELOG.md sections (a beta its own, a stable
+# every section since the last stable, as the panel's notes do), then how to
+# update, then the footer. They said only "Release v0.38.x" before 2026-11-18.
+RELEASE_HOW_TO_UPDATE = (
+    "\n\n### How to update\n"
+    "Settings → System → Updates in Home Assistant (or PadSpan HA in HACS): install, restart Home Assistant, "
+    "then reload the PadSpan page (Ctrl+F5)."
+)
+RELEASE_HOW_TO_UPDATE_BETA = " HACS offers a beta only to those who asked it for betas."
+# Every release's notes end with this (Garry, 2026-10-15). Change or empty it
+# here; an empty string adds nothing.
 RELEASE_NOTES_FOOTER = (
     "\n\n### PadSpan Pro free\n"
     "Testers get two years of PadSpan Pro while the anonymous usage report stays on: "
     "Settings → Tracking → Help improve PadSpan. More ways: https://padspan.traks.ca/#pro-free"
 )
+# GitHub refuses a release body over 125,000 characters; a stable after a long
+# run of betas is cut at whole sections below that, with a link to the rest.
+RELEASE_BODY_MAX = 120_000
+CHANGELOG_URL = f"https://github.com/{REPO}/blob/main/CHANGELOG.md"
 
-def create_github_release(tag, channel, message=None):
-    """
-    Create a GitHub release and upload the zip asset.
 
-    GitHub API sometimes returns HTTP 500.  When `gh release create` fails,
-    we fall back to:
-      1. gh api  repos/.../releases  (create the release object)
-      2. gh release upload            (attach the zip asset)
+def last_stable_release(run_=None):
+    """The newest stable (not pre-release, not draft) release on GitHub as
+    'X.Y.Z', or None when GitHub can't say."""
+    run_ = run_ or (lambda c: subprocess.run(c, shell=True, text=True, capture_output=True))
+    res = run_(f"gh release list --repo {REPO} --limit 200 --json tagName,isPrerelease,isDraft")
+    try:
+        rels = json.loads(res.stdout or "[]") if res.returncode == 0 else []
+    except ValueError:
+        rels = []
+    vs = [str(r.get("tagName")).lstrip("v") for r in rels
+          if not r.get("isPrerelease") and not r.get("isDraft")
+          and re.fullmatch(r"v?\d+\.\d+\.\d+", str(r.get("tagName") or ""))]
+    return max(vs, key=_vkey) if vs else None
+
+
+def release_notes_sections(version, channel, changelog, since=None):
+    """CHANGELOG.md's sections for this release's notes, newest first: a beta's
+    own; a stable's every section after the last stable `since`, up to it."""
+    secs = changelog_sections(changelog)
+    own = [s for s in secs if s["version"] == version]
+    if channel == "stable" and since:
+        return [s for s in secs if _vkey(since) < _vkey(s["version"]) <= _vkey(version)] or own
+    return own
+
+
+def release_body(tag, channel, sections, message=None, since=None):
+    """The release's notes: the sections (headings one level down, under each
+    version's own), how to update, the footer. Credits in a note ("thanks
+    @name (#123)", changelog.d/README.md) come through as written."""
+    beta = channel != "stable"
+    tail = RELEASE_HOW_TO_UPDATE + (RELEASE_HOW_TO_UPDATE_BETA if beta else "") + RELEASE_NOTES_FOOTER
+    parts = [f"## PadSpan HA {tag} ({'BETA' if beta else 'STABLE'})"]
+    if message:
+        parts.append(message)
+    if not sections:
+        if not message:
+            parts.append(f"Release {tag}")
+        return "\n\n".join(parts) + tail
+    if not beta and since and len(sections) > 1:
+        parts.append(f"Everything since the last stable release, v{since}, newest first.")
+    room = RELEASE_BODY_MAX - len("\n\n".join(parts)) - len(tail) - 400
+    shown = 0
+    for s in sections:
+        body = re.sub(r"^(#{2,5}) ", r"#\1 ", s["body_markdown"], flags=re.MULTILINE)
+        block = f"### {s['version']} — {s['title']} ({s['date']})\n\n{body}"
+        if shown and len(block) + 2 > room:
+            break
+        parts.append(block)
+        room -= len(block) + 2
+        shown += 1
+    if shown < len(sections):
+        parts.append(f"The changes before v{sections[shown - 1]['version']} are in [CHANGELOG.md]({CHANGELOG_URL}).")
+    return "\n\n".join(parts) + tail
+
+
+def create_github_release(tag, channel, message=None, run_=None, sleep=time.sleep):
     """
+    Create the GitHub release with the zip attached and the CHANGELOG notes.
+
+    `gh release create` with the zip does it in one go (gh makes it a draft,
+    uploads, then publishes). GitHub's API sometimes answers HTTP 500; then:
+      1. gh api repos/.../releases   create it as a DRAFT, with the notes
+      2. gh release upload           attach the zip
+      3. check the draft has the zip, then publish it (draft=false)
+    A published release without its zip is a failed install for anyone whose
+    HACS looks in that window (zip_release), so it is never published first.
+    """
+    run_ = run_ or (lambda cmd: run(cmd, check=False))
     is_prerelease = channel != "stable"
-    channel_label = "BETA" if is_prerelease else "STABLE"
-    summary = message or f"Release {tag}"
-    notes = (
-        f"## PadSpan HA {tag} ({channel_label})\n\n"
-        f"{summary}\n\n"
-        "### Install / Update\n"
-        "Install or update via HACS: search for PadSpan HA (it is in the HACS default list)."
-        + RELEASE_NOTES_FOOTER
-    )
+    version = tag.lstrip("v")
+    since = None
+    if not is_prerelease:
+        since = last_stable_release()
+        if not since:
+            print("  !! GitHub did not say which release was the last stable: the notes carry only this version's section.")
+    sections = release_notes_sections(version, channel, (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), since)
+    if not sections:
+        print(f"  !! CHANGELOG.md has no section for {version}: the release notes have none.")
+    notes = release_body(tag, channel, sections, message, since)
 
-    # ── Attempt 1: gh release create (one-shot, preferred) ──
     with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as f:
         f.write(notes)
         notes_file = f.name
-
-    prerelease_flag = " --prerelease" if is_prerelease else ""
     try:
-        result = run(
-            f'gh release create {tag} "{ZIP_PATH}" '
-            f'--title "{tag}" '
-            f'--notes-file "{notes_file}" '
-            f'--repo {REPO}{prerelease_flag}',
-            check=False,
-        )
-        if result.returncode == 0:
-            return  # success
-        print("    gh release create failed, trying API fallback...")
+        _create_release(tag, is_prerelease, notes_file, run_, sleep)
     finally:
         os.unlink(notes_file)
 
-    # ── Attempt 2: gh api + gh release upload (two-step fallback) ──
+
+def _create_release(tag, is_prerelease, notes_file, run_, sleep):
+    # ── Attempt 1: gh release create (one-shot, preferred) ──
+    prerelease_flag = " --prerelease" if is_prerelease else ""
+    result = run_(
+        f'gh release create {tag} "{ZIP_PATH}" '
+        f'--title "{tag}" '
+        f'--notes-file "{notes_file}" '
+        f'--repo {REPO}{prerelease_flag}'
+    )
+    if result.returncode == 0:
+        return  # success
+    print("    gh release create failed, trying API fallback (a draft until the zip is on it)...")
+
+    # ── Attempt 2: a draft through the API, the zip, a check, then publish ──
     prerelease_api = " -F prerelease=true" if is_prerelease else ""
+    rel_id = None
     for attempt in range(3):
-        result = run(
+        result = run_(
             f'gh api repos/{REPO}/releases '
-            f'-f tag_name={tag} -f name={tag} -f body="{tag}"{prerelease_api}',
-            check=False,
+            f'-f tag_name={tag} -f name={tag} -F "body=@{notes_file}" -F draft=true{prerelease_api} --jq .id'
         )
-        if result.returncode == 0:
+        if result.returncode == 0 and (result.stdout or "").strip().isdigit():
+            rel_id = result.stdout.strip()
             break
         print(f"    API release create failed (attempt {attempt + 1}/3), retrying in 3s...")
-        time.sleep(3)
+        sleep(3)
     else:
         print("  ERROR: Could not create GitHub release after all attempts.")
-        print("  The code is pushed. Create the release manually:")
-        print(f'    gh release create {tag} "dist/padspan_ha.zip" --title "{tag}" --notes "{tag}" --repo {REPO}')
+        print("  The code is pushed. Create the release manually (the notes: CHANGELOG.md's section):")
+        print(f'    gh release create {tag} "dist/padspan_ha.zip" --title "{tag}" --notes "{tag}" --repo {REPO}'
+              + (" --prerelease" if is_prerelease else ""))
         sys.exit(1)
 
-    # Upload the zip asset
-    for attempt in range(3):
-        result = run(
-            f'gh release upload {tag} "{ZIP_PATH}" --repo {REPO}',
-            check=False,
-        )
-        if result.returncode == 0:
-            return
-        print(f"    Asset upload failed (attempt {attempt + 1}/3), retrying in 3s...")
-        time.sleep(3)
+    def _has_zip():
+        res = run_(f'gh api repos/{REPO}/releases/{rel_id} --jq "[.assets[].name]"')
+        try:
+            return res.returncode == 0 and ZIP_PATH.name in json.loads(res.stdout or "[]")
+        except ValueError:
+            return False
 
-    print("  ERROR: Release created but zip upload failed.")
-    print("  Upload manually:")
-    print(f'    gh release upload {tag} "dist/padspan_ha.zip" --repo {REPO}')
+    for attempt in range(3):
+        if run_(f'gh release upload {tag} "{ZIP_PATH}" --repo {REPO}').returncode == 0 and _has_zip():
+            break
+        print(f"    Asset upload failed (attempt {attempt + 1}/3), retrying in 3s...")
+        sleep(3)
+    else:
+        print(f"  ERROR: the release {tag} is a DRAFT (id {rel_id}) without the zip: nobody can install it yet.")
+        print("  Upload the zip, then publish it:")
+        print(f'    gh release upload {tag} "dist/padspan_ha.zip" --repo {REPO}')
+        print(f"    gh api -X PATCH repos/{REPO}/releases/{rel_id} -F draft=false")
+        sys.exit(1)
+
+    for attempt in range(3):
+        if run_(f"gh api -X PATCH repos/{REPO}/releases/{rel_id} -F draft=false --jq .draft").returncode == 0:
+            return
+        print(f"    Publishing the draft failed (attempt {attempt + 1}/3), retrying in 3s...")
+        sleep(3)
+    print(f"  ERROR: the release {tag} has its zip but is still a DRAFT (id {rel_id}). Publish it:")
+    print(f"    gh api -X PATCH repos/{REPO}/releases/{rel_id} -F draft=false")
     sys.exit(1)
 
 
