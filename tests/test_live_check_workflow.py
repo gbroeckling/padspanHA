@@ -46,10 +46,7 @@ def test_it_probes_the_three_things_an_install_reaches():
 
 
 def test_the_probe_is_never_counted_as_an_install():
-    php_path = _ROOT / "server" / "version.php"
-    if not php_path.is_file():
-        pytest.skip("server/ is not in this tree")
-    php = php_path.read_text(encoding="utf-8")
+    php = (_ROOT / "server" / "version.php").read_text(encoding="utf-8")
     assert "if ($v !== 'live-check') {" in php
     i = php.index("if ($v !== 'live-check') {")
     assert php.index("file_put_contents($log_file", i) > i, "the ping log is written only for real installs"

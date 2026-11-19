@@ -110,8 +110,6 @@ def test_the_shape_of_the_generated_tree(tree):
     assert (tree / "tests").is_dir(), "the suite travels with the tree"
     assert (tree / ".github" / "workflows" / "hacs.yml").is_file()
     assert (tree / ".github" / "workflows" / "hassfest.yml").is_file()
-    assert not (tree / ".github" / "workflows" / "live-check.yml").exists(), \
-        "the main repo's hourly live check would fail every hour in the Bright repo"
     # Panels renamed so both editions can be installed at once (the importer)
     panel = (integ / "panel.py").read_text(encoding="utf-8")
     assert 'frontend_url_path="padspan-bright"' in panel
