@@ -106,7 +106,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # First match wins, so an allow rule carves an exception out of a broad mask.
     "ingest_rules": [],
     "positioning_algorithm": "knn",    # "knn" | "rf" (Random Forest)
-    "kalman_q": 0.125,             # Kalman process noise (RSSI responsiveness)
+    # Kalman process noise (RSSI responsiveness), per 10 s of time; the poll
+    # scales it. 0.125 until November 2026: ESPresense's figure, which its nodes
+    # apply to every advert, many a second; at one step per 5 s poll it made a
+    # room change take a minute. 3 follows about a third of a change per poll.
+    "kalman_q": 3.0,
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)
     # Both OFF by default. hold_last_room_s: the snapshot keeps showing the
     # room a device had through a signal gap this short (display only; the
@@ -295,10 +299,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Lower = faster room transitions but higher CPU.  Default 5 s (installs
     # from before 0.21 may still hold the old 10 s).
     "presence_poll_interval_s": 5,
-    # BLE reseed interval (seconds).  How often bluetooth_live re-fetches from
-    # HA's discovered-service-info API.  Essential for passive proxy scanners
-    # (Shelly, etc.).  Overrides aggressive_ble_reseed when set.  Default 30s.
-    "ble_reseed_interval_s": 30,
+    # BLE reseed interval (seconds).  How often bluetooth_live re-reads every
+    # scanner's list (HA's callbacks carry only one scanner's view of a
+    # device).  5 s = every poll, so no scanner's reading is older than one
+    # poll; adverts already read are skipped, which keeps it cheap. Was 30 s.
+    "ble_reseed_interval_s": 5,
+    # One-time (November 2026): an install still on the old kalman_q 0.125 or
+    # ble_reseed_interval_s 30 — never changed, as almost nobody had — is
+    # moved to the new defaults once; a value someone set stays.
+    "room_speed_v1_applied": False,
     # How long an object that was never identified is kept in object history.
     # Tagged/identified objects never expire regardless of this.  The whole
     # cache ships in every live_snapshot (polled every 5s), so longer windows
@@ -562,6 +571,14 @@ class SettingsStore:
         if not self.data.get("atlas_default_v1_applied"):
             self.data["lights_panel_enabled"] = True
             self.data["atlas_default_v1_applied"] = True
+            _normalized = True
+        # Faster room changes, once (see room_speed_v1_applied above).
+        if not self.data.get("room_speed_v1_applied"):
+            if self.data.get("kalman_q") == 0.125:
+                self.data["kalman_q"] = DEFAULT_SETTINGS["kalman_q"]
+            if self.data.get("ble_reseed_interval_s") == 30:
+                self.data["ble_reseed_interval_s"] = DEFAULT_SETTINGS["ble_reseed_interval_s"]
+            self.data["room_speed_v1_applied"] = True
             _normalized = True
         # Only re-save if new defaults were added (loaded was missing keys)
         if _normalized or not isinstance(loaded, dict) or set(self.data.keys()) != set(loaded.keys()):

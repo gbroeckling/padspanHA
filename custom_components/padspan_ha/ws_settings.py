@@ -817,7 +817,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "path_loss_exp" in msg:
             payload["path_loss_exp"] = max(1.0, min(4.0, float(msg["path_loss_exp"])))
         if "kalman_q" in msg:
-            payload["kalman_q"] = max(0.01, min(1.0, float(msg["kalman_q"])))
+            payload["kalman_q"] = max(0.01, min(10.0, float(msg["kalman_q"])))
         if "kalman_r" in msg:
             payload["kalman_r"] = max(0.5, min(50.0, float(msg["kalman_r"])))
         if "hold_last_room_s" in msg:

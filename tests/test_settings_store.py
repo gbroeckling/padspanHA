@@ -66,7 +66,7 @@ def test_default_kalman_params() -> None:
     """Kalman filter defaults are present."""
     assert "kalman_q" in DEFAULT_SETTINGS
     assert "kalman_r" in DEFAULT_SETTINGS
-    assert DEFAULT_SETTINGS["kalman_q"] == 0.125
+    assert DEFAULT_SETTINGS["kalman_q"] == 3.0
     assert DEFAULT_SETTINGS["kalman_r"] == 8.0
 
 
@@ -94,7 +94,7 @@ async def test_async_load_merges_with_defaults() -> None:
     assert result["data_mode"] == "live"
     # Defaults fill missing keys
     assert result["ref_power"] == -59.0
-    assert result["kalman_q"] == 0.125
+    assert result["kalman_q"] == 3.0
 
 
 @pytest.mark.asyncio

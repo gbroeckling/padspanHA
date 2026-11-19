@@ -14,13 +14,15 @@ from custom_components.padspan_ha.bluetooth_live import reseed_interval_s
 from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 
 
-def test_the_default_is_30_seconds():
-    assert reseed_interval_s(dict(DEFAULT_SETTINGS)) == 30
-    assert reseed_interval_s(None) == 30
+def test_the_default_is_5_seconds():
+    # Every poll (it was 30 s): no scanner's view of a device older than one.
+    assert reseed_interval_s(dict(DEFAULT_SETTINGS)) == 5
+    assert reseed_interval_s(None) == 5
 
 
 def test_the_checkbox_now_takes_it_to_5_seconds():
-    assert reseed_interval_s({**DEFAULT_SETTINGS, "aggressive_ble_reseed": True}) == 5
+    assert reseed_interval_s({**DEFAULT_SETTINGS, "ble_reseed_interval_s": 30,
+                              "aggressive_ble_reseed": True}) == 5
 
 
 def test_a_shorter_interval_set_in_presence_stays():
@@ -31,7 +33,7 @@ def test_a_shorter_interval_set_in_presence_stays():
 def test_out_of_range_and_bad_values_are_safe():
     assert reseed_interval_s({"ble_reseed_interval_s": 0}) == 1
     assert reseed_interval_s({"ble_reseed_interval_s": 999}) == 60
-    assert reseed_interval_s({"ble_reseed_interval_s": "x"}) == 30
+    assert reseed_interval_s({"ble_reseed_interval_s": "x"}) == 5
 
 
 def test_the_reseed_uses_it():

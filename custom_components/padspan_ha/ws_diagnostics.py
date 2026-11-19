@@ -384,7 +384,7 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
         "settings": {
             "ref_power": settings.get("ref_power", -59.0),
             "path_loss_exp": settings.get("path_loss_exp", 2.5),
-            "kalman_q": settings.get("kalman_q", 0.125),
+            "kalman_q": settings.get("kalman_q", 3.0),
             "kalman_r": settings.get("kalman_r", 8.0),
             "adaptive_enabled": bool(settings.get("adaptive_learning_enabled")),
             "adaptive_maturity": ad.maturity() if ad else 0,

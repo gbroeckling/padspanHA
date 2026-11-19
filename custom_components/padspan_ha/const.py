@@ -35,7 +35,7 @@ DEFAULT_PATH_LOSS_EXP = 2.5      # path-loss exponent n (free-space = 2.0, indoo
 # Kalman filter parameters for per-scanner RSSI smoothing (replaces EMA).
 # Q = process noise: how fast the true RSSI is expected to change between polls.
 # R = measurement noise: how noisy each raw RSSI reading is.
-DEFAULT_KALMAN_Q = 0.125
+DEFAULT_KALMAN_Q = 3.0
 DEFAULT_KALMAN_R = 8.0
 
 # Gaussian room-scoring σ in metres.  score = exp(−(d/σ)²)

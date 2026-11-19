@@ -1087,7 +1087,8 @@ function _settingsPresence(ctx, el){
     el("div", { class: "h2" }, "Room Change Delay"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How long a scanner must consistently dominate before PadSpan switches a device to a new room. " +
-      "Higher values prevent flickering when a device sits on the boundary between two scanners."
+      "Higher values prevent flickering when a device sits on the boundary between two scanners. " +
+      "A clear move into a next-door room (its scanner well ahead) needs half of it, at least two polls."
     ),
     el("div", { style: rowStyle }, [
       el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Room change delay"),
@@ -1598,17 +1599,17 @@ function _settingsPresence(ctx, el){
     ]),
     el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px"},
       "Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. " +
-      "This increases the BLE data reseed frequency from every 30 seconds to every 5 seconds, working around a deduplication change in HA 2026.4."),
+      "This keeps the refresh at 5 seconds or faster even if the interval below is set longer, working around a deduplication change in HA 2026.4."),
     settings.aggressive_ble_reseed ? el("div",{style:"font-size:11px;color:#26c6da;margin-top:6px"},
       "Active — reseeding from HA Bluetooth discovery every 5 seconds. This uses slightly more CPU but ensures Shelly and passive scanner data stays fresh.") : null,
   ]);
-  const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 30);
+  const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 5);
   const reseedInp = el("input", {
     type: "number", min: "1", max: "60", step: "1", value: String(currentReseed), style: inpStyle,
   });
   const reseedSaveBtn = el("button", { class: "btn" }, "Save");
   reseedSaveBtn.addEventListener("click", async () => {
-    const v = Math.max(1, Math.min(60, parseInt(reseedInp.value) || 30));
+    const v = Math.max(1, Math.min(60, parseInt(reseedInp.value) || 5));
     try {
       await ctx.actions.settingsSet({ ble_reseed_interval_s: v });
       ctx.toast(`Bluetooth refresh interval set to ${v}s`);
@@ -1628,7 +1629,7 @@ function _settingsPresence(ctx, el){
       reseedSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentReseed}s. Default: 30s. Range: 1–60s.`
+      `Current: ${currentReseed}s. Default: 5s (every scanner's view at most one update old). Range: 1–60s.`
     ),
     // "Aggressive BLE reseed" lived in Manage → HA Entities → BLE Proxy
     // Compatibility until 2026-10-30; it caps this interval at 5 s
@@ -2375,17 +2376,17 @@ function _settingsPresence(ctx, el){
   ]));
 
   // ── Signal Filter (Kalman) ────────────────────────────────────────────────
-  const currentKalmanQ = (settings.kalman_q != null ? Number(settings.kalman_q) : 0.125);
+  const currentKalmanQ = (settings.kalman_q != null ? Number(settings.kalman_q) : 3.0);
   const currentKalmanR = (settings.kalman_r != null ? Number(settings.kalman_r) : 8.0);
   const kqInp = el("input", {
-    type: "number", min: "0.01", max: "1", step: "0.01", value: String(currentKalmanQ), style: inpStyle,
+    type: "number", min: "0.01", max: "10", step: "0.01", value: String(currentKalmanQ), style: inpStyle,
   });
   const krInp = el("input", {
     type: "number", min: "0.5", max: "50", step: "0.5", value: String(currentKalmanR), style: inpStyle,
   });
   const kalmanSaveBtn = el("button", { class: "btn inline" }, "Save");
   kalmanSaveBtn.addEventListener("click", async () => {
-    const q = Math.max(0.01, Math.min(1.0, parseFloat(kqInp.value) || 0.125));
+    const q = Math.max(0.01, Math.min(10.0, parseFloat(kqInp.value) || 3.0));
     const r = Math.max(0.5, Math.min(50.0, parseFloat(krInp.value) || 8.0));
     try {
       await ctx.actions.settingsSet({ kalman_q: q, kalman_r: r });
@@ -2398,12 +2399,12 @@ function _settingsPresence(ctx, el){
       "Kalman filter parameters for per-scanner RSSI smoothing. " +
       "Q (process noise) controls how quickly the filter responds to real movement — lower = more smoothing, slower response. " +
       "R (measurement noise) controls how much individual RSSI readings are trusted — higher = more smoothing. " +
-      "ESPresense defaults: Q=0.125, R=8.0."
+      "Defaults: Q=3, R=8 (Q is per update, every 5 s; ESPresense's 0.125 is per advert, many a second)."
     ),
     el("div", { style: rowStyle }, [
       el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Process noise Q"),
       kqInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "0.01–1.0 (default 0.125)"),
+      el("div", { class: "muted", style: "font-size:12px" }, "0.01–10 (default 3)"),
     ]),
     el("div", { style: rowStyle }, [
       el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Measurement noise R"),
