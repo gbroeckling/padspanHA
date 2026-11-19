@@ -324,6 +324,58 @@ async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
     })
 
 
+def _irk_capture_devices(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """The irk-capture ESP32s in Home Assistant, each with the key it holds now.
+
+    irk-capture (github.com/DerekSeaman/irk-capture) is ESPHome firmware: a
+    phone or watch pairs with the ESP32, and the key it hands over shows in
+    Home Assistant as a sensor of the ESP32 whose entity id ends in "_irk".
+    The same device has a select with "Heart Sensor" and "Keyboard" among
+    its options (what the ESP32 looks like to the phone or watch) and a
+    button ending in "_refresh_ble_identity" (a new Bluetooth identity, so
+    the device paired before does not connect to it again). These names are
+    as NeonPlan 3D's key helper, a repackaged irk-capture, reads them.
+
+    Read only: PadSpan never presses the button or changes the select.
+    Each: {name, irk_bytes (or None), profile ("" when unknown), refresh
+    (the button's name, "" when there is none)}.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er  # noqa: PLC0415
+    from .private_ble_resolver import _parse_irk  # noqa: PLC0415
+
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+    by_device: dict[str, list[str]] = {}
+    for ent in list(ent_reg.entities.values()):
+        if getattr(ent, "platform", None) == "esphome" and getattr(ent, "device_id", None):
+            by_device.setdefault(ent.device_id, []).append(str(ent.entity_id))
+
+    out: list[dict[str, Any]] = []
+    for device_id, eids in by_device.items():
+        irk_eid = next((e for e in eids if e.startswith("sensor.") and e.endswith("_irk")), None)
+        if not irk_eid:
+            continue
+        dev = dev_reg.async_get(device_id)
+        name = str((dev and (dev.name_by_user or dev.name)) or irk_eid)
+        st = hass.states.get(irk_eid)
+        raw = str(st.state) if st is not None else ""
+        key = _parse_irk(raw) if raw and raw not in ("unknown", "unavailable") else None
+        profile = ""
+        for e in eids:
+            sel = hass.states.get(e) if e.startswith("select.") else None
+            opts = list(((sel.attributes or {}).get("options") or [])) if sel is not None else []
+            if "Heart Sensor" in opts and "Keyboard" in opts:
+                profile = str(sel.state)
+                break
+        refresh = ""
+        btn = next((e for e in eids if e.startswith("button.") and e.endswith("_refresh_ble_identity")), None)
+        if btn:
+            bst = hass.states.get(btn)
+            refresh = str(((bst.attributes or {}).get("friendly_name") if bst is not None else "") or "Refresh BLE Identity")
+        out.append({"name": name, "irk_bytes": key, "profile": profile, "refresh": refresh})
+    return out
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/irk_auto_detect"})
 @websocket_api.async_response
 async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
@@ -331,22 +383,29 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
 
     Checks:
     1. Linux Bluetooth bonded device files (/var/lib/bluetooth/...)
-    2. HA private_ble_device config entries (already loaded by resolver)
-    3. Live BLE advertisements — tests found IRKs against visible RPAs
+    2. The key each irk-capture ESP32 in Home Assistant holds now
+       (_irk_capture_devices); the ESP32s themselves are listed too, as
+       capture_devices, so the phone wizard can say which one has no key yet
+    3. HA private_ble_device config entries (already loaded by resolver)
+    4. Live BLE advertisements — tests found IRKs against visible RPAs
+
+    A found key already registered says under which name (registered_as).
+    A key from irk-capture is named after the ESP32, not the phone: the
+    wizard saves it under the name the person typed.
     """
     from .private_ble_resolver import (  # noqa: PLC0415
         _read_system_bluetooth_irks, _parse_irk, _address_matches_irk, _is_rpa,
     )
 
     found: list[dict[str, Any]] = []
-    already_registered: set[str] = set()
+    already_registered: dict[str, str] = {}   # hex, both byte orders -> registered name
 
     # Get currently registered IRKs to mark duplicates
     try:
         resolver = await _get_ble_resolver(hass)
         for dev in resolver._devices:
-            already_registered.add(dev["irk_bytes"].hex())
-            already_registered.add(bytes(reversed(dev["irk_bytes"])).hex())
+            already_registered[dev["irk_bytes"].hex()] = str(dev.get("name") or "")
+            already_registered[bytes(reversed(dev["irk_bytes"])).hex()] = str(dev.get("name") or "")
     except Exception:
         pass
 
@@ -362,11 +421,33 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
                 "source": "bluetooth_bond",
                 "device_mac": si.get("device_mac", ""),
                 "already_registered": is_dup,
+                "registered_as": already_registered.get(irk_hex, ""),
             })
     except Exception as err:
         _LOGGER.debug("IRK auto-detect system scan: %s", err)
 
-    # 2. Gather RPAs from live BLE to verify found IRKs
+    # 2. irk-capture ESP32s
+    capture: list[dict[str, Any]] = []
+    try:
+        capture = _irk_capture_devices(hass)
+        for c in capture:
+            if not c["irk_bytes"]:
+                continue
+            irk_hex = c["irk_bytes"].hex()
+            if any(f["irk_hex"] == irk_hex for f in found):
+                continue
+            found.append({
+                "name": c["name"],
+                "irk_hex": irk_hex,
+                "source": "irk_capture",
+                "device_mac": "",
+                "already_registered": irk_hex in already_registered,
+                "registered_as": already_registered.get(irk_hex, ""),
+            })
+    except Exception as err:
+        _LOGGER.debug("IRK auto-detect irk-capture scan: %s", err)
+
+    # Gather RPAs from live BLE to verify found IRKs
     rpas: set[str] = set()
     try:
         ble_live = get_bluetooth_live(hass)
@@ -397,6 +478,8 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
         "found": found,
         "rpa_count": len(rpas),
         "system_bond_count": len([f for f in found if f["source"] == "bluetooth_bond"]),
+        "capture_devices": [{"name": c["name"], "has_key": bool(c["irk_bytes"]), "profile": c["profile"],
+                             "refresh": c["refresh"]} for c in capture],
     })
 
 

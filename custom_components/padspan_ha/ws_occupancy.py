@@ -188,8 +188,20 @@ def _claim_objects(people: list[dict[str, Any]], objects: list[dict[str, Any]]) 
                 break
 
 
-def _irk_phones(objects: list[dict[str, Any]], people: list[dict[str, Any]]) -> None:
-    """IRK-resolved phones are known people too; match to a person by name, else add one."""
+def _irk_phones(objects: list[dict[str, Any]], people: list[dict[str, Any]],
+                carries: dict[str, Any] | None = None) -> None:
+    """IRK-resolved phones are known people too; match to a person, else add one.
+
+    The person is the one it was picked for (settings.atlas_3d_carries, set
+    when its key is captured with a person chosen, or in Live Aboard's People
+    & devices; a thing picked for two people is the first's by id, as there),
+    else the person whose name it carries.
+    """
+    owner_of: dict[str, str] = {}
+    if isinstance(carries, dict):
+        for pid in sorted(carries):
+            for k in carries[pid] if isinstance(carries[pid], list) else []:
+                owner_of.setdefault(str(k).lower(), pid)
     for obj in objects:
         if obj.get("kind") != "private_ble" or obj.get("_claimed"):
             continue
@@ -199,7 +211,10 @@ def _irk_phones(objects: list[dict[str, Any]], people: list[dict[str, Any]]) -> 
         if obj.get("findmy") or obj.get("bridge_match"):
             continue
         name = str(obj.get("user_label") or obj.get("name") or "").strip()
-        owner = next((p for p in people if name.lower() in p["match_names"]), None) if name else None
+        pid = owner_of.get(str(obj.get("key") or "").lower()) or owner_of.get(str(obj.get("canonical_id") or "").lower())
+        owner = next((p for p in people if pid and p["entity_id"] == pid), None)
+        if owner is None and name:
+            owner = next((p for p in people if name.lower() in p["match_names"]), None)
         obj["_claimed"] = True
         if owner is not None:
             if owner["room"] is None:
@@ -461,7 +476,7 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     # 1. Known people.
     people = _known_people(hass, objects) if hybrid else []
     _claim_objects(people, objects)
-    _irk_phones(objects, people)
+    _irk_phones(objects, people, _sd.get("atlas_3d_carries"))
 
     # 2. Unclaimed phones on the air.
     claimed_addrs: set[str] = set()

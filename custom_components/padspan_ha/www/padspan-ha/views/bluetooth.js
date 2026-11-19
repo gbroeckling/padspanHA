@@ -17,9 +17,10 @@
 // our own module URL so the ?b= cache-buster propagates.
 // If it can't load, the page goes on as it always was (the guide reads as off).
 const { deviceName, deviceWhat, listWhat, addressBadge, serviceWords, SERVICE_HOW, fillHowKnown } = await import(`./device_name.js${new URL(import.meta.url).search}`);
-const { iphoneGuideOn, isApplePhone, renderIphonePath } =
+// renderCaptureSteps: the IRK Capture ESP32's steps in the phone wizard.
+const { iphoneGuideOn, isApplePhone, renderIphonePath, renderCaptureSteps } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
-    .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {} }));
+    .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {}, renderCaptureSteps: () => {} }));
 
 // ── The shared display vocabulary ───────────────────────────────────────────
 // Four things this view says over and over — a chip, a signal reading, an age,
@@ -2572,17 +2573,26 @@ function renderIrkPanel(ctx, snap) {
         // requires before it will save without the explicit "unverified"
         // override); an unverified find is left for the person to add by
         // hand instead, exactly like the manual Add & Validate path.
-        for (const f of found) {
-          if (!f.already_registered && f.verified) {
+        // A key from an irk-capture ESP32 is never saved here: its name is
+        // the ESP32's, not the phone's or watch's. It goes in the box above,
+        // to be named and added.
+        const bonds = newOnes.filter(f => f.source !== "irk_capture");
+        for (const f of bonds) {
+          if (f.verified) {
             try {
               await ctx.actions.wsCall("padspan_ha/irk_add", { name: f.name || "Auto-detected", irk_hex: f.irk_hex });
             } catch(_e) {}
           }
         }
-        if (newOnes.some(f => f.verified)) {
+        if (bonds.some(f => f.verified)) {
           addMsg.textContent += " Verified IRKs saved automatically.";
           ctx.state._irkPanelStatus = null;
           setTimeout(() => ctx.actions.renderRooms(), 500);
+        }
+        const captured = newOnes.find(f => f.source === "irk_capture");
+        if (captured) {
+          if (!irkInp.value.trim()) irkInp.value = captured.irk_hex;
+          addMsg.textContent += ` The key from “${captured.name}” is in the box above: type the name of the iPhone or watch it came from, then press Add & validate.`;
         }
       }
     } catch(e) {
@@ -2621,56 +2631,20 @@ function renderIrkPanel(ctx, snap) {
       return d;
     };
 
-    // Path A — IRK Capture ESP32
+    // Path A — IRK Capture ESP32: name and person first, iPhone or Apple
+    // Watch, save, remove the pairing, a new identity before the next device
+    // (iphone_irk.js renderCaptureSteps). Saved through _addIrk, so the same
+    // live check as Add & validate.
     const pathA = _path("I have an IRK Capture ESP32", "info");
-    pathA.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55;margin-bottom:8px" },
-      "With DerekSeaman's irk-capture flashed on an ESP32, PadSpan can pick the captured key up by itself."));
-    const wizScanBtn = el("button", { class: "btn inline bt-btn-info" }, "Scan for IRK Capture devices");
-    const wizScanMsg = el("div", { style: "font-size:12px;margin-top:7px;min-height:16px" });
-    wizScanBtn.addEventListener("click", async () => {
-      wizScanBtn.disabled = true; wizScanBtn.textContent = "Scanning...";
-      wizScanMsg.textContent = ""; wizScanMsg.style.color = "var(--bt-dim)";
-      try {
-        const res = await ctx.actions.wsCall("padspan_ha/irk_auto_detect", {});
-        const found = res.found || [];
-        if (found.length === 0) {
-          wizScanMsg.style.color = "var(--bt-ok)";
-          wizScanMsg.textContent = "No IRK Capture devices found. Make sure the ESP32 is powered on and has captured a pairing.";
-        } else {
-          wizScanMsg.style.color = "var(--bt-good)";
-          const newOnes = found.filter(f => !f.already_registered);
-          const verified = found.filter(f => f.verified);
-          wizScanMsg.textContent = `Found ${found.length} IRK${found.length !== 1 ? "s" : ""}: ${newOnes.length} new, ${verified.length} verified.`;
-          // Same silent-save-if-verified rule as the IRK Manager's own
-          // Auto-Detect handler above — see its comment for why this is safe.
-          for (const f of found) {
-            if (!f.already_registered && f.verified) {
-              try {
-                await ctx.actions.wsCall("padspan_ha/irk_add", { name: f.name || "Auto-detected", irk_hex: f.irk_hex });
-              } catch(_e) {}
-            }
-          }
-          if (newOnes.some(f => f.verified)) {
-            wizScanMsg.textContent += " Verified IRKs saved automatically.";
-            ctx.state._irkPanelStatus = null;
-            setTimeout(() => ctx.actions.renderRooms(), 500);
-          }
-        }
-      } catch(e) {
-        wizScanMsg.style.color = "var(--bt-bad)";
-        wizScanMsg.textContent = e.message || "Scan failed";
-      }
-      wizScanBtn.disabled = false; wizScanBtn.textContent = "Scan for IRK Capture devices";
-    });
-    pathA.appendChild(wizScanBtn);
-    pathA.appendChild(wizScanMsg);
+    renderCaptureSteps(ctx, pathA, (name, irk, msgEl, after) => _addIrk(ctx, name, irk, msgEl, after));
     wizCard.appendChild(pathA);
 
     // Path B — Android
     const pathB = _path("I have an Android phone", "good");
     pathB.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55" },
       "The easiest way to track an Android phone: Install the HA Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. " +
-      "Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed."));
+      "Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed. " +
+      "In the same place, set Transmit power to High and Advertise mode to Low latency: out of the box it sends too weakly to be heard well."));
     wizCard.appendChild(pathB);
 
     // Path C — iPhone. With the iPhone setup path on: the IRK steps and a
@@ -3028,10 +3002,11 @@ button:
     el("div", { class: "muted", style: "font-size:12px;line-height:1.6;max-width:700px;margin-bottom:8px" },
       "Phones and watches rotate their BLE MAC address every ~15 minutes, making them hard to track. " +
       "An IRK (Identity Resolving Key) lets PadSpan see through the rotation and track each device by name. " +
-      "This ESPHome package captures IRKs by briefly pairing with a phone or watch \u2014 flash a spare ESP32, pair, copy the IRK, and paste it into PadSpan\u2019s Private BLE section above."
+      "This ESPHome package captures IRKs by briefly pairing with an iPhone or Apple Watch \u2014 flash a spare ESP32, add it to Home Assistant, pair, " +
+      "and save the key in Bluetooth \u2192 IRK Manager."
     ),
     el("div", { class: "bt-notes" }, [
-      el("div", { class: "bt-note" }, "Supports Apple (heart rate sensor profile) and Android (keyboard profile)"),
+      el("div", { class: "bt-note" }, "For iPhones and Apple Watches. Not for Android phones: they don't keep sending this key in the background; track them with the Companion app's BLE Transmitter"),
       el("div", { class: "bt-note" }, "Flash any spare ESP32 \u2014 only needed once per device, then reflash back to scanner duty"),
       el("div", { class: "bt-note ok" }, "Third-party community project \u2014 not maintained by PadSpan"),
     ]),

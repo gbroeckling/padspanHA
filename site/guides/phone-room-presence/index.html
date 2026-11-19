@@ -104,7 +104,7 @@ footer p{margin:4px 0}
 <p>The iPhone app has no BLE Transmitter: on iOS, the Companion app only listens for iBeacons, to tell when you arrive in a zone. So an iPhone is recognised by its key instead. You get it once, in one of two ways.</p>
 <ul>
   <li><b>On a Mac signed in to the same iCloud account.</b> Open <b>Keychain Access</b>, find the iPhone's Bluetooth entry, and copy its <b>Remote IRK</b>. Home Assistant's <a href="https://www.home-assistant.io/integrations/private_ble_device/">Private BLE Device page</a> has the steps, including how to tell which entry is your iPhone.</li>
-  <li><b>With irk-capture on a spare ESP32.</b> <a href="https://github.com/DerekSeaman/irk-capture">irk-capture</a>, by Derek Seaman, is an ESPHome package that makes an ESP32 look like a Bluetooth heart-rate sensor. Pair your iPhone with it in <b>Settings → Bluetooth</b>, and the key appears in Home Assistant as the ESP32's <b>IRK</b> sensor, ready to copy. That ESP32 can't be a Bluetooth proxy at the same time, so use a spare one.</li>
+  <li><b>With irk-capture on a spare ESP32.</b> <a href="https://github.com/DerekSeaman/irk-capture">irk-capture</a>, by Derek Seaman, is an ESPHome package: pair your iPhone with the ESP32 in <b>Settings → Bluetooth</b>, and the key appears in Home Assistant as the ESP32's <b>IRK</b> sensor. In PadSpan, <b>Bluetooth → IRK Manager → I have an IRK Capture ESP32</b> takes you through it, one device at a time: type its name and pick whose it is, pair it, then <b>Find the key</b> and <b>Save</b>. Afterwards remove the pairing from the iPhone's Bluetooth settings, and before the next device press the ESP32's <b>Refresh BLE Identity</b> in Home Assistant, so the device before doesn't connect to it again. It's not a way in for Android phones: they don't keep sending this key in the background. That ESP32 can't be a Bluetooth proxy at the same time, so use a spare one.</li>
 </ul>
 <p>Then give the key to Home Assistant, in either of two places:</p>
 <ul>
@@ -116,7 +116,7 @@ footer p{margin:4px 0}
 <p>Installed PadSpan before version 0.38.165? Then <b>Overview → Track Your Phone</b> shows iPhones the Android steps, unless you switch on <b>Settings → Features → iPhone Setup Path</b> (experimental; newer installs start with it on). The steps on this page work either way.</p>
 
 <h2>Apple Watch</h2>
-<p>An Apple Watch has its own key, separate from its iPhone's, and the same two ways get it. Home Assistant's Keychain steps are written for "your iPhone or Apple Watch", and irk-capture lists Apple Watches among the devices it was tested with: pair the watch from its own <b>Settings → Bluetooth</b>. Then add the key to Private BLE Device as an entry of its own, and tag the watch in PadSpan the same way.</p>
+<p>An Apple Watch has its own key, separate from its iPhone's, and the same two ways get it. Home Assistant's Keychain steps are written for "your iPhone or Apple Watch", and irk-capture lists Apple Watches among the devices it was tested with: pair the watch from its own <b>Settings → Bluetooth</b>, where the ESP32 shows under <b>Health Devices</b>. In PadSpan's IRK Capture steps, pick <b>Apple Watch</b> for the watch's own words. Otherwise add the key to Private BLE Device as an entry of its own, and tag the watch in PadSpan the same way.</p>
 
 <h2>What you get</h2>
 <ul>

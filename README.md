@@ -117,7 +117,7 @@ Tracking phones is the hardest problem in BLE presence — they rotate their Blu
 | **SmartTag** (Samsung) | Not reliably | No stable identifier in the air. MAC Rotation Bridging has only a fingerprint to go on |
 | **AirPods** | Apple auto-classification | Detected and labeled automatically when feature enabled (display only — does not solve identity) |
 
-The **Phone Setup Wizard** (experimental) shows the three ways in for a phone. A key captured with irk-capture is pasted in by hand; [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) walks through it.
+The **Phone Setup Wizard** (experimental) shows the three ways in for a phone. For irk-capture it asks the device's name and whose it is first, then picks up the key the ESP32 shows in Home Assistant; [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) walks through it.
 
 For devices where you can't get an IRK, the experimental **MAC Rotation Bridging** feature matches advertisement patterns across address rotations to maintain tracking continuity.
 
