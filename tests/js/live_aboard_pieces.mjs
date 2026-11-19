@@ -410,17 +410,18 @@ tryCase("sets: every piece inside the room, none in a wall, another piece or a d
   const there = piece("fur_000000e0", "other", 0.8, 0.6, 2.0, { x: 2.0, y: 0.35 });
   const rooms = [["kitchen", kitchen.pts, walls, [there]], ["hall", hall.pts, walls, []], ["ell", ELL, [], []], ["bare", [[0, 0], [3.2, 0], [3.2, 2.6], [0, 2.6]], [], []]];
   let total = 0;
-  for (const set of SETS) for (const [where, pts, ws, others] of rooms) {
-    const r = P.layoutSet(set, pts, ws, { others, doors: ws === walls ? doors : [] });
+  // Without the builders, and with them, as Furnish lays a set out (a sink's worktop under a window's sill).
+  for (const set of SETS) for (const [where, pts, ws, others] of rooms) for (const B of [null, F]) {
+    const r = P.layoutSet(set, pts, ws, { others, doors: ws === walls ? doors : [], B });
     const ps = asPieces(r, "a");
     total += ps.length;
     if (!ps.length) bad.push({ set: set.id, where, none: true });
     for (const p of ps) {
-      const warn = P.fitChecks(p, { walls: ws, doors: ws === walls ? doors : [], others: [...ps, ...others] }).filter(w => ["wall", "overlap", "door"].includes(w.kind));
-      if (warn.length || !inside(p, pts)) bad.push({ set: set.id, where, kind: p.recipe.kind, at: [p.x_m, p.y_m, p.rotation], warn, inside: inside(p, pts) });
+      const warn = P.fitChecks(p, { walls: ws, doors: ws === walls ? doors : [], others: [...ps, ...others], B }).filter(w => ["wall", "overlap", "door"].includes(w.kind));
+      if (warn.length || !inside(p, pts)) bad.push({ set: set.id, where, B: !!B, kind: p.recipe.kind, at: [p.x_m, p.y_m, p.rotation], warn, inside: inside(p, pts) });
     }
   }
-  check(name, SETS.length >= 7 && bad.length === 0 && total > 100, { total, bad: bad.slice(0, 6) });
+  check(name, SETS.length >= 7 && bad.length === 0 && total > 200, { total, bad: bad.slice(0, 6) });
 });
 tryCase("sets: a kitchen's row stands with its backs flush on a wall, past the window, facing into the room", () => {
   const kitchen = per.rooms.find(r => r.name === "Kitchen"), set = SETS.find(s => s.id === "kitchen_row");
@@ -439,6 +440,62 @@ tryCase("sets: the same each time; a room with no outline gets nothing", () => {
   const none = P.layoutSet(set, [[0, 0], [1, 1]], [], {});
   check("sets: the same each time; a room with no outline gets nothing",
     a.pieces.length > 0 && JSON.stringify(a) === JSON.stringify(b) && none.pieces.length === 0 && none.left_out > 0, { a: a.pieces.length, none });
+});
+
+// ── a sink under a window (2026-11-18) ──────────────────────────────────────
+// A sink's box goes up to the top of its tap, but a window's sill is measured
+// against its worktop (the builders' worktopOf: the tap stands before the
+// glass). The kitchen's window raised to a 1.0 m sill: a 1.2 m sink (its
+// worktop at 0.9 m) snaps under it and is no warning there; a 1.2 m tall
+// cabinet is, and so is the sink under a sill lower than its worktop. A
+// galley whose back wall has a window (x 2.3 to 3.5, sill 1.0 m) and whose
+// front wall has a door: Kitchen, one wall puts its sink under the window.
+const wallsAtSill = (sill) => per.pieces.map(pc => ({ ...pc, els: H.wallElements(pc.kind === "window" ? { ...pc, sill_m: sill } : pc, main.h) }));
+const W10 = wallsAtSill(1.0), W085 = wallsAtSill(0.85);
+tryCase("snap: a sink snaps under a 1.0 m sill, up to its worktop; a 1.2 m tall cabinet does not", () => {
+  const at = (kind) => piece("fur_000000f0", kind, 0.8, 0.62, 1.2, { x: 1.6, y: 2.55, r: 180 });
+  const sink = P.snapToWall(at("sink"), null, W10, P.SNAP_M, F), tall = P.snapToWall(at("tall_cabinet"), null, W10, P.SNAP_M, F);
+  const bare = P.snapToWall(at("sink"), null, W10);                     // no builders: every piece is its box, tap and all
+  const kindOf = (s) => s && W10[s.wall].kind;
+  check("snap: a sink snaps under a 1.0 m sill, up to its worktop; a 1.2 m tall cabinet does not",
+    kindOf(sink) === "window" && near(sink.rotation, 180) && kindOf(tall) !== "window" && kindOf(bare) !== "window" && near(F.worktopOf(at("sink").recipe), 0.9),
+    { sink, tall, bare });
+});
+tryCase("fit: a sink under a 1.0 m sill is no warning; a 1.2 m tall cabinet there is; so is the sink under a sill lower than its worktop", () => {
+  const s = P.snapToWall(piece("fur_000000f1", "sink", 0.8, 0.62, 1.2, { x: 1.6, y: 2.55, r: 180 }), null, W10, P.SNAP_M, F);
+  const sink = { ...piece("fur_000000f1", "sink", 0.8, 0.62, 1.2, { x: s.x_m, y: s.y_m, r: s.rotation }) };
+  const tall = { ...piece("fur_000000f2", "tall_cabinet", 0.8, 0.62, 1.2, { x: s.x_m, y: s.y_m, r: s.rotation }) };
+  // A basin (its rim 0.85 m under a 0.2 m tap) under the kitchen's own 0.9 m sill.
+  const basin = { ...piece("fur_000000f3", "basin", 0.8, 0.48, 1.05, { x: s.x_m, y: s.y_m + 0.07, r: s.rotation }) };
+  const at = (p, ws, B = F) => kinds(P.fitChecks(p, { walls: ws, doors, others: [], B }));
+  const a = at(sink, W10), b = at(tall, W10), c = at(sink, W085), d = at(basin, walls), e = at(basin, walls, null);
+  check("fit: a sink under a 1.0 m sill is no warning; a 1.2 m tall cabinet there is; so is the sink under a sill lower than its worktop",
+    !a.includes("window") && b.includes("window") && c.includes("window") && !d.includes("window") && e.includes("window"), { a, b, c, d, e });
+});
+const GALLEY = { floors: [{ id: "main", name: "Main", level: 0 }], floor_elevations: { main: 0 },
+  room_geometry_m: { Galley: rect("main", 0, 0, 5.4, 3.4) },
+  rf_barriers_m: [{ id: "bar_win2", name: "Galley window", material: "glass", floor_id: "main", points_m: [[2.3, 0], [3.5, 0]] }] };
+const house2 = H.readHouse(GALLEY, GALLEY.floors, {}, null);
+D.applyOpenings(house2, { door_0000002d: D.newOpening("door", "main", [1.0, 3.4], [1.9, 3.4], CEIL) });
+const main2 = house2.byId.get("main"), per2 = house2.perFloor.get(main2);
+const walls2 = per2.pieces.map(pc => ({ ...pc, els: H.wallElements(pc.kind === "window" ? { ...pc, sill_m: 1.0 } : pc, main2.h) }));
+const doors2 = P.doorSwings(walls2, (pc) => H.openingSwing(pc, per2.rooms, pc.override || null));
+tryCase("sets: a kitchen whose row passes under a window puts its sink there; a row that passes none keeps the set's order", () => {
+  const name = "sets: a kitchen whose row passes under a window puts its sink there; a row that passes none keeps the set's order";
+  const galley = per2.rooms.find(r => r.name === "Galley"), set = SETS.find(s => s.id === "kitchen_row");
+  const ps = asPieces(P.layoutSet(set, galley.pts, walls2, { doors: doors2, B: F }), "c");
+  const base = ps.filter(p => p.z_m === 0).sort((p, q) => p.x_m - q.x_m), sink = base.find(p => p.recipe.kind === "sink");
+  // Its middle under the window's middle (x 2.9), its back on the window's wall (y = 0), facing into the room.
+  const under = !!sink && Math.abs(sink.x_m - 2.9) < 0.05 && sink.y_m < 0.4 && sink.rotation === 0;
+  const warn = ps.flatMap(p => P.fitChecks(p, { walls: walls2, doors: doors2, others: ps, B: F }).map(w => `${p.recipe.kind}: ${w.kind}`));
+  // The kitchen above (its window across the room from the row): the set's own order, the sink fourth.
+  const kitchen = per.rooms.find(r => r.name === "Kitchen");
+  const ks = asPieces(P.layoutSet(set, kitchen.pts, walls, { doors, B: F }), "d").filter(p => p.z_m === 0).sort((p, q) => p.x_m - q.x_m);
+  const own = set.rows[0].items.map(it => it.r.kind), seq = ks.map(p => p.recipe.kind);
+  const kept = [seq, [...seq].reverse()].some(s => s.length >= 4 && JSON.stringify(s) === JSON.stringify(own.slice(0, s.length)));
+  check(name, under && base.length === own.length && warn.length === 0 && kept,
+    { base: base.map(p => [p.recipe.kind, p.x_m, p.y_m, p.rotation]), warn, seq });
+  payloads.push({ pieces: Object.fromEntries(ps.map(p => [p.id, p])) });
 });
 
 console.log(JSON.stringify({ cases, failures, payloads }));

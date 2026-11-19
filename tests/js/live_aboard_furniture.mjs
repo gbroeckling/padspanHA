@@ -436,7 +436,7 @@ const FRONT = {
   // worktop (a sink's worktop is lower than its box by the tap: 1.2 m of sink
   // is a 0.9 m worktop).
   base_cabinet: (g, s) => kitchenFront(g, s, 0.16, 0.9),
-  sink: (g, s) => kitchenFront(g, s, 0.16, 0.9 * (s.h - Math.min(0.3, Math.max(0.08, s.h - 0.8))) / s.h),
+  sink: (g, s, r) => kitchenFront(g, s, 0.16, 0.9 * F.worktopOf(r) / s.h),
   dishwasher: (g, s) => kitchenFront(g, s, 0.16, 0.9),
   tall_cabinet: (g, s) => kitchenFront(g, s, 0.12, 0.95),
   wall_cabinet: (g, s) => kitchenFront(g, s, 0.08, 0.92),
@@ -683,6 +683,31 @@ tryCase("starters: every starter recipe is kept as it is and builds inside its b
   }
   check("starters: every starter recipe is kept as it is and builds inside its box",
     (F.STARTER_SET || []).length >= 10 && bad.length === 0, bad);
+});
+
+// A sink's and a basin's box goes up to the top of its tap (2026-11-18):
+// worktopOf, what a window's sill is measured against, is the worktop (the
+// rim) as drawn: the top of all but the chrome tap, which rises above it to
+// the box's top. No other kind has one.
+tryCase("build: a sink's worktop and a basin's rim are where worktopOf says, the tap above them inside the box; no other kind has one", () => {
+  const name = "build: a sink's worktop and a basin's rim are where worktopOf says, the tap above them inside the box; no other kind has one";
+  const topOf = (g, keep) => {
+    g.updateMatrixWorld(true);
+    const b = new THREE.Box3();
+    for (const m of meshesOf(g)) if (keep(m)) b.expandByObject(m);
+    return b.isEmpty() ? null : b.max.y;
+  };
+  const chrome = (m) => sameColour(m, "#c8ccd0"), bad = [];
+  let n = 0;
+  for (const kind of ["sink", "basin"]) for (const [label, recipe] of variants(kind)) {
+    const r = F.clampRecipe(recipe), w = F.worktopOf(r), g = F.buildPiece(THREE, r, { quality: "low" });
+    const under = topOf(g, (m) => !chrome(m)), tap = topOf(g, chrome);
+    if (!(typeof w === "number" && Math.abs(under - w) <= 0.003 && tap > w + 0.03 && tap <= r.height_m + EPS)) bad.push({ kind, label, w, under, tap, h: r.height_m });
+    F.disposePiece(g);
+    n++;
+  }
+  const others = Object.keys(F.FURNITURE).filter((k) => k !== "sink" && k !== "basin" && F.worktopOf(F.defaultRecipe(k)) !== null);
+  check(name, n > 40 && bad.length === 0 && others.length === 0 && Math.abs(F.worktopOf(F.defaultRecipe("sink")) - 0.9) < 1e-9, { n, bad: bad.slice(0, 4), others });
 });
 
 // Rails (2026-11-02): a new stair has none until one is chosen; auto, and a

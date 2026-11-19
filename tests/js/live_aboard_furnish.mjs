@@ -833,4 +833,37 @@ await tryCase("scan: no button without a scan; Size to the scan sets the measure
   SCAN = null; slot.reload(); await settle(20);
 });
 
+// ── a sink under a window (2026-11-18) ──────────────────────────────────────
+// A window drawn in 3D in the Rec's back wall (y = 0, x 2.3 to 3.5), its sill
+// 1.0 m. Kitchen, one wall in the Rec puts its sink under the window, and the
+// sink's panel has no warning there (its tap stands before the glass); a
+// 1.2 m tall cabinet in the same spot has the window's.
+await tryCase("sets: Kitchen, one wall puts its sink under the room's window; there it is no warning, a 1.2 m tall cabinet is", async () => {
+  const name = "sets: Kitchen, one wall puts its sink under the room's window; there it is no warning, a 1.2 m tall cabinet is";
+  click("Save", "la3d-tools"); await settle(30);                      // nothing unsaved: the draft follows the file
+  removeAll(); await settle(30);
+  server.file = { ...clone(server.file), openings: { win_0000a1b2: { kind: "window", floor_id: "basement", a_m: [2.3, 0], b_m: [3.5, 0], sill_m: 1.0, head_m: 2.1 } } };
+  slot.reload(); await settle(30);
+  topIds = new Set(["basement"]); poll(); await settle(20);
+  slot._look(0, 0.9, [5, 0, 4], 18);                                   // looking at the Rec
+  const set = FURN && (FURN.ROOM_SETS || []).find(s => s.id === "kitchen_row");
+  if (set) { click("Build ▾", "la3d-tools"); click(set.name, "la3d-furmenu"); await settle(); }
+  const sink = Object.values(draftPieces()).find(q => q.recipe.kind === "sink");
+  const under = !!sink && sink.floor_id === "basement" && Math.abs(sink.x_m - 2.9) < 0.05 && sink.y_m < 0.4 && sink.rotation === 0;
+  if (sink) { slot._furnish().select(sink.id); await settle(); }
+  const sinkSays = { checks: clone(fur().checks), warn: root().querySelectorAll(".la3d-warn").length };
+  click("Undo", "la3d-tools"); await settle();                         // the set goes; a tall cabinet where its sink stood
+  const tall = slot._furnish().build("tall_cabinet"); await settle();
+  slide("Height", 1.2); await settle();
+  if (sink) { typeIn("X on the plan", sink.x_m); typeIn("Y on the plan", sink.y_m); typeIn("Angle", 0); await settle(); }
+  const t = clone(draftPieces()[tall] || {}), warn = root().querySelectorAll(".la3d-warn")[0];
+  const tallSays = { checks: clone(fur().checks), text: warn ? warn.textContent : "", h: t.recipe && t.recipe.height_m, at: [t.x_m, t.y_m] };
+  check(name, under && !sinkSays.checks.includes("window") && sinkSays.warn === 0 && t.recipe && t.recipe.height_m === 1.2
+    && tallSays.checks.includes("window") && tallSays.text.includes("It is taller than the sill of the window behind it."),
+    { sink: sink && [sink.x_m, sink.y_m, sink.rotation], sinkSays, tallSays });
+  click("Delete", "la3d-sheet"); await settle();
+  server.file = { ...clone(server.file), openings: {} };
+  slot.reload(); await settle(20);
+});
+
 console.log(JSON.stringify({ cases, failures, payloads, live: LIVE }));

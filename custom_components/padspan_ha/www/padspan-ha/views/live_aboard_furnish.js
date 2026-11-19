@@ -387,7 +387,7 @@ export function createFurnish(ctx){
     const F = floorById(p.floor_id), walls = wallsOf(F);
     const doors = F ? PIECES.doorSwings(walls, (pc) => ctx.HOUSE.openingSwing(pc, F.rooms, pc.override || null)) : [];
     const c = cur(), others = Object.values((c && c.pieces) || {}).filter(o => o.floor_id === p.floor_id && o.id !== p.id);
-    return { walls, doors, others };
+    return { walls, doors, others, B: FURN() };
   }
   const checksOf = (p) => PIECES.fitChecks(p, sceneOf(p)).concat(stairChecks(p));
   const nameOf = (id) => { const p = pieceOf(id); return p ? pieceName(p, FURN()).toLowerCase() : "piece"; };
@@ -524,7 +524,7 @@ export function createFurnish(ctx){
     }
     const walls = wallsOf(F), doors = PIECES.doorSwings(walls, (pc) => ctx.HOUSE.openingSwing(pc, F.rooms, pc.override || null));
     const c = cur(), others = Object.values((c && c.pieces) || {}).filter(o => o && String(o.floor_id) === String(F.fl.id));
-    const got = PIECES.layoutSet(set, room.pts, walls, { others, doors });
+    const got = PIECES.layoutSet(set, room.pts, walls, { others, doors, B: FURN() });
     const where = room.name ? String(room.name) : "this room";
     if (!got.pieces.length) { ctx.hint(`Nothing from the ${set.name.toLowerCase()} set fits in ${where}.`, true); return; }
     add(got.pieces.map(q => ({ piece: { ...PIECES.makePiece(q.recipe, F.fl.id, { x: q.x_m, y: q.y_m, rotation: q.rotation }, "build"), z_m: q.z_m } })));
@@ -1341,7 +1341,7 @@ export function createFurnish(ctx){
     if (!at || !p) return;
     const F = floorById(p.floor_id);
     const want = { ...p, x_m: Math.round((at[0] + g.off[0]) * 1000) / 1000, y_m: Math.round((at[1] + g.off[1]) * 1000) / 1000, rotation: g.rot };
-    const s = PIECES.snapToWall(want, null, wallsOf(F));
+    const s = PIECES.snapToWall(want, null, wallsOf(F), PIECES.SNAP_M, FURN());
     g.snapped = !!s;
     measure = true;
     ctx.change((c) => {

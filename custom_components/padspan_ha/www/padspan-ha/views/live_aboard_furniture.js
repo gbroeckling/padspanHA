@@ -412,6 +412,21 @@ export function pieceSize(recipe){
   const r = clampRecipe(recipe);
   return { w: r.width_m, d: r.depth_m, h: r.height_m };
 }
+// A sink's and a basin's box goes up to the top of its tap: how far the tap
+// stands above the worktop (a basin's rim) in a box H tall. 0 for any other kind.
+function tapOf(kind, H){
+  if (kind === "sink") return Math.min(0.3, Math.max(0.08, H - 0.8));
+  if (kind === "basin") return Math.min(0.2, Math.max(0.06, H - 0.65));
+  return 0;
+}
+/** A sink's worktop or a basin's rim, in metres above its bottom: its Height
+ *  less its tap, as drawn. What a window's sill is measured against (the tap
+ *  stands in front of the glass; live_aboard_pieces.js sillTop). null for
+ *  every other kind. */
+export function worktopOf(recipe){
+  const r = clampRecipe(recipe);
+  return r.kind === "sink" || r.kind === "basin" ? r.height_m - tapOf(r.kind, r.height_m) : null;
+}
 
 // ── the starter set ──────────────────────────────────────────────────────────
 // Ready-made pieces at the top of Furnish's Build menu (Garry, 2026-10-04:
@@ -2057,7 +2072,7 @@ function buildTallCabinet(K, S, p, C){
 // doors under it.
 function buildSink(K, S, p, C){
   const { w: W, d: D, h: H } = S;
-  const tapH = Math.min(0.3, Math.max(0.08, H - 0.8)), wtop = H - tapH;
+  const tapH = tapOf("sink", H), wtop = H - tapH;
   const bw = Math.min(W - 0.16, p.bowls === 2 ? 0.86 : 0.5), bd = Math.max(0.12, Math.min(0.42, D - 0.22)), hz = Math.min(0.03, D * 0.05);
   const k = kitchenBase(K, { w: W, d: D, h: wtop }, C, true, p.handles, { w: bw, d: bd, z: hz });
   kFronts(K, "doors", 0, W, k.y0, k.y1, k.zf, k.front, p.handles, k.hl, "top");
@@ -2196,7 +2211,7 @@ function buildWc(K, S, p, C){
 function buildBasin(K, S, p, C){
   const { w: W, d: D, h: H } = S;
   const cer = L(C[0], "gloss"), cab = L(C[1], "wood"), chrome = L(CHROME, "metal"), inner = L(BOWL, "gloss");
-  const tapH = Math.min(0.2, Math.max(0.06, H - 0.65)), rim = H - tapH, n = p.basins;
+  const tapH = tapOf("basin", H), rim = H - tapH, n = p.basins;
   const xs = n === 2 ? [-W / 4, W / 4] : [0], each = W / n;
   const bowl = (x, w, d, t, z) => {
     K.slab("rect", w, t, d, x, rim - t, z, cer, Math.min(w, d) * 0.22, Math.min(0.01, t / 3));
