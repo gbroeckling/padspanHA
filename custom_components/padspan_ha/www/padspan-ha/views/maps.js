@@ -65,6 +65,8 @@ if (TSP) TSP.tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 // "No floor plan? Ways to get one" on Mapping → Upload, and the phone's walk-through of a room scan (rough_plan.js).
 const ROUGH = await import(`./rough_plan.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: rough_plan failed to load", err); return null; });
+// Drawing rooms in Edit and Layout: corners land on other rooms' corners, edges, a grid; Straighten edges (room_snap.js).
+const SNAP = await import(`./room_snap.js${new URL(import.meta.url).search}`);
 // Carry-along (plan_carry.js): a moved plan's line on its Library row, and the list of what could move with it.
 const CARRY = await import(`./plan_carry.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: plan_carry failed to load", err); return null; });
@@ -2395,6 +2397,22 @@ function _edit(ctx, map, allMaps, opts){
   // the map first.
   const _wallTx = () => (ctx.state.model?.map_transforms || {})[map.id] || null;
   const _wallFloor = () => String(ctx.state.maps._draftFloorId || map.floor_id || "main");
+  // Drawing rooms (room_snap.js) in the plan's own metres: across and down the picture, by its scale. No scale, no
+  // metres: a corner still lands on another room's (in screen pixels), with no grid, and nothing is straightened.
+  const _planK = () => {
+    const t = _wallTx(), sx = Math.abs(Number(t && t.scale_x_m)), sy = Math.abs(Number(t && t.scale_y_m));
+    return sx > 1e-3 && sy > 1e-3 ? [sx, sy] : null;
+  };
+  // A corner of `room` clicked at x, y (fractions): on another room's corner, else its edge, else the grid.
+  const _roomSnap = (x, y, room) => {
+    const rect = overlay.getBoundingClientRect(), k = _planK();
+    const w = Math.max(1, rect.width), [kx, ky] = k || [w, Math.max(1, rect.height)];
+    const outlines = Object.entries(ctx.state.maps._draftRoomBounds || {})
+      .filter(([r, b]) => r !== room && b && b.type === "poly" && Array.isArray(b.points))
+      .map(([, b]) => b.points.map(p => [p[0] * kx, p[1] * ky]));
+    const s = SNAP.snapPoint([x * kx, y * ky], { ...SNAP.snapTargets(outlines), tol: SNAP.SNAP_PX * kx / w, grid: k ? SNAP.GRID_M : 0 });
+    return [clamp01(s.p[0] / kx), clamp01(s.p[1] / ky)];
+  };
   const _MAT_ATTEN = {metal:12, concrete:8, brick:4, custom:6, open:0};
   const _MAT_COLORS = {metal:"#ef4444",concrete:"#f97316",brick:"#eab308",custom:"#a855f7",open:"#38bdf8"};
   // Custom is the one material with a number the user sets (0–30 dB, 6 until
@@ -3572,9 +3590,40 @@ function _edit(ctx, map, allMaps, opts){
         renderAll(); renderTools();
       }}, "Enclose (3dB walls)");
 
+      // Straighten edges (room_snap.js): every outline on this plan, in its own metres; a corner rooms share moves for all.
+      const straightBtn = el("button",{class:"btn inline", "data-room-straighten":"edit",
+        title:"Make every edge that is less than 5 cm off level or upright straight", onclick:()=>{
+        const k = _planK();
+        if(!k){ ctx.toast("Set this plan's scale first: straightening works in metres.", true); return; }
+        const rb = ctx.state.maps._draftRoomBounds || {};
+        const polys = Object.fromEntries(Object.entries(rb).filter(([, b]) => b && b.type === "poly" && Array.isArray(b.points) && b.points.length >= 3)
+          .map(([room, b]) => [room, b.points.map(p => [p[0] * k[0], p[1] * k[1]])]));
+        const res = SNAP.straightenRooms(polys);
+        if(!res.fixed){ ctx.toast("Nothing to straighten: no edge is less than 5 cm off."); return; }
+        // Only corners that moved are written back; the rest keep their fractions exactly.
+        for(const [room, pts] of Object.entries(res.rooms)){
+          const was = polys[room];
+          if(pts.some((p, i) => p[0] !== was[i][0] || p[1] !== was[i][1]))
+            rb[room] = { ...rb[room], points: pts.map((p, i) => p[0] === was[i][0] && p[1] === was[i][1] ? rb[room].points[i] : [clamp01(p[0] / k[0]), clamp01(p[1] / k[1])]) };
+        }
+        renderAll(); refreshList(); renderTools();
+        _wizKeep(ctx);
+        ctx.toast(`Straightened ${res.fixed} edge${res.fixed === 1 ? "" : "s"}.` + (ctx.state._mapsWizard ? "" : " Save Layout keeps it; Revert takes it back."));
+      }}, "Straighten edges");
+
       right.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"},[
-        startBtn, undoPt, finishBtn, clearBtn, _toolOk("barriers") ? encloseBtn : null,
+        startBtn, undoPt, finishBtn, clearBtn, straightBtn, _toolOk("barriers") ? encloseBtn : null,
       ]));
+      right.appendChild(el("div",{"data-room-snap":"hint", style:"margin-top:6px;font-size:12px;color:#94a3b8"},
+        "A corner you click near another room's corner or edge lands on it. Hold Alt to place it exactly where you click."));
+      // Rooms on this plan drawn over each other (the report's own check), in metres: needs the plan's scale.
+      {
+        const tf = _wallTx();
+        const roomsM = tf ? Object.fromEntries(Object.entries(ctx.state.maps._draftRoomBounds || {})
+          .filter(([, b]) => b && b.type === "poly" && Array.isArray(b.points) && b.points.length >= 3)
+          .map(([room, b]) => [room, b.points.map(p => mapFracToMetres(tf, p[0], p[1]).map(v => Math.round(v * 1000) / 1000))])) : {};
+        right.appendChild(_overlapNote(ctx, roomsM, "Redraw one of them so the two only meet at the wall."));
+      }
       // A scanned plan: corners land on the scanned wall ends, and (the lesser option) a scanned room's own outline
       // can be taken for the room chosen. A drawn room comes first; this only saves the clicks.
       if(ROUGH && ROUGH.hasScanRooms(map)){
@@ -4014,10 +4063,12 @@ function _edit(ctx, map, allMaps, opts){
     const rect = overlay.getBoundingClientRect();
     const x = (ev.clientX - rect.left) / rect.width;
     const y = (ev.clientY - rect.top) / rect.height;
-    // On a scanned plan a room's corner clicked close to a scanned wall end lands on it (rough_plan.scanCorner).
-    const onScan = ctx.state.maps._mode==="rooms" && ROUGH ? ROUGH.scanCorner(map, x, y) : null;
+    // On a scanned plan a room's corner clicked close to a scanned wall end lands on it (rough_plan.scanCorner); else
+    // on another room's corner, edge or the grid (_roomSnap). Alt held: exactly where clicked.
+    const snapping = ctx.state.maps._mode==="rooms" && !ev.altKey;
+    const onScan = snapping && ROUGH ? ROUGH.scanCorner(map, x, y) : null;
     if(onScan) ROUGH.scanCounted(ctx, "scan_snap");
-    ctx.state.maps._drawing.points.push(onScan || [clamp01(x), clamp01(y)]);
+    ctx.state.maps._drawing.points.push(onScan || (snapping ? _roomSnap(x, y, ctx.state.maps._drawing.room) : [clamp01(x), clamp01(y)]));
     renderAll(); renderTools();
   });
 
@@ -11665,6 +11716,32 @@ function _lightsTab(ctx, maps, active) {
   return wrap;
 }
 
+// Rooms drawn over each other, by name (2026-11-18; NeonPlan: "Rooms overlap – walls there are incomplete"): the
+// report counted them and nobody was told which. Edit and Layout ask the server's one check (padspan_ha/rooms_overlap,
+// setup_checks.overlapping_pairs) about the outlines on screen, drafts included ({room: [[x, y], ...]}, metres, one
+// floor); asked again only when they change, the lines filled in when it answers. Empty while there is nothing to say.
+function _overlapNote(ctx, roomsM, hint) {
+  const { el } = ctx.helpers;
+  const box = el("div", { "data-room-overlap": "" });
+  if (Object.keys(roomsM).length < 2) return box;
+  const ms = ctx.state.maps, key = JSON.stringify(roomsM);
+  const fill = (b, pairs) => {
+    if (!pairs.length) return;
+    b.setAttribute("style", "margin-top:8px;padding:6px 10px;border-radius:6px;background:#2a1a0a;border:1px solid #d97706;font-size:12px;color:#fbbf24;line-height:1.5");
+    for (const [a, c] of pairs) b.appendChild(el("div", {}, `${a} and ${c} overlap, so the walls between them can't be drawn.`));
+    b.appendChild(el("div", { style: "color:#94a3b8" }, hint));
+  };
+  let ask = ms._overlapAsk;
+  if (!ask || ask.key !== key) {
+    const mine = ask = ms._overlapAsk = { key, pairs: null, boxes: [] };
+    Promise.resolve().then(() => ctx.actions.wsCall("padspan_ha/rooms_overlap", { rooms: roomsM }))
+      .then((r) => (Array.isArray(r && r.pairs) ? r.pairs : []), () => [])
+      .then((pairs) => { mine.pairs = pairs; for (const b of mine.boxes.splice(0)) fill(b, pairs); });
+  }
+  if (ask.pairs) fill(box, ask.pairs); else ask.boxes.push(box);
+  return box;
+}
+
 // ─── Rooms tab — the fabric room-shape editor ─────────────────────────────
 // Edits the FabricStore's per-floor room geometry DIRECTLY, in metres. The
 // uploaded photo is never involved: a floor is built from its maps exactly
@@ -12475,6 +12552,11 @@ function _roomsTab(ctx, maps) {
   if (sel.size) readout.appendChild(el("span", { class: "mono", style: "color:#e879f9" }, `${sel.size} selected`));
   if (changedRooms.length) readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" }, `${changedRooms.length} unsaved`));
   card.appendChild(readout);
+  // Rooms of this floor drawn over each other, as they stand in the draft on screen (the report's own check).
+  if (!blendStacked) {
+    card.appendChild(_overlapNote(ctx, Object.fromEntries(geoms.filter(([, g]) => g && g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3)
+      .map(([rn, g]) => [rn, g.points_m])), "Drag a corner so the two only meet at the wall."));
+  }
 
   // ── Canvas ──────────────────────────────────────────────────────────────
   // Rooms OR scanners is enough to draw: a floor with radios and no floor
@@ -12536,9 +12618,10 @@ function _roomsTab(ctx, maps) {
     };
     const pt = (ev) => [ev.clientX ?? ev.touches?.[0]?.clientX ?? 0, ev.clientY ?? ev.touches?.[0]?.clientY ?? 0];
 
-    // Shared drag runner: snapshots state, feeds metre deltas to onMove, and
-    // suppresses the poll re-render for the whole gesture (same
-    // _editDragging contract the Lights canvas uses).
+    // Shared drag runner: snapshots state, feeds metre deltas to onMove (and
+    // the move event: Alt held places a corner freely), and suppresses the
+    // poll re-render for the whole gesture (same _editDragging contract the
+    // Lights canvas uses).
     const runDrag = (ev, onMove, onClick) => {
       ev.preventDefault(); ev.stopPropagation();
       if (!pinLayer.isConnected) return;   // stale tree — a re-render just swapped the DOM
@@ -12552,7 +12635,7 @@ function _roomsTab(ctx, maps) {
         if (!pinLayer.isConnected) return;
         const [cx, cy] = pt(e);
         if (Math.abs(cx - sx) + Math.abs(cy - sy) > 3) moved = true;
-        if (moved) { const [dxm, dym] = pxToM(cx - sx, cy - sy); onMove(dxm, dym); }
+        if (moved) { const [dxm, dym] = pxToM(cx - sx, cy - sy); onMove(dxm, dym, e); }
       };
       const up = (e) => {
         window.removeEventListener("mousemove", mm); window.removeEventListener("touchmove", mm);
@@ -12923,10 +13006,16 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         h.addEventListener("mousedown", (ev) => {
           if (ev.button !== 0) return;
           const snap = JSON.parse(JSON.stringify(g));
-          runDrag(ev, (dxm, dym) => {
+          // A corner lands on another room's corner, else its edge, else the grid (room_snap.js); Alt: where dropped.
+          const near = SNAP.snapTargets(Object.entries(draft).filter(([rn, o]) => rn !== room && o && o.type === "poly").map(([, o]) => o.points_m));
+          runDrag(ev, (dxm, dym, e) => {
             if (idx === "c") { g.cx_m = Math.round((snap.cx_m+dxm)*1000)/1000; g.cy_m = Math.round((snap.cy_m+dym)*1000)/1000; }
             else if (idx === "r") { g.r_m = Math.max(0.1, Math.round((snap.r_m + dxm)*1000)/1000); }
-            else { g.points_m[idx] = [Math.round((snap.points_m[idx][0]+dxm)*1000)/1000, Math.round((snap.points_m[idx][1]+dym)*1000)/1000]; }
+            else {
+              let q = [snap.points_m[idx][0] + dxm, snap.points_m[idx][1] + dym];
+              if (!(e && e.altKey)) q = SNAP.snapPoint(q, { ...near, tol: SNAP.SNAP_PX * bbox.width / Math.max(1, pinLayer.getBoundingClientRect().width), grid: SNAP.GRID_M }).p;
+              g.points_m[idx] = [Math.round(q[0]*1000)/1000, Math.round(q[1]*1000)/1000];
+            }
             applyShape(room);
           });
         });
@@ -12964,6 +13053,24 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
     }
 
     card.appendChild(stage);
+
+    // Straighten edges (room_snap.js): every outline on this floor, in metres; a corner rooms share moves for all.
+    if (!blendStacked) {
+      card.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#94a3b8" }, [
+        el("button", { class: "btn inline", "data-room-straighten": "layout", title: "Make every edge that is less than 5 cm off level or upright straight", onclick: () => {
+          const polys = Object.fromEntries(Object.entries(draft).filter(([, o]) => o && o.type === "poly" && Array.isArray(o.points_m) && o.points_m.length >= 3)
+            .map(([rn, o]) => [rn, o.points_m]));
+          const res = SNAP.straightenRooms(polys);
+          if (!res.fixed) { ctx.toast("Nothing to straighten: no edge is less than 5 cm off."); return; }
+          for (const [rn, pts] of Object.entries(res.rooms)) {
+            if (JSON.stringify(pts) !== JSON.stringify(polys[rn])) draft[rn].points_m = pts.map(p => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000]);
+          }
+          ctx.toast(`Straightened ${res.fixed} edge${res.fixed === 1 ? "" : "s"}. ` + (previewing ? "Commit this layout keeps it." : "Save corrections keeps it; Discard changes takes it back."));
+          ctx.actions.renderRooms();
+        } }, "Straighten edges"),
+        el("span", {}, "A corner you drag near another room's corner or edge lands on it. Hold Alt to place it freely."),
+      ]));
+    }
 
     // ── Group tools: scale / rotate the selection about its centroid ──────
     // A mis-scaled cluster (the fallback-transform disease) needs a group

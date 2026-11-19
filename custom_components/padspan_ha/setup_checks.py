@@ -9,9 +9,11 @@ default height, 30% leave every receiver at the same height, 28% never give
 a plan a real-world scale. The Overview now says so, quietly, to the person
 who can fix it (padspan_ha/setup_tips); the same rules decide both, here.
 
-Also counted for the report, never shown: rooms on one floor drawn over each
-other (a hand-drawn outline slightly past its wall; Garry's Garage and
-Laundry overlap 17 cm), and the stairs in Live Aboard's file.
+Also counted for the report: rooms on one floor drawn over each other (a
+hand-drawn outline slightly past its wall; Garry's Garage and Laundry overlap
+17 cm), and the stairs in Live Aboard's file. The report sends only how many
+rooms overlap; Mapping's Edit and Layout name them to the person drawing
+(2026-11-18, padspan_ha/rooms_overlap), by the same rule.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
@@ -121,32 +124,38 @@ def plans_out_of_shape(maps: Any, transforms: Any) -> list[dict[str, Any]]:
     return out
 
 
-def rooms_overlapping(geometry: dict[str, Any]) -> int:
+def overlapping_pairs(geometry: dict[str, Any]) -> list[tuple[str, str]]:
     """Pairs of rooms on the same floor drawn over each other by more than
-    OVERLAP_M. A count, never which rooms.
+    OVERLAP_M, by name: each pair once, its two names in order, the pairs in
+    order.
 
     It runs inside the report on Home Assistant's event loop, so it must stay
     cheap on a house of hundreds of rooms: each floor's rooms are sorted by
     their left edge and only rooms whose boxes overlap by more than OVERLAP_M
     are compared point by point (a sweep, not every pair)."""
-    by_floor: dict[str, list[tuple[tuple[float, float, float, float], list[tuple[float, float]]]]] = {}
-    for g in (geometry or {}).values():
+    by_floor: dict[str, list[tuple[tuple[float, float, float, float], list[tuple[float, float]], str]]] = {}
+    for name, g in (geometry or {}).items():
         P = _poly(g)
         if P:
             xs, ys = [p[0] for p in P], [p[1] for p in P]
-            by_floor.setdefault(str(g.get("floor_id") or "main"), []).append(((min(xs), min(ys), max(xs), max(ys)), P))
-    n = 0
+            by_floor.setdefault(str(g.get("floor_id") or "main"), []).append(((min(xs), min(ys), max(xs), max(ys)), P, str(name)))
+    out: list[tuple[str, str]] = []
     for rooms in by_floor.values():
         rooms.sort(key=lambda r: r[0][0])
-        for i, ((ax0, ay0, ax1, ay1), A) in enumerate(rooms):
-            for (bx0, by0, bx1, by1), B in rooms[i + 1:]:
+        for i, ((ax0, ay0, ax1, ay1), A, an) in enumerate(rooms):
+            for (bx0, by0, bx1, by1), B, bn in rooms[i + 1:]:
                 if bx0 > ax1 - OVERLAP_M:
                     break                                   # sorted by left edge: none further can reach in
                 if min(ax1, bx1) - max(ax0, bx0) <= OVERLAP_M or min(ay1, by1) - max(ay0, by0) <= OVERLAP_M:
                     continue                                # boxes not over each other by enough
                 if _reaches_into(A, B) or _reaches_into(B, A):
-                    n += 1
-    return n
+                    out.append((an, bn) if an <= bn else (bn, an))
+    return sorted(out)
+
+
+def rooms_overlapping(geometry: dict[str, Any]) -> int:
+    """How many pairs of rooms overlapping_pairs finds: the report's count, never which rooms."""
+    return len(overlapping_pairs(geometry))
 
 
 def stairs_summary(pieces: Any) -> dict[str, int] | None:
@@ -242,4 +251,19 @@ async def ws_setup_tips(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], res)
 
 
-WS_COMMANDS = (ws_setup_tips,)
+@websocket_api.websocket_command({
+    "type": "padspan_ha/rooms_overlap",
+    vol.Required("rooms"): vol.All(dict, vol.Length(max=1000)),
+})
+@websocket_api.async_response
+async def ws_rooms_overlap(hass: HomeAssistant, connection, msg) -> None:
+    """Which rooms are drawn over each other, for Mapping's Edit and Layout
+    (2026-11-18: the report counted them and nobody was told). The outlines
+    sent, one floor's, in metres ({room: [[x, y], ...]}, unsaved drafts
+    included), by the report's own rule (overlapping_pairs): {pairs: [[room,
+    room], ...]}. Reads and writes nothing, so anyone may ask."""
+    geo = {str(r): {"points_m": pts} for r, pts in msg["rooms"].items()}
+    connection.send_result(msg["id"], {"pairs": [list(p) for p in overlapping_pairs(geo)]})
+
+
+WS_COMMANDS = (ws_setup_tips, ws_rooms_overlap)

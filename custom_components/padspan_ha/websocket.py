@@ -422,7 +422,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     for _cmd in _ai_usage_commands:
         websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
-    # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most.
+    # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most; and which rooms
+    # overlap, for Mapping's Edit and Layout.
     from .setup_checks import WS_COMMANDS as _setup_tip_commands
     # Carry-along (plan_carry.py): what was placed on a plan, moved with it when asked.
     from .plan_carry import WS_COMMANDS as _plan_carry_commands

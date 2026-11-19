@@ -44,6 +44,24 @@ def test_rooms_drawn_over_each_other_are_counted_by_pairs():
     assert C.rooms_overlapping(inside) == 1, "a room drawn wholly inside another"
 
 
+def test_mapping_is_told_which_rooms_overlap_by_the_reports_own_rule():
+    """2026-11-18: the report counted rooms drawn over each other and nobody was told which. Mapping's Edit and Layout
+    now name them (padspan_ha/rooms_overlap): the same check, the pairs by name, the report still a count."""
+    garage = {"Laundry": _rect("main", 7.89, -9.20, 9.80, -6.08), "Garage": _rect("main", 3.3, -16.48, 11.15, -9.03),
+              "Hall": _rect("main", 0, 0, 4, 3), "Den": _rect("main", 4, 0, 8, 3), "Nook": _rect("main", 1, 1, 2, 2),
+              "Up": _rect("up", 1, 1, 3, 2)}
+    assert C.overlapping_pairs(garage) == [("Garage", "Laundry"), ("Hall", "Nook")], "each pair once, its names in order"
+    assert C.rooms_overlapping(garage) == 2 == len(C.overlapping_pairs(garage))
+    assert C.overlapping_pairs({}) == [] and C.overlapping_pairs(None) == []
+    # The command: the outlines sent (drafts included), one floor's, in metres; nothing read or written.
+    conn = MagicMock()
+    rooms = {"Kitchen": [[0, 0], [4, 0], [4, 3], [0, 3]], "Pantry": [[3.5, 1], [5, 1], [5, 2], [3.5, 2]],
+             "Porch": [[4, 3], [6, 3], [6, 5], [4, 5]], "Bad": [[0, 0], ["x", 1]]}
+    _run(C.ws_rooms_overlap(MagicMock(), conn, {"id": 7, "type": "padspan_ha/rooms_overlap", "rooms": rooms}))
+    assert conn.send_result.call_args[0] == (7, {"pairs": [["Kitchen", "Pantry"]]})
+    assert C.WS_COMMANDS == (C.ws_setup_tips, C.ws_rooms_overlap)
+
+
 def test_the_count_stays_cheap_on_a_house_of_hundreds_of_rooms():
     # It runs inside the report, on Home Assistant's event loop (the stable
     # review, 2026-10-29: every pair compared point by point could block it
@@ -161,7 +179,7 @@ def test_the_command_answers_administrators_and_keeps_out_what_was_hidden(monkey
     assert _ws(_home(two, same), admin=False) == {"tips": []}
     assert _ws(_home(two, same, hidden=["scale"])) == {"tips": ["floor_heights", "receiver_heights"]}
     assert _ws(_home(two, same, hidden=["all"])) == {"tips": []}
-    assert C.WS_COMMANDS == (C.ws_setup_tips,)
+    assert C.ws_setup_tips in C.WS_COMMANDS
 
 
 def test_the_hidden_tips_setting_keeps_only_known_ids():

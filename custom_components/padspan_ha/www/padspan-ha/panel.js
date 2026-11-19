@@ -338,7 +338,7 @@ function _sampleKind(payload){
     + "house3d_get house3d_import_preview house3d_library_get house3d_library_search house3d_stairs_plans house3d_stairs_read plan_ai_plans plan_ai_status plan_ai_sessions_get plan_build_info plan_build_status plan_build_rooms_status plan_build_rooms_check ai_usage_get insights_get "
     + "install_base licence_homes live_snapshot logs_get lost_and_found_get maps_image_urls maps_list model_get movement_history_get "
     + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
-    + "room_tags setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
+    + "room_tags rooms_overlap setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
     + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status wled_backups wled_devices "
     + "wled_exact_list wled_get wled_look_get wled_teams_get power_teams_get motion_reconnects vacuum_import_preview irk_validate "
     + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
