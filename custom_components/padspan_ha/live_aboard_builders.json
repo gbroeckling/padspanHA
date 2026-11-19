@@ -931,7 +931,8 @@
       "bush",
       "tree",
       "palm",
-      "cactus"
+      "cactus",
+      "fir"
      ],
      "def": "bush",
      "sizes": {
@@ -946,6 +947,11 @@
       },
       "cactus": {
        "height_m": 0.7
+      },
+      "fir": {
+       "width_m": 1,
+       "depth_m": 1,
+       "height_m": 1.8
       }
      }
     },

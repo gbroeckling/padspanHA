@@ -174,8 +174,9 @@ export const FURNITURE = {
     ]),
   plant: kind("Plant", "furniture", "decor", null, ["Leaves", "Pot"], ["#4f7a3a", "#b5653d"],
     sz([0.12, 2.0, 0.5], [0.12, 2.0, 0.5], [0.15, 3.0, 0.9]), [
-      choice("style", "Plant", ["bush", "tree", "palm", "cactus"], "bush", { sizes: {
-        bush: { height_m: 0.8 }, tree: { height_m: 1.6 }, palm: { height_m: 1.5 }, cactus: { height_m: 0.7 } } }),
+      choice("style", "Plant", ["bush", "tree", "palm", "cactus", "fir"], "bush", { sizes: {
+        bush: { height_m: 0.8 }, tree: { height_m: 1.6 }, palm: { height_m: 1.5 }, cactus: { height_m: 0.7 },
+        fir: { width_m: 1.0, depth_m: 1.0, height_m: 1.8 } } }),
       choice("pot", "Pot", ["round", "square", "none"], "round"),
     ]),
   // The kitchen (2026-11): base units carry their own worktop, so a run of
@@ -1872,13 +1873,13 @@ function buildWardrobe(K, S, p, C){
   }
 }
 
-// Plant: a pot and a bush, a tree, a palm or a cactus. It is drawn round,
+// Plant: a pot and a bush, a tree, a palm, a cactus or a fir. It is drawn round,
 // in metres, then stretched along the longer side, so a long planter is a row.
 function buildPlant(K0, S, p, C){
   const { w: W, d: D, h: H } = S;
   const R = Math.min(W, D) / 2, K = K0.child(null, [W / 2 / R, 1, D / 2 / R]);
   const leaf = L(C[0], "soft"), pot = L(C[1], "satin"), soil = L("#3b2a1e");
-  const potH = p.pot === "none" ? 0 : clamp(H * 0.3, 0.04, 0.45), potR = R * (p.style === "tree" || p.style === "palm" ? 0.6 : 0.75);
+  const potH = p.pot === "none" ? 0 : clamp(H * 0.3, 0.04, 0.45), potR = R * (p.style === "tree" || p.style === "palm" || p.style === "fir" ? 0.6 : 0.75);
   if (p.pot === "round") {
     K.cyl(potR, potR * 0.86, potH, 0, potH / 2, 0, pot, 20);
     K.cyl(potR * 0.9, potR * 0.9, 0.008, 0, potH - 0.003, 0, soil, 20);
@@ -1921,6 +1922,15 @@ function buildPlant(K0, S, p, C){
       const a = i * Math.PI * 2 / 5 + 0.4, y = Math.max(yc - crownH * 0.18 + (i % 2) * crownH * 0.16, y0 + rc * fy);
       ball(Math.cos(a) * ring, y, Math.sin(a) * ring, rc * 0.92, i % 2 ? leaf : dark, [1, fy, 1]);
     }
+  } else if (p.style === "fir") {
+    // A conifer (a Christmas tree): a short trunk under tiers of cones, each
+    // narrower than the one below it and overlapping it, the top one a point.
+    const n = 4, skirt = y0 + fh * 0.1, th = (H - skirt) * 1.7 / (n + 0.7), step = (H - skirt - th) / (n - 1);
+    const tr = clamp(R * 0.08, 0.008, 0.05), trunkH = skirt - y0 + th * 0.3, dark = L(darken(C[0], 0.15), "soft");
+    K.cyl(tr * 0.8, tr, trunkH, 0, y0 + trunkH / 2, 0, L("#6b4a32", "wood"), 8);
+    const rb = (i) => R * 0.98 * (1 - i * 0.72 / n);
+    for (let i = 0; i < n; i++)
+      K.cyl(i === n - 1 ? 0 : rb(i + 1) * 0.5, rb(i), th, 0, skirt + step * i + th / 2, 0, i % 2 ? dark : leaf, 14);
   } else if (p.style === "palm") {
     // Arching fronds: each rises from the top of the trunk, then droops.
     const l1 = R * 0.5, l2 = R * 0.46, up = 0.6, down = -0.35, wid = Math.min(0.14, R * 0.3);
