@@ -59,7 +59,7 @@ const PHONES = [
     state: "Transmitting", attributes: { id: "x_1_2", "Transmitting power": "ultraLow", "Advertise mode": "lowPower" } },
   { entity_id: "sensor.tab_ble_transmitter", device_name: "Tab", ibeacon_key: "ibeacon:y:1:2", is_transmitting: true, is_visible: true,
     state: "Transmitting", attributes: { id: "y_1_2", "Transmitting power": "high", "Advertise mode": "lowLatency" } },
-  { entity_id: "", device_name: "Garry's iPhone", model: "iPhone 15", state: "sensor_not_registered", attributes: {} },
+  { entity_id: "", device_name: "Alex's iPhone", model: "iPhone 15", state: "sensor_not_registered", attributes: {} },
 ];
 async function overview(complexity) {
   const state = { view: "overview", dataMode: "live", _dataModeKnown: true, complexity, settings: {}, maps: { list: [] }, model: {},
