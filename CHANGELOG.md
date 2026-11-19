@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.263 — Room sets: odd-shaped rooms, doorways and kitchen corners; The launch price ends November 30; The usage report counts irk-capture keys apart; Live Aboard: Rooms ▾ by default; Usage report: Live Aboard's Look and rooms, and Furnish's room sets; WLED outputs: a made-up example address (2026-11-19)
+
+### New
+- **One card on Overview: "The launch price ends November 30".** It says that PadSpan Pro for life is $89 CAD, once, until November 30 (then $168), with a button to buy at padspan.traks.ca. Only an administrator sees it, only on a house without a running paid licence (no key, a trial, or a licence that has run out), and only once: it is not shown again after a reload, and No thanks hides it for good. It is never shown on a wall screen, and it goes by itself at the end of November 30 (Pacific time). Nothing about it is sent in the usage report.
+
+### Changed
+- **The opt-in usage report now tells keys from an irk-capture ESP32 apart.** A key saved from an irk-capture ESP32 (in the phone wizard, or found by Auto-detect in the IRK Manager) is counted as one, with whether it works, and the report says how many irk-capture ESP32s Home Assistant has: counts only, never names, and only while the report is on.
+- **Live Aboard shows one Rooms ▾ button at the top on every screen**, not a row of every room's name. It lists every named room under its floor's name, as before; pick one to go there. If you liked the row, tick **Room chips along the top** in ⋯ (on a wide screen; phones and wall screens always have Rooms ▾). Like the other ticks there, it is kept for that screen only.
+- **The WLED card's network output hint shows a made-up example address (192.168.0.119).** It shows when a network output's address is missing or incomplete; before, its example was an address from a real network.
+
+### Fixed
+- **Room sets use the room's other walls before leaving a piece out.** In an L-shaped room a set could keep the bed and lose the wardrobe and the dresser. A piece with no room on the wall it was meant for now goes on another wall of the room. It still never overlaps anything, blocks a door or runs past a corner.
+- **Room sets keep out of doorways.** A cabinet or a desk could stick partly into an opening with no door in it. Now nothing from a set stands in the way through a door or a doorway, on either side.
+- **An L-shaped kitchen closes its corner.** When the walls didn't divide evenly, a gap was left where the two runs meet. Now the run is closed up to the corner with a unit sized to what is left (or the end unit made a little wider), and the worktop and wall cabinets run round the corner. The run along the side wall now starts right in the corner.
+- **The bathroom set puts the basin under a window**, as the kitchen sets put the sink, when the toilet and basin already pass under one. Nothing is left out for it.
+- **Hang on wall measures a sink or a basin to its worktop or rim.** It used to be measured to the top of its tap, so a sink hung under a low window went to another wall. Now it hangs under the window, with its tap in front of the glass, as when you drag it there.
+
+### Usage report (opt-in)
+- Counts of a Look picked in Live Aboard's Views ▾ (only its kind: Classic, Studio, a Showcase theme, or By the sun turned on), a room gone to from Rooms ▾ or from a room chip, and a room set placed in Furnish. Never which theme, room or set. Nothing is sent while the usage report is off.
+
+---
+
 ## 0.38.262 — The usage report can say where you heard about PadSpan; Doors and windows go with their room in Layout (2026-11-19)
 
 ### New
