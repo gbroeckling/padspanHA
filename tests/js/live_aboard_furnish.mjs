@@ -870,4 +870,30 @@ await tryCase("sets: Kitchen, one wall puts its sink under the room's window; th
   slot.reload(); await settle(20);
 });
 
+// Hang on wall (2026-11-19) measures a sink by its worktop too: before the
+// same window (sill 1.0 m), a 1.2 m sink hung with its middle at 0.6 m goes
+// on the window's wall, its tap before the glass, with no warning; it used
+// to go to another wall, its tap measured against the sill.
+await tryCase("hang: a sink hung before a window whose sill is over its worktop goes on that wall, with no warning", async () => {
+  const name = "hang: a sink hung before a window whose sill is over its worktop goes on that wall, with no warning";
+  click("Save", "la3d-tools"); await settle(30);
+  removeAll(); await settle(30);
+  server.file = { ...clone(server.file), openings: { win_0000a1b3: { kind: "window", floor_id: "basement", a_m: [2.3, 0], b_m: [3.5, 0], sill_m: 1.0, head_m: 2.1 } } };
+  slot.reload(); await settle(30);
+  topIds = new Set(["basement"]); poll(); await settle(20);
+  slot._look(0, 0.9, [5, 0, 4], 18);                                   // looking at the Rec
+  const sink = slot._furnish().build("sink"); await settle();
+  typeIn("X on the plan", 2.9); await settle();
+  typeIn("Y on the plan", 0.8); await settle();
+  typeIn("Angle", 90); await settle();
+  typeIn("Hang height", 0.6); await settle();
+  click("Hang on wall", "la3d-sheet"); await settle();
+  const p = clone(draftPieces()[sink] || {}), says = { checks: clone(fur().checks), warn: root().querySelectorAll(".la3d-warn").length };
+  check(name, p.recipe && p.recipe.kind === "sink" && p.floor_id === "basement" && p.rotation === 0 && p.y_m < 0.45 && near(p.x_m, 2.9, 1e-3)
+    && p.z_m === 0 && !says.checks.includes("window") && says.warn === 0, { p: [p.x_m, p.y_m, p.z_m, p.rotation], says });
+  click("Delete", "la3d-sheet"); await settle();
+  server.file = { ...clone(server.file), openings: {} };
+  slot.reload(); await settle(20);
+});
+
 console.log(JSON.stringify({ cases, failures, payloads, live: LIVE }));

@@ -25,8 +25,12 @@
 //   stand    onto the top of the piece its middle is over, never onto what
 //            hangs above it; nothing under it, the floor
 //   hang     its middle at the height asked, its back flat on the nearest
-//            wall solid there (never a window's glass or a doorway), facing
-//            out, under the ceiling
+//            wall solid there (never a window's glass or a doorway; a sink
+//            up to its worktop), facing out, under the ceiling
+//   sets     room sets: inside the room, backs flush on walls, clear of
+//            doors' swings and every opening's way, a sink or a basin under
+//            a window its row passes, an odd room's other walls used, an
+//            L-kitchen's corner closed
 //
 // usage: live_aboard_pieces.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...] }
@@ -497,6 +501,142 @@ tryCase("sets: a kitchen whose row passes under a window puts its sink there; a 
   check(name, under && base.length === own.length && warn.length === 0 && kept,
     { base: base.map(p => [p.recipe.kind, p.x_m, p.y_m, p.rotation]), warn, seq });
   payloads.push({ pieces: Object.fromEntries(ps.map(p => [p.id, p])) });
+});
+
+// ── the furniture gaps (2026-11-19) ─────────────────────────────────────────
+// One room read by the house module, with doors, doorways and windows drawn
+// in 3D: {room, walls, doors}. openings: {id: record} (live_aboard_draft.js).
+const roomOf = (pts, openings = {}) => {
+  const M = { floors: [{ id: "main", name: "Main", level: 0 }], floor_elevations: { main: 0 },
+              room_geometry_m: { Room: { type: "poly", floor_id: "main", points_m: pts } } };
+  const h = H.readHouse(M, M.floors, {}, null);
+  D.applyOpenings(h, openings);
+  const fl = h.byId.get("main"), pf = h.perFloor.get(fl);
+  const ws = pf.pieces.map(pc => ({ ...pc, els: H.wallElements(pc, fl.h) }));
+  return { room: pf.rooms[0], walls: ws, doors: P.doorSwings(ws, (pc) => H.openingSwing(pc, pf.rooms, pc.override || null)) };
+};
+const segDist = (q, a, b) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(q[0] - a[0] - dx * t, q[1] - a[1] - dy * t);
+};
+const hard = (p, R, ps, B = F) => P.fitChecks(p, { walls: R.walls, doors: R.doors, others: ps, B }).filter(w => ["wall", "overlap", "door"].includes(w.kind))
+  .map(w => `${p.recipe.kind}: ${w.kind}`);
+
+// An L-shaped bedroom (a strip 1.19 m deep, an arm 2.6 m wide): walls of the
+// frame are not the room's, and the wardrobe and the dresser found no room on
+// theirs and were left out. They go on the room's other wall runs: everything
+// placed, nothing in a wall, another piece or a door's swing, each piece on
+// the floor with its back flush along one of the room's walls, never past its
+// corner. An L-shaped living room keeps its sofa across from the TV: a row
+// moved to another wall counts for less than one where the set means it.
+tryCase("sets: an L-shaped bedroom puts its wardrobe and dresser on the room's other walls, none past a corner; an L living room keeps its sofa across from the TV", () => {
+  const name = "sets: an L-shaped bedroom puts its wardrobe and dresser on the room's other walls, none past a corner; an L living room keeps its sofa across from the TV";
+  const R = roomOf([[0, 0], [5.2, 0], [5.2, 1.19], [2.6, 1.19], [2.6, 3.4], [0, 3.4]]);
+  const r = P.layoutSet(SETS.find(s => s.id === "bedroom"), R.room.pts, R.walls, { doors: R.doors, B: F }), ps = asPieces(r, "e");
+  const has = (k, wide) => ps.some(p => p.recipe.kind === k && (!wide || p.recipe.width_m > 1));
+  const warn = ps.flatMap(p => hard(p, R, ps)), out = ps.filter(p => !inside(p, R.room.pts)).map(p => p.recipe.kind);
+  // Its back's two corners on one edge of the outline (the walls stand outside it).
+  const pts = R.room.pts, onEdge = (p) => { const [bl, br] = P.cornersOf(P.boxOf(p));
+    return pts.some((a, i) => segDist(bl, a, pts[(i + 1) % pts.length]) < 0.015 && segDist(br, a, pts[(i + 1) % pts.length]) < 0.015); };
+  const loose = ps.filter(p => p.z_m === 0 && p.recipe.kind !== "rug" && !onEdge(p)).map(p => [p.recipe.kind, p.x_m, p.y_m, p.rotation]);
+  const L2 = roomOf([[0, 0], [3.4, 0], [3.4, 2], [1.19, 2], [1.19, 4], [0, 4]]);
+  const lv = P.layoutSet(SETS.find(s => s.id === "living"), L2.room.pts, L2.walls, { doors: L2.doors, B: F });
+  const tv = lv.pieces.find(q => q.key === "tv"), sofa = lv.pieces.find(q => q.key === "sofa"), ft = tv && P.frontOf(tv.rotation), fs = sofa && P.frontOf(sofa.rotation);
+  const across = !!tv && !!sofa && ft[0] * fs[0] + ft[1] * fs[1] < -0.9 && (sofa.x_m - tv.x_m) * ft[0] + (sofa.y_m - tv.y_m) * ft[1] > 1.5;
+  check(name, r.left_out === 0 && has("bed") && has("wardrobe") && has("dresser", true) && !warn.length && !out.length && !loose.length && across,
+    { left_out: r.left_out, kinds: ps.map(p => p.recipe.kind), warn, out, loose, tv: tv && [tv.x_m, tv.y_m, tv.rotation], sofa: sofa && [sofa.x_m, sofa.y_m, sofa.rotation] });
+  payloads.push({ pieces: Object.fromEntries(ps.map(p => [p.id, p])) });
+});
+
+// A room 4.2 × 2.0 m with a doorway (no door, so no swing) in each long wall
+// and a door in the end wall that opens out of the room: no piece of any set
+// stands in an opening's way (its width, out as far as it is wide, 0.9 m at
+// most, on both sides, below its head). A row used to reach into a doorway
+// when its middle stood against the wall beside it.
+tryCase("sets: no piece of a set stands in the way through a doorway, or a door that opens away from the room", () => {
+  const name = "sets: no piece of a set stands in the way through a doorway, or a door that opens away from the room";
+  const R = roomOf([[0, 0], [4.2, 0], [4.2, 2.0], [0, 2.0]], {
+    doorway_000000a1: D.newOpening("doorway", "main", [2.5, 0], [3.4, 0], CEIL), doorway_000000a2: D.newOpening("doorway", "main", [0.8, 2.0], [1.7, 2.0], CEIL),
+    door_000000a3: { ...D.newOpening("door", "main", [4.2, 0.3], [4.2, 1.1], CEIL), swing: "out" } });
+  const ways = R.walls.filter(w => w.kind === "doorway" || w.kind === "door").map(w => {
+    const len = Math.hypot(w.x1 - w.x0, w.y1 - w.y0), u = [(w.x1 - w.x0) / len, (w.y1 - w.y0) / len];
+    return { kind: w.kind, b: { c: [(w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2], u, v: [-u[1], u[0]], hu: len / 2, hv: w.thick / 2 + Math.min(len, 0.9) } };
+  });
+  const bad = [], warn = [];
+  let n = 0;
+  for (const set of SETS) {
+    const ps = asPieces(P.layoutSet(set, R.room.pts, R.walls, { doors: R.doors, B: F }), "f");
+    n += ps.length;
+    for (const p of ps) {
+      const b = P.boxOf(p);
+      if (b.z1 - b.z0 > P.FLAT_M && b.z0 < 2.0) for (const w of ways) if (P.boxesOverlap(b, w.b)) bad.push([set.id, p.recipe.kind, p.x_m, p.y_m, w.kind]);
+      warn.push(...hard(p, R, ps));
+    }
+  }
+  check(name, ways.length === 3 && n > 20 && !bad.length && !warn.length, { ways: ways.length, n, bad: bad.slice(0, 6), warn: warn.slice(0, 6) });
+});
+
+// Kitchen, L-shaped in rooms 3.9 to 5.0 m wide: the run along the back wall
+// meets the side run's corner unit with no gap (a unit sized to what is
+// left, or its end unit a little wider), and the side run starts in the
+// corner itself. Every unit is one its builder makes, and none is in a wall,
+// another piece or a door's swing.
+tryCase("sets: Kitchen, L-shaped closes its corner: the back run reaches the side run's corner unit, which stands in the corner", () => {
+  const name = "sets: Kitchen, L-shaped closes its corner: the back run reaches the side run's corner unit, which stands in the corner";
+  const set = SETS.find(s => s.id === "kitchen_l"), bad = [];
+  for (const W of [3.9, 4.0, 4.2, 4.6, 5.0]) {
+    const R = roomOf([[0, 0], [W, 0], [W, 3.4], [0, 3.4]]), ps = asPieces(P.layoutSet(set, R.room.pts, R.walls, { doors: R.doors, B: F }), "ab");
+    const fridge = ps.find(p => p.recipe.kind === "fridge");
+    if (!fridge) { bad.push({ W, fridge: false }); continue; }
+    // Along the back wall (the fridge's): what stands on the floor within 0.3 m of it, as spans [a, b] along the wall.
+    const fb = P.boxOf(fridge), u = fb.u, v = fb.v, along = (q) => q[0] * u[0] + q[1] * u[1], out = (q) => q[0] * v[0] + q[1] * v[1];
+    const back = out(fb.c) - fb.hv, spans = [];
+    for (const p of ps.filter(q => q.z_m === 0)) {
+      const c = P.cornersOf(P.boxOf(p));
+      if (Math.min(...c.map(out)) < back + 0.3) spans.push([Math.min(...c.map(along)), Math.max(...c.map(along))]);
+    }
+    spans.sort((a, b) => a[0] - b[0]);
+    const room = R.room.pts.map(along), gaps = [];
+    for (let i = 1; i < spans.length; i++) if (spans[i][0] > Math.max(...spans.slice(0, i).map(s => s[1])) + 0.012) gaps.push([spans[i - 1][1], spans[i][0]]);
+    const reach = [spans[0][0] - Math.min(...room), Math.max(...room) - spans[spans.length - 1][1]];
+    const kept = ps.every(p => JSON.stringify(F.clampRecipe(p.recipe)) === JSON.stringify(p.recipe));
+    const warn = ps.flatMap(p => hard(p, R, ps));
+    if (gaps.length || reach.some(d => d > 0.012) || !kept || warn.length) bad.push({ W, gaps, reach, kept, warn });
+    payloads.push({ pieces: Object.fromEntries(ps.map(p => [p.id, p])) });
+  }
+  check(name, bad.length === 0, bad.slice(0, 4));
+});
+
+// A bathroom 2.8 × 2.2 m with a window (sill 0.95 m) over where the toilet
+// stood: its row passes under it, so the basin moves there (its rim, not its
+// tap, against the sill), as a kitchen's sink does; the row starts where it
+// did. With no window the set's own order stands: the toilet first.
+tryCase("sets: a bathroom whose row passes under a window puts its basin there; with none, the toilet comes first", () => {
+  const name = "sets: a bathroom whose row passes under a window puts its basin there; with none, the toilet comes first";
+  const pts = [[0, 0], [2.8, 0], [2.8, 2.2], [0, 2.2]], set = SETS.find(s => s.id === "bathroom");
+  const R = roomOf(pts, { win_000000b1: { ...D.newOpening("window", "main", [0.7, 0], [1.3, 0], CEIL), sill_m: 0.95 } });
+  const ps = asPieces(P.layoutSet(set, R.room.pts, R.walls, { doors: R.doors, B: F }), "bc");
+  const basin = ps.find(p => p.recipe.kind === "basin"), wc = ps.find(p => p.recipe.kind === "wc");
+  const under = !!basin && Math.abs(basin.x_m - 1.0) <= 0.3 && basin.y_m < 0.4 && basin.rotation === 0;
+  const warn = ps.flatMap(p => P.fitChecks(p, { walls: R.walls, doors: R.doors, others: ps, B: F }).map(w => `${p.recipe.kind}: ${w.kind}`));
+  const Q = roomOf(pts), qs = asPieces(P.layoutSet(set, Q.room.pts, Q.walls, { doors: Q.doors, B: F }), "bd");
+  const qb = qs.find(p => p.recipe.kind === "basin"), qw = qs.find(p => p.recipe.kind === "wc");
+  check(name, under && !!wc && ps.length === 3 && !warn.length && !!qb && !!qw && qw.x_m < qb.x_m && qb.y_m < 0.4,
+    { ps: ps.map(p => [p.recipe.kind, p.x_m, p.y_m, p.rotation]), warn, plain: qs.map(p => [p.recipe.kind, p.x_m, p.y_m]) });
+});
+
+// Hang on wall: a sink before a window whose sill (1.0 m) is over its
+// worktop (0.9 m) but under its tap (1.2 m) hangs on that wall, as it snaps
+// there when dragged (sillTop); without the builders, or a 1.2 m tall
+// cabinet, it does not.
+tryCase("hang: a sink hung before a window is measured to its worktop, as when it is dragged; a tall cabinet is not", () => {
+  const name = "hang: a sink hung before a window is measured to its worktop, as when it is dragged; a tall cabinet is not";
+  const at = (kind) => piece("fur_000000f6", kind, 0.8, 0.62, 1.2, { x: 1.6, y: 2.4, r: 0 });
+  const sink = P.hangOnWall(at("sink"), null, W10, 0.6, CEIL, F), bare = P.hangOnWall(at("sink"), null, W10, 0.6, CEIL);
+  const tall = P.hangOnWall(at("tall_cabinet"), null, W10, 0.6, CEIL, F), kindOf = (s) => s && W10[s.wall].kind;
+  const hung = sink && { ...at("sink"), ...sink }, says = hung ? kinds(P.fitChecks(hung, { walls: W10, doors, others: [], B: F })) : null;
+  check(name, kindOf(sink) === "window" && near(sink.rotation, 180) && sink.z_m === 0 && Array.isArray(says) && !says.includes("window")
+    && kindOf(bare) !== "window" && kindOf(tall) !== "window", { sink, bare, tall, says });
 });
 
 console.log(JSON.stringify({ cases, failures, payloads }));

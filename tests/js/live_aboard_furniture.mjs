@@ -72,6 +72,17 @@ tryCase("api: the Build menu", () => {
   check("api: the Build menu", Array.isArray(k) && new Set(k).size === k.length && !bad.length
     && JSON.stringify(k.slice(0, starters.length)) === JSON.stringify(starters) && k.includes("other"), { k, bad });
 });
+// Kitchen, L-shaped closes its corner (2026-11-19): each of its runs along the
+// back wall, laid from the far end, is closed up to the corner with base or
+// wall units, a recipe its builder keeps, as narrow and as wide as the
+// builder makes that kind (the build cases build every width between).
+tryCase("api: Kitchen, L-shaped closes its corner with units its builder makes, as narrow and as wide as it makes them", () => {
+  const name = "api: Kitchen, L-shaped closes its corner with units its builder makes, as narrow and as wide as it makes them";
+  const set = (F.ROOM_SETS || []).find((s) => s.id === "kitchen_l"), rows = set ? set.rows.filter((r) => r.fill) : [];
+  const ok = (r) => { const f = r.fill, d = F.FURNITURE[f.r && f.r.kind];
+    return r.from === "end" && !!d && f.min === d.size.width_m[0] && f.max === d.size.width_m[1] && JSON.stringify(F.clampRecipe(f.r)) === JSON.stringify(f.r); };
+  check(name, rows.map((r) => r.fill.r.kind).join() === "base_cabinet,wall_cabinet" && rows.every(ok), rows);
+});
 const paramOk = (s) => {
   const base = typeof s.key === "string" && /^[a-z][a-z0-9_]*$/.test(s.key) && typeof s.label === "string" && s.label.length > 0;
   if (s.type === "int" || s.type === "num") {
