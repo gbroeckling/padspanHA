@@ -178,6 +178,72 @@ export const FURNITURE = {
         bush: { height_m: 0.8 }, tree: { height_m: 1.6 }, palm: { height_m: 1.5 }, cactus: { height_m: 0.7 } } }),
       choice("pot", "Pot", ["round", "square", "none"], "round"),
     ]),
+  // The kitchen (2026-11): base units carry their own worktop, so a run of
+  // them side by side reads as one; the sink and the hob sit in it. A
+  // sink's and a basin's height is up to the top of the tap: the worktop or
+  // the rim is lower by the tap (1.2 m of sink is a 0.9 m worktop).
+  base_cabinet: kind("Base cabinet", "furniture", "kitchen", null, ["Fronts", "Body", "Worktop"], ["#eae8e3", "#dedbd4", "#8c8780"],
+    sz([0.15, 3.0, 0.6], [0.3, 0.9, 0.62], [0.5, 1.1, 0.9]), [
+      choice("fronts", "Fronts", ["doors", "drawers", "mixed"], "doors"),
+      bool("worktop", "Worktop", true),
+      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+    ]),
+  wall_cabinet: kind("Wall cabinet", "furniture", "kitchen", null, ["Fronts", "Body"], ["#eae8e3", "#dedbd4"],
+    sz([0.2, 2.4, 0.6], [0.2, 0.6, 0.35], [0.2, 1.2, 0.7]), [
+      choice("fronts", "Fronts", ["doors", "glass", "lift-up", "open"], "doors"),
+      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+    ]),
+  tall_cabinet: kind("Tall cabinet", "furniture", "kitchen", null, ["Fronts", "Body"], ["#eae8e3", "#dedbd4"],
+    sz([0.3, 1.2, 0.6], [0.3, 0.8, 0.62], [1.2, 2.6, 2.1]), [
+      choice("fronts", "Fronts", ["doors", "oven", "oven and microwave"], "doors"),
+      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+    ]),
+  fridge: kind("Fridge", "furniture", "kitchen", null, ["Body", "Handles"], ["#e9e9e7", "#9aa3ab"],
+    sz([0.45, 1.2, 0.6], [0.5, 0.9, 0.66], [0.75, 2.1, 1.85]), [
+      choice("style", "Style", ["tall", "double", "under"], "tall", { sizes: {
+        tall: { width_m: 0.6, depth_m: 0.66, height_m: 1.85 }, double: { width_m: 0.9, depth_m: 0.72, height_m: 1.78 },
+        under: { width_m: 0.6, depth_m: 0.6, height_m: 0.85 } } }),
+    ]),
+  stove: kind("Stove / hob", "furniture", "kitchen", null, ["Body", "Hob", "Worktop"], ["#eae8e3", "#1b1c1f", "#8c8780"],
+    sz([0.3, 1.2, 0.6], [0.45, 0.8, 0.62], [0.6, 1.1, 0.9]), [
+      // hob: a hob in the worktop over a built-in oven, in the run's fronts;
+      // cooker: a freestanding range with its own top.
+      choice("style", "Style", ["hob", "cooker"], "hob"),
+      choice("hob", "Hob", ["induction", "gas"], "induction"),
+    ]),
+  sink: kind("Sink", "furniture", "kitchen", null, ["Fronts", "Body", "Worktop"], ["#eae8e3", "#dedbd4", "#8c8780"],
+    sz([0.4, 2.4, 0.8], [0.4, 0.8, 0.62], [0.8, 1.5, 1.2]), [
+      int("bowls", "Bowls", 1, 2, 1, { sizes: { 1: { width_m: 0.8 }, 2: { width_m: 1.2 } } }),
+      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+    ]),
+  dishwasher: kind("Dishwasher", "furniture", "kitchen", null, ["Front", "Body", "Worktop"], ["#eae8e3", "#dedbd4", "#8c8780"],
+    sz([0.45, 0.6, 0.6], [0.5, 0.7, 0.62], [0.75, 1.0, 0.9]), [
+      choice("style", "Front", ["built-in", "steel"], "built-in"),
+      bool("worktop", "Worktop", true),
+    ]),
+  // The bathroom (2026-11).
+  wc: kind("Toilet", "furniture", "bath", null, ["Ceramic", "Seat"], ["#f5f5f3", "#f5f5f3"],
+    sz([0.3, 0.6, 0.38], [0.45, 0.9, 0.68], [0.35, 1.3, 0.8]), [
+      // floor: a cistern on the back; wall: hung from a boxed-in frame with a flush plate.
+      choice("mount", "Mount", ["floor", "wall"], "floor", { sizes: { floor: { depth_m: 0.68, height_m: 0.8 }, wall: { depth_m: 0.58, height_m: 1.1 } } }),
+    ]),
+  basin: kind("Basin", "furniture", "bath", null, ["Ceramic", "Cabinet"], ["#f5f5f3", "#b58e66"],
+    sz([0.35, 2.0, 0.6], [0.3, 0.65, 0.48], [0.6, 1.3, 1.05]), [
+      choice("style", "Style", ["vanity", "pedestal", "wall"], "vanity", { sizes: {
+        vanity: { width_m: 0.8, depth_m: 0.48 }, pedestal: { width_m: 0.6, depth_m: 0.46 }, wall: { width_m: 0.55, depth_m: 0.42 } } }),
+      int("basins", "Basins", 1, 2, 1, { sizes: { 1: { width_m: 0.8 }, 2: { width_m: 1.4 } } }),
+    ]),
+  bath: kind("Bath", "furniture", "bath", null, ["Bath", "Panel"], ["#f5f5f3", "#f5f5f3"],
+    sz([1.2, 2.2, 1.7], [0.6, 1.2, 0.75], [0.4, 0.8, 0.62]), [
+      choice("style", "Style", ["built-in", "freestanding"], "built-in", { sizes: {
+        "built-in": { width_m: 1.7, depth_m: 0.75, height_m: 0.62 }, freestanding: { width_m: 1.7, depth_m: 0.8, height_m: 0.68 } } }),
+    ]),
+  shower: kind("Shower", "furniture", "bath", null, ["Tray", "Frame"], ["#f2f2f0", "#2a2b2e"],
+    sz([0.7, 2.0, 0.9], [0.7, 2.0, 0.9], [1.8, 2.5, 2.1]), [
+      // enclosure: glass on the front and one side, a door; walk-in: one glass screen.
+      choice("style", "Style", ["enclosure", "walk-in"], "enclosure", { sizes: {
+        enclosure: { width_m: 0.9, depth_m: 0.9 }, "walk-in": { width_m: 1.4, depth_m: 0.9 } } }),
+    ]),
   washer: kind("Washer", "device", "appliance", "run", ["Body", "Trim"], ["#f2f2f0", "#9aa5ad"],
     sz([0.45, 0.8, 0.6], [0.4, 0.85, 0.62], [0.6, 1.1, 0.85]), [
       choice("loading", "Loading", ["front", "top"], "front"),
@@ -279,6 +345,8 @@ export const FURNITURE = {
 // The Build menu, in order. Tags and scanners (groups "tag" and "scanner")
 // are in FURNITURE for the beacon screen, not here.
 export const FURNITURE_KINDS = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp", "rug", "shelf", "wardrobe", "plant",
+                                "base_cabinet", "wall_cabinet", "tall_cabinet", "sink", "stove", "dishwasher", "fridge",
+                                "wc", "basin", "bath", "shower",
                                 "washer", "dryer", "vacuum_dock", "mower_dock", "car", "charger", "radiator", "fan", "speaker", "other"];
 
 const defOf = (k) => (typeof k === "string" && Object.prototype.hasOwnProperty.call(FURNITURE, k) ? FURNITURE[k] : null);
@@ -1812,6 +1880,364 @@ function buildPlant(K0, S, p, C){
   }
 }
 
+// ── the kitchen ─────────────────────────────────────────────────────────────
+// Base units stand on a dark kick set back under their fronts and carry a
+// worktop that overhangs the fronts a little; fronts are flush, matt, with
+// thin gaps; pulls are slim bars (near the top of a base unit's doors, near
+// the bottom of a wall unit's). Taps are chrome and stand at the back.
+const CHROME = "#c8ccd0", OVEN = "#17191c", STEEL = "#b4b9be", SINK = "#8f969c", BOWL = "#dfe2e4", KICK_M = 0.1;
+/** A kitchen base unit's carcass, its kick and its worktop (unless none).
+ *  hole {w, d, z}: a cut-out in the worktop (a sink's bowls, a hob).
+ *  → {y0, y1, zf, front, hl}: the fronts go from y0 up to y1 on a face at zf. */
+function kitchenBase(K, S, C, worktop, handles, hole = null){
+  const { w: W, d: D, h: H } = S;
+  const top = worktop ? Math.min(0.038, H * 0.06) : 0, hd = handles === "none" ? 0 : HANDLE_D;
+  const kick = Math.min(KICK_M, H * 0.14), lip = worktop ? Math.min(0.025, D * 0.05) : 0;
+  const cD = D - lip - 0.02 - hd, zb = -D / 2, zf = zb + cD;
+  const body = L(C[1] || C[0], "satin"), wt = L(C[2] || "#8c8780", "satin");
+  K.box(W, H - top - kick, cD - GAP_T, 0, kick + (H - top - kick) / 2, zb + (cD - GAP_T) / 2, body, 0.004);
+  plinth(K, W, zb, zf, kick, 0.05, 0);
+  if (worktop) {
+    if (!hole) K.box(W, top, D, 0, H - top / 2, 0, wt, 0.004);
+    else {
+      // Around the cut-out: a strip behind it, one in front, one each side.
+      const hx = hole.w / 2, z0 = hole.z - hole.d / 2, z1 = hole.z + hole.d / 2, y = H - top / 2;
+      K.box(W, top, z0 + D / 2, 0, y, (-D / 2 + z0) / 2, wt, 0.003);
+      K.box(W, top, D / 2 - z1, 0, y, (z1 + D / 2) / 2, wt, 0.003);
+      for (const s of [-1, 1]) K.box(W / 2 - hx, top, z1 - z0, s * (W / 2 + hx) / 2, y, hole.z, wt);
+    }
+  }
+  return { y0: kick + 0.004, y1: H - top - 0.004, zf, top, front: L(C[0], "satin"), hl: L(METAL, "metal") };
+}
+/** Kitchen fronts across w at x, from y0 to y1, on a face at zf: "doors"
+ *  (one each 60 cm or less), "drawers" (two deep under a shallow one),
+ *  "mixed" (a drawer over doors). pulls: "top" (a base unit) or "bottom". */
+function kFronts(K, kind, x, w, y0, y1, zf, look, handles, hl, pulls = "top"){
+  const fT = 0.02, H = y1 - y0;
+  if (H < 0.02 || w < 0.02) return;
+  K.box(w, H, GAP_T, x, (y0 + y1) / 2, zf - GAP_T / 2, L(GAP));
+  const front = (cx, cw, a, b, py) => {
+    K.box(cw - 0.004, b - a - 0.004, fT, cx, (a + b) / 2, zf + fT / 2, look, 0.003);
+    handle(K, handles, cx, py, zf + fT, "x", hl, Math.min(0.22, cw * 0.5));
+  };
+  const doors = (a, b) => {
+    const n = Math.max(1, Math.ceil(w / 0.61 - 1e-6)), dw = w / n;
+    for (let i = 0; i < n; i++) front(x - w / 2 + dw * (i + 0.5), dw, a, b, pulls === "top" ? b - Math.min(0.05, (b - a) / 4) : a + Math.min(0.05, (b - a) / 4));
+  };
+  const drawer = (a, b) => front(x, w, a, b, b - Math.min(0.045, (b - a) / 3));
+  if (kind === "drawers") {
+    const t = y1 - Math.min(0.16, H * 0.22), m = y0 + (t - y0) / 2;
+    drawer(y0, m); drawer(m, t); drawer(t, y1);
+  } else if (kind === "mixed") {
+    const t = y1 - Math.min(0.16, H * 0.22);
+    doors(y0, t); drawer(t, y1);
+  } else doors(y0, y1);
+}
+function buildBaseCabinet(K, S, p, C){
+  const k = kitchenBase(K, S, C, p.worktop, p.handles);
+  kFronts(K, p.fronts, 0, S.w, k.y0, k.y1, k.zf, k.front, p.handles, k.hl, "top");
+}
+// A wall cabinet: hung by its back (its height in the room sets where), the
+// pulls near the bottom; glass doors show its shelves, open has none.
+function buildWallCabinet(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[1], "satin"), front = L(C[0], "satin"), hl = L(METAL, "metal");
+  const open = p.fronts === "open", hd = open || p.handles === "none" ? 0 : HANDLE_D;
+  const cD = D - (open ? 0 : 0.02) - hd, zb = -D / 2, zf = zb + cD, t = Math.min(0.018, W / 8, H / 8);
+  if (open || p.fronts === "glass") {
+    // A box open at the front: its sides, top, bottom and back, a shelf inside.
+    const inner = L(lighten(C[1], 0.12), "satin");
+    for (const s of [-1, 1]) K.box(t, H, cD, s * (W / 2 - t / 2), H / 2, zb + cD / 2, body, 0.003);
+    for (const y of [t / 2, H - t / 2]) K.box(W - 2 * t, t, cD, 0, y, zb + cD / 2, body, 0.003);
+    K.box(W - 2 * t, H - 2 * t, 0.006, 0, H / 2, zb + 0.003, body);
+    K.box(W - 2 * t, H - 2 * t, 0.002, 0, H / 2, zb + 0.007, inner);
+    if (H > 0.3) K.box(W - 2 * t, t * 0.8, cD - 0.03, 0, H / 2, zb + 0.008 + (cD - 0.03) / 2, inner);
+    if (open) return;
+    // Glass doors: thin frames round clear glass.
+    const n = Math.max(1, Math.ceil(W / 0.61 - 1e-6)), dw = W / n, f = Math.min(0.04, dw / 5, H / 6);
+    const glass = L("#dfeaee", "glass");
+    for (let i = 0; i < n; i++) {
+      const x = -W / 2 + dw * (i + 0.5);
+      for (const s of [-1, 1]) K.box(f, H - 0.004, 0.02, x + s * (dw / 2 - 0.002 - f / 2), H / 2, zf + 0.01, front, 0.002);
+      for (const y of [f / 2 + 0.002, H - f / 2 - 0.002]) K.box(dw - 2 * f - 0.004, f, 0.02, x, y, zf + 0.01, front, 0.002);
+      K.box(dw - 2 * f, H - 2 * f - 0.004, 0.004, x, H / 2, zf + 0.01, glass);
+      handle(K, p.handles, x, f + Math.min(0.04, H / 6), zf + 0.02, "x", hl, Math.min(0.2, dw * 0.45));
+    }
+    return;
+  }
+  K.box(W, H, cD - GAP_T, 0, H / 2, zb + (cD - GAP_T) / 2, body, 0.004);
+  if (p.fronts === "lift-up") {
+    // One or two flaps across the width that lift up, pulls along their bottoms.
+    const n = H > 0.6 ? 2 : 1;
+    K.box(W, H, GAP_T, 0, H / 2, zf - GAP_T / 2, L(GAP));
+    for (let i = 0; i < n; i++) {
+      const a = H * i / n, b = H * (i + 1) / n;
+      K.box(W - 0.004, b - a - 0.004, 0.02, 0, (a + b) / 2, zf + 0.01, front, 0.003);
+      handle(K, p.handles, 0, a + Math.min(0.04, (b - a) / 4), zf + 0.02, "x", hl, Math.min(0.3, W * 0.4));
+    }
+  } else kFronts(K, "doors", 0, W, 0, H, zf, front, p.handles, hl, "bottom");
+}
+// A tall unit: on the kick, doors (a short one over a long one), or a
+// built-in oven at eye height (and a microwave over it) between doors.
+function buildTallCabinet(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  // (An oven's bar reaches out as a pull does, handles or none.)
+  const k = kitchenBase(K, S, C, false, p.fronts === "doors" ? p.handles : "bar"), y0 = k.y0, y1 = k.y1, dark = L(OVEN, "gloss"), steel = L(STEEL, "metal");
+  if (p.fronts === "doors") {
+    const split = y0 + (y1 - y0) * 0.62;
+    kFronts(K, "doors", 0, W, y0, split, k.zf, k.front, p.handles, k.hl, "top");
+    kFronts(K, "doors", 0, W, split, y1, k.zf, k.front, p.handles, k.hl, "bottom");
+    return;
+  }
+  // The oven at a comfortable height, a microwave over it when asked.
+  const two = p.fronts === "oven and microwave", ovH = Math.min(0.6, (y1 - y0) * 0.32), mwH = two ? Math.min(0.38, (y1 - y0) * 0.2) : 0;
+  const a = clamp(0.85, y0 + 0.15, y1 - ovH - mwH - 0.1), b = a + ovH, c = b + mwH;
+  kFronts(K, "drawers", 0, W, y0, a, k.zf, k.front, p.handles, k.hl, "top");
+  kFronts(K, "doors", 0, W, c, y1, k.zf, k.front, p.handles, k.hl, "bottom");
+  const app = (lo, hi, glassH) => {
+    K.box(W - 0.006, hi - lo - 0.006, 0.02, 0, (lo + hi) / 2, k.zf + 0.01, dark, 0.003);
+    K.box((W - 0.006) * 0.82, (hi - lo) * glassH, 0.004, 0, (lo + hi) / 2 - (hi - lo) * 0.05, k.zf + 0.0215, L("#2a2e33", "gloss"));
+    K.box(Math.min(0.4, W * 0.7), 0.012, 0.012, 0, hi - Math.min(0.04, (hi - lo) / 5), k.zf + 0.026, steel);
+  };
+  app(a, b, 0.55);
+  if (two) app(b, c, 0.5);
+}
+// Sink: one or two steel bowls in the worktop, a chrome tap behind them,
+// doors under it.
+function buildSink(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const tapH = Math.min(0.3, Math.max(0.08, H - 0.8)), wtop = H - tapH;
+  const bw = Math.min(W - 0.16, p.bowls === 2 ? 0.86 : 0.5), bd = Math.max(0.12, Math.min(0.42, D - 0.22)), hz = Math.min(0.03, D * 0.05);
+  const k = kitchenBase(K, { w: W, d: D, h: wtop }, C, true, p.handles, { w: bw, d: bd, z: hz });
+  kFronts(K, "doors", 0, W, k.y0, k.y1, k.zf, k.front, p.handles, k.hl, "top");
+  // The bowls: steel walls and floors down into the worktop, a drain in each.
+  const steel = L(SINK, "metal"), deep = Math.min(0.18, wtop - k.y0 - 0.06), yb = wtop - deep, n = p.bowls, wall = 0.008;
+  const one = (bw - wall * (n + 1)) / n;
+  for (let i = 0; i < n; i++) {
+    const x = -bw / 2 + wall + one / 2 + i * (one + wall);
+    K.box(one, 0.006, bd - 2 * wall, x, yb + 0.003, hz, steel);
+    K.cyl(0.025, 0.025, 0.004, x, yb + 0.008, hz, L("#3a3d41", "metal"), 14);
+  }
+  for (let i = 0; i <= n; i++) K.box(wall, deep, bd, -bw / 2 + wall / 2 + i * (one + wall), wtop - deep / 2, hz, steel);
+  for (const s of [-1, 1]) K.box(bw, deep, wall, 0, wtop - deep / 2, hz + s * (bd / 2 - wall / 2), steel);
+  // A gooseneck tap at the back, its spout over the bowl, under the box's top.
+  const chrome = L(CHROME, "metal"), r = 0.011, zt = Math.max(-D / 2 + 0.035, hz - bd / 2 - 0.045), xt = 0;
+  const reach = Math.min(0.16, (hz - zt) * 0.9 + bd * 0.3), top = H - r - 0.004;
+  K.cyl(0.024, 0.026, 0.02, xt, wtop + 0.01, zt, chrome, 14);
+  K.rod([xt, wtop + 0.02, zt], [xt, top, zt], r, chrome, 10);
+  K.ball(r, xt, top, zt, chrome, null, null, 8);
+  K.rod([xt, top, zt], [xt, top, zt + reach], r, chrome, 10);
+  K.rod([xt, top, zt + reach], [xt, Math.max(wtop + 0.02, top - Math.min(0.06, tapH * 0.3)), zt + reach], r * 0.9, chrome, 10);
+}
+// Stove: a hob in the worktop over a built-in oven, or a freestanding cooker.
+function buildStove(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const hobL = L(C[1], "gloss"), dark = L(OVEN, "gloss"), steel = L(STEEL, "metal"), gas = p.hob === "gas";
+  // The hob's glass a little under the top (its zones on it), a gas hob's lower, under its pan stands.
+  const hobTop = H - (gas ? 0.02 : 0.002);
+  let zf, y0, y1, hobW, hobD, hobZ, front;
+  if (p.style === "cooker") {
+    // A range on a dark kick: a steel-trimmed control strip, the oven door, a drawer.
+    const kick = Math.min(0.08, H * 0.1), cD = D - 0.02 - HANDLE_D, zb = -D / 2;
+    zf = zb + cD; front = L(C[0], "satin");
+    K.box(W, H - kick - 0.012, cD - GAP_T, 0, kick + (H - kick - 0.012) / 2, zb + (cD - GAP_T) / 2, front, 0.008);
+    plinth(K, W, zb, zf, kick, 0.04, 0.02);
+    hobW = W - 0.02; hobD = D - 0.04; hobZ = -0.01;
+    K.box(hobW, 0.012, hobD, 0, hobTop - 0.006, hobZ, hobL, 0.004);
+    y0 = kick + 0.004; y1 = H - 0.012 - 0.004;
+    const strip = Math.min(0.1, (y1 - y0) * 0.14);
+    K.box(W - 0.01, strip, 0.012, 0, y1 - strip / 2, zf + 0.006, steel, 0.003);
+    for (let i = 0; i < 4; i++) K.cyl(0.016, 0.016, 0.02, -W * 0.3 + W * 0.2 * i, y1 - strip / 2, zf + 0.012 + 0.01, L(BLACK, "satin"), 12, [Math.PI / 2, 0, 0]);
+    y1 -= strip + 0.004;
+  } else {
+    hobW = Math.max(0.1, Math.min(W - 0.08, 0.58)); hobD = Math.max(0.1, Math.min(D - 0.12, 0.5)); hobZ = 0;
+    const k = kitchenBase(K, S, [C[0], C[0], C[2]], true, "bar", { w: hobW, d: hobD, z: hobZ });
+    zf = k.zf; y0 = k.y0; y1 = k.y1; front = k.front;
+    // The hob fills its cut-out, its top level with the worktop (a gas hob's a little lower, under its pan stands).
+    const t = k.top || 0.03;
+    K.box(hobW, t, hobD, 0, hobTop - t / 2, hobZ, hobL, 0.003);
+  }
+  // A drawer under the oven, the oven's dark door with a window and a bar.
+  const dr = Math.min(0.16, (y1 - y0) * 0.22);
+  kFronts(K, "drawers", 0, W, y0, y0 + dr, zf, front, "bar", L(METAL, "metal"), "top");
+  const ov0 = y0 + dr + 0.004;
+  if (y1 - ov0 > 0.05) {
+    K.box(W - 0.006, y1 - ov0, 0.02, 0, (ov0 + y1) / 2, zf + 0.01, dark, 0.003);
+    K.box(W * 0.7, (y1 - ov0) * 0.5, 0.004, 0, (ov0 + y1) / 2 - (y1 - ov0) * 0.05, zf + 0.0215, L("#2a2e33", "gloss"));
+    K.box(Math.min(0.45, W * 0.75), 0.012, 0.012, 0, y1 - Math.min(0.04, (y1 - ov0) / 5), zf + 0.026, steel);
+  }
+  // Four cooking zones: rings on glass, or burners under black pan stands.
+  const zr = Math.min(hobW, hobD) * 0.17, top = hobTop;
+  for (const [fx, fz, k] of [[-1, -1, 1], [1, -1, 0.8], [-1, 1, 0.8], [1, 1, 1]]) {
+    const x = fx * hobW / 4, z = hobZ + fz * hobD / 4, r = zr * k;
+    if (gas) {
+      K.cyl(r * 0.5, r * 0.55, 0.012, x, top + 0.006, z, L("#3a3d41", "metal"), 14);
+      K.box(r * 2.2, 0.008, 0.008, x, H - 0.004, z, L(BLACK, "satin"));
+      K.box(0.008, 0.008, r * 2.2, x, H - 0.004, z, L(BLACK, "satin"));
+    } else K.cyl(r, r, 0.0015, x, top + 0.00075, z, L(lighten(C[1], 0.22), "gloss"), 20);
+  }
+}
+// Dishwasher: one full front (the run's, or steel with a dark strip), a pull near its top.
+function buildDishwasher(K, S, p, C){
+  const k = kitchenBase(K, S, C, p.worktop, "bar"), W = S.w, steel = p.style === "steel";
+  const face = steel ? L(STEEL, "metal") : k.front;
+  K.box(W, k.y1 - k.y0, GAP_T, 0, (k.y0 + k.y1) / 2, k.zf - GAP_T / 2, L(GAP));
+  K.box(W - 0.004, k.y1 - k.y0 - 0.004, 0.02, 0, (k.y0 + k.y1) / 2, k.zf + 0.01, face, 0.003);
+  const strip = steel ? Math.min(0.07, (k.y1 - k.y0) * 0.12) : 0;
+  if (strip) K.box(W - 0.01, strip, 0.003, 0, k.y1 - strip / 2 - 0.004, k.zf + 0.0215, L(OVEN, "gloss"));
+  handle(K, "bar", 0, k.y1 - strip - Math.min(0.05, (k.y1 - k.y0) / 6), k.zf + 0.02, "x", k.hl, Math.min(0.4, W * 0.6));
+}
+// Fridge: a tall fridge-freezer (the freezer below), a double (two doors over
+// a freezer drawer) or an under-counter one; long pulls toward +z.
+function buildFridge(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "satin"), hl = L(C[1], "metal"), cD = D - 0.025 - HANDLE_D, zb = -D / 2, zf = zb + cD;
+  const foot = Math.min(0.02, H * 0.02);
+  K.box(W, H - foot, cD - GAP_T, 0, foot + (H - foot) / 2, zb + (cD - GAP_T) / 2, body, 0.012);
+  plinth(K, W, zb, zf, foot, 0.04, 0.03);
+  K.box(W, H - foot, GAP_T, 0, foot + (H - foot) / 2, zf - GAP_T / 2, L(GAP));
+  const door = (x, w, a, b, hx, along, hy) => {
+    K.box(w - 0.006, b - a - 0.006, 0.025, x, (a + b) / 2, zf + 0.0125, body, 0.006);
+    const len = along === "y" ? Math.min(0.45, (b - a) * 0.6) : Math.min(0.45, w * 0.6);
+    handle(K, "bar", hx, hy, zf + 0.025, along, hl, len);
+  };
+  const y0 = foot, y1 = H;
+  if (p.style === "double") {
+    const m = y0 + (y1 - y0) * 0.36;
+    door(0, W, y0, m, 0, "x", m - Math.min(0.06, (m - y0) / 4));
+    for (const s of [-1, 1]) door(s * W / 4, W / 2, m, y1, s * 0.04, "y", m + (y1 - m) * 0.42);
+  } else if (p.style === "under") {
+    door(0, W, y0, y1, W / 2 - Math.min(0.06, W * 0.12), "y", y0 + (y1 - y0) * 0.62);
+  } else {
+    const m = y0 + (y1 - y0) * 0.34, hx = W / 2 - Math.min(0.06, W * 0.12);
+    door(0, W, y0, m, hx, "y", m - Math.min(0.22, (m - y0) * 0.45));
+    door(0, W, m, y1, hx, "y", m + Math.min(0.28, (y1 - m) * 0.3));
+  }
+}
+
+// ── the bathroom ────────────────────────────────────────────────────────────
+// Toilet: the bowl toward +z; a cistern on the back, or (wall) hung from a
+// boxed-in frame with a flush plate.
+function buildWc(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const cer = L(C[0], "gloss"), seat = L(C[1], "gloss"), chrome = L(CHROME, "metal"), wall = p.mount === "wall";
+  const tankD = Math.min(wall ? 0.16 : 0.2, D * 0.3), bowlTop = Math.max(0.12, Math.min(0.42, H - (wall ? 0.2 : 0.22)));
+  const bl = D - tankD - 0.005, bz = -D / 2 + tankD + bl / 2, bw = Math.min(W * 0.92, 0.4);
+  if (wall) {
+    K.box(W, H, tankD, 0, H / 2, -D / 2 + tankD / 2, L(lighten(C[0], 0.02), "satin"), 0.008);
+    const py = Math.min(H - 0.08, Math.max(bowlTop + 0.12, 0.95));
+    K.box(Math.min(0.24, W * 0.6), Math.min(0.15, (H - bowlTop) * 0.4), 0.008, 0, py, -D / 2 + tankD + 0.004, chrome, 0.004);
+  } else {
+    const th = H - bowlTop + 0.02;
+    K.box(W * 0.92, th, tankD - 0.01, 0, H - th / 2, -D / 2 + 0.005 + (tankD - 0.01) / 2, cer, Math.min(0.03, tankD / 3));
+    K.cyl(0.02, 0.02, 0.006, 0, H - 0.003, -D / 2 + tankD / 2, chrome, 12);
+  }
+  // The bowl: a rounded pan (half an egg) under the seat, stretched to its
+  // length; on the floor it stands on a slim foot, on the wall it hangs.
+  const B = K.child([0, 0, bz], [1, 1, bl / bw]);
+  const lid = 0.045, under = bowlTop - lid, dep = Math.min(0.2, under * 0.55, bw * 0.55);
+  B.ball(bw / 2, 0, under, 0, cer, [1, dep / (bw / 2), 1], [Math.PI, 0, 0], 18, Math.PI / 2);
+  if (!wall && under - dep * 0.6 > 0.01) B.cyl(bw * 0.27, bw * 0.31, under - dep * 0.6, 0, (under - dep * 0.6) / 2, -bw * 0.06, cer, 18);
+  B.slab("ellipse", bw, lid, bw, 0, under, 0, seat, 0, Math.min(0.012, lid / 3));
+}
+// Basin: on a floating vanity (drawers under a top), on a pedestal, or on the
+// wall; the tap at the back rises to the box's top.
+function buildBasin(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const cer = L(C[0], "gloss"), cab = L(C[1], "wood"), chrome = L(CHROME, "metal"), inner = L(BOWL, "gloss");
+  const tapH = Math.min(0.2, Math.max(0.06, H - 0.65)), rim = H - tapH, n = p.basins;
+  const xs = n === 2 ? [-W / 4, W / 4] : [0], each = W / n;
+  const bowl = (x, w, d, t, z) => {
+    K.slab("rect", w, t, d, x, rim - t, z, cer, Math.min(w, d) * 0.22, Math.min(0.01, t / 3));
+    K.slab("ellipse", w * 0.74, 0.002, d * 0.66, x, rim, z + d * 0.04, inner, 0, 0.0005);
+  };
+  const tap = (x, z, base = rim) => {
+    const r = 0.012, top = H - r - 0.003, reach = Math.min(0.12, D * 0.22);
+    K.cyl(0.02, 0.022, 0.016, x, base + 0.008, z, chrome, 12);
+    K.rod([x, base + 0.016, z], [x, top, z], r, chrome, 10);
+    K.ball(r, x, top, z, chrome, null, null, 8);
+    K.rod([x, top, z], [x, top, z + reach], r * 0.9, chrome, 10);
+  };
+  const zt = -D / 2 + Math.min(0.05, D * 0.14);
+  if (p.style === "vanity") {
+    // A cabinet hung off the floor, drawers under each basin, a slim top
+    // with the basins sitting on it.
+    const bh = Math.min(0.13, rim * 0.16), ct = 0.025, top = rim - bh, cy0 = Math.min(0.3, top * 0.4), cD = D - 0.03 - HANDLE_D;
+    K.box(W, top - ct - cy0, cD - GAP_T, 0, cy0 + (top - ct - cy0) / 2, -D / 2 + (cD - GAP_T) / 2, cab, 0.006);
+    for (const x of xs) kFronts(K, "drawers", x, each - 0.004, cy0, top - ct - 0.004, -D / 2 + cD, cab, "bar", L(METAL, "metal"), "top");
+    K.slab("rect", W, ct, D, 0, top - ct, 0, cer, 0.01, 0.004);
+    for (const x of xs) { bowl(x, Math.min(0.5, each - 0.1), D * 0.68, bh, 0.03); tap(x, zt, top); }
+    return;
+  }
+  for (const x of xs) {
+    const bwid = Math.min(0.6, each - 0.02), t = Math.min(0.16, rim * 0.25);
+    bowl(x, bwid, D, t, 0);
+    if (p.style === "pedestal") K.cyl(Math.min(0.08, bwid * 0.18), Math.min(0.1, bwid * 0.22), rim - t, x, (rim - t) / 2, -D * 0.12, cer, 18);
+    else {
+      // A chrome trap under it, back into the wall.
+      const yt = Math.max(0.02, Math.min(rim - t - 0.15, H * 0.45));
+      K.rod([x, rim - t, 0], [x, yt, 0], 0.016, chrome, 10);
+      K.rod([x, yt, 0], [x, yt, -D / 2 + 0.01], 0.016, chrome, 10);
+    }
+    tap(x, zt);
+  }
+}
+// Bath: a built-in bath behind a panel, or a freestanding tub; the spout at
+// the back of one end.
+function buildBath(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const tub = L(C[0], "gloss"), panel = L(C[1], "satin"), inner = L(BOWL, "gloss"), chrome = L(CHROME, "metal");
+  const tapH = Math.min(0.1, H * 0.16), rim = H - tapH, edge = Math.min(0.08, D * 0.11);
+  if (p.style === "freestanding") {
+    // One soft-cornered tub standing on the floor, its rim a little rolled.
+    K.box(W, rim, D, 0, rim / 2, 0, tub, Math.min(0.16, D * 0.22, rim * 0.45));
+  } else {
+    const kick = Math.min(0.05, rim * 0.1);
+    K.box(W, rim - 0.02 - kick, D, 0, kick + (rim - 0.02 - kick) / 2, 0, panel, 0.006);
+    plinth(K, W, -D / 2, D / 2, kick, 0.02, 0);
+    K.slab("rect", W, 0.02, D, 0, rim - 0.02, 0, tub, 0.01, 0.004);
+  }
+  K.slab("rect", W - 2 * edge, 0.002, D - 2 * edge, 0, rim, 0, inner, Math.min(0.22, (D - 2 * edge) * 0.45), 0.0005);
+  // The spout at the back of the left end (as seen from the front), its handles beside it.
+  const x = -W / 2 + Math.min(0.2, W * 0.12), z = -D / 2 + edge * 0.55, r = 0.012, top = H - r - 0.002;
+  K.rod([x, rim, z], [x, top, z], r, chrome, 10);
+  K.rod([x, top, z], [x, top, z + Math.min(0.12, D * 0.16)], r * 0.9, chrome, 10);
+  for (const s of [-1, 1]) K.cyl(0.018, 0.018, Math.min(0.05, tapH * 0.6), x + s * 0.09, rim + Math.min(0.025, tapH * 0.3), z, chrome, 12);
+}
+// Shower: a low tray, a riser and a round head at the back; an enclosure has
+// clear glass on the front and the right with a door, a walk-in one screen.
+function buildShower(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const tray = L(C[0], "gloss"), frame = L(C[1], "metal"), glass = L("#dfeaee", "glass"), chrome = L(CHROME, "metal");
+  const walk = p.style === "walk-in", tt = walk ? 0.015 : 0.04, f = 0.02;
+  K.slab("rect", W, tt, D, 0, 0, 0, tray, 0.02, Math.min(0.006, tt / 3));
+  K.box(Math.min(0.5, W * 0.4), 0.002, 0.04, 0, tt + 0.001, -D * 0.2, L("#3a3d41", "metal"));
+  const gH = Math.min(2.0, H - 0.02) - tt, gy = tt + gH / 2;
+  if (walk) {
+    // One fixed screen from the left wall along the front, a bar back to the wall at its top.
+    const sw = Math.min(W - 0.3, Math.max(0.6, W * 0.65)), sx = -W / 2 + sw / 2;
+    K.box(sw, gH, 0.008, sx, gy, D / 2 - 0.004, glass);
+    K.box(f * 0.6, gH, f, -W / 2 + f * 0.3, gy, D / 2 - f / 2, frame);
+    K.box(sw, f * 0.6, f * 0.6, sx, tt + gH - f * 0.3, D / 2 - f * 0.3, frame);
+    K.rod([sx + sw / 2 - 0.02, tt + gH - 0.02, D / 2 - 0.02], [sx + sw / 2 - 0.02, tt + gH - 0.02, -D / 2 + 0.01], 0.008, frame, 8);
+  } else {
+    // Glass on the front and the right, a slim frame round them; a door in the front.
+    K.box(W - 0.01, gH, 0.008, -0.005, gy, D / 2 - 0.004, glass);
+    K.box(0.008, gH, D - 0.01, W / 2 - 0.004, gy, -0.005, glass);
+    K.box(W, f, f, 0, tt + gH - f / 2, D / 2 - f / 2, frame);
+    K.box(f, f, D, W / 2 - f / 2, tt + gH - f / 2, 0, frame);
+    for (const [x, z] of [[-W / 2 + f / 2, D / 2 - f / 2], [W / 2 - f / 2, D / 2 - f / 2], [W / 2 - f / 2, -D / 2 + f / 2]]) K.box(f, gH, f, x, gy, z, frame);
+    K.box(0.012, Math.min(0.4, gH * 0.2), 0.03, -W * 0.02, tt + gH * 0.5, D / 2 - 0.015, frame);
+  }
+  // At the back wall: a mixer, a riser and a round head on an arm.
+  const x = walk ? W * 0.18 : 0, z = -D / 2 + 0.03, hy = H - 0.035;
+  K.box(0.16, 0.07, 0.04, x, Math.min(1.05, H * 0.5), -D / 2 + 0.02, chrome, 0.01);
+  K.rod([x, Math.min(1.05, H * 0.5), z], [x, hy, z], 0.011, chrome, 10);
+  const arm = Math.min(0.28, D * 0.3);
+  K.rod([x, hy, z], [x, hy, z + arm], 0.01, chrome, 10);
+  K.cyl(Math.min(0.12, W * 0.14), Math.min(0.12, W * 0.14), 0.012, x, hy - 0.016, z + arm, chrome, 24);
+}
+
 // ── device pieces: each one's live part is its own child or material ────────
 // Washer or dryer: the whole machine is parts.run (running = a gentle shake);
 // a front-loader's door toward +z, a top-loader's lid on top and its controls
@@ -2198,6 +2624,9 @@ function buildScanner(K, S, p, C){
 
 const BUILDERS = { sofa: buildSofa, bed: buildBed, table: buildTable, chair: buildChair, desk: buildDesk, dresser: buildDresser,
                    tv: buildTv, lamp: buildLamp, rug: buildRug, shelf: buildShelf, wardrobe: buildWardrobe, plant: buildPlant,
+                   base_cabinet: buildBaseCabinet, wall_cabinet: buildWallCabinet, tall_cabinet: buildTallCabinet, sink: buildSink,
+                   stove: buildStove, dishwasher: buildDishwasher, fridge: buildFridge,
+                   wc: buildWc, basin: buildBasin, bath: buildBath, shower: buildShower,
                    washer: (K, S, p, C, parts) => buildLaundry(K, S, p, C, parts, false),
                    dryer: (K, S, p, C, parts) => buildLaundry(K, S, p, C, parts, true),
                    vacuum_dock: buildVacuumDock, mower_dock: buildMowerDock, car: buildCar, charger: buildCharger,

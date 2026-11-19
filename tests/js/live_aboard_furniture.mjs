@@ -356,6 +356,12 @@ function centreOfColour(g, hex){
   for (const m of meshesOf(g)) if (sameColour(m, hex)) box.expandByObject(m);
   return box.isEmpty() ? null : box.getCenter(new THREE.Vector3());
 }
+// A kitchen unit, looked at between lo × h and hi × h: from +z mostly not
+// its body, from −z all body (its second colour, "#000000" here).
+function kitchenFront(g, s, lo, hi){
+  const xs = [-0.37, -0.23, -0.11, 0.07, 0.19, 0.33].map((f) => f * s.w), ys = [0, 0.25, 0.5, 0.75, 1].map((f) => s.h * (lo + (hi - lo) * f));
+  return shows(g, xs, ys, 1, (c) => c !== "000000") > 0.5 && shows(g, xs, ys, -1, (c) => c === "000000") > 0.9;
+}
 // A front probe per kind: true when the front faces +z. null: no front.
 const FRONT = {
   // The back is the tall part at −z: straight down near the back hits higher than near the front.
@@ -425,6 +431,24 @@ const FRONT = {
     return shows(g, xs, ys, 1, (c) => c !== "ff0000") > 0.5 && shows(g, xs, ys, -1, (c) => c === "ff0000") > 0.9;
   },
   plant: null,
+  // Kitchen units (2026-11): their fronts (the first colour) face +z and only
+  // the body (the second) shows from −z, looked at between the kick and the
+  // worktop (a sink's worktop is lower than its box by the tap: 1.2 m of sink
+  // is a 0.9 m worktop).
+  base_cabinet: (g, s) => kitchenFront(g, s, 0.16, 0.9),
+  sink: (g, s) => kitchenFront(g, s, 0.16, 0.9 * (s.h - Math.min(0.3, Math.max(0.08, s.h - 0.8))) / s.h),
+  dishwasher: (g, s) => kitchenFront(g, s, 0.16, 0.9),
+  tall_cabinet: (g, s) => kitchenFront(g, s, 0.12, 0.95),
+  wall_cabinet: (g, s) => kitchenFront(g, s, 0.08, 0.92),
+  // A stove's oven door (its dark glass) is at the front; a fridge's pulls (its second colour).
+  stove: (g, s) => centreOfColour(g, "#17191c").z > s.d / 4,
+  fridge: (g, s) => centreOfColour(g, "#000000").z > s.d / 4,
+  // The bathroom: a toilet's cistern (or its boxed-in frame) stands at the
+  // back; a basin's, a bath's and a shower's chrome taps and riser are at the back.
+  wc: (g, s) => topAt(g, 0, -s.d / 2 + 0.03) > topAt(g, 0, s.d / 2 - 0.05) + 0.05,
+  basin: (g) => centreOfColour(g, "#c8ccd0").z < 0,
+  bath: (g) => centreOfColour(g, "#c8ccd0").z < 0,
+  shower: (g) => centreOfColour(g, "#c8ccd0").z < 0,
   // A front-loader's door (its trim) faces +z; a top-loader's controls stand at the back.
   washer: (g, s, r) => r.params.loading === "top" ? topAt(g, 0, -s.d / 2 + 0.03) > topAt(g, 0, s.d / 2 - 0.05) + 0.02
     : centreOfColour(g, "#000000").z > s.d / 4,

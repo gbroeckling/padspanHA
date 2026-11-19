@@ -448,7 +448,9 @@ export function createFurnish(ctx){
   function buildMenu(){
     menu.innerHTML = "";
     const B = FURN(), kinds = B && Array.isArray(B.FURNITURE_KINDS) ? B.FURNITURE_KINDS : [];
-    const groups = [["furniture", "Furniture"], ["device", "Devices"]];
+    // Furniture, then the kitchen's and the bathroom's under their own headings, then devices.
+    const groups = [["furniture", "Furniture"], ["kitchen", "Kitchen"], ["bath", "Bathroom"], ["device", "Devices"]];
+    const headingOf = (def) => { const g = def.group || "furniture"; return g === "furniture" && (def.category === "kitchen" || def.category === "bath") ? def.category : g; };
     // The builders' box ("other") goes last, on its own; with no builders
     // here (the module missing or broken) a box is still something to place.
     const boxKind = kinds.includes("other") ? "other" : "box";
@@ -470,7 +472,7 @@ export function createFurnish(ctx){
       for (const s of starters) menu.appendChild(btn(s.name, `Add a ${s.name.toLowerCase()}, ready made`, () => { closeMenu(); add([{ recipe: copy(s.recipe) }]); }));
     }
     for (const [g, title] of groups) {
-      const ks = kinds.filter(k => k !== boxKind && B.FURNITURE[k] && (B.FURNITURE[k].group || "furniture") === g);
+      const ks = kinds.filter(k => k !== boxKind && B.FURNITURE[k] && headingOf(B.FURNITURE[k]) === g);
       if (!ks.length) continue;
       menu.appendChild(d("h5", null, title));
       for (const k of ks) menu.appendChild(btn(B.FURNITURE[k].name || k, `Add a ${B.FURNITURE[k].name || k}`, () => { closeMenu(); add([{ recipe: recipeFor(k) }]); }));
