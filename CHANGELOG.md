@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.262 — The usage report can say where you heard about PadSpan; Doors and windows go with their room in Layout (2026-11-19)
+
+### New
+- **One optional question after you opt in to the usage report: where did you hear about PadSpan?** When you turn the report on from the card, the same card asks it once, with one-tap answers (Reddit, YouTube, the Home Assistant forum, another forum, the Marketplace or HACS, GitHub, Discord, a web search, a friend, somewhere else) and a Skip button. It is not asked again. If your report is already on, nothing pops up: the same choice is under Settings → Tracking → Help improve PadSpan, where you can set, change or clear it. The answer goes with the report as one word (`heard_from`), it is your own answer and never worked out from anything, and the Preview shows it. The README's list of what the report sends has the new line.
+
+### Changed
+- **A room moved in Mapping → Layout takes its doors and windows with it.** Doors, windows and doorways drawn in Live Aboard used to stay where the old wall was when a room was moved, turned or reshaped in Layout, and stood there on their own. Now, when you press **Save corrections**, each one on that room's walls goes with it: same width, same heights and settings, same place along its wall (as far from the nearer corner as it was, never past a corner). One that can't follow stays where it is: its wall is gone or now too short, or it is in a wall the room shares with a room that didn't move the same way. The message after Save, and a line under the button, says how many moved and how many stayed, so you can check those in Live Aboard's **Edit**. Nothing new is stored in Live Aboard's file.
+
+---
+
 ## 0.38.261 — Live Aboard: going back by itself puts the bars aside; Licence and update checks: simpler (2026-11-19)
 
 ### Changed

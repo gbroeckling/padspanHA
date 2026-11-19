@@ -1,4 +1,0 @@
-# The usage report can say where you heard about PadSpan
-
-### New
-- **One optional question after you opt in to the usage report: where did you hear about PadSpan?** When you turn the report on from the card, the same card asks it once, with one-tap answers (Reddit, YouTube, the Home Assistant forum, another forum, the Marketplace or HACS, GitHub, Discord, a web search, a friend, somewhere else) and a Skip button. It is not asked again. If your report is already on, nothing pops up: the same choice is under Settings → Tracking → Help improve PadSpan, where you can set, change or clear it. The answer goes with the report as one word (`heard_from`), it is your own answer and never worked out from anything, and the Preview shows it. The README's list of what the report sends has the new line.

@@ -1,4 +1,0 @@
-# Doors and windows go with their room in Layout
-
-### Changed
-- **A room moved in Mapping → Layout takes its doors and windows with it.** Doors, windows and doorways drawn in Live Aboard used to stay where the old wall was when a room was moved, turned or reshaped in Layout, and stood there on their own. Now, when you press **Save corrections**, each one on that room's walls goes with it: same width, same heights and settings, same place along its wall (as far from the nearer corner as it was, never past a corner). One that can't follow stays where it is: its wall is gone or now too short, or it is in a wall the room shares with a room that didn't move the same way. The message after Save, and a line under the button, says how many moved and how many stayed, so you can check those in Live Aboard's **Edit**. Nothing new is stored in Live Aboard's file.
