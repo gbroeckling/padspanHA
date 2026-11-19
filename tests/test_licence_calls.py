@@ -181,6 +181,62 @@ def test_the_daily_recheck_and_the_activation_use_the_call():
     assert "session.get(" not in act and '"key": key' not in act, "no key in a URL"
 
 
+# ── The trial: the hash too, and the raw id once for a server from before ──
+
+TRIAL_OK = {"ok": True, "key": "PSPAN-TRIA-LKEY-AAAA-BBBB", "tier": "pro", "expires_at": "2027-02-16 00:00:00",
+            "days_left": 90}
+
+
+def test_a_trial_asks_with_the_hash_in_a_post_body(monkeypatch):
+    hass, session, _ = _wire(monkeypatch, (200, {**TRIAL_OK, "machine_h": True}))
+    assert asyncio.run(LH.trial_start(hass, "a@b.ca"))["key"] == TRIAL_OK["key"]
+    assert len(session.calls) == 1
+    method, url, kw = session.calls[0]
+    assert method == "POST" and url == LH.LICENCE_URL
+    assert kw["params"] == {"action": "trial_start", "product": "padspan"}
+    assert kw["data"] == {"email": "a@b.ca", "machine_h": HASHED}
+    assert RAW not in json.dumps(kw) and kw["headers"]["User-Agent"] == SH.USER_AGENT
+
+
+def test_todays_server_refuses_a_trial_without_machine_and_gets_the_raw_id_once(monkeypatch):
+    """license/index.php before the hash: no `machine` -> "invalid_machine",
+    answered before anything is read or written. Then the old request."""
+    hass, session, _ = _wire(monkeypatch,
+                             (200, {"ok": False, "status": "invalid_machine", "message": "Missing install identifier."}),
+                             (200, TRIAL_OK))
+    assert asyncio.run(LH.trial_start(hass, "a@b.ca")) == TRIAL_OK
+    assert [c[0] for c in session.calls] == ["POST", "POST"]
+    assert session.calls[1][2]["data"] == {"email": "a@b.ca", "machine": RAW}, "exactly what older PadSpan sends"
+
+
+@pytest.mark.parametrize("first", [(405, "Method Not Allowed"), (200, {"ok": False, "status": "send_machine"})])
+def test_a_trial_falls_back_as_a_post(monkeypatch, first):
+    hass, session, _ = _wire(monkeypatch, first, (200, TRIAL_OK))
+    asyncio.run(LH.trial_start(hass, "a@b.ca"))
+    assert [c[0] for c in session.calls] == ["POST", "POST"] and session.calls[1][2]["data"]["machine"] == RAW
+
+
+def test_a_confirmed_refusal_is_the_answer(monkeypatch):
+    refused = {"ok": False, "status": "trial_exhausted", "message": "used", "machine_h": True}
+    hass, session, _ = _wire(monkeypatch, (200, refused))
+    assert asyncio.run(LH.trial_start(hass, "a@b.ca")) == refused and len(session.calls) == 1
+
+
+def test_the_trial_command_stores_the_key_it_gets(monkeypatch):
+    from custom_components.padspan_ha import telemetry as T
+    from custom_components.padspan_ha import ws_forensics as F
+    hass, session, _ = _wire(monkeypatch, (200, {**TRIAL_OK, "machine_h": True}))
+    monkeypatch.setattr(T, "enabled", lambda h: True)
+    monkeypatch.setattr(F, "_invalidate_snapshot_cache", lambda h: None)
+    monkeypatch.setattr(F, "_get_settings", lambda h: {})
+    sent = {}
+    conn = SimpleNamespace(send_result=lambda i, r: sent.update(r), send_error=lambda i, c, m: sent.update(error=c))
+    asyncio.run(F.ws_trial_start(hass, conn, {"id": 1, "email": "a@b.ca"}))
+    st = hass.data[DOMAIN][DATA_SETTINGS].data
+    assert sent.get("ok") is True and st["forensics_license_key"] == TRIAL_OK["key"] and st["license_is_trial"] is True
+    assert session.calls[0][2]["data"] == {"email": "a@b.ca", "machine_h": HASHED}
+
+
 # ── (b) An install without a readable instance id ──────────────────────────
 
 def test_an_unreadable_instance_id_gives_this_install_its_own_kept_id(monkeypatch):

@@ -50,11 +50,17 @@ def test_trial_start_calls_the_same_licence_server_as_a_purchase() -> None:
     s = _read(_CC / "ws_forensics.py")
     handler = s[s.index("async def ws_trial_start("):]
     handler = handler[:handler.index("\n@websocket_api.websocket_command", 200)] if "\n@websocket_api.websocket_command" in handler[200:] else handler
-    assert "https://traks.ca/license/" in handler, "trial_start hits a different server than purchases"
-    assert '"action": "trial_start"' in handler
-    assert '"product": "padspan"' in handler
-    assert "machine" in handler, "trial_start does not send the per-install identifier the abuse gate relies on"
-    assert "email" in handler
+    # The request itself is licence_homes.trial_start: the licence server every
+    # licence call uses, action trial_start, the email and the install's id
+    # (hashed, with the raw id once for a server that doesn't read the hash).
+    assert "await trial_start(hass, email)" in handler
+    lh = _read(_CC / "licence_homes.py")
+    assert 'LICENCE_URL = "https://traks.ca/license/"' in lh, "trial_start hits a different server than purchases"
+    trial = lh[lh.index("async def trial_start("):lh.index("async def _ask(")]
+    assert '"trial_start"' in trial and '"machine_h": machine_hash(machine)' in trial, (
+        "trial_start does not send the per-install identifier the abuse gate relies on")
+    assert '{"email": email, "machine": machine}' in trial, "the old form, for a server from before the hash"
+    assert '"product": "padspan"' in lh[lh.index("async def _ask("):]
     # On success it must write into the SAME fields a purchase does, plus the
     # display-only trial flag — one gate, no parallel tier logic.
     assert "forensics_license_key=" in handler
@@ -105,7 +111,7 @@ def test_the_trial_needs_the_usage_report_on() -> None:
     s = _read(_CC / "ws_forensics.py")
     handler = s[s.index("async def ws_trial_start("):]
     gate = handler.index("if not _report_on(hass):")
-    assert gate < handler.index("https://traks.ca/license/"), "the report is checked after the licence server is asked"
+    assert gate < handler.index("await trial_start(hass, email)"), "the report is checked after the licence server is asked"
     assert '"status": "report_off"' in handler
 
 

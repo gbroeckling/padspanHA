@@ -124,6 +124,7 @@ def test_claim_stores_a_year_of_pro_in_the_purchase_fields_and_ends_the_invite(m
     _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": " a@b.ca "}))
     assert sent["result"]["ok"] is True
     assert calls[0][0] == "invite_claim" and calls[0][1]["token"] == _TOKEN and calls[0][1]["email"] == "a@b.ca"
+    assert calls[0][1] == {"token": _TOKEN, "email": "a@b.ca"}, "no install id: the server never used it"
     s = _settings(h)
     assert s["forensics_license_key"] == "PSPAN-TEST-KEY" and s["license_tier"] == "pro"
     assert s["license_is_trial"] is False and s["forensics_enabled"] is True

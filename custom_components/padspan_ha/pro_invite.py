@@ -16,10 +16,8 @@ What stays here: the token and its end date, under SETTINGS_KEY, backend
 only (ws_common._get_settings takes it out; the panel only learns whether an
 invite is open and until when). The usage report never reads it.
 
-What leaves, and only on a button: Claim sends the token, the email typed
-and this Home Assistant's instance id (the same one a trial or a key
-activation sends) to the licence server, which issues a one-year Pro key to
-that email. "No thanks" sends the token alone, so the developer's list says
+What leaves, and only on a button: Claim sends the token and the email typed
+to the licence server, which issues a one-year Pro key to that email. "No thanks" sends the token alone, so the developer's list says
 declined and the invite is never sent again. Either way the invite is gone
 from here afterwards. The licence server keeps the email with the key, as it
 does for a purchase, and the developer is told who claimed (the card says the
@@ -164,9 +162,8 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         return
     token = st.data[SETTINGS_KEY]["token"]
     try:
-        from .licence_homes import machine_id  # noqa: PLC0415
-        machine = await machine_id(hass)
-        data = await _post(hass, "invite_claim", {"token": token, "email": email, "machine": machine})
+        # No install id: the licence server never used one for a claim.
+        data = await _post(hass, "invite_claim", {"token": token, "email": email})
     except Exception as err:
         connection.send_error(msg["id"], "network",
             f"Could not reach the licence server ({err}). Check the internet connection and try again.")

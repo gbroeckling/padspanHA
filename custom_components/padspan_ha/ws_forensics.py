@@ -362,23 +362,10 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message": "The free trial needs the usage report on (Settings → Tracking → Usage report), and it stays on until the trial ends. Turn it on, then start the trial."})
         return
     try:
-        import json as _json  # noqa: PLC0415
-        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
-        from .licence_homes import machine_id  # noqa: PLC0415
-        from .server_http import USER_AGENT  # noqa: PLC0415
-        # The raw id, still: the server holds one trial per install against the
-        # ids its trials were issued to (traks_licenses.machines).
-        machine = await machine_id(hass)
-        session = async_get_clientsession(hass)
-        async with session.post(
-            "https://traks.ca/license/",
-            params={"action": "trial_start", "product": "padspan"},
-            data={"email": email, "machine": machine},
-            headers={"User-Agent": USER_AGENT},
-            timeout=15,
-        ) as resp:
-            text = await resp.text()
-        data = _json.loads(text.lstrip("﻿"))
+        # The email and this install's hashed id, to https://traks.ca/license/
+        # (action trial_start, product padspan): licence_homes.trial_start.
+        from .licence_homes import trial_start  # noqa: PLC0415
+        data = await trial_start(hass, email)
     except Exception as err:
         connection.send_error(msg["id"], "network",
             f"Could not reach the licence server ({err}). Check the internet connection and try again.")

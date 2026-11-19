@@ -118,21 +118,37 @@ async def call(hass: HomeAssistant, action: str, key: str, extra: dict[str, str]
     asked again exactly as older PadSpan asks (`post`: as a POST, else a GET).
     A 5xx, a second 429 or no answer raises: the server is down, and asking
     again won't help."""
-    from .server_http import request  # noqa: PLC0415
     machine = await machine_id(hass)
-    params = {"action": action, "product": "padspan"}
     fields = dict(extra or {})
-    status, text = await request(hass, "POST", LICENCE_URL, params=params,
-                                 data={"key": key, "machine_h": machine_hash(machine), **fields})
+    return await _ask(hass, action, {"key": key, "machine_h": machine_hash(machine), **fields},
+                      {"key": key, "machine": machine, **fields}, post)
+
+
+async def trial_start(hass: HomeAssistant, email: str) -> dict[str, Any]:
+    """Ask for the one-time trial key, naming this install by its hash, the
+    same way and with the same once-only fallback as call(). A server from
+    before the hash answers a request without `machine` with
+    "invalid_machine" before it reads or writes anything (no throttle row, no
+    key), so the hash-first request is harmless there and the raw id follows
+    once, in a POST body, as older PadSpan sends it."""
+    machine = await machine_id(hass)
+    return await _ask(hass, "trial_start", {"email": email, "machine_h": machine_hash(machine)},
+                      {"email": email, "machine": machine}, True)
+
+
+async def _ask(hass: HomeAssistant, action: str, new: dict[str, str], old: dict[str, str],
+               old_post: bool) -> dict[str, Any]:
+    from .server_http import request  # noqa: PLC0415
+    params = {"action": action, "product": "padspan"}
+    status, text = await request(hass, "POST", LICENCE_URL, params=params, data=new)
     if status >= 500 or status == 429:
         raise RuntimeError(f"the licence server answered {status}")
-    old = {"key": key, "machine": machine, **fields}
     if status < 400:
         data = _answer(text)
         if isinstance(data, dict) and data.get("machine_h") is True:
             return data
         status, text = await request(hass, "POST", LICENCE_URL, params=params, data=old)
-    elif post:
+    elif old_post:
         status, text = await request(hass, "POST", LICENCE_URL, params=params, data=old)
     else:
         status, text = await request(hass, "GET", LICENCE_URL, params={**params, **old})
