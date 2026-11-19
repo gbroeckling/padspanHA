@@ -203,6 +203,11 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
     """Device tracker whose state is the current room for a labelled BLE device."""
 
     _attr_has_entity_name = True
+    # New with every poll (about every 5 s): live in the state, kept out of
+    # Home Assistant's database. latitude/longitude/gps_accuracy are HA's own
+    # tracker attributes, there only with a GPS origin set, and move with
+    # each poll's position. The room, home and names are recorded.
+    _unrecorded_attributes = frozenset({"rssi", "age_s", "latitude", "longitude", "gps_accuracy"})
 
     def __init__(self, coordinator: "PresenceCoordinator", key: str, uid_key: str | None = None) -> None:
         super().__init__(coordinator)

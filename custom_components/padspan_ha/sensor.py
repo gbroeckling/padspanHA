@@ -256,6 +256,12 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
 
     _attr_icon = "mdi:map-marker"
     _attr_has_entity_name = True
+    # New with every poll (about every 5 s): live in the state, kept out of
+    # Home Assistant's database. The room, home and names are recorded.
+    _unrecorded_attributes = frozenset({
+        "rssi", "age_s", "sources", "room_confidence", "rssi_margin_confidence",
+        "room_unsure", "room_reason",
+    })
 
     def __init__(self, coordinator: PresenceCoordinator, key: str, uid_key: str | None = None) -> None:
         super().__init__(coordinator)
@@ -393,6 +399,8 @@ class PadSpanDistanceSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity
     _attr_native_unit_of_measurement = "m"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
+    # New with every poll: live in the state, kept out of the database.
+    _unrecorded_attributes = frozenset({"rssi", "age_s"})
 
     def __init__(self, coordinator: PresenceCoordinator, key: str, uid_key: str | None = None) -> None:
         super().__init__(coordinator)
@@ -480,6 +488,8 @@ class PadSpanScannerDistanceSensor(CoordinatorEntity[PresenceCoordinator], Senso
     _attr_native_unit_of_measurement = "m"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
+    # New with every poll: live in the state, kept out of the database.
+    _unrecorded_attributes = frozenset({"rssi", "age_s"})
 
     def __init__(self, coordinator: PresenceCoordinator, key: str, source: str, uid_key: str | None = None) -> None:
         super().__init__(coordinator)
@@ -585,6 +595,9 @@ class PadSpanOccupancySensor(CoordinatorEntity["PadSpanOccupancyCoordinator"], S
 
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
+    # Each 30 s estimate's evidence (phones and motion per room, how sure):
+    # live in the state, kept out of the database. Counts and people recorded.
+    _unrecorded_attributes = frozenset({"confidence", "rooms"})
 
     def __init__(self, coordinator: PadSpanOccupancyCoordinator) -> None:
         super().__init__(coordinator)
