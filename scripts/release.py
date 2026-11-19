@@ -419,6 +419,17 @@ def colo_host_problem(host=None, run_=None):
     return None
 
 
+def untracked_integration_files():
+    """Files under custom_components/padspan_ha/ that git neither tracks nor
+    ignores. The zip is built from the disk (build_zip) and the release commit
+    stages every file there (git_commit_tag_push), so one stray file would
+    ship to every install and land in git with the release."""
+    res = subprocess.run(["git", "ls-files", "--others", "--exclude-standard", "--",
+                          INTEGRATION.relative_to(ROOT).as_posix()],
+                         cwd=ROOT, text=True, capture_output=True)
+    return [ln for ln in res.stdout.splitlines() if ln.strip()]
+
+
 def preflight_checks():
     """
     Validate repo structure before doing anything destructive.
@@ -475,6 +486,16 @@ def preflight_checks():
                 "    __pycache__ in the git tree breaks HACS validation."
             )
             break  # one warning is enough
+
+    # 4. Nothing untracked in the integration folder (it would be zipped and
+    #    committed with the release): commit it on a branch, or delete it.
+    stray = untracked_integration_files()
+    if stray:
+        errors.append(
+            f"untracked file(s) in {INTEGRATION.relative_to(ROOT).as_posix()}/ would ship in the zip "
+            f"and the release commit: {', '.join(stray[:10])}" + (f" (+{len(stray) - 10} more)" if len(stray) > 10 else "")
+            + "\n    Commit them on a branch and merge, or delete them; nothing was changed."
+        )
 
     if errors:
         print("\n  PREFLIGHT FAILED:")
