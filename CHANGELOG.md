@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.265 — The launch-price card for a year's key (2026-11-19)
+
+### Changed
+- **The "launch price ends November 30" card now also shows to anyone with PadSpan Pro or Bright Pro for a year**, once, until the end of November 30, with one more line: pay with the email your key was sent to and that key becomes Pro for life. A key that is already for life never sees it.
+
+---
+
 ## 0.38.264 — The usage report: its one question reaches every opt-in, and three things it could not say (2026-11-19)
 
 ### New
