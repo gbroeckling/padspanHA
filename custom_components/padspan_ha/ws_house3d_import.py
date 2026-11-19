@@ -20,7 +20,10 @@ Furnish tab drops it into its draft, and only Save (house3d_edit) writes the
 - Doors and windows come in as Live Aboard's own added openings ("door_" /
   "win_" + 8 hex digits, a stretch of wall in fabric metres, sill and head),
   here the stretch the file draws; the preview puts each on the nearest wall
-  of the floor it goes to, by the 3D editor's own rules.
+  of the floor it goes to, by the 3D editor's own rules. A RoomPlan scan's
+  doors, windows and plain openings come in the same way (preview_roomplan:
+  an opening on the floor a doorway, "doorway_"), their sill and head
+  measured from the scan's floor.
 - Which floor each level of the file goes to is the person's choice in the
   preview, so every candidate's floor_id is None here.
 
@@ -347,16 +350,54 @@ def scan_pieces(hass: HomeAssistant) -> dict[str, Any]:
     return out
 
 
+# A scan's doors are doors and its windows windows. A plain opening (no door in it) is a doorway when its foot is on
+# the floor, and a window when it is higher (a pass-through: a hole with a sill, and a window is the one thing with a
+# sill the 3D file keeps). A scan is a few centimetres out, so "on the floor" is within this.
+SCAN_ON_FLOOR_M = 0.15
+SCAN_NAMES = {"door": "Door", "window": "Window", "opening": "Wall opening"}
+
+
+def roomplan_opening(o: dict[str, Any]) -> tuple[str, str, dict[str, Any]] | str:
+    """One door, window or opening of a scan (roomplan_import's: kind, a_m, b_m, width_m, sill_m, head_m) as Live
+    Aboard's own added opening, its floor not yet said: (kind, name, record), or why it can't be one. Where it sits
+    along its wall is its two ends, as the scan places them; the preview puts it on the nearest wall of the house."""
+    sill, head, width = o.get("sill_m"), o.get("head_m"), float(o.get("width_m") or 0.0)
+    if o.get("kind") == "opening":
+        on_floor = sill is not None and sill <= SCAN_ON_FLOOR_M
+        kind, name = ("doorway", "Doorway") if on_floor else ("window", SCAN_NAMES["opening"])
+    elif o.get("kind") == "door":
+        kind, name = "door", SCAN_NAMES["door"]
+    else:
+        kind, name = "window", SCAN_NAMES["window"]
+    if sill is None or head is None:
+        return "the scan shows no floor to measure its height from"
+    least = WINDOW_MIN_M if kind == "window" else DOOR_MIN_M
+    if width < least:
+        return f"narrower than a {kind} can be ({least:g} m)"
+    rec: dict[str, Any] = {"kind": kind, "floor_id": None, "a_m": list(o["a_m"]), "b_m": list(o["b_m"])}
+    if kind == "window":
+        rec.update(sill_m=_mm(sill), head_m=_mm(head))
+    elif kind == "doorway":
+        rec.update(head_m=_mm(head))
+    else:
+        rec.update(head_m=_mm(head), hinge="left", swing="in")
+    return kind, name, rec
+
+
 def preview_roomplan(data: bytes) -> dict[str, Any]:
-    """A RoomPlan JSON scan's furniture as candidates, in preview()'s shape
-    (one level; no doors or windows: the scan's openings carry no heights).
-    A scan's stairs come in as stairs, their run along the longer side: a
-    first guess at which end is the bottom, for Turn to fix. Raises
-    RoomPlanParseError as the room import does."""
+    """A RoomPlan scan's (JSON or USDZ) furniture, doors, windows and
+    openings as candidates, in preview()'s shape (one level). A scan's stairs
+    come in as stairs, their run along the longer side: a first guess at
+    which end is the bottom, for Turn to fix. Its doors, windows and
+    openings come in as roomplan_opening makes them, heights measured from
+    the scan's floor. Raises RoomPlanParseError as the room import does."""
     parsed = parse_roomplan(data)
+    level = parsed["levels"][0]["id"] if parsed.get("levels") else None
     used: set[str] = set()
     pieces: dict[str, Any] = {}
+    openings: dict[str, Any] = {}
     rep_p: dict[str, Any] = {}
+    rep_o: dict[str, Any] = {}
     skipped: list[dict[str, str]] = []
     for o in parsed.get("objects") or []:
         cat = str(o.get("category") or "unknown")
@@ -367,22 +408,31 @@ def preview_roomplan(data: bytes) -> dict[str, Any]:
             skipped.append({"name": cat, "why": "it has no size"})
             continue
         pieces[pid] = piece
-        rep_p[pid] = {"name": piece["label"], "level_id": parsed["levels"][0]["id"] if parsed.get("levels") else None,
-                      "word": cat, "kind": piece["recipe"]["kind"]}
-    return {"levels": parsed.get("levels") or [], "pieces": pieces, "openings": {},
-            "report": {"pieces": rep_p, "openings": {}, "skipped": skipped, "warnings": list(parsed.get("warnings") or [])}}
+        rep_p[pid] = {"name": piece["label"], "level_id": level, "word": cat, "kind": piece["recipe"]["kind"]}
+    for o in parsed.get("openings") or []:
+        got = roomplan_opening(o)
+        if isinstance(got, str):
+            skipped.append({"name": SCAN_NAMES.get(str(o.get("kind")), "Window"), "why": got})
+            continue
+        kind, name, rec = got
+        oid = _new_id({"door": "door", "window": "win"}.get(kind, kind), used)
+        openings[oid] = rec
+        rep_o[oid] = {"name": name, "level_id": level, "word": o.get("kind"), "kind": kind, "width_m": _mm(float(o["width_m"]))}
+    return {"levels": parsed.get("levels") or [], "pieces": pieces, "openings": openings,
+            "report": {"pieces": rep_p, "openings": rep_o, "skipped": skipped, "warnings": list(parsed.get("warnings") or [])}}
 
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/house3d_import_preview",
     "sh3d_base64": str,
-    # roomplan: a RoomPlan JSON scan instead (needs RoomPlan import on).
+    # roomplan: a RoomPlan scan (JSON or USDZ) instead (needs RoomPlan import on).
     vol.Optional("format", default="sh3d"): vol.In(["sh3d", "roomplan"]),
 })
 @websocket_api.async_response
 async def ws_house3d_import_preview(hass: HomeAssistant, connection, msg) -> None:
     """A .sh3d's doors, windows and furniture (or a RoomPlan scan's
-    furniture and stairs) as candidates. Writes nothing."""
+    doors, windows, openings, furniture and stairs) as candidates. Writes
+    nothing."""
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return

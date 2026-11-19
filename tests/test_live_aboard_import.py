@@ -52,11 +52,25 @@ _EDGES = _home("""
   <pieceOfFurniture level="g" name="Sofa" x="250" y="300" width="200" depth="90" height="80"/>""")
 
 
+def _scan() -> bytes:
+    """A RoomPlan scan of the harness's Living (0..5 × 0..4 m on Main), its zero 1.4 m above the floor as a real
+    scan's is: a door on the back wall and a window on the right one (tests/test_roomplan_import.py _room), a doorway
+    (a plain opening down to the floor) on the front wall, a pass-through (one with a sill) on the back wall, and a
+    door out in the middle of the room, on no wall of the house."""
+    from tests.test_roomplan_import import _bytes, _lowered, _room, _surface, _wall_tf
+    doc = _room(0.0, 0.0, 5.0, 4.0)
+    doc["openings"] = [_surface({"opening": {}}, _wall_tf(1.5, 4.0, 180, cy=1.05), [1.0, 2.1, 0]),
+                       _surface({"opening": {}}, _wall_tf(3.5, 0.0, 0, cy=1.5), [0.8, 0.9, 0])]
+    doc["doors"].append(_surface({"door": {"isOpen": False}}, _wall_tf(2.5, 2.0, 0, cy=1.0), [0.9, 2.0, 0]))
+    return _bytes(_lowered(doc, 1.4))
+
+
 @pytest.fixture(scope="module")
 def flow(tmp_path_factory) -> dict:
     if _NODE is None:
         pytest.skip("node is not installed")
-    previews = {"house": WI.preview(_make_sh3d(_HOUSE)), "edges": WI.preview(_make_sh3d(_EDGES))}
+    previews = {"house": WI.preview(_make_sh3d(_HOUSE)), "edges": WI.preview(_make_sh3d(_EDGES)),
+                "scan": WI.preview_roomplan(_scan())}
     path = tmp_path_factory.mktemp("import") / "previews.json"
     path.write_text(json.dumps(previews), encoding="utf-8")
     real = _VIEWS / "live_aboard_furniture.js"
@@ -78,7 +92,7 @@ def _code(p: Path) -> str:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("flow:", 7), ("floors:", 8), ("walls:", 11), ("kinds:", 11), ("result:", 5),
+    ("flow:", 7), ("floors:", 8), ("walls:", 11), ("kinds:", 11), ("result:", 5), ("scan:", 11),
 ])
 def test_the_flow_harness_covers_each_part(flow, prefix, least) -> None:
     got = [k for k in flow["cases"] if k.startswith(prefix)]

@@ -22,8 +22,11 @@ The other ways in:
   answer makes no sense, you get a box, never an error.
 - **Library:** furniture other PadSpan houses shared. Turn on **Shared library** in the Live Aboard
   settings and accept its terms first. Off, Live Aboard never contacts the library.
-- **Import:** doors, windows and furniture from a Sweet Home 3D file (`.sh3d`). You see them first
-  and pick what to keep; nothing is written until you commit.
+- **Import:** doors, windows and furniture from a Sweet Home 3D file (`.sh3d`), or, with RoomPlan
+  import on (Settings → Features), from a phone's room scan (`.usdz` or `.json`): its doors, windows
+  and openings (an archway as a doorway) with their heights, and its furniture. Each door or window
+  goes on the nearest wall of the house; one with no wall near it is left out and counted. You see
+  them first and pick what to keep; nothing is written until you commit.
 - **People & devices:** see below.
 
 ## Moving and setting a piece

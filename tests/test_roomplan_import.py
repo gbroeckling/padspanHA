@@ -94,6 +94,29 @@ def _bytes(doc) -> bytes:
     return json.dumps(doc).encode("utf-8")
 
 
+def _lowered(doc: dict, by: float) -> dict:
+    """The same scan with its zero `by` metres higher: everything in it that much lower (a scan's zero is the phone's
+    height where it began, never the floor)."""
+    for cap in [doc, *_list_of(doc, "rooms")]:
+        for key in ("walls", "doors", "windows", "openings", "floors", "objects"):
+            for el in _list_of(cap, key):
+                el["transform"][13] -= by
+    return doc
+
+
+def _list_of(d: dict, key: str) -> list:
+    return [x for x in d.get(key) or [] if isinstance(x, dict)]
+
+
+def _scanned_room(x0=0.0, z0=0.0, w=4.0, d=3.0, *, below=1.4, story=0) -> dict:
+    """_room with a plain opening of each sort, a doorway (down to the floor) on the back wall and a pass-through (a
+    sill of 1.05 m) on the left one, and its zero `below` metres above its floor."""
+    doc = _room(x0, z0, w, d, story=story)
+    doc["openings"] = [_surface({"opening": {}}, _wall_tf(x0 + 2.5, z0 + d, 180, cy=1.05), [1.0, 2.1, 0]),
+                       _surface({"opening": {}}, _wall_tf(x0, z0 + 1.5, 270, cy=1.5), [1.4, 0.9, 0])]
+    return _lowered(doc, below)
+
+
 def _ring_set(points):
     return {tuple(p) for p in points}
 
@@ -167,6 +190,40 @@ def test_doors_windows_and_objects_come_along_for_other_uses():
     assert kinds["door"]["a_m"] == [0.55, 0.0] and kinds["door"]["b_m"] == [1.45, 0.0]
     obj = result["objects"][0]
     assert obj["category"] == "table" and obj["center_m"] == [2.0, 1.5] and obj["size_m"] == [1.2, 0.8]
+
+
+def _heights(result) -> list:
+    return sorted((o["kind"], o["width_m"], o["sill_m"], o["head_m"]) for o in result["openings"])
+
+
+_SCANNED = [("door", 0.9, 0.0, 2.0), ("opening", 1.0, 0.0, 2.1), ("opening", 1.4, 1.05, 1.95), ("window", 1.2, 1.0, 2.0)]
+
+
+def test_each_door_window_and_opening_keeps_its_width_and_heights_from_the_floor_not_the_scans_zero():
+    """Item 25: a scan's openings carry their heights after all. Each one's foot and head are measured from its
+    room's floor, where the walls stand (their middle foot), never from the scan's zero."""
+    assert _heights(parse_roomplan(_bytes(_scanned_room()))) == _SCANNED
+    assert _heights(parse_roomplan(_bytes(_scanned_room(below=-0.3)))) == _SCANNED
+    # One wall measured short at its foot does not move the floor.
+    doc = _scanned_room()
+    doc["walls"][0]["dimensions"][1] = 2.2
+    assert _heights(parse_roomplan(_bytes(doc))) == _SCANNED
+
+
+def test_with_no_walls_the_floor_surface_says_where_the_floor_is_and_with_neither_nothing_is_guessed():
+    doc = _scanned_room()
+    doc["walls"] = []
+    assert _heights(parse_roomplan(_bytes(doc))) == _SCANNED
+    doc["floors"] = []
+    assert {(o["sill_m"], o["head_m"]) for o in parse_roomplan(_bytes(doc))["openings"]} == {(None, None)}
+
+
+def test_each_room_of_a_structure_measures_from_its_own_floor():
+    """Two stories, one level (as before), but each room's openings measured from its own floor: the upstairs window
+    still has its 1 m sill, not 3.7 m."""
+    doc = {"rooms": [_scanned_room(story=0), _scanned_room(x0=4.0, story=1, below=-1.3)], "sections": []}
+    got = _heights(parse_roomplan(_bytes(doc)))
+    assert got == sorted(_SCANNED * 2)
 
 
 # ── CapturedStructure ────────────────────────────────────────────────────────
@@ -372,7 +429,8 @@ def _usdz(doc: dict, forms=("Parametric", "Mesh", "Model"), section="kitchen0") 
                    f'        def Xform "{section}" (\n            kind = "assembly"\n        )\n        {{\n'
                    "            matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (2.0, 0.7, 1.5, 1) )\n        }\n    }\n}\n")
         n = 0
-        for key, cat in (("walls", "Wall"), ("doors", "Door(Isopen: True)"), ("windows", "Window"), ("floors", "Floor"), ("objects", "Table")):
+        for key, cat in (("walls", "Wall"), ("doors", "Door(Isopen: True)"), ("windows", "Window"), ("openings", "Opening"),
+                         ("floors", "Floor"), ("objects", "Table")):
             for el in doc.get(key) or []:
                 n += 1
                 for form in forms:
@@ -398,6 +456,16 @@ def test_a_usdz_reads_as_the_same_rooms_walls_and_openings_as_its_json():
     m = parse_usdz(_usdz(doc, forms=("Mesh",)))
     assert len(m["walls"]) == 4 and sorted(round(math.dist(w["a_m"], w["b_m"]), 2) for w in m["walls"]) == [3.32, 3.32, 4.32, 4.32]
     assert _ring_set(m["rooms"][0]["points_m"]) == _ring_set(j["rooms"][0]["points_m"])
+
+
+@pytest.mark.parametrize("forms", [("Parametric", "Mesh", "Model"), ("Mesh",)], ids=["parametric", "mesh"])
+def test_a_usdz_gives_each_opening_the_same_width_and_heights_as_its_json(forms):
+    """Item 25: the USDZ path too, from either form an app packs."""
+    doc = _scanned_room(1.0, 2.0)
+    j, u = parse_roomplan(_bytes(doc)), parse_roomplan(_usdz(doc, forms=forms))
+    assert _heights(u) == _heights(j) == _SCANNED
+    key = lambda xs: sorted(json.dumps(x, sort_keys=True) for x in xs)  # noqa: E731
+    assert key(u["openings"]) == key(j["openings"])
 
 
 def test_a_zip_that_is_no_room_scan_is_refused_plainly():

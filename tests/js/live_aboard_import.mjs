@@ -26,6 +26,10 @@
 //             box; a ceiling light starts unticked
 //   result    ticked and placed only; origin "import"; the floor chosen;
 //             ids never already in the 3D file; the contracts' shapes
+//   scan      a RoomPlan scan's doors, windows and doorways go on the walls
+//             with the heights measured from its floor; one on no wall of
+//             the house is left out and the summary counts it; a doorway
+//             given a new id is still a doorway
 //
 // usage: live_aboard_import.mjs <www/padspan-ha dir> <previews.json> [<builders module>]
 // prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...], pieces: [...] }
@@ -146,7 +150,7 @@ async function opened(previewKey, opts = {}){
   const el = document.createElement("div");
   const ha = fakeHA(() => (opts.error ? { error: opts.error } : P[previewKey]), opts.file3d);
   const toasts = [];
-  const ctx = { el, callWS: ha.callWS, wsCall: ha.callWS, toast: (t, bad) => toasts.push({ t, bad }), settings: {},
+  const ctx = { el, callWS: ha.callWS, wsCall: ha.callWS, toast: (t, bad) => toasts.push({ t, bad }), settings: opts.settings || {},
                 floor: opts.floor || { id: "main", name: "Main" }, room: null, recipeTools: opts.tools === undefined ? FAKE : opts.tools };
   if (opts.draft) ctx.draft = opts.draft;
   if (opts.pending !== undefined) ctx.pending = opts.pending;
@@ -438,6 +442,53 @@ await tryCase("result", async () => {
       && pc.rotation >= 0 && pc.rotation < 360 && pc.z_m >= 0 && pc.z_m <= 20 && pc.label.length <= 60), Object.values(r.pieces)[0]);
   payloads.push({ openings: r.openings });
   piecesOut.push(...Object.values(r.pieces));
+});
+
+// ── scan ────────────────────────────────────────────────────────────────────
+// A RoomPlan scan of the Living (tests/test_live_aboard_import.py _SCAN): a door
+// on the back wall, a window on the right one, a doorway on the front one, a
+// pass-through (a hole with a sill) on the back one, and a door out in the room.
+await tryCase("scan: a RoomPlan scan's doors, windows and doorways", async () => {
+  const f = await opened("scan", { file: fileOf("living.usdz"), settings: { roomplan_import_enabled: true } });
+  const prev = P.scan, one = (n) => idsBy(prev, "openings", n)[0];
+  const doorIds = idsBy(prev, "openings", "Door");
+  const farId = doorIds.find(id => near(prev.openings[id].a_m[1], 2)), backId = doorIds.find(id => id !== farId);
+  check("scan: the preview is asked for as a RoomPlan scan", f.ha.calls.find(c => c.type === IM.PREVIEW_TYPE).format === "roomplan"
+    && !!button(f.el, "Choose another file"), f.ha.calls.map(c => c.format));
+  const said = textOf(f.el);
+  check("scan: the summary counts doors, windows and doorways, and how many are on no wall of the house",
+    said.includes("1 piece, 2 doors, 2 windows, 1 doorway.") && said.includes("1 door or window is on no wall of the house, so it is left out."),
+    said.slice(0, 300));
+  check("scan: the door out in the room is left out with its reason", farId && textOf(rowOf(f.el, farId)).includes(`no wall within ${IM.SNAP_M} m`)
+    && inRow(rowOf(f.el, farId), "input")[0].disabled === true, farId && textOf(rowOf(f.el, farId)));
+  check("scan: a doorway is listed as one", textOf(rowOf(f.el, one("Doorway"))).startsWith("Doorway 1.00 m"), textOf(rowOf(f.el, one("Doorway"))));
+  check("scan: a pass-through is listed as a window, and says what it was", textOf(rowOf(f.el, one("Wall opening"))).startsWith("Window 0.80 m · Wall opening"),
+    textOf(rowOf(f.el, one("Wall opening"))));
+  const r = await add(f);
+  payloads.push({ openings: r.openings });
+  const all = Object.values(r.openings), len = (o) => Math.hypot(o.b_m[0] - o.a_m[0], o.b_m[1] - o.a_m[1]);
+  const door = r.openings[backId], win = r.openings[one("Window")], way = r.openings[one("Doorway")], hole = r.openings[one("Wall opening")];
+  check("scan: a door goes on its wall, its width and measured head kept", door && door.kind === "door" && door.floor_id === "main"
+    && onAWall(door, FILE3D.openings, all) === "ok" && near(len(door), 0.9, 0.003) && door.head_m === 2 && near(door.a_m[1], -EXT, 1e-3), door);
+  check("scan: a window keeps the sill and head measured from the scan's floor", win && win.kind === "window" && win.sill_m === 1 && win.head_m === 2
+    && onAWall(win, FILE3D.openings, all) === "ok" && near(win.a_m[0], 5 + EXT, 1e-3) && near(len(win), 1.2, 0.003), win);
+  check("scan: a plain opening down to the floor is a doorway", way && one("Doorway").startsWith("doorway_") && way.kind === "doorway"
+    && way.head_m === 2.1 && !("sill_m" in way) && onAWall(way, FILE3D.openings, all) === "ok" && near(way.a_m[1], 4 + EXT, 1e-3), way);
+  check("scan: an opening with a sill is a window with that sill", hole && hole.kind === "window" && hole.sill_m === 1.05 && hole.head_m === 1.95
+    && onAWall(hole, FILE3D.openings, all) === "ok" && near(len(hole), 0.8, 0.003), hole);
+  check("scan: the one on no wall is not handed over", Object.keys(r.openings).length === 4 && !(farId in r.openings), Object.keys(r.openings));
+});
+await tryCase("scan: a doorway given a new id is still a doorway", async () => {
+  const wayId = idsBy(P.scan, "openings", "Doorway")[0];
+  // The 3D file already has that id (a doorway upstairs, out of the way).
+  const file3d = { ...clone(FILE3D), openings: { ...clone(FILE3D.openings),
+    [wayId]: { kind: "doorway", floor_id: "up", a_m: [1, 3 + EXT], b_m: [2, 3 + EXT], head_m: 2.03 } } };
+  const f = await opened("scan", { file: fileOf("living.json"), settings: { roomplan_import_enabled: true }, file3d });
+  const r = await add(f);
+  const ways = Object.entries(r.openings).filter(([, o]) => o.kind === "doorway");
+  check("scan: a doorway given a new id is still a doorway", ways.length === 1 && ways[0][0] !== wayId && /^doorway_[0-9a-f]{8}$/.test(ways[0][0]),
+    Object.keys(r.openings));
+  payloads.push({ openings: r.openings });
 });
 
 // ── what one Save takes ───────────────────────────────────────────────────

@@ -399,7 +399,7 @@ def test_a_roomplan_scans_furniture_and_stairs_come_in_as_candidates():
                             "attributes": {}, "story": 0})
     out = WI.preview_roomplan(_bytes(room))
     by = {p["label"]: p for p in out["pieces"].values()}
-    assert set(by) == {"Table", "Stairs", "Refrigerator"} and out["openings"] == {}
+    assert set(by) == {"Table", "Stairs", "Refrigerator"}
     st = by["Stairs"]
     assert st["recipe"]["kind"] == "stairs" and st["recipe"]["params"]["shape"] == "straight"
     assert (st["recipe"]["width_m"], st["recipe"]["depth_m"]) == (1.0, 3.2) and st["rotation"] == 90.0
@@ -407,6 +407,65 @@ def test_a_roomplan_scans_furniture_and_stairs_come_in_as_candidates():
     assert by["Table"]["recipe"]["kind"] == "table" and by["Refrigerator"]["recipe"]["kind"] == "other"
     assert {r["kind"] for r in out["report"]["pieces"].values()} == {"table", "stairs", "other"}
 
+
+
+
+# ═══ a scan's doors, windows and openings (item 25) ══════════════════════════
+# They used to be dropped ("the scan's openings carry no heights"): a scan's door, window or opening now comes in as
+# Live Aboard's own added opening, its heights measured from the scan's floor, for the preview to put on the house's
+# walls. _scanned_room: its zero 1.4 m above the floor, as a real scan's is (the phone's height).
+
+@pytest.mark.parametrize("fmt", ["json", "usdz"])
+def test_a_scans_doors_windows_and_openings_come_in_with_their_heights(fmt):
+    from tests.test_roomplan_import import _bytes, _scanned_room, _usdz
+    room = _scanned_room()
+    out = WI.preview_roomplan(_bytes(room) if fmt == "json" else _usdz(room))
+    ops, rep = out["openings"], out["report"]["openings"]
+    by = {rep[k]["name"]: (k, v) for k, v in ops.items()}
+    assert set(by) == {"Door", "Window", "Doorway", "Wall opening"} and set(rep) == set(ops)
+    door_id, door = by["Door"]
+    assert re.fullmatch(r"door_[0-9a-f]{8}", door_id)
+    assert door == {"kind": "door", "floor_id": None, "a_m": [0.55, 0.0], "b_m": [1.45, 0.0], "head_m": 2.0,
+                    "hinge": "left", "swing": "in"}
+    win_id, win = by["Window"]
+    assert re.fullmatch(r"win_[0-9a-f]{8}", win_id)
+    assert win == {"kind": "window", "floor_id": None, "a_m": [4.0, 0.4], "b_m": [4.0, 1.6], "sill_m": 1.0, "head_m": 2.0}
+    # A plain opening down to the floor: a doorway (no door in it).
+    way_id, way = by["Doorway"]
+    assert re.fullmatch(r"doorway_[0-9a-f]{8}", way_id)
+    assert way == {"kind": "doorway", "floor_id": None, "a_m": [3.0, 3.0], "b_m": [2.0, 3.0], "head_m": 2.1}
+    # One with a sill (a pass-through): the one kind with a sill the 3D file keeps, a window.
+    hole_id, hole = by["Wall opening"]
+    assert re.fullmatch(r"win_[0-9a-f]{8}", hole_id)
+    assert hole == {"kind": "window", "floor_id": None, "a_m": [0.0, 2.2], "b_m": [0.0, 0.8], "sill_m": 1.05, "head_m": 1.95}
+    assert rep[way_id] == {"name": "Doorway", "level_id": "roomplan", "word": "opening", "kind": "doorway", "width_m": 1.0}
+    assert rep[door_id]["word"] == "door" and rep[hole_id]["kind"] == "window" and rep[hole_id]["width_m"] == 1.4
+    for k, v in ops.items():
+        assert set(v) == set(HS._ADDED_KEYS[v["kind"]]), k
+    assert out["report"]["skipped"] == []
+
+
+def test_given_a_floor_a_scans_openings_pass_the_servers_own_check():
+    from tests.test_roomplan_import import _bytes, _scanned_room
+    out = WI.preview_roomplan(_bytes(_scanned_room()))
+    changes = {"openings": {k: {**v, "floor_id": "main"} for k, v in out["openings"].items()}}
+    assert set(HS.apply_edit(HS.empty(), changes)["openings"]) == set(out["openings"]) and len(out["openings"]) == 4
+
+
+def test_a_scans_opening_too_narrow_or_with_no_floor_to_measure_from_is_left_out_with_its_reason():
+    from tests.test_roomplan_import import _bytes, _room, _surface, _wall_tf
+    room = _room()
+    room["doors"].append(_surface({"door": {"isOpen": False}}, _wall_tf(3.0, 0.0, 0, cy=1.0), [0.5, 2.0, 0]))
+    room["openings"] = [_surface({"opening": {}}, _wall_tf(2.0, 3.0, 180, cy=1.0), [0.4, 2.0, 0])]
+    out = WI.preview_roomplan(_bytes(room))
+    assert sorted(v["kind"] for v in out["openings"].values()) == ["door", "window"]
+    assert out["report"]["skipped"] == [{"name": "Door", "why": "narrower than a door can be (0.6 m)"},
+                                        {"name": "Wall opening", "why": "narrower than a doorway can be (0.6 m)"}]
+    bare = _room(floors=False)
+    bare["walls"] = []
+    out = WI.preview_roomplan(_bytes(bare))
+    assert out["openings"] == {} and len(out["pieces"]) == 1
+    assert {s["why"] for s in out["report"]["skipped"]} == {"the scan shows no floor to measure its height from"}
 
 
 def test_a_roomplan_scan_is_refused_while_roomplan_import_is_off(tmp_path):

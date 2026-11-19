@@ -235,11 +235,39 @@ def _rooms_of(room: dict, label: str, shared_sections: list, warnings: list) -> 
     return [{"name": _name_for(p, own, shared_sections), "level_id": LEVEL_ID, "points_m": p} for p in polys]
 
 
+def _foot_top(surface: dict) -> tuple[float, float] | None:
+    """A wall's, door's, window's or opening's lowest and highest point (world Y, metres): its centre (the transform's
+    position) less and plus half its height along its up vector (and half its width along its right one, should it
+    lean)."""
+    m = _matrix(surface.get("transform"))
+    dims = _vec3(surface.get("dimensions"))
+    if m is None or not dims or dims[1] <= 0:
+        return None
+    reach = abs(m[1]) * dims[0] / 2 + abs(m[5]) * dims[1] / 2
+    return m[13] - reach, m[13] + reach
+
+
+def _floor_y(cap: dict) -> float | None:
+    """Where a scanned room's floor is (world Y): the middle one of its walls' feet (each wall stands on the floor; the
+    middle one, so one measured short doesn't move it), else its floor surfaces' height; None with neither. A scan's
+    zero is the phone's height where the scan began, never the floor."""
+    ys = sorted(ft[0] for w in _list(cap, "walls") for ft in [_foot_top(w)] if ft)
+    if not ys:
+        ys = sorted(m[13] for f in _list(cap, "floors") for m in [_matrix(f.get("transform"))] if m)
+    return ys[len(ys) // 2] if ys else None
+
+
 def _extras(captures: list[dict]) -> dict[str, list]:
     """Walls, doors/windows/openings and objects, for anything that wants
-    more than the room outlines (the room candidate itself uses none)."""
+    more than the room outlines (the room candidate itself uses none). Each
+    door, window and opening keeps its width and its foot and head above its
+    own room's floor (sill_m, head_m; None when the scan shows no floor)."""
     walls, openings, objects = [], [], []
-    for cap in captures:
+    floors = [_floor_y(cap) for cap in captures]
+    known = sorted(y for y in floors if y is not None)
+    for cap, floor in zip(captures, floors):
+        if floor is None and known:
+            floor = known[len(known) // 2]                  # a room with no walls or floor of its own: the scan's
         for w in _list(cap, "walls"):
             seg = _segment(w)
             if seg:
@@ -253,8 +281,13 @@ def _extras(captures: list[dict]) -> dict[str, list]:
                 is_open = None
                 if isinstance(cat, dict) and isinstance(cat.get("door"), dict):
                     is_open = cat["door"].get("isOpen")
+                ft = _foot_top(s)
+                high = ft is not None and floor is not None
                 openings.append({"kind": kind, "a_m": seg[0], "b_m": seg[1],
-                                 "is_open": is_open if isinstance(is_open, bool) else None})
+                                 "is_open": is_open if isinstance(is_open, bool) else None,
+                                 "width_m": round(_vec3(s.get("dimensions"))[0], 3),     # _segment checked it
+                                 "sill_m": round(max(0.0, ft[0] - floor), 3) + 0.0 if high else None,
+                                 "head_m": round(max(0.0, ft[1] - floor), 3) + 0.0 if high else None})
         for o in _list(cap, "objects"):
             m = _matrix(o.get("transform"))
             dims = _vec3(o.get("dimensions"))

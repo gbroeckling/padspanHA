@@ -5,7 +5,8 @@
 //
 // Live Aboard, the 3D house (docs/IDEA_ATLAS_3D_HOUSE.md): Import, one of the
 // Furnish tab's ways to add (P7; contracts §4). A Sweet Home 3D file's doors,
-// windows and furniture as a list to choose from: a tick for each, a kind to
+// windows and furniture (or a RoomPlan scan's doors, windows, doorways,
+// furniture and stairs) as a list to choose from: a tick for each, a kind to
 // re-map a piece to, and which floor each of the file's levels goes to. Add
 // resolves {pieces, openings} (origin "import") for the Furnish tab to drop
 // into its draft, unsaved; Cancel resolves null. Nothing here writes: the
@@ -20,7 +21,8 @@
 // stops at a corner and never overlaps one already there), so each is one
 // the line tool could have drawn. One keeps the file's width, moved along
 // the wall only as far as it must to clear a corner or another opening, and
-// is cut only where the free stretch is narrower.
+// is cut only where the free stretch is narrower. One on no wall of the house
+// is left out, and the summary counts them.
 
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
 const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
@@ -43,6 +45,7 @@ const EPS = 1e-6;
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const mm = DRAFT.mm;
+const KIND_NAMES = { door: "Door", window: "Window", doorway: "Doorway" };
 const keyOf = (levelId) => (levelId === null || levelId === undefined ? NO_LEVEL : String(levelId));
 const sizeText = (r) => `${r.width_m.toFixed(2)} × ${r.depth_m.toFixed(2)} × ${r.height_m.toFixed(2)} m`;
 
@@ -111,13 +114,14 @@ export function defaultFloors(keys, levels, floors, current){
 }
 
 // ── A door or window onto a wall ────────────────────────────────────────────
-/** One door or window of the file onto the nearest wall of a floor (W,
- *  wallsOf), about as parallel and within SNAP_M: {rec, width, cut, moved}
+/** One door, window or doorway of the file onto the nearest wall of a floor
+ *  (W, wallsOf), about as parallel and within SNAP_M: {rec, width, cut, moved}
  *  — rec the 3D file's own record on that wall, the file's heights kept
- *  under the floor's ceiling — or {why} it cannot go there. `taken`: what
- *  this import has placed already, per run (Map), so two never overlap. */
+ *  under the floor's ceiling — or {why} it cannot go there (nowall: there is
+ *  no wall for it). `taken`: what this import has placed already, per run
+ *  (Map), so two never overlap. */
 export function placeOpening(o, W, taken){
-  if (!W || !W.runs.length) return { why: "no walls on that floor" };
+  if (!W || !W.runs.length) return { why: "no walls on that floor", nowall: true };
   const a = o.a_m, b = o.b_m, w = Math.hypot(b[0] - a[0], b[1] - a[1]);
   if (!(w > 0)) return { why: "it has no width" };
   const ux = (b[0] - a[0]) / w, uy = (b[1] - a[1]) / w, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
@@ -127,7 +131,7 @@ export function placeOpening(o, W, taken){
     const d = DRAFT.runDist(R.run, mx, my);
     if (d <= SNAP_M && (!best || d < best.d)) best = { R, d };
   }
-  if (!best) return { why: `no wall within ${SNAP_M} m` };
+  if (!best) return { why: `no wall within ${SNAP_M} m`, nowall: true };
   const { run, stops } = best.R, mine = taken.get(run) || [];
   const ops = [...best.R.ops, ...mine];
   const tc = DRAFT.tOn(run, mx, my);
@@ -138,8 +142,8 @@ export function placeOpening(o, W, taken){
   if (hi - lo >= w) { t0 = clamp(tc - w / 2, lo, hi - w); t1 = t0 + w; }
   if (t1 - t0 < DRAFT.minWidth(o.kind) - EPS) return { why: `too little wall there for a ${o.kind}` };
   const rec = DRAFT.newOpening(o.kind, W.fl.id, DRAFT.pointOf(run, t0), DRAFT.pointOf(run, t1), W.ceil);
-  Object.assign(rec, DRAFT.openingHeights(o.kind === "door" ? { kind: "door", head_m: o.head_m }
-    : { kind: "window", sill_m: o.sill_m, head_m: o.head_m }, W.ceil));
+  Object.assign(rec, DRAFT.openingHeights(o.kind === "window" ? { kind: "window", sill_m: o.sill_m, head_m: o.head_m }
+    : { kind: o.kind, head_m: o.head_m }, W.ceil));
   mine.push({ lo: t0, hi: t1, id: `import:${mine.length}`, kind: o.kind });
   taken.set(run, mine);
   return { rec, width: t1 - t0, cut: t1 - t0 < w - 0.005, moved: Math.abs((t0 + t1) / 2 - tc) };
@@ -209,7 +213,7 @@ export function choiceOf(prev, model, file3d, current, tools, pending = 0){
     for (const [id0, c] of Object.entries((prev && prev[sec]) || {})) {
       let id = id0;
       while (inFile.has(id) || cands.pieces[id] || cands.openings[id]) {
-        id = mk ? mk() : DRAFT.newOpeningId(c.kind === "door" ? "door" : "window");
+        id = mk ? mk() : DRAFT.newOpeningId(c.kind);
       }
       cands[sec][id] = sec === "pieces" ? { ...c, id } : { ...c };
       if (id !== id0) { rep[sec][id] = rep[sec][id0]; delete rep[sec][id0]; }
@@ -332,7 +336,7 @@ export function importFlow(ctx){
     const tools = ctx.recipeTools || null;
     let S = null, fileName = "", token = 0, done = false;
     const finish = (v) => { if (done) return; done = true; token++; el.replaceChildren(); resolve(v); };
-    // A RoomPlan JSON scan too, where RoomPlan import is on (Settings → Features): its furniture and stairs.
+    // A RoomPlan scan too (.usdz or .json), where RoomPlan import is on (Settings → Features).
     const rp = !!(ctx.settings && ctx.settings.roomplan_import_enabled === true);
     const title = rp ? "Import from Sweet Home 3D or RoomPlan" : "Import from Sweet Home 3D";
     const input = h("input", { type: "file", accept: rp ? ".sh3d,.json,.usdz" : ".sh3d", style: "display:none", onchange: () => pick() });
@@ -344,11 +348,11 @@ export function importFlow(ctx){
       screen([
         h("div", { style: CSS.title }, title),
         h("div", { class: "muted", style: CSS.note },
-          (rp ? "Doors, windows, furniture and stairs from a .sh3d file, or the furniture and stairs of a RoomPlan scan (.json). "
+          (rp ? "Doors, windows, furniture and stairs from a .sh3d file or a RoomPlan scan (.usdz or .json). "
               : "Doors, windows, furniture and stairs from a .sh3d file. ")
           + "Furniture comes in as its kind and size; stairs as a first guess at their shape, squared to the room. You choose what to add; nothing is saved until you press Save."),
         msg ? h("div", { role: "alert", style: bad ? CSS.bad : CSS.note }, msg) : null,
-        h("div", { style: CSS.row }, [chooseBtn(rp ? "Choose a .sh3d or .json file" : "Choose a .sh3d file", true), cancelBtn(), input]),
+        h("div", { style: CSS.row }, [chooseBtn(rp ? "Choose a .sh3d, .usdz or .json file" : "Choose a .sh3d file", true), cancelBtn(), input]),
       ]);
     }
     async function pick(){
@@ -405,12 +409,12 @@ export function importFlow(ctx){
       const ok = !!p.rec;
       const cb = h("input", { type: "checkbox", checked: ok && !!S.pick[id], disabled: !ok, "aria-label": "Add this one",
                               onchange: () => tick(id, cb.checked) });
-      const what = `${o.kind === "door" ? "Door" : "Window"} ${(ok ? p.width : (r.width_m || 0)).toFixed(2)} m`;
+      const what = `${KIND_NAMES[o.kind] || "Window"} ${(ok ? p.width : (r.width_m || 0)).toFixed(2)} m`;
       const note = !ok ? p.why
         : p.cut ? `cut to ${p.width.toFixed(2)} m to fit the wall, on ${floorName(p.rec.floor_id)}`
         : `on ${floorName(p.rec.floor_id)}`;
       return h("label", { style: CSS.item, "data-id": id }, [cb,
-        h("span", { style: CSS.name }, [h("b", {}, what), r.name && !/^(door|window)$/i.test(r.name.trim()) ? ` · ${r.name}` : ""]),
+        h("span", { style: CSS.name }, [h("b", {}, what), r.name && !/^(door|window|doorway)$/i.test(r.name.trim()) ? ` · ${r.name}` : ""]),
         h("span", { class: ok ? "muted" : "", style: ok ? CSS.note : CSS.bad }, note)]);
     }
     function pieceRow(id){
@@ -456,8 +460,14 @@ export function importFlow(ctx){
     function render(){
       const pIds = Object.keys(S.cands.pieces), oIds = Object.keys(S.cands.openings);
       const doors = oIds.filter(id => S.cands.openings[id].kind === "door").length;
+      const ways = oIds.filter(id => S.cands.openings[id].kind === "doorway").length, wins = oIds.length - doors - ways;
       const found = [`${pIds.length} ${pIds.length === 1 ? "piece" : "pieces"}`,
-        `${doors} ${doors === 1 ? "door" : "doors"}`, `${oIds.length - doors} ${oIds.length - doors === 1 ? "window" : "windows"}`];
+        `${doors} ${doors === 1 ? "door" : "doors"}`, `${wins} ${wins === 1 ? "window" : "windows"}`,
+        ...(ways ? [`${ways} ${ways === 1 ? "doorway" : "doorways"}`] : [])];
+      // Those on no wall of the house (on a floor with none, or none near): left out, and counted here.
+      const nowall = oIds.filter(id => S.placed[id] && S.placed[id].nowall).length;
+      const offWalls = nowall === 1 ? " 1 door or window is on no wall of the house, so it is left out."
+        : nowall ? ` ${nowall} doors and windows are on no wall of the house, so they are left out.` : "";
       const opts = [...S.floors.map(f => ({ id: f.id, name: f.name })), { id: LEAVE_OUT, name: "Leave out" }];
       const floorsBlock = S.keys.length ? h("div", {}, [
         h("div", { style: CSS.head }, S.keys.length > 1 ? "Which floor each level goes on" : "Which floor it goes on"),
@@ -475,7 +485,7 @@ export function importFlow(ctx){
       addBtn = h("button", { class: "btn inline primary", onclick: () => { if (count() && !overBy(S, tools)) finish(chosenOf(S, tools)); } }, "Add");
       screen([
         h("div", { style: CSS.title }, title),
-        h("div", {}, [h("b", {}, fileName || "The file"), `: ${found.join(", ")}.`]),
+        h("div", {}, [h("b", {}, fileName || "The file"), `: ${found.join(", ")}.${offWalls}`]),
         !pIds.length && !oIds.length ? h("div", { role: "alert", style: CSS.bad }, "Nothing in this file can be added.") : null,
         S.capped ? h("div", { style: CSS.note }, `One Save takes only so many, so the last ${S.capped} start unticked. Add these and Save, then import the file again and tick the rest.`) : null,
         floorsBlock,
