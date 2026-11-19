@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.267 — A wall that arranges its own floors covers no room; A wall stacks its floors as saved again (2026-11-19)
+
+### Changed
+- **A wall draws its floors one on top of the other, with the saved Spacing and L/R, as before.** For about an hour a wall arranged its floors for its own screen and stepped them sideways. That made the house larger and broke what a stack is for: reading the floors as one building. The stack is back as every wall's default. The arrangement stays for a wall whose link carries `?arrange=1`.
+- **The wall still measures how large the house is drawn** against what its screen allows, but it only moves in by itself on an arrangement it made, never on a saved stack.
+
+### Fixed
+- **On a wall whose link carries `?arrange=1`, no room sits under the floor above.** The arrangement allowed 2% of the whole house under a higher floor's plate, which on a real house was a third of one deck. No single room may now lose more than a sliver.
+
+---
+
 ## 0.38.266 — A wall draws the house as large as its screen allows (2026-11-19)
 
 ### New
