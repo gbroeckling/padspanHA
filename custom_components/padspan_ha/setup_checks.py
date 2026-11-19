@@ -10,7 +10,7 @@ a plan a real-world scale. The Overview now says so, quietly, to the person
 who can fix it (padspan_ha/setup_tips); the same rules decide both, here.
 
 Also counted for the report: rooms on one floor drawn over each other (a
-hand-drawn outline slightly past its wall; Garry's Garage and Laundry overlap
+hand-drawn outline slightly past its wall; one home's Garage and Laundry overlap
 17 cm), and the stairs in Live Aboard's file. The report sends only how many
 rooms overlap; Mapping's Edit and Layout name them to the person drawing
 (2026-11-18, padspan_ha/rooms_overlap), by the same rule.
