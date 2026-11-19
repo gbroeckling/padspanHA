@@ -204,10 +204,10 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
 
     _attr_has_entity_name = True
     # New with every poll (about every 5 s): live in the state, kept out of
-    # Home Assistant's database. latitude/longitude/gps_accuracy are HA's own
-    # tracker attributes, there only with a GPS origin set, and move with
-    # each poll's position. The room, home and names are recorded.
-    _unrecorded_attributes = frozenset({"rssi", "age_s", "latitude", "longitude", "gps_accuracy"})
+    # Home Assistant's database. The room, home and names are recorded, and so
+    # are latitude/longitude/gps_accuracy (HA's own, there only with a GPS
+    # origin set): they are what draws a tracker's trail on HA's map.
+    _unrecorded_attributes = frozenset({"rssi", "age_s"})
 
     def __init__(self, coordinator: "PresenceCoordinator", key: str, uid_key: str | None = None) -> None:
         super().__init__(coordinator)

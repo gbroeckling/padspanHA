@@ -83,8 +83,9 @@ EXPECTED = {
     sensor.PadSpanScannerDistanceSensor: ({"rssi", "age_s"}, {"scanner", "room"}),
     sensor.PadSpanOccupancySensor: ({"confidence", "rooms"}, {"minimum", "maximum", "known", "unknown", "people"}),
     device_tracker.PadSpanDeviceTracker: (
-        {"rssi", "age_s", "latitude", "longitude", "gps_accuracy"},
-        {"address", "padspan_id", "user_label", "home", "source_type"},
+        {"rssi", "age_s"},
+        # latitude/longitude/gps_accuracy stay recorded: they draw the trail on HA's map
+        {"latitude", "longitude", "gps_accuracy", "address", "padspan_id", "user_label", "home", "source_type"},
     ),
 }
 
