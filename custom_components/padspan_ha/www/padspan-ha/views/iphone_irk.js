@@ -15,6 +15,10 @@
 // Terminal command, and the Keychain way in Settings → Phone Tracking →
 // Detailed Setup Guide). Nothing here writes anything: the check is
 // padspan_ha/irk_validate, which only tests the key against the air.
+//
+// It also holds the Android phone's one check that is not about a key
+// (transmitterAdvice): the Overview's phone rows warn when the Companion
+// app's BLE Transmitter is set too weak to be heard.
 
 export function iphoneGuideOn(settings) {
   return !!settings && settings.iphone_irk_guide === true;
@@ -59,6 +63,28 @@ export const NO_PHONES_TEXT =
 export const HELP_NOTE_TEXT =
   "Not seeing your phone? Android: open Companion App → Settings → Companion App → Manage Sensors → " +
   "BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).";
+
+// An Android phone's BLE Transmitter reports its own settings as attributes
+// of its sensor, which companion_discover passes on as phone.attributes:
+// "Transmitting power" (ultraLow, low, medium, high) and "Advertise mode"
+// (lowPower, balanced, lowLatency). The app starts on ultraLow and lowPower,
+// which receivers barely hear. Keys and values are compared without case,
+// spaces or underscores. Returns what to change, or "" when both are fine or
+// not reported (an iPhone, or an app that does not say).
+export function transmitterAdvice(attrs) {
+  const norm = (v) => String(v ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  const read = (want) => {
+    for (const [k, v] of Object.entries(attrs || {})) if (norm(k) === want) return norm(v);
+    return "";
+  };
+  const power = read("transmittingpower"), mode = read("advertisemode");
+  const set = [];
+  if (power === "ultralow" || power === "low") set.push("Transmit power to High");
+  if (mode === "lowpower") set.push("Advertise mode to Low latency");
+  if (!set.length) return "";
+  return "Sends too weakly for receivers to hear it well. In the Companion app, open Settings → Companion app → " +
+    `Manage sensors → BLE Transmitter and set ${set.join(" and ")}.`;
+}
 
 /** The wizard's "I have an iPhone" path: the three steps, with a read-only
  *  check that the key resolves. `apple` lists Companion apps that look like

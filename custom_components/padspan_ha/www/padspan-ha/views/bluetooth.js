@@ -416,9 +416,8 @@ export function render(ctx) {
       const irkForm = el("div", { style: "background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;padding:12px;margin-top:10px" });
       irkForm.appendChild(el("div", { class: "bt-kv-title", style: "margin-top:0" }, "Add an IRK"));
       irkForm.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:9px;line-height:1.55" },
-        "Paste the IRK from your phone's Companion App (Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter). "
-        + "Accepts hex (32 chars), base64, or colon-separated format. "
-        + "Need to capture IRKs from phones/watches? Use the ESPHome IRK Capture tool: github.com/DerekSeaman/irk-capture"));
+        "Paste the key of an iPhone or Apple Watch. Accepts hex (32 chars), base64, or colon-separated format. "
+        + "Android phones need no key: the Companion app's BLE Transmitter tells PadSpan which phone it is."));
 
       const irkInputRow = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap" });
       const irkNameInput = el("input", {
@@ -490,7 +489,7 @@ export function render(ctx) {
       // ── How to find IRK ──
       detail.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:10px;line-height:1.6" }, [
         el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, "Where to find the IRK"),
-        el("div", {}, "Android: Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 look for \"IRK\" in the settings/attributes."),
+        el("div", {}, "Android: no key needed. Switch on the Companion app's BLE Transmitter (Settings \u2192 Companion App \u2192 Manage Sensors) and track the phone from Overview \u2192 Track Your Phone."),
         el("div", {}, [
           el("span", {}, "Apple: IRK is shared via Bluetooth pairing. "),
           el("a", { href: "https://community.home-assistant.io/t/private-ble-device-apple-devices/546810", target: "_blank", rel: "noopener", class: "bt-link" }, "Apple IRK guide"),
@@ -2485,8 +2484,8 @@ function renderIrkPanel(ctx, snap) {
   addCard.appendChild(el("div", { class: "bt-panel-head" }, [
     el("div", { class: "bt-panel-title" }, "Add an IRK"),
     el("div", { class: "bt-panel-sub" },
-      "Paste the key from the phone's own settings — hex, base64, colon-separated or irk:-prefixed all work. "
-      + "PadSpan checks it against live traffic before saving it."),
+      "Paste the key of an iPhone or Apple Watch — hex, base64, colon-separated or irk:-prefixed all work. "
+      + "PadSpan checks it against live traffic before saving it. Android phones need no key."),
   ]));
   addCard.appendChild(el("div", { class: "bt-note", style: "margin-bottom:10px" },
     "Capturing an IRK from a phone or watch needs the ESPHome IRK Capture tool \u2014 github.com/DerekSeaman/irk-capture"));
@@ -2714,10 +2713,8 @@ function renderIrkPanel(ctx, snap) {
       compCard.appendChild(el("div", { class: "bt-note ok" },
         `${appsWithoutIrk.length} companion app${appsWithoutIrk.length !== 1 ? "s" : ""} without one: ${appsWithoutIrk.join(", ")}`));
       compCard.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.6;margin-top:8px" },
-        "The HA Companion App stores an IRK when BLE Transmitter is enabled. " +
-        "If the app registered before BLE Transmitter was added (or the IRK field wasn't populated), " +
-        "you may need to manually extract the IRK. On Android: HA Settings → Companion App → Manage Sensors → BLE Transmitter → look for the IRK. " +
-        "On iOS: the IRK is not exposed in the app — use the Mac Keychain method."));
+        "Android phones don't need one: the Companion app's BLE Transmitter sends a fixed ID instead (track the phone from Overview → Track Your Phone). " +
+        "The iPhone app doesn't show its key: get it once from a Mac or an irk-capture ESP32."));
     }
     wrap.appendChild(compCard);
   }
@@ -2751,7 +2748,7 @@ function renderIrkPanel(ctx, snap) {
     el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, "Where to find an IRK"),
     el("dl", { class: "bt-kv" }, [
       el("dt", {}, "Android"),
-      el("dd", {}, "Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 IRK attribute"),
+      el("dd", {}, "None needed: the Companion app's BLE Transmitter (Overview \u2192 Track Your Phone)"),
       el("dt", {}, "iPhone / iPad"),
       el("dd", {}, "On a Mac: sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist"),
       el("dt", {}, "Linux bonds"),

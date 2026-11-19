@@ -24,10 +24,12 @@ const { tierAtLeast: _ovTierAtLeast } =
 // The iPhone setup path (#69): with iphone_irk_guide on, an iPhone is told
 // about its IRK, never the Android-only BLE Transmitter.
 // If it can't load, the Overview goes on as it always was (the guide reads as off).
-const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TEXT, HELP_NOTE_TEXT } =
+// transmitterAdvice: an Android phone's row says when its BLE Transmitter is
+// set too weak to be heard well.
+const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TEXT, HELP_NOTE_TEXT, transmitterAdvice } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, iphoneSetupAlert: () => "",
-                    IPHONE_META: "", NO_PHONES_TEXT: "", HELP_NOTE_TEXT: "" }));
+                    IPHONE_META: "", NO_PHONES_TEXT: "", HELP_NOTE_TEXT: "", transmitterAdvice: () => "" }));
 
 // "Who's where now" (whos_where.js): a house with no rooms drawn yet sees who
 // is in which room from its scanners' Home Assistant areas. If it can't
@@ -3219,6 +3221,9 @@ export function renderClassic(ctx){
             parts.push(phone.has_irk ? "IRK \u2713" : "no IRK");
             meta.textContent = parts.join(" · ");
             info.appendChild(meta);
+            // The Companion app's own transmitter settings, when they are too weak.
+            const weak = transmitterAdvice(phone.attributes);
+            if (weak) info.appendChild(el("div", { "data-phone-weak": "", style: "font-size:11px;color:#f59e0b;margin-top:3px;line-height:1.4" }, weak));
 
             // IRK section — add button or show status
             if (!phone.has_irk && !phone.is_disabled) {
@@ -3655,6 +3660,9 @@ export function renderClassic(ctx){
           statusParts.push(phone.has_irk ? "IRK \u2713" : "no IRK");
           meta.textContent = statusParts.join(" · ");
           info.appendChild(meta);
+          // The Companion app's own transmitter settings, when they are too weak.
+          const weak = transmitterAdvice(phone.attributes);
+          if (weak) info.appendChild(el("div", { "data-phone-weak": "", style: "font-size:11px;color:#f59e0b;margin-top:3px;line-height:1.4" }, weak));
 
           // IRK add form for phones without IRK (advanced view)
           if (!phone.has_irk && !phone.is_disabled) {

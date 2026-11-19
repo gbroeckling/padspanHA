@@ -94,7 +94,7 @@ footer p{margin:4px 0}
 <ol>
   <li>Install the Home Assistant Companion app and sign in to your Home Assistant.</li>
   <li>In the app, go to <b>Settings → Companion app → Manage sensors</b> and open <b>BLE Transmitter</b>. Most of the app's sensors start switched off, so switch this one on.</li>
-  <li>Start with its settings as they are. The app's docs warn that it can cost battery, especially with <b>Transmit power</b> on High, and it can be set to transmit only on your home Wi-Fi.</li>
+  <li>In the same place, set <b>Transmit power</b> to <b>High</b> and <b>Advertise mode</b> to <b>Low latency</b>. Out of the box the app sends at its lowest power, in its power-saving mode, and proxies barely hear it. The app's docs warn that High costs battery; the transmitter can also be set to send only on your home Wi-Fi. While either setting is lower, PadSpan's <b>Track Your Phone</b> says so on the phone's row.</li>
   <li>If the phone drops off after a while, take the Companion app out of Android's battery optimisation. ESPresense's guide advises it too, because Android will otherwise stop the app.</li>
 </ol>
 <p>Then name the phone in PadSpan, which is what gives it its Home Assistant entities. On PadSpan's <b>Overview</b>, open <b>Track Your Phone</b>. Your Companion app phones are listed there, and PadSpan knows each one's beacon by the ID the app reports to Home Assistant (UUID, major and minor). Select <b>Track this phone</b>: it takes the name of the phone's Home Assistant device and asks the app to switch its transmitter on. If the sensor is disabled in Home Assistant, the button reads <b>Enable &amp; Track</b> instead; it switches the sensor back on in Home Assistant, and PadSpan then asks you to restart Home Assistant and turn the transmitter on in the app. The phone appears in its room within seconds of a proxy hearing it.</p>
@@ -141,6 +141,7 @@ footer p{margin:4px 0}
 <ul>
   <li><b>"The provided IRK does not match any BLE devices that Home Assistant can see."</b> Wake the phone, bring it near a proxy and try again.</li>
   <li><b>"The key does not look like a valid IRK."</b> Copy the whole key: 32 hex characters, or the base64 text that ends in "=".</li>
+  <li><b>An Android phone is only heard right next to a proxy.</b> Its transmitter is on its weakest settings; see step 3 above.</li>
   <li><b>An Android phone disappears after a while.</b> Battery optimisation has usually stopped the Companion app; see step 4 above.</li>
   <li><b>irk-capture can't get a key from a watch.</b> Its docs say watches that need "reverse" pairing won't work, and some watches, including some Garmins, keep a fixed Bluetooth address and have no IRK. A watch with a fixed address doesn't need one: it can be <a href="/guides/bluetooth-tags/">tracked like a tag</a>.</li>
   <li><b>A phone keeps jumping between rooms.</b> That's signal noise, not setup: <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a> explains what helps. And if whole rooms never show up, <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></li>
