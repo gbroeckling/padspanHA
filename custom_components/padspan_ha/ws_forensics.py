@@ -199,7 +199,7 @@ async def ws_licence_homes(hass: HomeAssistant, connection, msg) -> None:
     op = msg.get("op") or "list"
     try:
         if op == "remove":
-            data = await licence_homes.call(hass, "home_remove", key, {"home_id": str(int(msg.get("home_id") or 0))}, post=True)
+            data = await licence_homes.call(hass, "home_remove", key, {"home_id": str(int(msg.get("home_id") or 0))})
             # One fewer home: the licence server's answer on this home (its
             # reports warning, how many homes) follows now, not tomorrow.
             from .update_check import _revalidate_license  # noqa: PLC0415
@@ -207,7 +207,7 @@ async def ws_licence_homes(hass: HomeAssistant, connection, msg) -> None:
         elif op == "label":
             label = str(msg.get("label") or "").strip()[:60]
             await st.async_set(license_home_label=label)
-            data = await licence_homes.call(hass, "home_label", key, {"label": label}, post=True)
+            data = await licence_homes.call(hass, "home_label", key, {"label": label})
         else:
             data = await licence_homes.call(hass, "homes", key)
     except Exception as err:

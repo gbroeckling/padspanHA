@@ -3,20 +3,17 @@
 # Licensed under the GNU General Public License v3.0
 """The licence and update checks, done the careful way (2026-11-18).
 
-- The key and the home's id go in a POST body, never a URL, and the id is a
-  hash: the raw instance id stays home once the licence server reads the hash.
-  A server from before that (or one moving a home over to the hash) is asked
-  once more with the raw id.
+- The key and the home's id go in one POST body, never a URL (2026-11-19: no
+  hash of the id; the licence server already keeps only a hash of it).
 - A home whose instance id can't be read gets its own random id, kept, instead
   of the "padspan-ha" every such install used to share.
-- The first check after a start waits a random while; a check in the last 20
-  hours makes the next one wait.
+- The first check after a start waits a random while, then once a day; a check
+  in the last 20 hours makes the next one wait.
 - PadSpan's own User-Agent, and one more try after a 429.
 """
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import sys
 import types
@@ -31,7 +28,6 @@ from custom_components.padspan_ha import update_check as U
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN, VERSION
 
 RAW = "0123456789abcdef0123456789abcdef"
-HASHED = hashlib.sha256(f"padspan-licence|{RAW}".encode()).hexdigest()
 
 
 class _St:
@@ -93,78 +89,34 @@ def _wire(monkeypatch, *answers, instance=RAW, settings=None):
     return hass, session, waits
 
 
-ACK = {"valid": True, "token": "b" * 32, "machine_h": True}
+ACK = {"valid": True, "token": "b" * 32}
 
 
-# ── (a) POST, a hash, and the old form only for an old server ──────────────
+# ── (a) One POST, the key and the id in its body ───────────────────────────
 
-def test_the_key_and_a_hash_of_the_id_go_in_a_post_body(monkeypatch):
+def test_the_key_and_the_id_go_in_one_post_body(monkeypatch):
     hass, session, _ = _wire(monkeypatch, (200, ACK))
     data = asyncio.run(LH.call(hass, "validate", "PSPAN-AAAA", LH.home_params({"license_home_token": "a" * 32})))
     assert data["token"] == "b" * 32
-    assert len(session.calls) == 1, "a server that confirms the hash is asked once"
+    assert len(session.calls) == 1
     method, url, kw = session.calls[0]
     assert method == "POST" and url == LH.LICENCE_URL
     assert kw["params"] == {"action": "validate", "product": "padspan"}, "nothing secret in the address"
     body = kw["data"]
-    assert body["key"] == "PSPAN-AAAA" and body["machine_h"] == HASHED and body["token"] == "a" * 32
-    assert "machine" not in body and RAW not in json.dumps(kw), "the raw instance id never leaves"
+    assert body["key"] == "PSPAN-AAAA" and body["machine"] == RAW and body["token"] == "a" * 32
 
 
-def test_the_hash_is_the_one_the_licence_server_makes_in_both_editions():
-    """The server hashes an older PadSpan's raw id with the same prefix;
-    Bright's derivation renames padspan_ha / padspan-ha / padspan-lights /
-    "PadSpan HA" in every file, so the prefix must hold none of them."""
-    assert LH.machine_hash(RAW) == HASHED
-    for renamed in ("padspan_", "padspan-ha", "padspan-b", "padspan-lights", "PadSpan "):
-        assert renamed not in "padspan-licence|"
+@pytest.mark.parametrize("action,extra", [("homes", None), ("home_label", {"label": "Cabin"}), ("home_remove", {"home_id": "3"})])
+def test_every_homes_call_is_the_same_one_post(monkeypatch, action, extra):
+    hass, session, _ = _wire(monkeypatch, (200, {"ok": True}))
+    asyncio.run(LH.call(hass, action, "PSPAN-AAAA", extra))
+    assert [c[0] for c in session.calls] == ["POST"]
+    assert session.calls[0][2]["data"] == {"key": "PSPAN-AAAA", "machine": RAW, **(extra or {})}
 
 
-@pytest.mark.parametrize("status", [400, 404, 405, 415])
-def test_a_server_that_refuses_the_post_is_asked_once_the_old_way(monkeypatch, status):
-    hass, session, _ = _wire(monkeypatch, (status, "Method Not Allowed"), (200, {"valid": True}))
-    data = asyncio.run(LH.call(hass, "validate", "PSPAN-AAAA", {"t": "1", "token": ""}))
-    assert data == {"valid": True}
-    assert [c[0] for c in session.calls] == ["POST", "GET"]
-    old = session.calls[1][2]["params"]
-    assert old == {"action": "validate", "product": "padspan", "key": "PSPAN-AAAA", "machine": RAW, "t": "1", "token": ""}, \
-        "exactly the request older PadSpan makes"
-
-
-@pytest.mark.parametrize("answer", [
-    {"valid": True, "expires_at": "2027-01-01"},   # a server from before: reads the body, not the hash
-    {"status": "send_machine"},                     # the new server, moving a home recorded by the raw id
-    "not json",
-])
-def test_an_answer_that_does_not_confirm_the_hash_is_asked_again_in_a_body(monkeypatch, answer):
-    """Its answer is not used. The raw id goes once more, in a POST body:
-    never in a URL."""
-    hass, session, _ = _wire(monkeypatch, (200, answer), (200, {"valid": True, "token": "c" * 32}))
-    data = asyncio.run(LH.call(hass, "validate", "PSPAN-AAAA", {"t": "1"}))
-    assert data["token"] == "c" * 32
-    assert [c[0] for c in session.calls] == ["POST", "POST"]
-    again = session.calls[1][2]
-    assert again["params"] == {"action": "validate", "product": "padspan"}
-    assert again["data"] == {"key": "PSPAN-AAAA", "machine": RAW, "t": "1"}
-
-
-def test_a_refused_post_call_is_asked_again_as_a_post(monkeypatch):
-    hass, session, _ = _wire(monkeypatch, (405, "Method Not Allowed"), (200, {"ok": True}))
-    asyncio.run(LH.call(hass, "home_label", "PSPAN-AAAA", {"label": "Cabin"}, post=True))
-    assert [c[0] for c in session.calls] == ["POST", "POST"]
-    assert session.calls[1][2]["data"] == {"key": "PSPAN-AAAA", "machine": RAW, "label": "Cabin"}
-
-
-def test_a_refused_fallback_raises(monkeypatch):
-    hass, session, _ = _wire(monkeypatch, (404, ""), (404, ""))
-    with pytest.raises(RuntimeError):
-        asyncio.run(LH.call(hass, "homes", "PSPAN-AAAA"))
-    assert len(session.calls) == 2, "once more, not again and again"
-
-
-@pytest.mark.parametrize("status", [500, 502, 503])
-def test_a_server_that_is_down_is_not_asked_again(monkeypatch, status):
-    hass, session, _ = _wire(monkeypatch, (status, "down"))
+@pytest.mark.parametrize("status", [400, 404, 405, 500, 502, 503])
+def test_an_error_answer_raises_and_is_not_asked_again(monkeypatch, status):
+    hass, session, _ = _wire(monkeypatch, (status, "no"))
     with pytest.raises(RuntimeError):
         asyncio.run(LH.call(hass, "validate", "PSPAN-AAAA"))
     assert len(session.calls) == 1
@@ -181,43 +133,24 @@ def test_the_daily_recheck_and_the_activation_use_the_call():
     assert "session.get(" not in act and '"key": key' not in act, "no key in a URL"
 
 
-# ── The trial: the hash too, and the raw id once for a server from before ──
+# ── The trial: the same one POST ───────────────────────────────────────────
 
 TRIAL_OK = {"ok": True, "key": "PSPAN-TRIA-LKEY-AAAA-BBBB", "tier": "pro", "expires_at": "2027-02-16 00:00:00",
             "days_left": 90}
 
 
-def test_a_trial_asks_with_the_hash_in_a_post_body(monkeypatch):
-    hass, session, _ = _wire(monkeypatch, (200, {**TRIAL_OK, "machine_h": True}))
+def test_a_trial_asks_once_in_a_post_body(monkeypatch):
+    hass, session, _ = _wire(monkeypatch, (200, TRIAL_OK))
     assert asyncio.run(LH.trial_start(hass, "a@b.ca"))["key"] == TRIAL_OK["key"]
     assert len(session.calls) == 1
     method, url, kw = session.calls[0]
     assert method == "POST" and url == LH.LICENCE_URL
     assert kw["params"] == {"action": "trial_start", "product": "padspan"}
-    assert kw["data"] == {"email": "a@b.ca", "machine_h": HASHED}
-    assert RAW not in json.dumps(kw) and kw["headers"]["User-Agent"] == SH.USER_AGENT
+    assert kw["data"] == {"email": "a@b.ca", "machine": RAW} and kw["headers"]["User-Agent"] == SH.USER_AGENT
 
 
-def test_todays_server_refuses_a_trial_without_machine_and_gets_the_raw_id_once(monkeypatch):
-    """license/index.php before the hash: no `machine` -> "invalid_machine",
-    answered before anything is read or written. Then the old request."""
-    hass, session, _ = _wire(monkeypatch,
-                             (200, {"ok": False, "status": "invalid_machine", "message": "Missing install identifier."}),
-                             (200, TRIAL_OK))
-    assert asyncio.run(LH.trial_start(hass, "a@b.ca")) == TRIAL_OK
-    assert [c[0] for c in session.calls] == ["POST", "POST"]
-    assert session.calls[1][2]["data"] == {"email": "a@b.ca", "machine": RAW}, "exactly what older PadSpan sends"
-
-
-@pytest.mark.parametrize("first", [(405, "Method Not Allowed"), (200, {"ok": False, "status": "send_machine"})])
-def test_a_trial_falls_back_as_a_post(monkeypatch, first):
-    hass, session, _ = _wire(monkeypatch, first, (200, TRIAL_OK))
-    asyncio.run(LH.trial_start(hass, "a@b.ca"))
-    assert [c[0] for c in session.calls] == ["POST", "POST"] and session.calls[1][2]["data"]["machine"] == RAW
-
-
-def test_a_confirmed_refusal_is_the_answer(monkeypatch):
-    refused = {"ok": False, "status": "trial_exhausted", "message": "used", "machine_h": True}
+def test_a_refusal_is_the_answer(monkeypatch):
+    refused = {"ok": False, "status": "trial_exhausted", "message": "used"}
     hass, session, _ = _wire(monkeypatch, (200, refused))
     assert asyncio.run(LH.trial_start(hass, "a@b.ca")) == refused and len(session.calls) == 1
 
@@ -225,7 +158,7 @@ def test_a_confirmed_refusal_is_the_answer(monkeypatch):
 def test_the_trial_command_stores_the_key_it_gets(monkeypatch):
     from custom_components.padspan_ha import telemetry as T
     from custom_components.padspan_ha import ws_forensics as F
-    hass, session, _ = _wire(monkeypatch, (200, {**TRIAL_OK, "machine_h": True}))
+    hass, session, _ = _wire(monkeypatch, (200, TRIAL_OK))
     monkeypatch.setattr(T, "enabled", lambda h: True)
     monkeypatch.setattr(F, "_invalidate_snapshot_cache", lambda h: None)
     monkeypatch.setattr(F, "_get_settings", lambda h: {})
@@ -234,7 +167,7 @@ def test_the_trial_command_stores_the_key_it_gets(monkeypatch):
     asyncio.run(F.ws_trial_start(hass, conn, {"id": 1, "email": "a@b.ca"}))
     st = hass.data[DOMAIN][DATA_SETTINGS].data
     assert sent.get("ok") is True and st["forensics_license_key"] == TRIAL_OK["key"] and st["license_is_trial"] is True
-    assert session.calls[0][2]["data"] == {"email": "a@b.ca", "machine_h": HASHED}
+    assert session.calls[0][2]["data"] == {"email": "a@b.ca", "machine": RAW}
 
 
 # ── (b) An install without a readable instance id ──────────────────────────
@@ -384,7 +317,7 @@ def test_every_request_names_padspan(monkeypatch):
 
 def test_a_429_is_asked_once_more_after_its_retry_after(monkeypatch):
     hass, session, waits = _wire(monkeypatch, (429, "slow down", {"Retry-After": "7"}), (200, ACK))
-    assert asyncio.run(LH.call(hass, "validate", "PSPAN-AAAA"))["machine_h"] is True
+    assert asyncio.run(LH.call(hass, "validate", "PSPAN-AAAA"))["token"] == "b" * 32
     assert waits == [7.0] and [c[0] for c in session.calls] == ["POST", "POST"]
 
 

@@ -12,8 +12,9 @@ carries the licence's group code
 developer sees one licence's homes together.
 
 The licence server counts homes; this side only says which home it is. Each
-check sends a hash of this Home Assistant's instance id (machine_hash) and the
-home's current token, and keeps the next token the server answers with. A restored backup carries an
+check sends this Home Assistant's instance id (the server keeps only a hash
+of it) and the home's current token, in a POST body, and keeps the next token
+the server answers with. A restored backup carries an
 old token: the server takes it back when the home it came from has gone quiet,
 and asks it to take a home of its own when that home is still checking in (a
 copy running in a second house). Nothing here can lock anyone out: a server
@@ -21,7 +22,6 @@ that is down, or an answer without a token, leaves the stored token as it was.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import uuid
 from typing import Any
@@ -51,15 +51,6 @@ async def machine_id(hass: HomeAssistant) -> str:
         mid = uuid.uuid4().hex
         await st.async_set(license_install_id=mid)
     return mid
-
-
-def machine_hash(machine: str) -> str:
-    """What a licence call sends in place of the id itself: one-way, and the
-    licence server makes the same hash from the raw id older PadSpan sends
-    (ps_id_hash, with the same prefix), so a home stays one home across the
-    update. The prefix names neither edition, so Bright's derivation
-    (scripts/bright_build.py RENAMES) leaves it as it is."""
-    return hashlib.sha256(f"padspan-licence|{machine}".encode()).hexdigest()
 
 
 def home_params(settings: dict[str, Any] | None) -> dict[str, str]:
@@ -104,61 +95,23 @@ async def keep_warning(st: Any, data: dict[str, Any] | None) -> None:
         await st.async_set(license_homes_warning=w)
 
 
-async def call(hass: HomeAssistant, action: str, key: str, extra: dict[str, str] | None = None,
-               post: bool = False) -> dict[str, Any]:
+async def call(hass: HomeAssistant, action: str, key: str, extra: dict[str, str] | None = None) -> dict[str, Any]:
     """One licence-server call for `action` (validate, homes, home_remove, home_label).
 
-    The key and this home's hashed id go in a POST body, so neither is in a
-    URL a web server or proxy logs, and the raw instance id stays home. Two
-    answers make it ask once more with the raw id, so this version works with
-    a licence server from before the hash: an answer that doesn't say it read
-    the hash ("machine_h": true) is asked again in a POST body (a server from
-    before, which reads the body but not the hash; or one moving a home it
-    recorded by the raw id over to the hash, once); a refused POST (4xx) is
-    asked again exactly as older PadSpan asks (`post`: as a POST, else a GET).
-    A 5xx, a second 429 or no answer raises: the server is down, and asking
-    again won't help."""
-    machine = await machine_id(hass)
-    fields = dict(extra or {})
-    return await _ask(hass, action, {"key": key, "machine_h": machine_hash(machine), **fields},
-                      {"key": key, "machine": machine, **fields}, post)
+    The key and this home's id go in a POST body, so neither is in a URL a web
+    server or proxy logs (the licence server reads the body as well as the
+    address, as it always has). One request; an error answer or none raises."""
+    return await _post(hass, action, {"key": key, "machine": await machine_id(hass), **(extra or {})})
 
 
 async def trial_start(hass: HomeAssistant, email: str) -> dict[str, Any]:
-    """Ask for the one-time trial key, naming this install by its hash, the
-    same way and with the same once-only fallback as call(). A server from
-    before the hash answers a request without `machine` with
-    "invalid_machine" before it reads or writes anything (no throttle row, no
-    key), so the hash-first request is harmless there and the raw id follows
-    once, in a POST body, as older PadSpan sends it."""
-    machine = await machine_id(hass)
-    return await _ask(hass, "trial_start", {"email": email, "machine_h": machine_hash(machine)},
-                      {"email": email, "machine": machine}, True)
+    """Ask for the one-time trial key for this install, the same way as call()."""
+    return await _post(hass, "trial_start", {"email": email, "machine": await machine_id(hass)})
 
 
-async def _ask(hass: HomeAssistant, action: str, new: dict[str, str], old: dict[str, str],
-               old_post: bool) -> dict[str, Any]:
+async def _post(hass: HomeAssistant, action: str, body: dict[str, str]) -> dict[str, Any]:
     from .server_http import request  # noqa: PLC0415
-    params = {"action": action, "product": "padspan"}
-    status, text = await request(hass, "POST", LICENCE_URL, params=params, data=new)
-    if status >= 500 or status == 429:
-        raise RuntimeError(f"the licence server answered {status}")
-    if status < 400:
-        data = _answer(text)
-        if isinstance(data, dict) and data.get("machine_h") is True:
-            return data
-        status, text = await request(hass, "POST", LICENCE_URL, params=params, data=old)
-    elif old_post:
-        status, text = await request(hass, "POST", LICENCE_URL, params=params, data=old)
-    else:
-        status, text = await request(hass, "GET", LICENCE_URL, params={**params, **old})
+    status, text = await request(hass, "POST", LICENCE_URL, params={"action": action, "product": "padspan"}, data=body)
     if status >= 400:
         raise RuntimeError(f"the licence server answered {status}")
-    return json.loads(text.lstrip("\ufeff"))   # the licence server prefixes a BOM
-
-
-def _answer(text: str) -> Any:
-    try:
-        return json.loads(text.lstrip("\ufeff"))
-    except ValueError:
-        return None
+    return json.loads(text.lstrip("﻿"))   # the licence server prefixes a BOM
