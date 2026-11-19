@@ -22,8 +22,13 @@ $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
 $xff_first = $xff !== '' ? trim(explode(',', $xff)[0]) : '';
 $ip = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? ($xff_first !== '' ? $xff_first : ($_SERVER['REMOTE_ADDR'] ?? '-'));
 
-$line = sprintf("%s\t%s\t%s\n", gmdate('c'), $ip, $v !== '' ? $v : '-');
-@file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX);
+// The hourly probe from GitHub (.github/workflows/live-check.yml) is not an
+// install: it says v=live-check and is never logged, or every hour would add
+// a GitHub runner's address to the install count.
+if ($v !== 'live-check') {
+    $line = sprintf("%s\t%s\t%s\n", gmdate('c'), $ip, $v !== '' ? $v : '-');
+    @file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX);
+}
 
 $manifest = @file_get_contents($manifest_file);
 if ($manifest === false) {
