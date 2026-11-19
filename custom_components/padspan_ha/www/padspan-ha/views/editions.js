@@ -57,6 +57,19 @@ export function proLifetimeWords(now = Date.now()) {
 }
 // Lifetime is always on sale now; kept for callers asking whether to offer it.
 export function proLifetimeOpen() { return true; }
+// The launch price's one Overview card (panel.js _launchPriceCard), the last
+// word on it: shown once, to an administrator, until the launch price ends
+// (proLifetimeLaunch, the date above: no second date). Due only where the
+// licence card offers lifetime too (no key, a trial, a lapsed key), and only
+// once the backend says it was never shown (launch_card_done: a key an older
+// backend does not send reads as "not known", never as "due").
+export const LAUNCH_CARD_TITLE = "The launch price ends November 30";
+export function launchCardDue(settings, now = Date.now()) {
+  const s = settings || {};
+  if (!proLifetimeLaunch(now) || !("launch_card_done" in s) || s.launch_card_done) return false;
+  if (typeof s.pro_has_key !== "boolean") return false;            // not loaded yet: no flash
+  return !s.pro_has_key || s.pro_active === false || !!s.license_is_trial;
+}
 export const EDITIONS_URL = "https://padspan.traks.ca/#editions";
 // Where "what changed" lives. The same page the update-check manifest
 // points at (release.py sets notes_url to it), so the notification and the

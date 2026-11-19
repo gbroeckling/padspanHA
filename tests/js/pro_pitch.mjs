@@ -75,4 +75,28 @@ for (const st of [{ tier: "free" }, { tier: "bright" }, { tier: "free", pro_has_
   check(`pitch for ${r.kind} has a call to action`, !!r.cta && !!r.url);
 }
 
+// ── The launch price's card (launchCardDue): once, only until it ends ──────
+// Who the licence card offers lifetime to (no key, a trial, a lapsed key), on
+// the launch price's own end date (PRO_LIFETIME_LAUNCH_UNTIL), never after it.
+{
+  const E = await import(pathToFileURL(join(VIEWS_DIR, "editions.js")).href);
+  const end = Date.parse(E.PRO_LIFETIME_LAUNCH_UNTIL);
+  const before = Date.parse("2026-11-24T18:00:00Z"), lastMinute = end - 60e3;
+  const FREE = { tier: "free", pro_has_key: false, launch_card_done: false };
+  const due = (s, now = before) => E.launchCardDue(s, now);
+  check("launch card: due for a free install before the end", due(FREE));
+  check("launch card: due on the last minute of November 30, Pacific", due(FREE, lastMinute) && new Date(lastMinute).toISOString() === "2026-12-01T07:59:00.000Z");
+  check("launch card: never from the end on, or after", !due(FREE, end) && !due(FREE, end + 86400e3 * 30));
+  check("launch card: due for a trial and a lapsed key", due({ ...FREE, pro_has_key: true, license_is_trial: true, tier: "pro" })
+    && due({ ...FREE, pro_has_key: true, pro_active: false }));
+  check("launch card: never for a paid key that is running (Pro, Bright Pro, lifetime)",
+    !due({ ...FREE, tier: "pro", pro_has_key: true, pro_active: true }) && !due({ ...FREE, tier: "bright", pro_has_key: true, pro_active: true }));
+  check("launch card: never once shown", !due({ ...FREE, launch_card_done: true }));
+  const old = { ...FREE }; delete old.launch_card_done;
+  const unloaded = { ...FREE }; delete unloaded.pro_has_key;
+  check("launch card: never before the settings say (an older backend, or not loaded yet)", !due(old) && !due(unloaded) && !due(null));
+  check("launch card: its words come from the one date", E.LAUNCH_CARD_TITLE === "The launch price ends November 30"
+    && E.proLifetimeWords(before) === "$89 CAD, once, until November 30 (then $168)", E.proLifetimeWords(before));
+}
+
 process.stdout.write(JSON.stringify({ checks, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

@@ -1457,6 +1457,49 @@ class PadSpanHaApp extends HTMLElement {
     return card;
   }
 
+  // ── The launch price's card, once per install ───────────────────────────
+  // Pro for life is $89 until November 30, then $168 (editions.js: one date).
+  // One card says so, with where to buy, the way the trial's milestone card
+  // works: to an administrator (the one who buys), in live data, never on a
+  // wall; once means once (launch_card_done is saved the moment it first
+  // shows, so a reload never brings it back); No thanks only takes it away
+  // for this page. It goes by itself when the launch price ends.
+  _launchPriceCard(){
+    const st = this.state.settings;
+    if (!EDITIONS || typeof EDITIONS.launchCardDue !== "function" || !st || this.state.kioskMode) return null;
+    if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;
+    if (!(this._hass && this._hass.user && this._hass.user.is_admin)) return null;
+    const v = this._launchCard || (this._launchCard = { visible: false, hidden: false, saved: false });
+    if (v.hidden || !EDITIONS.proLifetimeLaunch()) return null;
+    if (!v.visible) {
+      if (this._overviewCardShown || !EDITIONS.launchCardDue(st)) return null;
+      v.visible = true;
+      this._overviewCardShown = true;   // one card per page load
+    }
+    if (!v.saved) {
+      v.saved = true;
+      this._callWS({ type: "padspan_ha/settings_set", launch_card_done: true })
+        .then(res => { if (res && res.settings) this.state.settings = res.settings; })
+        .catch(() => {});
+    }
+    const card = el("div", { "data-launch-card": "card",
+      style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
+    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, EDITIONS.LAUNCH_CARD_TITLE));
+    card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
+      "PadSpan Pro for life is " + EDITIONS.proLifetimeWords() + "."));
+    // A page that fills the screen can't close the tab a link opens: say where instead.
+    let tabOk = true;
+    try { tabOk = !TRIAL || !TRIAL.newTabOk || TRIAL.newTabOk(this.state.kioskMode); } catch (_) { tabOk = true; }
+    const buy = tabOk
+      ? el("a", { class: "btn inline", "data-launch-card": "buy", href: EDITIONS.BUY_URL, target: "_blank", rel: "noopener",
+          style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700;text-decoration:none" }, "Buy at padspan.traks.ca")
+      : el("span", { "data-launch-card": "buy-text", style: "font-size:12px;color:#52b788;font-weight:600;align-self:center" }, "At padspan.traks.ca");
+    const no = el("button", { class: "btn inline", "data-launch-card": "no", style: "color:#94a3b8" }, "No thanks");
+    no.addEventListener("click", () => { v.hidden = true; this._scheduleRender(); });
+    card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [buy, no]));
+    return card;
+  }
+
   _trialMilestoneCard(positioned){
     const st = this.state.settings;
     if (!TRIAL || !st || this.state.kioskMode) return null;
@@ -5397,9 +5440,10 @@ class PadSpanHaApp extends HTMLElement {
         // answer are in (no flash).
         if (!_new && !_ask && _setupKnown && _posKnown) {
           try {
-            // A Pro invite first, then the one-time tester card, then the
-            // trial's: whichever is first to be due, one at a time.
-            const _ms = this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
+            // The launch price's card first (it ends November 30), then a Pro
+            // invite, the one-time tester card, then the trial's: whichever is
+            // first to be due, one at a time.
+            const _ms = this._launchPriceCard() || this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
               || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned);
             if (_ms) frag.appendChild(_ms);
             // Last in line: the accuracy tips, only when no other card is up.

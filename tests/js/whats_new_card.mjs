@@ -75,13 +75,14 @@ const cardSrc = extract("_whatsNewCard", "method");
 const milestoneSrc = extract("_trialMilestoneCard", "method");
 const sidebarSrc = extract("_renderSidebarTrial", "method");
 const askSrc = extract("_telemetryAskCard", "method");
+const launchSrc = extract("_launchPriceCard", "method");
 const TRIAL_REAL = await import(pathToFileURL(join(dirname(PANEL), "views", "trial_offer.js")).href);
 
 function buildAll(EDITIONS, TRIAL = null) {
   // eslint-disable-next-line no-new-func
   return new Function("APP_VERSION", "EDITIONS", "TRIAL", "_trialPromise", `
     ${elSrc}
-    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc} };
+    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc}, ${launchSrc} };
   `)(APP_VERSION, EDITIONS, TRIAL, Promise.resolve());
 }
 function build(EDITIONS, TRIAL = null) { return buildAll(EDITIONS, TRIAL)._whatsNewCard; }
@@ -472,6 +473,85 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     assert(n.c._saved.length === 1 && !("telemetry_heard" in n.c._saved[0]), "No thanks saved an answer");
     ok.push(label);
   } catch (e) { fail.push(`${label}: ${e && e.message ? e.message : e}`); }
+}
+
+// 12. The launch price's card (panel.js _launchPriceCard, editions.js
+//     launchCardDue): to an administrator, once, until the launch price ends.
+//     The clock is the harness's, so the cases hold on any day.
+{
+  const ED = await import(pathToFileURL(join(dirname(PANEL), "views", "editions.js")).href);
+  const BEFORE = Date.parse("2026-11-24T18:00:00Z"), END = Date.parse(ED.PRO_LIFETIME_LAUNCH_UNTIL);
+  let clock = BEFORE;
+  const edNow = { ...ED, proLifetimeLaunch: () => ED.proLifetimeLaunch(clock), launchCardDue: (s) => ED.launchCardDue(s, clock),
+                  proLifetimeWords: () => ED.proLifetimeWords(clock) };
+  const LFREE = { ...FREE, launch_card_done: false };
+  const launch = (settings, { admin = true, trial = T, editions = edNow, state = {} } = {}) => {
+    const c = ctx(settings, { admin });
+    Object.assign(c.state, state);
+    const obj = buildAll(editions, trial);
+    c._el = obj._el;
+    return { c, card: () => obj._launchPriceCard.call(c) };
+  };
+  const lt = (label, fn) => { clock = BEFORE; t(label, fn); };
+  lt("launch card: an administrator sees it once: the end date, the price after, where to buy, No thanks", () => {
+    const { c, card } = launch(LFREE);
+    const out = card();
+    assert(out, "not shown");
+    const words = out.textContent;
+    assert(words.includes("The launch price ends November 30"), words);
+    assert(words.includes("PadSpan Pro for life is $89 CAD, once, until November 30 (then $168)."), words);
+    const buy = q(out, '[data-launch-card="buy"]');
+    assert(buy && buy.getAttribute("href") === ED.BUY_URL && buy.getAttribute("target") === "_blank" && buy.textContent === "Buy at padspan.traks.ca", "buy link");
+    assert(q(out, '[data-launch-card="no"]').textContent === "No thanks", "No thanks");
+    assert(c._overviewCardShown === true, "it does not hold the one-card slot");
+    card();
+    const saves = c._saved.filter(m => m.launch_card_done === true);
+    assert(saves.length === 1 && saves[0].type === "padspan_ha/settings_set", "saved " + saves.length + " times");
+    assert(!c._events.length, "counted something: " + JSON.stringify(c._events));
+  });
+  lt("launch card: No thanks is final for this page, and the flag was already saved for every other", () => {
+    const { c, card } = launch(LFREE);
+    q(card(), '[data-launch-card="no"]').click();
+    assert(card() === null, "still shown after No thanks");
+    assert(c._saved.filter(m => m.launch_card_done === true).length === 1, "not saved, or saved twice");
+    c.state.settings = { ...LFREE, launch_card_done: true };
+    const next = launch({ ...LFREE, launch_card_done: true });
+    assert(next.card() === null, "shown again on the next page load");
+  });
+  lt("launch card: never to a non-admin, on a wall, in sample mode or before the mode is known, to a running paid key, or without editions.js", () => {
+    const cases = [
+      [{ admin: false }, LFREE], [{ state: { kioskMode: true } }, LFREE], [{ state: { dataMode: "sample" } }, LFREE],
+      [{ state: { _dataModeKnown: false } }, LFREE], [{}, { ...LFREE, tier: "pro", pro_has_key: true, pro_active: true }],
+      [{}, (() => { const s = { ...LFREE }; delete s.launch_card_done; return s; })()], [{}, null],
+      [{ editions: null }, LFREE], [{ editions: { ...edNow, launchCardDue: undefined } }, LFREE],
+    ];
+    for (const [o, s] of cases) {
+      const { c, card } = launch(s, o);
+      assert(card() === null, "shown: " + JSON.stringify(o) + " " + JSON.stringify(s));
+      assert(!c._saved.length, "saved when not shown");
+    }
+    const trial = launch({ ...LFREE, tier: "pro", pro_has_key: true, license_is_trial: true });
+    assert(trial.card(), "not shown during a trial");
+  });
+  lt("launch card: waits for another page load after another Overview card showed on this one", () => {
+    const { c, card } = launch(LFREE);
+    c._overviewCardShown = true;
+    assert(card() === null && !c._saved.length, "shown or saved right after another card");
+  });
+  lt("launch card: gone at the end of November 30, even on screen, and never after", () => {
+    const { card } = launch(LFREE);
+    clock = END - 1000;
+    assert(card(), "not shown in the last second");
+    clock = END;
+    assert(card() === null, "still on screen once the launch price ended");
+    const later = launch(LFREE);
+    assert(later.card() === null, "shown after the end");
+  });
+  lt("launch card: a page that fills the screen names the site instead of opening a tab it can't close", () => {
+    const { card } = launch(LFREE, { trial: { ...T, newTabOk: () => false } });
+    const out = card();
+    assert(out && !q(out, "a") && q(out, '[data-launch-card="buy-text"]').textContent === "At padspan.traks.ca", out && out.textContent);
+  });
 }
 
 for (const o of ok) console.log(`  ok   ${o}`);
