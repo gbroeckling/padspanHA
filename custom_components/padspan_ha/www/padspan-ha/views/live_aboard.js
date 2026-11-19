@@ -1572,8 +1572,12 @@ function createSlot(slotKey){
     const k = wallUiOf(root, "--wall-ctl"), mw = m.getBoundingClientRect().width || 180 * k;
     m.style.left = `${Math.max(8, Math.min(ar.left - rr.left, rr.width - 8 - mw)) / k}px`;
     // Over its button, as from the bar; under it from the top of the view (Rooms ▾).
-    if (ar.top - rr.top < rr.height / 3) m.style.top = `${Math.max(8, ar.bottom - rr.top + 6) / k}px`;
-    else m.style.bottom = `${Math.max(8, rr.bottom - ar.top + 6) / k}px`;
+    if (ar.top - rr.top < rr.height / 3) {
+      m.style.top = `${Math.max(8, ar.bottom - rr.top + 6) / k}px`;
+      // Down to the bar, not over it.
+      const br = bar && typeof bar.getBoundingClientRect === "function" ? bar.getBoundingClientRect() : null;
+      if (br && br.height > 0 && br.top - ar.bottom - 14 > 160) m.style.maxHeight = `${(br.top - ar.bottom - 14) / k}px`;
+    } else m.style.bottom = `${Math.max(8, rr.bottom - ar.top + 6) / k}px`;
     menuEl = m;
     markMenus();
     const away = guard((e) => { const path = e.composedPath ? e.composedPath() : []; if (!path.includes(m) && !path.includes(anchor)) closeMenu(); });

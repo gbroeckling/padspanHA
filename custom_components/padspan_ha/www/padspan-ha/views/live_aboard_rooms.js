@@ -84,9 +84,9 @@ const CSS = `
   color:#e2e8f0;background:rgba(6,14,9,.86);border:1px solid rgba(120,190,155,.26);box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .la3d-rchips button:hover,.la3d-rchips button:focus-visible{border-color:#52b788;background:rgba(20,48,34,.92)}
 .la3d-rchips button[aria-pressed="true"]{border-color:#52b788;background:rgba(45,106,79,.92);color:#fff}
-.la3d-rchips .la3d-rfl{flex:none;padding:0 2px 0 8px;font:700 10px/1 system-ui,"Segoe UI",Roboto,sans-serif;letter-spacing:.07em;text-transform:uppercase;
-  color:#a7c4b5;text-shadow:0 1px 3px rgba(0,0,0,.9)}
-.la3d-rchips .la3d-rfl:first-child{padding-left:2px}
+.la3d-rchips .la3d-rfl{flex:none;margin-left:6px;padding:5px 8px;border-radius:999px;background:rgba(6,14,9,.62);
+  font:700 10px/1 system-ui,"Segoe UI",Roboto,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:#a7c4b5}
+.la3d-rchips .la3d-rfl:first-child{margin-left:0}
 .la3d-rchips.la3d-rcompact{right:auto;overflow:visible;-webkit-mask-image:none;mask-image:none}
 .la3d.la3d-bare .la3d-rchips{opacity:0;visibility:hidden;pointer-events:none}
 /* The row takes the top line: the touch tip gives way (How it works in Views ▾ has it), and the hover box, the
