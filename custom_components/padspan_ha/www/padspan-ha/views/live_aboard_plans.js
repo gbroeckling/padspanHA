@@ -2748,7 +2748,7 @@ let luOff = null;                                    // no Line up or Rooms tab:
     for (const p of ((rbInfo(fid) || {}).plans || [])) if (p.tick !== false) rbPicked.add(p.map_id);
     redraw();
   }
-  /** The line-up's note (Garry, 2026-11-10: a note, not a block), with the way to finish it. */
+  /** The line-up's note (2026-11-10: a note, not a block), with the way to finish it. */
   const RB_NOTE = { no_lineup: "This floor hasn't been lined up", lineup_open: "Line-up not finished on this floor", moved: "A plan moved since this floor's line-up",
                     not_lined_up: "Not every plan on this floor is lined up" };
   function rbLineupNote(fid, note){

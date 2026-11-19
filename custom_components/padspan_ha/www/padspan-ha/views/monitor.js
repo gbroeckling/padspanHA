@@ -18,7 +18,7 @@ const { pickName, hideIrks } = await import(`./device_name.js${new URL(import.me
 // house is someone else's phone two rooms away, or a passing car, so a
 // busy, healthy scanner reads no differently than a broken one — the
 // average trends toward "Poor" regardless of how well it actually covers
-// the devices near it (Garry, 2026-09-06: "the radios all say poor, this
+// the devices near it (2026-09-06: "the radios all say poor, this
 // tab is garbage"). Instead: for each device, only its STRONGEST scanner
 // (the one hearing it loudest) gets credit for that reading. That measures
 // how well a scanner covers what is actually close to it, which is what

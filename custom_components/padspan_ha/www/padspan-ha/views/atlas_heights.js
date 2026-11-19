@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// Heights for Live Aboard, on the Atlas (Garry, 2026-10-05): "Device
+// Heights for Live Aboard, on the Atlas (2026-10-05): "Device
 // placement on atlas is good until we get to sims, needs same information
 // store, but needs to be a tool to add the third dimension for the sims
 // view, height mostly ... This needs to be an element for all devices if

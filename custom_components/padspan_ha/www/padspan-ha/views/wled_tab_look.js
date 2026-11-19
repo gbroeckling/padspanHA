@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 /**
- * WLED workbench — Exact look (Garry, 2026-09-27: "an exact, durable on/off
+ * WLED workbench — Exact look (2026-09-27: "an exact, durable on/off
  * that reproduces complex 5-6 channel strings 100% every time").
  *
  * The look PadSpan puts on this light every time it turns it on: remembered

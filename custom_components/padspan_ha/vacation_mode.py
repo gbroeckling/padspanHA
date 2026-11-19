@@ -7,7 +7,7 @@ from __future__ import annotations
 """
 Vacation Mode — a Whole House Preset that isn't a snapshot.
 
-Garry, 2026-09-21: "In whole house presets, add a permanent option,
+2026-09-21: "In whole house presets, add a permanent option,
 vacation. Have the vacation act like an average day based on data
 collected, and turn on and off lights based on that data until it is
 turned off." Then: "day of the week to make it look a bit more random"
@@ -32,7 +32,7 @@ the kind of watcher this feature exists to fool. It is also what makes
 the intensity slider double as an energy-saving mode: turning it down
 scales EVERY light's odds of being asked on, not a hard cutoff.
 
-NEVER LEARN FROM ITSELF (Garry, 2026-09-23). The recorder cannot tell a
+NEVER LEARN FROM ITSELF (2026-09-23). The recorder cannot tell a
 light Vacation Mode switched from one a person switched, so a pattern rebuilt
 while Vacation Mode runs slowly learns its own output: below 100% intensity
 every daily rebuild came out at roughly intensity x the day before, and a
@@ -43,7 +43,7 @@ vacation, from history that ends when it was turned on
 it switches is kept in its own small log (VacationLog) so Traceback's Full
 house activity can mark those events as Vacation Mode's, not a person's.
 
-LAST WEEK OR THE MONTH (Garry, 2026-10-31: "Is a read of the previous week,
+LAST WEEK OR THE MONTH (2026-10-31: "Is a read of the previous week,
 not a 'is it dark outside'? Also add monthly average button too for the
 weekday choice."). vacation_mode_source picks how each weekday is learned:
 "last_week" (the default) replays the same weekday of the 7 days before the
@@ -254,7 +254,7 @@ def entity_exclusions(changes: list[tuple[float, str]], periods: list, now_ts: f
     return out
 
 
-# ── Last week or the monthly average (Garry, 2026-10-31) ─────────────────────
+# ── Last week or the monthly average (2026-10-31) ─────────────────────
 
 SOURCES = ("last_week", "month")
 DEFAULT_SOURCE = "last_week"
@@ -704,7 +704,7 @@ def switch_fields(data: dict, turn_on: bool, now_ts: float, who: dict | None = N
     was_on = bool(data.get("vacation_mode_enabled"))
     if turn_on and not was_on:
         # The source is fixed for the trip here: a change while it runs
-        # applies the next time it is turned on (Garry, 2026-10-31).
+        # applies the next time it is turned on (2026-10-31).
         source = chosen_source(data)
         if resumable(data, now_ts):
             # The same trip carrying on: its pattern stays. The span closed

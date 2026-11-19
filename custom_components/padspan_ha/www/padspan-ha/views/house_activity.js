@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 /**
- * Full house activity — Traceback's PadSpan Pro option (Garry, 2026-09-23).
+ * Full house activity — Traceback's PadSpan Pro option (2026-09-23).
  *
  * Turning it on swaps Traceback's 3D stack for the Atlas map and plays the
  * whole house back, not just the beacons: every light, door, window, lock and
@@ -228,7 +228,7 @@ export function readingKey(eid, state, attrs) {
 }
 
 /**
- * With `attrsOf(eid)` the sensors count too (Traceback's 💡 Devices, Garry
+ * With `attrsOf(eid)` the sensors count too (Traceback's 💡 Devices, the owner
  * 2026-09-24: "follows all devices that atlas can see") — temperature,
  * humidity and air quality, by the reading the Atlas shows (shownReading),
  * not by every report.
@@ -382,7 +382,7 @@ export function refreshHouseDevices(ctx, hs, onRegistry) {
 }
 
 /**
- * Mark the events Vacation Mode caused (Garry, 2026-09-23): the recorder can't
+ * Mark the events Vacation Mode caused (2026-09-23): the recorder can't
  * tell its switching from a person's, so vacation_mode.py logs its own. An
  * event is Vacation Mode's when a logged action for the same entity, to the
  * same on/off, came at most `slackMs` before the state change landed.
@@ -602,7 +602,7 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   const hidden = new Set(Array.isArray(settings.lights_hidden) ? settings.lights_hidden : []);
   const byRoom = {};
   for (const l of lights) if (l.area_name && !hidden.has(l.entity_id)) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
-  // The Atlas tab's own look (Garry, 2026-09-23: "should match the atlas tab
+  // The Atlas tab's own look (2026-09-23: "should match the atlas tab
   // settings and look") — the same reading the Atlas panel makes. Its
   // "hide untouched" filter hides on the drawing only, as there. Daylight is
   // the replayed moment's sun, from the house's own location.

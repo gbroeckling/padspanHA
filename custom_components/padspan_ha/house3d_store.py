@@ -225,7 +225,7 @@ _ADDED_KEYS = {"window": ("kind", "floor_id", "a_m", "b_m", "sill_m", "head_m"),
 # A door with no sensor is shown open, ajar (the default for an inside door)
 # or shut (an outside door's); one linked to a sensor follows it.
 DOOR_SHOWN = ("open", "ajar", "shut")
-# What a door is (Garry, 2026-10-05: "a door will also need swing left, right,
+# What a door is (2026-10-05: "a door will also need swing left, right,
 # roll up or down, etc."), and its options: which way it slides or folds, the
 # face a barn door runs on, how many panels (a bifold's; a gate's 2 is a double
 # gate), glass, and what drives it in Live Aboard (link: a contact sensor or a

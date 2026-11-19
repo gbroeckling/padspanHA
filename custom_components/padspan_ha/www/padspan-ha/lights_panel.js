@@ -371,7 +371,7 @@ class PadSpanLightsApp extends HTMLElement {
         this._view.floorGap = s.overview_iso_floor_gap ?? 150;
         this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
         this._view.focusIdx = s.overview_iso_focus     ?? 0;
-        // Persisted zoom (Garry, 2026-09-22: "stabilize the zoom in, so when
+        // Persisted zoom (2026-09-22: "stabilize the zoom in, so when
         // that is locked well, it can stay that way for months") — this
         // panel is set up once and left running unattended; an in-memory
         // zoom reset to 1.0 on every reboot/reload.
@@ -436,7 +436,7 @@ class PadSpanLightsApp extends HTMLElement {
           atlas_3d_director: s.atlas_3d_director };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
-      // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
+      // Layout v2 (2026-09-21) is a house-wide trial toggle, set
       // from the builder only — this panel reflects it, same convention
       // as showcase/automorph above, but renders its OWN DISPLAY variant
       // (host.displayMode below): edge-to-edge map, a slim rail, no
@@ -961,7 +961,7 @@ class PadSpanLightsApp extends HTMLElement {
     // ── The shared map card — identical map to the Mapping → Lights tab ──────
     // The same empty list every render: the map's patch keys on it (lights_map.js drawStageSvg).
     const floors=this.state.model.floors||NO_FLOORS;
-    // Door/window/lock click-to-control (Garry, 2026-09-22) — same gate as
+    // Door/window/lock click-to-control (2026-09-22) — same gate as
     // maps.js's own barrierHit (_isPro there): Bright or Pro, never free.
     const paid=["bright","pro"].includes(String(this.state._tier||"").toLowerCase());
     // A wall (?kiosk=1): nothing on it may lead off this page (the ⋯ list's
@@ -978,12 +978,12 @@ class PadSpanLightsApp extends HTMLElement {
       barrierHit: paid,
       byRoom,
       hiddenEids: hidden,
-      // This screen IS the house map (Garry, 2026-09-21: "anything to the
+      // This screen IS the house map (2026-09-21: "anything to the
       // sides is a distraction from the purpose of the screen") — v2's
       // display variant: edge-to-edge map, a slim icon rail, every bar a
       // drawer over the map. No onLayoutV2: the toggle lives in the
       // builder only, this panel just reflects what it's set to.
-      // Gated to Pro specifically (Garry, 2026-09-23) — same split as the
+      // Gated to Pro specifically (2026-09-23) — same split as the
       // builder's own proTier, not the bright-or-pro `paid` above.
       layoutV2: String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2,
       displayMode: true,
@@ -1007,14 +1007,14 @@ class PadSpanLightsApp extends HTMLElement {
       automorphHardness: this.state._automorphHardness || 0,
       automorphStyle: this.state._automorphStyle || "glow",
       automorphSubtlety: this.state._automorphSubtlety || 0,
-      // Quick-apply only (Garry, 2026-09-11: "a small preset button in the
+      // Quick-apply only (2026-09-11: "a small preset button in the
       // lights tab for quick changes") — no onSavePreset/onDeletePreset, so
       // the shared preset bar renders Apply alone. Saving/deleting a look
       // stays an editing action for Mapping -> Lights, same line as the
       // read-only modes above.
       showcasePresets: this.state._showcasePresets || [],
       // Whole House Presets — quick-apply from the sidebar, same as the
-      // Showcase presets above (Garry, 2026-09-11 precedent: no edit UI in
+      // Showcase presets above (2026-09-11 precedent: no edit UI in
       // the everyday panel, editing stays in Mapping -> Lights). Set/Delete
       // are included too, since this is the panel someone reaches for on a
       // wall kiosk without opening the full builder.
@@ -1045,7 +1045,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Vacation Mode's own "permanent option" — quick-apply from the
       // sidebar too, same as any other Whole House Preset here. The banner
       // itself (Disable + intensity slider), pinned dead-center of the
-      // screen, is built into the shared card below (Garry, 2026-09-21:
+      // screen, is built into the shared card below (2026-09-21:
       // "I wanted the banner to show in the two atlas screens" — this one
       // and Mapping -> Atlas builder, nowhere else, so it lives in the shared
       // renderer rather than panel.js's global chrome).
@@ -1287,7 +1287,7 @@ class PadSpanLightsApp extends HTMLElement {
       // The heatmap layer chip (atlas_heatmap.js): off by default, this
       // browser remembers the last kind like the class filter above.
       // Only once it's turned on in Settings: until then no chip at all.
-      // PadSpan Pro's (Garry, 2026-10-22), and only once it's turned on in
+      // PadSpan Pro's (2026-10-22), and only once it's turned on in
       // Settings: below Pro, or off, no chip at all.
       heatmap: this._heatmapPro() ? this.state._heatmap : null,
       onHeatmap: !this._heatmapPro() ? null : (kind)=>{
@@ -1299,7 +1299,7 @@ class PadSpanLightsApp extends HTMLElement {
         requestAnimationFrame(()=>{
           const api = this._useApi(lightsByEid, lights);
           wireUseSurface(isoDiv, api);
-          // The same hover HUD the builder has (Garry, 2026-09-14: "the mouse
+          // The same hover HUD the builder has (2026-09-14: "the mouse
           // over works in mapping, lights, but not in lights tab"). Here an
           // "Under" pick does what a tap on that marker does — motion opens
           // its activity, a holdable device its controls, anything else

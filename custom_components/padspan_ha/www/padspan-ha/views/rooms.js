@@ -24,7 +24,7 @@ const { scannersOf, whoIsWhere, followedObj } =
     .catch(() => ({ scannersOf: () => [], whoIsWhere: () => [], followedObj: () => false }));
 
 // ── PadSpan Bright (2026-10-30) ─────────────────────────────────────────────
-// Garry: "Bright should get a rooms page, but only items on it that apply to
+// The owner: "Bright should get a rooms page, but only items on it that apply to
 // Bright functionality." So in a Bright build each row is the room's colour,
 // outline, ceiling height, split level and the lights in it (counted as the
 // Atlas counts them, lights_map.js, loaded only here). Its receivers and who

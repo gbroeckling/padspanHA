@@ -382,7 +382,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # When THIS HA process came up. After a restart every restored motion
     # entity's last_changed is the boot moment, and the Lights map read that
     # as "just triggered" — every sensor flashing for 5 minutes, then walking
-    # the 6-hour colour ring (Garry, 2026-09-14: "after a restart of HA, all
+    # the 6-hour colour ring (2026-09-14: "after a restart of HA, all
     # motion sensors on the light map show active, better to have all show
     # inactive til motion is sensed"). model_get ships this as ha_started_at
     # and the renderer treats a last_changed at or before it as no event.

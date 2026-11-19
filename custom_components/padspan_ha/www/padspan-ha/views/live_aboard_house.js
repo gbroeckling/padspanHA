@@ -1376,7 +1376,7 @@ const GARAGE = /\b(garage|shop|workshop)\b/i;
  *  a higher floor is over the light (L.roomOver, readHouse's: it is under the
  *  house, not out on a deck by that room's wall). A room drawn smaller than it
  *  is leaves its lights outside the outline, and they are not outside lights
- *  (Garry's Utility, 2026-11-15: its ceiling fan drew as a grille low on a
+ *  (a real home's Utility, 2026-11-15: its ceiling fan drew as a grille low on a
  *  wall). Closer than OWN_ROOM_MIN it is in that room's wall or on its outside
  *  face (a fireplace blower, a light by the door). */
 export const OWN_ROOM_MIN = 0.5, OWN_ROOM_MAX = 4;
@@ -1523,7 +1523,7 @@ export function fixtureParts(L, ctx){
       let cx = x, cy = y, h, n = null, w = null;
       if (!outdoor) {
         // On the wall of its room it runs along when one is within WALL_NEAR; further than that it stays where it was
-        // placed (Garry, 2026-11-13: "leave things where placed unless very close". Before, however far: a strip
+        // placed (2026-11-13: "leave things where placed unless very close". Before, however far: a strip
         // placed over an island was drawn on a wall three metres away, and a press on what was seen missed it).
         w = roomWall(pieces, room, x, y, dir, WALL_NEAR);
         h = at(kind);
@@ -1534,7 +1534,7 @@ export function fixtureParts(L, ctx){
       if (w) { dir = w.dir; cx = w.x; cy = w.y; n = w.n; if (!w.rail) P.wall = w.pc; }
       // On a deck rail, no further than the rail itself: a strip longer than
       // its run, or hanging off its end, ran on past the glass and round no
-      // corner, a second top rail out in the air (Garry's wall, 2026-11-05).
+      // corner, a second top rail out in the air (a real wall screen, 2026-11-05).
       if (w && w.rail) ({ x: cx, y: cy, len } = onRail(w, cx, cy, len));
       dir = dir || unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
       n = n || perp(dir);
@@ -1754,7 +1754,7 @@ export function fixtureParts(L, ctx){
  *  its own glow, shaded when off. The stretches that are only wire (gaps)
  *  are never lit. Parts as fixtureParts gives them; a bulb or a housing can
  *  carry its own matrix (`mat`, the floor's frame) for a sloped stretch. */
-// A string's bulb (its radius) and wire (its thickness), m: drawn to be seen from across the house, not to scale (Garry,
+// A string's bulb (its radius) and wire (its thickness), m: drawn to be seen from across the house, not to scale (the owner,
 // 2026-11-14, "the Christmas lights need to be more visible": a 5 cm bulb on a 6 mm dark wire was under 3 px at the
 // roof's edge on the wall screen).
 export const STRING_BULB_R = 0.07, STRING_WIRE = 0.025;

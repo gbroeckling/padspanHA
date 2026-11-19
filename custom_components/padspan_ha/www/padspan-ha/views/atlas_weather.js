@@ -20,7 +20,7 @@
 //   setting off                                   -> nothing at all
 //   rain sensor set, reading dry                  -> off
 //   on/off rain sensor wet under a clear sky      -> off (dew or frost)
-//   rain sensor stopped reporting (last seen > 3 h) -> no reading from it (Garry, 2026-11-02: "it's showing its raining, and it's not")
+//   rain sensor stopped reporting (last seen > 3 h) -> no reading from it (2026-11-02: "it's showing its raining, and it's not")
 //   no rain sensor (or no reading from it)        -> wet = weather condition
 //   wet, alone                                    -> light rain
 //   wet + rainfall warning, or condition pouring  -> heavy rain
@@ -29,7 +29,7 @@
 // The rain sensor alone only ever means LIGHT rain; a numeric one is wet
 // above 0 and never scales the intensity. A rain sensor that is a wet
 // surface (a binary one) is overruled by a weather entity saying the sky is
-// clear: dew and frost wet it on clear mornings (Garry, 2026-10-06: rain on
+// clear: dew and frost wet it on clear mornings (2026-10-06: rain on
 // the Atlas all morning, the sensor at 3029 mV, the sky partly cloudy). A
 // gauge (a number) catches rain that falls and is never overruled, nor is an
 // on/off sensor a helper makes from one (a template, a threshold). The cost:
@@ -238,7 +238,7 @@ export function isHouseAlarm(eid, states){
 
 /** The chosen warning entity, unless it is one of the house's alarms: a leak
  *  detector picked before the list left them out (0.38.94) is still stored
- *  (Garry's "Emergency Flood Warning", 2026-10-06), and so could a smoke or
+ *  (a real home's "Emergency Flood Warning", 2026-10-06), and so could a smoke or
  *  CO alarm picked before 0.38.146 (engram #1459); either is ignored. */
 export function chosenWarning(cfg, states){
   const eid = cfg && cfg.warningEntity;
@@ -492,7 +492,7 @@ const isConvex = (P) => {
   return true;
 };
 
-/** The space between two stacked floors is inside the house (Garry,
+/** The space between two stacked floors is inside the house (the owner,
  *  2026-10-14: rain fell between the floors): each polygon of an indoor
  *  plate is swept straight down to the next indoor plate below it, so the
  *  column under every storey is masked and rain falls round the building,
@@ -575,10 +575,10 @@ function rgba(hex, a){
 // ripples and the haze (styles.css) are baked the same way.
 const BAKE = STRENGTH_MAX;
 // Light rain and light snow must read from across the room on the wall
-// panel: at the first spec's 11% drizzle Garry took a working overlay for
+// panel: at the first spec's 11% drizzle the owner took a working overlay for
 // a broken one (2026-10-04). Still one calm layer; heavy stays well above it.
 // Rain is hairline streaks, short and many, falling fast on a slant; snow
-// slow soft dots (Garry, 2026-11-06: rain "falls to slowly … looks a lot
+// slow soft dots (2026-11-06: rain "falls to slowly … looks a lot
 // like snow"). A tile is drawn once, so more streaks cost nothing per frame.
 export const RAIN_LAYERS = [
   { id: "r0", tier: "base",  w: 240, h: 280, n: 52, len: 16, op: 0.4,  width: 1,   dur: 0.62 },   // drizzle, ~8°

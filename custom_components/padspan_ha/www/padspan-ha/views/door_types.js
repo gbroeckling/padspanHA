@@ -99,7 +99,7 @@ export function doorShown(pc){
   const len = pc ? Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0) : 0;
   return !pc || pc.cls === "ext" || len > GARAGE_DOOR_M ? "shut" : "ajar";
 }
-// ── door types (Garry, 2026-10-05: "a door will also need swing left, right,
+// ── door types (2026-10-05: "a door will also need swing left, right,
 // roll up or down, etc.") ────────────────────────────────────────────────────
 // What a door is (openings[...].type; house3d_store.py DOOR_TYPES), what
 // PadSpan guesses when nothing is stored, what drives it, and where each of

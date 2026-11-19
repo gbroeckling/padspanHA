@@ -4,7 +4,7 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // The Atlas as a screen (the sidebar): the map alone, full screen, and a
-// double-tap on a room — the same for the flat map and Live Aboard (Garry,
+// double-tap on a room — the same for the flat map and Live Aboard (the owner,
 // 2026-10-05: "make sure that they look like the same software").
 //
 //   the map alone  zoomed in past the whole-house size, every bar steps
@@ -115,7 +115,7 @@ export const fullIconSvg = (on) => `<svg viewBox="0 0 16 16" fill="none" stroke=
 // The stage is made anew on every card the poll builds, so what the screen is
 // doing lives here per screen (slot), and each new card is painted from it:
 // alone, the card takes .lv-alone and the stage covers the panel's box; the
-// emergency dial and the Vacation banner stay above it (Garry, 2026-09-21:
+// emergency dial and the Vacation banner stay above it (2026-09-21:
 // the banner pinned in the centre on both Atlas screens), and so do ☰ and ⛶.
 // Alone, the drawing takes its zoom on a phone too (the panel's narrow-screen
 // rule otherwise holds every svg to the stage's width).

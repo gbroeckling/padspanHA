@@ -439,7 +439,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
         # no entities exist.  This is the most reliable indicator.
         _debug_notify_services: list[str] = []
         # Compared letters and digits only: the service is the SLUGIFIED name
-        # ("Garry's Pixel 8" -> mobile_app_garry_s_pixel_8), so a lowercase
+        # ("Alex's Pixel 8" -> mobile_app_alex_s_pixel_8), so a lowercase
         # compare never matched an apostrophe or a hyphen, and the phone was
         # listed twice — once as "sensor not registered".
         _phones_names_lc = {_alnum(p.get("device_name", "")) for p in phones}

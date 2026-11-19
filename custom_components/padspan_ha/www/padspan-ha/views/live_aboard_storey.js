@@ -4,7 +4,7 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // Live Aboard, the 3D house (docs/IDEA_ATLAS_3D_HOUSE.md): the house itself,
-// as plain numbers (Garry, 2026-10-05: "Lots still missing on the sims
+// as plain numbers (2026-10-05: "Lots still missing on the sims
 // view"). No three.js and no page: the view (live_aboard.js) turns these
 // into meshes, and node runs them for real (tests/js/live_aboard_house_model.mjs).
 //

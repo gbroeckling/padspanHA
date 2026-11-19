@@ -150,7 +150,7 @@ export const SURFACES = ["pavers_2ft"];
  *  joints' darker one (a mid grey: it reads as concrete in the Night and Day
  *  themes, and inverted in Light, as a drawing keeps its colours in each). */
 export const PAVER_M = 0.6096, PAVER_GREY = "#6f6d67", PAVER_JOINT = "#2b2a27";
-/** A tile's texture (Garry, 2026-11-13: "darker, and textured"): flecks of the joints' dark over its grey, as cast
+/** A tile's texture (2026-11-13: "darker, and textured"): flecks of the joints' dark over its grey, as cast
  *  concrete has, the same on every tile and in both looks: [u, v (0..1 across the tile), size (same unit), strength]. */
 export const PAVER_FLECKS = (() => {
   let s = 20261113;

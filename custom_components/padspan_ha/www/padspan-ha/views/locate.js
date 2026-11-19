@@ -55,7 +55,7 @@ let _lastDistanceKey = "";
 // comparing a distance with itself and dropping it (re-review 2026-09-23).
 let _lastSnap = null, _lastDelta = "";
 
-// Mounted by Follow (its "📍 Locate" option, Garry 2026-09-23) rather than
+// Mounted by Follow (its "📍 Locate" option, 2026-09-23) rather than
 // being a tab of its own: `targetKey` is the object Follow already has
 // chosen, so there is no second "Find:" pick to make.
 export function render(ctx, { targetKey } = {}) {

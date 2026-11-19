@@ -29,7 +29,7 @@ textarea.mono,input[type="text"]{box-sizing:border-box}
    not a status readout. */
 /* Vacation Mode (vacation_mode.py) — informational, not an alarm, so a
    warm amber-green rather than the emergency banner's red. Pinned dead
-   center of the screen, not a top bar (Garry, 2026-09-21: "pinned dead
+   center of the screen, not a top bar (2026-09-21: "pinned dead
    center until it is turned off") — built only into the shared Atlas
    card (lights_map.js), so it shows on the two Atlas screens only, never
    panel.js's global chrome. Built into the DOM only while on, so there is
@@ -1147,7 +1147,7 @@ input.input[type="email"]{min-height:37px}
 .lv-toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
   padding:6px 8px;border:1px solid rgba(120,190,155,.18);border-radius:12px;
   background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.2))}
-/* Mapping → Lights only (Garry, 2026-09-09: "the scroll hides the controls,
+/* Mapping → Lights only (2026-09-09: "the scroll hides the controls,
    needs fixing for mapping area, but works better this way in lights and
    overview") — the SAME card, sidebar-side, stays exactly as it was: this
    class is opt-in, set by the host only for the builder surface. Pinned to
@@ -1157,7 +1157,7 @@ input.input[type="email"]{min-height:37px}
 .lv-toolbar-sticky{position:sticky;top:var(--sticky-top,0);z-index:20;
   background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   box-shadow:0 6px 14px -6px rgba(0,0,0,.5)}
-/* Presets — Garry, 2026-09-10: "thousands of combinations in the mapping,
+/* Presets — 2026-09-10: "thousands of combinations in the mapping,
    lights setup, we need a preset system... clearly separate from all other
    settings on that tab." A second, independent box rather than another
    lv-ctrlgroup pill INSIDE the main toolbar — same violet accent Showcase's
@@ -1174,7 +1174,7 @@ input.input[type="email"]{min-height:37px}
    a class one — so a bare .lv-preset-name{width:150px} silently lost that
    fight regardless of source order, and this 150px name field rendered at
    nearly the full width of its bar instead, pushing Save/Delete onto
-   their own extra line every time (Garry, 2026-09-22: "the preset and
+   their own extra line every time (2026-09-22: "the preset and
    whole house items need only take up 1 row combined" — this is why they
    didn't). Adding the element type here matches that specificity and
    wins on source order (this rule comes later in the file). */
@@ -1188,7 +1188,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   letter-spacing:.09em;color:#94a3b8}
 .lv-val{font-size:12px;color:#e2e8f0;font-variant-numeric:tabular-nums;min-width:34px}
 
-/* A GROUP header, not a value label (Garry, 2026-09-11: "the large number of
+/* A GROUP header, not a value label (2026-09-11: "the large number of
    controls is very poorly structured... group by what they do") — forces a
    line break (flex-basis:100%) so the toolbar's flex-wrap can never split
    one logical group across two lines, and a hairline above marks a new
@@ -1215,7 +1215,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   color:rgba(226,240,232,.65);
   transition:border-color .15s ease,background .15s ease,color .15s ease,box-shadow .15s ease}
 .lv-tgl:hover{border-color:rgba(120,190,155,.45);background:rgba(255,255,255,.06);color:#e2e8f0}
-/* Garry, 2026-09-21: "the transform button and the save button should be
+/* 2026-09-21: "the transform button and the save button should be
    bigger" — the Atlas builder's Transform toggle and its Save placements
    button specifically, not every lv-tgl/.btn on the page. */
 .lv-tgl-big{font-size:14px;padding:8px 18px;border-radius:10px}
@@ -1275,7 +1275,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
      computer's own OS zoom quietly wins the race and changes the whole
      PAGE's zoom level instead of (or as well as) the app's view.zoom, and
      the resulting resize reflows the stage's scroll position out from
-     under whatever the app just set (Garry, 2026-09-17: "the system
+     under whatever the app just set (2026-09-17: "the system
      autoadjusts the placement... I think the zoom is the one built into
      windows"). pan-x pan-y keeps native one-finger (and multi-finger)
      PANNING exactly as before while specifically excluding the browser's
@@ -1351,7 +1351,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   .lv-wx-ripples{display:none !important}
   .lv-wx-layer{will-change:auto}}
 
-/* ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────
+/* ── Layout v2 (2026-09-21) ──────────────────────────────────────────
    Reversible trial, gated entirely by .lv-v2 on .lv-mapcard (host.layoutV2 —
    see layoutTierFor in views/lights_map.js). Nothing here ever applies to
    the classic layout; every rule below is scoped under .lv-v2. */
@@ -1377,7 +1377,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 
 /* The merged Presets / Whole House row — both bars side by side, Look on
    the left and Whole house on the right, sharing one row instead of
-   stacking two (Garry, 2026-09-22: "one to the left, one to the right"). */
+   stacking two (2026-09-22: "one to the left, one to the right"). */
 .lv-presetrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .lv-presetrow .lv-presetbar{flex:1 1 300px;margin-bottom:0}
 
@@ -1411,11 +1411,11 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
 
 /* ── Emergency lighting test (the Atlas sidebar; lights_panel.js) ─────────
-   Garry, 2026-09-28: "out of the way, takes up no new real estate, and looks
+   2026-09-28: "out of the way, takes up no new real estate, and looks
    like an emergency type button". Floats over the map's top-right corner
    from a zero-height anchor right before the stage (no row, nothing moves),
    above the rail's drawers. A red round centre (start/end the test) inside
-   a ring that is its own button (the card of every emergency light — Garry:
+   a ring that is its own button (the card of every emergency light — the owner:
    "a breakout button as a ring around the emergency button"), a list notch
    on the ring so the two never read as one. The label opens on hover and
    stays while a test runs, the ring pulsing, Force off beside it. Laid out
@@ -1488,7 +1488,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   .lv-emerg{right:8px;top:8px}
 }
 
-/* The builder's own columns (Garry, 2026-09-21: "get it done" — the rest of
+/* The builder's own columns (2026-09-21: "get it done" — the rest of
    the layout plan). Below "wide" this is just a column of stacked cards,
    identical to the classic layout it replaces (.lv-atlascols only exists at
    all when layoutV2 is on — see maps.js's `cols`). At "wide" the map and the
@@ -1617,7 +1617,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 @keyframes lv-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}
   60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
 
-/* A lock's own wall section (Garry, 2026-09-09: "use the same logic as the
+/* A lock's own wall section (2026-09-09: "use the same logic as the
    open door to build a break in the wall that has the lock. But unlike the
    open door, the section is not blank, but flashing red") — unlocked is the
    alert state, so the segment keeps drawing (a lock doesn't open the wall
@@ -1674,7 +1674,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
     repeating-linear-gradient(90deg,transparent 0 23px,rgba(232,121,249,.045) 23px 24px);
   background-blend-mode:normal,screen,screen}
 /* Hover HUD (Mapping → Lights builder): what a click on the map would land
-   on, and what's stacked underneath it (Garry, 2026-09-12: "a mouse over in
+   on, and what's stacked underneath it (2026-09-12: "a mouse over in
    the upper left so I can clearly see the device a click would have me work
    on"). The anchor is a zero-height sticky element so the box rides the
    stage's own scroll without pushing the drawing down. */

@@ -27,7 +27,7 @@
 //
 // A door or window sensor is never a point here, as on the Atlas: its place
 // is the section of wall it is linked to (docs/IDEA_DOOR_WINDOW_BARRIERS.md,
-// Garry 2026-09-08), which the house already draws as its opening.
+// 2026-09-08), which the house already draws as its opening.
 //
 // Each sits at its height above its floor: a default by its kind, replaced
 // by the 3D file's devices[<entity id>].z_m (Edit → Heights). An alarm moves

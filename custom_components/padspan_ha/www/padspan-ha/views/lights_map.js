@@ -160,7 +160,7 @@ export function effectiveState(eid, reported, now = Date.now()){
 }
 
 // ── Exact look: WLED devices PadSpan runs ────────────────────────────────────
-// Garry, 2026-09-27: "an exact, durable on/off that reproduces complex 5-6
+// 2026-09-27: "an exact, durable on/off that reproduces complex 5-6
 // channel strings 100% every time". A WLED device switched to PadSpan
 // (wled_exact.py) is turned on and off through padspan_ha/wled_power — its
 // whole remembered look, one command per device, or per team PadSpan runs —
@@ -347,13 +347,13 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   if (!hass) return;
   // Service domain is the entity's own: light.* -> light, fan.* -> fan.
   const domain = String(eid).split(".")[0];
-  // A sensor has nothing to switch: it says what it reads (Garry, 2026-11-13: "tap show readout"; before, only that
+  // A sensor has nothing to switch: it says what it reads (2026-11-13: "tap show readout"; before, only that
   // it was read-only).
   if (domain === "binary_sensor" || domain === "sensor") { if (toast) toast(readoutOf(hass, eid)); return; }
   // lock.* has no on/off at all — "locked" is its normal state, lock/unlock
   // its services.
   const isLockDomain = domain === "lock";
-  // The EFFECTIVE state, not the raw HA one (Garry, 2026-09-11: a second tap
+  // The EFFECTIVE state, not the raw HA one (2026-09-11: a second tap
   // inside the same optimistic window re-decided from state that hadn't
   // caught up yet, so it silently repeated the first command instead of
   // reversing it) — prefers the standing optimistic claim over a reported
@@ -479,7 +479,7 @@ export function roomAggregate(lights, roomName, floodLatches){
 // A device's floor: the room it is in (the fabric's room → floor), else the
 // floor it was placed on. A device with neither is on no floor.
 //
-// An OUTDOOR room does not anchor (Garry, 2026-09-14: devices "registered to
+// An OUTDOOR room does not anchor (2026-09-14: devices "registered to
 // the outside level" could not be placed "on a floor, just outside a room").
 // Outdoors is not a storey and the Lights stack never draws it (fabricFrame
 // drops outdoor rooms and lights before the levels are built), so a device
@@ -525,7 +525,7 @@ export function airWorstOf(airLights){
   return worst;
 }
 // ── Whole House Presets ─────────────────────────────────────────────────────────────
-// Garry, 2026-09-21: "a pull down like presets, but call whole house presets.
+// 2026-09-21: "a pull down like presets, but call whole house presets.
 // There will be a set, and a name on it. It will remember every setting in
 // the house when set is hit, and bring all settings back when selected."
 // A named snapshot of real DEVICE state — not the map's look (that is the
@@ -621,7 +621,7 @@ export function wholeHouseText(r){
     + (probs.length ? ` — ${probs.join(" · ")}` : "");
 }
 
-// ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────────
+// ── Layout v2 (2026-09-21) ──────────────────────────────────────────────
 // "the left to right use of space was often empty due to bad planning, the
 // program should read the resolution of the monitor, and stack more in a
 // row so less scrolling is needed." Driven by the panel's MEASURED width
@@ -807,7 +807,7 @@ export const HOLD_MS = 500, PRESS_RING_MS = 150, SLOP_PX = 8;
 // `t` throughout is a timestamp, not wall-clock time — callers must pass
 // e.timeStamp (down/up, from the real event the browser captured) or
 // performance.now() (tick, called from a setTimeout with no event of its
-// own); both share one epoch. Garry, 2026-09-16, live: "a single press...
+// own); both share one epoch. 2026-09-16, live: "a single press...
 // options are constantly popping up" — Date.now() sampled INSIDE the
 // handler measures when the handler finally ran, not when the finger
 // actually lifted; a busy main thread (this map is a large live SVG) can
@@ -942,13 +942,13 @@ export function wireStageTouch(stage, view, onZoom){
 // }
 // ── The hover HUD ─────────────────────────────────────────────────────────────
 // Pinned to the upper-left of the stage's visible area: what a click on the
-// map would land on, and what's stacked underneath it (Garry, 2026-09-12:
+// map would land on, and what's stacked underneath it (2026-09-12:
 // "add a mouse over in the upper left so I can clearly see the device a
 // click would have me work on... make it so the device underneath can also
 // be selected somehow, and showing in the mouseover text"). A true hit-test,
 // not a bounding-box guess — elementsFromPoint returns exactly what the
 // browser would give the click, topmost first, so "Click" is never wrong
-// about which marker wins. Shared by BOTH hosts (Garry, 2026-09-14: "the
+// about which marker wins. Shared by BOTH hosts (2026-09-14: "the
 // mouse over works in mapping, lights, but not in lights tab" — it had been
 // builder-only glue in maps.js); what an "Under" pick DOES is the host's
 // (opts.onPickUnder — the builder selects it for the inspector, the sidebar
@@ -1025,7 +1025,7 @@ export function wireHoverHud(isoDiv, opts){
   // is sticky within the stage's own scroll box, but the PAGE scrolls too,
   // and once the stage's top edge is above the viewport — the ordinary way
   // to look at the map under the toolbar — the anchor, and the box with it,
-  // sits off-screen (Garry, 2026-09-14: "mouse over no longer works"; live,
+  // sits off-screen (2026-09-14: "mouse over no longer works"; live,
   // the box was filling correctly 291px above the window). Re-measured on
   // every hover, before the same-content early return, so a page scroll
   // mid-hover moves the box too.
@@ -1047,7 +1047,7 @@ export function wireHoverHud(isoDiv, opts){
   // the map. Every pointermove event on the way there — crossing empty
   // canvas between the marker and the box — used to call show([], null),
   // which hid the HUD on the very first such event, before the cursor could
-  // ever arrive (Garry, 2026-09-19: "how can I click on the mouse over???
+  // ever arrive (2026-09-19: "how can I click on the mouse over???
   // ...the message needs to linger so it can be clicked on when the mouse
   // is moved"). A real "nothing at all" (crossing dead canvas, or genuinely
   // leaving the stage) now gets a short grace window instead of an instant
@@ -1281,11 +1281,11 @@ export function wireUseSurface(isoDiv, api){
       try { g.releasePointerCapture(e.pointerId); } catch (_) {}
       // Motion has nothing to switch — holdable is false for it, so it can
       // never arm below. A tap says what it reads (api.toggle: toggleEntity's
-      // readout); a long press opens its activity history (Garry, 2026-11-13:
+      // readout); a long press opens its activity history (2026-11-13:
       // a stray tap covered the house with the full-screen history).
       if (l0.isMotion) { if (r === "tap") api.toggle(eid); else if (r === "open") api.openActivity(eid); return; }
       // A lock is never turned by a tap: tap or hold, its card opens, and the
-      // card has Lock and Unlock (Garry, 2026-11-13).
+      // card has Lock and Unlock (2026-11-13).
       if (l0.isLock) { if (r === "tap" || r === "open") api.openControls(eid); return; }
       if (r === "tap") { if (!_tapAgain(eid, e) && switches(eid, l0)) api.toggle(eid); return; }
       if (r === "open") { if (holdable) api.openControls(eid); else if (switches(eid, l0)) api.toggle(eid); return; }
@@ -1313,11 +1313,11 @@ export function wireUseSurface(isoDiv, api){
   // bubbles to the SAME pointerdown/up pair wirePress just attached to the
   // marker, so it is identical to tapping the glyph: quick switches, a
   // genuine 500ms hold opens the controls. It used to be its own always-open
-  // target; Garry never asked for that split and it is gone.
+  // target; the owner never asked for that split and it is gone.
   q(".lroom").forEach(r => on(r, "click", (e) => { e.stopPropagation(); api.openRoom(r.dataset.room); }));
   q(".lstack").forEach(st => on(st, "click", (e) => { e.stopPropagation(); api.openRoom(st.dataset.room, String(st.dataset.eids || "").split(",").filter(Boolean)); }));
   q(".lfloor").forEach(f => on(f, "click", (e) => { e.stopPropagation(); api.openFloor(f.dataset.z); }));
-  // Door/window/lock barrier line (Garry, 2026-09-22: "the ability to click
+  // Door/window/lock barrier line (2026-09-22: "the ability to click
   // on the line... bring up a card that clearly says this door/window is
   // open, and the ability to open/close it"). Only present at all when the
   // renderer was asked for barrierHit — Bright/Pro tier, same gate as every
@@ -1657,7 +1657,7 @@ export function openFloorSheet(api, lights, model, z){
 }
 
 // ── Weekly activity calendar (motion sensors) ────────────────────────────────
-// Garry: motion sensors have nothing to switch, so a quick tap opens this
+// The owner: motion sensors have nothing to switch, so a quick tap opens this
 // instead of the read-only toast — "a calendar saying when the room last saw
 // activity in the last week... fully filled by the hour." Bucketing is pure
 // (motionWeeklyGrid) so the day/hour maths is tested without a browser; the
@@ -1918,7 +1918,7 @@ function _vacOptionsBox(host) {
     sel.addEventListener("change", () => save({ [key]: parseInt(sel.value, 10) }));
     return sel;
   };
-  // Where each weekday's routine comes from (Garry, 2026-10-31): last week
+  // Where each weekday's routine comes from (2026-10-31): last week
   // or the monthly average. Fixed for a trip when it is turned on.
   const SRC = { last_week: "Last week", month: "Monthly average" };
   const srcNote = el("div", { class: "muted lv-vac-opt-note" }, "");
@@ -2524,7 +2524,7 @@ function _pickEntityOverlay(title, candidates, onPick){
 
 // ── The door/window/lock barrier card ───────────────────────────────────────
 // A barrier is a section of WALL, not an entity of its own — up to THREE
-// roles can be tied to it (Garry, 2026-09-22: "three things need a logical
+// roles can be tied to it (2026-09-22: "three things need a logical
 // link, door/window open/close sensors, door/window openers, and locks...
 // all of these sit on the opening"): linked_entity_id (the sensor, ground
 // truth for open/closed), linked_opener_entity_id (a cover, or a switch/
@@ -2569,7 +2569,7 @@ export function openBarrierCard(hass, bar, api){
   const explicitLockEid = bar.linked_lock_entity_id || (sensorDomain === "lock" ? sensorEid : null);
   // Auto-suggested pairing (computeDoorLockPairs) only when nothing is
   // explicitly linked — the same physical unit as the sensor reporting
-  // both facets. Unverified against real hardware: Garry has neither a
+  // both facets. Unverified against real hardware: the owner has neither a
   // lock.* nor a cover.* entity in his real house yet.
   const suggestedLockEid = !explicitLockEid && sensorEid && api && api.doorLockMap ? api.doorLockMap[sensorEid] : null;
   const lockEid = explicitLockEid || suggestedLockEid;
@@ -2653,7 +2653,7 @@ export function openBarrierCard(hass, bar, api){
       },
     }, busy ? (state === "opening" ? "Opening…" : "Closing…") : (openerIsOpen ? "Close" : "Open")));
   } else if (openerSt && (openerDomain === "switch" || openerDomain === "button" || openerDomain === "script")) {
-    // Garry, 2026-09-22, finding a real gap: "there is a garage door
+    // 2026-09-22, finding a real gap: "there is a garage door
     // controller in HA... nothing in the device list" — script.
     // garage_door_car/_truck, a wrapped controller (probably the correct
     // thing to trigger, whatever sequencing it does) rather than the raw
@@ -2760,7 +2760,7 @@ export function sunElevationDeg(latDeg, lonDeg, tMs){
 }
 
 // ── The Atlas look ───────────────────────────────────────────────────────────
-// Garry, 2026-09-23: "in traceback, full house activity should match the
+// 2026-09-23: "in traceback, full house activity should match the
 // atlas tab settings and look". The look is set in Mapping → Atlas and
 // saved in settings; every surface that draws the Atlas reads it through
 // here — the sidebar panel and Traceback alike — so they can't disagree.
@@ -2808,7 +2808,7 @@ export function rippleDelays(items, tap, pxPerMs){
 }
 
 // ── Motion + occupancy pairing ───────────────────────────────────────────────
-// Garry: "some of the sensors have two elements, motion and presence ...
+// The owner: "some of the sensors have two elements, motion and presence ...
 // merge into one in a logical way" — a single mmWave/radar unit commonly
 // exposes BOTH a momentary "motion" reading and a sustained "occupancy"
 // reading (occupancy stays on through stillness a pure motion algorithm
@@ -2816,7 +2816,7 @@ export function rippleDelays(items, tap, pxPerMs){
 // INDEPENDENT signals must both hold before folding them into one marker,
 // because "shares a device_id" alone is not safe: an alarm panel's
 // expander module is ALSO one device_id across several DIFFERENT rooms'
-// PIR zones (Garry: "think about what an alarm panel is, and how it
+// PIR zones ("think about what an alarm panel is, and how it
 // works" — the device_id groups by the INTEGRATION POINT, not by physical
 // sensing location).
 //   1. STRUCTURE: the device reports EXACTLY one motion entity and
@@ -2828,7 +2828,7 @@ export function rippleDelays(items, tap, pxPerMs){
 //   2. NAMING: the two entities' names must reduce to the same root once
 //      the class words are stripped ("Living Room Motion"/"Living Room
 //      Occupancy" -> "livingroom" both). A hub's unrelated zone names
-//      (Garry's real alarm panel: "Utility Room", "Nicole's Office",
+//      (a real home's alarm panel: "Utility Room", "Jordan's Office",
 //      "Spare Bedroom", "Master Bedroom Entry" — all one device_id, all
 //      filed under the panel's OWN area "Utility") never coincide.
 // Exported and pure so it is testable against synthetic registries.
@@ -2863,14 +2863,14 @@ export function computeMotionOccupancyPairs(entReg, states){
 // Same shape, same hazard, one domain swapped in for the other: a barrier
 // (Atlas door/window card) can only ever LINK to one entity, but a real
 // door often has TWO — a plain contact reporting open/closed, and,
-// separately, a smart lock reporting locked/unlocked. Garry, 2026-09-22:
+// separately, a smart lock reporting locked/unlocked. 2026-09-22:
 // "the new card could have a lock control on it if the door has a smart
 // lock" — researched first (HA community threads on combining a lock +
 // door-sensor into one card is a recurring, unsolved-by-core-HA request;
 // the couple of floor-plan cards that DO show both do it exactly this way,
 // pairing by the same physical opening). Reusing computeMotionOccupancyPairs'
-// exact two-part safety rule rather than a lighter version of it: Garry's
-// OWN real alarm panel (device_id "dev-alarm", entities alarm_di1..4) is
+// exact two-part safety rule rather than a lighter version of it: a real home's
+// own alarm panel (device_id "dev-alarm", entities alarm_di1..4) is
 // the live proof the hazard is real here too — one device_id, several
 // unrelated door/window zones for different rooms. A lock domain entity
 // sharing that SAME device_id (an "arm/disarm" virtual lock some alarm
@@ -2882,7 +2882,7 @@ export function computeMotionOccupancyPairs(entReg, states){
 //      are stripped, so a hub's unrelated names never coincide by luck.
 // Auto-pairing only ever helps when the lock and its sensor are the SAME
 // physical unit (an integrated smart lock reporting both facets, e.g.
-// August/Schlage/Yale/Level via their official integration) — Garry has
+// August/Schlage/Yale/Level via their official integration) — the owner has
 // none of either domain in his real house yet, so this is unverified
 // against real hardware; a lock and sensor from two different products
 // share no device_id and this deliberately finds nothing for that case.
@@ -2918,7 +2918,7 @@ export function computeDoorLockPairs(entReg, states){
   return doorLockMap;
 }
 
-// Brand column resolution (Garry, 2026-09-08: "why are you not seeing the
+// Brand column resolution (2026-09-08: "why are you not seeing the
 // control4 lights as brand control4, sloppy... better logic for the search.
 // Blanks in the brand column should be rare"). Root cause, verified live:
 // manufacturer alone left ~60 Control4 devices behind an HC800 blank — HA's
@@ -3022,7 +3022,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
           // never left the "no room" list: this areaMap is the ONLY source
           // gatherLights reads area_name from, so a sensor.* this loop never
           // touched could never cluster onto the map or be placed at all —
-          // found live, 2026-09-03 (Garry: "don't see any way to move the
+          // found live, 2026-09-03 ("don't see any way to move the
           // temp in mapping, lights").
           // Air-quality sensors (2026-09-14) ride the same admission — the
           // same class set gatherLights uses — or "Assign room…" would save
@@ -3117,7 +3117,7 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
   const pro = tierAtLeast(tier, "pro");
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
   // the map as ONE marker on the motion entity — the occupancy half never
-  // gets its own row. Garry: every motion-class marker should look and act
+  // gets its own row. The owner: every motion-class marker should look and act
   // the same to a viewer, so the merged marker reads its OWN state and
   // last_changed only, below — an occupancy half that stays "on" after the
   // motion signal itself clears no longer holds the glow open. Without
@@ -3279,7 +3279,7 @@ export function lightIsTouched(l, shapeOverrides, placements, linkedDoorEids) {
   // filter were both wrong, and its row offered a "Revert" that would have
   // re-written that same stale entry right back into the draft.
   //
-  // Garry, 2026-09-10, live report: linking a door to a wall (the ONLY real
+  // 2026-09-10, live report: linking a door to a wall (the ONLY real
   // "work" a door has) still left it reading as untouched — "Hide untouched"
   // hid it right back, including the wall segment itself, with no way to
   // tell from the map that the link had actually worked. A door IS touched
@@ -3297,7 +3297,7 @@ export function lightIsTouched(l, shapeOverrides, placements, linkedDoorEids) {
   // below can never be satisfied by anything short of the undocumented
   // "bump the width to fake it" workaround every currently-visible one of
   // these was given by hand. Placement is the only real work these classes
-  // have. Garry, 2026-09-15, live: "I did place the air sensors, the
+  // have. 2026-09-15, live: "I did place the air sensors, the
   // placing tools don't work" — a fresh drop (draft or saved) sets x_m/y_m
   // alone, so it read as untouched and Hide-untouched hid it right back,
   // both while dragging and forever after, with no marker left to see or
@@ -3320,7 +3320,7 @@ function buildShapeLegend(el, lights){
   // "door" is deliberately never in this set: a door/window sensor never
   // draws a point marker on this map (see the barrier-drawing pass in
   // iso_lights.js) — a legend entry for a glyph that never appears would be
-  // its own small case of "doesn't make sense" (Garry, 2026-09-08).
+  // its own small case of "doesn't make sense" (2026-09-08).
   const present = new Set(lights.map(l => l.shape).filter(k => k !== "door"));
   const row = el("div", { class: "lv-legend" });
   for (const [kind, label] of LIGHT_SHAPES) {
@@ -3346,7 +3346,7 @@ function buildShapeLegend(el, lights){
 // element per screen (live_aboard.js liveAboardSlot), moved into each new
 // card beside the stage, which it hides while it shows. It loads with
 // import().catch, and every failure puts the flat Atlas back, counted once.
-// The sidebar Atlas's scroll bars go away once nobody has touched the page for five minutes (Garry, 2026-11-11: a map
+// The sidebar Atlas's scroll bars go away once nobody has touched the page for five minutes (2026-11-11: a map
 // left showing, a wall above all, shouldn't keep two grey bars on it), and come back at the next touch, key or
 // pointer move. One clock and one set of listeners for the page, on the newest sidebar card's stage; the map still
 // scrolls and pans with its bars hidden. Mapping's map keeps its bars: someone is working there.
@@ -3734,7 +3734,7 @@ export function buildLightsMapCard(hostIn){
   }
 
   // Vacation Mode banner — pinned dead-center of the screen, on both Atlas
-  // surfaces (this shared card) and nowhere else (Garry, 2026-09-21: "I
+  // surfaces (this shared card) and nowhere else (2026-09-21: "I
   // wanted the banner to show in the two atlas screens, and pinned dead
   // center until it is turned off"). Built fresh into the DOM only while
   // on, rather than toggled with a CSS class — panel.js's old top-bar
@@ -3884,7 +3884,7 @@ export function buildLightsMapCard(hostIn){
   // The 3D house (see _laLoad above). host.house3d is the host's {slot,
   // settings (the settings payload), telemetry, states, config}; nothing
   // below draws or loads anything unless settings.atlas_3d_enabled is on and
-  // the tier is Pro (PadSpan Pro or Bright Pro — Garry, 2026-09-30). Below Pro
+  // the tier is Pro (PadSpan Pro or Bright Pro — 2026-09-30). Below Pro
   // it is exactly off; the stored setting is left alone, so a renewed key
   // brings it back as it was.
   let h3 = _cardH3(host);
@@ -3936,7 +3936,7 @@ export function buildLightsMapCard(hostIn){
   };
   const sceneHa = (path) => { const sc = host.scenes; return sc && typeof sc.openHa === "function" ? sc.openHa(path) : SCENES.openHaPage(path); };
   const sceneToast = (m, err) => { const sc = host.scenes; if (sc && typeof sc.toast === "function") sc.toast(m, err); };
-  // "Toggles, on if mixed, then off" (Garry, 2026-11-05).
+  // "Toggles, on if mixed, then off" (2026-11-05).
   const sceneAct = (t) => {
     const sc = host.scenes;
     if (!sc || !t) return;
@@ -4295,7 +4295,7 @@ export function buildLightsMapCard(hostIn){
     svg.style.width = wallW || `${Math.round((view.zoom || 1) * 100)}%`;
     // 2026-09-22, after three straight rounds of this still being wrong
     // live (a visible flash, then not filling the width, then the whole
-    // map shrinking further and "stupid short" — Garry: "you really need
+    // map shrinking further and "stupid short" — the owner: "you really need
     // to rethink what you are doing here"): V2 also used to CAP isoDiv's
     // height to whatever vertical space the toolbar/presets chrome above
     // it happened to leave, computed from a real layout measurement that
@@ -4349,7 +4349,7 @@ export function buildLightsMapCard(hostIn){
         sceneField: host.showcase ? sceneFieldFor(host.sceneName, host.sceneAngle) : null,
         // The use-surface ergonomics — see buildIsoSVG for each. hideCodes
         // combines the existing zoom-driven auto-hide (preview/sidebar only)
-        // with an explicit, persisted user preference (Garry, 2026-09-08:
+        // with an explicit, persisted user preference (2026-09-08:
         // "turn off the device identifier text") that applies everywhere,
         // build mode included — the two never fight, either one hiding is enough.
         codeChip: !!host.codeChip, hideCodes: !codesShown || !!host.hideDeviceCodes,
@@ -4372,9 +4372,9 @@ export function buildLightsMapCard(hostIn){
         alertOpenings,
         doorCircleArmedEid: host.doorCircleArmedEid || null,
         doorCircleM: host.doorCircleM || null,
-        // Working, proven beacons (Garry, 2026-09-09) — read-only, host
+        // Working, proven beacons (2026-09-09) — read-only, host
         // provides the already-filtered list or nothing at all. Off by
-        // default (Garry, 2026-09-09: "should be selectable, and off by
+        // default (2026-09-09: "should be selectable, and off by
         // default") — showBeacons is the opt-in.
         beacons: host.showBeacons ? (host.beacons || null) : null,
         // {entity_id: epoch-s of its most recent "on"} — flood_latch.py.
@@ -4453,7 +4453,7 @@ export function buildLightsMapCard(hostIn){
   // vocabulary from styles.css (both hosts load that sheet) — the toggles are
   // quiet glass at rest and light up in their own tone when on, so which
   // modes are active reads at a glance.
-  // Sticky only where the host asks for it (Garry, 2026-09-09: "the scroll
+  // Sticky only where the host asks for it (2026-09-09: "the scroll
   // hides the controls, needs fixing for mapping area, but works better
   // this way in lights and overview") — the builder tab is long enough to
   // scroll the controls out of reach; the sidebar card (host.stickyToolbar
@@ -4486,7 +4486,7 @@ export function buildLightsMapCard(hostIn){
       ctrlRow.appendChild(pf.d);
       presTarget = pf.body;
     }
-    // Theme — which of 21 distinct palettes Showcase paints with (Garry,
+    // Theme — which of 21 distinct palettes Showcase paints with (the owner,
     // 2026-09-10: "let's build all 20" — one design bake-off, judged live,
     // turned into a real dropdown the same way Automorph's Style pulldown
     // already works). "Classic" reproduces today's look exactly; every
@@ -4591,7 +4591,7 @@ export function buildLightsMapCard(hostIn){
       onclick: () => host.onHideUntouched(!host.hideUntouched),
     }, host.hideUntouched ? `◫ Untouched (${n})` : "◫ Hide untouched"));
   }
-  // Hide device codes (Garry, 2026-09-08: "turn off the device identifier
+  // Hide device codes (2026-09-08: "turn off the device identifier
   // text") — a persisted preference, independent of the existing zoom-driven
   // auto-hide in preview/sidebar mode (codesVisibleAtZoom in rebuildISO
   // above); this toggle applies everywhere, build mode included, and either
@@ -4604,7 +4604,7 @@ export function buildLightsMapCard(hostIn){
       onclick: () => host.onHideDeviceCodes(!host.hideDeviceCodes),
     }, host.hideDeviceCodes ? "▤ Codes hidden" : "▤ Hide codes"));
   }
-  // Working, proven beacons (Garry, 2026-09-09) — read-only overlay, off by
+  // Working, proven beacons (2026-09-09) — read-only overlay, off by
   // default: "Show beacons on lighting page should be selectable, and off
   // by default." Their name text follows the Hide codes toggle above (see
   // the HIDECODES check beside the beacon label in buildIsoSVG).
@@ -4616,7 +4616,7 @@ export function buildLightsMapCard(hostIn){
       onclick: () => host.onShowBeacons(!host.showBeacons),
     }, host.showBeacons ? "◉ Beacons shown" : "◉ Show beacons"));
   }
-  // Automorph (Garry, 2026-09-07) — its own family, independent of Showcase:
+  // Automorph (2026-09-07) — its own family, independent of Showcase:
   // it works the same in either rendering mode, so it is not nested under
   // the Showcase gate above. An aesthetic-only aura for now (see
   // automorphAuraSvg in iso_lights.js): the icon itself is untouched.
@@ -4631,7 +4631,7 @@ export function buildLightsMapCard(hostIn){
     // The four Automorph tuning controls read as one cluster — a faint
     // shaded pill (lv-ctrlgroup, styles.css) sets them apart from the mode
     // toggles beside them, the same way lv-zoomseg already set the zoom
-    // trio apart. Garry, 2026-09-09: "put sliders in sets with a slight
+    // trio apart. 2026-09-09: "put sliders in sets with a slight
     // shading change to differentiate."
     const automorphGroup = host.automorph ? el("span", { class: "lv-ctrlgroup" }) : null;
     if (host.automorph && host.onAutomorphRoomPct) {
@@ -4655,7 +4655,7 @@ export function buildLightsMapCard(hostIn){
       automorphGroup.appendChild(pctLbl);
     }
     // Slider 2 — hardness, centered at 0 ("this slider starts in the
-    // center" — Garry, 2026-09-06): negative sharpens the aura's edges
+    // center" — 2026-09-06): negative sharpens the aura's edges
     // outward into a spikier silhouette, positive smooths them into a
     // closed spline. Same live-preview-then-persist pattern as room_pct.
     if (host.automorph && host.onAutomorphHardness) {
@@ -4677,7 +4677,7 @@ export function buildLightsMapCard(hostIn){
       automorphGroup.appendChild(hardLbl);
     }
     // Style — which of several distinct visual treatments paints the same
-    // morphed ring (Garry, 2026-09-07: "add a style pulldown to build more
+    // morphed ring (2026-09-07: "add a style pulldown to build more
     // morph concepts into the build, I can always remove them later").
     if (host.automorph && host.onAutomorphStyle) {
       const styleSel = document.createElement("select");
@@ -4692,7 +4692,7 @@ export function buildLightsMapCard(hostIn){
       automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Style"));
       automorphGroup.appendChild(styleSel);
     }
-    // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you
+    // Subtlety, 0-100 (2026-09-07: "a slider for subtlety, so you
     // can dial from objects looking full, to almost completely lost in
     // background... with shades, thinner lines"). Same live-preview-then-
     // persist pattern as the other two sliders.
@@ -4729,7 +4729,7 @@ export function buildLightsMapCard(hostIn){
 
   // Floor / Spacing / L-R are the other slider set — where the storeys sit,
   // not what's drawn on them — grouped in their own shaded pill for the
-  // same reason Automorph's own three are (Garry, 2026-09-09: "put sliders
+  // same reason Automorph's own three are (2026-09-09: "put sliders
   // in sets with a slight shading change to differentiate").
   const layoutGroup = el("span", { class: "lv-ctrlgroup" });
 
@@ -4918,13 +4918,13 @@ export function buildLightsMapCard(hostIn){
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [fb]));
   }
 
-  // Garry, 2026-09-09: "all sliders need a ? to bring up a card that
+  // 2026-09-09: "all sliders need a ? to bring up a card that
   // completely describes their function" — this row had none at all
   // (Overview's matching row does, via overview_3d_controls). Builder
   // only: the sidebar never sets host.helpBtn, since it never sets the
   // Automorph/Gap/Floor/L-R controls this card explains either.
   if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("lights_build_controls", "Help: build controls"));
-  // Layout v2 is a trial (Garry: "let's try it, make it reversable") — one
+  // Layout v2 is a trial ("let's try it, make it reversable") — one
   // click back to the classic layout, and one click forward again.
   if (host.onLayoutV2) {
     ctrlRow.appendChild(el("button", {
@@ -4937,14 +4937,14 @@ export function buildLightsMapCard(hostIn){
   mount(ctrlRow, "view");
 
   // Presets — a saved snapshot of the whole Showcase "look" bundle (Theme +
-  // Automorph + Fit room/Isolux/Beacons/Codes/Untouched). Garry, 2026-09-10: "we now
+  // Automorph + Fit room/Isolux/Beacons/Codes/Untouched). 2026-09-10: "we now
   // have thousands of combinations in the mapping, lights setup, we need to
   // build a preset system... clearly separate from all other settings on
   // that tab." Deliberately its OWN box below the toolbar (see .lv-presetbar
   // in styles.css) rather than one more control folded into the row above —
   // applying a preset changes several unrelated settings at once, a bigger
   // action than any single toggle beside it, and it reads that way too.
-  // Everyday panels (Garry, 2026-09-11: "a small preset button in the lights
+  // Everyday panels (2026-09-11: "a small preset button in the lights
   // tab for quick changes") get quick-apply only — no Save/Delete, the same
   // read-only-for-modes line this card draws for showcase/automorph/etc.
   // elsewhere: editing the underlying looks stays in Mapping -> Lights.
@@ -4959,7 +4959,7 @@ export function buildLightsMapCard(hostIn){
     presetSel.title = "A saved combination of Theme, Automorph, the other Showcase controls, and the Floor / Spacing / L-R layout";
     // "▾" in the option text, because this select and the name box beside it
     // are styled as the same dark pill (lv-select / lv-preset-name) and read
-    // as two typing fields — Garry, 2026-09-16: "you are asking for typing in
+    // as two typing fields — 2026-09-16: "you are asking for typing in
     // two places, one works, other not". The one that "didn't" was this
     // dropdown eating keystrokes. The chevron says which is which.
     presetSel.appendChild(el("option", { value: "" }, presets.length ? "▾ Choose a saved look" : "▾ No saved looks yet"));
@@ -5029,7 +5029,7 @@ export function buildLightsMapCard(hostIn){
     const whSel = document.createElement("select");
     whSel.className = "lv-select";
     whSel.title = "A saved state of every light and fan in the house — on/off, brightness, colour, effect, speed";
-    // Vacation Mode (Garry, 2026-09-21: "a permanent option, vacation") — a
+    // Vacation Mode (2026-09-21: "a permanent option, vacation") — a
     // fixed entry, always first, never deleted: it isn't a saved snapshot
     // like everything else in this list, it turns on the ongoing
     // average-day pattern from vacation_mode.py until disabled (from the
@@ -5132,7 +5132,7 @@ export function buildLightsMapCard(hostIn){
   }
   // Classic: each bar is its own full-width row. v2 with both present:
   // ONE row, side by side — Look on the left, Whole house on the right
-  // (Garry, 2026-09-22: "presets and whole house should share a row, one
+  // (2026-09-22: "presets and whole house should share a row, one
   // to the left, one to the right"). An earlier cut of this switched
   // between them with a tab instead of showing both at once, trading a
   // row of vertical space for having to click to see the other bar —
@@ -5482,7 +5482,7 @@ export function buildLightsMapCard(hostIn){
   // paints at scrollLeft/scrollTop 0. At 100% zoom that's a small, easy
   // to miss jump; zoomed in — where the drawing is far wider than the
   // stage — it's a full jump to the top-left corner, reading as "flicker"
-  // or "everything gets pushed to the sides" (Garry). queueMicrotask
+  // or "everything gets pushed to the sides" (the owner). queueMicrotask
   // instead: microtasks are guaranteed to drain BEFORE the next paint, no
   // exceptions, so there is no frame left for the wrong position to ever
   // be visible in — and unlike requestAnimationFrame, they still run in a
@@ -5641,7 +5641,7 @@ export function buildLightsTable(hostIn, lights){
     keep.top = top; keep.headSig = headSig;
   }
 
-  // Garry, 2026-09-22: "add this to the mapping atlas section under the
+  // 2026-09-22: "add this to the mapping atlas section under the
   // devices filter pull down. That's where I wanted it, leave it where it
   // is as well" — his original request named this SAME spot ("In the
   // filter, and at the bottom of the list") alongside Devices -> Door
@@ -5843,7 +5843,7 @@ export function buildLightsTable(hostIn, lights){
         }
         return stateSpan;
       })()),
-      // Its own column, next to State (Garry, 2026-09-07: "we still need
+      // Its own column, next to State (2026-09-07: "we still need
       // another option next to state... a reassign to another device type
       // pulldown" — it used to be buried in the far-right actions column,
       // easy to miss among Place/Revert/Hide). Pro only (the Mapping tab
@@ -5852,7 +5852,7 @@ export function buildLightsTable(hostIn, lights){
       // entities only — checked on the DOMAIN, not l.isFan/isMotion/isTemp:
       // a genuine fan./binary_sensor. entity's class really is its domain,
       // nothing to override, but a light.* already overridden to "fan"
-      // (Garry, 2026-09-07: "some light switches are fan switches") now
+      // (2026-09-07: "some light switches are fan switches") now
       // reads l.isFan===true too — gating on the derived flag would hide
       // the only way to revert it.
       el("td", { class: typeNarrow, style: "text-align:center" },
@@ -5881,14 +5881,14 @@ export function buildLightsTable(hostIn, lights){
         // A door/window is never dragged to a point — it is a section of an
         // existing wall. This column shows its link status instead of a
         // Place button: the same information "placed" conveys for everything
-        // else, in the terms that actually apply to a door (Garry,
+        // else, in the terms that actually apply to a door (the owner,
         // 2026-09-08: the point-marker "placement" here "is not making any
         // sense"). Linking happens right here on the Lights map — click
         // Place, then click the map to drop a circle over the wall section,
-        // drag it to fit (Garry, 2026-09-09, from scratch: the earlier
+        // drag it to fit (2026-09-09, from scratch: the earlier
         // wall-then-two-points picker "was never visible" and "impossible to
         // use"). Committing it is the SAME unsaved-changes bar every other
-        // draft edit on this map already uses (Garry, 2026-09-09: "the done
+        // draft edit on this map already uses (2026-09-09: "the done
         // should be the commit normally used at the top, not it's own unique
         // thing") — this column only arms/cancels the gesture, it never
         // itself commits. Rooms → RF Barriers still works too — same
@@ -5905,7 +5905,7 @@ export function buildLightsTable(hostIn, lights){
                   : "Set this door/window itself to steel (12 dB), independent of the wall it's cut from",
                 onclick: (e) => { e.stopPropagation(); host.onToggleDoorSteel(l); },
               }, isSteel ? "Steel ✓" : "Steel")] : []),
-              // Garry, 2026-09-22: "you need an invert option for the door
+              // 2026-09-22: "you need an invert option for the door
               // sensors, since it shows the exact opposite of what's
               // actually going on" — same standing-toggle shape as Steel,
               // now reachable from the row he's actually using instead of
@@ -5922,7 +5922,7 @@ export function buildLightsTable(hostIn, lights){
                 title: "Unlink from that wall section — the wall itself is left in place; Place then reappears here",
                 onclick: (e) => { e.stopPropagation(); host.onUnlinkDoor(l); },
               }, "Unlink")] : []),
-              // The SAME wall opening's other two roles (Garry, 2026-09-22:
+              // The SAME wall opening's other two roles (2026-09-22:
               // "all of these sit on the opening... that wall opening") —
               // attached here rather than by dropping the circle tool a
               // second time, since the wall section already exists.
@@ -5995,7 +5995,7 @@ export function buildLightsTable(hostIn, lights){
           ...(host.onPlaceRow && !placements[l.entity_id] ? [(() => {
             // The placement queue (builder): arm this light, then tap the map
             // where it is. Only offered while it has no position of its own.
-            // Garry, 2026-09-15: "use the placement + symbol that is there
+            // 2026-09-15: "use the placement + symbol that is there
             // for other placements" — the SAME "+ " prefix this app already
             // uses for "+ Add room" / "+ Add a floor", not an invented bare
             // glyph. Queued reuses the SAME "◎ " prefix "◎ Queue all
@@ -6011,7 +6011,7 @@ export function buildLightsTable(hostIn, lights){
           // A lock keeps its ordinary point marker above (it still has a
           // real physical spot, unlike a door/window sensor) — this is
           // ADDITIONAL: optionally link the SAME lock to the wall section
-          // it's mounted in, so unlocked flashes red there too. Garry,
+          // it's mounted in, so unlocked flashes red there too. The owner,
           // 2026-09-09: "use the same logic as the open door to build a
           // break in the wall that has the lock... use the basic
           // infrastructure for the open door build." Labelled "Link wall",
@@ -6135,7 +6135,7 @@ export function buildLightsTable(hostIn, lights){
     const jump = () => {
       const r = [...tbody.querySelectorAll("tr")].find(t => t.getAttribute("data-eid") === want);
       if (!r || !r.scrollIntoView) return;
-      // CENTRE, not "nearest" (Garry, 2026-09-19: the hold "is missing the
+      // CENTRE, not "nearest" (2026-09-19: the hold "is missing the
       // right spot"). "nearest" parks the row flush against whichever edge
       // it came from — under the sticky toolbar/toast when it was above,
       // on the very bottom edge (behind a phone's browser chrome) when it

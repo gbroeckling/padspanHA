@@ -99,7 +99,7 @@ def _reaches_into(A: list[tuple[float, float]], B: list[tuple[float, float]]) ->
 
 
 # A plan placed out of shape (2026-11-16): how far its placed width-to-height may be from its picture's before it is
-# said. Garry's office plan, a nearly square picture, stood 31 % too narrow for months (an old 3D Stack drag, converted
+# said. A real home's office plan, a nearly square picture, stood 31 % too narrow for months (an old 3D Stack drag, converted
 # as drawn): its room and three receivers were up to 1.1 m off, and nothing said so.
 SHAPE_OFF = 0.12
 

@@ -1121,7 +1121,7 @@ export function renderClassic(ctx){
 
     if(ctx.state._overviewPersistentPins === undefined) ctx.state._overviewPersistentPins = !!(ctx.state.settings && ctx.state.settings.overview_persistent_pins);
     if(ctx.state._overviewShowWalls === undefined) ctx.state._overviewShowWalls = !!(ctx.state.settings && ctx.state.settings.overview_show_walls);
-    // Off by default (Garry, 2026-09-06): the amber trail line reads as
+    // Off by default (2026-09-06): the amber trail line reads as
     // clutter until asked for.
     if(ctx.state._overviewShowTrails === undefined) ctx.state._overviewShowTrails = !!(ctx.state.settings && ctx.state.settings.overview_show_trails);
     // Outdoor areas are OFF by default. They are drawn fitted into the
@@ -1289,7 +1289,7 @@ export function renderClassic(ctx){
           // so the DRAW loop below can keep only this storey's own walls.
           // Without that, every wall within 2 storeys was painted onto every
           // nearby storey at that storey's height: the upstairs walls drawn
-          // across the main floor, and vice versa (Garry, 2026-09-09: "some
+          // across the main floor, and vice versa (2026-09-09: "some
           // of the walls are OK, maybe a floor to floor bleed?").
           const floorDist = Math.abs(_fabF.rankOf(bz) - rank);
           if (floorDist > 2) continue;
@@ -1651,7 +1651,7 @@ export function renderClassic(ctx){
       if(!ctx.state._overviewTrails) ctx.state._overviewTrails = new Map();
       const _trails = ctx.state._overviewTrails;
       const _trailNow = Date.now();
-      // Off by default (Garry, 2026-09-06): reads as clutter until asked
+      // Off by default (2026-09-06): reads as clutter until asked
       // for. Recording (trailPush, below) is ALSO gated on this same flag
       // — this buffer is plain in-memory client state with no time-based
       // cap of its own (trailSvg is what prunes aged-out points, and it
@@ -2348,7 +2348,7 @@ export function renderClassic(ctx){
     ovGapSlider.type="range"; ovGapSlider.min="60"; ovGapSlider.max="340"; ovGapSlider.step="10";
     ovGapSlider.style.cssText = "width:110px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
     ovGapSlider.value = String(ctx.state._overviewFloorGap);
-    // Debounced, not called on every tick (Garry, 2026-09-09: "the screen
+    // Debounced, not called on every tick (2026-09-09: "the screen
     // goes so light you can't see what you are adjusting"). _rebuildIso
     // crossfades the map to opacity 0 and back on EVERY call; dragging a
     // slider fires "input" far faster than that 150ms fade can complete,
@@ -2545,7 +2545,7 @@ export function renderClassic(ctx){
     });
     ctrlRow.appendChild(ovWallsBtn);
 
-    // Fading movement trail — off by default (Garry, 2026-09-06): "the
+    // Fading movement trail — off by default (2026-09-06): "the
     // tracking line" reads as clutter until asked for.
     const ovTrailsBtn = document.createElement("button");
     ovTrailsBtn.className = "btn inline";

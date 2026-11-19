@@ -429,7 +429,7 @@ export function worktopOf(recipe){
 }
 
 // ── the starter set ──────────────────────────────────────────────────────────
-// Ready-made pieces at the top of Furnish's Build menu (Garry, 2026-10-04:
+// Ready-made pieces at the top of Furnish's Build menu (2026-10-04:
 // "give me some base items to start with, try to recreate what I saw in the
 // preview as a starter set"; "I can place, just the tools"). The first two
 // are the P0 preview's: its three-seat sofa with rolled arms, and its queen

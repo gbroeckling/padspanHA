@@ -21,7 +21,7 @@
 //              holds the room steady: a softer flat fill with a solid edge
 //              line, never breathing, so a room occupied for hours costs no
 //              frames. A motion + occupancy pair reads its motion half only,
-//              as the Atlas does (Garry, 2026-09-04: every motion-class
+//              as the Atlas does (2026-09-04: every motion-class
 //              marker looks and acts the same; an occupancy half left on
 //              never holds the room lit); the half only picks its model
 //   sensor     a small model by kind on the nearest wall at its height,
@@ -68,7 +68,7 @@ export const WALL_REACH = 1.5;
 export const STEP_K = [1, 0.8, 0.66, 0.55, 0.46, 0.38, 0.32];
 /** The floor's glow, by day and by night: its fill, its soft edge band; a
  *  presence hold's flat fill and solid line; a stuck sensor's hatch. The fill
- *  is a tint over the room's own colour, not a flood (Garry, 2026-10-14: the
+ *  is a tint over the room's own colour, not a flood (2026-10-14: the
  *  motion looked ridiculous); the edge band carries the colour. */
 export const GLOW = { fill: [0.34, 0.42], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 1, stuck: 0.5,
                       bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2, near: 0.6 };

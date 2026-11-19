@@ -963,7 +963,7 @@ function MapControls({ ctx }) {
   const [gap, setGap] = useState(ctx.state._overviewFloorGap ?? 150);
   const [lr, setLr] = useState(ctx.state._overviewHorizGap ?? 0);
   const [walls, setWalls] = useState(!!ctx.state._overviewShowWalls);
-  // Off by default (Garry, 2026-09-06): "the tracking line" reads as
+  // Off by default (2026-09-06): "the tracking line" reads as
   // clutter until asked for; shared with Overview's own toggle since both
   // read/write the same ctx.state flag and setting.
   const [trails, setTrails] = useState(!!ctx.state._overviewShowTrails);

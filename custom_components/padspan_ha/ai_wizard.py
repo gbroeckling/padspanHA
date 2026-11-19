@@ -544,7 +544,7 @@ def suggest_names(spaces: dict[str, dict], areas: list[dict], taken: Any, floor_
 
 
 def wizard_ticks(prop: dict, sources: dict[str, str]) -> dict[str, Any]:
-    """What the helper offers and ticks at the start (design D; Garry,
+    """What the helper offers and ticks at the start (design D; the owner,
     2026-11-10: a room only in PadSpan is ticked like any other). Only rooms:
     doors, windows and stairs stay on the session for Live Aboard's Plans
     tool. Ticked: seen by both reads and 4 m² or more, or 2 m² or more and
@@ -696,7 +696,7 @@ def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:
     return [{"name": str(a.name), "floor_id": getattr(a, "floor_id", None)} for a in areas if getattr(a, "name", None)]
 
 
-# ── piece 2: "Also add this room to Home Assistant" (Garry, 2026-11-10) ──────
+# ── piece 2: "Also add this room to Home Assistant" (2026-11-10) ──────
 # Off by default; run only after the rooms were saved; outside PadSpan's backup
 # and undo, which the row says. A name that is already an area is matched,
 # never made twice; a failure is said and counted, the rooms stay saved.

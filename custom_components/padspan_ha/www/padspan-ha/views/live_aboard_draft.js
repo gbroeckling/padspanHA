@@ -833,7 +833,7 @@ export function carryOpenings(openings, floorId, before, after){
   return { moved, left };
 }
 
-// ── Heights on the placement record (Garry, 2026-10-05) ─────────────────────
+// ── Heights on the placement record (2026-10-05) ─────────────────────
 // "Same dataset, just extra info": a placed device's height above its floor
 // lives on its one placement record (model.light_positions_m[eid].z_m: a
 // number, or null for the default for its kind, chosen; none when never set),

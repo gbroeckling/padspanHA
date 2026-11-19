@@ -51,7 +51,7 @@ MARGIN_FRAC = 0.02               # the edge of a picture is left out of the scor
 TICK_HALF_PX = 6                 # how far either side of a dimension line a tick is looked for (ticks.py)
 TICK_DARK = 0.6                  # share of that window dark for a tick (ticks.py)
 TICK_NEAR = 0.12                 # a tick within this share of the span of where the AI says the dimension ends: the
-                                 # design said 3 %; Claude's ends on Garry's plans were up to ~10 % short (dry run 2026-11-09)
+                                 # design said 3 %; Claude's ends on a real home's plans were up to ~10 % short (dry run 2026-11-09)
 TICK_REACH = 0.25                # the line is followed this share of the AI's box past each end (its boxes stop short too)
 TICK_EXPECT = 0.03               # a single dimension's span within this of what the plan's chains predict
 TICK_GAP = 12                    # a dimension line is followed across gaps this long (its text, a tick's slash)

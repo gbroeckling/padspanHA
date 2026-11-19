@@ -89,7 +89,7 @@ export function splitPolylineAtTwoPositions(points, posA, posB) {
 }
 
 // Where a polyline crosses a circle's own boundary — the door/window opening
-// tool (Garry, 2026-09-09, after the wall-click picker turned out "impossible
+// tool (2026-09-09, after the wall-click picker turned out "impossible
 // to use"): place a circle over the opening, size and drag it to fit, and
 // "the two places the line intersects with the room line[/wall]... will be
 // the edges of the opening. The part in the circle will be the opening."
@@ -163,7 +163,7 @@ export function bestCircleWall(barriers, cx, cy, r) {
 }
 
 // When no RF Barrier crosses the circle, a ROOM's own polygon edge might —
-// Garry, 2026-09-10, after the room-outline-vs-barrier distinction was
+// 2026-09-10, after the room-outline-vs-barrier distinction was
 // explained instead of fixed, rightly rejected: "I draw the circle, it is
 // visually perfect over the wall I need the door in... fix that error, not
 // I should see things the way you do in the background." The room boundary

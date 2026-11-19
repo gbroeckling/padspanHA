@@ -42,7 +42,7 @@ export const PRO_PRICE = "$45 CAD/year";
 export const BRIGHT_PRICE = "$35 CAD/year";
 export const BRIGHT_UPGRADE_PRICE = "$12 CAD";
 // PadSpan Pro for life: $89 CAD at the launch price until November 30, 2026,
-// then $168 CAD from December 1, for good (Garry, 2026-10-22). The site
+// then $168 CAD from December 1, for good (2026-10-22). The site
 // switches its PayPal form at the same moment; the licence server accepts
 // $89 for a week after, for late payment notices. Pinned to the site like the rest.
 export const PRO_LIFETIME_LAUNCH_PRICE = "$89 CAD";

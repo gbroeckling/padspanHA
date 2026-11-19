@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 """
-Emergency lighting test — the Atlas "Test emergency lighting" button (Garry,
+Emergency lighting test — the Atlas "Test emergency lighting" button (the owner,
 2026-09-28: "If any of the lights are already on tag that so they are not
 switched off when the button is toggled off, but have a force off button").
 

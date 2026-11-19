@@ -1655,7 +1655,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
     # ── Phase 4: HA recorder health ────────────────────────────────────────
     # A recorder can go silently comatose — its own thread stays alive, its
     # queue drains, but rows stop landing in the database — with nothing
-    # anywhere warning about it (confirmed live on Garry's own install,
+    # anywhere warning about it (confirmed live on a real install,
     # 2026-09-02 to 09-07: five days of missing history across three
     # unrelated integrations, discovered only by chance while looking at an
     # unrelated chart). No entity-agnostic "is the DB still being written
@@ -1663,7 +1663,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
     # report the in-memory queue's own health, not whether commits actually
     # land — so this cross-checks whichever entities changed most recently
     # SYSTEM-WIDE (never scoped to padspan's own entities: this is a general
-    # HA recorder check, "so this is consistent" per Garry's own ask)
+    # HA recorder check, "so this is consistent" per the owner's own ask)
     # against their own persisted history. Sampling several avoids a false
     # "unhealthy" reading from picking the one candidate that happens to be
     # excluded from recording entirely (recorder: exclude in configuration.yaml,

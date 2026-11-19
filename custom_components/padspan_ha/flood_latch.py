@@ -7,7 +7,7 @@ from __future__ import annotations
 """
 Flood/water-leak alarm latching.
 
-Garry, 2026-09-18/19: "the alarm has to stay on for 2 days, or until reset."
+2026-09-18/19: "the alarm has to stay on for 2 days, or until reset."
 A moisture binary_sensor's raw HA state is not enough on its own to build
 that on — verified live the same day: the Kitchen Sink sensor
 (binary_sensor.flood_kitchen_sink_0xa4c138cc861a9e67_water_leak) flapped
@@ -67,7 +67,7 @@ from .const import DOMAIN, DATA_SETTINGS
 
 _LOGGER = logging.getLogger(__name__)
 
-# 2 days (Garry, 2026-09-19: "the alarm has to stay on for 2 days, or until
+# 2 days (2026-09-19: "the alarm has to stay on for 2 days, or until
 # reset") — change here AND in views/iso_lights.js's FLOOD_ACTIVE_WINDOW_S.
 ACTIVE_WINDOW_S = 2 * 24 * 60 * 60
 

@@ -171,8 +171,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_showcase_theme": "classic",  # which palette Showcase paints with — "classic" reproduces today's look byte-for-byte; see SHOWCASE_THEMES in iso_lights.js for the full list
     "lights_showcase_presets": [],  # named snapshots of the whole Showcase "look" bundle (theme + automorph + fit/isolux/beacons/codes, plus the optional overview_iso_* layout trio); see the Presets picker in Mapping -> Lights and its sanitizer in ws_settings.py
     "whole_house_presets": [],  # named snapshots of real light/fan DEVICE state, stored in scene.apply shape; see _sanitize_whole_house_presets in ws_settings.py
-    "atlas_layout_v2": True,  # Garry, 2026-09-21: shipped as the default Atlas layout after the trial (still a toggle — "▦ Classic layout" reverts it) — see layoutTierFor in views/lights_map.js
-    "vacation_mode_enabled": False,       # Garry, 2026-09-21: acts like an average day from real light history until disabled — see vacation_mode.py
+    "atlas_layout_v2": True,  # 2026-09-21: shipped as the default Atlas layout after the trial (still a toggle — "▦ Classic layout" reverts it) — see layoutTierFor in views/lights_map.js
+    "vacation_mode_enabled": False,       # 2026-09-21: acts like an average day from real light history until disabled — see vacation_mode.py
     "vacation_mode_intensity": 100,       # 5-100 — scales every light's on-probability, doubling as an energy-saving mode at low settings
     "vacation_mode_pattern": {},          # backend-only: {entity_id: {"weekday:HHMM": on_probability}} built from HA's own recorder history
     "vacation_mode_pattern_built_at": 0,  # backend-only: epoch-s of the last pattern rebuild
@@ -245,7 +245,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_max_on_min": 0,        # 0 = no limit, else 15-720: a light it turned on goes off after this, and rests as long
     "vacation_mode_max_lights": 0,        # 0 = no limit, else 1-50: at most this many of the pattern's lights on at once
     "vacation_mode_anchors": [],          # up to 10 light entity ids held on over the evening they were really on (last week, or on average); bedtime still ends them
-    # Garry, 2026-10-31: where each weekday's routine comes from — vacation_mode.build_routine
+    # 2026-10-31: where each weekday's routine comes from — vacation_mode.build_routine
     "vacation_mode_source": "last_week",  # "last_week": the same day last week | "month": each weekday's average over the last month; fixed for a trip when it is turned on
     "vacation_mode_trip_source": "",      # backend-only: the source the running (or last) trip was turned on with; "" = before the choice existed (the monthly average)
     "vacation_mode_pattern_source": "",   # backend-only: the source vacation_mode_pattern was built from ("" = month)
@@ -269,7 +269,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "overview_iso_floor_gap": 150,
     "overview_iso_horiz_gap": 0,
     "overview_iso_focus":     None,
-    # Atlas's own zoom (Garry, 2026-09-22: "stabilize the zoom in, so when
+    # Atlas's own zoom (2026-09-22: "stabilize the zoom in, so when
     # that is locked well, it can stay that way for months if needed" — the
     # sidebar Atlas panel is set up once and left running unattended; an
     # in-memory-only zoom reset to 1.0 on every reboot/reload, which is
@@ -316,7 +316,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # / 2-7s per poll, 1 day 2.8k / 3.8MB / sub-second.  Allowed: 1, 2, 7, 14.
     "object_history_days": 1,
     # The Atlas sidebar panel (panel.py registers it at setup, so a change
-    # takes a Home Assistant restart). On by default (Garry, 2026-09-28): off, it
+    # takes a Home Assistant restart). On by default (2026-09-28): off, it
     # was the one place the lighting product lives and almost nobody found it.
     "lights_panel_enabled": True,
     # One-time: installs from before that default had it off only because it
@@ -460,7 +460,7 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
 def ai_plans_stamp(data: dict, loaded: Any) -> bool:
     """The AI map-building switch (ai_plans_enabled, 2026-11) on an upgrade:
     a home that had turned the stair finder on comes up with the master
-    switch on too, so nobody loses the stair finder (Garry, 2026-11-02:
+    switch on too, so nobody loses the stair finder (2026-11-02:
     "Anyone using the stair find has the switch on by default"); every
     other home, and a fresh install, gets False. Decided once: only while
     the loaded settings have no ai_plans_enabled at all. Called from
@@ -624,7 +624,7 @@ def report_locked_until(data: dict) -> str:
     """The free licence's end ("" when nothing holds the usage report on).
     Every new free licence (the 90-day trial, a tester's two years, a free
     year of Pro) needs the report on, and it stays on until that licence ends
-    (Garry, 2026-10-27). The lock is the key it was given with
+    (2026-10-27). The lock is the key it was given with
     (report_locked_key, a hash): a bought key in its place, or the licence's
     end, lets it go; a free licence from before the rule never had one."""
     from datetime import datetime, timezone  # noqa: PLC0415

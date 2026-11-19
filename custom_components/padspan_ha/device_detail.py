@@ -154,7 +154,7 @@ def scrub_apple_hex(value: Any) -> Any:
 
 # Find My's device type, bits 4-5 of the status byte. AirGuard's classifier gives
 # 0 Apple device, 1 AirTag, 2 other, 3 AirPods; its scan filters use mask 0x18.
-# Measured on Garry's house 2026-11-02, 684 addresses: both agree on AirTag; none
+# Measured on a real house 2026-11-02, 684 addresses: both agree on AirTag; none
 # reads AirPods under either; and 83 addresses with value 2 send AirPods' own
 # Proximity Pairing record in the same block. So value 2 isn't "another brand's",
 # and AirPods are told by that record first.

@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """How hard the machine is working, for the opt-in usage report.
 
-Garry, 2026-09-29: "Add load numbers and CPU info to opt-in for this type of
+2026-09-29: "Add load numbers and CPU info to opt-in for this type of
 decision in future" — "need to watch the pi installs for max outs". Whether a
 feature (an animated overlay, a 4-8 s live snapshot on a 2,700-object house)
 bogs Home Assistant down depends on the machine: on the developer's 6-vCPU VM
@@ -30,7 +30,7 @@ and the hardware class (hw_class): CPU count, RAM bucket, architecture,
 installation type and board family — each from a fixed list, never a model
 string, hostname or serial.
 
-Garry, 2026-10-05, after a 2 GB Pi on a busy street ran out of memory within
+2026-10-05, after a 2 GB Pi on a busy street ran out of memory within
 hours: the low-memory version "should force a more safe object max count",
 and the report has to carry what picking that number takes — how many
 objects each install holds, what one costs, what the machine had left, and

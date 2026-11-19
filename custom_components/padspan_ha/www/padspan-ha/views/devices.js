@@ -633,7 +633,7 @@ function normalizeRoom(state) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Tab: Door Openers
 // ═══════════════════════════════════════════════════════════════════════════════
-// Garry, 2026-09-22: "Add a section to devices that is for door/windows
+// 2026-09-22: "Add a section to devices that is for door/windows
 // openers." A cover/switch/button entity has no device_class an Atlas
 // barrier's other two roles can lean on the way binary_sensor's door/window/
 // garage_door/opening classes already do — a raw relay switch gives no
@@ -643,15 +643,15 @@ function normalizeRoom(state) {
 // flat allowlist instead of a class map. Once marked, the entity is offered
 // as an "Opener" choice from a linked door/window's own row in Mapping ->
 // Atlas (the SAME wall-opening creation tool every other link already uses
-// — Garry: "maybe all avenues lead to the same wall section creation
+// — the owner: "maybe all avenues lead to the same wall section creation
 // tool?" — confirmed, no second tool built).
 //
-// Two REAL candidates on Garry's own house motivated this: switch.
+// Two REAL candidates on a real house motivated this: switch.
 // upper_garage_car_door / switch.upper_garage_truck_door, sitting right
 // next to the two garage-door contact sensors already linked on the map,
 // with no way before now to tie the relay to that same wall opening.
 //
-// script. joined the list the same day (Garry: "there is a garage door
+// script. joined the list the same day ("there is a garage door
 // controller in HA, can you find it, there is nothing in the device list")
 // — his own script.garage_door_car/script.garage_door_truck, which is
 // almost certainly the RIGHT thing to trigger (whatever sequencing or
@@ -737,7 +737,7 @@ function _renderDoorOpeners(ctx) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Build an opener or lock from relay(s)
 // ═══════════════════════════════════════════════════════════════════════════════
-// Garry, 2026-09-22 (verbatim): "a windows opener may need to import a relay
+// 2026-09-22 (verbatim): "a windows opener may need to import a relay
 // and set it up with logic to open and close a window. We also have cases
 // where we need to import a relay for a door lock, I have one in this house.
 // In the filter, and at the bottom of the list we need to have an option to
@@ -745,7 +745,7 @@ function _renderDoorOpeners(ctx) {
 // have a card to build a lock/opener from a relay, with accompanying logic
 // for that."
 //
-// The three "kinds" below aren't invented — they're Garry's own three
+// The three "kinds" below aren't invented — they're the owner's own three
 // relay patterns, already hand-built elsewhere in this house, generalized to
 // any relay pair:
 //   1. Momentary opener — one relay, pulse-and-release. His own
@@ -768,7 +768,7 @@ function _renderDoorOpeners(ctx) {
 //      house, but it was never bridged into HA (no lock.* or switch.*
 //      entity exists for it) — this kind exists for whenever a relay like
 //      it IS reachable from HA, wired or Zigbee (a z2m relay board, a
-//      Shelly, a ProDino spare channel). Garry is separately buying a
+//      Shelly, a ProDino spare channel). The owner is separately buying a
 //      Kwikset Zigbee lock for the back door — that pairs as a native
 //      lock.* entity directly (already handled: lockCandidates below lists
 //      every lock.* with no allowlist needed) and doesn't go through this
@@ -782,7 +782,7 @@ function _renderDoorOpeners(ctx) {
 // open/closed or locked/unlocked across restarts. Nothing here is simulated
 // inside PadspanHA. settings.door_composites is the receipt: every id this
 // wizard created, so "Remove" can delete every piece and only those pieces —
-// never touching anything Garry built by hand.
+// never touching anything the owner built by hand.
 
 const _RELAY_DOMAINS = ["switch.", "light."];
 const _RELAY_KINDS = [
@@ -793,7 +793,7 @@ const _RELAY_KINDS = [
 ];
 const _COVER_DEVICE_CLASSES = ["window", "door", "garage", "gate", "blind", "shade", "shutter", "awning", "curtain", "damper"];
 
-// A safe, predictable HA object_id from whatever name Garry types — every
+// A safe, predictable HA object_id from whatever name the owner types — every
 // script/automation/helper id this wizard creates shares this one prefixed
 // slug so a whole composite is trivially greppable/removable as a set.
 export function relaySlug(name) {
@@ -1009,7 +1009,7 @@ export function buildMomentaryLock({ slug, name, relayEid, pulseSeconds, relockS
   };
 }
 
-// Kind 4 — Garry, 2026-09-23: "I have a few places that a relay controlled
+// Kind 4 — 2026-09-23: "I have a few places that a relay controlled
 // poe switch is used to control a light, so I need the same magic to open
 // that new card and setup the relay parameters so a light shows in HA that
 // I can use for things. That is the pakedge I'm now working on." The

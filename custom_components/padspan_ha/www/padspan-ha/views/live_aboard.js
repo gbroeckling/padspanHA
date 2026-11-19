@@ -231,7 +231,7 @@ const PREF_FPS = "fps";                    // the frame-rate readout on this scr
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
 // The ring on a covered patio's floor under an off ceiling light (its size, how far up).
 const FLOOR_MARK_R = 0.12, FLOOR_MARK_UP = 0.02;
-// A fixture seen from across a room (Garry, 2026-11-13, "Fixture bigger": a pot light its real 15 cm, a plain light a
+// A fixture seen from across a room (2026-11-13, "Fixture bigger": a pot light its real 15 cm, a plain light a
 // 7 cm ball, were a few pixels on a wall screen, and off they were half see-through and dark). A round fixture (a pot,
 // a dome, a single ball) is drawn no smaller than SEEN_R in radius, at most SEEN_MAX times its size; a strip, a tube, a
 // panel and a cluster of small bulbs (a chandelier) keep their own. Off, it is solid (OFF_OP) and leans less to the
@@ -2241,7 +2241,7 @@ function createSlot(slotKey){
    *  its colours). It follows the storey's own floor (its rooms, halls filled
    *  in: live_aboard_storey.js plateOutlines), a little way out past the
    *  outside walls. The flat plate's rectangle round all the rooms drew
-   *  long lines in the air and out over the yard, well past the house (Garry,
+   *  long lines in the air and out over the yard, well past the house (the owner,
    *  2026-11-06: "lines around floor, something not quite right"). */
   const PLATE_PAD = 0.3, PLATE_OP = 0.5;
   function platesOf(h){
@@ -4667,7 +4667,7 @@ function createSlot(slotKey){
   // light of the floors showing is a button of one size on screen, drawn over the walls (live_aboard_use.js paints
   // them); the button is what a tap lands on. Buttons that would overlap are one, with their count: a tap on it lists
   // its lights. Anywhere else in a room, a tap opens the room's sheet.
-  // Where a button stands (Garry, 2026-11-13: on the fixture, a ceiling light's button hung in the air over another
+  // Where a button stands (2026-11-13: on the fixture, a ceiling light's button hung in the air over another
   // room once the ceiling was cut away, "not clearly visible where the light actually exists"): on the FLOOR, at the
   // spot it was placed on the map, where a spot in a picture of a house is one place only (a point up in the air is anywhere along
   // the line of sight: the ground is what places it, as a pin's line to the ground does in Google Earth and a drop
@@ -4676,7 +4676,7 @@ function createSlot(slotKey){
   const FOOT_UP = 0.03, _foot = new THREE.Vector3();   // a button's place: this far over its floor, under its fixture
   const buttonsOn = () => mapOnly && !!showOn && showOn.light_buttons === true && !showSuspended() && lightTapsOn();
   // The ⋯ list's "Rooms as light switches" (off unless this screen ticks it; the Atlas tab and its walls, while a tap
-  // switches lights). Garry, 2026-11-14 (lights "close to useless" in the 3D look): a room's floor is the switch for
+  // switches lights). 2026-11-14 (lights "close to useless" in the 3D look): a room's floor is the switch for
   // its lights (a tap: all on, or all off if any is on; a hold: its sheet; a hold then a drag: dims them), a target
   // metres wide; a single light is on the room's sheet. And the house lights up at a touch (wake): at night the 3D
   // look is as dark as the house, so nothing that is off can be found; a touch draws it as by day for WAKE_MS, as
@@ -4879,7 +4879,7 @@ function createSlot(slotKey){
     const taps = mapOnly && lightTapsOn();
     const aLight = (c) => !!c.light && !(c.light.drawn === "fan" || (c.light.l && c.light.l.isFan));
     let win = ok[0];
-    // Garry, 2026-11-13 ("make use more intuitive", proposal 1): while a tap switches lights, a LIGHT in reach beats
+    // 2026-11-13 ("make use more intuitive", proposal 1): while a tap switches lights, a LIGHT in reach beats
     // whatever else is in reach (a sensor, a readout's chip, a lock, a leak mark, a motion marker): a tap meant for a
     // light found the sensor beside it. A tag or a person nearer still wins (below).
     if (win && taps && !aLight(win)) win = ok.find(aLight) || win;
@@ -5172,7 +5172,7 @@ function createSlot(slotKey){
   /** What is drawn on top of the map: the editor's draft while editing,
    *  else the 3D file as read. */
   const viewData = () => (editor && editor.view()) || shownFile();
-  // ── heights on the placement records (Garry, 2026-10-05) ──────────────────
+  // ── heights on the placement records (2026-10-05) ──────────────────
   // A placed device's height lives on its placement record (z_m,
   // fabric_light_height_set), the map's own data: the record's height first,
   // then the 3D file's (an older install's, or a device with no record), then
@@ -6035,7 +6035,7 @@ function createSlot(slotKey){
   function toggleShow(key){
     const ready = showReady();
     if (ready[key]) {
-      // People or tags off for the house: the way to their switch (Garry: "send them to the screen where they can get permission").
+      // People or tags off for the house: the way to their switch ("send them to the screen where they can get permission").
       if (ready[key].perm) { showSetup(key, ready[key]); return; }
       if (showMenu) showMenu.paint();
       return;

@@ -10,7 +10,7 @@
  * live switches (state.udpn) are anyone's; saving them for the next boot
  * (cfg if.sync) is an administrator's.
  *
- * Team (Garry, 2026-09-23: "include teaming with other wled devices for
+ * Team (2026-09-23: "include teaming with other wled devices for
  * proper light control in HA"): a leader and followers joined by one sync
  * group. The card sets the group on every device — each through the safe
  * config write, so each device is backed up first — and PadSpan records the
@@ -18,7 +18,7 @@
  * Atlas, anywhere) and the followers follow over WLED sync, while Vacation
  * Mode leaves the followers to it instead of fighting it (vacation_mode.py).
  *
- * Who gives the light its instructions (Garry, 2026-09-27: "switch off
+ * Who gives the light its instructions (2026-09-27: "switch off
  * WLED's own join/sync and use a PadSpan join where all instructions come
  * from PadSpan"): WLED sync, or PadSpan — which switches this device's sync
  * off (saved first, put back on the way back) and sends its whole remembered

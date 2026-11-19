@@ -376,7 +376,7 @@ export function outputBlockers(ins, saved) {
     if (kind === "network") {
       if (b.text) return;                       // sent by host name (WLED 16): the address is WLED's to resolve
       const ok = pins.length === 4 && pins.every(o => Number.isInteger(o) && o >= 0 && o <= 255) && pins[0] !== 0 && pins[0] < 224;
-      if (!ok) out.push(`Output ${i + 1}: give the full address of the device to send to (like 192.168.2.119)`);
+      if (!ok) out.push(`Output ${i + 1}: give the full address of the device to send to (like 192.168.0.119)`);
       return;
     }
     if (pins.length < n || pins.some(p => !Number.isInteger(p) || p < 0)) out.push(`Output ${i + 1}: choose ${n === 1 ? "its GPIO" : `all ${n} GPIOs`}`);
@@ -507,7 +507,7 @@ export function panelPath(p) {
 }
 
 // ── Exact look (wled_exact.py) ───────────────────────────────────────────────
-// Garry, 2026-09-27: "an exact, durable on/off that reproduces complex 5-6
+// 2026-09-27: "an exact, durable on/off that reproduces complex 5-6
 // channel strings 100% every time". The look itself is WLED's own numbers
 // (wled_look.py); these only put it, a command's result and a setup change
 // into the words the Exact look tab shows.

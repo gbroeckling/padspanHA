@@ -739,7 +739,7 @@ function _beaconLooks(ctx, mapState) {
 }
 
 // ── Heights for Live Aboard (views/atlas_heights.js) ────────────────────────
-// Garry, 2026-10-05: "needs to be a tool to add the third dimension for the
+// 2026-10-05: "needs to be a tool to add the third dimension for the
 // sims view, height mostly. Same dataset". A device's height is z_m on its
 // placement record, set here in the inspector's Height row and the Heights
 // list, through this tab's own placement draft (its Undo, Save placements
@@ -2464,7 +2464,7 @@ function _edit(ctx, map, allMaps, opts){
   // Open (0 dB) records that on the map, and the 3D house leaves out the
   // wall it would otherwise derive there (live_aboard_house.js openAt). A tap
   // opens only the stretch the edge shares with the room next door, and an
-  // edge with no neighbour whole (Garry, 2026-11-02), in the same metres the 3D
+  // edge with no neighbour whole (2026-11-02), in the same metres the 3D
   // house reads, so nothing is re-traced by hand; what an open wall already
   // runs along is written once (openGaps). `rail: "none"`: a new open edge has
   // no railing until one is chosen (the per-edge rail key; the store keeps it).
@@ -3345,7 +3345,7 @@ function _edit(ctx, map, allMaps, opts){
           }
           // Defaults to the PARENT wall's own material — a door cut into a
           // metal wall is presumably steel too, matching the physical
-          // reality Garry described ("a steel door... registers... as a
+          // reality the owner described ("a steel door... registers... as a
           // radio blocking wall"); still freely overridable per door.
           dmMatSel.value = ctx.state.maps._doorMarkMaterial || (dmBar && dmBar.material) || "metal";
           dmMatSel.addEventListener("change", ()=>{ ctx.state.maps._doorMarkMaterial = dmMatSel.value; });
@@ -8534,7 +8534,7 @@ function _floorIdForZ(ctx, z, frame) {
 // against each slab's top face (data-role="slabtop"), topmost-drawn plate
 // first, ghosted (unfocused, opacity-dimmed) plates skipped. Geometry, not
 // elementsFromPoint: the slab groups are pointer-events="none" on purpose (a
-// plate must never swallow a click meant for a marker under it — Garry,
+// plate must never swallow a click meant for a marker under it — the owner,
 // 2026-09-14: "all devices [placed outside a room] are not selectable"), and
 // a hit-test cannot see what takes no pointer events. null = no plate here.
 function _floorZAtVb(svg, x, y) {
@@ -8657,7 +8657,7 @@ function _draftAt(ctx, o, eid, x_m, y_m, fid, source) {
 }
 
 // ── Door/window linking, directly on the Lights map ─────────────────────────
-// Garry, 2026-09-09, from scratch after the first attempt ("pick a wall,
+// 2026-09-09, from scratch after the first attempt ("pick a wall,
 // then its two ends") turned out "impossible to use" and — worse — "was
 // never visible": "when in the device, open/close sensor, allow the
 // placement of a circle, that circle will start at 1 meter in real world
@@ -8678,7 +8678,7 @@ function _draftAt(ctx, o, eid, x_m, y_m, fid, source) {
 // keep whichever lands nearest the click — but the comparison has to happen
 // in SCREEN space, not each floor's own inverse-projected world space.
 //
-// Found live (Garry, 2026-09-09/10) — the "save fails though the circle is
+// Found live (2026-09-09/10) — the "save fails though the circle is
 // placed correctly" report: the ORIGINAL version here reprojected the SAME
 // screen click through every candidate floor's OWN isoInv, then compared the
 // resulting WORLD-space distances to that floor's own walls across floors.
@@ -8744,7 +8744,7 @@ export function _cancelDoorCircle(mapState) {
 // a precise, actionable toast if nothing crosses at all; split that wall's
 // polyline into before/opening/after at the two crossing points; and save
 // the opening's own barrier (steel by default when the parent wall isn't,
-// per Garry's 2026-09-10 ask, still overridable) linked to the entity.
+// per the owner's 2026-09-10 ask, still overridable) linked to the entity.
 export async function _commitDoorCircle(ctx, mapState) {
   const eid = mapState._doorCircleEid;
   const circle = mapState._doorCircleM;
@@ -8820,7 +8820,7 @@ export async function _commitDoorCircle(ctx, mapState) {
   split.before = round3(split.before); split.middle = round3(split.middle); split.after = round3(split.after);
   // Defaults to the PARENT wall's own material — a door cut into a metal
   // wall is presumably steel too, matching the Rooms-tab picker's own
-  // default; still editable afterward from either surface. Garry,
+  // default; still editable afterward from either surface. The owner,
   // 2026-09-10: ask once, here, whether the door/window itself should
   // actually be steel (12 dB — same value the Rooms-tab material table
   // uses for "metal") rather than silently inherit the wall's material —
@@ -8988,7 +8988,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
 
   // Room name → select every light in the room (the multi-selection). A
   // plain click only selects; jumping the table down to the row is gated on
-  // a long press (Garry, 2026-09-11: selecting on the map "just pops to the
+  // a long press (2026-09-11: selecting on the map "just pops to the
   // part of the list with the device... kills most of the functionality of
   // the lights map edit" — every select-on-map used to scroll the table
   // unconditionally, which fights exactly the repeated map-only selection a
@@ -9012,7 +9012,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       longPressed = false;
       // The same ring a marker's own long press already shows (wireUseSurface
       // / pressRing) — appears at PRESS_RING_MS, fills to HOLD_MS, gold once
-      // armed. Garry, 2026-09-15: "add the little animation where is it not
+      // armed. 2026-09-15: "add the little animation where is it not
       // used now" — pure visual, the longPressed timing below is untouched.
       if (rrect) {
         const rx = parseFloat(rrect.getAttribute("x")), ry = parseFloat(rrect.getAttribute("y"));
@@ -9064,7 +9064,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
   // renderer draws it pointer-events:none, so it never had anything to press.
   // The builder asks for an invisible hit path over each one (barrierHit).
   // A still HOLD on it jumps the index to that device's row, the same
-  // gesture every marker already has. A plain TAP (Garry, 2026-09-22: "the
+  // gesture every marker already has. A plain TAP (2026-09-22: "the
   // ability to click on the line... bring up a card") opens the same
   // open/closed card the Atlas sidebar offers — safe on a bare tap, since
   // the card itself never changes anything; only a button pressed INSIDE
@@ -9293,7 +9293,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       }
       let moved = false;
       // Slop is measured in REAL SCREEN PIXELS off the raw event, never in
-      // viewBox units (Garry, 2026-09-19: "press and hold doesn't work for
+      // viewBox units (2026-09-19: "press and hold doesn't work for
       // all devices"). toVB() deltas scale with how the drawing is fitted
       // and zoomed: on a big house shown on a small screen one screen pixel
       // is several viewBox units, so the old "3 units cancels the hold / 8
@@ -9304,7 +9304,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       const downCX = ev.clientX, downCY = ev.clientY;
       const HOLD_SLOP_PX = ev.pointerType === "mouse" ? 4 : 10;
       const DRAG_ARM_PX = ev.pointerType === "mouse" ? 8 : 12;
-      // The table-jump is gated on a long press, not a plain select (Garry,
+      // The table-jump is gated on a long press, not a plain select (the owner,
       // 2026-09-11: selecting on the map "just pops to the part of the list
       // with the device... kills most of the functionality of the lights
       // map edit" — every click used to scroll the table out from under
@@ -9314,7 +9314,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       let longPressed = false;
       let longPressCancelled = false;
       // The same ring wireUseSurface's own marker hold already shows —
-      // appears at PRESS_RING_MS, fills to HOLD_MS, gold once armed. Garry,
+      // appears at PRESS_RING_MS, fills to HOLD_MS, gold once armed. The owner,
       // 2026-09-15: "add the little animation where is it not used now" —
       // purely visual, layered onto the SAME lpTimer/longPressed this
       // already ran on, not a second timer with its own timing to drift.
@@ -9338,7 +9338,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
         const dx = v.x - start.x, dy = v.y - start.y;
         // The long press is cancelled by ANY real movement (3px — plain click
         // jitter, not the 8px drag-arm threshold below), not just a completed
-        // drag. Found live (Garry, 2026-09-11): a slow, deliberate drag that
+        // drag. Found live (2026-09-11): a slow, deliberate drag that
         // hadn't yet crossed 8px when 500ms elapsed still had longPressed
         // flip true underneath it — so releasing a hair under the drag
         // threshold, which happens naturally on a careful/slow drag, jumped
@@ -9368,7 +9368,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
           // every frame — so a plain move-drag (not one of its own resize/
           // rotate handles) used to leave it standing still while the light
           // slid out from under it, with nothing visible moving until the
-          // drop (Garry, 2026-09-11: "the object doesn't move until you let
+          // drop (2026-09-11: "the object doesn't move until you let
           // go of it, so there is not real visual indicator of where you
           // moved it to"). Sliding the WHOLE overlay by the same delta
           // keeps it glued to the light for the length of the drag.
@@ -9398,12 +9398,12 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
           // selecting/cycling regardless of hold time. The browser always
           // hands the click to the marker on TOP, so alt+click is the way
           // to reach one underneath it — the next marker down the stack at
-          // the pointer, cycling round on repeated Alt+clicks (Garry,
+          // the pointer, cycling round on repeated Alt+clicks (the owner,
           // 2026-09-12: "make it so the device underneath can also be
           // selected somehow"). The hover HUD names the stack
           // (_wireHoverHud) so you can see what you're cycling through.
           const hasModifier = e.altKey || ev.altKey || ev.shiftKey || o.mapState._multiSelect;
-          // Garry, 2026-09-17: "if I click anywhere on a shape created to
+          // 2026-09-17: "if I click anywhere on a shape created to
           // represent a device, most cases a light, the primary should
           // always be to turn on that light/device. Secondary features
           // should be more difficult to activate." A plain quick tap with
@@ -9566,7 +9566,7 @@ function _wireDoorCircle(ctx, isoDiv, svg, o, toVB, frame, mapState) {
 // to any other way.
 // The hover HUD, pinned to the upper-left of the stage's visible area: what
 // a click on the map would land on, and what's stacked underneath it
-// (Garry, 2026-09-12: "add a mouse over in the upper left so I can clearly
+// (2026-09-12: "add a mouse over in the upper left so I can clearly
 // see the device a click would have me work on... make it so the device
 // underneath can also be selected somehow, and showing in the mouseover
 // text"). A true hit-test, not a bounding-box guess like the right-click
@@ -9660,7 +9660,7 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   // path (above, in the caller) already anchors on. The code label used to
   // be tried first here, on the theory that it's centred and unscaled too
   // — true, but it stops existing at all once "Hide device codes" is on
-  // (Garry, 2026-09-08), which silently broke every Transform handle's
+  // (2026-09-08), which silently broke every Transform handle's
   // position the moment that toggle shipped. Kept as a fallback, in case a
   // future marker kind is ever missing data-cx/cy; the group's bounding
   // box is the last resort — it grows with the scaled outline and the
@@ -9712,7 +9712,7 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   box.setAttribute("opacity", "0.55"); box.setAttribute("pointer-events", "none");
   layer.appendChild(box);
 
-  // A bright, always-visible stand-in for the fixture itself (Garry,
+  // A bright, always-visible stand-in for the fixture itself (the owner,
   // 2026-09-11: transform tool has "no visual on the object when it is
   // being transformed... should show the object moving/transforming as it
   // is being done"). The dashed box above already rotates/resizes live,
@@ -9796,7 +9796,7 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
         // built, above) turns and stretches in lockstep with `inner` — same
         // transform, so it never disagrees with what actually lands.
         standIn.setAttribute("transform", liveTransform);
-        // Also update the dashed box itself (Garry, 2026-09-11: "I can not
+        // Also update the dashed box itself (2026-09-11: "I can not
         // see the object rotating on my screen... I have no idea where the
         // rotation lands"). `inner` is that fixture's OWN glyph, and it can
         // be entirely invisible right now for reasons that have nothing to
@@ -10091,7 +10091,7 @@ function _lightsTab(ctx, maps, active) {
   // same camera — so "what will the household see" is one toggle away
   // without leaving the builder. A VIEW mode of this tab, never persisted.
   const preview = paid && !!mapState._lightsPreview;
-  // Garry, 2026-09-21: "add in a close option for the atlas help at the
+  // 2026-09-21: "add in a close option for the atlas help at the
   // top, takes up crazy amounts of space" — the sidebar already has this
   // (its coach mark, padspan_ha_lights_coach_seen), the builder's own
   // header hint never got one. Same one-time-per-browser dismissal; "Guide
@@ -10221,12 +10221,12 @@ function _lightsTab(ctx, maps, active) {
     ? !!ctx.state.settings?.lights_hide_untouched
     : !!mapState._lightsHideUntouched;
   const untouchedCount = lights.filter(l => !lightIsTouched(l, shapeOverrides, placements, linkedDoorEids)).length;
-  // "Hide device codes" (Garry, 2026-09-08) — same draft-then-persist shape
+  // "Hide device codes" (2026-09-08) — same draft-then-persist shape
   // as hideUntouched above.
   const hideDeviceCodes = mapState._lightsHideDeviceCodes === undefined
     ? !!ctx.state.settings?.lights_hide_device_codes
     : !!mapState._lightsHideDeviceCodes;
-  // "Show beacons" (Garry, 2026-09-09) — same draft-then-persist shape as
+  // "Show beacons" (2026-09-09) — same draft-then-persist shape as
   // hideDeviceCodes above, but off by default: a read-only overlay someone
   // opts into, not a surprise addition to an already-busy map.
   const showBeacons = mapState._lightsShowBeacons === undefined
@@ -10275,7 +10275,7 @@ function _lightsTab(ctx, maps, active) {
     floorGap: ctx.state.settings?.overview_iso_floor_gap ?? 150,
     horizGap: ctx.state.settings?.overview_iso_horiz_gap ?? 0,
     focusIdx: ctx.state.settings?.overview_iso_focus ?? 0,
-    // Persisted too (Garry, 2026-09-22: "stabilize the zoom in, so when
+    // Persisted too (2026-09-22: "stabilize the zoom in, so when
     // that is locked well, it can stay that way for months") — the
     // sidebar Atlas panel is set up once and left running unattended; an
     // in-memory-only zoom reset to 1.0 on every reboot/reload.
@@ -10288,7 +10288,7 @@ function _lightsTab(ctx, maps, active) {
   // Off by default: with handles live, a stray drag near a fixture resizes it
   // instead of moving it, and moving is the common action.
   const xfBtn = !paid ? null : el("button", {
-    // lv-tgl-big (Garry, 2026-09-21: "the transform button... should be
+    // lv-tgl-big (2026-09-21: "the transform button... should be
     // bigger") — a resize/rotate on the wrong fixture is a real mistake,
     // not just a missed tap, so this one gets extra size on top of the
     // shared lv-tgl toggle styling every other toggle here still uses.
@@ -10302,11 +10302,11 @@ function _lightsTab(ctx, maps, active) {
   // — it's a section of wall, linked in Rooms), so it takes no part in any of
   // the point-placement bookkeeping below: not the placed/unplaced checklist,
   // not the bulk queue, not Spread or Accept-room-centres. Counting them here
-  // was exactly what made "75 placed · 80 unplaced" mean nothing (Garry,
+  // was exactly what made "75 placed · 80 unplaced" mean nothing (the owner,
   // 2026-09-08) — 80 included every door/window sensor in the house, each one
   // permanently "unplaced" because point-placement was never its own concept.
   // A lock is NOT excluded here — unlike a door/window it keeps its normal
-  // point placement (Garry, 2026-09-09: "some of the same visibility as
+  // point placement (2026-09-09: "some of the same visibility as
   // other devices if placed"); wall-linking a lock is a SEPARATE, additive
   // capability (see the Map column below), not a replacement for it.
   const placeableLights = lights.filter(l => !l.isDoor);
@@ -10469,7 +10469,7 @@ function _lightsTab(ctx, maps, active) {
     const bar = el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid rgba(251,191,36,.5);box-shadow:0 0 18px rgba(251,191,36,.08);margin-bottom:12px" }, [
       el("span", { style: "font-size:12px;color:#fbbf24;font-weight:600" },
         `${dirtyEids.length} unsaved light placement${dirtyEids.length !== 1 ? "s" : ""}`),
-      // lv-btn-big (Garry, 2026-09-21: "the save button should be bigger")
+      // lv-btn-big (2026-09-21: "the save button should be bigger")
       // — this is the one button that actually commits placed fixtures;
       // losing unsaved placements to a missed tap is real lost work.
       el("button", { class: "btn inline primary lv-btn-big", onclick: async (e) => {
@@ -10545,7 +10545,7 @@ function _lightsTab(ctx, maps, active) {
 
   // Unsaved door/window opening — the SAME unsaved-changes bar every other
   // draft edit on this map already uses, not a one-off "Done" button buried
-  // in the row (Garry, 2026-09-09: "the done should be the commit normally
+  // in the row (2026-09-09: "the done should be the commit normally
   // used at the top, not it's own unique thing"). The row only arms the
   // circle tool and can Cancel it; committing always happens here.
   if (mapState._doorCircleEid && mapState._doorCircleM) {
@@ -10620,7 +10620,7 @@ function _lightsTab(ctx, maps, active) {
     ctx.actions.renderRooms();
   };
 
-  // Working, proven beacons — read-only, no placement (Garry, 2026-09-09:
+  // Working, proven beacons — read-only, no placement (2026-09-09:
   // "add working proven beacons to the mapping, lights section under
   // devices. For now have them look the same as they do in overview...
   // No placement for them of course"). "Working, proven" mirrors the exact
@@ -10677,22 +10677,22 @@ function _lightsTab(ctx, maps, active) {
     view,
     // Builder-only — the sidebar (lights_panel.js) never sets Automorph or
     // the Gap/Floor/L-R spacing sliders in the first place, so it has
-    // nothing here that needs its own help card. Garry, 2026-09-09: "all
+    // nothing here that needs its own help card. 2026-09-09: "all
     // sliders need a ? to bring up a card that completely describes their
     // function" — this control row (Showcase/Automorph/Floor/Gap/L-R/Zoom)
     // had none at all, unlike Overview's matching row.
     helpBtn: ctx.helpers.helpBtn,
     // Sticky control row — builder only, and not while Preview is showing
     // the sidebar's own (non-sticky) behaviour on the builder's camera.
-    // Garry, 2026-09-09: "the scroll hides the controls, needs fixing for
+    // 2026-09-09: "the scroll hides the controls, needs fixing for
     // mapping area, but works better this way in lights and overview."
     stickyToolbar: !preview,
-    // Layout v2 (Garry, 2026-09-21) — reversible trial: packed toolbar
+    // Layout v2 (2026-09-21) — reversible trial: packed toolbar
     // groups, the map fitted to the screen instead of scaled to the
     // stage's width, a table-beside-map column on a wide monitor. This
     // screen is the WORKBENCH (host.displayMode unset) — tools belong
     // beside the map here, unlike the sidebar's edge-to-edge display.
-    // Gated to Pro specifically (Garry, 2026-09-23) — the same proTier
+    // Gated to Pro specifically (2026-09-23) — the same proTier
     // split typeOverrides already uses above, not the bright-or-pro
     // `paid` gate everything else on this screen uses. The setting
     // itself still defaults true for everyone (settings_store.py), so a
@@ -10750,7 +10750,7 @@ function _lightsTab(ctx, maps, active) {
       .filter(b => b.linked_entity_id).map(b => [b.linked_entity_id, b.material])),
     // Same, for the row's own Invert toggle.
     doorInvertByEid: doorInvertOf(ctx.state.model),
-    // The opener/lock ALSO tied to this same wall opening (Garry,
+    // The opener/lock ALSO tied to this same wall opening (the owner,
     // 2026-09-22: "three things need a logical link... all of these sit on
     // the opening" — the barrier IS that opening, so these two new fields
     // live on it directly, right beside linked_entity_id, no separate
@@ -10795,7 +10795,7 @@ function _lightsTab(ctx, maps, active) {
       } catch (e) { ctx.toast("Could not link the lock: " + (e.message || e), true); }
       ctx.actions.renderRooms();
     } : null,
-    // Garry, 2026-09-22, after the relay wizard shipped to Devices -> Door
+    // 2026-09-22, after the relay wizard shipped to Devices -> Door
     // Openers only: "add this to the mapping atlas section under the
     // devices filter pull down. That's where I wanted it, leave it where
     // it is as well" — his original ask ("In the filter, and at the
@@ -10816,7 +10816,7 @@ function _lightsTab(ctx, maps, active) {
     } : null,
     // Arms the on-map circle tool (see _wireLightsBuild's click handler,
     // _wireDoorCircle's drag handlers, and _commitDoorCircle) — builder
-    // only, same gate as onPlaceRow. Garry, 2026-09-09: linking has to work
+    // only, same gate as onPlaceRow. 2026-09-09: linking has to work
     // FROM Lights, triggered by placing the door/window sensor, not by a
     // trip to Rooms — "no-one can see the thing you seem to think is
     // there". Passing null cancels (the row's own Cancel button, and
@@ -10830,7 +10830,7 @@ function _lightsTab(ctx, maps, active) {
       if (l) ctx.toast(`Click the map to place a circle over the opening for ${l.friendly_name || l.entity_id}.`);
       ctx.actions.renderRooms();
     } : null,
-    // The other half of "linked" (Garry, 2026-09-11: "make the linked option
+    // The other half of "linked" (2026-09-11: "make the linked option
     // under map clickable, and have the option to unlink, and then place
     // again" — a mis-drawn link, like a door repaired onto the wrong wall
     // section, had no way back to the Place button at all). Clears the
@@ -10851,7 +10851,7 @@ function _lightsTab(ctx, maps, active) {
       } catch (e) { ctx.toast("Could not unlink: " + (e.message || e), true); }
       ctx.actions.renderRooms();
     } : null,
-    // "Just add the ability to make the door/window steel or not" (Garry,
+    // "Just add the ability to make the door/window steel or not" (the owner,
     // 2026-09-11) — the confirm() dialog in _commitDoorCircle only ever asks
     // ONCE, at creation, and only when the parent wall wasn't already metal;
     // there was no way to change it afterward. Same steel/12dB choice as
@@ -10869,13 +10869,13 @@ function _lightsTab(ctx, maps, active) {
       } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
       ctx.actions.renderRooms();
     } : null,
-    // Garry, 2026-09-22: "you need an invert option for the door sensors,
+    // 2026-09-22: "you need an invert option for the door sensors,
     // since it shows the exact opposite of what's actually going on" — the
     // Rooms → RF Barriers editor has had an Invert toggle for a while
     // (bar.invert_state, since the Upper Garage Car Door Contact's own
     // reversed wiring), but reaching it meant leaving the Atlas row and
     // re-finding the same wall over there. Same standing-toggle shape as
-    // Steel, right beside it, on the surface Garry's actually using.
+    // Steel, right beside it, on the surface the owner's actually using.
     onToggleDoorInvert: paid && !preview ? async (l) => {
       const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
       if (!bar) { ctx.toast("That link no longer exists.", true); return; }
@@ -11093,7 +11093,7 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save Light spread: " + String(e), true); }
       ctx.actions.renderRooms();
     },
-    // Automorph (Garry, 2026-09-07): same remembered-rendering-mode pattern
+    // Automorph (2026-09-07): same remembered-rendering-mode pattern
     // as Showcase/Isolux above, not an edit mode — a rendering-only overlay.
     automorph: mapState._lightsAutomorph === undefined
       ? !!ctx.state.settings?.lights_automorph_enabled
@@ -11145,7 +11145,7 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save the Automorph subtlety: " + String(e), true); }
       ctx.actions.renderRooms();
     },
-    // Presets — a saved snapshot of the whole Showcase "look" bundle. Garry,
+    // Presets — a saved snapshot of the whole Showcase "look" bundle. The owner,
     // 2026-09-10: "we now have thousands of combinations in the mapping,
     // lights setup, we need to build a preset system." Each preset's
     // `values` uses the real setting keys directly (the same keys every
@@ -11181,14 +11181,14 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not delete the whole house preset: " + String(e), true); }
       ctx.actions.renderRooms();
     },
-    // Vacation Mode (Garry, 2026-09-21) — the "permanent option" in the
+    // Vacation Mode (2026-09-21) — the "permanent option" in the
     // Whole House Presets list. Admin-only server-side (vacation_mode_
     // enabled requires admin — see ws_settings.py); a non-admin picking
     // this just gets the same error toast settingsSet already surfaces.
     // The banner itself (Disable + intensity slider) is built into the
     // shared card below, pinned dead-center of the screen, and shows only
     // on this tab and the sidebar Atlas panel — not panel.js's global
-    // chrome (Garry: "I wanted the banner to show in the two atlas
+    // chrome ("I wanted the banner to show in the two atlas
     // screens").
     onVacationModeEnable: async () => {
       try { await ctx.actions.settingsSet({ vacation_mode_enabled: true }); }
@@ -11237,7 +11237,7 @@ function _lightsTab(ctx, maps, active) {
       mapState._lightsAutomorphHardness = values.lights_automorph_hardness;
       mapState._lightsAutomorphStyle = values.lights_automorph_style;
       mapState._lightsAutomorphSubtlety = values.lights_automorph_subtlety;
-      // Layout & view (Garry, 2026-09-12: "include more elements into this
+      // Layout & view (2026-09-12: "include more elements into this
       // feature") — the same three keys Save view writes. Optional: a look
       // saved before these existed carries none, and must not move the
       // camera. `view` is mapState._lightsView, which survives the re-render
@@ -11358,7 +11358,7 @@ function _lightsTab(ctx, maps, active) {
     // redirect. An already-placed motion sensor has no "Place" queue button
     // (that only appears with no position yet) and its row click always goes
     // to the activity calendar, so before this existed there was no way at
-    // all to re-select one for map placement (Garry, 2026-09-07).
+    // all to re-select one for map placement (2026-09-07).
     onSelectForPlacement: (l) => {
       if (!paid) { toggle(l.entity_id); return; }
       selectLightForPlacement(l);
@@ -11383,7 +11383,7 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save the type override: " + String(e), true); }
       ctx.actions.renderRooms();
     } : null,
-    // "Revert to untouched" (Garry, 2026-09-06) — clears exactly what
+    // "Revert to untouched" (2026-09-06) — clears exactly what
     // lightIsTouched checks for size/rotation/colour, staged into the SAME
     // draft-then-Save flow every other placement edit already goes
     // through, so it is reviewable and undoable via the existing unsaved-
@@ -11455,7 +11455,7 @@ function _lightsTab(ctx, maps, active) {
   }
   // The drafting grid on the stage says "editing" without a word.
   if (paid && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }
-  // Layout v2 (Garry, 2026-09-21, "get it done"): on a wide enough monitor
+  // Layout v2 (2026-09-21, "get it done"): on a wide enough monitor
   // the map, the inspector and the device table sit in COLUMNS instead of
   // stacking — the actual "stack more in a row so less scrolling is
   // needed" ask, not just the toolbar/fold work already shipped. Measured

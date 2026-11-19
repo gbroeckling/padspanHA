@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// The scene row (Garry, 2026-11-05): "Below the map on atlas and live aboard,
+// The scene row (2026-11-05): "Below the map on atlas and live aboard,
 // add a row of lighting scenes. These will be little mini maps that show
 // which lights the scene involves. Make these little tiny map
 // representations very clear, and easy to see what they represent."
@@ -136,7 +136,7 @@ export function sceneStateOf(eids, isOn){
   }
   return !on ? "off" : on === n ? "on" : "mixed";
 }
-/** What a tap does (Garry: "Toggles, on if mixed, then off"). */
+/** What a tap does ("Toggles, on if mixed, then off"). */
 export const tapOf = (state) => (state === "on" ? "off" : "run");
 /** What the tile says its state is. */
 export const STATE_WORDS = { on: "On", mixed: "Part on", off: "Off" };

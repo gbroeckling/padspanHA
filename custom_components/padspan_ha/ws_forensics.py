@@ -268,7 +268,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             f"Could not reach the licence server ({err}). Check the internet connection and try again.")
         return
     # A NEW free licence — a tester's two years — needs the usage report on,
-    # and keeps it on while it runs (Garry, 2026-10-27). A key already here,
+    # and keeps it on while it runs (2026-10-27). A key already here,
     # entered again, is not new.
     _free_new = bool(data.get("valid")) and new_key and str(data.get("plan") or "") == "tester"
     if _free_new:
@@ -355,7 +355,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
     if not st:
         connection.send_error(msg["id"], "not_ready", "Settings store not available")
         return
-    # Every free offer needs the opt-in usage report on (Garry, 2026-10-27).
+    # Every free offer needs the opt-in usage report on (2026-10-27).
     # The trial card asks for it in the same step (views/trial_offer.js).
     from .telemetry import enabled as _report_on  # noqa: PLC0415
     if not _report_on(hass):

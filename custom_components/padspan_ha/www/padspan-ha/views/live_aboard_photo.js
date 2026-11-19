@@ -21,7 +21,7 @@
 //   reading   one call. Nothing keeps the photo, here or on the server.
 //   failed    the plain "couldn't read it", then Build with the kind picked,
 //             a box, or try again.
-//   measure   one real measurement (Garry's choice 9): the AI's own size is
+//   measure   one real measurement (the owner's choice 9): the AI's own size is
 //             taken only when it was sure (something of known size was in
 //             the shot); otherwise type one size, usually the width, or keep
 //             the builder's, and the other two follow the photo's

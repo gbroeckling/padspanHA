@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """Live Aboard's heights onto the placement records.
 
-Garry, 2026-10-05: "Device placement on atlas is good until we get to sims,
+2026-10-05: "Device placement on atlas is good until we get to sims,
 needs same information store ... Same dataset, just extra info to sims view
 use." A placed device's height above its floor now belongs to its placement
 record (the fabric keeps it beside the record, fabric_store "light_heights_m";

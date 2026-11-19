@@ -420,7 +420,7 @@ def _fuse(clusters: list[dict[str, Any]], people: list[dict[str, Any]], sensed: 
     unplaced = [p for p in people if not p["room"]]
 
     def _assume(room: str | None, via: str) -> None:
-        # A room named after someone is theirs first ("Nicole's Office").
+        # A room named after someone is theirs first ("Jordan's Office").
         words = {w for w in (room or "").lower().replace("'s", "").split() if len(w) >= 3}
         owner = next((p for p in unplaced if any(w in words for w in p["name"].lower().split())), unplaced[0])
         unplaced.remove(owner)

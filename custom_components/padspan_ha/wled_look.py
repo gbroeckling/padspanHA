@@ -6,7 +6,7 @@ from __future__ import annotations
 
 """
 A WLED device's remembered look, and the exact requests that put it back
-(Garry, 2026-09-27: "an exact, durable on/off that reproduces complex 5-6
+(2026-09-27: "an exact, durable on/off that reproduces complex 5-6
 channel strings 100% every time"). Pure: no Home Assistant, no network —
 wled_exact.py does the talking.
 

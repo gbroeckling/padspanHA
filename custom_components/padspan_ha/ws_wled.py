@@ -6,7 +6,7 @@ from __future__ import annotations
 
 """
 WLED proxy — the Atlas WLED card's Advanced tab talks to the device through
-here (Garry, 2026-09-23: "absolute best in class gui for working on wled
+here (2026-09-23: "absolute best in class gui for working on wled
 configuration ... every facet of WLED operation and setup, as complete as the
 webpage, but more intuitive ... include teaming with other wled devices").
 
@@ -31,7 +31,7 @@ SECURITY — THE PANEL IS NOT ADMIN-ONLY (panel.py require_admin=False):
   control the light. Anything that persists or disrupts is admin-only:
   saving/deleting presets, the boot preset, config writes, reboot.
 - Always refused: the legacy /win API and a "win" key (Gyver-class forks
-  wedge their renderer on it — see Garry's WLED fleet notes), /update and
+  wedge their renderer on it — see the owner's WLED fleet notes), /update and
   /updatebootloader (no firmware from here: much of the fleet runs custom
   builds that a stock release would wipe), /reset, /edit.
 
@@ -730,7 +730,7 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
         return
     if action in ("restore_presets", "restore_cfg"):
         # Only back to the SAME device: another unit's LED count breaks every
-        # segment bound in its presets (Garry's rule: never copy presets.json
+        # segment bound in its presets (the owner's rule: never copy presets.json
         # between devices). The folder is keyed by this device's own MAC.
         if not _is_admin(connection):
             connection.send_error(msg["id"], "unauthorized", "Only an administrator can restore a WLED backup")
@@ -1096,7 +1096,7 @@ async def ws_wled_live(hass: HomeAssistant, connection, msg) -> None:
 
 
 # ── Teams: WLED devices that act as one light ───────────────────────────────
-# Garry, 2026-09-23: "include teaming with other wled devices for proper
+# 2026-09-23: "include teaming with other wled devices for proper
 # light control in HA". A team is a leader and its followers, joined by a
 # WLED sync group (the card sets the groups on every device, each through the
 # safe cfg write). PadSpan records the team so the rest of HA drives only the

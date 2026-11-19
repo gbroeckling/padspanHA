@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """Power teams: a wall dimmer or switch and the smart bulbs it feeds, as one light.
 
-Garry, 2026-11-14: colour Zigbee bulbs in sockets fed by a Control4 dimmer.
+2026-11-14: colour Zigbee bulbs in sockets fed by a Control4 dimmer.
 "They can be off, but when needed they turn on thru control4, wait for boot
 up, then do the color shift requirements." A team is one power source (a
 light or a switch entity) and its bulbs; Home Assistant gets one light for

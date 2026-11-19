@@ -246,7 +246,7 @@ EVENTS: frozenset[str] = frozenset({
     "wizard_tiers_completed", "wizard_tiers_exited_early",
     # Apple Find My tags (AirTags and "works with Find My" tags) followed
     # across their address changes (findmy.py; runs with mac_rotation_bridging
-    # on). Garry, 2026-09-27: "make sure the opt-in records how well tools for
+    # on). 2026-09-27: "make sure the opt-in records how well tools for
     # this feature actually work" — the switch alone says it is on, not that
     # it follows anything, and one house cannot show how it fares in others.
     #
@@ -288,7 +288,7 @@ EVENTS: frozenset[str] = frozenset({
     "findmy_missed_ambiguous", "findmy_missed_late", "findmy_missed_elsewhere", "findmy_missed_no_candidate",
     "findmy_moved_back", "findmy_moved_back_addrs", "findmy_back_on_day_key", "findmy_not_this_tag",
     # A name following a rotating address, on screen only (label_follow.py).
-    # Garry, 2026-11-02: the merge guard keeps a name on the first address, and
+    # 2026-11-02: the merge guard keeps a name on the first address, and
     # a guess can mix signal into calibration, so "find a better way". These say
     # whether the better way is right in homes other than his.
     #   label_link_linked     a name moved to a new address on evidence.
@@ -1153,7 +1153,7 @@ SCREEN_EVENTS: frozenset[str] = frozenset(
 
 # What the Overview tab actually drew (views/overview.js OVERVIEW_SHOWN, held
 # equal by tests/test_telemetry.py), once per page load per word, live data
-# only (Garry, 2026-10-22: the classic screen changes with how far a house
+# only (2026-10-22: the classic screen changes with how far a house
 # got through setup, which settings alone cannot tell):
 #   house        the isometric house with its beacons (rooms drawn)
 #   house_empty  the house frame, but no floor holds a room yet
@@ -1238,7 +1238,7 @@ def _num_or(v: Any, default: float) -> float:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else default
 
 
-# What each Overview screen is set to (Garry, 2026-10-22: "show what each
+# What each Overview screen is set to (2026-10-22: "show what each
 # screen uses if they vary, ... doesn't eat up too much room"): per screen, a
 # list of words from OVERVIEW_SET, ONLY for settings changed from
 # settings_store's default, and no key at all for a screen on its defaults,
@@ -1312,7 +1312,7 @@ def _quiet_hidden(obj_list: list[Any], followed: Any) -> str | None:
     share = hidden / len(objs)
     return "lt25" if share < 0.25 else "25_50" if share < 0.5 else "50_75" if share < 0.75 else "gt75"
 
-# Saved Showcase "look" presets (Mapping -> Lights) — Garry: "add presets and
+# Saved Showcase "look" presets (Mapping -> Lights) — the owner: "add presets and
 # their components into the opt-in records" so popular combinations across
 # installs can surface as a shared "Top 10" pulldown (see popular_presets.py
 # and server/popular_presets.php). Every one of these fields is already the
@@ -1333,7 +1333,7 @@ _PRESET_VALUE_KEYS: tuple[str, ...] = (
 # shared — plenty for popularity counting, nowhere near the whole list.
 _PRESET_SHARE_CAP = 10
 
-# Load and hardware — Garry, 2026-09-29: "Add load numbers and CPU info to
+# Load and hardware — 2026-09-29: "Add load numbers and CPU info to
 # opt-in for this type of decision in future", "need to watch the pi installs
 # for max outs". perf_sampler.py measures; this is what of it may leave, and
 # assert_shareable holds env.hw and health.perf to exactly these keys and
@@ -1444,7 +1444,7 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "smoothed_n": ("smoothed", ("p50", "max")),
     "background_n": ("background", ("max",)),
     "lostfound_n": ("lostfound", ("max",)),
-    # PadSpan's own size (perf_sampler.padspan_sizes). Garry, 2026-10-05: the
+    # PadSpan's own size (perf_sampler.padspan_sizes). 2026-10-05: the
     # low-memory version forces a safe maximum object count, and picking it
     # takes how many objects an install holds, what one costs and how fast a
     # busy street adds them — beside the RAM and memory figures above.
@@ -1547,7 +1547,7 @@ def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
 
 _DATA_SCREENS = "telemetry_screens"
 _DATA_SCREENS_TAKEN = "telemetry_screens_taken"   # the last window's, until its report is sent
-# Each screen's own words (Garry, 2026-10-22: "first 5 screens in a house"):
+# Each screen's own words (2026-10-22: "first 5 screens in a house"):
 # what its Overview drew, its kind of panel window, its resolution and kind
 # of device. Kept per screen id for the window; the report gets the lists
 # only (env.screens), never an id, and only from a house with two or more.
@@ -1638,7 +1638,7 @@ def _persist_counters(hass: HomeAssistant, now: bool = False) -> None:
     # Only ever on Home Assistant's event loop. bump() can be called from code
     # running in a worker thread, and there async_call_later and
     # async_create_task are refused: the save was created and never run
-    # (Garry's house, 2026-10-29: "calls hass.async_create_task from a thread
+    # (a real house, 2026-10-29: "calls hass.async_create_task from a thread
     # other than the event loop", telemetry.py _due, since 0.38.177).
     tid = getattr(hass, "loop_thread_id", None)
     if isinstance(tid, int) and threading.get_ident() != tid:

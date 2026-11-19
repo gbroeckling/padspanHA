@@ -758,7 +758,7 @@ def _why(err: BaseException) -> str:
 
 
 # ── the backup AI Task (Settings → AI; none until one is chosen) ─────────────
-# Garry's case (2026-10-30): the main AI Task runs on a computer that leaves
+# The owner's case (2026-10-30): the main AI Task runs on a computer that leaves
 # the house; a slower one elsewhere reads instead, with no setting changed.
 # The rule (ask_ai): the main one reads unless it is away: its entity is
 # unavailable or gone, it couldn't be reached in the last MAIN_AWAY_S, its

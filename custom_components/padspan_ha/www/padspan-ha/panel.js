@@ -1004,7 +1004,7 @@ class PadSpanHaApp extends HTMLElement {
     // 3 seconds of interaction, preventing form inputs / scroll positions from
     // being destroyed while the user is actively working.
     //
-    // "pointerdown" is the important one (Garry, 2026-09-11: dragging on the
+    // "pointerdown" is the important one (2026-09-11: dragging on the
     // Lights map "works only sometimes, other times it brings me to the
     // list" mid-drag). This list used to be click/input/change/focusin/
     // scroll only — every one of those fires at the END of a gesture (a
@@ -3407,7 +3407,7 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   /** Flood alarm latches (flood_latch.py), off to the side regardless of the
-   *  active tab (Garry, 2026-09-19: "Is there something like an emergency
+   *  active tab (2026-09-19: "Is there something like an emergency
    *  resets button off to the side?") — not buried in whichever room/table
    *  row the sensor happens to appear in. Hidden entirely when nothing is
    *  latched; expires_at math mirrors flood_latch.py's is_active() and

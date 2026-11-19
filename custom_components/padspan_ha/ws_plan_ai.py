@@ -94,7 +94,7 @@ VIA = vol.In(("wizard",))     # a command the rooms helper sends (ai_wizard.py):
 
 
 def _need_3d(msg) -> bool:
-    """Live Aboard is needed, except for the rooms helper (Garry, 2026-11-10:
+    """Live Aboard is needed, except for the rooms helper (2026-11-10:
     it works with Live Aboard off; it reads and saves rooms only)."""
     return msg.get("via") != "wizard"
 

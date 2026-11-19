@@ -42,7 +42,7 @@ export function isPartitionLight(l) {
 // ceiling, and half of what hangs from a ceiling that switches is a fan.
 // A real fan.* entity is never overridden either way (gatherLights never
 // attaches a type_override to one — see its own comment). "fan" IS a valid
-// override for a light.*, though (Garry, 2026-09-07: "some light switches
+// override for a light.*, though (2026-09-07: "some light switches
 // are fan switches") — cosmetic only: it changes the marker's shape, code
 // bucket and filter grouping, never which HA services get called. Every
 // control this map actually offers a fan (speed, oscillate, direction —
@@ -66,7 +66,7 @@ export function isMotionSensor(l) {
     && ["motion", "occupancy"].includes(l.device_class);
 }
 
-// A door or window sensor (door/window barrier project, step 1, Garry
+// A door or window sensor (door/window barrier project, step 1, the owner
 // 2026-09-08: "add that device type to the list of devices in mapping,
 // lighting"). Read-only, same reasoning as motion above — its job on the
 // map is a static "open or closed" glyph, not a toggle. garage_door and
@@ -107,7 +107,7 @@ export function openingOpen(l, inverted = false) {
   return (l.state === "on") !== !!inverted;
 }
 
-// A water-leak/flood sensor (Garry, 2026-09-18: "add flood sensors to the
+// A water-leak/flood sensor (2026-09-18: "add flood sensors to the
 // list"). HA's own device_class for this is "moisture" ("Wet"/"Dry"), not
 // "flood" or "leak" — same admission shape as door/window above: a binary
 // state, read-only on this map. Its job is a bright red ring radiating out
@@ -115,7 +115,7 @@ export function openingOpen(l, inverted = false) {
 // same "make the room itself react" idea air quality's rising bars use, for
 // an alarm rather than a gradual reading — so unlike air quality there's no
 // badness scale, just on/off.
-// Emergency, widened (Garry, 2026-10-15: "Widen emergency"): smoke, gas and
+// Emergency, widened (2026-10-15: "Widen emergency"): smoke, gas and
 // carbon monoxide alarms are Emergency too, latched and alarmed the same way
 // as a leak, each in its own words and (but a leak) the detector's glyph.
 export const EMERGENCY_CLASSES = { moisture: "water", smoke: "smoke", gas: "gas", carbon_monoxide: "co" };
@@ -134,7 +134,7 @@ export function emergencyWord(l, on, latched){
 
 // A sensor.* entity reporting device_class "temperature" — "same as WLED or
 // any other object... devices telling the temperature can also act like a
-// motion sensor" (Garry): a THIRD read-only status class riding the same
+// motion sensor" (the owner): a THIRD read-only status class riding the same
 // ceiling map, admitted by gatherLights the same way motion is (by device
 // class, past the domain gate), so the domain prefix is sufficient here too.
 export function isTempSensor(l) {
@@ -149,7 +149,7 @@ export function isTempSensor(l) {
   return String(l.entity_id || "").startsWith("sensor.") && l.device_class === "temperature";
 }
 
-// A sensor.* entity reporting device_class "humidity" — Garry, 2026-09-15:
+// A sensor.* entity reporting device_class "humidity" — 2026-09-15:
 // "set it up like temperature". A FIFTH read-only class, admitted and
 // placed/moved/selected exactly like temperature; unlike temperature it
 // requires the EXPLICIT device_class (no null fallback) — null already
@@ -161,7 +161,7 @@ export function isHumiditySensor(l) {
 }
 
 // ── Air quality ──────────────────────────────────────────────────────────────
-// Garry, 2026-09-14: "next device to add in lights, air quality sensors.
+// 2026-09-14: "next device to add in lights, air quality sensors.
 // When placed in a room, and in poor state, make a very faded set of bars
 // move from the bottom of the room to the top. Make it subtle but very
 // noticable. Have it start at blue, and move thru to green, same as motion
@@ -177,7 +177,7 @@ export const AIR_QUALITY_CLASSES = [
 // Two shapes of air-quality entity: a NUMERIC reading with one of the
 // classes above, or an ENUM sensor whose id/name says "air quality" and
 // whose state is a WORD — the Zigbee2MQTT convention for a device that
-// grades its own air (Garry's bathroom outlets: sensor.invisoutlet_air_quality
+// grades its own air (a real home's bathroom outlets: sensor.invisoutlet_air_quality
 // = "moderate"; "it's not picking up the outlet air quality sensors in the
 // bathrooms"). The id/name test keeps every other enum sensor (power-on
 // behaviour, modes) out.
@@ -308,7 +308,7 @@ export function healthOf(l, nowMs, inverted = false) {
   // — null means reachability is the whole question.
   const kind = deviceClassOf(l).health;
   // Motion stuck "on", or a door/window left open: the SAME stuck-state
-  // shape and the SAME threshold (Garry, 2026-09-09: "I want the lighting
+  // shape and the SAME threshold (2026-09-09: "I want the lighting
   // map to clearly show when a door or window is left open") — "left open"
   // and "stuck on" are the same real-world event, only the wording differs.
   if (kind === "stuck_on" || kind === "left_open") {

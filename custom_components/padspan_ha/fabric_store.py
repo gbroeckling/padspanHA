@@ -609,7 +609,7 @@ class FabricStore:
         out.pop("map_id", None)   # a wall is not "on" a photograph
         # Open (Loft) is no wall: saved from now on it is 0 dB, whatever an old
         # path sent (the legacy per-map list once wrote open at 6). One already
-        # stored at 6 stays until it is saved again (Garry, 2026-11-02: no heal
+        # stored at 6 stays until it is saved again (2026-11-02: no heal
         # at startup; async_stamp_barrier_rails doesn't save it either).
         if str(out.get("material") or "").strip().lower() == "open":
             out["attenuation_dbm"] = 0.0

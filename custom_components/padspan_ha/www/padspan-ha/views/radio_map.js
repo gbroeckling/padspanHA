@@ -502,7 +502,7 @@ export function isoStoreyRssiRange(storey, liveSnap, settings) {
 // The storey heat used to be a 36×36 mosaic of iso-projected quads, each filled
 // with one of 16 sparse dotted-hatch patterns rotated to a different angle per
 // bucket: ~1300 mismatched, mostly-empty textures in 16 colour steps, which is
-// what "very poor resolution" looked like (Garry, 2026-09-09). Real coverage
+// what "very poor resolution" looked like (2026-09-09). Real coverage
 // tools draw a continuous interpolated raster clipped to the plan. So: model
 // the RSSI on a finer grid, upsample it bilinearly to pixels, colour each pixel
 // from a continuous ramp, encode to PNG once, and place it as ONE <image> whose

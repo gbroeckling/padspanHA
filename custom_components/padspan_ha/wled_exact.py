@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 """
-The PadSpan join and the exact on/off for WLED (Garry, 2026-09-27: "switch
+The PadSpan join and the exact on/off for WLED (2026-09-27: "switch
 off WLED's own join/sync and use a PadSpan join where all instructions come
 from PadSpan, with in-depth memory of each device's setup, and an exact,
 durable on/off that reproduces complex 5-6 channel strings 100% every time").

@@ -3231,7 +3231,7 @@ function _settingsPresence(ctx, el){
 
 // ── Tiers/Pro onboarding wizard ─────────────────────────────────────────────
 // A dedicated walkthrough for what Free/Bright/Bright Pro/Pro each unlock and
-// how to upgrade — Garry, 2026-09-09/10: "build a wizzard too" -> scoped to
+// how to upgrade — 2026-09-09/10: "build a wizzard too" -> scoped to
 // "Bright/Pro onboarding" when asked which of the existing three guided
 // wizards (Maps setup, Calibration, the Lights builder tour) it should
 // extend. It extends none of them: Maps/Calibration embed a real tool per
@@ -4144,7 +4144,7 @@ function _atlas3dDirector(ctx, el, settings, save, row){
     "It can also fly to a person or tag you pick when they go into a room you pick (or, with no room picked, any room, or a person arriving home), with the same card and the same rules, at most once every 2 minutes each. Only people and tags Live Aboard shows (Views → Show people, Show tags & scanners) are flown to. Nobody picked: off."));
   return wrap;
 }
-/** Settings → AI (Garry, 2026-10-27: "group AI power features into a section
+/** Settings → AI (2026-10-27: "group AI power features into a section
  *  called AI"): the AI Task that reads for PadSpan, the switches for what it
  *  reads, and what is coming. An administrator's settings (ws_settings: a
  *  cloud AI sends what it reads out of the house). */
@@ -4295,7 +4295,7 @@ function _settingsAI(ctx, el){
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{"data-focus-part":"la3d",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
-  // Experimental for now (Garry, 2026-10-05: label it so in the stable release).
+  // Experimental for now (2026-10-05: label it so in the stable release).
   box.appendChild(el("div",{"data-la3d-experimental":"",style:"display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:1px 8px;margin:0 0 6px"},
     "EXPERIMENTAL — still changing; tell us what you find"));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
@@ -4584,7 +4584,7 @@ function _atlas3dSection(ctx, el, settings){
 // library's server is live (LIBRARY_SERVER_LIVE in the library's own module,
 // loaded here only then): before that, nothing of the library shows.
 /** "Last plan session: 17 items, 2026-11-05 · Undo": hidden until the server names a batch that can be undone. */
-/** The AI credit tracker (ai_usage.py, experimental, Garry 2026-11-09): this month's AI reads under
+/** The AI credit tracker (ai_usage.py, experimental, 2026-11-09): this month's AI reads under
  *  the AI Task picker. For a Claude AI Task, the estimate, "of your monthly credit" once an amount is
  *  typed in, and the warning (off until chosen); any other AI, reads only. The stops by reason. */
 function _aiUsageRow(ctx, el, save){
@@ -5104,7 +5104,7 @@ function _settingsAtlas(ctx, el){
   });
   // The ♨ Heatmap chip, normally off: with it on, the Atlas's layer bar offers
   // temperature, humidity and CO2 drawn across each room from its own sensors.
-  // PadSpan Pro's (Garry, 2026-10-22): below Pro, no row at all, and whatever
+  // PadSpan Pro's (2026-10-22): below Pro, no row at all, and whatever
   // is stored is kept for when a key comes back (as the 3D house's below).
   if (tierAtLeast(currentTier(settings), "pro")) {
   const heatRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});

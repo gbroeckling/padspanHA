@@ -3007,7 +3007,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     # another brand's Find My tag, AirPods or an Apple device (findmy.py).
     # The panel shows that in place of the plain "Find My". Nothing else Apple
     # sends names the model — the iPhone/iPad/Watch table this replaced read
-    # Nearby Info's status flags, and called one device in Garry's office an
+    # Nearby Info's status flags, and called one device in a real home's office an
     # "iPad" all night and an "iPhone" at 08:09 (2026-09-27). Display-only.
     # Runs over the FINAL lists: objects replayed from history carry whatever
     # an older build stored, so off (or not Find My) clears it.

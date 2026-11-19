@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// Live Aboard's Strip tool (docs/IDEA_ATLAS_3D_HOUSE.md; Garry, 2026-10-05:
+// Live Aboard's Strip tool (docs/IDEA_ATLAS_3D_HOUSE.md; 2026-10-05:
 // "a step farther for Sims"): where an LED strip or a string of lights really
 // goes, as plain numbers. No three.js, no page: the view's light builder
 // (live_aboard_house.js runParts), the Strip tool (live_aboard_strip.js) and

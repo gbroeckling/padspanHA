@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// What the flat Atlas on the sidebar takes from Live Aboard (Garry,
+// What the flat Atlas on the sidebar takes from Live Aboard (the owner,
 // 2026-10-05: one house, two views — "add features back and forth"):
 //
 //   people, tags  with Show people / Show tags & scanners on (the same two

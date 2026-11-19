@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """A free year of PadSpan Pro, offered to an install the developer invites.
 
-Garry, 2026-10-13: give a year of Pro to about 20 of the installs that send
+2026-10-13: give a year of Pro to about 20 of the installs that send
 the opt-in usage report, without scaring anyone off.
 
 How an invite arrives: the developer puts an install's anonymous id on a list
@@ -87,7 +87,7 @@ async def store_from_reply(hass: HomeAssistant, reply: Any) -> None:
         return
     # Delivered under the opt-in rule (0.38.181): claimed with the report on,
     # and the report stays on while the year runs. Invites delivered before
-    # carry no mark and are claimed as before (existing offers, Garry 2026-10-27).
+    # carry no mark and are claimed as before (existing offers, 2026-10-27).
     await st.async_set(**{SETTINGS_KEY: {**inv, "optin_rule": 1}})
 
 
@@ -142,7 +142,7 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
     if not public_state(st.data)["pro_invite_open"]:
         connection.send_result(msg["id"], {"ok": False, "message": "This invite has ended."})
         return
-    # A new free licence needs the usage report on (Garry, 2026-10-27): an
+    # A new free licence needs the usage report on (2026-10-27): an
     # invite delivered from 0.38.181 (optin_rule) is claimed with it on, and it
     # stays on while the year runs. One delivered before is an existing offer,
     # claimed as before.

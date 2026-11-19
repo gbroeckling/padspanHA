@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 /**
- * The Atlas WLED card's Advanced tab (Garry, 2026-09-23): "absolute best in
+ * The Atlas WLED card's Advanced tab (2026-09-23): "absolute best in
  * class gui for working on wled configuration ... every facet of WLED
  * operation and setup, as complete as the webpage, but more intuitive".
  *

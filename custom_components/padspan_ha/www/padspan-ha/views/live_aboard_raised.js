@@ -7,7 +7,7 @@
 // (a motion sensor's marker and its code on their dashed line, a tag and its
 // name on its stem) keeps clear of the words around it. "If you're going to
 // have the motion sensor or anything else on a dotted line above the actual
-// sensor, make the height adjust so it doesn't cover up other text." (Garry,
+// sensor, make the height adjust so it doesn't cover up other text." (the owner,
 // 2026-11-02)
 //
 //   when     once the camera has stopped, or what shows has changed; never

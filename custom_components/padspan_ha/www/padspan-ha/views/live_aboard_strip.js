@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// Live Aboard's Strip tool (Garry, 2026-10-05: "better height and area
+// Live Aboard's Strip tool (2026-10-05: "better height and area
 // placement for string lights ... a step farther for Sims"): Edit → Strip,
 // beside Door, Window and Heights, on the editor's own draft, so one Save
 // writes it with everything else (live_aboard_edit.js).

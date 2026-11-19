@@ -4,7 +4,7 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 /**
  * WLED workbench — Settings: the rest of WLED's own settings pages, in one
- * place and in plain words (Garry, 2026-09-23: "every facet of WLED operation
+ * place and in plain words (2026-09-23: "every facet of WLED operation
  * and setup, as complete as the webpage, but more intuitive").
  *
  * Schema-driven: each field names its config path (cfg.cpp, 0.14–16) and

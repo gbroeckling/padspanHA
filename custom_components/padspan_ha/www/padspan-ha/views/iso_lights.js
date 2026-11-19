@@ -98,7 +98,7 @@ export { roomColor };
 // photo_machinery).
 import { bestCircleWall, splitPolylineAtTwoPositions, roomEdgeForCircle, circlePolylineIntersections } from "./wall_geom.js";
 
-// ── Showcase themes (Garry, 2026-09-10: "let's build all 20") ───────────────
+// ── Showcase themes (2026-09-10: "let's build all 20") ───────────────
 // Showcase has always drawn the SAME fabric, fixtures and feature surface
 // (floor stacking, motion, door barriers, isolux, beacons, scenes) as the
 // working map — only the LIGHTING of the drawing differs. A theme narrows
@@ -165,7 +165,7 @@ export const SHOWCASE_THEMES = {
     codeChipBgOpacity: 0.68,
   },
   neo_hud: {
-    // Reworked 2026-09-16 (Garry: "make them as different as you can"). It
+    // Reworked 2026-09-16 ("make them as different as you can"). It
     // used to be a fourth dark-navy-plus-amber theme, a 0.34 similarity
     // score from Art Deco — the amber accent hid the one thing it had of
     // its own, a cyan gloss. Now it IS the cyan: the only theme whose room
@@ -365,7 +365,7 @@ export const SHOWCASE_THEMES = {
     // from Retro-Futurism, close to Art Deco too). Listing photography is
     // BRIGHT, so this is now the only gold-accent theme on a light ground —
     // ivory marble and metallic brass — and it is deliberately the SIMPLE
-    // option Garry asked for: hairline strokes, next to no glow, the lowest
+    // option the owner asked for: hairline strokes, next to no glow, the lowest
     // bloom in the set, a near-flat room fill. Hygge is the other warm light
     // theme; that one is kraft-paper tan with an orange accent and a heavy
     // fill — cosy. This is crisp.
@@ -703,7 +703,7 @@ export const SHOWCASE_THEMES = {
     codeChipBgOpacity: 0.75,
   },
   obsidian_noir: {
-    // Garry, 2026-09-10: "one of the themes need to be mostly black, that
+    // 2026-09-10: "one of the themes need to be mostly black, that
     // is missing" — every other theme still keeps a lit room fill or a
     // tinted vignette as its ground; this one goes almost to true black
     // everywhere and lets the light pools themselves be the only bright
@@ -739,7 +739,7 @@ export const SHOWCASE_THEMES = {
     codeChipBgOpacity: 0.85,
   },
   west_coast_forest: {
-    // Garry, 2026-11-02: "a forest theme ... quite dark, and looking like west
+    // 2026-11-02: "a forest theme ... quite dark, and looking like west
     // coast forest". The house in dark forest tones, warm where it is lit. The
     // flat map's outside (atlas_forest.js) is the trees: the only theme with a
     // layer of its own, drawn behind the drawing while this theme is on.
@@ -785,7 +785,7 @@ export const SHOWCASE_THEME_NAMES = Object.keys(SHOWCASE_THEMES);
 // exactly what happened here while building the 9 shape styles below,
 // caught only by comparing rendered output against the expected shapes.
 // 2026-09-17: circuit, contour, facet, sumie, stainedglass, constellation,
-// pulse, orbitring, puzzle and shatter cut on Garry's word — a side-by-side
+// pulse, orbitring, puzzle and shatter cut on the owner's word — a side-by-side
 // grid of every style at once showed they all read as "a soft blob with a
 // different border decoration", the same silhouette every time, only the
 // linework changed. Replaced with six genuinely different SILHOUETTES —
@@ -848,7 +848,7 @@ const sub=(pts)=>pts.map((p,i)=>`${i?"L":"M"}${n(p[0])},${n(p[1])}`).join(" ")+"
 // room's own half-min-dimension before calling this.
 export function offsetPolygonInward(rawPts, marginM){
   if(rawPts.length<3 || !(marginM>0)) return rawPts;
-  // Real traced rooms carry near-coincident vertices (Garry's Bedroom closes
+  // Real traced rooms carry near-coincident vertices (a real home's Bedroom closes
   // with two points 3.6cm apart) — a "wall" shorter than the margin's own
   // scale contributes nothing but a phantom edge and a corner artifact to
   // the offset, so collapse them first. The threshold rides the margin so a
@@ -917,7 +917,7 @@ export function roomHalfMinDim(pts){
 }
 
 // The perimeter shape's DEFAULT margin when nothing has been set is a fixed
-// ON-SCREEN gap, not a fixed real-world one — found live, on Garry's own
+// ON-SCREEN gap, not a fixed real-world one — found live, on a real
 // house: a flat 15cm inset landed at frame.scale=26 px/m as a 4-7px sliver,
 // visually indistinguishable from the room's own outline stroke, which is
 // the actual bug behind "doesn't follow the room boundary at all". A small
@@ -926,7 +926,7 @@ export function roomHalfMinDim(pts){
 // Only the DEFAULT works this way — an explicit margin (0 included) always
 // wins, this only supplies what nothing was asked for.
 // ...but the pixel target is itself capped at a physically plausible cove
-// offset. Uncapped it computed 0.6m for Garry's house — and 0.6m consumed
+// offset. Uncapped it computed 0.6m for a real house — and 0.6m consumed
 // 76% of his L-shaped Bedroom's 1.57m-wide lower arm, collapsing that whole
 // section of the trace into slivers at angles matching no wall ("some weird
 // square in the middle"). No real cove sits 60cm off the wall; 30cm is the
@@ -940,7 +940,7 @@ export function defaultPerimeterMarginM(frame){
   return Math.max(0.05, Math.min(DEFAULT_TRACE_MAX_M, DEFAULT_TRACE_PX / s));
 }
 
-// ── Automorph geometry: room-alignment shape morphing (Garry, 2026-09-07) ───
+// ── Automorph geometry: room-alignment shape morphing (2026-09-07) ───
 // "A switch and two sliders... morph all shapes to fit room dimensions...
 // turn the cluttered overall look... into a work of art." Slider 1 (built
 // here) grows every fixture's icon outline toward its own room's shape.
@@ -1035,7 +1035,7 @@ export function alignRingStart(pts){
 // convex-ish primitive there (circle, bar, square, triangle, diamond,
 // sconce, line) gets its own outline here, ported straight from shapeSvg's
 // own geometry so a fixture keeps its real silhouette through the morph
-// instead of losing it the instant Automorph turns on (Garry, 2026-09-17:
+// instead of losing it the instant Automorph turns on (2026-09-17:
 // "you took theme and style and did something completely different...
 // looks like I have only one base shape choice that I can play with" — v1
 // shipped 2026-09-07 covering only circle/bar/square, so the other nine
@@ -1114,7 +1114,7 @@ export function iconRingLocal(shape, r){
 
 // The morph's STARTING point should be the fixture's REAL manually-set
 // footprint, not the generic default-radius glyph iconRingLocal alone draws
-// (Garry, 2026-09-07: "the existing manual shapes are still meant to be a
+// (2026-09-07: "the existing manual shapes are still meant to be a
 // guide for the overall look, don't throw that info away"). Reuses
 // markerScale verbatim — the SAME function the real (non-automorph) glyph's
 // own `translate(hx,hy) rotate(rot) scale(sx,sy)` transform already scales
@@ -1225,7 +1225,7 @@ export function automorphRingJitter(ring, seedX, seedY, t, hardness){
   });
 }
 
-// Slider 2 (edge hardness): centered at 0 — Garry's own spec, "this slider
+// Slider 2 (edge hardness): centered at 0 — the owner's own spec, "this slider
 // starts in the center" and 0 is today's unchanged straight-edged treatment
 // either direction. Positive is handled separately, at path-build time
 // (ringPathD below), since softening needs the RAW points; every
@@ -1316,7 +1316,7 @@ export function ringPathD(ring, hardness){
 }
 
 // ── Automorph colour ────────────────────────────────────────────────────────
-// The aura's two state greys (Garry, 2026-09-07: "follow the grey shaded
+// The aura's two state greys (2026-09-07: "follow the grey shaded
 // type visual you used before" — "on" is a brighter grey, never a different
 // hue). Module consts because the SAME two values must agree in two places:
 // automorphAuraSvg's flat ink, and the shared duotone gradient defs whose
@@ -1339,7 +1339,7 @@ export function lighten(hex, pct){
   return "#"+((1<<24)|(ch(v>>16&255)<<16)|(ch(v>>8&255)<<8)|ch(v&255)).toString(16).slice(1);
 }
 
-// ── Automorph non-overlap partitioning (Garry, 2026-09-07): "you have not
+// ── Automorph non-overlap partitioning (2026-09-07): "you have not
 // built in a complex and attractive non overlap of devices visually into the
 // morph... give a thorough rethink to complete the logic of this feature".
 // Before this, every fixture in a room morphed toward the SAME target — the
@@ -1361,7 +1361,7 @@ export function lighten(hex, pct){
 // manual footprint (automorphFixtureWeight — 1 when no width_cm/height_cm is
 // recorded). The cap alone, not a hand-written N===1 branch, is what gives
 // "common sense" sizing when a fixture happens to be the ONLY one in its
-// room (Garry: "if the existing manual shape is something very small in the
+// room ("if the existing manual shape is something very small in the
 // corner, don't make the morph take up the majority of the room" — with no
 // other fixture to compete against, min-over-others is +Infinity and the cap
 // is the only thing left deciding membership, so a lone tiny fixture still
@@ -2735,11 +2735,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // door/window/lock section. Those draw with pointer-events:none (an open
   // door draws nothing at all but two 2.6px dots), so without this there is
   // literally nothing to press — the one class of device on the map that
-  // could never be held (Garry, 2026-09-19: "press and hold doesn't work
+  // could never be held (2026-09-19: "press and hold doesn't work
   // for all devices"). Opt-in so the household surface's markup is unchanged.
   const BARRIER_HIT = !!opts.barrierHit;
   const COLLAPSE  = !!opts.collapseUnplaced;
-  // Automorph (Garry, 2026-09-07): 0 disables it outright — see
+  // Automorph (2026-09-07): 0 disables it outright — see
   // automorphAuraSvg/automorphRing below, near perimeterSvg.
   const AUTOMORPH_PCT = opts.automorph ? Math.max(0, Math.min(100, Number(opts.automorphRoomPct) || 0)) : 0;
   // Slider 2 — edge hardness, centered at 0 (today's straight-edged look,
@@ -2750,7 +2750,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // the others are exploratory, kept behind this dropdown so any of them
   // can be dropped later without touching the geometry underneath.
   const AUTOMORPH_STYLE = AUTOMORPH_STYLE_NAMES.includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
-  // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you can
+  // Subtlety, 0-100 (2026-09-07: "a slider for subtlety, so you can
   // dial from objects looking full, to almost completely lost in
   // background... with shades, thinner lines"). 0 = today's opacity/line-
   // weight exactly; 100 thins every stroke to 40% width and caps every
@@ -2780,7 +2780,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const DOOR_CIRCLE_M = opts.doorCircleM && Number.isFinite(Number(opts.doorCircleM.x_m))
     && Number.isFinite(Number(opts.doorCircleM.y_m)) && Number.isFinite(Number(opts.doorCircleM.r_m))
     ? opts.doorCircleM : null;
-  // Working, proven beacons — read-only (Garry, 2026-09-09: "add working
+  // Working, proven beacons — read-only (2026-09-09: "add working
   // proven beacons to the mapping, lights section under devices. For now
   // have them look the same as they do in overview... No placement for
   // them of course"). Each is {key, label, x_m, y_m, floor_id} — the
@@ -2806,7 +2806,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // When the HA process came up (model.ha_started_at, via the host). After a
   // restart every restored motion entity's last_changed IS the boot moment,
   // which read as "just triggered": every sensor flashed for the 5-minute
-  // hold, then walked the 6-hour colour ring (Garry, 2026-09-14: "all motion
+  // hold, then walked the 6-hour colour ring (2026-09-14: "all motion
   // sensors on the light map show active, better to have all show inactive
   // til motion is sensed"). A last_changed at or before boot — plus a short
   // grace, since the restored states land a few seconds either side of the
@@ -2821,10 +2821,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const t=l.last_changed ? Date.parse(l.last_changed) : NaN;
     return t<=STARTED_MS+BOOT_GRACE_MS;
   };
-  // "if they gave the temperature in the last hour" — Garry.
+  // "if they gave the temperature in the last hour" — the owner.
   const TEMP_FRESH_MS=60*60*1000;
   // "Temp should have a slight red tinge if over or at 20 deg, blue if under
-  // 20" — Garry, 2026-09-14. Degrees as the sensor reports them (°C here).
+  // 20" — 2026-09-14. Degrees as the sensor reports them (°C here).
   // The tint rides ONLY a live readout — the same placed+fresh gate that
   // shows the digits — so a stale or unplaced sensor keeps the plain marker
   // it always had. A translucent wash over the body (the "slight tinge") and
@@ -2854,7 +2854,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // entry for one is never drawn as a freestanding marker here. The barrier
   // pass below, keyed off rf_barriers_m's own linked_entity_id, is the only
   // thing that ever marks where a door/window actually is on this map. A
-  // lock keeps its ordinary point marker (Garry, 2026-09-09: "some of the
+  // lock keeps its ordinary point marker (2026-09-09: "some of the
   // same visibility as other devices if placed") — wall-linking one is
   // additive, drawn alongside it by the barrier pass below, not instead of it.
   const lights = rawLights.filter(l => !(lightsByEid[l.eid] && lightsByEid[l.eid].isDoor));
@@ -2867,7 +2867,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // icons. The sidebar upscales this 760-unit viewBox ~2.6x to its panel, so
   // 4.8 px here is ~12 px on screen and still perfectly readable.
   const CODE_PX = Math.max(4, Math.min(11, (HEX_R * 2 * 0.866) / 1.8));
-  // "3 digit, and larger" — Garry, on the temperature readout. Clearly
+  // "3 digit, and larger" — the owner, on the temperature readout. Clearly
   // bigger than the code at any scale, not just proportionate to it.
   const TEMP_DIGIT_PX = Math.max(13, CODE_PX * 2.2);
   // The hit halo, in viewBox units: the sidebar draws this 760-unit box at
@@ -2907,7 +2907,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const slabWZ=18/FG;
 
   // Where the building actually ends on screen, not the fixed worst-case
-  // canvas BASE_H/W were allocated for (Garry, 2026-09-11: "why is there such
+  // canvas BASE_H/W were allocated for (2026-09-11: "why is there such
   // a big gap between the bottom of the map and the index, color bar"; a
   // later visual audit found the same shape of bug on X — a real slab
   // side-face polygon drawn at x=-72 while the viewBox started at x=0). S
@@ -2974,7 +2974,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // Alone, the plate's corners are in the measure already: less room around it.
   const LEGEND_Y0 = isFinite(contentMaxY) ? Math.min(BASE_H, contentMaxY + (ALONE ? 44 : 70)) : BASE_H;
   // ONE fixed row for the whole bottom strip — floor index AND the motion
-  // colour index share it (Garry, 2026-09-11: the old formula gave the
+  // colour index share it (2026-09-11: the old formula gave the
   // floor index its OWN row per floor, so a 4-storey house drew a legend
   // taller than the map itself; then "put that on the same line as the
   // motion color index bar, be more efficient with the rapidly evaporating
@@ -2986,7 +2986,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // The stack-top formula (CY - maxIsoZ*FG) is a theoretical reference point,
   // not where the topmost room's own geometry actually ends — a house whose
   // floor count/spacing puts that reference near CY leaves the formula's 50px
-  // pad thin-to-nothing (Garry, 2026-09-11: "the top of the map is cut off"),
+  // pad thin-to-nothing (2026-09-11: "the top of the map is cut off"),
   // while the room itself still reaches just as far up as ever. Same fix as
   // LEGEND_Y0 above: measure the real top edge and pad from THAT.
   // Not capped at 0 any more: a house that starts low (one storey, or a
@@ -3124,7 +3124,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   }
 
   // ── Air quality effects ───────────────────────────────────────────────────
-  // Garry, 2026-09-14: "air quality sensors. When placed in a room, and in
+  // 2026-09-14: "air quality sensors. When placed in a room, and in
   // poor state, make a very faded set of bars move from the bottom of the
   // room to the top." Which rooms get bars is decided HERE, before the defs
   // are written, because the bars clip to the room polygon and the room
@@ -3147,7 +3147,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   }
 
   // ── Flood effects ─────────────────────────────────────────────────────────
-  // Garry, 2026-09-18: "add flood sensors to the list, and just like the air
+  // 2026-09-18: "add flood sensors to the list, and just like the air
   // quality sensors, the entire [room] gets a bright red ring radiating out
   // from the center of where the sensor is placed." Same admission shape as
   // airFx above (placed, resolves to a room on its own floor, hidden markers
@@ -3326,7 +3326,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     [120*60*1000,   300],  // magenta — reached at 2h, held from there
   ];
   // Air quality rides the SAME colour steps by HOW BAD instead of how long
-  // ago (Garry: "start at blue, and move thru to green, same as motion
+  // ago ("start at blue, and move thru to green, same as motion
   // depending on how bad the air quality is"): badness just past good is
   // the motion blue, then cyan, green, yellow, orange, red, magenta at
   // hazardous — stepped, like the ring, so each band is a colour a viewer
@@ -3368,7 +3368,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   };
   // The flood ripple: a scalloped, wavy red outline — water, not a status
   // dot — that grows from the sensor's own placed point out to the room's
-  // actual edges, clipped to its polygon. Garry, 2026-09-19, live review:
+  // actual edges, clipped to its polygon. 2026-09-19, live review:
   // "it's too much like the motion sensors, make it look wavey as well so
   // it is distinct... and of course filling the room" — motion's own pulse
   // (motionRecentPulseSvg, a bit below) is a plain static circle that only
@@ -3411,7 +3411,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       `clip-path="url(#${cid})" pointer-events="none" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">`+
       `<g><animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="${spin}s" repeatCount="indefinite"/>${ripples}</g></g>`;
   };
-  // The legend strip's own stop offsets (Garry, 2026-09-08: "make sure
+  // The legend strip's own stop offsets (2026-09-08: "make sure
   // that's actually aligned with what is happening on the map" — the
   // first version spaced all colours evenly by INDEX, which does not
   // match the real fade at all: cyan's real window is 15 minutes, red's
@@ -3444,7 +3444,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   s+=`<defs>`;
   // Motion pulse gradient — UNGATED (both modes): a triggered sensor is
   // status, not presentation, and it has to read on the working map too.
-  // The motion legend strip's colour index (Garry, 2026-09-08 — first
+  // The motion legend strip's colour index (2026-09-08 — first
   // "a small line at the bottom... starting at blue, and thru the colors
   // to ending on green", then "I ask for all the colors in the shift
   // from blue to green for motion. Every color in the rainbow" — every
@@ -3506,7 +3506,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       `<stop offset="55%" stop-color="${lighten(duoBase,8)}"/>`+
       `<stop offset="100%" stop-color="${duoBase}"/></radialGradient>`;
   }
-  // Garry: "that cool look you have inside the [light glow]... can the shape
+  // The owner: "that cool look you have inside the [light glow]... can the shape
   // built by the room shape also have some of that, a bit less intense, but
   // the same shaded look" — the same near-quadratic radial falloff the light
   // pools use (see glowIds below), tinted with each room's own colour and
@@ -3629,7 +3629,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     s+=`<linearGradient id="psslab" x1="0" y1="0" x2="0" y2="1">${gradStops(THEME.slabStops)}</linearGradient>`;
     // A flat black field reads as an empty canvas; a lit one reads as a room
     // the model is standing in. This is the cheapest depth in the whole file.
-    // Garry, 2026-09-10: the classic mint-green tint here (and on psslab
+    // 2026-09-10: the classic mint-green tint here (and on psslab
     // above) was the "too bright green" complaint — every other theme
     // picks its own ambient tint instead of inheriting this one.
     s+=`<radialGradient id="psvig" cx="50%" cy="42%" r="72%">${gradStops(THEME.vignetteStops)}</radialGradient>`;
@@ -3761,7 +3761,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // unexcluded here they still competed for and won a real partition
         // cell purely by sharing a room with a real light, which then
         // suppressed their own glyph body via automorphAuraSvg's aura-
-        // painted flag below — the exact live bug Garry reported ("the
+        // painted flag below — the exact live bug the owner reported ("the
         // center not activating on motion... only some sensors"): the
         // pulse ring is a separate code path and kept firing, but the
         // glyph itself had been swapped for a transparent hit rect.
@@ -3842,7 +3842,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // In the exploded stack the next storey's plate overlaps a lower plate's
     // back edge, and a painted polygon takes the click: a marker placed
     // there (outdoor gear, just outside a room) was visible through the
-    // plate but unreachable (Garry, 2026-09-14: "all devices [placed outside
+    // plate but unreachable (2026-09-14: "all devices [placed outside
     // a room] are not selectable"). The builder's drop/tap floor lookup
     // finds a plate by geometry against its top face (data-role="slabtop"
     // below), so it needs no pointer events here. The floor badge (g.lfloor,
@@ -3867,7 +3867,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // for this floor silently inherited pointer-events:none — including
     // the floor badge, whose own comment above claimed it "keeps its own
     // tap" while actually sitting inside this exact group (2026-09-16 live
-    // finding: Garry, "objects underneath are constantly hijacking the
+    // finding: the owner, "objects underneath are constantly hijacking the
     // ability to simply turn on a light"). Every element below that truly
     // needs to be tappable already sets pointer-events="all" on itself
     // (BASE_HIT, the room-name rect, the code chip, halos) and is
@@ -3890,7 +3890,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // and a fixed gap then lands the chip inside the glyph instead of below
     // it. Callers whose marker can be scaled pass the ACTUAL half-height.
     // invisible: same pill, same tap target, no pixels — the "hide device
-    // codes" preference (Garry, 2026-09-09) must hide the TEXT, not the
+    // codes" preference (2026-09-09) must hide the TEXT, not the
     // place you tap. Without this, hiding codes silently shrank the
     // sidebar's tap target down to the glyph alone: the pill was the ONLY
     // thing here ever drawn with pointer-events enabled of its own (the
@@ -3917,7 +3917,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // any "none" set on an ancestor.
       return `<g data-role="code" style="cursor:pointer" pointer-events="${l._ghostedFloor?"none":"all"}">`+rect+text+`</g>`;
     };
-    // suppressGlyph (Garry, 2026-09-07: "why do you keep all the old non
+    // suppressGlyph (2026-09-07: "why do you keep all the old non
     // morphed stuff showing... weird choice?"): when this fixture's
     // Automorph aura is actively painting, the old glyph body stops
     // drawing — mirroring the perimeter shape's own precedent below
@@ -3967,13 +3967,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
                         && tempFreshMs>=0 && tempFreshMs<TEMP_FRESH_MS);
       const tempTint=tempLive ? TEMP_TINT[tempBandOf(Number(l.temperature))] : null;
       // Live humidity readout — same placed+fresh gate as temperature
-      // (Garry, 2026-09-15: "set it up like temperature"), no tint bands:
+      // (2026-09-15: "set it up like temperature"), no tint bands:
       // that was a temperature-specific request, not part of this one.
       const humidityFreshMs=l.isHumidity && l.last_changed ? NOW_MS-Date.parse(l.last_changed) : NaN;
       const humidityLive=!!(l.isHumidity && entry && Number.isFinite(l.humidity)
                         && humidityFreshMs>=0 && humidityFreshMs<TEMP_FRESH_MS);
       // A perimeter light's body IS its trace ("should be just the custom
-      // shape formed to the room" — Garry, then: "Keep the glow, and the
+      // shape formed to the room" — the owner, then: "Keep the glow, and the
       // click space of the square, but hide the square"). So: the Showcase
       // pool still glows (drawn from the jobs pass, untouched by this), the
       // grab target is the EXACT rounded-rect footprint the square had —
@@ -4044,7 +4044,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // rotated/stretched) silhouette. Without this, a thin or elongated
       // glyph (a "bar" fixture) is only clickable on its own painted
       // pixels, leaving real gaps around a marker that reads, at a glance,
-      // as one solid clickable object (Garry, 2026-09-13: "the center of
+      // as one solid clickable object (2026-09-13: "the center of
       // the object is selectable and hard to discern... These need to line
       // up and be visually more functional").
       // A ghosted (non-focused) floor's markers must be genuinely inert,
@@ -4077,11 +4077,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // 2026-09-17 this was ALWAYS the small HEX_R circle regardless of
         // how large or elaborate the aura painted — a real fix for a real
         // bug (a fixture's real, possibly large, physical footprint stealing
-        // a NEIGHBOUR's clicks — Garry, 2026-09-11: "I am clearly clicking
+        // a NEIGHBOUR's clicks — 2026-09-11: "I am clearly clicking
         // inside the boundary of the right light, and outside the bounds
         // of the light that actually responds") — but it traded that bug
         // for a new one: the visible shape and the clickable area stopped
-        // matching AT ALL once an aura replaced the glyph (Garry,
+        // matching AT ALL once an aura replaced the glyph (the owner,
         // 2026-09-17: "the shape shown on the screen is still not the
         // clickable area for the device"). auraHitD escapes both: it is
         // never the fixture's own raw physical size (the 2026-09-11 bug),
@@ -4131,7 +4131,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // drawn size — Math.max(sx,sy) is a safe over-estimate at any rotation
       // (same reasoning `sw` above already uses) — so a fixture given a real
       // width/height (the resize handles) doesn't swallow its own chip.
-      // Same neighbour-distance clamp haloSvg got on 2026-09-09 (Garry:
+      // Same neighbour-distance clamp haloSvg got on 2026-09-09 (the owner:
       // "some of the clickable lights also activate the light next to
       // them") — the chip is a hit target too (pointer-events="all" in
       // codeChipSvg) and was never given it, so a dense room could still
@@ -4141,11 +4141,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // past halfway to the nearest neighbour) as the halo.
       // Its real height on screen, not Math.max(sx,sy): the marker is scaled
       // then turned by its own rotation, so a 3 m strip lying flat is a thin
-      // bar and its chip sits just under it (Garry, 2026-10-14: a valance's
+      // bar and its chip sits just under it (2026-10-14: a valance's
       // code floated far down the room, away from the strip it names).
       const th=rot*Math.PI/180, tall=Math.max(1, Math.abs(sx*Math.sin(th))+Math.abs(sy*Math.cos(th)));
       const chipGap=Math.max(HEX_R, Math.min(HEX_R*tall*1.15, nearestNeighborDist/2));
-      // Garry: "devices telling the temperature can also act like a motion
+      // The owner: "devices telling the temperature can also act like a motion
       // sensor, so rule is if they gave the temperature in the last hour
       // and they are placed on the map, a shape can be chosen for that
       // temp and inside is simply the temperature, 3 digit, and larger" —
@@ -4182,7 +4182,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Same sizing formula as codeChipSvg's own invisible rect. Unlike that
       // rect, this one is new: this plain label was pointer-events="none"
       // even when shown, so no hit region ever depended on it — this is the
-      // first thing to make it tappable (Garry, 2026-09-13: "the text label
+      // first thing to make it tappable (2026-09-13: "the text label
       // is not clickable").
       const labelHit=(cx,cy,fs)=>{
         const w=String(l.code||"").length*fs*0.64+fs*0.9, h=fs*1.5;
@@ -4241,7 +4241,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     // ── Shared Automorph rendering stages ───────────────────────────────────
     // Split out of automorphAuraSvg (2026-09-08) so the perimeter trace can
-    // ride the IDENTICAL pipeline (Garry: the room-boundary shapes were left
+    // ride the IDENTICAL pipeline (the owner: the room-boundary shapes were left
     // out of "the whole morph thing... and now is a serious mismatch"): one
     // authority each for the smoothing/offset/containment maths and for the
     // jitter/hardness/path chain, so the aura and the trace can never drift
@@ -4384,7 +4384,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       return s2;
     };
 
-    // The perimeter trace in Automorph's design language (Garry, 2026-09-07:
+    // The perimeter trace in Automorph's design language (2026-09-07:
     // "why did you not include the shapes generated by room boundaries in
     // the whole morph thing? That looked bad before, and now is a serious
     // mismatch"). V1 skipped perimeter lights as redundant — right for the
@@ -4471,7 +4471,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
               edge: clipWrap(edgeCore+edgeRim)};
     };
 
-    // Automorph's rendering (Garry, 2026-09-07): a soft, neutral-grey aura
+    // Automorph's rendering (2026-09-07): a soft, neutral-grey aura
     // drawn BEHIND the ordinary icon, growing from a tight outline at the
     // fixture toward a target shape as AUTOMORPH_PCT rises. That target is
     // this fixture's own NON-OVERLAPPING CELL (cellPtsM, room-local metres,
@@ -4537,7 +4537,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // its own return {glow, edge} — stays untouched: the caller needs
       // the same `d` every style already paints from, not a per-style
       // copy, to size the fixture's own CLICK TARGET to what got drawn
-      // (Garry, 2026-09-17: "the shape shown on the screen is still not
+      // (2026-09-17: "the shape shown on the screen is still not
       // the clickable area for the device" — with the glyph suppressed in
       // favour of the aura, the click target had stayed a small fixed
       // circle at the fixture's own anchor regardless of how large the
@@ -4549,7 +4549,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // circle in the first place.
       if(hitOut) hitOut.d=d;
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
-      // Neutral, colourless shading (Garry, 2026-09-07: "all these colors
+      // Neutral, colourless shading (2026-09-07: "all these colors
       // now are doing the exact opposite of keeping the visuals clean and
       // aesthetic, the border of the rooms are already a bit much...
       // follow the grey shaded type visual you used before"). No per-room
@@ -4607,7 +4607,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // which SVG would answer by not drawing the aura at all.
       const clip=roomClip.get(room);
       const clipWrap=(m)=>(m&&clip)?`<g clip-path="url(#${clip})" pointer-events="none">${m}</g>`:m;
-      // Exploratory alternate treatments (Garry, 2026-09-07: "add a style
+      // Exploratory alternate treatments (2026-09-07: "add a style
       // pulldown to build more morph concepts... I can always remove them
       // later") — same ring/path every style paints, only HOW it's drawn
       // differs, so dropping one later never touches the geometry above.
@@ -4659,13 +4659,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `<path d="${d}" fill="${duo}" fill-opacity="${opac((on?0.26:0.17)+0.45*t+weightOffPct*0.004)}" `+
           `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`), edge:""};
       }
-      // Halo and Pulse (Garry, 2026-09-10: the first 8 candidates read as
+      // Halo and Pulse (2026-09-10: the first 8 candidates read as
       // "way too subtle" even after the opacity fix above, plus "add some
       // more ideas") — same ring/d/on/t/ink/duo contract as every style
       // above, tuned deliberately BOLDER than the original three so there is
       // no ambiguity about whether something is drawing. (A third style from
       // this batch, Chevron, and two earlier styles, Engrave and Woven, were
-      // all cut on Garry's word, 2026-09-10: "all misses.")
+      // all cut on the owner's word, 2026-09-10: "all misses.")
       if(AUTOMORPH_STYLE==="halo"){
         // Maximum-legibility treatment, on purpose: one thick near-opaque
         // ring plus a soft blurred halo behind it. No dash, no wash, no
@@ -5495,7 +5495,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // site), and its colour is ALWAYS the fixed active hue
     // (MOTION_COLOR_STOPS[0][1]) — never elapsed-shifted, whatever the
     // device class or how long it has been "on". Three things this fixes,
-    // all from Garry's own live reports:
+    // all from the owner's own live reports:
     //   0. (2026-09-05, round three) An alarm panel's PIR zone self-clears
     //      back to "off" ~5 seconds after triggering, so a flash tied to
     //      the raw state alone lasted five SECONDS there while other
@@ -5516,7 +5516,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     //      a last_changed that is also hours old, so its pulse faded all
     //      the way to the "long since quiet" colour while the room was
     //      still actively occupied — backwards for "simple occupancy
-    //      viewing" (Garry: "I need consistent behaviour regardless of the
+    //      viewing" ("I need consistent behaviour regardless of the
     //      sensor type"). Triggered now always means the same thing, on
     //      sight, for every sensor class: something is happening HERE,
     //      RIGHT NOW. The elapsed clock still runs, but only once a sensor
@@ -5525,7 +5525,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     //      the same place (last_changed, the moment it went quiet).
     // Both lie on the floor, as a light's pool does (its 0.577): squashed
     // about the marker, the stroke kept even. Upright, they read as bubbles
-    // standing over the plan (Garry, 2026-10-14: "look ridiculous").
+    // standing over the plan (2026-10-14: "look ridiculous").
     const onFloor=(hx,hy)=>`transform="translate(${hx.toFixed(1)},${hy.toFixed(1)}) scale(1,0.577) translate(${(-hx).toFixed(1)},${(-hy).toFixed(1)})"`;
     const motionPulseSvg=(hx,hy,eid,degSweep)=>{
       const r0=HEX_R*1.15;
@@ -5544,7 +5544,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // genuinely "on", or within the hold window of its last transition.
     // Every element that lights up for activity — the marker ICON's lit
     // body and the flashing pulse beneath it — must go through this, or
-    // they drift apart: round four (Garry) was exactly that, "the blue
+    // they drift apart: round four (the owner) was exactly that, "the blue
     // solid flash for the motion icon still goes out ... The ring might
     // be OK, but not the icon" — the pulse had the hold window, the icon
     // was still keyed to the raw 5-second hardware hold.
@@ -5674,7 +5674,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const stacks=[];
     // Everything from a room's own NAME onward (label, provisional pile,
     // unplaced count) is deferred the same way, into its own pass run only
-    // after every room's polygon on this floor is drawn (Garry, 2026-09-07:
+    // after every room's polygon on this floor is drawn (2026-09-07:
     // a name near a shared wall was landing under a NEIGHBOURING room's
     // boundary whenever that room happened to iterate later — this was
     // arbitrary array order, not geometry, so it read as "sometimes on top,
@@ -5700,7 +5700,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const [ccx,ccy]=iso(cx,cy,z);
       // The name sits toward the room's TOP, not its centroid — fixtures
       // cluster around the middle, so a centred name had a marker punched
-      // through it in almost every room ("Garry's Office" with a hex over
+      // through it in almost every room ("Alex's Office" with a hex over
       // the "y's"). But the room is drawn as an ISOMETRIC DIAMOND, not a
       // rectangle: its topmost screen point is a single CORNER, not a wide
       // edge, so "centroid x, topmost y" put the label above that corner's
@@ -5720,13 +5720,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       let liy=ccy+(topIx[1]-ccy)*blendFrac;
       // The label's own rendered footprint, computed here (not down by the
       // <text> itself) because the collision check below needs it.
-      // Trimmed ~10% (Garry, 2026-09-07: room names were "too much space" —
+      // Trimmed ~10% (2026-09-07: room names were "too much space" —
       // shrink-to-fit below only ever shrinks further from here, never grows).
       const rfsBase=(SHOW?5.9:6.7)*LS;
       const rtxt=SHOW?String(r.room).toUpperCase():String(r.room);
       // Shrink to fit the room's own isometric width — a fixed size read
       // fine in an average room but visibly overflowed a small one, live on
-      // Garry's house: "PowderRoom" drew 61.5px wide inside a room only
+      // a real house: "PowderRoom" drew 61.5px wide inside a room only
       // 48px wide. Only ever shrinks, never grows past the base size for a
       // room with room to spare — a small gap (FIT_MARGIN) to the room's
       // own edges keeps the label from touching them exactly, and MIN_RFS
@@ -5747,7 +5747,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // flat constant — a short name like "Den" and "SpareBedroomBath" occupy
       // very different horizontal spans, and a fixed window sized for a short
       // name lets a marker sit just outside it while still under the text of
-      // a long one. That was live on Garry's own house: "SPAREBEDROOMBATH"
+      // a long one. That was live on a real house: "SPAREBEDROOMBATH"
       // (16 characters, ~46px half-width in Showcase) against a flat ±34px
       // window left its M08 marker checked as "not near" while visibly
       // drawn through the name.
@@ -5755,7 +5755,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // A temperature readout is a fixture whose FOOTPRINT is its digits
         // (TEMP_DIGIT_PX bold monospace, centred on the marker — see
         // markerSvg), not a marker-sized dot, so its window is the digits'
-        // own half-size on top of the plain ±9px band. Live on Garry's
+        // own half-size on top of the plain ±9px band. Live on a real
         // house (2026-09-12 audit): a "20" drawn straight through PANTRY,
         // sitting just outside the band a plain marker would have tripped.
         const near=(ly)=>hereLights.some(l=>{
@@ -5828,7 +5828,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             `<rect x="${(lix-rw/2).toFixed(1)}" y="${(liy-rh/2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" `+
             `rx="3" fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/>`;
         }
-        // Lighter and smaller than before (Garry, 2026-09-07: "takes up too
+        // Lighter and smaller than before (2026-09-07: "takes up too
         // much space" and needs to stay "somewhat transparent" over whatever
         // it crosses) — a thinner halo and a lower opacity so a marker or
         // boundary line underneath still reads through it.
@@ -5913,12 +5913,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // only a LINKED section — an ordinary rf_barriers_m wall stays
     // Rooms-tab-only; this is narrowly the open/closed (or locked/unlocked)
     // indicator the whole feature is for (docs/IDEA_DOOR_WINDOW_BARRIERS.md,
-    // step 5; Garry, 2026-09-08: "I want the lighting map to clearly show
+    // step 5; 2026-09-08: "I want the lighting map to clearly show
     // when a door or window is left open"; 2026-09-09, extended to locks:
     // "use the same logic as the open door to build a break in the wall
     // that has the lock").
     {
-      // Garry, 2026-09-10: "any setting should not negate a door showing up
+      // 2026-09-10: "any setting should not negate a door showing up
       // properly" — a layer-chip filter (Lights/Strips/Fans/Motion) used to
       // dim a door/window/lock wall to 22% opacity when some OTHER class was
       // selected. Its open/closed (or locked/unlocked) state is load-bearing
@@ -5936,7 +5936,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const floorBars = ((model && model.rf_barriers_m) || [])
           .filter(b => String(b.floor_id||"main")===dcFid);
         circleMatch = bestCircleWall(floorBars, DOOR_CIRCLE_M.x_m, DOOR_CIRCLE_M.y_m, DOOR_CIRCLE_M.r_m);
-        // No RF Barrier straddles it — a room's own edge might (Garry,
+        // No RF Barrier straddles it — a room's own edge might (the owner,
         // 2026-09-10: "I draw the circle, it is visually perfect over the
         // wall I need the door in"). Synthesized as the SAME {bar, hits}
         // shape a real match has, purely so the drawing code below needs no
@@ -6035,7 +6035,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         return g+`</g>`;
       }
       for(const bar of ((model && model.rf_barriers_m) || [])){
-        // Garry, 2026-09-10: "any setting should not negate a door showing
+        // 2026-09-10: "any setting should not negate a door showing
         // up properly" — a linked wall is never gated by hiddenEids (the
         // "hide this fixture" / "hide untouched" declutter filters). Those
         // exist to declutter ordinary placeable lights; a door/window/lock's
@@ -6078,7 +6078,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           // bar.invert_state flips the reading for just that one barrier.
           // A cover (blinds, a garage door) is open while any of it is.
           const isOpen=openingOpen(dl, bar.invert_state);
-          // Garry, 2026-09-10 (repeated, emphatically): "the doors when
+          // 2026-09-10 (repeated, emphatically): "the doors when
           // open show a grey line where the door is, I want nothing
           // there." A prior pass drew a dashed DOOR_BORDER line for the
           // open state instead of a true gap — replaced with nothing at
@@ -6088,7 +6088,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             s+=`<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
               `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
           } else {
-            // Garry, 2026-10-05: "in atlas, you never got the door looking
+            // 2026-10-05: "in atlas, you never got the door looking
             // like it's open, fix in sim style". The gap stays clear (no
             // line where the door is); its leaf stands swung open beside it.
             s+=doorLeafSvg(bar, bpts, z, "open", dl, barDim);
@@ -6104,7 +6104,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           }
         }
         // The two points where this opening meets the rest of the wall it
-        // was split from — Garry, 2026-09-08: "a small purple dot showing on
+        // was split from — 2026-09-08: "a small purple dot showing on
         // the two sides where the opening starts and ends", in BOTH states
         // (it marks WHERE the door is, not whether it's open). #9333ea is
         // deliberately not maps.js's _MAT_COLORS.custom purple (#a855f7) —
@@ -6140,7 +6140,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         }
       }
       // The wall the circle currently straddles, drawn WITH A GAP over the
-      // part inside the circle — Garry, 2026-09-09: "make sure when the
+      // part inside the circle — 2026-09-09: "make sure when the
       // circle is visible, the room line in the circle is gone, so the user
       // understands what is going on". Cyan, so it reads as "armed and
       // matched", not an ordinary (grey) or linked (white/DOOR_BORDER) wall.
@@ -6188,7 +6188,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         : `<polyline points="${pp}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" opacity="${op}" pointer-events="none"/>`;
     }
     // ── Beacons: read-only, no click handler, never a device to place —
-    // Garry, 2026-09-09: "add working proven beacons to the mapping, lights
+    // 2026-09-09: "add working proven beacons to the mapping, lights
     // section under devices. For now have them look the same as they do in
     // overview... No placement for them of course." Overview's own beacon
     // system (away/present states, trails, outside-tethering, persistent
@@ -6203,7 +6203,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(typeof b.x_m!=="number" || !Number.isFinite(b.x_m) || typeof b.y_m!=="number" || !Number.isFinite(b.y_m)) continue;
       if(frame.levelOf(String(b.floor_id||"main"))!==z) continue;
       const [bx,by]=iso(b.x_m, b.y_m, z);
-      // Traceback's Full house activity (Garry, 2026-09-23: "same beacon
+      // Traceback's Full house activity (2026-09-23: "same beacon
       // style, but full activity display") hands each beacon its playback
       // colour, recent trail and room: draw Traceback's own marker, not the
       // read-only teal dot the live Atlas uses.
@@ -6245,7 +6245,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // A tag lent to a guest (maps.js sets guest): an amber ring around it.
       if(b.guest) s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="8" fill="none" `+
         `stroke="#fbbf24" stroke-width="1.5" opacity="0.9" pointer-events="none"/>`;
-      // "Hide codes" also covers beacon names (Garry, 2026-09-09: "when txt
+      // "Hide codes" also covers beacon names (2026-09-09: "when txt
       // is turned off, should include beacons text") — one declutter switch,
       // not two separate label toggles to remember.
       if(b.label && !HIDECODES){
@@ -6525,7 +6525,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // a radar unit holds for as long as someone is present. Tying the
       // flash to the raw flag alone meant the alarm zones flashed for five
       // SECONDS while other sensors flashed for minutes, for the identical
-      // real-world event (Garry: "Make them all behave the same way").
+      // real-world event ("Make them all behave the same way").
       // Because last_changed also resets on the on→off transition, a
       // short-hold sensor's off-flip lands within seconds of the trigger
       // itself, so "within the hold window of the last transition" gives
@@ -6542,7 +6542,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // one isolated marker, but two markers placed closer together than
     // 2×HALO_R apart get OVERLAPPING invisible discs, so a tap that looks
     // like it lands on marker B's own visible shape can still fall inside
-    // marker A's halo and fire A instead. Garry, 2026-09-09: "some of the
+    // marker A's halo and fire A instead. 2026-09-09: "some of the
     // clickable lights also activate the light next to them when the shape
     // implies that should not happen." Each halo is capped at half the
     // screen distance to its nearest neighbour on this floor — never below
@@ -6574,7 +6574,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // one isolated marker, but two markers placed closer together than
     // 2×HALO_R apart get OVERLAPPING invisible discs, so a tap that looks
     // like it lands on marker B's own visible shape can still fall inside
-    // marker A's halo and fire A instead. Garry, 2026-09-09: "some of the
+    // marker A's halo and fire A instead. 2026-09-09: "some of the
     // clickable lights also activate the light next to them when the shape
     // implies that should not happen." Each halo is capped at half the
     // screen distance to its nearest neighbour on this floor — never below
@@ -6622,7 +6622,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // interactive element here is rebuilt fresh each time.
   if(opts.dropMarker){
     const dx=W-40, dy=LEGEND_Y0-40;
-    // Flashes (Garry, 2026-09-07): a static pin in a corner is easy to select
+    // Flashes (2026-09-07): a static pin in a corner is easy to select
     // a light and then never notice — the outer ring breathes to draw the eye
     // there for as long as something is actually armed and waiting for a tap.
     s+=`<g class="ldropmarker" data-role="dropmarker" style="cursor:grab" pointer-events="all">`+
@@ -6637,7 +6637,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       `</g>`;
   }
 
-  // Floor index + motion colour index — ONE shared line (Garry, 2026-09-11,
+  // Floor index + motion colour index — ONE shared line (2026-09-11,
   // in two steps: first "why on earth is the floor index taking up massive
   // space... make it 1/8 the size, and only one line" collapsed one row
   // PER FLOOR down to one row; then "put that on the same line as the
@@ -6662,7 +6662,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       s+=`<text x="${lx}" y="${ly+3}" fill="${color}" font-size="${FS}" font-weight="500">${escSVG(label)}</text>`;
       lx+=Math.max(24, label.length*FS*0.6)+18+R;
     });
-    // Motion and air share ONE key (Garry, 2026-09-29: "why are motion and
+    // Motion and air share ONE key (2026-09-29: "why are motion and
     // air two seperate ledgens? merge them into one", "make the font size
     // smaller so they don't blend with the floor names"): the same hues in
     // the same order — blue to magenta, how long ago for motion, how bad

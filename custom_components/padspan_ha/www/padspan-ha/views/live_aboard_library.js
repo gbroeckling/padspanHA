@@ -32,8 +32,8 @@
 // only be stricter than the server, never looser.
 
 // ── The terms ────────────────────────────────────────────────────────────────
-// In force since 2026-10-04: Garry put the library live without the lawyer's
-// review the plan had asked for ("I make no money from this, fix it"). (Garry's choice 5: a licence to PadSpan only, not CC0, sharers keep
+// In force since 2026-10-04: the owner put the library live without the lawyer's
+// review the plan had asked for ("I make no money from this, fix it"). (the owner's choice 5: a licence to PadSpan only, not CC0, sharers keep
 // their rights; choice 6: needed to share furniture, not to browse). Raising
 // TERMS_VERSION (here and in house3d_library.py) asks everyone again before
 // their next share.

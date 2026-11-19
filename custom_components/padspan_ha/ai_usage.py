@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """How much AI PadSpan uses: the AI credit tracker (experimental, 2026-11).
 
-Garry, 2026-11-09: track this integration's Claude use against the monthly
+2026-11-09: track this integration's Claude use against the monthly
 credit of the plan Home Assistant's key runs on. Design: PadspanResearch
 plan-build-design-2026-11.md, section 9 (the tracker), 10 (the opt-in report)
 and 14 (stall watch: every read that failed or was refused has a named reason).
@@ -74,7 +74,7 @@ STOP_WORDS: dict[str, str] = {
     "no_media": "the media folder couldn't take the picture",
     "error": "another error",
 }
-# The Anthropic error a key with no credit gives (Garry's, 2026-11-09: "Your
+# The Anthropic error a key with no credit gives (the owner's, 2026-11-09: "Your
 # credit balance is too low to access the Anthropic API").
 CREDIT_WORDS = re.compile(r"credit balance|out of credit|insufficient credit|purchase credits", re.I)
 # Home Assistant's Anthropic integration (2026.6+; read in 2026.7.4's entity.py,
@@ -100,7 +100,7 @@ MAKERS: tuple[str, ...] = ("claude", "openai", "google", "ollama", "other")
 _MAKER_OF_PLATFORM = {"anthropic": "claude", "openai_conversation": "openai", "azure_openai_conversation": "openai",
                       "google_generative_ai_conversation": "google", "ollama": "ollama"}
 # The warning (Settings → AI): off, or one notice a month when the estimate
-# passes this share of the monthly credit typed in. Off until chosen (Garry, 2026-11-09).
+# passes this share of the monthly credit typed in. Off until chosen (2026-11-09).
 WARN_PCTS: tuple[int, ...] = (50, 75, 90)
 CREDIT_MAX_USD = 100000.0
 
@@ -121,12 +121,12 @@ HA_OVERHEAD_TOKENS = 300
 OUTPUT_TOKENS = 400
 # CALIBRATION: the Console's dollars ÷ this estimate, for the same reads. 1.0
 # is the token math alone: no Console figure has been read yet. THE ONE PLACE
-# TO ADJUST once Garry reads the Console's figure for 2026-11-09 (the 175-read
+# TO ADJUST once the owner reads the Console's figure for 2026-11-09 (the 175-read
 # Claude Opus 5.5 run, ~100 KB pictures, thinking low, and a few tiny checks)
 # for the key Home Assistant uses: CALIBRATION = that figure ÷ this
 # estimate for the same day, kept within CALIBRATION_RANGE.
 # 2026-11-10: the Console came in about 17 % under this estimate for the
-# reads up to then; Garry keeps 1.0 on purpose, as a buffer.
+# reads up to then; the owner keeps 1.0 on purpose, as a buffer.
 CALIBRATION = 1.0
 CALIBRATION_RANGE = (0.2, 5.0)
 

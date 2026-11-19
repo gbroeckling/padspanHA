@@ -21,7 +21,7 @@ WHAT A LINK NEEDS (all of it)
   * the address is one a radio calls random, or is rotating-shaped. One a radio
     calls public never takes part.
 
-Measured on Garry's house, 2026-11-02: five days of saved snapshots replayed, with
+Measured on a real house, 2026-11-02: five days of saved snapshots replayed, with
 every rotating address treated as someone's device and the name and payload
 hidden, so devices of one maker and kind had only the moment and the place to tell
 them apart. Identity came from what the rule never reads (an iBeacon id, a payload
@@ -42,7 +42,7 @@ on the new address's row, "This looks like <label>: same device?"
          it is the only one of its maker and kind.
 Yes makes that one link the person's. No is remembered for that address, and
 there are no more questions about that device for a week; only a link on clear
-evidence still lands. Otherwise a device gets at most one question a day: Garry,
+evidence still lands. Otherwise a device gets at most one question a day: the owner,
 by form, 2026-11-03, after a device rotating every 15 minutes was asked 95 times.
 
 WHAT A LINK TOUCHES

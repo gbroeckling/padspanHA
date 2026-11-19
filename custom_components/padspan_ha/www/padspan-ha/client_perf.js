@@ -5,7 +5,7 @@
 //
 // What a screen running PadSpan can do, for the opt-in usage report.
 //
-// Garry, 2026-10-05: whether a low-memory machine has to give up the Atlas or
+// 2026-10-05: whether a low-memory machine has to give up the Atlas or
 // the 3D house "must be clear before anyone pays for pro", and the minimum
 // requirements need the screen's half too — the Home Assistant machine's
 // numbers (perf_sampler.py) cannot say whether the tablet on the wall keeps

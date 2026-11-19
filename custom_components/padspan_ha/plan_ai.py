@@ -1781,7 +1781,7 @@ def last_batch(store: PlanAiStore, sid: str | None = None) -> dict[str, Any] | N
 
 # ── The numbers that can stop or hold it back, in one block (design 14) ─────
 # Each was chosen for the reason beside it; the stall counters can move them,
-# and a change goes to Garry by form first.
+# and a change goes to the owner by form first.
 S1_BUDGET_S = 600            # one session's reads, all told (design 8)
 S1_READ_S = 90               # one read (design 8; the worst of 175 reads through HA was 19.9 s)
 S1_HELP_MAX = 3              # questions a floor (design 3.5); past it a plan is left out
@@ -2442,7 +2442,7 @@ class LocalSteps:
             if near:
                 d["near"] = True
             seg_m = [G.parse_length(c) for c in segs]
-            # A chain of three or more: two segments have one inner tick, matched by chance too easily (Garry's main floor, 2026-11-09).
+            # A chain of three or more: two segments have one inner tick, matched by chance too easily (a real home's main floor, 2026-11-09).
             todo.append((d, m, seg_m if len(seg_m) >= 3 and all(v is not None for v in seg_m) else []))
         # Chains first: a chain's ticks are found by its own segments. A single
         # line's ends sit among wall faces drawn double, so its ticks are picked
@@ -3361,7 +3361,7 @@ def lineup_public(sess: dict[str, Any] | None, sid: str | None) -> dict[str, Any
 
 def stall_summary(store: PlanAiStore) -> dict[str, Any]:
     """This house's stops, this month and over the months kept (design 14:
-    shown to Garry in the house, not only in the report)."""
+    shown to the owner in the house, not only in the report)."""
     stall = store.data.get("stall") or {}
     month = stall.get(_month()) or {}
     total: dict[str, int] = {}
@@ -3485,7 +3485,7 @@ S2_WIDTH_M = {"door": 0.8, "doorway": 0.9, "window": 1.2}     # the read gives o
 S2_MIN_M = {"door": 0.6, "doorway": 0.6, "window": 0.3}       # house3d_store's DOOR_MIN_M and WINDOW_MIN_M
 S2_DOOR_HEAD_M, S2_WINDOW_SILL_M, S2_WINDOW_HEAD_M = 2.03, 0.9, 2.1   # the 3D editor's defaults (live_aboard_draft.js)
 S2_GATE_SPOTS = 10           # under this many labelled spots on the floor its score is shown "too few to judge"
-S2_SIMPLIFY_M = 0.05         # a saved outline keeps the corners a person would draw: none moves more than this (Garry, 2026-11-10)
+S2_SIMPLIFY_M = 0.05         # a saved outline keeps the corners a person would draw: none moves more than this (2026-11-10)
 S2_NAME_MAX = 40             # a new room's name, at most
 MAX_ROOM_SESSIONS = 10       # sessions kept
 S2_DOOR_TYPES = {"sliding": "sliding", "pocket": "pocket", "bifold": "bifold"}   # the read's kind kept as the door's type
@@ -3596,7 +3596,7 @@ def parse_rooms_read(answer: Any, w: int, h: int, k: float = 1.0) -> dict[str, A
 
 def rooms_ready(store: PlanAiStore, snap: dict, floor_id: str) -> dict[str, Any]:
     """Which plans of a floor can be read for rooms, and what the line-up says
-    of them (design 5; Garry, 2026-11-10: the line-up is a note, not a
+    of them (design 5; 2026-11-10: the line-up is a note, not a
     block). Every plan with a placement in metres on the floor is read where
     it sits now; the only refusal is a floor with none (not_placed). The
     floor's newest line-up gives a note: none run, still open (questions), or
@@ -3870,7 +3870,7 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
         ready = ((agree is not None and agree >= S2_AGREE) or bool(third and third["decided"])) and pieces <= 1
         rooms[n] = {"id": f"room:{n}", "room": n, "now_m": now, "reads_m": outs, "parts": names, "agree": agree, "third": third,
                     # Parts that didn't join: the outline is only the largest of them, not what was read (dry run, Entry): not ready,
-                    # offered unticked with the reason (Garry, 2026-11-10); the person can merge, tick or leave it.
+                    # offered unticked with the reason (2026-11-10); the person can merge, tick or leave it.
                     "ready": ready, "pick": pick + 1, "picked_by": picked_by, "spots": spots + [len(mine)],
                     "spots_read3": spots_all[S2_READS] if nr > S2_READS else None,
                     "plans": sorted({sess["plans"][f["plan"]]["map_id"] for k in range(S2_READS) for f in parts[k][n]}),
@@ -3945,7 +3945,7 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
             s["new"] = nm
 
     # Each room's outline, how far it is from the person's (said, never a flag: where the two reads agree the
-    # reading is trusted over the outline he drew; Garry, 2026-11-10: "My kitchen open edge is wrong, trust the
+    # reading is trusted over the outline he drew; 2026-11-10: "My kitchen open edge is wrong, trust the
     # ai results on this one"), what it does to the calibration spots.
     for n, r in rooms.items():
         r["outline_m"] = G.simplify(r.pop("base_m"), S2_SIMPLIFY_M)
@@ -3955,9 +3955,9 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
         leave = [str(p.get("id")) for p in mine if G.inside(float(p["x_m"]), float(p["y_m"]), r["now_m"])
                  and not G.inside(float(p["x_m"]), float(p["y_m"]), r["outline_m"])]
         r["cal"] = {"labelled": len(mine), "leave": leave[:50], "leaving": len(leave)}
-        if leave:                                    # information and a choice (keep mine, use Claude's), never a refusal (Garry, 2026-11-10)
+        if leave:                                    # information and a choice (keep mine, use Claude's), never a refusal (2026-11-10)
             r["flags"].append("spots_out")
-        # Ticked by default (Garry, by form, 2026-11-10): a room the reads agree on, or one of his grown by a merge; not one
+        # Ticked by default (by form, 2026-11-10): a room the reads agree on, or one of his grown by a merge; not one
         # whose reads still differ (three_differ too), not one whose parts don't join, and not one that would push half or
         # more of its labelled spots out (Keep mine first, the count said).
         r["cal"]["most"] = bool(leave) and 2 * len(leave) >= len(mine)
@@ -4007,7 +4007,7 @@ def rooms_proposal(sess: dict, snap: dict, house: dict | None, points: list[dict
             item["rooms"] = [(w[5:] if w.startswith("room:") else spaces[w]["name"]) for w in sn["room"]]
             item["existing"] = _near_existing({"cls": f["cls"], "at": sn["at"]}, have)
         # One already in the 3D house within S2_SAME_M: a correction of it (moved or resized to the read one), offered
-        # unticked, as a correction of a stair the person placed is (Garry, 2026-11-10); never a second one, never a
+        # unticked, as a correction of a stair the person placed is (2026-11-10); never a second one, never a
         # delete. One drawn on the map as a barrier is a signal wall, which this tool doesn't write: left as it is.
         ex = item["existing"]
         item["relation"] = "new" if ex is None else "correction" if ex["what"] == "opening" else "already_there"
@@ -4081,7 +4081,7 @@ def rooms_gate(points: list[dict], floor_id: str, rooms_now: dict[str, dict], ou
     """The room score on the floor's calibration spots, now and with these
     outlines: the share of the spots labelled with a room that lie inside
     it (the 2026-11-10 test's measure: 98 % with his outlines, 97 % with
-    Claude's). Information for the floor, never a refusal (Garry,
+    Claude's). Information for the floor, never a refusal (the owner,
     2026-11-10: each room says what it does to its own spots, and the person
     chooses); under S2_GATE_SPOTS labelled spots it is "too few to judge".
     The held-out k-NN score (heldout.evaluate, this floor's spots) is shown

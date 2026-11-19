@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """Guest tags (0.38.178): a tag lent to a guest, and the stay it is lent for.
 
-Garry, 2026-10-26: "build an option to have a tag used as a track guest in
+2026-10-26: "build an option to have a tag used as a track guest in
 house tag, with all the tools that would go with it." Off until it is chosen
 in Settings (guest_tags_enabled): with it off nothing here runs, no file is
 written and the presence poll does not call in.

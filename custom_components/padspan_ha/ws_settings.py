@@ -102,7 +102,7 @@ def _sanitize_light_shapes(raw: Any) -> dict[str, str]:
     }
 
 
-# West Coast Forest as the first look where a home stands among forests (Garry,
+# West Coast Forest as the first look where a home stands among forests (the owner,
 # 2026-11-03): only the first time Showcase goes on, never over a look someone has.
 _FOREST_COUNTRIES = frozenset({"DE", "AT", "CH", "SE", "FI", "NO", "EE", "LV", "SI"})
 
@@ -314,7 +314,7 @@ def _weather_strength(value: Any) -> float:
 
 
 def _sanitize_showcase_presets(presets_in: Any) -> list[dict[str, Any]]:
-    """Named snapshots of the whole Showcase "look" bundle — Garry: "we now
+    """Named snapshots of the whole Showcase "look" bundle — the owner: "we now
     have thousands of combinations in the mapping, lights setup, we need to
     build a preset system." Each entry's `values` uses the SAME real
     setting keys the live setters above already validate individually, so
@@ -356,7 +356,7 @@ def _sanitize_showcase_presets(presets_in: Any) -> list[dict[str, Any]]:
                 "lights_automorph_style": _normalize_automorph_style(vals.get("lights_automorph_style")),
                 "lights_automorph_subtlety": max(0, min(100, int(vals.get("lights_automorph_subtlety") or 0))),
             }
-            # Layout & view — Floor focus / Spacing / L-R (Garry, 2026-09-12:
+            # Layout & view — Floor focus / Spacing / L-R (2026-09-12:
             # "include more elements into this feature"). OPTIONAL, kept only
             # when the preset carries them: a look saved before these existed
             # must keep applying as a pure look, never snap the camera to a
@@ -376,7 +376,7 @@ def _sanitize_showcase_presets(presets_in: Any) -> list[dict[str, Any]]:
     return presets_out
 
 # ── Whole House Presets ──────────────────────────────────────────────────────
-# Garry, 2026-09-21: "a pull down like presets, but call whole house presets.
+# 2026-09-21: "a pull down like presets, but call whole house presets.
 # There will be a set, and a name on it. It will remember every setting in
 # the house when set is hit, and bring all settings back when selected."
 #
@@ -1086,7 +1086,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "traceback_house_focus" in msg:
             payload["traceback_house_focus"] = max(0, min(64, int(msg["traceback_house_focus"])))
         _vac_event, _vac_who, _vac_now = "", {}, 0.0
-        # Where each weekday's routine comes from (Garry, 2026-10-31): read
+        # Where each weekday's routine comes from (2026-10-31): read
         # when Vacation Mode is turned on, never mid-trip. Admin-only like
         # the other options; checked here so a turn-on in the same message
         # uses it.
@@ -1240,7 +1240,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # rather than run a pump), so — unlike light_type_overrides'
             # closed vocabulary of forced CLASSES — this is a closed
             # vocabulary of DOMAINS only, and membership itself is the
-            # entire signal: Garry, 2026-09-22, confirming two real
+            # entire signal: 2026-09-22, confirming two real
             # garage-door relays as the motivating case ("Upper Garage Car
             # Door"/"Upper Garage Truck Door", switch.* with no
             # device_class of their own to test against). script. joined

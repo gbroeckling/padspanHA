@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """Become a tester — the one PadSpan channel that carries contact details.
 
-Garry, 2026-09-28: "add in a become tester option once someone has chosen the
+2026-09-28: "add in a become tester option once someone has chosen the
 opt-in field. Have them fill in info I might need to make it work if they
 want to become a tester. Think on this one so it doesn't break any rules or
 cause issues."
@@ -436,7 +436,7 @@ async def status(hass: HomeAssistant) -> dict[str, Any]:
 
 
 def _gate(hass: HomeAssistant, rec: dict[str, Any]) -> str:
-    """A NEW sign-up is offered only while the usage report is on (Garry:
+    """A NEW sign-up is offered only while the usage report is on (the owner:
     "once someone has chosen the opt-in"). An update and a withdrawal are
     always allowed."""
     from .telemetry import enabled  # noqa: PLC0415

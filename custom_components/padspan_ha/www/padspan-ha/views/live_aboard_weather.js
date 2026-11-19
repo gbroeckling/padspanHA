@@ -11,7 +11,7 @@
 // roof, and never drawn over the house on screen, not even a drop that falls
 // outside it in front of a sofa or a wall (as the flat Atlas keeps its rain
 // off the floors). Rain is thin short streaks falling fast, slanted a
-// little along their fall, never a dot (Garry, 2026-11-06: "rain falls to
+// little along their fall, never a dot (2026-11-06: "rain falls to
 // slowly … looks a lot like snow"): light rain on an 8° wind; heavy rain
 // denser and faster still, on 17°, with splashes on the ground; light snow
 // slow flakes swaying gently; heavy snow denser, and on a
@@ -518,7 +518,7 @@ export function createWeather(THREE, host){
   // none of it is, as the flat Atlas's rain never crosses a floor plate.
   // Marked whatever stands in front of a floor: marking only the floor that
   // showed let a drop falling outside, in front of the house, be drawn over
-  // a sofa or a wall, rain on the rooms (Garry, 2026-10-14). Drawn after the
+  // a sofa or a wall, rain on the rooms (2026-10-14). Drawn after the
   // house, before the weather. As the house is drawn (the view's shell(), on
   // each frame): with the roof on nothing is marked, since rain falls in
   // front of a roof; with every wall down, only as high as what still stands

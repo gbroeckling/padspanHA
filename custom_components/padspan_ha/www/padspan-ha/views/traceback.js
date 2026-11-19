@@ -18,7 +18,7 @@ const { mapXform, fabricWorldRooms, worldGauge, metresToWorld } =
 const { mergeObjectLayer } =
   await import(`./iso_motion.js${new URL(import.meta.url).search}`);
 // Insights and Busy Times read the same TracebackStore history this tab plays
-// back, so they live here as modes instead of as tabs of their own (Garry,
+// back, so they live here as modes instead of as tabs of their own (the owner,
 // 2026-09-23). Each keeps its own module and cache; this tab only mounts it.
 const insightsView =
   await import(`./insights.js${new URL(import.meta.url).search}`);
@@ -276,7 +276,7 @@ export function render(ctx) {
   // PadSpan Pro specifically — below Pro the switch is not offered at all.
   const _houseOK = tierAtLeast(currentTier(ctx.state.settings), "pro");
   const _houseActive = () => _houseOK && tb.house.on && tb.mode === "playback";
-  // Full house activity has two modes (Garry, 2026-09-24: "split it in two,
+  // Full house activity has two modes (2026-09-24: "split it in two,
   // devices, and no devices"): the Atlas map with the tracked beacons — or,
   // with 💡 Devices on, every device the Atlas shows played back through its
   // state over the chosen period.

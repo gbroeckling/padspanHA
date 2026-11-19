@@ -1792,7 +1792,7 @@ function _modelTab(ctx, el, cs, calData) {
     });
     actCard.appendChild(expBtn);
 
-    // Import — the counterpart Export JSON never had (Garry, 2026-09-10:
+    // Import — the counterpart Export JSON never had (2026-09-10:
     // "do 2-10" -> #10). Mirrors Maps' own "Backup All Maps (JSON)" /
     // "Restore from Backup" round-trip (maps.js's Export tab), but there is
     // no batch calibration-restore endpoint — calibration_save_point saves

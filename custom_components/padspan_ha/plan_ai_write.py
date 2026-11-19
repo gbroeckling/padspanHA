@@ -1530,7 +1530,7 @@ def _rooms_note(sess: dict | None, undo: bool) -> str:
 
 async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStore, sid: str, rev: int, item_ids: Any,
                        finals: Any = None) -> dict[str, Any]:
-    """Accept all for this floor (Garry: "an all or nothing option"): the
+    """Accept all for this floor ("an all or nothing option"): the
     ticked rooms, new rooms, doors, windows and stairs in ONE save. Every
     check first, then the gate, one backup, the ledger pending, the writes
     (a failure puts back what was written), the mark off. `finals`: a new
@@ -1654,7 +1654,7 @@ async def rooms_commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House
                                                  "scanners": sorted(k for k, v in (mdata.get("scanners") or {}).items()
                                                                     if isinstance(v, dict) and v.get("room") == s["new"])}})
 
-    # 2. The room score on this floor's calibration spots: kept with the save and counted, never a refusal (Garry, 2026-11-10:
+    # 2. The room score on this floor's calibration spots: kept with the save and counted, never a refusal (2026-11-10:
     #    accuracy is information and a choice per room; a wrong save costs one undo, a refusal costs the tool).
     gate = await hass.async_add_executor_job(A.rooms_gate, points, fid, snap["rooms"], A.chosen_outlines(prop, ids), _excluded(hass))
     sess["gate"] = gate

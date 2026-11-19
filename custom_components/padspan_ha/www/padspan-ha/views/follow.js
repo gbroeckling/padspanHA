@@ -6,7 +6,7 @@
 // Real-time tag tracker: pick a tag, see its current room + floor, movement log, and alert config.
 // Position updates arrive via the existing 5s live-snapshot poll — no extra timers needed.
 
-// Locate lives here as an option (Garry, 2026-09-23): it works on where the
+// Locate lives here as an option (2026-09-23): it works on where the
 // followed object is right now, the same live poll Follow already runs.
 const { deviceName, pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const locateView =

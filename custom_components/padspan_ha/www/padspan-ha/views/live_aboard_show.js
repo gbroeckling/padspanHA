@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// Live Aboard's ⋯ list, "Show on this screen" (Garry, 2026-11-05): a small ⋯
+// Live Aboard's ⋯ list, "Show on this screen" (2026-11-05): a small ⋯
 // beside the compass, on every screen (the wall too), opens a checklist of
 // everything the 3D house draws, grouped, each ticked on or off for this
 // screen only.
@@ -62,7 +62,7 @@ export const SHOW_ITEMS = [
   // of one size on screen, and a tap anywhere else in a room opens the room's sheet. Off unless a screen ticks it (a
   // wall read from across a room); the 3D look on the Atlas tab and its walls only, and only while taps switch lights.
   { key: "light_buttons", group: "lights", words: "Lights as buttons", hint: "Each light is a round button you can see and hit from across the room; buttons that overlap list their lights. A tap anywhere else in a room opens that room's lights. Holding a sensor still opens it", dflt: false },
-  // Not a drawing either (live_aboard.js roomSwitchOn; Garry, 2026-11-14: lights "close to useless" in the 3D look: an
+  // Not a drawing either (live_aboard.js roomSwitchOn; 2026-11-14: lights "close to useless" in the 3D look: an
   // unlit fixture is a dark dot in a dark house, and people want a room's lights, seldom one light). A room's floor is
   // the switch for its lights, and a touch lights the house up so it can be seen. Off unless a screen ticks it.
   { key: "room_switch", group: "lights", words: "Rooms as light switches", hint: "Tap a room's floor: its lights go on or off together. Hold: the room's list. Hold, then drag up or down: dims the room. At night the first touch lights the house up for 20 seconds so everything can be seen", dflt: false },
