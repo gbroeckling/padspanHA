@@ -503,6 +503,8 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
     "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
     "live_aboard_show",                             # Live Aboard's ⋯ list: what this screen shows
+    "live_aboard_looks",                            # Live Aboard's Views ▾ → Look: this screen's look, and one after sunset
+    "live_aboard_rooms",                            # Live Aboard's room chips and a room's panel beside the house
     "scene_row",                                    # the scene row under the Atlas and in Live Aboard
     "live_aboard_panel",                            # Live Aboard on the wall panel: its home view, Follow, the People chip
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off

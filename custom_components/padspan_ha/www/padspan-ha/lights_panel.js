@@ -1544,12 +1544,12 @@ class PadSpanLightsApp extends HTMLElement {
            house fade away (they come back with a touch, a mouse or a key),
            so a big wall shows the house, not its buttons. */
         /* The ⋯ beside the compass goes and comes back with it; so do the
-           Motion chip (and its colour key, if open) and the flat map's scene row. */
-        :host([data-wall]) .la3d-bar, :host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-more, :host([data-wall]) .la3d-hud,
+           Motion chip (and its colour key, if open), Live Aboard's Rooms ▾ and the flat map's scene row. */
+        :host([data-wall]) .la3d-bar, :host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-more, :host([data-wall]) .la3d-hud, :host([data-wall]) .la3d-rchips,
         :host([data-wall]) .la3d-mchip, :host([data-wall]) .la3d-mkey, :host([data-wall]) .psc-atlas,
         :host([data-wall]) .lv-alone-anchor > button{transition:opacity .6s ease}
         :host([data-wall]:not([data-wall-active])) .la3d-bar, :host([data-wall]:not([data-wall-active])) .la3d-compass,
-        :host([data-wall]:not([data-wall-active])) .la3d-more, :host([data-wall]:not([data-wall-active])) .la3d-hud,
+        :host([data-wall]:not([data-wall-active])) .la3d-more, :host([data-wall]:not([data-wall-active])) .la3d-hud, :host([data-wall]:not([data-wall-active])) .la3d-rchips,
         :host([data-wall]:not([data-wall-active])) .la3d-mchip, :host([data-wall]:not([data-wall-active])) .la3d-mkey,
         :host([data-wall]:not([data-wall-active])) .psc-atlas,
         :host([data-wall]:not([data-wall-active])) .lv-alone-anchor > button{opacity:0;pointer-events:none}
@@ -1629,7 +1629,7 @@ class PadSpanLightsApp extends HTMLElement {
       // it: a light, the 3D house) it does nothing else. Anywhere else (the
       // rail, a light, the map, all still showing) it works as a tap. A mouse
       // has already woken it by moving.
-      const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .la3d-mkey, .psc-atlas .psc-scroll, .lv-alone-anchor > button";
+      const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-rchips, .la3d-mchip, .la3d-mkey, .psc-atlas .psc-scroll, .lv-alone-anchor > button";
       const onFaded = (x, y)=>[...(this.shadowRoot ? this.shadowRoot.querySelectorAll(FADED) : [])].some(el=>{
         const r = el.getBoundingClientRect();
         return r.width > 0 && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8;

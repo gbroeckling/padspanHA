@@ -439,13 +439,15 @@ await tryCase("buttons: off unless ticked; then each light a button, two that ov
   calls.length = 0; await tapAt(slot, twin);
   const tapTwin = calls.slice();
   calls.length = 0; await tapAt(slot, leak);
-  const tapLeak = calls.slice();
+  // The room opens in its panel beside the house (live_aboard_rooms.js), not the host's sheet over the page.
+  const tapLeak = calls.slice(), panelLeak = S(slot).rooms.panel.room;
+  slot.element.querySelector(".la3d-room").querySelectorAll("button").find(b => b.textContent === "✕").dispatchEvent({ type: "click", stopPropagation(){} });
   // Bare floor, clear of every mark: the room's too.
   const bare = [[30, 0], [0, 30], [-30, 0], [0, -30], [40, 40], [-40, -40]].map(d => [leak[0] + d[0], leak[1] + d[1]])
     .find(q => hitOf(slot._pick(q[0], q[1])) === "room:Kitchen") || null;
   const floor = bare ? "room:Kitchen" : null;
   calls.length = 0; if (bare) await tapAt(slot, bare);
-  const tapFloor = calls.slice();
+  const tapFloor = calls.slice(), panelFloor = S(slot).rooms.panel.room;
   // Mapping's builder: not offered, a pref left for it changes nothing.
   const bPrefs = screenPrefs({ "show_ctl-btn-m": JSON.stringify({ light_buttons: true }) });
   const builder = await newSlot("ctl-btn-m", { ...over, prefs: bPrefs, mapOnly: false });
@@ -459,11 +461,12 @@ await tryCase("buttons: off unless ticked; then each light a button, two that ov
     && btns.filter(b => b.words === "" && b.on === "all").length === 1 && btns.filter(b => b.words === "" && b.on === "none").length === 1
     && J(tapFar) === J([["toggle", "light.far"]]) && J(tapNear) === J([["toggle", "light.far"]])
     && J(tapTwin) === J([["openLights", ["light.twin_a", "light.twin_b"]]])
-    && J(tapLeak) === J([["openRoom", "Kitchen"]]) && floor === "room:Kitchen" && J(tapFloor) === J([["openRoom", "Kitchen"]])
+    && J(tapLeak) === "[]" && panelLeak === "Kitchen" && floor === "room:Kitchen" && J(tapFloor) === "[]" && panelFloor === "Kitchen"
     && SENT.filter(n => n === "house3d_show:button_tap:light").length === 2 && SENT.filter(n => n === "house3d_show:button_tap:several").length === 1
     && SENT.filter(n => n === "house3d_show:button_tap:room").length === 2
     && !bRows.includes("light_buttons") && bButtons === 0,
-    { rows: rows.includes("light_buttons"), before, leakBefore, below, onFixture, btns, tapFar, tapNear, tapTwin, tapLeak, floor, tapFloor, bRows: bRows.includes("light_buttons"), bButtons,
+    { rows: rows.includes("light_buttons"), before, leakBefore, below, onFixture, btns, tapFar, tapNear, tapTwin, tapLeak, panelLeak, floor, tapFloor, panelFloor,
+      bRows: bRows.includes("light_buttons"), bButtons,
       sent: SENT.filter(n => n.includes("button_tap")) });
 });
 // ── ⋯ "Rooms as light switches" (Garry, 2026-11-14) ─────────────────────────
@@ -500,7 +503,7 @@ await tryCase("rooms: off unless ticked; then a room's floor switches its lights
   await settle(6);
   cv.dispatchEvent(ev("pointerup", floor[0], floor[1], { timeStamp: performance.now() }));
   await settle(4);
-  const hold = calls.slice(), holdMany = many.length;
+  const hold = calls.slice(), holdMany = many.length, holdPanel = S(slot).rooms.panel.room;   // its panel beside the house
   // A sensor keeps its own tap.
   calls.length = 0; await tapAt(slot, slot._where({ eid: "binary_sensor.kitchen_leak" }));
   const leak = calls.slice();
@@ -514,11 +517,11 @@ await tryCase("rooms: off unless ticked; then a room's floor switches its lights
     && hit === "room:Kitchen" && onLight !== "device:light.kitchen"
     && first.many === 0 && first.calls === 0 && first.k < 0.05
     && J(second) === J([want]) && callsAfter.length === 0
-    && J(hold) === J([["openRoom", "Kitchen"]]) && holdMany === 0
+    && J(hold) === "[]" && holdPanel === "Kitchen" && holdMany === 0
     && J(leak) === J([["toggle", "binary_sensor.kitchen_leak"]])
     && SENT.filter(n => n === `house3d_show:room_tap:${want[1] ? "on" : "off"}`).length === 1
     && !bRows.includes("room_switch") && bHit === "device:light.kitchen",
-    { rows: rows.includes("room_switch"), before, hit, onLight, first, second, want, callsAfter, hold, holdMany, leak, bHit,
+    { rows: rows.includes("room_switch"), before, hit, onLight, first, second, want, callsAfter, hold, holdPanel, holdMany, leak, bHit,
       sent: SENT.filter(n => n.includes("room_tap")) });
 });
 // Garry, 2026-11-13 ("make use more intuitive"): while a tap switches lights, a light in reach beats a lock, a leak mark

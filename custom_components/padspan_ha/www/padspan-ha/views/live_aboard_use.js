@@ -10,7 +10,8 @@
 // own api (lights_panel.js _useApi, maps.js previewApi). A tap switches a
 // light (unless this screen's ⋯ "Tap a light to switch it" is unticked); a
 // hold opens its controls; a hold then a drag dims it; a room's
-// name opens the room sheet, a floor's badge the floor sheet, a door the
+// name opens the room (the view's panel beside the house, else the room
+// sheet), a floor's badge the floor sheet, a door the
 // barrier card (a garage door or a gate only its card of what it reads), a
 // motion sensor its activity calendar; a read-only tile says it is read-only. Nothing here calls Home Assistant itself: the host's api
 // and the Atlas's own helpers do, exactly as they do for the flat map.
@@ -41,7 +42,7 @@ const HIDE_GRACE_MS = 450;                 // the hover box lingers this long ov
  *  a washer, a robot; P5): a tap or a hold opens Home Assistant's own
  *  controls for it, never a blind switch (a washer on a plug must never go
  *  off from a stray tap). */
-function moreInfo(node, eid){
+export function moreInfo(node, eid){
   node.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: eid } }));
 }
 // The bubble wirePress shows while a drag dims, the same face.
@@ -103,6 +104,8 @@ export function doorMover(bar){
  *                     switches": a tap on a room's floor (pick()'s target has
  *                     sw: true) switched its n lights "on" or "off" (undo()
  *                     puts them back), or a hold then a drag dimmed them ("dim")
+ *   openRoom(room)  optional: the view's own room panel for `room` (true: it
+ *                     opened); else, or false, the host's room sheet (api.openRoom)
  * }
  */
 export function createUseSurface(o){
@@ -343,9 +346,11 @@ export function createUseSurface(o){
   // "Rooms as light switches": a room's lights as the Atlas's sheets count them (roomAggregate), switched the way the
   // room sheet's "All lights on / off" does (the host's api.setMany). A tap: all on, or all off if any is on.
   const roomLights = (api, room) => roomAggregate(Object.values(api.lightsByEid || {}).filter(Boolean), room).lightEids.map(e => api.lightsByEid[e]);
+  // A room's panel beside the house (the view's: o.openRoom), else the host's room sheet.
+  const openRoom = (api, room) => { if (!(typeof o.openRoom === "function" && o.openRoom(room))) api.openRoom(room); };
   function roomSwitch(api, t){
     const all = roomLights(api, t.room), lit = all.filter(l => l.state === "on");
-    if (!all.length || typeof api.setMany !== "function") { api.openRoom(t.room); return; }
+    if (!all.length || typeof api.setMany !== "function") { openRoom(api, t.room); return; }
     const on = !lit.length, eids = (on ? all : lit).map(l => l.entity_id);
     api.setMany(eids, on);
     pulse(t);
@@ -394,7 +399,7 @@ export function createUseSurface(o){
     // A button standing for several lights: each with its switch, on the Atlas's own sheet.
     if (t.kind === "lights") { if (typeof api.openLights === "function") api.openLights(t.eids); return; }
     if (t.kind === "room" && t.sw && r === "tap") roomSwitch(api, t);
-    else if (t.kind === "room") api.openRoom(t.room);
+    else if (t.kind === "room") openRoom(api, t.room);
     else if (t.kind === "floor") api.openFloor(t.z);
     // A door something can move (a garage door, a gate: doorMover) never
     // moves from a tap, nor from anything a tap shows: a tap shows what it

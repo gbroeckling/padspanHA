@@ -1349,6 +1349,8 @@ const _S = {
   sheet: "width:100%;max-width:520px;max-height:78vh;overflow:auto;padding:14px 16px 18px;box-sizing:border-box;"
     + "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
     + "border-radius:18px 18px 0 0;color:#e2e8f0;font-family:Inter,system-ui,sans-serif;box-shadow:0 -12px 50px rgba(0,0,0,.6)",
+  // In Live Aboard's room panel (openAggregateSheet's o.into): the panel is the card round it.
+  inPanel: "padding:12px 14px 6px;box-sizing:border-box;color:#e2e8f0;font-family:Inter,system-ui,sans-serif",
   head: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px",
   title: "font-weight:800;font-size:16px;letter-spacing:-.01em",
   sub: "font-size:12px;color:#94a3b8;margin-top:2px",
@@ -1373,15 +1375,19 @@ const _S = {
 // button's word follows what Home Assistant took: one that failed, or sent
 // nothing (an unlock cancelled), shows what it showed before. An unavailable
 // device's button is greyed out and says so; Home Assistant can't reach it.
-export function openAggregateSheet(api, spec){
+// o.into: drawn into that element instead of over the page (Live Aboard's
+// room panel beside the house), where o.stay keeps it open after a button
+// (it doesn't cover the house) and o.onClose hears its ✕.
+export function openAggregateSheet(api, spec, o = {}){
   const mk = (tag, style, text) => { const n = document.createElement(tag); if (style) n.style.cssText = style; if (text !== undefined) n.textContent = text; return n; };
-  const overlay = mk("div", _S.overlay);
-  const desktop = typeof window !== "undefined" && window.innerWidth > 768;
+  const into = o && o.into ? o.into : null, stay = !!(o && o.stay);
+  const overlay = into ? null : mk("div", _S.overlay);
+  const desktop = !into && typeof window !== "undefined" && window.innerWidth > 768;
   if (desktop) overlay.style.alignItems = "center";
   let open = true;
-  const close = () => { open = false; overlay.remove(); };
-  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
-  const sheet = mk("div", _S.sheet + (desktop ? ";border-radius:16px" : ""));
+  const close = () => { if (!open) return; open = false; (overlay || sheet).remove(); if (o && typeof o.onClose === "function") o.onClose(); };
+  if (overlay) overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  const sheet = mk("div", into ? _S.inPanel : _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const greyed = ";opacity:.45;cursor:default";
   let drawn = null;
   const fill = (api, { title, sub, who, items, actions }) => {
@@ -1403,7 +1409,7 @@ export function openAggregateSheet(api, spec){
       const row = mk("div", _S.actions);
       for (const a of actions) {
         const b = mk("button", a.primary ? _S.actPrimary : _S.act, a.label);
-        b.addEventListener("click", () => { a.run(); close(); });
+        b.addEventListener("click", () => { a.run(); if (!stay) close(); });
         row.appendChild(b);
       }
       sheet.appendChild(row);
@@ -1465,7 +1471,7 @@ export function openAggregateSheet(api, spec){
         if (api.controlsFor(l)) {
           const more = mk("button", _S.act + ";min-height:30px;padding:3px 10px", "⋯");
           more.title = "Controls";
-          more.addEventListener("click", () => { close(); api.openControls(l.entity_id); });
+          more.addEventListener("click", () => { if (!stay) close(); api.openControls(l.entity_id); });
           row.appendChild(more);
         }
       }
@@ -1473,8 +1479,8 @@ export function openAggregateSheet(api, spec){
     }
   };
   fill(api, spec);
-  overlay.appendChild(sheet);
-  document.body.appendChild(overlay);
+  if (overlay) { overlay.appendChild(sheet); document.body.appendChild(overlay); }
+  else into.appendChild(sheet);
   return { update: (nextApi, nextSpec) => { if (!open) return false; fill(nextApi, nextSpec); return true; }, close };
 }
 // The two sheets the map opens. setMany(eids, on) is the host's aggregate
@@ -1568,11 +1574,12 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
 }
 /** The room sheet. Returns its handle: the host hands every newer api and
  *  lights to update(api, lights) while it is open (false once closed), so
- *  the sheet shows the house as it is now, not as it was when it opened. */
-export function openRoomSheet(api, lights, room, onlyEids){
+ *  the sheet shows the house as it is now, not as it was when it opened.
+ *  o: openAggregateSheet's (Live Aboard's room panel draws it into itself). */
+export function openRoomSheet(api, lights, room, onlyEids, o = {}){
   let cur = { api, lights }, who = null, askedAt = -Infinity;
   const spec = () => _roomSheetSpec(cur.api, cur.lights, room, onlyEids, who);
-  const sheet = openAggregateSheet(api, spec());
+  const sheet = openAggregateSheet(api, spec(), o);
   // Who is here (whoInRoom): asked on opening, then again at most every
   // WHO_EVERY_MS while open, and only while this screen shows people
   // (api.peopleShown, peopleShownOn). Never on the unplaced chip's sheet; a
@@ -4045,6 +4052,9 @@ export function buildLightsMapCard(hostIn){
           look3d: h3.settings.atlas_3d_look === "own" || h3.settings.atlas_3d_look === "studio" ? h3.settings.atlas_3d_look : "atlas",
           atlasLook: { on: !!host.showcase, key: host.showcaseTheme || "classic",
                        theme: SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic },
+          // Views ▾ → Look (live_aboard_looks.js): the Showcase themes a screen may pick, only for a
+          // tier that has Showcase (lightingUnlocked, as the flat map's own Showcase); else none.
+          showcaseThemes: lightingUnlocked(host.tier) ? SHOWCASE_THEMES : null,
           // Mapping → Furnish (P2): the Furnish tool open, what its flows and
           // "This is a device…" need of the host, and the floor chips a piece
           // moved up or down a floor takes along.

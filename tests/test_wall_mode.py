@@ -290,7 +290,7 @@ def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
     # Review, 2026-10-21: the rail, drawers and lights stay showing on a faded
     # wall, so a first tap on them must work; only one where a faded control was is eaten.
     lp = _src("lights_panel.js")
-    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-mchip, .la3d-mkey, .psc-atlas .psc-scroll, .lv-alone-anchor > button";' in lp
+    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-more, .la3d-hud, .la3d-rchips, .la3d-mchip, .la3d-mkey, .psc-atlas .psc-scroll, .lv-alone-anchor > button";' in lp
     assert "if(!onFaded(e.clientX, e.clientY)) return;" in lp
     # Review B8: every control the wall fades is in FADED (or a part of it that takes taps is), so a tap where it was only wakes the wall.
     fade = lp[lp.index(":host([data-wall]:not([data-wall-active])) .la3d-bar"):]
@@ -364,14 +364,16 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
     assert 'if (step.use !== "high") wallMoves = wallCapped = false;' in src, "on Low nothing waits to go sharp"
     assert "HOUSE.wallNextTry(quality.setting, quality.measured)" in src
     # The scene row keeps its room on a wall (scene_row.js): it is what is tapped there.
-    # (The map alone, off a wall, measures only the rain line: the rest is stepping aside.)
-    assert 'wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip, .psc-row" : bare ? ".la3d-wet" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar"' in src
+    # (The map alone, off a wall, measures only the rain line: the rest is stepping aside. The room chips' row
+    # along the top is measured with the bars; a narrow screen's one Rooms ▾ sits beside the compass, as on a wall.)
+    assert ('wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip, .psc-row" : bare ? ".la3d-wet"'
+            ' : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar, .la3d-rchips:not(.la3d-rcompact)"') in src
     assert "if (wall && !narrow) out.top = Math.max(out.top, WALL_CHIPS_PX * wallUiOf(root));" in src, "the framing doesn't depend on the moment"
     assert 'rot === "90" ? r0.right - r.right : rot === "270" ? r.left - r0.left : r.top - r0.top' in src, "a turned wall's chips measured along the page"
     assert "turnBy(-2 * Math.PI * dx / h);" in src and "turnBy(Math.PI / 2);" in src, "a wall framed whole turns about the house's middle"
     assert src.count("turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);") == 2, "the compass too"
     assert "wallPivot.top !== topElev" in src, "worked out when it turns: a saved home never ran a fit"
-    assert "if (banded(pad)) {" in src
+    assert "if (!side && banded(pad)) {" in src, "(a room's panel beside the house frames its room in what is left: flyToRoom)"
     # Off a wall, only a short screen with the scene row on the bar is framed in the band (the
     # house's front ran under the row, 2026-11-07): every other screen frames the house as before.
     assert ("const banded = (pad) => !!pad.H && (onWallPage(root)\n"

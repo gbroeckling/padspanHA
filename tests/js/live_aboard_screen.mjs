@@ -587,7 +587,8 @@ await tryCase("views: saved from the camera on this browser, flown back to, forg
   click(views);
   const menu = slot.element.querySelector(".la3d-menu");
   const items = menu ? menu.querySelectorAll("button").map(b => b.textContent) : [];
-  click(btnByText(slot, saved[0] ? saved[0].name : "?"));
+  // In the menu: a room chip along the top has the room's name too.
+  click(menu ? menu.querySelectorAll("button").find(b => b.textContent === (saved[0] ? saved[0].name : "?")) : null);
   clockOff += 800; await settle(30);
   const back = S(slot).cam;
   // Whole house: every floor (the host's All) and the fit.
@@ -601,7 +602,7 @@ await tryCase("views: saved from the camera on this browser, flown back to, forg
   click(x);
   check("views: saved from the camera on this browser, flown back to, forgotten with ×",
     saved.length === 1 && saved[0].name === "Living room"
-    && JSON.stringify(items) === JSON.stringify(["All floors", "Basement", "Main", "⇕ Explode", "Whole house", "How it works", "Living room", "✕", "Save this view", "Show on this screen ⋯", "Home view", "Set as home"])
+    && JSON.stringify(items) === JSON.stringify(["All floors", "Basement", "Main", "⇕ Explode", "Whole house", "How it works", "Living room", "✕", "Save this view", "Look: Same as Settings ›", "Show on this screen ⋯", "Home view", "Set as home"])
     && Math.abs(back.radius - want.radius) < 1e-6 && Math.abs(back.theta - want.theta) < 1e-6
     && calls.some(c => c[0] === "go" && c[1] === -1) && Math.abs(whole.cam.radius - whole.screen.fitR) < 1e-6
     && JSON.parse(store.get("views_scr-views")).length === 0, { saved, items, want, back, calls, whole: whole.cam });
