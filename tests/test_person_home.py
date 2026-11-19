@@ -162,7 +162,7 @@ def test_occupancy_counts_a_zone_inside_the_home_zone_and_never_one_elsewhere(mo
 def test_occupancy_still_counts_home_and_dedupes_a_shared_tracker(monkeypatch) -> None:
     people = [_person("person.remote", "remote", "device_tracker.pixel", state="Kitchen"),
               _person("person.pixel", "pixel", "device_tracker.pixel", state="Kitchen"),
-              _person("person.nicole", "Nicole", "device_tracker.iphone")]
+              _person("person.sam", "Sam", "device_tracker.iphone")]
     res = _estimate(_house(monkeypatch, people, [_tracker("device_tracker.pixel", "Pixel"), _tracker("device_tracker.iphone", "iPhone")]))
     assert res["known"] == 2
 
