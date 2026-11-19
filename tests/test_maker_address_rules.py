@@ -243,6 +243,9 @@ def test_a_live_advert_without_a_type_keeps_the_reseeds_random(monkeypatch) -> N
 def test_a_reseed_without_a_type_keeps_a_live_adverts_random(monkeypatch) -> None:
     BL, bl = _stack(monkeypatch, cached={RANDOM_STATIC: _bluez(RANDOM_STATIC)})
     bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC, "random")))  # live, with BlueZ's type
+    # ...a second ago: the reseed then reads a newer advert from the same
+    # radio (one it already holds is not read again).
+    _age(bl, RANDOM_STATIC, 1.0)
     bl._seed_from_discovered()                                          # the same radio, no type
     assert bl._seen_by_source[RANDOM_STATIC]["hci0"].record["address_type"] is None
     assert bl.known_type(RANDOM_STATIC) == "random" and _label(bl, RANDOM_STATIC) == (None, None)

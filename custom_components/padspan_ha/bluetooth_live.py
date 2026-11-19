@@ -74,21 +74,37 @@ def _scanning_mode(obj: Any, attr: str) -> Optional[str]:
 def reseed_interval_s(settings: Optional[Dict[str, Any]]) -> int:
     """How often to reseed from HA's discovered-service-info, in seconds.
 
-    ble_reseed_interval_s (Settings → Presence, 1–60, default 30) is always in
-    the settings, since DEFAULT_SETTINGS is merged into every load. So "Enable
-    aggressive BLE reseed (5s)" (Manage → HA Entities → BLE Proxy
-    Compatibility, aggressive_ble_reseed) never ran: its branch only ran when
-    the interval was missing, and the panel said 5 s while it stayed at 30. Now
-    the checkbox caps the interval at 5 s, and a shorter interval stays.
+    ble_reseed_interval_s (Settings → Presence, 1–60, default 5: every poll;
+    30 until November 2026) is always in the settings, since DEFAULT_SETTINGS is
+    merged into every load. So "Enable aggressive BLE reseed (5s)" (Manage →
+    HA Entities → BLE Proxy Compatibility, aggressive_ble_reseed) never ran:
+    its branch only ran when the interval was missing, and the panel said 5 s
+    while it stayed at 30. Now the checkbox caps the interval at 5 s, and a
+    shorter interval stays.
     """
     s = settings or {}
     try:
-        n = max(1, min(60, int(s.get("ble_reseed_interval_s", 30))))
+        n = max(1, min(60, int(s.get("ble_reseed_interval_s", 5))))
     except (TypeError, ValueError):
-        n = 30
+        n = 5
     if s.get("aggressive_ble_reseed"):
         n = min(n, 5)
     return n
+
+
+def median_window_s(settings: Optional[Dict[str, Any]]) -> float:
+    """How far back the median of a scanner's live samples looks: one poll
+    (presence_poll_interval_s, 5 s by default), at most 15 s.
+
+    It was 15 s at any poll rate, so each advert counted in three polls'
+    readings and the strongest scanner — the one whose adverts reach the
+    callbacks — lagged a move by about 7 s. At one poll each advert counts
+    once, and the Kalman stage does the smoothing across polls."""
+    try:
+        p = float((settings or {}).get("presence_poll_interval_s") or 5)
+    except (TypeError, ValueError):
+        p = 5.0
+    return max(1.0, min(15.0, p))
 
 
 def _coerce_source(src: Any) -> str:
@@ -300,6 +316,25 @@ def _service_info_to_record_from_adv(
 class _Adv:
     record: Dict[str, Any]
     seen: dt.datetime
+    # What the scanner reseed built the record from (_raw_adv), so the next
+    # advert saying the same thing reuses the record; None from a callback.
+    raw: Any = None
+
+
+# Two reads of one advert's time can differ by a few microseconds (it is
+# worked out from the wall clock and the monotonic clock each time).
+_SAME_ADVERT = dt.timedelta(milliseconds=50)
+
+
+def _raw_adv(ble_device: Any, adv_data: Any) -> tuple:
+    """Everything _service_info_to_record_from_adv reads except the signal
+    and the address type: equal tuples make equal records but for rssi,
+    last_seen and address_type."""
+    return (
+        getattr(ble_device, "name", None), getattr(adv_data, "local_name", None),
+        getattr(adv_data, "manufacturer_data", None), getattr(adv_data, "service_data", None),
+        getattr(adv_data, "service_uuids", None), getattr(adv_data, "tx_power", None),
+    )
 
 
 class BluetoothLive:
@@ -640,20 +675,42 @@ class BluetoothLive:
                                     _age = max(0.0, (time.time() if float(_lt) > 1e9 else _mono_now) - float(_lt))
                                     dev_seen = seen - dt.timedelta(seconds=_age)
                                 else:
+                                    _lt = None
                                     _prev = self._seen_by_source.get(addr, {}).get(str(src))
                                     dev_seen = _prev.seen if _prev else seen
-                            rec = _service_info_to_record_from_adv(
-                                addr, src, rssi, ble_device, adv_data, dev_seen,
-                                esphome_ok=self._esphome_public_ok,
-                            )
-                            if addr not in self._seen_by_source:
-                                self._seen_by_source[addr] = {}
-                                self.new_addresses += 1
-                            self._note_address_type(addr, rec.get("address_type"))
-                            self._seen_by_source[addr][str(src)] = _Adv(record=rec, seen=dev_seen)
                             if str(src) != "_unknown":
                                 self._radio_last_heard[str(src)] = seen
                             _total_ads += 1
+                            _held = self._seen_by_source.get(addr, {}).get(str(src))
+                            # The advert we already hold, read again: nothing
+                            # new, so nothing to do. The reseed runs every poll
+                            # now (each scanner's view at most a poll old), and
+                            # on a busy street most of a scanner's list has not
+                            # changed since the last one. A small tolerance:
+                            # the same advert's time is worked out afresh from
+                            # two clocks on each read.
+                            if (_held is not None and (_stamp is not None or _lt is not None)
+                                    and dev_seen <= _held.seen + _SAME_ADVERT):
+                                continue
+                            raw = _raw_adv(ble_device, adv_data)
+                            if _held is not None and _held.raw is not None and _held.raw == raw:
+                                # A new advert saying what the last one said:
+                                # only its signal and time are new. Skips
+                                # re-formatting its data, the costly part.
+                                rec = dict(_held.record)
+                                rec["rssi"] = int(rssi) if rssi is not None else None
+                                rec["last_seen"] = dev_seen.isoformat()
+                                rec["address_type"] = address_type_of(ble_device, self._esphome_public_ok)
+                            else:
+                                rec = _service_info_to_record_from_adv(
+                                    addr, src, rssi, ble_device, adv_data, dev_seen,
+                                    esphome_ok=self._esphome_public_ok,
+                                )
+                            self._note_address_type(addr, rec.get("address_type"))
+                            if addr not in self._seen_by_source:
+                                self._seen_by_source[addr] = {}
+                                self.new_addresses += 1
+                            self._seen_by_source[addr][str(src)] = _Adv(record=rec, seen=dev_seen, raw=raw)
                     _seeded_scanner = True
                     self.seed_method = "per_scanner"
                     self.seed_scanner_count = _scanner_count
@@ -829,12 +886,14 @@ class BluetoothLive:
             # through async_register_callback.  Default 30s; aggressive mode
             # (5s) can be enabled in settings for HA 2026.4+ where habluetooth
             # dedup suppresses repeat callbacks from passive proxies.
-            _RESEED_INTERVAL_S = 30
+            _RESEED_INTERVAL_S = 5
+            _median_s = 5.0
             try:
                 from .const import DOMAIN, DATA_SETTINGS
                 _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
                 if _st:
                     _RESEED_INTERVAL_S = reseed_interval_s(_st.data)
+                    _median_s = median_window_s(_st.data)
             except Exception:
                 pass
             # How late a passive proxy's reports can arrive — the Find My
@@ -843,7 +902,9 @@ class BluetoothLive:
             _needs_reseed = (
                 not self._seen_by_source
                 or self._last_reseed is None
-                or (now - self._last_reseed).total_seconds() > _RESEED_INTERVAL_S
+                # A second's slack: at a 5 s reseed and a 5 s poll, "more than
+                # 5 s" missed every other poll by a few milliseconds.
+                or (now - self._last_reseed).total_seconds() > _RESEED_INTERVAL_S - 1.0
             )
             if _needs_reseed:
                 try:
@@ -887,14 +948,15 @@ class BluetoothLive:
                     rec["age_s"] = age_s
                     # Median-of-N: a 1-2 Hz beacon emits many ads per poll
                     # window but the cache keeps only the newest per source.
-                    # Report the median of the last 15 s of real samples —
-                    # BLE noise is heavy-tailed and the median rejects
-                    # multipath fade outliers the single latest ad can't.
+                    # Report the median of the last poll's real samples
+                    # (median_window_s) — BLE noise is heavy-tailed and the
+                    # median rejects multipath fade outliers the single
+                    # latest ad can't.
                     _sd = self._rssi_samples.get(addr, {}).get(src)
                     if _sd:
                         _fresh = sorted(
                             r for (t, r) in _sd
-                            if (now - t).total_seconds() <= 15.0
+                            if (now - t).total_seconds() <= _median_s
                         )
                         if len(_fresh) >= 3:
                             _m = len(_fresh) // 2
