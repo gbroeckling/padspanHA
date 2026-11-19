@@ -1115,8 +1115,9 @@ function createSlot(slotKey){
   function openBare(){
     if (!root || !hostEl() || !((canvas && canvas.clientWidth) > 0)) return;   // not in the panel yet: the next frame
     freshShow = false;
-    if (mapOnly && !wallScreen() && !furnishOn && !(editor && editor.active)) setBare(true, false);
+    openBareNow();
   }
+  function openBareNow(){ if (mapOnly && !wallScreen() && !furnishOn && !(editor && editor.active)) setBare(true, false); }
   /** After a zoom by hand (the wheel, a pinch, a double-tap): in past the
    *  fit level, the map alone; back out to it, the bars. */
   function afterZoom(inward){
@@ -5646,7 +5647,9 @@ function createSlot(slotKey){
       wholeGoal: () => homeGoal(),
       go: (g, smooth) => goTo(g, smooth),
       flying: () => !!cam.fly,
-      closeAll: (bars) => { closeMenu(); if (use) use.clear(); if (bars && bare) setBare(false, false); },
+      // bars: true the bars back; "aside" the map alone, as the sidebar opens (going back by itself:
+      // nobody is there, so less on the screen); false as they are.
+      closeAll: (bars) => { closeMenu(); if (use) use.clear(); if (bars === "aside") openBareNow(); else if (bars && bare) setBare(false, false); },
       tracked: () => tracked,
       toPerson: (key) => flyToPerson(key),
       showCard: (key) => { const T = tracked && tracked.pickable().find(x => x.key === key); if (T && use) use.show({ kind: T.kind, key: T.key, anchor: T.at, live: T.live, label: T.label, card: panel ? panel.cardOf(T.key, T.card) : T.card }); },

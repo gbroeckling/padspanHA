@@ -17,8 +17,8 @@
 //              in this browser, and a new view opens there; a floor chosen
 //              by hand is never taken back as the map arrives
 //   idle       untouched for the setting's time (60 s), it flies back home,
-//              closing the menu and a card; touched, the wait starts again;
-//              off (0), never
+//              closing the menu and a card, the bars aside (nobody is there);
+//              touched, the wait starts again; off (0), never
 //   hold       never while Edit or Furnish is open, a card or sheet the Atlas
 //              opened is up, or full screen was asked for by hand; it goes
 //              once they are gone
@@ -262,7 +262,7 @@ await tryCase("home: Views ▾ → Set as home keeps the camera and floor in thi
 });
 
 // ── idle: back home by itself ───────────────────────────────────────────────
-await tryCase("idle: untouched for a minute it flies home, closing the menu and a card; touched, the wait starts again", async () => {
+await tryCase("idle: untouched for a minute it flies home, closing the menu and a card, the bars aside; touched, the wait starts again", async () => {
   await later(2000);
   click(btnByText("Views ▾"));
   click(btnByText("Home view"));
@@ -281,11 +281,11 @@ await tryCase("idle: untouched for a minute it flies home, closing the menu and 
   await later(61000, 20);
   await later(1000, 60);                                      // the flight
   const back = S();
-  check("idle: untouched for a minute it flies home, closing the menu and a card; touched, the wait starts again",
-    home.top === null && moved.radius < home.radius && notYet.returns === 0 && notYet.armed && open1.card
+  check("idle: untouched for a minute it flies home, closing the menu and a card, the bars aside; touched, the wait starts again",
+    home.top === null && back.screen.bare && moved.radius < home.radius && notYet.returns === 0 && notYet.armed && open1.card
     && back.panel.returns === 1 && back.panel.atHome && !back.panel.armed && near(back.cam.radius, home.radius, 1e-3)
     && near(back.cam.target, home.target, 1e-3) && H.top === null && !back.screen.menu && !(back.use && back.use.card) && !back.screen.flying,
-    { home, moved: moved.radius, notYet, open1, back: { panel: back.panel, cam: back.cam, use: back.use, menu: back.screen.menu }, calls: H.calls });
+    { home, moved: moved.radius, notYet, open1, back: { panel: back.panel, cam: back.cam, use: back.use, menu: back.screen.menu, bare: back.screen.bare }, calls: H.calls });
 });
 await tryCase("idle: Off (0) never goes back; 5 min waits five minutes", async () => {
   H.settings = SET({ atlas_3d_home_idle_s: 0 }); poll();

@@ -235,8 +235,10 @@ export function createPanel(v){
     return { floor: f ? f.id : null, goal: null, set: false, all: !!(f && f.all) };
   }
   /** Back home: menus and cards closed, no one followed, its floor, its camera.
-   *  bars: the map alone ends too (going back by itself, or by hand); the
-   *  view opening leaves the bars as it has them (aside, on the sidebar). */
+   *  bars: true the map alone ends too (Home view, by hand); "aside" the bars
+   *  step aside (going back by itself: nobody is there, 2026-11-19); false the
+   *  view opening leaves them as it has them (aside, on the sidebar). Walls,
+   *  the Look and Explode stay as they were left. */
   function goHome(smooth, bars = true){
     own(() => {
       v.closeAll(bars);
@@ -268,7 +270,7 @@ export function createPanel(v){
     // Someone followed is someone being watched: only a touch lets them go.
     if (v.busy() || follow) { arm(Math.min(idle, RECHECK_MS)); return; }
     returns++;
-    goHome(true);
+    goHome(true, "aside");
   }
   /** Someone touched the screen (or changed its floor): it is not home, and the wait starts again. */
   function touched(inView){
@@ -439,7 +441,7 @@ export function createPanel(v){
     },
     follow: (key) => startFollow(key),
     stopFollow: () => stopFollow(),
-    goHome: () => goHome(true),
+    goHome: () => goHome(true, "aside"),    // the director's return: by itself too
     /** Something else moved the camera (the director): no touch is counted,
      *  it is not home, and the wait to go back runs as ever. */
     moveQuietly(fn){ const r = own(fn); atHome = false; disarm(); arm(); return r; },
