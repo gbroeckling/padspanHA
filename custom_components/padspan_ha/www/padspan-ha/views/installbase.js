@@ -394,6 +394,9 @@ function renderUnlocked(ctx, root) {
           ["…recognising a phone with them", idn.resolving, idn.with_irks],
           ["…whose keys never match anything", idn.silent, idn.with_irks],
           ["Installs using Private BLE Device", idn.private_ble_device, n],
+          ["Installs with an irk-capture ESP32", idn.capture_installs, n],
+          ["Phone keys saved from an irk-capture ESP32", idn.capture_keys, null],
+          ["…recognising a phone", idn.capture_keys_resolving, idn.capture_keys],
         ]),
         kvCard(el, "Floor plans and heights", "Whether the plans and floors are set up well enough to place devices", [
           ["Homes with more than one floor", geo.multi_floor, n],

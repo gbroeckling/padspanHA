@@ -14,13 +14,20 @@ and the report carries how many irk-capture ESP32s Home Assistant has
 The panel still lists the key as PadSpan's, so its Remove button stays.
 
 tests/js/irk_capture_steps.mjs ("marker:") holds which Save sends the marker.
+The developer's side adds them up: server/stats.php's identity counts, shown
+in the Install Base view's "Following phones" card
+(tests/js/installbase_identity.mjs).
 """
 
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -35,6 +42,7 @@ from tests.test_irk_add_refuses_what_cannot_work import _hass as _irk_hass, _SIG
 from tests.test_telemetry import _hass as _report_hass, _run
 
 _KEY_B = bytes(range(16))
+_ROOT = Path(__file__).resolve().parents[1]
 
 
 # ── 1. The marker: stored only from the irk-capture path, only that value ──
@@ -187,3 +195,48 @@ def test_the_fields_go_only_when_the_report_is_on(monkeypatch):
         assert health["irks_resolving_by_source"] == {"irk_capture": 1}
     finally:
         pbr._resolvers.pop(id(h), None)
+
+
+# ── 5. The developer's stats: server/stats.php and the Install Base card ────
+
+def test_stats_php_adds_up_what_the_report_sends(monkeypatch):
+    """stats.php reads the three fields by the names the report uses, as
+    counts, into its identity block. (No PHP here to run it: read as text,
+    like the other stats.php tests, against a report this code built.)"""
+    php = _ROOT / "server" / "stats.php"
+    if not php.is_file():
+        pytest.skip("the Bright tree has no server folder")
+    src = php.read_text(encoding="utf-8")
+    h = _report_hass()
+    _boards(monkeypatch, h, 1)
+    r = pbr.PrivateBLEResolver(h)
+    r._devices = [{"canonical_id": "irk:" + _SIG_IRK.hex(), "name": "Sam's iPhone", "irk_bytes": _SIG_IRK}]
+    r._source_info = [{"source": "padspan", "via": "irk_capture"}]
+    pbr._resolvers[id(h)] = r
+    try:
+        health = T.build_payload(h)["health"]
+    finally:
+        pbr._resolvers.pop(id(h), None)
+    block = src[src.index("    // irk-capture"):src.index("$latest[$id]['_bad']")]
+    read = set(re.findall(r"\$h\['([a-z_]+)'\]", block))
+    assert read == {"irk_capture_boards", "irks_by_source", "irks_resolving_by_source"}
+    assert read <= set(health), "stats.php reads a field the report does not send"
+    assert "irk_capture" in health["irks_by_source"] and "['irk_capture']" in block
+    assert block.count("(int)") == 3, "every number read is made a whole number"
+    assert block.count("as_map(") == 2, "the two by-source maps may come back as [] when empty"
+    for k in ("capture_installs", "capture_keys", "capture_keys_resolving"):
+        assert f"'{k}' => 0" in src and f"$identity['{k}']" in block, k
+    assert "'identity' => $identity" in src
+
+
+def test_the_install_base_card_shows_them():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    r = subprocess.run([node, str(_ROOT / "tests" / "js" / "installbase_identity.mjs"), str(_ROOT).replace("\\", "/")],
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
+    lines = [ln for ln in r.stdout.strip().splitlines() if ln.startswith("{")]
+    assert lines, f"the harness itself failed:\n{r.stderr[-3000:]}"
+    out = json.loads(lines[-1])
+    assert len(out["cases"]) >= 5 and all(out["cases"].values()) and not out["failures"], \
+        json.dumps(out["failures"][:4], indent=2, ensure_ascii=False)

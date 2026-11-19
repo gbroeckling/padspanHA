@@ -232,7 +232,8 @@ $ai = array();
 $scan_modes = array(); $scan_modes_requested = array();
 $scan_mode_installs = array('any_active' => 0, 'any_passive_pinned' => 0, 'all_auto' => 0, 'no_data' => 0);
 $env_sum = array('scanners' => 0, 'floors' => 0, 'rooms' => 0, 'calibration_points' => 0, 'irks' => 0);
-$identity = array('with_irks' => 0, 'resolving' => 0, 'silent' => 0, 'private_ble_device' => 0);
+$identity = array('with_irks' => 0, 'resolving' => 0, 'silent' => 0, 'private_ble_device' => 0,
+                  'capture_installs' => 0, 'capture_keys' => 0, 'capture_keys_resolving' => 0);
 // Advanced-feature adoption: installs (not raw item counts — one house with
 // 20 motion sensors should not outweigh 20 houses with one each) that have
 // placed at least one of the newer classes, or touched the pro-only type
@@ -374,6 +375,14 @@ foreach ($latest as $id => $r) {
     }
     $ints = as_map(isset($e['integrations']) ? $e['integrations'] : null);
     if ((int)(isset($ints['private_ble_device']) ? $ints['private_ble_device'] : 0) > 0) { $identity['private_ble_device']++; }
+    // irk-capture (an ESP32 an iPhone or Apple Watch pairs with, to hand over
+    // its key): installs with one in Home Assistant, the keys saved from one,
+    // and how many of those keys recognised the phone. Counts only.
+    if ((int)(isset($h['irk_capture_boards']) ? $h['irk_capture_boards'] : 0) > 0) { $identity['capture_installs']++; }
+    $by_src = as_map(isset($h['irks_by_source']) ? $h['irks_by_source'] : null);
+    $by_src_ok = as_map(isset($h['irks_resolving_by_source']) ? $h['irks_resolving_by_source'] : null);
+    $identity['capture_keys'] += (int)(isset($by_src['irk_capture']) ? $by_src['irk_capture'] : 0);
+    $identity['capture_keys_resolving'] += (int)(isset($by_src_ok['irk_capture']) ? $by_src_ok['irk_capture'] : 0);
 
     $latest[$id]['_bad'] = $bad;
 }
