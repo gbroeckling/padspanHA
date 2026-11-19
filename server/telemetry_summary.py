@@ -517,7 +517,7 @@ def new_installs_section(dirpath: Path, today: date) -> list[str]:
     return out
 
 
-# env.heard_from (0.38.261+): where the person heard about PadSpan, their own
+# env.heard_from: where the person heard about PadSpan, their own
 # one-tap answer to an optional question. The words, in the order asked.
 _HEARD_WORDS = ("reddit", "youtube", "ha_forum", "forum", "marketplace", "github", "discord", "search", "friend", "other")
 
@@ -531,7 +531,7 @@ def heard_section(latest: dict[str, dict]) -> list[str]:
     said = {iid: w for iid, w in said.items() if isinstance(w, str) and w in _HEARD_WORDS}
     out = [f"Where they heard about PadSpan ({len(said)} of {len(latest)} installs answered; their own answer, optional)"]
     if not said:
-        return out + ["  no answers yet (PadSpan 0.38.261+ asks once, after the opt-in)"]
+        return out + ["  no answers yet (optional, asked once after the opt-in)"]
     out.append("  answer         installs   not free   new this week")
     for w in _HEARD_WORDS:
         ids = [iid for iid, x in said.items() if x == w]

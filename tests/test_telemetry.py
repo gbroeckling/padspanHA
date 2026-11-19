@@ -1851,7 +1851,7 @@ def test_install_age_is_a_word_from_first_seen():
 
 
 def test_where_they_heard_of_padspan_is_their_own_word_or_not_sent():
-    """0.38.261: env.heard_from is the person's answer to an optional
+    """env.heard_from is the person's answer to an optional
     question: a word from HEARD_WORDS, or absent. Never free text."""
     h = _hass()
     assert "heard_from" not in T.build_payload(h)["env"], "not said is not sent"
