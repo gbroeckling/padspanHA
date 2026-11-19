@@ -24,7 +24,9 @@
 //                (the tracked layer's own room for each: nothing new
 //                tracked or kept) going into one of its rooms, or with none
 //                picked any room, or a person arriving home (their Home
-//                Assistant person going to home). The same card and flight
+//                Assistant person going from away to home by the one rule,
+//                person_home.js: home, a room PadSpan knows or a zone at
+//                home). The same card and flight
 //                (the view's own fly to someone, as Follow does), at most once
 //                each COOLDOWN_MS, so pacing between two rooms is not news; it
 //                never takes the place of another card that is up.
@@ -43,6 +45,7 @@ export const COOLDOWN_MS = 120000;         // a person or tag flown to at most t
 const LOOK_MS = 1000;                      // the states looked at this often
 const DOMAINS = ["event", "binary_sensor", "alarm_control_panel"];
 const BAD = new Set(["", "unknown", "unavailable"]);
+const { personIsHome } = await import(`./person_home.js${new URL(import.meta.url).search}`);
 
 /** settings.atlas_3d_director as [{entity, camera}] (camera "" for none). */
 export function triggersOf(raw){
@@ -83,10 +86,12 @@ export function watchedOf(raw){
 /** Did `w` ({key, rooms}) just arrive? Into `room` from `was` (the room it
  *  was last seen in; undefined: never seen, never news), one of its rooms or
  *  with none picked any; or, with none picked, home (a person's state from
- *  `stWas` to `st`; stWas undefined: the first look). The card's words, or null. */
-export function arrivedOf(w, was, room, stWas, st){
+ *  `stWas` to `st`, away to home by `home(st)`, the one rule of
+ *  person_home.js; stWas undefined or not known: the first look). The card's
+ *  words, or null. */
+export function arrivedOf(w, was, room, stWas, st, home = (s) => personIsHome(s)){
   const sw = stWas ? String(stWas.state) : "";
-  if (!w.rooms.length && stWas !== undefined && sw && !BAD.has(sw) && sw !== "home" && st && String(st.state) === "home") return "Arrived home";
+  if (!w.rooms.length && stWas !== undefined && sw && !BAD.has(sw) && st && !home(stWas) && home(st)) return "Arrived home";
   if (was !== undefined && room && room !== was && (!w.rooms.length || w.rooms.includes(room))) return `Went into ${room}`;
   return null;
 }
@@ -143,6 +148,9 @@ const CSS = `
  *   fly(eid)          the camera to the device or its room, untouched by the
  *                     panel's count of touches; false: nowhere to go
  *   rooms()           the people and tags drawn: [{key, name, room}]
+ *   isHome(st)        is a person (their state) home? person_home.js's rule,
+ *                     with the rooms and zones the view knows; missing: that
+ *                     rule with none ("home" alone)
  *   flyTo(key)        the camera to someone drawn, as fly; false: not drawn
  *   goHome()          back to the home view
  * }
@@ -224,11 +232,12 @@ export function createDirector(v){
     if (!watch.length) { roomOf = new Map(); stOf = new Map(); return null; }
     const drawn = new Map();
     for (const r of (typeof v.rooms === "function" ? v.rooms() : null) || []) if (r && typeof r.key === "string") drawn.set(r.key, r);
+    const home = typeof v.isHome === "function" ? (s) => v.isHome(s) : (s) => personIsHome(s);
     let hit = null;
     for (const w of watch) {
       const d = drawn.get(w.key), room = d && typeof d.room === "string" ? d.room : "";
       const st = w.key.startsWith("person.") ? states[w.key] || null : null;
-      const words = arrivedOf(w, roomOf.get(w.key), room, stOf.get(w.key), st);
+      const words = arrivedOf(w, roomOf.get(w.key), room, stOf.get(w.key), st, home);
       // Out of sight a while, or its room not known: still where it was last seen.
       if (room) roomOf.set(w.key, room);
       else if (!roomOf.has(w.key)) roomOf.set(w.key, "");

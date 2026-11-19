@@ -111,6 +111,10 @@ const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
 // a doorbell, door or alarm that went off (optional: missing, nothing does).
 const DIRECTOR = await import(`./live_aboard_director.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_director failed to load", err); return null; });
+// Is a person home (person_home.js): the director's "Arrived home" asks it
+// with the rooms and zones this view knows (missing: the director's own).
+const PERSON_HOME = await import(`./person_home.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: person_home failed to load", err); return null; });
 // The frame-rate readout (live_aboard_fps.js), Settings → Live Aboard →
 // Frame rate, this browser only (optional: missing, there is no readout).
 const FPS = await import(`./live_aboard_fps.js${new URL(import.meta.url).search}`)
@@ -5071,6 +5075,10 @@ function createSlot(slotKey){
       fly: (eid) => panel.moveQuietly(() => findDevice(String(eid))),
       // People and tags (settings.atlas_3d_director_people): the rooms the tracked layer already has, and Follow's own flight.
       rooms: () => (tracked ? tracked.rooms() : []),
+      // "Arrived home": the one rule, with the map's and the snapshot's rooms and Home Assistant's zones.
+      isHome: PERSON_HOME ? (st) => PERSON_HOME.personIsHome(st, {
+        rooms: PERSON_HOME.knownRooms(lastP && lastP.model, peopleSnap),
+        zones: PERSON_HOME.homeZones((lastP && typeof lastP.liveStates === "function" ? lastP.liveStates() : lastP && lastP.states) || {}) }) : null,
       flyTo: (key) => panel.moveQuietly(() => flyToPerson(String(key))),
       goHome: () => panel.goHome(),
     });

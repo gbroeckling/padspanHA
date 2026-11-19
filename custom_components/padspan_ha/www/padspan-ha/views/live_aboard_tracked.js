@@ -22,9 +22,9 @@
 //             (what is someone's is drawn as them, not as a tag too). What
 //             each carries can be picked (settings.atlas_3d_carries, People
 //             & devices): picked, it is theirs, whatever the names say. One
-//             known only by its room stands in the middle of that room
-//             (room_spot.js, Overview's own rule), nudged apart from others
-//             there, dimmed, and their card says "room only"
+//             known only by its room, while they are home, stands in the
+//             middle of that room (room_spot.js, Overview's own rule), nudged
+//             apart from others there, dimmed, and their card says "room only"
 //   pinned    a tag pinned on the map (model.beacon_positions_m) stands at
 //             its pin, never wandering with each reading
 //
@@ -40,9 +40,14 @@
 // person and tag drawn went in the last half hour, a ribbon on its floor in
 // its own colour, fading with age. Each lies on the floor it was walked on,
 // so only the floors showing show theirs.
+//
+// Whether someone is home is person_home.js's one rule (the server's
+// occupancy count and Vacation Mode use the same): "home", a room PadSpan
+// knows, a zone at home, or "unknown" while their own device is placed here.
 
 const _q = new URL(import.meta.url).search;
 const { middleOf, roomStagger, spotIn } = await import(`./room_spot.js${_q}`);
+const { homeZones, knownRooms, personIsHome } = await import(`./person_home.js${_q}`);
 export { roomStagger };
 
 /** How often someone walking is drawn (ms), by profile. */
@@ -76,9 +81,10 @@ const low = (v) => String(v || "").trim().toLowerCase();
  * {key, label, x, y, floor_id, linked: [entity ids], shown (named or
  * identified: the flat Atlas shows it), beacon (a tag's kind), room, age
  * (s since last heard), sure (0..1, how sure the spot is, or null), heard:
- * [{source, rssi}], roomOnly}. Not stale, not a ghost; the same "a place it
- * truly knows" rule as the flat Atlas's beacons. After those, the ones known
- * only by their room (roomOnly, x and y null), as Overview places them.
+ * [{source, rssi}], roomOnly, away (the snapshot's own word)}. Not stale,
+ * not a ghost; the same "a place it truly knows" rule as the flat Atlas's
+ * beacons. After those, the ones known only by their room (roomOnly, x and y
+ * null), as Overview places them.
  */
 export function trackedOf(snapshot){
   const list = snapshot && snapshot.objects && Array.isArray(snapshot.objects.list) ? snapshot.objects.list : [];
@@ -92,7 +98,7 @@ export function trackedOf(snapshot){
                linked: Array.isArray(o.linked_entities) ? o.linked_entities.map(String) : [],
                label: String(o.best_name || o.user_label || o.private_ble_name || o.name || ""), shown: !!(o.user_label || o.identified),
                beacon: o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon",
-               room, age: fin(o.age_s), sure: fin(o.knn_confidence),
+               room, age: fin(o.age_s), sure: fin(o.knn_confidence), away: !!o.away,
                heard: (Array.isArray(o.sources) ? o.sources : []).map(s => (s && typeof s === "object" ? { source: String(s.source || ""), rssi: fin(s.rssi) } : { source: String(s || ""), rssi: null }))
                  .filter(s => s.source) });
     // A tag lent to a guest (o.guest, only while Guest tags are on): who has it.
@@ -318,6 +324,8 @@ export function wantedOf(d){
   // Where people already stand: those PadSpan places first, then each one
   // known only by a room, so none stands on another.
   const stands = people.filter(P => P.at && !P.at.roomOnly).map(P => ({ x: P.at.x, y: P.at.y, floor_id: P.at.floor_id }));
+  // Who is home: the one rule (person_home.js), read once for everyone.
+  const home = people.some(P => P.at && P.at.roomOnly) ? { rooms: knownRooms(d.model, d.snapshot), zones: homeZones(d.states) } : null;
   for (const P of people) {
     if (!P.at) continue;
     const f = figs[P.eid] && figs[P.eid].params && typeof figs[P.eid].params === "object" ? figs[P.eid].params : null;
@@ -325,9 +333,11 @@ export function wantedOf(d){
     if (P.at.roomOnly) {
       // A room is a guess made from where they were: it says nothing of
       // someone who is out (a tracker Home Assistant keeps in a room for
-      // good, a room a tag is set to): only while they are home.
+      // good, a room a tag is set to): only while they are home. "unknown"
+      // is home while the thing that is theirs is a radio PadSpan hears in
+      // the house now, never an HA entity's room.
       const st = d.states && d.states[P.eid];
-      if (!st || st.state !== "home") continue;
+      if (!st || !personIsHome(st.state, { ...home, placed: P.at.beacon && !P.at.away })) continue;
       const mid = roomMiddle(d.model, P.at.room);
       if (!mid) continue;                     // a room not on the map (away, outside): nowhere to stand
       at = spotIn(mid, stands);

@@ -8,11 +8,13 @@ The number is PEOPLE in the building, never devices. A person is counted
 once, however many things they carry and however many HA entities point at
 their phone. Evidence, strongest first:
 
-  1. Known people — HA ``person.*`` entities that are home, deduplicated by
-     the device_tracker behind them (two persons on one phone = one person),
-     plus IRK-resolved phones PadSpan tracks itself. Placed in a room when a
-     PadSpan object is theirs (linked to their tracker, or labelled with the
-     tracker's name).
+  1. Known people — HA ``person.*`` entities that are home (the shared rule,
+     presence_rules.person_home: "home", a room PadSpan knows, a zone at
+     home, or "unknown" with a device of theirs placed in the house),
+     deduplicated by the device_tracker behind them (two persons on one
+     phone = one person), plus IRK-resolved phones PadSpan tracks itself.
+     Placed in a room when a PadSpan object is theirs (linked to their
+     tracker, or labelled with the tracker's name).
   2. Phone-class emitters nobody claims — rotating (RPA) addresses whose
      advert says "phone or watch in a pocket" (Apple continuity Nearby Info /
      Handoff / …, or a wearable maker), heard strongly by two or more
@@ -43,7 +45,10 @@ from homeassistant.core import HomeAssistant
 from .ble_enrichment import decode_apple_subtype, lookup_service_uuid
 from .bluetooth_live import get_bluetooth_live
 from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
-from .presence_rules import away_timeout_s, below_floor, is_away, is_outdoor_floor
+from .presence_rules import (
+    away_timeout_s, below_floor, device_is_theirs, home_context, is_away, is_outdoor_floor, person_home,
+    person_identity,
+)
 from .perf_sampler import record_duration
 from .ws_common import admin_if_enhanced_security, _is_rpa_addr
 
@@ -121,16 +126,21 @@ def _sensor_room(hass: HomeAssistant, state: Any, room_names: dict[str, str]) ->
 
 # ── Evidence ────────────────────────────────────────────────────────────────
 
-def _known_people(hass: HomeAssistant) -> list[dict[str, Any]]:
-    """HA persons that are home, one entry per phone behind them."""
+def _known_people(hass: HomeAssistant, objects: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """HA persons that are home, one entry per phone behind them.
+
+    Home is the one shared rule (presence_rules.person_home): "home", a room
+    PadSpan knows (a person linked to PadSpan's own tracker reads the room), a
+    zone at home, or "unknown" while one of their devices among `objects` (the
+    ones PadSpan sees now; None: the engine's own) is placed in the house.
+    """
     people: list[dict[str, Any]] = []
+    ctx = home_context(hass, objects)
     for st in hass.states.async_all("person"):
-        if st.state != "home":
+        if not person_home(hass, st, ctx):
             continue
         attrs = st.attributes or {}
-        trackers = {str(t) for t in (attrs.get("device_trackers") or [])}
-        if attrs.get("source"):
-            trackers.add(str(attrs["source"]))
+        trackers, names = person_identity(hass, st)
         name = str(attrs.get("friendly_name") or st.entity_id)
         # Same tracker = same phone = same person, however many person.*
         # entities point at it (person.remote and person.pixel both on the
@@ -140,13 +150,6 @@ def _known_people(hass: HomeAssistant) -> list[dict[str, Any]]:
             dup["aliases"].append(name)
             dup["trackers"] |= trackers
             continue
-        names = {name.lower()}
-        for t in trackers:
-            tst = hass.states.get(t)
-            fn = (getattr(tst, "attributes", None) or {}).get("friendly_name") if tst is not None else None
-            if fn:
-                names.add(str(fn).lower())
-            names.add(t.split(".", 1)[-1].replace("_", " ").lower())
         people.append({
             "name": name, "entity_id": st.entity_id, "trackers": trackers,
             "match_names": names, "aliases": [], "room": None, "via": "person entity",
@@ -178,13 +181,7 @@ def _claim_objects(people: list[dict[str, Any]], objects: list[dict[str, Any]]) 
         for obj in objects:
             if obj.get("_claimed"):
                 continue
-            label = str(obj.get("user_label") or "").strip().lower()
-            linked = {str(e) for e in (obj.get("linked_entities") or [])}
-            # An entity object (a Bermuda or other tracker in HA) is the
-            # person's tracker itself; only linked_entities was checked.
-            if obj.get("entity_id"):
-                linked.add(str(obj["entity_id"]))
-            if (label and label in person["match_names"]) or (linked & person["trackers"]):
+            if device_is_theirs(obj, person["trackers"], person["match_names"]):
                 obj["_claimed"] = True
                 person["room"] = obj.get("room") or None
                 person["via"] = f"{obj.get('user_label') or obj.get('name') or 'phone'} (PadSpan)"
@@ -462,7 +459,7 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     objects = [dict(o) for o in _seen_objects(hass, pc_data)]
 
     # 1. Known people.
-    people = _known_people(hass) if hybrid else []
+    people = _known_people(hass, objects) if hybrid else []
     _claim_objects(people, objects)
     _irk_phones(objects, people)
 

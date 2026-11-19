@@ -1166,10 +1166,15 @@ def apply_anchors(decisions: dict[str, bool], anchors: list[str], held: set, our
 
 
 def someone_home(hass: HomeAssistant) -> bool:
-    """Any person.* entity at home, or a guest whose stay counts as someone
-    home (a house-sitter; guest_tags.py) with the tag here."""
+    """Any person.* entity at home (the shared rule, presence_rules.person_home:
+    a person linked to PadSpan's tracker reads the room they are in), or a
+    guest whose stay counts as someone home (a house-sitter; guest_tags.py)
+    with the tag here."""
     try:
-        if any(s.state == "home" for s in hass.states.async_all("person")):
+        from .presence_rules import home_context, person_home  # noqa: PLC0415
+        persons = list(hass.states.async_all("person"))
+        ctx = home_context(hass) if persons else None
+        if any(person_home(hass, s, ctx) for s in persons):
             return True
     except Exception:  # noqa: BLE001
         pass

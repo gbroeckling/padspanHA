@@ -22,7 +22,7 @@ import math
 import re
 
 from .const import (
-    DATA_SETTINGS, DEFAULT_PATH_LOSS_EXP, DEFAULT_REF_POWER, DOMAIN, OUTDOOR_FLOOR_NAMES,
+    DATA_MODEL, DATA_SETTINGS, DEFAULT_PATH_LOSS_EXP, DEFAULT_REF_POWER, DOMAIN, OUTDOOR_FLOOR_NAMES,
 )
 
 # Kinds that physically go away.  An HA entity has no radio and no age, so it
@@ -153,6 +153,202 @@ def is_away(obj: dict[str, Any], timeout_s: float) -> bool:
     if age != age or age in (float("inf"), float("-inf")):  # NaN / inf
         return False
     return age > timeout_s
+
+
+# ── Is a person home? ────────────────────────────────────────────────────────
+#
+# A Home Assistant person counted only when their state was exactly "home"
+# vanished from the count and the 3D house when they were plainly in: a person
+# linked to PadSpan's own device tracker reads the ROOM (that tracker's state
+# is the room, and PadSpan's guide says to link it), a person with no tracker
+# of their own reads "unknown" while PadSpan hears their phone in the hall, and
+# a person in a Garden zone inside the home zone reads "Garden".
+#
+# One rule, here and in the panel (views/person_home.js; tests/
+# test_person_home.py holds the two alike on one table). A person is home when
+# their state is "home", a room PadSpan knows, the home zone's name or a zone
+# wholly inside the home zone, or "unknown" while PadSpan places one of their
+# own devices in the house. Anything else is away; a zone wins over a room of
+# the same name, so someone at a zone called "Office" is never counted in the
+# office at home.
+
+_EARTH_M = 6371000.0
+_HOME_RADIUS_M = 100.0     # Home Assistant's own default for zone.home
+_NOT_ROOMS = frozenset({"", "unknown", "unavailable", "not home", "home", "away"})
+
+
+def place_name(s: Any) -> str:
+    """A room or zone name as compared: case, "_" and "-" and extra spaces aside."""
+    return " ".join(re.sub(r"[_-]+", " ", "" if s is None else str(s).lower()).split())
+
+
+def _finite(v: Any) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v) if math.isfinite(v) else None
+
+
+def _metres_apart(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    rad = math.pi / 180.0
+    d_lat, d_lon = (lat2 - lat1) * rad, (lon2 - lon1) * rad
+    h = math.sin(d_lat / 2) ** 2 + math.cos(lat1 * rad) * math.cos(lat2 * rad) * math.sin(d_lon / 2) ** 2
+    return 2 * _EARTH_M * math.asin(min(1.0, math.sqrt(h)))
+
+
+def home_zones(zone_states: Any) -> dict[str, bool]:
+    """Home Assistant's zones by name (place_name), each True when it is the
+    home zone or lies wholly inside it. Two zones of one name are at home only
+    if both are. zone_states: the zone.* states."""
+    states = [s for s in (zone_states or []) if str(getattr(s, "entity_id", "")).startswith("zone.")]
+    home = next((s for s in states if s.entity_id == "zone.home"), None)
+    ha = (getattr(home, "attributes", None) or {}) if home is not None else {}
+    h_lat, h_lon = _finite(ha.get("latitude")), _finite(ha.get("longitude"))
+    h_r = _finite(ha.get("radius"))
+    h_r = _HOME_RADIUS_M if h_r is None else h_r
+    out: dict[str, bool] = {}
+    for s in states:
+        a = getattr(s, "attributes", None) or {}
+        name = place_name(a.get("friendly_name") or s.entity_id[5:])
+        if not name:
+            continue
+        at_home = s.entity_id == "zone.home"
+        lat, lon = _finite(a.get("latitude")), _finite(a.get("longitude"))
+        if not at_home and None not in (h_lat, h_lon, lat, lon):
+            r = _finite(a.get("radius")) or 0.0
+            at_home = _metres_apart(h_lat, h_lon, lat, lon) + max(0.0, r) <= h_r  # type: ignore[arg-type]
+        out[name] = (out[name] and at_home) if name in out else at_home
+    return out
+
+
+def person_is_home(state: Any, *, rooms: Any = (), zones: dict[str, bool] | None = None,
+                   placed: bool = False) -> bool:
+    """The rule. state: the person's state (a string, or their State); rooms:
+    the names PadSpan knows; zones: home_zones'; placed: PadSpan places one of
+    their own devices in the house now."""
+    raw = getattr(state, "state", state)
+    s = ("" if raw is None else str(raw)).strip()
+    if s == "home":
+        return True
+    if s == "unknown":
+        return bool(placed)
+    if s in ("", "not_home", "unavailable"):
+        return False
+    n = place_name(s)
+    z: dict[str, bool] = {}
+    for k, v in (zones or {}).items():
+        kn = place_name(k)
+        z[kn] = (z[kn] and bool(v)) if kn in z else bool(v)
+    if n in z:
+        return z[n]
+    return n not in _NOT_ROOMS and any(place_name(r) == n for r in (rooms or ()))
+
+
+def known_rooms(hass: Any) -> set[str]:
+    """Every room PadSpan knows (place_name): the map's rooms, each receiver's
+    room, the receivers' Home Assistant areas the engine uses before a map has
+    any, the room each device is in now, and Home Assistant's areas."""
+    out: set[str] = set()
+
+    def add(r: Any) -> None:
+        if isinstance(r, str):
+            n = place_name(r)
+            if n not in _NOT_ROOMS:
+                out.add(n)
+
+    d = (getattr(hass, "data", None) or {}).get(DOMAIN) or {}
+    mdl, pc = d.get(DATA_MODEL), d.get("presence_coordinator")
+    sources = (
+        lambda: list((mdl.room_geometry_m() or {}).keys()),
+        lambda: list((mdl.get_scanner_mappings()[0] or {}).values()),
+        lambda: list((getattr(pc, "_last_source_to_area", None) or {}).values()),
+        lambda: [o.get("room") for o in (getattr(pc, "data", None) or {}).values() if isinstance(o, dict)],
+        lambda: [a.name for a in _area_registry(hass).async_list_areas()],
+    )
+    for names in sources:
+        try:
+            for r in names():
+                add(r)
+        except Exception:  # noqa: BLE001 — a store or registry not ready: those rooms are not known yet
+            continue
+    return out
+
+
+def _area_registry(hass: Any) -> Any:
+    from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+    return ar.async_get(hass)
+
+
+def person_identity(hass: Any, st: Any) -> tuple[set[str], set[str]]:
+    """A person's device trackers, and the names their things may carry: their
+    own, and each tracker's name and object id (lower case)."""
+    attrs = getattr(st, "attributes", None) or {}
+    trackers = {str(t) for t in (attrs.get("device_trackers") or [])}
+    if attrs.get("source"):
+        trackers.add(str(attrs["source"]))
+    names = {str(attrs.get("friendly_name") or getattr(st, "entity_id", "")).lower()}
+    for t in trackers:
+        tst = hass.states.get(t)
+        fn = (getattr(tst, "attributes", None) or {}).get("friendly_name") if tst is not None else None
+        if fn:
+            names.add(str(fn).lower())
+        names.add(t.split(".", 1)[-1].replace("_", " ").lower())
+    names.discard("")
+    return trackers, names
+
+
+def device_is_theirs(obj: dict[str, Any], trackers: set[str], names: set[str]) -> bool:
+    """A PadSpan object is a person's when it is labelled with one of their
+    names, or linked to (or is) one of their device trackers."""
+    label = str(obj.get("user_label") or "").strip().lower()
+    linked = {str(e) for e in (obj.get("linked_entities") or [])}
+    # An entity object (a Bermuda or other tracker in HA) is the tracker itself.
+    if obj.get("entity_id"):
+        linked.add(str(obj["entity_id"]))
+    return bool((label and label in names) or (linked & trackers))
+
+
+def placed_in_house(obj: Any, timeout_s: float) -> bool:
+    """Does PadSpan place this device in the house now: a radio device heard
+    within the away timeout, with a room or a spot. An HA entity's room is not
+    PadSpan placing it (a tracker kept in its area for good)."""
+    if not isinstance(obj, dict) or obj.get("kind") not in RADIO_KINDS or is_away(obj, timeout_s):
+        return False
+    if obj.get("_stale") or obj.get("_ghost") or obj.get("away"):
+        return False
+    room = obj.get("room")
+    if isinstance(room, str) and place_name(room) not in _NOT_ROOMS:
+        return True
+    return _finite(obj.get("x_m")) is not None and _finite(obj.get("y_m")) is not None
+
+
+def home_context(hass: Any, objects: Any = None) -> dict[str, Any]:
+    """What person_home reads, gathered once for many people: the rooms
+    PadSpan knows, the zones at home, and the devices it places in the house
+    (objects: PadSpan's objects; None: the presence engine's own)."""
+    if objects is None:
+        pc = ((getattr(hass, "data", None) or {}).get(DOMAIN) or {}).get("presence_coordinator")
+        try:
+            objects = [o for o in (getattr(pc, "data", None) or {}).values()]
+        except Exception:  # noqa: BLE001
+            objects = []
+    try:
+        zones = home_zones(hass.states.async_all("zone"))
+    except Exception:  # noqa: BLE001 — no states yet: no zones
+        zones = {}
+    timeout = away_timeout_s(hass)
+    return {"rooms": known_rooms(hass), "zones": zones,
+            "placed": [o for o in objects or [] if placed_in_house(o, timeout)]}
+
+
+def person_home(hass: Any, st: Any, ctx: dict[str, Any] | None = None) -> bool:
+    """Is this person (their State) home? The rule, with what it reads from
+    Home Assistant and PadSpan (ctx: home_context's, for many people at once)."""
+    ctx = ctx if ctx is not None else home_context(hass)
+    placed = False
+    if str(getattr(st, "state", "") or "").strip() == "unknown":
+        trackers, names = person_identity(hass, st)
+        placed = any(device_is_theirs(o, trackers, names) for o in ctx["placed"])
+    return person_is_home(getattr(st, "state", None), rooms=ctx["rooms"], zones=ctx["zones"], placed=placed)
 
 
 # ── Outside: the site's indoor coverage envelope ────────────────────────────

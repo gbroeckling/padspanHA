@@ -1,0 +1,34 @@
+{
+  "_about": "Is a person home? One table for both sides of the one rule: presence_rules.person_is_home (server) and views/person_home.js personIsHome (panel). tests/test_person_home.py runs it through both. Zones: the home zone at 49.6, -123.2 (100 m); Garden 40 m north, 20 m wide (wholly inside it); Workshop 90 m north, 30 m wide (crosses its edge); Office 5 km away; a second Office over the house (two zones of one name are at home only if both are).",
+  "zones": [
+    {"entity_id": "zone.home", "attributes": {"friendly_name": "Home", "latitude": 49.6, "longitude": -123.2, "radius": 100}},
+    {"entity_id": "zone.garden", "attributes": {"friendly_name": "Garden", "latitude": 49.60035973, "longitude": -123.2, "radius": 20}},
+    {"entity_id": "zone.workshop", "attributes": {"friendly_name": "Workshop", "latitude": 49.60080939, "longitude": -123.2, "radius": 30}},
+    {"entity_id": "zone.work", "attributes": {"friendly_name": "Office", "latitude": 49.645, "longitude": -123.2, "radius": 200}},
+    {"entity_id": "zone.office_home", "attributes": {"friendly_name": "Office", "latitude": 49.6, "longitude": -123.2, "radius": 10}},
+    {"entity_id": "zone.no_place", "attributes": {"friendly_name": "Somewhere"}}
+  ],
+  "zones_expected": {"home": true, "garden": true, "workshop": false, "office": false, "somewhere": false},
+  "rooms": ["Kitchen", "Living Room", "Office", "Den"],
+  "cases": [
+    {"state": "home", "placed": false, "home": true, "why": "Home Assistant's own word"},
+    {"state": "not_home", "placed": true, "home": false, "why": "away, whatever PadSpan hears"},
+    {"state": "Kitchen", "placed": false, "home": true, "why": "a room PadSpan knows: its own tracker's state, through the person"},
+    {"state": "kitchen", "placed": false, "home": true, "why": "the room, any case"},
+    {"state": "living_room", "placed": false, "home": true, "why": "the room, as an entity id spells it"},
+    {"state": " Den ", "placed": false, "home": true, "why": "the room, spaces aside"},
+    {"state": "Garage", "placed": false, "home": false, "why": "a name PadSpan does not know"},
+    {"state": "unknown", "placed": true, "home": true, "why": "no tracker of their own, their phone placed in the house"},
+    {"state": "unknown", "placed": false, "home": false, "why": "no tracker of their own, nothing of theirs placed"},
+    {"state": "unavailable", "placed": true, "home": false, "why": "unavailable says nothing"},
+    {"state": "", "placed": true, "home": false, "why": "no state"},
+    {"state": null, "placed": true, "home": false, "why": "no state at all"},
+    {"state": "Home", "placed": false, "home": true, "why": "the home zone, by its name"},
+    {"state": "Garden", "placed": false, "home": true, "why": "a zone wholly inside the home zone"},
+    {"state": "Workshop", "placed": false, "home": false, "why": "a zone that only crosses the home zone's edge"},
+    {"state": "Office", "placed": false, "home": false, "why": "a zone elsewhere wins over a room of the same name"},
+    {"state": "Somewhere", "placed": true, "home": false, "why": "a zone with no place"},
+    {"state": "away", "placed": false, "home": false, "why": "not a room"},
+    {"state": "School", "placed": true, "home": false, "why": "a zone Home Assistant no longer has, and no room"}
+  ]
+}
