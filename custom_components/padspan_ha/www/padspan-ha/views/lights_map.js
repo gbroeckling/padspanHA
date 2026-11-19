@@ -3682,6 +3682,13 @@ const _noting = (el, notes) => (tag, attrs, kids) => {
 
 /** The Plans list there, from the 3D module (no GL asked of it): only ever on a press in that tab. */
 export const la3dPlansList = async (box, host) => (await import(`./live_aboard.js${new URL(import.meta.url).search}`)).openPlansList(box, host);
+/** Mapping → Layout's Save corrections (maps.js _carryOpenings): the doors and windows drawn in Live Aboard that go with
+ *  the rooms it saved, from the 3D file as house3d_get gave it (live_aboard_draft.js carryOpenings), and whether this
+ *  version may write that file. The rules are fetched only on that Save, only while Live Aboard is on. */
+export const la3dCarryOpenings = async (got, floorId, before, after) => {
+  const D = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
+  return { ...D.carryOpenings(got && got.data && got.data.openings, floorId, before, after), writable: D.writable(got && got.data, got && got.writable) };
+};
 export function buildLightsMapCard(hostIn){
   const keep = hostIn.keepCard || null;
   if (keep && keep.refresh && keep.card && keep.card.isConnected && keep.refresh(hostIn)) return keep.card;

@@ -32,7 +32,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
-        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList, peopleShownOn } =
+        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList, la3dCarryOpenings, peopleShownOn } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
@@ -11796,10 +11796,11 @@ export function _roomsAfterMerge(draft, orig, keep, others, res) {
   }
 }
 // Save corrections: the doors, windows and doorways drawn in Live Aboard on the walls of the rooms it just wrote go
-// with them (2026-11-19). No new field in the 3D file (the owner's): live_aboard_draft.js carryOpenings works out
-// which wall each is on from the outlines before and after. Read from the file at Save, written in the same Save by
-// house3d_edit (Edit's own save and checks), never removed: one that can't follow, or a write refused, stays where
-// it is and is counted. {text: the words for Save's message ("" when none moved or stayed), bad: a read or write failed}.
+// with them (2026-11-19), while Live Aboard is on at Pro (its file is not even read otherwise). No new field in the
+// 3D file (the owner's): the 3D rules work out which wall each is on from the outlines before and after
+// (lights_map.js la3dCarryOpenings, the one way Mapping reaches them). Read from the file at Save, written in the same
+// Save by house3d_edit (Edit's own save and checks), never removed: one that can't follow, or a write refused, stays
+// where it is and is counted. {text: the words for Save's message ("" when none moved or stayed), bad: a read or write failed}.
 const _OPENING_WORDS = { door: ["door", "doors"], window: ["window", "windows"], doorway: ["doorway", "doorways"] };
 function _openingWords(list) {
   const n = {};
@@ -11809,19 +11810,17 @@ function _openingWords(list) {
 }
 export async function _carryOpenings(ctx, floorId, before, after) {
   const said = (err) => String((err && err.message) || err).replace(/\.$/, "");
-  let D, r;
+  let res;
   try {
-    D = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
-    r = await ctx.actions.wsCall("padspan_ha/house3d_get");
+    res = await la3dCarryOpenings(await ctx.actions.wsCall("padspan_ha/house3d_get"), floorId, before, after);
   } catch (err) {
     return { text: `Live Aboard's doors and windows on these rooms weren't checked (${said(err)}), so they stay where they were.`, bad: true };
   }
-  const res = D.carryOpenings(r && r.data && r.data.openings, floorId, before, after);
   let moved = Object.keys(res.moved).map(id => ({ id, kind: res.moved[id].kind }));
   const left = res.left.slice();
   if (moved.length) {
     try {
-      if (!D.writable(r.data, r.writable)) throw new Error("Live Aboard's file was saved by a newer PadSpan");
+      if (!res.writable) throw new Error("Live Aboard's file was saved by a newer PadSpan");
       await ctx.actions.wsCall("padspan_ha/house3d_edit", { openings: res.moved });
       // Every screen showing the 3D file reads it again (as Settings' Remove all furniture does).
       try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
@@ -13293,8 +13292,9 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               saved[room] = draft[room];
             } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
           }
-          // Live Aboard's doors and windows on the walls of the rooms just saved go with them.
-          const carried = Object.keys(saved).length ? await _carryOpenings(ctx, floorId, draftOrig, { ...draftOrig, ...saved }) : { text: "", bad: false };
+          // Live Aboard's doors and windows on the walls of the rooms just saved go with them (on at Pro: _heightsOn).
+          const carried = Object.keys(saved).length && _heightsOn(ctx)
+            ? await _carryOpenings(ctx, floorId, draftOrig, { ...draftOrig, ...saved }) : { text: "", bad: false };
           // Everything below goes straight to the fabric in metres — no
           // map_id, no transform, nothing that depends on a photo existing.
           for (const src of movedScanners) {

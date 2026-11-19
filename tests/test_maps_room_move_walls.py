@@ -80,15 +80,20 @@ def test_save_takes_live_aboards_doors_and_windows_with_the_rooms_it_saved() -> 
     save = src[src.index('const saveBtn = el("button", {'):src.index('}, "Discard changes"));')]
     rooms = save[save.index("for (const room of changedRooms) {"):save.index("for (const src of movedScanners) {")]
     assert "saved[room] = draft[room];" in rooms and rooms.index("ok++;") < rooms.index("saved[room] = draft[room];")
-    assert ("const carried = Object.keys(saved).length ? await _carryOpenings(ctx, floorId, draftOrig, { ...draftOrig, ...saved })"
-            in rooms)
+    # Only while Live Aboard is on at Pro (its file isn't read otherwise; the server refuses the write then anyway).
+    assert ("const carried = Object.keys(saved).length && _heightsOn(ctx)\n"
+            "            ? await _carryOpenings(ctx, floorId, draftOrig, { ...draftOrig, ...saved })") in rooms.replace("\r\n", "\n")
     assert "+ (carried.text ? `. ${carried.text}` : \"\"), !!fail || carried.bad);" in save
     assert "mapState._roomsCarryNote = carried.text || null;" in save
     discard = src[src.index('}, "Discard changes"));') - 400:src.index('}, "Discard changes"));')]
     assert "house3d" not in discard and "_carryOpenings" not in discard
-    # The one writer: the 3D file is written from Layout only by _carryOpenings, through house3d_edit with openings alone.
+    # The one writer: the 3D file is written from Layout only by _carryOpenings, through house3d_edit with openings alone;
+    # the 3D rules reached through the 3D host (lights_map.js), as Mapping reaches every 3D module.
     carry = src[src.index("export async function _carryOpenings("):src.index("// Connected-component count over room bounding boxes")]
     assert 'await ctx.actions.wsCall("padspan_ha/house3d_edit", { openings: res.moved });' in carry
+    assert 'res = await la3dCarryOpenings(await ctx.actions.wsCall("padspan_ha/house3d_get"), floorId, before, after);' in carry
+    lm = (_MAPS.parent / "lights_map.js").read_text(encoding="utf-8")
+    assert "export const la3dCarryOpenings = async (got, floorId, before, after) => {" in lm
     assert src.count('wsCall("padspan_ha/house3d_edit"') == 2   # this, and the Atlas builder's host for Live Aboard (edit: ...)
     # The draft keeps which saved corner each corner is; a candidate loaded into the editor matches none.
     assert "_roomCornerAddIn(g, i);" in src and "_roomCornerDropIn(g, idx);" in src
