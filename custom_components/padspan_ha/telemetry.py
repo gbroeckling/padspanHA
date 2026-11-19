@@ -12,6 +12,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     the country and language set in Home Assistant (Settings → System →
         General): a two-letter code and a language tag such as "en-GB",
         left out when blank — never looked up from the address
+    where the person heard about PadSpan, only if they chose to say: one
+        word from HEARD_WORDS, their own answer to an optional question
+        asked once after the opt-in (env.heard_from)
     with a licence key on more than two homes, the licence's group code:
         16 hex characters made from the key (never the key), the same in
         every home of that licence, so its homes are seen together
@@ -393,6 +396,17 @@ def install_age_word(first_seen_ts: Any, now_ts: float) -> str | None:
         if d < edge:
             return word
     return "gt90d"
+
+
+# Where the person heard about PadSpan (settings telemetry_heard): their own
+# one-tap answer to an optional question, asked once after they opt in and
+# kept in Settings beside the switch. A word from this list, or not sent.
+HEARD_WORDS: tuple[str, ...] = ("reddit", "youtube", "ha_forum", "forum", "marketplace",
+                                "github", "discord", "search", "friend", "other")
+
+
+def heard_word(v: Any) -> str | None:
+    return v if isinstance(v, str) and v in HEARD_WORDS else None
 
 
 # Room timing that is not the default, and a Home Assistant floor the outdoor
@@ -2449,6 +2463,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _age = install_age_word(settings.get("first_seen_ts"), time.time())
     if _age:
         env["install_age"] = _age
+    _heard = heard_word(settings.get("telemetry_heard"))
+    if _heard:
+        env["heard_from"] = _heard
     # Guest tags (guest_tags.report_buckets): words only, never a name, only where on and used.
     try:
         from .guest_tags import report_buckets as _guest_buckets  # noqa: PLC0415
@@ -2881,6 +2898,8 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
             raise ValueError("env.room_walk not in the vocabulary")
     if isinstance(env, dict) and "install_age" in env and env["install_age"] not in INSTALL_AGE_WORDS:
         raise ValueError("env.install_age not in the vocabulary")
+    if isinstance(env, dict) and "heard_from" in env and env["heard_from"] not in HEARD_WORDS:
+        raise ValueError("env.heard_from not in the vocabulary")
     if isinstance(env, dict) and "guest" in env:
         from .guest_tags import REPORT_WORDS as _GW  # noqa: PLC0415
         gst = env["guest"]

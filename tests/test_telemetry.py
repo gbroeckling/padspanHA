@@ -1850,6 +1850,81 @@ def test_install_age_is_a_word_from_first_seen():
 
 
 
+def test_where_they_heard_of_padspan_is_their_own_word_or_not_sent():
+    """0.38.261: env.heard_from is the person's answer to an optional
+    question: a word from HEARD_WORDS, or absent. Never free text."""
+    h = _hass()
+    assert "heard_from" not in T.build_payload(h)["env"], "not said is not sent"
+    for bad in ("", None, 3, True, "Reddit", "r/homeassistant", "a friend told me", ["reddit"]):
+        h.data[DOMAIN][DATA_SETTINGS].data["telemetry_heard"] = bad
+        assert "heard_from" not in T.build_payload(h)["env"], bad
+    for word in T.HEARD_WORDS:
+        h.data[DOMAIN][DATA_SETTINGS].data["telemetry_heard"] = word
+        payload = T.build_payload(h)
+        T.assert_shareable(payload)
+        assert payload["env"]["heard_from"] == word
+    payload["env"]["heard_from"] = "my neighbour Dave"
+    with pytest.raises(ValueError):
+        T.assert_shareable(payload)
+
+
+def test_the_heard_question_is_wired_the_same_everywhere():
+    """One list of words: the backend's, the two places the panel offers it,
+    and the developer's summary. The setting defaults to not said, only an
+    administrator can set it, and anything off the list is saved as blank."""
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+    assert DEFAULT_SETTINGS["telemetry_heard"] == ""
+    root = Path(__file__).resolve().parents[1]
+    ws = (root / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
+    assert 'vol.Optional("telemetry_heard"): str' in ws
+    assert 'payload["telemetry_heard"] = heard_word(str(msg.get("telemetry_heard") or "").strip().lower()) or ""' in ws
+    body = ws[ws.index('if "telemetry_heard" in msg:'):ws.index('if "telemetry_enabled" in msg:')]
+    assert "Only an administrator can change the usage report" in body
+    www = root / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
+    panel = (www / "panel.js").read_text(encoding="utf-8")
+    settings = (www / "views" / "settings.js").read_text(encoding="utf-8")
+    ask = panel[panel.index("if (this._heardAsk) {"):panel.index("// Settings not loaded yet ({} at start)")]
+    assert tuple(re.findall(r'\["([a-z_]+)", "[^"]+"\]', ask)) == T.HEARD_WORDS
+    sel = settings[settings.index('const heardSel = el("select"'):settings.index("heardSel.value = ")]
+    assert tuple(re.findall(r'\["([a-z_]+)", "[^"]+"\]', sel)) == T.HEARD_WORDS
+    assert '["", "Not said"]' in sel
+    # asked only of someone who has just said yes, and never by itself again
+    assert panel.count("this._heardAsk = true") == 1 and "if (on) this._heardAsk = true;" in panel
+    assert 'skip.addEventListener("click", () => done(""));' in ask   # tests/js/whats_new_card.mjs runs the card
+    # shown in Settings only while the report is on
+    assert "telOn ? el(\"div\", { style: rowStyle }, [\n      el(\"div\", { style: \"font-size:13px;color:#a7f3d0;min-width:130px\" }, \"Where you heard of PadSpan\")" in settings
+    summary = root / "server" / "telemetry_summary.py"
+    if summary.exists():          # the Bright derivation carries no server/
+        src = summary.read_text(encoding="utf-8")
+        got = re.search(r"_HEARD_WORDS = \(([^)]*)\)", src).group(1)
+        assert tuple(re.findall(r'"([a-z_]+)"', got)) == T.HEARD_WORDS
+    readme = root / "README.md"
+    if readme.exists():
+        assert "`heard_from`: where you heard about PadSpan" in readme.read_text(encoding="utf-8")
+
+
+def test_the_summary_counts_where_installs_heard_of_padspan():
+    import importlib.util
+    script = Path(__file__).resolve().parents[1] / "server" / "telemetry_summary.py"
+    if not script.exists():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
+    spec = importlib.util.spec_from_file_location("telemetry_summary", script)
+    S = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(S)
+    latest = {
+        "a": {"tier": "free", "env": {"heard_from": "reddit", "install_age": "lt1d"}},
+        "b": {"tier": "pro", "env": {"heard_from": "reddit", "install_age": "gt90d"}},
+        "c": {"tier": "free", "env": {"heard_from": "youtube"}},
+        "d": {"tier": "free", "env": {"heard_from": "made up"}},
+        "e": {"tier": "free", "env": {}},
+    }
+    out = S.heard_section(latest)
+    assert out[0].startswith("Where they heard about PadSpan (3 of 5 installs answered")
+    rows = {ln.split()[0]: [int(x) for x in ln.split()[1:]] for ln in out[2:]}
+    assert rows == {"reddit": [2, 1, 1], "youtube": [1, 0, 0]}
+    assert S.heard_section({"e": {"env": {}}})[1].strip().startswith("no answers yet")
+
+
 def test_the_days_counts_survive_a_restart_and_only_closed_names_come_back():
     """0.38.177: counters live on disk too. What the last run saved is added
     back at start; a name no longer on the list, or a non-count, is dropped."""

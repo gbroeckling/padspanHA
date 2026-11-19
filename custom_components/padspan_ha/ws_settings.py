@@ -515,6 +515,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("update_check_enabled"): bool,           # daily version ping (README)
         vol.Optional("telemetry_enabled"): bool,              # opt-in usage report (telemetry.py)
         vol.Optional("telemetry_asked"): bool,                # the ask card was answered; never shown again
+        vol.Optional("telemetry_heard"): str,                 # where they heard about PadSpan: a telemetry.HEARD_WORDS word, or "" to clear
         vol.Optional("trial_nudge_done"): bool,               # the Overview trial milestone card was answered; never again
         vol.Optional("tester_nudge_done"): bool,              # the Overview tester card was shown; never again
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
@@ -747,6 +748,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["cpu_mode"] = cm
         if "update_check_enabled" in msg:
             payload["update_check_enabled"] = bool(msg.get("update_check_enabled"))
+        if "telemetry_heard" in msg:
+            # Part of the report, so an admin's call like the switch itself.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change the usage report")
+                return
+            from .telemetry import heard_word  # noqa: PLC0415
+            payload["telemetry_heard"] = heard_word(str(msg.get("telemetry_heard") or "").strip().lower()) or ""
         if "telemetry_enabled" in msg:
             # Opting a whole install into sending reports is an admin's call,
             # like the send-now and reset-id commands beside it.

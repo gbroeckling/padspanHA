@@ -53,6 +53,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # the id is minted on first enable and can be replaced from Settings.
     "telemetry_enabled": False,
     "telemetry_asked": False,      # the panel asked once, and got an answer either way
+    "telemetry_heard": "",         # where they heard about PadSpan (telemetry.HEARD_WORDS), their own answer; "" = not said
     # The version the what's-new card last reported. Seeded silently the first
     # time the panel sees it, so a FRESH install is never told it "updated".
     "whatsnew_seen_version": "",

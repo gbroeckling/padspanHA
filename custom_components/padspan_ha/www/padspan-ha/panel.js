@@ -325,7 +325,7 @@ function _sampleKind(payload){
   if (type === "padspan_ha/settings_set") {
     const keys = Object.keys(payload).filter(k => k !== "type" && k !== "id");
     const ok = ["data_mode", "whatsnew_seen_version", "telemetry_enabled", "telemetry_asked",
-                "theme_palette", "light_theme", "day_theme", "theme_follow_sun", "ui_skin"];
+                "telemetry_heard", "theme_palette", "light_theme", "day_theme", "theme_follow_sun", "ui_skin"];
     // Only ever back to Live (_setDataMode): Sample is this browser's own choice, never the server's.
     if ("data_mode" in payload && payload.data_mode !== "live") return "write";
     return keys.length && keys.every(k => ok.includes(k)) ? "pass" : "write";
@@ -1561,6 +1561,44 @@ class PadSpanHaApp extends HTMLElement {
 
   _telemetryAskCard(compact){
     const st = this.state.settings;
+    const cardStyle = compact
+      ? "margin-top:8px;padding:8px 10px;border-top:1px solid #1a4228"
+      : "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px";
+    // Someone who has just said yes gets one optional question, on this same
+    // card, this once: where they heard about PadSpan. It lives in memory
+    // only, so a reload, an answer or Skip ends it and nothing asks again; the
+    // same choice stays in Settings → Tracking beside the switch. The words
+    // are telemetry.HEARD_WORDS (tests/test_telemetry.py holds the two equal).
+    if (this._heardAsk) {
+      const done = async (word) => {
+        this._heardAsk = false;
+        if (word) {
+          try {
+            const res = await this._callWS({ type: "padspan_ha/settings_set", telemetry_heard: word });
+            this.state.settings = res?.settings || this.state.settings;
+            this._toast("Thank you.");
+          } catch(e) { this._toast("Failed to save setting", true); }
+        }
+        this._scheduleRender();
+      };
+      const q = el("div", { "data-heard-ask": "1", style: cardStyle });
+      q.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, "Thank you. One optional question"));
+      q.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
+        "Where did you hear about PadSpan? One tap, and it goes with the report as one word. Skip it if you'd rather not say."));
+      const row = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap" });
+      for (const [word, label] of [["reddit", "Reddit"], ["youtube", "YouTube"], ["ha_forum", "Home Assistant forum"], ["forum", "Another forum"],
+                                   ["marketplace", "Marketplace or HACS"], ["github", "GitHub"], ["discord", "Discord"], ["search", "A web search"],
+                                   ["friend", "A friend"], ["other", "Somewhere else"]]) {
+        const b = el("button", { class: "btn inline", "data-heard": word }, label);
+        b.addEventListener("click", () => done(word));
+        row.appendChild(b);
+      }
+      const skip = el("button", { class: "btn inline", "data-heard-skip": "1", style: "color:#94a3b8" }, "Skip");
+      skip.addEventListener("click", () => done(""));
+      row.appendChild(skip);
+      q.appendChild(row);
+      return q;
+    }
     // Settings not loaded yet ({} at start) is not "never asked": no flash of
     // the question before the answer arrives.
     if (!st || !("telemetry_enabled" in st) || st.telemetry_enabled || st.telemetry_asked) return null;
@@ -1572,13 +1610,12 @@ class PadSpanHaApp extends HTMLElement {
         const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" },
           on ? { telemetry_enabled: true, telemetry_asked: true } : { telemetry_asked: true }));
         this.state.settings = res?.settings || this.state.settings;
+        if (on) this._heardAsk = true;
         this._toast(on ? "Thank you — usage report on. Settings → Tracking shows exactly what goes." : "Okay — it stays off. Settings → Tracking if you change your mind.");
       } catch(e) { this._toast("Failed to save setting", true); }
       this._scheduleRender();
     };
-    const card = el("div", { style: compact
-      ? "margin-top:8px;padding:8px 10px;border-top:1px solid #1a4228"
-      : "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
+    const card = el("div", { style: cardStyle });
     card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, "Help improve PadSpan"));
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
       "PadSpan is bleeding edge. Metre-level BLE positioning in an ordinary house is not a solved problem, and this one is developed against exactly one house. " +
@@ -1587,7 +1624,7 @@ class PadSpanHaApp extends HTMLElement {
       "Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Tracking turns it off again any time. " +
       "Now and then the developer invites houses that report to try something, like a free year of Pro. You can say no."));
     const out = el("pre", { class: "pre", style: "display:none;margin:0 0 8px;max-height:260px;overflow:auto;font-size:11px" });
-    const yes = el("button", { class: "btn inline", style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, "Share usage report");
+    const yes = el("button", { class: "btn inline", "data-ask": "yes", style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, "Share usage report");
     yes.addEventListener("click", () => decide(true));
     const prev = el("button", { class: "btn inline" }, "Preview what would be sent");
     prev.addEventListener("click", async () => {
@@ -1599,7 +1636,7 @@ class PadSpanHaApp extends HTMLElement {
       } catch(e) { this._toast("Preview failed: " + (e.message || e), true); }
       prev.disabled = false;
     });
-    const no = el("button", { class: "btn inline", style: "color:#94a3b8" }, "No thanks");
+    const no = el("button", { class: "btn inline", "data-ask": "no", style: "color:#94a3b8" }, "No thanks");
     no.addEventListener("click", () => decide(false));
     card.appendChild(out);
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [yes, prev, no]));

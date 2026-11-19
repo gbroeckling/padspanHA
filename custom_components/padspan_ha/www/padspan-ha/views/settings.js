@@ -1491,6 +1491,19 @@ function _settingsPresence(ctx, el){
       ctx.actions.renderRooms();
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
+  // Where they heard about PadSpan: their own answer, optional, sent as one
+  // word with the report (telemetry.HEARD_WORDS; the opt-in card asks it once).
+  const heardSel = el("select", { class: "select", style: "width:auto", "data-setting": "telemetry_heard" });
+  for (const [v, t] of [["", "Not said"], ["reddit", "Reddit"], ["youtube", "YouTube"], ["ha_forum", "Home Assistant forum"], ["forum", "Another forum"],
+                        ["marketplace", "Marketplace or HACS"], ["github", "GitHub"], ["discord", "Discord"], ["search", "A web search"],
+                        ["friend", "A friend"], ["other", "Somewhere else"]]) heardSel.appendChild(el("option", { value: v }, t));
+  heardSel.value = String(settings.telemetry_heard || "");
+  heardSel.addEventListener("change", async () => {
+    try {
+      await ctx.actions.settingsSet({ telemetry_heard: heardSel.value });
+      ctx.toast(heardSel.value ? "Thank you." : "Cleared: it is no longer sent.");
+    } catch(e) { ctx.toast("Failed to save setting", true); heardSel.value = String(settings.telemetry_heard || ""); }
+  });
   const telOut = el("pre", { class: "pre", style: "display:none;margin-top:10px;max-height:360px;overflow:auto;font-size:11px" });
   const telStatus = el("span", { class: "muted", style: "font-size:11px;margin-left:8px" }, "");
   const previewBtn = el("button", { class: "btn inline" }, "Preview what would be sent");
@@ -1553,7 +1566,7 @@ function _settingsPresence(ctx, el){
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
-      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
+      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
       "IRKs and objects you have and which related integrations are installed; which feature switches " +
       "are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), " +
       "and with two screens or more, a few words per screen (first five); " +
@@ -1575,6 +1588,11 @@ function _settingsPresence(ctx, el){
     ]),
     telLocked ? el("div", { class: "muted", style: "font-size:11px;margin:-2px 0 6px" },
       `On while you use a free licence: it can't be turned off until it ends${settings.report_locked ? " (" + String(settings.report_locked).slice(0, 10) + ")" : ""}, or with a bought key.`) : null,
+    telOn ? el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Where you heard of PadSpan"),
+      heardSel,
+      el("span", { class: "muted", style: "font-size:11px" }, "Optional. Your own answer, sent as one word."),
+    ]) : null,
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" }, [previewBtn, sendBtn, idBtn]),
     telOut,
     // "Become a tester": its own section, consent and button, never part of

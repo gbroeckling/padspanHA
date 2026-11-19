@@ -517,6 +517,32 @@ def new_installs_section(dirpath: Path, today: date) -> list[str]:
     return out
 
 
+# env.heard_from (0.38.261+): where the person heard about PadSpan, their own
+# one-tap answer to an optional question. The words, in the order asked.
+_HEARD_WORDS = ("reddit", "youtube", "ha_forum", "forum", "marketplace", "github", "discord", "search", "friend", "other")
+
+
+def heard_section(latest: dict[str, dict]) -> list[str]:
+    """Where installs heard about PadSpan: each install's latest answer, how
+    many of those are on a paid or trial tier, and how many were new (their
+    install_age under a week) when they last reported. An install that never
+    answered is not counted here: the question is optional."""
+    said = {iid: (r.get("env") or {}).get("heard_from") for iid, r in latest.items()}
+    said = {iid: w for iid, w in said.items() if isinstance(w, str) and w in _HEARD_WORDS}
+    out = [f"Where they heard about PadSpan ({len(said)} of {len(latest)} installs answered; their own answer, optional)"]
+    if not said:
+        return out + ["  no answers yet (PadSpan 0.38.261+ asks once, after the opt-in)"]
+    out.append("  answer         installs   not free   new this week")
+    for w in _HEARD_WORDS:
+        ids = [iid for iid, x in said.items() if x == w]
+        if not ids:
+            continue
+        paid = sum(1 for iid in ids if str(latest[iid].get("tier") or "free") != "free")
+        new = sum(1 for iid in ids if (latest[iid].get("env") or {}).get("install_age") in _NEW_AGES)
+        out.append(f"  {w:<13}  {len(ids):>8}   {paid:>8}   {new:>13}")
+    return out
+
+
 # Getting to a map (env.mapping, sent only by a house with a plan whose setup
 # isn't finished; the AI helper's design J): the step each is stuck at.
 _STUCK_WORDS = ("plan_no_rooms", "rooms_no_receivers", "receivers_no_calibration", "none")
@@ -688,6 +714,9 @@ def main() -> int:
     n = len(latest)
     print(f"{n} installs, {len(rows)} install-days, last {a.days} days\n")
     for line in new_installs_section(Path(a.dir), date.today()):
+        print(line)
+    print()
+    for line in heard_section(latest):
         print(line)
     print()
     for line in mapping_section(rows, reports):

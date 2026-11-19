@@ -431,6 +431,49 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
   } catch (e) { fail.push(`${label}: ${e && e.message ? e.message : e}`); }
 }
 
+// 11. After a yes, the same card asks where they heard about PadSpan: once,
+//     optional, and never after a No thanks (async: each answer is a save).
+{
+  T._resetTrialOffer();
+  const label = "usage ask: a yes is followed by one optional question; an answer or Skip ends it";
+  try {
+    const tick = async () => { for (let i = 0; i < 5; i++) await new Promise(r => globalThis._realSetTimeout(r, 0)); };
+    const house = () => {
+      const s = { telemetry_enabled: false, telemetry_asked: false };
+      const { c, obj } = setup(s);
+      c._callWS = (msg) => { c._saved.push(msg); const m = { ...msg }; delete m.type; Object.assign(s, m); return Promise.resolve({ settings: s }); };
+      return { c, card: () => obj._telemetryAskCard.call(c, false) };
+    };
+    // yes, then an answer
+    const a = house();
+    q(a.card(), '[data-ask="yes"]').click();
+    await tick();
+    assert(a.c._saved.length === 1 && a.c._saved[0].telemetry_enabled === true, "the yes was not saved first");
+    let ask = a.card();
+    assert(ask && q(ask, '[data-heard="reddit"]') && q(ask, "[data-heard-skip]"), "no question after a yes");
+    assert(!q(ask, '[data-ask="yes"]'), "the opt-in buttons are still there");
+    q(ask, '[data-heard="reddit"]').click();
+    await tick();
+    assert(a.c._saved.length === 2 && a.c._saved[1].telemetry_heard === "reddit", "answer not saved: " + JSON.stringify(a.c._saved));
+    assert(a.card() === null, "asked again after an answer");
+    // yes, then Skip: nothing saved, nothing asked again
+    const b = house();
+    q(b.card(), '[data-ask="yes"]').click();
+    await tick();
+    q(b.card(), "[data-heard-skip]").click();
+    await tick();
+    assert(b.c._saved.length === 1, "Skip saved something: " + JSON.stringify(b.c._saved));
+    assert(b.card() === null, "asked again after Skip");
+    // No thanks: never asked
+    const n = house();
+    q(n.card(), '[data-ask="no"]').click();
+    await tick();
+    assert(n.card() === null, "a question after No thanks");
+    assert(n.c._saved.length === 1 && !("telemetry_heard" in n.c._saved[0]), "No thanks saved an answer");
+    ok.push(label);
+  } catch (e) { fail.push(`${label}: ${e && e.message ? e.message : e}`); }
+}
+
 for (const o of ok) console.log(`  ok   ${o}`);
 for (const f of fail) console.log(`  FAIL ${f}`);
 console.log(`${ok.length} passed, ${fail.length} failed`);
