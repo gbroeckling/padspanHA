@@ -12,9 +12,9 @@ When a newer stable release exists, a persistent notification is created
 When it runs (with the licence recheck, which follows it): the first time a
 random while after Home Assistant starts (_FIRST_DELAY_S), because many homes
 restart at the same moment after a Home Assistant release and their checks
-should not all arrive together; then hourly, but only when the last check is
-_MIN_AGE_S old, so a restart does not ask again (server_checked_at, kept in
-PadSpan's settings).
+should not all arrive together; then once a day (_INTERVAL). A check within
+the last _MIN_AGE_S makes it wait, so a restart does not ask again
+(server_checked_at, kept in PadSpan's settings).
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 UPDATE_CHECK_URL = "https://padspan.traks.ca/api/version.php"
 _FIRST_DELAY_S = (300, 6 * 3600)  # the first check after a start: at random, 5 minutes to 6 hours in
 _MIN_AGE_S = 20 * 3600            # a check this recent makes the next one wait
-_TICK = timedelta(hours=1)        # after the first, how often a due check is looked for
+_INTERVAL = timedelta(hours=24)   # after the first, once a day
 _DATA_UNSUBS = "_update_check_unsubs"
 _DATA_MANIFEST = "update_manifest"
 _DATA_NOTIFIED = "_update_notified_version"
@@ -283,7 +283,7 @@ async def _run_if_due(hass: HomeAssistant, now=time.time) -> bool:
 
 def async_setup_update_check(hass: HomeAssistant) -> None:
     """Schedule the checks (idempotent across reloads): the first at random
-    within _FIRST_DELAY_S, then an hourly look for one that is due."""
+    within _FIRST_DELAY_S, then once a day."""
     from homeassistant.helpers.event import async_call_later, async_track_time_interval  # noqa: PLC0415
 
     dom = hass.data.setdefault(DOMAIN, {})
@@ -295,9 +295,9 @@ def async_setup_update_check(hass: HomeAssistant) -> None:
         await _run_if_due(hass)
 
     async def _first(_now: Any = None) -> None:
-        # The hourly look first, so a first check that raises can't lose it.
+        # The daily timer first, so a first check that raises can't lose it.
         if dom.get(_DATA_UNSUBS) is unsubs:  # not stopped meanwhile
-            unsubs.append(async_track_time_interval(hass, _tick, _TICK))
+            unsubs.append(async_track_time_interval(hass, _tick, _INTERVAL))
         await _run_if_due(hass)
 
     unsubs.append(async_call_later(hass, random.uniform(*_FIRST_DELAY_S), _first))

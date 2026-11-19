@@ -305,7 +305,7 @@ def test_no_stamp_or_one_in_the_future_never_holds_the_checks_off(monkeypatch, s
     assert ran == ["check", "licence"]
 
 
-def test_the_first_check_waits_a_random_while_then_looks_hourly(monkeypatch):
+def test_the_first_check_waits_a_random_while_then_runs_daily(monkeypatch):
     later, intervals = [], []
     ev = types.ModuleType("homeassistant.helpers.event")
     ev.async_call_later = lambda hass, delay, action: later.append((delay, action)) or (lambda: None)
@@ -315,11 +315,11 @@ def test_the_first_check_waits_a_random_while_then_looks_hourly(monkeypatch):
     ran = _counted(monkeypatch)
     hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: _St()}})
     U.async_setup_update_check(hass)
-    assert [d for d, _ in later] == [4321.0] and intervals == [], "nothing at start, nothing hourly yet"
+    assert [d for d, _ in later] == [4321.0] and intervals == [], "nothing at start, no daily timer yet"
     assert U._FIRST_DELAY_S == (300, 6 * 3600) and U._MIN_AGE_S == 20 * 3600
     asyncio.run(later[0][1]())
     assert ran == ["check", "licence"]
-    assert len(intervals) == 1 and intervals[0][1].total_seconds() == 3600
+    assert len(intervals) == 1 and intervals[0][1].total_seconds() == 24 * 3600
     U.async_stop_update_check(hass)
     assert U._DATA_UNSUBS not in hass.data[DOMAIN]
 
@@ -328,7 +328,7 @@ def _timers(monkeypatch):
     later, intervals, cancelled = [], [], []
     ev = types.ModuleType("homeassistant.helpers.event")
     ev.async_call_later = lambda hass, delay, action: later.append(action) or (lambda: cancelled.append("later"))
-    ev.async_track_time_interval = lambda hass, action, every: intervals.append(action) or (lambda: cancelled.append("hourly"))
+    ev.async_track_time_interval = lambda hass, action, every: intervals.append(action) or (lambda: cancelled.append("daily"))
     monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
     return later, intervals, cancelled
 
@@ -343,10 +343,10 @@ def test_a_stop_while_the_first_check_runs_leaves_nothing_running(monkeypatch):
     monkeypatch.setattr(U, "_run_if_due", _stops)
     U.async_setup_update_check(hass)
     asyncio.run(later[0]())
-    assert len(intervals) == 1 and "hourly" in cancelled
+    assert len(intervals) == 1 and "daily" in cancelled
 
 
-def test_a_stop_before_the_first_check_adds_no_hourly_look(monkeypatch):
+def test_a_stop_before_the_first_check_adds_no_daily_timer(monkeypatch):
     later, intervals, _ = _timers(monkeypatch)
     hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: _St()}})
     _counted(monkeypatch)
@@ -356,7 +356,7 @@ def test_a_stop_before_the_first_check_adds_no_hourly_look(monkeypatch):
     assert intervals == []
 
 
-def test_a_first_check_that_raises_keeps_the_hourly_look(monkeypatch):
+def test_a_first_check_that_raises_keeps_the_daily_timer(monkeypatch):
     later, intervals, _ = _timers(monkeypatch)
     hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: _St()}})
 
