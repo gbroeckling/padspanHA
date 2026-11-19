@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.264",
+  "title": "The usage report: its one question reaches every opt-in, and three things it could not say",
+  "date": "2026-11-19",
+  "body_markdown": "### New\n- **The usage report says which store keeps PadSpan up to date, and whether your automations use it.** Two new lines in the opt-in report: `store`, one word for Home Assistant's Marketplace, HACS, or neither when PadSpan was copied in by hand; and `used_in`, how many automations and how many scripts use one of PadSpan's entities or devices. Two counts, never which ones. The Preview shows both, and the README's list of what the report sends has them.\n- **Deleting PadSpan with the report on sends one last report that says so.** It carries the anonymous ID, the day, the version and that one flag, and nothing about the house, so a removed install can be told from a machine that is switched off. With the report off, nothing is sent.\n\n### Changed\n- **The optional question, where you heard about PadSpan, now reaches every way of opting in.** It was asked only after a yes on the opt-in card. It is now asked once per install whichever way the report comes on (the card, Settings, the tick box on the free trial) and when a free trial, a tester sign-up or a free year starts: a card on the Overview with one-tap answers and Skip. An answer or Skip ends it for good, it is never shown on a wall screen, and a house whose report was already on is still not asked: the choice stays under Settings → Tracking → Help improve PadSpan."
+ },
+ {
   "version": "0.38.263",
   "title": "Room sets: odd-shaped rooms, doorways and kitchen corners; The launch price ends November 30; The usage report counts irk-capture keys apart; Live Aboard: Rooms ▾ by default; Usage report: Live Aboard's Look and rooms, and Furnish's room sets; WLED outputs: a made-up example address",
   "date": "2026-11-19",
@@ -76,11 +82,5 @@
   "title": "A floor plan placed out of shape is said",
   "date": "2026-11-16",
   "body_markdown": "### Added\n- **Overview's \"Improve accuracy\" card names a floor plan placed wider or narrower than its own picture.** A plan dragged to size in the old 3D Stack could end up squeezed: a nearly square picture standing 31% too narrow, with its room and receivers up to a metre off, and nothing said so. Now a plan whose placed shape is more than 12% from its picture's is named, with how far and which way, and a Measure button that opens the scale step on that plan. A plan with a hand measurement of its own is trusted and never named; a plan with nothing drawn on it is left alone. Like the other tips, it shows to administrators only, never on a wall screen, and can be hidden.\n\n### Usage report (opt-in)\n- **How many plans are placed out of shape**, as a count, and whether the new tip was shown, followed or hidden. Never a plan's name or picture."
- },
- {
-  "version": "0.38.250",
-  "title": "Setup Wizard: a placed receiver is kept on Back to Setup",
-  "date": "2026-11-16",
-  "body_markdown": "### Fixed\n- **A receiver placed in the Setup Wizard is saved when you press Back to Setup.** In 0.38.249 that only worked if the rooms step had been shown first in the same visit; opening the wizard straight at its receivers step (Setup's \"Place receivers\" does exactly that), placing a receiver and pressing Back to Setup lost it. Next, Finish, the step buttons and Exit setup already saved it."
  }
 ]

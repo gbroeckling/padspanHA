@@ -184,6 +184,21 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.264</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">19 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>The usage report says which store keeps PadSpan up to date, and whether your automations use it.</b> Two new lines in the opt-in report: <code>store</code>, one word for Home Assistant's Marketplace, HACS, or neither when PadSpan was copied in by hand; and <code>used_in</code>, how many automations and how many scripts use one of PadSpan's entities or devices. Two counts, never which ones. The Preview shows both, and the README's list of what the report sends has them.</li>
+          <li><b>Deleting PadSpan with the report on sends one last report that says so.</b> It carries the anonymous ID, the day, the version and that one flag, and nothing about the house, so a removed install can be told from a machine that is switched off. With the report off, nothing is sent.</li>
+          <li><b>The optional question, where you heard about PadSpan, now reaches every way of opting in.</b> It was asked only after a yes on the opt-in card. It is now asked once per install whichever way the report comes on (the card, Settings, the tick box on the free trial) and when a free trial, a tester sign-up or a free year starts: a card on the Overview with one-tap answers and Skip. An answer or Skip ends it for good, it is never shown on a wall screen, and a house whose report was already on is still not asked: the choice stays under Settings → Tracking → Help improve PadSpan.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.263</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">19 November 2026</span>
