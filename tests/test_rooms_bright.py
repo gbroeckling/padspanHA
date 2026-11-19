@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""The Rooms page in PadSpan Bright (Garry, 2026-10-30: "Bright should get a
+"""The Rooms page in PadSpan Bright (2026-10-30: "Bright should get a
 rooms page, but only items on it that apply to Bright functionality").
 
 Bright keeps each room's colour, outline (Mapping → Edit, which Bright has),

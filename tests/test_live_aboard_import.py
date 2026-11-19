@@ -187,7 +187,7 @@ def test_it_loads_only_the_house_and_its_rules_and_only_live_aboard_loads_it() -
 
 
 def test_new_words_never_call_the_view_3d() -> None:
-    """Garry's naming: the feature is Live Aboard. "3D" appears in the
+    """The owner's naming: the feature is Live Aboard. "3D" appears in the
     flow's words only as the other program's own name."""
     strings = re.findall(r'"([^"\n]*)"|`([^`\n]*)`', _code(_VIEWS / "live_aboard_import.js"))
     said = [a or b for a, b in strings]

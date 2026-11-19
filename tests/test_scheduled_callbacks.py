@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Everything PadSpan hands to Home Assistant's scheduler runs on its loop.
 
-Garry's house, 2026-10-29, on the stable candidate: "Detected that custom
+A real house, 2026-10-29, on the stable candidate: "Detected that custom
 integration 'padspan_ha' calls hass.async_create_task from a thread other
 than the event loop ... telemetry.py, line 1161". A plain function given to
 async_call_later (or async_track_time_interval and the rest) is run by Home

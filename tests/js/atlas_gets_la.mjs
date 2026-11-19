@@ -9,7 +9,7 @@
 //           options off — no underlay, the sidebar's screen, people and tags
 //           on (they lie over the drawing, never in it), Live Aboard on with
 //           a file that sets no kind and Show furniture off — on a realistic
-//           house, and on Garry's own when its export is on this PC
+//           house, and on a real one when its export is on this PC
 //   off     with Show people, Show tags & scanners and Live Aboard off (or
 //           below Pro): atlas_aboard.js is never fetched and nothing is read
 //   alone   the map alone on the flat map: zoomed in past the whole house the
@@ -205,7 +205,7 @@ await tryCase("byte: buildIsoSVG is byte-identical with every new option off, on
 });
 let houseRan = false;
 if (HOUSE) {
-  await tryCase("byte: the same on Garry's own house", async () => {
+  await tryCase("byte: the same on a real house", async () => {
     const exp = JSON.parse(readFileSync(HOUSE, "utf-8"));
     const st = {};
     for (const [eid, s] of Object.entries(exp.light_states || {})) {
@@ -216,9 +216,9 @@ if (HOUSE) {
       st[eid] = { entity_id: eid, state: s.state, attributes: attrs, last_changed: T0 };
     }
     const lbe = Object.fromEntries(gather(st).map(l => [l.entity_id, l]));
-    const o = await bytes(exp.model, exp.model.floors || [], lbe, "garry");
+    const o = await bytes(exp.model, exp.model.floors || [], lbe, "alex");
     houseRan = true;
-    check("byte: the same on Garry's own house", Object.entries(o).every(([k, v]) => k === "label" || v === true), o);
+    check("byte: the same on a real house", Object.entries(o).every(([k, v]) => k === "label" || v === true), o);
   });
 }
 

@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Modes stop hiding screens (Garry, 2026-10-30).
+"""Modes stop hiding screens (2026-10-30).
 
 Every screen is in the menu in every mode. The main groups are the mode's
 everyday screens (Basic its short list, Advanced and Development the same

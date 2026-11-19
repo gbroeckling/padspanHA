@@ -4,7 +4,7 @@
 """Live Aboard's Strip tool: where an LED strip or a string of lights really
 goes, in the 3D file (house3d_edit's lights[<entity id>].run).
 
-Garry, 2026-10-05: "Need to build a tool for better height and area placement
+2026-10-05: "Need to build a tool for better height and area placement
 for string lights ... a step farther for Sims." A run is a light's polyline
 (2 to 64 points, x and y on its floor, h above it), which way it shines, a
 loop or not, on a piece of furniture or not, and a string's swag and bulb

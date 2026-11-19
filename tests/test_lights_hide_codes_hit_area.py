@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """"Hide device codes" must hide the TEXT, not the place you tap.
 
-Garry, 2026-09-09: "if i choose to not show the ID text in the map, some
+2026-09-09: "if i choose to not show the ID text in the map, some
 of the functionality of clicking on the ID is removed... think thru on
 how to put it back... making the entire shape [clickable]."
 

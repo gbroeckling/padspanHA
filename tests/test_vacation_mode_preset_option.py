@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
 """Vacation Mode's "permanent option" in the Whole House Presets picker
-(Garry, 2026-09-21: "In whole house presets, add a permanent option,
+(2026-09-21: "In whole house presets, add a permanent option,
 vacation"). Unlike a saved preset, it can never be deleted, and Apply
 enables the ongoing pattern (host.onVacationModeEnable) instead of a
 scene.apply — pinned at the DOM level, the same buildLightsMapCard harness

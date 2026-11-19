@@ -344,7 +344,7 @@ out.sent = sent;
 
 
 
-# ── 💡 Devices (Garry, 2026-09-24: "split it in two, devices, and no devices") ──
+# ── 💡 Devices (2026-09-24: "split it in two, devices, and no devices") ──
 
 
 def test_full_house_is_the_atlas_and_the_beacons_and_devices_plays_every_device_back():

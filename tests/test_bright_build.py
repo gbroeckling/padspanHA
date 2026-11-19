@@ -196,7 +196,7 @@ def test_the_generated_suite_passes(tree):
     """The proof that the rename produced a working integration: the renamed
     suite, run inside the generated tree, is green. A second whole suite, so only
     on asking: a stable's Bright pass runs the same suite before Bright is built
-    (Garry, 2026-11-03); betas never ship Bright."""
+    (2026-11-03); betas never ship Bright."""
     res = bb.run_suite(tree)
     tail = "\n".join((res.stdout or "").strip().splitlines()[-15:])
     assert res.returncode == 0, f"Bright suite failed:\n{tail}\n{(res.stderr or '')[-2000:]}"

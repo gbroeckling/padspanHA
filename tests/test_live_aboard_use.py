@@ -9,7 +9,7 @@ wireUseSurface): every gesture — tap, hold, hold-and-drag, moved before it
 was held, a right button — on every kind of device, and on a room's name, a
 floor's badge and a door, makes the very same calls with the very same
 arguments through the host's use api and Home Assistant; the pressed ring and
-the hover box are the Atlas's. The browser run (headless Chromium, Garry's
+the hover box are the Atlas's. The browser run (headless Chromium, a real
 house) proves the same against the real panel and its real api.
 
 The rest is held here: the hosts hand over the api they already build, and

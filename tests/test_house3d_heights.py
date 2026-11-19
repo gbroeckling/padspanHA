@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Live Aboard's heights onto the placement records.
 
-house3d_heights.async_move_heights, on Garry's word (2026-10-05: "same
+house3d_heights.async_move_heights, on the owner's word (2026-10-05: "same
 information store"): a height Live Aboard's file holds for a placed device
 whose record has none decided is copied onto the record (a record that has a
 height, or Default chosen, keeps it), one fabric write, read back from disk,

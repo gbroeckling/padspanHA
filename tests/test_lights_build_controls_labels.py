@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The Lights builder's control row: every slider labelled, one help card.
 
-Garry, 2026-09-09, looking at the actual row: "The three sliders for morph
+2026-09-09, looking at the actual row: "The three sliders for morph
 are not labled, and all sliders need a ? to bring up a card that completely
 describes their function." Two real gaps, both in lights_map.js's
 buildLightsMapCard: the Automorph Room %/Hardness/Subtlety sliders had a
@@ -117,7 +117,7 @@ def test_automorph_sliders_are_all_three_labelled(tmp_path):
 
 
 def test_related_sliders_are_visually_grouped_not_a_flat_run(tmp_path):
-    """Garry, 2026-09-09: "put sliders in sets with a slight shading change
+    """2026-09-09: "put sliders in sets with a slight shading change
     to differentiate" — Automorph's own three (+ its style dropdown) sit in
     one shaded lv-ctrlgroup pill, Floor/Spacing/L-R sit in a second, so each
     set reads as one thing rather than eight loose controls in a row."""
@@ -146,7 +146,7 @@ def test_related_sliders_are_visually_grouped_not_a_flat_run(tmp_path):
 
 
 def test_sticky_control_row_is_opt_in_per_host(tmp_path):
-    """Garry, 2026-09-09: "the scroll hides the controls, needs fixing for
+    """2026-09-09: "the scroll hides the controls, needs fixing for
     mapping area, but works better this way in lights and overview" — the
     Mapping builder host sets stickyToolbar; the Lights sidebar
     (lights_panel.js) never does, so this SAME shared card must default to
@@ -289,7 +289,7 @@ def test_no_stray_spacer_when_the_toolbar_is_not_sticky(tmp_path):
 
 
 def test_show_beacons_toggle_is_opt_in_and_off_by_default(tmp_path):
-    """Garry, 2026-09-09: "Show beacons on lighting page should be
+    """2026-09-09: "Show beacons on lighting page should be
     selectable, and off by default." The button itself only exists when the
     host wires onShowBeacons (the Mapping builder does; the sidebar never
     passed beacons in the first place), and even then starts unchecked."""

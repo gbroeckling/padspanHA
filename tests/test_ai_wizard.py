@@ -218,7 +218,7 @@ def _stuck_house(**maps_kw):
     """The report test's house (names, MACs, keys everywhere) with a plan and no rooms."""
     h = _report_house()
     h.data[DOMAIN][DATA_FABRIC].data["floors"] = {}
-    m = {"id": "m1", "name": "Garry's basement plan", "floor_id": "main", "created": _iso(18), "receivers": [], "room_bounds": {}}
+    m = {"id": "m1", "name": "Alex's basement plan", "floor_id": "main", "created": _iso(18), "receivers": [], "room_bounds": {}}
     m.update(maps_kw)
     h.data[DOMAIN][DATA_MAPS].data["maps"] = [m]
     return h
@@ -248,7 +248,7 @@ def test_facts_read_the_stores():
     h.data[DOMAIN][DATA_SETTINGS].data["data_mode"] = "live"
     assert W.facts(h, now=_NOW, live=False)["live"] is False
     # Room outlines drawn on a plan only (no fabric rooms) still count as rooms.
-    h = _stuck_house(room_bounds={"Nicole's Office": {"points": [[0, 0], [1, 0], [1, 1]]}})
+    h = _stuck_house(room_bounds={"Jordan's Office": {"points": [[0, 0], [1, 0], [1, 1]]}})
     assert W.offer_reason(W.facts(h, now=_NOW), "pull") == "has_rooms"
     # Whether an indoor floor with a plan has no rooms yet (the helper's next floor): the fabric's rooms and a plan's outlines.
     h = _stuck_house()
@@ -307,7 +307,7 @@ def test_the_command_answers_with_the_same_rule(monkeypatch):
 
 def _calibrated_house():
     h = _report_house()
-    h.data[DOMAIN][DATA_MAPS].data["maps"] = [{"id": "m1", "name": "Garry's basement plan", "created": _iso(60),
+    h.data[DOMAIN][DATA_MAPS].data["maps"] = [{"id": "m1", "name": "Alex's basement plan", "created": _iso(60),
                                               "receivers": [{"source": _MAC1}], "room_bounds": {"Kitchen": {}}}]
     h.data[DOMAIN]["calibration"].data["points"] = [{"room": "Kitchen", "rssi": {_MAC2: -60 - i}} for i in range(6)]
     h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = "ai_task.claude_office"
@@ -380,7 +380,7 @@ def test_the_words_are_closed_and_the_report_identifies_nothing():
     assert ai["claude"] in T.PLAN_BUILD_UNLOCK and set(ai) <= {"task", "claude", "claude_available"}
     assert set(W.REASONS) == set(W.MAPPING_WORDS["wizard"]) and set(W.WIZARD_STATES) == set(W.MAPPING_WORDS["wizard_state"])
     # The gate refuses a word that isn't on the list, and no top-level key is new.
-    for bad in ({"mapping": {"stuck": "Nicole's Office"}}, {"mapping": {"wizard": "offer"}}, {"ai": {"claude": "opus-5-5"}},
+    for bad in ({"mapping": {"stuck": "Jordan's Office"}}, {"mapping": {"wizard": "offer"}}, {"ai": {"claude": "opus-5-5"}},
                 {"ai": {"claude_available": "ai_task.x"}}):
         q = json.loads(text)
         q["env"].update(bad)
@@ -469,7 +469,7 @@ def test_only_an_administrator_writes_it_and_only_its_own_keys_stay():
     conn, data = _set(h, admin=False, ai_map_wizard={"dismissed": True})
     assert conn.send_error.call_args[0][1] == "unauthorized" and "ai_map_wizard" not in data
     conn, data = _set(h, ai_map_wizard={"dismissed": True, "snooze_until": 123.5, "snoozes": 2, "finished_day": "2026-11-10",
-                                         "started": {"at": "rooms_check", "map_id": "m1", "extra": "x"}, "name": "Nicole's Office",
+                                         "started": {"at": "rooms_check", "map_id": "m1", "extra": "x"}, "name": "Jordan's Office",
                                          "undone": "yes"})
     assert not conn.send_error.called
     assert data["ai_map_wizard"] == {"dismissed": True, "snooze_until": 123.5, "snoozes": 2, "finished_day": "2026-11-10",

@@ -1,6 +1,6 @@
 """Atlas's multi-column layout (layout v2) is gated to Pro specifically.
 
-Garry, 2026-09-23: asked whether the new multi-column Atlas layout should be
+2026-09-23: asked whether the new multi-column Atlas layout should be
 gated to Pro licenses, then confirmed: "pro."
 
 The setting itself (settings.atlas_layout_v2) defaults to True for every
@@ -18,7 +18,7 @@ lights_panel.js's connectedCallback) that would need a large fixture to
 render standalone, the same reason none of the dozens of other paid-tier
 gates in maps.js (onPlaceRow, onLinkDoorOpener, etc.) have a dedicated
 render test either — they're verified by reading the conditional. This
-test exists so the specific "pro, not bright-or-pro" distinction Garry
+test exists so the specific "pro, not bright-or-pro" distinction the owner
 asked for can't silently regress to the ordinary paid/bright-or-pro gate
 everything else on this screen uses.
 """

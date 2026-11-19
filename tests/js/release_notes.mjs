@@ -4,7 +4,7 @@
 //
 // The release notes over the panel (views/release_notes.js), RUN.
 //
-// Garry, 2026-09-28: "release notes screen has no way to close on touch
+// 2026-09-28: "release notes screen has no way to close on touch
 // monitor". "See what changed" opened padspan.traks.ca in a new tab, and a
 // wall screen in Chrome --kiosk has no tab strip and no keyboard. The notes
 // now open over the panel; this drives every way of closing them, the text

@@ -11,7 +11,7 @@ inputs: a lapsed licence would then delete a weekend of placements. So the
 core assertion here is byte-identity — the model handed to the renderer at
 free tier comes out exactly as it went in — and the second is that the same
 model at `bright`/`pro` still renders everything. The plan calls this the
-third of five guards; it is the one Garry (who runs Pro) can never notice is
+third of five guards; it is the one the owner (who runs Pro) can never notice is
 broken by looking.
 
 Runs the real modules under node with the suite's DOM shim; skipped, not
@@ -251,7 +251,7 @@ def test_free_withholds_the_presentation_modes(out):
 
 def test_hide_device_codes_is_available_at_every_tier(out):
     """Unlike the paid presentation modes (Showcase, Fit room, Hide
-    untouched, Isolux, Scene, Ripple), "Hide device codes" (Garry,
+    untouched, Isolux, Scene, Ripple), "Hide device codes" (the owner,
     2026-09-08) is a basic decluttering option in the same spirit as
     codeChip/hitHalo — not withheld by lightsHostForTier at free."""
     for tier in ("free", "bright", "pro"):
@@ -344,7 +344,7 @@ def _run_pipeline_script(tmp_path: Path, script_body: str) -> dict:
 
 
 def test_type_override_forces_a_class_at_pro_and_is_ignored_below(tmp_path):
-    """Garry: "override the HA light type to any type of device the lights pro
+    """The owner: "override the HA light type to any type of device the lights pro
     system handles... Option only for the pro version". At pro the stored
     override decides the class outright — a plain bulb becomes W-series, a
     real WLED strip can be demoted to plain, a partition can be declared. At
@@ -373,7 +373,7 @@ console.log(JSON.stringify({pro: codesFor("pro"), bright: codesFor("bright"), no
 
 
 def test_fan_override_reclassifies_a_light_switch_cosmetically_only(tmp_path):
-    """Garry, 2026-09-07: "some light switches are fan switches" — a light.*
+    """2026-09-07: "some light switches are fan switches" — a light.*
     entity wired to a fan with no speed/oscillate control of its own can be
     declared "fan" so it reads correctly on the map (F-series code, fan
     glyph, groups under the Fan filter), without pretending it gained real
@@ -427,7 +427,7 @@ console.log(JSON.stringify({ found: !!overrideSelect, selectedValue }));
 
 
 def test_linked_door_row_offers_a_clickable_unlink_that_falls_back_to_place(tmp_path):
-    """Garry, 2026-09-11, repairing a mis-linked Truck Door: "you need to
+    """2026-09-11, repairing a mis-linked Truck Door: "you need to
     make the linked option under map clickable, and have the option to
     unlink, and then place again when that is done... missing essential
     operational logic". A linked door/window row used to show a static
@@ -467,7 +467,7 @@ console.log(JSON.stringify({ stillHasLinkedLabel, foundUnlinkBtn: !!unlinkBtn, u
 
 
 def test_linked_lock_row_offers_a_clickable_unlink(tmp_path):
-    """The same gap existed for a lock linked to a wall section (Garry,
+    """The same gap existed for a lock linked to a wall section (the owner,
     2026-09-09's "Link wall" feature) — same static span, same missing
     action, fixed the same way."""
     out = _run_pipeline_script(tmp_path, _TABLE_EL + """
@@ -489,7 +489,7 @@ console.log(JSON.stringify({ foundUnlinkBtn: !!unlinkBtn, unlinkedEid }));
 
 
 def test_linked_door_row_offers_a_steel_toggle_reflecting_current_material(tmp_path):
-    """Garry, 2026-09-11: "just add the ability to make the door/window
+    """2026-09-11: "just add the ability to make the door/window
     steel or not" — the existing confirm() dialog only ever asks once, at
     creation, and only when the parent wall wasn't already metal. This is a
     standing toggle: "Steel" when not steel (click sets it), "Steel ✓" when
@@ -526,7 +526,7 @@ console.log(JSON.stringify({ foundNotSteelBtn: !!steelBtn1, toggled, foundSteelB
 
 
 def test_linked_door_row_offers_an_invert_toggle_reflecting_current_state(tmp_path):
-    """Garry, 2026-09-22: "you need an invert option for the door sensors,
+    """2026-09-22: "you need an invert option for the door sensors,
     since it shows the exact opposite of what's actually going on" — same
     standing-toggle shape as Steel (this codebase already had invert_state
     for exactly this, Rooms -> RF Barriers only; now reachable from the
@@ -564,11 +564,11 @@ console.log(JSON.stringify({ foundNotInvertedBtn: !!invertBtn1, toggled, foundIn
 
 
 def test_linked_door_row_offers_an_opener_picker_that_links_the_choice(tmp_path):
-    """Garry, 2026-09-22: "there need to be the ability to link a door
+    """2026-09-22: "there need to be the ability to link a door
     closer to a door sensor" — a linked door/window row now also offers
     "+ Opener", opening a small picker (candidates come from Devices ->
     Door Openers, host.doorOpenerCandidates) whose choice is handed to
-    host.onLinkDoorOpener(light, entity_id). Real motivating case: Garry's
+    host.onLinkDoorOpener(light, entity_id). Real motivating case: the owner's
     own switch.upper_garage_truck_door, sitting unlinked next to this exact
     sensor."""
     out = _run_pipeline_script(tmp_path, _TABLE_EL + """
@@ -644,7 +644,7 @@ def test_fans_and_motion_sensors_ride_the_pipeline(tmp_path):
     contract's own dedicated coverage) — this test only needs to confirm
     admitting doors did not disturb fan/motion's own numbering or glyphs.
 
-    Found live on the house's own map (2026-09-03, Garry): the bathroom
+    Found live on the house's own map (2026-09-03, the owner): the bathroom
     outlets' built-in PIRs report device_class "occupancy", not "motion" —
     HA's other momentary-vs-sustained presence class — and were invisible
     until admitted alongside it. binary_sensor.invisoutlet_occupancy is the
@@ -742,7 +742,7 @@ console.log(JSON.stringify({
 
 
 def test_ensure_lights_registry_resolves_a_temperature_sensors_room(tmp_path):
-    """Garry, live on the house (2026-09-03): "Don't see any way to move the
+    """The owner, live on the house (2026-09-03): "Don't see any way to move the
     temp in mapping, lights." Root cause: ensureLightsRegistry's own entity
     scan only ever admitted light./fan./binary_sensor. into areaMap — a
     sensor.* temperature entity's "Assign room…" pick genuinely saved (HA's
@@ -807,7 +807,7 @@ console.log(JSON.stringify({loaded, areaMap: store.reg ? store.reg.areaMap : nul
 
 
 def test_ensure_lights_registry_resolves_ip_from_configuration_url(tmp_path):
-    """Garry: "when drilling into the wled controls, include a small chunk
+    """The owner: "when drilling into the wled controls, include a small chunk
     that shows the ip address". WLED (and most ESPHome devices) already set
     the device registry's own configuration_url to the unit's local web UI —
     same registry fetch areaMap/manufacturerMap already use, no extra
@@ -863,7 +863,7 @@ function el(tag, attrs = {}, children = []) {
 
 
 def test_table_filter_dropdown_lists_only_present_classes_and_hides_the_rest(tmp_path):
-    """Garry: "Allow to filter by device type... as is standard in these
+    """The owner: "Allow to filter by device type... as is standard in these
     type of lists". The dropdown must never offer a class nothing on this
     map has (a house with no WLED strip should never show "Strips"), and
     picking one hides every other row while the count badge switches from a
@@ -914,7 +914,7 @@ console.log(JSON.stringify({ opts1, rows1, badge1, rows2, badge2, filterArg }));
 
 
 def test_table_sort_cycles_three_states_and_orders_temperatures_numerically(tmp_path):
-    """Garry: "allow for sort by column as is standard in these type of
+    """The owner: "allow for sort by column as is standard in these type of
     lists". Three clicks on a header must cycle ascending -> descending ->
     back to the unsorted order — the standard contract. The State column's
     own comment warns it sorts on the number, not the printed string: 9,
@@ -966,7 +966,7 @@ console.log(JSON.stringify({ click1, ascIds, click2, descIds, click3 }));
 
 
 # ── Motion + occupancy pairing ────────────────────────────────────────────────
-# Garry: "some of the sensors have two elements, motion and presence ...
+# The owner: "some of the sensors have two elements, motion and presence ...
 # merge into one in a logical way" — then caught a real gap in the first
 # design himself: "the alarm panel is an example where they are definitely
 # separate motion sensors. Think about what an alarm panel is, and how it
@@ -985,7 +985,7 @@ console.log(JSON.stringify(LM.computeMotionOccupancyPairs(ENT_REG, STATES)));
 
 
 def test_a_real_one_unit_sensor_pairs(tmp_path):
-    """The two genuine pairs found live on Garry's own house."""
+    """The two genuine pairs found live on a real house."""
     ent_reg = [
         {"entity_id": "binary_sensor.living_room_motion", "device_id": "dev-livingroom"},
         {"entity_id": "binary_sensor.living_room_occupancy", "device_id": "dev-livingroom"},
@@ -1006,19 +1006,19 @@ def test_a_real_one_unit_sensor_pairs(tmp_path):
 
 
 def test_an_alarm_panels_zones_never_pair(tmp_path):
-    """Garry's real alarm expander: four DIFFERENT rooms' PIR zones, one
+    """A real home's alarm expander: four DIFFERENT rooms' PIR zones, one
     device_id (the panel), all classed "motion" — none of them may merge
     with anything. Structurally excluded by entity count alone (no
     occupancy entity exists on this device at all)."""
     ent_reg = [{"entity_id": f"binary_sensor.alarm_di{i}", "device_id": "dev-alarm"} for i in range(1, 5)]
-    names = ["Utility Room", "Nicole's Office", "Spare Bedroom", "Master Bedroom Entry"]
+    names = ["Utility Room", "Jordan's Office", "Spare Bedroom", "Master Bedroom Entry"]
     states = {f"binary_sensor.alarm_di{i}": {"state": "off", "attributes": {"friendly_name": names[i - 1], "device_class": "motion"}} for i in range(1, 5)}
     out = _run_pipeline_script(tmp_path, _pairing_script(ent_reg, states))
     assert out == {}, out
 
 
 def test_a_hub_with_both_classes_still_does_not_pair(tmp_path):
-    """The deeper trap Garry pointed at: a hub does not need to be
+    """The deeper trap the owner pointed at: a hub does not need to be
     same-class to be wrong to merge. Two motion zones and two occupancy
     zones on ONE device_id, four different rooms — "has both classes
     present" alone would wrongly fold two of these together; the
@@ -1040,13 +1040,13 @@ def test_a_hub_with_both_classes_still_does_not_pair(tmp_path):
 
 
 # ── computeDoorLockPairs: the same mechanism, lock.* + an opening class ──────
-# Garry, 2026-09-22: "the new card could have a lock control on it if the
+# 2026-09-22: "the new card could have a lock control on it if the
 # door has a smart lock" — same shape as motion/occupancy above, and the
-# same hazard proven by Garry's OWN real alarm panel (device_id "dev-alarm",
+# same hazard proven by a real home's alarm panel (device_id "dev-alarm",
 # entities alarm_di1..4): one device_id, several unrelated door/window zones
 # for different rooms. Only ever pairs when the lock and its opening sensor
 # are the SAME physical unit (an integrated smart lock reporting both, e.g.
-# August/Schlage/Yale/Level) — Garry has neither domain in his real house
+# August/Schlage/Yale/Level) — the owner has neither domain in his real house
 # yet, so this is unverified against real hardware; these three fixtures are
 # synthetic, mirroring the three above one-for-one.
 
@@ -1082,13 +1082,13 @@ def test_an_integrated_lock_with_door_sensing_pairs(tmp_path):
 
 
 def test_an_alarm_panels_door_zones_never_pair_with_an_unrelated_lock(tmp_path):
-    """Garry's real alarm expander again, this time WITH a lock domain
+    """A real home's alarm expander again, this time WITH a lock domain
     entity added to the same device_id (an "arm/disarm" virtual lock some
     alarm integrations expose) — must not get paired with any zone that
     just happens to share the panel."""
     ent_reg = [{"entity_id": f"binary_sensor.alarm_di{i}", "device_id": "dev-alarm"} for i in range(1, 5)]
     ent_reg.append({"entity_id": "lock.alarm_arm_disarm", "device_id": "dev-alarm"})
-    names = ["Utility Room", "Nicole's Office", "Spare Bedroom", "Master Bedroom Entry"]
+    names = ["Utility Room", "Jordan's Office", "Spare Bedroom", "Master Bedroom Entry"]
     states = {f"binary_sensor.alarm_di{i}": {"state": "off", "attributes": {"friendly_name": names[i - 1], "device_class": "door"}} for i in range(1, 5)}
     states["lock.alarm_arm_disarm"] = {"state": "locked", "attributes": {"friendly_name": "Alarm Panel"}}
     out = _run_pipeline_script(tmp_path, _door_lock_pairing_script(ent_reg, states))
@@ -1180,7 +1180,7 @@ def test_pairing_requires_matching_names_not_just_the_shape(tmp_path):
 def test_a_paired_sensor_merges_into_one_marker_reading_only_its_own_motion_state(tmp_path):
     """End to end through gatherLights: the occupancy half never gets its
     own row, but it also never extends the merged marker's glow — the
-    primary reads its OWN state and last_changed only. Garry, 2026-09-04:
+    primary reads its OWN state and last_changed only. 2026-09-04:
     every motion-class marker should look and act the same to a viewer;
     letting a sustained occupancy signal hold a paired marker "on" after
     its own motion entity had cleared made that one room's marker behave
@@ -1209,7 +1209,7 @@ console.log(JSON.stringify({ids, state: primary && primary.state, last_changed: 
 
 
 def test_brand_comes_from_the_device_registry_manufacturer_and_is_never_gated(tmp_path):
-    """Garry asked which two entities on the motion list were a specific
+    """The owner asked which two entities on the motion list were a specific
     switch brand and there was no way to answer from inside PadSpan — the
     index had no column for it. manufacturerMap threads the device
     registry's OWN manufacturer string (often a raw Zigbee/Tuya firmware
@@ -1239,7 +1239,7 @@ console.log(JSON.stringify({
 
 
 # ── Temperature sensors ───────────────────────────────────────────────────────
-# Garry: "same as wled or any other objects, devices telling the temperature
+# The owner: "same as wled or any other objects, devices telling the temperature
 # can also act like a motion sensor, so rule is if they gave the temperature
 # in the last hour and they are placed on the map, a shape can be chosen for
 # that temp and inside is simply the temperature, 3 digit, and larger" — then
@@ -1253,17 +1253,17 @@ const AREA = {"sensor.living_room_temp": "Living Room", "sensor.living_room_humi
 const STATES = {
   "sensor.living_room_temp": {state: "71.6", last_updated: "2026-01-01T00:00:00.000Z",
                                attributes: {friendly_name: "Living Room Temperature", device_class: "temperature"}},
-  // Humidity (Garry, 2026-09-15: "set it up like temperature") — its own
+  // Humidity (2026-09-15: "set it up like temperature") — its own
   // class, admitted by device_class exactly like temperature is.
   "sensor.living_room_humidity": {state: "43.6", last_updated: "2026-01-01T00:00:00.000Z",
                                    attributes: {friendly_name: "Living Room Humidity", device_class: "humidity"}},
   "light.lamp": {state: "off", attributes: {friendly_name: "Lamp", supported_color_modes: ["onoff"]}},
-  // Air quality (Garry, 2026-09-14): a CO2 sensor is a plain sensor.* too —
+  // Air quality (2026-09-14): a CO2 sensor is a plain sensor.* too —
   // admitted by its device_class, as its OWN class (Q-series), never as a
   // thermometer: isTempSensor used to be "any sensor.*".
   "sensor.living_room_co2": {state: "1450", last_updated: "2026-01-01T00:00:00.000Z",
                               attributes: {friendly_name: "Living Room CO2", device_class: "carbon_dioxide", unit_of_measurement: "ppm"}},
-  // An ENUM air-quality sensor grading itself with a word — Garry's bathroom
+  // An ENUM air-quality sensor grading itself with a word — a real home's bathroom
   // outlets (sensor.invisoutlet_air_quality = "moderate"): admitted by its
   // name, banded by the word. An enum sensor that is NOT about air stays out.
   "sensor.bath_air_quality": {state: "moderate", last_updated: "2026-01-01T00:00:00.000Z",
@@ -1311,7 +1311,7 @@ console.log(JSON.stringify({
 
 
 def test_health_flags_unavailable_or_unknown_regardless_of_class(tmp_path):
-    """Garry: "do a health check for all the devices". The one domain-agnostic
+    """The owner: "do a health check for all the devices". The one domain-agnostic
     failure signal every entity type can report — HA's own "unavailable" or
     "unknown" state — must fail the check no matter which class it's on."""
     out = _run_pipeline_script(tmp_path, """
@@ -1378,7 +1378,7 @@ console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) =>
 
 def test_temp_health_flags_a_stale_reading(tmp_path):
     """Mirrors iso_lights.js's own TEMP_FRESH_MS ("if they gave the
-    temperature in the last hour" — Garry): a reading older than that, or
+    temperature in the last hour" — the owner): a reading older than that, or
     with no timestamp at all, is stale even if HA hasn't flipped the entity
     to unavailable yet."""
     out = _run_pipeline_script(tmp_path, """
@@ -1420,7 +1420,7 @@ console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) =>
 
 def test_health_column_and_filter_button_hide_healthy_rows(tmp_path):
     """The Health dot sits right after Room, before the other stat columns —
-    Garry: "in front of the other stats". The filter button (separate from
+    The owner: "in front of the other stats". The filter button (separate from
     the class dropdown) narrows the list to only what's testing unhealthy,
     and its label carries the live unhealthy count."""
     out = _run_pipeline_script(tmp_path, _TABLE_EL + """
@@ -1461,7 +1461,7 @@ console.log(JSON.stringify({ headerCols, rows1, btn1Text: btn1.textContent, rows
 
 
 def test_code_column_click_always_selects_even_for_motion(tmp_path):
-    """Regression (Garry, 2026-09-07): commit f091f5e made a motion row's
+    """Regression (2026-09-07): commit f091f5e made a motion row's
     click always open its activity history (fixing a real free-tier bug —
     it used to say "read-only") but that redirect applied on EVERY tier,
     so a paid user lost the only way to re-select an already-placed motion
@@ -1526,7 +1526,7 @@ def test_both_hosts_pass_the_tier():
 
 
 def test_hide_device_codes_actually_suppresses_the_code_label(tmp_path):
-    """Garry (2026-09-08): "Add an option in mapping, lights, to turn off
+    """The owner (2026-09-08): "Add an option in mapping, lights, to turn off
     the device identifier text." Confirms the rendering effect, not just
     the button's presence: with hideDeviceCodes true, a placed light's code
     (e.g. "A01") never appears in the emitted SVG; with it false, the
@@ -1606,7 +1606,7 @@ def test_door_glyph_and_showcase_detail_are_well_formed_svg(tmp_path):
 
 
 def test_doors_and_windows_ride_the_pipeline_distinct_from_motion(tmp_path):
-    """Door/window barrier project, step 1 (Garry, 2026-09-08: "Also add
+    """Door/window barrier project, step 1 (2026-09-08: "Also add
     that device type to the list of devices in mapping, lighting"). A door
     and a window binary_sensor are BOTH admitted (D-series code, "door"
     glyph, isDoor true), a motion/occupancy binary_sensor still rides its
@@ -1651,7 +1651,7 @@ console.log(JSON.stringify({
 
 
 def test_a_door_row_shows_link_status_not_a_place_button(tmp_path):
-    """Garry, 2026-09-08: "The placement in mapping and lights is not making
+    """2026-09-08: "The placement in mapping and lights is not making
     any sense... make usable based on opening up an area of a space with a
     purple dot on each side of the opening." A door/window has no point to
     place — the Map column reads doorLinkedIds/onConfigureDoor instead of
@@ -1701,7 +1701,7 @@ console.log(JSON.stringify({
 
 
 def test_a_lock_row_keeps_its_place_button_and_also_offers_link_wall(tmp_path):
-    """Garry, 2026-09-09: "look into what locks would look like in mapping,
+    """2026-09-09: "look into what locks would look like in mapping,
     lights... some of the same visibility as other devices if placed" plus
     "use the same logic as the open door to build a break in the wall that
     has the lock... use the basic infrastructure for the open door build" —
@@ -1741,7 +1741,7 @@ console.log(JSON.stringify({ btns: btnsText, configuredFor, placedFor }));
 
 
 def test_build_from_relays_button_sits_under_the_class_filter_and_jumps_out(tmp_path):
-    """Garry, 2026-09-22: "add this to the mapping atlas section under the
+    """2026-09-22: "add this to the mapping atlas section under the
     devices filter pull down. That's where I wanted it, leave it where it
     is as well" — his original ask named this spot ("In the filter, and at
     the bottom of the list") alongside Devices -> Door Openers, where the

@@ -265,7 +265,7 @@ def test_the_backend_type_override_vocabulary_is_the_choosers() -> None:
 @pytest.mark.asyncio
 async def test_fans_and_motion_sensors_are_placeable_like_a_light() -> None:
     """Placement was gated to light.* — fans, motion sensors and now
-    temperature sensors ("only if placed like all others" — Garry) join the
+    temperature sensors ("only if placed like all others" — the owner) join the
     map "just like a light", through the same command into the same store.
     Anything else is still refused."""
     mdl, fab = _mdl(), _fab()

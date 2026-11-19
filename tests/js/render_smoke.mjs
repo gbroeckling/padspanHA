@@ -145,7 +145,7 @@ const MODEL = {
   },
   // width_cm/rotation make this fixture "touched" (lights_map.js's
   // lightIsTouched) so the lights table's conditional Revert button
-  // (Garry, 2026-09-06) actually renders in these smoke passes instead of
+  // (2026-09-06) actually renders in these smoke passes instead of
   // every light silently taking the "nothing to revert" branch.
   light_positions_m: { "light.kitchen": { x_m: 5, y_m: -3, floor_id: "main", shape: "circle", width_cm: 40, rotation: 30 } },
   beacon_positions_m: {},
@@ -153,7 +153,7 @@ const MODEL = {
   // floorDist===0 draw filter) has something to prove: w1 draws only on
   // main, w2 (linked, so it also exercises the open/closed endpoint dots)
   // only on upper. Before that filter existed, both were painted on BOTH
-  // storeys — the floor-to-floor bleed Garry found live, 2026-09-09.
+  // storeys — the floor-to-floor bleed the owner found live, 2026-09-09.
   rf_barriers_m: [
     { name: "w1", floor_id: "main", points_m: [[0, 0], [4, 0]], attenuation_dbm: 6 },
     { name: "w2", floor_id: "upper", points_m: [[3, -20], [12, -20]], attenuation_dbm: 6,
@@ -361,7 +361,7 @@ const VARIANTS = {
       _roomsShowOccupancy: true,
     },
       _occupancyEstimate: { rooms: [
-        { room: "Kitchen", people: ["Garry"], phones: 1, occupancy: true, motion: false, agreement: "agree" },
+        { room: "Kitchen", people: ["Alex"], phones: 1, occupancy: true, motion: false, agreement: "agree" },
         { room: "Living", people: [], phones: 2, occupancy: false, motion: false, agreement: "ble_only" },
       ] },
     } },
@@ -550,7 +550,7 @@ for (const file of files) {
           // "main" and one (linked) on "upper" across three drawn storeys
           // (basement/main/upper) — 2 polylines and 2 endpoint dots is
           // "each wall once, on its own floor"; 6 of either is every wall
-          // painted on every nearby storey, the floor-to-floor bleed Garry
+          // painted on every nearby storey, the floor-to-floor bleed the owner
           // found live (2026-09-09) and this pins against its return.
           // (The linked one's door isn't in the fixture's states: a
           // dangling link draws as no reading, "3 4" — round 5.)

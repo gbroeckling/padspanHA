@@ -100,7 +100,7 @@ def test_both_panels_subscribe_through_keep_subscribed() -> None:
 
 
 def test_the_emergency_test_button(result) -> None:
-    """Garry, 2026-09-28: a "Test emergency lighting" button at the map's
+    """2026-09-28: a "Test emergency lighting" button at the map's
     top-right, out of the way — shown only when the backend finds lights,
     placed right before the stage (a zero-height anchor: nothing moves), with
     Force off beside it only while a test runs."""
@@ -113,7 +113,7 @@ def test_the_emergency_test_button(result) -> None:
 
 
 def test_the_emergency_ring_opens_the_card_of_every_light(result) -> None:
-    """Garry, 2026-09-28: "a breakout button as a ring around the emergency
+    """2026-09-28: "a breakout button as a ring around the emergency
     button where a card appears of all the emergency lights, and individual
     controls". The ring is its own button; the card lists every member with
     its "was on" tag, switches one through padspan_ha/emergency_member, and

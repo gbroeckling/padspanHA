@@ -132,7 +132,7 @@ await tryCase("roof: over the part of each storey with nothing above it, faces o
 });
 // Every bit of a storey with nothing above it is under a roof: a hipped
 // part (with its eaves) of it or of a storey higher up, or a flat lid.
-// Main runs 1.1 m past the Upper's west wall (as Garry's does beside the
+// Main runs 1.1 m past the Upper's west wall (as the owner's does beside the
 // Entry), and a slanted wall leaves a wedge.
 await tryCase("roof: a narrow strip beside a higher storey and a slanted wall's wedge are roofed: no bit open to the sky", async () => {
   const THREE = await import(pathToFileURL(join(WWW, "vendor", "three", "three.module.min.js")).href);
@@ -584,7 +584,7 @@ LA.releaseLiveAboardSlot("house-model");
 // A garage with its overhead door on a cover, a hall with a sliding glass
 // door on a contact sensor, a closet's bifold, a double door and a roll-up,
 // none linked. On the map: a side gate linked straight to a cover, and a
-// garage door as Garry's truck door is (a contact sensor that reads
+// garage door as a real home's truck door is (a contact sensor that reads
 // backwards, and a switch that opens it).
 {
   const DMODEL = { floors: [{ id: "main", name: "Main" }],
@@ -679,7 +679,7 @@ LA.releaseLiveAboardSlot("house-model");
     check("view: a door on a contact sensor slides open with it", t0.to === 1 && t0.ms === 1000 && t0.liveMs > 0 && t1.at === 1 && ds().liveMs === 0, { t0, t1 });
   });
   // A door something moves — on a cover by the 3D file's link, on the map
-  // linked straight to a cover, or with an opener as Garry's truck door has
+  // linked straight to a cover, or with an opener as a real home's truck door has
   // — never moves from a tap, nor from anything the tap shows: every button
   // the tap leaves in the page is pressed, and nothing is sent. Its card
   // says what it reads; a hold opens Home Assistant's own controls for what
@@ -759,7 +759,7 @@ LA.releaseLiveAboardSlot("house-model");
 }
 
 // ── a sensor read backwards, a lock on a gate, and no reading ───────────────
-// Garry's garage door as the map has it (2.63 m, a garage door contact that
+// A real home's garage door as the map has it (2.63 m, a garage door contact that
 // reads backwards: invert_state) and a door the 3D file links to that same
 // sensor; a gate on a cover with a lock linked to it.
 {

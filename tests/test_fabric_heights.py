@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """A device's height lives in its one placement record.
 
-Garry, 2026-10-05: "Device placement on atlas is good until we get to sims,
+2026-10-05: "Device placement on atlas is good until we get to sims,
 needs same information store, but needs to be a tool to add the third
 dimension for the sims view, height mostly. Same dataset, just extra info."
 

@@ -3,12 +3,12 @@
 # Licensed under the GNU General Public License v3.0
 """Live Aboard's Strip tool: lay out LED strips and string lights exactly.
 
-Garry, 2026-10-05: "Need to build a tool for better height and area placement
+2026-10-05: "Need to build a tool for better height and area placement
 for string lights ... we need to take it a step farther for Sims."
 
 tests/js/live_aboard_runs.mjs runs views/live_aboard_runs.js and the light
 builder (views/live_aboard_house.js runParts) for real on a synthetic house
-shaped like Garry's: wall tracing round corners, Round this room with gaps at
+shaped like the owner's: wall tracing round corners, Round this room with gaps at
 the doors, runs on a piece moving and turning with it, the catenary and its
 bulbs, one continuous mitred tape per run and its light per face, and a light
 with no run drawn exactly as before.
@@ -138,7 +138,7 @@ def test_the_strip_modules_load_only_with_the_3d_view() -> None:
 
 
 def test_new_words_never_call_it_3d() -> None:
-    """Garry's naming: the feature is Live Aboard; no new text calls the view 3D."""
+    """The owner's naming: the feature is Live Aboard; no new text calls the view 3D."""
     import re
     for name in ("live_aboard_strip.js", "live_aboard_runs.js"):
         texts = re.findall(r'"([^"\n]*)"|`([^`\n]*)`', _code(_VIEWS / name))

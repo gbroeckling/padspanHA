@@ -1,10 +1,10 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""The flat Atlas's open door, Sims style (Garry, 2026-10-05: "in atlas, you
+"""The flat Atlas's open door, Sims style (2026-10-05: "in atlas, you
 never got the door looking like it's open, fix in sim style").
 
-A linked door that reads open keeps its clear gap (Garry, 2026-09-10: no grey
+A linked door that reads open keeps its clear gap (2026-09-10: no grey
 line where the door is) and now draws its leaf swung open beside it: a short
 upright panel turned into the room from its hinge with a faint quarter circle
 for its swing, or a door of another type as it stands open (slid, folded, two

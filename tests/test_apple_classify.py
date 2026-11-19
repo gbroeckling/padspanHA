@@ -4,7 +4,7 @@
 """Settings → Experimental → Apple Device Classification, through the REAL builder.
 
 The toggle promised "iPhone, iPad, Apple Watch" and drove nothing on screen.
-Its iPhone/iPad table read Nearby Info's STATUS FLAGS as a model: on Garry's
+Its iPhone/iPad table read Nearby Info's STATUS FLAGS as a model: on a real
 house (2026-09-27) one device in his office was an "iPad" all night and an
 "iPhone" at 08:09 — same scanners, same signal, same message; only the flag
 furiousMAC documents as "AirDrop receiving" differed. What Apple's Bluetooth
@@ -22,7 +22,7 @@ from tests.test_findmy_snapshot import _make_house
 
 TAG = "D4:44:44:44:44:44"        # an AirTag
 OTHER = "E5:55:55:55:55:55"      # another brand's Find My tag
-PHONE = "44:05:63:DD:1C:D9"      # Nearby Info, bytes as heard in Garry's office
+PHONE = "44:05:63:DD:1C:D9"      # Nearby Info, bytes as heard in a real home's office
 
 
 def _hex(body):
@@ -31,7 +31,7 @@ def _hex(body):
 
 def _ad(addr, payload):
     # HA names an advertiser that sends no name by its address (live: every
-    # Nearby Info object on Garry's house) — which is what lists it at all.
+    # Nearby Info object on a real house) — which is what lists it at all.
     return {"address": addr, "source": "kit", "rssi": -55.0, "age_s": 1.0, "name": addr,
             "manufacturer_data": {"76": payload}, "service_data": {}, "service_uuids": [],
             "connectable": False}

@@ -4,8 +4,8 @@ Pinned from the live install on 2026-08-27: two people were home and the
 card said "~8 · 7 identified · 3 BLE clusters · 3 persons home". The seven
 "identified" were a key fob, a test beacon, one truck beacon counted twice,
 a closet beacon, a box and one phone; "3 persons home" was two person.*
-entities on one Pixel plus Nicole; the two "unidentified" were a Windows
-PC's non-rotating address and an AirTag-class Find My tag; Nicole's iPhone
+entities on one Pixel plus Jordan; the two "unidentified" were a Windows
+PC's non-rotating address and an AirTag-class Find My tag; Jordan's iPhone
 — the one phone on the air that IS a person — never became an object.
 
 These tests build that house and require the answer to be 2.
@@ -110,7 +110,7 @@ SCANNERS = {"s1": ("Living Room", "main"), "s2": ("Kitchen", "main"), "s3": ("Be
 PERSONS = [
     _person("person.remote", "remote", "device_tracker.pixel_8_pro"),
     _person("person.pixel", "pixel", "device_tracker.pixel_8_pro"),
-    _person("person.nicole", "Nicole", "device_tracker.iphone"),
+    _person("person.jordan", "Jordan", "device_tracker.iphone"),
     _person("person.admin", "admin", None, state="unknown"),
 ]
 TRACKERS = [_tracker("device_tracker.pixel_8_pro", "Pixel 8 Pro"), _tracker("device_tracker.iphone", "iPhone")]
@@ -131,13 +131,13 @@ NOT_PEOPLE_ON_THE_AIR = [
 THINGS = {
     "ibeacon:pixel": _obj("ibeacon:pixel", "ibeacon", label="Pixel 8 Pro", room="Living Room",
                           padspan_id="ps_pixel", address="55:C0:1F:A1:C7:1B"),
-    "ble:DD:E1:C8:89:75:73": _obj("ble:DD:E1:C8:89:75:73", "ble", label="GarryBroncoKeys", room="Bedroom", padspan_id="ps_keys"),
-    "ibeacon:bronco:a": _obj("ibeacon:bronco:a", "ibeacon", label="Bronco", room="Garry's Office", padspan_id="ps_bronco"),
-    "ibeacon:bronco:b": _obj("ibeacon:bronco:b", "ibeacon", label="Bronco", room="Garry's Office", padspan_id="ps_bronco"),
+    "ble:DD:E1:C8:89:75:73": _obj("ble:DD:E1:C8:89:75:73", "ble", label="AlexBroncoKeys", room="Bedroom", padspan_id="ps_keys"),
+    "ibeacon:bronco:a": _obj("ibeacon:bronco:a", "ibeacon", label="Bronco", room="Alex's Office", padspan_id="ps_bronco"),
+    "ibeacon:bronco:b": _obj("ibeacon:bronco:b", "ibeacon", label="Bronco", room="Alex's Office", padspan_id="ps_bronco"),
     "ibeacon:e2c5": _obj("ibeacon:e2c5", "ibeacon", label="iBeacon e2c56db5", room="Living Room", padspan_id="ps_e2c5"),
     "ibeacon:box": _obj("ibeacon:box", "ibeacon", label="MaschineBOX", room="Spare Bedroom Closet", padspan_id="ps_box"),
     "entity:sensor.fsc_bp103b_area_last_seen": _obj("entity:sensor.fsc_bp103b_area_last_seen", "entity",
-                                                    room="Garry's Office", age=None, padspan_id="ps_fsc",
+                                                    room="Alex's Office", age=None, padspan_id="ps_fsc",
                                                     name="Test Beacon Feasycom"),
 }
 SENSORS = [
@@ -163,44 +163,44 @@ def test_two_people_home_is_two(monkeypatch):
     assert res["total_estimate"] == 2
     assert res["total_low"] == 2
     assert res["known"] == 2 and res["unknown"] == 0
-    assert res["confidence"] == "medium"  # Nicole is home but nothing places her
+    assert res["confidence"] == "medium"  # Jordan is home but nothing places her
 
 
 def test_two_person_entities_on_one_phone_are_one_person(monkeypatch):
     res = _estimate(_the_house(monkeypatch))
     names = [p["name"] for p in res["people"]]
     assert names.count("remote") + names.count("pixel") == 1
-    garry = next(p for p in res["people"] if p["name"] in ("remote", "pixel"))
-    assert "pixel" in garry["aliases"] or "remote" in garry["aliases"]
+    alex = next(p for p in res["people"] if p["name"] in ("remote", "pixel"))
+    assert "pixel" in alex["aliases"] or "remote" in alex["aliases"]
 
 
 def test_the_phone_places_its_owner(monkeypatch):
-    """The 'Pixel 8 Pro' object is Garry's phone: it puts him in the Living Room, it is not a person."""
+    """The 'Pixel 8 Pro' object is Alex's phone: it puts him in the Living Room, it is not a person."""
     res = _estimate(_the_house(monkeypatch))
-    garry = next(p for p in res["people"] if p["name"] in ("remote", "pixel"))
-    assert garry["room"] == "Living Room"
+    alex = next(p for p in res["people"] if p["name"] in ("remote", "pixel"))
+    assert alex["room"] == "Living Room"
     assert "Pixel 8 Pro" not in [t["label"] for t in res["evidence"]["things_seen"]]
-    assert res["evidence"]["persons_unlocated"] == ["Nicole"]
+    assert res["evidence"]["persons_unlocated"] == ["Jordan"]
 
 
 def test_labelled_things_are_listed_and_never_counted(monkeypatch):
     res = _estimate(_the_house(monkeypatch))
     labels = sorted(t["label"] for t in res["evidence"]["things_seen"])
-    assert labels == ["Bronco", "GarryBroncoKeys", "MaschineBOX", "Test Beacon Feasycom", "iBeacon e2c56db5"]
+    assert labels == ["AlexBroncoKeys", "Bronco", "MaschineBOX", "Test Beacon Feasycom", "iBeacon e2c56db5"]
     # two iBeacon keys, one padspan_id, one thing
     assert labels.count("Bronco") == 1
 
 
-def test_the_unclaimed_iphone_is_nicole_not_a_stranger(monkeypatch):
-    """A phone in the room Garry is placed in is his second device; the occupied
-    bedroom with nobody placed is where Nicole is assumed to be — nobody is a stranger."""
+def test_the_unclaimed_iphone_is_jordan_not_a_stranger(monkeypatch):
+    """A phone in the room Alex is placed in is his second device; the occupied
+    bedroom with nobody placed is where Jordan is assumed to be — nobody is a stranger."""
     res = _estimate(_the_house(monkeypatch))
     ev = res["evidence"]
     assert ev["phone_addresses"] == 2 and ev["phone_clusters"] == 1
     assert res["unknown"] == 0
-    nicole = next(p for p in res["people"] if p["name"] == "Nicole")
-    assert nicole["room"] == "Bedroom" and nicole["assumed"] is True and "assumed" in nicole["via"]
-    assert ev["persons_unlocated"] == ["Nicole"]  # assumed is not placed
+    jordan = next(p for p in res["people"] if p["name"] == "Jordan")
+    assert jordan["room"] == "Bedroom" and jordan["assumed"] is True and "assumed" in jordan["via"]
+    assert ev["persons_unlocated"] == ["Jordan"]  # assumed is not placed
     assert (res["total_low"], res["total_high"]) == (2, 2)
 
 
@@ -210,11 +210,11 @@ def test_sensors_by_device_class_and_area(monkeypatch):
     assert ev["occupancy_rooms"] == ["Living Room", "Bedroom"]      # the driveway radar (area Outside) is not a room
     assert ev["motion_rooms"] == []                                  # 30 h of 'on' is a held input, 50 min 'off' is nobody
     assert ev["stuck_sensors"] == ["binary_sensor.alarm_di1"]
-    assert ev["unaccounted_rooms"] == []                             # Living Room has Garry, Bedroom gets Nicole
+    assert ev["unaccounted_rooms"] == []                             # Living Room has Alex, Bedroom gets Jordan
     rooms = {r["room"]: r for r in res["rooms"]}
     assert rooms["Living Room"]["people"] == [next(p["name"] for p in res["people"] if p["name"] in ("remote", "pixel"))]
     assert rooms["Living Room"]["phones"] == 1 and rooms["Living Room"]["occupancy"] is True
-    assert rooms["Bedroom"]["people"] == ["Nicole"] and rooms["Bedroom"]["occupancy"] is True
+    assert rooms["Bedroom"]["people"] == ["Jordan"] and rooms["Bedroom"]["occupancy"] is True
 
 
 # ── each rule on its own ────────────────────────────────────────────────────
@@ -233,7 +233,7 @@ BEDROOM_PAIR = [
 
 
 def test_a_phone_where_no_known_person_is_is_a_guest(monkeypatch):
-    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    persons = [_person("person.alex", "Alex", "device_tracker.pixel_8_pro")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
                           ads=BEDROOM_PAIR, scanners=SCANNERS))
     assert res["known"] == 1 and res["unknown"] == 1
@@ -243,8 +243,8 @@ def test_a_phone_where_no_known_person_is_is_a_guest(monkeypatch):
 
 
 def test_a_phone_in_the_room_a_known_person_is_placed_in_is_theirs(monkeypatch):
-    """Garry is in the Living Room by his Pixel; an anonymous phone there is his watch, not a guest."""
-    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    """Alex is in the Living Room by his Pixel; an anonymous phone there is his watch, not a guest."""
+    persons = [_person("person.alex", "Alex", "device_tracker.pixel_8_pro")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
                           ads=IPHONE_PAIR, scanners=SCANNERS))
     assert res["known"] == 1 and res["unknown"] == 0 and res["total_estimate"] == 1
@@ -286,7 +286,7 @@ def test_two_phone_clusters_in_one_room_are_one_person(monkeypatch):
     ("2E:02:12:A7:8B:69", dict(company=MICROSOFT), False),      # Windows PC, non-resolvable address
     ("6F:4F:F3:CB:62:89", dict(company=MICROSOFT), False),      # Windows PC on a rotating address
     ("64:24:24:DF:5F:7A", dict(company=GOOGLE, name="Living Room TV"), False),  # named hardware
-    ("4F:49:7F:E7:CD:2B", dict(apple="Nearby Info", name="Garrys MacBook"), False),  # a named rotating emitter is a Mac
+    ("4F:49:7F:E7:CD:2B", dict(apple="Nearby Info", name="Alexs MacBook"), False),  # a named rotating emitter is a Mac
     ("DD:E1:C8:89:75:73", dict(apple="Nearby Info"), False),    # public address
 ])
 def test_phone_class_classifier(monkeypatch, addr, kw, counts):
@@ -316,26 +316,26 @@ def test_a_rotation_or_a_watch_is_the_same_person_a_different_spot_is_not(monkey
 
 def test_the_owners_own_addresses_are_never_strangers(monkeypatch):
     """An IRK-resolved phone's rotating addresses belong to that object, whatever they advertise."""
-    phone = _obj("private:nicole", "private_ble", name="Nicole's iPhone", room="Nicole's Office",
+    phone = _obj("private:jordan", "private_ble", name="Jordan's iPhone", room="Jordan's Office",
                  address="4F:49:7F:E7:CD:2B", all_addresses=["75:88:1D:26:CE:2B"])
-    res = _estimate(_hass(monkeypatch, objects={"private:nicole": phone}, ads=IPHONE_PAIR, scanners=SCANNERS))
+    res = _estimate(_hass(monkeypatch, objects={"private:jordan": phone}, ads=IPHONE_PAIR, scanners=SCANNERS))
     assert res["evidence"]["phone_addresses"] == 0
-    assert res["known"] == 1 and res["people"][0]["room"] == "Nicole's Office"
-    assert res["people"][0]["via"] == "Nicole's iPhone (IRK)"
+    assert res["known"] == 1 and res["people"][0]["room"] == "Jordan's Office"
+    assert res["people"][0]["via"] == "Jordan's iPhone (IRK)"
 
 
 def test_an_irk_phone_merges_with_its_person(monkeypatch):
-    phone = _obj("private:nicole", "private_ble", name="iPhone", room="Nicole's Office", address="4F:49:7F:E7:CD:2B")
+    phone = _obj("private:jordan", "private_ble", name="iPhone", room="Jordan's Office", address="4F:49:7F:E7:CD:2B")
     res = _estimate(_hass(monkeypatch, persons=[PERSONS[2]], trackers=TRACKERS,
-                          objects={"private:nicole": phone}, scanners=SCANNERS))
+                          objects={"private:jordan": phone}, scanners=SCANNERS))
     assert res["known"] == 1
-    assert res["people"][0]["name"] == "Nicole" and res["people"][0]["room"] == "Nicole's Office"
+    assert res["people"][0]["name"] == "Jordan" and res["people"][0]["room"] == "Jordan's Office"
     assert res["confidence"] == "high"
 
 
 def test_an_occupied_room_with_nobody_placed_is_possibly_someone(monkeypatch):
-    """Garry is placed by a weak beacon; an occupied bedroom raises the ceiling, not the count."""
-    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    """Alex is placed by a weak beacon; an occupied bedroom raises the ceiling, not the count."""
+    persons = [_person("person.alex", "Alex", "device_tracker.pixel_8_pro")]
     sensors = [_sensor("binary_sensor.bedroom_presence", "presence", "on", "Bedroom")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS, sensors=sensors, scanners=SCANNERS))
     assert (res["total_estimate"], res["total_low"], res["total_high"]) == (1, 1, 2)
@@ -350,12 +350,12 @@ def test_agreement_is_agree_when_ble_and_a_sensor_both_place_someone(monkeypatch
     res = _estimate(_the_house(monkeypatch))
     rooms = {r["room"]: r for r in res["rooms"]}
     assert rooms["Living Room"]["agreement"] == "agree"   # phone + occupancy sensor
-    assert rooms["Bedroom"]["agreement"] == "agree"        # Nicole assumed there + occupancy sensor
+    assert rooms["Bedroom"]["agreement"] == "agree"        # Jordan assumed there + occupancy sensor
 
 
 def test_agreement_is_ble_only_when_no_sensor_backs_a_placed_phone(monkeypatch):
     """A room with a phone or known person but no HA occupancy/motion evidence at all."""
-    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    persons = [_person("person.alex", "Alex", "device_tracker.pixel_8_pro")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
                           ads=BEDROOM_PAIR, scanners=SCANNERS))
     rooms = {r["room"]: r for r in res["rooms"]}
@@ -364,12 +364,12 @@ def test_agreement_is_ble_only_when_no_sensor_backs_a_placed_phone(monkeypatch):
 
 def test_agreement_is_sensor_only_when_nobody_is_ble_placed(monkeypatch):
     """A room an HA sensor says is occupied, with no BLE evidence of anyone there."""
-    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    persons = [_person("person.alex", "Alex", "device_tracker.pixel_8_pro")]
     sensors = [_sensor("binary_sensor.bedroom_presence", "presence", "on", "Bedroom")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
                           sensors=sensors, scanners=SCANNERS))
     rooms = {r["room"]: r for r in res["rooms"]}
-    assert rooms["Living Room"]["agreement"] == "ble_only"   # Garry's phone, no sensor there
+    assert rooms["Living Room"]["agreement"] == "ble_only"   # Alex's phone, no sensor there
     assert rooms["Bedroom"]["agreement"] == "sensor_only"    # sensor only, nobody placed
 
 
@@ -425,27 +425,27 @@ def test_hybrid_off_is_phones_only(monkeypatch):
 
 
 def test_a_room_named_after_someone_is_assumed_to_be_theirs(monkeypatch):
-    """Two people home, neither placed by a device: the phone in Nicole's Office is Nicole's,
-    the occupied Garry's Office is Garry's — not first-come, first-placed."""
-    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro"), PERSONS[2]]
-    scanners = dict(SCANNERS, s5=("Nicole's Office", "upper"))
+    """Two people home, neither placed by a device: the phone in Jordan's Office is Jordan's,
+    the occupied Alex's Office is Alex's — not first-come, first-placed."""
+    persons = [_person("person.alex", "Alex", "device_tracker.pixel_8_pro"), PERSONS[2]]
+    scanners = dict(SCANNERS, s5=("Jordan's Office", "upper"))
     ads = [_ad("4F:49:7F:E7:CD:2B", "s5", -58, apple="Nearby Info"), _ad("4F:49:7F:E7:CD:2B", "s2", -84, apple="Nearby Info")]
-    sensors = [_sensor("binary_sensor.office_occupancy", "occupancy", "on", "Garry's Office")]
+    sensors = [_sensor("binary_sensor.office_occupancy", "occupancy", "on", "Alex's Office")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, ads=ads, sensors=sensors, scanners=scanners))
     where = {p["name"]: p["room"] for p in res["people"]}
-    assert where == {"Garry": "Garry's Office", "Nicole": "Nicole's Office"}
+    assert where == {"Alex": "Alex's Office", "Jordan": "Jordan's Office"}
     assert all(p["assumed"] for p in res["people"])
     assert (res["total_estimate"], res["total_low"], res["total_high"]) == (2, 2, 2)
 
 
 def test_an_object_that_is_away_places_nobody(monkeypatch):
-    """The Pixel went quiet: Garry is still home per HA, and the phone nearby is only assumed to be his."""
+    """The Pixel went quiet: Alex is still home per HA, and the phone nearby is only assumed to be his."""
     gone = dict(THINGS)
     gone["ibeacon:pixel"] = dict(THINGS["ibeacon:pixel"], age_s=900.0)
     res = _estimate(_the_house(monkeypatch, objects=gone))
-    garry = next(p for p in res["people"] if p["name"] in ("remote", "pixel"))
-    assert garry["room"] == "Living Room" and garry["assumed"] is True
-    assert sorted(res["evidence"]["persons_unlocated"]) == ["Nicole", garry["name"]]
+    alex = next(p for p in res["people"] if p["name"] in ("remote", "pixel"))
+    assert alex["room"] == "Living Room" and alex["assumed"] is True
+    assert sorted(res["evidence"]["persons_unlocated"]) == ["Jordan", alex["name"]]
     assert res["total_estimate"] == 2
 
 
@@ -502,7 +502,7 @@ def test_accuracy_recent_window_is_the_last_20_only(monkeypatch):
     # 5 badly-wrong old observations followed by 20 exact ones: the all-time
     # stat should still show the old errors, but "recent" should read as a
     # clean 100% once enough good observations have pushed the bad ones out
-    # of the last-20 window — this is what lets Garry see tuning improving
+    # of the last-20 window — this is what lets the owner see tuning improving
     # over time instead of one flat lifetime number.
     training = [_obs(9, 1) for _ in range(5)] + [_obs(2, 2) for _ in range(20)]
     res = _estimate(_the_house(monkeypatch, settings={"occupancy_training": training}))
@@ -520,7 +520,7 @@ def test_find_my_tags_and_bridged_tags_are_not_people(monkeypatch):
     address change, and the rotation bridge does the same for a tag: each
     counted as another person in the house."""
     sc = {"s1": ("Office", "main"), "s2": ("Kitchen", "main"), "s3": ("Bedroom", "main")}
-    persons = [_person("person.garry", "Garry", "device_tracker.pixel")]
+    persons = [_person("person.alex", "Alex", "device_tracker.pixel")]
     trackers = [_tracker("device_tracker.pixel", "Pixel")]
     objs = {
         "irk:pixel": _obj("irk:pixel", "private_ble", label="Pixel", room="Office"),
@@ -535,14 +535,14 @@ def test_find_my_tags_and_bridged_tags_are_not_people(monkeypatch):
 
 def test_a_person_tracked_by_an_entity_object_is_placed(monkeypatch):
     sc = {"s1": ("Office", "main")}
-    persons = [_person("person.garry", "Garry", "device_tracker.garry_phone")]
-    trackers = [_tracker("device_tracker.garry_phone", "Garry Phone")]
-    objs = {"entity:device_tracker.garry_phone": dict(
-        _obj("entity:device_tracker.garry_phone", "entity", room="Office", age=None, name="Garry Phone"),
-        entity_id="device_tracker.garry_phone")}
+    persons = [_person("person.alex", "Alex", "device_tracker.alex_phone")]
+    trackers = [_tracker("device_tracker.alex_phone", "Alex Phone")]
+    objs = {"entity:device_tracker.alex_phone": dict(
+        _obj("entity:device_tracker.alex_phone", "entity", room="Office", age=None, name="Alex Phone"),
+        entity_id="device_tracker.alex_phone")}
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=trackers, objects=objs, scanners=sc))
-    garry = next(p for p in res["people"] if p["name"] == "Garry")
-    assert garry["room"] == "Office"
+    alex = next(p for p in res["people"] if p["name"] == "Alex")
+    assert alex["room"] == "Office"
 
 
 def test_clustering_matches_the_old_answer_and_is_fast():

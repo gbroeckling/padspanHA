@@ -327,7 +327,7 @@ await tryCase("doors: a door drawn on a level's wall before a save opens the flo
 // window with a sensor; a barrier renamed in place.
 await tryCase("doors: a raised room's doorway runs from the door's sill to its top, down the wall it stands on", () => {
   const res = [];
-  for (const raise of [0.75, 1.2, 2.3]) {        // 0.75: Garry's office; 2.3: raised past the door's top
+  for (const raise of [0.75, 1.2, 2.3]) {        // 0.75: a real home's office; 2.3: raised past the door's top
     const m0 = barred();
     m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: raise };
     delete m0.room_meta.Den;

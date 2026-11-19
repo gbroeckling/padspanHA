@@ -104,7 +104,7 @@ def test_the_free_forever_claim_still_holds_and_the_trial_is_disclosed() -> None
 
 
 def test_the_trial_needs_the_usage_report_on() -> None:
-    """Every free offer needs the opt-in usage report on (Garry, 2026-10-27):
+    """Every free offer needs the opt-in usage report on (2026-10-27):
     refused before anything goes to the licence server; the card asks in the
     same step (tests/js/trial_offer.mjs)."""
     s = _read(_CC / "ws_forensics.py")
@@ -115,7 +115,7 @@ def test_the_trial_needs_the_usage_report_on() -> None:
 
 
 def test_a_new_free_licence_holds_the_usage_report_on_until_it_ends() -> None:
-    """Garry, 2026-10-27: the opt-in can't be turned off during a free trial,
+    """2026-10-27: the opt-in can't be turned off during a free trial,
     nor the new free years of Pro (a tester's two, an invite's one). The lock
     is the key it came with: a bought key in its place, or the end, lets it go;
     a free licence from before the rule never had one."""

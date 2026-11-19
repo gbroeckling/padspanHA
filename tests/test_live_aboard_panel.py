@@ -4,7 +4,7 @@
 """Live Aboard on the wall panel, and the people in it (views/live_aboard_panel.js).
 
 tests/js/live_aboard_panel.mjs runs the real 3D view under the DOM shim on a
-house shaped like Garry's (five rooms in the basement, eleven on the main
+house shaped like the owner's (five rooms in the basement, eleven on the main
 floor, five upstairs over part of it): with no home set the sidebar opens on
 the floor with the most rooms of its own (the main floor, never All); Views ▾
 → Set as home keeps the camera and floor per browser; untouched for the
@@ -292,7 +292,7 @@ def test_the_settings_box_offers_off_and_three_times() -> None:
 
 
 def test_new_words_say_live_aboard_never_3d() -> None:
-    """Garry's naming: nothing new on screen calls the view "3D"."""
+    """The owner's naming: nothing new on screen calls the view "3D"."""
     texts = []
     for p in (_VIEWS / "live_aboard_panel.js", _VIEWS / "live_aboard_people.js", _VIEWS / "live_aboard_tracked.js"):
         texts += re.findall(r'"([^"\n]*)"|`([^`\n]*)`', _code(p))

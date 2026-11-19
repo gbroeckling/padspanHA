@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The WLED control card's IP line is a link, not just a label.
 
-Garry, 2026-09-09: "please make sure the card for WLED has a clickable IP
+2026-09-09: "please make sure the card for WLED has a clickable IP
 address, so a browser open to go deeper" — the card (views/lights_map.js's
 openControlCard, opened from lights_panel.js's _openWledDetail with
 `ip: this._regStore?.reg?.ipMap?.[eid]`, the device registry's own

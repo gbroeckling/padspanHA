@@ -4,7 +4,7 @@
 """Traceback CSV/JSON export — closing the one asymmetry left among the
 three diagnostic history views.
 
-Garry, 2026-09-10: "do 2-10" (from a missing-features shortlist) — #9:
+2026-09-10: "do 2-10" (from a missing-features shortlist) — #9:
 Forensics and Insights both already had an export; Traceback, which carries
 the richest per-frame data of the three (x_m/y_m, room, rssi, confidence,
 scanner per ~10s frame), had none. Reuses insights.js's own CSV escaper/

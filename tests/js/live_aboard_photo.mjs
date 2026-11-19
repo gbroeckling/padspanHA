@@ -196,23 +196,23 @@ await tryCase("photo: which AI Task, and whether the photo leaves", async () => 
 
 // ── people ──────────────────────────────────────────────────────────────────
 const STATES = {
-  "person.garry": { attributes: { friendly_name: "Garry" } },
-  "person.nicole": { attributes: { friendly_name: "Nicole" } },
+  "person.alex": { attributes: { friendly_name: "Alex" } },
+  "person.jordan": { attributes: { friendly_name: "Jordan" } },
   "light.kitchen": { attributes: { friendly_name: "Kitchen" } },
 };
 const FIG = { params: PP.figureDefaults(F), origin: "photo" };
 const tagKind = PH.photoKinds(F, ["tag"])[0];
 const LOOK = tagKind ? F.defaultRecipe(tagKind.kind) : null;
-const FILE = { data: { figures: { "person.garry": FIG, "person.gone": FIG },
+const FILE = { data: { figures: { "person.alex": FIG, "person.gone": FIG },
                        devices: { "ble:AA:BB:CC:DD:EE:FF": { recipe: LOOK || F.defaultRecipe("other") }, "sensor.t": { z_m: 1.2 } } },
                writable: true };
 const SNAP = { objects: { list: [
-  { key: "ble:AA:BB:CC:DD:EE:FF", kind: "ble", user_label: "Garry's keys" },
+  { key: "ble:AA:BB:CC:DD:EE:FF", kind: "ble", user_label: "Alex's keys" },
   { key: "ble:11:22:33:44:55:66", kind: "private_ble", identified: true, name: "Pixel" },
   { key: "ble:99:99:99:99:99:99", kind: "ble" },                                   // unnamed noise
   { key: "ble:77:77:77:77:77:77", kind: "ble", user_label: "Ghost", _ghost: true },
   { key: "entity:sensor.t", kind: "entity", user_label: "Not a beacon" },
-  { key: "ble:AA:BB:CC:DD:EE:FF", kind: "ble", user_label: "Garry's keys" },        // twice
+  { key: "ble:AA:BB:CC:DD:EE:FF", kind: "ble", user_label: "Alex's keys" },        // twice
 ] } };
 const MODEL = { scanner_positions_m: { "E8:9F:6D:00:11:22": { x_m: 1, y_m: 2 }, "24:0A:C4:00:00:01": { x_m: 3, y_m: 1 } },
                 scanners: { "E8:9F:6D:00:11:22": { room: "Living Room" } } };
@@ -232,7 +232,7 @@ const loaded = async (read = () => ({ ok: false, message: "x" }), info) => {
 
 await tryCase("lists: people, beacons and scanners", async () => {
   const [m] = await loaded();
-  check("lists: Home Assistant's people", JSON.stringify(m.people) === JSON.stringify([{ id: "person.garry", name: "Garry" }, { id: "person.nicole", name: "Nicole" }]));
+  check("lists: Home Assistant's people", JSON.stringify(m.people) === JSON.stringify([{ id: "person.alex", name: "Alex" }, { id: "person.jordan", name: "Jordan" }]));
   check("lists: the beacons the Atlas shows", JSON.stringify(m.beacons.map(b => b.id)) === JSON.stringify(["ble:AA:BB:CC:DD:EE:FF", "ble:11:22:33:44:55:66"]), m.beacons);
   check("lists: the scanners on the map", m.scanners.length === 2 && m.scanners.some(s => s.label === "Living Room scanner"));
   check("lists: a figure whose person is gone is not linked", JSON.stringify(m.unlinked()) === JSON.stringify(["person.gone"]));
@@ -244,7 +244,7 @@ await tryCase("lists: people, beacons and scanners", async () => {
 await tryCase("consent: nothing is sent before it is ticked", async () => {
   const fig = { ok: true, target: "person", figure: { params: { ...PP.figureDefaults(F), colors: { ...F.FIGURE.colors } }, origin: "photo" } };
   const [m, ws] = await loaded(() => fig);
-  m.photoFigure("person.nicole", "Nicole");
+  m.photoFigure("person.jordan", "Jordan");
   m.setPhoto("QUJD");
   await m.read();
   check("consent: not ticked, nothing sent", ws.sent().length === 0 && m.error === PP.CONSENT_NEEDED && m.step === "figphoto");
@@ -260,30 +260,30 @@ await tryCase("consent: nothing is sent before it is ticked", async () => {
   check("consent: the figure lands in the sliders, from a photo", m.step === "figure" && m.edit.origin === "photo");
   m.setFigure(F.FIGURE.params[0].key, F.FIGURE.params[0].type === "choice" ? F.FIGURE.params[0].choices.at(-1) : F.FIGURE.params[0].def);
   m.keepFigure();
-  check("consent: adjusted, it is still from a photo", m.changes.figures["person.nicole"].origin === "photo" && m.step === "list");
+  check("consent: adjusted, it is still from a photo", m.changes.figures["person.jordan"].origin === "photo" && m.step === "list");
   const [n, ws2] = await loaded(() => fig, { ready: false, message: "No AI Task" });
-  n.photoFigure("person.nicole", "Nicole"); n.setConsent(true); n.setPhoto("QUJD");
+  n.photoFigure("person.jordan", "Jordan"); n.setConsent(true); n.setPhoto("QUJD");
   await n.read();
   check("consent: no AI Task, nothing sent", ws2.sent().length === 0 && !n.canRead());
   n.back();
-  n.photoFigure("person.garry", "Garry");
+  n.photoFigure("person.alex", "Alex");
   check("consent: asked again for each photo", n.consent === false);
 });
 
 await tryCase("people: figures by hand, removed, unlinked", async () => {
   const [m] = await loaded();
-  m.editFigure("person.nicole", "Nicole");
+  m.editFigure("person.jordan", "Jordan");
   const num = F.FIGURE.params.find(s => s.type === "num" || s.type === "int");
   if (num) m.setFigure(num.key, num.max + 10);
   m.setFigure("colors.top", "#123456");
   m.keepFigure();
-  const f = m.changes.figures["person.nicole"];
+  const f = m.changes.figures["person.jordan"];
   check("people: by hand is build", f.origin === "build" && f.params.colors.top === "#123456");
   check("people: numbers clamped", !num || f.params[num.key] === num.max);
-  m.removeFigure("person.nicole");
-  check("people: removing one never saved is no change", !("person.nicole" in m.changes.figures));
-  m.removeFigure("person.garry");
-  check("people: removing a saved one is null", m.changes.figures["person.garry"] === null && m.figureOf("person.garry") === null);
+  m.removeFigure("person.jordan");
+  check("people: removing one never saved is no change", !("person.jordan" in m.changes.figures));
+  m.removeFigure("person.alex");
+  check("people: removing a saved one is null", m.changes.figures["person.alex"] === null && m.figureOf("person.alex") === null);
   m.removeFigure("person.gone");
   check("people: an unlinked one can be removed", m.changes.figures["person.gone"] === null && m.unlinked().length === 0);
   payloads.push({ figures: m.result().figures, devices: m.result().devices });

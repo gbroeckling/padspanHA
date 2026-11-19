@@ -216,7 +216,7 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
 });
 
 // ── the starter set ─────────────────────────────────────────────────────────
-// Garry, 2026-10-04: "try to recreate what I saw in the preview as a starter
+// 2026-10-04: "try to recreate what I saw in the preview as a starter
 // set"; the first two are the preview's sofa and bed. Each places like any
 // piece, with its ready-made recipe, and Undo takes it away again.
 await tryCase("starters: the preview's sofa and bed lead the starter set, and each places with its recipe", async () => {

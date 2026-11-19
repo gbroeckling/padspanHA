@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """scripts/release.py writes the panel's release notes (assets/whatsnew.json).
 
-Garry, 2026-09-28: "release notes screen has no way to close on touch
+2026-09-28: "release notes screen has no way to close on touch
 monitor". The notes now open inside the panel, from a file shipped with the
 integration so they work offline. The release writes it from CHANGELOG.md —
 the newest six "## X.Y.Z — title (date)" sections — before the zip is built,

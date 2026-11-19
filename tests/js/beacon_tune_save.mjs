@@ -113,7 +113,7 @@ const out = {};
 // and every labelled device sits in the Available list.
 {
   const objects = [
-    { key: "ble:IRK1", kind: "private_ble", user_label: "Garry's Phone", room: "Office" },
+    { key: "ble:IRK1", kind: "private_ble", user_label: "Alex's Phone", room: "Office" },
     { key: "ibeacon:app", kind: "ibeacon", user_label: "Pixel app", room: "Office" },
     { key: "ble:AA:BB:CC:DD:EE:09", kind: "ble", address: "AA:BB:CC:DD:EE:09", user_label: "Car Keys", room: "Hall" },
     { key: "ibeacon:door", kind: "ibeacon", user_label: "Door beacon", room: "Hall" },
@@ -162,8 +162,8 @@ const out = {};
 // Save: a held row is said by name, never "No beacon positions changed".
 {
   const T = tab({ maps: [{ id: "m1", floor_id: "main", beacons: [] }],
-    objects: [{ key: "ble:IRK1", kind: "private_ble", user_label: "Garry's Phone" }] });
-  T.bs.draftBeacons.m1.push({ id: "bk_p", key: "ble:IRK1", label: "Garry's Phone", kind: "private_ble", x: 0.3, y: 0.3 });
+    objects: [{ key: "ble:IRK1", kind: "private_ble", user_label: "Alex's Phone" }] });
+  T.bs.draftBeacons.m1.push({ id: "bk_p", key: "ble:IRK1", label: "Alex's Phone", kind: "private_ble", x: 0.3, y: 0.3 });
   T.bs.dirtyMaps.m1 = true;
   await T.save();
   out.saveHeld = T.report();

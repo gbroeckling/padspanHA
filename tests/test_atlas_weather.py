@@ -106,7 +106,7 @@ def test_only_the_weather_words_count_and_never_an_id_or_text() -> None:
         assert T.bump(h, name), name
         assert not re.search(r"[a-z_]{2,}\.[a-z0-9_]{2,}", name), f"{name} looks like an entity id"
         assert len(name) <= 64
-    for bad in ("weather_error:", "weather_error:Nicole's Office", "weather_source:warning:binary_sensor.meteoalarm",
+    for bad in ("weather_error:", "weather_error:Jordan's Office", "weather_source:warning:binary_sensor.meteoalarm",
                 "weather_source:binary_sensor.rain", "weather_shown:drizzle", "weather_source:warning:",
                 "weather_shown:Rainfall Warning in effect", "weather_error:mask_build\n"):
         assert not T.bump(h, bad), bad

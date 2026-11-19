@@ -217,7 +217,7 @@ _LIVE_GEOMETRY = {
     "Kitchen":         {"type": "poly", "floor_id": "main",
                         "points_m": [[-3.17, -16.48], [16.66, -16.48],
                                      [16.66, 12.10], [-3.17, 12.10]]},
-    "Garry's Office":  {"type": "poly", "floor_id": "upper",
+    "Alex's Office":  {"type": "poly", "floor_id": "upper",
                         "points_m": [[3.38, -21.34], [12.80, -21.34],
                                      [12.80, 6.19], [3.38, 6.19]]},
     "North Suite":     {"type": "poly", "floor_id": "basement",
@@ -256,7 +256,7 @@ def test_the_live_escapes_are_rejected():
 def test_positions_inside_the_building_are_kept():
     """Negative control: containment must not suppress real positions."""
     b = _floor_bounds_from_geometry(_LIVE_GEOMETRY)
-    assert _within_floor_bounds(8.3, -3.1, "main", b)       # GarryBroncoKeys
+    assert _within_floor_bounds(8.3, -3.1, "main", b)       # AlexBroncoKeys
     assert _within_floor_bounds(5.0, 0.0, "upper", b)
     assert _within_floor_bounds(-4.0, -17.0, "basement", b)
 

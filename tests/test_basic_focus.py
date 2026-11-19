@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Basic's focused views (views/focus.js, 2026-10-30).
 
-Garry: "Make sure basic still makes sense, no access to things that are so
+The owner: "Make sure basic still makes sense, no access to things that are so
 foreign to the user that it doesn't tie together." Basic is for seeing who's
 where and setting the house up. A link in Basic comes only from something
 Basic asks for, and opens just that part of the expert screen, under one

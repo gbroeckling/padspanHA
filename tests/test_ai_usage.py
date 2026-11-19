@@ -516,8 +516,8 @@ def test_the_report_identifies_nothing(monkeypatch):
     for i in range(175):
         U.note_read(h, _CLAUDE, "PadSpan plans", size=(1123, 794), prompt_chars=1234 + i, secs=4.7, sent=True,
                     reason="timeout" if i % 50 == 0 else None)
-    U.unusable(h, _CLAUDE, "I'm sorry, I can't read 12 Oak St, Squamish")
-    _run(U.refused(h, "no_ai", "ai_task.garrys_office"))
+    U.unusable(h, _CLAUDE, "I'm sorry, I can't read 12 Oak St, Springfield")
+    _run(U.refused(h, "no_ai", "ai_task.alexs_office"))
     clock["now"] = datetime(2026, 12, 2, 8, 0)
     U.summary(h, U.usage(h))                                            # November ends: its bands go
     payload = T.build_payload(h)
@@ -529,7 +529,7 @@ def test_the_report_identifies_nothing(monkeypatch):
     assert ours["ai_reads_kind:plans"] == 175 and ours["ai_reads_fail:timeout"] == 4 and ours["ai_reads_fail:refusal"] == 1
     assert ours["ai_reads_month:101_500"] == 1 and ours["ai_credit_month:1_5"] == 1
     text = json.dumps(payload)
-    for seeded in (_CLAUDE, "claude_ai_task", "garrys_office", "claude-opus-5-5", "Opus", "Oak St", "Squamish",
+    for seeded in (_CLAUDE, "claude_ai_task", "alexs_office", "claude-opus-5-5", "Opus", "Oak St", "Springfield",
                    "1123", "794", "1234", "200.0", "$"):
         assert seeded not in text, seeded
     assert not re.search(r"\d\.\d", json.dumps(usage)), "no exact figure under usage"

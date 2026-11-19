@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
 """Live Aboard, the house itself: stairs, doorways and doors shown open, in
-the 3D file (house3d_edit). Garry, 2026-10-05: "Lots still missing on the
+the 3D file (house3d_edit). 2026-10-05: "Lots still missing on the
 sims view." Held here:
 - a doorway ("doorway_" + 8 hex digits): an opening with no door in it, drawn
   along a wall like a door, checked as one (its ends, its head, nothing else);
@@ -215,7 +215,7 @@ def test_a_sofa_is_not_checked_as_stairs() -> None:
 
 
 # ═══ door types ═══════════════════════════════════════════════════════════════
-# Garry, 2026-10-05: "a door will also need swing left, right, roll up or down,
+# 2026-10-05: "a door will also need swing left, right, roll up or down,
 # etc." Each type and option round trips on an added door and on a barrier's
 # entry; anything outside the lists is refused; a link is an entity id.
 

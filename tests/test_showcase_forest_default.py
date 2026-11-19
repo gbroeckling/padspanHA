@@ -1,4 +1,4 @@
-"""West Coast Forest as the first look in forested places (Garry, 2026-11-03):
+"""West Coast Forest as the first look in forested places (2026-11-03):
 the first time Showcase goes on, never over a look someone has."""
 from types import SimpleNamespace
 

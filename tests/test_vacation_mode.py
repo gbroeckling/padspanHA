@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Vacation Mode — a Whole House Preset that isn't a snapshot (Garry,
+"""Vacation Mode — a Whole House Preset that isn't a snapshot (the owner,
 2026-09-21): "act like an average day based on data collected, and turn on
 and off lights based on that data until it is turned off", "day of the week
 to make it look a bit more random", and a 5-100 intensity slider that
@@ -323,7 +323,7 @@ def test_vm_domains_is_light_and_fan_only():
 
 
 # ---------------------------------------------------------------------------
-# NEVER LEARN FROM ITSELF (Garry, 2026-09-23) — the pattern is built from
+# NEVER LEARN FROM ITSELF (2026-09-23) — the pattern is built from
 # history before the vacation began, never from Vacation Mode's own output
 # ---------------------------------------------------------------------------
 
@@ -458,9 +458,9 @@ def test_switch_fields_and_restore_fields_keep_the_span_bookkeeping():
         "vacation_mode_pattern_prev_source": "month", "vacation_mode_trip_source": "last_week",
         "vacation_mode_pattern_end": 0}
     off = switch_fields({"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0}, False, now,
-                        {"by": "Nicole", "via": "the Android app", "how": "panel"})
+                        {"by": "Jordan", "via": "the Android app", "how": "panel"})
     assert off == {"vacation_mode_periods": [[9000.0, now]], "vacation_mode_enabled_at": 0,
-                   "vacation_mode_last_off": {"ts": now, "by": "Nicole", "via": "the Android app", "how": "panel"}}
+                   "vacation_mode_last_off": {"ts": now, "by": "Jordan", "via": "the Android app", "how": "panel"}}
     assert switch_fields({"vacation_mode_enabled": True}, True, now) == {}
     # A restore leaves Vacation Mode exactly as it is (2026-10-25: an older
     # backup restored mid-trip turned it off): the live fields win over the
@@ -832,7 +832,7 @@ async def test_a_trip_running_when_the_update_lands_carries_on_untouched(monkeyp
     """A house mid-trip on a routine built (and resumed) before the source
     choice existed: no stored source at all, the new default last_week in the
     settings. The update must not learn it again or change what it switches
-    (review 2026-10-31: Garry's own house, resumed Oct 26 on the Oct 6 routine)."""
+    (review 2026-10-31: a real house, resumed Oct 26 on the Oct 6 routine)."""
     import custom_components.padspan_ha.vacation_mode as vm
     fetch = AsyncMock(return_value={"light.a": [(1.0, "off")]})
     monkeypatch.setattr(vm, "_async_fetch_history", fetch)
@@ -1003,9 +1003,9 @@ async def test_the_turned_off_notice_goes_to_ha_and_every_alert_target_once(monk
                                           "cc": {"notify_service": "", "email": "me@example.com"},
                                           "dd": {"on_room_change": True}})
     hass = SimpleNamespace(data={DOMAIN: {DATA_ALERTS: alerts}})
-    ok = await vm.async_notify_turned_off(hass, {"by": "Nicole", "via": "the iPhone app", "how": "panel"}, 1_791_938_025.0)
+    ok = await vm.async_notify_turned_off(hass, {"by": "Jordan", "via": "the iPhone app", "how": "panel"}, 1_791_938_025.0)
     assert ok
-    assert made and "by Nicole from the iPhone app" in made[0][1]
+    assert made and "by Jordan from the iPhone app" in made[0][1]
     assert sent == [("notify.mobile_app_pixel", ""), ("", "me@example.com")]
     # No alert targets: HA's own notification only, and it says so.
     made.clear(); sent.clear()
@@ -1020,7 +1020,7 @@ def test_the_report_says_how_vacation_mode_runs_in_closed_words_only_where_used(
     assert report_buckets({"vacation_mode_enabled": False, "vacation_mode_periods": []}, [], now) is None
     start, off = now - 20 * 86400, now - 12 * 86400
     trip = _trip(start, off, vacation_mode_intensity=60,
-                 vacation_mode_last_off={"ts": off, "by": "Nicole", "via": "the Android app", "how": "panel"})
+                 vacation_mode_last_off={"ts": off, "by": "Jordan", "via": "the Android app", "how": "panel"})
     log = [[start + 3600 * i, "light.a", i % 2] for i in range(8 * 24)]      # 24 a day for 8 days
     home = report_buckets(trip, log, now)
     assert home == {"on": "no", "intensity": "50-70", "switches_day": "11-50", "trips_60d": "1",
@@ -1034,7 +1034,7 @@ def test_the_report_says_how_vacation_mode_runs_in_closed_words_only_where_used(
     for out in (home, away):
         assert all(k in REPORT_WORDS and v in REPORT_WORDS[k] for k, v in out.items())
     # Nothing a person typed reaches it: no names, no apps.
-    assert "Nicole" not in str(home) and "Android" not in str(home)
+    assert "Jordan" not in str(home) and "Android" not in str(home)
     T.assert_shareable({"schema": 1, "env": {"vacation": away}}) if hasattr(T, "assert_shareable") else None
 
 
@@ -1137,7 +1137,7 @@ async def test_someone_home_pauses_switching_and_never_forces_lights_off(monkeyp
     st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=now, vacation_mode_pause_home=True,
                    vacation_mode_pattern={"light.a": {"*:1200": 0.0}}, vacation_mode_pattern_until=now)
     states = _states(**{"light.a": "on"})
-    person = SimpleNamespace(state="home", entity_id="person.nicole")
+    person = SimpleNamespace(state="home", entity_id="person.jordan")
     hass = _hass(st, states)
     hass.states.async_all = lambda domain=None: [person] if domain == "person" else []
     hass.bus = SimpleNamespace(async_fire=MagicMock())

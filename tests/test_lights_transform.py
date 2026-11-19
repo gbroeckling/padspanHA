@@ -246,7 +246,7 @@ def test_the_transform_preview_anchors_on_the_fixture_centre():
     Anchoring handles to it drifts them off-centre exactly when the fixture is
     largest, which is when precision matters most. The code label used to be
     tried FIRST as the reliable anchor instead — real, but it stops existing
-    at all once "Hide device codes" is on (Garry, 2026-09-08), which silently
+    at all once "Hide device codes" is on (2026-09-08), which silently
     broke every Transform handle's position the moment that toggle shipped:
     "the transform and move no longer work, because selecting something
     shoots you to the bottom." data-cx/data-cy — set on every marker group
@@ -377,7 +377,7 @@ def test_a_lights_floor_comes_from_its_room_first():
 
 
 def test_an_outdoor_room_anchors_no_placement_path():
-    """Garry, 2026-09-14: a sensor whose HA area is the Shed (Outside floor)
+    """2026-09-14: a sensor whose HA area is the Shed (Outside floor)
     could not be placed "on a floor, just outside a room". Outdoors is not a
     storey and the stack never draws it, so every path that took the floor
     from the room (or from a prior outdoor placement) wrote the light straight

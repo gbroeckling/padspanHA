@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Traceback's Full house activity (Garry, 2026-09-23) — the PadSpan Pro
+"""Traceback's Full house activity (2026-09-23) — the PadSpan Pro
 option that plays the whole house back on the Atlas map: every light, door,
 lock and motion sensor as it was at the frame's moment, beacons on top in
 Traceback's own marker style.
@@ -291,7 +291,7 @@ out.onceLoaded = loaded.includes('"light.hall"');
     assert out == {"whileLoading": False, "onceLoaded": True}
 
 
-# ── Garry, 2026-09-23: "full house activity should match the atlas tab
+# ── 2026-09-23: "full house activity should match the atlas tab
 # settings and look" ─────────────────────────────────────────────────────────
 
 
@@ -526,7 +526,7 @@ out.afterReconnect = pulse(quiet);    // back online unchanged: not fresh motion
     assert out == {"afterTrip": True, "afterReconnect": False}, out
 
 
-# ── 💡 Devices (Garry, 2026-09-24: "split it in two, devices, and no devices") ──
+# ── 💡 Devices (2026-09-24: "split it in two, devices, and no devices") ──
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")

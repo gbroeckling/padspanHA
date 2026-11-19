@@ -4,7 +4,7 @@
 //
 // Live Aboard's Strip tool, its runs as numbers (views/live_aboard_runs.js)
 // and as drawn (views/live_aboard_house.js runParts), run for real on a
-// synthetic house shaped like Garry's (an L-shaped living room with a door
+// synthetic house shaped like the owner's (an L-shaped living room with a door
 // and a window, a galley kitchen, a raised deck with rails).
 //
 //   trace     a room's walls as one loop: in from the outline, round its
@@ -45,7 +45,7 @@ const nearPt = (p, q, eps = 1e-3) => p.length === q.length && p.every((v, i) => 
 const keep = (what, entry) => payloads.push({ what, entry });
 
 // ── the house ───────────────────────────────────────────────────────────────
-// Main (2.3 m floor to floor, as Garry's): an L-shaped Living Room, a galley
+// Main (2.3 m floor to floor, as the owner's): an L-shaped Living Room, a galley
 // Kitchen beside it, a door between them and a window in the living room's
 // far wall; the Upper Deck outside, raised (rails).
 const L_ROOM = [[0.65, -8.0], [7.9, -8.0], [7.9, 1.0], [1.9, 1.0], [1.9, -3.0], [0.65, -3.0]];

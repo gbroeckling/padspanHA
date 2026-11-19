@@ -59,7 +59,7 @@ async def test_auto_point_drops_a_pin_room_that_is_not_a_room():
     import time
     coord, cal = _coord()
     buf = {"s1": [-60.0] * 3, "s2": [-70.0] * 3}
-    for pin_room, live_room, want in (("Garry's Keys", "Kitchen", ""), ("Kitchen", "Kitchen", "Kitchen")):
+    for pin_room, live_room, want in (("Alex's Keys", "Kitchen", ""), ("Kitchen", "Kitchen", "Kitchen")):
         cal.async_add_point.reset_mock()
         coord._beacon_autocal_last = {}
         coord._beacon_autocal_buf = {"ble:B1": {k: list(v) for k, v in buf.items()}}

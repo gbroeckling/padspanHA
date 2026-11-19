@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Plain names in the panel (Garry, 2026-10-30).
+"""Plain names in the panel (2026-10-30).
 
 Expert words on screen were renamed: Monitor's tabs (Calls and timing,
 Signal and coverage, Quick status, Export for support), Problems found,

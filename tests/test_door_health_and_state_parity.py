@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Door/window Light-Index parity with every other status-only class.
 
-Garry, 2026-09-10: "do 2-10" (from a missing-features shortlist) — #6: every
+2026-09-10: "do 2-10" (from a missing-features shortlist) — #6: every
 other status-only class (motion, temp, lock) already had a stuck-state
 health check and a read-only, non-clickable state badge; isDoor had neither
 — a raw ON/OFF label that reads like a switch, and a dead toggle button in

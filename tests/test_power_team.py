@@ -1,4 +1,4 @@
-"""Power teams (Garry, 2026-11-14): a wall dimmer and the smart bulbs it feeds, as one light.
+"""Power teams (2026-11-14): a wall dimmer and the smart bulbs it feeds, as one light.
 "They can be off, but when needed they turn on thru control4, wait for boot up, then do the color
 shift requirements." And the light that follows the day (adapted from Adaptive Lighting, with credit)."""
 from __future__ import annotations
@@ -307,7 +307,7 @@ def test_a_team_that_does_not_follow_the_day_comes_on_as_it_last_was_and_a_switc
     assert len(h.calls) == n
 
 
-# ── a team with no power source (Garry, 2026-11-14: the three Christmas strings, always powered) ──
+# ── a team with no power source (2026-11-14: the three Christmas strings, always powered) ──
 class Strings(House):
     """Three LED strings that always have power, colour by RGB only (no colour temperature to read back). One
     can be told to drop its next commands, as a string on weak Wi-Fi does."""

@@ -68,7 +68,7 @@ def _code(p: Path) -> str:
 
 
 def test_the_atlas_rules_are_read_never_copied() -> None:
-    """Garry's motion language stays the Atlas's: the colours, the hold, the
+    """The owner's motion language stays the Atlas's: the colours, the hold, the
     steps and the boot rule come from live_aboard_house.js (itself held to
     iso_lights.js by test_live_aboard_live.py), the pairs from lights_map.js,
     stuck on from light_codes.js."""

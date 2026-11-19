@@ -1,13 +1,13 @@
 """Devices -> Door Openers' "build an opener or lock from relays" wizard.
 
-Garry, 2026-09-22 (verbatim): "a windows opener may need to import a relay
+2026-09-22 (verbatim): "a windows opener may need to import a relay
 and set it up with logic to open and close a window. We also have cases
 where we need to import a relay for a door lock... In the filter, and at the
 bottom of the list we need to have an option to create door or windows
 opener or lock from relay/relays. And from there have a card to build a
 lock/opener from a relay, with accompanying logic for that."
 
-The three builders generalize Garry's own three hand-built relay patterns
+The three builders generalize the owner's own three hand-built relay patterns
 (momentary garage-door pulse, two-direction motorized window with interlock
 and failsafes, and a momentary electric-strike lock). These tests exercise
 the real module under node and assert the generated script/automation/
@@ -66,7 +66,7 @@ console.log(JSON.stringify({
 # ── Kind 1: momentary opener ─────────────────────────────────────────────
 
 def test_momentary_opener_mirrors_garage_door_scripts(tmp_path):
-    # Shape check against Garry's own live scripts.garage_door_car: turn_on,
+    # Shape check against the owner's own live scripts.garage_door_car: turn_on,
     # delay, turn_off, single mode, no automations, no helper, no template
     # entity — the script itself is the opener.
     out = _run_js(tmp_path, """
@@ -249,7 +249,7 @@ console.log(JSON.stringify(b));
 # ── Kind 4: plain light from relay ───────────────────────────────────────
 
 def test_relay_light_is_a_plain_passthrough(tmp_path):
-    """Garry, 2026-09-23 (verbatim): "What you have just built for locks, I
+    """2026-09-23 (verbatim): "What you have just built for locks, I
     have a few places that a relay controlled poe switch is used to control
     a light, so I need the same magic to open that new card and setup the
     relay parameters so a light shows in HA that I can use for things. That

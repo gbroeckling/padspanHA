@@ -72,8 +72,8 @@ const OBJ = (key, kind, x, y, more = {}) => ({ key, kind, x_m: x, y_m: y, floor_
 const SNAP = (over = {}) => ({ objects: { list: [
   OBJ("ble:keys", "ble", 2, 2, { user_label: "Keys", room: "Kitchen", age_s: 3, knn_confidence: 0.9,
     sources: [{ source: "AA:BB:CC:DD:EE:02", rssi: -80 }, { source: "AA:BB:CC:DD:EE:01", rssi: -61 }, { source: "11:22:33:44:55:66", rssi: -90 }] }),
-  OBJ("irk:pixel", "private_ble", 3, 3, { private_ble_name: "Garry's Pixel", linked_entities: ["device_tracker.pixel"], ...(over.pixel || {}) }),
-  OBJ("ble:watch", "ble", 6, 1, { user_label: "Nicole's watch", room: "Living", age_s: 340 }),
+  OBJ("irk:pixel", "private_ble", 3, 3, { private_ble_name: "Alex's Pixel", linked_entities: ["device_tracker.pixel"], ...(over.pixel || {}) }),
+  OBJ("ble:watch", "ble", 6, 1, { user_label: "Jordan's watch", room: "Living", age_s: 340 }),
   OBJ("ble:found", "ibeacon", 9, 4, { identified: true }),
   OBJ("ble:stale", "ble", 1, 1, { user_label: "Old tag", _stale: true }),
   OBJ("ble:ghost", "ble", 1, 1, { user_label: "Ghost", _ghost: true }),
@@ -82,10 +82,10 @@ const SNAP = (over = {}) => ({ objects: { list: [
   OBJ("phone:gps", "phone", 5, 5, { user_label: "A phone by GPS" }),
 ] } });
 const STATES = {
-  "person.garry": { state: "home", attributes: { friendly_name: "Garry", device_trackers: ["device_tracker.pixel"] } },
-  "person.nicole": { state: "home", attributes: { friendly_name: "Nicole", device_trackers: ["device_tracker.nicole_watch"] } },
+  "person.alex": { state: "home", attributes: { friendly_name: "Alex", device_trackers: ["device_tracker.pixel"] } },
+  "person.jordan": { state: "home", attributes: { friendly_name: "Jordan", device_trackers: ["device_tracker.jordan_watch"] } },
   "person.visitor": { state: "not_home", attributes: { friendly_name: "Visitor", device_trackers: [] } },
-  "device_tracker.nicole_watch": { state: "home", attributes: { friendly_name: "Nicole's watch" } },
+  "device_tracker.jordan_watch": { state: "home", attributes: { friendly_name: "Jordan's watch" } },
 };
 
 await tryCase("people: tracked things with a place; each person through their phone or tag, once", async () => {
@@ -93,9 +93,9 @@ await tryCase("people: tracked things with a place; each person through their ph
   const P = TR.peopleOf(STATES, t);
   const by = Object.fromEntries(P.map(p => [p.eid, p.at && p.at.key]));
   // Two people on one thing: the first (by id) has it.
-  const twin = TR.peopleOf({ ...STATES, "person.garry2": { state: "home", attributes: { friendly_name: "G2", device_trackers: ["device_tracker.pixel"] } } }, t);
+  const twin = TR.peopleOf({ ...STATES, "person.alex2": { state: "home", attributes: { friendly_name: "G2", device_trackers: ["device_tracker.pixel"] } } }, t);
   check("people: tracked things with a place; each person through their phone or tag, once",
-    t.map(o => o.key).join() === "ble:keys,irk:pixel,ble:watch,ble:found,ble:noise,phone:gps" && by["person.garry"] === "irk:pixel" && by["person.nicole"] === "ble:watch"
+    t.map(o => o.key).join() === "ble:keys,irk:pixel,ble:watch,ble:found,ble:noise,phone:gps" && by["person.alex"] === "irk:pixel" && by["person.jordan"] === "ble:watch"
     && by["person.visitor"] === null && twin.filter(p => p.at && p.at.key === "irk:pixel").length === 1
     && TR.trackedOf(null).length === 0 && TR.trackedOf({ objects: {} }).length === 0, { t: t.map(o => o.key), by });
 });
@@ -113,7 +113,7 @@ const MODEL = {
 const LOOK = (kind, w, d, h) => ({ recipe: { kind, params: {}, colors: ["#222222"], width_m: w, depth_m: d, height_m: h }, library_id: null, submission_id: null });
 const FILE = { schema: 1, pieces: {}, lights: {}, openings: {},
   devices: { "AA:BB:CC:DD:EE:01": LOOK("scanner", 0.06, 0.03, 0.09), "ble:keys": LOOK("tag", 0.04, 0.04, 0.012) },
-  figures: { "person.garry": { params: { height_m: 1.8, build: "medium", hair: "short", glasses: true, hat: false,
+  figures: { "person.alex": { params: { height_m: 1.8, build: "medium", hair: "short", glasses: true, hat: false,
                                           colors: { hair: "#3a2a1a", skin: "#c8956d", top: "#224466", bottom: "#333333" } }, origin: "build" } } };
 let snap = SNAP(), people = null, tags = null, fetches = 0;
 const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: null, quality: "low",
@@ -143,7 +143,7 @@ await tryCase("on: Show people alone: a figure, and a marker for someone with no
   people = { snapshot: () => snap };
   poll();
   await settle();
-  const s = st(), sc = item("scanner:AA:BB:CC:DD:EE:01"), g = item("person.garry"), n = item("person.nicole");
+  const s = st(), sc = item("scanner:AA:BB:CC:DD:EE:01"), g = item("person.alex"), n = item("person.jordan");
   check("on: Show people alone: a figure, and a marker for someone with none; no tags, no plain scanners",
     s.tracked.length === 3 && sc && sc.at[1] > 1.9 && sc.at[1] < 2.2 && sc.at[0] === 5 && sc.at[2] === 5
     && g && !g.marker && g.at[0] === 3 && g.at[1] === 0 && g.at[2] === 3 && n && n.marker && n.at[0] === 6 && !item("person.visitor")
@@ -153,11 +153,11 @@ await tryCase("walk: someone moving walks there, facing the way, on the capped c
   snap = SNAP({ pixel: { x_m: 6, y_m: 3 } });                // three metres east
   poll();
   await settle(4);
-  const start = { g: item("person.garry"), liveMs: st().liveMs }, f0 = st().frames;
+  const start = { g: item("person.alex"), liveMs: st().liveMs }, f0 = st().frames;
   await later(1000, 12);
-  const mid = item("person.garry");
+  const mid = item("person.alex");
   for (let i = 0; i < 30; i++) await later(100, 3);
-  const end = item("person.garry"), f1 = st().frames;
+  const end = item("person.alex"), f1 = st().frames;
   await later(20000, 12);
   check("walk: someone moving walks there, facing the way, on the capped clock; then stops",
     start.g.walking && start.liveMs === TR.WALK_MS.low && mid.at[0] > 3.2 && mid.at[0] < 5.8 && Math.abs(mid.yaw - Math.PI / 2) < 1e-3
@@ -167,10 +167,10 @@ await tryCase("walk: someone moving walks there, facing the way, on the capped c
 await tryCase("walk: far away, or on another floor, they are there at once", async () => {
   snap = SNAP({ pixel: { x_m: 25, y_m: 8 } });
   poll(); await settle(4);
-  const far = item("person.garry");
+  const far = item("person.alex");
   snap = SNAP({ pixel: { x_m: 25, y_m: 8, floor_id: "upper" } });
   poll(); await settle(4);
-  const up = item("person.garry");
+  const up = item("person.alex");
   check("walk: far away, or on another floor, they are there at once",
     !far.walking && far.at[0] === 25 && !up.walking && up.floor === "upper" && up.at[1] > 2 && st().liveMs === 0, { far, up });
   snap = SNAP();
@@ -203,7 +203,7 @@ await tryCase("tags: every tag the Atlas shows, no look needed, named, its ring 
     keysOf() === "beacon:ble:found,beacon:ble:keys,beacon:ble:watch,scanner:AA:BB:CC:DD:EE:01,scanner:AA:BB:CC:DD:EE:02,scanner:AA:BB:CC:DD:EE:03"
     // a look where it has one (keys), a plain tag where not (watch, found), each named
     && keys && !keys.plain && keys.name === "Keys" && keys.at[0] === 2 && keys.at[2] === 2 && keys.at[1] > 0.85 && keys.at[1] < 0.9
-    && watch && watch.plain && watch.name === "Nicole's watch" && watch.at[0] === 6 && Math.abs(watch.at[1] - (0.9 - 0.11)) < 0.002
+    && watch && watch.plain && watch.name === "Jordan's watch" && watch.at[0] === 6 && Math.abs(watch.at[1] - (0.9 - 0.11)) < 0.002
     && found && found.plain && found.name === "Tag"
     // the ring: 0.3 m when sure, wider the less sure (Overview's own), on the floor
     && keys.halo === TR.haloOf(0.9) && Math.abs(keys.halo - 0.42) < 1e-9 && watch.halo === TR.HALO_M[1] && TR.haloOf(1) === TR.HALO_M[0]
@@ -264,7 +264,7 @@ await tryCase("both: one read serves both; what is someone's is drawn as them, n
   const within = fetches;
   await later(1000, 6); poll(); await settle(4);
   check("both: one read serves both; what is someone's is drawn as them, not as a tag too",
-    drawn === "beacon:ble:found,beacon:ble:keys,person.garry,person.nicole,scanner:AA:BB:CC:DD:EE:01,scanner:AA:BB:CC:DD:EE:02,scanner:AA:BB:CC:DD:EE:03"
+    drawn === "beacon:ble:found,beacon:ble:keys,person.alex,person.jordan,scanner:AA:BB:CC:DD:EE:01,scanner:AA:BB:CC:DD:EE:02,scanner:AA:BB:CC:DD:EE:03"
     && within === 1 && fetches === 2, { drawn, within, fetches });
   people = null; tags = null;
   poll(); await settle(4);

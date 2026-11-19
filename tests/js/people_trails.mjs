@@ -91,10 +91,10 @@ const MODEL = {
 };
 const FILE = { schema: 1, pieces: {}, lights: {}, openings: {}, devices: {}, figures: {} };
 const SNAP = { objects: { list: [
-  { key: "irk:pixel", kind: "private_ble", x_m: 3, y_m: 3, floor_id: "upper", private_ble_name: "Garry's Pixel", linked_entities: ["device_tracker.pixel"] },
+  { key: "irk:pixel", kind: "private_ble", x_m: 3, y_m: 3, floor_id: "upper", private_ble_name: "Alex's Pixel", linked_entities: ["device_tracker.pixel"] },
   { key: "ble:keys", kind: "ble", x_m: 4, y_m: 6, floor_id: "main", user_label: "Keys", room: "Living" },
 ] } };
-const STATES = { "person.garry": { state: "home", attributes: { friendly_name: "Garry", device_trackers: ["device_tracker.pixel"] } } };
+const STATES = { "person.alex": { state: "home", attributes: { friendly_name: "Alex", device_trackers: ["device_tracker.pixel"] } } };
 const store = new Map();
 let people = null, tags = null, reads = 0, topFloorIds = null;
 const trails = { read: async (msg) => { reads++; return msg && msg.type === "padspan_ha/traceback_get" ? { frames: FRAMES() } : null; } };
@@ -116,13 +116,13 @@ await tryCase("off: Trails off by default, Traceback never read, nothing drawn",
   poll(); await later(1000, 40);
   const s = st();
   check("off: Trails off by default, Traceback never read, nothing drawn",
-    s.profile && reads === 0 && s.trailReads === 0 && s.trails.length === 0 && s.tracked.some(x => x.key === "person.garry"),
+    s.profile && reads === 0 && s.trailReads === 0 && s.trails.length === 0 && s.tracked.some(x => x.key === "person.alex"),
     { reads, trails: s.trails, tracked: s.tracked.map(x => x.key) });
 });
 await tryCase("on: each person and tag its own fading ribbon on its floor, read no more often than TRAIL_MS", async () => {
   store.set("trails", "1");
   poll(); await settle(20);
-  const s = st(), g = s.trails.filter(t => t.owner === "person.garry"), k = s.trails.filter(t => t.owner === "beacon:ble:keys");
+  const s = st(), g = s.trails.filter(t => t.owner === "person.alex"), k = s.trails.filter(t => t.owner === "beacon:ble:keys");
   const first = reads;
   for (let i = 0; i < 3; i++) { await later(5000, 6); poll(); await settle(6); }
   const within = reads;

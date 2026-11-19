@@ -180,9 +180,9 @@ def _device(name, ident="8f2c1e0b9a7d4c36", by_user=None):
 
 
 def test_the_phone_is_found_by_its_name_not_its_device_id():
-    hass = _phone_hass("mobile_app_garry_s_pixel_8", "mobile_app_nicoles_iphone")
-    assert mobile_app_notify_service(hass, _device("Garry's Pixel 8")) == "mobile_app_garry_s_pixel_8"
-    assert mobile_app_notify_service(hass, _device("Nicole's iPhone")) == "mobile_app_nicoles_iphone"
+    hass = _phone_hass("mobile_app_alex_s_pixel_8", "mobile_app_jordans_iphone")
+    assert mobile_app_notify_service(hass, _device("Alex's Pixel 8")) == "mobile_app_alex_s_pixel_8"
+    assert mobile_app_notify_service(hass, _device("Jordan's iPhone")) == "mobile_app_jordans_iphone"
 
 
 def test_a_service_named_by_the_id_still_wins_if_it_exists():
@@ -192,19 +192,19 @@ def test_a_service_named_by_the_id_still_wins_if_it_exists():
 
 def test_no_matching_service_is_none_not_a_guess():
     hass = _phone_hass("mobile_app_someone_else")
-    assert mobile_app_notify_service(hass, _device("Garry's Pixel 8")) is None
+    assert mobile_app_notify_service(hass, _device("Alex's Pixel 8")) is None
 
 
 @pytest.mark.asyncio
 async def test_a_phone_with_an_apostrophe_is_listed_once(monkeypatch):
     """discover lists phones by their BLE Transmitter sensor, then adds any
-    mobile_app_<slug> notify service not already listed. "Garry's Pixel 8"
-    -> mobile_app_garry_s_pixel_8 never matched a lowercase compare, so the
+    mobile_app_<slug> notify service not already listed. "Alex's Pixel 8"
+    -> mobile_app_alex_s_pixel_8 never matched a lowercase compare, so the
     phone showed twice, once as "sensor not registered"."""
     from homeassistant.helpers import device_registry as dr_mod, entity_registry as er_mod
     from custom_components.padspan_ha import ws_companion as WC
-    eid = "sensor.garry_s_pixel_8_ble_transmitter"
-    dev = SimpleNamespace(id="dev1", name="Garry's Pixel 8", name_by_user=None, model="Pixel 8",
+    eid = "sensor.alex_s_pixel_8_ble_transmitter"
+    dev = SimpleNamespace(id="dev1", name="Alex's Pixel 8", name_by_user=None, model="Pixel 8",
                           manufacturer="Google", identifiers={("mobile_app", "8f2c1e0b")}, connections=set())
     ent = SimpleNamespace(entity_id=eid, platform="mobile_app", device_id="dev1", disabled_by=None,
                           original_name="BLE Transmitter", name=None)
@@ -214,12 +214,12 @@ async def test_a_phone_with_an_apostrophe_is_listed_once(monkeypatch):
     monkeypatch.setattr(dr_mod, "async_get", lambda h: drg, raising=False)
     st = SimpleNamespace(entity_id=eid, state="Transmitting",
                          attributes={"id": "e2c56db5-dffb-48d2-b060-d0f5a71096e0-100-1", "UUID": "e2c56db5-dffb-48d2-b060-d0f5a71096e0",
-                                     "Major": 100, "Minor": 1, "friendly_name": "Garry's Pixel 8 BLE Transmitter"})
+                                     "Major": 100, "Minor": 1, "friendly_name": "Alex's Pixel 8 BLE Transmitter"})
     hass = MagicMock()
     hass.data = {}
     hass.states.get = lambda e: st if e == eid else None
     hass.states.async_all = lambda *a: [st]
-    hass.services.async_services.return_value = {"notify": {"mobile_app_garry_s_pixel_8": True, "send_message": True}}
+    hass.services.async_services.return_value = {"notify": {"mobile_app_alex_s_pixel_8": True, "send_message": True}}
     conn = MagicMock()
     await WC.ws_companion_discover(hass, conn, {"id": 1})
     phones = conn.send_result.call_args.args[1]["phones"]
@@ -352,7 +352,7 @@ async def test_unfollow_removes_the_irk_identity_label_too(monkeypatch):
             self.d.pop(str(k).upper(), None)
 
     key = "ibeacon:e2c56db5-dffb-48d2-b060-d0f5a71096e0:100:1"
-    store = _Store({key: {"label": "Garry's Pixel"}, "irk:aabb": {"label": "Garry's Pixel"},
+    store = _Store({key: {"label": "Alex's Pixel"}, "irk:aabb": {"label": "Alex's Pixel"},
                     "irk:ccdd": {"label": "Someone Else"}})
     st = SimpleNamespace(data={"followed_addrs": [key.upper()]}, async_set=AsyncMock())
     hass = MagicMock()
@@ -362,7 +362,7 @@ async def test_unfollow_removes_the_irk_identity_label_too(monkeypatch):
         raise RuntimeError("phone not on the air")
     monkeypatch.setattr(WC, "_get_ble_resolver", _no_resolver)
     conn = MagicMock()
-    await WC.ws_companion_unfollow(hass, conn, {"id": 1, "ibeacon_key": key, "device_name": "Garry's Pixel"})
+    await WC.ws_companion_unfollow(hass, conn, {"id": 1, "ibeacon_key": key, "device_name": "Alex's Pixel"})
     assert set(store.d) == {"IRK:CCDD"}
     assert "IRK identity label removed" in conn.send_result.call_args.args[1]["actions"]
 

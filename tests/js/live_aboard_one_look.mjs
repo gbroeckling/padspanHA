@@ -233,7 +233,7 @@ await tryCase("floors: each floor's number in its plate's colour, each plate its
 // An L-shaped Main over a plain Basement: each plate's line follows its own
 // floor's rooms, a little way out, at that floor's level, in its floor's
 // group (it hides with the floor); never the rectangle round them, whose
-// far corner stood out over the yard (Garry's wall, 2026-11-06).
+// far corner stood out over the yard (a real wall screen, 2026-11-06).
 await tryCase("floors: each plate's line follows its floor's rooms, at its level, with its floor", async () => {
   const L = { ...MODEL, room_geometry_m: { Rec: rect("basement", 0, 0, 6, 5), "Living room": rect("main", 0, 0, 4.5, 5), Den: rect("main", 4.6, 0, 9, 2) },
               light_positions_m: {} };

@@ -4,7 +4,7 @@
 """Door/window linking, triggered directly from the Lights map — the circle
 tool, built from scratch after the first attempt.
 
-Garry, 2026-09-09, after the wall-then-two-points picker: "you did a
+2026-09-09, after the wall-then-two-points picker: "you did a
 rediculusly poor job designing the door/windows mapping... Let's start from
 scratch. So, when in the device, open/close sensor, allow the placement of a
 circle, that circle will start at 1 meter in real world size. The tool will
@@ -126,7 +126,7 @@ out.fid = picked.fid; out.cx = picked.cx; out.cy = picked.cy;
 
 def test_floor_for_click_ranks_candidate_walls_by_plain_screen_distance():
     """Part of the still-open "the circle is drawn in the wrong place, it
-    is not" investigation (Garry, 2026-09-09/10) — not confirmed to be the
+    is not" investigation (2026-09-09/10) — not confirmed to be the
     root cause of that report, but a real, provable defect found while
     digging into it: the original version ranked candidate walls by the
     WORLD-space distance from the click (reprojected through each
@@ -266,7 +266,7 @@ out.toasts = toasts;
 
 
 def test_commit_with_nothing_nearby_says_so():
-    """Garry, 2026-09-09: "the done right now just says move or resize so
+    """2026-09-09: "the done right now just says move or resize so
     it crosses the line, but it already is" — a circle drawn somewhere with
     no RF Barrier AND no room edge anywhere near it (MODEL's Kitchen/Bed
     rooms are a 10x8 rectangle; (50,50) is nowhere close) must say so,
@@ -291,7 +291,7 @@ out.toasts = toasts;
 
 
 def test_commit_auto_creates_a_wall_from_the_room_edge_when_none_is_drawn():
-    """Garry, 2026-09-10, live report: circle at (10.74,-13.79) r=1.42 —
+    """2026-09-10, live report: circle at (10.74,-13.79) r=1.42 —
     5.54m from the nearest actual RF Barrier, but 0.085m from a real room's
     own polygon edge. "I draw the circle, it is visually perfect over the
     wall I need the door in... fix that error, not I should see things the
@@ -362,7 +362,7 @@ out.state = mapState;
 def test_lights_row_offers_place_not_a_jump_to_rooms():
     """The confusion this whole feature exists to fix: the row must no
     longer send anyone away to Rooms, and none of the old wall-then-
-    two-points fields (never visible, per Garry) must linger unused."""
+    two-points fields (never visible, per the owner) must linger unused."""
     src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
     assert '"Place"' in src, "the row's button text must say the tool is here, on this map"
     assert "setMapsTab" not in src, "lights_map.js must not itself navigate tabs for a door row"

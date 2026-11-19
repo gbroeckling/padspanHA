@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The Atlas builder's own marker gesture (maps.js's _wireLightsBuild) — root
 cause #1 from the 2026-09-17 touch-interface investigation (confidence 0.93),
-deferred pending Garry's decision, then settled the same day: "if I click
+deferred pending the owner's decision, then settled the same day: "if I click
 anywhere on a shape created to represent a device, most cases a light, the
 primary should always be to turn on that light/device. Secondary features
 should be more difficult to activate."
@@ -179,7 +179,7 @@ out.draft = o.mapState._lightsDraftM || null;
     assert out["draft"] and "light.a" in out["draft"], "a real drag must still reposition the light"
 
 
-# ── Slop is screen pixels, never viewBox units (Garry, 2026-09-19: "press and
+# ── Slop is screen pixels, never viewBox units (2026-09-19: "press and
 # hold doesn't work for all devices") ───────────────────────────────────────
 # toVB() deltas scale with how the drawing is fitted/zoomed. On a big house
 # shown small, one screen pixel is several viewBox units, so the old
@@ -260,7 +260,7 @@ out.focusRow = o.mapState._focusRow || null;
 def test_a_tap_on_a_door_or_lock_section_opens_its_card_not_the_index_row():
     """A door has nothing to switch and a lock must never be one stray tap
     from unlocking — so a plain tap must never toggle anything or select
-    the row for editing (that's the HOLD's job, tested above). Garry,
+    the row for editing (that's the HOLD's job, tested above). The owner,
     2026-09-22: it should instead open the same open/closed card the Atlas
     sidebar offers — a tap is safe because the card itself changes nothing;
     only a button pressed INSIDE it would."""

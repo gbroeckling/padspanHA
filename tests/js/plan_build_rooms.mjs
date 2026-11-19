@@ -114,7 +114,7 @@ const BASE = { maps_image_urls: { image_urls: { g1: "/signed/g1" } },
   await click(button(M.sheet, "Upper · no plan"));
   check("picker: no plan: said, nothing to start", t().includes("Upper: there's no plan on this floor yet, so there is nothing to read. Add one in Mapping → Upload.") && !button(M.sheet, "Read rooms on Upper (experimental)"), t());
   await click(button(M.sheet, "Basement · 2 plans"));
-  check("picker: an unfinished line-up is a note with the way to finish it, not a block (Garry, 2026-11-10)",
+  check("picker: an unfinished line-up is a note with the way to finish it, not a block (2026-11-10)",
     t().includes("Line-up not finished on this floor: outlines follow your plans as placed now. Finish the line-up for a closer fit.") && !!button(M.sheet, "Finish the line-up (experimental)")
     && !!button(M.sheet, "Read rooms on Basement (experimental)"), t());
   check("picker: each plan says what the line-up says of it; one showing another floor is unticked", t().includes("Old scan — not lined up: read where it sits now")
@@ -204,7 +204,7 @@ for (const [name, go, offered] of [["the helper offered", true, true], ["the hel
   check("session: opens on the floor's last session, in numbers", M.sent("plan_build_rooms_status")[0]?.session === "rb_1"
     && t().includes("Main: done. 2 reads, about $0.04 (estimate). 3 rooms (2 ready, 1 to look at), 2 extra spaces, 3 doors, 1 windows, 1 stair."), t());
   check("banner: what it may get wrong", t().includes("Claude reads each plan twice; where the two reads agree, their outline is offered, even if it differs from yours. Where they differ, look closely."), t());
-  check("rooms: ready, the reads differing; agreeing reads trusted over the outline drawn (Garry, 2026-11-10)", t().includes("Both reads agree.") && t().includes("Look closely: the two reads differ.")
+  check("rooms: ready, the reads differing; agreeing reads trusted over the outline drawn (2026-11-10)", t().includes("Both reads agree.") && t().includes("Look closely: the two reads differ.")
     && t().includes("Both reads agree.Matches your outline poorly; 5.6 → 9.8 m².") && !t().includes("Far from your outline")
     && all(M.sheet).some(n => n.title === "Agreement 0.98 (1.00: the same outline)") && all(M.sheet).some(n => n.title === "Overlap 0.57 (1.00: the same outline)"), t());
   check("rooms: the spot pick and the spots that would leave, never relabelled, and the choice", t().includes("Using read 1: 1 of the 1 calibration spots in this room stay inside it.")
@@ -220,7 +220,7 @@ for (const [name, go, offered] of [["the helper offered", true, true], ["the hel
   const ticks = () => M.tool.state().rooms.ticks;
   check("ticks: rooms the reads agree on, both-read doors and windows, the stair; not the room whose reads differ, not the maybe, not the existing one",
     ticks().join() === "door:1,room:Den,room:Kitchen,stairs:1,window:1", ticks());
-  check("ticks: the room whose reads differ says it isn't ticked (Garry, by form, 2026-11-10)", t().includes("Look closely: the two reads differ. Not ticked: show both reads to compare, read it again, or tick it to use it."), t());
+  check("ticks: the room whose reads differ says it isn't ticked (by form, 2026-11-10)", t().includes("Look closely: the two reads differ. Not ticked: show both reads to compare, read it again, or tick it to use it."), t());
   // Keep mine / Use Claude's on a room whose spots would leave it.
   await click(button(M.sheet, "Keep mine"));
   check("choice: keep mine unticks the room", !ticks().includes("room:Kitchen"), ticks());

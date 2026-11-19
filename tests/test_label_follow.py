@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """A name that follows a rotating address, on screen only (label_follow.py).
 
-Garry, 2026-11-02, on the two options for a named device whose address rotates:
+2026-11-02, on the two options for a named device whose address rotates:
 "Find a better way, none of these options is acceptable." The rule: evidence
 before a link, a question when it falls one short, and a wrong link that can't
 touch anything stored. Each rule has its test here, the forced wrong link last.
@@ -559,7 +559,7 @@ def test_only_the_question_on_the_table_can_be_answered() -> None:
 
 
 # ── Rule 3b: what a No covers, and how often it asks ────────────────────────
-# Garry, by form, 2026-11-03: "That device, for a week". No more questions about
+# The owner, by form, 2026-11-03: "That device, for a week". No more questions about
 # that named device for 7 days, clear evidence can still link it, and otherwise at
 # most 1 question per named device per day. It was 95 a day at 15-minute rotations.
 

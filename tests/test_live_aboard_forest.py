@@ -155,7 +155,7 @@ def test_help_says_the_trees_are_in_3d_too() -> None:
         assert "3D" in data[key], lang
 
 def test_the_trees_are_conifers_not_palms() -> None:
-    """Garry, 2026-11-03: a few big boughs on a bare trunk read as palms. Many
+    """2026-11-03: a few big boughs on a bare trunk read as palms. Many
     short boughs up a crown that starts low, and no stem down a bough's picture."""
     src = (Path(__file__).resolve().parent.parent / "custom_components/padspan_ha/www/padspan-ha/views/live_aboard_forest.js").read_text(encoding="utf-8")
     bases = [float(x) for x in re.findall(r"base: ([0-9.]+),\s+rmax", src)]

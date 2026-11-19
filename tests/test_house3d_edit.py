@@ -4,7 +4,7 @@
 """Live Aboard P1, part C: the 3D editor's Save (ws_house3d.house3d_edit).
 
 Plan: docs/IDEA_ATLAS_3D_HOUSE.md on the live-aboard branch ("Data", "Undoing
-it", "Added by Garry": the door and window line tool, device heights). The
+it", "Added by the owner": the door and window line tool, device heights). The
 editor's whole draft is saved by one command, in one store write, or not at
 all; nothing is stored until then. Held here:
 - refused while off and below Pro (as if off), and nothing touched;
@@ -107,7 +107,7 @@ def _on(tmp_path: Path, *, tier: str = "pro", admin: bool = False):
     elif tier == "bright":
         st.data["license_tier"] = "bright"
     conn = MagicMock()
-    conn.user = SimpleNamespace(is_admin=admin, name="Nicole")
+    conn.user = SimpleNamespace(is_admin=admin, name="Jordan")
     return h, conn
 
 
@@ -402,7 +402,7 @@ def test_every_key_it_does_not_own_is_kept(disk, tmp_path):
     seeded = {
         "schema": 1, "future_top": {"x": 1}, "rooms3d": {"kept": True},
         "pieces": {"fur_1": {"id": "fur_1", "recipe": {"kind": "sofa"}, "label": "Mum's old couch"}},
-        "figures": {"person.garry": {"params": {"height_m": 1.8}}}, "library": {"terms_version": 1},
+        "figures": {"person.alex": {"params": {"height_m": 1.8}}}, "library": {"terms_version": 1},
         "lights": {"light.a": {"z_m": 1.0, "glow": "warm"}, "light.b": {"z_m": 2.0}, "light.c": {"z_m": 0.5, "note": "n"}},
         "devices": {"aa:bb:cc:dd:ee:ff": {"recipe": {"kind": "tag"}}, "sensor.t": {"z_m": 1.5}},
         "openings": {"bar_a71a3324": {"hinge": "left", "swing": "in", "lean": 3},

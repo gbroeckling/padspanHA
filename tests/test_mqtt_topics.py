@@ -23,7 +23,7 @@ from custom_components.padspan_ha.presence_coordinator import PresenceCoordinato
 
 
 def test_topics_people_already_use_do_not_move():
-    assert mqtt_topic_slug("Garry's Keys") == "garry's_keys"
+    assert mqtt_topic_slug("Alex's Keys") == "alex's_keys"
     assert mqtt_topic_slug("Ölfass") == "ölfass"
     assert mqtt_topic_slug("Car-1") == "car-1"
 

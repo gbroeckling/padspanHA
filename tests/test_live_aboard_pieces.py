@@ -5,7 +5,7 @@
 
 tests/js/live_aboard_pieces.mjs runs them for real on a house read by
 views/live_aboard_house.js: ids, 15° turns, which way a piece faces, the
-height in the room (Garry's drop/raise), Floor ▲ / ▼, where a new piece goes,
+height in the room (the owner's drop/raise), Floor ▲ / ▼, where a new piece goes,
 snapping to walls at any angle, and the fit checks (into a wall, overlapping
 in 3D, a door's swing, a dresser's front or a bed's side, a window's sill).
 What it builds at the edges goes through the server's own apply_edit here,

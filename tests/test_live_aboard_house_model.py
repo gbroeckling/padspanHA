@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Live Aboard, the house itself (Garry, 2026-10-05: "Lots still missing on
+"""Live Aboard, the house itself (2026-10-05: "Lots still missing on
 the sims view"): stairs between floors, doorways and doors shown open, a roof
 from outside, and a solid floor under each storey.
 

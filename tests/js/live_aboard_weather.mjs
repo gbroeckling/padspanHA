@@ -139,7 +139,7 @@ await tryCase("budget: Low a few thousand at most, High more; a small house fewe
 });
 await tryCase("layers: rain is fast thin streaks on a slant, heavier denser and faster; snow slow soft flakes, as it was", async () => {
   const L = W.LAYERS, B = W.BUDGET;
-  // Rain reads as rain at a glance (Garry, 2026-11-06: "rain falls to
+  // Rain reads as rain at a glance (2026-11-06: "rain falls to
   // slowly … too big. Looks a lot like snow"): many times faster than snow,
   // a hair wide, a streak on screen however far (never a dot), slanted more
   // than snow falls; heavy rain faster and denser still. Snow unchanged.
@@ -238,7 +238,7 @@ await tryCase("dry: nothing built, and nothing asks for a frame", async () => {
     !changed && s.built === 0 && s.frameMs === 0 && objs(scene).length === 0 && s.area === null && Object.keys(s.layers).length === 0, s);
 });
 await tryCase("mask: the whole house is kept dry on screen, whatever stands in front", async () => {
-  // Rain on the rooms (Garry, 2026-10-14): only the floor that showed was
+  // Rain on the rooms (2026-10-14): only the floor that showed was
   // marked, so a drop falling outside, in front of the house, was drawn over
   // a sofa or a wall. Every indoor room on a floor that shows is marked now,
   // floor, ceiling and walls, with no depth test.

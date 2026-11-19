@@ -74,12 +74,12 @@ check("how: an old server or no connection isn't an error", failedNode.textConte
 
 // ── Copy raw broadcast ──────────────────────────────────────────────────
 const IRK = "irk:0123456789abcdef0123456789abcdef";
-const text = DN.rawBroadcast({ address: "6A:11:22:33:44:55", address_type: "random", name: IRK, espresense_id: IRK, broadcast_name: "Pixel", user_label: "Nicole's keys", manufacturer_data: { 76: "0x10" } });
+const text = DN.rawBroadcast({ address: "6A:11:22:33:44:55", address_type: "random", name: IRK, espresense_id: IRK, broadcast_name: "Pixel", user_label: "Jordan's keys", manufacturer_data: { 76: "0x10" } });
 const raw = JSON.parse(text);
 check("raw: the IRK is hidden", !/irk:[0-9a-f]{32}/i.test(text) && raw.espresense_id === "irk:hidden-1", text);
 check("raw: the name it broadcast", raw.broadcast_name === "Pixel" && !("name" in raw));
-check("raw: not your label", !text.includes("Nicole"));
-const labelled = JSON.parse(DN.rawBroadcast({ address: A, name: "Nicole's keys", user_label: "Nicole's keys" }));
+check("raw: not your label", !text.includes("Jordan"));
+const labelled = JSON.parse(DN.rawBroadcast({ address: A, name: "Jordan's keys", user_label: "Jordan's keys" }));
 check("raw: a labelled beacon's name isn't sent", !("name" in labelled) && !("broadcast_name" in labelled));
 check("hideIrks: the same phone, the same number", DN.hideIrks(`${IRK} ${IRK.toUpperCase().replace("IRK", "irk")}`) === "irk:hidden-1 irk:hidden-1");
 

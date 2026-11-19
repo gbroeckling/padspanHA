@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Live Aboard's split levels (Garry, 2026-10-28: "The floor above is 2.3
+"""Live Aboard's split levels (2026-10-28: "The floor above is 2.3
 meters in the livingroom, just over 3 meters to my office"; "Some of these
 houses are gigantic").
 

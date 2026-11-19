@@ -161,7 +161,7 @@ def _house(monkeypatch, tmp_path, *, plans=None, answers=None, fail=None, gauge=
         if eid == _CLAUDE else None
     monkeypatch.setattr(A, "model_sources", lambda hass, eid: list(sources))
     monkeypatch.setattr(U, "model_of", lambda hass, eid: "Claude Opus 5.5")
-    conn.user = SimpleNamespace(is_admin=True, name="Garry")
+    conn.user = SimpleNamespace(is_admin=True, name="Alex")
     pics = {"anchor.png": tmp_path / "anchor.png", "moving.png": tmp_path / "moving.png", "other.png": tmp_path / "other.png"}
     _draw(pics["anchor.png"])
     if moving_noise:
@@ -905,10 +905,10 @@ def test_the_report_identifies_nothing(monkeypatch, tmp_path, disk):
     named with an address, rooms named after people, the floor, the AI Task,
     map ids, placements to four decimals and a $200 credit."""
     seeded = [
-        {"id": "a1", "name": "12 Oak St, Squamish", "floor_id": "basement",
+        {"id": "a1", "name": "12 Oak St, Springfield", "floor_id": "basement",
          "image": {"filename": "anchor.png", "width": 1000, "height": 800, "sha256": "aa"}, "updated": "x", "room_bounds": {},
          "receivers": [], "beacons": [], "lights": []},
-        {"id": "m1", "name": "Garry's Office scan", "floor_id": "basement",
+        {"id": "m1", "name": "Alex's Office scan", "floor_id": "basement",
          "image": {"filename": "moving.png", "width": 900, "height": 750, "sha256": "mm"}, "updated": "x",
          "room_bounds": {"South Suite": {"points": [[0.2, 0.2], [0.5, 0.2], [0.5, 0.5]]}}, "receivers": [], "beacons": [], "lights": []},
         {"id": "g1", "name": "Measured", "floor_id": "main", "image": {"filename": "other.png", "width": 640, "height": 480, "sha256": "gg"},
@@ -927,7 +927,7 @@ def test_the_report_identifies_nothing(monkeypatch, tmp_path, disk):
     ours = {k: v for k, v in payload["usage"].items() if k.startswith("plan_build_")}
     assert ours and set(ours) <= T.PLAN_BUILD_EVENTS and all(isinstance(v, int) and not isinstance(v, bool) for v in ours.values())
     text = json.dumps(payload)
-    for s in ("Oak St", "Squamish", "Garry", "South Suite", "basement", "Basement", _CLAUDE, "claude_ai_task", "a1\"", "m1\"", "200.0", "$",
+    for s in ("Oak St", "Springfield", "Alex", "South Suite", "basement", "Basement", _CLAUDE, "claude_ai_task", "a1\"", "m1\"", "200.0", "$",
               "Opus"):
         assert s not in text, s
     assert not re.search(r"\d\.\d", json.dumps(payload["usage"]))

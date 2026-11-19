@@ -77,7 +77,7 @@ def _house(monkeypatch, tmp_path, answers=None, *, plans=(("m1", "Main", "main",
     st = h.data[DOMAIN][DATA_SETTINGS].data
     st["ai_plans_enabled"] = True
     st["telemetry_enabled"] = True
-    conn.user = SimpleNamespace(is_admin=True, name="Garry")
+    conn.user = SimpleNamespace(is_admin=True, name="Alex")
     plan = tmp_path / "plan.png"
     Image.new("RGB", (1000, 800), "white").save(plan)
     maps = [{"id": mid, "name": name, "floor_id": fid, "image": {"filename": "plan.png", "sha256": "abc"}, "updated": "2026-11-02T10:00:00"}
@@ -297,7 +297,7 @@ def test_only_an_administrator_changes_the_switch(monkeypatch, tmp_path, disk):
     h, conn, ai, media = _house(monkeypatch, tmp_path)
     st = h.data[DOMAIN][DATA_SETTINGS]
     st.data["ai_plans_enabled"] = False
-    conn.user = SimpleNamespace(is_admin=False, name="Nicole")
+    conn.user = SimpleNamespace(is_admin=False, name="Jordan")
     out = _call(ws_settings.ws_settings_set, h, conn, ai_plans_enabled=True)
     assert "error" in out and st.data["ai_plans_enabled"] is False
 
@@ -1303,7 +1303,7 @@ def test_a_second_press_while_the_first_is_saving_starts_nothing(monkeypatch, tm
 
 
 def test_a_start_asks_for_no_tick_and_the_backup_reads_when_the_main_one_is_away(monkeypatch, tmp_path, disk):
-    """Garry, 2026-11-02: "Just let it leave." A cloud AI reads with no tick and
+    """2026-11-02: "Just let it leave." A cloud AI reads with no tick and
     no refusal; the backup is used as ask_ai always uses it, with none either."""
     src = inspect.getsource(W)
     assert "cloud_ok" not in src and "backup_ok" not in src and "cloud_not_agreed" not in src

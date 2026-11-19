@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Atlas layout v2 — a reversible trial (Garry, 2026-09-21): "the left to
+"""Atlas layout v2 — a reversible trial (2026-09-21): "the left to
 right use of space was often empty due to bad planning" (the toolbar forced
 one line per group, and the map was sized to the stage's WIDTH rather than
 the screen's height) and "anything to the sides is a distraction" on the
@@ -107,7 +107,7 @@ def test_layout_tier_for_the_documented_breakpoints():
 def test_v2_stage_has_no_height_cap():
     """2026-09-22, after three straight rounds of the map's SIZE still
     being wrong live (a visible flash, then not filling the width, then
-    the whole thing shrinking further and "stupid short" — Garry: "you
+    the whole thing shrinking further and "stupid short" — the owner: "you
     really need to rethink what you are doing here"): every attempt to
     measure the right height and apply it before the user could see a gap
     fixed one symptom and produced another, because capping height at all
@@ -188,7 +188,7 @@ def test_layoutv2_toggle_button_flips_the_setting_both_ways():
 def test_layoutv2_merges_both_preset_bars_into_one_side_by_side_row():
     """2026-09-22 correction: the first cut of this switched between the two
     bars with a tab (both present, exactly one visible at a time) — trading
-    a row of vertical space for having to click to see the other bar. Garry:
+    a row of vertical space for having to click to see the other bar. The owner:
     "presets and whole house should share a row, one to the left, one to
     the right" — both bars visible at once, side by side in one wrapper,
     never hidden."""

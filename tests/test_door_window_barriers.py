@@ -365,7 +365,7 @@ def test_invert_button_flips_the_barriers_own_invert_state_by_id():
 
 
 # ── Mapping → Lights: doors take no part in point-placement ─────────────────
-# Garry, 2026-09-08, live on the deployed map: "The placement in mapping and
+# 2026-09-08, live on the deployed map: "The placement in mapping and
 # lights is not making any sense, and is not consistant... Not sure what you
 # created here." A door/window's real position is a section of wall — this
 # section pins that _lightsTab's placement bookkeeping (the placed/unplaced
@@ -401,7 +401,7 @@ def test_placement_bookkeeping_excludes_doors():
 
 
 def test_configure_door_arms_the_on_map_circle_tool():
-    """Garry, 2026-09-09, from scratch after the wall-then-two-points picker
+    """2026-09-09, from scratch after the wall-then-two-points picker
     turned out "impossible to use" and "was never visible": onConfigureDoor
     now arms mapState._doorCircleEid — the first map click drops a circle
     (maps.js's SVG click handler / _doorCircleFloorForClick), dragging it
@@ -423,7 +423,7 @@ def test_configure_door_arms_the_on_map_circle_tool():
 
 
 def test_unsaved_opening_bar_is_the_commit_not_a_row_button():
-    """Garry, 2026-09-09: "the done should be the commit normally used at
+    """2026-09-09: "the done should be the commit normally used at
     the top, not it's own unique thing" — the same unsaved-changes bar
     convention the light-placements draft already uses (Save + Discard),
     gated on a circle actually existing, not a bespoke Done button down in
@@ -438,7 +438,7 @@ def test_unsaved_opening_bar_is_the_commit_not_a_row_button():
 
 
 def test_sticky_toolbar_is_set_for_the_builder_but_not_while_previewing():
-    """Garry, 2026-09-09: "the scroll hides the controls, needs fixing for
+    """2026-09-09: "the scroll hides the controls, needs fixing for
     mapping area, but works better this way in lights and overview" —
     Mapping → Lights is the one surface that needs it; Preview mode
     deliberately mimics the (non-sticky) sidebar, so it must not set this
@@ -458,7 +458,7 @@ def test_door_linked_ids_are_read_from_rf_barriers_m():
 
 
 # ── circlePolylineIntersections — the opening tool's actual geometry ────────
-# Garry, 2026-09-09: place a circle over the opening, size/drag it, click
+# 2026-09-09: place a circle over the opening, size/drag it, click
 # Done — "the two places the line intersects with the room line... will be
 # the edges of the opening. The part in the circle will be the opening."
 

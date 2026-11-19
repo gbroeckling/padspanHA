@@ -44,7 +44,7 @@ def _stored(tmp_path: Path) -> dict:
 
 def _two(tmp_path: Path) -> dict:
     """A file with two figures, a window and a light height."""
-    data = {**H.empty(), "figures": {"person.garry": _figure(), "person.nicole": _figure()},
+    data = {**H.empty(), "figures": {"person.alex": _figure(), "person.jordan": _figure()},
             "openings": {"win_5e6f7a8b": dict(_WIN)}, "lights": {"light.kitchen": {"z_m": 1.5}}}
     _seed(tmp_path, data)
     return data
@@ -67,9 +67,9 @@ def _fire(h, event) -> list:
 def test_a_deleted_person_takes_their_figure_and_nothing_else(disk, tmp_path):
     h, _conn = _on(tmp_path)
     before = _two(tmp_path)
-    assert _fire(h, _event("person.garry")) == [True]
+    assert _fire(h, _event("person.alex")) == [True]
     after = _stored(tmp_path)
-    assert after["figures"] == {"person.nicole": before["figures"]["person.nicole"]}
+    assert after["figures"] == {"person.jordan": before["figures"]["person.jordan"]}
     assert {k: v for k, v in after.items() if k != "figures"} == {k: v for k, v in before.items() if k != "figures"}
     assert disk.writes == [HOUSE3D_STORE_KEY], "one write"
     assert h.data[DOMAIN][DATA_HOUSE3D].data == after, "read back: memory is what the file holds"
@@ -81,8 +81,8 @@ def test_the_figure_goes_even_while_live_aboard_is_off(disk, tmp_path):
     h, _conn = _on(tmp_path)
     h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_enabled"] = False
     _two(tmp_path)
-    assert _fire(h, _event("person.garry")) == [True]
-    assert list(_stored(tmp_path)["figures"]) == ["person.nicole"]
+    assert _fire(h, _event("person.alex")) == [True]
+    assert list(_stored(tmp_path)["figures"]) == ["person.jordan"]
 
 
 def test_only_when_the_file_has_that_figure(disk, tmp_path):
@@ -94,7 +94,7 @@ def test_only_when_the_file_has_that_figure(disk, tmp_path):
 
 def test_a_house_with_no_file_reads_and_writes_nothing(disk, tmp_path):
     h, _conn = _on(tmp_path)
-    assert _fire(h, _event("person.garry")) == [False]
+    assert _fire(h, _event("person.alex")) == [False]
     assert disk.writes == [] and not _file(tmp_path).exists()
     assert DATA_HOUSE3D not in h.data[DOMAIN], "the store is not even loaded"
 
@@ -114,14 +114,14 @@ def test_a_person_missing_from_the_states_is_never_deleted(disk, tmp_path):
     h.bus = MagicMock()
     HP.async_setup_house3d_people(h)
     assert [c.args[0] for c in h.bus.async_listen.call_args_list] == ["entity_registry_updated"], "no state listener"
-    gone = SimpleNamespace(data={"entity_id": "person.garry", "old_state": SimpleNamespace(state="home"), "new_state": None})
+    gone = SimpleNamespace(data={"entity_id": "person.alex", "old_state": SimpleNamespace(state="home"), "new_state": None})
     assert _fire(h, gone) == []
     # Neither a changed or new entry, nor another kind of entity deletes (a
     # rename moves the figure: test_a_renamed_person_keeps_their_figure).
-    for ev in (_event("person.garry", "update", old_entity_id="person.garry", changes={"name": "G"}),
-               _event("person.garry", "create"),
+    for ev in (_event("person.alex", "update", old_entity_id="person.alex", changes={"name": "G"}),
+               _event("person.alex", "create"),
                _event("device_tracker.pixel"),
-               _event("light.person_garry"),
+               _event("light.person_alex"),
                SimpleNamespace(data={"action": "remove"})):
         assert _fire(h, ev) == []
     assert _stored(tmp_path) == before and disk.writes == []
@@ -139,13 +139,13 @@ def test_an_unreadable_or_newer_file_is_left_alone(disk, tmp_path):
 
     real, HP.async_get_store = HP.async_get_store, _fails
     try:
-        assert _fire(h, _event("person.garry")) == [False]
+        assert _fire(h, _event("person.alex")) == [False]
     finally:
         HP.async_get_store = real
     newer = {**before, "schema": 2}
     _seed(tmp_path, newer)
     h.data[DOMAIN].pop(DATA_HOUSE3D, None)
-    assert _fire(h, _event("person.garry")) == [False]
+    assert _fire(h, _event("person.alex")) == [False]
     assert _stored(tmp_path) == newer and disk.writes == []
 
 
@@ -153,9 +153,9 @@ def test_a_failed_write_keeps_the_figure(disk, tmp_path):
     h, _conn = _on(tmp_path)
     before = _two(tmp_path)
     disk.fail = ["swallowed"]                              # Home Assistant's Store: logged, returns normally
-    assert _fire(h, _event("person.garry")) == [False]
+    assert _fire(h, _event("person.alex")) == [False]
     assert _stored(tmp_path) == before
-    assert "person.garry" in h.data[DOMAIN][DATA_HOUSE3D].data["figures"], "memory unchanged"
+    assert "person.alex" in h.data[DOMAIN][DATA_HOUSE3D].data["figures"], "memory unchanged"
 
 
 def test_it_takes_its_turn_with_a_save(disk, tmp_path):
@@ -169,11 +169,11 @@ def test_it_takes_its_turn_with_a_save(disk, tmp_path):
         from custom_components.padspan_ha import ws_house3d as W
         await asyncio.gather(W.ws_house3d_edit(h, conn, {"id": 7, "type": "padspan_ha/house3d_edit",
                                                           "lights": {"light.den": {"z_m": 2.0}}}),
-                             HP.async_forget_person(h, "person.garry"))
+                             HP.async_forget_person(h, "person.alex"))
 
     _run(both())
     after = _stored(tmp_path)
-    assert list(after["figures"]) == ["person.nicole"] and after["lights"]["light.den"] == {"z_m": 2.0}
+    assert list(after["figures"]) == ["person.jordan"] and after["lights"]["light.den"] == {"z_m": 2.0}
     assert after["lights"]["light.kitchen"] == {"z_m": 1.5}
 
 
@@ -206,11 +206,11 @@ def test_a_renamed_person_keeps_their_figure_and_deleting_them_later_still_takes
     kept. Left under the old id, deleting the person later left it behind."""
     h, _conn = _on(tmp_path)
     before = _two(tmp_path)
-    assert _fire(h, _event("person.g", "update", old_entity_id="person.garry")) == [True]
+    assert _fire(h, _event("person.g", "update", old_entity_id="person.alex")) == [True]
     after = _stored(tmp_path)
-    assert after["figures"] == {"person.g": before["figures"]["person.garry"], "person.nicole": before["figures"]["person.nicole"]}
+    assert after["figures"] == {"person.g": before["figures"]["person.alex"], "person.jordan": before["figures"]["person.jordan"]}
     assert disk.writes == [HOUSE3D_STORE_KEY]
-    assert _fire(h, _event("person.nicole", "update", old_entity_id="person.g")) == [False]   # nicole has hers: kept
+    assert _fire(h, _event("person.jordan", "update", old_entity_id="person.g")) == [False]   # jordan has hers: kept
     assert _stored(tmp_path) == after
     assert _fire(h, _event("person.g")) == [True]
-    assert set(_stored(tmp_path)["figures"]) == {"person.nicole"}, "the renamed person's figure was left behind"
+    assert set(_stored(tmp_path)["figures"]) == {"person.jordan"}, "the renamed person's figure was left behind"

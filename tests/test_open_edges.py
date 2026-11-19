@@ -8,7 +8,7 @@ and the coverage map add up the attenuation of the barriers a ray crosses
 and nothing else. What was missing was the tool, and one rule:
 
   store   _norm_barrier: an open wall saved from now on is 0 dB. One stored
-          at 6 dB by an old path stays until it is saved again (Garry,
+          at 6 dB by an old path stays until it is saved again (the owner,
           2026-11-02: no heal at startup); the railing stamp doesn't save it.
           A rewritten barrier keeps its place in the list (the first barrier
           wins an overlap in the 3D house).

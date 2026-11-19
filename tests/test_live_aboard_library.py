@@ -180,7 +180,7 @@ def test_the_page_holds_the_servers_and_the_installs_lists_and_patterns(page) ->
 
 
 def test_the_terms_are_the_plans_and_in_force(page) -> None:
-    """In force since 2026-10-04 (Garry put the library live): no draft label."""
+    """In force since 2026-10-04 (the owner put the library live): no draft label."""
     terms = page["data"]["terms"]
     assert terms["status"] == ""
     said = " ".join(terms["points"])

@@ -4,7 +4,7 @@
 """Live Aboard P2, Furnish: furniture in the 3D file (house3d_edit's pieces).
 
 Plan: docs/IDEA_ATLAS_3D_HOUSE.md on the live-aboard branch ("Data", "Undoing
-it", P2's "Done when"). Garry, 2026-10-04: "unable to place furniture on the
+it", P2's "Done when"). 2026-10-04: "unable to place furniture on the
 level I want, add a drop raise feature to move between floors and height in
 room". A piece is saved with the rest of the editor's draft, in one write, or
 not at all. Held here:

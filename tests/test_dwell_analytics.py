@@ -89,9 +89,9 @@ def test_object_name_falls_back_to_key_when_never_labelled():
 
 
 def test_object_name_uses_the_labelled_name_when_present():
-    frames = [_frame(1000.0, [_obj("addr:AA", "Kitchen", n="Garry's Phone")])]
+    frames = [_frame(1000.0, [_obj("addr:AA", "Kitchen", n="Alex's Phone")])]
     out = compute_dwell_stats(frames, tz_name="UTC")
-    assert out["objects"]["addr:AA"] == "Garry's Phone"
+    assert out["objects"]["addr:AA"] == "Alex's Phone"
 
 
 def test_frames_out_of_order_are_sorted_before_aggregating():

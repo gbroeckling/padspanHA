@@ -5,7 +5,7 @@
 
 HA's device_tracker/entity.py (2026.7.4 and 2026.9.3 alike) warns at class
 creation when a subclass overrides `battery_level` or `location_name` —
-"this will be unsupported from Home Assistant 2027.7" — and Garry's HA log
+"this will be unsupported from Home Assistant 2027.7" — and the owner's HA log
 has the PadSpanDeviceTracker line at every start. `location_name` is what
 made the state a room name; its replacement, `in_zones`, takes HA zones only.
 The room is now the `state` itself, which must read exactly as before: the

@@ -14,7 +14,7 @@ import { join } from "node:path";
 const WWW = process.argv[2];
 const M = await import(pathToFileURL(join(WWW, "views", "ui_error.js")).href);
 
-const HOST = "http://192.168.1.11:8123";
+const HOST = "http://192.168.0.11:8123";
 const S = `${HOST}/padspan_ha_static/padspan-ha`;
 const chrome = (...files) => "TypeError: x is undefined\n" + files.map((f, i) => `    at fn${i} (${f}:${10 + i}:${5 + i})`).join("\n");
 const firefox = (...files) => files.map((f, i) => `fn${i}@${f}:${10 + i}:${5 + i}`).join("\n");
@@ -58,7 +58,7 @@ const report = {
   other_module_30s: M.reportUiError(cases.helper, "maps", send, t0 + 30_000),
   foreign: M.reportUiError(cases.ha_frontend, "overview", send, t0 + 40_000),
   after_61s: M.reportUiError(cases.overview_chrome, "follow", send, t0 + 61_000),
-  bad_view_name: M.reportUiError(cases.atlas, "Nicole's Office", send, t0),
+  bad_view_name: M.reportUiError(cases.atlas, "Jordan's Office", send, t0),
   send_throws: (() => { try { return M.reportUiError(cases.panel, "overview", () => { throw new Error("ws down"); }, t0); } catch (e) { return "THREW"; } })(),
   garbage_event: (() => { try { return M.reportUiError(42, "overview", send, t0); } catch (e) { return "THREW"; } })(),
   sent,

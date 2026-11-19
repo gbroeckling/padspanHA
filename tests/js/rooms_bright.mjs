@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 //
-// The Rooms page in PadSpan Bright (2026-10-30, Garry: "Bright should get a
+// The Rooms page in PadSpan Bright (2026-10-30, the owner: "Bright should get a
 // rooms page, but only items on it that apply to Bright functionality"), run
 // for real under the DOM shim: views/rooms.js with settings.edition "bright",
 // the real editions.js and the real lights_map.js, and panel.js's own menu

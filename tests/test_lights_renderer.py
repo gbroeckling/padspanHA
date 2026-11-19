@@ -213,7 +213,7 @@ def test_the_code_label_is_never_rotated_or_stretched(tmp_path):
 
 
 # ── Floor group hit-testing (touch-interface rebuild, 2026-09-17) ──────────
-# Garry: "all the controls in atlas are layered on screen objects that are
+# The owner: "all the controls in atlas are layered on screen objects that are
 # visually not lining up with where the touch controls land... objects
 # underneith are constantly hijacking the ability to simply turn on a
 # light." Two of the root causes: the floorslab's own <g pointer-events=
@@ -355,7 +355,7 @@ def test_empty_fabric_points_at_the_fabric_not_at_uploading_a_photo(tmp_path):
 
 
 # ── Door/window barriers: no point marker, a wall-opening pass instead ──────
-# (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5; Garry, 2026-09-08: "The
+# (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5; 2026-09-08: "The
 # placement in mapping and lights is not making any sense... Please review
 # and make usable based on opening up an area of a space with a purple dot
 # on each side of the opening.") A door/window's real position is a SECTION
@@ -424,7 +424,7 @@ _BARRIER_LBE = {**_LIGHTS_BY_EID, "binary_sensor.frontdoor": {
 
 
 def test_the_builder_can_ask_for_a_press_target_over_a_linked_opening(tmp_path):
-    """Garry, 2026-09-19: "press and hold doesn't work for all devices". A
+    """2026-09-19: "press and hold doesn't work for all devices". A
     linked door/window/lock is a section of wall drawn pointer-events:none —
     an OPEN door draws nothing but two 2.6px dots — so there was literally
     nothing to press. With barrierHit the renderer lays one invisible
@@ -490,7 +490,7 @@ def test_a_linked_closed_barrier_draws_a_solid_line_and_two_purple_dots(tmp_path
 
 
 def test_a_linked_open_barrier_draws_nothing_but_keeps_both_dots(tmp_path):
-    """Garry, 2026-09-10 (repeated, emphatically): "the doors when open
+    """2026-09-10 (repeated, emphatically): "the doors when open
     show a grey line where the door is, I want nothing there." A prior
     pass drew a dashed accent-coloured line for the open state instead of
     a true gap -- open must now draw nothing for the wall itself."""
@@ -543,7 +543,7 @@ _LOCK_BARRIER_LBE = {**_LIGHTS_BY_EID, "lock.frontdoor": {
 
 
 def test_a_linked_locked_barrier_draws_the_same_neutral_line_as_a_closed_door(tmp_path):
-    """Garry, 2026-09-09: "use the same logic as the open door to build a
+    """2026-09-09: "use the same logic as the open door to build a
     break in the wall that has the lock" — locked reads exactly like a
     closed door/window (grey, solid, both purple dots)."""
     out = _run_js(tmp_path, _barrier_harness(_LOCK_BARRIER_MODEL, _LOCK_BARRIER_LBE))
@@ -554,7 +554,7 @@ def test_a_linked_locked_barrier_draws_the_same_neutral_line_as_a_closed_door(tm
 
 
 def test_a_linked_unlocked_barrier_flashes_red_instead_of_going_blank(tmp_path):
-    """Garry, 2026-09-09: "use the same logic as the open door to build a
+    """2026-09-09: "use the same logic as the open door to build a
     break in the wall that has the lock. But unlike the open door, the
     section is not blank, but flashing red.\""""
     lbe = {**_LOCK_BARRIER_LBE, "lock.frontdoor": {**_LOCK_BARRIER_LBE["lock.frontdoor"], "state": "unlocked"}}
@@ -582,7 +582,7 @@ def test_an_unlinked_barrier_draws_nothing_on_this_map(tmp_path):
 
 # ── Hit-halo overlap ─────────────────────────────────────────────────────────
 # The invisible tap disc under every marker (sidebar only, opts.hitHalo) is
-# deliberately bigger than the glyph itself, for a fingertip. Garry,
+# deliberately bigger than the glyph itself, for a fingertip. The owner,
 # 2026-09-09: "some of the clickable lights also activate the light next to
 # them when the shape implies that should not happen" — two markers placed
 # closer together than the halo's own diameter get OVERLAPPING invisible
@@ -778,7 +778,7 @@ def test_a_code_chip_never_shrinks_past_a_minimum_gap(tmp_path):
 
 
 # ── Beacons ───────────────────────────────────────────────────────────────
-# Garry, 2026-09-09: "add working proven beacons to the mapping, lights
+# 2026-09-09: "add working proven beacons to the mapping, lights
 # section under devices. For now have them look the same as they do in
 # overview... No placement for them of course." maps.js is the one that
 # decides "working, proven" and hands opts.beacons an already-filtered list;
@@ -789,13 +789,13 @@ def test_a_beacon_draws_a_dot_and_its_label_on_its_own_floor(tmp_path):
         "import * as M from './iso_lights.mjs';\n"
         f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
         f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
-        "const beacons=[{key:'ble:AA', label:'Garry Phone', x_m:3, y_m:2, floor_id:'main'}];\n"
+        "const beacons=[{key:'ble:AA', label:'Alex Phone', x_m:3, y_m:2, floor_id:'main'}];\n"
         "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons});"
         "console.log(JSON.stringify(out));"
     ))
     svg = out["svg"]
     assert 'fill="#5eead4"' in svg, "a beacon dot must use the same teal Overview marks a proven beacon with"
-    assert "Garry Phone" in svg, "the beacon's own label must be drawn beside its dot"
+    assert "Alex Phone" in svg, "the beacon's own label must be drawn beside its dot"
 
 
 def test_a_beacon_with_no_label_still_draws_its_dot(tmp_path):
@@ -863,19 +863,19 @@ def test_beacons_are_never_clickable(tmp_path):
 
 
 def test_hide_codes_also_hides_a_beacons_name_but_not_its_dot(tmp_path):
-    """Garry, 2026-09-09: "when txt is turned off, should include beacons
+    """2026-09-09: "when txt is turned off, should include beacons
     text" — one declutter switch (Hide codes / HIDECODES) covers both the
     device code labels and a beacon's name, not two toggles to remember."""
     out = _run_js(tmp_path, (
         "import * as M from './iso_lights.mjs';\n"
         f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
         f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
-        "const beacons=[{key:'ble:AA', label:'Garry Phone', x_m:3, y_m:2, floor_id:'main'}];\n"
+        "const beacons=[{key:'ble:AA', label:'Alex Phone', x_m:3, y_m:2, floor_id:'main'}];\n"
         "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons,hideCodes:true});"
         "console.log(JSON.stringify(out));"
     ))
     svg = out["svg"]
-    assert "Garry Phone" not in svg, "hideCodes must also hide a beacon's name text"
+    assert "Alex Phone" not in svg, "hideCodes must also hide a beacon's name text"
     assert 'fill="#5eead4"' in svg, "hideCodes must not hide the beacon's dot, only its text"
 
 
@@ -920,7 +920,7 @@ def _marker_m(tmp_path, model):
 
 def test_marker_is_never_wider_than_a_small_room(tmp_path):
     """The reported failure: gigantic icons swamping the map."""
-    out = _marker_m(tmp_path, _sq(25, 51))          # a house the size of Garry's
+    out = _marker_m(tmp_path, _sq(25, 51))          # a house the size of a real one
     assert out["m"] < 1.2, f"marker is {out['m']:.2f} m across on a house-sized fabric"
 
 
@@ -938,7 +938,7 @@ def test_marker_stays_clickable_on_a_very_large_site(tmp_path):
 
 
 def test_room_shapes_carry_a_soft_centre_glow_like_the_light_pools(tmp_path):
-    """Garry: "That cool look you have inside the shape [the light pool]...
+    """The owner: "That cool look you have inside the shape [the light pool]...
     can the shape that is built by the room shape also have some of that,
     maybe a bit less intense, but the same shaded look." A room polygon now
     gets its own soft radial glow, tinted with the room's own colour — one
@@ -1742,7 +1742,7 @@ def test_offset_polygon_inward_shrinks_a_square_correctly(tmp_path):
     assert out["rectHalf"] == 3, "a 20x6 rectangle's half-min-dimension is 3"
 
 
-# The real 9-vertex "Bedroom" room from Garry's own house (main floor) —
+# The real 9-vertex "Bedroom" room from a real house (main floor) —
 # L-shaped, and it closes with two vertices only 3.6cm apart ((0.469,5.296)
 # vs (0.505,5.296)), which is how real hand-traced rooms come out. That
 # near-degenerate pair drew a visible stray "tail" on the offset trace until
@@ -1767,7 +1767,7 @@ def test_offset_polygon_collapses_near_coincident_vertices_no_tail(tmp_path):
     assert min(out["segLens"]) > 0.25, out["segLens"]
 
 
-# The real 11-vertex "North Suite" room from Garry's own house (basement
+# The real 11-vertex "North Suite" room from a real house (basement
 # floor) — pulled live via padspan_ha/model_get during the investigation of
 # "doesn't follow the room boundary at all" (2026-09-02). Its last vertex is a
 # near-degenerate kink (edge 10->0 is only ~3cm long, barely off the line of
@@ -1800,14 +1800,14 @@ def test_offset_polygon_inward_caps_a_sharp_corner_miter(tmp_path):
 
 
 def test_default_perimeter_margin_is_scale_aware_not_a_flat_cm_value(tmp_path):
-    """The actual bug: a flat 15cm default rendered as 4-7px on Garry's real
+    """The actual bug: a flat 15cm default rendered as 4-7px on the owner's real
     house (frame.scale~26 px/m) — indistinguishable from the room's own
     outline stroke. The default must scale so the ON-SCREEN gap stays
     roughly constant across houses of very different sizes/zoom."""
     out = _run_js(tmp_path, (
         "import { defaultPerimeterMarginM } from './iso_lights.mjs';\n"
         "const small={scale: 80};\n"    # a small room/apartment, zoomed in
-        "const big={scale: 26.4};\n"    # Garry's real observed scale
+        "const big={scale: 26.4};\n"    # a real home's observed scale
         "const out={};\n"
         "out.small=defaultPerimeterMarginM(small);\n"
         "out.big=defaultPerimeterMarginM(big);\n"
@@ -1818,7 +1818,7 @@ def test_default_perimeter_margin_is_scale_aware_not_a_flat_cm_value(tmp_path):
     # A bigger house (lower px/m) gets a bigger real-world default margin...
     assert out["big"] > out["small"], out
     # ...but capped at a physically plausible cove offset: uncapped, the pixel
-    # target computed 0.6m for Garry's real house, which collapsed the narrow
+    # target computed 0.6m for a real house, which collapsed the narrow
     # 1.57m arm of his L-shaped Bedroom into slivers ("weird square in the
     # middle"). 0.3m is the ceiling — real coves don't sit further off a wall.
     assert out["big"] == 0.3, out
@@ -1853,7 +1853,7 @@ _PERIM_LBE = {
     # Never dragged onto the map — no entry in light_positions_m at all, only
     # a room via HA area assignment, same shape every gatherLights() output
     # carries for a light nobody has placed yet. This is the exact scenario
-    # that shipped broken: real bug (Garry, 2026-09-02), root cause was
+    # that shipped broken: real bug (2026-09-02), root cause was
     # perimeterSvg only ever being called from the PLACED-lights loop.
     "light.unplaced": {"entity_id": "light.unplaced", "state": "on", "code": "P06", "shape": "perimeter"},
 }
@@ -1948,7 +1948,7 @@ def test_perimeter_shape(tmp_path):
     assert out["coveShow"][0]["soft"] and not out["coveShow"][1]["soft"], out["coveShow"]
 
     # The crisp line wears the standard marker outline colours, never the
-    # fixture's body colour ("not a yellow line" — Garry): blue in the
+    # fixture's body colour ("not a yellow line" — the owner): blue in the
     # working map, white lit / slate off in Showcase. The GLOW half is where
     # the fixture's own colour lives.
     assert out["zeroWork"][0]["stroke"] == "#60a5fa", out["zeroWork"]
@@ -1962,7 +1962,7 @@ def test_perimeter_shape(tmp_path):
 
 
 def test_perimeter_marker_hides_the_square_keeps_click_space_and_glow(tmp_path):
-    """Garry's spec, verbatim: "Keep the glow, and the click space of the
+    """The owner's spec, verbatim: "Keep the glow, and the click space of the
     square, but hide the square." The marker group survives with its full
     lhex/data-eid/data-cx/cy contract and a transparent rect the exact size
     the square glyph had; no visible body; the Showcase pool still glows."""
@@ -1993,7 +1993,7 @@ def test_perimeter_marker_hides_the_square_keeps_click_space_and_glow(tmp_path):
 
 
 def test_perimeter_automorph_off_is_byte_identical_to_the_legacy_trace(tmp_path):
-    """Garry (2026-09-07): the room-boundary shape was left out of "the
+    """The owner (2026-09-07): the room-boundary shape was left out of "the
     whole morph thing" and looked like "a serious mismatch" once every
     other aura got the new material treatment. perimeterAuraSvg fixes
     that — but ONLY while the switch is up. With Automorph off (absent, or
@@ -2133,7 +2133,7 @@ def test_perimeter_automorph_render_is_deterministic(tmp_path):
 
 
 def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path):
-    """Garry: "a blue pulsing glow around motion sensors when activated".
+    """The owner: "a blue pulsing glow around motion sensors when activated".
     The pulse draws in BOTH modes (it is live status, not presentation),
     only while the sensor is ON, and neither a fan nor a sensor ever throws
     a light pool on the floor — they are on the map, not light sources."""
@@ -2174,7 +2174,7 @@ def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path
 
 
 def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fixed_blue_while_on(tmp_path):
-    """Garry, across several rounds: "if a motion detector went off in the
+    """The owner, across several rounds: "if a motion detector went off in the
     last 6 hours the flashing blue goes to a flashing purple after the blue
     has stopped" — "so all colours from blue to purple over 6 hours" — then,
     watching it live: "don't think the color is changing" (a continuous
@@ -2192,10 +2192,10 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
     genuine occupancy/radar sensor that stays "on" for hours while someone
     is continuously present faded all the way to the "long since quiet"
     colour while the room was still actively occupied — backwards for
-    "simple occupancy viewing", and Garry's real complaint: "I need
+    "simple occupancy viewing", and the owner's real complaint: "I need
     consistent behaviour regardless of the sensor type."
 
-    Settled design, round three (Garry: "the blue flashing motion bulb only
+    Settled design, round three ("the blue flashing motion bulb only
     flashes for 5 seconds for [any] of the alarm motion sensors!! They
     should flash for 5 minutes like some of the other motion sensors, Make
     them all behave the same way"): the ANIMATED flashing pulse runs while
@@ -2373,7 +2373,7 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
 
 
 def test_room_label_steps_out_of_a_markers_way_by_its_own_rendered_width(tmp_path):
-    """Live on Garry's own house: the room name "SpareBedroomBath" (16
+    """Live on a real house: the room name "SpareBedroomBath" (16
     characters) was drawn straight through its own M08 marker. The label's
     collision check compared a marker's position against a FIXED ±34px
     window regardless of how wide the label's own text actually rendered —
@@ -2432,7 +2432,7 @@ def test_room_label_steps_out_of_a_markers_way_by_its_own_rendered_width(tmp_pat
 
 
 def test_temperature_readout_shows_digits_only_when_placed_and_fresh(tmp_path):
-    """Garry: "...a shape can be chosen for that temp and inside is simply
+    """The owner: "...a shape can be chosen for that temp and inside is simply
     the temperature, 3 digit, and larger" — "if they gave the temperature
     in the last hour" — "And only if placed like all others". Four
     entities, only one of which should ever show its number: placed+fresh
@@ -2479,7 +2479,7 @@ def test_temperature_readout_shows_digits_only_when_placed_and_fresh(tmp_path):
 
 
 def test_temperature_readout_is_tinted_warm_at_or_above_20_and_cool_below(tmp_path):
-    """Garry, 2026-09-14: "Temp should have a slight red tinge if over or at
+    """2026-09-14: "Temp should have a slight red tinge if over or at
     20 deg, blue if under 20 in the mapping, lights map". The tint is a
     translucent wash over the marker body plus a pastel of the same hue on
     the digits, and it rides ONLY a live readout — the same placed+fresh gate
@@ -2544,7 +2544,7 @@ def test_temperature_readout_is_tinted_warm_at_or_above_20_and_cool_below(tmp_pa
 
 
 def test_motion_sensors_read_quiet_after_a_restart_until_they_actually_change(tmp_path):
-    """Garry, 2026-09-14: "After a restart of HA, all motion sensors on the
+    """2026-09-14: "After a restart of HA, all motion sensors on the
     light map show active, better to have all show inactive til motion is
     sensed." Every restored motion entity's last_changed is the boot moment,
     which the hold-window rule read as "just triggered" — a 5-minute flash
@@ -2604,7 +2604,7 @@ def test_motion_sensors_read_quiet_after_a_restart_until_they_actually_change(tm
 
 
 def test_poor_air_draws_faded_bars_rising_through_the_room(tmp_path):
-    """Garry, 2026-09-14: "air quality sensors. When placed in a room, and in
+    """2026-09-14: "air quality sensors. When placed in a room, and in
     poor state, make a very faded set of bars move from the bottom of the
     room to the top. Make it subtle but very noticable. Have it start at
     blue, and move thru to green, same as motion depending on how bad the
@@ -2680,7 +2680,7 @@ def test_poor_air_draws_faded_bars_rising_through_the_room(tmp_path):
 
 
 def test_motion_and_air_share_one_legend_key_in_smaller_type(tmp_path):
-    """Garry, 2026-09-14: "the index for motion at the bottom with the colors,
+    """2026-09-14: "the index for motion at the bottom with the colors,
     should also add air quality to that"; 2026-09-29: "why are motion and air
     two seperate ledgens? merge them into one", "make the font size smaller
     so they don't blend with the floor names". The same hues in the same
@@ -2711,7 +2711,7 @@ def test_motion_and_air_share_one_legend_key_in_smaller_type(tmp_path):
 
 
 def test_floor_slabs_never_take_a_click_but_stay_findable_by_geometry(tmp_path):
-    """Garry, 2026-09-14: "all devices [placed outside a room, on a real
+    """2026-09-14: "all devices [placed outside a room, on a real
     floor] are not selectable". Root cause found live on four real markers:
     in the exploded stack the next storey's slab polygon overlaps a lower
     plate's back edge, and a painted polygon takes the click — the marker
@@ -2753,7 +2753,7 @@ def test_use_surface_ergonomics_opts(tmp_path):
     surface: codeChip splits the tap target into its own data-role="code"
     pill; hideCodes drops the code's TEXT (semantic zoom) but — when
     codeChip is also on — keeps that pill's own tap target, invisibly
-    (Garry, 2026-09-09: hiding it was silently shrinking the sidebar's tap
+    (2026-09-09: hiding it was silently shrinking the sidebar's tap
     target to the glyph alone); classFilter dims
     every OTHER class and stops it taking taps; hitHalo draws an invisible
     tap disc under every marker; collapseUnplaced turns a room's unplaced
@@ -2814,7 +2814,7 @@ def test_use_surface_ergonomics_opts(tmp_path):
     ))
     assert not out["plainHasRoleCode"], "the default render must not grow a code-chip target unasked"
     assert out["chipHasRoleCode"], "codeChip must add a data-role=\"code\" target"
-    # Garry, 2026-09-09: hiding codes silently shrank the sidebar's tap
+    # 2026-09-09: hiding codes silently shrank the sidebar's tap
     # target down to the glyph alone, because the chip's OWN hit region
     # (pointer-events="all") went with the text. hideCodes must hide the
     # TEXT, not the place you tap — the pill's invisible now, not gone.
@@ -2837,7 +2837,7 @@ def test_use_surface_ergonomics_opts(tmp_path):
 
 
 def test_locate_ring_and_drop_marker(tmp_path):
-    """Garry, choosing a light from the Mapping -> Lights index: "I want the
+    """The owner, choosing a light from the Mapping -> Lights index: "I want the
     item to be easy to find" — a slow ring flashes outward from wherever it
     actually is, a third of the whole canvas across (locateEid). And: "put a
     drag and drop marker on the lower right side of the map ... as a second
@@ -2903,7 +2903,7 @@ def test_code_chip_clears_an_oversized_fixture(tmp_path):
     """Found live (2026-09-03), on the house's own map: a fixture given a
     real width_cm/height_cm (this session's resize handles) can draw many
     times the marker's base radius, and the code chip's gap was a flat
-    HEX_R*1.55 — on Garry's own "A14" it landed the chip INSIDE the lower
+    HEX_R*1.55 — on a real home's "A14" it landed the chip INSIDE the lower
     third of the glyph instead of clearly below it. The gap now scales with
     the marker's actual drawn size (Math.max(sx,sy))."""
     model = {
@@ -3197,7 +3197,7 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
 
 
 def test_a_placed_motion_temp_humidity_air_or_lock_sensor_is_touched_by_a_bare_position(tmp_path):
-    """Garry, 2026-09-15, live: "I did place the air sensors, the placing
+    """2026-09-15, live: "I did place the air sensors, the placing
     tools don't work". A motion/temperature/humidity/air-quality/lock
     sensor draws its CLASS's fixed glyph and border colour — the same
     shape of problem as a door (see the test above), never resized/
@@ -3297,7 +3297,7 @@ def test_fit_to_room_caps_an_oversized_fixture_and_leaves_a_gap(tmp_path):
                           "begin with", free_m, out)
 
 
-# ── Automorph geometry (Garry, 2026-09-07) ───────────────────────────────────
+# ── Automorph geometry (2026-09-07) ───────────────────────────────────
 # The morph's pure maths — resample, align, lerp — tested directly against
 # synthetic squares/hexes, the same "prove it on a shape a human can check by
 # hand" approach the offsetPolygonInward tests above use.
@@ -3408,7 +3408,7 @@ def test_automorph_ring_at_half_percent_sits_strictly_between_icon_and_room(tmp_
 # every other choosable shape (pendant, sconce, chandelier, triangle,
 # diamond, line, lock, door) fell back to the plain hex, so no matter which
 # of the ~12 shapes a fixture was set to, Automorph morphed the SAME hex
-# outline every time (Garry: "looks like I have only one base shape choice
+# outline every time ("looks like I have only one base shape choice
 # that I can play with"). These pin that each of the newly-covered shapes
 # now has its OWN outline, distinct from hex, and that the distinction
 # survives all the way through automorphRing's own morph — not just at t=0.
@@ -3523,7 +3523,7 @@ def test_automorph_resample_count_adapts_to_the_target_rings_own_density(tmp_pat
     )
 
 
-# ── Automorph slider 2: edge hardness (Garry, 2026-09-07) ───────────────────
+# ── Automorph slider 2: edge hardness (2026-09-07) ───────────────────
 # "The second slider is to make all the shapes from hard edges to soft, this
 # one starts in the center." Centered at 0 = today's straight polygon,
 # unchanged either direction; negative sharpens via a LOCAL Pucker-and-Bloat
@@ -3771,10 +3771,10 @@ def test_automorph_style_dropdown_switches_the_rendered_treatment(tmp_path):
 
 
 # ── More style candidates ────────────────────────────────────────────────────
-# Garry, 2026-09-09: "dig around hard for 5 more candidates that will add to
+# 2026-09-09: "dig around hard for 5 more candidates that will add to
 # the realm of attractive options" — circuit, contour, facet, sumie,
 # stainedglass, constellation. (Engrave and Woven from that batch, plus
-# Chevron from a later one, were all cut on Garry's word, 2026-09-10: "all
+# Chevron from a later one, were all cut on the owner's word, 2026-09-10: "all
 # misses.")
 #
 # 2026-09-17: circuit, contour, facet, sumie, stainedglass, constellation,
@@ -3867,7 +3867,7 @@ def test_lensflare_still_spreads_when_the_fixture_sits_at_its_rooms_own_centre(t
 def test_automorph_subtlety_thins_opacity_and_stroke_without_ever_reaching_zero(tmp_path):
     """0 must be today's exact opacity/stroke-width (the same contract every
     other Automorph control's rest position holds); 100 must be visibly
-    thinner and fainter, but never fully invisible or zero-width — Garry
+    thinner and fainter, but never fully invisible or zero-width — the owner
     asked for "almost completely lost", not gone."""
     NOW = 1_000_000_000_000
     model = {
@@ -3902,7 +3902,7 @@ def test_automorph_subtlety_thins_opacity_and_stroke_without_ever_reaching_zero(
     assert at100["strokeWidth"] > 0, "subtlety=100 must thin, not zero out, the stroke"
 
 
-# ── Automorph non-overlap partitioning (Garry, 2026-09-07: "give a thorough
+# ── Automorph non-overlap partitioning (2026-09-07: "give a thorough
 # rethink to complete the logic of this feature") ───────────────────────────
 # Before this, every fixture sharing a room grew toward the SAME full-room
 # shape and piled on top of its neighbours. buildRoomFixtureCells instead
@@ -3963,7 +3963,7 @@ def test_partition_two_fixtures_get_non_overlapping_cells(tmp_path):
 
 
 def test_partition_single_tiny_fixture_stays_small_even_alone_in_its_room(tmp_path):
-    """'Common sense' sizing (Garry, 2026-09-07): a fixture with a small
+    """'Common sense' sizing (2026-09-07): a fixture with a small
     recorded manual footprint must NOT balloon to fill most of the room just
     because it happens to be the only fixture present — the same reach-cap
     weighting that divides a room between several fixtures also caps a lone
@@ -4281,7 +4281,7 @@ def test_automorph_rendered_rings_are_simple_and_never_cross_a_neighbours(tmp_pa
 
 
 # ── Automorph icon endpoint: the fixture's REAL manual footprint ────────────
-# (Garry, 2026-09-07: "the existing manual shapes are still meant to be a
+# (2026-09-07: "the existing manual shapes are still meant to be a
 # guide for the overall look, don't throw that info away.") The morph's
 # starting shape is automorphIconRing — iconRingLocal scaled and rotated by
 # the SAME markerScale transform the real glyph already draws with — so a
@@ -4672,7 +4672,7 @@ def test_automorph_suppresses_the_glyph_only_where_an_aura_really_painted(tmp_pa
 
 
 def test_suppressed_glyphs_hit_target_is_the_auras_own_shape_not_the_fixtures_raw_size(tmp_path):
-    """Garry, 2026-09-11, live: "I am clearly clicking inside the boundary
+    """2026-09-11, live: "I am clearly clicking inside the boundary
     of the right light, and outside the bounds of the light that actually
     responds." Root cause: a suppressed (aura-replaced) fixture kept an
     invisible hit target at its own REAL size/rotation — a 4m valance drew
@@ -4766,7 +4766,7 @@ def test_suppressed_glyph_hit_targets_stay_disjoint_for_two_crowded_fixtures(tmp
 
 
 def test_automorph_never_auras_or_suppresses_a_non_light_marker(tmp_path):
-    """Live regression, reported by Garry (2026-09-08): "the center not
+    """Live regression, reported by the owner (2026-09-08): "the center not
     activating on motion... only some sensors" — a motion sensor sharing a
     room with a real light was pulled into the non-overlap partition (only
     l.shape==="perimeter" was excluded), got a real aura, and had its own
@@ -5001,7 +5001,7 @@ def test_automorph_on_and_off_differ_by_material_not_just_hex(tmp_path):
 
 
 def test_automorph_aura_fill_weight_stays_under_the_rooms_own_colour(tmp_path):
-    """Garry's standing directive: the grey aura stays QUIET next to the
+    """The owner's standing directive: the grey aura stays QUIET next to the
     room's own colour. The first rebalance cut wash/gloss to numbers that
     LOOKED right per-layer, but the same edit series added bloom, the
     duotone edge fill and an untapered 0.16 shadow on top, and nobody
@@ -5716,7 +5716,7 @@ def test_automorph_full_map_two_renders_are_byte_identical(tmp_path):
 
 
 def test_motion_legend_strip_indexes_every_real_pulse_colour_in_proportion(tmp_path):
-    """Garry (2026-09-08), in order: "a small line at the bottom, very
+    """The owner (2026-09-08), in order: "a small line at the bottom, very
     narrow, with an index of the color order for the motion, starting at
     blue, and thru the colors to ending on green" — then, seeing only the
     first three stops, "I ask for all the colors in the shift from blue to
@@ -5789,7 +5789,7 @@ def test_motion_legend_strip_indexes_every_real_pulse_colour_in_proportion(tmp_p
 
 
 def test_motion_strip_sits_on_the_same_row_as_the_floor_index(tmp_path):
-    """Garry (2026-09-11): "put that on the same line as the motion color
+    """The owner (2026-09-11): "put that on the same line as the motion color
     index bar, be more efficient with the rapidly evaporating space" — the
     motion strip must sit on the SAME row as the floor badges (same y
     rhythm, right after the last floor's label), not a row of its own, and
@@ -5826,7 +5826,7 @@ def test_motion_strip_sits_on_the_same_row_as_the_floor_index(tmp_path):
 
 
 def test_floor_index_is_one_row_not_one_row_per_floor(tmp_path):
-    """Garry (2026-09-11): "why on earth is the floor index taking up
+    """The owner (2026-09-11): "why on earth is the floor index taking up
     massive space at the bottom of the map... make it 1/8 of the size, and
     only one line!" Every floor badge must share the same cy (one row), and
     a 4-floor house must not be taller than a 1-floor one."""
@@ -5855,7 +5855,7 @@ def test_floor_index_is_one_row_not_one_row_per_floor(tmp_path):
         "all four floor badges must sit on the same row (one cy value)", four["badgeYs"]
     )
     # NOT total SVG height — that also includes the top-of-stack padding
-    # (Garry, 2026-09-11: "the top of the map is cut off"), which legitimately
+    # (2026-09-11: "the top of the map is cut off"), which legitimately
     # grows with floor count since a taller stack really does draw higher on
     # screen. The floor index's OWN row is what must stay put regardless.
     assert four["badgeYs"][0] == one["badgeYs"][0], (
@@ -5883,7 +5883,7 @@ def _legend_line_y(tmp_path, points_m):
 
 
 def test_legend_line_tracks_the_drawings_own_bottom_not_a_fixed_worst_case(tmp_path):
-    """Garry (2026-09-11): "why is there such a big gap between the bottom
+    """The owner (2026-09-11): "why is there such a big gap between the bottom
     of the map and the index, color bar" — the legend used to sit at a
     fixed BASE_H+4=944 no matter how much of the canvas the drawing actually
     used. A plain rectangular room (always width-bound — S is capped by
@@ -5911,7 +5911,7 @@ def test_legend_line_still_caps_at_the_canvas_edge_for_a_height_bound_shape(tmp_
 
 
 def test_view_top_never_clips_a_rooms_own_geometry(tmp_path):
-    """Garry (2026-09-11): "the top of the map is cut off" — viewY was a
+    """The owner (2026-09-11): "the top of the map is cut off" — viewY was a
     purely theoretical top-of-stack estimate (CY - maxIsoZ*floorGap - 50)
     that assumed 50px of pad was always enough slack above that reference
     point. A real house with enough floors/spacing to eat that slack (three
@@ -5949,7 +5949,7 @@ def test_view_top_never_clips_a_rooms_own_geometry(tmp_path):
 
 
 def test_view_sides_never_clip_a_slabs_own_bounding_rectangle(tmp_path):
-    """Garry (2026-09-11): "go thru all the visuals looking for error like
+    """The owner (2026-09-11): "go thru all the visuals looking for error like
     this" — a follow-up audit found the same bug shape on X. Each floor's
     slab is an axis-aligned bounding RECTANGLE around that floor's rooms; an
     L-shaped room's rectangle reaches further than the room's own vertices,
@@ -6012,7 +6012,7 @@ def _room_label_y(tmp_path, model, lbe, room, now_ms=2_000_000_000_000):
 
 
 def test_room_label_steps_out_of_a_fresh_temperature_readouts_way(tmp_path):
-    """2026-09-12 visual audit, live on Garry's house: a "20" drawn straight
+    """2026-09-12 visual audit, live on a real house: a "20" drawn straight
     through PANTRY. The name's collision check knew a plain marker's ±9px
     band, but a placed, fresh temperature sensor draws its DIGITS there
     (TEMP_DIGIT_PX bold monospace, centred on the marker — markerSvg), a
@@ -6083,7 +6083,7 @@ def test_room_labels_step_out_of_each_others_way(tmp_path):
 
 
 def test_room_label_always_lands_inside_its_own_room_polygon(tmp_path):
-    """2026-09-12, Garry: "the room text is still way off being in the room,
+    """2026-09-12, the owner: "the room text is still way off being in the room,
     so it is hard to tell which room is which from the text label" — live on
     the real house, 18 of 21 room labels landed outside their own room (the
     old base position was "centroid x, topmost SCREEN y", correct only for a

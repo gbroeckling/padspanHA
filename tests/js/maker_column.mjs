@@ -47,7 +47,7 @@ const OBJECTS = [
   { key: "ble:C4:11:22:33:44:55", kind: "ble", address: "C4:11:22:33:44:55", name: "Watch", age_s: 2, address_type: "random" },
   { key: "ble:DA:11:22:33:44:55", kind: "ble", address: "DA:11:22:33:44:55", name: "Laptop", age_s: 2 },
   { key: "ble:80:11:22:33:44:55", kind: "ble", address: "80:11:22:33:44:55", name: "Unknown", age_s: 2 },
-  { key: "irk:abc", kind: "private_ble", address: "5E:11:22:33:44:55", canonical_id: "irk:abc", name: "Nicole's phone", age_s: 2 },
+  { key: "irk:abc", kind: "private_ble", address: "5E:11:22:33:44:55", canonical_id: "irk:abc", name: "Jordan's phone", age_s: 2 },
   { key: "ibeacon:fda50693:1:2", kind: "ibeacon", address: "ibeacon:fda50693:1:2", all_addresses: ["F4:11:22:33:44:55"], name: "First Tag", age_s: 2, device_type: "iBeacon" },
   { key: "ibeacon:fda50693:1:3", kind: "ibeacon", address: "ibeacon:fda50693:1:3", all_addresses: ["F4:11:22:33:44:56"], name: "Second Tag", age_s: 2, company_name: "Texas Instruments", maker_source: "address", device_type: "iBeacon" },
   { key: "entity:device_tracker.car", kind: "entity", entity_id: "device_tracker.car", address: "00:1A:7D:DA:71:13", name: "Car", identified: true, age_s: 2 },
@@ -106,7 +106,7 @@ check("and the hover text says why", /No receiver has confirmed/.test(titles.Sen
 check("a radio's random says so", rows.Watch === "random address", JSON.stringify(rows));
 check("bits IEEE doesn't assign say so", rows.Laptop === "random address", JSON.stringify(rows));
 check("nothing known says so", rows.Unknown === "maker unknown", JSON.stringify(rows));
-check("a private BLE row is a random address", rows["Nicole's phone"] === "random address", JSON.stringify(rows));
+check("a private BLE row is a random address", rows["Jordan's phone"] === "random address", JSON.stringify(rows));
 check("an iBeacon with no maker isn't Apple", rows["First Tag"] === "maker unknown", JSON.stringify(rows));
 check("an iBeacon can have a maker", rows["Second Tag"] === "Texas Instruments", JSON.stringify(rows));
 check("an entity row is not a Bluetooth row", rows.Car === "n/a", JSON.stringify(rows));

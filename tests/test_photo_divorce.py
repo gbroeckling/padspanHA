@@ -1,6 +1,6 @@
 """The photo rule, enforced across the WHOLE frontend — not one feature at a time.
 
-Garry's rule, stated the way he states it: an uploaded plan has two jobs. You
+The owner's rule, stated the way he states it: an uploaded plan has two jobs. You
 trace on it once to get shapes into the fabric, and you look at it when you ask
 to look at it. It holds NOTHING. Delete every photo in the install and the
 software still knows the house.

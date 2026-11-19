@@ -104,7 +104,7 @@ def _house(monkeypatch, tmp_path, disk, *, reads=None, fail=None, lined=True, ho
         if eid == _CLAUDE else None
     monkeypatch.setattr(A, "model_sources", lambda hass, eid: ["Claude Opus 5.5", "claude-opus-5-5"])
     monkeypatch.setattr(U, "model_of", lambda hass, eid: "Claude Opus 5.5")
-    conn.user = SimpleNamespace(is_admin=True, name="Garry")
+    conn.user = SimpleNamespace(is_admin=True, name="Alex")
     pic = tmp_path / "plan.png"
     Image.new("RGB", _SIZE, "white").save(pic)
     maps = [{"id": "g1", "name": "Measured", "floor_id": "main", "image": {"filename": "plan.png", "width": _SIZE[0], "height": _SIZE[1], "sha256": "gg"},
@@ -300,10 +300,10 @@ def test_two_reads_flag_the_room_they_differ_on_and_the_spots_pick_the_read(monk
 
 
 def test_agreeing_reads_are_trusted_over_the_outline_he_drew(monkeypatch, tmp_path, disk):  # noqa: F811
-    """Garry, 2026-11-10: "My kitchen open edge is wrong, trust the ai results on this one": a room both reads
+    """2026-11-10: "My kitchen open edge is wrong, trust the ai results on this one": a room both reads
     agree on is ready, however far it is from his outline; only reads that disagree flag a room. A spot that
     would fall outside it is said on the room (spots_out), and the room stays ticked: his choice. Half or more of
-    its spots out: unticked, the count said (Garry, by form, 2026-11-10)."""
+    its spots out: unticked, the count said (by form, 2026-11-10)."""
     inside = [{"id": f"cp_i{i}", "map_id": "g1", "x_m": 6.0 + i, "y_m": 2.0, "floor_id": "main", "room": "Shop", "scanner_readings": []} for i in range(2)]
     h, _conn, _ai = _house(monkeypatch, tmp_path, disk, points=_points() + inside)
     r = _read(1, shop_px=_box(420, 100, 900, 250))
@@ -363,7 +363,7 @@ def test_doors_go_on_the_wall_between_windows_on_an_edge_maybe_and_already_there
     _s, _snap, prop = _proposal(h, house=have)
     inner = next(o for o in prop["openings"].values() if o["between"] == ["DEN", "SHOP"])
     assert inner["existing"]["id"] == "door_0a0b0c0d" and inner["existing"]["what"] == "opening" and inner["relation"] == "correction"
-    assert not inner["default"] and C._offered(prop, inner["id"])          # noqa: SLF001 — a correction of the one there, offered unticked (Garry, 2026-11-10)
+    assert not inner["default"] and C._offered(prop, inner["id"])          # noqa: SLF001 — a correction of the one there, offered unticked (2026-11-10)
     barrier = [{"id": "bar_1", "name": "Front door", "material": "wood", "floor_id": "main", "points_m": [[1.0, 2.2], [1.0, 2.8]]}]
     snap = A.house_snapshot(h)
     p2 = A.rooms_proposal({**_s, "floor_id": "main"}, snap, {}, [], barrier)
@@ -395,12 +395,12 @@ def test_stairs_are_matched_against_the_3d_house(monkeypatch, tmp_path, disk):  
         r["stairs"][0]["says"] = "DOWN"
     _s, _snap, prop = _proposal(h, down)
     st = next(iter(prop["stairs"].values()))
-    # A flight down climbs from the floor below: offered, unticked, a choice (Garry, 2026-11-10), not hidden.
+    # A flight down climbs from the floor below: offered, unticked, a choice (2026-11-10), not hidden.
     assert st["other_floor"] and st["floor_id"] == "basement" and st["relation"] == "new" and not st["default"] and C._offered(prop, st["id"])  # noqa: SLF001
 
 
 def test_the_room_score_is_information_never_a_refusal():
-    """Garry, 2026-11-10: the whole-floor 2-point refusal is gone; the score is shown, each room says its own spots."""
+    """2026-11-10: the whole-floor 2-point refusal is gone; the score is shown, each room says its own spots."""
     rooms = {"Den": {"floor_id": "main", "points_m": _DEN}, "Shop": {"floor_id": "main", "points_m": _SHOP}}
     pts = _points(extra_shop=12)
     g = A.rooms_gate(pts, "main", rooms, {"Shop": _box(4.2, 1, 9, 3)})
@@ -414,7 +414,7 @@ def test_the_room_score_is_information_never_a_refusal():
 # ═══ the precondition, the session, the commands ═════════════════════════════
 
 def test_an_unfinished_line_up_is_a_note_and_only_a_floor_with_no_placed_plan_is_refused(monkeypatch, tmp_path, disk):  # noqa: F811
-    """Garry, 2026-11-10: the line-up is a note, not a block: the plans are read where they sit now."""
+    """2026-11-10: the line-up is a note, not a block: the plans are read where they sit now."""
     h, conn, ai = _house(monkeypatch, tmp_path, disk, lined=False)
     store = _run(A.async_get_store(h))
     r = A.rooms_ready(store, A.house_snapshot(h), "main")
@@ -719,7 +719,7 @@ def test_the_panel_lists_the_rooms_reads_in_sample_mode():
     assert "plan_build_rooms_status" in reads and "plan_build_rooms_check" in reads and "plan_build_rooms_commit" not in reads
 
 
-# ═══ a door already in the 3D house: a correction, never a second one (Garry, 2026-11-10) ═══
+# ═══ a door already in the 3D house: a correction, never a second one (2026-11-10) ═══
 
 _HAVE = {"door_0a0b0c0d": {"kind": "door", "floor_id": "main", "a_m": [4.1, 2.4], "b_m": [4.1, 3.2], "head_m": 2.1, "hinge": "right", "swing": "out", "type": "sliding"}}
 
@@ -768,7 +768,7 @@ def test_an_undo_leaves_a_door_changed_since_the_save(monkeypatch, tmp_path, dis
     assert u["undone"] == 0 and u["skipped"] == [{"item_id": fix, "why": "changed"}] and _house3d(tmp_path)["openings"]["door_0a0b0c0d"]["swing"] == "in"
 
 
-# ═══ Read again: a third read, two out of three (Garry, 2026-11-10) ═══════════
+# ═══ Read again: a third read, two out of three (2026-11-10) ═══════════
 
 def test_read_again_makes_a_third_read_and_two_out_of_three_decide(monkeypatch, tmp_path, disk):  # noqa: F811
     r3 = _read(1)
@@ -806,7 +806,7 @@ def test_read_again_that_differs_again_stays_flagged(monkeypatch, tmp_path, disk
     _call(W.ws_plan_build_rooms_read_again, h, conn, session=s["id"], rev=s["rev"], room="Shop")
     _finish(h)
     shop = _call(W.ws_plan_build_rooms_status, h, conn, session=s["id"])["session"]["proposal"]["rooms"]["Shop"]
-    assert not shop["ready"] and "three_differ" in shop["flags"] and not shop["default"] and shop["picked_by"] == "spots"   # unticked (Garry, by form)
+    assert not shop["ready"] and "three_differ" in shop["flags"] and not shop["default"] and shop["picked_by"] == "spots"   # unticked (the owner, by form)
     c = _counters(h)
     assert c["plan_build_agree:three_differ"] == 1 and "plan_build_agree:two_of_three" not in c                                 # review B11
 
@@ -823,7 +823,7 @@ def test_a_proposed_outline_is_simplified_before_it_is_shown_or_saved(monkeypatc
 
 
 def test_saved_outlines_keep_the_corners_a_person_would_draw():
-    """A traced or merged outline is simplified on the way: no corner moves more than 5 cm (Garry, 2026-11-10)."""
+    """A traced or merged outline is simplified on the way: no corner moves more than 5 cm (2026-11-10)."""
     jag = [[0, 0], [2, 0.01], [4, -0.01], [6, 0], [6, 1.5], [6.02, 3], [6, 4], [3, 4.02], [0, 4], [0.01, 2]]
     out = G.simplify(jag, A.S2_SIMPLIFY_M)
     assert len(out) == 4 and all(min(G._seg_dist(p, out[i - 1], out[i]) for i in range(len(out))) <= 0.05 for p in jag)  # noqa: SLF001
@@ -831,7 +831,7 @@ def test_saved_outlines_keep_the_corners_a_person_would_draw():
     assert len(G.simplify(merged, A.S2_SIMPLIFY_M)) == 4
 
 
-# ═══ AI rooms stay editable in the old tools (Garry, 2026-11-10) ══════════════
+# ═══ AI rooms stay editable in the old tools (2026-11-10) ══════════════
 
 def test_ai_rooms_doors_and_stairs_edit_in_the_old_tools_like_hand_drawn_ones(monkeypatch, tmp_path, disk):  # noqa: F811
     from custom_components.padspan_ha import ws_fabric as WF

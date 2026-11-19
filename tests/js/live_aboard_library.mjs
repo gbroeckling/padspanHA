@@ -399,7 +399,7 @@ const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   const ids = pieces.map(p => p.id);
   check("starters", json.schema === 1 && pieces.length >= 20 && pieces.length <= 50 && new Set(ids).size === ids.length, ids.length);   // 45 since the kitchen and bathroom (2026-11)
   const kinds = new Set(pieces.map(p => p.recipe.kind));
-  const starterKinds = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp"];   // Garry's choice 13
+  const starterKinds = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp"];   // the owner's choice 13
   check("starters", starterKinds.every(k => kinds.has(k)), { missing: starterKinds.filter(k => !kinds.has(k)) });
   for (const p of pieces) {
     const r = p.recipe, d = r.details || {};

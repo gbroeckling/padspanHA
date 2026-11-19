@@ -23,7 +23,7 @@ const calls = [];
 function draw(settings) {
   const recorder = () => new Proxy(() => document.createElement("span"), { get: (t, k) => k === "then" ? undefined : recorder() });
   const state = { btTab: "irk_panel", dataMode: "live", settings,
-    _irkPanelStatus: { devices: [], rpa_count: 3, total_ble_addresses: 9, mobile_apps: ["Garry's iPhone", "Pixel 8"], has_private_ble_integration: true },
+    _irkPanelStatus: { devices: [], rpa_count: 3, total_ble_addresses: 9, mobile_apps: ["Alex's iPhone", "Pixel 8"], has_private_ble_integration: true },
     live: { snapshot: { ble: { radios: [], advertisements: [], diag: { ok: true, errors: [] } }, objects: { list: [] } } } };
   const helpers = new Proxy({ el, esc: s => String(s ?? ""), helpBtn: () => el("button", {}, "?"), radioShortId: s => s, isScanner: () => false, roomColor: () => "#fff" }, { get: (t, k) => k in t ? t[k] : recorder() });
   const actions = new Proxy({ followedHas: () => false, renderRooms: () => {},
@@ -58,7 +58,7 @@ console.log(JSON.stringify({
   todayIphoneOld: /Keychain Access/.test(path(today, "I have an iPhone").textContent),
   iphoneNoTransmitter: !/Transmitter/i.test(iphText),
   iphoneSteps: /Private BLE Device/.test(iphText) && /irk-capture/.test(iphText) && /bluetoothd\.plist/.test(iphText),
-  detected: /Looks like an iPhone: Garry's iPhone\./.test(iphText),
+  detected: /Looks like an iPhone: Alex's iPhone\./.test(iphText),
   checked: calls.length === 1 && calls[0][0] === "padspan_ha/irk_validate" && /It resolves: 2 of 5/.test(iph.textContent),
   onlyGuideShowsPath: !!path(onlyGuide, "I have an iPhone") && /Private BLE Device/.test(path(onlyGuide, "I have an iPhone").textContent),
   alertNoTransmitter: !/Transmitter/i.test(IP.iphoneSetupAlert() + IP.IPHONE_META),
@@ -66,7 +66,7 @@ console.log(JSON.stringify({
     IP.isApplePhone({ manufacturer: "Apple", model: "iPhone15,2" }),
     IP.isApplePhone({ model: "iPhone 13" }),
     IP.isApplePhone({ os_name: "iOS" }),
-    IP.isApplePhone({ device_name: "Garry's iPad" }),
+    IP.isApplePhone({ device_name: "Alex's iPad" }),
     IP.isApplePhone({ manufacturer: "Google", model: "Pixel 8" }),
     IP.isApplePhone({ manufacturer: "samsung", model: "SM-S911W", device_name: "Galaxy" }),
     IP.isApplePhone({}),

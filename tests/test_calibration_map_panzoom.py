@@ -4,7 +4,7 @@
 """Pan/zoom parity across Calibration's two phone-based map tabs, and the
 real bug found while adding it to the second one.
 
-Garry, 2026-09-10: "do 2-10" (from a missing-features shortlist) — #7 was
+2026-09-10: "do 2-10" (from a missing-features shortlist) — #7 was
 "Pin & Listen already got pan/zoom (best-in-class gap #11); Roam, its
 sibling tab, never did." While wiring Roam up to match, found live that
 Pin & Listen's own map was INVISIBLE (~4px tall) — mapInner is

@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Per-scanner signal quality (Monitor tab's Diagnostics/Insights sub-tabs).
 
-Garry, 2026-09-06 (live on his own install): "the radios all say poor, this
+2026-09-06 (live on his own install): "the radios all say poor, this
 tab is obviously garbage and needs to be reworked completely." Root cause:
 the old computation averaged RSSI across EVERY advertisement a scanner
 merely overheard — on a real house, the overwhelming majority of BLE

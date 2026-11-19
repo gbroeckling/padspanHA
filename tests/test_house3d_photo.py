@@ -317,7 +317,7 @@ def test_tags_and_scanners_are_device_looks():
 def test_a_person_gives_figure_settings_and_nothing_else():
     fig = B.data()["figure"]
     p0 = fig["params"][0]
-    ans = {f"param_{p0['key']}": 99, **{f"color_{n}": "#102030" for n in fig["colors"]}, "name": "Garry"}
+    ans = {f"param_{p0['key']}": 99, **{f"color_{n}": "#102030" for n in fig["colors"]}, "name": "Alex"}
     out = P.parse("person", None, ans)
     assert out["ok"] and set(out) == {"ok", "target", "figure"} and out["figure"]["origin"] == "photo"
     params = out["figure"]["params"]
@@ -325,7 +325,7 @@ def test_a_person_gives_figure_settings_and_nothing_else():
     if p0["type"] in ("int", "num"):
         assert params[p0["key"]] == p0["max"]
     assert set(params["colors"]) == set(fig["colors"]) and set(params["colors"].values()) == {"#102030"}
-    assert P.parse("person", None, {"name": "Garry", "age": 40})["ok"] is False
+    assert P.parse("person", None, {"name": "Alex", "age": 40})["ok"] is False
 
 
 # ═══ the call: the photo is a file only while the AI Task reads it ═════════════

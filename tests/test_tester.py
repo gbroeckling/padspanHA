@@ -53,9 +53,9 @@ _PHP = _ROOT / "server" / "tester.php"
 _PULL = _ROOT / "server" / "pull_padspan_telemetry.sh"
 
 # ── a sign-up full of things that must never reach the report ────────────────
-_EMAIL = "Nicole.Tester+pad@Example.COM"
-_GITHUB = "nicole-tests"
-_NAME = "Nicole Q. Tester"
+_EMAIL = "Jordan.Tester+pad@Example.COM"
+_GITHUB = "jordan-tests"
+_NAME = "Jordan Q. Tester"
 _NOTES = "Call me after 6 - the ESPHome proxies live in the attic"
 _OTHER = "Zigbee door sensors"
 _TZ = "America/Vancouver"
@@ -66,7 +66,7 @@ _SIGNUP = {
     "setup_off": ["rooms"], "linked": True,
     "signed_up_at": "2026-09-20T10:00:00Z", "updated_at": "2026-09-21T10:00:00Z",
 }
-_TESTER_STRINGS = [_EMAIL, "Example.COM", _GITHUB, _NAME, "Nicole", _NOTES, "attic", _OTHER, _TZ,
+_TESTER_STRINGS = [_EMAIL, "Example.COM", _GITHUB, _NAME, "Jordan", _NOTES, "attic", _OTHER, _TZ,
                    "Vancouver", _TESTER_ID, "tester", "signed_up"]
 _INSTALL_ID = "8f0d0f7e-2c8f-4c8a-9d1c-0f2c3d4e5f60"       # the fixture's (tests/test_telemetry.py)
 
@@ -351,8 +351,8 @@ def test_a_withdrawal_carries_only_its_id(monkeypatch):
 
 @pytest.mark.parametrize("over,words", [
     ({"email": ""}, "Enter an email address"),
-    ({"email": "garry@"}, "email address doesn't look right"),
-    ({"email": "garry@localhost"}, "email address doesn't look right"),
+    ({"email": "alex@"}, "email address doesn't look right"),
+    ({"email": "alex@localhost"}, "email address doesn't look right"),
     ({"email": "g" * 250 + "@example.com"}, "email address doesn't look right"),
     ({"consent": False}, "agree to be contacted"),
     ({"consent": "true"}, "agree to be contacted"),
@@ -385,7 +385,7 @@ def test_ordinary_text_is_not_mistaken_for_a_secret():
                  "ESP32-S3-DevKitC-1-N8R8-with-external-antenna-and-PSRAM",
                  "my phone's UUID is 99a58376-461d-4a9b-9700-2375fcfd705b",
                  "Supercalifragilisticexpialidociousness-and-more-words-here",
-                 "Nicole's office, upstairs; 3 proxies; Shelly Plus 1PM"):
+                 "Jordan's office, upstairs; 3 proxies; Shelly Plus 1PM"):
         _, problems = tester.clean_form(_form(notes=text), [])
         assert problems == [], (text, problems)
 
@@ -816,7 +816,7 @@ def test_the_port_is_held_to_the_php_source_and_to_tester_py():
     assert _php_anchored(_php_string(src, "TIMEZONE_RX")) == tester.TIMEZONE_PATTERN
     assert _php_secrets(src) == list(tester.SECRET_PATTERNS)
     assert f"$MAX = {tester.MAX_BYTES};" in src
-    # 30: Garry, 2026-10-16, "no more than 30 testers right now" (the 30th
+    # 30: 2026-10-16, "no more than 30 testers right now" (the 30th
     # switches the tester offer off, tester_offer_full).
     assert "$MAX_RECORDS = 30;" in src and "$MAX_NEW_PER_DAY = 100;" in src
     assert f"'/^{tester._SETUP_STR_PATTERN}$/D'" in src and f"'/^{tester._SETUP_SUBKEY_PATTERN}$/D'" in src
@@ -1038,7 +1038,7 @@ def _notice(tmp_path, new, prev=None, check=None):
 
 
 def _keys_warning(tmp_path, check) -> str:
-    """The pull's KEYS_PY: what it would tell Garry about the self-check's answer."""
+    """The pull's KEYS_PY: what it would tell the owner about the self-check's answer."""
     script = _pull().split("<<'KEYS_PY'\n", 1)[1].split("\nKEYS_PY\n", 1)[0]
     (tmp_path / "keys.py").write_text(script, encoding="utf-8")
     env = {**os.environ, "K_CHECK": check if isinstance(check, str) else json.dumps(check)}
@@ -1144,7 +1144,7 @@ def test_the_pull_is_read_only_private_and_uses_the_existing_telegram_sender():
     assert '[ "$k_rc" -eq 0 ] || echo "$(ts) tester keys: self-check exit $k_rc' in block
     # The answer holds every tester_id: it goes in the environment, never on a command line.
     assert block.count('K_CHECK="$k_check" python3 - ') == 2 and '"$k_check" 2>>' not in block
-    assert "CHAT=8841564535" in src, "the Telegram sender is no longer Garry's chat only"
+    assert "CHAT=8841564535" in src, "the Telegram sender is no longer the owner's chat only"
     # The copy here is replaced whole each night, never accumulated.
     assert 'mv -f "$T_DEST/.testers.json.new" "$T_DEST/testers.json"' in block
 

@@ -1,7 +1,7 @@
 """The Lights map hover HUD and the builder's Alt+click stack cycle, pinned at
 the source level.
 
-Garry (2026-09-12): "add a mouse over in the upper left so I can clearly see
+The owner (2026-09-12): "add a mouse over in the upper left so I can clearly see
 the device a click would have me work on. Also make it so the device
 underneath can also be selected somehow, and showing in the mouseover text."
 Then (2026-09-14): "the mouse over works in mapping, lights, but not in lights
@@ -68,7 +68,7 @@ def test_the_builder_wires_the_hud_and_alt_click_cycles_the_same_stack():
 
 
 def test_the_sidebar_wires_the_same_hud():
-    """Garry, 2026-09-14: "the mouse over works in mapping, lights, but not in
+    """2026-09-14: "the mouse over works in mapping, lights, but not in
     lights tab". The sidebar has no selection, so its "Under" does what a
     tap on that marker does (motion -> activity, holdable -> controls, else
     toggle) — the SAME api wireUseSurface acts through."""
@@ -87,7 +87,7 @@ def test_the_hud_rides_the_stages_scroll_without_pushing_the_drawing():
 
 
 def test_the_hud_stays_inside_the_viewport_when_the_page_scrolls():
-    """Garry, 2026-09-14: "mouse over no longer works on the lights tab". Live,
+    """2026-09-14: "mouse over no longer works on the lights tab". Live,
     it worked — the box filled correctly, 291px ABOVE the window. The anchor
     is sticky within the stage's own scroll box, but the page scrolls too,
     and once the stage's top edge is above the viewport the anchor and the

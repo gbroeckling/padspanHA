@@ -91,7 +91,7 @@ tryCase("kind: words in the name, as the real fixtures are named", () => {
 });
 tryCase("kind: a footprint under 0.4 m is never a strip, whatever its name", () => {
   const g = (name, f, extra = {}) => H.guessKind(dev("light.x", name, extra), f, null);
-  const got = [g("Kitchen Valance", null), g("Kitchen Valance", fp(35)), g("LED strip", fp(38)), g("Garry's stair Rail LED XMAS", null),
+  const got = [g("Kitchen Valance", null), g("Kitchen Valance", fp(35)), g("LED strip", fp(38)), g("Alex's stair Rail LED XMAS", null),
     g("WLED-SoundReactive", null, WLED), g("WLED-SoundReactive", fp(39), WLED), g("Partition", fp(30), { platform: "partition" })];
   const long = [g("Kitchen Valance", fp(41)), g("WLED-SoundReactive", fp(665), WLED), g("Partition", fp(200), { platform: "partition" })];
   check("kind: a footprint under 0.4 m is never a strip, whatever its name",
@@ -99,7 +99,7 @@ tryCase("kind: a footprint under 0.4 m is never a strip, whatever its name", () 
 });
 tryCase("kind: WLED that is not a strip, by its name; WLED is a strip only last", () => {
   const g = (name, f = null, extra = WLED) => H.guessKind(dev("light.x", name, extra), f, null);
-  const got = { gyverLamp: g("Gyver lamp"), lampLong: g("Gyver lamp", fp(200)), display: g("Emergency GarryOffice fun display"),
+  const got = { gyverLamp: g("Gyver lamp"), lampLong: g("Gyver lamp", fp(200)), display: g("Emergency AlexOffice fun display"),
     matrix: g("LED Matrix 16x16"), panel: g("Desk panel"), pill: g("PillTaker-WLED"), ring: g("Doorbell ring"), orb: g("Orb"),
     gyver1: g("Gyver1"), long: g("Upper-South-WLED-Gledopto", fp(659)), valance: g("QuinLED Far West Valance", fp(430)),
     notWled: g("Desk lamp", null, {}), notWledDisplay: g("Fun display", null, {}),
@@ -112,7 +112,7 @@ tryCase("kind: the Atlas shape the person set wins over the name; the kind set i
   const l = dev("light.kitchen_valance", "Kitchen Valance", WLED);
   const got = { circle: H.guessKind(l, fp(300), "circle"), bar: H.guessKind(l, null, "bar"), hex: H.guessKind(l, null, "hex"),
     auto: H.guessKind(l, fp(300), "auto"), ringPots: H.guessKind(dev("light.p", "Master Bedroom Pots"), null, "perimeter"),
-    ringOther: H.guessKind(dev("light.p", "Nicole's office"), null, "perimeter"),
+    ringOther: H.guessKind(dev("light.p", "Jordan's office"), null, "perimeter"),
     fan: H.guessKind(dev("fan.loft", "Loft"), null, "circle") };
   const want = { circle: "pot", bar: "valance", hex: "fixture", auto: "valance", ringPots: "pot_ring", ringOther: "perimeter", fan: "fan" };
   // (1): the 3D file's kind, when it is one this version draws.
@@ -159,7 +159,7 @@ tryCase("strip: a continuous line and light on the wall, never a row of glow dot
   check("strip: a continuous line and light on the wall, never a row of glow dots", ok, out);
 });
 tryCase("strip: on the wall of its room it runs along, at any distance, never mid-room", () => {
-  // Since 2026-11-13 (Garry: "leave things where placed unless very close"): on a wall running its way when one is
+  // Since 2026-11-13 ("leave things where placed unless very close"): on a wall running its way when one is
   // within H.WALL_NEAR; further than that it stays where it was placed, turned as it was placed. (The name is kept.)
   const lights = {
     "light.near": { l: dev("light.near", "Valance"), at: { x_m: 3, y_m: 0.5, ...along(120, ALONG_X) } },
@@ -190,8 +190,8 @@ tryCase("strip: on the wall of its room it runs along, at any distance, never mi
 });
 tryCase("strip: on a deck rail it ends where the rail does, never on past its end or its corner", () => {
   // The deck's east rail runs x = 9, y 0 to 5. A 6.65 m WLED strip on it
-  // (Garry's deck), and a 2 m one hung off its south end, ran on past the
-  // glass as a second top rail in the air (Garry's wall, 2026-11-05).
+  // (a real home's deck), and a 2 m one hung off its south end, ran on past the
+  // glass as a second top rail in the air (a real wall screen, 2026-11-05).
   const lights = {
     "light.long": { l: dev("light.long", "WLED-SoundReactive", WLED), at: { x_m: 9.1, y_m: 2.5, ...along(665, ALONG_Y) } },
     "light.end": { l: dev("light.end", "Deck LED strip"), at: { x_m: 9.1, y_m: 4.6, ...along(200, ALONG_Y) } },
@@ -231,7 +231,7 @@ tryCase("ring: a perimeter named pots is separate pots in from the walls, one pe
     { kind: P.kind, n: P.bulbs.length, inFrom, corners, gaps, housings: P.housings.length, washes: P.washes.length });
 });
 tryCase("ring: any other perimeter is a cove: a wash down the top of the walls, unseen when off", () => {
-  const t = house({ "light.office": { l: dev("light.office", "Nicole's office"), at: { x_m: 3, y_m: 2.5 } } }, { "light.office": "perimeter" });
+  const t = house({ "light.office": { l: dev("light.office", "Jordan's office"), at: { x_m: 3, y_m: 2.5 } } }, { "light.office": "perimeter" });
   const P = t.parts("light.office");
   const ok = P.kind === "cove" && P.halos.length === 0 && P.bulbs.length === 4 && P.bulbs.every(b => b.hideOff && b.prim === "box" && near(b.h, CEIL - 0.012))
     && P.washes.length === 4 && P.washes.every(w => w.wall && near(w.b[1], -0.45) && w.h > CEIL - 0.02) && P.pools.length === 1 && P.picks.length >= 16;
@@ -255,7 +255,7 @@ tryCase("ring: on a deck, small pots along its edge at floor level, never a bar 
 tryCase("wled: a lamp stands, a panel hangs on its wall, an accent lights nothing; unsure is a point and a pool", () => {
   const t = house({
     "light.gyver": { l: dev("light.gyver", "Gyver lamp", WLED), at: { x_m: 2, y_m: 2 } },
-    "light.fun": { l: dev("light.fun", "Emergency GarryOffice fun display", WLED), at: { x_m: 3, y_m: 4.5 } },
+    "light.fun": { l: dev("light.fun", "Emergency AlexOffice fun display", WLED), at: { x_m: 3, y_m: 4.5 } },
     "light.pill": { l: dev("light.pill", "PillTaker-WLED", WLED), at: { x_m: 4, y_m: 2 } },
     "light.gyver1": { l: dev("light.gyver1", "Gyver1", WLED), at: { x_m: 1, y_m: 1, width_cm: 15, height_cm: 15 } },
     "light.bath": { l: dev("light.bath", "Master Bathroom"), at: { x_m: 4, y_m: 4, ...along(200, ALONG_X) } },

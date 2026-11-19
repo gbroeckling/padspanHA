@@ -103,9 +103,9 @@ const JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhYmNkZWYxMjM0NTYifQ
 const CASES = [
   ["valid", GOOD],
   ["no email", { ...GOOD, email: "" }],
-  ["email without domain", { ...GOOD, email: "garry@" }],
-  ["email with a space", { ...GOOD, email: "gar ry@example.com" }],
-  ["email without a dot", { ...GOOD, email: "garry@localhost" }],
+  ["email without domain", { ...GOOD, email: "alex@" }],
+  ["email with a space", { ...GOOD, email: "al ex@example.com" }],
+  ["email without a dot", { ...GOOD, email: "alex@localhost" }],
   ["email with an apostrophe", { ...GOOD, email: "o'brien@example.co.uk" }],
   ["no consent", { ...GOOD, consent: false }],
   ["consent not true", { ...GOOD, consent: "yes" }],

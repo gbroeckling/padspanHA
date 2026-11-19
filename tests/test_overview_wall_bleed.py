@@ -6,7 +6,7 @@
 `_storeyOf` keeps every wall within 2 storeys because radio_map.js needs the
 walls between a device and a scanner on another floor for its attenuation
 math. The draw loop used to paint all of them at the current storey's height:
-the upstairs walls across the main floor and vice versa (Garry, 2026-09-09:
+the upstairs walls across the main floor and vice versa (2026-09-09:
 "some of the walls are OK, maybe a floor to floor bleed?"). Scanners already
 had the `floorDist !== 0` draw-time filter; walls now carry floorDist and use
 the same one. These pin both halves in the source, the way the repo's other

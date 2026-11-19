@@ -4,7 +4,7 @@
 """The Overview's continuous coverage raster (radio_map.js).
 
 The storey heat used to be a 36×36 mosaic of hatch-filled quads in 16 colour
-steps — "very poor resolution" (Garry, 2026-09-09). It is now a bilinearly
+steps — "very poor resolution" (2026-09-09). It is now a bilinearly
 upsampled raster placed as ONE <image> whose matrix() maps it onto the slab.
 These pin the pure pieces under node; the PNG encode itself needs a real
 canvas and is proven by falling back cleanly where there is none.

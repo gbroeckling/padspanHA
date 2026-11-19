@@ -6,7 +6,7 @@
 The panel is NOT admin-only, so this proxy is a security boundary: the
 device address comes only from HA's own WLED config entry, reads go only to
 an allowlist, persisting/disrupting writes need an administrator, and a few
-things are never sent at all (the legacy /win API that wedges Garry's
+things are never sent at all (the legacy /win API that wedges the owner's
 Gyver-class forks; firmware update; hw.com through /json/cfg).
 """
 
@@ -114,7 +114,7 @@ class _Conn:
 
 def _hass(tmp_path, wled=True):
     dev = SimpleNamespace(id="dev1", name="Upper North", name_by_user=None, config_entries={"e1"})
-    entry = SimpleNamespace(entry_id="e1", data={"host": "192.168.2.122"}, domain="wled")
+    entry = SimpleNamespace(entry_id="e1", data={"host": "192.168.0.122"}, domain="wled")
     hass = MagicMock()
     hass.config_entries.async_entries = lambda domain: [entry] if (wled and domain == "wled") else []
     hass.config.path = lambda *p: str(Path(tmp_path).joinpath(*p))
@@ -156,7 +156,7 @@ async def test_the_host_comes_from_the_wled_config_entry(fake):
     await W.ws_wled_get(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "path": "json/info",
                                            "host": "10.0.0.66"})
     assert not conn.errors
-    assert fake.calls == [("GET", "192.168.2.122", "json/info", None)]
+    assert fake.calls == [("GET", "192.168.0.122", "json/info", None)]
 
 
 async def test_a_light_outside_the_wled_integration_is_refused(fake):
@@ -182,7 +182,7 @@ async def test_a_non_admin_cannot_save_a_preset(fake):
 async def test_a_live_change_asks_for_the_resulting_state(fake):
     conn = _Conn(admin=False)
     await W.ws_wled_state(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "body": {"bri": 40}})
-    assert fake.calls == [("POST", "192.168.2.122", "json/state", {"bri": 40, "v": True})]
+    assert fake.calls == [("POST", "192.168.0.122", "json/state", {"bri": 40, "v": True})]
 
 
 async def test_a_cfg_write_backs_up_first_and_refuses_a_changed_device(fake):
@@ -238,7 +238,7 @@ async def test_a_restore_is_admin_only_and_takes_a_safety_copy_first(fake, monke
     await W.ws_wled_backups(fake.hass, conn, {"id": 2, "entity_id": "light.upper_north",
                                                "action": "restore_presets", "backup_id": "20260101-000000"})
     assert not conn.errors, conn.errors
-    assert uploads == [("192.168.2.122", "presets.json", {"0": {}, "1": {"n": "Old"}})]
+    assert uploads == [("192.168.0.122", "presets.json", {"0": {}, "1": {"n": "Old"}})]
     safety = conn.results[0]["safety_backup"]
     assert (folder.parent / safety / "presets.json").exists(), "the device's current presets are kept first"
 
@@ -351,7 +351,7 @@ def test_two_backups_in_one_second_never_share_a_folder(tmp_path):
 
 
 def test_urls_are_built_so_an_ipv6_host_works():
-    assert str(W._url("192.168.2.122", "json/palx?page=2")) == "http://192.168.2.122/json/palx?page=2"
+    assert str(W._url("192.168.0.122", "json/palx?page=2")) == "http://192.168.0.122/json/palx?page=2"
     assert str(W._url("fd00::12", "json/info")) == "http://[fd00::12]/json/info"
 
 
@@ -429,7 +429,7 @@ def test_one_upstream_per_device_closed_by_the_last_viewer():
             self.cancelled = True
 
     hass = SimpleNamespace(async_create_background_task=lambda coro, name: (coro.close(), tasks.append(_Task()), tasks[-1])[2])
-    r = W._LiveRelay(hass, "192.168.2.122")
+    r = W._LiveRelay(hass, "192.168.0.122")
     r.add(1, lambda p: None)
     r.add(2, lambda p: None)
     assert len(tasks) == 1
@@ -658,7 +658,7 @@ async def test_an_offline_wled_says_unreachable_not_that_it_isnt_wled(fake):
     conn = _Conn()
     await W.ws_wled_get(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "path": "json/info"})
     # Its own code: "unreachable" already means "a write may have been applied" (wled_tab_sync.js).
-    assert conn.errors[0][0] == "wled_offline" and "192.168.2.122" in conn.errors[0][1]
+    assert conn.errors[0][0] == "wled_offline" and "192.168.0.122" in conn.errors[0][1]
     assert fake.calls == [], "an unloaded entry's host is named, never contacted"
 
 

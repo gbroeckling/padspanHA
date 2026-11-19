@@ -51,7 +51,7 @@ class _MemStore:
 
 class _Conn:
     def __init__(self, admin=True):
-        self.user = SimpleNamespace(is_admin=admin, name="Garry")
+        self.user = SimpleNamespace(is_admin=admin, name="Alex")
         self.results, self.errors = [], []
 
     def send_result(self, mid, data=None):
@@ -554,7 +554,7 @@ def _team(house, leader, followers, mode="mirror"):
 async def _padspan_team(house, n=3):
     devs, dids = [], []
     for i in range(n):
-        d = simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}")
+        d = simple_device(host=f"192.168.0.{130 + i}", mac=f"aabbccddee{i:02x}")
         dids.append(house.add(f"m{i}", d))
         devs.append(d)
     _team(house, dids[0], dids[1:])
@@ -580,7 +580,7 @@ async def test_a_team_run_by_padspan_switches_every_member_and_back(house):
 
 
 async def test_a_team_member_that_fails_rolls_the_others_back(house):
-    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
+    devs = [simple_device(host=f"192.168.0.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
     dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
     _team(house, dids[0], dids[1:])
     await _remember(house, dids[0], team=True)
@@ -760,7 +760,7 @@ async def test_look_get_remember_history_and_compare(house):
 
 
 async def test_remember_team_look_saves_nothing_unless_every_member_answers(house):
-    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
+    devs = [simple_device(host=f"192.168.0.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
     dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
     _team(house, dids[0], dids[1:])
     house.offline("m1", devs[1])
@@ -899,7 +899,7 @@ async def test_the_0144_unit_goes_to_padspan_and_back_byte_for_byte(house, sends
     cfg, state = copy.deepcopy(_OLD_WHITE_CFG), copy.deepcopy(_OLD_WHITE_STATE)
     cfg["if"]["sync"]["send"]["dir"] = sends
     state["udpn"]["send"] = sends
-    dev = FakeWled(host="192.168.2.116", info=_OLD_WHITE_INFO, state=state, cfg=cfg)
+    dev = FakeWled(host="192.168.0.116", info=_OLD_WHITE_INFO, state=state, cfg=cfg)
     did = house.add("oldwhite", dev, segs=1, main=False)
     before_sync = copy.deepcopy(dev.cfg["if"]["sync"])
     await _remember(house, did)
@@ -995,7 +995,7 @@ async def test_a_lost_reply_to_the_sync_off_write_never_loses_the_original_sync(
         out = await real(method, path, body)
         if method == "POST" and path == "json/cfg":
             dev.offline = True
-            raise W.WledError("timeout", "No answer from 192.168.2.118 within 12 s")
+            raise W.WledError("timeout", "No answer from 192.168.0.118 within 12 s")
         return out
     dev.handle = _then_gone
     conn = _Conn()
@@ -1047,7 +1047,7 @@ async def test_a_command_that_never_reached_the_device_goes_on_when_it_is_back(h
     await house.settle()
     assert [d.serialize_state()["on"] for d in devs] == [True, True, True]
     # A single device: tapped on while offline, back without a restart.
-    dev = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    dev = simple_device(host="192.168.0.140", mac="aabbccddee40")
     did = house.add("porch", dev)
     await _remember(house, did)
     await _to_padspan(house, did)
@@ -1086,7 +1086,7 @@ async def test_a_command_that_never_reached_the_device_goes_on_when_it_is_back(h
 async def test_a_failed_padspan_switch_leaves_a_wled_team_on_its_own_group(house):
     """Review finding 5: the rollback put every member on its settings from
     BEFORE the team; it goes back to what each had at the switch."""
-    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
+    devs = [simple_device(host=f"192.168.0.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
     dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
     prior = {}
     for i, (d, did) in enumerate(zip(devs, dids)):
@@ -1121,7 +1121,7 @@ async def test_a_team_member_padspan_cant_put_back_keeps_the_teams_group_to_go_b
     lost, then gone, stays PadSpan's — switching it back puts it on the
     team's group (where the switch found it), not its settings from before
     the team."""
-    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
+    devs = [simple_device(host=f"192.168.0.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
     dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
     prior = {did: {"send": copy.deepcopy(d.cfg["if"]["sync"]["send"]), "recv": copy.deepcopy(d.cfg["if"]["sync"]["recv"])}
              for d, did in zip(devs, dids)}
@@ -1173,7 +1173,7 @@ async def test_without_the_licence_a_padspan_team_is_still_switched_together(hou
     assert sorted(d["device_id"] for d in conn.results[0]["devices"]) == sorted(dids)
     assert all(d["team_id"] == "t1" for d in conn.results[0]["devices"])
     # Negative control: a device PadSpan runs on its own is HA's own light again.
-    solo = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    solo = simple_device(host="192.168.0.140", mac="aabbccddee40")
     sdid = house.add("solo", solo)
     house.tier[0] = True
     await _remember(house, sdid)
@@ -1217,7 +1217,7 @@ async def test_identify_is_not_undone_by_put_the_look_back(house):
 async def test_a_member_of_a_wled_sync_team_is_never_switched_to_padspan_alone(house):
     """Review finding 8: its switch would leave the team (or stop the leader
     sending) with the team record unchanged — it goes through the team."""
-    lead, fol = simple_device("192.168.2.118", mac="aa0000000001"), simple_device("192.168.2.116", mac="aa0000000002")
+    lead, fol = simple_device("192.168.0.118", mac="aa0000000001"), simple_device("192.168.0.116", mac="aa0000000002")
     dl, df = house.add("lead", lead), house.add("fol", fol)
     _team(house, dl, [df])
     for did, dev in ((df, fol), (dl, lead)):
@@ -1283,7 +1283,7 @@ async def test_a_padspan_command_during_an_outside_changes_uptime_read_wins(hous
     assert [d.serialize_state()["on"] for d in devs] == [True, True, True]
     assert all(house.store.get(d.info["mac"])["last_cmd"]["on"] is True for d in devs)
     # A solo light: HA's turn_on, then padspan_ha.wled_off.
-    dev = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    dev = simple_device(host="192.168.0.140", mac="aabbccddee40")
     did = house.add("valance", dev)
     await _remember(house, did)
     await _to_padspan(house, did)
@@ -1399,7 +1399,7 @@ async def test_a_switched_member_padspan_cant_put_back_goes_back_to_the_teams_gr
     """Review r2: a member already switched whose rollback fails stays
     PadSpan's; given back on its own tab it must go back to the team's
     group (where the switch found it), not its settings from before the team."""
-    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
+    devs = [simple_device(host=f"192.168.0.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
     dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
     prior = {}
     for i, (d, did) in enumerate(zip(devs, dids)):
@@ -1457,7 +1457,7 @@ async def test_a_light_padspan_keeps_after_a_failed_switch_is_listened_to(house)
     assert house.tracked and "light.valance_main" in house.tracked[-1]
     # The same through a team switch that fails.
     house.tracked.clear()
-    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
+    devs = [simple_device(host=f"192.168.0.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
     dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
     _team(house, dids[0], dids[1:])
     await _remember(house, dids[0], team=True)
@@ -1509,7 +1509,7 @@ async def test_without_the_licence_a_team_follows_a_member_switched_from_outside
                             SimpleNamespace(state="on", attributes={"brightness": 9}))
     assert len(house.service_calls) == 4
     # A device PadSpan ran on its own: HA's own light again, nothing follows.
-    solo = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    solo = simple_device(host="192.168.0.140", mac="aabbccddee40")
     sdid = house.add("solo", solo)
     house.tier[0] = True
     await _remember(house, sdid)
@@ -1524,7 +1524,7 @@ async def test_without_the_licence_a_team_keeps_its_tuning_on_one_segment_lights
     one-segment light as the master, and HA's call sets that part's opacity
     to 255. Upper North (.2.122: opacity 255, master 15) and Upper South
     (.2.123: opacity 13, master 128) end as they would with the licence."""
-    un, us = simple_device("192.168.2.122", mac="aa0000000122", segs=1), simple_device("192.168.2.123", mac="aa0000000123", segs=1)
+    un, us = simple_device("192.168.0.122", mac="aa0000000122", segs=1), simple_device("192.168.0.123", mac="aa0000000123", segs=1)
     await un.handle("POST", "json/state", {"on": True, "bri": 15, "seg": [{"id": 0, "bri": 255}]})
     await us.handle("POST", "json/state", {"on": True, "bri": 128, "seg": [{"id": 0, "bri": 13}]})
     dun, dus = house.add("un", un, segs=1, main=False), house.add("us", us, segs=1, main=False)
@@ -1701,7 +1701,7 @@ async def test_a_change_made_while_a_retry_is_being_read_stops_the_retries(house
     s = dev.serialize_state()
     assert s["on"] is True and s["bri"] == 40
     # Its read answered instead: nothing is written over the person's change.
-    dev2 = simple_device(host="192.168.2.141", mac="aabbccddee41")
+    dev2 = simple_device(host="192.168.0.141", mac="aabbccddee41")
     did2 = house.add("desk", dev2)
     await _remember(house, did2)
     await _to_padspan(house, did2)

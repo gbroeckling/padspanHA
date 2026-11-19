@@ -1,6 +1,6 @@
 """The control-from-a-map ergonomics strategy, exercised for real.
 
-Garry: "Figure out a strategy for utilizing this concept better ergonomically
+The owner: "Figure out a strategy for utilizing this concept better ergonomically
 by looking at the competition's use of mapping for lights" — a Claude research
 agent and a Codex pass converged on the same short list (split tap target,
 room/floor aggregates, spread-in-room bulk placement, semantic zoom, per-class
@@ -63,7 +63,7 @@ def _run(tmp_path: Path, script_body: str) -> dict:
 # ── The hold/tap/drag gesture ────────────────────────────────────────────────
 
 def test_hold_tracker_distinguishes_tap_hold_and_drag(tmp_path):
-    """Garry's own affordance problem, from the ergonomics research: a bare
+    """The owner's own affordance problem, from the ergonomics research: a bare
     500ms hold is undiscoverable and, worse, a naive implementation can fire
     the toggle on release even after a hold — createHoldTracker is the one
     state machine both the sidebar and the builder's Preview drive, so this
@@ -149,7 +149,7 @@ console.log(JSON.stringify({
 
 
 def test_wire_use_surface_quick_tap_toggles_and_only_a_real_hold_opens(tmp_path):
-    """Garry: "Tapping the code label was never meant to open the card...
+    """The owner: "Tapping the code label was never meant to open the card...
     remove that. Quick tap only opens the calendar on the motion items, all
     other require the 500ms tap. quick taps turn things on or off." The code
     chip used to be its own always-open target (stopPropagation on its own
@@ -212,7 +212,7 @@ console.log(JSON.stringify({ quickTaps, holdCalls: calls }));
 
 
 def test_wire_use_surface_a_click_on_a_barrier_hit_path_opens_its_card(tmp_path):
-    """Garry, 2026-09-22: "the ability to click on the line... bring up a
+    """2026-09-22: "the ability to click on the line... bring up a
     card that clearly says this door/window is open, and the ability to
     open/close it". The hit path (iso_lights.js, BARRIER_HIT) carries
     data-invert/data-name because the barrier's own invert_state has no
@@ -289,7 +289,7 @@ console.log(JSON.stringify({ buttons: [...overlay.querySelectorAll("button")].ma
 
 
 def test_open_barrier_card_shows_a_paired_locks_control_and_leads_with_open(tmp_path):
-    """Garry, 2026-09-22: "then the new card could have a lock control on
+    """2026-09-22: "then the new card could have a lock control on
     it if the door has a smart lock" — the merge researched and built
     after the click-to-open feature above: computeDoorLockPairs finds the
     lock, openBarrierCard shows BOTH. State priority follows the research
@@ -334,7 +334,7 @@ console.log(JSON.stringify({ openText, openButtons, closedLockedText, closedUnlo
 
 
 def test_open_barrier_card_explicit_opener_gets_real_open_close(tmp_path):
-    """Garry, 2026-09-22: "three things need a logical link... all of these
+    """2026-09-22: "three things need a logical link... all of these
     sit on the opening" — bar.linked_opener_entity_id is a SEPARATE field
     from the sensor now, not just the barrier's own link being a cover. A
     cover opener gets the real open_cover/close_cover control, same as
@@ -361,7 +361,7 @@ def test_open_barrier_card_switch_opener_gets_a_generic_trigger_with_context(tmp
     """A relay switch's own on/off does not reliably mean the door is open
     or closed (usually a momentary pulse toggling direction each press),
     so it must never be labelled Open/Close — just "Trigger", with the
-    real sensor reading shown as context. Garry's own real case:
+    real sensor reading shown as context. The owner's own real case:
     switch.upper_garage_truck_door next to its already-linked sensor."""
     out = _run(tmp_path, r"""
 const hass = {
@@ -385,7 +385,7 @@ console.log(JSON.stringify({ text, buttons }));
 
 
 def test_open_barrier_card_script_opener_triggers_via_script_turn_on(tmp_path):
-    """Garry, 2026-09-22: "there is a garage door controller in HA, can you
+    """2026-09-22: "there is a garage door controller in HA, can you
     find it" — script.garage_door_car/_truck, a wrapped controller rather
     than the raw relay underneath it. Same generic Trigger as a switch
     (its own on/off means running/idle, not open/closed — never Open/
@@ -435,7 +435,7 @@ console.log(JSON.stringify({ foundRunningBtn: !!btn, called: !!window.__called }
 
 
 def test_open_barrier_card_opener_only_with_no_sensor_reads_honestly(tmp_path):
-    """Garry, 2026-09-22: "we need logic for this to work on an opening
+    """2026-09-22: "we need logic for this to work on an opening
     without a sensor." A barrier with only an opener and no sensor at all
     (a relay with nothing self-reporting) has no way to know open or
     closed — the card must say so rather than guess, while the Trigger
@@ -475,7 +475,7 @@ console.log(JSON.stringify({ text }));
 # ── Weekly activity calendar (motion) ────────────────────────────────────────
 
 def test_motion_weekly_grid_buckets_intervals_into_local_hours(tmp_path):
-    """Garry: "a calendar saying when the room last saw activity in the last
+    """The owner: "a calendar saying when the room last saw activity in the last
     week... fully filled by the hour." motionWeeklyGrid is the pure bucketing
     underneath it: an "on" interval marks every local hour it touches, a
     still-open interval (no closing event yet) is bounded by "now" rather
@@ -580,7 +580,7 @@ _AGG_LIGHTS = [
 
 def test_room_aggregate_counts_lights_and_fans_separately(tmp_path):
     """The single most-used action in every competitor's map (Alexa, SmartThings)
-    — and Garry's stated worry about ambiguity: "All off" must never also
+    — and the owner's stated worry about ambiguity: "All off" must never also
     silently kill a fan, so the aggregate hands them back as separate lists."""
     out = _run(tmp_path, r"""
 const LIGHTS = __LIGHTS__;
@@ -661,7 +661,7 @@ console.log(JSON.stringify({
 
 
 def test_an_outdoor_room_never_anchors_a_devices_floor(tmp_path):
-    """Garry, 2026-09-14: a temperature sensor whose HA area is the Shed (an
+    """2026-09-14: a temperature sensor whose HA area is the Shed (an
     area on the Outside floor) could not be placed "on a floor, just outside a
     room" — its room's floor (__outside__) won over everything, and the Lights
     stack never draws outdoor floors (fabricFrame drops them), so it had no
@@ -719,7 +719,7 @@ def test_spread_in_room_places_every_light_inside_the_polygon(tmp_path):
     (never on top of a wall) and the count must match what was asked for,
     across a plain rectangle and an L-shaped room."""
     rect = [[0, 0], [6, 0], [6, 4], [0, 4]]
-    # An L-shaped room (Garry's own Bedroom shape from the perimeter saga,
+    # An L-shaped room (a real home's Bedroom shape from the perimeter saga,
     # simplified) — the harder case: a naive bounding-box grid would place a
     # point in the missing corner.
     l_shape = [[0, 0], [4, 0], [4, 2], [2, 2], [2, 4], [0, 4]]
@@ -808,7 +808,7 @@ console.log(JSON.stringify({
 # ── Brand column resolution ──────────────────────────────────────────────────
 
 def test_resolve_brand_precedence_and_the_control4_case(tmp_path):
-    """Garry (2026-09-08): "why are you not seeing the control4 lights as
+    """The owner (2026-09-08): "why are you not seeing the control4 lights as
     brand control4, sloppy... better logic for the search. Blanks in the
     brand column should be rare." Root cause verified live: the ~60
     Control4 devices behind an HC800 have NO manufacturer in HA's device
@@ -917,7 +917,7 @@ console.log(JSON.stringify({
 
 
 # ── Whole House Presets (2026-09-21) ─────────────────────────────────────────
-# Garry: "a pull down like presets, but call whole house presets. There will
+# The owner: "a pull down like presets, but call whole house presets. There will
 # be a set, and a name on it. It will remember every setting in the house
 # when set is hit, and bring all settings back when selected." Real DEVICE
 # state (not the map's own look, which is the Showcase Presets bar above) —
@@ -1131,7 +1131,7 @@ console.log(JSON.stringify({
 
 
 def test_a_tap_on_a_sensor_says_what_it_reads_and_switches_nothing(tmp_path):
-    """Garry, 2026-11-13 ("tap show readout"): the toggle on a sensor used to
+    """2026-11-13 ("tap show readout"): the toggle on a sensor used to
     say only that sensors are read-only. It says the reading; a motion sensor
     adds how to see its activity; nothing is ever sent."""
     out = _run(tmp_path, r"""

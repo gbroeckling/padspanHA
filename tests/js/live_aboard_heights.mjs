@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 //
-// Heights on the placement record, in Live Aboard (Garry, 2026-10-05: "same
+// Heights on the placement record, in Live Aboard (2026-10-05: "same
 // information store"): the rules (views/live_aboard_draft.js) and the real
 // 3D view and editor (views/live_aboard.js, live_aboard_edit.js) under the
 // DOM shim with a stub GL.

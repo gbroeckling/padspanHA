@@ -93,7 +93,7 @@ async def test_setup_imports_legacy_verbatim_on_first_load() -> None:
     assert rooms["Kitchen"]["source_map_id"] is None    # unrecoverable — never guessed
     assert rooms["Kitchen"]["points_m"] == [[0.0, 0.0], [4.0, 0.0], [4.0, 3.0]]
     assert rooms["Office"]["floor_id"] == "upper"
-    # Imported floors start UNcommitted — Garry corrects, then finalizes.
+    # Imported floors start UNcommitted — the owner corrects, then finalizes.
     assert fab.floor_committed("main") is False
     fab.store.async_save.assert_awaited()
 

@@ -5,7 +5,7 @@
 
 tests/js/live_aboard_card.mjs runs the shared Atlas card (views/lights_map.js)
 under the DOM shim with every module load recorded: off is byte-identical,
-loads nothing and sends nothing; below Pro (Garry, 2026-09-30: PadSpan Pro
+loads nothing and sends nothing; below Pro (2026-09-30: PadSpan Pro
 and Bright Pro only) it is exactly off; on at Pro the switch sits beside the
 zoom and in the rail; each screen remembers its choice; with no WebGL (node
 has none) the flat Atlas stays and the fallback is counted once.

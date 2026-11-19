@@ -26,7 +26,7 @@ for (const [id, dc] of [["binary_sensor.front_door", "door"], ["binary_sensor.ba
                         ["binary_sensor.hall_motion", "motion"], ["sensor.living_temp", "temperature"], ["sensor.attic_temp", "temperature"]])
   states[id] = st(id, dc);
 for (const id of ["light.kitchen_valance", "light.quinled_west_valance", "light.lamp", "light.pot_1"]) states[id] = st(id, null);
-states["weather.forecast_home"] = st("weather.forecast_home"); states["person.garry"] = st("person.garry"); states["scene.evening"] = st("scene.evening");
+states["weather.forecast_home"] = st("weather.forecast_home"); states["person.alex"] = st("person.alex"); states["scene.evening"] = st("scene.evening");
 const model = {
   floors: [{ id: "basement", name: "Basement", floor_to_floor_m: 3.0 }, { id: "main", name: "Main", floor_to_floor_m: 2.3 },
            { id: "outside", name: "Outside" }, { id: "upper", name: "Upper" }],

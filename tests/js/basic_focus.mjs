@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 //
 // Basic's focused views (views/focus.js, 2026-10-30), RUN rather than read.
-// Garry: "Make sure basic still makes sense, no access to things that are so
+// The owner: "Make sure basic still makes sense, no access to things that are so
 // foreign to the user that it doesn't tie together". In Basic a link opens
 // just the part it is about, under one "← Back" to where it was, and nothing
 // on it leads into the rest of the expert screen; the mode never changes.

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
 """4K wall mode (0.38.159): ?kiosk=1 on the sidebar Atlas puts the whole
-house on the screen and sizes its controls for the room. Garry, 2026-10-21:
+house on the screen and sizes its controls for the room. 2026-10-21:
 wall mode rides on ?kiosk=1, and the scale follows the screen (a 1080p wall
 stays as it was, a 4K wall is twice the size)."""
 
@@ -303,21 +303,21 @@ def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
 
 
 def test_the_more_button_fades_and_comes_back_with_the_compass():
-    # Garry's wall, 2026-11-07: nobody there for 30 s, the compass and the bars
+    # A real wall screen, 2026-11-07: nobody there for 30 s, the compass and the bars
     # faded but the ⋯ beside the compass stayed on its own.
     lp = _src("lights_panel.js")
     assert ":host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-more," in lp, "it fades as slowly"
     assert ":host([data-wall]:not([data-wall-active])) .la3d-more," in lp, "gone while nobody is at the wall"
 
 def test_the_motion_chip_fades_and_comes_back_with_the_other_controls():
-    # Garry's wall, 2026-11-09: nobody there for 30 s, the bars, the compass and
+    # A real wall screen, 2026-11-09: nobody there for 30 s, the bars, the compass and
     # the ⋯ faded but the Motion chip stayed on its own.
     lp = _src("lights_panel.js")
     assert ":host([data-wall]) .la3d-mchip, :host([data-wall]) .la3d-mkey," in lp, "it fades as slowly"
     assert ":host([data-wall]:not([data-wall-active])) .la3d-mchip, :host([data-wall]:not([data-wall-active])) .la3d-mkey," in lp, "gone while nobody is there"
 
 def test_the_flat_maps_scene_row_lies_over_the_cards_foot_and_fades():
-    """Garry's wall, 2026-11-09 (BUG_LOG: "too much space since 0.38.225"): the
+    """A real wall screen, 2026-11-09 (BUG_LOG: "too much space since 0.38.225"): the
     scene row sat in the map's height-limited column under it, so the map lost
     ~136 px x --wall-ctl. On a wall it lies over the card's foot (the card is
     position:relative), so the map keeps the whole height (560 -> 700 px on his
@@ -382,7 +382,7 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
 
 
 def test_the_90_turn_frames_the_whole_house_again_as_fit_does():
-    """Garry's wall, 2026-11-09: after ⟳ 90° without Fit a corner of the house
+    """A real wall screen, 2026-11-09: after ⟳ 90° without Fit a corner of the house
     dipped behind the scene row. Not zoomed in, the turn frames the house again
     at its new angle (frameFor, the band Fit uses); zoomed out, as far out again."""
     src = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8")

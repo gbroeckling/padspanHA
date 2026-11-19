@@ -1,6 +1,6 @@
 """The Mapping -> Lights preset bundle, pinned at the source level.
 
-Garry (2026-09-10): "we now have thousands of combinations in the mapping,
+The owner (2026-09-10): "we now have thousands of combinations in the mapping,
 lights setup, we need to build a preset system." Then (2026-09-12): "include
 more elements into this feature" — the Floor / Spacing / L-R layout joined
 the bundle, under the SAME overview_iso_* keys Save view already writes, so

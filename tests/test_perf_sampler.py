@@ -1,7 +1,7 @@
 """The load sampler behind the opt-in report's env.hw / health.perf
 (perf_sampler.py).
 
-Garry, 2026-09-29: "Add load numbers and CPU info to opt-in for this type of
+2026-09-29: "Add load numbers and CPU info to opt-in for this type of
 decision in future", "need to watch the pi installs for max outs". A sampler
 that measures load must not BE load, must not outlive its integration, must
 not stack a second timer on a reload, must never raise into Home Assistant,
@@ -556,7 +556,7 @@ def test_samples_go_to_the_nearest_hour_so_a_restart_minute_does_not(n, want):
     ("green", "green"), ("yellow", "yellow"), ("odroid-n2", "odroid"), ("tinker", "tinker"),
     ("khadas-vim3", "khadas"), ("ova", "vm"), ("qemux86-64", "vm"), ("qemuarm-64", "vm"),
     ("generic-x86-64", "generic_x86_64"), ("intel-nuc", "generic_x86_64"), ("generic-aarch64", "generic_aarch64"),
-    ("Garry's hand-built Pi, serial 10000000abcdef12", "other"), ("", "unknown"), (None, "unknown"),
+    ("Alex's hand-built Pi, serial 10000000abcdef12", "other"), ("", "unknown"), (None, "unknown"),
 ])
 def test_boards_map_to_fixed_words(raw, want):
     assert ps.board_class(raw) == want
@@ -594,7 +594,7 @@ def test_ram_buckets_are_the_size_it_is_sold_as(gib, want):
                                     ("Home Assistant Container", "container"),
                                     ("Unsupported Third Party Container", "container"),
                                     ("Home Assistant Core", "core"), ("Unknown", "unknown"),
-                                    ("Garry's custom build", "other"), (None, "unknown")])
+                                    ("Alex's custom build", "other"), (None, "unknown")])
 def test_installation_types_map_to_fixed_words(t, want):
     assert ps.install_class(t) == want and want in T.HW_VALUES["install"]
 
@@ -620,7 +620,7 @@ def test_the_supervisor_board_is_used_once_its_info_has_loaded(monkeypatch):
 
     async def _si(hass):
         asked["system_info"] += 1
-        return {"installation_type": "Home Assistant OS", "hostname": "garrys-pi", "user": "root"}
+        return {"installation_type": "Home Assistant OS", "hostname": "alexs-pi", "user": "root"}
 
     si.async_get_system_info = _si
     monkeypatch.setitem(sys.modules, "homeassistant.helpers.system_info", si)
@@ -639,7 +639,7 @@ def test_the_supervisor_board_is_used_once_its_info_has_loaded(monkeypatch):
     assert ps.hw_class(h) == {"cpus": 4, "ram": "4g", "arch": "aarch64", "install": "os", "board": "rpi4"}
     assert asked["static"] == [False, False], "no device-tree read where the Supervisor knows the board"
     assert asyncio.run(ps.async_ensure_hw(h)) is True and asked["system_info"] == 1, "once, then cached"
-    assert "garrys-pi" not in json.dumps(h.data[DOMAIN][ps._DATA_HW])
+    assert "alexs-pi" not in json.dumps(h.data[DOMAIN][ps._DATA_HW])
 
 
 def test_a_pi_without_a_supervisor_is_found_by_its_device_tree(monkeypatch):

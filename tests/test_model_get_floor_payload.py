@@ -64,7 +64,7 @@ def test_payload_declares_floor_elevations():
 
 
 def test_payload_declares_when_ha_started() -> None:
-    """Garry, 2026-09-14: "after a restart of HA, all motion sensors on the
+    """2026-09-14: "after a restart of HA, all motion sensors on the
     light map show active". Every restored motion entity's last_changed is
     the boot moment, so the renderer needs to know WHEN that was:
     async_setup stamps it once per process and model_get ships it as

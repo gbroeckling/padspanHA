@@ -253,7 +253,7 @@ def test_is_atlas_entity_excludes_the_occupancy_half_only_via_the_caller_not_its
 
 
 def test_emergency_is_leaks_and_smoke_gas_co_alarms_each_in_its_own_words(tmp_path):
-    """Garry, 2026-10-15: "Widen emergency". Smoke, gas and CO alarms are the
+    """2026-10-15: "Widen emergency". Smoke, gas and CO alarms are the
     Emergency class with leaks, each in its own words, and drawn as a detector,
     not the leak's puddle; anything else stays out."""
     out = _run(tmp_path, (

@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Calibration data import — the counterpart Export JSON never had.
 
-Garry, 2026-09-10: "do 2-10" (from a missing-features shortlist) — #10:
+2026-09-10: "do 2-10" (from a missing-features shortlist) — #10:
 Maps already has a proven "Backup All Maps (JSON)" / "Restore from Backup"
 round-trip; the Model tab's own "Export JSON" button had no import
 counterpart at all. Mirrors that pattern, adapted for the one real

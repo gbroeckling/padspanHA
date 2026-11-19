@@ -1,7 +1,7 @@
 """PadSpan's own size, the run log and the panels' measurements in the
 opt-in report (perf_sampler.py, telemetry.py, www/padspan-ha/client_perf.js).
 
-Garry, 2026-10-05, after a 2 GB Pi on a busy street ran out of memory within
+2026-10-05, after a 2 GB Pi on a busy street ran out of memory within
 hours: the low-memory version "should force a more safe object max count";
 "I will of course need to know if a 2gb pi can be fixed with this switch in
 settings, make sure the opt-in gives enough feedback to make that
@@ -287,7 +287,7 @@ def test_the_runs_section_is_rounded_closed_and_checked():
     with pytest.raises(ValueError, match="health.runs"):
         T.assert_shareable(q)
     q = json.loads(json.dumps(p))
-    q["health"]["runs"]["starts"] = "garrys-pi"
+    q["health"]["runs"]["starts"] = "alexs-pi"
     with pytest.raises(ValueError):
         T.assert_shareable(q)
 

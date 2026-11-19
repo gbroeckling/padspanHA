@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Apple Find My tags across address changes (findmy.py).
 
-Garry, 2026-09-23: "make sure that works in padspan" — a Find My tag (an
+2026-09-23: "make sure that works in padspan" — a Find My tag (an
 AirTag, or a "works with Find My" tag like his LAPONC) changes its address
 every 15 minutes near its owner and daily when separated. Before this, a
 labelled tag became a new, nameless object at every change: PadSpan's bridge
@@ -609,7 +609,7 @@ def test_a_steady_advert_heard_only_by_the_hosts_own_adapter_stays_fresh(monkeyp
 
 
 # ── how well it works: what the opt-in report counts ─────────────────────────
-# Garry, 2026-09-27: "make sure the opt-in records how well tools for this
+# 2026-09-27: "make sure the opt-in records how well tools for this
 # feature actually work". step() says how each tag's hand-over window ended:
 # a link (and how long after the old address's last report), or — once, as
 # the window closes — the strongest reason no link was made.

@@ -33,7 +33,7 @@ _MAC1, _MAC2 = "48:87:2D:9D:BC:88", "DD:E1:C8:89:75:73"
 _UUID = "99a58376-461d-4a9b-9700-2375fcfd705b"
 _IRK = "ec0234a357c8ad05341010a60a397d9b"
 _KEY = "PSPAN-AAAA-BBBB-CCCC-DDDD"
-_ROOM = "Nicole's Office"
+_ROOM = "Jordan's Office"
 _FLOOR = "Spare Bedroom Closet"
 _LIGHT = "light.kitchen_valance"
 _FAN = "fan.bedroom_ceiling"
@@ -41,7 +41,7 @@ _MOTION = "binary_sensor.hallway_motion"
 _TEMP = "sensor.attic_temp"
 _IP = "192.168.3.155"
 _SECRETS = [_MAC1, _MAC2, _UUID, _IRK, _KEY, _ROOM, _FLOOR, _LIGHT, _FAN, _MOTION, _TEMP, _IP,
-            "Garry", "Pixel 8 Pro", "MaschineBOX"]
+            "Alex", "Pixel 8 Pro", "MaschineBOX"]
 # Bluetooth Core Spec Vol 3 Part H, Appendix D.7 — a real key/address pair, for the resolver tests
 _SIG_IRK = bytes.fromhex("EC0234A357C8AD05341010A60A397D9B")
 _SIG_RPA = "70:81:94:0D:FB:AA"
@@ -89,9 +89,9 @@ def _hass():
         "beacon_positions_m": {},
     })
     model = SimpleNamespace(data={"floors": [{"id": "main", "name": "Main"}, {"id": "up", "name": _FLOOR}]})
-    maps = SimpleNamespace(data={"maps": [{"id": "m1", "name": "Garry's basement plan"}]})
+    maps = SimpleNamespace(data={"maps": [{"id": "m1", "name": "Alex's basement plan"}]})
     # Auto-calibration marks its points in the label, as the engine does.
-    cal = SimpleNamespace(data={"points": [{"room": _ROOM, "label": "[auto] Garry", "rssi": {_MAC1: -60}},
+    cal = SimpleNamespace(data={"points": [{"room": _ROOM, "label": "[auto] Alex", "rssi": {_MAC1: -60}},
                                            {"room": "Kitchen", "label": "Kitchen door"}]})
     # The coordinator's poll result, as the live overlay reads it: the house's
     # own phone placed and outside, plus a stranger's phone that the engine
@@ -110,7 +110,7 @@ def _hass():
                 "diag": {"ok": True, "callback_active": True}},
         "objects": {"list": [
             {"kind": "ibeacon", "name": "Pixel 8 Pro", "address": _MAC1, "identified": True, "x_m": 1.0, "room": _ROOM,
-             "ibeacon_uuid": _UUID, "user_label": "Garry"},
+             "ibeacon_uuid": _UUID, "user_label": "Alex"},
             {"kind": "ble", "name": "MaschineBOX", "address": _MAC2, "outside": True},
         ], "summary": {"resolver": {"crypto_ok": True, "rpa_count": 80, "resolved": 0, "errors": [f"bad {_MAC1}"]}}},
     }
@@ -203,11 +203,11 @@ def test_nothing_from_the_house_is_in_the_report():
     # the direct read on advanced (pro-only) type-override adoption.
     # Raised 3200 → 3300 for three lights_* switches the report never carried
     # (`lights_isolux`, `lights_automorph_enabled`, `lights_show_beacons`) plus
-    # `lights_automorph_style` as an enum — Garry, 2026-09-09: "Collect info
+    # `lights_automorph_style` as an enum — 2026-09-09: "Collect info
     # for opt-in on how lights is configured and used". Each was already a
     # real, working feature (isolux contours, the Automorph aura, the beacons
     # overlay) the report simply never mentioned.
-    # Raised 3300 → 3700 for `presets` — Garry, 2026-09-11: "add presets and
+    # Raised 3300 → 3700 for `presets` — 2026-09-11: "add presets and
     # their components into the opt-in records" so popular Showcase-preset
     # combinations across installs can surface in a shared pulldown. One
     # preset's values here cost ~350 bytes; the cap is 10 per report (see
@@ -220,12 +220,12 @@ def test_nothing_from_the_house_is_in_the_report():
     # humidity/air-quality sensor as "temp_sensor" — found in the Phase 2a
     # registry audit, 2026-09-19. Now one bucket per real device_class.
     # Raised 3800 → 3950 for `env.hw` (~95 bytes) and `health.perf` with no
-    # samples yet (~20) — Garry, 2026-09-29: "Add load numbers and CPU info
+    # samples yet (~20) — 2026-09-29: "Add load numbers and CPU info
     # to opt-in", "need to watch the pi installs for max outs". A full day's
     # `health.perf` is ~550 bytes more; that is bounded on its own in
     # test_a_full_load_section_is_small_and_every_word_is_on_the_list.
     # Raised 3950 -> 4000 for env.object_history_days / env.ble_max_age_s and
-    # features.atlas_3d_enabled (~75 bytes): Garry, 2026-10-05, the low-memory
+    # features.atlas_3d_enabled (~75 bytes): 2026-10-05, the low-memory
     # version and its minimum requirements need what sizes the object list and
     # whether the 3D house is on. A full day of PadSpan's own size, by-view
     # load and health.runs is bounded in the full-load-section test below.
@@ -236,24 +236,24 @@ def test_nothing_from_the_house_is_in_the_report():
     # and entity_dup_n (~73 bytes): whether 0.38.122's fixes #149, #147 and
     # #153 hold in houses the tests cannot see.
     # Raised 4110 -> 4140 for env.temp_fresh (~22 bytes as null here; ~150
-    # with readouts placed): Garry, 2026-10-15, "make sure opt in understands
+    # with readouts placed): 2026-10-15, "make sure opt in understands
     # the HA temp behaviour" — whether a steady room's reading stays fresh by
     # last_reported (0.38.126), and how often sensors report.
-    # Raised 4140 -> 4165 for placed_by_domain.alarm_sensor (~19 bytes): Garry,
+    # Raised 4140 -> 4165 for placed_by_domain.alarm_sensor (~19 bytes): the owner,
     # 2026-10-15, "Widen emergency": smoke, gas and CO alarms joined leaks in
     # the Emergency class; counted apart from leaks so the report can tell
     # whether anyone places them.
     # Raised 4165 -> 4200 for env.scanner_kinds.tasmota and env.scanner_names
-    # (~35 bytes): Garry, 2026-10-16, "All" (more opt-in elements): Tasmota
+    # (~35 bytes): 2026-10-16, "All" (more opt-in elements): Tasmota
     # receivers counted apart, and where each receiver's one name comes from
     # (0.38.132's one-name fix needed its field signal).
-    # Raised 4200 -> 4230 for features.overview_atlas (~25 bytes): Garry,
+    # Raised 4200 -> 4230 for features.overview_atlas (~25 bytes): the owner,
     # 2026-10-17, a Pro option to show the Atlas as Overview.
     # Raised 4230 -> 4270 for features.day_theme and features.light_theme
     # (~36 bytes): which themes anyone wears, now that there are seven.
     # Raised 4270 -> 4295 for env.rooms_with_height (~24 bytes): whether
     # anyone gives a room its own height (Live Aboard's tall rooms).
-    # Raised 4295 -> 4335 for licence_group (~35 bytes): Garry, 2026-10-21,
+    # Raised 4295 -> 4335 for licence_group (~35 bytes): 2026-10-21,
     # a licence's homes seen together (homes 3-5 need their report on).
     # Raised 4335 -> 4365 (2026-10-22) for env.quiet_hidden (~26 bytes, only
     # from a house with quiet mode on, as this fixture is). How each Overview
@@ -261,7 +261,7 @@ def test_nothing_from_the_house_is_in_the_report():
     # defaults are sent (features.ov_*), and the per-screen lists
     # (env.screens) only from a house with two screens or more.
     # Raised 4365 -> 4450 for env.scanner_types and env.object_detail (~80 bytes
-    # here): Garry approved them on 2026-11-02 (the device detail plan's n14),
+    # here): the owner approved them on 2026-11-02 (the device detail plan's n14),
     # the receiver types "other" hides and how many objects have a name, a maker
     # and a type, nested so telemetry.php needs no deploy.
     # Raised 4450 -> 4560 for env.mapping and env.ai.claude (~105 bytes here):
@@ -358,10 +358,10 @@ def test_off_means_nothing_counted_and_nothing_sent():
 def test_only_the_vocabulary_counts():
     """The keys of the report are data too: a closed list, not a pattern —
     an authenticated non-admin could otherwise put a word into the report
-    through telemetry_event ("tab:nicoles_office/pixel")."""
+    through telemetry_event ("tab:jordans_office/pixel")."""
     h = _hass()
     assert T.bump(h, "tab:overview") and T.bump(h, "tab:bluetooth/irk_panel") and T.bump(h, "wall_placed")
-    for bad in ("tab:nicoles_office", "tab:bluetooth/pixel", "tab:overview\n", "tab:has space",
+    for bad in ("tab:jordans_office", "tab:bluetooth/pixel", "tab:overview\n", "tab:has space",
                 "anything_i_like", "tab:a/b/c", "tab:maps/irk_panel"):
         assert not T.bump(h, bad), bad
     assert h.data[DOMAIN][T._DATA_COUNTERS] == {"tab:overview": 1, "tab:bluetooth/irk_panel": 1, "wall_placed": 1}
@@ -634,12 +634,12 @@ def test_an_unknown_identity_source_cannot_travel_as_a_label():
     h = _hass()
     r = pbr.PrivateBLEResolver(h)
     r._devices = [{"canonical_id": "irk:x", "name": "n", "irk_bytes": bytes(16)}]
-    r._source_info = [{"source": "Garry's experimental importer"}]
+    r._source_info = [{"source": "Alex's experimental importer"}]
     pbr._resolvers[id(h)] = r
     try:
         p = T.build_payload(h)
         assert p["health"]["irks_by_source"] == {"other": 1}
-        assert "Garry" not in json.dumps(p)
+        assert "Alex" not in json.dumps(p)
         T.assert_shareable(p)
     finally:
         pbr._resolvers.pop(id(h), None)
@@ -819,15 +819,15 @@ def test_ui_errors_are_counted_by_module_and_only_by_closed_name():
     assert T.bump(h, "ui_error_while:atlas") is True
     # Not a module, so not a key. The vocabulary is closed for the same reason
     # the tab list is: the report's KEYS leave the box too.
-    for bad in ("ui_error:Nicole's Office", "ui_error:", "ui_error_while:",
-                "ui_error_while:Nicole's Office", "ui_error_while:panel",
+    for bad in ("ui_error:Jordan's Office", "ui_error:", "ui_error_while:",
+                "ui_error_while:Jordan's Office", "ui_error_while:panel",
                 "ui_error:frontend_latest/app", "ui_error:button-card"):
         assert T.bump(h, bad) is False, bad
     p = T.build_payload(h)
     T.assert_shareable(p)
     assert p["usage"]["ui_error:maps"] == 2 and p["usage"]["ui_error:overview"] == 1
     assert p["usage"]["ui_error_while:atlas"] == 1
-    assert not any("Nicole" in k for k in p["usage"])
+    assert not any("Jordan" in k for k in p["usage"])
 
 
 def test_every_padspan_file_the_panel_can_name_is_an_allowed_ui_error():
@@ -999,7 +999,7 @@ def test_stats_php_never_emits_an_ip_and_requires_the_dev_list():
 
 
 # ── Apple Find My: how well following a tag works ────────────────────────────
-# Garry, 2026-09-27: "make sure the opt-in records how well tools for this
+# 2026-09-27: "make sure the opt-in records how well tools for this
 # feature actually work". Counts only: the bridge and the adverts it is
 # counted from are full of addresses, and none of them may travel.
 
@@ -1067,7 +1067,7 @@ def test_find_my_is_reported_as_counts_and_never_an_address():
 
 
 def test_with_bridging_off_the_report_still_says_whether_find_my_is_here():
-    """Garry's own house: bridging off, a dozen Find My addresses on the air.
+    """A real house: bridging off, a dozen Find My addresses on the air.
     The environment half is what says whether the feature would matter. The
     bridge stays in memory after the switch goes off ("Not this tag" loads it
     too): review — its tags went out as followed until HA restarted, and then
@@ -1233,7 +1233,7 @@ def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
 
 
 # ── load and hardware (perf_sampler.py) ──────────────────────────────────────
-# Garry, 2026-09-29: "Add load numbers and CPU info to opt-in for this type of
+# 2026-09-29: "Add load numbers and CPU info to opt-in for this type of
 # decision in future", "need to watch the pi installs for max outs". Numbers
 # about the MACHINE — which makes them the easiest place for something about
 # the machine's owner (a hostname, a model string with a serial in it) to slip
@@ -1276,7 +1276,7 @@ def _busy_day(h, hours: float = 24.0):
         w.add("occ_unk", rnd.uniform(0, 9))
         w.add("occ_conf", rnd.choice((0.0, 1.0, 2.0)))
     # PadSpan's own size on a busy street, and Home Assistant by view
-    # (Garry, 2026-10-05: the low-memory version and its minimum requirements).
+    # (2026-10-05: the low-memory version and its minimum requirements).
     for i in range(1440):
         w.add("objects", rnd.uniform(9000, 82000))
         w.add("history", rnd.uniform(9000, 82000))
@@ -1331,7 +1331,7 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     assert perf["mem_avail_pc"]["min"] <= perf["mem_avail_pc"]["p05"] <= perf["mem_avail_pc"]["p50"]
     assert perf["lag_ms"]["p50"] <= perf["lag_ms"]["p95"] <= perf["lag_ms"]["max"]
     section = len(json.dumps(perf)) + len(json.dumps(p["env"]["hw"]))
-    # 700 -> 1600 (Garry, 2026-10-05): PadSpan's own size, the live snapshot
+    # 700 -> 1600 (2026-10-05): PadSpan's own size, the live snapshot
     # and Home Assistant's load by view — what deciding the low-memory
     # version's object cap, and whether a 2 GB Pi keeps the Atlas and the 3D
     # house, takes. The whole report is still held under the 8 KB cap below.
@@ -1342,7 +1342,7 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # and only the phase split says where. 1850 -> 2000 for the Bermuda
     # counts beside it (its entities and devices, tag candidates, saved tags
     # that resolve to nothing).
-    # 2000 -> 2500 (Garry, 2026-10-16, "All"): p95 for the four phases, the
+    # 2000 -> 2500 (2026-10-16, "All"): p95 for the four phases, the
     # "ha" phase's CPU time and its three parts (90%+ of every slow build),
     # how steady identified objects sit, and the occupancy estimate.
     # 2500 -> 2600 (0.38.136): HA's device and entity registry sizes and the
@@ -1363,14 +1363,14 @@ def test_nothing_identifying_can_ride_in_the_load_sections():
     refuses the whole report."""
     from custom_components.padspan_ha import perf_sampler as ps
     h = _hass()
-    h.data[DOMAIN][ps._DATA_HW] = {"cpus": 512, "ram": "3.7 GiB", "arch": "aarch64 on garrys-pi",
+    h.data[DOMAIN][ps._DATA_HW] = {"cpus": 512, "ram": "3.7 GiB", "arch": "aarch64 on alexs-pi",
                                    "install": "Home Assistant OS 16.2", "ready": True,
                                    "board": "Raspberry Pi 4 Model B Rev 1.4 serial 10000000abcdef12"}
     p = T.build_payload(h)
     T.assert_shareable(p)
     assert p["env"]["hw"] == {"cpus": 64, "ram": "unknown", "arch": "unknown", "install": "unknown",
                               "board": "unknown"}
-    assert "garrys" not in json.dumps(p) and "serial" not in json.dumps(p)
+    assert "alexs" not in json.dumps(p) and "serial" not in json.dumps(p)
 
     base = T.build_payload(_hass())
     T.assert_shareable(base)
@@ -1386,7 +1386,7 @@ def test_nothing_identifying_can_ride_in_the_load_sections():
     refused(lambda q: q["env"]["hw"].update(cpus=65), "cpus")
     refused(lambda q: q["env"]["hw"].update(cpus=True), "cpus")
     refused(lambda q: q["env"].update(hw="rpi4"), "env.hw")
-    refused(lambda q: q["health"]["perf"].update(host="garrys-pi"), "unexpected key in health.perf")
+    refused(lambda q: q["health"]["perf"].update(host="alexs-pi"), "unexpected key in health.perf")
     refused(lambda q: q["health"]["perf"].update(lag_ms={"p99": 3}), "unexpected key in health.perf.lag_ms")
     refused(lambda q: q["health"]["perf"].update(lag_ms={"max": "slow"}), "not a count")
     refused(lambda q: q["health"]["perf"].update(lag_ms={"max": -1}), "not a count")
@@ -1816,13 +1816,13 @@ def test_vacation_mode_reaches_the_report_only_where_it_was_used():
     h.data[DOMAIN][DATA_SETTINGS].data.update(
         vacation_mode_enabled=True, vacation_mode_enabled_at=now - 86400, vacation_mode_intensity=100,
         vacation_mode_pattern={"light.a": {"*:1900": 1.0}}, vacation_mode_pattern_until=now - 86400,
-        vacation_mode_periods=[], vacation_mode_last_off={"ts": 1.0, "by": "Nicole", "via": "x", "how": "panel"})
+        vacation_mode_periods=[], vacation_mode_last_off={"ts": 1.0, "by": "Jordan", "via": "x", "how": "panel"})
     payload = T.build_payload(h)
     T.assert_shareable(payload)
     vac = payload["env"]["vacation"]
     assert vac["on"] == "yes" and vac["pattern"] == "own" and vac["last_off"] == "panel"
-    assert "Nicole" not in json.dumps(payload)
-    payload["env"]["vacation"]["by"] = "Nicole"
+    assert "Jordan" not in json.dumps(payload)
+    payload["env"]["vacation"]["by"] = "Jordan"
     with pytest.raises(ValueError):
         T.assert_shareable(payload)
 
@@ -1928,7 +1928,7 @@ def test_the_summary_counts_where_installs_heard_of_padspan():
 def test_the_days_counts_survive_a_restart_and_only_closed_names_come_back():
     """0.38.177: counters live on disk too. What the last run saved is added
     back at start; a name no longer on the list, or a non-count, is dropped."""
-    saved = {"counters": {"calibration_cleared_all": 1, "tab:maps": 3, "nicole_s_office": 5,
+    saved = {"counters": {"calibration_cleared_all": 1, "tab:maps": 3, "jordan_s_office": 5,
                           "calibration_point_added": True, "follow_alert_sent": -2}}
     out = T.merge_saved_counters({"tab:maps": 2}, saved)
     assert out == {"tab:maps": 5, "calibration_cleared_all": 1}
@@ -1951,7 +1951,7 @@ def test_bump_saves_the_window_once_within_two_minutes_however_often_it_counts(m
         assert T.bump(h, "calibration_cleared_all")
     assert len(later) == 1 and later[0][0] == T.COUNTERS_SAVE_DELAY_S
     # A callback, or Home Assistant runs it in a worker thread and the save is
-    # created but refused (Garry's house, 2026-10-29).
+    # created but refused (a real house, 2026-10-29).
     assert getattr(later[0][1], "_hass_callback", False) is True
     later[0][1]()                                    # two minutes on: saved, with all 50
     store.async_save.assert_called_once_with({"counters": {"calibration_cleared_all": 50}})

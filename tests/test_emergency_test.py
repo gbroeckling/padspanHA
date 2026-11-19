@@ -103,14 +103,14 @@ class House:
 
 
 def _live_house_before_groups(monkeypatch, **kw):
-    """Garry's house on 2026-09-28, before the groups were made."""
+    """A real house on 2026-09-28, before the groups were made."""
     h = House(monkeypatch, **kw)
     for p in range(1, 9):
         h.state(f"switch.pakedge_poe_port_{p}", "on", f"Pakedge PoE Port {p}")
     h.wled("d_closet", "closet", lights={"light.a1_slwf_09": (0, "off", "Emergency WLed closet")},
            main=("light.a1_slwf_09_main", "unavailable"), dev_name="Emergency bedroom SLWF-09")
-    h.wled("d_office", "office", lights={"light.upper_south_2": (0, "off", "Emergency GarryOffice fun display")},
-           dev_name="Emergeny Garryoffice fun displa")
+    h.wled("d_office", "office", lights={"light.upper_south_2": (0, "off", "Emergency AlexOffice fun display")},
+           dev_name="Emergeny Alexoffice fun displa")
     h.wled("d_spare", "spare", lights={"light.emergencysparebed_slwf_09": (0, "unavailable", "EmergencySpareBed-SLWF-09")})
     # Not emergency lights.
     h.wled("d_kitchen", "kitchen", lights={"light.quin_kitchen_valance": (0, "on", "Quin-Kitchen-Valance"),
@@ -121,7 +121,7 @@ def _live_house_before_groups(monkeypatch, **kw):
 
 
 def _live_house(monkeypatch, **kw):
-    """Garry's house as it is: its two HA groups (lights, PoE ports)."""
+    """A real house as it is: its two HA groups (lights, PoE ports)."""
     h = _live_house_before_groups(monkeypatch, **kw)
     h.state("light.emergency_lighting", "off", "Emergency Lighting",
             members=["light.a1_slwf_09", "light.upper_south_2", "light.emergencysparebed_slwf_09"])
@@ -550,7 +550,7 @@ def test_back_already_off_just_leaves_the_record(monkeypatch):
 
 def test_back_on_by_a_persons_hand_is_left_on(monkeypatch):
     h = _test_ran_with_spare_unreachable(monkeypatch)
-    _comes_back(h, SPARE, "on", user_id="nicole")
+    _comes_back(h, SPARE, "on", user_id="jordan")
     assert h.calls == [] and h.states[SPARE].state == "on"
     assert _run(ET.async_status(h.hass))["pending_off"] == []
 

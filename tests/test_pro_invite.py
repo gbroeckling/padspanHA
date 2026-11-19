@@ -316,7 +316,7 @@ def test_restore_and_reset_keep_todays_offer_switches():
 
 def test_an_invite_already_delivered_is_claimed_even_with_the_report_off_since(monkeypatch):
     """The opt-in came first: an invite reaches an install only through its
-    report. An existing offer is not affected by the opt-in rule (Garry,
+    report. An existing offer is not affected by the opt-in rule (the owner,
     2026-10-27), so turning the report off afterwards does not take it away."""
     calls = _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-TEST-KEY", "expires_at": "2027-10-13 18:00:00",
                                         "tier": "pro", "days_left": 365})
@@ -330,7 +330,7 @@ def test_an_invite_already_delivered_is_claimed_even_with_the_report_off_since(m
 
 def test_a_new_invite_needs_the_report_on_and_keeps_it_on_while_the_year_runs(monkeypatch):
     """An invite delivered from 0.38.181 carries optin_rule: claimed only with
-    the report on, and the year holds it on (Garry, 2026-10-27). An invite
+    the report on, and the year holds it on (2026-10-27). An invite
     delivered before (no mark) is claimed as before."""
     from custom_components.padspan_ha.settings_store import licence_key_hash as H
     calls = _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-YEAR", "expires_at": "2027-10-27 00:00:00",

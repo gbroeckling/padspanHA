@@ -3,7 +3,7 @@
 test_devices_relay_wizard.py checks the pure builder payloads in isolation;
 this file exercises the actual UI wiring in devices.js — the tier gate, the
 form, and _runBuildPlan/_teardownComposite's real call sequence against a
-mocked hass — the part a pure-function test can't see (Garry has been burned
+mocked hass — the part a pure-function test can't see (the owner has been burned
 before by a card whose logic was right but whose wiring to the real ctx
 surface was wrong).
 
@@ -259,7 +259,7 @@ console.log(JSON.stringify({ calls, composites: state.settings.door_composites, 
 
 
 def test_relay_light_build_skips_seconds_and_scripts_template_only_no_opener_id(tmp_path):
-    """Garry, 2026-09-23: "a relay controlled poe switch is used to control
+    """2026-09-23: "a relay controlled poe switch is used to control
     a light... I need the same magic... so a light shows in HA." The plain
     light kind takes only a name and one relay — no seconds field renders at
     all — and the build is a single Template-light flow call, no scripts,

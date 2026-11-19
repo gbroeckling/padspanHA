@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""The backup AI Task (Settings → AI; Garry, 2026-10-30): photo and stair
+"""The backup AI Task (Settings → AI; 2026-10-30): photo and stair
 reads switch to it on their own when the main AI Task is away.
 
 Held here (ws_house3d_photo.ask_ai and unreachable()):

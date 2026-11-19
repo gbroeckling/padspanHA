@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Putting the trial where people are (Garry, 2026-09-28).
+"""Putting the trial where people are (2026-09-28).
 
 Opt-in reports from 42 installs: 40 on the free tier, 5 with the Atlas
 sidebar panel on (it was off by default), and a trial that was reachable

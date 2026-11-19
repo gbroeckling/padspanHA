@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """One name, maker and type for each device, what it is, and the limits on reading it.
 
-Byte strings marked "house" are as heard at Garry's house on 2026-11-02, with key
+Byte strings marked "house" are as heard at a real house on 2026-11-02, with key
 bytes cut. See tests/js/device_lists.mjs for how the lists gather them.
 """
 

@@ -24,10 +24,10 @@ _VIEWS = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "vi
 _NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 
-# wled_look.capture() of scratch live/192.168.2.118.json: a 5-channel PWM
+# wled_look.capture() of scratch live/192.168.0.118.json: a 5-channel PWM
 # output (RGB+CCT) and 30 RGB LEDs, both orange.
 _LOOK = json.loads(
-    '{"v":1,"at":1790000000,"by":"Garry","fw":"0.15.0-b7","arch":"esp32","state":{"bri":128,"tt":7,"mainseg":0,"seg":['
+    '{"v":1,"at":1790000000,"by":"Alex","fw":"0.15.0-b7","arch":"esp32","state":{"bri":128,"tt":7,"mainseg":0,"seg":['
     '{"id":0,"start":0,"stop":1,"grp":1,"spc":0,"of":0,"on":true,"frz":false,"bri":255,"cct":127,"set":0,'
     '"col":[[255,160,0,0],[0,0,0,0],[0,0,0,0]],"fx":0,"sx":128,"ix":128,"pal":0,"c1":128,"c2":128,"c3":16,"sel":true,'
     '"rev":false,"mi":false,"o1":false,"o2":false,"o3":false,"si":0,"m12":0},'
@@ -151,7 +151,7 @@ def test_the_remembered_look_in_words_and_swatches_with_its_result_drift_and_his
     look["setup"]["geometry"]["seglc"] = [5, 1]
     out = _run("""
 const look = __LOOK__;
-const older = { ...look, at: look.at - 86400, by: "Nicole", state: { ...look.state, bri: 255 } };
+const older = { ...look, at: look.at - 86400, by: "Jordan", state: { ...look.state, bri: 255 } };
 const { pane } = await open("Exact look", { x: { join: "padspan", exact: true, look, can_switch: true,
   last_result: { at: 1790003040, ok: true, tries: 1, diffs: [], source: "atlas", on: true, bri: 128 },
   drift: { at: 1790002000, geometry: false, what: ["Output 1 white mode None → Accurate", "Output 1 PWM frequency 19531 Hz → 9765 Hz"] },
@@ -171,7 +171,7 @@ out.differs = t.includes("Differs from the remembered look now: part 2 colour, e
 out.historyTitle = t.includes("History (2)");
 out.useThis = btn(pane, "Use this one").length;
 out.olderSummary = count(pane, x => x.startsWith("2 parts · ") && x.endsWith("Brightness 100% · Fade 0.7 s"));
-out.remembered = t.some(x => /^Remembered at \\d\\d:\\d\\d on \\d+ \\w{3} by Garry · WLED 0.15.0-b7$/.test(x));
+out.remembered = t.some(x => /^Remembered at \\d\\d:\\d\\d on \\d+ \\w{3} by Alex · WLED 0.15.0-b7$/.test(x));
 out.who = t.includes("PadSpan gives this light its instructions: it comes on with the look below every time.");
 const hold = all(pane).find(n => n.tagName === "LABEL" && n.textContent === "Put the look back when something else turns it on");
 out.holdChecked = hold.firstChild.checked;
@@ -460,7 +460,7 @@ let exactNow = [];
 const origWS = r.hass.callWS;
 r.hass.callWS = async (m) => {
   if (m.type === "padspan_ha/wled_team_mode") { r.calls.push(m); exactNow = [{ device_id: "dF" }];
-    throw { code: "failed", message: "Quin Kitchen: The device answered HTTP 500; couldn't switch back: Far West (Can't reach 192.168.2.119: offline)" }; }
+    throw { code: "failed", message: "Quin Kitchen: The device answered HTTP 500; couldn't switch back: Far West (Can't reach 192.168.0.119: offline)" }; }
   if (m.type === "padspan_ha/wled_exact_list") { r.calls.push(m); return { devices: exactNow }; }
   return origWS(m);
 };

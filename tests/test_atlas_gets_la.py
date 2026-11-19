@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""The flat Atlas gets what Live Aboard has (Garry, 2026-10-05: "add features
+"""The flat Atlas gets what Live Aboard has (2026-10-05: "add features
 back and forth where they are out of sync, but also don't damage either of
 the working setups").
 
@@ -9,7 +9,7 @@ tests/js/atlas_gets_la.mjs runs the shared Atlas card (views/lights_map.js),
 the screen's rules (views/atlas_screen.js) and the flat map's Live Aboard
 layers (views/atlas_aboard.js) for real under the DOM shim: the drawing is
 byte for byte what it was with every new option off (on a realistic house,
-and on Garry's own when its private export is on this PC — never in the
+and on a real one when its private export is on this PC — never in the
 repo); off, nothing is fetched or read; the map alone, full screen and the
 covers' order; a double-tap on a room, and a light double-tapped switching
 once; tags, scanners and people from the snapshot with Live Aboard's own
@@ -34,7 +34,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 _WWW = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
 _VIEWS = _WWW / "views"
 _NODE = shutil.which("node")
-# Garry's real house (a read-only export, outside the repo): used when present.
+# A real house (a read-only export, outside the repo): used when present.
 _HOUSE = os.environ.get("PADSPAN_HOUSE_EXPORT", "")
 
 

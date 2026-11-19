@@ -88,7 +88,7 @@ def _hass(monkeypatch, on=False, data=None):
     return hass, coord
 
 
-def _tag(x, y, floor="main", label="Garry", **kw):
+def _tag(x, y, floor="main", label="Alex", **kw):
     return {"kind": "private_ble", "user_label": label, "x_m": x, "y_m": y, "floor_id": floor, "age_s": 1.0, **kw}
 
 
@@ -120,7 +120,7 @@ def test_off_by_default_everywhere():
 def test_no_entities_and_positions_unchanged_without_subzones(monkeypatch, on):
     """Off (the default), or on with none added: nothing is added, and the
     objects the coordinator hands everyone else are exactly as they were."""
-    objs = {"irk:a": _tag(1, 1), "irk:b": _tag(5, 5, label="Nicole")}
+    objs = {"irk:a": _tag(1, 1), "irk:b": _tag(5, 5, label="Jordan")}
     before = copy.deepcopy(objs)
     hass, coord = _hass(monkeypatch, on=on, data=objs)
     added = []
@@ -186,7 +186,7 @@ def test_enter_needs_margin_and_dwell():
     assert t.evaluate(z, {"k": _tag(1, 0.05)}, 0, 300) == {"sz_1": []}     # inside but not enter_m in
     for now in (10, 12, 14.9):
         assert t.evaluate(z, {"k": _tag(1, 1)}, now, 300) == {"sz_1": []}  # not dwelt yet
-    assert t.evaluate(z, {"k": _tag(1, 1)}, 15, 300) == {"sz_1": ["Garry"]}
+    assert t.evaluate(z, {"k": _tag(1, 1)}, 15, 300) == {"sz_1": ["Alex"]}
 
 
 def test_edge_jitter_never_flaps():
@@ -198,7 +198,7 @@ def test_edge_jitter_never_flaps():
     for i in range(40):     # wobbling 0.25 m either side of the edge, every second
         x = 2.25 if i % 2 else 1.75
         seen.append(t.evaluate(z, {"k": _tag(x, 1)}, 6 + i, 300)["sz_1"])
-    assert all(s == ["Garry"] for s in seen)
+    assert all(s == ["Alex"] for s in seen)
 
 
 def test_leave_needs_margin_and_dwell():
@@ -206,8 +206,8 @@ def test_leave_needs_margin_and_dwell():
     z = {"sz_1": BED}
     t.evaluate(z, {"k": _tag(1, 1)}, 0, 300)
     t.evaluate(z, {"k": _tag(1, 1)}, 5, 300)
-    assert t.evaluate(z, {"k": _tag(2.5, 1)}, 6, 300) == {"sz_1": ["Garry"]}
-    assert t.evaluate(z, {"k": _tag(2.5, 1)}, 10.9, 300) == {"sz_1": ["Garry"]}
+    assert t.evaluate(z, {"k": _tag(2.5, 1)}, 6, 300) == {"sz_1": ["Alex"]}
+    assert t.evaluate(z, {"k": _tag(2.5, 1)}, 10.9, 300) == {"sz_1": ["Alex"]}
     assert t.evaluate(z, {"k": _tag(2.5, 1)}, 11, 300) == {"sz_1": []}
 
 
@@ -220,7 +220,7 @@ def test_away_other_floor_or_no_position_leaves(obj):
     t.evaluate(z, {"k": _tag(1, 1)}, 0, 300)
     t.evaluate(z, {"k": _tag(1, 1)}, 5, 300)
     objs = {"k": obj} if obj is not None else {}
-    assert t.evaluate(z, objs, 6, 300) == {"sz_1": ["Garry"]}
+    assert t.evaluate(z, objs, 6, 300) == {"sz_1": ["Alex"]}
     assert t.evaluate(z, objs, 11, 300) == {"sz_1": []}
 
 
@@ -322,7 +322,7 @@ def test_entities_follow_subzones(monkeypatch):
     _run(SZ.async_setup_entities(hass, _Entry(), who.extend, S.PadSpanSubzoneWhoSensor))
     assert len(occ) == 1 and len(who) == 1
     assert occ[0].unique_id == WS.unique_id("sz_1", "occupied") and who[0].unique_id == WS.unique_id("sz_1", "who")
-    assert occ[0].is_on is True and who[0].native_value == "Garry" and occ[0].available
+    assert occ[0].is_on is True and who[0].native_value == "Alex" and occ[0].available
     assert occ[0].device_info["name"] == "PadSpan Bed"
     for fn in coord.listeners:
         fn()

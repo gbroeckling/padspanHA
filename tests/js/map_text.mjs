@@ -25,13 +25,13 @@ const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push
 
 // ── the Overview's objects ───────────────────────────────────────────────────
 const objects = [
-  { kind: "private_ble", key: "irk:a", address: "AA:00", user_label: "Garry's phone", room: "Kitchen", age_s: 3 },
-  { kind: "ble", address: "BB:00", name: "Nicole's watch", identified: true, room: "Kitchen", age_s: 5 },
+  { kind: "private_ble", key: "irk:a", address: "AA:00", user_label: "Alex's phone", room: "Kitchen", age_s: 3 },
+  { kind: "ble", address: "BB:00", name: "Jordan's watch", identified: true, room: "Kitchen", age_s: 5 },
   { kind: "ble", address: "CC:00", name: "Random TV", room: "Kitchen", age_s: 2 },                 // unlabelled: not on the map
   { kind: "ble", address: "DD:00", user_label: "Old tag", room: "Office", age_s: 9999 },           // away
   { kind: "ble", address: "EE:00", user_label: "Ghost", room: "Office", _stale: true },
   { kind: "ble", address: "FF:00", name: "Followed thing", room: "Den", age_s: 1 },                // followed only
-  { kind: "entity", entity_id: "device_tracker.garry", address: "AA:00", user_label: "Garry tracker", room: "Kitchen" }, // the radio stands for it
+  { kind: "entity", entity_id: "device_tracker.alex", address: "AA:00", user_label: "Alex tracker", room: "Kitchen" }, // the radio stands for it
   { kind: "ble", address: "11:00", user_label: "Scanner itself", room: "Den" },
   { kind: "ble", address: "22:00", user_label: "<img src=x onerror=alert(1)>", room: "Hall", age_s: 1 },
 ];
@@ -41,7 +41,7 @@ const lines = MT.roomLines(MT.overviewEntries(objects, opts), rooms);
 check("overview_lines", JSON.stringify(lines) === JSON.stringify([
   ["Den", "Den: Followed thing."],
   ["Hall", "Hall: <img src=x onerror=alert(1)>."],
-  ["Kitchen", "Kitchen: Garry's phone, Nicole's watch."],
+  ["Kitchen", "Kitchen: Alex's phone, Jordan's watch."],
   ["Office", "Office: empty."],
 ]), lines);
 // Quiet mode shows labelled, identified or followed, the set the map always draws:
@@ -56,13 +56,13 @@ check("unknown_rooms_left_out", MT.roomLines([{ room: "not_home", name: "x" }, {
 
 // ── the Atlas's people and tags ─────────────────────────────────────────────
 const wants = [
-  { kind: "person", key: "person.g", person: { name: "Garry", at: { room: "Kitchen" } } },
+  { kind: "person", key: "person.g", person: { name: "Alex", at: { room: "Kitchen" } } },
   { kind: "beacon", key: "beacon:k", name: "Keys", room: "Hall" },
   { kind: "scanner", key: "scanner:1" },
 ];
 check("atlas_lines", JSON.stringify(MT.roomLines(MT.wantedEntries(wants, false), ["Hall", "Kitchen"]))
-  === JSON.stringify([["Hall", "Hall: Keys."], ["Kitchen", "Kitchen: Garry."]]));
-check("atlas_hidden_names", MT.roomLines(MT.wantedEntries(wants, true), [])[0][1] === "Kitchen: Garry.");
+  === JSON.stringify([["Hall", "Hall: Keys."], ["Kitchen", "Kitchen: Alex."]]));
+check("atlas_hidden_names", MT.roomLines(MT.wantedEntries(wants, true), [])[0][1] === "Kitchen: Alex.");
 check("atlas_hidden_tag", JSON.stringify(MT.wantedEntries(wants, true)).includes("a tag") && !JSON.stringify(MT.wantedEntries(wants, true)).includes("Keys"));
 check("map_rooms", JSON.stringify(MT.mapRooms({ room_geometry_m: { Office: {}, Den: {} } })) === '["Den","Office"]'
   && MT.mapRooms(null).length === 0);
@@ -85,19 +85,19 @@ check("sr_only_style", el.style.cssText === MT.SR_ONLY, el.style.cssText);
 for (const bit of ["position:fixed", "width:1px", "height:1px", "overflow:hidden", "clip-path:inset(50%)", "white-space:nowrap", "pointer-events:none"])
   check("sr_only_has_" + bit, MT.SR_ONLY.includes(bit));
 box.update(lines);
-check("first_at_once", box.text() === "Den: Followed thing. Hall: <img src=x onerror=alert(1)>. Kitchen: Garry's phone, Nicole's watch. Office: empty.", box.text());
+check("first_at_once", box.text() === "Den: Followed thing. Hall: <img src=x onerror=alert(1)>. Kitchen: Alex's phone, Jordan's watch. Office: empty.", box.text());
 check("names_are_text", el.children.every(p => p.children.length === 0), el.children.map(p => p.children.length));
 check("first_fill_is_quiet", el.getAttribute("aria-live") === "off");
 run();
 check("live_after_first_fill", el.getAttribute("aria-live") === "polite");
 const kitchen = el.children[2];
 now += 3000;
-box.update([["Kitchen", "Kitchen: empty."], ["Office", "Office: Garry's phone."]]);
+box.update([["Kitchen", "Kitchen: empty."], ["Office", "Office: Alex's phone."]]);
 check("not_before_10s", box.text().startsWith("Den: Followed thing."));
 now += 6000; run();
 check("still_waiting_9s", box.text().startsWith("Den: Followed thing."));
 now += 1000; run();
-check("after_10s", box.text() === "Kitchen: empty. Office: Garry's phone.", box.text());
+check("after_10s", box.text() === "Kitchen: empty. Office: Alex's phone.", box.text());
 check("same_room_node_kept", el.children[0] === kitchen);
 box.clear();
 check("clear_empties", el.children.length === 0);

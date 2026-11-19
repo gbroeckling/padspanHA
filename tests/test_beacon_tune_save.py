@@ -227,7 +227,7 @@ class TestBeaconTuneFlows:
         out = _flows()["fabricOnly"]
         assert out["autoPinned"] == 0
         assert out["calls"] == ["ibeacon:door", "entity:device_tracker.fob"]
-        assert [t.split(" moves with someone")[0] for t in out["toasts"]] == ["Garry's Phone", "Pixel app", "Car Keys"]
+        assert [t.split(" moves with someone")[0] for t in out["toasts"]] == ["Alex's Phone", "Pixel app", "Car Keys"]
         # every placement still runs its 60 s capture
         assert len(out["captures"]) == 5
 
@@ -246,7 +246,7 @@ class TestBeaconTuneFlows:
         out = _flows()["saveHeld"]
         assert out["calls"] == []
         # Save starts no capture, so it doesn't promise one.
-        assert out["toasts"] == ["Garry's Phone moves with someone (a phone or Find My tag) - not pinned"]
+        assert out["toasts"] == ["Alex's Phone moves with someone (a phone or Find My tag) - not pinned"]
 
 
 class TestBeaconTuneIsWired:

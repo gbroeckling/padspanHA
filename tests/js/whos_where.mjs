@@ -48,7 +48,7 @@ check("rooms: nearest scanner, and what three placed add", three.tone === "ok" &
 // ── who is where ─────────────────────────────────────────────────────────────
 const objects = [
   { kind: "private_ble", key: "irk:aa", canonical_id: "irk:aa", private_ble_name: "Anna's iPhone", room: "Kitchen", age_s: 2 },     // known to HA, not tracked: Track
-  { kind: "private_ble", key: "irk:bb", canonical_id: "irk:bb", private_ble_name: "Garry's iPhone", user_label: "Garry", room: "Den", age_s: 2 },
+  { kind: "private_ble", key: "irk:bb", canonical_id: "irk:bb", private_ble_name: "Alex's iPhone", user_label: "Alex", room: "Den", age_s: 2 },
   { kind: "ble", address: "11:11", name: "Keys", identified: true, room: "Kitchen", age_s: 3 },
   { kind: "ble", address: "22:22", room: "Kitchen", age_s: 1 },             // a stranger: counted, not named
   { kind: "ble", address: "33:33", room: "Kitchen", age_s: 1 },
@@ -70,7 +70,7 @@ const k = byRoom.Kitchen;
 check("Kitchen: Anna to track, Keys known, two strangers counted", k && k.people.length === 2 && k.others === 2
   && k.people[0].name === "Anna's iPhone" && k.people[0].track === true && k.people[0].key === "irk:aa"
   && k.people[1].name === "Keys" && k.people[1].track === false, k);
-check("a labelled phone is known, not offered again", byRoom.Den.people.length === 1 && byRoom.Den.people[0].name === "Garry" && !byRoom.Den.people[0].track, byRoom.Den);
+check("a labelled phone is known, not offered again", byRoom.Den.people.length === 1 && byRoom.Den.people[0].name === "Alex" && !byRoom.Den.people[0].track, byRoom.Den);
 check("away, stale and the scanner itself are left out", byRoom.Den.others === 0 && !rows.some(r => r.people.some(p => /Old tag|Ghost|proxy itself/.test(p.name))));
 check("an entity a radio stands for is counted once", k.people.filter(p => p.name.startsWith("Keys")).length === 1);
 check("followed counts as known", byRoom.Hall.people.length === 1 && byRoom.Hall.people[0].name === "Followed thing");
@@ -96,13 +96,13 @@ check("no such row when there's nobody in it", !WW.whoIsWhere(snapOf(radios, obj
 // ── phones Home Assistant knows, not heard now ───────────────────────────────
 const devices = [
   { name: "Anna's iPhone", canonical_id: "irk:aa", source: "private_ble_device" },      // heard: on the room list instead
-  { name: "Garry's iPhone", canonical_id: "irk:bb", source: "private_ble_device" },     // labelled
-  { name: "Nicole's Watch", canonical_id: "irk:cc", source: "private_ble_device" },     // not heard, not tracked: offered
+  { name: "Alex's iPhone", canonical_id: "irk:bb", source: "private_ble_device" },     // labelled
+  { name: "Jordan's Watch", canonical_id: "irk:cc", source: "private_ble_device" },     // not heard, not tracked: offered
   { name: "Bob's Pixel", canonical_id: "irk:dd", source: "settings" },                   // PadSpan's own IRK list, not HA's
   { name: "Followed", canonical_id: "irk:ee", source: "private_ble_device" },          // followed
 ];
-const nh = WW.phonesNotHeard(devices, { "IRK:BB": "Garry" }, ["irk:aa"], (key) => key === "irk:ee");
-check("not heard: only Nicole's Watch", nh.length === 1 && nh[0].name === "Nicole's Watch" && nh[0].key === "irk:cc", nh);
+const nh = WW.phonesNotHeard(devices, { "IRK:BB": "Alex" }, ["irk:aa"], (key) => key === "irk:ee");
+check("not heard: only Jordan's Watch", nh.length === 1 && nh[0].name === "Jordan's Watch" && nh[0].key === "irk:cc", nh);
 check("not heard copes with nothing", WW.phonesNotHeard(null, null, null).length === 0);
 
 // ── the card ─────────────────────────────────────────────────────────────────
@@ -126,7 +126,7 @@ const mkCtx = (mode, snap) => ({
     wsCall: async (type, data) => {
       calls.push([type, data]);
       if (type === "padspan_ha/private_ble_status") return { devices };
-      if (type === "padspan_ha/object_label_list") return { labels: { "IRK:BB": "Garry" } };
+      if (type === "padspan_ha/object_label_list") return { labels: { "IRK:BB": "Alex" } };
       return {};
     },
     renderRooms: () => calls.push(["renderRooms"]),
@@ -150,7 +150,7 @@ await tick();
 await tick();
 check("it asked Home Assistant's phones and PadSpan's labels once", calls.filter(c => c[0] === "padspan_ha/private_ble_status").length === 1
   && calls.filter(c => c[0] === "padspan_ha/object_label_list").length === 1, calls);
-check("a known phone not heard now is offered", /Not heard right now/.test(text()) && /Nicole's Watch/.test(text()), text());
+check("a known phone not heard now is offered", /Not heard right now/.test(text()) && /Jordan's Watch/.test(text()), text());
 
 // Track Anna.
 const trackBtns = [...card.querySelectorAll("button")].filter(b => b.textContent === "Track");
@@ -225,13 +225,13 @@ check("an administrator still has Track", [...WW.whosWhereCard(ctx6).querySelect
 
 // A phone the snapshot still holds but shows as away is "not heard right now".
 followed.clear();
-const awayPhone = [{ kind: "private_ble", key: "irk:cc", canonical_id: "irk:cc", private_ble_name: "Nicole's Watch", room: "Den", age_s: 9999 }];
+const awayPhone = [{ kind: "private_ble", key: "irk:cc", canonical_id: "irk:cc", private_ble_name: "Jordan's Watch", room: "Den", age_s: 9999 }];
 const ctx7 = mkCtx("live", snapOf(radios, awayPhone));
 const card7 = WW.whosWhereCard(ctx7);
 document.body.appendChild(card7);
 await tick();
 await tick();
-check("an away phone still in the snapshot is listed as not heard", /Not heard right now/.test(card7.textContent) && /Nicole's Watch/.test(card7.textContent), card7.textContent);
+check("an away phone still in the snapshot is listed as not heard", /Not heard right now/.test(card7.textContent) && /Jordan's Watch/.test(card7.textContent), card7.textContent);
 
 // Names are text, never markup.
 const ctx3 = mkCtx("live", snapOf(radios, [{ kind: "ble", address: "x", user_label: "<img src=x onerror=alert(1)>", room: "Kitchen", age_s: 1 }]));

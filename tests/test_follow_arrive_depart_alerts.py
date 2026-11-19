@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Arrival/departure Follow alerts.
 
-Garry, 2026-09-10: "do 2-10" (from a missing-features shortlist) — #4: the
+2026-09-10: "do 2-10" (from a missing-features shortlist) — #4: the
 _arrived/_departed sets were already computed every poll and already fed
 the HA bus events (padspan_device_arrived/departed) and PadSpan automation
 rules, but never reached the user-facing notify path on_room_change already
@@ -57,14 +57,14 @@ async def test_arrive_alert_fires_when_configured_and_labelled():
         "AA:BB:CC:DD:EE:FF": {"email": "me@example.com", "on_arrive": True, "notify_service": "mobile_app_phone"},
     })
     result = {
-        "ble:AA:BB:CC:DD:EE:FF": {"user_label": "Garry's Phone", "room": "Living Room", "address": "AA:BB:CC:DD:EE:FF"},
+        "ble:AA:BB:CC:DD:EE:FF": {"user_label": "Alex's Phone", "room": "Living Room", "address": "AA:BB:CC:DD:EE:FF"},
     }
     await coord._run_automations({"ble:AA:BB:CC:DD:EE:FF"}, set(), result, now=1000.0)
     coord.hass.services.async_call.assert_awaited()
     call = coord.hass.services.async_call.call_args
     assert call.args[0] == "notify"
     assert "arrived" in call.args[2]["message"]
-    assert "Garry's Phone" in call.args[2]["message"]
+    assert "Alex's Phone" in call.args[2]["message"]
 
 
 @pytest.mark.asyncio
@@ -75,10 +75,10 @@ async def test_depart_alert_fires_when_configured():
     from for exactly this reason."""
     coord = _make_coordinator(
         {"AA:BB:CC:DD:EE:FF": {"email": "me@example.com", "on_depart": True, "notify_service": "mobile_app_phone"}},
-        obj_store_entries={"ble:AA:BB:CC:DD:EE:FF": {"label": "Garry's Phone"}},
+        obj_store_entries={"ble:AA:BB:CC:DD:EE:FF": {"label": "Alex's Phone"}},
     )
     result: dict[str, Any] = {}
-    coord._known_objs = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Garry's Phone", "address": "AA:BB:CC:DD:EE:FF"}}
+    coord._known_objs = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Alex's Phone", "address": "AA:BB:CC:DD:EE:FF"}}
     await coord._run_automations(set(), {"ble:AA:BB:CC:DD:EE:FF"}, result, now=1000.0)
     coord.hass.services.async_call.assert_awaited()
     assert "left" in coord.hass.services.async_call.call_args.args[2]["message"]
@@ -89,7 +89,7 @@ async def test_no_alert_when_on_arrive_is_not_set():
     coord = _make_coordinator({
         "AA:BB:CC:DD:EE:FF": {"email": "me@example.com", "on_room_change": True},  # on_arrive absent
     })
-    result = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Garry's Phone", "address": "AA:BB:CC:DD:EE:FF"}}
+    result = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Alex's Phone", "address": "AA:BB:CC:DD:EE:FF"}}
     await coord._run_automations({"ble:AA:BB:CC:DD:EE:FF"}, set(), result, now=1000.0)
     coord.hass.services.async_call.assert_not_awaited()
 
@@ -116,7 +116,7 @@ async def test_arrive_and_room_change_cooldowns_are_independent():
         "AA:BB:CC:DD:EE:FF": {"email": "me@example.com", "on_arrive": True, "notify_service": "mobile_app_phone"},
     })
     coord._alert_last_sent["ble:AA:BB:CC:DD:EE:FF:room"] = 999.0  # room-change alert JUST sent
-    result = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Garry's Phone", "room": "Living Room", "address": "AA:BB:CC:DD:EE:FF"}}
+    result = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Alex's Phone", "room": "Living Room", "address": "AA:BB:CC:DD:EE:FF"}}
     await coord._run_automations({"ble:AA:BB:CC:DD:EE:FF"}, set(), result, now=1000.0)
     coord.hass.services.async_call.assert_awaited()  # arrive alert must still fire
 
@@ -127,7 +127,7 @@ async def test_repeated_arrival_within_60s_is_throttled():
         "AA:BB:CC:DD:EE:FF": {"email": "me@example.com", "on_arrive": True, "notify_service": "mobile_app_phone"},
     })
     coord._alert_last_sent["ble:AA:BB:CC:DD:EE:FF:arrive"] = 1000.0
-    result = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Garry's Phone", "address": "AA:BB:CC:DD:EE:FF"}}
+    result = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Alex's Phone", "address": "AA:BB:CC:DD:EE:FF"}}
     await coord._run_automations({"ble:AA:BB:CC:DD:EE:FF"}, set(), result, now=1030.0)  # 30s later
     coord.hass.services.async_call.assert_not_awaited()
 

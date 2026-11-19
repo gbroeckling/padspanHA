@@ -198,7 +198,7 @@ await check("the offer is counted once per surface, never with the email", async
 await check("a bad email is refused before anything is sent", async () => {
   const { host, calls } = makeHost({ answer: { ok: true } });
   const card = T.trialOfferCard(host, "atlas");
-  for (const bad of ["", "garry", "garry@", "garry@localhost", "gar ry@example.com"]) {
+  for (const bad of ["", "alex", "alex@", "alex@localhost", "al ex@example.com"]) {
     type(card, bad);
     find(card, "start").click();
     await settle();
@@ -439,7 +439,7 @@ await check("the card's dismiss and done are persisted, not optional-chained int
     "a Getting started event is not fired");
 });
 
-// Every free offer needs the opt-in usage report on (Garry, 2026-10-27).
+// Every free offer needs the opt-in usage report on (2026-10-27).
 await check("report off: the card asks in the same step, and refuses without the tick", async () => {
   T._resetTrialOffer();
   const h = makeHost({ settings: { tier: "free", pro_has_key: false, telemetry_enabled: false },

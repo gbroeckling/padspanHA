@@ -25,11 +25,11 @@ def ad(addr, src, rssi, age):
 class FakeRes(PrivateBLEResolver):
     def __init__(self, hass):
         super().__init__(hass)
-        self._devices = [{"canonical_id": "irk_garry", "name": "Garry iPhone", "irk_bytes": b"\0" * 16}]
+        self._devices = [{"canonical_id": "irk_alex", "name": "Alex iPhone", "irk_bytes": b"\0" * 16}]
 
     def resolve_address(self, address):
         if address.upper() in IRK:
-            return {"canonical_id": "irk_garry", "name": "Garry iPhone", "kind": "private_ble"}
+            return {"canonical_id": "irk_alex", "name": "Alex iPhone", "kind": "private_ble"}
         return None
 
 
@@ -45,7 +45,7 @@ async def test_an_irk_phone_with_a_bridged_guest_address_is_still_a_person(monke
     objs, _ = await house.poll(30, [ad(G, "off", -55, 0.5), ad(G, "kit", -72, 0.5),
                                     ad(P_CUR, "kit", -50, 1), ad(P_CUR, "off", -70, 1),
                                     ad(P_OLD, "kit", -50, 31)])
-    irk = [o for o in objs.values() if o.get("canonical_id") == "irk_garry"]
+    irk = [o for o in objs.values() if o.get("canonical_id") == "irk_alex"]
     assert irk and not any(o.get("bridge_match") for o in irk)
     objects = [dict(o, room="Kitchen") for o in irk]
     people = []

@@ -83,7 +83,7 @@ def test_lv_stage_excludes_native_pinch_zoom_but_keeps_native_pan():
     wireStageTouch's own JS pinch handling for the same gesture — on a real
     touchscreen the OS/browser zoom quietly won, changing the whole page's
     zoom and resizing the stage out from under wherever the app had just
-    scrolled it (Garry: "the system autoadjusts the placement... I think
+    scrolled it ("the system autoadjusts the placement... I think
     the zoom is the one built into windows"). touch-action:pan-x pan-y
     keeps native panning (what the fix above still needs) while excluding
     the browser's own pinch-zoom recognition specifically, leaving

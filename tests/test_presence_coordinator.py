@@ -597,7 +597,7 @@ class TestEdgeCases:
         mock_calib.data = {"points": [{"x": i} for i in range(10)]}
         mock_calib.knn_locate = MagicMock(return_value={
             "confidence": 0.8,
-            "nearest_room": "Nicoles---Purse",   # device label, not a room
+            "nearest_room": "Jordans---Purse",   # device label, not a room
             "x_m": 4.2,
             "y_m": 3.1,
             "floor_id": "main",

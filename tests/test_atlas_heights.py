@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Heights for Live Aboard: one record, a tool on the Atlas for every device.
 
-Garry, 2026-10-05: "Device placement on atlas is good until we get to sims,
+2026-10-05: "Device placement on atlas is good until we get to sims,
 needs same information store, but needs to be a tool to add the third
 dimension for the sims view, height mostly ... This needs to be an element
 for all devices."
@@ -14,7 +14,7 @@ Preview nothing is fetched; the inspector's Height row with each kind's
 chips, its cm box and Live Aboard's default; Undo; Save placements sending a
 height only when the row set one; the Heights list sorted, filtered and set
 in bulk with one Undo; the hover box; and buildIsoSVG byte for byte the same
-with heights in the records (on Garry's own house too when its private
+with heights in the records (on a real house too when its private
 export is on this PC: PADSPAN_HOUSE_EXPORT, never in the repo).
 
 tests/js/live_aboard_heights.mjs runs Live Aboard's rules and the real 3D

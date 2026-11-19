@@ -5,7 +5,7 @@
 // Live Aboard on the wall panel, and the people in it
 // (views/live_aboard_panel.js, live_aboard_tracked.js, atlas_aboard.js,
 // live_aboard_people.js), run for real inside the real 3D view under the DOM
-// shim with a stub GL, on a house shaped like Garry's (a basement of five
+// shim with a stub GL, on a house shaped like the owner's (a basement of five
 // rooms under a main floor of eleven, five rooms upstairs over part of it):
 //
 //   homefloor  with no home set and Explode off, the floor with the most
@@ -92,7 +92,7 @@ const settle = async (rounds = 14) => { await shim.flush(rounds); await new Prom
 async function later(ms, rounds = 8){ clockOff += ms; await settle(rounds); }
 const near = (a, b, e = 1e-3) => Array.isArray(a) ? a.every((v, i) => Math.abs(v - b[i]) < e) : Math.abs(a - b) < e;
 
-// ── the house: like Garry's, by its numbers (no names of his) ────────────────
+// ── the house: like the owner's, by its numbers (no names of his) ────────────────
 const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
 const ROOMS = {};
 // The main floor: eleven rooms across 22 × 10 m (the Den at its east end).

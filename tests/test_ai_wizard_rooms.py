@@ -213,7 +213,7 @@ def test_an_area_is_matched_never_made_twice_put_on_its_floor_and_a_failure_is_a
     assert W.create_area(_Areas(fail=True), _Floors(), "Den", "main") == "failed"
 
 
-# ═══ the rooms commands for the helper, Live Aboard off (Garry, 2026-11-10) ═══
+# ═══ the rooms commands for the helper, Live Aboard off (2026-11-10) ═══
 
 def _bare(monkeypatch, tmp_path, disk, areas=()):  # noqa: F811
     """The test floor with no rooms, Live Aboard off, the helper's areas."""

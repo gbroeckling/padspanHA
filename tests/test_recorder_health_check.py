@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The recorder-health check in ws_fabric_health's Phase 4.
 
-Garry, 2026-09-07: "How about a padspan recorder [health check] as well so
+2026-09-07: "How about a padspan recorder [health check] as well so
 this is consistent?" — after a real incident where HA's own recorder went
 silently comatose for five days (thread alive, queue draining, but zero rows
 landing in the database) with nothing anywhere warning about it. There is no

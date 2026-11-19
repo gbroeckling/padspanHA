@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Vacation Mode replays last week, with a monthly-average choice (Garry,
+"""Vacation Mode replays last week, with a monthly-average choice (the owner,
 2026-10-31: "Is a read of the previous week, not a 'is it dark outside'? Also
 add monthly average button too for the weekday choice."). The evening lights
 follow the same history instead of sunset."""

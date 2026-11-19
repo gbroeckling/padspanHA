@@ -6,7 +6,7 @@
 Home Assistant builds an ID from the name: with has_entity_name it is the
 device's name then the entity's (the entity's alone without has_entity_name),
 slugified. So a labelled device's IDs carry no padspan_ (device_tracker.car_keys,
-sensor.car_keys_area, as in Garry's house: device_tracker.tesla,
+sensor.car_keys_area, as in a real house: device_tracker.tesla,
 sensor.tesla_area), while the entities whose device or own name starts with
 "PadSpan" do. The occupancy sensor is both "PadSpan Occupancy" and "Occupancy",
 so its ID has the word twice; Manage → HA Entities used to print it once.

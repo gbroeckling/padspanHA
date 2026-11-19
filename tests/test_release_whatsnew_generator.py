@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """scripts/release.py's #whatsnew auto-generation.
 
-Garry, 2026-09-10: GitHub #72 — the landing page's What's New section is
+2026-09-10: GitHub #72 — the landing page's What's New section is
 hand-authored prose, and nothing ever forced anyone to update it. 25
 releases (v0.38.7 through v0.38.31) shipped with the page never mentioning
 any of them. This generates one entry per release straight from that

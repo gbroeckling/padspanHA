@@ -67,8 +67,8 @@ def test_a_figure_is_saved_with_its_settings_checked(disk, tmp_path):
     num = _p("num")
     fig = _figure(**{num["key"]: num["max"] + 5})
     fig["params"]["colors"] = {n: "#ABCDEF" for n in fig["params"]["colors"]}
-    out = _edit(h, conn, figures={"person.garry": fig})
-    saved = out["data"]["figures"]["person.garry"]
+    out = _edit(h, conn, figures={"person.alex": fig})
+    saved = out["data"]["figures"]["person.alex"]
     assert saved["origin"] == "build"
     assert saved["params"][num["key"]] == num["max"], "numbers clamped"
     assert set(saved["params"]["colors"].values()) == {"#abcdef"}
@@ -78,23 +78,23 @@ def test_a_figure_is_saved_with_its_settings_checked(disk, tmp_path):
 
 def test_a_setting_left_out_is_its_default(disk, tmp_path):
     h, conn = _on(tmp_path)
-    out = _edit(h, conn, figures={"person.nicole": {"params": {}, "origin": "photo"}})
-    assert out["data"]["figures"]["person.nicole"]["params"] == B.clamp_figure({})
+    out = _edit(h, conn, figures={"person.jordan": {"params": {}, "origin": "photo"}})
+    assert out["data"]["figures"]["person.jordan"]["params"] == B.clamp_figure({})
 
 
 _BAD_FIGURES = {
-    "a key that is not a person": {"light.garry": None},
+    "a key that is not a person": {"light.alex": None},
     "a person with no name": {"person.": None},
-    "a person in capitals": {"person.Garry": None},
-    "an entry that is not an object": {"person.garry": "tall"},
-    "no origin": {"person.garry": {"params": {}}},
-    "an origin not photo or build": {"person.garry": {"params": {}, "origin": "library"}},
-    "an extra key": {"person.garry": {"params": {}, "origin": "build", "shared": True}},
-    "params not an object": {"person.garry": {"params": [], "origin": "build"}},
-    "a setting FIGURE does not have": {"person.garry": {"params": {"likeness": "exact"}, "origin": "build"}},
-    "a colour for a part FIGURE does not have": {"person.garry": {"params": {"colors": {"eyes": "#000000"}},
+    "a person in capitals": {"person.Alex": None},
+    "an entry that is not an object": {"person.alex": "tall"},
+    "no origin": {"person.alex": {"params": {}}},
+    "an origin not photo or build": {"person.alex": {"params": {}, "origin": "library"}},
+    "an extra key": {"person.alex": {"params": {}, "origin": "build", "shared": True}},
+    "params not an object": {"person.alex": {"params": [], "origin": "build"}},
+    "a setting FIGURE does not have": {"person.alex": {"params": {"likeness": "exact"}, "origin": "build"}},
+    "a colour for a part FIGURE does not have": {"person.alex": {"params": {"colors": {"eyes": "#000000"}},
                                                                   "origin": "build"}},
-    "a colour that is not #rrggbb": {"person.garry": {"params": {"colors": {"top": "navy"}}, "origin": "build"}},
+    "a colour that is not #rrggbb": {"person.alex": {"params": {"colors": {"top": "navy"}}, "origin": "build"}},
 }
 
 
@@ -111,7 +111,7 @@ def test_wrong_values_for_figure_settings_are_refused(disk, tmp_path, make):
     h, conn = _on(tmp_path)
     p = _p(make)
     bad = {"choice": "not-a-choice", "num": "1.8", "bool": "yes"}[make]
-    out = _edit(h, conn, figures={"person.garry": _figure(**{p["key"]: bad})})
+    out = _edit(h, conn, figures={"person.alex": _figure(**{p["key"]: bad})})
     assert out.get("error") == "invalid" and p["key"] in out["message"]
     assert disk.writes == []
 
@@ -126,11 +126,11 @@ def test_at_most_fifty_figures(disk, tmp_path):
 
 def test_removing_a_figure_removes_all_of_it_and_a_change_keeps_a_newer_padspans_keys(disk, tmp_path):
     h, conn = _on(tmp_path)
-    _seed(tmp_path, {"schema": 1, "figures": {"person.garry": {**_figure(), "pose": "waving"},
-                                              "person.nicole": {**_figure(), "pose": "sitting"}}})
-    out = _edit(h, conn, figures={"person.garry": None, "person.nicole": _figure()})
-    assert "person.garry" not in out["data"]["figures"], "deleting a figure removes its recipe"
-    assert out["data"]["figures"]["person.nicole"]["pose"] == "sitting", "what this version doesn't know stays"
+    _seed(tmp_path, {"schema": 1, "figures": {"person.alex": {**_figure(), "pose": "waving"},
+                                              "person.jordan": {**_figure(), "pose": "sitting"}}})
+    out = _edit(h, conn, figures={"person.alex": None, "person.jordan": _figure()})
+    assert "person.alex" not in out["data"]["figures"], "deleting a figure removes its recipe"
+    assert out["data"]["figures"]["person.jordan"]["pose"] == "sitting", "what this version doesn't know stays"
 
 
 def test_a_figure_whose_person_is_gone_stays_until_removed(disk, tmp_path):
@@ -205,11 +205,11 @@ def test_no_figure_data_in_the_usage_report():
     h = _hass()
     h.data[DOMAIN][DATA_HOUSE3D] = SimpleNamespace(data={
         "schema": 1, "pieces": {}, "lights": {}, "openings": {}, "devices": {},
-        "figures": {"person.garry": {"params": {"height_m": 1.83, "build": "broad",
+        "figures": {"person.alex": {"params": {"height_m": 1.83, "build": "broad",
                                                 "colors": {"hair": "#3a2a1b", "top": "#224467"}},
                                      "origin": "photo"}}})
     payload = json.dumps(T.build_payload(h))
-    for leak in ("person.garry", "garry", "#3a2a1b", "#224467", "1.83", "figures"):
+    for leak in ("person.alex", "alex", "#3a2a1b", "#224467", "1.83", "figures"):
         assert leak not in payload, leak
 
 

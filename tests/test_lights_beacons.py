@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Working, proven beacons on the Mapping → Lights map — read only.
 
-Garry, 2026-09-09: "add working proven beacons to the mapping, lights
+2026-09-09: "add working proven beacons to the mapping, lights
 section under devices. For now have them look the same as they do in
 overview." Followed up with "keep it basic as per your recommend" — this is
 deliberately NOT a port of Overview's own beacon subsystem (away/present

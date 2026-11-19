@@ -4,7 +4,7 @@
 """Setup checks (setup_checks.py, 0.38.193): the Overview's accuracy tips and
 the report's new counts.
 
-Garry, 2026-10-28: "Do 2 and 3, and opt in upgrades". The report showed most
+2026-10-28: "Do 2 and 3, and opt in upgrades". The report showed most
 multi-floor homes skip floor heights, receiver heights and a real-world
 scale, so the Overview says so to an administrator; and the report now
 counts rooms drawn over each other, the stairs in the 3D file (and how many
@@ -35,7 +35,7 @@ def test_rooms_drawn_over_each_other_are_counted_by_pairs():
     assert C.rooms_overlapping(side_by_side) == 0, "a shared wall is not an overlap"
     near = {"A": _rect("main", 0, 0, 4, 3), "B": _rect("main", 3.95, 0, 8, 3)}
     assert C.rooms_overlapping(near) == 0, "outlines a few centimetres apart are not counted"
-    # Garry's Garage and Laundry: 17 cm over each other.
+    # A real home's Garage and Laundry: 17 cm over each other.
     garage = {"Garage": _rect("main", 3.3, -16.48, 11.15, -9.03), "Laundry": _rect("main", 7.89, -9.20, 9.80, -6.08)}
     assert C.rooms_overlapping(garage) == 1
     other_floor = {"A": _rect("main", 0, 0, 4, 3), "B": _rect("up", 1, 1, 3, 2)}

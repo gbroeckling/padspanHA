@@ -496,7 +496,7 @@ class FakeFleet:
         return await dev.handle(method, path, body)
 
 
-def simple_device(host: str = "192.168.2.118", *, mac: str = "28562f551738", ver: str = "0.15.3",
+def simple_device(host: str = "192.168.0.118", *, mac: str = "28562f551738", ver: str = "0.15.3",
                   arch: str = "esp32", segs: int = 2, white: bool = True, on: bool = True) -> FakeWled:
     """A small Quin-like device: a 5-channel PWM output + a digital strip per
     extra segment, each its own segment."""

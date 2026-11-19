@@ -167,7 +167,7 @@ run("editions module missing still renders", { whatsnew_seen_version: "0.0.1" },
     if (c._notesOpened !== 1) throw new Error("the notes did not open without editions.js");
   });
 
-// 5b. Garry, 2026-09-28: "release notes screen has no way to close on touch
+// 5b. 2026-09-28: "release notes screen has no way to close on touch
 //     monitor". See what changed was a link to padspan.traks.ca in a new tab,
 //     which a wall screen in Chrome --kiosk can't close. It opens the notes
 //     over the panel now (views/release_notes.js, tests/js/release_notes.mjs),

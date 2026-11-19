@@ -1,7 +1,7 @@
 """Live Aboard, the 3D house — build step 1: the switch and the empty store.
 
 Plan: docs/IDEA_ATLAS_3D_HOUSE.md on the live-aboard branch ("Normally off",
-"Data", "Undoing it"). Garry, 2026-09-30: "make sure this is an option that is
+"Data", "Undoing it"). 2026-09-30: "make sure this is an option that is
 normally off for now", "Make sure anything here is reversable".
 
 What these tests hold the feature to before any 3D code exists:

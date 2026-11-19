@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Quicker photo reads (Garry, 2026-10-31, "Full"): a furniture photo with no
+"""Quicker photo reads (2026-10-31, "Full"): a furniture photo with no
 kind picked gets a quick look first (what it is, nothing else), then that
 kind's own read; when the quick look isn't enough, the full first read runs as
 before. Never a weaker answer, only sometimes a slower one.

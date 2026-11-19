@@ -171,7 +171,7 @@ def test_the_help_says_a_tap_switches_and_where_it_is_turned_off_in_every_langua
 
 
 def test_on_a_wall_the_whole_list_fits_the_screen_without_scrolling() -> None:
-    """Garry's wall (1280x720 at 1.5, touch), 2026-11-09, "fits the wall": the
+    """A real wall screen (1280x720 at 1.5, touch), 2026-11-09, "fits the wall": the
     list scrolled 1248 px of lines in a 475 px box. On a wall it is as wide and
     tall as the screen lets it be, up to four columns, plain names only (a line
     not set up keeps its one note under it), rows still 40 px for a finger.

@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The Lights map's arrow-key nudge only fires while the pointer is over it.
 
-Garry, 2026-09-09: "some of the motion sensors on the lights tab are
+2026-09-09: "some of the motion sensors on the lights tab are
 beginning to wander from their locations." Root cause, by code review: the
 map stage keeps DOM keyboard focus for as long as nothing else takes it —
 clicking non-interactive page content (reading something, say) never moves

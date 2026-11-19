@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The sidebar's own light-index row long-press (lights_map.js's
 buildLightsTable, host.onRowLongPress — opens the WLED/effects popup for a
-dimmable/fan/lock row) — 2026-09-17 finding, from Garry's own audit request
+dimmable/fan/lock row) — 2026-09-17 finding, from the owner's own audit request
 ("Review if the circle animation is used everywhere... let me know where
 things look scattered"): every OTHER hold-to-secondary-action gesture in the
 app (a map marker via wireUseSurface, a map marker in the Atlas builder, the

@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""scripts/release.py with two sessions at once (Garry, 2026-10-28: "Is there
+"""scripts/release.py with two sessions at once (2026-10-28: "Is there
 a way for you to stop screwing up when two claude sessions are running?").
 
 That day one session took 0.38.191 while the other had numbered its work the

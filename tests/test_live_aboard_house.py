@@ -118,7 +118,7 @@ def test_only_the_house3d_words_count_and_never_an_id() -> None:
     for name in T.HOUSE3D_EVENTS:
         assert T.bump(h, name), name
         assert len(name) <= 64
-    for bad in ("house3d_fallback:", "house3d_fallback:light.kitchen", "house3d_fallback:Nicole's Office",
+    for bad in ("house3d_fallback:", "house3d_fallback:light.kitchen", "house3d_fallback:Jordan's Office",
                 "house3d_opened:main", "house3d_fallback:no_webgl\n", "house3d_shown"):
         assert not T.bump(h, bad), bad
     assert set(h.data[DOMAIN][T._DATA_COUNTERS]) == set(T.HOUSE3D_EVENTS)

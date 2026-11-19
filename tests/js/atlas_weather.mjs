@@ -129,7 +129,7 @@ tryCase("table: a snowfall warning without wet is still off", () => {
   const b = decide({ atlas_weather_rain_entity: RAIN }, { [RAIN]: S("off"), ...wx("snowy"), ...ecSnow }, EC_ENT);
   check("table: a snowfall warning without wet is still off", a.kind === "off" && b.kind === "off", { a, b });
 });
-// Garry's house, 2026-11-02: the shape hass.entities and hass.states really
+// A real house, 2026-11-02: the shape hass.entities and hass.states really
 // have (config/entity_registry/list_for_display, get_states), silent since
 // 2026-10-31 01:05 UTC and stuck on "on".
 const NOW = Date.parse("2026-11-02T21:00:00Z"), OLD = "2026-10-31T01:05:15+00:00", FRESH = "2026-11-02T20:59:00+00:00";
@@ -222,7 +222,7 @@ tryCase("stale: the date Settings names", () => {
     && WX.rainSensorStaleSince(RAIN, st, null, NOW) === null && WX.rainSensorStaleSince(RAIN, null, DEV, NOW) === null);
 });
 tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
-  // Garry's house, 2026-10-06: the solar rain sensor on all morning at 3029 mV
+  // A real house, 2026-10-06: the solar rain sensor on all morning at 3029 mV
   // (3 mV dry) under a partly cloudy sky: dew on the sensor, rain on the Atlas.
   const on = { atlas_weather_rain_entity: RAIN };
   const got = {};
@@ -430,7 +430,7 @@ tryCase("fallback: the rain-sensor list is only actual rain sensors", () => {
     && JSON.stringify(WX.rainSensorIds(null)) === "[]", got);
 });
 tryCase("fallback: the warnings list never offers a leak detector", () => {
-  // Garry's house, 2026-10-04: a Sinopé leak detector named "Emergency Flood
+  // A real house, 2026-10-04: a Sinopé leak detector named "Emergency Flood
   // Warning ⚠️" had been picked as the weather warnings source.
   const st = {
     "binary_sensor.sinope_technologies_wl4210": S("unavailable", { device_class: "moisture", friendly_name: "Emergency Flood Warning ⚠️" }),
@@ -444,7 +444,7 @@ tryCase("fallback: the warnings list never offers a leak detector", () => {
     && JSON.stringify(WX.warningPickerIds(null)) === "[]", got);
 });
 tryCase("warnings: a leak detector chosen as the warning is ignored; detection takes over", () => {
-  // Garry's house, 2026-10-06: the Sinopé leak detector was still the stored
+  // A real house, 2026-10-06: the Sinopé leak detector was still the stored
   // warning entity, picked before the list left leak detectors out.
   const LEAK = "binary_sensor.sinope_technologies_wl4210";
   const leak = (state) => ({ [LEAK]: S(state, { device_class: "moisture", friendly_name: "Emergency Flood Warning ⚠️" }) });
@@ -697,7 +697,7 @@ tryCase("tiles: made once per colour, the same every time", () => {
     && a.r0.startsWith('url("data:image/svg+xml,') && c.s0.includes(encodeURIComponent("#dceeff")), ids);
 });
 tryCase("tiles: rain is many hairline streaks falling fast, snow slow soft flakes as it was", () => {
-  // Garry, 2026-11-06: rain "falls to slowly … looks a lot like snow". Its
+  // 2026-11-06: rain "falls to slowly … looks a lot like snow". Its
   // speed is a tile's height a loop (px/s); snow's tiles are unchanged.
   const R = WX.RAIN_LAYERS, S = WX.SNOW_LAYERS, pxs = (L) => L.h / L.dur;
   const slowestRain = Math.min(...R.map(pxs)), fastestSnow = Math.max(...S.map(pxs));
@@ -1010,11 +1010,11 @@ tryCase("telemetry: closed words, once per page load, never an id or text", () =
   run(wx("snowy"), {}, {}, false);
   run({ [RAIN]: S("on"), ...wx("cloudy") }, {}, { atlas_weather_rain_entity: RAIN });
   run({ "sensor.x": S(1) });
-  run({ ...wx("rainy"), "sensor.custom_alert": S("on", { title: "Rainfall warning for Nicole's street" }) }, {}, { atlas_weather_warning_entity: "sensor.custom_alert" });
-  const rejected = ["weather_error:Nicole", "weather_source:warning:binary_sensor.x", "weather_shown:drizzle", "tab:overview"]
+  run({ ...wx("rainy"), "sensor.custom_alert": S("on", { title: "Rainfall warning for Jordan's street" }) }, {}, { atlas_weather_warning_entity: "sensor.custom_alert" });
+  const rejected = ["weather_error:Jordan", "weather_source:warning:binary_sensor.x", "weather_shown:drizzle", "tab:overview"]
     .map(n => WX.countWeatherOnce(n, telemetry));
   const dup = new Set(sent).size === sent.length;
-  const leak = sent.filter(n => /\.|Nicole|köln|SCHNEE|Rainfall|street/i.test(n) || !WX.WEATHER_EVENTS.includes(n));
+  const leak = sent.filter(n => /\.|Jordan|köln|SCHNEE|Rainfall|street/i.test(n) || !WX.WEATHER_EVENTS.includes(n));
   const want = ["weather_shown:heavy_rain", "weather_shown:heavy_snow", "weather_shown:light_rain", "weather_shown:light_snow", "weather_shown:still",
     "weather_source:condition", "weather_source:none", "weather_source:rain_sensor", "weather_source:warning:env_canada",
     "weather_source:warning:nina", "weather_source:warning:other"];

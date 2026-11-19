@@ -237,7 +237,7 @@ await tryCase("button: an open list or menu sits over Vacation Mode's banner, wh
 
 await tryCase("button: in full screen an open list leaves Vacation Mode's banner over the map, not behind it", async () => {
   // Full screen, the view covers the panel (z COVER_Z) in its own layer, so
-  // the banner's "under the menus" z 4 put it behind the map (Garry, 2026-11-09).
+  // the banner's "under the menus" z 4 put it behind the map (2026-11-09).
   // While covered it stays over the map; the list's box is cut out of it.
   host.requestFullscreen = function(){ document.fullscreenElement = this; fire("document", "fullscreenchange", {}); return Promise.resolve(); };
   document.exitFullscreen = () => { document.fullscreenElement = null; fire("document", "fullscreenchange", {}); return Promise.resolve(); };
@@ -516,7 +516,7 @@ await tryCase("rest: with lines hidden a poll rebuilds nothing, and at rest no f
 
 // ── a screen opened with ticks of its own ───────────────────────────────────
 await tryCase("button: a screen opened with ticks of its own wears the dot from the start, in the accent, plainly", async () => {
-  // Garry's wall, 2026-11-07: three lines unticked there, and no dot after a reload.
+  // A real wall screen, 2026-11-07: three lines unticked there, and no dot after a reload.
   store.set("show_show-c", JSON.stringify({ room_names: false, room_outlines: false, floor_outlines: false }));
   const a = slot;
   await open("show-c");

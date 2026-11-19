@@ -15,7 +15,7 @@ used to land on Library or Appearance, with no sign why:
   sign-up                             report's card
   Manage's "Open Settings"            receiver tuning: not shown in Basic
 
-Since 2026-10-30 (Garry: "no access to things that are so foreign to the user
+Since 2026-10-30 ("no access to things that are so foreign to the user
 that it doesn't tie together") a link from Basic opens just the part it is
 about, with one "← Back", and no link changes the mode. Advanced and
 Development open the whole tab as before. tests/js/basic_focus.mjs renders

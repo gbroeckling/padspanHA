@@ -338,7 +338,7 @@ await tryCase("taps: on unless this screen unticks it (then no light switches, a
     && !bRows.includes("light_taps") && bRows.includes("lights") && JSON.stringify(bTap) === JSON.stringify([["toggle", "light.kitchen"]]),
     { on, rows, off, lock, drag, bRows, bTap, sent: SENT.filter(n => n.includes("light_tap")) });
 });
-// Garry, 2026-11-13 ("make use more intuitive"): the nearest light takes a tap that lands on nothing, and a light
+// 2026-11-13 ("make use more intuitive"): the nearest light takes a tap that lands on nothing, and a light
 // switched says so with Undo.
 await tryCase("aim: a tap on nothing goes to the nearest light within 60 px, not past it; the switch is said, with Undo; the builder as before", async () => {
   const over = { topFloorIds: ["main"], prefs: screenPrefs(), mapOnly: true };
@@ -469,7 +469,7 @@ await tryCase("buttons: off unless ticked; then each light a button, two that ov
       bRows: bRows.includes("light_buttons"), bButtons,
       sent: SENT.filter(n => n.includes("button_tap")) });
 });
-// ── ⋯ "Rooms as light switches" (Garry, 2026-11-14) ─────────────────────────
+// ── ⋯ "Rooms as light switches" (2026-11-14) ─────────────────────────
 await tryCase("rooms: off unless ticked; then a room's floor switches its lights, a hold opens its sheet, and a dark house lights up at the first touch", async () => {
   const SENT = [], many = [];
   const NIGHT = { "sun.sun": { entity_id: "sun.sun", state: "below_horizon", attributes: { azimuth: 10, elevation: -30 } } };
@@ -524,7 +524,7 @@ await tryCase("rooms: off unless ticked; then a room's floor switches its lights
     { rows: rows.includes("room_switch"), before, hit, onLight, first, second, want, callsAfter, hold, holdPanel, holdMany, leak, bHit,
       sent: SENT.filter(n => n.includes("room_tap")) });
 });
-// Garry, 2026-11-13 ("make use more intuitive"): while a tap switches lights, a light in reach beats a lock, a leak mark
+// 2026-11-13 ("make use more intuitive"): while a tap switches lights, a light in reach beats a lock, a leak mark
 // and a motion marker pressed on (a tap meant for a light found the sensor beside it); with no light in reach each
 // answers as ever (the lock and the motion cases above). Before: review 2026-11-11 had only a chip lose to a light.
 await tryCase("taps: a light in reach beats a lock, a leak mark and a motion marker pressed on; pressed on the light, the light", async () => {
@@ -558,7 +558,7 @@ await tryCase("taps: a tag and a person pressed on answer, a light 22 px away or
     ["person", OBJ("irk:pixel", "private_ble", { private_ble_name: "Pixel", linked_entities: ["device_tracker.pixel"] }), (snap) => ({ people: { snapshot: () => snap } })],
   ]) {
     const st = { ...STATES0, "light.near": { state: "off", attributes: { friendly_name: "Near light" } },
-      "person.garry": { state: "home", attributes: { friendly_name: "Garry", device_trackers: ["device_tracker.pixel"] } } };
+      "person.alex": { state: "home", attributes: { friendly_name: "Alex", device_trackers: ["device_tracker.pixel"] } } };
     const states = Object.fromEntries(Object.entries(st).map(([k, v]) => [k, { entity_id: k, last_changed: v.last_changed || iso(NOW - 600e3), ...v }]));
     const lbe = Object.fromEntries(LM.gatherLights(states, { ...AREAS, "light.near": AREAS["binary_sensor.kitchen_leak"] }, {}, "pro", {}, {}, {}, {}, NOW).map(l => [l.entity_id, l]));
     const model = { ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.near": { x_m: p.x_m - 0.3, y_m: p.y_m, floor_id: "main" } } };

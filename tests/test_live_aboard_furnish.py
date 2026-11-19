@@ -7,7 +7,7 @@ tests/js/live_aboard_furnish.mjs runs the Furnish tool for real inside the
 real 3D view and editor under the DOM shim, as Mapping → Furnish mounts it:
 it opens by itself at the furniture tool, Build, a drag that snaps to a wall
 and undoes in one step, Turn, Floor ▲ / ▼ with the floor chips following,
-Height in room (Garry's drop/raise), Duplicate and Delete, "This is a
+Height in room (the owner's drop/raise), Duplicate and Delete, "This is a
 device…", a fit warning, Save, and card rebuilds mid-edit; and what the review
 found: the flows' own styles in Furnish's box, × ending a flow, the flows
 starting from the draft, imports under the ceiling, Build with the plan alone,

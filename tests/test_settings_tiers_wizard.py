@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The Free/Bright/Bright Pro/Pro onboarding wizard.
 
-Garry, 2026-09-09/10: "build a wizzard too" for the documentation/help-guide
+2026-09-09/10: "build a wizzard too" for the documentation/help-guide
 pass, scoped (when asked which of the existing three guided wizards — Maps
 setup, Calibration, the Lights builder tour — it should extend) to "Bright/Pro
 onboarding": a dedicated, SEPARATE walkthrough of what each tier unlocks and
@@ -38,7 +38,7 @@ def test_the_wizard_has_exactly_the_three_scoped_steps():
 
 
 def test_it_is_a_separate_state_key_from_the_other_three_wizards():
-    """Garry: a SEPARATE wizard, not an extension of Maps/Calibration/the
+    """The owner: a SEPARATE wizard, not an extension of Maps/Calibration/the
     Lights tour — each of those already owns its own state key
     (_mapsWizard / _calibWizard / _lightsTour); this one must not collide."""
     s = _read(_VIEWS / "settings.js")

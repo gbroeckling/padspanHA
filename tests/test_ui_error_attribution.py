@@ -104,7 +104,7 @@ def test_each_error_says_its_kind_and_the_line_in_padspans_own_file(result) -> N
     assert a["filename_only"] is None and a["foreign"] is None
     for name in [f"ui_error_kind:{v}" for v in k.values()] + [f"ui_error_at:{v}" for v in a.values() if v]:
         assert T.event_allowed(name), name
-    for bad in ("ui_error_at:overview:0", "ui_error_at:nicoles_office:12", "ui_error_at:overview:123456",
+    for bad in ("ui_error_at:overview:0", "ui_error_at:jordans_office:12", "ui_error_at:overview:123456",
                 "ui_error_at:overview:12:5", "ui_error_kind:weird"):
         assert not T.event_allowed(bad), bad
 

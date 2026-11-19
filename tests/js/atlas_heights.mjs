@@ -36,7 +36,7 @@
 //           and not yet saved: the row's older unsaved one leaves the draft
 //           (the drop stays), so Save placements never sends it
 //   byte    buildIsoSVG is byte for byte the same with heights in the
-//           records as without, on a realistic house and on Garry's own
+//           records as without, on a realistic house and on a real one
 //
 // usage: atlas_heights.mjs <www/padspan-ha dir> [house_export.json]
 // prints one JSON line: { cases: {name: result}, failures: [...], sent: [...] }
@@ -527,7 +527,7 @@ await tryCase("byte: buildIsoSVG is byte-identical with heights in the records, 
     a.length > 1000 && a === b && c === d, { a: a.length, b: b.length });
 });
 if (HOUSE) {
-  await tryCase("byte: the same on Garry's own house", async () => {
+  await tryCase("byte: the same on a real house", async () => {
     const ex = JSON.parse(readFileSync(HOUSE, "utf-8"));
     const model = ex.model, floors = model.floors || [], states = {};
     for (const [eid, s] of Object.entries(ex.light_states || {})) {
@@ -543,7 +543,7 @@ if (HOUSE) {
     for (const r of Object.values(high.light_positions_m || {})) { r.z_m = 0.4 + (n++ % 9) * 0.25; }
     const mk = (m) => ISO.buildIsoSVG(m, {}, new Set(), null, 150, 0, lbe, false, floors, { codeChip: true, hitHalo: true });
     const a = mk(model), b = mk(high);
-    check("byte: the same on Garry's own house", n > 10 && a.length > 1000 && a === b, { n, a: a.length, b: b.length });
+    check("byte: the same on a real house", n > 10 && a.length > 1000 && a === b, { n, a: a.length, b: b.length });
   });
 }
 

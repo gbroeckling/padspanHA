@@ -127,7 +127,7 @@ def test_sanitize_showcase_presets_returns_empty_list_for_non_list_input():
 
 
 def test_sanitize_showcase_presets_carries_the_layout_trio_when_present():
-    """Garry (2026-09-12): "include more elements into this feature" — a
+    """The owner (2026-09-12): "include more elements into this feature" — a
     preset may now carry the Floor / Spacing / L-R layout, under the SAME
     keys Save view writes, clamped exactly like the live setters."""
     out = _sanitize_showcase_presets([_preset(

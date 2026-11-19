@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The release notes open inside the panel, and close on a touch screen.
 
-Garry, 2026-09-28: "release notes screen has no way to close on touch
+2026-09-28: "release notes screen has no way to close on touch
 monitor". The Overview's "PadSpan HA updated" card had "See what changed" as a
 link to padspan.traks.ca in a new tab. The wall screens run Chrome --kiosk:
 no tab strip, no keyboard, so that tab could not be closed and the screen was
