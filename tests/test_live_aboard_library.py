@@ -153,7 +153,7 @@ def test_a_flow_closed_from_outside_ends_as_its_own_close_does(page, page_prerel
 
 
 def test_the_starter_set(page) -> None:
-    """assets/furniture_starters.json: 20 to 50 made-up pieces covering Garry's
+    """assets/furniture_starters.json: 20 to 50 made-up pieces covering the
     eight starter builders (sofa, bed, table, chair, desk, dresser, TV, lamp),
     each a recipe its builder keeps as it is, with a full details sheet that
     passes the library's rules, its colour family and size class worked out

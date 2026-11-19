@@ -257,7 +257,7 @@ await tryCase("add: on the top floor showing, in the room under the view's centr
 });
 
 // ── room sets ───────────────────────────────────────────────────────────────
-// Garry's item 28 (2026-11): one tap furnishes the room in the view along its
+// Item 28 (2026-11): one tap furnishes the room in the view along its
 // walls: every piece in that room on its floor, none in another or in the
 // sofa already there, the last one picked; one Undo takes the whole set away.
 await tryCase("sets: a room set furnishes the room in the view along its walls, in one step that one Undo takes back", async () => {

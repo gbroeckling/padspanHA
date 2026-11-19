@@ -380,7 +380,7 @@ tryCase("stairs: a square stair room holds a U (or round two landings when the U
 });
 
 // ── room sets (2026-11) ─────────────────────────────────────────────────────
-// Garry's item 28: one tap furnishes a room along its walls. The builders'
+// Item 28: one tap furnishes a room along its walls. The builders'
 // own sets (live_aboard_furniture.js ROOM_SETS), laid out in the kitchen
 // (a window in its front wall), the hall (the door drawn in its wall), an
 // L-shaped room and a room with no walls drawn: every piece wholly inside the

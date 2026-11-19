@@ -912,7 +912,7 @@ const L = (c, f = "plain") => ({ c, f });
 const LEG_WOOD = "#5e4431", LEG_DARK = "#2f2621", METAL = "#b9bec3";
 
 // ── the modern look (2026-11) ────────────────────────────────────────────────
-// One language for every piece (Garry, 2026-11-18: "improve the default
+// One language for every piece (2026-11-18: "improve the default
 // furniture, more modern"): low and slim; thin round legs that taper to the
 // floor, set in from the corners, or a dark plinth set back under the front
 // so a cabinet seems to float; thin tops with softly rounded edges; fronts
