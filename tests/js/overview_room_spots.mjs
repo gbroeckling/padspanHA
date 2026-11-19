@@ -21,6 +21,9 @@
 // The rule itself (room_spot.js): an L whose corners' mean is outside it has
 // its middle inside, and five known only by it stand inside, apart.
 //
+// The room's name: drawn at that same middle, inside the L (it sat at the
+// corners' mean, in the notch).
+//
 // usage: overview_room_spots.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...], markers, room }
 
@@ -134,6 +137,11 @@ check("drawn: the map has the L and all six devices", !!svg && !!room && room.le
 check("inside: every device known only by its room stands inside the L as drawn",
       !!room && at.every(p => p && inPoly(p[0], p[1], room)), { room, at });
 check("apart: no two on one point, none on the device the server placed", new Set(all).size === 6, { all });
+// The room's name, at the room's middle: inside the L as drawn.
+const labelM = /<text x="(-?\d+)" y="(-?\d+)"[^>]*>Ell<\/text>/.exec(svg);
+const label = labelM ? [Number(labelM[1]), Number(labelM[2])] : null;
+check("label: the L's name sits inside the L as drawn, where its room-only devices start",
+      !!label && !!room && inPoly(label[0], label[1], room), { label, room });
 // The corners' mean, where they all used to sit: in the notch, outside the L.
 const mean = [L.reduce((a, p) => a + p[0], 0) / L.length, L.reduce((a, p) => a + p[1], 0) / L.length];
 check("the old spot: the corners' mean of this L is outside it", !inPoly(mean[0], mean[1], L), mean);

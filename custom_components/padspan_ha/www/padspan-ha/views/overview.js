@@ -1431,6 +1431,11 @@ export function renderClassic(ctx){
 
         // Room polygons — fabric-first (per-photo bounds only as fallback
         // and for outside maps, whose stacks aren't in the world frame).
+        // A room's name sits at its middle (room_spot.js middleOf, where its
+        // room-only devices stand too): inside the room, even an L-shaped one
+        // whose corners' mean falls outside it.
+        const _labelAt = (P) => middleOf(P)
+          || [P.reduce((a,p)=>a+p[0],0)/P.length, P.reduce((a,p)=>a+p[1],0)/P.length];
         const _emitIsoRoom = (room, pp, lix, liy) => {
           const color = roomColorFn(room);
           const _objsHere = allObjects.filter(o=>_presentInRoom(ctx,o,room));
@@ -1470,8 +1475,7 @@ export function renderClassic(ctx){
           ];
           for(const r of _outdoorFab){
             const pp = r.pts.map(p=>{const q=fit(p[0],p[1]);return pt(iso(q[0],q[1],z));}).join(" ");
-            const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
-            const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+            const [cx,cy]=_labelAt(r.pts);
             const c=fit(cx,cy);
             const [lix,liy]=iso(c[0],c[1],z);
             _emitIsoRoom(r.room, pp, lix, liy);
@@ -1480,8 +1484,7 @@ export function renderClassic(ctx){
         // The storey's rooms, from the fabric.
         for(const r of storey.rooms){
           const pp = r.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
-          const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
-          const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+          const [cx,cy]=_labelAt(r.pts);
           const [lix,liy]=iso(cx,cy,z);
           _emitIsoRoom(r.room, pp, lix, liy);
         }

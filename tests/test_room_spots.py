@@ -16,7 +16,9 @@ room, three followed devices and two named ones with a room and no position,
 and one the server placed at the room's middle: every room-only marker stands
 inside the L as drawn, no two on one point, none on the placed one; a
 Traceback record known only by its room stands inside the L too; and the
-rule itself puts an L's middle inside it and five there inside, apart.
+rule itself puts an L's middle inside it and five there inside, apart. The
+room's name is drawn at that middle too, inside the L (it sat at the corners'
+mean, in the notch).
 """
 
 from __future__ import annotations
@@ -45,7 +47,7 @@ def ov() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix", ["drawn:", "inside:", "apart:", "the old spot:", "playback:", "rule:"])
+@pytest.mark.parametrize("prefix", ["drawn:", "inside:", "apart:", "the old spot:", "playback:", "rule:", "label:"])
 def test_the_overview_harness_covers_each_part(ov, prefix) -> None:
     got = {k: v for k, v in ov["cases"].items() if k.startswith(prefix)}
     assert got, f"no {prefix} case ran: {sorted(ov['cases'])}"
@@ -66,5 +68,8 @@ def test_one_rule_for_every_view_that_places_by_room() -> None:
     assert "const m = middleOf(r.pts);" in ov_src and "const at = spotIn(mid, _roomStands);" in ov_src
     assert "[bx,by] = _roomSpot(o.room);" in ov_src and "const [ix,iy] = _roomSpot(obj.room);" in ov_src
     assert "_roomObjCount" not in ov_src and "roomIsoPos[r.room] = iso(cx, cy, r.z);" not in ov_src
+    # Room names too: both the storey's rooms and the outdoor ones sit at that middle.
+    assert ov_src.count("const [cx,cy]=_labelAt(r.pts);") == 2 and "const _labelAt = (P) => middleOf(P)" in ov_src
+    assert "const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;" not in ov_src
     tr = (_VIEWS / "live_aboard_tracked.js").read_text(encoding="utf-8")
     assert "function deepest(" not in tr and "function spotIn(" not in tr, "one copy, in room_spot.js"
