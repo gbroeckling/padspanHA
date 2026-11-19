@@ -666,6 +666,7 @@ await tryCase("names: a sunken room's name shows with its own floor, which is op
 
 // ── phone ───────────────────────────────────────────────────────────────────
 await tryCase("phone: one compact row; upright, room scale with the long side up the screen", async () => {
+  store.set("explode", "0");                              // one floor's room scale (pulled apart: opening:)
   const slot = LA.liveAboardSlot("scr-phone");
   card(slot);
   rooted(slot);
@@ -731,6 +732,22 @@ await tryCase("opening: a browser that turned Explode off keeps it off; Mapping 
   check("opening: a browser that turned Explode off keeps it off; Mapping and a wall keep Explode off and their bars",
     kept.explode === 0 && kept.bare && mapping.explode === 0 && !mapping.on && !mapping.bare && wall.explode === 0 && !wall.on && !wall.bare,
     { kept, mapping, wall });
+});
+
+await tryCase("opening: a phone held upright frames every floor pulled apart whole, not a room's worth between them", async () => {
+  store.delete("explode");
+  const slot = LA.liveAboardSlot("scr-open-phone");
+  card(slot);
+  rooted(slot);
+  const el = slot.element, cv = canvasOf(slot);
+  for (const n of [el, cv]) { n.clientWidth = 390; n.clientHeight = 700; n.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 390, bottom: 700, width: 390, height: 700 }); }
+  card(slot);
+  await settle(30);
+  const st = S(slot);
+  LA.releaseLiveAboardSlot("scr-open-phone");
+  check("opening: a phone held upright frames every floor pulled apart whole, not a room's worth between them",
+    st.levels.explode === 4 && st.screen.fitR > 0 && Math.abs(st.cam.radius - st.screen.fitR) < 1e-6 && st.levels.level === "house",
+    { cam: st.cam, fitR: st.screen.fitR, levels: st.levels });
 });
 
 // ── levels ──────────────────────────────────────────────────────────────────

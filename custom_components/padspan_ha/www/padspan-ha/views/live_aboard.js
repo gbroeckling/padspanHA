@@ -4251,6 +4251,7 @@ function createSlot(slotKey){
     if (panel && panel.open()) return;                      // the sidebar opens on its home view
     preset("iso");
     if (camera.aspect >= 0.8 || onWallPage(root)) return;   // a portrait wall is not a phone: the whole house
+    if (explodeGap()) return;                               // every floor pulled apart: the whole house, on a phone too
     const r = ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect);
     if (r < cam.radius) { cam.radius = Math.max(MIN_R, r); applyCam(); }
   }
@@ -5417,7 +5418,8 @@ function createSlot(slotKey){
   function homeGoal(){
     const a = isoAngle(), g = frameFor(a.theta, a.phi, visiblePoints());
     fitR = g.radius;
-    if (camera.aspect < 0.8 && !onWallPage(root)) g.radius = Math.max(MIN_R, Math.min(g.radius, ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect)));
+    // A phone held upright: room scale at the middle of its floor (every floor pulled apart has no middle room: whole).
+    if (camera.aspect < 0.8 && !onWallPage(root) && !explodeGap()) g.radius = Math.max(MIN_R, Math.min(g.radius, ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect)));
     return { theta: g.theta, phi: g.phi, radius: g.radius, target: g.target.toArray() };
   }
   /** The camera to g ({theta, phi, radius, target: [x, y, z]}): flown, or at once. */

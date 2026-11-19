@@ -11,9 +11,11 @@ with any page errors; exit 0 only with none.
 
 Each picture: its page and query (?page=, ?kiosk=1, ?night=1, ?look=),
 the window (CSS px, device scale 1), whether the demo bar shows (only on the
-phone pictures), and what is done before the shot: "full" the map alone (the
-⛶ button), "all" every floor, "explode" the floors pulled apart, "zoom" the
-camera nearer (radius times, the target moved toward the guest's tag).
+phone pictures), and what is done before the shot: "floor" that floor alone
+(its tag: the sidebar opens on every floor pulled apart, with the bars aside),
+"full" the map alone (the ⛶ button, unless it is alone already), "all" every
+floor, "explode" the floors pulled apart (each only if not so already), "zoom"
+the camera nearer (radius times, the target moved toward the guest's tag).
 """
 
 from __future__ import annotations
@@ -35,10 +37,10 @@ MEDIA = HERE / "media"
 HD, UHD, PHONE = (1920, 1080), (3840, 2160), (390, 844)
 # name: (file, query, window, bar shown, steps, JPEG quality)
 SHOTS = {
-    "3d-main-floor": ("media/estate-3d-main-floor.jpg", "page=atlas3d&quality=high", HD, False, {}, 94),
-    "3d-main-floor-night": ("media/estate-3d-main-floor-night.jpg", "page=atlas3d&quality=high&night=1", HD, False, {}, 94),
+    "3d-main-floor": ("media/estate-3d-main-floor.jpg", "page=atlas3d&quality=high", HD, False, {"floor": "main"}, 94),
+    "3d-main-floor-night": ("media/estate-3d-main-floor-night.jpg", "page=atlas3d&quality=high&night=1", HD, False, {"floor": "main"}, 94),
     "3d-guest-tag": ("media/estate-3d-guest-tag.jpg", "page=atlas3d&quality=high", HD, False,
-                     {"full": True, "zoom": {"radius": 0.5, "toward": "guest", "pull": 0.6}}, 94),
+                     {"floor": "main", "full": True, "zoom": {"radius": 0.5, "toward": "guest", "pull": 0.6}}, 94),
     "3d-three-floors": ("media/estate-3d-three-floors.jpg", "page=atlas3d&quality=high&look=studio", HD, False,
                         {"full": True, "all": True, "explode": True}, 94),
     "3d-three-floors-4k": ("media/estate-3d-three-floors-4k.jpg", "page=atlas3d&quality=high&look=studio", UHD, False,
@@ -49,9 +51,9 @@ SHOTS = {
     "wall-atlas-4k": ("media/estate-wall-atlas-4k.jpg", "page=atlas&kiosk=1", UHD, False, {}, 92),
     "phone-panel": ("media/estate-phone-panel.jpg", "page=panel&narrow=1", PHONE, True, {}, 95),
     "phone-atlas": ("media/estate-phone-atlas.jpg", "page=atlas&narrow=1", PHONE, True, {}, 95),
-    "phone-3d": ("media/estate-phone-3d.jpg", "page=atlas3d&narrow=1&quality=high", PHONE, True, {}, 95),
+    "phone-3d": ("media/estate-phone-3d.jpg", "page=atlas3d&narrow=1&quality=high", PHONE, True, {"floor": "main"}, 95),
     # The link preview (1200x630): the main floor up close, the map alone.
-    "preview": ("preview.jpg", "page=atlas3d&quality=high", (1200, 630), False, {"full": True, "zoom": {"radius": 0.62}}, 90),
+    "preview": ("preview.jpg", "page=atlas3d&quality=high", (1200, 630), False, {"floor": "main", "full": True, "zoom": {"radius": 0.62}}, 90),
 }
 HIDE_BAR = ("document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style');"
             " s.textContent = '#demo-bar { display: none !important; }'; document.head.appendChild(s); });")
@@ -80,6 +82,17 @@ def click(page, selector: str) -> None:
     raise RuntimeError(f"no visible {selector}")
 
 
+def pressed(page, selector: str) -> bool:
+    """Is the first such button pressed (aria-pressed) already?"""
+    return any(b.get_attribute("aria-pressed") == "true" for b in page.locator(selector).all())
+
+
+def alone(page) -> bool:
+    """Is the 3D view the map alone already (its bars aside)?"""
+    st = page.evaluate(SLOT)
+    return bool(st and st["screen"]["bare"])
+
+
 def shoot(page, base: str, name: str, spec: tuple, out: Path, settle_ms: int) -> list[str]:
     from PIL import Image  # noqa: PLC0415
 
@@ -94,11 +107,16 @@ def shoot(page, base: str, name: str, spec: tuple, out: Path, settle_ms: int) ->
     page.goto(f"{base}?{query}")
     page.wait_for_selector("html[data-demo-ready]", timeout=30000)
     page.wait_for_timeout(settle_ms)
-    if steps.get("all"):
+    if steps.get("floor"):
+        click(page, f'[data-la3d-ftag="{steps["floor"]}"]')
+        page.wait_for_timeout(1500)
+    if (steps.get("all") or steps.get("explode")) and alone(page):
+        click(page, "[data-la3d-solo]")                    # the bars back, for their buttons
+    if steps.get("all") and not pressed(page, '[data-la3d-floor] button[title="Every floor"]'):
         click(page, '[data-la3d-floor] button[title="Every floor"]')
-    if steps.get("explode"):
+    if steps.get("explode") and not pressed(page, '[data-la3d-floor] button[title^="Explode"]'):
         click(page, '[data-la3d-floor] button[title^="Explode"]')
-    if steps.get("full"):
+    if steps.get("full") and not alone(page):
         click(page, "[data-la3d-full] button")
     zoom = steps.get("zoom")
     if zoom:
