@@ -57,6 +57,28 @@ const maps = await import(pathToFileURL(join(process.argv[2], "maps.js")).href);
   check("straighten: upright edges too", up.fixed === 1 && near(up.rooms.D[2], [2, 3]), up.rooms.D);
 }
 
+// ── A floor placed turned about 1 degree (Layout; the coordinator, 2026-11-18): straightened square to itself ─────
+// The same three rooms as above, Pantry's far top corner 2 cm off and shared with Hall, the whole floor turned 1°.
+const TURN = Math.PI / 180, turn = (pts, t = TURN) => pts.map(([x, y]) => [x * Math.cos(t) - y * Math.sin(t), x * Math.sin(t) + y * Math.cos(t)]);
+const FLOOR = () => ({ Kitchen: [[0, 0], [4, 0], [4, 3], [0, 3]], Pantry: [[4, 0], [6, 0.02], [6, 3], [4, 3]], Hall: [[6, 0.02], [9, 0.02], [9, 3], [6, 3]] });
+{
+  const turned = Object.fromEntries(Object.entries(FLOOR()).map(([r, pts]) => [r, turn(pts)]));
+  const dir = S.floorDirection(Object.values(turned));
+  check("direction: a floor turned 1° runs at 1°", Math.abs(dir - TURN) < 1e-9, dir * 180 / Math.PI);
+  check("direction: turned the other way, -1°", Math.abs(S.floorDirection(Object.values(FLOOR()).map(p => turn(p, -TURN))) + TURN) < 1e-9);
+  check("direction: a floor square to the page, a crooked edge or not, is exactly level", S.floorDirection(Object.values(FLOOR())) === 0
+    && S.floorDirection([[[0, 0], [4, 0], [4, 3], [0, 3]]]) === 0 && S.floorDirection([]) === 0);
+  const r = S.straightenRooms(turned, { angle: dir });
+  check("turned floor: the crooked edge is made straight along the floor's own walls", near(r.rooms.Pantry[1], turn([[6, 0]])[0], 1e-9)
+    && near(r.rooms.Hall[0], turn([[6, 0]])[0], 1e-9) && near(r.rooms.Hall[1], turn([[9, 0]])[0], 1e-9) && r.fixed === 2, [r.fixed, r.rooms.Pantry, r.rooms.Hall]);
+  check("turned floor: nothing square to the floor is moved (corners come back exactly as given)",
+    JSON.stringify(r.rooms.Kitchen) === JSON.stringify(turned.Kitchen) && [0, 2, 3].every(i => JSON.stringify(r.rooms.Pantry[i]) === JSON.stringify(turned.Pantry[i]))
+    && [2, 3].every(i => JSON.stringify(r.rooms.Hall[i]) === JSON.stringify(turned.Hall[i])), r.rooms);
+  const bent = S.straightenRooms(turned);
+  check("turned floor: level and upright instead would bend its short walls and leave the crooked one",
+    bent.fixed > 0 && !near(bent.rooms.Pantry[3], turned.Pantry[3], 1e-6) && !near(bent.rooms.Pantry[1], turn([[6, 0]])[0], 1e-3), bent.rooms.Pantry);
+}
+
 // ── the editors, run ─────────────────────────────────────────────────────────
 function el(tag, attrs = {}, children = []) {
   const n = document.createElement(tag);
@@ -226,6 +248,20 @@ const layout = async (sel = [], pairs = []) => {
 {
   const { root } = await layout([], []);
   check("layout overlap: nothing said where nothing overlaps", !/overlap, so/.test(textOf(root)));
+}
+{
+  // Layout's Straighten on a floor turned 1°: square to itself, to the millimetre Layout keeps; the rest untouched.
+  const geo = Object.fromEntries(Object.entries(FLOOR()).map(([r, pts]) => [r, poly(turn(pts))]));
+  const ctx = makeCtx({ tab: "rooms", geo });
+  const root = maps.render(ctx); await flush();
+  const draft = ctx.state.maps._roomsDraft;
+  attr(root, "data-room-straighten", "layout").click(); await flush();
+  check("layout straighten, floor turned 1°: the crooked corner goes onto the floor's own line, not level",
+    near(draft.Pantry.points_m[1], turn([[6, 0]])[0], 1e-3) && near(draft.Hall.points_m[0], draft.Pantry.points_m[1], 1e-9), [draft.Pantry.points_m, draft.Hall.points_m]);
+  check("layout straighten, floor turned 1°: its square walls are left as they were",
+    JSON.stringify(draft.Kitchen.points_m) === JSON.stringify(geo.Kitchen.points_m) && [0, 2, 3].every(i => JSON.stringify(draft.Pantry.points_m[i]) === JSON.stringify(geo.Pantry.points_m[i]))
+    && [2, 3].every(i => JSON.stringify(draft.Hall.points_m[i]) === JSON.stringify(geo.Hall.points_m[i])), draft);
+  check("layout straighten, floor turned 1°: two edges said", ctx.toasts.some(t => /^Straightened 2 edges\./.test(t)), ctx.toasts);
 }
 
 process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));

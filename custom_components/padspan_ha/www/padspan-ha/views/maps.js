@@ -13054,16 +13054,18 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
 
     card.appendChild(stage);
 
-    // Straighten edges (room_snap.js): every outline on this floor, in metres; a corner rooms share moves for all.
+    // Straighten edges (room_snap.js): every outline on this floor, in metres, square to the floor's own walls (a
+    // floor placed a degree or two turned is straightened to itself, not bent level); a corner rooms share moves for all.
     if (!blendStacked) {
       card.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#94a3b8" }, [
-        el("button", { class: "btn inline", "data-room-straighten": "layout", title: "Make every edge that is less than 5 cm off level or upright straight", onclick: () => {
+        el("button", { class: "btn inline", "data-room-straighten": "layout", title: "Make every edge that is less than 5 cm out of square with this floor's walls straight", onclick: () => {
           const polys = Object.fromEntries(Object.entries(draft).filter(([, o]) => o && o.type === "poly" && Array.isArray(o.points_m) && o.points_m.length >= 3)
             .map(([rn, o]) => [rn, o.points_m]));
-          const res = SNAP.straightenRooms(polys);
+          const res = SNAP.straightenRooms(polys, { angle: SNAP.floorDirection(Object.values(polys)) });
           if (!res.fixed) { ctx.toast("Nothing to straighten: no edge is less than 5 cm off."); return; }
           for (const [rn, pts] of Object.entries(res.rooms)) {
-            if (JSON.stringify(pts) !== JSON.stringify(polys[rn])) draft[rn].points_m = pts.map(p => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000]);
+            const was = polys[rn], same = (p, i) => p[0] === was[i][0] && p[1] === was[i][1];
+            if (!pts.every(same)) draft[rn].points_m = pts.map((p, i) => same(p, i) ? was[i] : [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000]);
           }
           ctx.toast(`Straightened ${res.fixed} edge${res.fixed === 1 ? "" : "s"}. ` + (previewing ? "Commit this layout keeps it." : "Save corrections keeps it; Discard changes takes it back."));
           ctx.actions.renderRooms();
