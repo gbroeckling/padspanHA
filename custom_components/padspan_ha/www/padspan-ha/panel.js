@@ -1485,8 +1485,10 @@ class PadSpanHaApp extends HTMLElement {
     const card = el("div", { "data-launch-card": "card",
       style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
     card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, EDITIONS.LAUNCH_CARD_TITLE));
+    const annual = typeof EDITIONS.launchCardAnnual === "function" && EDITIONS.launchCardAnnual(st);
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
-      "PadSpan Pro for life is " + EDITIONS.proLifetimeWords() + "."));
+      "PadSpan Pro for life is " + EDITIONS.proLifetimeWords() + "."
+      + (annual ? " Pay with the email your key was sent to and this key becomes Pro for life." : "")));
     // A page that fills the screen can't close the tab a link opens: say where instead.
     let tabOk = true;
     try { tabOk = !TRIAL || !TRIAL.newTabOk || TRIAL.newTabOk(this.state.kioskMode); } catch (_) { tabOk = true; }

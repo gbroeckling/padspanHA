@@ -555,6 +555,19 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     const trial = launch({ ...LFREE, tier: "pro", pro_has_key: true, license_is_trial: true });
     assert(trial.card(), "not shown during a trial");
   });
+  lt("launch card: a key for a year (Pro or Bright Pro) is told it becomes Pro for life; a lifetime key never sees it", () => {
+    const year = { ...LFREE, tier: "pro", pro_has_key: true, pro_active: true, pro_days_left: 200 };
+    const a = launch(year).card();
+    assert(a && a.textContent.includes("Pay with the email your key was sent to and this key becomes Pro for life."), a && a.textContent);
+    const bright = launch({ ...year, tier: "bright" }).card();
+    assert(bright && bright.textContent.includes("this key becomes Pro for life"), "Bright Pro for a year not told");
+    const free = launch(LFREE).card();
+    assert(free && !free.textContent.includes("this key becomes"), "the no-key card says the key line");
+    const life = launch({ ...year, pro_days_left: 26000 });
+    assert(life.card() === null && !life.c._saved.length, "shown to a lifetime key");
+    clock = END;
+    assert(launch(year).card() === null, "shown to a year's key after the launch price ended");
+  });
   lt("launch card: waits for another page load after another Overview card showed on this one", () => {
     const { c, card } = launch(LFREE);
     c._overviewCardShown = true;
