@@ -267,6 +267,10 @@ class PadSpanLightsApp extends HTMLElement {
       send("wall_ui:" + (s < 1.25 ? "1" : s < 1.75 ? "1.5" : s < 2.5 ? "2" : s < 3.5 ? "3" : s < 5 ? "4" : "6"));
       send("wall_fit:" + (this._wallFit === "room" ? "room" : "auto"));
       send("wall_awake:" + (this._wakeLock && !this._wakeLock.released ? "on" : "off"));
+      // How full the wall's flat map opened (views/atlas_fit.js, read off the
+      // stage): fine, far back, or far back and moved in by the wall itself.
+      const st = this.shadowRoot ? this.shadowRoot.querySelector(".lv-stage[data-fill-ratio]") : null;
+      if(st) send("wall_fill:" + (st.dataset.fillCloser === "1" ? "closer" : st.dataset.fillLow === "1" ? "low" : "ok"));
     }
     if(_reloadNote) send("wall_reload:atlas:" + _reloadNote);
   }
@@ -368,8 +372,12 @@ class PadSpanLightsApp extends HTMLElement {
     }catch(e){}
     try{
       if(applyView){
-        this._view.floorGap = s.overview_iso_floor_gap ?? 150;
-        this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
+        // A wall arranges its floors for its own shape (views/atlas_fit.js) and
+        // leaves the saved spacing, which is the other screens', alone.
+        if(!this._wallFitted()){
+          this._view.floorGap = s.overview_iso_floor_gap ?? 150;
+          this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
+        }
         this._view.focusIdx = s.overview_iso_focus     ?? 0;
         // Persisted zoom (2026-09-22: "stabilize the zoom in, so when
         // that is locked well, it can stay that way for months") — this
@@ -754,16 +762,20 @@ class PadSpanLightsApp extends HTMLElement {
     document.body.appendChild(overlay);
   }
 
+  /** This screen is a wall whose floors are arranged for its shape (not moved by hand here). */
+  _wallFitted(){ return this.hasAttribute("data-wall") && !this._view.fitByHand; }
+
   async _saveSettings(){
     try{
       // Never bundle data_mode: the backend leaves it untouched when the
       // message omits it, and echoing "live" here would make Save view flip
       // a sample-mode install to live as a hidden side effect (same reason
       // panel.js's settingsSet omits it).
+      // A wall's own arrangement is never saved as everyone's spacing.
+      const gaps = this._wallFitted() ? {} : { overview_iso_floor_gap: this._view.floorGap, overview_iso_horiz_gap: this._view.horizGap };
       await this._ws({
         type:                    "padspan_ha/settings_set",
-        overview_iso_floor_gap:  this._view.floorGap,
-        overview_iso_horiz_gap:  this._view.horizGap,
+        ...gaps,
         overview_iso_focus:      this._view.focusIdx,
         overview_iso_zoom:       this._view.zoom,
       });
@@ -989,6 +1001,10 @@ class PadSpanLightsApp extends HTMLElement {
       displayMode: true,
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
+      // The wall's own shape, as it is hung (a turned wall is tall): what its
+      // floors are arranged for (views/atlas_fit.js).
+      wallStage: ()=>{ const r = this.getAttribute("data-wall-rotate"), w = window.innerWidth || 0, h = window.innerHeight || 0;
+        return r === "90" || r === "270" ? [h, w] : [w, h]; },
       // The drawing already grows with the screen (a 4K wall draws it twice a
       // 1080p one); room names take the rest of the wall's scale.
       wallLabel: ()=>Math.max(1, (this._wallUi || 1) / (this._wallPx || 1)),
@@ -1134,8 +1150,8 @@ class PadSpanLightsApp extends HTMLElement {
         // _loadSettings seeds this._view from, so the sidebar's sliders land
         // on the preset's numbers too. Optional: an older look leaves the
         // camera alone.
-        if (values.overview_iso_floor_gap !== undefined) this._view.floorGap = values.overview_iso_floor_gap;
-        if (values.overview_iso_horiz_gap !== undefined) this._view.horizGap = values.overview_iso_horiz_gap;
+        if (values.overview_iso_floor_gap !== undefined && !this._wallFitted()) this._view.floorGap = values.overview_iso_floor_gap;
+        if (values.overview_iso_horiz_gap !== undefined && !this._wallFitted()) this._view.horizGap = values.overview_iso_horiz_gap;
         if (values.overview_iso_focus !== undefined) this._view.focusIdx = values.overview_iso_focus ?? 0;
         if (values.overview_iso_zoom !== undefined) this._view.zoom = values.overview_iso_zoom;
         try { await this._ws({ type: "padspan_ha/settings_set", ...values }); }

@@ -123,7 +123,11 @@ export function houseShape(polys){
       const P = p.P;
       for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
         const a = P[j], b = P[i];
-        if ((a[0] > x) === (b[0] > x)) continue;
+        // An edge standing straight up in this very column (a plate's side: its faces are vertical), and an edge that
+        // only touches the column with one end: both count. Left out, a column on a plate's corner found no house
+        // above it at all, and a tree a little to one side of that corner rose into the plate.
+        if (a[0] === b[0]) { if (a[0] === x) for (const cy of [a[1], b[1]]) if (cy <= y && cy > best) best = cy; continue; }
+        if ((a[0] > x) === (b[0] > x) && a[0] !== x && b[0] !== x) continue;
         const cy = a[1] + ((x - a[0]) * (b[1] - a[1])) / (b[0] - a[0]);
         if (cy <= y && cy > best) best = cy;
       }

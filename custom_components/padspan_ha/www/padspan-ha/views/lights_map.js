@@ -30,6 +30,37 @@ const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
 // double-tap on a room. Optional too: missing, the map is as it always was.
 const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: atlas_screen failed to load", err); return null; });
+// How big the house is drawn on a wall (atlas_fit.js: the rule, the measure, and why a saved spacing could never do
+// it). Optional: missing, a wall draws with the saved spacing as it did.
+const FIT = await import(`./atlas_fit.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: atlas_fit failed to load", err); return null; });
+// The arrangement for a house on a stage, worked out once per model and stage shape (about 30 ms for three floors).
+const _fitMemo = new WeakMap();
+function _wallLayout(host, floors){
+  if (!FIT || !host.model || typeof host.model !== "object") return null;
+  const st = typeof host.wallStage === "function" ? host.wallStage() : [window.innerWidth || 0, window.innerHeight || 0];
+  const w = Math.round(st[0] || 0), h = Math.round(st[1] || 0);
+  if (!(w > 0) || !(h > 0)) return null;
+  const key = `${w}x${h}`, had = _fitMemo.get(host.model);
+  if (had && had.key === key && had.floors === floors) return had.fit;
+  let fit = null;
+  try {
+    const shapes = FIT.floorShapes(fabricFrame(host.model, floors, 0, 0), 0, 0);
+    if (shapes.length >= 2) fit = FIT.bestLayout(shapes, w, h);
+  } catch (err) { console.warn("PadSpan: the wall's floors could not be arranged for this screen", err); fit = null; }
+  _fitMemo.set(host.model, { key, floors, fit });
+  return fit;
+}
+/** A wall's floors arranged for its own shape, written into the card's view: true when that changed the view. Not while
+ *  someone has moved Spacing or L/R on this wall by hand (view.fitByHand), nor with it switched off (host.wallArrange). */
+function _fitWall(host, view, floors){
+  if (view.fitByHand || host.wallArrange === false) { view.fitted = false; return false; }
+  const fit = _wallLayout(host, floors);
+  if (!fit) return false;
+  const changed = view.floorGap !== fit.floorGap || view.horizGap !== fit.horizGap;
+  view.floorGap = fit.floorGap; view.horizGap = fit.horizGap; view.fitted = true;
+  return changed;
+}
 // The scene row under the map and in Live Aboard (scene_row.js). Optional:
 // missing, the map is as it always was, with no row.
 const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
@@ -3766,6 +3797,9 @@ export function buildLightsMapCard(hostIn){
     drawers[name].appendChild(node);
   };
 
+  // A wall arranges its floors for ITS shape, every time it draws (atlas_fit.js). The saved Spacing and L/R are the
+  // other screens': one number for every screen is what kept opening the wall on a small house in a lot of space.
+  if (WALL) _fitWall(host, view, floors);
   // Floors come from the FABRIC (which floors actually contain rooms/lights),
   // never from which photos happen to be uploaded. A floor with no plan image
   // is still a floor; a plan image is not a floor.
@@ -4263,6 +4297,7 @@ export function buildLightsMapCard(hostIn){
   // just a CSS width. The builder always shows codes (host.codeChip unset).
   let codesShown = null;
   const applyZoom = (byHand = false) => {
+    if (byHand) view.zoomByHand = (view.zoom || 1) !== 1;
     // By hand past the whole house: the map alone; back out (any way): the bars.
     if (scr) scr.zoomed(view.zoom, byHand);
     const svg = isoDiv.querySelector("svg");
@@ -4330,6 +4365,71 @@ export function buildLightsMapCard(hostIn){
     isoDiv.scrollTop = by * next - cy;
   };
 
+  // A wall says how full it is after every drawing, and never stays far back (atlas_fit.js: the measure). Read a
+  // frame later, when the drawing has its size. The stage carries the answer (data-fill-*): tools/wall_fill_check.py
+  // and the panel's once-a-page report read it there (lights_panel.js _screenReport: wall_fill:ok|low|closer).
+  // Far back, at 100%, with nobody having zoomed by hand: the wall moves in on the house and centres it, once a
+  // drawing, in memory only (Save view still saves what is on the screen, as ever).
+  let fillAsked = false;
+  const houseOnScreen = () => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const g of isoDiv.querySelectorAll('g[data-role="floorslab"]')) {
+      const r = g.getBoundingClientRect();
+      if (!(r.width > 0) || !(r.height > 0)) continue;
+      x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top); x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom);
+    }
+    return Number.isFinite(x0) ? { x0, y0, x1, y1 } : null;
+  };
+  const stageOnScreen = () => {
+    const r = isoDiv.getBoundingClientRect();
+    return { x0: r.left, y0: r.top, x1: r.right, y1: Math.min(r.bottom, window.innerHeight || r.bottom) };
+  };
+  const checkFill = () => {
+    if (!FIT || fillAsked) return;
+    fillAsked = true;
+    const later = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f) => setTimeout(f, 50);
+    later(() => {
+      fillAsked = false;
+      if (!isoDiv.isConnected || (h3 && la3dOn())) return;
+      const svg = isoDiv.querySelector("svg"), vb = svg && svg.viewBox && svg.viewBox.baseVal;
+      const stage = stageOnScreen(), sw = stage.x1 - stage.x0, sh = stage.y1 - stage.y0;
+      if (!vb || !(vb.width > 0) || !(sw > 0) || !(sh > 0)) return;
+      const whole = getFocusZ(view.focusIdx) === null;
+      // The size it is drawn at, at 100%, against the size this stage allows (the best arrangement for its real size).
+      const drawnAt100 = () => (svg.getBoundingClientRect().width / vb.width) / (view.zoom || 1);
+      let best = null;
+      try {
+        const shapes = FIT.floorShapes(_frame, view.floorGap, view.horizGap);
+        best = shapes.length >= 2 ? FIT.bestLayout(shapes, sw, sh) : { px: FIT.unitPx(FIT.drawingBox(shapes, view.floorGap, view.horizGap), sw, sh, 32) };
+      } catch (_) { best = null; }
+      const short = FIT.shortfall(drawnAt100(), best && best.px);
+      let closer = isoDiv.dataset.fillCloser === "1";
+      if (short.known && short.low && whole && (view.zoom || 1) === 1 && !view.zoomByHand) {
+        const z = Math.min(2.5, Math.round((0.98 / short.ratio) * 100) / 100);
+        if (z > 1.05) {
+          view.zoom = z;
+          applyZoom(false);
+          const h2 = houseOnScreen(), s2 = stageOnScreen();
+          if (h2) {
+            isoDiv.scrollLeft += (h2.x0 + h2.x1) / 2 - (s2.x0 + s2.x1) / 2;
+            isoDiv.scrollTop += (h2.y0 + h2.y1) / 2 - (s2.y0 + s2.y1) / 2;
+          }
+          closer = true;
+          console.warn("PadSpan: the wall opened with the house far back (" + Math.round(short.ratio * 100) + "% of the size this screen allows); moved in to", z);
+        }
+      }
+      const fill = FIT.fillOf(houseOnScreen(), stageOnScreen());
+      if (!short.known) return;
+      isoDiv.dataset.fillRatio = short.ratio.toFixed(3);
+      isoDiv.dataset.fillLow = short.low && whole && !closer ? "1" : "0";
+      isoDiv.dataset.fillCloser = closer ? "1" : "0";
+      isoDiv.dataset.fillW = fill.known ? fill.w.toFixed(3) : "";
+      isoDiv.dataset.fillH = fill.known ? fill.h.toFixed(3) : "";
+      isoDiv.dataset.fillZoom = String(view.zoom || 1);
+      isoDiv.dataset.fitted = view.fitted ? `${view.floorGap}/${view.horizGap}` : "";
+    });
+  };
+
   let drawnWhole = false;   // the last rebuildISO drew a new <svg> (not patched)
   const rebuildISO = () => {
     // The map may hide MORE than the index does — "Hide untouched" is a view
@@ -4357,6 +4457,7 @@ export function buildLightsMapCard(hostIn){
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
         labelScale: WALL && host.wallLabel ? host.wallLabel() : 1,
+        ...(WALL ? { hugX: true } : {}),
         // Temperature / humidity / CO2 heatmap (atlas_heatmap.js): off unless
         // the host's layer chip picked a kind.
         heatmap: host.heatmap || null,
@@ -4418,6 +4519,7 @@ export function buildLightsMapCard(hostIn){
     mountForest(svgStr);
     mountWeather(svgStr);
     applyZoom();
+    if (WALL) checkFill();
     // The sidebar's flat map follows this screen's ⋯ "Tap a light to switch it" (wireUseSurface).
     isoDiv._psLightTaps = DISPLAY ? () => flatShow("light_taps") !== false : null;
     host.onHexesBuilt(isoDiv, rebuildISO);
@@ -4765,6 +4867,7 @@ export function buildLightsMapCard(hostIn){
   gapSlider.value = String(view.floorGap);
   gapSlider.addEventListener("input", () => {
     view.floorGap = parseInt(gapSlider.value, 10);
+    if (WALL) view.fitByHand = true;
     gapLbl.textContent = String(view.floorGap);
     rebuildISO();
   });
@@ -4782,6 +4885,7 @@ export function buildLightsMapCard(hostIn){
   horizSlider.value = String(view.horizGap);
   horizSlider.addEventListener("input", () => {
     view.horizGap = parseInt(horizSlider.value, 10);
+    if (WALL) view.fitByHand = true;
     horizLbl.textContent = String(view.horizGap);
     rebuildISO();
   });
@@ -4817,6 +4921,7 @@ export function buildLightsMapCard(hostIn){
       // Live Aboard showing: the whole house.
       if (la3dDo(s => s.wholeHouse())) return;
       view.floorGap = 150; view.horizGap = 0; view.focusIdx = 0; view.zoom = 1.0;
+      view.fitByHand = false;
       gapSlider.value = "150"; gapLbl.textContent = "150";
       horizSlider.value = "0"; horizLbl.textContent = "0";
       resetFocusCtl();          // the map goes back to All floors — say so
@@ -5436,6 +5541,8 @@ export function buildLightsMapCard(hostIn){
       // while someone works in it.
       if (flatMenu && flatMenu.isOpen) return true;
       if (next.model !== hostIn.model || next.floors !== hostIn.floors || next.view !== view) return false;
+      // A wall whose shape changed (turned, resized): arranged again, in a new card.
+      if (WALL && _fitWall(lightsHostForTier(next), view, next.floors || [])) return false;
       const h = lightsHostForTier(next), a = _cardAlerts(h), h3n = _cardH3(h), lg = legendOf(h, h3n);
       if (sigOf(h, a.alerts, lg.key) !== keep.sig) return false;
       hostIn = next; host = h; h3 = h3n;
