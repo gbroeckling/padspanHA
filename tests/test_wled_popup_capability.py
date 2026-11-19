@@ -41,9 +41,15 @@ def _extract_rules() -> tuple[str, str]:
     src = _PANEL.read_text(encoding="utf-8")
     dim = re.search(r"const dimmable\s*=(.+?);", src, re.S)
     assert dim, "could not find the dimmable rule in views/lights_map.js"
-    col = re.search(r"if\s*\((modes\.some\(m => \[\"rgb\".+?)\)\s*\{", src, re.S)
-    assert col, "could not find the colour rule in views/lights_map.js"
-    return dim.group(1).strip(), col.group(1).strip()
+    # Since 2026-11-18 the colour rule reads two names worked out just above it
+    # (a white-only bulb's rgb_color is no colour it can take): lift those too.
+    modes_c = re.search(r"const colourModes\s*=(.+?);", src, re.S)
+    white = re.search(r"const whiteOnly\s*=(.+?);", src, re.S)
+    rule = re.search(r"if\s*\((colourModes \|\|.+?)\)\s*\{", src, re.S)
+    assert modes_c and white and rule, "could not find the colour rule in views/lights_map.js"
+    col = (f"(() => {{ const colourModes = {modes_c.group(1).strip()}; "
+           f"const whiteOnly = {white.group(1).strip()}; return ({rule.group(1).strip()}); }})()")
+    return dim.group(1).strip(), col
 
 
 def _decide(cases: list[dict]) -> list[dict]:

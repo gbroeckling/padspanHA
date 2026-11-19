@@ -314,7 +314,7 @@ def test_the_plan_ais_one_writer_is_one_module(monkeypatch, tmp_path, disk):
     assert src.count("H.apply_edit(") == 1 and src.count("house.async_write(") == 2
     for word in ("DATA_FABRIC", "DATA_MAPS", "async_spatial_update", "async_remap_from_metres", "async_set_", "fabric_rf_barrier", "CALIBRATION", "DATA_SETTINGS", "model."):
         assert word not in src, word
-    importers = [p.name for p in _PKG.glob("*.py") if "import plan_ai_write" in p.read_text(encoding="utf-8")]
+    importers = sorted(p.name for p in _PKG.glob("*.py") if "import plan_ai_write" in p.read_text(encoding="utf-8"))
     assert importers == ["ws_maps.py", "ws_plan_ai.py"], importers
     # ws_maps (the upload's hand measurement, 2026-11-12) takes only the pure reading and working-out of a length;
     # its one write is Measure's own (ws_fabric.async_write_measured_transform), never one of the plan AI's.
