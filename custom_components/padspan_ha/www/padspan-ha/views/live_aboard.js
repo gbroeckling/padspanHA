@@ -2137,8 +2137,8 @@ function createSlot(slotKey){
   /** At night with the walls up, a window glows warm while a light in the
    *  room behind it is on, stronger the darker it is; otherwise nothing. */
   function paintWindows(){
-    // The walls stand: Up, or Cut while the roof shows (updateCutaway's own rule).
-    const k = Math.min(1, Math.max(0, nightK)), on = k > 0.05 && (wallMode === "up" || (wallMode === "cut" && !!roofWant));
+    // The walls stand: Up, or Cut or Glass while the roof shows (updateCutaway's own rule).
+    const k = Math.min(1, Math.max(0, nightK)), on = k > 0.05 && (wallMode === "up" || ((wallMode === "cut" || wallMode === "glass") && !!roofWant));
     const lit = new Set();
     if (on) for (const L of lights) if (L.look && L.look.on && L.F) { const r = HOUSE.roomAt(L.F.rooms, L.x, L.y); if (r) lit.add(r); }
     for (const F of floorsUi) {
