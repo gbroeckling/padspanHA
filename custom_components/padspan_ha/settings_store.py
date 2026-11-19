@@ -359,6 +359,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "license_home_status": "",   # the server's last word on this home, when it refused it
     "license_homes_used": 0,     # how many homes the key is on, as the server last said
     "license_homes_warning": {},  # past two homes with a report off somewhere: licence_homes.homes_warning
+    # This install's own id for the licence server, made once, only where Home
+    # Assistant's instance id can't be read (licence_homes.machine_id).
+    "license_install_id": "",
+    # When the update check and the licence recheck last ran (epoch seconds):
+    # one within 20 hours makes the next wait, so a restart does not ask again.
+    "server_checked_at": 0,
     # ── Enterprise preview features (off by default) ─────────────────────────
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")
     "radio_map_enabled": False,             # RSSI heatmap overlay on floor plan maps

@@ -583,6 +583,9 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                                         data[_k] = _live[_k]
                                     else:
                                         data.pop(_k, None)
+                            # This install's own licence id stays, as Home
+                            # Assistant's instance id does (licence_homes.machine_id).
+                            data["license_install_id"] = _live.get("license_install_id", "")
                             # WLED teams: their mode and the members' kept
                             # sync are the devices' state now (wled_exact).
                             from .wled_exact import restore_keeps_team_state

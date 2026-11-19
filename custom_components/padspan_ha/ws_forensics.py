@@ -255,24 +255,14 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         connection.send_error(msg["id"], "not_ready", "Settings store not available")
         return
     try:
-        import json as _json  # noqa: PLC0415
-        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
-        from .licence_homes import home_params, homes_warning, machine_id  # noqa: PLC0415
-        machine = await machine_id(hass)
+        from .licence_homes import call, home_params, homes_warning  # noqa: PLC0415
         # A different key starts this home afresh among that key's homes, and
         # so does a home removed from its key: it asks for a free place again.
         _hp = home_params(st.data)
         new_key = key != str(st.data.get("forensics_license_key") or "").strip().upper()
         if new_key or st.data.get("license_home_status") == "removed":
             _hp["token"] = ""
-        session = async_get_clientsession(hass)
-        async with session.get(
-            "https://traks.ca/license/",
-            params={"action": "validate", "product": "padspan", "key": key, "machine": machine, **_hp},
-            timeout=15,
-        ) as resp:
-            text = await resp.text()
-        data = _json.loads(text.lstrip("\ufeff"))  # licence server prefixes a BOM
+        data = await call(hass, "validate", key, _hp)
     except Exception as err:
         connection.send_error(msg["id"], "network",
             f"Could not reach the licence server ({err}). Check the internet connection and try again.")
@@ -374,16 +364,17 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
     try:
         import json as _json  # noqa: PLC0415
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
-        try:
-            from homeassistant.helpers.instance_id import async_get as _instance_id  # noqa: PLC0415
-            machine = await _instance_id(hass)
-        except Exception:
-            machine = "padspan-ha"
+        from .licence_homes import machine_id  # noqa: PLC0415
+        from .server_http import USER_AGENT  # noqa: PLC0415
+        # The raw id, still: the server holds one trial per install against the
+        # ids its trials were issued to (traks_licenses.machines).
+        machine = await machine_id(hass)
         session = async_get_clientsession(hass)
         async with session.post(
             "https://traks.ca/license/",
             params={"action": "trial_start", "product": "padspan"},
             data={"email": email, "machine": machine},
+            headers={"User-Agent": USER_AGENT},
             timeout=15,
         ) as resp:
             text = await resp.text()

@@ -52,7 +52,12 @@ from custom_components.padspan_ha.update_check import _revalidate_license  # noq
 
 
 def _server_says(monkeypatch, payload: dict) -> None:
+    """The licence server answers `payload` to the call (POST) and to the old
+    form it falls back to (GET) when the answer does not confirm the hash."""
     class _Resp:
+        status = 200
+        headers: dict = {}
+
         async def text(self):
             return json.dumps(payload)
 
@@ -64,6 +69,7 @@ def _server_says(monkeypatch, payload: dict) -> None:
 
     session = MagicMock()
     session.get = MagicMock(return_value=_Resp())
+    session.post = MagicMock(return_value=_Resp())
     mod = types.ModuleType("homeassistant.helpers.aiohttp_client")
     mod.async_get_clientsession = lambda hass: session
     monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", mod)

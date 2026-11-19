@@ -1,18 +1,27 @@
 """Daily update check against padspan.traks.ca.
 
-Once a day (and once shortly after startup) PadSpan fetches the latest
-version manifest from https://padspan.traks.ca/api/version.php, sending only
-the installed version as a query parameter.  The server sees the request IP
-and version, nothing else — this is disclosed in the README ("Update check")
-and can be turned off with the ``update_check_enabled`` setting.
+About once a day PadSpan fetches the latest version manifest from
+https://padspan.traks.ca/api/version.php, sending only the installed version
+as a query parameter.  The server sees the request IP and version, nothing
+else — this is disclosed in the README ("Update check") and can be turned off
+with the ``update_check_enabled`` setting.
 
 When a newer stable release exists, a persistent notification is created
 (once per new version).
+
+When it runs (with the licence recheck, which follows it): the first time a
+random while after Home Assistant starts (_FIRST_DELAY_S), because many homes
+restart at the same moment after a Home Assistant release and their checks
+should not all arrive together; then hourly, but only when the last check is
+_MIN_AGE_S old, so a restart does not ask again (server_checked_at, kept in
+PadSpan's settings).
 """
 
 from __future__ import annotations
 
 import logging
+import random
+import time
 from datetime import timedelta
 from typing import Any
 
@@ -23,8 +32,9 @@ from .const import DOMAIN, DATA_SETTINGS, VERSION
 _LOGGER = logging.getLogger(__name__)
 
 UPDATE_CHECK_URL = "https://padspan.traks.ca/api/version.php"
-_INTERVAL = timedelta(hours=24)
-_FIRST_DELAY_S = 300  # don't compete with startup
+_FIRST_DELAY_S = (300, 6 * 3600)  # the first check after a start: at random, 5 minutes to 6 hours in
+_MIN_AGE_S = 20 * 3600            # a check this recent makes the next one wait
+_TICK = timedelta(hours=1)        # after the first, how often a due check is looked for
 _DATA_UNSUBS = "_update_check_unsubs"
 _DATA_MANIFEST = "update_manifest"
 _DATA_NOTIFIED = "_update_notified_version"
@@ -98,16 +108,14 @@ async def _check(hass: HomeAssistant) -> None:
     if not _enabled(hass):
         return
     try:
-        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+        import json as _json  # noqa: PLC0415
+        from .server_http import request  # noqa: PLC0415
 
-        session = async_get_clientsession(hass)
-        async with session.get(
-            UPDATE_CHECK_URL, params={"v": VERSION}, timeout=15
-        ) as resp:
-            if resp.status != 200:
-                _LOGGER.debug("Update check HTTP %s", resp.status)
-                return
-            manifest = await resp.json(content_type=None)
+        status, text = await request(hass, "GET", UPDATE_CHECK_URL, params={"v": VERSION})
+        if status != 200:
+            _LOGGER.debug("Update check HTTP %s", status)
+            return
+        manifest = _json.loads(text.lstrip("\ufeff"))
     except Exception as err:  # network errors are expected and non-fatal
         _LOGGER.debug("Update check failed: %s", err)
         return
@@ -159,18 +167,8 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
     if not key:
         return
     try:
-        import json as _json  # noqa: PLC0415
-        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
-        from .licence_homes import home_params, machine_id  # noqa: PLC0415
-        machine = await machine_id(hass)
-        session = async_get_clientsession(hass)
-        async with session.get(
-            "https://traks.ca/license/",
-            params={"action": "validate", "product": "padspan", "key": key, "machine": machine,
-                    **home_params(st.data)},
-            timeout=15,
-        ) as resp:
-            data = _json.loads((await resp.text()).lstrip("\ufeff"))
+        from .licence_homes import call, home_params  # noqa: PLC0415
+        data = await call(hass, "validate", key, home_params(st.data))
     except Exception as err:
         _LOGGER.debug("PadSpan Pro revalidation skipped (%s)", err)
         return
@@ -265,22 +263,44 @@ def _parse_utc(value: str):
     return dt if dt.tzinfo else dt.replace(tzinfo=_tz.utc)
 
 
+async def _run_if_due(hass: HomeAssistant, now=time.time) -> bool:
+    """The update check and the licence recheck, unless they ran in the last
+    _MIN_AGE_S. A time stamped in the future (a clock put back, a restored
+    backup) does not hold them off. True when they ran."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    try:
+        last = float((st.data if st else {}).get("server_checked_at") or 0)
+    except (TypeError, ValueError):
+        last = 0.0
+    if 0 <= now() - last < _MIN_AGE_S:
+        return False
+    if st:
+        await st.async_set(server_checked_at=now())
+    await _check(hass)
+    await _revalidate_license(hass)
+    return True
+
+
 def async_setup_update_check(hass: HomeAssistant) -> None:
-    """Schedule the startup + daily checks (idempotent across reloads)."""
+    """Schedule the checks (idempotent across reloads): the first at random
+    within _FIRST_DELAY_S, then an hourly look for one that is due."""
     from homeassistant.helpers.event import async_call_later, async_track_time_interval  # noqa: PLC0415
 
     dom = hass.data.setdefault(DOMAIN, {})
     if dom.get(_DATA_UNSUBS):
         return  # already scheduled
+    unsubs: list = []
 
-    async def _run(_now: Any = None) -> None:
-        await _check(hass)
-        await _revalidate_license(hass)
+    async def _tick(_now: Any = None) -> None:
+        await _run_if_due(hass)
 
-    dom[_DATA_UNSUBS] = [
-        async_call_later(hass, _FIRST_DELAY_S, _run),
-        async_track_time_interval(hass, _run, _INTERVAL),
-    ]
+    async def _first(_now: Any = None) -> None:
+        await _run_if_due(hass)
+        if dom.get(_DATA_UNSUBS) is unsubs:  # not stopped while it ran
+            unsubs.append(async_track_time_interval(hass, _tick, _TICK))
+
+    unsubs.append(async_call_later(hass, random.uniform(*_FIRST_DELAY_S), _first))
+    dom[_DATA_UNSUBS] = unsubs
 
 
 def async_stop_update_check(hass: HomeAssistant) -> None:

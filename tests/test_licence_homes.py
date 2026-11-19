@@ -49,10 +49,10 @@ def test_only_a_real_new_token_is_kept():
 
 def test_both_server_calls_send_it_and_keep_the_answer():
     up = _src("update_check.py")
-    assert "**home_params(st.data)}" in up and "await keep_token(st, data)" in up, "the daily check"
+    assert 'await call(hass, "validate", key, home_params(st.data))' in up and "await keep_token(st, data)" in up, "the daily check"
     assert '_hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed", "needs_all_reports")' in up, "a refused home is said in Settings"
     fo = _src("ws_forensics.py")
-    assert '"machine": machine, **_hp}' in fo, "activation"
+    assert 'await call(hass, "validate", key, _hp)' in fo, "activation"
     assert '_hp["token"] = ""' in fo, "a different key starts the home afresh"
     assert '"type": "padspan_ha/licence_homes"' in fo and 'vol.In(["list", "remove", "label"])' in fo
     assert "websocket_api.async_register_command(hass, ws_licence_homes)" in _src("websocket.py")
@@ -111,7 +111,7 @@ def test_a_restore_a_new_key_or_a_bad_answer_never_costs_the_home_its_place():
     assert 'license_home_token="", license_homes_used=0, license_home_status="",' in _src("ws_forensics.py"), "a trial key: a fresh home"
     assert '"license_home_token": "", "license_homes_used": 0,' in _src("pro_invite.py"), "an invite key: a fresh home"
     assert '"license_home_token", "license_home_label", "license_homes_used", "report_locked_key")' in _src("ws_factory_reset.py")
-    assert "if resp.status >= 400:" in _src("licence_homes.py")
+    assert 'raise RuntimeError(f"the licence server answered {status}")' in _src("licence_homes.py")
     assert '"homes_max": _n(data.get("homes_max"), 5)' in _src("ws_forensics.py"), "a malformed answer can't raise"
 
 
@@ -124,6 +124,9 @@ def _activate(monkeypatch, stored, answer, key):
     from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 
     class _Resp:
+        status = 200
+        headers: dict = {}
+
         async def text(self):
             return json.dumps(answer)
 
@@ -135,6 +138,7 @@ def _activate(monkeypatch, stored, answer, key):
 
     session = MagicMock()
     session.get = MagicMock(return_value=_Resp())
+    session.post = MagicMock(return_value=_Resp())
     mod = types.ModuleType("homeassistant.helpers.aiohttp_client")
     mod.async_get_clientsession = lambda hass: session
     monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", mod)
@@ -147,7 +151,7 @@ def _activate(monkeypatch, stored, answer, key):
     st = _St(stored)
     hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st}})
     asyncio.run(F.ws_forensics_license_activate(hass, MagicMock(), {"id": 1, "key": key}))
-    return st.data, session.get.call_args.kwargs["params"]
+    return st.data, session.post.call_args_list[0].kwargs["data"]   # what the call sends first
 
 
 def test_the_same_key_again_keeps_the_home_when_the_answer_has_no_token(monkeypatch):

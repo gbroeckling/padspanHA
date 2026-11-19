@@ -164,11 +164,8 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         return
     token = st.data[SETTINGS_KEY]["token"]
     try:
-        try:
-            from homeassistant.helpers.instance_id import async_get as _instance_id  # noqa: PLC0415
-            machine = await _instance_id(hass)
-        except Exception:
-            machine = "padspan-ha"
+        from .licence_homes import machine_id  # noqa: PLC0415
+        machine = await machine_id(hass)
         data = await _post(hass, "invite_claim", {"token": token, "email": email, "machine": machine})
     except Exception as err:
         connection.send_error(msg["id"], "network",

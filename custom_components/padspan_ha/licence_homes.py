@@ -12,8 +12,8 @@ carries the licence's group code
 developer sees one licence's homes together.
 
 The licence server counts homes; this side only says which home it is. Each
-check sends this Home Assistant's instance id and the home's current token,
-and keeps the next token the server answers with. A restored backup carries an
+check sends a hash of this Home Assistant's instance id (machine_hash) and the
+home's current token, and keeps the next token the server answers with. A restored backup carries an
 old token: the server takes it back when the home it came from has gone quiet,
 and asks it to take a home of its own when that home is still checking in (a
 copy running in a second house). Nothing here can lock anyone out: a server
@@ -21,22 +21,43 @@ that is down, or an answer without a token, leaves the stored token as it was.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import uuid
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import VERSION
+from .const import DATA_SETTINGS, DOMAIN, VERSION
 
 LICENCE_URL = "https://traks.ca/license/"
 
 
 async def machine_id(hass: HomeAssistant) -> str:
-    """This Home Assistant's instance id (the server keeps only a hash of it)."""
+    """This Home Assistant's instance id. Where it can't be read, a random id
+    made once for this install and kept in PadSpan's settings
+    (license_install_id): every such install used to send the same
+    "padspan-ha", which made all of them one home on the licence server."""
     try:
         from homeassistant.helpers.instance_id import async_get as _instance_id  # noqa: PLC0415
-        return await _instance_id(hass)
+        iid = await _instance_id(hass)
+        if iid:
+            return str(iid)
     except Exception:
-        return "padspan-ha"
+        pass
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    mid = str(st.data.get("license_install_id") or "")
+    if not mid:
+        mid = uuid.uuid4().hex
+        await st.async_set(license_install_id=mid)
+    return mid
+
+
+def machine_hash(machine: str) -> str:
+    """What a licence call sends in place of the id itself: one-way, and the
+    licence server makes the same hash from the raw id older PadSpan sends, so
+    a home stays one home across the update."""
+    return hashlib.sha256(f"padspan-ha|{machine}".encode()).hexdigest()
 
 
 def home_params(settings: dict[str, Any] | None) -> dict[str, str]:
@@ -83,18 +104,43 @@ async def keep_warning(st: Any, data: dict[str, Any] | None) -> None:
 
 async def call(hass: HomeAssistant, action: str, key: str, extra: dict[str, str] | None = None,
                post: bool = False) -> dict[str, Any]:
-    """One licence-server call for `action` (homes, home_remove, home_label)."""
-    import json as _json  # noqa: PLC0415
-    from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+    """One licence-server call for `action` (validate, homes, home_remove, home_label).
+
+    The key and this home's hashed id go in a POST body, so neither is in a
+    URL a web server or proxy logs, and the raw instance id stays home. Two
+    answers make it ask once more with the raw id, so this version works with
+    a licence server from before the hash: an answer that doesn't say it read
+    the hash ("machine_h": true) is asked again in a POST body (a server from
+    before, which reads the body but not the hash; or one moving a home it
+    recorded by the raw id over to the hash, once); a refused POST (4xx) is
+    asked again exactly as older PadSpan asks (`post`: as a POST, else a GET).
+    A 5xx, a second 429 or no answer raises: the server is down, and asking
+    again won't help."""
+    from .server_http import request  # noqa: PLC0415
+    machine = await machine_id(hass)
     params = {"action": action, "product": "padspan"}
-    body = {"key": key, "machine": await machine_id(hass), **(extra or {})}
-    session = async_get_clientsession(hass)
-    if post:
-        req = session.post(LICENCE_URL, params=params, data=body, timeout=15)
+    fields = dict(extra or {})
+    status, text = await request(hass, "POST", LICENCE_URL, params=params,
+                                 data={"key": key, "machine_h": machine_hash(machine), **fields})
+    if status >= 500 or status == 429:
+        raise RuntimeError(f"the licence server answered {status}")
+    old = {"key": key, "machine": machine, **fields}
+    if status < 400:
+        data = _answer(text)
+        if isinstance(data, dict) and data.get("machine_h") is True:
+            return data
+        status, text = await request(hass, "POST", LICENCE_URL, params=params, data=old)
+    elif post:
+        status, text = await request(hass, "POST", LICENCE_URL, params=params, data=old)
     else:
-        req = session.get(LICENCE_URL, params={**params, **body}, timeout=15)
-    async with req as resp:
-        if resp.status >= 400:
-            raise RuntimeError(f"the licence server answered {resp.status}")
-        text = await resp.text()
-    return _json.loads(text.lstrip("﻿"))
+        status, text = await request(hass, "GET", LICENCE_URL, params={**params, **old})
+    if status >= 400:
+        raise RuntimeError(f"the licence server answered {status}")
+    return json.loads(text.lstrip("\ufeff"))   # the licence server prefixes a BOM
+
+
+def _answer(text: str) -> Any:
+    try:
+        return json.loads(text.lstrip("\ufeff"))
+    except ValueError:
+        return None
