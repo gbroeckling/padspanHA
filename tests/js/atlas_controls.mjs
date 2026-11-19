@@ -224,7 +224,7 @@ const area = { "light.den_a": "Den", "light.den_b": "Den", "light.den_c": "Den",
 const lightsOf = (states) => LM.gatherLights(states, area, {}, "pro");
 const asked = [];
 const occupancy = { people: [
-  { name: "Garry", kind: "known", room: "Den" }, { name: "Nicole", kind: "known", room: "Kitchen" },
+  { name: "Alex", kind: "known", room: "Den" }, { name: "Sam", kind: "known", room: "Kitchen" },
   { name: "Unknown phone", kind: "unknown", room: "den" },
 ] };
 const many = [];
@@ -240,7 +240,7 @@ const roomApi = (states, toggle, peopleShown = true) => ({
   const sheet = top();
   await flush();
   check("room sheet: who PadSpan places in the room, and only them",
-    sheet.textContent.includes("Here: Garry, +1 unknown phone") && !sheet.textContent.includes("Nicole")
+    sheet.textContent.includes("Here: Alex, +1 unknown phone") && !sheet.textContent.includes("Sam")
       && JSON.stringify(asked) === JSON.stringify(["padspan_ha/occupancy_estimate"]), sheet.textContent);
   const rowOf = (name) => nodes(sheet).find(n => n.children && n.children.some(c => c.textContent === name)) || null;
   const shelf = rowOf("Den Shelf");
@@ -327,11 +327,11 @@ const roomApi = (states, toggle, peopleShown = true) => ({
   const hidden = top();
   await flush();
   check("room sheet: with people hidden on this screen, no names and nothing asked",
-    asked.length === n1 && !hidden.textContent.includes("Here:") && !hidden.textContent.includes("Garry"), hidden.textContent);
+    asked.length === n1 && !hidden.textContent.includes("Here:") && !hidden.textContent.includes("Alex"), hidden.textContent);
   // ...and a sheet whose screen stops showing people while it is open drops them.
   hiddenSheet?.update(roomApi(s1), lightsOf(s1));
   await flush();
-  const shownThen = hidden.textContent.includes("Here: Garry");
+  const shownThen = hidden.textContent.includes("Here: Alex");
   hiddenSheet?.update(roomApi(s1, null, false), lightsOf(s1));
   check("room sheet: names come and go with the screen's people switch while open",
     shownThen && !hidden.textContent.includes("Here:"), hidden.textContent);

@@ -1498,8 +1498,8 @@ export function roomScenes(hass, room, max = 6){
   }
   return out.sort((a, b) => a.name.localeCompare(b.name)).slice(0, max);
 }
-/** Who PadSpan places in `room`, in a line for the room sheet: "Here: Garry,
- *  Nicole, +1 unknown phone", or null with nobody there. est: what
+/** Who PadSpan places in `room`, in a line for the room sheet: "Here: Alex,
+ *  Sam, +1 unknown phone", or null with nobody there. est: what
  *  padspan_ha/occupancy_estimate answers — the people Overview's Occupancy
  *  card lists, each with the room their phone or tag puts them in (known
  *  people by name, anyone else as Overview words them). */
