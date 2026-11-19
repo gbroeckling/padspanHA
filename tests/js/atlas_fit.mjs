@@ -79,11 +79,13 @@ for (const [name, m] of houses) {
   for (const [screen, W, H] of SCREENS) {
     const b = FIT.bestLayout(shapes, W, H), tag = `best: ${name} on ${screen}`;
     check(`${tag}: nearly every room in sight`, FIT.hiddenShare(shapes, b.floorGap, b.horizGap) <= FIT.HIDDEN_MAX + 1e-9, b);
+    check(`${tag}: no one room loses more than a sliver`, FIT.hiddenAt(shapes, b.floorGap, b.horizGap).worst <= FIT.ROOM_HIDDEN_MAX + 1e-9, FIT.hiddenAt(shapes, b.floorGap, b.horizGap));
     check(`${tag}: within the spacings it may use`, b.floorGap >= FIT.SPACING.min && b.floorGap <= FIT.SPACING.max && Math.abs(b.horizGap) <= FIT.SIDEWAYS.max, b);
     // Never beaten by a spacing a person could have saved that shows as much: the sliders' own range, coarsely.
     let rival = null;
     for (let FG = 60; FG <= 400; FG += 20) for (let HG = -400; HG <= 400; HG += 40) {
-      if (FIT.hiddenShare(shapes, FG, HG) > FIT.HIDDEN_MAX) continue;
+      const hid = FIT.hiddenAt(shapes, FG, HG);
+      if (hid.share > FIT.HIDDEN_MAX || hid.worst > FIT.ROOM_HIDDEN_MAX) continue;
       const p = px(shapes, FG, HG, W, H);
       if (!rival || p > rival.p) rival = { FG, HG, p };
     }

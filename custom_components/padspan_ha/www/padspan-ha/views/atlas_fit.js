@@ -35,6 +35,8 @@ export const SPACING = { min: 60, max: 420, step: 10 };
 export const SIDEWAYS = { max: 520, step: 20 };
 /** How much of the rooms below a floor may sit under that floor's plate. A sliver of a far corner reads as depth; more hides rooms. */
 export const HIDDEN_MAX = 0.02;
+/** And how much of any ONE room: 2% of a whole house can be a third of one deck (seen on the first real wall). */
+export const ROOM_HIDDEN_MAX = 0.06;
 
 const inPoly = (x, y, poly) => {
   let inside = false;
@@ -70,11 +72,12 @@ export function floorShapes(frame, FG = 0, HG = 0) {
     if (!box) continue;
     const [a, b, c, d] = [box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad];
     const top = [at(a, b, z), at(c, b, z), at(c, d, z), at(a, d, z)];
-    const rooms = [], samples = [];
+    const rooms = [], samples = [], byRoom = [];
     for (const r of frame.rooms) {
       if (r.z !== z || !r.pts || r.pts.length < 3) continue;
       const poly = r.pts.map(p => at(p[0], p[1], z));
       rooms.push(poly);
+      const first = samples.length;
       // Sample points inside the room, on a grid in metres (its corners too): what a plate above could hide.
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const p of r.pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
@@ -83,8 +86,9 @@ export function floorShapes(frame, FG = 0, HG = 0) {
         if (inPoly(x, y, r.pts)) samples.push(at(x, y, z));
       }
       for (const p of poly) samples.push(p);
+      byRoom.push([first, samples.length]);       // this room's samples: [from, to)
     }
-    shapes.push({ z, k: frame.rankOf(z), rooms, samples, plate: top, thick: 18 });
+    shapes.push({ z, k: frame.rankOf(z), rooms, samples, byRoom, plate: top, thick: 18 });
   }
   return shapes;
 }
@@ -116,9 +120,12 @@ export function drawingBox(shapes, FG, HG) {
   return Number.isFinite(y0) ? { x0: all.x0, x1: all.x1, y0, y1 } : all;
 }
 
-/** The share of the rooms' sample points that sit under a higher floor's plate at this spacing (0 to 1). */
-export function hiddenShare(shapes, FG, HG) {
-  let all = 0, hidden = 0;
+/**
+ * What the higher floors' plates hide at this spacing: {share, worst}. `share` is the part of ALL the rooms' sample
+ * points under a plate (0 to 1); `worst` is the same for the one room that loses most.
+ */
+export function hiddenAt(shapes, FG, HG) {
+  let all = 0, hidden = 0, worst = 0;
   for (const low of shapes) {
     const above = shapes.filter(s => s.k > low.k).map(s => {
       const top = s.plate.map(p => shift(p, s, FG, HG));
@@ -128,14 +135,20 @@ export function hiddenShare(shapes, FG, HG) {
       const high = top[ys.indexOf(Math.min(...ys))], lowp = top[ys.indexOf(Math.max(...ys))];
       return [high, right, [right[0], right[1] + s.thick], [lowp[0], lowp[1] + s.thick], [left[0], left[1] + s.thick], left];
     });
-    for (const p of low.samples) {
-      const q = shift(p, low, FG, HG);
-      all++;
-      if (above.some(poly => inPoly(q[0], q[1], poly))) hidden++;
+    if (!above.length) { all += low.samples.length; continue; }
+    const under = low.samples.map(p => { const q = shift(p, low, FG, HG); return above.some(poly => inPoly(q[0], q[1], poly)); });
+    all += under.length;
+    for (const u of under) if (u) hidden++;
+    for (const [from, to] of low.byRoom || []) {
+      let n = 0;
+      for (let i = from; i < to; i++) if (under[i]) n++;
+      if (to > from) worst = Math.max(worst, n / (to - from));
     }
   }
-  return all ? hidden / all : 0;
+  return { share: all ? hidden / all : 0, worst };
 }
+/** The share of the rooms' sample points that sit under a higher floor's plate at this spacing (0 to 1). */
+export const hiddenShare = (shapes, FG, HG) => hiddenAt(shapes, FG, HG).share;
 
 /** Screen pixels per drawing unit when a box is shown whole inside a stage ("contain"), with the pads and the key's row. */
 export function unitPx(box, stageW, stageH, extra = 0) {
@@ -156,7 +169,7 @@ export function unitPx(box, stageW, stageH, extra = 0) {
  * edge. A last tie goes to the more upright stack, so the answer never
  * flickers between two equals.
  */
-export function bestLayout(shapes, stageW, stageH, { extra = 32, hiddenMax = HIDDEN_MAX } = {}) {
+export function bestLayout(shapes, stageW, stageH, { extra = 32, hiddenMax = HIDDEN_MAX, roomHiddenMax = ROOM_HIDDEN_MAX } = {}) {
   const fallback = { floorGap: 150, horizGap: 0, px: unitPx(drawingBox(shapes || [], 150, 0), stageW, stageH, extra), hidden: 0 };
   if (!shapes || shapes.length < 2 || !(stageW > 0) || !(stageH > 0)) return fallback;
   const seen = [];
@@ -165,8 +178,8 @@ export function bestLayout(shapes, stageW, stageH, { extra = 32, hiddenMax = HID
     for (let HG = -SIDEWAYS.max; HG <= SIDEWAYS.max; HG += SIDEWAYS.step) {
       const box = drawingBox(shapes, FG, HG), px = unitPx(box, stageW, stageH, extra);
       if (px < top * 0.97) continue;                       // cannot be chosen: skip the costlier check
-      const hidden = hiddenShare(shapes, FG, HG);
-      if (hidden > hiddenMax) continue;
+      const hid = hiddenAt(shapes, FG, HG), hidden = hid.share;
+      if (hidden > hiddenMax || hid.worst > roomHiddenMax) continue;
       const w = (box.x1 - box.x0 + 2 * PAD.x) * px, h = (box.y1 - box.y0 + PAD.top + PAD.bottom + extra) * px;
       seen.push({ floorGap: FG, horizGap: HG, px, hidden, used: (w * h) / (stageW * stageH) });
       if (px > top) top = px;
