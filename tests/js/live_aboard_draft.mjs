@@ -433,6 +433,137 @@ tryCase("walls: with nothing in the file the house is as part B drew it", () => 
   check("walls: with nothing in the file the house is as part B drew it", a === b);
 });
 
+// ── carry: doors and windows go with a room Mapping → Layout moved (carryOpenings) ──
+// The kitchen and hall above: a door on the kitchen's back wall (an outside wall, 0.07 m out), a window on its
+// front wall, a door in the wall it shares with the hall, a window on the hall's far wall, one on another floor,
+// and a barrier's own window (the map's: Layout moves those itself). The den stands alone, for reshapes.
+const CARRY_BEFORE = { Kitchen: MODEL.room_geometry_m.Kitchen, Hall: MODEL.room_geometry_m.Hall, Den: rect("main", 20, 0, 25, 4) };
+const CARRY_OPS = {
+  door_0000c001: { ...D.newOpening("door", "main", [0.5, -0.07], [1.4, -0.07], ceil), hinge: "right", swing: "out", type: "sliding", glass: true, link: "binary_sensor.back_door", shown: "shut" },
+  win_0000c002: { ...D.newOpening("window", "main", [1, 3.07], [2.2, 3.07], ceil), sill_m: 0.6, head_m: 1.9 },
+  door_0000c003: D.newOpening("door", "main", [4.05, 1], [4.05, 1.9], ceil),
+  win_0000c004: D.newOpening("window", "main", [9.07, 1], [9.07, 2], ceil),
+  win_0000c005: D.newOpening("window", "upper", [1, 3.07], [2.2, 3.07], ceil),
+  bar_win: { sill_m: 1.1, head_m: 2.0 },
+  door_0000d001: D.newOpening("door", "main", [21, -0.07], [21.9, -0.07], ceil),       // the den's back wall, 1 m from its west corner
+  win_0000d002: D.newOpening("window", "main", [23.5, -0.07], [24.5, -0.07], ceil),    // the same wall, 0.5 m from its east corner
+  win_0000d003: D.newOpening("window", "main", [25.07, 1], [25.07, 2.2], ceil),        // the den's east wall
+};
+const moveBy = (g, dx, dy) => ({ ...g, points_m: g.points_m.map(p => [p[0] + dx, p[1] + dy]) });
+const turnBy = (g, deg, c) => {
+  const t = deg * Math.PI / 180, cs = Math.cos(t), sn = Math.sin(t);
+  return { ...g, points_m: g.points_m.map(([x, y]) => [c[0] + (x - c[0]) * cs - (y - c[1]) * sn, c[1] + (x - c[0]) * sn + (y - c[1]) * cs]) };
+};
+const withPts = (g, pts, extra) => ({ ...g, points_m: pts, ...extra });
+const carry = (after, ops = CARRY_OPS) => {
+  const r = D.carryOpenings(ops, "main", CARRY_BEFORE, { ...CARRY_BEFORE, ...after });
+  if (Object.keys(r.moved).length) payloads.push({ openings: r.moved });
+  return r;
+};
+const endsNear = (o, a, b, eps = 0.0015) => !!o && near(o.a_m[0], a[0], eps) && near(o.a_m[1], a[1], eps) && near(o.b_m[0], b[0], eps) && near(o.b_m[1], b[1], eps);
+const shifted = (id, dx, dy) => { const o = CARRY_OPS[id]; return [[o.a_m[0] + dx, o.a_m[1] + dy], [o.b_m[0] + dx, o.b_m[1] + dy]]; };
+const leftOf = (r) => Object.fromEntries(r.left.map(l => [l.id, l.why]));
+const widthOf = (o) => Math.hypot(o.b_m[0] - o.a_m[0], o.b_m[1] - o.a_m[1]);
+const notEnds = (o) => JSON.stringify(Object.keys(o || {}).filter(k => k !== "a_m" && k !== "b_m").sort().map(k => [k, o[k]]));
+
+tryCase("carry: a moved room takes its doors and windows, each whole; one it shares with a room that stayed is left", () => {
+  const r = carry({ Kitchen: moveBy(CARRY_BEFORE.Kitchen, 1.5, -2) });
+  const d = r.moved.door_0000c001, w = r.moved.win_0000c002;
+  check("carry: a moved room takes its doors and windows, each whole; one it shares with a room that stayed is left",
+    endsNear(d, ...shifted("door_0000c001", 1.5, -2)) && endsNear(w, ...shifted("win_0000c002", 1.5, -2))
+    && notEnds(d) === notEnds(CARRY_OPS.door_0000c001) && notEnds(w) === notEnds(CARRY_OPS.win_0000c002)
+    && Object.keys(r.moved).sort().join() === "door_0000c001,win_0000c002"
+    && JSON.stringify(r.left) === JSON.stringify([{ id: "door_0000c003", kind: "door", why: "shared" }]), r);
+});
+tryCase("carry: two rooms moved together take the door between them", () => {
+  const r = carry({ Kitchen: moveBy(CARRY_BEFORE.Kitchen, 2, 1), Hall: moveBy(CARRY_BEFORE.Hall, 2, 1) });
+  check("carry: two rooms moved together take the door between them",
+    endsNear(r.moved.door_0000c003, ...shifted("door_0000c003", 2, 1)) && endsNear(r.moved.win_0000c004, ...shifted("win_0000c004", 2, 1))
+    && Object.keys(r.moved).length === 4 && !r.left.length && !("win_0000c005" in r.moved) && !("bar_win" in r.moved), r);
+});
+tryCase("carry: two rooms moved apart leave the door between them", () => {
+  const r = carry({ Kitchen: moveBy(CARRY_BEFORE.Kitchen, 0, 1), Hall: moveBy(CARRY_BEFORE.Hall, 0, -1) });
+  check("carry: two rooms moved apart leave the door between them", leftOf(r).door_0000c003 === "shared" && "door_0000c001" in r.moved, r);
+});
+tryCase("carry: a turned room turns its doors and windows with it, their widths kept", () => {
+  const c = [2, 1.5], r = carry({ Kitchen: turnBy(CARRY_BEFORE.Kitchen, 90, c) });
+  const t = (p) => [c[0] - (p[1] - c[1]), c[1] + (p[0] - c[0])], o = CARRY_OPS.door_0000c001, d = r.moved.door_0000c001;
+  const r2 = carry({ Kitchen: turnBy(CARRY_BEFORE.Kitchen, 17, c) }), d2 = r2.moved.door_0000c001;
+  check("carry: a turned room turns its doors and windows with it, their widths kept",
+    endsNear(d, t(o.a_m), t(o.b_m)) && endsNear(r.moved.win_0000c002, t(CARRY_OPS.win_0000c002.a_m), t(CARRY_OPS.win_0000c002.b_m))
+    && near(widthOf(d2), 0.9, 0.002) && widthOf(d2) >= D.DOOR_MIN_M && leftOf(r2).door_0000c003 === "shared", { r, d2 });
+});
+tryCase("carry: an edge made longer keeps each one as far from its nearer corner", () => {
+  // The den's east wall out by 2 m: the door (nearer the west corner) stays, the window by the east corner follows it.
+  const r = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [27, 0], [27, 4], [20, 4]]) });
+  check("carry: an edge made longer keeps each one as far from its nearer corner",
+    !("door_0000d001" in r.moved) && endsNear(r.moved.win_0000d002, ...shifted("win_0000d002", 2, 0))
+    && endsNear(r.moved.win_0000d003, ...shifted("win_0000d003", 2, 0)) && !r.left.length, r);
+});
+tryCase("carry: an edge made shorter keeps it as far from its nearer corner, never past the other", () => {
+  const r = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [23.5, 0], [23.5, 4], [20, 4]]) });
+  // One wide window 0.5 m from the east corner; the wall shortened to 2.2 m: held at the west corner instead.
+  const wide = { win_0000e001: D.newOpening("window", "main", [22.5, -0.07], [24.5, -0.07], ceil) };
+  const r2 = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [22.2, 0], [22.2, 4], [20, 4]]) }, wide);
+  check("carry: an edge made shorter keeps it as far from its nearer corner, never past the other",
+    !("door_0000d001" in r.moved) && endsNear(r.moved.win_0000d002, ...shifted("win_0000d002", -1.5, 0))
+    && endsNear(r2.moved.win_0000e001, [20, -0.07], [22, -0.07]), { r, r2 });
+});
+tryCase("carry: an edge too short for it now leaves it where it is, counted", () => {
+  const r = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [20.5, 0], [20.5, 4], [20, 4]]) });
+  check("carry: an edge too short for it now leaves it where it is, counted",
+    leftOf(r).door_0000d001 === "wall" && leftOf(r).win_0000d002 === "wall" && endsNear(r.moved.win_0000d003, ...shifted("win_0000d003", -4.5, 0)), r);
+});
+tryCase("carry: one pushed onto another on a shorter wall stays where it was, counted", () => {
+  // The wall shortened to 2.2 m: the door (1 m from the west corner) stays; the window, kept 0.5 m from the east
+  // corner, would overlap it.
+  const r = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [22.2, 0], [22.2, 4], [20, 4]]) });
+  check("carry: one pushed onto another on a shorter wall stays where it was, counted",
+    !("door_0000d001" in r.moved) && !("door_0000d001" in leftOf(r)) && leftOf(r).win_0000d002 === "wall"
+    && endsNear(r.moved.win_0000d003, ...shifted("win_0000d003", -2.8, 0)), r);
+});
+tryCase("carry: an edge gone (a corner added on it and moved) leaves its openings, counted; one not moved needs nothing", () => {
+  // Layout's draft: a corner added halfway along the back wall (it is a new one, _was null there) and pulled out 1 m.
+  const out = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [22.5, -1], [25, 0], [25, 4], [20, 4]], { _was: [0, null, 1, 2, 3] }) });
+  const still = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [22.5, 0], [25, 0], [25, 4], [20, 4]], { _was: [0, null, 1, 2, 3] }) });
+  check("carry: an edge gone (a corner added on it and moved) leaves its openings, counted; one not moved needs nothing",
+    leftOf(out).door_0000d001 === "wall" && leftOf(out).win_0000d002 === "wall" && !("win_0000d003" in out.moved)
+    && !Object.keys(still.moved).length && !still.left.length, { out, still });
+});
+tryCase("carry: a corner added or taken away elsewhere, then the room moved: its other walls are followed", () => {
+  const added = withPts(CARRY_BEFORE.Den, [[20, 0], [25, 0], [25, 2], [25, 4], [20, 4]], { _was: [0, 1, null, 2, 3] });
+  const r = carry({ Den: moveBy(added, 0, 3) });
+  const tri = { Tri: rect("main", 40, 0, 44, 4) }, triOps = { door_0000f001: D.newOpening("door", "main", [41, -0.07], [42, -0.07], ceil) };
+  const dropped = D.carryOpenings(triOps, "main", tri, { Tri: { ...moveBy(tri.Tri, 1, 1), points_m: [[41, 1], [45, 1], [45, 5]], _was: [0, 1, 2] } });
+  check("carry: a corner added or taken away elsewhere, then the room moved: its other walls are followed",
+    endsNear(r.moved.door_0000d001, ...shifted("door_0000d001", 0, 3)) && endsNear(r.moved.win_0000d002, ...shifted("win_0000d002", 0, 3))
+    && leftOf(r).win_0000d003 === "wall" && endsNear(dropped.moved.door_0000f001, [42, 0.93], [43, 0.93]), { r, dropped });
+});
+tryCase("carry: an outline replaced (Load into the layout editor) moves nothing by its corners", () => {
+  const r = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [25, 0], [25, 4], [20, 4]].map(p => [p[0] + 1, p[1]]), { _was: false }) });
+  const same = carry({ Den: withPts(CARRY_BEFORE.Den, [[20, 0], [25, 0], [25, 4.5], [20, 4.5]], { _was: false }) });
+  check("carry: an outline replaced (Load into the layout editor) moves nothing by its corners",
+    !Object.keys(r.moved).length && leftOf(r).win_0000d003 === "wall" && !("door_0000d001" in leftOf(r)) && !Object.keys(same.moved).length && !same.left.length, { r, same });
+});
+tryCase("carry: undone by moving back, each comes back to where it was", () => {
+  const there = { Kitchen: moveBy(CARRY_BEFORE.Kitchen, 1.25, 0.5), Den: turnBy(withPts(CARRY_BEFORE.Den, [[20, 0], [27, 0], [27, 4], [20, 4]]), 30, [23, 2]) };
+  const go = carry(there);
+  const opsThere = { ...CARRY_OPS, ...go.moved };
+  const back = D.carryOpenings(opsThere, "main", { ...CARRY_BEFORE, ...there }, CARRY_BEFORE);
+  const home = Object.keys(go.moved).every(id => endsNear(back.moved[id], CARRY_OPS[id].a_m, CARRY_OPS[id].b_m, 0.003));
+  check("carry: undone by moving back, each comes back to where it was",
+    Object.keys(go.moved).length >= 4 && home && Object.keys(back.moved).sort().join() === Object.keys(go.moved).sort().join(), { go, back });
+});
+tryCase("carry: the moved room's door is cut into its wall, not left standing on its own", () => {
+  const moved = { ...MODEL, room_geometry_m: { ...MODEL.room_geometry_m, Kitchen: moveBy(MODEL.room_geometry_m.Kitchen, 0, -6) }, rf_barriers_m: [] };
+  const ops = { door_0000c001: CARRY_OPS.door_0000c001 };
+  const pcs = (ops2) => { const h = H.readHouse(moved, moved.floors, {}, null); D.applyOpenings(h, ops2); return piecesOf(h); };
+  const was = pcs(ops).find(p => p.added === "door_0000c001");
+  const now = pcs(carry({ Kitchen: moved.room_geometry_m.Kitchen }, ops).moved).find(p => p.added === "door_0000c001");
+  check("carry: the moved room's door is cut into its wall, not left standing on its own",
+    was && was.free === true && now && !now.free && now.kind === "door", { was, now });
+});
+
 // ── items from the plans: held in the draft until Save, read off it each time ──
 tryCase("plans: a kept item is the draft's own, and leaves with Undo or Discard", () => {
   const f = D.ownedOf({ schema: 1, pieces: { fur_00000001: { id: "fur_00000001", floor_id: "main", x_m: 3, y_m: 4, label: "Hall", recipe: { kind: "stairs", params: { rail: "none" } } } } });

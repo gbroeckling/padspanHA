@@ -11762,6 +11762,20 @@ export function _roomCornerAdd(points, i) {
 export function _roomCornerDrop(points, i) {
   return points.length > 3 ? points.filter((_, k) => k !== i) : points;
 }
+// Both on a draft room g, which also keeps which saved corner each corner is (g._was: null for one added since;
+// false once the outline was replaced), so Save can tell which wall a Live Aboard door was on (_carryOpenings).
+const _wasOf = (g) => (g._was === false ? false : Array.isArray(g._was) ? g._was : g.points_m.map((_, k) => k));
+export function _roomCornerAddIn(g, i) {
+  const w = _wasOf(g);
+  g.points_m = _roomCornerAdd(g.points_m, i);
+  g._was = w && [...w.slice(0, i + 1), null, ...w.slice(i + 1)];
+}
+export function _roomCornerDropIn(g, i) {
+  if (g.points_m.length <= 3) return;
+  const w = _wasOf(g);
+  g.points_m = _roomCornerDrop(g.points_m, i);
+  g._was = w && w.filter((_, k) => k !== i);
+}
 // Which selected rooms can merge into one: two or more outlined rooms, none
 // with unsaved changes (the merge is saved at once, from the stored shapes).
 export function _roomsMergeable(sel, draft, changed) {
@@ -11778,8 +11792,53 @@ export function _roomsAfterMerge(draft, orig, keep, others, res) {
   for (const m of [draft, orig]) {
     if (!m) continue;
     for (const r of gone) delete m[r];
-    if (res && Array.isArray(res.points_m) && m[keep]) m[keep] = { ...m[keep], type: "poly", points_m: JSON.parse(JSON.stringify(res.points_m)) };
+    if (res && Array.isArray(res.points_m) && m[keep]) { m[keep] = { ...m[keep], type: "poly", points_m: JSON.parse(JSON.stringify(res.points_m)) }; delete m[keep]._was; }
   }
+}
+// Save corrections: the doors, windows and doorways drawn in Live Aboard on the walls of the rooms it just wrote go
+// with them (2026-11-19). No new field in the 3D file (the owner's): live_aboard_draft.js carryOpenings works out
+// which wall each is on from the outlines before and after. Read from the file at Save, written in the same Save by
+// house3d_edit (Edit's own save and checks), never removed: one that can't follow, or a write refused, stays where
+// it is and is counted. {text: the words for Save's message ("" when none moved or stayed), bad: a read or write failed}.
+const _OPENING_WORDS = { door: ["door", "doors"], window: ["window", "windows"], doorway: ["doorway", "doorways"] };
+function _openingWords(list) {
+  const n = {};
+  for (const o of list) n[o.kind] = (n[o.kind] || 0) + 1;
+  const parts = Object.keys(_OPENING_WORDS).filter(k => n[k]).map(k => `${n[k]} ${_OPENING_WORDS[k][n[k] === 1 ? 0 : 1]}`);
+  return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1] : parts[0] || "";
+}
+export async function _carryOpenings(ctx, floorId, before, after) {
+  const said = (err) => String((err && err.message) || err).replace(/\.$/, "");
+  let D, r;
+  try {
+    D = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
+    r = await ctx.actions.wsCall("padspan_ha/house3d_get");
+  } catch (err) {
+    return { text: `Live Aboard's doors and windows on these rooms weren't checked (${said(err)}), so they stay where they were.`, bad: true };
+  }
+  const res = D.carryOpenings(r && r.data && r.data.openings, floorId, before, after);
+  let moved = Object.keys(res.moved).map(id => ({ id, kind: res.moved[id].kind }));
+  const left = res.left.slice();
+  if (moved.length) {
+    try {
+      if (!D.writable(r.data, r.writable)) throw new Error("Live Aboard's file was saved by a newer PadSpan");
+      await ctx.actions.wsCall("padspan_ha/house3d_edit", { openings: res.moved });
+    } catch (err) {
+      left.push(...moved.map(o => ({ ...o, why: said(err) })));
+      moved = [];
+    }
+  }
+  const WHY = { shared: (one) => `a room that didn't move the same way shares ${one ? "its wall" : "their walls"}`,
+                wall: (one) => `${one ? "its wall is" : "their walls are"} gone or too short now` };
+  const out = moved.length ? [`${_openingWords(moved)} in Live Aboard moved with ${moved.length === 1 ? "its room" : "their rooms"}.`] : [];
+  // A refused write first; then those to check in Edit, so "Check them" follows them.
+  for (const why of [...new Set(left.map(o => o.why))].sort((a, b) => !!WHY[a] - !!WHY[b])) {
+    const these = left.filter(o => o.why === why), one = these.length === 1;
+    out.push(`${_openingWords(these)} in Live Aboard ${one ? "was" : "were"} left where ${one ? "it was" : "they were"}: ${WHY[why] ? WHY[why](one) : why}.`);
+  }
+  const fix = left.filter(o => WHY[o.why]).length;
+  if (fix) out.push(`Check ${fix === 1 ? "it" : "them"} in Live Aboard's Edit.`);
+  return { text: out.join(" "), bad: left.some(o => !WHY[o.why]) };
 }
 
 // Connected-component count over room bounding boxes (gap ≤ gapM = same
@@ -11987,7 +12046,7 @@ function _roomsTab(ctx, maps) {
   for (const [fid, label] of floorIds) {
     bar.appendChild(el("button", {
       class: "btn inline" + (fid === floorId ? " primary" : ""),
-      onclick: () => { mapState._roomsFloorId = fid; mapState._roomsDraftFloorId = null; ctx.actions.renderRooms(); },
+      onclick: () => { mapState._roomsFloorId = fid; mapState._roomsDraftFloorId = null; mapState._roomsCarryNote = null; ctx.actions.renderRooms(); },
     }, label));
   }
   card.appendChild(bar);
@@ -13028,7 +13087,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         handleEls.filter(h => h.room === room && typeof h.idx === "number").forEach(({ idx, elDiv }) => elDiv.addEventListener("dblclick", (ev) => {
           ev.stopPropagation();
           if (g.points_m.length <= 3) { ctx.toast("A room keeps three corners at least"); return; }
-          g.points_m = _roomCornerDrop(g.points_m, idx);
+          _roomCornerDropIn(g, idx);
           ctx.actions.renderRooms();
         }));
         g.points_m.forEach((a, i) => {
@@ -13043,7 +13102,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           add.addEventListener("mousedown", (ev) => {
             if (ev.button !== 0) return;
             ev.stopPropagation();
-            g.points_m = _roomCornerAdd(g.points_m, i);
+            _roomCornerAddIn(g, i);
             ctx.actions.renderRooms();
           });
           pinLayer.appendChild(add);
@@ -13220,15 +13279,20 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           if (!changedRooms.length && !movedCount) { ctx.toast("No changes to save"); return; }
           const btn = e.currentTarget;
           btn.disabled = true; btn.textContent = "Saving…";
+          mapState._roomsCarryNote = null;
           let ok = 0, fail = 0;
+          const saved = {};
           for (const room of changedRooms) {
             try {
               await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
                 floor_id: floorId, room, geometry: _geomPayload(draft[room]),
               });
               ok++;
+              saved[room] = draft[room];
             } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
           }
+          // Live Aboard's doors and windows on the walls of the rooms just saved go with them.
+          const carried = Object.keys(saved).length ? await _carryOpenings(ctx, floorId, draftOrig, { ...draftOrig, ...saved }) : { text: "", bad: false };
           // Everything below goes straight to the fabric in metres — no
           // map_id, no transform, nothing that depends on a photo existing.
           for (const src of movedScanners) {
@@ -13263,7 +13327,9 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               ok++;
             } catch (err) { fail++; console.warn("fabric_rf_barrier_set failed", b.name, err); }
           }
-          ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} layout correction${ok !== 1 ? "s" : ""} saved`, !!fail);
+          ctx.toast((fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} layout correction${ok !== 1 ? "s" : ""} saved`)
+            + (carried.text ? `. ${carried.text}` : ""), !!fail || carried.bad);
+          mapState._roomsCarryNote = carried.text || null;   // stays under Save until the next Save or another floor
           mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
           mapState._roomsTruthCache = null;
           mapState._roomsScannerDraft = null;
@@ -13283,6 +13349,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         } }, "Discard changes"));
       }
       card.appendChild(saveRow);
+      if (mapState._roomsCarryNote) card.appendChild(el("div", { class: "muted", "data-layout-openings": "", style: "font-size:11px;margin-top:6px" }, mapState._roomsCarryNote));
     } else if (blendStacked) {
       // ── Stacked comparison: look first, average when ready ──────────────
       const sets = _blendLabeledSets();
@@ -13349,9 +13416,10 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           // Merge this (possibly edited) layout into the fabric editor draft
           // — fabric-only rooms stay visible alongside for final tweaks.
           const merged = JSON.parse(JSON.stringify(mapState._roomsDraft || {}));
+          // _was false: its corners aren't the saved ones, so no door is moved by them (a door on a changed wall stays, and Save says so).
           for (const [room, g] of Object.entries(draft)) {
             merged[room] = { type: g.type, floor_id: floorId,
-              ...(g.type === "circle" ? { cx_m: g.cx_m, cy_m: g.cy_m, r_m: g.r_m } : { points_m: JSON.parse(JSON.stringify(g.points_m)) }) };
+              ...(g.type === "circle" ? { cx_m: g.cx_m, cy_m: g.cy_m, r_m: g.r_m } : { points_m: JSON.parse(JSON.stringify(g.points_m)), _was: false }) };
           }
           mapState._roomsDraft = merged;
           mapState._roomsTruth = "fabric";

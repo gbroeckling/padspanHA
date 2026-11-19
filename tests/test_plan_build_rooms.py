@@ -899,7 +899,8 @@ def test_the_old_rooms_tab_has_merge_and_corner_tools():
     merge = tab[tab.index('wsCall("padspan_ha/fabric_rooms_merge"'):tab.index('"Merge into one")')]
     assert "_roomsAfterMerge(mapState._roomsDraft, mapState._roomsOrig, keep, others, res);" in merge     # review B5: the open draft kept,
     assert "_roomsDraftFloorId" not in merge                                                             # never rebuilt from the store
-    assert "g.points_m = _roomCornerAdd(g.points_m, i);" in tab and "g.points_m = _roomCornerDrop(g.points_m, idx);" in tab and '"dblclick"' in tab
+    # Through the draft-room helpers, which also keep which saved corner each is (Live Aboard's doors go with a room).
+    assert "_roomCornerAddIn(g, i);" in tab and "_roomCornerDropIn(g, idx);" in tab and '"dblclick"' in tab
     node = shutil.which("node")
     if not node:
         pytest.skip("node not installed")

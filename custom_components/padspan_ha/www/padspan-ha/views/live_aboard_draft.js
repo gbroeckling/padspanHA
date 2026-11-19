@@ -722,6 +722,117 @@ export const openingsSignature = (vd) => JSON.stringify(Object.keys((vd && vd.op
 export const heightsSignature = (vd, section) => JSON.stringify(Object.keys((vd && vd[section]) || {}).sort()
   .map(k => [k, (vd[section][k] || {}).z_m, (vd[section][k] || {}).kind]));
 
+// ── Going with its room (Mapping → Layout, 2026-11-19) ──────────────────────
+// Layout moves, turns or reshapes a room; when that is saved, each door,
+// window and doorway drawn in 3D on its walls goes with it (maps.js
+// _carryOpenings, through house3d_edit). The file keeps its shape: one is
+// still a stretch of wall, a_m and b_m, worked out again here from the
+// outlines before and after. It is on a room's edge when both its ends lie
+// where Live Aboard draws that edge's wall (CARRY_TOL_M off its line: an
+// outside wall stands 0.07 m out, a wall two rooms share halfway across the
+// gap, live_aboard_house.js SHARE_TOL), parallel to it, and along it. On the
+// edge as it is now it keeps its width, its side of the line and its place:
+// as far from the nearer corner as it was (the same place, when the edge kept
+// its length), and never further past a corner than it was. It is left where
+// it is, and counted, when its edge is gone (split by a corner since, or one
+// of its corners taken away) or now too short for it ("wall"), or when it is
+// on two rooms' walls that did not move it the same way ("shared": a door
+// between a hall that stayed and a room that moved).
+export const CARRY_TOL_M = 0.35;
+const CARRY_SAME_M = 0.02;         // two rooms put it this close: they moved it the same way
+const outlineOf = (g) => (g && g.type !== "circle" && Array.isArray(g.points_m) && g.points_m.length >= 3 ? g.points_m : null);
+/** Opening o along edge p→q: {ta, sa, tb, sb, L, inside} (each end's metres
+ *  along it from p, and to its left; inside: it does not run past a corner
+ *  into the wall in line), or null when it is not on that edge's wall. */
+function onEdge(o, p, q){
+  const L = Math.hypot(q[0] - p[0], q[1] - p[1]), w = Math.hypot(o.b_m[0] - o.a_m[0], o.b_m[1] - o.a_m[1]);
+  if (L < 0.03 || w < 0.03) return null;
+  const ux = (q[0] - p[0]) / L, uy = (q[1] - p[1]) / L;
+  if (Math.abs(((o.b_m[0] - o.a_m[0]) * ux + (o.b_m[1] - o.a_m[1]) * uy) / w) < SPLICE_COS) return null;
+  const at = (r) => [(r[0] - p[0]) * ux + (r[1] - p[1]) * uy, (r[1] - p[1]) * ux - (r[0] - p[0]) * uy];
+  const [ta, sa] = at(o.a_m), [tb, sb] = at(o.b_m), lo = Math.min(ta, tb), hi = Math.max(ta, tb);
+  if (Math.abs(sa) > CARRY_TOL_M || Math.abs(sb) > CARRY_TOL_M || Math.min(hi, L) - Math.max(lo, 0) < 0.05) return null;
+  return { ta, sa, tb, sb, L, inside: lo >= -CARRY_TOL_M && hi <= L + CARRY_TOL_M };
+}
+/** f (onEdge) put on edge p→q: {ab: [a, b]}, or {why: "wall"} when the edge
+ *  is too short for it now (or, for one running on into the wall in line,
+ *  is any other length now). */
+function placeOn(f, p, q){
+  const L = Math.hypot(q[0] - p[0], q[1] - p[1]), lo = Math.min(f.ta, f.tb), hi = Math.max(f.ta, f.tb);
+  let d = 0;
+  if (L < 0.03) return { why: "wall" };
+  if (!f.inside) { if (Math.abs(L - f.L) > 0.002) return { why: "wall" }; }
+  else {
+    const min = Math.min(0, lo), max = L + Math.max(0, hi - f.L);
+    if (hi - lo > max - min + EPS) return { why: "wall" };
+    d = clamp(lo <= f.L - hi ? lo : lo + L - f.L, min, max - (hi - lo)) - lo;
+  }
+  const ux = (q[0] - p[0]) / L, uy = (q[1] - p[1]) / L;
+  const pt = (t, s) => [p[0] + ux * t - uy * s, p[1] + uy * t + ux * s];
+  return { ab: [pt(f.ta + d, f.sa), pt(f.tb + d, f.sb)] };
+}
+/** Edge i of an outline that had n corners, as it is in g now: its two
+ *  corners, or null when it is gone. g._was (Layout's draft) says which
+ *  saved corner each corner is, null for one added since, false when the
+ *  outline was replaced; none: each is itself while the count is the same. */
+function edgeNow(g, i, n){
+  const Q = outlineOf(g), m = Q ? Q.length : 0;
+  if (!Q) return null;
+  if (g._was === undefined && m === n) return [Q[i], Q[(i + 1) % n]];
+  if (!Array.isArray(g._was) || g._was.length !== m) return null;
+  for (let j = 0; j < m; j++) if (g._was[j] === i && g._was[(j + 1) % m] === (i + 1) % n) return [Q[j], Q[(j + 1) % m]];
+  return null;
+}
+/** The doors, windows and doorways drawn in 3D (`openings`, the file's) on
+ *  floor `floorId` that go with the rooms Layout changed. before and after:
+ *  {room: outline} for the floor's rooms as saved and as they are now (the
+ *  draft's; a room left as it was is its saved outline). {moved: {id: its
+ *  whole entry with its new ends, for house3d_edit}, left: [{id, kind, why}]}.
+ *  One on no changed room's wall is in neither; none is ever removed. */
+export function carryOpenings(openings, floorId, before, after){
+  const moved = {}, left = [];
+  const rooms = Object.keys(before || {}).filter(r => outlineOf(before[r]) && after && after[r]);
+  const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  for (const id of Object.keys(openings || {}).sort()) {
+    const o = addedOf(id, openings[id]);
+    if (!o || String(wholeId(o.floor_id)) !== String(floorId)) continue;
+    const got = [];
+    for (const r of rooms) {
+      const P = outlineOf(before[r]), n = P.length;
+      for (let i = 0; i < n; i++) {
+        const f = onEdge(o, P[i], P[(i + 1) % n]);
+        if (!f) continue;
+        const e = edgeNow(after[r], i, n), Q = outlineOf(after[r]) || [];
+        // Its edge gone: still on the outline as it is now (a corner added and not moved), it needs no move.
+        got.push(e ? placeOn(f, e[0], e[1])
+          : Q.some((c, k) => { const g = onEdge(o, c, Q[(k + 1) % Q.length]); return g && g.inside; }) ? { ab: [o.a_m, o.b_m] } : { why: "wall" });
+      }
+    }
+    if (got.every(g => g.ab && far(g.ab[0], o.a_m) <= 0.001 && far(g.ab[1], o.b_m) <= 0.001)) continue;
+    const bad = got.find(g => !g.ab);
+    if (bad || !got.every(g => far(g.ab[0], got[0].ab[0]) <= CARRY_SAME_M && far(g.ab[1], got[0].ab[1]) <= CARRY_SAME_M)) {
+      left.push({ id, kind: o.kind, why: bad ? bad.why : "shared" });
+      continue;
+    }
+    const mean = (j) => [0, 1].map(c => got.reduce((s, g) => s + g.ab[j][c], 0) / got.length);
+    const [a, b] = endsMm(mean(0), mean(1), minWidth(o.kind));
+    moved[id] = { ...o, a_m: a, b_m: b };
+  }
+  // Openings never overlap (the line tool's rule): one a shorter wall would push onto another stays where it was.
+  const ids = Object.keys(openings || {}), was = (k) => addedOf(k, openings[k]), now = (k) => moved[k] || was(k);
+  const over = (o, q) => !!q && String(wholeId(q.floor_id)) === String(wholeId(o.floor_id)) && !!onEdge(q, o.a_m, o.b_m);
+  for (let again = true; again;) {
+    again = false;
+    for (const id of Object.keys(moved)) {
+      if (!ids.some(k => k !== id && over(moved[id], now(k)) && !over(was(id), was(k)))) continue;
+      left.push({ id, kind: moved[id].kind, why: "wall" });
+      delete moved[id];
+      again = true;
+    }
+  }
+  return { moved, left };
+}
+
 // ── Heights on the placement record (Garry, 2026-10-05) ─────────────────────
 // "Same dataset, just extra info": a placed device's height above its floor
 // lives on its one placement record (model.light_positions_m[eid].z_m: a

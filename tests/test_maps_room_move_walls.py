@@ -69,3 +69,27 @@ def test_the_rigid_move_moves_them_and_saving_is_unchanged() -> None:
     assert "barDraft" not in handle
     # Saved by the existing Save corrections, matched by id with its links kept.
     assert "barrier: { ..._barById.get(b.id), floor_id: floorId, points_m: b.points_m }," in src
+
+
+def test_save_takes_live_aboards_doors_and_windows_with_the_rooms_it_saved() -> None:
+    """2026-11-19: Live Aboard's doors and windows on a room's walls go with it when Layout's Save corrections writes
+    the room (moved, turned or reshaped). Worked out at Save from the outlines before and after (no new field in the
+    3D file), only for the rooms whose save went through, written in the same Save by house3d_edit (Edit's own save
+    and checks), and said in Save's message. Nothing is written before Save, so Discard has nothing to take back."""
+    src = _MAPS.read_text(encoding="utf-8")
+    save = src[src.index('const saveBtn = el("button", {'):src.index('}, "Discard changes"));')]
+    rooms = save[save.index("for (const room of changedRooms) {"):save.index("for (const src of movedScanners) {")]
+    assert "saved[room] = draft[room];" in rooms and rooms.index("ok++;") < rooms.index("saved[room] = draft[room];")
+    assert ("const carried = Object.keys(saved).length ? await _carryOpenings(ctx, floorId, draftOrig, { ...draftOrig, ...saved })"
+            in rooms)
+    assert "+ (carried.text ? `. ${carried.text}` : \"\"), !!fail || carried.bad);" in save
+    assert "mapState._roomsCarryNote = carried.text || null;" in save
+    discard = src[src.index('}, "Discard changes"));') - 400:src.index('}, "Discard changes"));')]
+    assert "house3d" not in discard and "_carryOpenings" not in discard
+    # The one writer: the 3D file is written from Layout only by _carryOpenings, through house3d_edit with openings alone.
+    carry = src[src.index("export async function _carryOpenings("):src.index("// Connected-component count over room bounding boxes")]
+    assert 'await ctx.actions.wsCall("padspan_ha/house3d_edit", { openings: res.moved });' in carry
+    assert src.count('wsCall("padspan_ha/house3d_edit"') == 2   # this, and the Atlas builder's host for Live Aboard (edit: ...)
+    # The draft keeps which saved corner each corner is; a candidate loaded into the editor matches none.
+    assert "_roomCornerAddIn(g, i);" in src and "_roomCornerDropIn(g, idx);" in src
+    assert "{ points_m: JSON.parse(JSON.stringify(g.points_m)), _was: false }" in src

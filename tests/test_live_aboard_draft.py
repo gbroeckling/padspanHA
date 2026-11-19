@@ -54,7 +54,7 @@ def _code(p: Path) -> str:
 
 @pytest.mark.parametrize("prefix,least", [
     ("draft:", 4), ("file:", 1), ("runs:", 2), ("snap:", 1), ("stops:", 1), ("overlap:", 2), ("widths:", 2),
-    ("heights:", 4), ("limits:", 2), ("walls:", 4),
+    ("heights:", 4), ("limits:", 2), ("walls:", 4), ("carry:", 13),
 ])
 def test_the_rules_harness_covers_each_part(draft, prefix, least) -> None:
     got = [k for k in draft["cases"] if k.startswith(prefix)]
@@ -95,6 +95,28 @@ def test_what_the_rules_build_at_the_edges_the_server_keeps(draft) -> None:
             assert all((k in out[sec]) == (v is not None) for k, v in entries.items()), sec
 
 
+def test_what_layout_carries_the_server_keeps_whole(draft) -> None:
+    """Mapping → Layout moves a door or window with its room by sending it
+    whole (carryOpenings), its ends the only change. Through the server's own
+    apply_edit (house3d_edit, Edit's Save) each is taken as sent: its kind,
+    heights, hinge, type and link kept, a key only a newer PadSpan knows kept
+    too, and nothing removed."""
+    carried = [p for p in draft["payloads"]
+               if any(re.fullmatch(r"(win|door)_0000[c-f]\d{3}", k) for k in p.get("openings", {}))]
+    assert len(carried) >= 8 and all(v is not None for p in carried for v in p["openings"].values())
+    for changes in carried:
+        file = HS.empty()
+        for oid, e in changes["openings"].items():
+            file["openings"][oid] = {**e, "a_m": [0.0, 0.0], "b_m": [1.0, 0.0], "newer_key": {"kept": True}}
+        file["openings"]["win_99999999"] = {"kind": "window", "floor_id": "main", "a_m": [50.0, 0.0], "b_m": [51.0, 0.0],
+                                            "sill_m": 0.9, "head_m": 2.1}   # another, never sent: stays as it is
+        out = HS.apply_edit(file, changes)
+        assert out["openings"]["win_99999999"] == file["openings"]["win_99999999"]
+        for oid, e in changes["openings"].items():
+            got = dict(out["openings"][oid])
+            assert got.pop("newer_key") == {"kept": True} and got == e, (oid, got, e)
+
+
 def test_the_rules_touch_nothing_but_numbers() -> None:
     """No three.js, no page, no call: plain numbers in and out."""
     code = _code(_VIEWS / "live_aboard_draft.js")
@@ -110,8 +132,9 @@ def test_the_view_reads_the_file_only_through_its_host() -> None:
     hosts hand it over."""
     want = "import(`./live_aboard_draft.js${new URL(import.meta.url).search}`)"
     importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and want in _js(p))
-    # the house: the limits it draws within; Import (P7): doors and windows on the walls by the line tool's rules
-    assert importers == ["live_aboard.js", "live_aboard_house.js", "live_aboard_import.js"], importers
+    # the house: the limits it draws within; Import (P7): doors and windows on the walls by the line tool's rules;
+    # Mapping → Layout (maps.js _carryOpenings): at Save only, the doors and windows that go with a moved room
+    assert importers == ["live_aboard.js", "live_aboard_house.js", "live_aboard_import.js", "maps.js"], importers
     la = _js(_VIEWS / "live_aboard.js")
     assert "if (fileLoad || typeof p.load !== \"function\") return;" in la
     assert "detach(){ try { fileLoad = null;" in la, "read again when the screen comes back to 3D"
