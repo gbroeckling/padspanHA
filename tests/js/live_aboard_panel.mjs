@@ -202,6 +202,11 @@ await tryCase("home: the sidebar opens on every floor pulled apart, the whole ho
   H.settings = SET(); H.top = "main"; H.calls.length = 0;          // the host's floor chips left on Main
   await open("panel-home");
   const s = S(), calls = H.calls.map(c => c.join(":"));
+  // The whole house leaves out tags and receivers (labels by zoom level); people still stand where they are.
+  const kinds = (st, kind) => st.tracked.filter(x => x.kind === kind);
+  const house = { beacons: kinds(s, "beacon").map(x => x.shown), people: kinds(s, "person").map(x => x.shown) };
+  check("home: the whole house leaves out tags and receivers, never people",
+    house.beacons.length > 0 && house.beacons.every(v => !v) && house.people.length > 0 && house.people.some(Boolean), house);
   check("home: the sidebar opens on every floor pulled apart, the whole house, the bars aside, without being touched",
     H.top === null && calls.includes("go:-1") && s.panel && s.panel.atHome && !s.panel.armed && s.levels.explode === 4 && s.levels.level === "house"
     && s.screen.bare && s.screen.cover && s.screen.fitR > 0 && near(s.cam.radius, s.screen.fitR, 1e-6) && !s.cam.moved,
@@ -212,6 +217,9 @@ await tryCase("home: the sidebar opens on every floor pulled apart, the whole ho
   await settle(30);
   poll(); await settle(10);
   const t = S();
+  // Upper on top: the floors under it still show, and so do their tags.
+  const upTags = t.tracked.filter(x => x.kind === "beacon").map(x => x.shown);
+  check("home: one floor shows its tags again", upTags.length > 0 && upTags.every(Boolean), { upTags, level: t.levels.level });
   check("home: a floor chosen by hand is kept as the map arrives again: never taken back to the home",
     !!tag && H.top === "upper" && t.levels.explode === 0 && t.levels.level === "floor" && !t.panel.atHome && t.screen.fitR > 0
     && near(t.cam.radius, t.screen.fitR, 1e-6), { top: H.top, levels: t.levels, panel: t.panel, cam: t.cam, fitR: t.screen.fitR });

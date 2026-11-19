@@ -50,6 +50,10 @@ it to try again.
 
 ## Getting around
 
+In the sidebar, Live Aboard opens on every floor, pulled apart (**⇕ Explode**), with the page's bars
+out of the way so the house fills the window. Tap **☰** (top right) to bring the bars back; zooming
+back out brings them back too. A wall screen opens as before, on the floor with the most rooms.
+
 | To... | Do this |
 |---|---|
 | Turn the house | Drag with one finger or the left mouse button |
@@ -67,6 +71,10 @@ it to try again.
 - **Cut** lowers the walls in front of you so you can see in, like the Sims' cutaway.
 - **Up** stands every wall at full height. Best for looking at the house from outside, and at night.
 - **Down** lays all walls low.
+- **Glass** turns the walls in front of you into see-through glass instead of lowering them, so
+  each room keeps its height; the walls at the back stay solid. With a room open (double-tap it),
+  the inside walls of its floor turn to glass too. Glass is kept for the screen you pick it on
+  (the same as **Glass walls** in ⋯).
 - **Roof** shows the roof when you look from outside, or never.
 
 **Floors** (the stepper next to Walls, in a house with more than one floor):
@@ -74,8 +82,8 @@ it to try again.
 - **▲ / ▼** step to the floor above or below; floors above the one you pick are hidden, so you can
   see into it. Tap the floor's name for its sheet.
 - **All** shows every floor.
-- **⇕ Explode** (with All): pulls the floors apart so you can see into each one at once. Tap it
-  again to stack them back. Your browser remembers it.
+- **⇕ Explode** (with All): pulls the floors apart so you can see into each one at once. It's on
+  in the sidebar until you turn it off. Tap it again to stack them back. Your browser remembers it.
 - On a keyboard: **PgUp / PgDn** change floor, **Home** shows them all.
 
 **Views ▾** has every floor, **Whole house**, and views you save: get the camera where you like it
@@ -85,6 +93,16 @@ and goes back to.
 ---
 
 ## Reading the house
+
+What you see depends on how close you are:
+
+- **The whole house** (every floor): one tag beside each floor with its name and what's going on,
+  for example "Main · 3 lights on · 1 open · 2 people". Tap a tag to see that floor alone.
+- **One floor:** room names, temperatures and other readings, and the sensor markers.
+- **One room** (double-tap it, or zoom in on it): the device codes in that room, and the other
+  rooms fade back. Zoom out again and they come back.
+
+Leak, smoke, CO and gas alarms always show.
 
 **Lights** glow in their own colour and brightness and light up the floor around them. A light
 that's off is a small dark fixture.

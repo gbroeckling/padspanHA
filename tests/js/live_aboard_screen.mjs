@@ -36,6 +36,20 @@
 //   phone     narrow, one compact row; held upright it opens at room scale
 //             with the long side of the house up the screen
 //   hint      a first-time card, once per browser
+//   opening   the sidebar opens on every floor pulled apart (Explode, its own
+//             default), the house framed, the bars aside with ☰ to bring them
+//             back; a browser that turned Explode off keeps it off; Mapping
+//             and a wall keep Explode off and their bars
+//   levels    labels by zoom level: the whole house one tag per floor (name,
+//             lights on, open, people; a tap shows that floor) and no names,
+//             readouts or codes; one floor its names and readouts; a room
+//             opened by a double-tap its own codes, the other rooms faded,
+//             closed again by zooming out
+//   glass     Walls: Glass, the fourth choice: what Cut takes away stands as
+//             glass over a solid stub, the far walls solid, nothing of it
+//             drawn under Up, Down or Cut; picked by hand it is this screen's
+//             (the ⋯ list's Glass walls line), and that line opens the screen
+//             on Glass; a room open turns its floor's inside walls to glass
 //
 // usage: live_aboard_screen.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -681,6 +695,130 @@ await tryCase("hint: a first-time card, once per browser", async () => {
   const again = S(b.slot).screen.hint;
   LA.releaseLiveAboardSlot("scr-hint2");
   check("hint: a first-time card, once per browser", first && !!card1 && gone && !again, { first, gone, again });
+});
+
+// ── opening ─────────────────────────────────────────────────────────────────
+const yOf = (t) => { const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(t.at || ""); return m ? Number(m[2]) : NaN; };
+await tryCase("opening: the sidebar opens on every floor pulled apart, the house framed, the bars aside; ☰ brings them back", async () => {
+  store.delete("explode");
+  const { slot } = await newSlot("scr-open", undefined, { opening: true });
+  const st = S(slot), xp = slot.element.querySelector(".la3d-floor").querySelectorAll("button")[4];
+  const opened = { bare: st.screen.bare, cover: st.screen.cover, explode: st.levels.explode, on: st.levels.explodeOn, fitR: st.screen.fitR,
+                   r: st.cam.radius, cls: slot.element.classList.contains("la3d-bare"), xp: xp.getAttribute("aria-pressed") };
+  click(slot.element.querySelector(".la3d-solo"));
+  await settle(2);
+  const back = { ...S(slot).screen };
+  click(xp);                                               // ⇕ off: this browser keeps it off
+  await settle(10);
+  const off = { explode: S(slot).levels.explode, pref: store.get("explode") };
+  LA.releaseLiveAboardSlot("scr-open");
+  check("opening: the sidebar opens on every floor pulled apart, the house framed, the bars aside; ☰ brings them back",
+    opened.bare && opened.cover && opened.cls && opened.explode === 4 && opened.on && opened.xp === "true" && opened.fitR > 0
+    && Math.abs(opened.r - opened.fitR) < 1e-6 && !back.bare && !back.cover && off.explode === 0 && off.pref === "0", { opened, back, off });
+});
+await tryCase("opening: a browser that turned Explode off keeps it off; Mapping and a wall keep Explode off and their bars", async () => {
+  store.set("explode", "0");
+  const a = await newSlot("scr-open-off", undefined, { opening: true });
+  const kept = { explode: S(a.slot).levels.explode, bare: S(a.slot).screen.bare };
+  LA.releaseLiveAboardSlot("scr-open-off");
+  store.delete("explode");
+  const m = await newSlot("scr-open-map", { mapOnly: false }, { opening: true });
+  const mapping = { explode: S(m.slot).levels.explode, bare: S(m.slot).screen.bare, on: S(m.slot).levels.explodeOn };
+  LA.releaseLiveAboardSlot("scr-open-map");
+  const w = await newSlot("scr-open-wall", { kiosk: true }, { opening: true });
+  const wall = { explode: S(w.slot).levels.explode, bare: S(w.slot).screen.bare, on: S(w.slot).levels.explodeOn };
+  LA.releaseLiveAboardSlot("scr-open-wall");
+  check("opening: a browser that turned Explode off keeps it off; Mapping and a wall keep Explode off and their bars",
+    kept.explode === 0 && kept.bare && mapping.explode === 0 && !mapping.on && !mapping.bare && wall.explode === 0 && !wall.on && !wall.bare,
+    { kept, mapping, wall });
+});
+
+// ── levels ──────────────────────────────────────────────────────────────────
+const CODED = { ...LBE, "light.den": { ...LBE["light.den"], code: "A01" }, "light.hall": { ...LBE["light.hall"], code: "A02" } };
+await tryCase("levels: the whole house shows one tag per floor and no room names, readouts or codes; a tap on a tag shows that floor", async () => {
+  store.delete("explode"); calls.length = 0;
+  const { slot } = await newSlot("scr-lv-house", { lightsByEid: CODED, codes: { showcase: false }, setTopFloor: (fid) => calls.push(["top", fid]) }, { opening: true });
+  const st = S(slot), tags = Object.fromEntries(st.levels.tags.map(t => [t.floor, t]));
+  const words = st.names.filter(n => n.shown).map(n => n.room), chipsOn = st.chips.filter(c => c.shown).length;
+  click(slot.element.querySelector('[data-la3d-ftag="basement"]'));
+  check("levels: the whole house shows one tag per floor and no room names, readouts or codes; a tap on a tag shows that floor",
+    st.levels.level === "house" && st.levels.tags.length === 2 && tags.main && tags.main.shown && tags.main.text === "Main1 light on"
+    && tags.basement && tags.basement.shown && tags.basement.text === "BasementNothing on" && yOf(tags.main) < yOf(tags.basement)
+    && !words.length && chipsOn === 0 && st.codes && st.codes.shown === 0 && JSON.stringify(calls) === JSON.stringify([["top", "basement"]]),
+    { level: st.levels.level, tags: st.levels.tags, words, chipsOn, codes: st.codes && st.codes.shown, calls });
+  LA.releaseLiveAboardSlot("scr-lv-house");
+});
+await tryCase("levels: one floor shows its rooms' names and readouts, no floor tags and no codes", async () => {
+  const { slot } = await newSlot("scr-lv-floor", { ...ON_MAIN, lightsByEid: CODED, codes: { showcase: false } }, { opening: true });
+  const st = S(slot), by = Object.fromEntries(st.names.map(n => [n.room, n])), den = st.chips.find(c => c.room === "Den");
+  check("levels: one floor shows its rooms' names and readouts, no floor tags and no codes",
+    st.levels.level === "floor" && by.Den.shown && by["Living room"].shown && den && den.shown && !st.levels.tags.some(t => t.shown)
+    && st.codes && st.codes.shown === 0, { level: st.levels.level, tags: st.levels.tags, names: st.names.map(n => [n.room, n.shown]), codes: st.codes });
+  LA.releaseLiveAboardSlot("scr-lv-floor");
+});
+await tryCase("levels: a double-tap opens a room: its own codes, the other rooms faded; zoomed back out, it closes", async () => {
+  const { slot } = await newSlot("scr-lv-room", { ...ON_MAIN, lightsByEid: CODED, codes: { showcase: false } });
+  const at = slot._whereOf("main", 8.5, 0.6, 0);            // Den's floor, clear of its name, chip and light
+  await tapAt(slot, at[0], at[1]);
+  await tapAt(slot, at[0], at[1]);
+  clockOff += 800;
+  await settle(30);
+  const st = S(slot), by = Object.fromEntries(st.names.map(n => [n.room, n])), code = Object.fromEntries(st.codes.chips.map(c => [c.eid, c.on]));
+  const den = st.chips.find(c => c.room === "Den"), rec = st.chips.find(c => c.room === "Rec");
+  const room = { level: st.levels.level, room: st.levels.room, faded: st.levels.faded, denOp: by.Den.opacity, livingOp: by["Living room"].opacity,
+                 code, denChip: den && den.opacity, recChip: rec && rec.opacity };
+  await wheel(slot, -12);
+  const out = S(slot);
+  check("levels: a double-tap opens a room: its own codes, the other rooms faded; zoomed back out, it closes",
+    room.level === "room" && room.room && room.room.name === "Den" && room.code["light.den"] === true && room.code["light.hall"] === false
+    && room.denOp === 1 && Math.abs(room.livingOp - 0.35) < 1e-6 && room.denChip === 1 && Math.abs(room.recChip - 0.35) < 1e-6
+    && room.faded.some(v => Number.isInteger(v) && v >= 0) && room.faded.includes(-1)
+    && out.levels.level === "floor" && !out.levels.room && out.levels.faded.every(v => v === null) && out.codes.shown === 0
+    && out.names.find(n => n.room === "Living room").opacity === 1, { room, out: { levels: out.levels, codes: out.codes.shown } });
+  LA.releaseLiveAboardSlot("scr-lv-room");
+});
+
+// ── glass ───────────────────────────────────────────────────────────────────
+const ghostOf = (slot, fid) => S(slot).ghost.find(g => g.floor === fid) || null;
+await tryCase("glass: Glass, the fourth Walls choice: what Cut takes away stands as glass over its stub, the far walls solid; Up, Down and Cut draw none", async () => {
+  const { slot } = await newSlot("scr-glass", ON_MAIN);
+  const cut = { ...ghostOf(slot, "main"), mode: S(slot).wallMode };
+  const labels = slot.element.querySelector("[data-la3d-walls]").querySelectorAll("button").map(b => b.textContent);
+  click(btnByText(slot, "Glass"));
+  await settle(4);
+  const glass = { ...ghostOf(slot, "main"), mode: S(slot).wallMode, pref: JSON.parse(store.get("show_scr-glass") || "{}").glass_walls };
+  click(btnByText(slot, "Up"));
+  await settle(4);
+  const up = ghostOf(slot, "main");
+  click(btnByText(slot, "Glass"));
+  await settle(4);
+  click(btnByText(slot, "Cut"));
+  await settle(4);
+  const back = { ...ghostOf(slot, "main"), mode: S(slot).wallMode, pref: JSON.parse(store.get("show_scr-glass") || "{}").glass_walls };
+  LA.releaseLiveAboardSlot("scr-glass");
+  check("glass: Glass, the fourth Walls choice: what Cut takes away stands as glass over its stub, the far walls solid; Up, Down and Cut draw none",
+    JSON.stringify(labels) === JSON.stringify(["Cut", "Up", "Down", "Glass", "Roof"]) && cut.mode === "cut" && !cut.drawn && cut.placed === 0
+    && glass.mode === "glass" && glass.drawn && glass.placed > 0 && glass.placed < glass.solid && glass.solid === cut.solid
+    && glass.transparent === true && glass.depthWrite === false && glass.order > 0 && glass.pref === true
+    && !up.drawn && back.mode === "cut" && !back.drawn && back.placed === 0 && back.pref === undefined, { labels, cut, glass, up, back });
+});
+await tryCase("glass: the ⋯ list's Glass walls line opens this screen on Glass; a room open turns its floor's inside walls to glass", async () => {
+  store.set("show_scr-glass2", JSON.stringify({ glass_walls: true }));
+  const { slot } = await newSlot("scr-glass2", ON_MAIN);
+  // From the front (plan +y), the wall between the living room and the Den is edge-on: neither Cut nor Glass takes it.
+  slot._look(0, 0.9, [6.8, 0, 2.5], 16);
+  await settle(4);
+  const opened = { mode: S(slot).wallMode, ...ghostOf(slot, "main") };
+  const at = slot._whereOf("main", 8.5, 0.6, 0);            // Den's floor, clear of its name, chip and light
+  await tapAt(slot, at[0], at[1]);
+  await tapAt(slot, at[0], at[1]);
+  clockOff += 800;
+  await settle(30);
+  const inRoom = { room: S(slot).levels.room, ...ghostOf(slot, "main") };
+  store.delete("show_scr-glass2");
+  LA.releaseLiveAboardSlot("scr-glass2");
+  check("glass: the ⋯ list's Glass walls line opens this screen on Glass; a room open turns its floor's inside walls to glass",
+    opened.mode === "glass" && opened.drawn && inRoom.room && inRoom.room.name === "Den" && inRoom.placed > opened.placed, { opened, inRoom });
 });
 
 process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(0));   // exit only once the result is written (a pipe holds 64 KiB)
