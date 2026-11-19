@@ -1887,14 +1887,17 @@ def test_the_heard_question_is_wired_the_same_everywhere():
     www = root / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
     panel = (www / "panel.js").read_text(encoding="utf-8")
     settings = (www / "views" / "settings.js").read_text(encoding="utf-8")
-    ask = panel[panel.index("if (this._heardAsk) {"):panel.index("// Settings not loaded yet ({} at start)")]
+    ask = panel[panel.index('if (st && st.telemetry_enabled && st.telemetry_heard_ask === "due" && !st.telemetry_heard) {'):panel.index("// Settings not loaded yet ({} at start)")]
     assert tuple(re.findall(r'\["([a-z_]+)", "[^"]+"\]', ask)) == T.HEARD_WORDS
     sel = settings[settings.index('const heardSel = el("select"'):settings.index("heardSel.value = ")]
     assert tuple(re.findall(r'\["([a-z_]+)", "[^"]+"\]', sel)) == T.HEARD_WORDS
     assert '["", "Not said"]' in sel
-    # asked only of someone who has just said yes, and never by itself again
-    assert panel.count("this._heardAsk = true") == 1 and "if (on) this._heardAsk = true;" in panel
+    # due only by the backend's say-so, never on a wall screen or for someone who cannot answer
+    assert "if (this.state.kioskMode || !(this._hass && this._hass.user && this._hass.user.is_admin)) return null;" in ask
+    assert 'word ? { telemetry_heard: word } : { telemetry_heard_ask: "done" }' in ask
     assert 'skip.addEventListener("click", () => done(""));' in ask   # tests/js/whats_new_card.mjs runs the card
+    assert DEFAULT_SETTINGS["telemetry_heard_ask"] == ""
+    assert 'vol.Optional("telemetry_heard_ask"): str' in ws
     # shown in Settings only while the report is on
     assert "telOn ? el(\"div\", { style: rowStyle }, [\n      el(\"div\", { style: \"font-size:13px;color:#a7f3d0;min-width:130px\" }, \"Where you heard of PadSpan\")" in settings
     summary = root / "server" / "telemetry_summary.py"

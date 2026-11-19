@@ -373,7 +373,9 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
     if data.get("ok"):
         from .licence import normalize_tier  # noqa: PLC0415
         from .settings_store import licence_key_hash  # noqa: PLC0415
+        from .telemetry import heard_ask_due  # noqa: PLC0415
         await st.async_set(
+            **heard_ask_due(st.data),     # a trial started: the one optional question, if never asked
             forensics_license_key=str(data.get("key") or ""),
             forensics_license_expires=str(data.get("expires_at") or ""),
             # The server issues trials as Pro (2026-10-27) and says so; a reply

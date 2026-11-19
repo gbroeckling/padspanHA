@@ -821,6 +821,10 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         await async_give_back_all(hass)
     except Exception as err:  # noqa: BLE001 - never block the removal
         _LOGGER.warning("WLED give-back on removal failed: %s", err)
+    # With the usage report on, one last report says PadSpan was removed
+    # (telemetry.async_send_removed: nothing else in it, and it never raises).
+    from .telemetry import async_send_removed
+    await async_send_removed(hass)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

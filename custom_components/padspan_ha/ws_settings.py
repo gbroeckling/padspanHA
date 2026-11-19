@@ -516,6 +516,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("telemetry_enabled"): bool,              # opt-in usage report (telemetry.py)
         vol.Optional("telemetry_asked"): bool,                # the ask card was answered; never shown again
         vol.Optional("telemetry_heard"): str,                 # where they heard about PadSpan: a telemetry.HEARD_WORDS word, or "" to clear
+        vol.Optional("telemetry_heard_ask"): str,             # "done": that question was skipped; never asked again
         vol.Optional("trial_nudge_done"): bool,               # the Overview trial milestone card was answered; never again
         vol.Optional("tester_nudge_done"): bool,              # the Overview tester card was shown; never again
         vol.Optional("launch_card_done"): bool,               # the Overview launch-price card was shown; never again
@@ -757,6 +758,15 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 return
             from .telemetry import heard_word  # noqa: PLC0415
             payload["telemetry_heard"] = heard_word(str(msg.get("telemetry_heard") or "").strip().lower()) or ""
+            if payload["telemetry_heard"]:
+                payload["telemetry_heard_ask"] = "done"       # answered, here or in Settings: the card is finished
+        if msg.get("telemetry_heard_ask") == "done":
+            # Skip on the card. Only ever forward to "done"; the backend alone makes it due.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change the usage report")
+                return
+            payload["telemetry_heard_ask"] = "done"
         if "telemetry_enabled" in msg:
             # Opting a whole install into sending reports is an admin's call,
             # like the send-now and reset-id commands beside it.
@@ -772,6 +782,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     f"The usage report stays on while you use a free licence (until {_locked[:10]}). "
                     "It can be turned off once it ends, or with a bought key.")
                 return
+            if payload["telemetry_enabled"] and st is not None and not st.data.get("telemetry_enabled"):
+                # Turned on just now, by any route: the one optional question is due.
+                from .telemetry import heard_ask_due  # noqa: PLC0415
+                for _k, _v in heard_ask_due({**st.data, **payload}).items():
+                    payload.setdefault(_k, _v)
             if payload["telemetry_enabled"]:
                 # Mint the anonymous id at opt-in, so the Preview shows the
                 # real report from that moment on — and start the usage and

@@ -66,6 +66,13 @@ async def ws_tester_signup(hass: HomeAssistant, connection, msg) -> None:
     except tester.TesterError as err:
         connection.send_error(msg["id"], err.code, str(err))
         return
+    # Signed up: the one optional question (where they heard about PadSpan), if never asked.
+    from .const import DATA_SETTINGS, DOMAIN  # noqa: PLC0415
+    from .telemetry import heard_ask_due  # noqa: PLC0415
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    due = heard_ask_due(st.data) if st else {}
+    if due:
+        await st.async_set(**due)
     connection.send_result(msg["id"], {"ok": True, "action": action, "status": await tester.status(hass)})
 
 

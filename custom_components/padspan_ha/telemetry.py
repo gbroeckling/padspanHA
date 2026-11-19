@@ -15,6 +15,11 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     where the person heard about PadSpan, only if they chose to say: one
         word from HEARD_WORDS, their own answer to an optional question
         asked once after the opt-in (env.heard_from)
+    which store keeps this copy up to date (the Marketplace, HACS, or
+        neither: env.store), and how many automations and scripts use a
+        PadSpan entity or device (env.used_in: two counts, never which)
+    when PadSpan is deleted with the report on, one last report saying so
+        (async_send_removed: the id, the day, the version and that flag)
     with a licence key on more than two homes, the licence's group code:
         16 hex characters made from the key (never the key), the same in
         every home of that licence, so its homes are seen together
@@ -407,6 +412,20 @@ HEARD_WORDS: tuple[str, ...] = ("reddit", "youtube", "ha_forum", "forum", "marke
 
 def heard_word(v: Any) -> str | None:
     return v if isinstance(v, str) and v in HEARD_WORDS else None
+
+
+# The question is asked once per install (settings telemetry_heard_ask): ""
+# never due, "due" from the moment the report is turned on or a free licence
+# starts (trial, tester, free year), "done" after an answer or Skip. A house
+# whose report was already on when the question arrived is never due by
+# itself: nothing pops up there, the choice is in Settings.
+def heard_ask_due(data: Any) -> dict[str, str]:
+    """What to save to make the question due: for a house never asked that
+    has not said, else nothing."""
+    d = data if isinstance(data, dict) else {}
+    if str(d.get("telemetry_heard_ask") or "") == "" and not heard_word(d.get("telemetry_heard")):
+        return {"telemetry_heard_ask": "due"}
+    return {}
 
 
 # Room timing that is not the default, and a Home Assistant floor the outdoor
@@ -2475,6 +2494,16 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _heard = heard_word(settings.get("telemetry_heard"))
     if _heard:
         env["heard_from"] = _heard
+    # Which store keeps this copy up to date, and how many automations and
+    # scripts use PadSpan (report_context.py): one word and two counts.
+    try:
+        from .report_context import install_store, used_in  # noqa: PLC0415
+        env["store"] = install_store(hass)
+        _used = used_in(hass)
+        if _used is not None:
+            env["used_in"] = _used
+    except Exception as err:
+        _LOGGER.debug("Telemetry: store / used_in left out: %s", err)
     # Guest tags (guest_tags.report_buckets): words only, never a name, only where on and used.
     try:
         from .guest_tags import report_buckets as _guest_buckets  # noqa: PLC0415
@@ -2921,6 +2950,14 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         raise ValueError("env.install_age not in the vocabulary")
     if isinstance(env, dict) and "heard_from" in env and env["heard_from"] not in HEARD_WORDS:
         raise ValueError("env.heard_from not in the vocabulary")
+    if isinstance(env, dict) and ("store" in env or "used_in" in env):
+        from .report_context import STORE_WORDS, USED_IN_KEYS  # noqa: PLC0415
+        if "store" in env and env["store"] not in STORE_WORDS:
+            raise ValueError("env.store not in the vocabulary")
+        used = env.get("used_in", {})
+        if not isinstance(used, dict) or not all(
+                k in USED_IN_KEYS and isinstance(v, int) and not isinstance(v, bool) and v >= 0 for k, v in used.items()):
+            raise ValueError("env.used_in is not two counts")
     if isinstance(env, dict) and "guest" in env:
         from .guest_tags import REPORT_WORDS as _GW  # noqa: PLC0415
         gst = env["guest"]
@@ -3147,6 +3184,37 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
     except Exception as err:
         _LOGGER.debug("Pro invite from the report reply not kept: %s", err)
     return {"sent": True, "reason": "", "bytes": len(body)}
+
+
+async def async_send_removed(hass: HomeAssistant) -> bool:
+    """PadSpan is being deleted from Home Assistant: one last report from a
+    house whose report is on, so the developer can tell "removed" from "the
+    machine is off". It carries the anonymous id, the day, the version and the
+    one flag (usage.integration_removed), and nothing about the house. A
+    house with the report off sends nothing. Never blocks or fails the removal."""
+    try:
+        st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        data = getattr(st, "data", None)
+        if not isinstance(data, dict):
+            from homeassistant.helpers.storage import Store  # noqa: PLC0415
+            from .const import SETTINGS_STORE_KEY  # noqa: PLC0415
+            data = await Store(hass, 1, SETTINGS_STORE_KEY).async_load()
+        if not isinstance(data, dict) or data.get("telemetry_enabled") is not True:
+            return False
+        install_id = str(data.get("telemetry_install_id") or "")
+        if not _UUID_RE.fullmatch(install_id):
+            return False
+        payload = {"schema": SCHEMA, "install_id": install_id, "day": time.strftime("%Y-%m-%d", time.gmtime()),
+                   "version": BUILD_VERSION, "usage": {"integration_removed": 1}}
+        assert_shareable(payload)
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+        async with async_get_clientsession(hass).post(
+                TELEMETRY_URL, data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"}, timeout=5) as resp:
+            return 200 <= resp.status < 300
+    except Exception as err:  # noqa: BLE001 - the removal goes ahead whatever happens here
+        _LOGGER.debug("Telemetry: the removal was not reported: %s", err)
+        return False
 
 
 def reset_windows(hass: HomeAssistant) -> None:

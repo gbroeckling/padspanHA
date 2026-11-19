@@ -325,7 +325,7 @@ function _sampleKind(payload){
   if (type === "padspan_ha/settings_set") {
     const keys = Object.keys(payload).filter(k => k !== "type" && k !== "id");
     const ok = ["data_mode", "whatsnew_seen_version", "telemetry_enabled", "telemetry_asked",
-                "telemetry_heard", "theme_palette", "light_theme", "day_theme", "theme_follow_sun", "ui_skin"];
+                "telemetry_heard", "telemetry_heard_ask", "theme_palette", "light_theme", "day_theme", "theme_follow_sun", "ui_skin"];
     // Only ever back to Live (_setDataMode): Sample is this browser's own choice, never the server's.
     if ("data_mode" in payload && payload.data_mode !== "live") return "write";
     return keys.length && keys.every(k => ok.includes(k)) ? "pass" : "write";
@@ -1607,21 +1607,22 @@ class PadSpanHaApp extends HTMLElement {
     const cardStyle = compact
       ? "margin-top:8px;padding:8px 10px;border-top:1px solid #1a4228"
       : "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px";
-    // Someone who has just said yes gets one optional question, on this same
-    // card, this once: where they heard about PadSpan. It lives in memory
-    // only, so a reload, an answer or Skip ends it and nothing asks again; the
-    // same choice stays in Settings → Tracking beside the switch. The words
-    // are telemetry.HEARD_WORDS (tests/test_telemetry.py holds the two equal).
-    if (this._heardAsk) {
+    // One optional question, once per install: where they heard about
+    // PadSpan. The backend makes it due when the report is turned on (this
+    // card, Settings, a trial's tick box) or a free licence starts (trial,
+    // tester, free year): telemetry.heard_ask_due. An answer or Skip ends it
+    // for good; the same choice stays in Settings → Tracking beside the
+    // switch. Not on a wall screen, and only for someone who can answer. The
+    // words are telemetry.HEARD_WORDS (tests/test_telemetry.py holds them equal).
+    if (st && st.telemetry_enabled && st.telemetry_heard_ask === "due" && !st.telemetry_heard) {
+      if (this.state.kioskMode || !(this._hass && this._hass.user && this._hass.user.is_admin)) return null;
       const done = async (word) => {
-        this._heardAsk = false;
-        if (word) {
-          try {
-            const res = await this._callWS({ type: "padspan_ha/settings_set", telemetry_heard: word });
-            this.state.settings = res?.settings || this.state.settings;
-            this._toast("Thank you.");
-          } catch(e) { this._toast("Failed to save setting", true); }
-        }
+        try {
+          const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" },
+            word ? { telemetry_heard: word } : { telemetry_heard_ask: "done" }));
+          this.state.settings = res?.settings || this.state.settings;
+          if (word) this._toast("Thank you.");
+        } catch(e) { this._toast("Failed to save setting", true); }
         this._scheduleRender();
       };
       const q = el("div", { "data-heard-ask": "1", style: cardStyle });
@@ -1653,7 +1654,6 @@ class PadSpanHaApp extends HTMLElement {
         const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" },
           on ? { telemetry_enabled: true, telemetry_asked: true } : { telemetry_asked: true }));
         this.state.settings = res?.settings || this.state.settings;
-        if (on) this._heardAsk = true;
         this._toast(on ? "Thank you — usage report on. Settings → Tracking shows exactly what goes." : "Okay — it stays off. Settings → Tracking if you change your mind.");
       } catch(e) { this._toast("Failed to save setting", true); }
       this._scheduleRender();

@@ -54,6 +54,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "telemetry_enabled": False,
     "telemetry_asked": False,      # the panel asked once, and got an answer either way
     "telemetry_heard": "",         # where they heard about PadSpan (telemetry.HEARD_WORDS), their own answer; "" = not said
+    "telemetry_heard_ask": "",     # that question, once per install: "" never due, "due", "done" (telemetry.heard_ask_due)
     # The version the what's-new card last reported. Seeded silently the first
     # time the panel sees it, so a FRESH install is never told it "updated".
     "whatsnew_seen_version": "",

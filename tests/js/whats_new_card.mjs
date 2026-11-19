@@ -436,13 +436,21 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
 //     optional, and never after a No thanks (async: each answer is a save).
 {
   T._resetTrialOffer();
-  const label = "usage ask: a yes is followed by one optional question; an answer or Skip ends it";
+  const label = "usage ask: one optional question once the report goes on or a free licence starts; an answer or Skip ends it";
   try {
     const tick = async () => { for (let i = 0; i < 5; i++) await new Promise(r => globalThis._realSetTimeout(r, 0)); };
     const house = () => {
       const s = { telemetry_enabled: false, telemetry_asked: false };
       const { c, obj } = setup(s);
-      c._callWS = (msg) => { c._saved.push(msg); const m = { ...msg }; delete m.type; Object.assign(s, m); return Promise.resolve({ settings: s }); };
+      // What ws_settings does with these keys: the question falls due when the report goes on, an answer ends it.
+      c._callWS = (msg) => {
+        c._saved.push(msg);
+        const m = { ...msg }; delete m.type;
+        if (m.telemetry_enabled && !s.telemetry_enabled && !s.telemetry_heard_ask) m.telemetry_heard_ask = "due";
+        if (m.telemetry_heard) m.telemetry_heard_ask = "done";
+        Object.assign(s, m);
+        return Promise.resolve({ settings: s });
+      };
       return { c, card: () => obj._telemetryAskCard.call(c, false) };
     };
     // yes, then an answer
@@ -463,8 +471,22 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     await tick();
     q(b.card(), "[data-heard-skip]").click();
     await tick();
-    assert(b.c._saved.length === 1, "Skip saved something: " + JSON.stringify(b.c._saved));
+    assert(b.c._saved.length === 2 && b.c._saved[1].telemetry_heard_ask === "done" && !("telemetry_heard" in b.c._saved[1]),
+      "Skip did not end the question: " + JSON.stringify(b.c._saved));
     assert(b.card() === null, "asked again after Skip");
+    // due from a trial, tester sign-up or free year on a house already reporting: asked on the next Overview
+    const d = house();
+    Object.assign(d.c.state.settings, { telemetry_enabled: true, telemetry_asked: true, telemetry_heard_ask: "due" });
+    assert(q(d.card(), '[data-heard="youtube"]'), "a due question was not shown");
+    d.c._hass.user.is_admin = false;
+    assert(d.card() === null, "shown to someone who cannot answer it");
+    d.c._hass.user.is_admin = true;
+    d.c.state.kioskMode = true;
+    assert(d.card() === null, "shown on a wall screen");
+    // a house reporting since before the question existed: nothing pops up
+    const old = house();
+    Object.assign(old.c.state.settings, { telemetry_enabled: true, telemetry_asked: true });
+    assert(old.card() === null, "asked a house that was already reporting");
     // No thanks: never asked
     const n = house();
     q(n.card(), '[data-ask="no"]').click();

@@ -1566,7 +1566,7 @@ function _settingsPresence(ctx, el){
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
-      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
+      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; which store keeps PadSpan up to date (the Marketplace, HACS or neither); how many automations and scripts use it (two counts, never which); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
       "IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; which feature switches " +
       "are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), " +
       "and with two screens or more, a few words per screen (first five); " +
@@ -1574,7 +1574,8 @@ function _settingsPresence(ctx, el){
       "works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the " +
       "code logged. Counts, versions and flags only \u2014 never addresses, keys, device or room names, " +
       "coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; " +
-      "this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all."
+      "this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all. " +
+      "If you delete PadSpan while this is on, one last report says it was removed, and nothing else."
     ),
     el("div", { class: "muted", style: "font-size:11px;margin-bottom:12px" },
       "The report carries a random ID so installs can be counted rather than pings; you can replace it any time. " +

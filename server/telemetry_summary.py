@@ -543,6 +543,46 @@ def heard_section(latest: dict[str, dict]) -> list[str]:
     return out
 
 
+# env.store: which store keeps the install up to date. env.used_in: how many
+# automations and scripts use a PadSpan entity or device. usage.integration_removed:
+# the last report of an install deleted with its report on.
+_STORE_WORDS = ("marketplace", "hacs", "manual", "unknown")
+
+
+def _users_band(n: int) -> str:
+    return "0" if n <= 0 else "1-2" if n <= 2 else "3-9" if n <= 9 else "10+"
+
+
+def was_removed(r: dict) -> bool:
+    return bool((r.get("usage") or {}).get("integration_removed"))
+
+
+def context_section(latest: dict[str, dict], removed: set[str]) -> list[str]:
+    """Who keeps each install up to date, whether the house leans on PadSpan
+    in automations, and which installs said they were removed."""
+    live = {iid: r for iid, r in latest.items() if iid not in removed}
+    stores = Counter((r.get("env") or {}).get("store") for r in live.values())
+    said = sum(stores[w] for w in _STORE_WORDS)
+    out = [f"Kept up to date by ({said} of {len(live)} installs say)"]
+    out.append("  " + (", ".join(f"{w} {stores[w]}" for w in _STORE_WORDS if stores[w]) or "no install says yet"))
+    used = [(r.get("env") or {}).get("used_in") for r in live.values()]
+    used = [u for u in used if isinstance(u, dict)]
+    out.append(f"Used in automations or scripts ({len(used)} installs say)")
+    if used:
+        any_use = sum(1 for u in used if (_num(u.get("automations")) or 0) + (_num(u.get("scripts")) or 0) > 0)
+        out.append(f"  in at least one automation or script: {any_use} of {len(used)}")
+        for key in ("automations", "scripts"):
+            c = Counter(_users_band(int(_num(u.get(key)) or 0)) for u in used)
+            out.append(f"  {key:<12} " + ", ".join(f"{b}: {c[b]}" for b in ("0", "1-2", "3-9", "10+")))
+    else:
+        out.append("  no install says yet")
+    out.append(f"Removed (deleted from Home Assistant with the report on, and not back since): {len(removed)}")
+    for iid in sorted(removed)[:25]:
+        r = latest.get(iid) or {}
+        out.append(f"  {iid[:8]}  {r.get('day') or '?'}  v{r.get('version') or '?'}")
+    return out
+
+
 # Getting to a map (env.mapping, sent only by a house with a plan whose setup
 # isn't finished; the AI helper's design J): the step each is stuck at.
 _STUCK_WORDS = ("plan_no_rooms", "rooms_no_receivers", "receivers_no_calibration", "none")
@@ -709,7 +749,17 @@ def main() -> int:
         print("no reports")
         return 0
     latest: dict[str, dict] = {}
+    # An install's removal report carries nothing about the house: it marks
+    # the install removed and leaves its last real report as the latest. A
+    # report after it means PadSpan was put back.
+    removed: set[str] = set()
     for (iid, _day), r in sorted(rows.items(), key=lambda kv: kv[0][1]):
+        if was_removed(r):
+            removed.add(iid)
+            if iid in latest:
+                continue
+        else:
+            removed.discard(iid)
         latest[iid] = r
     n = len(latest)
     print(f"{n} installs, {len(rows)} install-days, last {a.days} days\n")
@@ -717,6 +767,9 @@ def main() -> int:
         print(line)
     print()
     for line in heard_section(latest):
+        print(line)
+    print()
+    for line in context_section(latest, removed):
         print(line)
     print()
     for line in mapping_section(rows, reports):
