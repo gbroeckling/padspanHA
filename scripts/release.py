@@ -777,7 +777,7 @@ RELEASE_HOW_TO_UPDATE = (
     "then reload the PadSpan page (Ctrl+F5)."
 )
 RELEASE_HOW_TO_UPDATE_BETA = " HACS offers a beta only to those who asked it for betas."
-# Every release's notes end with this (Garry, 2026-10-15). Change or empty it
+# Every release's notes end with this (since 2026-10-15). Change or empty it
 # here; an empty string adds nothing.
 RELEASE_NOTES_FOOTER = (
     "\n\n### PadSpan Pro free\n"
