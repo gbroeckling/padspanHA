@@ -356,6 +356,8 @@ await tryCase("aboard: on a short screen Fit leaves room for the row: the whole 
   for (const n of qa(".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip")) n.getBoundingClientRect = rectOf(0, 0, 0, 0);
   q(".la3d-bar").getBoundingClientRect = rectOf(0, barTop, W, H0 - barTop);
   poll(); await settle(10);
+  // The bars shown, as this case is about them (the sidebar opens with them aside: ☰ brings them back).
+  if (S().screen && S().screen.bare) { click(q(".la3d-solo")); await settle(2); }
   const fitBtn = qa("button").find(b => b.textContent === "Fit");
   click(fitBtn); await settle();
   const c = S().cam, top = S().topElev;
