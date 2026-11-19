@@ -516,6 +516,22 @@ await tryCase("chip: the newest rooms in their colours; a tap flies there, showi
     && flew && top.includes("up") && /now.*5 min.*20 min.*40 min.*65 min.*90 min.*2 h/.test(keyText)
     && !quiet.shown, { c, flew, top, quiet });
 });
+// Labels by zoom level (2026-11-18): a room open in the view fades the other rooms, their glow too.
+await tryCase("glow: a room open (a double-tap) fades the other rooms' glow to 35%; zoomed back out, it is as it was", async () => {
+  attach(main, {}, { "binary_sensor.kitchen_motion": { state: "off", last_changed: ago(25) }, "binary_sensor.hall_presence": { state: "on", last_changed: ago(30) } });
+  await settle(4);
+  const k0 = patch(main, "Kitchen").fill, h0 = patch(main, "Hall").fill, cv = canvasOf(main);
+  const at = main._whereOf("main", 3.2, 2.2, 0);
+  for (let i = 0; i < 2; i++) { cv.dispatchEvent(ev("pointerdown", at[0], at[1])); cv.dispatchEvent(ev("pointerup", at[0], at[1])); await settle(2); }
+  await later(900, 40);
+  const room = S(main).levels.room, k1 = patch(main, "Kitchen").fill, h1 = patch(main, "Hall").fill;
+  for (let i = 0; i < 14; i++) cv.dispatchEvent(ev("wheel", 400, 300, { deltaY: 160 }));
+  await settle(6);
+  const k2 = patch(main, "Kitchen").fill, h2 = patch(main, "Hall").fill, closed = S(main).levels.room;
+  check("glow: a room open (a double-tap) fades the other rooms' glow to 35%; zoomed back out, it is as it was",
+    room && room.name === "Kitchen" && k0 > 0 && h0 > 0 && k1 > 0 && near(h1 / k1, 0.35 * h0 / k0, 1e-6)
+    && closed === null && near(h2 / k2, h0 / k0, 1e-6), { room, k0, h0, k1, h1, k2, h2, closed });
+});
 await tryCase("frames: a room glowing for hours draws nothing; the age steps are redrawn once each, not animated", async () => {
   attach(main, {}, { "binary_sensor.kitchen_motion": { state: "off", last_changed: ago(19.9) } });
   await settle(4);

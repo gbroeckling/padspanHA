@@ -392,6 +392,15 @@ export function createMotionLayer(ctx){
   let pairsOf = null, pairsN = -1, pairsAt = null;           // the pairs, for the registry (and states) they came from
   // near: the fill's strength at room scale (the band and the marker carry it there).
   let camKey = null, last = null, night = 0, near = 1;
+  // A room open in the view: every other room's glow at fadeOf.k ({F, room, k}), or null.
+  let fadeOf = null;
+  const fadeK = (P) => (fadeOf && !(P.F === fadeOf.F && P.room === fadeOf.room) ? fadeOf.k : 1);
+  /** A patch's fill and band as painted, faded with its room. */
+  function fillPatch(P){
+    const k = fadeK(P);
+    P.u.uFill.value = (P.fill || 0) * (P.ground ? 1 : near) * k;
+    if (P.band) { P.band.u.uBand.value = (P.bandV || 0) * k; P.band.u.uLine.value = (P.lineV || 0) * k; }
+  }
   // What Live Aboard's ⋯ list shows on this screen: the sensor (its model,
   // marker and line), motion in its room (the glow, the band, the ring), its
   // reach (the coverage fan). Hidden is not drawn and can't be tapped; the
@@ -663,9 +672,10 @@ export function createMotionLayer(ctx){
     P.key = key;
     if (g) { P.u.uColor.value.set(g.color); if (P.band) P.band.u.uColor.value.set(g.color); }
     P.fill = P.ground ? (g ? Math.min(1, fill * 1.4) : 0) : fill;
-    P.u.uFill.value = P.fill * (P.ground ? 1 : near);
+    P.bandV = band; P.lineV = line;
     P.u.uHatch.value = g && g.stuck ? 1 : 0;
-    if (P.band) { P.band.u.uBand.value = band; P.band.u.uLine.value = line; P.band.u.uHatch.value = g && g.stuck ? 1 : 0; }
+    if (P.band) P.band.u.uHatch.value = g && g.stuck ? 1 : 0;
+    fillPatch(P);
     return true;
   }
   /** The rings and fans of a patch at t (the view's clock); the meshes shown
@@ -748,7 +758,7 @@ export function createMotionLayer(ctx){
     size(c, H, room){
       const k = 2 * Math.tan((c.fov || 40) / 2 * Math.PI / 180) / Math.max(1, H);
       const nearNow = room ? GLOW.near : 1;
-      if (nearNow !== near) { near = nearNow; for (const P of patches) if (!P.ground) { P.u.uFill.value = (P.fill || 0) * near; P.mesh.visible = P.mesh.visible || P.u.uFill.value > 0; } }
+      if (nearNow !== near) { near = nearNow; for (const P of patches) if (!P.ground) { fillPatch(P); P.mesh.visible = P.mesh.visible || P.u.uFill.value > 0; } }
       const key = c.matrixWorld.elements.map(v => v.toFixed(3)).join(",") + H + "|" + sensors.map(S => (shown(S) ? 1 : 0)).join("");
       const again = key !== camKey;
       camKey = key;
@@ -793,6 +803,15 @@ export function createMotionLayer(ctx){
       camKey = null;
       for (const S of sensors) if (S.body) S.body.visible = parts.sensor;
       for (const P of patches) { P.key = null; paintPatch(P, { now: Date.now() }); stepPatch(P, last === null ? 0 : last); }
+      return true;
+    },
+    /** A room open in the view (o = {F, room, k}, or null): every other
+     *  room's glow drawn at k. True when that changed what is drawn. */
+    fade(o){
+      const n = o && o.F ? { F: o.F, room: o.room || null, k: Number(o.k) } : null;
+      if (n === fadeOf || (n && fadeOf && n.F === fadeOf.F && n.room === fadeOf.room && n.k === fadeOf.k)) return false;
+      fadeOf = n;
+      for (const P of patches) fillPatch(P);
       return true;
     },
     /** What a press can land on: a marker that shows, not faded. */

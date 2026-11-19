@@ -3366,16 +3366,17 @@ function createSlot(slotKey){
     for (const T of tints) {
       // A pulse plays for its first LIVE_MS, then shows still, as a room
       // breathing after motion does; the air's bars stand still.
-      const m = T.mLook, play = !!(T.act && t < T.liveUntil);
+      // A room open: the other rooms' motion and air colours fade with their floors.
+      const m = T.mLook, play = !!(T.act && t < T.liveUntil), rk = level === "room" && !(openRoom && T.F === openRoom.F && T.room === openRoom.r) ? ROOM_FADE : 1;
       T.fillMat.opacity = (!m ? 0 : play ? HOUSE.cycleAt(P0.fill, P0.ms, t) * FILL_K
-        : m.active ? STILL.active * FILL_K : STILL.recent * RECENT_K) * tintK(T.motion);
+        : m.active ? STILL.active * FILL_K : STILL.recent * RECENT_K) * tintK(T.motion) * rk;
       for (const R of T.rings) {
         if (!R.on || !play) { R.mesh.scale.setScalar(0); R.mat.opacity = 0; continue; }
         const r = HOUSE.cycleAt(P0.ringR, P0.ms, t) * RING_R0;
         R.mesh.scale.set(r, 1, r);
         R.mat.opacity = HOUSE.cycleAt(P0.ringA, P0.ms, t) * tintK(T.motion);
       }
-      if (T.barsMat) T.barsMat.opacity = T.aLook ? Math.min(1, T.aLook.op * AIR_K) * tintK(T.air) : 0;
+      if (T.barsMat) T.barsMat.opacity = T.aLook ? Math.min(1, T.aLook.op * AIR_K) * tintK(T.air) * rk : 0;
     }
     if (wx) wx.tick(t);                                       // rain and snow: the clock, to the GPU
     if (devices) devices.tick(t);                             // fans, washers, robots out
@@ -3606,6 +3607,7 @@ function createSlot(slotKey){
     if (motionL && motionL.show) motionL.show(motionShow());
     if (tracked && tracked.hideKinds) tracked.hideKinds(lv === "house" ? ["scanner", "beacon"] : []);
     fadeRooms();
+    if (motionL && motionL.fade) motionL.fade(lv === "room" && openRoom ? { F: openRoom.F, room: openRoom.r, k: ROOM_FADE } : null);
     if (codes && codes.recheck) codes.recheck();
     if (raisedL) raisedL.touch();
   }
@@ -3657,9 +3659,13 @@ function createSlot(slotKey){
     const W = canvas.clientWidth || 0, H = canvas.clientHeight || 0, k = wallUiOf(root), byId = new Map(floorsUi.map(G => [G.fl.id, G]));
     const placed = [], seen = new Set();
     for (const F of floorsUi) {
-      if (!F.group.visible || F.fl.outdoor || F.fl.parent || !F.rooms.length) continue;
+      if (!F.group.visible || F.fl.outdoor || F.fl.parent) continue;
+      // The floor and its split levels (a raised or sunken room is a level of its own, splitLevels).
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-      for (const r of F.rooms) if (!r.outdoor) for (const q of r.pts) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+      for (const G of floorsUi) {
+        if (G !== F && G.fl.parent !== F.fl.id) continue;
+        for (const r of G.rooms) if (!r.outdoor) for (const q of r.pts) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+      }
       if (!Number.isFinite(x0)) continue;
       const fid = F.fl.id, w = tagWords(F, byId), key = `${w.name}|${w.line}|${k}`;
       seen.add(fid);
