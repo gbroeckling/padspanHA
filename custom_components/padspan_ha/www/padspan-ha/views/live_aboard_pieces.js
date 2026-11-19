@@ -664,18 +664,20 @@ function layoutFrame(e, P, walls, others, doors, rows, free, B){
       return boxesOverlap(q.b, pn.zone) && o <= pn.wb.hu && (d === null || o < d) ? o : d;
     }, null);
     const mine = placed.slice(n0), sink = mine.find(q => q.recipe.kind === "sink");
+    const kindsOf = (qs) => qs.map(q => q.recipe.kind).sort().join();
     if (sink && mine.some(q => panes.some(pn => boxesOverlap(q.b, pn.zone)))) {
       const was = { d: offWindow(sink), placed: mine, score, left };
       let best = was;
       // The nearest places first: of two as good, the sink moves least.
-      const js = items.map((_, j) => j).filter(j => j !== si).sort((a, c) => Math.abs(a - si) - Math.abs(c - si) || a - c);
+      const js = items.map((_, j) => j).filter(j => j !== si).sort((j1, j2) => Math.abs(j1 - si) - Math.abs(j2 - si) || j1 - j2);
       for (const j of js) {
         const seq = items.filter((_, i) => i !== si);
         seq.splice(j, 0, items[si]);
         placed.length = n0; score = s0; left = l0;
         lay(seq);
+        // The same pieces placed (none lost for it), the sink nearer the middle of a window.
         const got = placed.slice(n0), s2 = got.find(q => q.recipe.kind === "sink"), d = s2 ? offWindow(s2) : null;
-        if (d !== null && left === was.left && (best.d === null || d < best.d - 1e-6)) best = { d, placed: got, score, left };
+        if (d !== null && kindsOf(got) === kindsOf(mine) && (best.d === null || d < best.d - 1e-6)) best = { d, placed: got, score, left };
       }
       placed.length = n0; placed.push(...best.placed); score = best.score; left = best.left;
     }
