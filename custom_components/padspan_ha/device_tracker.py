@@ -9,7 +9,9 @@ Creates device_tracker.{label} entities for every labelled BLE device.
 state = current room, so the tracker can be linked to a HA Person.
 
 When not seen for longer than the configured away timeout (Settings → Presence →
-Away timeout; default 5 minutes), the state is "not_home" explicitly.
+Away timeout; default 5 minutes), the state is "not_home" explicitly. A device
+no Home Assistant person carries (keys, a tag) keeps its last room for the
+things' away time instead (default 6 hours; presence_rules.is_carried).
 It must be named, not left as None: HA falls through None to latitude/longitude,
 which this tracker does not have, so the state came out "unknown" instead.
 
@@ -31,7 +33,7 @@ from .const import DOMAIN, DATA_SETTINGS, DATA_DEVICE_REGISTRY
 from .geo_bridge import accuracy_from_confidence, metres_to_latlon
 from .presence_coordinator import PresenceCoordinator
 from .entity_identity import alternates_of, kept_device_info, pick_uid_key, registry_ready, uid_safe
-from .presence_rules import away_timeout_s, is_away
+from .presence_rules import device_away_timeout_s, is_away
 from .quiet_errors import note as _quiet_error
 
 # HA's own constant, with a literal fallback so an import change upstream
@@ -42,10 +44,6 @@ except ImportError:  # pragma: no cover
     STATE_NOT_HOME = "not_home"
 
 _LOGGER = logging.getLogger(__name__)
-
-# The away rule lives in presence_rules; this alias keeps existing call sites
-# reading naturally while there is exactly one implementation.
-_away_timeout_s = away_timeout_s
 
 try:
     from homeassistant.components.device_tracker import SourceType, TrackerEntity
@@ -232,6 +230,12 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         obj = self._obj
         return str(obj.get("user_label") or obj.get("name") or self._init_label)
 
+    def _away_after_s(self) -> float:
+        """The away timeout when a person carries this device (this tracker
+        on their list counts); a thing keeps its last room longer."""
+        return device_away_timeout_s(self.coordinator.hass, self._obj, self.coordinator.data,
+                                     getattr(self, "entity_id", None))
+
     def _latlon(self) -> tuple[float, float] | None:
         """The object's real-world position, if the fabric has a GPS origin
         configured (Settings) and this object has a solved x_m/y_m — gap #5,
@@ -299,7 +303,7 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         named explicitly.
         """
         obj = self._obj
-        if is_away(obj, away_timeout_s(self.coordinator.hass)):
+        if is_away(obj, self._away_after_s()):
             return STATE_NOT_HOME
         return obj.get("room") or super().state
 
@@ -330,7 +334,7 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
     def extra_state_attributes(self) -> dict[str, Any]:
         obj = self._obj
         age = obj.get("age_s")
-        home = not (isinstance(age, (int, float)) and age > _away_timeout_s(self.coordinator.hass))
+        home = not (isinstance(age, (int, float)) and age > self._away_after_s())
         return {
             "address": obj.get("address"),
             "padspan_id": obj.get("padspan_id"),
@@ -338,6 +342,8 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
             "age_s": round(age, 1) if isinstance(age, (int, float)) else None,
             "user_label": obj.get("user_label"),
             "home": home,
+            # Where it was last placed: still there once it reads not_home.
+            "last_room": obj.get("room") or None,
             # A guest tag lent right now: the stay (guest_tags.py).
             **_guest_attrs(self.coordinator.hass, obj),
         }

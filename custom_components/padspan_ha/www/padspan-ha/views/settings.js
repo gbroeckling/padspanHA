@@ -1721,10 +1721,24 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Away timeout set to ${v} min`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
+  // Things nobody carries keep their last room longer (presence_rules.thing_away_timeout_s).
+  const currentThingH = (settings.thing_away_timeout_h != null ? Number(settings.thing_away_timeout_h) : 6);
+  const thingInp = el("input", {
+    type: "number", min: "0", max: "48", step: "0.5", value: String(currentThingH), style: inpStyle,
+  });
+  const thingSaveBtn = el("button", { class: "btn" }, "Save");
+  thingSaveBtn.addEventListener("click", async () => {
+    const raw = parseFloat(thingInp.value);
+    const v = Number.isFinite(raw) ? (raw <= 0 ? 0 : Math.max(0.5, Math.min(48, raw))) : 6;
+    try {
+      await ctx.actions.settingsSet({ thing_away_timeout_h: v });
+      ctx.toast(v === 0 ? "Things now go away after the away timeout" : `Things keep their room for ${v} h`);
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
   put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Home/Away Timeout"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "If a device hasn't been detected for this long, it is marked as not_home in HA. " +
+      "If a phone or anything else a person carries hasn't been detected for this long, it is marked as not_home in HA. " +
       "The device_tracker and area sensor both switch to not_home. " +
       "Set higher if devices drop off briefly during normal use."
     ),
@@ -1736,6 +1750,21 @@ function _settingsPresence(ctx, el){
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
       `Current: ${currentAwayM} min (${currentAwayM * 60}s). Default: 5 min. Range: 1 min – 24 h.`
+    ),
+    el("div", { class: "muted", style: "font-size:12px;margin:16px 0 14px" },
+      "Keys, tags and anything else nobody carries stay in the room they were last seen in for this long, " +
+      "then switch to not_home. A device counts as carried when it is added to a person in Home Assistant " +
+      "(Settings → People → Track devices), is picked for them in Live Aboard (Furnish → People & devices), " +
+      "or has the person's name. 0 = same as the away timeout."
+    ),
+    el("div", { style: rowStyle, "data-thing-away": "" }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Things keep their room"),
+      thingInp,
+      el("div", { class: "muted", style: "font-size:12px" }, "hours"),
+      thingSaveBtn,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      `Current: ${currentThingH === 0 ? "same as the away timeout" : currentThingH + " h"}. Default: 6 h. Range: 0.5 – 48 h, or 0.`
     ),
   ]));
 

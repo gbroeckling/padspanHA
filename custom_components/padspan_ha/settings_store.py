@@ -122,6 +122,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # attribute on each area sensor.
     "hold_last_room_s": 0.0,       # 0 = off, else 1-600
     "room_reason_attribute": False,
+    # A labelled device no Home Assistant person carries (keys, a tag) keeps
+    # its last room this many hours before its entities read not_home;
+    # carried devices use away_timeout_m. 0 = same as away_timeout_m, else
+    # 0.5-48 (presence_rules.thing_away_timeout_s).
+    "thing_away_timeout_h": 6.0,
     # Honest accuracy (0.38.165), all OFF by default; off, rooms and positions
     # are exactly what they were. pick_better: prefer whichever of k-NN and
     # the spatial solve wins the held-out test (heldout.py). unsure: hold and
