@@ -200,8 +200,10 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
   const of = (g) => (FURN ? FURN.FURNITURE_KINDS.filter(k => k !== "other" && FURN.FURNITURE[k].group === g).map(k => FURN.FURNITURE[k].name) : []);
   // The starter set first (ready-made pieces), then each builder.
   const starters = FURN && Array.isArray(FURN.STARTER_SET) ? FURN.STARTER_SET.map(st => st.name) : [];
+  // Then the room sets (2026-11), each furnishing the room in the view in one step.
+  const sets = FURN && Array.isArray(FURN.ROOM_SETS) && P_.layoutSet ? FURN.ROOM_SETS.map(st => st.name) : [];
   // The house itself (stairs) after them, under House; the Box last.
-  const want = [...starters, ...of("furniture"), ...of("device"), ...(FURN && FURN.FURNITURE.stairs ? ["Stairs"] : []), "Box"];
+  const want = [...starters, ...sets, ...of("furniture"), ...of("device"), ...(FURN && FURN.FURNITURE.stairs ? ["Stairs"] : []), "Box"];
   check("open: Furnish opens at the furniture tool; Build lists the builders' kinds; a missing flow has no button",
     !st().failed && ed().editing && ed().tool === "furnish" && ed().furnishOn && !shown(button("Door", "la3d-tools"))
     && JSON.stringify(menu) === JSON.stringify(want)
@@ -252,6 +254,34 @@ await tryCase("add: on the top floor showing, in the room under the view's centr
     P_.PIECE_ID.test(String(sofa)) && p.floor_id === "main" && p.z_m === 0 && near(p.x_m, 2.2, 1e-3) && near(p.y_m, 4, 1e-3)
     && Math.abs(facing[0]) + Math.abs(facing[1]) > 0.99 && ed().dirty && st().pieces.some(d => d.id === sofa && d.floor === "main"),
     { sofa, p, drawn: st().pieces });
+});
+
+// ── room sets ───────────────────────────────────────────────────────────────
+// Garry's item 28 (2026-11): one tap furnishes the room in the view along its
+// walls: every piece in that room on its floor, none in another or in the
+// sofa already there, the last one picked; one Undo takes the whole set away.
+await tryCase("sets: a room set furnishes the room in the view along its walls, in one step that one Undo takes back", async () => {
+  const name = "sets: a room set furnishes the room in the view along its walls, in one step that one Undo takes back";
+  if (!FURN || !Array.isArray(FURN.ROOM_SETS)) { check(name, false, "no ROOM_SETS"); return; }
+  const before = clone(draftPieces()), ids0 = new Set(Object.keys(before));
+  const kept = [];
+  for (const set of FURN.ROOM_SETS) {
+    click("Build ▾", "la3d-tools");
+    click(set.name, "la3d-furmenu");
+    await settle();
+    const all = draftPieces(), added = Object.values(all).filter(q => !ids0.has(q.id));
+    const boxes = added.map(q => P_.boxOf(q));
+    const inLiving = boxes.every(b => P_.cornersOf(b).every(([x, y]) => x >= -1e-6 && x <= 4.5 + 1e-6 && y >= -1e-6 && y <= 8 + 1e-6));
+    const flat = (b) => b.z1 - b.z0 <= P_.FLAT_M + 1e-9;
+    const solid = [...boxes, P_.boxOf(all[sofa])].filter(b => !flat(b));
+    const clash = solid.some((b, i) => solid.some((o, j) => j > i && P_.boxesOverlap(b, o) && Math.min(b.z1, o.z1) - Math.max(b.z0, o.z0) > P_.TOL_M));
+    const one = added.length >= 3 && added.every(q => q.floor_id === "main" && P_.PIECE_ID.test(q.id)) && added.some(q => q.id === fur().sel);
+    kept.push({ set: set.id, n: added.length, inLiving, clash, one });
+    click("Undo", "la3d-tools");
+    await settle();
+    kept[kept.length - 1].undone = JSON.stringify(draftPieces()) === JSON.stringify(before);
+  }
+  check(name, kept.length === FURN.ROOM_SETS.length && kept.every(k => k.one && k.inLiving && !k.clash && k.undone), kept);
 });
 
 // ── drag ────────────────────────────────────────────────────────────────────

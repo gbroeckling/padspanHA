@@ -483,3 +483,171 @@ export function stairForRoom(room, rise){
   }
   return { params, width_m: mm(W), depth_m: mm(D), x_m: mm(c[0]), y_m: mm(c[1]), rotation };
 }
+
+// ── room sets (2026-11) ─────────────────────────────────────────────────────
+// A set (the builders' ROOM_SETS: a kitchen along one wall or round a corner,
+// a bathroom, a bedroom, a living room, a dining room, an office) laid out in
+// one room as a first go to drag and change. Its rows run along the room's
+// walls ("back", the wall tried as the back; "front" across from it; "left"
+// and "right", from the back corner out), each piece's back flush against a
+// wall that is solid for its whole height there (snapToWall), so a row steps
+// past doorways, past windows too low for it, and past whatever already
+// stands there; its free pieces stand about the room (fractions of it) or by
+// a piece of the set (a coffee table before the sofa, chairs round the table,
+// a lamp on a bedside table). Every piece lies wholly inside the room, none
+// overlaps another (a rug lies under things), none is in a door's swing; a
+// piece with nowhere to go is left out. Each of the room's walls is tried as
+// the back, the longest first; the one that seats the most wins (a big piece,
+// a bed or a table, counting for more than a small one).
+//
+// set = {rows: [{wall, from ("start" | "center" | "end"), z?, items}], free:
+// [{r, key?, at?: [along, out] (0…1 of the room), rel?: key, off?: [across,
+// front] (m, in that piece's own frame), face?: "front" | "back" | "left" |
+// "right" | "anchor" | "same" | "away", on?: true}]}; a row's item is {r:
+// recipe, key?, alt?: [recipes tried after it]}. pts: the room's outline;
+// walls: the floor's wall pieces; opts: {others: pieces already on the
+// floor, doors: doorSwings}. → {pieces: [{recipe, x_m, y_m, z_m, rotation,
+// key}], left_out}.
+export const SET_STEP_M = 0.05;            // a row looks for room in steps this long
+const SET_REACH_M = 0.4;                   // a row piece's back finds its wall this near
+/** Is box b wholly inside outline pts (its corners and the middles of its
+ *  sides, 1 cm in: a piece flush on the outline's own line is in)? */
+function inRoom(b, pts){
+  const c = cornersOf(b), q = [...c];
+  for (let i = 0; i < 4; i++) q.push([(c[i][0] + c[(i + 1) % 4][0]) / 2, (c[i][1] + c[(i + 1) % 4][1]) / 2]);
+  return q.every(([x, y]) => {
+    const dx = b.c[0] - x, dy = b.c[1] - y, l = Math.hypot(dx, dy) || 1;
+    return inPoly(x + dx / l * 0.01, y + dy / l * 0.01, pts);
+  });
+}
+const setCount = (rows, free) => rows.reduce((k, r) => k + ((r && r.items) || []).length, 0) + free.length;
+export function layoutSet(set, pts, walls, opts = {}){
+  const P = (pts || []).filter(q => Array.isArray(q) && num(q[0]) !== null && num(q[1]) !== null);
+  const rows = Array.isArray(set && set.rows) ? set.rows : [], free = Array.isArray(set && set.free) ? set.free : [];
+  if (P.length < 3) return { pieces: [], left_out: setCount(rows, free) };
+  const others = ((opts && opts.others) || []).filter(o => o && o.recipe).map(o => boxOf(o));
+  const doors = (opts && opts.doors) || [], W = (walls || []).filter(w => wallBox(w).len > 0.2);
+  // The outline's edges, each with its normal into the room, the longest first.
+  const edges = [];
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], b = P[(i + 1) % P.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 0.6) continue;
+    const u = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    let n = [-u[1], u[0]];
+    if (!inPoly(m[0] + n[0] * 0.05, m[1] + n[1] * 0.05, P)) n = [-n[0], -n[1]];
+    edges.push({ a, u, n, len });
+  }
+  edges.sort((p, q) => q.len - p.len);
+  let best = null;
+  for (const e of edges.slice(0, 8)) {
+    const got = layoutFrame(e, P, W, others, doors, rows, free);
+    if (!best || got.score > best.score) best = got;
+  }
+  if (!best) return { pieces: [], left_out: setCount(rows, free) };
+  return { pieces: best.placed.map(q => ({ recipe: copy(q.recipe), x_m: mm(q.b.c[0]), y_m: mm(q.b.c[1]), z_m: mm(q.b.z0), rotation: q.rot,
+                                           key: q.key || null })),
+           left_out: best.left };
+}
+/** One go at a set with edge e as the back wall: {placed, score, left}. */
+function layoutFrame(e, P, walls, others, doors, rows, free){
+  const { a, u, n } = e;
+  const S = P.map(q => (q[0] - a[0]) * u[0] + (q[1] - a[1]) * u[1]), T = P.map(q => (q[0] - a[0]) * n[0] + (q[1] - a[1]) * n[1]);
+  const s0 = Math.min(...S), s1 = Math.max(...S), t0 = Math.min(0, ...T), t1 = Math.max(...T);
+  const at = (s, t) => [a[0] + u[0] * s + n[0] * t, a[1] + u[1] * s + n[1] * t];
+  const placed = [];
+  let score = 0, left = 0;
+  // Each wall of the frame: where its line starts, which way it runs, which way its pieces face.
+  const lines = {
+    back:  { o: at(0, 0), dir: u, face: n, len: e.len },
+    front: { o: at(s0, t1), dir: u, face: [-n[0], -n[1]], len: s1 - s0 },
+    left:  { o: at(s0, t0), dir: n, face: u, len: t1 - t0 },
+    right: { o: at(s1, t0), dir: n, face: [-u[0], -u[1]], len: t1 - t0 },
+  };
+  // A frame's wall with the house's own wall pieces along it (else, with no
+  // walls drawn, a piece stands a typical half wall in from the outline).
+  const hasWall = (L) => walls.some(w => {
+    const wb = wallBox(w), cr = Math.abs(wb.u[0] * L.dir[1] - wb.u[1] * L.dir[0]);
+    const d = Math.abs((wb.c[0] - L.o[0]) * L.face[0] + (wb.c[1] - L.o[1]) * L.face[1]);
+    return cr < 0.05 && d < 0.3;
+  });
+  const fits = (b, skip = null) => {
+    if (!inRoom(b, P)) return false;
+    if (isFlat(b)) return true;                               // a rug lies under things
+    for (const o of [...others, ...placed.map(q => q.b)]) {
+      if (o === skip || isFlat(o)) continue;
+      if (boxesOverlap(b, o) && spansOverlap(b.z0, b.z1, o.z0, o.z1)) return false;
+    }
+    return !doors.some(dr => b.z0 < (num(dr.head) ?? 2.03) && swingHits(dr, b));
+  };
+  const boxAt = (recipe, c, rot, z) => boxOf({ recipe, x_m: c[0], y_m: c[1], z_m: z, rotation: rot });
+  const keep = (recipe, b, rot, key) => { placed.push({ recipe, b, rot, key }); score += 1 + 4 * b.hu * b.hv; };
+  // ── the rows ──
+  for (const row of rows) {
+    if (!row) continue;
+    const L = lines[row.wall] || lines.back, items = Array.isArray(row.items) ? row.items : [];
+    const z = Math.max(0, num(row.z) ?? 0), walled = hasWall(L), rot = rotFacing(L.face[0], L.face[1]);
+    const total = items.reduce((sum, it) => sum + sizeOf(it && it.r).w, 0);
+    const from = row.from === "end" ? "end" : row.from === "center" ? "center" : "start";
+    const order = from === "end" ? items.map((_, i) => items.length - 1 - i) : items.map((_, i) => i);
+    let cur = from === "end" ? L.len : from === "center" ? Math.max(0, (L.len - total) / 2) : 0;
+    for (const i of order) {
+      const it = items[i];
+      let done = false;
+      for (const r of it && it.r ? [it.r, ...(Array.isArray(it.alt) ? it.alt : [])] : []) {
+        const s = sizeOf(r);
+        for (let k = 0; k < 400 && !done; k++) {
+          const pos = from === "end" ? cur - s.w - k * SET_STEP_M : cur + k * SET_STEP_M;
+          if (pos < -1e-6 || pos + s.w > L.len + 1e-6) break;
+          const along = pos + s.w / 2, out = s.d / 2 + 0.05;
+          let c = [L.o[0] + L.dir[0] * along + L.face[0] * out, L.o[1] + L.dir[1] * along + L.face[1] * out];
+          if (walled) {
+            // Its back flush on the wall here, and only on a wall solid for its whole height.
+            const sn = snapToWall({ recipe: r, x_m: c[0], y_m: c[1], z_m: z, rotation: rot }, s, walls, SET_REACH_M);
+            if (!sn || Math.abs(((sn.rotation - rot + 540) % 360) - 180) > 1) continue;
+            c = [sn.x_m, sn.y_m];
+          }
+          const b = boxAt(r, c, rot, z);
+          if (!fits(b)) continue;
+          keep(r, b, rot, it.key);
+          cur = from === "end" ? pos : pos + s.w;
+          done = true;
+        }
+        if (done) break;
+      }
+      if (!done) left++;
+    }
+  }
+  // ── the free pieces ──
+  const m = at((s0 + s1) / 2, (t0 + t1) / 2);
+  for (const f of free) {
+    const anchor = f && f.rel ? placed.find(q => q.key === f.rel) : null;
+    if (!f || !f.r || (f.rel && !anchor)) { left++; continue; }
+    let c, rot, z = 0, skip = null;
+    if (anchor) {
+      const au = acrossOf(anchor.rot), av = frontOf(anchor.rot), o = Array.isArray(f.off) ? f.off : [0, 0];
+      const ox = num(o[0]) ?? 0, oy = num(o[1]) ?? 0;
+      c = [anchor.b.c[0] + au[0] * ox + av[0] * oy, anchor.b.c[1] + au[1] * ox + av[1] * oy];
+      rot = f.face === "anchor" ? rotFacing(anchor.b.c[0] - c[0], anchor.b.c[1] - c[1]) : f.face === "away" ? normRot(anchor.rot + 180) : anchor.rot;
+      if (f.on) { z = anchor.b.z1; skip = anchor.b; }
+    } else {
+      const fr = Array.isArray(f.at) ? f.at : [0.5, 0.5];
+      c = at(s0 + (s1 - s0) * clamp(num(fr[0]) ?? 0.5, 0, 1), t0 + (t1 - t0) * clamp(num(fr[1]) ?? 0.5, 0, 1));
+      const fc = { front: n, back: [-n[0], -n[1]], left: u, right: [-u[0], -u[1]] }[f.face] || n;
+      rot = rotFacing(fc[0], fc[1]);
+    }
+    // Where it was meant to go; else, by a piece of the set, a little toward
+    // the room's middle (on a piece: there or not at all); else, about the
+    // room, the nearest spot it fits (an L-shaped room's middle is no room).
+    const tries = [];
+    for (let k = 0; k <= (f.on ? 0 : 6); k++) tries.push([c[0] + (m[0] - c[0]) * k * 0.08, c[1] + (m[1] - c[1]) * k * 0.08]);
+    if (!anchor) {
+      const step = Math.max(0.1, Math.sqrt((s1 - s0) * (t1 - t0) / 2500)), grid = [];
+      for (let ss = s0; ss <= s1; ss += step) for (let tt = t0; tt <= t1; tt += step) grid.push(at(ss, tt));
+      grid.sort((p, q) => Math.hypot(p[0] - c[0], p[1] - c[1]) - Math.hypot(q[0] - c[0], q[1] - c[1]));
+      tries.push(...grid);
+    }
+    const spot = tries.map(q => boxAt(f.r, q, rot, z)).find(b => fits(b, skip));
+    if (spot) keep(f.r, spot, rot, f.key); else left++;
+  }
+  return { placed, score, left };
+}

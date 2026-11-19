@@ -16,7 +16,8 @@
 //   createFurnish     Mapping → Furnish: the furniture tool inside the 3D
 //                     editor (live_aboard_edit.js), on its draft, so one Save
 //                     writes doors, windows, heights and furniture together.
-//                     Build (the builders' kinds, and a Box), From a photo,
+//                     Build (the builders' kinds, a Box, and room sets that
+//                     furnish a room along its walls in one step), From a photo,
 //                     Library, Import and People & devices (each its own
 //                     module, loaded only here; a missing one hides its
 //                     button); drag across the floor with the piece's back
@@ -471,6 +472,15 @@ export function createFurnish(ctx){
       menu.appendChild(d("h5", null, "Starter set"));
       for (const s of starters) menu.appendChild(btn(s.name, `Add a ${s.name.toLowerCase()}, ready made`, () => { closeMenu(); add([{ recipe: copy(s.recipe) }]); }));
     }
+    // Room sets (2026-11): one tap furnishes the room in the middle of the view along its walls.
+    const sets = B && Array.isArray(B.ROOM_SETS) && typeof PIECES.layoutSet === "function" ? B.ROOM_SETS.filter(s => s && s.name) : [];
+    if (sets.length) {
+      menu.appendChild(d("h5", null, "Room sets"));
+      for (const set of sets) {
+        menu.appendChild(btn(set.name, `Furnish the room in the middle of the view: ${set.about || set.name.toLowerCase()}, along its walls. One Undo takes it all back`,
+          () => { closeMenu(); placeSet(set); }));
+      }
+    }
     for (const [g, title] of groups) {
       const ks = kinds.filter(k => k !== boxKind && B.FURNITURE[k] && headingOf(B.FURNITURE[k]) === g);
       if (!ks.length) continue;
@@ -499,6 +509,28 @@ export function createFurnish(ctx){
     }
     menu.appendChild(d("h5", null, "Other"));
     menu.appendChild(btn("Box", "A plain box of any size: anything with no builder of its own", () => { closeMenu(); add([{ recipe: recipeFor(boxKind) }]); }));
+  }
+  /** A room set (the builders' ROOM_SETS) into the room in the middle of the
+   *  view, along its walls (PIECES.layoutSet: inside the room, backs to its
+   *  walls, past doors, windows and what already stands there), as one step:
+   *  one Undo takes it all back. What finds no room is left out, and said. */
+  function placeSet(set){
+    const F = addFloor();
+    if (!F) { ctx.hint("Show a floor first: there is nowhere to put it.", true); return; }
+    const spot = spotHere(F), room = spot && spot.room;
+    if (!room || room.outdoor || !Array.isArray(room.pts) || room.pts.length < 3) {
+      ctx.hint("Put a room in the middle of the view first: a set goes along its walls.", true);
+      return;
+    }
+    const walls = wallsOf(F), doors = PIECES.doorSwings(walls, (pc) => ctx.HOUSE.openingSwing(pc, F.rooms, pc.override || null));
+    const c = cur(), others = Object.values((c && c.pieces) || {}).filter(o => o && String(o.floor_id) === String(F.fl.id));
+    const got = PIECES.layoutSet(set, room.pts, walls, { others, doors });
+    const where = room.name ? String(room.name) : "this room";
+    if (!got.pieces.length) { ctx.hint(`Nothing from the ${set.name.toLowerCase()} set fits in ${where}.`, true); return; }
+    add(got.pieces.map(q => ({ piece: { ...PIECES.makePiece(q.recipe, F.fl.id, { x: q.x_m, y: q.y_m, rotation: q.rotation }, "build"), z_m: q.z_m } })));
+    const n = got.pieces.length, out = got.left_out;
+    ctx.hint(`${set.name} in ${where}: ${n} ${n === 1 ? "piece" : "pieces"}${out ? `; ${out} more had no room` : ""}. `
+      + "Drag them into place; one Undo takes the set away. Nothing is kept until Save.");
   }
   function toggleMenu(){ if (menuOpen) closeMenu(); else { buildMenu(); menuOpen = true; placeMenu(); menu.classList.add("on"); } }
   function closeMenu(){ menuOpen = false; menu.classList.remove("on"); }

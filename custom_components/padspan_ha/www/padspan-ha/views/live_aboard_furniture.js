@@ -444,6 +444,57 @@ export const STARTER_SET = [
   starter("Plant", "plant", { style: "bush", pot: "round" }),
 ];
 
+// ── room sets ────────────────────────────────────────────────────────────────
+// One tap in Furnish's Build ▾ furnishes the room in the middle of the view
+// (item 28, after NeonPlan's room packages): rows of pieces along its walls,
+// and pieces about the room or beside one of the set. live_aboard_pieces.js
+// layoutSet lays them out (inside the room, backs to the walls, past doors
+// and windows); this is only what goes in. Plain data: every piece a recipe
+// clampRecipe keeps as it is.
+const rec = (kind, params = {}, size = {}, colors = null) => starter("", kind, params, size, colors).recipe;
+const WALL_UNIT_Z = 1.45;                      // a wall cabinet's bottom, over a 0.9 m worktop
+const setRow = (wall, from, items, z = 0) => ({ wall, from, ...(z ? { z } : {}), items: items.map((it) => (it && it.r ? it : { r: it })) });
+const wallUnits = (n) => Array.from({ length: n }, () => rec("wall_cabinet"));
+const bedside = () => rec("dresser", { fronts: "drawers", columns: 1, rows: 2, base: "feet", handles: "knob" }, { width_m: 0.45, depth_m: 0.4, height_m: 0.55 });
+const tableLamp = () => rec("lamp", { style: "table", shade: "drum", base: "round" }, { width_m: 0.3, depth_m: 0.3, height_m: 0.5 });
+const bookcase = () => rec("shelf", { style: "bookcase", shelves: 5, books: "some" }, { width_m: 0.8, depth_m: 0.32, height_m: 1.8 });
+export const ROOM_SETS = [
+  { id: "kitchen_row", name: "Kitchen, one wall", about: "tall units, cabinets, sink, dishwasher and hob in a row, wall cabinets over them",
+    rows: [setRow("back", "start", [rec("fridge"), rec("tall_cabinet", { fronts: "oven" }), rec("base_cabinet", { fronts: "drawers" }),
+                                    rec("sink"), rec("dishwasher"), rec("stove"), rec("base_cabinet"), rec("base_cabinet")]),
+           setRow("back", "start", wallUnits(8), WALL_UNIT_Z)], free: [] },
+  { id: "kitchen_l", name: "Kitchen, L-shaped", about: "a run along one wall and round the corner, wall cabinets over them",
+    rows: [setRow("back", "end", [rec("base_cabinet", { fronts: "drawers" }), rec("sink"), rec("dishwasher"), rec("tall_cabinet", { fronts: "oven" }), rec("fridge")]),
+           setRow("left", "start", [rec("base_cabinet"), rec("stove"), rec("base_cabinet", { fronts: "drawers" }), rec("base_cabinet")]),
+           setRow("back", "end", wallUnits(6), WALL_UNIT_Z), setRow("left", "start", wallUnits(5), WALL_UNIT_Z)], free: [] },
+  { id: "bathroom", name: "Bathroom", about: "a toilet and a basin on one wall, a bath (or a shower) across from them",
+    rows: [setRow("back", "center", [rec("wc"), rec("basin")]),
+           setRow("front", "start", [{ r: rec("bath"), alt: [rec("shower")] }])], free: [] },
+  { id: "bedroom", name: "Bedroom", about: "a bed between bedside tables with lamps, a wardrobe, a dresser and a rug",
+    rows: [setRow("back", "center", [{ r: bedside(), key: "left" }, { r: rec("bed"), key: "bed" }, { r: bedside(), key: "right" }]),
+           setRow("left", "center", [rec("wardrobe")]), setRow("front", "center", [rec("dresser")])],
+    free: [{ r: tableLamp(), rel: "left", on: true }, { r: tableLamp(), rel: "right", on: true },
+           { r: rec("rug", { pattern: "plain" }, { width_m: 2.0, depth_m: 1.4 }), rel: "bed", off: [0, 0.8] }] },
+  { id: "living", name: "Living room", about: "a TV unit, a sofa across from it with a coffee table and a rug, an armchair, a lamp, shelves and a plant",
+    rows: [setRow("back", "center", [{ r: rec("tv"), key: "tv" }]),
+           setRow("front", "center", [rec("lamp"), { r: rec("sofa"), key: "sofa" }, rec("plant")]),
+           setRow("left", "center", [rec("chair", { style: "armchair", arms: true }, { width_m: 0.85, depth_m: 0.85, height_m: 0.85 })]),
+           setRow("right", "center", [bookcase()])],
+    free: [{ r: rec("table", { shape: "rounded", legs: "four", apron: false }, { width_m: 1.1, depth_m: 0.6, height_m: 0.42 }), rel: "sofa", off: [0, 1.15] },
+           { r: rec("rug", { pattern: "border" }, { width_m: 2.4, depth_m: 1.6 }), rel: "sofa", off: [0, 1.2] }] },
+  { id: "dining", name: "Dining room", about: "a table for four or six with its chairs, and a sideboard",
+    rows: [setRow("back", "center", [rec("dresser", { fronts: "doors", columns: 3, rows: 1, base: "legs", handles: "knob" }, { width_m: 1.6, depth_m: 0.45, height_m: 0.75 })])],
+    free: [{ r: rec("table", { shape: "rectangle", legs: "four" }, { width_m: 1.6, depth_m: 0.9, height_m: 0.75 }), key: "table", at: [0.5, 0.55], face: "front" },
+           ...[-0.4, 0.4].flatMap((x) => [{ r: rec("chair", { cushion: true }), rel: "table", off: [x, 0.72], face: "away" },
+                                          { r: rec("chair", { cushion: true }), rel: "table", off: [x, -0.72], face: "same" }]),
+           { r: rec("chair", { cushion: true }), rel: "table", off: [-1.1, 0], face: "anchor" },
+           { r: rec("chair", { cushion: true }), rel: "table", off: [1.1, 0], face: "anchor" }] },
+  { id: "office", name: "Office", about: "a desk and its chair, two bookcases and a plant",
+    rows: [setRow("back", "center", [{ r: rec("desk"), key: "desk" }]), setRow("left", "center", [bookcase(), bookcase()]),
+           setRow("right", "end", [rec("plant")])],
+    free: [{ r: rec("chair", { style: "office", cushion: true, arms: true }), rel: "desk", off: [0, 0.72], face: "away" }] },
+];
+
 // ── geometry: PadSpan's own rounded box, placing and merging ─────────────────
 // Each face of the box: its normal axis and sign, then the two in-plane axes
 // (axis, sign) with u × v = the normal, so every quad winds outward.

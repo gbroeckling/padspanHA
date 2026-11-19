@@ -379,4 +379,66 @@ tryCase("stairs: a square stair room holds a U (or round two landings when the U
     g.params.shape === "u" && g2.params.shape === "l2" && g.depth_m <= 3.0 && g.width_m <= 2.4, { g, g2 });
 });
 
+// ── room sets (2026-11) ─────────────────────────────────────────────────────
+// Garry's item 28: one tap furnishes a room along its walls. The builders'
+// own sets (live_aboard_furniture.js ROOM_SETS), laid out in the kitchen
+// (a window in its front wall), the hall (the door drawn in its wall), an
+// L-shaped room and a room with no walls drawn: every piece wholly inside the
+// room, none in a wall, in another piece (those already there too) or in a
+// door's swing; a row's pieces with their backs flush on a wall solid for
+// their whole height; the same each time; what Save would send, kept.
+const F = await import(pathToFileURL(join(WWW, "views", "live_aboard_furniture.js")).href).catch(() => null);
+const SETS = F && Array.isArray(F.ROOM_SETS) ? F.ROOM_SETS : [];
+const ELL = [[0, 0], [5, 0], [5, 2], [2.5, 2], [2.5, 5], [0, 5]];
+const inside = (p, pts) => P.cornersOf(P.boxOf(p)).every(([x, y]) => {
+  const b = P.boxOf(p), dx = b.c[0] - x, dy = b.c[1] - y, l = Math.hypot(dx, dy) || 1;
+  return H.inPoly(x + dx / l * 0.005, y + dy / l * 0.005, pts);
+});
+const asPieces = (r, tag) => r.pieces.map((q, i) => ({ ...P.makePiece(q.recipe, "main", { x: q.x_m, y: q.y_m, rotation: q.rotation }, "build"),
+  id: `fur_${tag}${String(i).padStart(8 - tag.length, "0")}`, z_m: q.z_m }));
+tryCase("sets: the seven room sets, each piece a recipe its builder keeps", () => {
+  const ids = SETS.map(s => s.id), recipes = SETS.flatMap(s => [...(s.rows || []).flatMap(r => r.items.flatMap(it => [it.r, ...(it.alt || [])])), ...(s.free || []).map(f => f.r)]);
+  check("sets: the seven room sets, each piece a recipe its builder keeps",
+    ["kitchen_row", "kitchen_l", "bathroom", "bedroom", "living", "dining", "office"].every(k => ids.includes(k))
+    && SETS.every(s => typeof s.name === "string" && s.name && typeof s.about === "string")
+    && recipes.length > 30 && recipes.every(r => F.FURNITURE[r.kind] && JSON.stringify(F.clampRecipe(r)) === JSON.stringify(r)), ids);
+});
+tryCase("sets: every piece inside the room, none in a wall, another piece or a door's swing", () => {
+  const name = "sets: every piece inside the room, none in a wall, another piece or a door's swing", bad = [];
+  const kitchen = per.rooms.find(r => r.name === "Kitchen"), hall = per.rooms.find(r => r.name === "Hall");
+  // A tall box already against the kitchen's back wall: the sets go round it.
+  const there = piece("fur_000000e0", "other", 0.8, 0.6, 2.0, { x: 2.0, y: 0.35 });
+  const rooms = [["kitchen", kitchen.pts, walls, [there]], ["hall", hall.pts, walls, []], ["ell", ELL, [], []], ["bare", [[0, 0], [3.2, 0], [3.2, 2.6], [0, 2.6]], [], []]];
+  let total = 0;
+  for (const set of SETS) for (const [where, pts, ws, others] of rooms) {
+    const r = P.layoutSet(set, pts, ws, { others, doors: ws === walls ? doors : [] });
+    const ps = asPieces(r, "a");
+    total += ps.length;
+    if (!ps.length) bad.push({ set: set.id, where, none: true });
+    for (const p of ps) {
+      const warn = P.fitChecks(p, { walls: ws, doors: ws === walls ? doors : [], others: [...ps, ...others] }).filter(w => ["wall", "overlap", "door"].includes(w.kind));
+      if (warn.length || !inside(p, pts)) bad.push({ set: set.id, where, kind: p.recipe.kind, at: [p.x_m, p.y_m, p.rotation], warn, inside: inside(p, pts) });
+    }
+  }
+  check(name, SETS.length >= 7 && bad.length === 0 && total > 100, { total, bad: bad.slice(0, 6) });
+});
+tryCase("sets: a kitchen's row stands with its backs flush on a wall, past the window, facing into the room", () => {
+  const kitchen = per.rooms.find(r => r.name === "Kitchen"), set = SETS.find(s => s.id === "kitchen_row");
+  const ps = asPieces(P.layoutSet(set, kitchen.pts, walls, { doors }), "b");
+  const base = ps.filter(p => p.z_m === 0), hung = ps.filter(p => p.z_m > 1);
+  const flush = base.every(p => { const s = P.snapToWall(p, null, walls, 0.02); return s && Math.abs(s.x_m - p.x_m) < 0.002 && Math.abs(s.y_m - p.y_m) < 0.002 && s.rotation === p.rotation; });
+  // A wall cabinet is never hung over the window (the kitchen's front wall, y = 3, x 1 to 2.2).
+  const overWindow = hung.some(p => { const b = P.boxOf(p); return P.cornersOf(b).some(([x, y]) => y > 2.6 && x > 1 && x < 2.2); });
+  check("sets: a kitchen's row stands with its backs flush on a wall, past the window, facing into the room",
+    base.length >= 5 && hung.length >= 2 && flush && !overWindow && ps.every(p => P.fitChecks(p, { walls, doors, others: ps }).every(w => w.kind !== "window")),
+    { base: base.map(p => [p.recipe.kind, p.x_m, p.y_m, p.rotation]), hung: hung.length, flush, overWindow });
+  payloads.push({ pieces: Object.fromEntries(ps.map(p => [p.id, p])) });
+});
+tryCase("sets: the same each time; a room with no outline gets nothing", () => {
+  const set = SETS.find(s => s.id === "living"), a = P.layoutSet(set, ELL, [], {}), b = P.layoutSet(set, ELL, [], {});
+  const none = P.layoutSet(set, [[0, 0], [1, 1]], [], {});
+  check("sets: the same each time; a room with no outline gets nothing",
+    a.pieces.length > 0 && JSON.stringify(a) === JSON.stringify(b) && none.pieces.length === 0 && none.left_out > 0, { a: a.pieces.length, none });
+});
+
 console.log(JSON.stringify({ cases, failures, payloads }));
