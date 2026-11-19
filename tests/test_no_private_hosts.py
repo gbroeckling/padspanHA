@@ -6,6 +6,11 @@ publish it, and four scripts carried the colo web server's address with its
 login name. The scripts now reach the server by an ssh Host name each machine
 defines in its own ~/.ssh/config (padspan-colo).
 
+2026-11-19: the owner's and his family's first names were all through the code
+comments, tests, docs and changelog (design credits, "his house", test people
+named after the family). They are gone; the owner's full name stays only where
+it is meant to be: copyright and licence lines and the author credit.
+
 These checks read the git index, so a copy that is not a git checkout (the
 Bright build tree) skips them.
 """
@@ -94,3 +99,54 @@ def test_release_preflight_names_an_undefined_colo_host():
     assert R.colo_host_problem("padspan-colo", run_=defined) is None
     broken = lambda cmd: SimpleNamespace(returncode=255, stdout="", stderr="bad configuration")
     assert "could not read" in R.colo_host_problem("padspan-colo", run_=broken)
+
+
+# The names are built from pieces so this file never matches its own checks.
+_FIRST = "Gar" + "ry"
+_FAMILY = re.compile("nic" + "ole", re.I)
+_OWNER = re.compile(_FIRST, re.I)
+_FULL_NAME = _FIRST + " Broeckling"
+_LICENCE_LINE = re.compile(r"copyright|©|licen[cs]e", re.I)
+# Where the full name is the author credit, on purpose (plus every site/*.html page's footer).
+_CREDIT_FILES = {"README.md", "CONTRIBUTING.md", "CLA.md", "LICENSING.md", "scripts/bright_README.md",
+                 "site/i18n/de.json", "tests/test_atlas_heights.py"}
+# The few lines that name him some other way, on purpose.
+_NAMED_LINES = {("docs/HOW_PADSPAN_IS_BUILT.md", "-- " + _FIRST),
+                ("site/creators/index.html", _FIRST + ", who makes PadSpan, answers himself"),
+                ("tests/test_visual_words.py", f'r"{_FIRST}|Broeckling"')}
+# The public contact address: the site's payment button and the tester sign-up mail.
+_ADDRESSES = (_FIRST.lower() + "@bcmail.net",)
+
+
+def _tracked_lines():
+    for rel in _tracked():
+        path = ROOT / rel
+        if path.suffix.lower() in BINARY or not path.is_file() or path.stat().st_size > 4_000_000:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            yield rel, n, line
+
+
+def test_no_family_names():
+    hits = [f"{rel}:{n}" for rel, n, line in _tracked_lines() if _FAMILY.search(line)]
+    assert hits == [], "a family member's name: use a demo name (Alex, Sam, Jordan) or say 'a family member'"
+
+
+def test_the_owners_name_only_in_licence_lines_and_the_author_credit():
+    hits = []
+    for rel, n, line in _tracked_lines():
+        if not _OWNER.search(line) or any(rel == f and s in line for f, s in _NAMED_LINES):
+            continue
+        for address in _ADDRESSES:
+            line = line.replace(address, "")
+        if _LICENCE_LINE.search(line) or rel in _CREDIT_FILES or (rel.startswith("site/") and rel.endswith(".html")):
+            line = line.replace(_FULL_NAME, "")
+        if _OWNER.search(line):
+            hits.append(f"{rel}:{n}")
+    assert hits == [], ("the owner's name: say 'the owner' (a design credit: just the date), 'a real home' "
+                        "(his house, rooms or devices), or a demo name (Alex, Sam, Jordan) in test data; "
+                        "it belongs only on copyright/licence lines and the author credit")
