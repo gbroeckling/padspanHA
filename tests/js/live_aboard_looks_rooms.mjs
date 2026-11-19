@@ -16,11 +16,13 @@
 //           Studio and one plain line (a theme picked before is kept, not
 //           drawn); Settings' own still decides with Same as Settings; a theme
 //           picked ticks the screen's Theme colours back on; a wall has it too
-//   chips   the map's named rooms along the top under their floors' labels,
-//           top floor first (one name once, none without a name); a chip
-//           shows its floor, flies to the room, tints it, opens its panel and
-//           is marked; a narrow screen and a wall: one Rooms ▾, the list
-//           grouped; none in Furnish; they step aside with the bars
+//   chips   one Rooms ▾ by default, a wide screen too; ⋯ Room chips along
+//           the top (this screen's tick, wide screens only) puts the map's
+//           named rooms in a row under their floors' labels, top floor first
+//           (one name once, none without a name); a chip shows its floor,
+//           flies to the room, tints it, opens its panel and is marked; a
+//           narrow screen and a wall: always one Rooms ▾, the list grouped;
+//           none in Furnish; they step aside with the bars
 //   panel   a tap on a room's name opens its panel in the view, not the
 //           host's sheet: its devices, then More devices of the area (n);
 //           every button works there, each switch said with Undo; the room
@@ -172,6 +174,8 @@ async function newSlot(key, over = {}){
   await settle(30);
   return slot;
 }
+/** A slot whose screen has ⋯ Room chips along the top ticked (prefs show_<screen>). */
+const rowSlot = (key, over = {}) => newSlot(key, { prefs: screenPrefs({ explode: "0", [`show_${key}`]: J({ room_row: true }) }), ...over });
 const btn = (slot, text, within = null) => (within || slot.element).querySelectorAll("button").find(b => b.textContent === text) || null;
 const menuBtns = (slot) => { const m = slot.element.querySelector(".la3d-menu"); return m ? m.querySelectorAll("button") : []; };
 const openViews = async (slot) => { click(slot.element.querySelector("[data-la3d-saved]").querySelector("button")); await settle(2); };
@@ -331,7 +335,7 @@ await tryCase("chips: the map's named rooms along the top under their floors' la
     { id: "up", name: "Upstairs", elev: 2.8, rooms: [{ name: "Loft" }, { name: "  " }] },
     { id: "__outside__", name: "Outside", elev: 0, outdoor: true, rooms: [{ name: "Shed" }] },
     { id: "empty", name: "Attic", elev: 6, rooms: [{ name: "" }] }]);
-  const slot = await newSlot("ch-row");
+  const slot = await rowSlot("ch-row");
   const st = S(slot).rooms.chips, row = slot.element.querySelector("[data-la3d-rchips]"), roomrow = slot.element.classList.contains("la3d-roomrow");
   LA.releaseLiveAboardSlot("ch-row");
   check("chips: the map's named rooms along the top under their floors' labels, top floor first; one name once, none without a name",
@@ -343,7 +347,7 @@ await tryCase("chips: the map's named rooms along the top under their floors' la
 });
 await tryCase("chips: a chip shows its room's floor, flies to the room, tints it, opens its panel and is marked", async () => {
   let slot = null;
-  slot = await newSlot("ch-go", { setTopFloor: (fid) => { calls.push(["top", fid]); if (slot) card(slot, "ch-go", { topFloorIds: [fid], floorSteps: steps({ at: fid === "up" ? 1 : 0 }) }); } });
+  slot = await rowSlot("ch-go", { setTopFloor: (fid) => { calls.push(["top", fid]); if (slot) card(slot, "ch-go", { topFloorIds: [fid], floorSteps: steps({ at: fid === "up" ? 1 : 0 }) }); } });
   calls.length = 0;
   const r0 = S(slot).cam.radius;
   click(slot.element.querySelector('[data-la3d-rchip="up|Loft"]'));
@@ -368,11 +372,39 @@ await tryCase("chips: a chip shows its room's floor, flies to the room, tints it
     && nook.calls.every(c => c[0] !== "top") && nook.room && nook.room.name === "Nook" && nook.panel === "Nook" && J(nook.pressed) === J(["up|Nook"]),
     { level: s.levels, panel: s.rooms.panel, chips: s.rooms.chips, cam: s.cam, r0, loft, tile, nook, flying });
 });
+await tryCase("chips: one Rooms ▾ by default on a wide screen too, with the top line as the row had it; ⋯ Room chips along the top gives this screen the row, and unticked it goes back", async () => {
+  const slot = await newSlot("ch-dflt");
+  const dflt = { ...S(slot).rooms.chips, roomrow: slot.element.classList.contains("la3d-roomrow"), tip: true };
+  const b = slot.element.querySelector("[data-la3d-rooms]");
+  // ⋯ → The house → Room chips along the top: unticked, ticked here.
+  click(slot.element.querySelector("[data-la3d-more]")); await settle(2);
+  const line = () => slot.element.querySelectorAll(".la3d-srow").find(r => r.getAttribute("data-show") === "room_row") || null;
+  const words = line() ? line().textContent : "";
+  const was = line() && line().querySelector(".la3d-stick").getAttribute("aria-checked");
+  click(line().querySelector(".la3d-stick")); await settle(4);
+  const pref = cards.get("ch-dflt").prefs.get("show_ch-dflt");
+  const on = { ...S(slot).rooms.chips, roomrow: slot.element.classList.contains("la3d-roomrow") };
+  // Another screen keeps Rooms ▾.
+  const other = await newSlot("ch-other");
+  const otherChips = S(other).rooms.chips;
+  LA.releaseLiveAboardSlot("ch-other");
+  click(line().querySelector(".la3d-stick")); await settle(4);
+  const off = { ...S(slot).rooms.chips, pref: cards.get("ch-dflt").prefs.get("show_ch-dflt") };
+  LA.releaseLiveAboardSlot("ch-dflt");
+  // The top line is the rooms' as with the row (the tip gives way, the People and Motion chips move under it), so
+  // nothing centred at the top runs into Rooms ▾ on a screen of middling width.
+  check("chips: one Rooms ▾ by default on a wide screen too, with the top line as the row had it; ⋯ Room chips along the top gives this screen the row, and unticked it goes back",
+    dflt.shown && dflt.compact && J(dflt.chips) === "[]" && dflt.roomrow && b && b.textContent === "Rooms ▾"
+    && words.startsWith("Room chips along the top") && was === "false" && pref === J({ room_row: true })
+    && on.shown && !on.compact && J(on.chips) === J(["up|Loft", "up|Nook", "main|Den", "main|Kitchen"]) && on.roomrow
+    && otherChips.compact && off.compact && J(off.chips) === "[]" && off.pref === "{}",
+    { dflt, words, was, pref, on, otherChips, off });
+});
 await tryCase("chips: a narrow screen and a wall have one Rooms ▾ with the same list, grouped; Furnish has none; they step aside with the bars", async () => {
-  const slot = await newSlot("ch-narrow");
+  const slot = await rowSlot("ch-narrow");
   slot.element.clientWidth = 390;
   card(slot, "ch-narrow"); await settle(6);
-  const narrow = S(slot).rooms.chips;
+  const narrow = { ...S(slot).rooms.chips, roomrow: slot.element.classList.contains("la3d-roomrow") };
   const b = slot.element.querySelector("[data-la3d-rooms]");
   click(b); await settle(2);
   const m = slot.element.querySelector(".la3d-menu");
@@ -380,20 +412,25 @@ await tryCase("chips: a narrow screen and a wall have one Rooms ▾ with the sam
   click(menuBtns(slot).find(x => x.textContent === "Kitchen")); await later(900, 30);
   const went = { room: S(slot).levels.room, panel: S(slot).rooms.panel.room };
   LA.releaseLiveAboardSlot("ch-narrow");
-  const wall = await newSlot("ch-wall", { kiosk: true });
-  const onWall = S(wall).rooms.chips;
+  const wall = await rowSlot("ch-wall", { kiosk: true });
+  const onWall = { ...S(wall).rooms.chips, roomrow: wall.element.classList.contains("la3d-roomrow") };
+  // Not offered where it can't show: a wall's ⋯ list has no Room chips along the top line.
+  click(wall.element.querySelector("[data-la3d-more]")); await settle(2);
+  const wallLine = wall.element.querySelectorAll(".la3d-srow").some(r => r.getAttribute("data-show") === "room_row");
+  const wallList = wall.element.querySelectorAll(".la3d-srow").length;
+  fire("keydown", { key: "Escape" }); await settle(2);
   card(wall, "ch-wall", { furnish: { callWS: null, toast: null, settings: {}, entities: null } }); await settle(6);
   const furnish = S(wall).rooms.chips;
   LA.releaseLiveAboardSlot("ch-wall");
   // The map alone: the row steps aside with the bars (the view's la3d-bare), as the bar does.
   const css = (wall.element.querySelector("style[data-la3d-rooms-css]") || { textContent: "" }).textContent;
   check("chips: a narrow screen and a wall have one Rooms ▾ with the same list, grouped; Furnish has none; they step aside with the bars",
-    narrow.shown && narrow.compact && J(narrow.chips) === "[]" && b && b.textContent === "Rooms ▾"
+    narrow.shown && narrow.compact && !narrow.roomrow && J(narrow.chips) === "[]" && b && b.textContent === "Rooms ▾"
     && J(list) === J(["# Upstairs", "Loft", "Nook", "# Main", "Den", "Kitchen"])
     && went.room && went.room.name === "Kitchen" && went.panel === "Kitchen"
-    && onWall.shown && onWall.compact && !furnish.shown
+    && onWall.shown && onWall.compact && !onWall.roomrow && !furnish.shown && !wallLine && wallList > 10
     && css.includes(".la3d.la3d-bare .la3d-rchips{opacity:0;visibility:hidden;pointer-events:none}"),
-    { narrow, list, went, onWall, furnish });
+    { narrow, list, went, onWall, furnish, wallLine, wallList });
 });
 
 // ── panel ───────────────────────────────────────────────────────────────────
@@ -480,7 +517,7 @@ await tryCase("panel: the room is framed in what the panel leaves clear: left of
 await tryCase("panel: ✕ and Escape close it; Furnish, leaving the view and its floor hidden close it; the flight home waits while it is open", async () => {
   const out = {};
   let slot = null;                                       // the home view may pick its floor while the view is made
-  slot = await newSlot("pn-close", { settings3d: { atlas_3d_home_idle_s: 60 },
+  slot = await rowSlot("pn-close", { settings3d: { atlas_3d_home_idle_s: 60 },
     setTopFloor: (fid) => { if (slot) card(slot, "pn-close", { topFloorIds: [fid], floorSteps: steps({ at: fid === "up" ? 1 : 0 }) }); } });
   await tapName(slot, "Den");
   click(inPanel(slot, "✕")[0]); await settle(2);

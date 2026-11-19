@@ -91,6 +91,10 @@ export const SHOW_ITEMS = [
   { key: "stairs", group: "house", words: "Stairs", hint: "The flights (the opening in the floor stays)", link: "furnish" },
   { key: "room_names", group: "house", words: "Room names", hint: "Each room's name on its floor", link: "rooms" },
   { key: "room_outlines", group: "house", words: "Room outlines", hint: "The coloured line round each room", link: "rooms" },
+  // Not a drawing: how the rooms by name are offered (live_aboard_rooms.js). Off unless a screen ticks it (owner,
+  // 2026-11-19: less on screen): one Rooms ▾ everywhere; ticked, a wide screen has every room in a row along the top.
+  // Listed only where the row can show (not a narrow screen, not a wall: live_aboard.js showRows).
+  { key: "room_row", group: "house", words: "Room chips along the top", hint: "Every named room as a button in a row along the top, instead of one Rooms ▾ button", link: "rooms", dflt: false },
   { key: "floor_outlines", group: "house", words: "Floor outlines", hint: "The faint line round each floor", link: "la3d" },
   // The flat Map's (lights_map.js focusAlone): with one floor chosen it is drawn alone, as big as the screen,
   // unless this is ticked. Off unless ticked (dflt: false, the house's own for every house).
@@ -243,7 +247,7 @@ export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
     railings: "No deck or stair rails yet.", radios: "No receivers are placed yet.", furniture: "No furniture yet.",
     devices: "No furniture is a device yet.", stairs: "No stairs yet.",
     scan_furniture: "No floor plan here came from a phone's room scan with furniture in it (Mapping → Upload → No floor plan? → Scan the floor).", room_names: "No rooms are drawn yet.",
-    room_outlines: "No rooms are drawn yet.", rain: "Rain and snow aren't set up yet: they need a weather source.",
+    room_outlines: "No rooms are drawn yet.", room_row: "No rooms are drawn yet.", rain: "Rain and snow aren't set up yet: they need a weather source.",
     theme: "No theme is on yet.", forest: "The trees come with the West Coast Forest theme.",
     floor_outlines: "Floor outlines come with the Atlas's look.",
     trails: "Trails follow people and tags: turn one of them on first.",

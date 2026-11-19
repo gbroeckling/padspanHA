@@ -10,11 +10,11 @@
 //           a small label of its floor when there are several floors, the
 //           top floor first; one name twice on a floor is one chip. A chip
 //           shows the room's floor, flies to the room as a double-tap does,
-//           tints it and opens its panel. A wide screen has a row along the
-//           top that scrolls sideways (the wheel scrolls it too); a narrow
-//           screen and a wall have one "Rooms ▾" button with the same list,
-//           grouped the same way. Both step aside with the bars when the
-//           map is alone.
+//           tints it and opens its panel. One "Rooms ▾" button with the list,
+//           grouped the same way, everywhere; a wide screen whose ⋯ list has
+//           Room chips along the top ticked has a row along the top instead,
+//           that scrolls sideways (the wheel scrolls it too). Both step aside
+//           with the bars when the map is alone.
 //   panel   a tap on a room opens its panel beside the house (a bottom sheet
 //           on a narrow screen) instead of the Atlas's room sheet over the
 //           whole page: the same lines and buttons (lights_map.js
@@ -89,8 +89,9 @@ const CSS = `
 .la3d-rchips .la3d-rfl:first-child{margin-left:0}
 .la3d-rchips.la3d-rcompact{right:auto;overflow:visible;-webkit-mask-image:none;mask-image:none}
 .la3d.la3d-bare .la3d-rchips{opacity:0;visibility:hidden;pointer-events:none}
-/* The row takes the top line: the touch tip gives way (How it works in Views ▾ has it), and the hover box, the
-   People and Motion chips, the motion key and the rain line move down under it. */
+/* The rooms take the top line on a wide screen that is not a wall (the row, or Rooms ▾ beside ⋯): the touch tip gives
+   way (How it works in Views ▾ has it), and the hover box, the People and Motion chips, the motion key and the rain line
+   move down under it, so nothing centred at the top runs into Rooms ▾ on a screen of middling width. */
 .la3d.la3d-roomrow .la3d-tip{display:none}
 .la3d.la3d-hasrooms .la3d-hud{top:60px}
 .la3d.la3d-roomrow .la3d-chiprow,.la3d.la3d-roomrow > .la3d-mchip{top:62px}
@@ -130,7 +131,8 @@ function styleOnce(root){
  * The room chips. v = {
  *   root, guard(fn)
  *   groups()         roomChipGroups(...) for the house as it is drawn
- *   compact()        true: one "Rooms ▾" button (a narrow screen, a wall)
+ *   compact()        true: one "Rooms ▾" button (the default; always on a narrow screen and a wall)
+ *   line()           true: the rooms have the top line (a wide screen, not a wall), row or Rooms ▾
  *   go(chip)         a chip pressed: {fid, top, name, key}
  *   list(anchor, items)   the view's own menu over `anchor` (items: {head} or {text, act})
  *   current()        the key of the room open, or null (its chip is marked)
@@ -159,15 +161,15 @@ export function createRoomChips(v){
     ...g.rooms.map(c => ({ text: c.name, on: v.current() === c.key, act: () => v.go(c) }))]);
   function sync(){
     groups = v.groups() || [];
-    const compact = !!v.compact(), cur = v.current ? v.current() : null;
-    const key = JSON.stringify([compact, groups.map(g => [g.words, g.rooms.map(c => c.key)])]);
+    const compact = !!v.compact(), line = v.line ? !!v.line() : !compact, cur = v.current ? v.current() : null;
+    const key = JSON.stringify([compact, line, groups.map(g => [g.words, g.rooms.map(c => c.key)])]);
     if (key !== drawn) {
       drawn = key;
       el.replaceChildren();
       el.classList.toggle("la3d-rcompact", compact);
       el.style.display = groups.length ? "" : "none";
       v.root.classList.toggle("la3d-hasrooms", !!groups.length);
-      v.root.classList.toggle("la3d-roomrow", !!groups.length && !compact);
+      v.root.classList.toggle("la3d-roomrow", !!groups.length && line);
       if (compact) {
         const b = doc.createElement("button");
         b.type = "button"; b.textContent = "Rooms ▾";

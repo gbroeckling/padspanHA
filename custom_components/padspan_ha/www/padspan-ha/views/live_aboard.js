@@ -954,9 +954,9 @@ function createSlot(slotKey){
     tagsEl.setAttribute("data-la3d-ftags", "");
     tagsEl.style.display = "none";
     root.appendChild(tagsEl);
-    // The room chips along the top (a narrow screen and a wall: one Rooms ▾), and a room's panel.
+    // The rooms by name: one Rooms ▾, or (⋯ Room chips along the top, a wide screen only) a row of chips; and a room's panel.
     if (ROOMS) {
-      roomChips = ROOMS.createRoomChips({ root, guard, groups: () => chipGroups(), compact: () => narrow || wallScreen(),
+      roomChips = ROOMS.createRoomChips({ root, guard, groups: () => chipGroups(), compact: () => !roomRowOn(), line: () => !narrow && !wallScreen(),
         go: (c) => goRoom(c.fid, c.top, c.name), list: (anchor, items) => openMenu(anchor, items),
         current: () => (openRoom ? `${openRoom.fid}|${openRoom.name}` : null) });
       roomPanel = ROOMS.createRoomPanel({ root, guard, moreInfo: (eid) => USE.moreInfo(root, eid),
@@ -4480,6 +4480,8 @@ function createSlot(slotKey){
   /** The chips for the house as it is drawn: every floor's named rooms (a
    *  split level's under its storey); none while Edit, Furnish or the Plans
    *  tool's map has the view. */
+  /** The room chips' row instead of Rooms ▾: ticked in ⋯ on this screen, and a wide screen that is not a wall. */
+  function roomRowOn(){ return !narrow && !wallScreen() && !!(showOn && showOn.room_row === true); }
   function chipGroups(){
     if (!house || showSuspended()) return [];
     return ROOMS.roomChipGroups(floorsUi.map(F => ({ id: F.fl.id, name: F.fl.name, elev: F.fl.elev, outdoor: !!F.fl.outdoor,
@@ -5996,7 +5998,7 @@ function createSlot(slotKey){
       furniture: !(pieces.length - stairs - dev), devices: !dev, stairs: !stairs,
       // Said only while the line is off: ticked with no scan to draw, it stays a line a press can untick.
       scan_furniture: !(scanPieces && Object.keys(scanPieces).length) && !(showOn && showOn.scan_furniture === true),
-      room_names: !(house && house.rooms.length), room_outlines: !(house && house.rooms.length),
+      room_names: !(house && house.rooms.length), room_outlines: !(house && house.rooms.length), room_row: !(house && house.rooms.some(r => r && r.name)),
       floor_outlines: !look, roof: !STOREY, rain: !weatherReady(p),
       theme: !(p.look3d === "atlas" || p.look3d === "studio" || (LOOKS && p.showcase3d === true && p.showcase && p.showcase.key && p.showcase.key !== "classic")),
       forest: !(look && look.on && look.theme === "west_coast_forest"),
@@ -6022,6 +6024,8 @@ function createSlot(slotKey){
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_buttons" || mapOnly);
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_switch" || mapOnly);
+    // The room chips' row only where it can show: a wide screen, not a wall (there it is always Rooms ▾).
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_row" || (!narrow && !wallScreen()));
     for (const g of groups) for (const r of g.rows) {
       if (r.key === "scenes" && !ready.scenes) r.link = null;
       if (ready[r.key]) continue;
@@ -6144,6 +6148,7 @@ function createSlot(slotKey){
     if (codes && codes.recheck) codes.recheck();
     if (showMenu) showMenu.mark();
     syncScenes();
+    if (roomChips) roomChips.sync();                         // ⋯ Room chips along the top
     requestRender();
   }
 

@@ -60,7 +60,7 @@ back out brings them back too. A wall screen opens as before, on the floor with 
 | Turn the house | Drag with one finger or the left mouse button |
 | Move it | Two fingers, or the right mouse button |
 | Zoom | Pinch, or the mouse wheel |
-| Go to a room | Double-tap the room, or tap its name in the row along the top (**Rooms ▾** on a phone) |
+| Go to a room | Double-tap the room, or pick it in **Rooms ▾** at the top |
 | Look straight down | **Top** |
 | Back to the usual angle | **Iso** |
 | Turn a quarter | **⟳ 90°** |
@@ -96,10 +96,12 @@ above, and the Atlas's Showcase theme), **Classic**, **Studio**, or one of the S
 PadSpan Bright Pro or PadSpan Pro), each with a small swatch. Tick **By the sun** to have one look
 by day and another after sunset, by Home Assistant's sun. Each screen keeps its own.
 
-**Rooms:** the row along the top lists every named room under its floor's name (on a phone or a
-wall screen, **Rooms ▾**). Tap one: its floor shows, the view flies to the room and tints it, and
-its panel opens. A tap on a room's name in the house opens the same panel: beside the house, or at
-the bottom on a phone. It has the room's devices with their buttons (each switch with **Undo**),
+**Rooms:** **Rooms ▾** at the top lists every named room under its floor's name. Pick one: its
+floor shows, the view flies to the room and tints it, and its panel opens. On a wide screen you can
+have every room's name in a row along the top instead: tick **Room chips along the top** in ⋯ (kept
+for that screen only, like the other ticks there). Phones and wall screens always have **Rooms ▾**.
+A tap on a room's name in the house opens the same panel: beside the house, or at the bottom on a
+phone. It has the room's devices with their buttons (each switch with **Undo**),
 the room's scenes, and **More devices of the area (n)**: what Home Assistant has in that room's
 area that the map doesn't show. Tap one for its own controls. **✕** or Escape closes the panel.
 
