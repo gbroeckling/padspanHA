@@ -12,7 +12,7 @@ Subtle rain or snow drawn **everywhere outside the floor boundary** in the Atlas
 map): the whole view except the floor plates. It never falls over a room. On the wall panel
 it shows at a glance what the weather is doing outside.
 
-## Garry's decisions (final)
+## The owner's decisions (final)
 
 1. **Area:** everything not inside a floor plate (slab tops and sides of every floor). Not a band.
 2. **Editions:** Pro animates it. Free gets **no animation**, only the same weather as a still
@@ -36,7 +36,7 @@ it shows at a glance what the weather is doing outside.
 | Setting off | Nothing rendered, whatever the sensors say |
 | Rain sensor set, reading dry | Off (2.5 s fade-out) |
 | On/off rain sensor wet, weather entity sunny / clear-night / partlycloudy | Off: dew or frost (0.38.142). A rain rate or gauge is never overruled |
-| Rain sensor stopped reporting: its device's last-seen sensor is more than 3 h old | As no rain sensor: the weather condition decides (Garry, 2026-11-02). A sensor with no last-seen sensor is read as usual |
+| Rain sensor stopped reporting: its device's last-seen sensor is more than 3 h old | As no rain sensor: the weather condition decides (2026-11-02). A sensor with no last-seen sensor is read as usual |
 | No rain sensor set | Wet = weather condition in {rainy, pouring, snowy, snowy-rainy, hail, lightning-rainy} |
 | Wet, alone | Light rain |
 | Wet + rainfall warning, or condition `pouring` | Heavy rain |
@@ -71,7 +71,7 @@ Follow the `overview_show_outdoor` pattern (settings_store.py, overview.js).
 
 - **Light rain:** one sparse, short, slow, faint layer (max ~11% white), near-vertical (3°),
   ~4 ripples at a time. Reads as drizzle. *2026-10-04 (0.38.94): too faint on the wall panel:
-  Garry took the working overlay for a broken one. Raised to 30 streaks per tile, 1.4 px, up to
+  The owner took the working overlay for a broken one. Raised to 30 streaks per tile, 1.4 px, up to
   ~24% white; heavy rain's layers and light snow's flakes raised to match.*
 - **Heavy rain:** dense far sheet + mid layer + long near streaks (up to ~24%), all faster,
   17° wind, ~20 ripples, faint cool haze at the edges.
@@ -121,7 +121,7 @@ Follow the `overview_show_outdoor` pattern (settings_store.py, overview.js).
 5. Test on the wall panel and a phone; CHANGELOG + ATLAS_GUIDE.md entry.
 6. Save progress and decisions to engram (padspanha).
 
-## Open questions for Garry
+## Open questions for the owner
 
 - Scale light rain with rain rate when the sensor is numeric? (Current answer: no, the sensor
   only ever means light.)

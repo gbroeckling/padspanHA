@@ -236,7 +236,7 @@ def temp_section(latest: dict[str, dict]) -> list[str]:
 
 
 def memory_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
-    """What deciding the low-memory version takes (Garry, 2026-10-05): per
+    """What deciding the low-memory version takes (2026-10-05): per
     install, smallest machines first — what PadSpan holds and what it costs
     (health.perf), whether Home Assistant crashed (health.runs), and what a
     forced object cap would leave; then Home Assistant's load by the view on

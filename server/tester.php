@@ -40,7 +40,7 @@
 // home read-only.
 $DIR = __DIR__ . '/../../../private/padspan-testers';
 $MAX = 4096;
-$MAX_RECORDS = 30;              // Garry, 2026-10-16: no more than 30 testers for now (each gets two years of Pro)
+$MAX_RECORDS = 30;              // 2026-10-16: no more than 30 testers for now (each gets two years of Pro)
 $MAX_NEW_PER_DAY = 100;
 $MAX_KEYS_PER_DAY = 5;           // automatic tester keys a day (tester_key below)
 

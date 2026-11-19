@@ -85,7 +85,7 @@ fi
 # one file — nothing on the colo is changed or trimmed — and the copy here is
 # REPLACED each night, never accumulated, so a sign-up withdrawn there is gone
 # from here by the next pull. When the new copy holds tester_ids the previous
-# one did not: ONE Telegram message to Garry (the tg() above, CHAT only) —
+# one did not: ONE Telegram message to the owner (the tg() above, CHAT only) —
 # how many, and for each the email, interests, PadSpan version and whether its
 # key went out (tester.php's self-check, below). Nothing else from the record
 # goes into the message. ---

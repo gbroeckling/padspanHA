@@ -91,7 +91,7 @@ the band. `above/below` = outside the range. `cmp` = `typical N` (rounded half u
 Order: Homes checking in (yesterday) · **Site visits yesterday** · On `<latest>` · New or regressed
 issues (3 days) · Opt-in homes with lag over 1 s (yesterday) · Keys issued (yesterday).
 
-**Site visits yesterday**: people (not bots; not Garry's own installs' addresses, `pings_skip_ips`, nor
+**Site visits yesterday**: people (not bots; not the owner's own installs' addresses, `pings_skip_ips`, nor
 our own, `own_ips` in `/etc/pad-digest.json`) who loaded the demo or a guide on yesterday's BC day.
 `cmp` = `typical N` and `state` from the normal range of the 7 whole days before (above), `sub` =
 `demo N · guides N`, `spark` = the last 14 whole days. If the logs don't hold yesterday whole, `value` is 0,

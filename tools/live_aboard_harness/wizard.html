@@ -15,7 +15,7 @@ const states = {};
 [["binary_sensor.front_door","door","Front door"],["binary_sensor.garage","garage_door","Garage door sensor"],["binary_sensor.kitchen_window","opening","Kitchen window"],
  ["binary_sensor.hall_motion","motion"],["sensor.living_temp","temperature"]].forEach(([i,d,n]) => states[i] = st(i,d,n));
 ["light.kitchen_valance","light.quinled_far_west_valance","light.lamp"].forEach(i => states[i] = st(i,null,i.split(".")[1].replace(/_/g," ")));
-states["ai_task.openai"] = st("ai_task.openai"); states["person.garry"] = st("person.garry");
+states["ai_task.openai"] = st("ai_task.openai"); states["person.alex"] = st("person.alex");
 const settings = { tier: "pro", atlas_3d_enabled: true, atlas_weather_enabled: true, atlas_3d_weather: true, atlas_weather_rain_entity: "binary_sensor.rain" };
 const model = { floors: [{id:"basement",name:"Basement",floor_to_floor_m:3},{id:"main",name:"Main",floor_to_floor_m:2.3},{id:"upper",name:"Upper"}],
   room_geometry_m: {A:{floor_id:"main"},B:{floor_id:"main"},C:{floor_id:"basement"},D:{floor_id:"upper"}},

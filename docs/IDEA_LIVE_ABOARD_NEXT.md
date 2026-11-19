@@ -1,6 +1,6 @@
-# Live Aboard: what's next, and what needs Garry's call (2026-10-15)
+# Live Aboard: what's next, and what needs the owner's call (2026-10-15)
 
-Written while Garry was away (Oct 15 – early Nov). Everything below was looked at against the
+Written while the owner was away (Oct 15 – early Nov). Everything below was looked at against the
 most popular 3D floorplans people use with Home Assistant, mainly
 [neonplan3d](https://github.com/Mastershort/neonplan3d/wiki) (~770 stars, in HACS), plus the
 [physics-lighting card](https://community.home-assistant.io/t/ready-made-3d-floorplan-for-home-assistant-physics-based-lighting-fully-offline-no-extra-tools/1012715),
@@ -26,9 +26,9 @@ most popular 3D floorplans people use with Home Assistant, mainly
 
 ## Needs a decision
 
-1. ~~**Blinds and shades that follow their position.**~~ **Declined** (Garry, 2026-10-15: "No blinds
+1. ~~**Blinds and shades that follow their position.**~~ **Declined** (2026-10-15: "No blinds
    needed"). Not to be built.
-2. ~~**Smoke, gas and CO alarms on the map.**~~ **Done** in 0.38.131 (Garry, 2026-10-15: "Widen
+2. ~~**Smoke, gas and CO alarms on the map.**~~ **Done** in 0.38.131 (2026-10-15: "Widen
    emergency"): the Emergency class, each in its own words, drawn as a detector.
 3. **Floor and wall materials.** Rooms are flat colours. The Sims look is wood, tile and carpet on
    the floors and paint on the walls. That's a big look change and a per-room setting; worth
@@ -36,7 +36,7 @@ most popular 3D floorplans people use with Home Assistant, mainly
 4. **Room names under device chips on the flat Atlas** ("Hall" under A02 and a motion ring).
    Widening the name's collision window fixes it but breaks two deliberate rules from the
    2026-09-12 audit (the window is the name's own width; a plain marker at that distance must not
-   move a name). Needs a look at Garry's own house before choosing.
+   move a name). Needs a look at a real house before choosing.
 5. **A slow orbit while a wall screen is idle** (neonplan3d's kiosk). Costs frames all the time,
    which Live Aboard has avoided so far ("nothing moving, nothing drawn"). Probably no, unless it's
    an opt-in for mains-powered wall PCs.

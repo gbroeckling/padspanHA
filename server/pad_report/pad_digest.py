@@ -57,7 +57,7 @@ DEFAULTS = {
     "site_logs": "/var/log/apache2/padspan.traks.ca-access.log*",
     "archive": "/var/lib/pad-archive",
     "out": "/var/lib/pad-digest",
-    "config": "/etc/dcs-reports/config.json",   # pings_skip_ips: Garry's own installs
+    "config": "/etc/dcs-reports/config.json",   # pings_skip_ips: the owner's own installs
     "own_config": "/etc/pad-digest.json",       # own_ips: our own addresses (bcmail's), for site visits
     "repo": "gbroeckling/padspanHA",
     "web_group": "www-data",
@@ -968,7 +968,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
     for c in markers.get("campaigns", []):
         proj = str(c.get("project") or "")
         if proj and not re.search(r"padspan", proj, re.I) and not re.search(r"padspan", str(c.get("label") or ""), re.I):
-            continue  # the workbook also tracks Garry's other products
+            continue  # the workbook also tracks the owner's other products
         if c.get("from") and re.match(r"\d{4}-\d{2}-\d{2}$", c["from"]) and D(c["from"]) >= start:
             lab = str(c.get("label") or "")
             kind = c.get("kind") if c.get("kind") in ("outreach", "campaign", "launch") else \

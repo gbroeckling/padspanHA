@@ -2,7 +2,7 @@
 
 > One claim below was wrong and is corrected inline (search CORRECTION): partial `/json/cfg` writes are NOT safe for every key.
 
-Garry, 2026-09-23: "In the wled card that comes up in atlas, add an advanced tab that is absolute best in class gui for working on wled configuration. Really dig for the absolute best tool out there" — "should cover every facet of WLED operation and setup, as complete as the webpage, but more intuitive" — "and include teaming with other wled devices for proper light control in HA".
+2026-09-23: "In the wled card that comes up in atlas, add an advanced tab that is absolute best in class gui for working on wled configuration. Really dig for the absolute best tool out there" — "should cover every facet of WLED operation and setup, as complete as the webpage, but more intuitive" — "and include teaming with other wled devices for proper light control in HA".
 
 Four research agents (tools survey, WLED API surface, PadSpan card today, synthesis). Raw outputs, unedited.
 
@@ -162,7 +162,7 @@ P4 (L): palette editor (/paletteN.json), LED map and gap editor, and segments dr
 2. Should non-admin users be able to make live, unsaved segment and effect changes, or should the whole Advanced tab be admin-only?
 3. Should Advanced sit in Bright, like the rest of WLED in Atlas, or in Pro?
 
-Working draft: C:\Users\Garry\AppData\Local\Temp\claude\C--Users-Garry\358fe285-8250-4736-b223-dd684814fd43\scratchpad\wled_brief.txt
+Working draft: a local scratchpad file (wled_brief.txt), not in the repo
 
 ---
 
@@ -385,7 +385,7 @@ Sources: https://moonmodules.org/MoonLight/moonlight/overview/ , https://moonmod
 
 ## CODE
 
-WLED control card in PadSpan HA (Atlas): how it works now, and where an Advanced tab would go. Read-only; nothing was edited. Paths are relative to C:\Users\Garry\padspanha; FE = custom_components\padspan_ha\www\padspan-ha.
+WLED control card in PadSpan HA (Atlas): how it works now, and where an Advanced tab would go. Read-only; nothing was edited. Paths are relative to the repository root; FE = custom_components\padspan_ha\www\padspan-ha.
 
 Summary: there is no WLED-specific card and no tabs. Every light uses one shared control card, `openControlCard`. Its WLED part is an Effect dropdown plus an IP link, shown only when the entity reports an effect list. Everything goes through `hass.callService("light", ...)`. There is no backend WLED code and no proxy to the device. The only direct device access is an `<a href="http://ip">` that opens the unit's own web UI in a new tab.
 
@@ -494,8 +494,8 @@ Summary: there is no WLED-specific card and no tabs. Every light uses one shared
   - docs\09_HARD_WON_RULES.md #1-3 and #11: verify rendered via the `?b=` stamp; `node --check` is not enough; deploy and click. #12: shared views need a shared contract (relevant because two hosts build the api object separately, and they have drifted before, per light_codes.js:390-395).
   - docs\02_WEBSOCKET_API.md: "All panel actions should go through websocket commands."
   - ws_settings.py:848-866: the Phase 2i security note. The panel is `require_admin=False`, so any service-firing or outbound path must be allowlisted and validated server-side.
-- **Not in the repo.** The "custom firmware / one-click updates" rule does not appear anywhere in the repo; the grep only hits "No custom firmware" marketing lines about BLE scanners. It lives in Garry's auto-memory:
-  - C:\Users\Garry\.claude\projects\C--Users-Garry\memory\feedback_wled_custom_firmware.md: never trigger `update.install` on WLED firmware entities (SoundReactive/MoonModules forks, board-specific builds), so no firmware or OTA button.
+- **Not in the repo.** The "custom firmware / one-click updates" rule does not appear anywhere in the repo; the grep only hits "No custom firmware" marketing lines about BLE scanners. It lives in the owner's private notes:
+  - feedback_wled_custom_firmware.md: never trigger `update.install` on WLED firmware entities (SoundReactive/MoonModules forks, board-specific builds), so no firmware or OTA button.
   - project_480_wled_controller.md: use the JSON API (`POST /json/state`) only, never legacy `/win` (Gyver1-class forks wedge on it); never copy presets.json between devices (different LED counts break segment bounds).
   - project_wled_cleanup.md: a WLED reboot turns strips ON at boot; manual OTA quirks.
 
@@ -545,7 +545,7 @@ Summary: there is no WLED-specific card and no tabs. Every light uses one shared
 
 WLED CONFIG GUI: API SURFACE MAP (researched 2026-09-23)
 
-Method: I checked the kno.wled.ge docs against the firmware source at four tags: v0.14.4, v0.15.4, v16.0.1 and main (17.0.0-dev). I diffed the JSON and config keys across those tags. Where the docs and the source disagree, I followed the source. Local copies of the source are in C:\Users\Garry\AppData\Local\Temp\claude\C--Users-Garry\358fe285-8250-4736-b223-dd684814fd43\scratchpad\wled\{v0.14.4,v0.15.0,v0.15.4,v16.0.1,main}\ (json.cpp, cfg.cpp, set.cpp, wled_server.cpp, ws.cpp, const.h, FX.h, FX_fcn.cpp, bus_manager.*, presets.cpp, playlist.cpp, xml.cpp, index.js/htm, settings_*.htm).
+Method: I checked the kno.wled.ge docs against the firmware source at four tags: v0.14.4, v0.15.4, v16.0.1 and main (17.0.0-dev). I diffed the JSON and config keys across those tags. Where the docs and the source disagree, I followed the source. Local copies of the source were kept in a scratchpad folder, wled\{v0.14.4,v0.15.0,v0.15.4,v16.0.1,main}\ (json.cpp, cfg.cpp, set.cpp, wled_server.cpp, ws.cpp, const.h, FX.h, FX_fcn.cpp, bus_manager.*, presets.cpp, playlist.cpp, xml.cpp, index.js/htm, settings_*.htm).
 
 SOURCE KEY (full URLs; shorthand used below)
 REL   https://github.com/wled/WLED/releases

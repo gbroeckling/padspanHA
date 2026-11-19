@@ -3,7 +3,7 @@
 **Date:** 2026-09-18
 **Scope:** Feeds Section 3 ("External Research Findings") of
 [PHASE2_STRATEGIC_REVIEW.md](../PHASE2_STRATEGIC_REVIEW.md). This file is
-the full research trail for the specific question Garry asked: "The
+the full research trail for the specific question the owner asked: "The
 competitive landscape for 'a complete visual, interactive digital twin of a
 home with device control' specifically (broader than BLE presence
 specifically) ... Is there a paradigm or 'killer feature' among these that

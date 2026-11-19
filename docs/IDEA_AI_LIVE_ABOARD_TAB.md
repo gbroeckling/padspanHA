@@ -1,8 +1,8 @@
 # Plan: an AI tab under Mapping, and AI room corrections
 
-**Status: PLANNED, not started. Nothing here is built.** Booked on Garry's calendar for Wed Nov 11 2026, 13:00 BC.
+**Status: PLANNED, not started. Nothing here is built.** Booked on the owner's calendar for Wed Nov 11 2026, 13:00 BC.
 
-Garry, Nov 3 2026: "for next build add a ai live board under mapping for these features, and start layout for romm correction from ai plan building as well to correct errors or add data (doors, windows)". Then: "Just make sure the plan is there, don't do the work now, don't have the tokens this week to complete it."
+The owner, Nov 3 2026: "for next build add a ai live board under mapping for these features, and start layout for romm correction from ai plan building as well to correct errors or add data (doors, windows)". Then: "Just make sure the plan is there, don't do the work now, don't have the tokens this week to complete it."
 
 "Ai live board" is read here as an **AI Live Aboard** tab. Confirm that first (see Decisions).
 
@@ -40,11 +40,11 @@ Inside the same tab, one more section beside stairs and railings. The same vetti
 - **Room errors, a list only in the first build.**
   - The AI's read of the plan against the rooms: a room the plan shows that the house doesn't have, an outline clearly off, a name that doesn't match.
   - Each card shows a crop of the plan and a button that opens Mapping → Layout on that room, as a light with no placed fixture opens Mapping → Atlas today. **Nothing writes rooms, walls, floors, scale, maps or calibration.**
-- **Later, only on Garry's say-so:** keeping a room correction through `fabric_correct_room` with its own backup and undo. Rooms feed positioning and calibration, so a wrong one costs more than a wrong stair, and the panel and changelog promise it never writes them. Change that promise in the same commit if this ever happens.
+- **Later, only on the owner's say-so:** keeping a room correction through `fabric_correct_room` with its own backup and undo. Rooms feed positioning and calibration, so a wrong one costs more than a wrong stair, and the panel and changelog promise it never writes them. Change that promise in the same commit if this ever happens.
 
 ## Safety bar
 
-Garry, Nov 2026: "I dont need the new features perfect, it has lots of warnings. Just need it safe".
+The owner, Nov 2026: "I dont need the new features perfect, it has lots of warnings. Just need it safe".
 
 Experimental and off by default. Administrator only. Plans go only to the chosen AI Task or its backup. Nothing is kept until Save. One undo takes a whole session back. An unreadable answer is reported as such, never as "found nothing".
 

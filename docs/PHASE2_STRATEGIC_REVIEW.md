@@ -1,6 +1,6 @@
 # PadSpan — Phase 2 Strategic Review (2026-09-19)
 
-Garry: "It has gotten big and complex, I'm ok with that, but I need
+The owner: "It has gotten big and complex, I'm ok with that, but I need
 confirmation that I am on the right path, and where the gaps are. Do a
 ton of research and build a phase 2 plan for me to review. Really dig
 for this one, even outside HA if you need for ideas."
@@ -215,7 +215,7 @@ copy of a device-class exclusion list. This is not a one-off — it is the
 door, lock, flood, each hand-threaded through the same four files
 separately), and `maps.js` (11,075 lines) and `iso_lights.js` (6,116 lines)
 are now large enough that no single read of either file gives an agent (or
-Garry) the whole picture in one pass — which is precisely the condition
+the owner) the whole picture in one pass — which is precisely the condition
 under which the research says agents produce code that is locally correct
 and globally wrong. The "90-Day Reckoning" pattern in §3B describes almost
 this exact trajectory: duplicated logic implemented three or four times
@@ -247,7 +247,7 @@ diff still being read, or has trust shifted to "tests green → ship"?**
 Review-fatigue research is explicit that this shift is gradual and usually
 invisible to the person it's happening to. This isn't a finding — there's
 no way to verify it from outside the review process — but given the pace,
-it's worth Garry answering for himself, honestly, before it becomes a
+it's worth the owner answering for himself, honestly, before it becomes a
 finding in a future retro.
 
 **Updated after §§6-8 (outside-HA, monetization, and digital-twin-
@@ -397,7 +397,7 @@ same one classical refactoring literature has a name for (§3F).
 measurable from outside — there's no way to observe from the repo whether
 every diff at 1.7 releases/day is genuinely being read start to finish or
 whether trust has shifted to "tests green → ship." It's flagged in §2 as
-the one open question worth Garry answering honestly for himself, because
+the one open question worth the owner answering honestly for himself, because
 every source above says this specific erosion is invisible to the person
 experiencing it until a bug exposes it.
 
@@ -944,7 +944,7 @@ mature. The transferable ideas:
   **inhibit** a lower-severity alert when a related higher-severity one
   is already firing. Directly relevant the day PadSpan has two
   simultaneous alarm types (e.g. a leak *and* a door left open) and
-  doesn't want to spam Nicole, whose existing rule elsewhere in this
+  doesn't want to spam a family member, whose existing rule elsewhere in this
   project is "plain language, taps only" — an alert flood to her is a
   concrete, already-flagged failure mode, not hypothetical.
 
@@ -994,7 +994,7 @@ mature. The transferable ideas:
 ### L. Verdict on this angle (alarm/alert angle)
 
 **On the core question — should there be a generic alarm engine —
-the evidence strongly confirms Garry's instinct.** Every serious
+the evidence strongly confirms the owner's instinct.** Every serious
 reference model researched (life-safety code, industrial standard,
 software incident tooling, and HA's own core `alert`/`alarm_control_panel`
 domains) independently separates *hazard type* from *alarm state
@@ -1068,7 +1068,7 @@ even the Python lint (`ruff`) isn't CI-enforced, only `pytest -q` is —
 that part of the original claim holds.
 
 **4.3 — Two "god files."** `maps.js` at 11,075 lines and `iso_lights.js`
-at 6,116 lines each now exceed the size where a single read (by Garry or
+at 6,116 lines each now exceed the size where a single read (by the owner or
 an agent) captures the whole picture — precisely the condition §3C's
 sources identify as where local-correct/global-wrong edits concentrate.
 Splitting these should happen *after* 4.1's registry work, not before:
@@ -1086,7 +1086,7 @@ user-reported bug. This is a ~20-line test, not a project.
 
 **4.5 — Review-bandwidth is unverifiable from outside and self-reported
 research says it erodes invisibly.** Not a structural gap the repo can
-show — a discipline question only Garry can answer. Named explicitly in
+show — a discipline question only the owner can answer. Named explicitly in
 §2 and §3D so it doesn't get lost as "not really a finding."
 
 **4.6 — Scope has grown past the founding document without an explicit
@@ -1102,7 +1102,7 @@ are the surfaces PadSpan intentionally covers now, and here's the
 decision trail for each addition." `PROJECT_SYNOPSIS.md` is the day-1
 anchor; there's no day-225 equivalent stating the *current* intentional
 scope. This is a paperwork gap, not a code gap, but it's the one that
-would let a future contributor (or Garry in six months) tell the
+would let a future contributor (or the owner in six months) tell the
 difference between "this feature is core" and "this feature happened."
 
 **4.7 — No baseline-deviation or cross-device-correlation layer on top of
@@ -1135,7 +1135,7 @@ toward BMS-vendor "predictive maintenance" framing.
    acknowledge-without-clearing move today.
 4. **No unified alarm history/log.** Today's UI surface is a single
    sidebar banner for the one alarm type that exists. There is no
-   list a user (or Garry, debugging) can open to see "every alarm,
+   list a user (or the owner, debugging) can open to see "every alarm,
    every hazard type, in one place, in order" — which is also the
    object §J's Alertmanager/PagerDuty pattern needs to exist before
    grouping, routing, or inhibition between hazard types is even
@@ -1207,7 +1207,7 @@ one-sentence-per-surface document — BLE presence, Atlas, Automorph,
 Locate, Insights/Busy Times, PadSpan Bright, Forensics — stating for each
 whether it's core-and-extending, stable-and-maintained-only, or
 candidate-for-freeze. This doesn't slow anything down; it gives the next
-feature request (from Garry, a user, or an agent's own "opportunity I
+feature request (from the owner, a user, or an agent's own "opportunity I
 noticed" suggestion, which §3A's research says is a real and recurring
 event with agentic tools) something explicit to be measured against
 instead of accreting by default. Fifteen minutes of writing, and it
@@ -1287,7 +1287,7 @@ top-to-bottom) needs to change.
    suppress/out-of-service states. None of these are needed until
    there's a second hazard type or a second household member actively
    managing alarms; building them now would be exactly the kind of
-   speculative complexity Garry's own guidelines warn against.
+   speculative complexity the owner's own guidelines warn against.
 
 
 ---
@@ -1304,7 +1304,7 @@ fix (2a) rather than a call to slow down.
 
 ## 6. Outside Home Assistant: The BMS / Digital-Twin Category
 
-Garry's brief specifically asked to research "even outside HA" — the
+The owner's brief specifically asked to research "even outside HA" — the
 commercial Building Management System (BMS) and digital-twin category
 PadSpan is drifting toward as it adds device control, alarms, and
 analytics on top of a spatial map: Honeywell Forge, Johnson Controls
@@ -1533,7 +1533,7 @@ usage evidence.**
 
 *This section was researched independently, in parallel with the
 architecture/velocity angle above (§§2-5), and answers a different half
-of Garry's original question: not "is the codebase sound" but "is the
+of the owner's original question: not "is the codebase sound" but "is the
 $45/$35/$12, two-product pricing structure sound, and does the
 ecosystem support charging for a HACS-distributed integration at all."
 It doesn't reference or depend on §§2-5's device-class registry work,
@@ -1737,7 +1737,7 @@ the two isn't the same fix. See §P.
   distinctiveness. **This is the single highest-leverage pricing change
   available:** collapsing to one product fixes both the tier-count
   problem (§O) and the product-identity ambiguity in one move.
-- **CONFIRMS Garry can charge for this at all:** WordPress's freemium
+- **CONFIRMS the owner can charge for this at all:** WordPress's freemium
   plugin economy is a genuine, decade-proven existence case that a
   free-core + paid-Pro-addon model works for exactly this shape of
   product (a plugin extending a bigger free platform). The mechanics are
@@ -1847,7 +1847,7 @@ itself has already been signaling isn't clean (§4.3/§P).
 
 ## 8. Outside HA, Consumer & Luxury Tier: "Digital Twin of a Home" Competitive Landscape
 
-Garry's brief named this angle specifically: "The competitive landscape
+The owner's brief named this angle specifically: "The competitive landscape
 for 'a complete visual, interactive digital twin of a home with device
 control' ... Apple Home's roadmap ... Google/Nest's home visualization
 direction, SmartThings Map View ..., Josh.ai, high-end integrator

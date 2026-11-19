@@ -11,7 +11,7 @@ scope, by design.
 
 **Correction to step 3/6, 2026-09-09 (live, deployed):** the plan's own
 "Why editing stays Rooms-tab-only" decision (see "Design decisions" below)
-was wrong in practice. Garry, after step 6's jump link shipped: "What
+was wrong in practice. The owner, after step 6's jump link shipped: "What
 imaginary setup do you think I see for setting up a door or windows in the
 software???? ... no-one can see the thing you seem to think is there ...
 needs to be under lights to build." Then: "In lights it's triggered by a
@@ -21,7 +21,7 @@ Lights map: an unlinked door/window row got a **Link on map** button
 a 3-click wall-then-two-points picker.
 
 **Second correction to step 3/6, 2026-09-09 (live, deployed) — the picker
-above was rebuilt from scratch.** Garry: "you did a rediculusly poor job
+above was rebuilt from scratch.** The owner: "you did a rediculusly poor job
 designing the door/windows mapping, lights, opening creation tool ... what
 you had designed was imposible to use" — and separately, after the first
 tool shipped: "you tool as you just described was never visable". Verifying
@@ -62,7 +62,7 @@ it is just no longer the ONLY way in. Tests:
 `tests/test_lights_door_circle.py`,
 `tests/test_door_window_barriers.py`'s circle-geometry section.
 
-**Correction to step 1, 2026-09-08 (live, deployed):** Garry, looking at the
+**Correction to step 1, 2026-09-08 (live, deployed):** The owner, looking at the
 shipped step 1 on the real map: "The placement in mapping and lights is not
 making any sense, and is not consistant... Not sure what you created here"
 — a door/window sensor was admitted as a freely-draggable point marker,
@@ -75,7 +75,7 @@ retiring the point-marker path for this class entirely and pulling step 5's
 visual forward to be step 1's real replacement — see "Design decisions"
 below for the corrected shape of step 1.
 
-## Origin (Garry's own words, verbatim, 2026-09-06)
+## Origin (the owner's own words, verbatim, 2026-09-06)
 
 > Another feature for mapping, lights, is door open or closed. A section of
 > wall opens up if a door open/closed sensor show the door/windows is open.
@@ -200,7 +200,7 @@ earlier ones, not the reverse.
    the SAME linked entity's live HA state, so the two views can never
    disagree about whether a given door reads open.
 
-   **Endpoint markers** (Garry, 2026-09-08): "have a small purple dot
+   **Endpoint markers** (2026-09-08): "have a small purple dot
    showing on the two sides where the opening starts and ends." Shipped in
    both views — `#9333ea`, confirmed distinct from `maps.js`'s
    `_MAT_COLORS.custom` purple (`#a855f7`) and from the drop-marker pink
@@ -311,7 +311,7 @@ building from it.
   for no capability gain, versus a jump link (step 6).
 - **Why Mapping → Lights still needs new rendering (not just editing)
   capability**: because showing open/closed state IS the feature's stated
-  purpose, not an optional extra — confirmed directly by Garry after the
+  purpose, not an optional extra — confirmed directly by the owner after the
   editing-surface question was settled.
 - **Effort, by direct comparison**: gap #8 (lock-domain binding,
   `53ee119`, 7 files / ~190 lines) is the closest precedent for "bind an

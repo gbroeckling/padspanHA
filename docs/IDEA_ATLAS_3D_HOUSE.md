@@ -1,12 +1,12 @@
 # Idea: Live Aboard — the 3D house and furniture (possible future add-on)
 
-**Live Aboard** is the working name (Garry, 2026-09-30; it replaced "Sims Soup", which used
+**Live Aboard** is the working name (2026-09-30; it replaced "Sims Soup", which used
 Electronic Arts' trademark) for this possible future add-on: the Sims-style 3D Atlas, furniture,
 beacons and people from photos, and the shared library. Check the name before anything public or paid.
 
 Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
 Status: **being built on the `live-aboard` branch, normally off.** Step 1 (the switch and the empty
-store), the P0 prototype and P1 (the 3D view) are done; P1 was reviewed and is installed on Garry's HA,
+store), the P0 prototype and P1 (the 3D view) are done; P1 was reviewed and is installed on the owner's HA,
 switch off. The thirteen choices, decided, are at the end.
 
 Where the idea came from: a r/homeassistant post (1wtyklm, 2026-09-30) showing a hand-built
@@ -14,16 +14,16 @@ three.js model of one house, walls cutting away like The Sims. That was an idea,
 nothing from it is used. The point here is different: a 3D house for **every** PadSpan install,
 built from the map people already drew, with no modelling.
 
-## Ground rules for this feature (Garry, 2026-09-30)
+## Ground rules for this feature (2026-09-30)
 
 1. **All PadSpan code, written here.** No other project's application code is ported, copied or
    adapted, for furniture or anything else. Sessions building this do not open other furniture
    or room-planner repos for reference. Libraries used as dependencies are allowed (three.js,
    below), the same way PadSpan depends on Home Assistant.
-2. **It stands on its own.** It runs on any customer's Home Assistant with nothing of Garry's in
+2. **It stands on its own.** It runs on any customer's Home Assistant with nothing of the owner's in
    the loop: no OpenClaw, no PadSpan-hosted AI, no homelab service. The only PadSpan server it
    ever talks to is the optional shared library (below), and it works fully without it.
-3. **Customers never pay for Garry's AI, and Garry never pays for theirs.** The photo step runs
+3. **Customers never pay for the owner's AI, and the owner never pays for theirs.** The photo step runs
    on whatever AI the customer has already set up in Home Assistant.
 
 ## What it is
@@ -63,12 +63,12 @@ that is `light.lounge_lamp` glows when that light is on, and tapping it switches
 | **Settings → UI Structure → Atlas → 3D house** | Shown only in Pro and Bright Pro. The master switch (off by default). Once on: Quality (Auto / Low / High), Show people (off), the AI Task for photos (none), Shared library (off), and Remove all furniture (admin only; takes a backup first). See "Normally off". |
 | Overview, Traceback | Unchanged. |
 
-## Normally off: the switch (Garry, 2026-09-30)
+## Normally off: the switch (2026-09-30)
 
 One master switch, **`atlas_3d_enabled`, default off**, in Settings → UI Structure → Atlas →
 3D house. It copies two existing patterns: Automorph (`lights_automorph_enabled: False`,
 `settings_store.py:113`, "off = today's rendering exactly") and the Atlas sidebar itself
-(`lights_panel_enabled`, `panel.py:126`). Off is the state every install is in until Garry flips
+(`lights_panel_enabled`, `panel.py:126`). Off is the state every install is in until the owner flips
 the default, which is one line in `DEFAULT_SETTINGS` plus a release note, and not before the
 phases have shipped and the load report shows tablets cope.
 
@@ -85,7 +85,7 @@ What "off" means, layer by layer:
 | Telemetry | No house3d, furnish, photo or library events, and no `env.house3d`. The report is the same as today's. | The events listed below. |
 | Home Assistant load | Nothing: no timer, no snapshot read, no import. | Only the people layer (itself off) reads the snapshot. |
 
-**Pro and Bright Pro only** (Garry, 2026-09-30). Below the Pro tier (`tierAtLeast(tier, "pro")` in
+**Pro and Bright Pro only** (2026-09-30). Below the Pro tier (`tierAtLeast(tier, "pro")` in
 `views/editions.js`), every layer above is as if off, whatever the switch says. The setting is kept,
 so a lapsed licence hides Live Aboard and a renewed one brings it back as it was.
 
@@ -98,10 +98,10 @@ so a lapsed licence hides Live Aboard and a renewed one brings it back as it was
 | `atlas_3d_library` | off | the shared library (on still needs the terms accepted before the first share) |
 | `atlas_3d_quality` | auto | Low / High |
 
-**Ship dark, on its own branch.** All Live Aboard work lives on the `live-aboard` branch (Garry,
+**Ship dark, on its own branch.** All Live Aboard work lives on the `live-aboard` branch (the owner,
 2026-09-30: "keep this a separate branch for now"); main and every public release stay free of it
-until Garry says it ships. A phase is installed on the home HA straight from the branch, behind
-the master switch, which Garry turns on in his own Settings. The branch merges main regularly so
+until the owner says it ships. A phase is installed on the home HA straight from the branch, behind
+the master switch, which the owner turns on in his own Settings. The branch merges main regularly so
 it never drifts.
 
 **Enforced by tests:**
@@ -206,7 +206,7 @@ offers Library and Build instead. `hacs.json` stays at `2024.1.0`; the photo but
 unavailable below Home Assistant 2025.8, the release that added `structure` and `attachments` to
 `ai_task.generate_data` (checked against Home Assistant's source: 2025.7.0 has neither).
 
-## Beacons, scanners and people from photos (Garry, 2026-09-30)
+## Beacons, scanners and people from photos (2026-09-30)
 
 The same photo step works for the things PadSpan already tracks, so the 3D house (and, if wanted,
 the flat Atlas) shows what they actually look like instead of a generic dot.
@@ -261,7 +261,7 @@ The recipe is a few numbers from a closed list, and the details sheet is mostly 
 Neither says who made the piece or what their home looks like. The server checks both again on
 receipt and drops unknown keys, as `telemetry.php` does.
 
-### The details sheet (Garry, 2026-09-30)
+### The details sheet (2026-09-30)
 
 Every piece that goes into the library carries a filled-out details sheet, so other people can
 **find, sort and filter** it. The AI Task fills it in from the photo in the same call that
@@ -318,7 +318,7 @@ word list. A title that fails is replaced with the AI's suggestion rather than b
   entry, the medoid, with a count ("placed in 214 houses"). Details for a group are the most
   common value for each field among its members, so one badly labelled copy can't mislabel it.
 - **Report:** each entry has "Report this piece" (wrong details, bad title). Reports are counted
-  only; three reports from different submission-id prefixes hide the free text until Garry
+  only; three reports from different submission-id prefixes hide the free text until the owner
   checks it. The recipe stays usable.
 
 **Quality flag.** An entry shows a small "details checked" mark once a real person has changed or
@@ -343,7 +343,7 @@ plain words and asks them to accept its terms before they make furniture:
 - You can withdraw your pieces at any time from Settings (below).
 
 Acceptance is stored in settings with the terms version and date. A later terms version asks
-again before the next share. **Accepting is a condition of making furniture**, as Garry asked;
+again before the next share. **Accepting is a condition of making furniture**, as the owner asked;
 browsing the library, the 3D view and "Build" of built-ins stay available without it. The
 wording goes past a lawyer before release, especially for EU users (most PadSpan clients are
 outside Canada).
@@ -428,7 +428,7 @@ changes go through its own `schema` field. The only other additions are its sett
               "colors": ["#ffffff"], "width_m": 0.04, "depth_m": 0.04, "height_m": 0.01},
               "library_id": null, "submission_id": null},               # drawn at its live/stored position
               "sensor.lounge_temperature": {"z_m": 1.5}},              # a 3D-only height
- "figures":  {"person.garry": {"params": {"height_m": 1.8, "build": "medium", "hair": "short",
+ "figures":  {"person.alex": {"params": {"height_m": 1.8, "build": "medium", "hair": "short",
               "colors": {"hair": "#3a2a1a", "top": "#224466", "bottom": "#333333"}},
               "origin": "photo"}},                                     # never shared, never sent
  "library":  {"terms_version": 1, "accepted_at": "…", "pending_shares": []}}
@@ -439,7 +439,7 @@ changes go through its own `schema` field. The only other additions are its sett
   (as scanners have), `rotation` in degrees (as light pins have).
 - `lights`, `openings` and `devices` hold what the 3D view needs but the map doesn't have: a
   light's mount height (the default comes from its shape), a door's hinge and swing (default left
-  and in), windows added in 3D (Garry, 2026-09-30), and the height of any other device drawn in 3D.
+  and in), windows added in 3D (2026-09-30), and the height of any other device drawn in 3D.
   Keeping them here means **the map data is never modified.** Scanner heights are the exception:
   the map already has them and presence uses them, so 3D reads them and never overrides them.
 - Reading is tolerant. Unknown keys, kinds and parameters are kept. A floor that no longer exists
@@ -525,22 +525,22 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 
 | Phase | What | Size | Done when |
 |---|---|---|---|
-| **P0 Prototype** | A standalone page, not shipped, built from a read-only export of Garry's real house (`model_get`): the whole-house shell with cut-away, live-looking lights, and two builders (sofa, bed) with their sliders. Tried on the wall PC and a phone. | about 1× | Garry says go, or changes the direction. |
+| **P0 Prototype** | A standalone page, not shipped, built from a read-only export of a real house (`model_get`): the whole-house shell with cut-away, live-looking lights, and two builders (sofa, bed) with their sliders. Tried on the wall PC and a phone. | about 1× | The owner says go, or changes the direction. |
 | **P1 The 3D view** | The Map / 3D switch; floors, rooms, walls, doors and windows (from sensors, or added in 3D); lights with live glow; Motion · Air tints; readouts; tap, hold and dim; floor chips; touch camera; a compass; sunlight and shadows from the real sun; device heights, adjustable in the 3D editor; quality profiles and fallback; settings; telemetry. | about 3× | The house draws from existing data with no setup. Every Atlas action works in 3D. The flat Atlas is byte-identical. A forced WebGL failure shows the flat Atlas. |
 | **P2 Furniture by hand** | The store, its commands and full registration; the Furnish tab; the 8 starter builders and procedural materials; Build with sliders; drag and turn with snapping; fit checks; Undo, Save and Discard; Remove all with a backup. | about 3× | The registration tests pass (backup, restore without furniture, factory reset, Bright import, unknown keys, store version 1). Editing furniture changes no other file. Each builder has a still-picture test across its parameter range. |
-| **P3 From a photo** | The AI Task call, prompt and `structure`; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of Garry's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
+| **P3 From a photo** | The AI Task call, prompt and `structure`; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of the owner's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
 | **P4 Shared library** | Terms screen and acceptance; the details sheet (AI-filled in the photo call, required fields enforced, free-text checks on both ends); `furniture_library.php` with shape checks, signatures, limits, withdrawal, reports and owner edits; search, filters, "Fits here" and sorting; thumbnails; queue when offline; the starter recipe set with full details. | about 2× | A share contains only `recipe` keys (tested on both ends). A piece missing a required detail can't be shared. A title with an email, phone, address or URL is refused on both ends. Every filter and sort returns the right pieces on a seeded test library. Withdrawal deletes. Library down means Furnish still works. Terms reviewed. |
 | **P5 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
 | **P6 Beacons, scanners and people** | Device recipes for beacons and scanners at their live and stored positions; the flat-Atlas beacon icons (inside the existing overlay); Sims-style figures with the person link, the consent screen, and the local-AI recommendation; figures kept out of every share (tested). | about 1–2× | A photographed tag moves with its beacon in 3D. A figure walks with its person. A library share and a telemetry report contain no figure data. With the beacon overlay off, the flat Atlas is byte-identical. |
 | **P7 Import** | Sweet Home 3D doors and windows, and its furniture as kind and size mapped to PadSpan builders, as candidates you preview and commit into the new file only. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
 | **P8 Atmosphere** | Rain and snow in 3D; Showcase themes as 3D presets; the optional people layer. | 1–2× | Each item can be switched off on its own. |
 
-### Added by Garry, 2026-09-30: windows, a compass, the sun and device heights, all in P1
+### Added by the owner, 2026-09-30: windows, a compass, the sun and device heights, all in P1
 
 - **Windows.** Today a window can only be marked on a wall that has a sensor. P1 adds windows
   without sensors: drawn on any wall in the 3D view, with sill and head heights, and kept in the
   3D file (`openings`), so the map is untouched. Windows with sensors still show open or closed.
-- **The door and window tool: a line drawn on a wall** (Garry, 2026-09-30). In the 3D editor, pick
+- **The door and window tool: a line drawn on a wall** (2026-09-30). In the 3D editor, pick
   Door or Window, then press on a wall and drag along it (or tap its two ends). The line snaps onto
   that one wall (it stops at a corner), shows its length live, and becomes the opening on release,
   never overlapping another. A window is 0.3 m or wider, sill 0.9 m and head 2.1 m by default; a
@@ -552,13 +552,13 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
   fingers still pan and zoom. Doors and windows with sensors keep coming from the map's own door
   marking and show open or closed; this tool adds the ones without sensors.
 - **Compass.** A compass at the top left of the 3D view that you **spin to line north up with what
-  you see** (Garry: "a compass at the top left that I can spin"). Drag its needle; the sun,
+  you see** ("a compass at the top left that I can spin"). Drag its needle; the sun,
   shadows and day/night follow live; then Save north or Cancel, so a stray touch on the wall PC
   can't move it. A tap turns the view north-up. It stores the bearing the GPS Bridge already uses
   (`fabric_bearing_deg`), also shown in the 3D house settings. The fabric is y-down (+Y runs down
   the plan), so the 3D view has its own corrected maths in one place (`fabric_compass.js`).
   `geo_bridge.py` assumes y-up and so mirrors positions; that is a main-branch bug, left alone for
-  now (Garry's GPS Bridge is off).
+  now (a real home's GPS Bridge is off).
 - **Sun.** Sunlight from `sun.sun`'s azimuth and elevation (worked out from the home's location if
   `sun.sun` is missing), with shadows on High, night when the sun is down, and light through the
   windows. Moved here from P8.
@@ -587,12 +587,12 @@ and says so if asked.
    they guard: the Bright import's furniture count in `target_contents` (P2), the frontend "off"
    tests (P1), the network and telemetry-event "off" tests (P3, P4).
 2. **P0 prototype**, in parallel with step 1: a standalone page, never shipped,
-   fed by a read-only `model_get` export of Garry's house. It answers the two questions no amount
+   fed by a read-only `model_get` export of a real house. It answers the two questions no amount
    of planning can: how the whole-house cut-away should behave with shared interior walls, and
-   what the wall PC and a phone can render. Garry looks at it on both before P1 goes further.
-   **Built and approved 2026-09-30** (Garry: "Looks nice, keep going"). The page is in
+   what the wall PC and a phone can render. The owner looks at it on both before P1 goes further.
+   **Built and approved 2026-09-30** ("Looks nice, keep going"). The page is in
    `prototypes/live_aboard_p0/`; the house export stays out of the repo.
-3. **P1 the 3D view**, behind the switch. Garry turns it on in his own Settings; nobody else sees it.
+3. **P1 the 3D view**, behind the switch. The owner turns it on in his own Settings; nobody else sees it.
    **Started 2026-09-30** with three.js r170 bundled (`vendor/three/`, `THIRD_PARTY_NOTICES.md`).
    Built in three parts: A, the view itself (the switch, the house, lights, camera, quality and
    fallback, settings, telemetry, the off tests, the sun and the compass, visible only in Pro and
@@ -614,7 +614,7 @@ touched shared code). One phase per week or two. A phase that isn't green stays 
 never blocks a stable release of the rest of PadSpan.
 
 **Flipping the default.** Only after P1 and P2 have shipped, the load report shows Raspberry Pi
-and tablet installs are not hurt, and Garry says so. It is one line and a release note, and can
+and tablet installs are not hurt, and the owner says so. It is one line and a release note, and can
 be flipped back the same way.
 
 **The first three tasks, concretely:**
@@ -641,7 +641,7 @@ be flipped back the same way.
 - **The terms are a legal document.** Draft wording is above; it needs review before P4 ships,
   and a terms version bump re-asks everyone.
 - **Library quality.** With few users, the library is small and uneven. The starter recipe set
-  (made by Garry from his own furniture in P3) covers day one.
+  (made by the owner from his own furniture in P3) covers day one.
 - **Data the map doesn't have.** Lights have no mount height, walls no thickness, doors no hinge
   or swing. They come from defaults by shape, overridable in the new file, never in the map.
 - **Bundle size.** three.js adds roughly 180 KB compressed (to a 1.97 MB release zip). No textures.
@@ -651,20 +651,20 @@ be flipped back the same way.
   a 2,700-object house). It's off by default and never faster than Overview. The load report
   will show if it hurts.
 
-## Decided (Garry, 2026-09-30)
+## Decided (2026-09-30)
 
 - Clean-room: no ported application code; three.js as a library only.
 - Furniture comes from photos read by the customer's own Home Assistant AI Task, into PadSpan's
-  own parametric builders. No OpenClaw or other Garry-run service in the loop.
+  own parametric builders. No OpenClaw or other owner-run service in the loop.
 - Pieces people make go into a shared library, under terms users accept.
 - Every library piece carries a filled-out details sheet (mostly closed lists, AI-prefilled,
   required fields enforced) so others can search, sort and filter it.
 - Beacons, scanners and people can be photographed too and shown on the map; people figures are
   never shared.
 
-## The thirteen choices, decided (Garry, 2026-09-30, by question rounds)
+## The thirteen choices, decided (2026-09-30, by question rounds)
 
-1. **3D view: Pro and Bright Pro only** (Garry, 2026-09-30: "This goes only in pro and bright pro
+1. **3D view: Pro and Bright Pro only** (2026-09-30: "This goes only in pro and bright pro
    as far as visibility goes"; it replaces "Bright + Pro, Free sees a still picture"). Below the
    Pro tier nothing of Live Aboard is visible, exactly as if it were off. The Free still-picture
    teaser is dropped.
@@ -677,7 +677,7 @@ be flipped back the same way.
    review covers it.
 6. **Terms:** required to make furniture, not to view 3D or browse.
 7. **Free text:** title, brand and model as written, and the details sheet must carry the
-   structured, filterable fields Garry named: type (the kind), use (the rooms it suits),
+   structured, filterable fields the owner named: type (the kind), use (the rooms it suits),
    modular/sectional and the other features. They are in the sheet already; this makes them a
    requirement.
 8. **Cloud AI for furniture photos:** allowed, with the note saying which AI Task reads the photo.
@@ -688,12 +688,12 @@ be flipped back the same way.
 11. **Phase order:** devices before people: P4 library → P5 devices → P6 beacons, scanners and
     people → P7 import → P8 atmosphere.
 12. **Default flips on:** after P1 and P2 have shipped and the load report shows Pi and tablet
-    installs cope, on Garry's word.
+    installs cope, on the owner's word.
 13. **Starter builders:** sofa, bed, table, chair, desk, dresser/cabinet, TV + media unit, lamp.
 
 Assumed, not asked: off by default with all sub-switches off; ships dark; its own storage file
 that never touches the map; clean-room code; people figures never shared; a lawyer reviews the
 terms before the library ships.
 
-P0, the prototype of Garry's house, was built and approved on 2026-09-30. P1 was built, reviewed and
-installed on Garry's HA on 2026-10-01, behind the switch.
+P0, the prototype of a real house, was built and approved on 2026-09-30. P1 was built, reviewed and
+installed on the owner's HA on 2026-10-01, behind the switch.

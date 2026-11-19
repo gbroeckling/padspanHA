@@ -15,7 +15,7 @@
 // preset's own name), and the response is exactly that data reshuffled
 // by popularity, not attributed to anyone.
 //
-// WHY "SIMILAR, NOT IDENTICAL" (Garry, 2026-09-11, on why this needed real
+// WHY "SIMILAR, NOT IDENTICAL" (2026-09-11, on why this needed real
 // thought): three of a preset's fields are continuous sliders (room %,
 // hardness, subtlety), so two people's near-identical presets essentially
 // never byte-match. Exact-match counting would report a "top 10" that is

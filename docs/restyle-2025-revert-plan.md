@@ -16,7 +16,7 @@ document is the revert path, written **before** the first edit.
 The restyle ships as a **selectable skin**. Revert is a control in
 Settings → Appearance. No redeploy, no HA restart, per-install.
 
-**Default changed 2026-08-18 (Garry's call): `2025` is now the default.**
+**Default changed 2026-08-18 (the owner's call): `2025` is now the default.**
 Because settings load as `{**DEFAULT_SETTINGS, **saved}`, anyone who has already
 chosen a skin keeps it; the new default only reaches installs that never touched
 the setting. The revert path is unchanged and still costs one click — but note
@@ -43,7 +43,7 @@ Three places to add the key:
 ### 2. Release — pre-release channel
 
 Per `scripts/release.py`, a build without `--stable` is a GitHub pre-release.
-The restyle ships that way and stays there until Garry says otherwise. HACS
+The restyle ships that way and stays there until the owner says otherwise. HACS
 users on the stable channel are unaffected; testers opting into betas get it.
 
 Revert = cut the next pre-release from `v0.35.0` and delete the bad tag. It does

@@ -64,7 +64,7 @@ For each BLE advert during calibration:
 - Once there are ~5+ devices/listeners in the home, user can start a discovery session.
 - User walks end-to-end through the home carrying the device/token(s).
 - PadSpan ranks candidate BLE advertisers by how well they match the movement path.
-- User selects a candidate card and names it (e.g., “Nicole’s Keys”).
+- User selects a candidate card and names it (e.g., “Jordan’s Keys”).
 - Under the hood, PadSpan stores a stable identifier or a fingerprint, but **UI never exposes MAC addresses**.
 
 ## Device “Trackability Rating” (added requirement)

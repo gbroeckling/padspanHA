@@ -15,7 +15,7 @@ constraints below describe the REQUEST as given, not necessarily the exact shipp
 Ship a lighting-only edition of PadSpan as its own HACS listing, without ever
 working on more than one product.
 
-Garry's four constraints, in his words:
+The owner's four constraints, in his words:
 
 1. A separate HACS storefront for the lighting side.
 2. The simplicity of a skin change for now (not a runtime rebuild).
@@ -258,7 +258,7 @@ Not evenly spread. Two of six steps can hurt someone; four fail loudly and local
 |---|---|---|
 | 1 · Classification map | Low | A tab vanishes from the full edition. Instantly visible, instantly reverted, touches no data. |
 | 2 · Tier in the licence | **Highest** | The only step that can silently harm PAYING customers. A no-tier key resolving low demotes everyone on upgrade, discovered when a control they paid for stops working. Also reaches the licence server, which no test in the repo covers. |
-| 3 · Free lighting gate | **High** | Two ways: implemented as a filter on stored data instead of a render-time override, it deletes placements. And Garry runs Pro — the free experience is the one path he can never accidentally notice is broken. |
+| 3 · Free lighting gate | **High** | Two ways: implemented as a filter on stored data instead of a render-time override, it deletes placements. And the owner runs Pro — the free experience is the one path he can never accidentally notice is broken. |
 | 4 · Generated build | Low | Only if the rename runs against the working tree instead of a copy, which would rewrite the actual source. Catastrophic but obvious within seconds. |
 | 5 · Importer | Medium | It writes to the real fabric. An import that overwrites rather than refusing a non-empty target eats a house someone spent a weekend building. |
 | 6 · The listing | Low | Technically nothing. Publicly irreversible — the name is out once it is out. |
@@ -325,7 +325,7 @@ real at step 4.
 
 ---
 
-## 11. Open decisions (Garry's, not the builder's)
+## 11. Open decisions (the owner's, not the builder's)
 
 1. **Does a Bright key hide presence, or just not unlock it?** If Bright hides
    the presence tabs outright, a paying Bright customer sees *less* than a free
@@ -343,9 +343,9 @@ real at step 4.
 
 ## 12. Where things are
 
-- **Source repo:** `C:\Users\Garry\padspanha` (branch `main`)
+- **Source repo:** the local checkout (branch `main`)
 - **Release:** `PYTHONIOENCODING=utf-8 python scripts/release.py X.Y.Z` — pre-release
-  always; `--stable` only on Garry's explicit word
+  always; `--stable` only on the owner's explicit word
 - **Key files:**
   - `custom_components/padspan_ha/websocket.py` — `_pro_expiry_state`, `_padspan_pro_active`, `_LIGHT_SHAPE_KINDS`
   - `custom_components/padspan_ha/settings_store.py` — `DEFAULT_SETTINGS`
@@ -397,4 +397,4 @@ Bright pass in `scripts/release.py` (`BRIGHT_PUBLISH = False`), and
 `bright_import.py` / `ws_bright_import.py` with the Health-tab card. Tests:
 `test_licence_tiers.py`, `test_editions_map.py`, `test_lights_free_gate.py`,
 `test_bright_build.py` (runs the generated tree's own suite), `test_bright_import.py`.
-Step 6 — the listing — waits for Garry's word; flipping `BRIGHT_PUBLISH` is that word.
+Step 6 — the listing — waits for the owner's word; flipping `BRIGHT_PUBLISH` is that word.
