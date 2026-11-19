@@ -46,5 +46,5 @@ def test_the_card(run: dict, prefix: str, least: int) -> None:
 
 def test_it_is_last_in_line_on_the_overview() -> None:
     src = (_WWW / "panel.js").read_text(encoding="utf-8")
-    slot = src[src.index("const _ms = this._proInviteOverviewCard()"):][:600]
+    slot = src[src.index("const _ms = this._launchPriceCard() || this._proInviteOverviewCard()"):][:600]
     assert "if (_ms) frag.appendChild(_ms);" in slot and "else { const _tips = this._accuracyTipsCard();" in slot

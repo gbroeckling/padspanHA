@@ -210,7 +210,8 @@ def test_one_overview_card_per_page_load_and_basic_mode_reaches_the_sign_up():
     for fn in ("_proInviteOverviewCard(){", "_testerOverviewCard(positioned){", "_trialMilestoneCard(positioned){"):
         body = src[src.index(fn):][:1500]
         assert "this._overviewCardShown = true" in body[:body.index("visible = true") + 120], f"{fn} does not hold the slot"
-    slot = src[src.index("const _ms = this._proInviteOverviewCard()"):][:200]
+    # The launch price's card (tests/test_launch_price_card.py) is first in line; then the invite, the tester card, the trial's.
+    slot = src[src.index("const _ms = this._launchPriceCard() || this._proInviteOverviewCard()"):][:300]
     assert slot.index("_proInviteOverviewCard") < slot.index("_testerOverviewCard") < slot.index("_trialMilestoneCard")
     sign = src[src.index("_openTesterSignup(){"):][:600]
     # Basic reaches it without a mode switch: in Basic just the report's card
