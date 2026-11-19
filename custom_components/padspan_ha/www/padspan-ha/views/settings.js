@@ -1567,7 +1567,7 @@ function _settingsPresence(ctx, el){
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
       "Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
-      "IRKs and objects you have and which related integrations are installed; which feature switches " +
+      "IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; which feature switches " +
       "are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), " +
       "and with two screens or more, a few words per screen (first five); " +
       "with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine " +

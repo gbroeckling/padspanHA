@@ -143,12 +143,14 @@ function emptyState(el, mark, title, hint) {
 // no amount of waiting will make a UUID resolve an address.
 //   msgEl   — where the outcome is written
 //   after() — called once something was saved
-async function _addIrk(ctx, name, irk, msgEl, after, force = false) {
+//   via     — "irk_capture" for a key from an irk-capture ESP32 in the phone
+//             wizard (kept on the key, so the usage report counts those apart)
+async function _addIrk(ctx, name, irk, msgEl, after, force = false, via = "") {
   const { el } = ctx.helpers;
   msgEl.textContent = force ? "Saving unverified\u2026" : "Checking against live traffic\u2026";
   msgEl.style.color = "var(--bt-dim)";
   try {
-    const r = await ctx.actions.wsCall("padspan_ha/irk_add", { name, irk_hex: irk, force });
+    const r = await ctx.actions.wsCall("padspan_ha/irk_add", { name, irk_hex: irk, force, ...(via ? { via } : {}) });
     msgEl.style.color = "var(--bt-good)";
     msgEl.textContent = r.verified
       ? `\u2713 Saved \u201c${name}\u201d \u2014 it resolves ${r.matched_count} rotating address${r.matched_count !== 1 ? "es" : ""} right now.`
@@ -162,7 +164,7 @@ async function _addIrk(ctx, name, irk, msgEl, after, force = false) {
       msgEl.style.color = "var(--bt-ok)";
       msgEl.appendChild(document.createTextNode((e.message || "No live match.") + " "));
       const btn = el("button", { class: "btn tiny bt-btn-accent", style: "margin-left:6px" }, "Save unverified");
-      btn.addEventListener("click", (ev) => { ev.stopPropagation(); btn.disabled = true; _addIrk(ctx, name, irk, msgEl, after, true); });
+      btn.addEventListener("click", (ev) => { ev.stopPropagation(); btn.disabled = true; _addIrk(ctx, name, irk, msgEl, after, true, via); });
       msgEl.appendChild(btn);
     } else {
       // not_an_irk, duplicate, invalid, \u2026 \u2014 the message says what and why
@@ -2636,7 +2638,7 @@ function renderIrkPanel(ctx, snap) {
     // (iphone_irk.js renderCaptureSteps). Saved through _addIrk, so the same
     // live check as Add & validate.
     const pathA = _path("I have an IRK Capture ESP32", "info");
-    renderCaptureSteps(ctx, pathA, (name, irk, msgEl, after) => _addIrk(ctx, name, irk, msgEl, after));
+    renderCaptureSteps(ctx, pathA, (name, irk, msgEl, after, via) => _addIrk(ctx, name, irk, msgEl, after, false, via));
     wizCard.appendChild(pathA);
 
     // Path B — Android

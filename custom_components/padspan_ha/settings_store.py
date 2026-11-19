@@ -343,7 +343,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "beacon_tune_disabled": [],           # device_ids excluded from calibration tuning
     "beacon_group_overrides": {},         # device_id → model_key override (ungroup/regroup)
     # Private BLE IRK devices (managed in PadSpan — no separate integration needed)
-    "irk_devices": [],                    # [{name: str, irk_hex: str}]
+    "irk_devices": [],                    # [{name: str, irk_hex: str, via?: "irk_capture"}]
     # Curated room → object map (room name → list of object keys).  Set via the
     # padspan_ha.set_room_tag_map service / Manage UI.  Persisted here so it
     # survives restarts and integration reloads — previously the coordinator's

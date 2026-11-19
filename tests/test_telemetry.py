@@ -269,7 +269,11 @@ def test_nothing_from_the_house_is_in_the_report():
     # calibration points), the only kind that sends them (the AI mapping
     # helper's field signal, 2026-11-10); a house that finished setup sends
     # neither (tests/test_ai_wizard.py holds its report unchanged).
-    assert len(text) < 4560
+    # Raised 4560 -> 4590 (2026-11-19) for health.irk_capture_boards (~25
+    # bytes): how many homes use an irk-capture ESP32 for phone keys; with
+    # irks_by_source's "irk_capture" (no bytes here: no such key in this
+    # fixture), whether those keys work. A count, never a name.
+    assert len(text) < 4590
 
 
 def test_presets_are_capped_at_ten_per_report():

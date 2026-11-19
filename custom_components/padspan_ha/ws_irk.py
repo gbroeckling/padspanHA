@@ -124,6 +124,8 @@ async def ws_private_ble_status(hass: HomeAssistant, connection, msg) -> None:
         vol.Required("name"): str,
         vol.Required("irk_hex"): str,
         vol.Optional("force", default=False): bool,
+        # The phone wizard's irk-capture path says so; nothing else sends it.
+        vol.Optional("via"): vol.In(["irk_capture"]),
     }
 )
 @websocket_api.require_admin
@@ -141,6 +143,10 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     (the phone is away — the UI offers "save unverified"). A value that
     equals an iBeacon UUID currently broadcasting is refused outright, with
     the beacon named: that is the mistake that reads "0 resolved" for weeks.
+
+    A key saved from an irk-capture ESP32 in the phone wizard comes with
+    `via: "irk_capture"` and keeps it on its record, so the opt-in report can
+    count those keys apart (PrivateBLEResolver.identity_breakdown).
     """
     from .private_ble_resolver import _parse_irk  # noqa: PLC0415
 
@@ -189,7 +195,10 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
             connection.send_error(msg["id"], "duplicate", f"IRK already registered for '{existing.get('name')}'")
             return
 
-    irk_list.append({"name": name, "irk_hex": irk_clean})
+    rec = {"name": name, "irk_hex": irk_clean}
+    if msg.get("via") == "irk_capture":
+        rec["via"] = "irk_capture"
+    irk_list.append(rec)
     await st.async_set(irk_devices=irk_list)
     _bump(hass, "irk_added")
 

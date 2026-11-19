@@ -859,7 +859,7 @@ const W_FIELD = {
   room_footprint_oversized: "Rooms bigger than their plan", room_footprint_undersized: "Rooms smaller than their plan",
   guest: "Guest tags", vacation: "Vacation Mode", room_walk: "Calibration: Walk a room", heldout: "Held-out accuracy (calibration)",
   has_any_identity: "Any phone identity set up", irks_total: "Phone keys in all", irks_by_source: "Phone keys, by where they came from",
-  irks_resolving_by_source: "Phone keys that work, by where they came from", rpas_seen: "Rotating Bluetooth addresses on the air",
+  irks_resolving_by_source: "Phone keys that work, by where they came from", irk_capture_boards: "irk-capture ESP32s in Home Assistant", rpas_seen: "Rotating Bluetooth addresses on the air",
   rpas_resolved: "Rotating addresses recognised", resolver_errors: "Phone-key errors", followed: "Devices followed",
   findmy: "Find My tags on the air", objects_by_kind: "Devices, by kind", outside_now: "Followed devices outside now",
   positioned_now: "Followed devices placed on the map now", presence_cfg: "Room timing changed from the default",

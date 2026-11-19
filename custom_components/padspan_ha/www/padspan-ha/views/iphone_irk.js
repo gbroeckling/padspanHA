@@ -203,9 +203,11 @@ async function _linkKey(ctx, key, name, person) {
   return failed;
 }
 
-/** The five steps, drawn into pathEl. save(name, irk, msgEl, after) is
+/** The five steps, drawn into pathEl. save(name, irk, msgEl, after, via) is
  *  bluetooth.js's _addIrk: saved only if the key resolves something on the
- *  air, or the person saves it unverified; after(result) once saved. What
+ *  air, or the person saves it unverified; after(result) once saved. via is
+ *  "irk_capture" for a key from the ESP32 (found on it, or pasted from its
+ *  IRK sensor), "" for one of Home Assistant's own Bluetooth bonds. What
  *  was typed and found lives in ctx.state._irkCapture, across redraws. */
 export function renderCaptureSteps(ctx, pathEl, save) {
   const { el } = ctx.helpers;
@@ -251,7 +253,7 @@ export function renderCaptureSteps(ctx, pathEl, save) {
   const findBtn = el("button", { class: "btn inline bt-btn-info", "data-capture": "find" }, "Find the key");
   const msg = el("div", { "data-capture": "msg", style: "font-size:12px;margin-top:7px;min-height:16px" });
   const keys = el("div", { "data-capture": "keys" });
-  const saveAs = (irk, outEl) => {
+  const saveAs = (irk, outEl, via) => {
     const name = String(S.name || "").trim();
     if (!name) { outEl.style.color = "var(--bt-ok)"; outEl.textContent = "Type its name first (step 1)."; return; }
     const person = S.person;
@@ -262,7 +264,7 @@ export function renderCaptureSteps(ctx, pathEl, save) {
       S.found = (S.found || []).filter(f => f.irk_hex !== irk);
       ctx.state._irkPanelStatus = null;
       ctx.actions.renderRooms();
-    });
+    }, via);
   };
   const draw = () => {
     keys.textContent = "";
@@ -276,7 +278,7 @@ export function renderCaptureSteps(ctx, pathEl, save) {
       row.appendChild(el("span", {}, `A key from “${f.name}”` + (f.verified ? ", heard right now" : "")));
       const out = el("div", { style: "font-size:12px;width:100%" });
       const b = el("button", { class: "btn tiny bt-btn-accent" }, "Save");
-      b.addEventListener("click", () => saveAs(f.irk_hex, out));
+      b.addEventListener("click", () => saveAs(f.irk_hex, out, f.source === "irk_capture" ? "irk_capture" : ""));
       row.appendChild(b);
       row.appendChild(out);
       keys.appendChild(row);
@@ -309,7 +311,7 @@ export function renderCaptureSteps(ctx, pathEl, save) {
   pasteBtn.addEventListener("click", () => {
     const v = String(pasteInp.value || "").trim();
     if (!v) { pasteOut.style.color = "var(--bt-ok)"; pasteOut.textContent = "Paste the key first."; return; }
-    saveAs(v, pasteOut);
+    saveAs(v, pasteOut, "irk_capture");
   });
   pasteRow.appendChild(pasteInp);
   pasteRow.appendChild(pasteBtn);

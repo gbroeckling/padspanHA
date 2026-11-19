@@ -110,7 +110,7 @@ class PrivateBLEResolver:
         source_info: list[dict[str, Any]] = []  # for UI status
         seen_irk_hex: dict[str, dict[str, Any]] = {}  # hex → the registered device dict
 
-        def _add_device(irk_bytes: bytes, name: str, source: str, entry_id: str = "") -> None:
+        def _add_device(irk_bytes: bytes, name: str, source: str, entry_id: str = "", via: str = "") -> None:
             """Register a device if its IRK hasn't been seen yet.
 
             Sources are tried in a fixed order (private_ble_device, system
@@ -124,6 +124,10 @@ class PrivateBLEResolver:
             source PadSpan checked first for that IRK had no usable name).
             Identity still belongs to whichever source saw it first; only the
             display name is upgradeable.
+
+            `via` is where a PadSpan-saved key came from before it was saved
+            ("irk_capture"); only the usage report reads it. `source` stays
+            "padspan", which is what the panel's Remove button goes by.
             """
             # Normalise: we always store the hex of the byte order that actually matches.
             # Since _address_matches_irk tries both orders, either order is fine,
@@ -145,7 +149,7 @@ class PrivateBLEResolver:
             seen_irk_hex[h] = seen_irk_hex[h_rev] = dev
             source_info.append({
                 "name": name, "source": source,
-                "entry_id": entry_id,
+                "entry_id": entry_id, "via": via,
             })
 
         try:
@@ -264,7 +268,8 @@ class PrivateBLEResolver:
                             continue
                         irk_bytes = _parse_irk(irk_raw)
                         if irk_bytes:
-                            _add_device(irk_bytes, irk_name, "padspan")
+                            _add_device(irk_bytes, irk_name, "padspan",
+                                        via="irk_capture" if irk_entry.get("via") == "irk_capture" else "")
             except Exception as _ps_err:
                 _LOGGER.debug("PadSpan IRK load: %s", _ps_err)
 
@@ -377,8 +382,10 @@ class PrivateBLEResolver:
 
     # The identity sources async_load() draws from. Fixed set, so an
     # unexpected value can never travel in the usage report as a label.
+    # "irk_capture": a PadSpan key saved from an irk-capture ESP32 in the
+    # phone wizard (its record's `via`), counted apart from "padspan".
     IDENTITY_SOURCES = ("private_ble_device", "bluetooth_bond", "mobile_app",
-                        "companion_sensor", "padspan", "other")
+                        "companion_sensor", "padspan", "irk_capture", "other")
 
     def identity_breakdown(self, resolved_ids: set[str]) -> dict[str, Any]:
         """Per-identity resolution outcome, for the opt-in usage report.
@@ -404,7 +411,7 @@ class PrivateBLEResolver:
         total = 0
         resolving = 0
         for dev, info in zip(self._devices, getattr(self, "_source_info", [])):
-            src = str((info or {}).get("source") or "other")
+            src = str((info or {}).get("via") or (info or {}).get("source") or "other")
             if src not in self.IDENTITY_SOURCES:
                 src = "other"
             slot = by_source.setdefault(src, {"total": 0, "resolving": 0})

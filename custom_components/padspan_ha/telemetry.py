@@ -2570,6 +2570,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "has_any_identity": bool(_identity.get("has_any")),
         # Which door the identities came in by, and which door actually works.
         # Fixed labels from PrivateBLEResolver.IDENTITY_SOURCES — no names.
+        # "irk_capture" is a key saved from an irk-capture ESP32 in the phone
+        # wizard; irk_capture_boards below counts the ESP32s themselves.
         "irks_by_source": {k: v.get("total", 0)
                            for k, v in (_identity.get("by_source") or {}).items()},
         "irks_resolving_by_source": {k: v.get("resolving", 0)
@@ -2728,6 +2730,15 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             health["device_ids"] = _ids
     except Exception as err:
         _LOGGER.debug("Telemetry: device_ids left out: %s", err)
+    # How many irk-capture ESP32s (github.com/DerekSeaman/irk-capture) this
+    # Home Assistant has. With irks_by_source["irk_capture"] above: how many
+    # homes get phone keys that way, and whether those keys work. A count
+    # only, read here once per report; never a name, an entity id or a key.
+    try:
+        from .ws_irk import _irk_capture_devices  # noqa: PLC0415
+        health["irk_capture_boards"] = len(_irk_capture_devices(hass))
+    except Exception as err:
+        _LOGGER.debug("Telemetry: irk_capture_boards left out: %s", err)
     try:
         from . import perf_sampler as _ps  # noqa: PLC0415
         _pw = _ps.take_window(hass) if consume else _ps.window(hass)

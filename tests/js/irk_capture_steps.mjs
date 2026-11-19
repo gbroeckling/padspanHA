@@ -118,6 +118,7 @@ const DETECT = {
   await wait(12);
   const add = s.calls.find(c => c[0] === "padspan_ha/irk_add");
   check("save: under the name typed, never the board's or Auto-detected", !!add && add[1].name === "Sam's iPhone" && add[1].irk_hex === KEY, add);
+  check("marker: a key found on the ESP32 is saved as one", !!add && add[1].via === "irk_capture", add);
   const label = s.calls.find(c => c[0] === "padspan_ha/object_label_set");
   check("save: the device gets that name", !!label && label[1].address === `irk:${KEY}` && label[1].label === "Sam's iPhone", label);
   const carries = s.calls.find(c => c[0] === "padspan_ha/settings_set");
@@ -141,6 +142,56 @@ const DETECT = {
   check("save: a pasted key, nobody picked: saved and named, no one's things changed",
     s.calls.some(c => c[0] === "padspan_ha/irk_add" && c[1].name === "Hall tablet")
     && s.calls.some(c => c[0] === "padspan_ha/object_label_set") && !s.calls.some(c => c[0] === "padspan_ha/settings_set"), s.calls.map(c => c[0]));
+  const add = s.calls.find(c => c[0] === "padspan_ha/irk_add");
+  check("marker: a key pasted from the ESP32's IRK sensor too", !!add && add[1].via === "irk_capture", add);
+}
+
+// ── Which saves say the key came from an irk-capture ESP32 ─────────────────
+{
+  // "Save unverified" (the phone is away) keeps the marker.
+  const s = screen({ ...DETECT, "padspan_ha/irk_add": (m) => {
+    if (!m.force) { const e = new Error("No rotating address on the air resolves with this key."); e.code = "unverified"; throw e; }
+    return { ok: true, name: m.name, irk_hex: KEY, canonical_id: `irk:${KEY}`, verified: false, matched_count: 0 };
+  } });
+  s.state._irkCapture = { name: "Alex's watch", person: "", kind: "watch", found: null, devices: [], done: "" };
+  let { path } = s.draw();
+  find(path, '[data-capture="find"]').click();
+  await wait();
+  const row = find(path, '[data-capture-key="irk_capture"]');
+  row.querySelector("button").click();
+  await wait(12);
+  const again = row.querySelectorAll("button").find(b => b.textContent === "Save unverified");
+  again && again.click();
+  await wait(12);
+  const adds = s.calls.filter(c => c[0] === "padspan_ha/irk_add").map(c => c[1]);
+  check("marker: saved unverified, still one", adds.length === 2 && adds.every(m => m.via === "irk_capture") && adds[1].force === true, adds);
+}
+{
+  // A key from this Home Assistant's own Bluetooth, offered in the same path: not one.
+  const s = screen({ ...DETECT, "padspan_ha/irk_auto_detect": {
+    found: [{ name: "Jordan's phone", irk_hex: KEY, source: "bluetooth_bond", already_registered: false, verified: true }], capture_devices: [] } });
+  s.state._irkCapture = { name: "Jordan's phone", person: "", kind: "iphone", found: null, devices: [], done: "" };
+  const { path } = s.draw();
+  find(path, '[data-capture="find"]').click();
+  await wait();
+  const row = find(path, '[data-capture-key="bluetooth_bond"]');
+  row && row.querySelector("button").click();
+  await wait(12);
+  const add = s.calls.find(c => c[0] === "padspan_ha/irk_add");
+  check("marker: a Home Assistant Bluetooth bond's key is not one", !!add && !("via" in add[1]), add);
+}
+{
+  // Add & validate, even with the ESP32's key pasted in: saved as before.
+  const s = screen(DETECT);
+  const { root } = s.draw();
+  const inputs = root.querySelectorAll("input");
+  const nameBox = inputs.find(i => (i.attributes.placeholder || "").startsWith("Device name"));
+  const keyBox = inputs.find(i => (i.attributes.placeholder || "").startsWith("IRK (hex, base64"));
+  nameBox.value = "Sam's iPad"; keyBox.value = KEY;
+  root.querySelectorAll("button").find(b => b.textContent === "Add & validate").click();
+  await wait(12);
+  const add = s.calls.find(c => c[0] === "padspan_ha/irk_add");
+  check("marker: Add & validate sends none", !!add && add[1].name === "Sam's iPad" && !("via" in add[1]), add);
 }
 
 // ── Why there is nothing to save ────────────────────────────────────────────
