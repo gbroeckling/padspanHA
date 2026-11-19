@@ -3557,7 +3557,7 @@ function createSlot(slotKey){
     if (!house || showSuspended()) return "floor";
     if (openRoom) return "room";
     const s = floorSteps;
-    return s && s.all && s.names.length > 1 && !(fitR && cam.radius < fitR * SCREEN.SOLO_IN) ? "house" : "floor";
+    return s && s.all && s.names.length > 1 && !SCREEN.pastSolo(cam.radius, fitR) ? "house" : "floor";
   }
   /** Open the room at {F, r} (r0: the camera's distance it opens at). */
   function openRoomOf(at, r0){
@@ -6095,7 +6095,7 @@ function createSlot(slotKey){
     /** The 3D file changed elsewhere (Settings → Remove all furniture): read
      *  again now while showing, else when the screen is next shown. */
     reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
-    detach(){ try { freshShow = true; fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (fpsUi) fpsUi.sync(false); if (panel) panel.detach(); if (director) director.detach(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; freshShow = true; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (fpsUi) fpsUi.sync(false); if (panel) panel.detach(); if (director) director.detach(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */

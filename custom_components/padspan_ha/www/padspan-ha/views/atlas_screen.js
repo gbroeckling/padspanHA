@@ -44,6 +44,9 @@ export function soloStep({ at, fit, bare, hold, inward }){
   return { bare: !!bare, hold: hold ?? null };
 }
 
+/** Zoomed in past where the bars step aside (`at` and `fit` as soloStep's)? */
+export function pastSolo(at, fit){ return !!fit && at < fit * SOLO_IN; }
+
 // ── the panel and full screen ────────────────────────────────────────────────
 /** The panel's element: the host of the shadow root `node` is in. */
 export function panelHostOf(node){
