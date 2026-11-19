@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.261 — Live Aboard: going back by itself puts the bars aside; Licence and update checks: simpler (2026-11-19)
+
+### Changed
+- **When nobody has touched it for a while, Live Aboard goes back home with the bars aside**, the map alone, as it opens. Before, it brought the bars back. Your walls, Look and floors pulled apart stay as you left them; ☰ brings the bars back. Home view in Views ▾ still brings them back, as it's pressed by hand.
+- **Each licence check is one request again.** 0.38.259 sent a hash of Home Assistant's instance ID and, while the licence server didn't read it, asked a second time with the ID. Now the ID goes once, in the body of the request with the key (never in the web address). The licence server keeps only a hash of it, as before.
+- **The update and licence checks run once a day.** 0.38.259 added a timer that looked every hour whether a day had passed. The first check after Home Assistant starts still waits a random while, and a restart doesn't check again within 20 hours.
+
+---
+
 ## 0.38.260 — Live Aboard: a look for each screen, room chips and a room panel; A sink under the window (2026-11-19)
 
 ### New

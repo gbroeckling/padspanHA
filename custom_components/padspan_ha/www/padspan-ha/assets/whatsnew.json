@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.261",
+  "title": "Live Aboard: going back by itself puts the bars aside; Licence and update checks: simpler",
+  "date": "2026-11-19",
+  "body_markdown": "### Changed\n- **When nobody has touched it for a while, Live Aboard goes back home with the bars aside**, the map alone, as it opens. Before, it brought the bars back. Your walls, Look and floors pulled apart stay as you left them; ☰ brings the bars back. Home view in Views ▾ still brings them back, as it's pressed by hand.\n- **Each licence check is one request again.** 0.38.259 sent a hash of Home Assistant's instance ID and, while the licence server didn't read it, asked a second time with the ID. Now the ID goes once, in the body of the request with the key (never in the web address). The licence server keeps only a hash of it, as before.\n- **The update and licence checks run once a day.** 0.38.259 added a timer that looked every hour whether a day had passed. The first check after Home Assistant starts still waits a random while, and a restart doesn't check again within 20 hours."
+ },
+ {
   "version": "0.38.260",
   "title": "Live Aboard: a look for each screen, room chips and a room panel; A sink under the window",
   "date": "2026-11-19",
@@ -76,11 +82,5 @@
   "title": "Power teams: lights found on after a restart",
   "date": "2026-11-15",
   "body_markdown": "### Fixed\n- **A team of lights that always have power goes on following the day after Home Assistant restarts.** When Home Assistant started with the team's lights already on, they stayed on but nothing led them until they were next switched: the team only ever answered a switch from off to on. It now takes the team up as on when its lights are first heard from, and the next minute puts the day's light back. A light that was unavailable and comes back is never read as someone's hand on it."
- },
- {
-  "version": "0.38.247",
-  "title": "3D look: a room's lights just outside its outline",
-  "date": "2026-11-15",
-  "body_markdown": "### Fixed\n- **A light just outside the outline of its own room is no longer drawn as an outside light.** When a room is drawn smaller than it is, its lights stand where no room is drawn, and the 3D look treated them as being on the outside of the house: a ceiling fan became a grille low on the nearest wall, and a ceiling light lost its place under the ceiling. A light that Home Assistant files under a room of its floor, that stands between half a metre and four metres outside that room's outline with a room of a higher floor over it, is now drawn as that room's light, where it was placed, under that room's ceiling. Closer than half a metre it is taken to be in or on the wall, as before (a fireplace blower stays a grille), and a light with nothing over it stays an outside light (one on a deck by the room's wall)."
  }
 ]
