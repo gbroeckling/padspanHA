@@ -89,7 +89,7 @@ const kind = (name, group, category, live, colorNames, colors, size, params) =>
 const sz = (w, d, h) => ({ width_m: w, depth_m: d, height_m: h });
 
 export const FURNITURE = {
-  sofa: kind("Sofa", "furniture", "seating", null, ["Body", "Cushions"], ["#5b6b7a", "#c8b89a"],
+  sofa: kind("Sofa", "furniture", "seating", null, ["Body", "Cushions"], ["#7f8489", "#959a9f"],
     sz([0.6, 3.6, 2.1], [0.6, 1.2, 0.9], [0.55, 1.1, 0.82]), [
       int("seats", "Seats", 1, 4, 3, { sizes: { 1: { width_m: 0.95 }, 2: { width_m: 1.55 }, 3: { width_m: 2.1 }, 4: { width_m: 2.7 } } }),
       choice("arms", "Arms", ["none", "slim", "wide", "rolled"], "slim"),
@@ -97,7 +97,7 @@ export const FURNITURE = {
       choice("legs", "Legs", ["none", "block", "tapered", "metal"], "tapered"),
       int("cushions", "Back cushions", 0, 4, 3),
     ]),
-  bed: kind("Bed", "furniture", "sleeping", null, ["Frame", "Bedding"], ["#6b4f3a", "#7f97ad"],
+  bed: kind("Bed", "furniture", "sleeping", null, ["Frame", "Bedding"], ["#9a7656", "#b7c0c8"],
     sz([0.6, 2.3, 1.66], [1.0, 2.4, 2.2], [0.35, 2.0, 1.1]), [
       choice("size", "Size", ["twin", "double", "queen", "king", "crib", "bunk"], "queen", { sizes: {
         twin: { width_m: 1.13, depth_m: 2.1, height_m: 1.0 }, double: { width_m: 1.51, depth_m: 2.1, height_m: 1.05 },
@@ -108,14 +108,14 @@ export const FURNITURE = {
       bool("footboard", "Footboard", false),
       choice("base", "Base", ["frame", "platform"], "frame"),
     ]),
-  table: kind("Table", "furniture", "tables", null, ["Top", "Legs"], ["#9b7653", "#7a5a40"],
+  table: kind("Table", "furniture", "tables", null, ["Top", "Legs"], ["#b58e66", "#9c7752"],
     sz([0.4, 3.0, 1.6], [0.4, 1.4, 0.9], [0.35, 1.1, 0.75]), [
       choice("shape", "Shape", ["rectangle", "rounded", "round"], "rectangle", { sizes: { round: { width_m: 1.1, depth_m: 1.1 } } }),
       choice("legs", "Legs", ["four", "pedestal", "trestle"], "four"),
       num("top_t_m", "Top thickness", 0.015, 0.08, 0.005, 0.035),
       bool("apron", "Rail under the top", true),
     ]),
-  chair: kind("Chair", "furniture", "seating", null, ["Frame", "Seat"], ["#7a5a40", "#b5a48a"],
+  chair: kind("Chair", "furniture", "seating", null, ["Frame", "Seat"], ["#9c7752", "#c9bba4"],
     sz([0.35, 1.1, 0.48], [0.35, 1.0, 0.52], [0.4, 1.3, 0.9]), [
       choice("style", "Style", ["dining", "armchair", "office", "stool"], "dining", { sizes: {
         dining: { width_m: 0.48, depth_m: 0.52, height_m: 0.9 }, armchair: { width_m: 0.85, depth_m: 0.85, height_m: 0.85 },
@@ -576,6 +576,7 @@ const FINISH = {
   gloss:  { r: 0.22, m: 0 },
   satin:  { r: 0.5, m: 0 },
   soft:   { r: 0.75, m: 0 },
+  glass:  { r: 0.08, m: 0, op: 0.28 },  // a shower's screen: see-through, on Low too
 };
 const CACHES = new WeakMap();           // per three.js instance: {mats, texs}
 function cacheOf(THREE){
@@ -591,10 +592,10 @@ function release(e){
 }
 // A small hash and periodic value noise: a pattern that tiles seamlessly.
 function hash2(i, j, seed){ const s = Math.sin(i * 127.1 + j * 311.7 + seed * 74.7) * 43758.5453; return s - Math.floor(s); }
-function noise(x, y, period, seed){
+function noise(x, y, period, seed, periodY = period){
   const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-  const at = (i, j) => hash2(((i % period) + period) % period, ((j % period) + period) % period, seed);
+  const at = (i, j) => hash2(((i % period) + period) % period, ((j % periodY) + periodY) % periodY, seed);
   const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
@@ -605,10 +606,12 @@ function finishTexture(THREE, name){
       const u = x / N, v = y / N;
       let t;
       if (name === "wood") {
-        // Grain lines along u, wavering, with a few darker rings.
-        const ring = v * 7 + 0.9 * noise(u * 4, v * 4, 4, 1) + 0.15 * noise(u * 16, v * 2, 16, 2);
-        const band = Math.pow(0.5 + 0.5 * Math.cos(2 * Math.PI * ring), 3);
-        t = 0.8 + 0.12 * (1 - band) + 0.08 * noise(u * 32, v * 8, 32, 3);
+        // A fine, straight grain along u that wanders a little, low in
+        // contrast, like a sanded oak board (2026-11: the wide wavy rings
+        // there were read as cardboard on a wardrobe's doors).
+        const ring = v * 18 + 0.45 * noise(u * 2, v * 3, 2, 1, 3) + 0.12 * noise(u * 8, v * 8, 8, 2);
+        const band = Math.pow(0.5 + 0.5 * Math.cos(2 * Math.PI * ring), 4);
+        t = 0.87 + 0.06 * (1 - band) + 0.07 * noise(u * 4, v * 32, 4, 3, 32);
       } else if (name === "fabric") {
         // A fine weave over a soft mottle.
         const wx = 0.5 + 0.5 * Math.sin(2 * Math.PI * u * 32), wy = 0.5 + 0.5 * Math.sin(2 * Math.PI * v * 32);
@@ -644,6 +647,7 @@ function sharedMat(THREE, hi, look, held){
     const dep = hi && F.tex ? sharedTex(THREE, F.tex) : null;
     const res = hi ? new THREE.MeshStandardMaterial({ color: look.c, roughness: F.r, metalness: F.m, map: dep ? dep.res : null })
       : new THREE.MeshLambertMaterial({ color: look.c });
+    if (F.op) { res.transparent = true; res.opacity = F.op; res.depthWrite = false; }
     C.mats.set(key, e = { key, cache: C.mats, res, refs: 0, dep });
   }
   if (!held.has(e)) { held.add(e); e.refs++; }
@@ -702,11 +706,12 @@ function makeKit(THREE, quality, root){
       g.clearGroups();
       add(look, place(THREE, scaleUv(fitBox(g, w, t, d), 1 / TILE, 1 / TILE), x, y + t / 2, z));
     },
-    // A round bar of radius r from point a to point b.
-    rod(a, b, r, look, seg = 8){
+    // A round bar of radius r from point a to point b (r2 at b: a tapered
+    // leg, thinner at its foot).
+    rod(a, b, r, look, seg = 8, r2 = r){
       const v = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), len = v.length();
       const n = Math.max(5, Math.round(hi ? seg : seg * 0.6));
-      const g = scaleUv(new THREE.CylinderGeometry(r, r, len, n, 1, false), 2 * Math.PI * r / TILE, len / TILE);
+      const g = scaleUv(new THREE.CylinderGeometry(r2, r, len, n, 1, false), 2 * Math.PI * Math.max(r, r2) / TILE, len / TILE);
       g.clearGroups();
       const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize());
       add(look, place(THREE, g, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, q));
@@ -786,6 +791,28 @@ function makeKit(THREE, quality, root){
 // C its colours, parts the live parts it fills in.
 const L = (c, f = "plain") => ({ c, f });
 const LEG_WOOD = "#5e4431", LEG_DARK = "#2f2621", METAL = "#b9bec3";
+
+// ── the modern look (2026-11) ────────────────────────────────────────────────
+// One language for every piece (Garry, 2026-11-18: "improve the default
+// furniture, more modern"): low and slim; thin round legs that taper to the
+// floor, set in from the corners, or a dark plinth set back under the front
+// so a cabinet seems to float; thin tops with softly rounded edges; fronts
+// flush, with thin dark gaps between them, and slim pulls.
+const BLACK = "#2a2b2e", PLINTH = "#1c1b1a";
+/** A slim round leg from the floor up to y at (x, z): r at the top, k × r
+ *  at the foot, the foot pushed out by `out` m toward (sx, sz) (a splay).
+ *  Its foot's rim stays on the floor and inside where it stands. */
+function leg(K, x, z, y, r, look, k = 0.6, out = 0, sx = 0, sz = 0){
+  const fx = x + sx * out, fz = z + sz * out, tilt = Math.atan2(Math.hypot(sx * out, sz * out), y);
+  const lift = r * k * Math.sin(tilt) + 1e-4;
+  K.rod([fx, lift, fz], [x, y, z], r * k, look, 10, r);
+}
+/** A plinth set back under a carcass whose front is at zFront and back at
+ *  zBack: `y` high, `back` m in from the front, `side` m in at each end. */
+function plinth(K, w, zBack, zFront, y, back = 0.05, side = 0.015){
+  const d = zFront - back - zBack - 0.01;
+  if (y > 0.004 && d > 0.02 && w > 2 * side + 0.02) K.box(w - 2 * side, y, d, 0, y / 2, zBack + 0.01 + d / 2, L(PLINTH));
+}
 
 // ── stairs ───────────────────────────────────────────────────────────────────
 // Climbing from the front (+z) toward the back (−z) of the footprint. A
@@ -1150,27 +1177,34 @@ function buildBox(K, S, p, C){
   K.box(S.w, S.h, S.d, 0, S.h / 2, 0, L(C[0]), Math.min(0.015, S.w / 4, S.d / 4, S.h / 4));
 }
 
-// Sofa: seats across the width between its arms, the back at −z.
+// Sofa: seats across the width between its arms, the back at −z. Modern: a
+// slim upholstered shell up on thin legs (tapered wood or black metal), short
+// block feet, or none (a dark plinth set back under it, so it floats); one
+// cushion a seat, soft back cushions leaning on a thin back, and arms a slim
+// track, a wider block or a soft roll.
 function buildSofa(K, S, p, C){
   const { w: W, d: D, h: H } = S;
   const body = L(C[0], "fabric"), cush = L(C[1], "fabric");
-  const armW = Math.min({ none: 0, slim: 0.1, wide: 0.22, rolled: 0.16 }[p.arms], W * 0.18);
-  const legH = p.legs === "none" ? 0 : Math.min({ block: 0.07, tapered: 0.13, metal: 0.14 }[p.legs], H * 0.2);
-  const backT = clamp(D * 0.22, 0.12, 0.26), seatD = D - backT;
-  const cushT = clamp(H * 0.15, 0.08, 0.14);
-  const baseTop = Math.max(Math.min(p.seat_h_m, H - 0.12) - cushT, legH + 0.05), seatTop = baseTop + cushT;
+  const armW = Math.min({ none: 0, slim: 0.08, wide: 0.17, rolled: 0.15 }[p.arms], W * 0.16);
+  const legH = Math.min({ none: 0.03, block: 0.06, tapered: 0.15, metal: 0.15 }[p.legs], H * 0.22);
+  const backT = clamp(D * 0.17, 0.1, 0.18), seatD = D - backT;
+  const cushT = clamp(H * 0.16, 0.08, 0.15);
+  const seatTop = Math.max(Math.min(p.seat_h_m, H - 0.12), legH + 0.06 + cushT), baseTop = seatTop - cushT;
   const innerW = W - 2 * armW;
-  K.box(W, baseTop - legH, D, 0, legH + (baseTop - legH) / 2, 0, body, 0.03);
-  K.box(armW ? innerW + 0.02 : W, H - baseTop, backT, 0, baseTop + (H - baseTop) / 2, -D / 2 + backT / 2, body, 0.045);
+  // The shell: a base under the seat cushions and the back behind them.
+  K.box(W, baseTop - legH, D, 0, legH + (baseTop - legH) / 2, 0, body, 0.025);
+  K.box(armW ? innerW + 0.04 : W, H - baseTop, backT, 0, baseTop + (H - baseTop) / 2, -D / 2 + backT / 2, body, Math.min(0.05, backT / 2));
   const cw = innerW / p.seats;
   for (let i = 0; i < p.seats; i++) {
-    K.box(cw - 0.014, cushT, seatD - 0.01, -innerW / 2 + cw * (i + 0.5), baseTop + cushT / 2, backT / 2, cush, Math.min(0.05, cushT / 2));
+    K.box(cw - 0.012, cushT, seatD - 0.005, -innerW / 2 + cw * (i + 0.5), baseTop + cushT / 2, -D / 2 + backT + (seatD - 0.005) / 2, cush, Math.min(0.045, cushT / 2));
   }
-  const bh = Math.min(H - seatTop - 0.04, 0.55);
+  // Back cushions, plump and leaning back against it.
+  const bh = Math.min(H - seatTop - 0.02, 0.52), bt = clamp(seatD * 0.2, 0.1, 0.17), lean = 0.16;
   if (p.cushions > 0 && bh > 0.1) {
     const bw = innerW / p.cushions;
+    const zc = -D / 2 + backT + bt / 2 + bh / 2 * Math.sin(lean) - 0.01, yc = seatTop + bh / 2 * Math.cos(lean);
     for (let i = 0; i < p.cushions; i++) {
-      K.box(bw - 0.024, bh, 0.13, -innerW / 2 + bw * (i + 0.5), seatTop + bh / 2, -D / 2 + backT + 0.068, cush, 0.055, [-0.1, 0, 0]);
+      K.box(bw - 0.02, bh, bt, -innerW / 2 + bw * (i + 0.5), yc, zc, cush, Math.min(0.075, bt * 0.48), [-lean, 0, 0]);
     }
   }
   if (armW) {
@@ -1178,21 +1212,20 @@ function buildSofa(K, S, p, C){
     for (const s of [-1, 1]) {
       const ax = s * (W / 2 - armW / 2);
       if (p.arms === "rolled") {
-        const rr = Math.min(armW * 0.62, (armTop - legH) / 2);
-        K.box(armW, armTop - rr - legH, D, ax, legH + (armTop - rr - legH) / 2, 0, body, 0.03);
-        K.cyl(rr, rr, D, s * (W / 2 - rr), armTop - rr, 0, body, 20, [Math.PI / 2, 0, 0]);
+        const rr = Math.min(armW * 0.6, (armTop - legH) / 2);
+        K.box(armW, armTop - rr - legH, D, ax, legH + (armTop - rr - legH) / 2, 0, body, 0.025);
+        K.cyl(rr, rr, D - 0.01, s * (W / 2 - rr), armTop - rr, 0.005, body, 20, [Math.PI / 2, 0, 0]);
       } else {
-        K.box(armW, armTop - legH, D, ax, legH + (armTop - legH) / 2, 0, body, p.arms === "wide" ? 0.07 : 0.035);
+        K.box(armW, armTop - legH, D, ax, legH + (armTop - legH) / 2, 0, body, p.arms === "wide" ? 0.06 : 0.035);
       }
     }
   }
-  if (legH) {
-    const lx = W / 2 - 0.06, lz = D / 2 - 0.06;
-    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
-      if (p.legs === "block") K.box(0.07, legH, 0.07, sx * lx, legH / 2, sz2 * lz, L(LEG_DARK, "wood"));
-      else if (p.legs === "tapered") K.cyl(0.025, 0.013, legH, sx * lx, legH / 2, sz2 * lz, L(LEG_WOOD, "wood"), 10);
-      else K.cyl(0.011, 0.011, legH, sx * lx, legH / 2, sz2 * lz, L(METAL, "metal"), 8);
-    }
+  const lx = W / 2 - Math.min(0.08, W * 0.1), lz = D / 2 - Math.min(0.08, D * 0.12);
+  if (p.legs === "none") plinth(K, W - 0.08, -D / 2 + 0.04, D / 2, legH, 0.05, 0);
+  else for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
+    if (p.legs === "block") K.box(0.05, legH, 0.05, sx * lx, legH / 2, sz2 * lz, L(LEG_DARK, "wood"), 0.006);
+    else if (p.legs === "tapered") leg(K, sx * lx, sz2 * lz, legH, 0.021, L(LEG_WOOD, "wood"), 0.55, 0.02, sx * 0.7, sz2 * 0.7);
+    else leg(K, sx * lx, sz2 * lz, legH, 0.009, L(BLACK, "metal"), 1);
   }
 }
 
@@ -1215,44 +1248,49 @@ function buildBed(K, S, p, C){
   if (p.size === "bunk") return buildBunk(K, S, p, C);
   const { w: W, d: D, h: H } = S;
   const frame = L(C[0], "wood");
-  const hbD = Math.min({ none: 0, panel: 0.05, slatted: 0.06, padded: 0.1 }[p.headboard], D * 0.08);
-  const fbD = p.footboard ? 0.05 : 0;
+  const hbD = Math.min({ none: 0, panel: 0.04, slatted: 0.05, padded: 0.09 }[p.headboard], D * 0.08);
+  const fbD = p.footboard ? 0.035 : 0;
   const zb = -D / 2 + hbD, zf = D / 2 - fbD, Lz = zf - zb, zc = (zb + zf) / 2;
-  const rim = clamp(W * 0.04, 0.03, 0.06), mw = W - 2 * rim, ml = Lz - 2 * rim;
+  const rim = clamp(W * 0.025, 0.03, 0.04), mw = W - 2 * rim, ml = Lz - 2 * rim;
   // The mattress top at its usual height under a headboard (which takes the
-  // rest of the Height); with none, the bed itself is the Height.
-  const platform = p.base === "platform", usual = platform ? 0.5 : 0.56;
+  // rest of the Height); with none, the bed itself is the Height. Modern
+  // beds sit low.
+  const platform = p.base === "platform", usual = platform ? 0.44 : 0.5;
   const mattTop = p.headboard === "none" ? H - 0.12 : Math.min(usual, H - 0.12);
   const mattH = 0.22 * Math.min(1, mattTop / usual), baseTop = mattTop - mattH;
   if (platform) {
-    const toe = Math.min(0.08, baseTop * 0.3);
+    // A low base on a dark plinth set well back: it seems to float.
+    const toe = Math.min(0.07, baseTop * 0.3);
     K.box(W, baseTop - toe, Lz, 0, toe + (baseTop - toe) / 2, zc, frame, 0.02);
-    K.box(W - 0.2, toe, Lz - 0.2, 0, toe / 2, zc, L("#26211d"));
+    K.box(W - 0.2, toe, Lz - 0.2, 0, toe / 2, zc, L(PLINTH));
   } else {
-    const railH = Math.min(0.16, baseTop * 0.5), legH = baseTop - railH;
-    K.box(W, railH, Lz, 0, legH + railH / 2, zc, frame, 0.015);
-    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(0.07, legH, 0.07, sx * (W / 2 - 0.05), legH / 2, zc + sz2 * (Lz / 2 - 0.05), frame);
+    // A slim frame on four tapered legs set in from the corners.
+    const railH = Math.min(0.12, baseTop * 0.45), legH = baseTop - railH;
+    K.box(W, railH, Lz, 0, legH + railH / 2, zc, frame, 0.012);
+    const lx = W / 2 - Math.min(0.1, W * 0.1), lz = Lz / 2 - Math.min(0.1, Lz * 0.08);
+    if (legH > 0.02) for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) leg(K, sx * lx, zc + sz2 * lz, legH + 0.002, 0.024, frame, 0.6);
   }
   bedding(K, 0, zc, mw, ml, baseTop, mattH, C, p.size === "twin" ? 1 : 2);
   const zh = -D / 2 + hbD / 2;
   if (p.headboard === "panel") K.box(W, H, hbD, 0, H / 2, zh, frame, 0.015);
   else if (p.headboard === "padded") {
-    // Upholstered in channels, on two short feet.
-    const n = clamp(Math.round(W / 0.4), 2, 6), cw = W / n, padded = L(lighten(C[0], 0.12), "fabric");
-    for (let i = 0; i < n; i++) K.box(cw - 0.006, H - 0.06, hbD, -W / 2 + cw * (i + 0.5), 0.06 + (H - 0.06) / 2, zh, padded, 0.04);
-    for (const s of [-1, 1]) K.box(0.05, 0.06, hbD * 0.6, s * (W / 2 - 0.08), 0.03, zh, L(LEG_DARK, "wood"));
+    // Upholstered in soft channels, on two short dark feet.
+    const n = clamp(Math.round(W / 0.3), 3, 8), cw = W / n, padded = L(lighten(C[0], 0.12), "fabric");
+    for (let i = 0; i < n; i++) K.box(cw - 0.004, H - 0.05, hbD, -W / 2 + cw * (i + 0.5), 0.05 + (H - 0.05) / 2, zh, padded, Math.min(0.045, cw / 2 - 0.002, hbD / 2));
+    for (const s of [-1, 1]) K.box(0.04, 0.05, hbD * 0.6, s * (W / 2 - 0.1), 0.025, zh, L(PLINTH));
   } else if (p.headboard === "slatted") {
-    for (const s of [-1, 1]) K.box(0.06, H, hbD, s * (W / 2 - 0.03), H / 2, zh, frame, 0.01);
-    K.box(W, 0.06, hbD, 0, H - 0.03, zh, frame, 0.01);
-    const ns = Math.max(3, Math.round(W / 0.17)), top = H - 0.06, sh = top - baseTop;
-    if (sh > 0.05) for (let i = 0; i < ns; i++) K.box(0.045, sh, hbD * 0.5, -(W - 0.12) / 2 + (W - 0.12) * (i + 0.5) / ns, baseTop + sh / 2, zh, frame);
+    // Thin battens between two slim posts under a thin top rail.
+    for (const s of [-1, 1]) K.box(0.045, H, hbD, s * (W / 2 - 0.0225), H / 2, zh, frame, 0.008);
+    K.box(W, 0.035, hbD, 0, H - 0.0175, zh, frame, 0.008);
+    const ns = Math.max(4, Math.round(W / 0.11)), top = H - 0.035, sh = top - baseTop, inner = W - 0.09;
+    if (sh > 0.05) for (let i = 0; i < ns; i++) K.box(0.032, sh, hbD * 0.55, -inner / 2 + inner * (i + 0.5) / ns, baseTop + sh / 2, zh, frame, 0.004);
   }
-  if (p.footboard) { const fh = Math.min(mattTop + 0.12, H); K.box(W, fh, fbD, 0, fh / 2, D / 2 - fbD / 2, frame, 0.015); }
+  if (p.footboard) { const fh = Math.min(mattTop + 0.06, H); K.box(W, fh, fbD, 0, fh / 2, D / 2 - fbD / 2, frame, 0.012); }
 }
 // A crib: bars all round, a low mattress, no pillow.
 function buildCrib(K, S, p, C){
   const { w: W, d: D, h: H } = S;
-  const frame = L(C[0], "wood"), post = 0.05;
+  const frame = L(C[0], "wood"), post = 0.04;
   for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(post, H, post, sx * (W / 2 - post / 2), H / 2, sz2 * (D / 2 - post / 2), frame, 0.008);
   const baseTop = clamp(H * 0.32, 0.12, 0.42), mattH = Math.min(0.1, baseTop * 0.5);
   K.box(W - 0.06, 0.04, D - 0.06, 0, baseTop - 0.02, 0, frame);
@@ -1262,19 +1300,19 @@ function buildCrib(K, S, p, C){
     K.box(W - 2 * post, 0.04, 0.035, 0, H - 0.02, sz2 * (D / 2 - post / 2), frame, 0.008);
     K.box(W - 2 * post, 0.04, 0.035, 0, lo, sz2 * (D / 2 - post / 2), frame);
     const n = clamp(Math.round((W - 2 * post) / 0.09), 3, 16);
-    for (let i = 0; i < n; i++) K.box(0.022, barH, 0.022, -(W / 2 - post) + (W - 2 * post) * (i + 0.5) / n, lo + barH / 2, sz2 * (D / 2 - post / 2), frame);
+    for (let i = 0; i < n; i++) K.box(0.018, barH, 0.018, -(W / 2 - post) + (W - 2 * post) * (i + 0.5) / n, lo + barH / 2, sz2 * (D / 2 - post / 2), frame);
   }
   for (const sx of [-1, 1]) {
     K.box(0.035, 0.04, D - 2 * post, sx * (W / 2 - post / 2), H - 0.02, 0, frame, 0.008);
     K.box(0.035, 0.04, D - 2 * post, sx * (W / 2 - post / 2), lo, 0, frame);
     const n = clamp(Math.round((D - 2 * post) / 0.09), 3, 16);
-    for (let i = 0; i < n; i++) K.box(0.022, barH, 0.022, sx * (W / 2 - post / 2), lo + barH / 2, -(D / 2 - post) + (D - 2 * post) * (i + 0.5) / n, frame);
+    for (let i = 0; i < n; i++) K.box(0.018, barH, 0.018, sx * (W / 2 - post / 2), lo + barH / 2, -(D / 2 - post) + (D - 2 * post) * (i + 0.5) / n, frame);
   }
 }
 // A bunk bed: two beds on four posts, the ladder up the right side at the foot.
 function buildBunk(K, S, p, C){
   const { w: W, d: D, h: H } = S;
-  const frame = L(C[0], "wood"), post = 0.07;
+  const frame = L(C[0], "wood"), post = 0.055;
   for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(post, H, post, sx * (W / 2 - post / 2), H / 2, sz2 * (D / 2 - post / 2), frame, 0.01);
   const mattH = Math.min(0.16, H * 0.1), railH = Math.min(0.1, H * 0.08);
   const lowBase = clamp(H * 0.18, railH, 0.3);
@@ -1306,14 +1344,14 @@ function handle(K, kind, x, y, zFace, along, look, len){
   const up = along === "y";
   if (!K.hi) {
     if (kind === "knob") K.box(0.026, 0.026, HANDLE_D, x, y, zFace + HANDLE_D / 2, look);
-    else K.box(up ? 0.016 : len, up ? len : 0.016, HANDLE_D, x, y, zFace + HANDLE_D / 2, look);
+    else K.box(up ? 0.012 : len, up ? len : 0.012, HANDLE_D, x, y, zFace + HANDLE_D / 2, look);
     return;
   }
   if (kind === "knob") { K.cyl(0.011, 0.015, HANDLE_D, x, y, zFace + HANDLE_D / 2, look, 10, [Math.PI / 2, 0, 0]); return; }
-  K.cyl(0.006, 0.006, len, x, y, zFace + HANDLE_D - 0.006, look, 8, up ? null : [0, 0, Math.PI / 2]);
+  K.cyl(0.005, 0.005, len, x, y, zFace + HANDLE_D - 0.005, look, 8, up ? null : [0, 0, Math.PI / 2]);
   for (const s of [-1, 1]) {
-    K.cyl(0.004, 0.004, HANDLE_D - 0.006, up ? x : x + s * (len / 2 - 0.012), up ? y + s * (len / 2 - 0.012) : y,
-          zFace + (HANDLE_D - 0.006) / 2, look, 6, [Math.PI / 2, 0, 0]);
+    K.cyl(0.0035, 0.0035, HANDLE_D - 0.005, up ? x : x + s * (len / 2 - 0.01), up ? y + s * (len / 2 - 0.01) : y,
+          zFace + (HANDLE_D - 0.005) / 2, look, 6, [Math.PI / 2, 0, 0]);
   }
 }
 // Fronts stand on a dark backing, so the gaps between them read as lines;
@@ -1326,7 +1364,7 @@ function drawers(K, x, w, y0, y1, n, zFace, look, kind, hl){
   for (let i = 0; i < n; i++) {
     const cy = y0 + rowH * (i + 0.5);
     K.box(w - 0.006, rowH - 0.006, 0.02, x, cy, zFace + 0.01, look, 0.004);
-    handle(K, kind, x, cy, zFace + 0.02, "x", hl, Math.min(0.14, w * 0.45));
+    handle(K, kind, x, cy, zFace + 0.02, "x", hl, Math.min(0.18, w * 0.5));
   }
 }
 // A door from y0 to y1, hinged on the left (hinge −1) or the right (+1).
@@ -1334,40 +1372,48 @@ function door(K, x, w, y0, y1, zFace, look, kind, hl, hinge){
   K.box(w, y1 - y0, GAP_T, x, (y0 + y1) / 2, zFace - GAP_T / 2, L(GAP));
   K.box(w - 0.006, y1 - y0 - 0.006, 0.02, x, (y0 + y1) / 2, zFace + 0.01, look, 0.004);
   const hy = Math.min(y0 + (y1 - y0) * 0.55, y0 + 1.05);
-  handle(K, kind, x - hinge * (w / 2 - Math.min(0.05, w * 0.2)), hy, zFace + 0.02, "y", hl, Math.min(0.16, (y1 - y0) * 0.3));
+  handle(K, kind, x - hinge * (w / 2 - Math.min(0.045, w * 0.2)), hy, zFace + 0.02, "y", hl, Math.min(0.2, (y1 - y0) * 0.3));
 }
 
 // Table: a top (rectangle, rounded or round) on four legs, a pedestal or trestles.
 function buildTable(K, S, p, C){
   const { w: W, d: D, h: H } = S;
-  const top = L(C[0], "wood"), leg = L(C[1], "wood");
+  const top = L(C[0], "wood"), legL = L(C[1], "wood");
   const t = Math.min(p.top_t_m, H * 0.25), under = H - t, round = p.shape === "round";
-  K.slab(round ? "ellipse" : "rect", W, t, D, 0, under, 0, top, p.shape === "rounded" ? Math.min(W, D) * 0.25 : 0.01);
+  K.slab(round ? "ellipse" : "rect", W, t, D, 0, under, 0, top, p.shape === "rounded" ? Math.min(W, D) * 0.25 : 0.012, Math.min(0.008, t / 3));
   if (p.legs === "pedestal") {
+    // A tulip foot: a slim stem flaring into a low round foot.
     const two = W > D * 1.8, xs = two ? [-W / 4, W / 4] : [0];
-    const footR = Math.min(D * 0.32, (two ? W / 4 : W / 2) * 0.9, 0.35);
-    const colR = clamp(Math.min(W, D) * 0.06, 0.03, 0.08);
+    const footR = Math.min(D * 0.32, (two ? W / 4 : W / 2) * 0.88, 0.32);
+    const colR = clamp(Math.min(W, D) * 0.035, 0.025, 0.05), hh = Math.max(0.05, under);
+    const footT = Math.min(0.022, hh * 0.08), y0 = footT - 0.002;
     for (const x of xs) {
-      K.cyl(colR * 0.75, colR, under - 0.035, x, 0.035 + (under - 0.035) / 2, 0, leg, 16);
-      K.slab("ellipse", footR * 2, 0.035, footR * 2, x, 0, 0, leg, 0, 0.01);
+      // A thin round foot, a cone rising off it into the stem, a flare under the top.
+      const rise = (hh - y0) * 0.3, cap = Math.min(0.05, (hh - y0) * 0.12), stem = hh - y0 - rise - cap;
+      K.slab("ellipse", footR * 2, footT, footR * 2, x, 0, 0, legL, 0, Math.min(0.008, footT / 3));
+      K.cyl(colR, Math.min(footR * 0.5, colR * 2.8), rise, x, y0 + rise / 2, 0, legL, 20);
+      if (stem > 0.005) K.cyl(colR, colR, stem, x, y0 + rise + stem / 2, 0, legL, 16);
+      K.cyl(colR * 1.7, colR, cap, x, hh - cap / 2, 0, legL, 20);
     }
   } else if (p.legs === "trestle") {
-    const tx = W / 2 - Math.min(0.15, W * 0.12);
+    // A slim sled at each end, a thin stretcher between them.
+    const tx = W / 2 - Math.min(0.12, W * 0.1), bw = 0.035, zd = D / 2 - Math.min(0.09, D * 0.12);
     for (const s of [-1, 1]) {
-      K.box(0.06, under - 0.05, D * 0.5, s * tx, 0.05 + (under - 0.05) / 2, 0, leg, 0.008);
-      K.box(0.08, 0.05, D * 0.8, s * tx, 0.025, 0, leg, 0.01);
-      K.box(0.07, 0.04, D * 0.7, s * tx, under - 0.02, 0, leg, 0.008);
+      for (const sz2 of [-1, 1]) K.box(bw, under, bw, s * tx, under / 2, sz2 * (zd - bw / 2), legL, 0.004);
+      K.box(bw, bw, 2 * zd, s * tx, bw / 2, 0, legL, 0.004);
+      K.box(bw, bw * 0.8, 2 * zd, s * tx, under - bw * 0.4, 0, legL, 0.004);
     }
-    K.box(2 * tx, 0.05, 0.05, 0, Math.max(0.08, under * 0.35), 0, leg, 0.008);
+    K.box(2 * tx - bw, bw * 0.7, bw * 0.7, 0, Math.max(0.08, under * 0.3), 0, legL, 0.004);
   } else {
-    const lw = clamp(Math.min(W, D) * 0.05, 0.035, 0.07);
-    const fx = round ? W * 0.3 : W / 2 - lw / 2 - 0.03, fz = round ? D * 0.3 : D / 2 - lw / 2 - 0.03;
-    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(lw, under, lw, sx * fx, under / 2, sz2 * fz, leg, 0.006);
+    // Four slim legs that taper to the floor, set in from the edge, a little splayed.
+    const r = clamp(Math.min(W, D) * 0.028, 0.017, 0.03), inset = clamp(Math.min(W, D) * 0.07, 0.05, 0.1);
+    const fx = round ? W * 0.3 : W / 2 - inset, fz = round ? D * 0.3 : D / 2 - inset, out = Math.min(0.025, inset - r);
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) leg(K, sx * fx, sz2 * fz, under + 0.002, r, legL, 0.55, out, sx * 0.7, sz2 * 0.7);
     if (p.apron && under > 0.2) {
-      const ah = Math.min(0.08, under * 0.2), ay = under - ah / 2;
+      const ah = Math.min(0.06, under * 0.15), ay = under - ah / 2;
       for (const s of [-1, 1]) {
-        K.box(2 * fx - lw, ah, 0.02, 0, ay, s * fz, leg);
-        K.box(0.02, ah, 2 * fz - lw, s * fx, ay, 0, leg);
+        K.box(2 * fx - r, ah, 0.018, 0, ay, s * fz, legL);
+        K.box(0.018, ah, 2 * fz - r, s * fx, ay, 0, legL);
       }
     }
   }
@@ -1384,37 +1430,42 @@ function buildChair(K, S, p, C){
   if (p.style === "office") return buildOfficeChair(K, S, p, C);
   const stool = p.style === "stool";
   const seatTop = stool ? H : Math.min(p.seat_h_m, H - 0.12);
-  const seatT = p.cushion ? 0.06 : 0.035, legTop = seatTop - seatT;
-  const lw = clamp(Math.min(W, D) * 0.08, 0.03, 0.05);
+  // A thin seat shell; cushioned, a soft pad on it.
+  const shellT = 0.022, padT = p.cushion ? 0.035 : 0, seatT = shellT + padT, legTop = seatTop - seatT;
+  const r = clamp(Math.min(W, D) * 0.035, 0.012, 0.02);
+  const shell = p.cushion ? L(C[0], "wood") : seat;
   if (stool) {
-    K.slab("ellipse", W, seatT, D, 0, legTop, 0, seat, 0, p.cushion ? 0.02 : 0.008);
-    const fx = W * 0.3, fz = D * 0.3, ry = Math.max(0.05, legTop * 0.35);
-    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(lw, legTop, lw, sx * fx, legTop / 2, sz2 * fz, frame, 0.005);
-    for (const s of [-1, 1]) {
-      K.box(2 * fx, 0.022, 0.022, 0, ry, s * fz, frame);
-      K.box(0.022, 0.022, 2 * fz, s * fx, ry, 0, frame);
-    }
+    // Four slim splayed legs under a round seat, a thin foot ring between them.
+    K.slab("ellipse", W, shellT, D, 0, legTop, 0, shell, 0, 0.006);
+    if (padT) K.slab("ellipse", W * 0.92, padT, D * 0.92, 0, legTop + shellT, 0, seat, 0, Math.min(0.014, padT / 3));
+    // Leg tops a from the middle (along the diagonals), feet spread further out, inside the box.
+    const c = Math.SQRT1_2, half = Math.min(W, D) / 2, a = half * 0.6;
+    const spread = clamp((half - r * 0.6 - 0.003) / c - a, 0, half * 0.25), ry = Math.max(0.05, legTop * 0.32);
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) leg(K, sx * a * c, sz2 * a * c, legTop + 0.002, r, frame, 0.6, spread, sx * c, sz2 * c);
+    const ringR = a + spread * (1 - ry / legTop), tube = Math.min(0.007, r * 0.45);
+    if (ringR > 0.04 && ringR + tube < half) K.torus(ringR, tube, 0, ry, 0, frame, [Math.PI / 2, 0, 0]);
     return;
   }
-  const lx = W / 2 - lw / 2, lz = D / 2 - lw / 2;
-  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
-    const top = sz2 < 0 ? H : legTop;
-    K.box(lw, top, lw, sx * lx, top / 2, sz2 * lz, frame, 0.005);
-  }
-  K.box(W, seatT, D, 0, legTop + seatT / 2, 0, seat, p.cushion ? 0.025 : 0.006);
+  // Four slim legs that taper to the floor; the back legs rise as slim posts
+  // to a curved-looking back rest, leaning a little back.
+  const lx = W / 2 - r - 0.012, lz = D / 2 - r - 0.012, out = 0.012;
+  for (const sx of [-1, 1]) leg(K, sx * lx, lz, legTop + 0.002, r, frame, 0.6, out, sx * 0.6, 0.8);
   const backH = H - seatTop;
+  for (const sx of [-1, 1]) {
+    leg(K, sx * lx, -lz, legTop + 0.002, r, frame, 0.6, out, sx * 0.6, -0.8);
+    if (backH > 0.08) K.rod([sx * lx, legTop, -lz], [sx * lx, H - 0.02, -D / 2 + r * 0.8], r * 0.8, frame, 8, r * 0.7);
+  }
+  K.box(W - 0.01, shellT, D - 0.01, 0, legTop + shellT / 2, 0, shell, 0.01);
+  if (padT) K.box(W - 0.03, padT, D - 0.04, 0, legTop + shellT + padT / 2, 0.005, seat, Math.min(0.015, padT / 2));
   if (backH > 0.08) {
-    const railH = Math.min(0.1, backH * 0.35), sh = backH - railH;
-    K.box(W - 2 * lw, railH, 0.025, 0, H - railH / 2, -lz, frame, 0.006);
-    if (sh > 0.04) {
-      for (let i = 0; i < 3; i++) K.box(0.03, sh, 0.018, -(W / 2 - lw) + (W - 2 * lw) * (i + 0.5) / 3, seatTop + sh / 2, -lz, frame);
-    }
+    const rh = clamp(backH * 0.42, 0.06, 0.2), rt = 0.02, tilt = 0.12;
+    K.box(W - 0.02, rh, rt, 0, H - rh / 2 - 0.004, -D / 2 + rt / 2 + rh / 2 * Math.sin(tilt) + 0.002, frame, 0.01, [-tilt, 0, 0]);
   }
   if (p.arms) {
-    const ay = Math.min(seatTop + 0.22, H - 0.03);
+    const ay = Math.min(seatTop + 0.21, H - 0.03), aw = Math.min(0.04, r * 2.2);
     for (const s of [-1, 1]) {
-      K.box(lw, 0.03, D, s * lx, ay, 0, frame, 0.008);
-      K.box(lw * 0.8, ay - seatTop, lw * 0.8, s * lx, seatTop + (ay - seatTop) / 2, lz, frame);
+      K.box(aw, 0.022, D * 0.82, s * (W / 2 - aw / 2), ay, -D * 0.06, frame, 0.008);
+      K.rod([s * lx, seatTop, lz - 0.02], [s * lx, ay, lz - 0.04], r * 0.75, frame, 8);
     }
   }
 }
@@ -1450,26 +1501,29 @@ function buildOfficeChair(K, S, p, C){
 function buildDesk(K, S, p, C){
   const { w: W, d: D, h: H } = S;
   const top = L(C[0], "wood"), frame = L(C[1], p.legs === "metal" ? "metal" : "wood");
-  const t = Math.min(0.03, H * 0.1), under = H - t;
-  K.slab("rect", W, t, D, 0, under, 0, top, 0.01);
+  const t = Math.min(0.026, H * 0.1), under = H - t;
+  K.slab("rect", W, t, D, 0, under, 0, top, 0.01, 0.006);
   const pedW = Math.min(0.42, W * 0.32), pedD = D - 0.04;
   const peds = { none: [], left: [-1], right: [1], both: [-1, 1] }[p.drawers];
   for (const s of peds) {
-    const x = s * (W / 2 - pedW / 2 - 0.005), cD = pedD - 0.02 - HANDLE_D;
-    K.box(pedW, under, cD - GAP_T, x, under / 2, -pedD / 2 + (cD - GAP_T) / 2, top, 0.006);
-    drawers(K, x, pedW - 0.02, 0.03, under - 0.01, 3, -pedD / 2 + cD, L(lighten(C[0], 0.08), "wood"), "bar", L(METAL, "metal"));
+    // A drawer unit on a dark plinth set back under its fronts, slim pulls.
+    const x = s * (W / 2 - pedW / 2 - 0.005), cD = pedD - 0.02 - HANDLE_D, toe = Math.min(0.05, under * 0.08);
+    K.box(pedW, under - toe, cD - GAP_T, x, toe + (under - toe) / 2, -pedD / 2 + (cD - GAP_T) / 2, top, 0.006);
+    K.box(pedW - 0.03, toe, cD - 0.06, x, toe / 2, -pedD / 2 + (cD - 0.06) / 2 + 0.01, L(PLINTH));
+    drawers(K, x, pedW - 0.01, toe + 0.005, under - 0.008, 3, -pedD / 2 + cD, L(lighten(C[0], 0.08), "wood"), "bar", L(METAL, "metal"));
   }
   for (const s of [-1, 1]) {
     if (peds.includes(s)) continue;
-    if (p.legs === "panel") K.box(0.03, under, D - 0.02, s * (W / 2 - 0.015), under / 2, 0, frame, 0.004);
+    if (p.legs === "panel") K.box(0.025, under, D - 0.04, s * (W / 2 - 0.0125), under / 2, 0, frame, 0.006);
     else if (p.legs === "metal") {
-      const x = s * (W / 2 - 0.04);
-      for (const sz2 of [-1, 1]) K.box(0.04, under, 0.04, x, under / 2, sz2 * (D / 2 - 0.06), frame, 0.004);
-      K.box(0.04, 0.03, D - 0.08, x, 0.015, 0, frame);
-      K.box(0.04, 0.04, D - 0.08, x, under - 0.02, 0, frame);
-    } else for (const sz2 of [-1, 1]) K.box(0.05, under, 0.05, s * (W / 2 - 0.035), under / 2, sz2 * (D / 2 - 0.035), frame, 0.006);
+      // A slim sled: two posts on a foot bar, a bar under the top.
+      const x = s * (W / 2 - 0.035), bw = 0.03;
+      for (const sz2 of [-1, 1]) K.box(bw, under, bw, x, under / 2, sz2 * (D / 2 - 0.06), frame, 0.004);
+      K.box(bw, 0.025, D - 0.06, x, 0.0125, 0, frame, 0.004);
+      K.box(bw, 0.03, D - 0.1, x, under - 0.015, 0, frame, 0.004);
+    } else for (const sz2 of [-1, 1]) leg(K, s * (W / 2 - 0.045), sz2 * (D / 2 - 0.045), under + 0.002, 0.022, frame, 0.55, 0.018, s * 0.7, sz2 * 0.7);
   }
-  if (p.back) { const bh = under * 0.5; K.box(W - 0.08, bh, 0.018, 0, under - bh / 2, -D / 2 + 0.06, frame); }
+  if (p.back) { const bh = under * 0.42; K.box(W - 0.12, bh, 0.016, 0, under - bh / 2, -D / 2 + 0.07, frame, 0.004); }
 }
 
 // Dresser or cabinet: drawers, doors or both on the front (+z), on a plinth, feet or legs.
@@ -1478,19 +1532,22 @@ function buildDresser(K, S, p, C){
   const body = L(C[0], "wood"), front = L(C[1], "wood"), hl = L(METAL, "metal");
   const hd = p.handles === "none" ? 0 : HANDLE_D;
   const cD = D - 0.02 - hd, cz = -D / 2 + cD / 2, zf = -D / 2 + cD;
-  const footH = Math.min({ plinth: 0.07, feet: 0.09, legs: 0.2 }[p.base], H * 0.25);
+  // On a dark plinth set back under the fronts (it seems to float), on
+  // small round feet, or up on slim splayed legs.
+  const footH = Math.min({ plinth: 0.06, feet: 0.07, legs: 0.2 }[p.base], H * 0.25);
   K.box(W, H - footH, cD - GAP_T, 0, footH + (H - footH) / 2, cz - GAP_T / 2, body, 0.008);
-  if (p.base === "plinth") K.box(W - 0.03, footH, cD - 0.03, 0, footH / 2, cz, L(darken(C[0], 0.25), "wood"));
+  if (p.base === "plinth") plinth(K, W, -D / 2, zf, footH, 0.04, 0.02);
   else {
+    const ix = Math.min(0.06, W * 0.12), iz = Math.min(0.06, cD * 0.15);
     for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
-      const x = sx * (W / 2 - 0.05), z = cz + sz2 * (cD / 2 - 0.05);
-      if (p.base === "feet") K.cyl(0.032, 0.026, footH, x, footH / 2, z, body, 10);
-      else K.cyl(0.022, 0.013, footH, x, footH / 2, z, L(LEG_WOOD, "wood"), 10);
+      const x = sx * (W / 2 - ix), z = cz + sz2 * (cD / 2 - iz);
+      if (p.base === "feet") K.cyl(0.026, 0.02, footH, x, footH / 2, z, L(BLACK, "satin"), 12);
+      else leg(K, x, z, footH + 0.002, 0.02, L(LEG_WOOD, "wood"), 0.55, clamp(ix - 0.025, 0, 0.02), sx * 0.7, sz2 * 0.7);
     }
   }
-  const y0 = footH + 0.015, y1 = H - 0.02, colW = (W - 0.03) / p.columns;
+  const y0 = footH + 0.01, y1 = H - 0.015, colW = (W - 0.02) / p.columns;
   for (let c = 0; c < p.columns; c++) {
-    const x = -W / 2 + 0.015 + colW * (c + 0.5), hinge = c % 2 ? 1 : -1;
+    const x = -W / 2 + 0.01 + colW * (c + 0.5), hinge = c % 2 ? 1 : -1;
     if (p.fronts === "drawers") drawers(K, x, colW, y0, y1, p.rows, zf, front, p.handles, hl);
     else if (p.fronts === "doors") door(K, x, colW, y0, y1, zf, front, p.handles, hl, hinge);
     else {
@@ -1524,16 +1581,22 @@ function buildTv(K, S, p, C, parts){
     K.box(Math.min(tvW * 0.45, W), 0.015, Math.min(0.24, D * 0.8), 0, footY + 0.0075, tvZ, tv, 0.004);
   }
 }
-// The media unit under a TV: open shelves (low) or doors (cabinet), on short legs.
+// The media unit under a TV: open shelves (low) or doors (cabinet). Modern:
+// a long low body up on slim tapered legs, flush fronts with thin gaps.
 function mediaUnit(K, W, D, H, kind, look, c){
-  const legs = Math.min(0.06, H * 0.2), body = H - legs, face = D / 2 - 0.008;
-  K.box(W, body, D - 0.008, 0, legs + body / 2, -0.004, look, 0.008);
-  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(0.04, legs, 0.04, sx * (W / 2 - 0.05), legs / 2, sz2 * (D / 2 - 0.05), L(LEG_DARK, "wood"));
+  const legs = Math.min(0.1, H * 0.22), body = H - legs, face = D / 2 - 0.008;
+  K.box(W, body, D - 0.008, 0, legs + body / 2, -0.004, look, 0.01);
+  const lx = W / 2 - Math.min(0.08, W * 0.1), lz = D / 2 - Math.min(0.06, D * 0.18);
+  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) leg(K, sx * lx, sz2 * lz, legs + 0.002, Math.min(0.016, D * 0.08), L(LEG_DARK, "wood"), 0.6);
   if (kind === "cabinet") {
-    const n = W > 1.4 ? 3 : 2, dw = (W - 0.03) / n;
-    for (let i = 0; i < n; i++) K.box(dw - 0.006, body - 0.03, 0.008, -W / 2 + 0.015 + dw * (i + 0.5), legs + body / 2, face + 0.004, L(lighten(c, 0.08), "wood"), 0.002);
+    const n = W > 1.4 ? 3 : 2, dw = (W - 0.02) / n;
+    K.box(W - 0.02, body - 0.02, 0.003, 0, legs + body / 2, face + 0.0015, L(GAP));
+    for (let i = 0; i < n; i++) K.box(dw - 0.005, body - 0.025, 0.008, -W / 2 + 0.01 + dw * (i + 0.5), legs + body / 2, face + 0.004, L(lighten(c, 0.06), "wood"), 0.002);
   } else {
-    K.box(W - 0.06, body * 0.5, 0.008, 0, legs + body * 0.5, face + 0.004, L(darken(c, 0.55)));
+    // An open shelf the length of it, a thin divider at each third.
+    const sh = body * 0.56, sy = legs + body * 0.5, dark = L(darken(c, 0.55));
+    K.box(W - 0.05, sh, 0.004, 0, sy, face + 0.002, dark);
+    for (const x of [-W / 6, W / 6]) K.box(0.016, sh, 0.008, x, sy, face + 0.004, look);
   }
 }
 
@@ -1544,7 +1607,7 @@ function buildLamp(K0, S, p, C, parts){
   const K = K0.child(null, [W / 2 / R, 1, D / 2 / R]);
   const table = p.style === "table", globe = p.shade === "globe";
   const shH = globe ? Math.min(2 * R, H * 0.45) : clamp(H * (table ? 0.42 : 0.26), 0.06, 0.55);
-  const shBot = H - shH, baseT = Math.min(0.03, shBot * 0.12);
+  const shBot = H - shH, baseT = Math.min(0.02, shBot * 0.1);
   if (p.base === "tripod") {
     const hubY = shBot * (table ? 0.55 : 0.4);
     for (let i = 0; i < 3; i++) {
@@ -1553,14 +1616,15 @@ function buildLamp(K0, S, p, C, parts){
     }
     K.cyl(0.012, 0.012, shBot - hubY + 0.02, 0, hubY + (shBot - hubY + 0.02) / 2, 0, base, 8);
   } else {
-    const bR = R * (table ? 0.55 : 0.7);
-    if (p.base === "round") K.cyl(bR, bR, baseT, 0, baseT / 2, 0, base, 24);
-    else K.box(bR * 1.8, baseT, bR * 1.8, 0, baseT / 2, 0, base, 0.004);
+    const bR = R * (table ? 0.5 : 0.62);
+    if (p.base === "round") K.cyl(bR, bR * 1.02, baseT, 0, baseT / 2, 0, base, 24);
+    else K.box(bR * 1.7, baseT, bR * 1.7, 0, baseT / 2, 0, base, 0.004);
     if (table) {
-      const bodyH = (shBot - baseT) * 0.7;
-      K.cyl(R * 0.3, R * 0.42, bodyH, 0, baseT + bodyH / 2, 0, L(C[1], "gloss"), 20);
-      K.cyl(0.01, 0.01, shBot - baseT - bodyH + 0.02, 0, baseT + bodyH + (shBot - baseT - bodyH) / 2, 0, base, 8);
-    } else K.cyl(0.013, 0.013, shBot - baseT + 0.02, 0, baseT + (shBot - baseT) / 2, 0, base, 10);
+      // A turned ceramic body, round and tapering to the neck.
+      const bodyH = (shBot - baseT) * 0.72, bw = R * 0.42;
+      K.lathe([[bw * 0.55, 0], [bw * 0.9, bodyH * 0.25], [bw, bodyH * 0.5], [bw * 0.75, bodyH * 0.82], [bw * 0.3, bodyH]], 0, baseT, 0, L(C[1], "satin"), 20);
+      K.cyl(0.008, 0.008, shBot - baseT - bodyH + 0.02, 0, baseT + bodyH + (shBot - baseT - bodyH) / 2, 0, base, 8);
+    } else K.cyl(0.01, 0.01, shBot - baseT + 0.02, 0, baseT + (shBot - baseT) / 2, 0, base, 10);
   }
   const shadeMesh = K.own(shade, (k) => (globe ? k.ball(shH / 2, 0, shBot + shH / 2, 0, shade, null, null, 20)
     : k.cyl(p.shade === "cone" ? R * 0.5 : R * 0.96, R, shH, 0, shBot + shH / 2, 0, shade, 24)));
@@ -1591,11 +1655,11 @@ function buildRug(K, S, p, C){
 
 // Shelf: a bookcase, an open frame or boards on the wall; the back at −z and
 // any books standing toward it.
-const BOOKS = ["#2f4f6f", "#7a2e2e", "#c9a227", "#3d5a3d", "#e8e0d0"];
+const BOOKS = ["#46576a", "#8a5a4c", "#c9b48c", "#5d6b58", "#e6e0d4", "#2f3236"];   // muted, as a modern shelf is styled
 function buildShelf(K, S, p, C){
   const { w: W, d: D, h: H } = S;
-  const frame = L(C[0], "wood"), n = p.shelves, t = Math.min(0.02, H / (n + 1) / 3), style = p.style;
-  const back = p.back && style !== "wall" ? 0.008 : 0, side = style === "bookcase" ? t : style === "open" ? 0.025 : 0;
+  const frame = L(C[0], "wood"), n = p.shelves, t = Math.min(0.018, H / (n + 1) / 3), style = p.style;
+  const back = p.back && style !== "wall" ? 0.006 : 0, side = style === "bookcase" ? t : style === "open" ? 0.02 : 0;
   const base = style === "bookcase" ? Math.min(0.06, H * 0.1) : style === "wall" ? Math.min(0.05, H * 0.12) : 0;
   const ys = [];
   for (let i = 0; i <= n; i++) ys.push(base + t / 2 + (H - base - t) * i / n);
@@ -1603,13 +1667,14 @@ function buildShelf(K, S, p, C){
   for (const y of ys) K.box(bw, t, D - back, 0, y, back / 2, frame, 0.004);
   if (style === "bookcase") {
     for (const s of [-1, 1]) K.box(t, H, D, s * (W / 2 - t / 2), H / 2, 0, frame, 0.004);
-    K.box(bw, base, D - back - 0.03, 0, base / 2, back / 2 - 0.015, L(darken(C[0], 0.2), "wood"));
+    plinth(K, bw, -D / 2 + back, D / 2, base, 0.03, 0);
   } else if (style === "open") {
-    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(0.025, H, 0.025, sx * (W / 2 - 0.0125), H / 2, sz2 * (D / 2 - 0.0125), L(METAL, "metal"));
+    // A slim black frame.
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(0.02, H, 0.02, sx * (W / 2 - 0.01), H / 2, sz2 * (D / 2 - 0.01), L(BLACK, "metal"), 0.003);
   } else {
-    // Brackets under each board, against the wall.
-    const bh = Math.min(0.05, base), bd = Math.min(0.06, D * 0.5);
-    for (const y of ys) for (const s of [-1, 1]) K.box(0.02, bh, bd, s * bw * 0.35, y - t / 2 - bh / 2, -D / 2 + bd / 2, L(METAL, "metal"));
+    // Slim black brackets under each board, against the wall.
+    const bh = Math.min(0.04, base), bd = Math.min(0.06, D * 0.5);
+    for (const y of ys) for (const s of [-1, 1]) K.box(0.012, bh, bd, s * bw * 0.35, y - t / 2 - bh / 2, -D / 2 + bd / 2, L(BLACK, "metal"));
   }
   if (back) K.box(W - side, H - base, back, 0, base + (H - base) / 2, -D / 2 + back / 2, frame);
   if (p.books === "none") return;
@@ -1638,9 +1703,10 @@ function buildWardrobe(K, S, p, C){
   const body = L(C[0], "wood"), front = L(C[1], "wood"), hl = L(METAL, "metal"), glass = L("#c9d3d8", "gloss");
   const sliding = p.style === "sliding", hd = p.handles === "none" ? 0 : HANDLE_D, ft = sliding ? 0.05 : 0.024;
   const cD = D - ft - hd, cz = -D / 2 + cD / 2, zf = -D / 2 + cD;
-  const plinth = Math.min(0.08, H * 0.06), y0 = plinth + 0.01, y1 = H - 0.02;
-  K.box(W, H - plinth, cD - GAP_T, 0, plinth + (H - plinth) / 2, cz - GAP_T / 2, body, 0.008);
-  K.box(W - 0.02, plinth, cD - 0.02, 0, plinth / 2, cz, L(darken(C[0], 0.25), "wood"));
+  // On a dark plinth set back under the doors.
+  const ph = Math.min(0.07, H * 0.05), y0 = ph + 0.008, y1 = H - 0.015;
+  K.box(W, H - ph, cD - GAP_T, 0, ph + (H - ph) / 2, cz - GAP_T / 2, body, 0.008);
+  plinth(K, W, -D / 2, zf, ph, 0.05, 0.02);
   const drH = p.drawers ? Math.min(0.2 * p.drawers, (y1 - y0) * 0.35) : 0;
   if (p.drawers) {
     // Under sliding doors the drawers come forward to the front track.
@@ -1672,30 +1738,50 @@ function buildWardrobe(K, S, p, C){
 function buildPlant(K0, S, p, C){
   const { w: W, d: D, h: H } = S;
   const R = Math.min(W, D) / 2, K = K0.child(null, [W / 2 / R, 1, D / 2 / R]);
-  const leaf = L(C[0], "soft"), pot = L(C[1], "gloss"), soil = L("#3b2a1e");
+  const leaf = L(C[0], "soft"), pot = L(C[1], "satin"), soil = L("#3b2a1e");
   const potH = p.pot === "none" ? 0 : clamp(H * 0.3, 0.04, 0.45), potR = R * (p.style === "tree" || p.style === "palm" ? 0.6 : 0.75);
   if (p.pot === "round") {
-    K.cyl(potR, potR * 0.78, potH, 0, potH / 2, 0, pot, 20);
+    K.cyl(potR, potR * 0.86, potH, 0, potH / 2, 0, pot, 20);
     K.cyl(potR * 0.9, potR * 0.9, 0.008, 0, potH - 0.003, 0, soil, 20);
   } else if (p.pot === "square") {
     K.box(potR * 1.75, potH, potR * 1.75, 0, potH / 2, 0, pot, 0.02);
     K.box(potR * 1.6, 0.008, potR * 1.6, 0, potH - 0.003, 0, soil);
   }
-  const fh = H - potH, y0 = potH, ball = (x, y, z, r) => K.ball(r, x, y, z, leaf, null, null, 12);
+  const fh = H - potH, y0 = potH, ball = (x, y, z, r, look = leaf, scl = null) => K.ball(r, x, y, z, look, scl, null, 12);
   if (p.style === "bush") {
-    // A ring of leaves on the pot, a crown at the top, and leaves between.
-    const r1 = Math.min(R * 0.42, fh * 0.32), r0 = Math.min(R * 0.6, fh * 0.42), rm = Math.min(R * 0.55, fh * 0.4);
-    for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; ball(Math.cos(a) * (R - r1), y0 + r1, Math.sin(a) * (R - r1), r1); }
-    ball(0, H - r0, 0, r0);
-    for (let y = y0 + r1 * 1.7 + rm * 0.6, i = 0; y < H - r0 * 1.7 - rm * 0.2; y += rm * 1.2, i++) {
-      const a = i * 2.4;
-      ball(Math.cos(a) * R * 0.15, y, Math.sin(a) * R * 0.15, rm);
+    // Long leaves rising from the pot and arching out, the inner ones
+    // upright and darker, the outer ones leaning further: a leafy houseplant.
+    // A plant taller than its leaves reach grows a stem, its leaves up it.
+    const n = K.hi ? 13 : 9, inner = L(darken(C[0], 0.18), "soft");
+    let stemTop = 0;
+    for (let i = 0; i < n; i++) {
+      const tier = i % 3, a = i * 2.39996 + 0.3, lean = [0.2, 0.5, 0.85][tier], lf = [1, 0.84, 0.66][tier];
+      const b = R * [0.06, 0.14, 0.22][tier], sl = Math.sin(lean), cl = Math.cos(lean), ca = Math.cos(a), sa = Math.sin(a);
+      const ax = [[sl * ca, cl, sl * sa], [cl * ca * 0.16, -sl * 0.16, cl * sa * 0.16], [-sa * 0.42, 0, ca * 0.42]];
+      const ext = (k) => Math.hypot(ax[0][k], ax[1][k], ax[2][k]);
+      // As long as it can be and still stay inside the plant's box.
+      let rl = fh * lf / (ax[0][1] + ext(1)) * 0.98;
+      for (const [k, c0] of [[0, b * ca], [2, b * sa]]) for (const s2 of [-1, 1]) {
+        const den = s2 * ax[0][k] + ext(k);
+        if (den > 1e-6) rl = Math.min(rl, (R * 0.98 - s2 * c0) / den);
+      }
+      const reach = rl * (ax[0][1] + ext(1)), yb = y0 + Math.max(0, fh * lf - reach) * [0.95, 0.62, 0.3][tier];
+      stemTop = Math.max(stemTop, yb - y0);
+      if (rl > 0.01) K.ball(rl, b * ca + ax[0][0] * rl, yb + ax[0][1] * rl, b * sa + ax[0][2] * rl, tier === 0 ? inner : leaf,
+                            [0.16, 1, 0.42], [0, -a, -lean], 10);
     }
+    if (stemTop > 0.02) K.cyl(Math.min(0.012, R * 0.08), Math.min(0.016, R * 0.1), stemTop + 0.02, 0, y0 + (stemTop + 0.02) / 2, 0, L(darken(C[0], 0.35), "soft"), 8);
   } else if (p.style === "tree") {
-    const tr = clamp(R * 0.08, 0.008, 0.05), rt = Math.min(R * 0.55, fh * 0.22), rr = Math.min(R * 0.45, fh * 0.2);
-    K.cyl(tr * 0.8, tr, fh * 0.6, 0, y0 + fh * 0.3, 0, L("#6b4a32", "wood"), 8);
-    ball(0, H - rt, 0, rt);
-    for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; ball(Math.cos(a) * (R - rr), H - rt * 2.1, Math.sin(a) * (R - rr), rr); }
+    // A slim trunk under a loose crown of soft, flattened clusters.
+    const tr = clamp(R * 0.07, 0.008, 0.04), crownH = Math.min(fh * 0.55, R * 1.7), rc = Math.min(R * 0.42, crownH * 0.62), fy = 0.66;
+    const yc = H - crownH / 2;
+    K.cyl(tr * 0.7, tr, yc - y0, 0, (y0 + yc) / 2, 0, L("#6b4a32", "wood"), 8);
+    const dark = L(darken(C[0], 0.15), "soft"), ring = R - rc;
+    ball(0, H - rc * fy, 0, rc, leaf, [1, fy, 1]);
+    for (let i = 0; i < 5; i++) {
+      const a = i * Math.PI * 2 / 5 + 0.4, y = Math.max(yc - crownH * 0.18 + (i % 2) * crownH * 0.16, y0 + rc * fy);
+      ball(Math.cos(a) * ring, y, Math.sin(a) * ring, rc * 0.92, i % 2 ? leaf : dark, [1, fy, 1]);
+    }
   } else if (p.style === "palm") {
     // Arching fronds: each rises from the top of the trunk, then droops.
     const l1 = R * 0.5, l2 = R * 0.46, up = 0.6, down = -0.35, wid = Math.min(0.14, R * 0.3);
