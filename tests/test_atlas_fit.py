@@ -56,7 +56,7 @@ def test_every_house_was_tried_on_every_screen(fit) -> None:
     assert len(names) >= 5 * 6, names                   # four fixture houses and the estate, six screen shapes
 
 
-def test_a_wall_arranges_its_own_floors_and_reads_no_saved_spacing() -> None:
+def test_a_wall_that_asks_arranges_its_own_floors_and_every_other_wall_stacks_them_as_saved() -> None:
     lm = _js(_WWW / "views" / "lights_map.js")
     # before the frame is built, every time a card is; and again when a kept card's wall changed shape
     assert "  if (WALL) _fitWall(host, view, floors);\n" in lm
@@ -69,7 +69,11 @@ def test_a_wall_arranges_its_own_floors_and_reads_no_saved_spacing() -> None:
     # the box hugs the house on a wall only
     assert "...(WALL ? { hugX: true } : {})," in lm
     panel = _js(_WWW / "lights_panel.js")
-    assert '_wallFitted(){ return this.hasAttribute("data-wall") && !this._view.fitByHand; }' in panel
+    # only a wall that asks (?arrange=1): the owner wants the floors stacked as saved, one on top of the other
+    assert 'if (view.fitByHand || host.wallArrange !== true) { view.fitted = false; return false; }' in lm
+    assert '_wallArranges(){ try { return new URLSearchParams(location.search).get("arrange") === "1"; } catch(_) { return false; } }' in panel
+    assert '_wallFitted(){ return this.hasAttribute("data-wall") && this._wallArranges() && !this._view.fitByHand; }' in panel
+    assert "wallArrange: this._wallArranges()," in panel
     load = panel[panel.index("async _loadSettings(applyView=true){"):panel.index("// Per-light shape overrides")]
     assert "if(!this._wallFitted()){\n          this._view.floorGap = s.overview_iso_floor_gap ?? 150;" in load
     save = panel[panel.index("async _saveSettings(){"):panel.index("async _saveSettings(){") + 900]
@@ -84,7 +88,8 @@ def test_the_wall_checks_itself_after_every_drawing_and_never_stays_far_back() -
     check = lm[lm.index("  const checkFill = () => {"):lm.index("  let drawnWhole = false;")]
     # judged against the size THIS stage allows, at 100%, for the whole house, and never over a person's own zoom
     assert "FIT.bestLayout(shapes, sw, sh)" in check and "FIT.shortfall(drawnAt100(), best && best.px)" in check
-    assert "if (short.known && short.low && whole && (view.zoom || 1) === 1 && !view.zoomByHand) {" in check
+    # and only over an arrangement the wall made itself: a saved stack is measured and left alone
+    assert "if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand) {" in check
     assert "if (h3 && la3dOn())" in check or "(h3 && la3dOn())" in check          # not while the 3D house shows
     for key in ("fillRatio", "fillLow", "fillCloser", "fillZoom", "fitted"):
         assert f"isoDiv.dataset.{key} = " in check, key

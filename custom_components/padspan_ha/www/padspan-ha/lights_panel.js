@@ -762,8 +762,10 @@ class PadSpanLightsApp extends HTMLElement {
     document.body.appendChild(overlay);
   }
 
-  /** This screen is a wall whose floors are arranged for its shape (not moved by hand here). */
-  _wallFitted(){ return this.hasAttribute("data-wall") && !this._view.fitByHand; }
+  /** This screen is a wall that asked for its floors arranged for its shape (?arrange=1 on its link), not moved by
+   *  hand here. Every other wall stacks its floors with the saved Spacing and L/R, as every screen does. */
+  _wallArranges(){ try { return new URLSearchParams(location.search).get("arrange") === "1"; } catch(_) { return false; } }
+  _wallFitted(){ return this.hasAttribute("data-wall") && this._wallArranges() && !this._view.fitByHand; }
 
   async _saveSettings(){
     try{
@@ -1005,6 +1007,7 @@ class PadSpanLightsApp extends HTMLElement {
       // floors are arranged for (views/atlas_fit.js).
       wallStage: ()=>{ const r = this.getAttribute("data-wall-rotate"), w = window.innerWidth || 0, h = window.innerHeight || 0;
         return r === "90" || r === "270" ? [h, w] : [w, h]; },
+      wallArrange: this._wallArranges(),
       // The drawing already grows with the screen (a 4K wall draws it twice a
       // 1080p one); room names take the rest of the wall's scale.
       wallLabel: ()=>Math.max(1, (this._wallUi || 1) / (this._wallPx || 1)),

@@ -51,10 +51,13 @@ function _wallLayout(host, floors){
   _fitMemo.set(host.model, { key, floors, fit });
   return fit;
 }
-/** A wall's floors arranged for its own shape, written into the card's view: true when that changed the view. Not while
- *  someone has moved Spacing or L/R on this wall by hand (view.fitByHand), nor with it switched off (host.wallArrange). */
+/** A wall's floors arranged for its own shape, written into the card's view: true when that changed the view. ONLY where
+ *  the screen asks for it (host.wallArrange === true: the wall's link carries ?arrange=1). The owner, 2026-11-19, an
+ *  hour after it shipped as every wall's default: the floors belong one on top of the other, as saved; stepped
+ *  sideways they "screw up the multi floor viewing". So a wall draws with the saved Spacing and L/R unless told
+ *  otherwise, and never while someone has moved either by hand here (view.fitByHand). */
 function _fitWall(host, view, floors){
-  if (view.fitByHand || host.wallArrange === false) { view.fitted = false; return false; }
+  if (view.fitByHand || host.wallArrange !== true) { view.fitted = false; return false; }
   const fit = _wallLayout(host, floors);
   if (!fit) return false;
   const changed = view.floorGap !== fit.floorGap || view.horizGap !== fit.horizGap;
@@ -3797,8 +3800,8 @@ export function buildLightsMapCard(hostIn){
     drawers[name].appendChild(node);
   };
 
-  // A wall arranges its floors for ITS shape, every time it draws (atlas_fit.js). The saved Spacing and L/R are the
-  // other screens': one number for every screen is what kept opening the wall on a small house in a lot of space.
+  // A wall that asks for it (?arrange=1) arranges its floors for ITS shape, every time it draws (atlas_fit.js). Every
+  // other wall stacks them as saved (Spacing and L/R under Layout & view), one on top of the other.
   if (WALL) _fitWall(host, view, floors);
   // Floors come from the FABRIC (which floors actually contain rooms/lights),
   // never from which photos happen to be uploaded. A floor with no plan image
@@ -4404,7 +4407,7 @@ export function buildLightsMapCard(hostIn){
       } catch (_) { best = null; }
       const short = FIT.shortfall(drawnAt100(), best && best.px);
       let closer = isoDiv.dataset.fillCloser === "1";
-      if (short.known && short.low && whole && (view.zoom || 1) === 1 && !view.zoomByHand) {
+      if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand) {
         const z = Math.min(2.5, Math.round((0.98 / short.ratio) * 100) / 100);
         if (z > 1.05) {
           view.zoom = z;
@@ -4421,7 +4424,7 @@ export function buildLightsMapCard(hostIn){
       const fill = FIT.fillOf(houseOnScreen(), stageOnScreen());
       if (!short.known) return;
       isoDiv.dataset.fillRatio = short.ratio.toFixed(3);
-      isoDiv.dataset.fillLow = short.low && whole && !closer ? "1" : "0";
+      isoDiv.dataset.fillLow = short.low && whole && !closer && view.fitted ? "1" : "0";
       isoDiv.dataset.fillCloser = closer ? "1" : "0";
       isoDiv.dataset.fillW = fill.known ? fill.w.toFixed(3) : "";
       isoDiv.dataset.fillH = fill.known ? fill.h.toFixed(3) : "";

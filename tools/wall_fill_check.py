@@ -54,6 +54,7 @@ def main() -> int:
     ap.add_argument("--sizes", nargs="*", default=SIZES)
     ap.add_argument("--out", type=Path, default=HERE / "live_out" / ("wall-fill-" + time.strftime("%Y%m%d-%H%M%S")))
     ap.add_argument("--port", type=int, default=8923)
+    ap.add_argument("--arrange", action="store_true", help="the wall's own arrangement (?arrange=1), not the saved stack")
     ap.add_argument("--settle", type=int, default=9000, help="ms to let the page load and draw")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
@@ -65,14 +66,14 @@ def main() -> int:
         tokens = json.dumps({"access_token": token, "token_type": "Bearer", "expires_in": ten, "hassUrl": ha, "clientId": ha + "/",
                              "refresh_token": "", "expires": int(time.time() * 1000) + ten * 1000})
         init = f"if (location.origin === {json.dumps(ha)}) localStorage.setItem('hassTokens', {json.dumps(tokens)});"
-        url = ha + "/padspan-lights?kiosk=1"
+        url = ha + "/padspan-lights?kiosk=1" + ("&arrange=1" if a.arrange else "")
     else:
         from build import build  # noqa: PLC0415
         tmp = tempfile.TemporaryDirectory()
         dist = build(Path(tmp.name) / "dist")
         server = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), functools.partial(Quiet, directory=str(dist)))
         threading.Thread(target=server.serve_forever, daemon=True).start()
-        url = f"http://127.0.0.1:{a.port}/index.html?page=atlas&kiosk=1"
+        url = f"http://127.0.0.1:{a.port}/index.html?page=atlas&kiosk=1" + ("&arrange=1" if a.arrange else "")
     bad = 0
     try:
         with sync_playwright() as p:
