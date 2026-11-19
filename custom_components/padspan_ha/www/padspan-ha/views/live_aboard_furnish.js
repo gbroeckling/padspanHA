@@ -1187,7 +1187,7 @@ export function createFurnish(ctx){
     const p = sel && pieceOf(sel), F = p && floorById(p.floor_id);
     if (!p || !F) return;
     const mid = hangAt && hangAt.id === p.id ? hangAt.v : PIECES.HANG_MID_M;
-    const r = PIECES.hangOnWall(p, null, wallsOf(F), mid, ceilOf(F));
+    const r = PIECES.hangOnWall(p, null, wallsOf(F), mid, ceilOf(F), FURN());
     if (!r) { ctx.hint("No wall near enough to hang it on at that height.", true); return; }
     edit((q) => { q.x_m = r.x_m; q.y_m = r.y_m; q.z_m = r.z_m; q.rotation = r.rotation; }, null, true);
     measure = true;

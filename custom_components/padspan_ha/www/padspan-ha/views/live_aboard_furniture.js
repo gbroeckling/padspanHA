@@ -468,8 +468,12 @@ export const STARTER_SET = [
 // clampRecipe keeps as it is.
 const rec = (kind, params = {}, size = {}, colors = null) => starter("", kind, params, size, colors).recipe;
 const WALL_UNIT_Z = 1.45;                      // a wall cabinet's bottom, over a 0.9 m worktop
-const setRow = (wall, from, items, z = 0) => ({ wall, from, ...(z ? { z } : {}), items: items.map((it) => (it && it.r ? it : { r: it })) });
+const setRow = (wall, from, items, z = 0, fill = null) =>
+  ({ wall, from, ...(z ? { z } : {}), ...(fill ? { fill } : {}), items: items.map((it) => (it && it.r ? it : { r: it })) });
 const wallUnits = (n) => Array.from({ length: n }, () => rec("wall_cabinet"));
+// What a run closes up to its corner with (2026-11-19): units of this kind,
+// as narrow and as wide as its builder makes them.
+const runFill = (kind) => ({ r: rec(kind), min: FURNITURE[kind].size.width_m[0], max: FURNITURE[kind].size.width_m[1] });
 const bedside = () => rec("dresser", { fronts: "drawers", columns: 1, rows: 2, base: "feet", handles: "knob" }, { width_m: 0.45, depth_m: 0.4, height_m: 0.55 });
 const tableLamp = () => rec("lamp", { style: "table", shade: "drum", base: "round" }, { width_m: 0.3, depth_m: 0.3, height_m: 0.5 });
 const bookcase = () => rec("shelf", { style: "bookcase", shelves: 5, books: "some" }, { width_m: 0.8, depth_m: 0.32, height_m: 1.8 });
@@ -479,9 +483,10 @@ export const ROOM_SETS = [
                                     rec("sink"), rec("dishwasher"), rec("stove"), rec("base_cabinet"), rec("base_cabinet")]),
            setRow("back", "start", wallUnits(6), WALL_UNIT_Z)], free: [] },
   { id: "kitchen_l", name: "Kitchen, L-shaped", about: "a run along one wall and round the corner, wall cabinets over them",
-    rows: [setRow("back", "end", [rec("base_cabinet", { fronts: "drawers" }), rec("sink"), rec("dishwasher"), rec("tall_cabinet", { fronts: "oven" }), rec("fridge")]),
+    rows: [setRow("back", "end", [rec("base_cabinet", { fronts: "drawers" }), rec("sink"), rec("dishwasher"), rec("tall_cabinet", { fronts: "oven" }), rec("fridge")],
+                  0, runFill("base_cabinet")),
            setRow("left", "start", [rec("base_cabinet"), rec("stove"), rec("base_cabinet", { fronts: "drawers" }), rec("base_cabinet")]),
-           setRow("back", "end", wallUnits(5), WALL_UNIT_Z), setRow("left", "start", wallUnits(4), WALL_UNIT_Z)], free: [] },
+           setRow("back", "end", wallUnits(5), WALL_UNIT_Z, runFill("wall_cabinet")), setRow("left", "start", wallUnits(4), WALL_UNIT_Z)], free: [] },
   { id: "bathroom", name: "Bathroom", about: "a toilet and a basin on one wall, a bath (or a shower) across from them",
     rows: [setRow("back", "center", [rec("wc"), rec("basin")]),
            setRow("front", "start", [{ r: rec("bath"), alt: [rec("shower")] }])], free: [] },

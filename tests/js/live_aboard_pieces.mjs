@@ -485,8 +485,9 @@ tryCase("sets: a kitchen whose row passes under a window puts its sink there; a 
   const galley = per2.rooms.find(r => r.name === "Galley"), set = SETS.find(s => s.id === "kitchen_row");
   const ps = asPieces(P.layoutSet(set, galley.pts, walls2, { doors: doors2, B: F }), "c");
   const base = ps.filter(p => p.z_m === 0).sort((p, q) => p.x_m - q.x_m), sink = base.find(p => p.recipe.kind === "sink");
-  // Its middle under the window's middle (x 2.9), its back on the window's wall (y = 0), facing into the room.
-  const under = !!sink && Math.abs(sink.x_m - 2.9) < 0.05 && sink.y_m < 0.4 && sink.rotation === 0;
+  // Its middle under the window's middle (x 2.9) as near as 0.6 m units allow from a run flush in the corner
+  // (2.8; unmoved it stays 2.2), its back on the window's wall (y = 0), facing into the room.
+  const under = !!sink && Math.abs(sink.x_m - 2.9) <= 0.1 + 1e-6 && sink.y_m < 0.4 && sink.rotation === 0;
   const warn = ps.flatMap(p => P.fitChecks(p, { walls: walls2, doors: doors2, others: ps, B: F }).map(w => `${p.recipe.kind}: ${w.kind}`));
   // The kitchen above (its window across the room from the row): the set's own order, the sink fourth.
   const kitchen = per.rooms.find(r => r.name === "Kitchen");

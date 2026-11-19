@@ -334,12 +334,13 @@ export function standOn(p, others){
 }
 /** Hang on wall: its middle `mid` metres above the floor (kept under the
  *  ceiling `ceil`), its back flush against the nearest wall that is solid
- *  there (within HANG_REACH_M, its middle beside that wall's length), facing
- *  away from it. {x_m, y_m, z_m, rotation, wall} or null. */
-export function hangOnWall(p, size, walls, mid = HANG_MID_M, ceil){
+ *  there (within HANG_REACH_M, its middle beside that wall's length; a sink
+ *  or a basin up to its worktop or rim, as snapping: sillTop), facing away
+ *  from it. B: the builders, or null. {x_m, y_m, z_m, rotation, wall} or null. */
+export function hangOnWall(p, size, walls, mid = HANG_MID_M, ceil, B = null){
   const s = size || sizeOf(p && p.recipe);
   const z = clampZ((num(mid) ?? HANG_MID_M) - s.h / 2, ceil, s.h);
-  const at = snapToWall({ ...p, z_m: z }, s, walls, HANG_REACH_M);
+  const at = snapToWall({ ...p, z_m: z }, s, walls, HANG_REACH_M, B);
   return at ? { ...at, z_m: z } : null;
 }
 
@@ -359,6 +360,21 @@ export function doorSwings(walls, swingOf){
     const leaf = (w.els || []).find(e => e.leaf && !e.glass);
     out.push({ hx, hy, ux: ((hb ? w.x0 : w.x1) - hx) / len, uy: ((hb ? w.y0 : w.y1) - hy) / len,
                sx: w.nx * sw.side, sy: w.ny * sw.side, r: len, head: leaf ? leaf.z1 : 2.03 });
+  }
+  return out;
+}
+const WAY_M = 0.9;                         // an opening's way reaches out this far each side, at most
+/** The way through each door and doorway (an opening with no door has no
+ *  swing to keep clear, 2026-11-19): its width, out on both sides as far as
+ *  it is wide (as far as a door that wide swings; WAY_M at most), up to its
+ *  head. A room set keeps out of it. [{zone, head}] */
+function openingWays(walls){
+  const out = [];
+  for (const w of walls || []) {
+    if (w.kind !== "door" && w.kind !== "doorway") continue;
+    const parts = solidParts(w), wb = wallBox(w);
+    if (parts.some(e => e.z0 <= TOL_M && e.z1 >= 1)) continue;          // walled up here (a split level's gap under this floor)
+    out.push({ zone: { ...wb, hv: wb.hv + Math.min(wb.len, WAY_M) }, head: Math.min(Infinity, ...parts.filter(e => e.z0 > TOL_M).map(e => e.z0)) });
   }
   return out;
 }
@@ -519,16 +535,22 @@ export function stairForRoom(room, rise){
 // wall that is solid for its whole height there (snapToWall), so a row steps
 // past doorways, past windows too low for it (overSill, the fit check's own
 // rule: a sink fits under a sill as high as its worktop), and past whatever
-// already stands there. A kitchen's sink goes under a window its row passes
-// (2026-11-18). Its free pieces stand about the room (fractions of it) or by
-// a piece of the set (a coffee table before the sofa, chairs round the table,
-// a lamp on a bedside table). Every piece lies wholly inside the room, none
-// overlaps another (a rug lies under things), none is in a door's swing; a
-// piece with nowhere to go is left out. Each of the room's walls is tried as
-// the back, the longest first; the one that seats the most wins (a big piece,
-// a bed or a table, counting for more than a small one).
+// already stands there. A kitchen's sink, a bathroom's basin, goes under a
+// window its row passes (2026-11-18, 2026-11-19). In a room of odd shape a
+// wall of the frame need not be one of the room's: a row that finds no room
+// there tries the room's other wall runs, whole (2026-11-19). An
+// L-kitchen's run closes up to the corner (its fill). Its free pieces stand
+// about the room (fractions of it) or by a piece of the set (a coffee table
+// before the sofa, chairs round the table, a lamp on a bedside table). Every
+// piece lies wholly inside the room, none overlaps another (a rug lies under
+// things), none is in a door's swing or the way through a door or a doorway
+// (openingWays); a piece with nowhere to go is left out. Each of the room's
+// walls is tried as the back, the longest first; the one that seats the most
+// wins (a big piece, a bed or a table, counting for more than a small one).
 //
-// set = {rows: [{wall, from ("start" | "center" | "end"), z?, items}], free:
+// set = {rows: [{wall, from ("start" | "center" | "end"), z?, fill?: {r, min,
+// max} (a row from its end: the unit it closes up to its start with, its
+// narrowest and widest), items}], free:
 // [{r, key?, at?: [along, out] (0…1 of the room), rel?: key, off?: [across,
 // front] (m, in that piece's own frame), face?: "front" | "back" | "left" |
 // "right" | "anchor" | "same" | "away", on?: true}]}; a row's item is {r:
@@ -538,6 +560,7 @@ export function stairForRoom(room, rise){
 // x_m, y_m, z_m, rotation, key}], left_out}.
 export const SET_STEP_M = 0.05;            // a row looks for room in steps this long
 const SET_REACH_M = 0.4;                   // a row piece's back finds its wall this near
+const MOVED_SCORE = 0.75;                  // a row moved to another wall run counts for this much of one on its own wall
 /** Is box b wholly inside outline pts (its corners and the middles of its
  *  sides, 1 cm in: a piece flush on the outline's own line is in)? */
 function inRoom(b, pts){
@@ -566,9 +589,10 @@ export function layoutSet(set, pts, walls, opts = {}){
     edges.push({ a, u, n, len });
   }
   edges.sort((p, q) => q.len - p.len);
+  const ways = openingWays(W), runs = edges.map(e => ({ o: e.a, dir: e.u, face: e.n, len: e.len }));
   let best = null;
   for (const e of edges.slice(0, 8)) {
-    const got = layoutFrame(e, P, W, others, doors, rows, free, B);
+    const got = layoutFrame(e, P, W, others, doors, rows, free, B, ways, runs);
     if (!best || got.score > best.score) best = got;
   }
   if (!best) return { pieces: [], left_out: setCount(rows, free) };
@@ -576,8 +600,9 @@ export function layoutSet(set, pts, walls, opts = {}){
                                            key: q.key || null })),
            left_out: best.left };
 }
-/** One go at a set with edge e as the back wall: {placed, score, left}. */
-function layoutFrame(e, P, walls, others, doors, rows, free, B){
+/** One go at a set with edge e as the back wall: {placed, score, left}.
+ *  ways: openingWays; runs: the room's wall runs (its outline's edges) as lines. */
+function layoutFrame(e, P, walls, others, doors, rows, free, B, ways, runs){
   const { a, u, n } = e;
   const S = P.map(q => (q[0] - a[0]) * u[0] + (q[1] - a[1]) * u[1]), T = P.map(q => (q[0] - a[0]) * n[0] + (q[1] - a[1]) * n[1]);
   const s0 = Math.min(...S), s1 = Math.max(...S), t0 = Math.min(0, ...T), t1 = Math.max(...T);
@@ -591,38 +616,63 @@ function layoutFrame(e, P, walls, others, doors, rows, free, B){
     left:  { o: at(s0, t0), dir: n, face: u, len: t1 - t0 },
     right: { o: at(s1, t0), dir: n, face: [-u[0], -u[1]], len: t1 - t0 },
   };
-  // A frame's wall with the house's own wall pieces along it (else, with no
-  // walls drawn, a piece stands a typical half wall in from the outline).
-  const hasWall = (L) => walls.some(w => {
+  // The house's own wall pieces along a frame's wall (none drawn: a piece
+  // stands a typical half wall in from the outline). A row's piece snaps to
+  // these alone, so one in a corner is never taken by the wall across it.
+  const wallsAlong = (L) => walls.filter(w => {
     const wb = wallBox(w), cr = Math.abs(wb.u[0] * L.dir[1] - wb.u[1] * L.dir[0]);
     const d = Math.abs((wb.c[0] - L.o[0]) * L.face[0] + (wb.c[1] - L.o[1]) * L.face[1]);
     return cr < 0.05 && d < 0.3;
   });
+  const solid = walls.map(w => ({ wb: wallBox(w), parts: solidParts(w) }));
   // top: a row's piece, as high as a window's sill sees it (sillTop).
   const fits = (b, skip = null, top = null) => {
     if (!inRoom(b, P)) return false;
     if (isFlat(b)) return true;                               // a rug lies under things
+    if (solid.some(({ wb, parts }) => boxesOverlap(b, wb) && parts.some(el => spansOverlap(b.z0, b.z1, el.z0, el.z1)))) return false;
     for (const o of [...others, ...placed.map(q => q.b)]) {
       if (o === skip || isFlat(o)) continue;
       if (boxesOverlap(b, o) && spansOverlap(b.z0, b.z1, o.z0, o.z1)) return false;
     }
     if (top !== null && overSill(b, top, walls)) return false;
+    if (ways.some(o => b.z0 < o.head && boxesOverlap(b, o.zone))) return false;
     return !doors.some(dr => b.z0 < (num(dr.head) ?? 2.03) && swingHits(dr, b));
   };
   const boxAt = (recipe, c, rot, z) => boxOf({ recipe, x_m: c[0], y_m: c[1], z_m: z, rotation: rot });
   const keep = (recipe, b, rot, key) => { placed.push({ recipe, b, rot, key }); score += 1 + 4 * b.hu * b.hv; };
+  // Piece r of a row along line R (own: the wall pieces along it, wallsAlong),
+  // `pos` along it, `z` up: its box where it fits, its back flush on the wall
+  // there (only on a wall solid for its whole height), else null.
+  const rowBox = (R, own, r, pos, z, skip = null) => {
+    const s = sizeOf(r), rot = rotFacing(R.face[0], R.face[1]), along = pos + s.w / 2, out = s.d / 2 + 0.05;
+    let c = [R.o[0] + R.dir[0] * along + R.face[0] * out, R.o[1] + R.dir[1] * along + R.face[1] * out];
+    if (own.length) {
+      const sn = snapToWall({ recipe: r, x_m: c[0], y_m: c[1], z_m: z, rotation: rot }, s, own, SET_REACH_M, B);
+      if (!sn || Math.abs(((sn.rotation - rot + 540) % 360) - 180) > 1) return null;
+      c = [sn.x_m, sn.y_m];
+    }
+    const b = boxAt(r, c, rot, z);
+    return fits(b, skip, sillTop({ recipe: r, z_m: z }, s, B)) ? b : null;
+  };
+  const dot = (p, q) => p[0] * q[0] + p[1] * q[1];
+  const sameLine = (R, L) => Math.abs(R.dir[0] * L.dir[1] - R.dir[1] * L.dir[0]) < 0.05 && dot(R.face, L.face) > 0.95
+    && Math.abs(dot([R.o[0] - L.o[0], R.o[1] - L.o[1]], L.face)) < 0.05;
+  // A piece measured to its worktop at a window (a sink, a basin: sillTop, the builders' worktopOf).
+  const wet = (r) => !!r && sillTop({ recipe: r }, null, B) < sizeOf(r).h - TOL_M;
   // ── the rows ──
+  const settled = new Set(["back"]), laid = [];
   for (const row of rows) {
     if (!row) continue;
-    const L = lines[row.wall] || lines.back, items = Array.isArray(row.items) ? row.items : [];
-    const z = Math.max(0, num(row.z) ?? 0), walled = hasWall(L), rot = rotFacing(L.face[0], L.face[1]);
+    let L = lines[row.wall] || lines.back;
+    const items = Array.isArray(row.items) ? row.items : [], z = Math.max(0, num(row.z) ?? 0);
     const total = items.reduce((sum, it) => sum + sizeOf(it && it.r).w, 0);
     const from = row.from === "end" ? "end" : row.from === "center" ? "center" : "start";
     const n0 = placed.length, s0 = score, l0 = left;
-    // The row's pieces in the order seq, from its start (or end) along the wall.
-    const lay = (seq) => {
+    // The row's pieces in the order seq, from its start (or end) along line R.
+    const lay = (seq, R) => {
+      const own = wallsAlong(R), rot = rotFacing(R.face[0], R.face[1]);
       const order = from === "end" ? seq.map((_, i) => seq.length - 1 - i) : seq.map((_, i) => i);
-      let cur = from === "end" ? L.len : from === "center" ? Math.max(0, (L.len - total) / 2) : 0;
+      let cur = from === "end" ? R.len : from === "center" ? Math.max(0, (R.len - total) / 2) : 0;
       for (const i of order) {
         const it = seq[i];
         let done = false;
@@ -630,17 +680,9 @@ function layoutFrame(e, P, walls, others, doors, rows, free, B){
           const s = sizeOf(r);
           for (let k = 0; k < 400 && !done; k++) {
             const pos = from === "end" ? cur - s.w - k * SET_STEP_M : cur + k * SET_STEP_M;
-            if (pos < -1e-6 || pos + s.w > L.len + 1e-6) break;
-            const along = pos + s.w / 2, out = s.d / 2 + 0.05;
-            let c = [L.o[0] + L.dir[0] * along + L.face[0] * out, L.o[1] + L.dir[1] * along + L.face[1] * out];
-            if (walled) {
-              // Its back flush on the wall here, and only on a wall solid for its whole height.
-              const sn = snapToWall({ recipe: r, x_m: c[0], y_m: c[1], z_m: z, rotation: rot }, s, walls, SET_REACH_M, B);
-              if (!sn || Math.abs(((sn.rotation - rot + 540) % 360) - 180) > 1) continue;
-              c = [sn.x_m, sn.y_m];
-            }
-            const b = boxAt(r, c, rot, z);
-            if (!fits(b, null, sillTop({ recipe: r, z_m: z }, s, B))) continue;
+            if (pos < -1e-6 || pos + s.w > R.len + 1e-6) break;
+            const b = rowBox(R, own, r, pos, z);
+            if (!b) continue;
             keep(r, b, rot, it.key);
             cur = from === "end" ? pos : pos + s.w;
             done = true;
@@ -650,12 +692,36 @@ function layoutFrame(e, P, walls, others, doors, rows, free, B){
         if (!done) left++;
       }
     };
-    lay(items);
-    // A kitchen's sink under a window (2026-11-18): when this row passes under
-    // a window, the sink moves along the row to where it stands most nearly
-    // under its middle, the others keeping their order. The row starts where
-    // it did and every piece must still find its room, else it stays as it was.
-    const si = items.findIndex(it => it && it.r && it.r.kind === "sink");
+    lay(items, L);
+    // In a room of odd shape (2026-11-19) a wall of the frame (front, left,
+    // right) need not be one of the room's: a row that finds no room at all
+    // there (an L-shaped bedroom's wardrobe, its dresser) is laid, whole,
+    // along each of the room's other wall runs (those facing its way first,
+    // the longest first) and goes where most of it fits. The rows after it
+    // on that wall follow it (an L-kitchen's wall cabinets). A row that fits
+    // in part stays: a kitchen's run is shortened, not moved. Moved, it
+    // counts for less (MOVED_SCORE): a frame whose rows stand where the set
+    // means them (a sofa across from the TV) wins over one that moves them.
+    let moved = false;
+    if (!settled.has(row.wall) && left > l0 && placed.length === n0) {
+      let got = { L, placed: placed.slice(n0), score, left };
+      const tries = runs.filter(R => !sameLine(R, L)).sort((p, q) => dot(q.face, L.face) - dot(p.face, L.face) || q.len - p.len);
+      for (const R of tries) {
+        placed.length = n0; score = s0; left = l0;
+        lay(items, R);
+        if (score > got.score + 1e-9) got = { L: R, placed: placed.slice(n0), score, left };
+      }
+      placed.length = n0; placed.push(...got.placed); score = got.score; left = got.left;
+      moved = got.L !== L; L = got.L;
+      if (lines[row.wall]) lines[row.wall] = L;
+    }
+    settled.add(row.wall);
+    // A kitchen's sink, a bathroom's basin, under a window (2026-11-18,
+    // 2026-11-19): when this row passes under a window, the sink moves along
+    // the row to where it stands most nearly under its middle, the others
+    // keeping their order. The row starts where it did and every piece must
+    // still find its room, else it stays as it was.
+    const si = items.findIndex(it => it && wet(it.r));
     const panes = si < 0 ? [] : walls.filter(w => w.kind === "window" && (w.els || []).some(el => el.glass))
       .map(w => ({ wb: wallBox(w), zone: windowZone(w) })).filter(pn => Math.abs(pn.wb.u[0] * L.dir[1] - pn.wb.u[1] * L.dir[0]) < 0.05);
     // How far a piece's middle is from the middle of the window it stands under (its middle within the window), or null.
@@ -663,7 +729,7 @@ function layoutFrame(e, P, walls, others, doors, rows, free, B){
       const o = Math.abs((q.b.c[0] - pn.wb.c[0]) * pn.wb.u[0] + (q.b.c[1] - pn.wb.c[1]) * pn.wb.u[1]);
       return boxesOverlap(q.b, pn.zone) && o <= pn.wb.hu && (d === null || o < d) ? o : d;
     }, null);
-    const mine = placed.slice(n0), sink = mine.find(q => q.recipe.kind === "sink");
+    const mine = placed.slice(n0), sink = mine.find(q => wet(q.recipe));
     const kindsOf = (qs) => qs.map(q => q.recipe.kind).sort().join();
     if (sink && mine.some(q => panes.some(pn => boxesOverlap(q.b, pn.zone)))) {
       const was = { d: offWindow(sink), placed: mine, score, left };
@@ -674,12 +740,46 @@ function layoutFrame(e, P, walls, others, doors, rows, free, B){
         const seq = items.filter((_, i) => i !== si);
         seq.splice(j, 0, items[si]);
         placed.length = n0; score = s0; left = l0;
-        lay(seq);
+        lay(seq, L);
         // The same pieces placed (none lost for it), the sink nearer the middle of a window.
-        const got = placed.slice(n0), s2 = got.find(q => q.recipe.kind === "sink"), d = s2 ? offWindow(s2) : null;
+        const got = placed.slice(n0), s2 = got.find(q => wet(q.recipe)), d = s2 ? offWindow(s2) : null;
         if (d !== null && kindsOf(got) === kindsOf(mine) && (best.d === null || d < best.d - 1e-6)) best = { d, placed: got, score, left };
       }
       placed.length = n0; placed.push(...best.placed); score = best.score; left = best.left;
+    }
+    if (moved) score = s0 + (score - s0) * MOVED_SCORE;
+    laid.push({ row, L, mine: placed.slice(n0) });
+  }
+  // ── closing a run (2026-11-19) ──
+  // A row laid from its end with a fill (an L-kitchen's run along the back
+  // wall) runs on toward its start up to what stands there (the other run's
+  // corner unit) or the end of the wall: units of the fill, none wider than
+  // it, the last as wide as what is left, so the worktop runs into the
+  // corner. A gap narrower than the narrowest unit widens the run's end unit
+  // when that is of the fill's kind. They are not the set's own pieces: they
+  // count for no frame.
+  for (const { row, L, mine } of laid) {
+    const f = row.fill, min = num(f && f.min) ?? 0, max = num(f && f.max) ?? 0;
+    if (!f || !f.r || row.from !== "end" || !mine.length || !(min > 0)) continue;
+    const z = Math.max(0, num(row.z) ?? 0), own = wallsAlong(L), rot = rotFacing(L.face[0], L.face[1]);
+    const lo = (q) => dot([q.b.c[0] - L.o[0], q.b.c[1] - L.o[1]], L.dir) - q.b.hu;   // where a piece of it starts along L
+    const end = mine.reduce((q0, q) => (lo(q) < lo(q0) ? q : q0)), to = mm(lo(end)), unit = (w) => ({ ...f.r, width_m: mm(w) });
+    // How much wall is free before it: the widest unit that fits there, to the
+    // centimetre; stopped by a piece (not the wall's end), a centimetre short
+    // of touching it.
+    let room = 0;
+    while (room + 0.01 <= to + 1e-6 && rowBox(L, own, unit(room + 0.01), to - room - 0.01, z)) room = mm(room + 0.01);
+    if (room + 0.01 <= to + 1e-6) room = mm(Math.max(0, room - TOL_M));
+    if (room >= min - 1e-6) {
+      for (let at0 = to, rest = room; rest >= min - 1e-6;) {
+        const w = mm(rest - sizeOf(f.r).w < min - 1e-6 ? Math.min(rest, max) : sizeOf(f.r).w), r = unit(w), b = rowBox(L, own, r, mm(at0 - w), z);
+        if (!b) break;
+        placed.push({ recipe: r, b, rot, key: null });
+        at0 = mm(at0 - w); rest = mm(rest - w);
+      }
+    } else if (room > 0 && end.recipe.kind === f.r.kind && sizeOf(end.recipe).w + room <= max + 1e-6) {
+      const r = { ...end.recipe, width_m: mm(sizeOf(end.recipe).w + room) }, b = rowBox(L, own, r, to - room, z, end.b);
+      if (b) { end.recipe = r; end.b = b; }
     }
   }
   // ── the free pieces ──

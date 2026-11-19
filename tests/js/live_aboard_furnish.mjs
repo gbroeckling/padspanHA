@@ -852,7 +852,8 @@ await tryCase("sets: Kitchen, one wall puts its sink under the room's window; th
   const set = FURN && (FURN.ROOM_SETS || []).find(s => s.id === "kitchen_row");
   if (set) { click("Build ▾", "la3d-tools"); click(set.name, "la3d-furmenu"); await settle(); }
   const sink = Object.values(draftPieces()).find(q => q.recipe.kind === "sink");
-  const under = !!sink && sink.floor_id === "basement" && Math.abs(sink.x_m - 2.9) < 0.05 && sink.y_m < 0.4 && sink.rotation === 0;
+  // As near the window's middle as 0.6 m units allow from a run flush in the corner (2.8; it stays 2.2 unmoved).
+  const under = !!sink && sink.floor_id === "basement" && Math.abs(sink.x_m - 2.9) <= 0.1 + 1e-6 && sink.y_m < 0.4 && sink.rotation === 0;
   if (sink) { slot._furnish().select(sink.id); await settle(); }
   const sinkSays = { checks: clone(fur().checks), warn: root().querySelectorAll(".la3d-warn").length };
   click("Undo", "la3d-tools"); await settle();                         // the set goes; a tall cabinet where its sink stood
