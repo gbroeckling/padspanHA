@@ -281,6 +281,68 @@ export function readoutOf(hass, eid){
   const motion = String(eid).startsWith("binary_sensor.") && ["motion", "occupancy"].includes(a.device_class);
   return `${a.friendly_name || eid}: ${val}${motion ? " · hold for its activity" : ""}`;
 }
+
+// ── Unlock asks first ────────────────────────────────────────────────────────
+// A door opened by one stray press on a wall screen or a phone in a pocket is
+// the one switch that can't be put right by pressing again. Every unlock —
+// toggleEntity (the room sheet's lock row, the index), the hold card's button
+// and the barrier card's — waits for "Unlock {name}?" here; Lock never asks.
+// In-page (window.confirm would freeze the wall screen's page and looks like
+// a browser warning), on top of the card or sheet it came from. Resolves true
+// for Unlock, false for Cancel, a tap beside the box or Escape.
+export function confirmUnlock(name){
+  return new Promise((resolve) => {
+    const el = _mkEl;
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10002;"
+      + "display:flex;align-items:center;justify-content:center;"
+      + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
+    let done = false;
+    const onKey = (e) => { if (e && e.key === "Escape") finish(false); };
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener("keydown", onKey, true);
+      overlay.remove();
+      resolve(ok);
+    };
+    overlay.addEventListener("click", e => { if (e.target === overlay) finish(false); });
+    const box = el("div", { role: "alertdialog", "aria-label": `Unlock ${name}?`, style:
+      "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
+      + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
+      + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
+      + "box-shadow:0 20px 60px rgba(0,0,0,.65)" });
+    box.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:14px" }, `Unlock ${name}?`));
+    const no = el("button", {
+      style: "padding:9px 14px;font-size:13px;border-radius:10px;cursor:pointer;"
+        + "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);color:#94a3b8",
+      onclick: (e) => { e.stopPropagation(); finish(false); },
+    }, "Cancel");
+    box.appendChild(el("div", { style: "display:flex;gap:8px" }, [
+      el("button", {
+        style: "flex:1;padding:9px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
+          + "background:#2d6a4f;color:#e2e8f0;border:1px solid #52b788",
+        onclick: (e) => { e.stopPropagation(); finish(true); },
+      }, "Unlock"),
+      no,
+    ]));
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    document.addEventListener("keydown", onKey, true);
+    // Enter on a keyboard must not unlock by itself: Cancel has the focus.
+    try { no.focus(); } catch (_) { /* no focus to give */ }
+  });
+}
+
+// Home Assistant's own more-info dialog for an entity. Home Assistant listens
+// for hass-more-info on its <home-assistant> element; the Atlas's cards are
+// mounted on document.body, outside it, where the event would bubble past
+// without reaching it — so it is sent to that element itself.
+export function openMoreInfo(eid){
+  const target = document.querySelector("home-assistant") || document.body;
+  target.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: eid } }));
+}
+
 export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   if (!hass) return;
   // Service domain is the entity's own: light.* -> light, fan.* -> fan.
@@ -300,6 +362,8 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   const ex = domain === "light" ? exactDeviceOf(eid) : null;
   const eff = effectiveState(eid, ex ? _exactReported(hass.states, eid) : hass.states[eid]?.state).state;
   const on = isLockDomain ? eff === "locked" : eff === "on";
+  // Unlock asks first (confirmUnlock); nothing is sent on Cancel.
+  if (isLockDomain && on && !await confirmUnlock(hass.states[eid]?.attributes?.friendly_name || eid)) return;
   // An exact device: its whole look (or off) through the one path — every
   // light of the device, or of its PadSpan team, flips with it. Never a
   // remembered per-browser brightness: the look's own, the same everywhere.
@@ -1303,86 +1367,115 @@ const _S = {
     + (on ? "color:#3b82f6;background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.5)"
           : "color:#94a3b8;background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18)"),
 };
-export function openAggregateSheet(api, { title, sub, items, actions }){
+// The sheet is drawn from the lights it is handed, and drawn again from newer
+// ones through the handle it returns (update(api, spec) → false once it was
+// closed) — the hosts keep the room sheet live that way (openRoomSheet). A
+// button's word follows what Home Assistant took: one that failed, or sent
+// nothing (an unlock cancelled), shows what it showed before. An unavailable
+// device's button is greyed out and says so; Home Assistant can't reach it.
+export function openAggregateSheet(api, spec){
   const mk = (tag, style, text) => { const n = document.createElement(tag); if (style) n.style.cssText = style; if (text !== undefined) n.textContent = text; return n; };
   const overlay = mk("div", _S.overlay);
   const desktop = typeof window !== "undefined" && window.innerWidth > 768;
   if (desktop) overlay.style.alignItems = "center";
-  const close = () => { overlay.remove(); };
+  let open = true;
+  const close = () => { open = false; overlay.remove(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", _S.sheet + (desktop ? ";border-radius:16px" : ""));
-  const head = mk("div", _S.head);
-  const hl = mk("div"); hl.appendChild(mk("div", _S.title, title)); hl.appendChild(mk("div", _S.sub, sub || ""));
-  head.appendChild(hl);
-  const x = mk("button", _S.act, "✕"); x.addEventListener("click", close); head.appendChild(x);
-  sheet.appendChild(head);
-  if (actions && actions.length) {
-    const row = mk("div", _S.actions);
-    for (const a of actions) {
-      const b = mk("button", a.primary ? _S.actPrimary : _S.act, a.label);
-      b.addEventListener("click", () => { a.run(); close(); });
-      row.appendChild(b);
-    }
-    sheet.appendChild(row);
-  }
-  for (const l of items) {
-    const row = mk("div", _S.row);
-    const col = classBorder(l, "#52b788");
-    row.appendChild(mk("span", _S.code + `;color:${col}`, l.code));
-    row.appendChild(mk("span", _S.name, l.friendly_name));
-    const sw = stateWordOf(l, api.floodLatches, api.doorInvertByEid);
-    if (sw) {
-      row.appendChild(mk("span", _S.state(sw.lit), sw.text));
-      if (l.isLock) {
-        const b = mk("button", _S.onoff(sw.locked), sw.locked ? "Unlock" : "Lock");
-        b.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const wasLocked = b.textContent === "Unlock";
-          api.toggle(l.entity_id);
-          b.style.cssText = _S.onoff(!wasLocked); b.textContent = wasLocked ? "Lock" : "Unlock";
-        });
+  const greyed = ";opacity:.45;cursor:default";
+  let drawn = null;
+  const fill = (api, { title, sub, who, items, actions }) => {
+    // Drawn again only when something it shows changed: drawing it on every
+    // update would take a Reset's "Yes, clear it" away while it is read.
+    const sig = JSON.stringify([title, sub || "", who || "", (actions || []).map(a => [a.label, !!a.primary]),
+      items.map(l => { const w = stateWordOf(l, api.floodLatches, api.doorInvertByEid);
+        return [l.entity_id, l.code, l.friendly_name, l.state, w && [w.text, w.lit, !!w.latched], !w && !!api.controlsFor(l)]; })]);
+    if (sig === drawn) return;
+    drawn = sig;
+    sheet.replaceChildren();
+    const head = mk("div", _S.head);
+    const hl = mk("div"); hl.appendChild(mk("div", _S.title, title)); hl.appendChild(mk("div", _S.sub, sub || ""));
+    if (who) hl.appendChild(mk("div", _S.sub, who));
+    head.appendChild(hl);
+    const x = mk("button", _S.act, "✕"); x.addEventListener("click", close); head.appendChild(x);
+    sheet.appendChild(head);
+    if (actions && actions.length) {
+      const row = mk("div", _S.actions);
+      for (const a of actions) {
+        const b = mk("button", a.primary ? _S.actPrimary : _S.act, a.label);
+        b.addEventListener("click", () => { a.run(); close(); });
         row.appendChild(b);
-      } else if (l.isFlood && sw.latched && api.onFloodReset) {
-        const wrap = mk("span");
-        const makeResetBtn = () => {
-          const b = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", "Reset");
-          b.addEventListener("click", (e) => {
-            e.stopPropagation();
-            wrap.innerHTML = "";
-            const yes = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px;background:#7f1d1d;border-color:#dc2626;color:#fecaca", "Yes, clear it");
-            const no = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", "No");
-            yes.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; api.onFloodReset(l.entity_id); });
-            no.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; wrap.appendChild(makeResetBtn()); });
-            wrap.appendChild(yes); wrap.appendChild(no);
-          });
-          return b;
-        };
-        wrap.appendChild(makeResetBtn());
-        row.appendChild(wrap);
       }
-    } else {
-      // Controllable, no special word — light/wled/partition/fan's plain
-      // generic On/Off (+ optional Controls "⋯") button.
-      const on = l.state === "on";
-      const b = mk("button", _S.onoff(on), on ? "On" : "Off");
-      b.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const nowOn = b.textContent === "On";
-        api.toggle(l.entity_id);
-        b.style.cssText = _S.onoff(!nowOn); b.textContent = nowOn ? "Off" : "On";
-      });
-      row.appendChild(b);
-      if (api.controlsFor(l)) {
-        const more = mk("button", _S.act + ";min-height:30px;padding:3px 10px", "⋯");
-        more.title = "Controls";
-        more.addEventListener("click", () => { close(); api.openControls(l.entity_id); });
-        row.appendChild(more);
-      }
+      sheet.appendChild(row);
     }
-    sheet.appendChild(row);
-  }
+    for (const l of items) {
+      const row = mk("div", _S.row);
+      const col = classBorder(l, "#52b788");
+      const na = l.state === "unavailable";
+      row.appendChild(mk("span", _S.code + `;color:${col}`, l.code));
+      row.appendChild(mk("span", _S.name + (na ? ";opacity:.55" : ""), l.friendly_name));
+      const unavailableBtn = () => { const b = mk("button", _S.onoff(false) + greyed, "Unavailable"); b.disabled = true; return b; };
+      const sw = stateWordOf(l, api.floodLatches, api.doorInvertByEid);
+      if (sw) {
+        row.appendChild(mk("span", _S.state(sw.lit), sw.text));
+        if (l.isLock && na) row.appendChild(unavailableBtn());
+        else if (l.isLock) {
+          const b = mk("button", _S.onoff(sw.locked), sw.locked ? "Unlock" : "Lock");
+          b.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const wasLocked = b.textContent === "Unlock";
+            // Unlock asks first (toggleEntity): the word changes once Home Assistant took it, never on the press.
+            if (await api.toggle(l.entity_id) === true) { b.style.cssText = _S.onoff(!wasLocked); b.textContent = wasLocked ? "Lock" : "Unlock"; }
+          });
+          row.appendChild(b);
+        } else if (l.isFlood && sw.latched && api.onFloodReset) {
+          const wrap = mk("span");
+          const makeResetBtn = () => {
+            const b = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", "Reset");
+            b.addEventListener("click", (e) => {
+              e.stopPropagation();
+              wrap.innerHTML = "";
+              const yes = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px;background:#7f1d1d;border-color:#dc2626;color:#fecaca", "Yes, clear it");
+              const no = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", "No");
+              yes.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; api.onFloodReset(l.entity_id); });
+              no.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; wrap.appendChild(makeResetBtn()); });
+              wrap.appendChild(yes); wrap.appendChild(no);
+            });
+            return b;
+          };
+          wrap.appendChild(makeResetBtn());
+          row.appendChild(wrap);
+        }
+      } else {
+        // Controllable, no special word — light/wled/partition/fan's plain
+        // generic On/Off (+ optional Controls "⋯") button.
+        const on = l.state === "on";
+        if (na) row.appendChild(unavailableBtn());
+        else {
+          const b = mk("button", _S.onoff(on), on ? "On" : "Off");
+          b.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const nowOn = b.textContent === "On";
+            b.style.cssText = _S.onoff(!nowOn); b.textContent = nowOn ? "Off" : "On";
+            // The new word stays only if Home Assistant took it (toggleEntity resolves true).
+            if (await api.toggle(l.entity_id) !== true) { b.style.cssText = _S.onoff(nowOn); b.textContent = nowOn ? "On" : "Off"; }
+          });
+          row.appendChild(b);
+        }
+        if (api.controlsFor(l)) {
+          const more = mk("button", _S.act + ";min-height:30px;padding:3px 10px", "⋯");
+          more.title = "Controls";
+          more.addEventListener("click", () => { close(); api.openControls(l.entity_id); });
+          row.appendChild(more);
+        }
+      }
+      sheet.appendChild(row);
+    }
+  };
+  fill(api, spec);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
+  return { update: (nextApi, nextSpec) => { if (!open) return false; fill(nextApi, nextSpec); return true; }, close };
 }
 // The two sheets the map opens. setMany(eids, on) is the host's aggregate
 // action (optimistic, batched per domain).
@@ -1405,12 +1498,42 @@ export function roomScenes(hass, room, max = 6){
   }
   return out.sort((a, b) => a.name.localeCompare(b.name)).slice(0, max);
 }
-export function openRoomSheet(api, lights, room, onlyEids){
+/** Who PadSpan places in `room`, in a line for the room sheet: "Here: Garry,
+ *  Nicole, +1 unknown phone", or null with nobody there. est: what
+ *  padspan_ha/occupancy_estimate answers — the people Overview's Occupancy
+ *  card lists, each with the room their phone or tag puts them in (known
+ *  people by name, anyone else as Overview words them). */
+export function whoInRoom(est, room){
+  const want = String(room || "").trim().toLowerCase();
+  if (!want) return null;
+  const names = [];
+  let phones = 0, someone = 0;
+  for (const p of (est && Array.isArray(est.people)) ? est.people : []) {
+    if (!p || String(p.room || "").trim().toLowerCase() !== want) continue;
+    if (p.kind === "known") names.push(String(p.name || "Someone"));
+    else if (p.name === "Someone") someone++;
+    else phones++;
+  }
+  if (phones) names.push(`+${phones} unknown phone${phones === 1 ? "" : "s"}`);
+  if (someone) names.push(`+${someone} someone`);
+  return names.length ? `Here: ${names.join(", ")}` : null;
+}
+// How often an open room sheet asks again who is in it: the occupancy
+// sensor's own interval (sensor.py PadSpanOccupancyCoordinator).
+const WHO_EVERY_MS = 30000;
+function _roomSheetSpec(api, lights, room, onlyEids, who){
   const agg = roomAggregate(lights, room, api.floodLatches);
   const only = onlyEids ? new Set(onlyEids) : null;
   const items = agg.all.filter(l => !only || only.has(l.entity_id));
-  const lightEids = agg.lightEids.filter(e => !only || only.has(e));
-  const fanEids = agg.fanEids.filter(e => !only || only.has(e));
+  // All on and All off switch only what they would change, and never what
+  // Home Assistant can't reach; with nothing to change, the button is not there.
+  const reachable = new Set(items.filter(l => l.state !== "unavailable").map(l => l.entity_id));
+  const byEid = new Map(items.map(l => [l.entity_id, l]));
+  const split = (eids) => {
+    const here = eids.filter(e => reachable.has(e));
+    return { on: here.filter(e => byEid.get(e).state === "on"), off: here.filter(e => byEid.get(e).state !== "on") };
+  };
+  const lightSw = split(agg.lightEids), fanSw = split(agg.fanEids);
   const parts = [];
   if (agg.lightsTotal) parts.push(`Lights ${agg.lightsOn}/${agg.lightsTotal}`);
   if (agg.fansTotal) parts.push(`Fans ${agg.fansOn}/${agg.fansTotal}`);
@@ -1418,14 +1541,10 @@ export function openRoomSheet(api, lights, room, onlyEids){
   if (agg.airTotal) parts.push(`Air ${airQualityWord(agg.airWorst)}`);
   if (agg.floodActive) parts.push(`⚠ Emergency ×${agg.floodActive}`);
   const actions = [];
-  if (lightEids.length) {
-    actions.push({ label: "All lights off", run: () => api.setMany(lightEids, false) });
-    actions.push({ label: "All lights on", primary: true, run: () => api.setMany(lightEids, true) });
-  }
-  if (fanEids.length) {
-    actions.push({ label: "Fans off", run: () => api.setMany(fanEids, false) });
-    actions.push({ label: "Fans on", run: () => api.setMany(fanEids, true) });
-  }
+  if (lightSw.on.length) actions.push({ label: "All lights off", run: () => api.setMany(lightSw.on, false) });
+  if (lightSw.off.length) actions.push({ label: "All lights on", primary: true, run: () => api.setMany(lightSw.off, true) });
+  if (fanSw.on.length) actions.push({ label: "Fans off", run: () => api.setMany(fanSw.on, false) });
+  if (fanSw.off.length) actions.push({ label: "Fans on", run: () => api.setMany(fanSw.off, true) });
   // The room's own scenes and scripts, one tap each (never on the unplaced chip's sheet).
   if (!only && api.hass && typeof api.hass.callService === "function") {
     for (const sc of roomScenes(api.hass, room)) {
@@ -1437,7 +1556,35 @@ export function openRoomSheet(api, lights, room, onlyEids){
       } });
     }
   }
-  openAggregateSheet(api, { title: only ? `Unplaced in ${room}` : room, sub: parts.join(" · "), items, actions });
+  return { title: only ? `Unplaced in ${room}` : room, sub: parts.join(" · "), who: only ? null : who, items, actions };
+}
+/** The room sheet. Returns its handle: the host hands every newer api and
+ *  lights to update(api, lights) while it is open (false once closed), so
+ *  the sheet shows the house as it is now, not as it was when it opened. */
+export function openRoomSheet(api, lights, room, onlyEids){
+  let cur = { api, lights }, who = null, askedAt = -Infinity;
+  const spec = () => _roomSheetSpec(cur.api, cur.lights, room, onlyEids, who);
+  const sheet = openAggregateSheet(api, spec());
+  // Who is here (whoInRoom): asked on opening, then again at most every
+  // WHO_EVERY_MS while open. Never on the unplaced chip's sheet; a failed
+  // call leaves the line as it was.
+  const ask = () => {
+    const hass = cur.api.hass;
+    if (onlyEids || !hass || typeof hass.callWS !== "function" || Date.now() - askedAt < WHO_EVERY_MS) return;
+    askedAt = Date.now();
+    Promise.resolve().then(() => hass.callWS({ type: "padspan_ha/occupancy_estimate" }))
+      .then((est) => { who = whoInRoom(est, room); sheet.update(cur.api, spec()); }, () => {});
+  };
+  ask();
+  return {
+    update(nextApi, nextLights){
+      cur = { api: nextApi, lights: nextLights };
+      if (!sheet.update(nextApi, spec())) return false;
+      ask();
+      return true;
+    },
+    close: sheet.close,
+  };
 }
 /** The lights one button stands for where several overlap in the 3D look (live_aboard.js "Lights as buttons"):
  *  each with its own switch, and all of them on or off. */
@@ -1955,12 +2102,18 @@ export function openControlCard(hass, eid, api){
   // "on" is the device's own (not a segment's flag).
   const ex = domain === "light" ? exactDeviceOf(eid) : null;
   const on = isLockDomain ? st.state === "locked" : (ex ? _exactReported(hass.states, eid) : st.state) === "on";
+  // Home Assistant can't reach it: the card says so where Turn On was, and
+  // every control on it is greyed out. Details (below) still opens.
+  const na = st.state === "unavailable";
   const onBtn = el("button", {
     style: "width:100%;margin-bottom:14px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
       + "letter-spacing:.02em;transition:filter .15s ease;"
       + (on ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
-            : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
+            : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);")
+      + (na ? "opacity:.45;cursor:default;" : ""),
     onclick: async () => {
+      // Unlock asks first (confirmUnlock); Cancel leaves the card open.
+      if (isLockDomain && on && !await confirmUnlock(attrs.friendly_name || eid)) return;
       if (ex) {
         for (const e of ex.group) setOptimistic(e, on ? "off" : "on");
         close();
@@ -1980,8 +2133,16 @@ export function openControlCard(hass, eid, api){
       close();
       setTimeout(rerender, 400);
     },
-  }, isLockDomain ? (on ? "Unlock" : "Lock") : (on ? "Turn Off" : "Turn On"));
+  }, na ? "Unavailable" : isLockDomain ? (on ? "Unlock" : "Lock") : (on ? "Turn Off" : "Turn On"));
+  onBtn.disabled = na;
   box.appendChild(onBtn);
+  // Home Assistant's own dialog for this entity (history, settings, anything
+  // this card doesn't offer): closes the card, then asks Home Assistant.
+  const details = () => el("button", {
+    style: "display:block;margin:12px auto 0;padding:4px 8px;background:none;border:none;cursor:pointer;"
+      + "font-size:12px;color:#8ee5b4;text-decoration:underline;font-family:inherit",
+    onclick: () => { close(); openMoreInfo(eid); },
+  }, "Details");
   if (isLockDomain && st.state === "jammed") {
     box.appendChild(el("div", { style: "font-size:12px;color:#f87171;margin:-8px 0 12px" }, "⚠ Lock is jammed"));
   }
@@ -2005,6 +2166,7 @@ export function openControlCard(hass, eid, api){
       const pct = document.createElement("input");
       pct.type = "range"; pct.min = "0"; pct.max = "100"; pct.step = String(step); pct.value = String(cur);
       pct.style.cssText = "width:100%;accent-color:#34d399";
+      pct.disabled = na;
       pct.addEventListener("input", () => { pctLbl.textContent = `Speed: ${pct.value}%`; });
       pct.addEventListener("change", () => call("set_percentage", { percentage: parseInt(pct.value, 10) }));
       box.appendChild(el("div", { style: "margin-bottom:12px" }, [pctLbl, pct]));
@@ -2012,6 +2174,7 @@ export function openControlCard(hass, eid, api){
     if (Array.isArray(attrs.preset_modes) && attrs.preset_modes.length) {
       const sel = document.createElement("select");
       sel.style.cssText = selStyle;
+      sel.disabled = na;
       for (const m of attrs.preset_modes) {
         const o = document.createElement("option"); o.value = m; o.textContent = m;
         if (m === attrs.preset_mode) o.selected = true;
@@ -2030,7 +2193,9 @@ export function openControlCard(hass, eid, api){
       row.appendChild(el("button", { style: pillStyle(false), title: `Currently ${attrs.direction}`,
         onclick: () => call("set_direction", { direction: nxt }) }, attrs.direction === "forward" ? "⟳ Forward" : "⟲ Reverse"));
     }
+    for (const b of row.childNodes) b.disabled = na;
     if (row.childNodes.length) box.appendChild(row);
+    box.appendChild(details());
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     return;
@@ -2060,6 +2225,7 @@ export function openControlCard(hass, eid, api){
     const bri = document.createElement("input");
     bri.type = "range"; bri.min = "1"; bri.max = "255"; bri.value = String(cur);
     bri.style.cssText = "width:100%;accent-color:#fbbf24;height:20px;cursor:pointer";
+    bri.disabled = na;
     bri.addEventListener("input", () => { briLbl.textContent = briText(bri.value); });
     bri.addEventListener("change", async () => {
       try { _tellProblems(toast, await setLightBrightness(hass, eid, parseInt(bri.value, 10))); }
@@ -2069,14 +2235,59 @@ export function openControlCard(hass, eid, api){
     box.appendChild(el("div", { style: "margin-bottom:12px" }, [briLbl, bri]));
   }
 
+  // White that goes from warm to cool (Hue White Ambiance and the like): a
+  // slider over the light's own range, and for a bulb with no colour at all
+  // a Warm and a Cool chip. Colour bulbs that also do white get the slider
+  // beside their colour. A white-only bulb reports an rgb_color too while on
+  // (Home Assistant works one out from its white), which is no colour it can
+  // take: its modes decide, not that.
+  const colourModes = modes.some(m => ["rgb", "rgbw", "rgbww", "hs", "xy"].includes(m));
+  const whiteOnly = modes.includes("color_temp") && !colourModes;
+  if (modes.includes("color_temp")) {
+    const kMin = Math.round(Number(attrs.min_color_temp_kelvin)) || 2000;
+    const kMax = Math.max(kMin, Math.round(Number(attrs.max_color_temp_kelvin)) || 6500);
+    const clampK = (k) => Math.max(kMin, Math.min(kMax, Math.round(k)));
+    const curK = Number(attrs.color_temp_kelvin);
+    const ctText = (k) => (k ? `Color temperature: ${k} K` : "Color temperature") + (on ? "" : " · turns the light on");
+    const ctLbl = el("div", { style: capLbl }, ctText(curK > 0 ? clampK(curK) : null));
+    const ct = document.createElement("input");
+    ct.type = "range"; ct.min = String(kMin); ct.max = String(kMax); ct.step = "1";
+    ct.value = String(curK > 0 ? clampK(curK) : Math.round((kMin + kMax) / 2));
+    // Warm at the left, as the chips below read.
+    ct.style.cssText = "width:100%;height:20px;cursor:pointer;accent-color:#fde68a";
+    ct.disabled = na;
+    const sendK = async (k) => {
+      try { await hass.callService("light", "turn_on", { entity_id: eid, color_temp_kelvin: k }); }
+      catch (e) { toast("Could not set color temperature", true); }
+      setTimeout(rerender, 400);
+    };
+    ct.addEventListener("input", () => { ctLbl.textContent = ctText(parseInt(ct.value, 10)); });
+    ct.addEventListener("change", () => sendK(parseInt(ct.value, 10)));
+    const ctBox = el("div", { style: "margin-bottom:12px" }, [ctLbl, ct]);
+    if (whiteOnly) {
+      const chip = (label, k) => {
+        const b = el("button", {
+          style: "flex:1;padding:7px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;"
+            + "background:rgba(255,255,255,.04);color:#e2e8f0;border:1px solid rgba(120,190,155,.18)",
+          onclick: () => { ct.value = String(k); ctLbl.textContent = ctText(k); sendK(k); },
+        }, label);
+        b.disabled = na;
+        return b;
+      };
+      ctBox.appendChild(el("div", { style: "display:flex;gap:8px;margin-top:8px" }, [chip("Warm", clampK(2700)), chip("Cool", clampK(6500))]));
+    }
+    box.appendChild(ctBox);
+  }
+
   // Colour has the same instability: a currently reported rgb_color is
   // proof on its own, so either kind of evidence keeps the control.
-  if (modes.some(m => ["rgb", "rgbw", "rgbww", "hs", "xy"].includes(m)) || Array.isArray(attrs.rgb_color)) {
+  if (colourModes || (Array.isArray(attrs.rgb_color) && !whiteOnly)) {
     const colorInput = document.createElement("input");
     colorInput.type = "color";
     colorInput.value = toHex(rgb);
     colorInput.style.cssText = "width:52px;height:32px;border:1px solid rgba(120,190,155,.26);border-radius:8px;"
       + "background:rgba(255,255,255,.04);cursor:pointer;padding:2px";
+    colorInput.disabled = na;
     colorInput.addEventListener("change", async () => {
       try { await hass.callService("light", "turn_on", { entity_id: eid, rgb_color: fromHex(colorInput.value) }); }
       catch (e) { toast("Could not set colour", true); }
@@ -2091,6 +2302,7 @@ export function openControlCard(hass, eid, api){
     const effSel = document.createElement("select");
     effSel.style.cssText = "width:100%;background:rgba(15,26,18,.9);color:#8ee5b4;border:1px solid rgba(120,190,155,.26);"
       + "border-radius:8px;padding:7px;font-size:12px;cursor:pointer";
+    effSel.disabled = na;
     for (const eff of effectList) {
       const o = document.createElement("option");
       o.value = eff; o.textContent = eff;
@@ -2208,6 +2420,7 @@ export function openControlCard(hass, eid, api){
     })();
   }
 
+  box.appendChild(details());
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
@@ -2226,6 +2439,8 @@ function _lockControlBlock(el, hass, lockEid, lockSt, { toast, rerender, close }
       + (on ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
             : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
     onclick: async () => {
+      // Unlock asks first (confirmUnlock); Cancel leaves the card open.
+      if (on && !await confirmUnlock(lockSt.attributes?.friendly_name || lockEid)) return;
       const svc = on ? "unlock" : "lock";
       setOptimistic(lockEid, on ? "unlocked" : "locked");
       try { await hass.callService("lock", svc, { entity_id: lockEid }); } catch (e) { clearOptimistic(lockEid); toast("Could not " + svc, true); }

@@ -10207,8 +10207,10 @@ function _lightsTab(ctx, maps, active) {
         .catch((e) => ctx.toast("Could not reset: " + String(e), true));
     },
   };
-  previewApi.openRoom = (room, onlyEids) => openRoomSheet(previewApi, lights, room, onlyEids);
+  // The room sheet stays live: each render hands it this render's api and lights.
+  previewApi.openRoom = (room, onlyEids) => { mapState._roomSheet = openRoomSheet(previewApi, lights, room, onlyEids); };
   previewApi.openFloor = (z) => openFloorSheet(previewApi, lights, ctx.state.model, z);
+  if (mapState._roomSheet && !mapState._roomSheet.update(previewApi, lights)) mapState._roomSheet = null;
 
   // View settings live in mapState so slider positions survive re-renders;
   // seeded from (and saved to) the SAME settings keys the sidebar uses. Opened

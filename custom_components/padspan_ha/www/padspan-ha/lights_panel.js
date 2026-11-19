@@ -843,7 +843,8 @@ class PadSpanLightsApp extends HTMLElement {
           .catch((e)=>this._toast("Could not reset: " + String(e), true));
       },
     };
-    api.openRoom=(room, onlyEids)=>openRoomSheet(api, lights, room, onlyEids);
+    // The room sheet stays live: _buildUI hands it each newer api and lights.
+    api.openRoom=(room, onlyEids)=>{ this._roomSheet=openRoomSheet(api, lights, room, onlyEids); };
     api.openFloor=(z)=>openFloorSheet(api, lights, this.state.model, z);
     api.openLights=(eids)=>openLightsSheet(api, lights, eids);
     return api;
@@ -940,6 +941,8 @@ class PadSpanLightsApp extends HTMLElement {
     }
     const lightsByEid={};
     for(const l of lights) lightsByEid[l.entity_id]=l;
+    // An open room sheet shows the house as it is now, not as it was when it opened.
+    if(this._roomSheet && !this._roomSheet.update(this._useApi(lightsByEid, lights), lights)) this._roomSheet=null;
 
     // Group by room (hidden excluded from map)
     const hidden=this.state._hidden;

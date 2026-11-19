@@ -217,9 +217,16 @@ if (!Cls) {
       if (!rec.svg) throw new Error("no isometric <svg> was drawn");
       if (rows.length !== Object.keys(STATES).length) throw new Error(`index has ${rows.length} rows for ${Object.keys(STATES).length} entities`);
 
-      // Every entity through the panel's own action paths.
+      // Every entity through the panel's own action paths. Unlock asks first
+      // in the page (lights_map.js confirmUnlock): answered as a person would.
       for (const eid of Object.keys(STATES)) {
-        try { await el._toggle(eid); } catch (e) { fail(name, `_toggle(${eid})`, e); }
+        try {
+          const done = el._toggle(eid);
+          const ask = document.body._all().filter(n => n.attributes && n.attributes.role === "alertdialog").pop();
+          const yes = ask && ask._all().find(n => n.localName === "button" && n.textContent === "Unlock");
+          if (yes) yes.click();
+          await done;
+        } catch (e) { fail(name, `_toggle(${eid})`, e); }
       }
       // Every row: its click, and every button in it (⋯ Controls, Reset,
       // Hide…). confirm() answers true; the hass is fake.
