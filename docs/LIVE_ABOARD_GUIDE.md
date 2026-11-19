@@ -32,6 +32,7 @@ The same card has a few more choices:
   Atlas uses).
 - **Look:** the same colours as the Atlas, Live Aboard's own, or **Studio**: Live Aboard's own colours
   on a stage under a sky that follows the sun, with soft light and shadows (a lighter version on Low).
+  A screen can pick its own in **Views ▾ → Look** (see below).
 - **Back to home view:** on the sidebar, how long it waits untouched before it flies back to its
   home view (Off, 30 s, 1 min, 5 min).
 - **Show people** and **Show tags & scanners:** on the map and in Live Aboard.
@@ -59,7 +60,7 @@ back out brings them back too. A wall screen opens as before, on the floor with 
 | Turn the house | Drag with one finger or the left mouse button |
 | Move it | Two fingers, or the right mouse button |
 | Zoom | Pinch, or the mouse wheel |
-| Go to a room | Double-tap the room |
+| Go to a room | Double-tap the room, or tap its name in the row along the top (**Rooms ▾** on a phone) |
 | Look straight down | **Top** |
 | Back to the usual angle | **Iso** |
 | Turn a quarter | **⟳ 90°** |
@@ -89,6 +90,18 @@ back out brings them back too. A wall screen opens as before, on the floor with 
 **Views ▾** has every floor, **Whole house**, and views you save: get the camera where you like it
 and pick **Save this view**. **Set as home** makes the current view the one the sidebar opens on
 and goes back to.
+
+**Views ▾ → Look** picks the colours and light for this screen: **Same as Settings** (the Look
+above, and the Atlas's Showcase theme), **Classic**, **Studio**, or one of the Showcase themes (with
+PadSpan Bright Pro or PadSpan Pro), each with a small swatch. Tick **By the sun** to have one look
+by day and another after sunset, by Home Assistant's sun. Each screen keeps its own.
+
+**Rooms:** the row along the top lists every named room under its floor's name (on a phone or a
+wall screen, **Rooms ▾**). Tap one: its floor shows, the view flies to the room and tints it, and
+its panel opens. A tap on a room's name in the house opens the same panel: beside the house, or at
+the bottom on a phone. It has the room's devices with their buttons (each switch with **Undo**),
+the room's scenes, and **More devices of the area (n)**: what Home Assistant has in that room's
+area that the map doesn't show. Tap one for its own controls. **✕** or Escape closes the panel.
 
 ---
 

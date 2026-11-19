@@ -6432,6 +6432,10 @@ function createSlot(slotKey){
                                         shown: C.F.group.visible && C.sprite.visible, opacity: C.sprite.material.opacity })),
                // Labels by zoom level: the level, the room open, the floors' tags, the floors' tiles faded or not, Explode.
                levels: { level, room: openRoom ? { name: openRoom.name, floor: openRoom.fid } : null, explode: readGap, explodeOn: explodeOn(),
+                         // The open room's first tile colour as drawn now, and as built (its tint).
+                         roomTile: (() => { const o = openRoom, F = o && o.F; if (!F || !F.tiles || !F.tileSpans || !F.tileCols || !F.tileSpans[o.i]) return null;
+                                            const v = F.tileSpans[o.i][0] * 3, a = F.tiles.geometry.attributes.color.array;
+                                            return { now: [a[v], a[v + 1], a[v + 2]], was: [F.tileCols[v], F.tileCols[v + 1], F.tileCols[v + 2]] }; })(),
                          tags: [...floorTags].map(([fid, T]) => ({ floor: fid, text: T.el.textContent, shown: tagsOn && T.el.style.display !== "none", at: T.at })),
                          faded: floorsUi.map(F => (F.fadeOf === undefined ? null : F.fadeOf)) },
                // Walls: Glass: each floor's glass pieces placed (not out of sight), and whether the floor's glass is drawn at all.

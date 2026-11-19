@@ -119,9 +119,9 @@ const CSS = `
 
 const stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
 function styleOnce(root){
-  if (root.querySelector("style[data-la3d-rooms]")) return;
+  if (root.querySelector("style[data-la3d-rooms-css]")) return;
   const s = (root.ownerDocument || document).createElement("style");
-  s.setAttribute("data-la3d-rooms", "");
+  s.setAttribute("data-la3d-rooms-css", "");
   s.textContent = CSS;
   root.appendChild(s);
 }
@@ -212,7 +212,7 @@ export function createRoomChips(v){
       return { shown: el.style.display !== "none", compact: el.classList.contains("la3d-rcompact"),
                chips: [...el.querySelectorAll("[data-la3d-rchip]")].map(b => b.getAttribute("data-la3d-rchip")),
                floors: [...el.querySelectorAll(".la3d-rfl")].map(n => n.textContent),
-               pressed: [...el.querySelectorAll('[data-la3d-rchip][aria-pressed="true"]')].map(b => b.getAttribute("data-la3d-rchip")) };
+               pressed: [...el.querySelectorAll("[data-la3d-rchip]")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.getAttribute("data-la3d-rchip")) };
     },
     dispose(){ try { el.remove(); v.root.classList.remove("la3d-hasrooms", "la3d-roomrow"); } catch (_) { /* gone with the view */ } },
   };
