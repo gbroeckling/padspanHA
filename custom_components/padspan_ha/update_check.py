@@ -295,9 +295,10 @@ def async_setup_update_check(hass: HomeAssistant) -> None:
         await _run_if_due(hass)
 
     async def _first(_now: Any = None) -> None:
-        await _run_if_due(hass)
-        if dom.get(_DATA_UNSUBS) is unsubs:  # not stopped while it ran
+        # The hourly look first, so a first check that raises can't lose it.
+        if dom.get(_DATA_UNSUBS) is unsubs:  # not stopped meanwhile
             unsubs.append(async_track_time_interval(hass, _tick, _TICK))
+        await _run_if_due(hass)
 
     unsubs.append(async_call_later(hass, random.uniform(*_FIRST_DELAY_S), _first))
     dom[_DATA_UNSUBS] = unsubs

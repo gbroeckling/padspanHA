@@ -268,12 +268,17 @@ def test_the_first_check_waits_a_random_while_then_looks_hourly(monkeypatch):
     assert U._DATA_UNSUBS not in hass.data[DOMAIN]
 
 
-def test_a_stop_while_the_first_check_runs_adds_no_hourly_look(monkeypatch):
-    later, intervals = [], []
+def _timers(monkeypatch):
+    later, intervals, cancelled = [], [], []
     ev = types.ModuleType("homeassistant.helpers.event")
-    ev.async_call_later = lambda hass, delay, action: later.append(action) or (lambda: None)
-    ev.async_track_time_interval = lambda hass, action, every: intervals.append(action) or (lambda: None)
+    ev.async_call_later = lambda hass, delay, action: later.append(action) or (lambda: cancelled.append("later"))
+    ev.async_track_time_interval = lambda hass, action, every: intervals.append(action) or (lambda: cancelled.append("hourly"))
     monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    return later, intervals, cancelled
+
+
+def test_a_stop_while_the_first_check_runs_leaves_nothing_running(monkeypatch):
+    later, intervals, cancelled = _timers(monkeypatch)
     hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: _St()}})
 
     async def _stops(h, now=None):
@@ -282,7 +287,30 @@ def test_a_stop_while_the_first_check_runs_adds_no_hourly_look(monkeypatch):
     monkeypatch.setattr(U, "_run_if_due", _stops)
     U.async_setup_update_check(hass)
     asyncio.run(later[0]())
+    assert len(intervals) == 1 and "hourly" in cancelled
+
+
+def test_a_stop_before_the_first_check_adds_no_hourly_look(monkeypatch):
+    later, intervals, _ = _timers(monkeypatch)
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: _St()}})
+    _counted(monkeypatch)
+    U.async_setup_update_check(hass)
+    U.async_stop_update_check(hass)
+    asyncio.run(later[0]())   # a timer that fired as it was cancelled
     assert intervals == []
+
+
+def test_a_first_check_that_raises_keeps_the_hourly_look(monkeypatch):
+    later, intervals, _ = _timers(monkeypatch)
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: _St()}})
+
+    async def _boom(h, now=None):
+        raise RuntimeError("unexpected answer")
+    monkeypatch.setattr(U, "_run_if_due", _boom)
+    U.async_setup_update_check(hass)
+    with pytest.raises(RuntimeError):
+        asyncio.run(later[0]())
+    assert len(intervals) == 1
 
 
 # ── (d) PadSpan's User-Agent, and one more try after a 429 ─────────────────
