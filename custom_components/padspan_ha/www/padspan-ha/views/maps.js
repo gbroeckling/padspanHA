@@ -11823,6 +11823,8 @@ export async function _carryOpenings(ctx, floorId, before, after) {
     try {
       if (!D.writable(r.data, r.writable)) throw new Error("Live Aboard's file was saved by a newer PadSpan");
       await ctx.actions.wsCall("padspan_ha/house3d_edit", { openings: res.moved });
+      // Every screen showing the 3D file reads it again (as Settings' Remove all furniture does).
+      try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
     } catch (err) {
       left.push(...moved.map(o => ({ ...o, why: said(err) })));
       moved = [];

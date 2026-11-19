@@ -206,6 +206,10 @@ On the sheet:
 
 To change one later, tap it while Edit is on. Drag either end to make it wider or narrower.
 
+Move, turn or reshape a room in Mapping → Layout and its doors and windows go with it when you press
+**Save corrections**. One that can't (its wall is gone or too short, or a room that stayed shares that wall)
+stays where it was, and the message after Save says how many: check those here.
+
 A door or window you drew on the flat map (with its sensor) can be tapped too, to set its hinge and
 swing or its sill and head. Those live on the map, so you move or delete them there.
 

@@ -72,6 +72,8 @@ const FILE = { schema: 1, openings: {
   win_000000a2: { kind: "window", floor_id: "main", a_m: [1, 3.07], b_m: [2.2, 3.07], sill_m: 0.9, head_m: 2.1 },
   door_000000a3: { kind: "door", floor_id: "main", a_m: [4.05, 1], b_m: [4.05, 1.9], head_m: 2.03, hinge: "left", swing: "in" },
 } };
+const fired = [];   // window events: an open Live Aboard reads the file again after a carry
+globalThis.dispatchEvent = (e) => { fired.push(e && e.type); return true; };
 const fakeCtx = (answers) => {
   const calls = [];
   return { calls, actions: { wsCall: async (type, msg) => {
@@ -92,13 +94,15 @@ const fakeCtx = (answers) => {
   check("carry: Save's words say how many moved and how many were left, and why",
     r.text === "1 door and 1 window in Live Aboard moved with their rooms. 1 door in Live Aboard was left where it was: a room that didn't move the same way shares its wall. Check it in Live Aboard's Edit."
     && r.bad === false, r);
+  check("carry: every screen showing the 3D file is told to read it again", JSON.stringify(fired) === '["padspan-ha-house3d-changed"]', fired);
 }
 {
   const ctx = fakeCtx({ "padspan_ha/house3d_get": { data: FILE, writable: true }, "padspan_ha/house3d_edit": new Error("Live Aboard is off. Turn it on in Settings → Atlas → Live Aboard.") });
   const r = await maps._carryOpenings(ctx, "main", before, after);
   check("carry: a refused write leaves them where they were, and says why",
     r.text === "1 door and 1 window in Live Aboard were left where they were: Live Aboard is off. Turn it on in Settings → Atlas → Live Aboard. "
-      + "1 door in Live Aboard was left where it was: a room that didn't move the same way shares its wall. Check it in Live Aboard's Edit." && r.bad === true, r);
+      + "1 door in Live Aboard was left where it was: a room that didn't move the same way shares its wall. Check it in Live Aboard's Edit." && r.bad === true
+    && fired.length === 1, { r, fired });
 }
 {
   const ctx = fakeCtx({ "padspan_ha/house3d_get": { data: { ...FILE, schema: 2 }, writable: false } });
