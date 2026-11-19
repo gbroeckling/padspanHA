@@ -473,6 +473,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "rough_plan",                                   # "No floor plan? Ways to get one" and the phone's walk-through of a room scan
     "plan_carry",                                   # a moved plan's line in the Library, and what could move with it
     "room_snap",                                    # drawing rooms in Edit and Layout: corners that land, Straighten edges
+    "person_home", "room_spot",                     # one rule for "is this person home"; where a room-only device stands
     "plan_measure", "scale_nudge",                  # the hand measurement (the helper's and the upload's "Set this plan's scale now")
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
