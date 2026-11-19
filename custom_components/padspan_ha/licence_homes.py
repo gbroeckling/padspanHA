@@ -55,9 +55,11 @@ async def machine_id(hass: HomeAssistant) -> str:
 
 def machine_hash(machine: str) -> str:
     """What a licence call sends in place of the id itself: one-way, and the
-    licence server makes the same hash from the raw id older PadSpan sends, so
-    a home stays one home across the update."""
-    return hashlib.sha256(f"padspan-ha|{machine}".encode()).hexdigest()
+    licence server makes the same hash from the raw id older PadSpan sends
+    (ps_id_hash, with the same prefix), so a home stays one home across the
+    update. The prefix names neither edition, so Bright's derivation
+    (scripts/bright_build.py RENAMES) leaves it as it is."""
+    return hashlib.sha256(f"padspan-licence|{machine}".encode()).hexdigest()
 
 
 def home_params(settings: dict[str, Any] | None) -> dict[str, str]:

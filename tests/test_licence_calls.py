@@ -31,7 +31,7 @@ from custom_components.padspan_ha import update_check as U
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN, VERSION
 
 RAW = "0123456789abcdef0123456789abcdef"
-HASHED = hashlib.sha256(f"padspan-ha|{RAW}".encode()).hexdigest()
+HASHED = hashlib.sha256(f"padspan-licence|{RAW}".encode()).hexdigest()
 
 
 class _St:
@@ -109,6 +109,15 @@ def test_the_key_and_a_hash_of_the_id_go_in_a_post_body(monkeypatch):
     body = kw["data"]
     assert body["key"] == "PSPAN-AAAA" and body["machine_h"] == HASHED and body["token"] == "a" * 32
     assert "machine" not in body and RAW not in json.dumps(kw), "the raw instance id never leaves"
+
+
+def test_the_hash_is_the_one_the_licence_server_makes_in_both_editions():
+    """The server hashes an older PadSpan's raw id with the same prefix;
+    Bright's derivation renames padspan_ha / padspan-ha / padspan-lights /
+    "PadSpan HA" in every file, so the prefix must hold none of them."""
+    assert LH.machine_hash(RAW) == HASHED
+    for renamed in ("padspan_", "padspan-ha", "padspan-b", "padspan-lights", "PadSpan "):
+        assert renamed not in "padspan-licence|"
 
 
 @pytest.mark.parametrize("status", [400, 404, 405, 415])
