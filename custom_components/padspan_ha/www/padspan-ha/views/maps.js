@@ -32,7 +32,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
-        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList } =
+        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList, peopleShownOn } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
@@ -10193,8 +10193,11 @@ function _lightsTab(ctx, maps, active) {
   const controlsFor = hasControlCard;
   const previewApi = {
     hass: ctx.hass, lightsByEid, lights, controlsFor,
+    // Whether this screen shows people (Show people, and its ⋯ People line): the room sheet names no one otherwise.
+    peopleShown: peopleShownOn("builder", ctx.state.settings, ctx.state.settings?.tier),
     toggle, toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
     openControls: (eid) => openControlCard(ctx.hass, eid, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
+      kiosk: !!ctx.state.kioskMode,   // a wall: no Details, nothing on it leaves the page
       ...controlApiFor(ctx.state._lightsRegStore?.reg, eid, { tier: ctx.state.settings?.tier, isAdmin: !!ctx.hass?.user?.is_admin }) }),
     openActivity: (eid) => openActivityCalendar(ctx.hass, eid),
     setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),

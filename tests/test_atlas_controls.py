@@ -40,7 +40,7 @@ def run() -> dict:
 
 
 def test_every_atlas_controls_case_passes(run: dict) -> None:
-    assert len(run["cases"]) >= 30, run
+    assert len(run["cases"]) >= 41, run
     assert not run["failures"], json.dumps(run["failures"], indent=2, ensure_ascii=False)
 
 
@@ -54,3 +54,16 @@ def test_both_hosts_keep_an_open_room_sheet_live() -> None:
     maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     assert "previewApi.openRoom = (room, onlyEids) => { mapState._roomSheet = openRoomSheet(previewApi, lights, room, onlyEids); };" in maps
     assert "if (mapState._roomSheet && !mapState._roomSheet.update(previewApi, lights)) mapState._roomSheet = null;" in maps
+
+
+def test_both_hosts_say_whether_people_show_and_whether_it_is_a_wall() -> None:
+    """The room sheet names people only where the screen shows them (the 3D
+    view's rule, peopleShownOn, for that screen's slot), and the hold card
+    offers no Details on a wall (?kiosk=1): each host hands both over."""
+    panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert 'peopleShown: peopleShownOn("atlas", this.state._house3d, this.state._tier),' in panel
+    assert "kiosk: this._kiosk()," in panel
+    assert '_kiosk(){ try { return new URLSearchParams(location.search).get("kiosk")==="1"; }' in panel
+    maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    assert 'peopleShown: peopleShownOn("builder", ctx.state.settings, ctx.state.settings?.tier),' in maps
+    assert "kiosk: !!ctx.state.kioskMode,   // a wall: no Details" in maps

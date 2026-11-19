@@ -1521,6 +1521,14 @@ export function whoInRoom(est, room){
 // How often an open room sheet asks again who is in it: the occupancy
 // sensor's own interval (sensor.py PadSpanOccupancyCoordinator).
 const WHO_EVERY_MS = 30000;
+/** Are people shown on this screen: the Show people setting (PadSpan Pro)
+ *  and this screen's ⋯ "People" line not unticked — the 3D view's own rule
+ *  (live_aboard.js showP, over the same per-screen pref). slot: the screen
+ *  ("atlas", the sidebar; "builder", Mapping). Hidden there, the room sheet
+ *  names no one: its host hands this as api.peopleShown. */
+export function peopleShownOn(slot, settings, tier){
+  return tierAtLeast(tier, "pro") && !!settings && settings.atlas_3d_people === true && screenShowLine(slot, "people") !== false;
+}
 function _roomSheetSpec(api, lights, room, onlyEids, who){
   const agg = roomAggregate(lights, room, api.floodLatches);
   const only = onlyEids ? new Set(onlyEids) : null;
@@ -1556,7 +1564,7 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
       } });
     }
   }
-  return { title: only ? `Unplaced in ${room}` : room, sub: parts.join(" · "), who: only ? null : who, items, actions };
+  return { title: only ? `Unplaced in ${room}` : room, sub: parts.join(" · "), who: only || api.peopleShown !== true ? null : who, items, actions };
 }
 /** The room sheet. Returns its handle: the host hands every newer api and
  *  lights to update(api, lights) while it is open (false once closed), so
@@ -1566,11 +1574,12 @@ export function openRoomSheet(api, lights, room, onlyEids){
   const spec = () => _roomSheetSpec(cur.api, cur.lights, room, onlyEids, who);
   const sheet = openAggregateSheet(api, spec());
   // Who is here (whoInRoom): asked on opening, then again at most every
-  // WHO_EVERY_MS while open. Never on the unplaced chip's sheet; a failed
-  // call leaves the line as it was.
+  // WHO_EVERY_MS while open, and only while this screen shows people
+  // (api.peopleShown, peopleShownOn). Never on the unplaced chip's sheet; a
+  // failed call leaves the line as it was.
   const ask = () => {
     const hass = cur.api.hass;
-    if (onlyEids || !hass || typeof hass.callWS !== "function" || Date.now() - askedAt < WHO_EVERY_MS) return;
+    if (onlyEids || cur.api.peopleShown !== true || !hass || typeof hass.callWS !== "function" || Date.now() - askedAt < WHO_EVERY_MS) return;
     askedAt = Date.now();
     Promise.resolve().then(() => hass.callWS({ type: "padspan_ha/occupancy_estimate" }))
       .then((est) => { who = whoInRoom(est, room); sheet.update(cur.api, spec()); }, () => {});
@@ -2137,12 +2146,14 @@ export function openControlCard(hass, eid, api){
   onBtn.disabled = na;
   box.appendChild(onBtn);
   // Home Assistant's own dialog for this entity (history, settings, anything
-  // this card doesn't offer): closes the card, then asks Home Assistant.
-  const details = () => el("button", {
+  // this card doesn't offer): closes the card, then asks Home Assistant. Not
+  // on a wall (api.kiosk, ?kiosk=1): nothing there leaves the page, as
+  // scene_row.js keeps it, and the dialog's settings lead off it.
+  const details = () => (api && api.kiosk ? null : el("button", {
     style: "display:block;margin:12px auto 0;padding:4px 8px;background:none;border:none;cursor:pointer;"
       + "font-size:12px;color:#8ee5b4;text-decoration:underline;font-family:inherit",
     onclick: () => { close(); openMoreInfo(eid); },
-  }, "Details");
+  }, "Details"));
   if (isLockDomain && st.state === "jammed") {
     box.appendChild(el("div", { style: "font-size:12px;color:#f87171;margin:-8px 0 12px" }, "⚠ Lock is jammed"));
   }
@@ -2195,7 +2206,8 @@ export function openControlCard(hass, eid, api){
     }
     for (const b of row.childNodes) b.disabled = na;
     if (row.childNodes.length) box.appendChild(row);
-    box.appendChild(details());
+    const det = details();
+    if (det) box.appendChild(det);
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     return;
@@ -2420,7 +2432,8 @@ export function openControlCard(hass, eid, api){
     })();
   }
 
-  box.appendChild(details());
+  const det = details();
+  if (det) box.appendChild(det);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }

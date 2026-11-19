@@ -2,8 +2,8 @@
 
 ### New
 - **Warm or cool white for bulbs that do it.** Hold a light (or tap its code) on the Atlas: a bulb that can go from warm to cool white (Hue White Ambiance and the like) now has a colour temperature slider over its own range, plus Warm and Cool buttons when it has no colour. Before, it had brightness only. A colour bulb that also does white gets the slider beside its colour.
-- **Details.** The bottom of a light's, fan's or lock's card has a Details link that opens Home Assistant's own window for it: history, settings and anything the card doesn't show.
-- **Who is in the room.** Tap a room's name: under its title the sheet now says who PadSpan places there ("Here: Garry, Nicole"), the same people Overview's Occupancy card lists.
+- **Details.** The bottom of a light's, fan's or lock's card has a Details link that opens Home Assistant's own window for it: history, settings and anything the card doesn't show. Not on a wall screen (`?kiosk=1`), where nothing leads off the page.
+- **Who is in the room.** Tap a room's name: under its title the sheet now says who PadSpan places there ("Here: Garry, Nicole"), the same people Overview's Occupancy card lists. Only on a screen that shows people: with Show people on (PadSpan Pro), and People left ticked in that screen's ⋯ list. Where people are hidden, the sheet names no one.
 
 ### Changed
 - **Unlock asks first.** Unlocking a door from the Atlas, the 3D house or a room's list now asks "Unlock Front Door?" with Unlock and Cancel. Cancel sends nothing. Lock never asks.

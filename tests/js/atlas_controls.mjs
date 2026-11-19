@@ -11,7 +11,10 @@
 //     over its own range, and Warm and Cool chips when it has no colour; an
 //     unavailable light says "Unavailable" with every control greyed out;
 //     Details opens Home Assistant's own dialog.
-//   * The room sheet says who PadSpan places in the room, offers All on /
+//   * Details is not offered on a wall (?kiosk=1): nothing there leaves
+//     the page.
+//   * The room sheet says who PadSpan places in the room — only while that
+//     screen shows people (Show people, and its ⋯ People line) — offers All on /
 //     All off only when they would change something (never to an
 //     unavailable light), greys out unavailable rows, follows newer states
 //     while open, and a button whose call failed shows its old word again.
@@ -199,6 +202,15 @@ const range = (n, min) => inputs(n).find(i => i.type === "range" && i.min === St
   const lockCard = top();
   check("Details: on a lock's card too", !!btn(lockCard, "Details"));
   document.body.removeChild(lockCard);
+  // A wall (?kiosk=1): nothing on it leaves the page, so no Details there.
+  LM.openControlCard(hass, "light.ambiance", { kiosk: true });
+  const wall = top();
+  LM.openControlCard(hass, "fan.gone", { kiosk: true });
+  const wallFan = top();
+  check("Details: not on a wall screen (light or fan card); the rest of the card is there",
+    !btn(wall, "Details") && !btn(wallFan, "Details") && !!btn(wall, "Warm") && !!btn(wall, "Turn Off"),
+    buttons(wall).map(b => b.textContent));
+  document.body.removeChild(wall); document.body.removeChild(wallFan);
 }
 
 // ── Item 4: the room sheet ──────────────────────────────────────────────────
@@ -217,8 +229,8 @@ const occupancy = { people: [
 ] };
 const many = [];
 const roomHass = (states) => ({ states, callService: hass.callService, callWS: async (m) => { asked.push(m.type); return occupancy; } });
-const roomApi = (states, toggle) => ({
-  hass: roomHass(states), floodLatches: {}, doorInvertByEid: {}, controlsFor: () => false,
+const roomApi = (states, toggle, peopleShown = true) => ({
+  hass: roomHass(states), floodLatches: {}, doorInvertByEid: {}, controlsFor: () => false, peopleShown,
   setMany: (eids, on) => many.push([eids, on]), toast() {}, openControls() {},
   toggle: toggle || ((e) => LM.toggleEntity(roomHass(states), e, {})),
 });
@@ -309,9 +321,44 @@ const roomApi = (states, toggle) => ({
   await flush();
   check("room sheet: no connection, no line, no error", !plain.textContent.includes("Here:"));
   click(btn(plain, "✕"));
+  // People hidden on this screen: no names, and nobody is even asked.
+  const n1 = asked.length;
+  const hiddenSheet = LM.openRoomSheet(roomApi(s1, null, false), lightsOf(s1), "Den");
+  const hidden = top();
+  await flush();
+  check("room sheet: with people hidden on this screen, no names and nothing asked",
+    asked.length === n1 && !hidden.textContent.includes("Here:") && !hidden.textContent.includes("Garry"), hidden.textContent);
+  // ...and a sheet whose screen stops showing people while it is open drops them.
+  hiddenSheet?.update(roomApi(s1), lightsOf(s1));
+  await flush();
+  const shownThen = hidden.textContent.includes("Here: Garry");
+  hiddenSheet?.update(roomApi(s1, null, false), lightsOf(s1));
+  check("room sheet: names come and go with the screen's people switch while open",
+    shownThen && !hidden.textContent.includes("Here:"), hidden.textContent);
+  click(btn(hidden, "✕"));
   const who = LM.whoInRoom || (() => undefined);
   check("whoInRoom: nobody there is no line", who(occupancy, "Hall") === null && who(null, "Den") === null
     && who({ people: [{ name: "Someone", kind: "unknown", room: "Hall" }] }, "Hall") === "Here: +1 someone");
+}
+
+// Whether a screen shows people: the 3D view's rule — Show people (Pro) and
+// the screen's own ⋯ People line (padspan_la3d_show_<slot>) not unticked.
+{
+  const shown = LM.peopleShownOn || (() => undefined);
+  const on = { atlas_3d_people: true }, off = { atlas_3d_people: false };
+  const pref = (slot, o) => localStorage.setItem(`padspan_la3d_show_${slot}`, JSON.stringify(o));
+  localStorage.removeItem("padspan_la3d_show_atlas");
+  const plain = shown("atlas", on, "pro");
+  pref("atlas", { people: false });
+  const unticked = shown("atlas", on, "pro"), otherScreen = shown("builder", on, "pro");
+  pref("atlas", { people: true });
+  const tickedButOff = shown("atlas", off, "pro");
+  localStorage.removeItem("padspan_la3d_show_atlas");
+  check("peopleShownOn: Show people on at Pro shows them; this screen's ⋯ People unticked hides them there only",
+    plain === true && unticked === false && otherScreen === true, { plain, unticked, otherScreen });
+  check("peopleShownOn: never with Show people off, below Pro, or before the settings came in",
+    tickedButOff === false && shown("atlas", on, "bright") === false && shown("atlas", null, "pro") === false
+      && shown("atlas", undefined, undefined) === false);
 }
 
 process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

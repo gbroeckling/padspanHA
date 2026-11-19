@@ -26,7 +26,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openLightsSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
-        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine } =
+        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
@@ -805,9 +805,13 @@ class PadSpanLightsApp extends HTMLElement {
       // Not in Basic: Mapping → Atlas builder is an expert screen,
       // and Basic's Mapping would put the link back on Library.
       onEdit: this._isAdmin() && !this._basicMode() ? (e)=>this._gotoBuilder(e) : null,
+      // A wall (?kiosk=1): no Details, nothing on it leaves the page.
+      kiosk: this._kiosk(),
       ...controlApiFor(this._regStore?.reg, eid, { tier: this.state._tier, isAdmin: this._isAdmin() }),
     });
   }
+
+  _kiosk(){ try { return new URLSearchParams(location.search).get("kiosk")==="1"; } catch (_) { return false; } }
 
   _isAdmin(){ return !!(this._hass && this._hass.user && this._hass.user.is_admin); }
   // The PadSpan panel's Basic / Advanced choice, kept in this browser (panel.js).
@@ -826,6 +830,8 @@ class PadSpanLightsApp extends HTMLElement {
     const controlsFor=hasControlCard;
     const api={
       hass:this._hass, lightsByEid, lights, controlsFor,
+      // Whether this screen shows people (Show people, and its ⋯ People line): the room sheet names no one otherwise.
+      peopleShown: peopleShownOn("atlas", this.state._house3d, this.state._tier),
       toggle:(eid)=>this._toggle(eid),
       openControls:(eid)=>this._openWledDetail(eid),
       openActivity:(eid)=>openActivityCalendar(this._hass, eid),
