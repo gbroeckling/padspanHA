@@ -99,7 +99,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
     w._countEl = count;
     card.appendChild(count);
     card.appendChild(el("ul", { style: "font-size:12px;color:#94a3b8;line-height:1.6;margin:10px 0 0 18px;padding:0" }, [
-      el("li", {}, "Hold the phone as you usually carry it (pocket, hand or bag)."),
+      el("li", {}, "Carry the phone as you usually do: in a pocket or bag, screen off."),
       el("li", {}, "Walk slowly along the walls and into each corner, then through the middle."),
       el("li", {}, "Stay in this room until the ring is full."),
     ]));
@@ -182,6 +182,8 @@ export function renderWalk(ctx, el, cs, calData, h) {
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.5;margin-bottom:10px" },
     `Carrying ${cs.deviceLabel || cs.deviceId}. Pick a room, press Start and walk slowly around it for ${WALK_S} seconds. ` +
     "PadSpan listens to every receiver while you walk, then shows what it heard before anything is saved."));
+  // The carry and moved-receiver tips (calibration_results.js calTips).
+  if (h.tips) card.appendChild(h.tips(el));
   if (!rooms.length) {
     card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b" }, "This floor has no rooms drawn yet. Draw them in Mapping first."));
     return wrap;

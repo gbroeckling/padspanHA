@@ -240,4 +240,39 @@ for (const [req, want] of [["tune", "tune"], ["matrix", "matrix"], ["model", "mo
   check("priority: every kind is one the report allows", R.ACTION_KINDS.length === 10);
 }
 
+// ── The two calibration tips, wherever the person calibrates ────────────────
+// Carry the phone as usual (pocket, screen off) and press the buttons on
+// another device; after moving a receiver, calibrate the rooms next to it.
+{
+  const tipsIn = (root) => {
+    const t = text(root && root.querySelector("[data-cal-tips]"));
+    return t.includes("pocket, screen off") && t.includes("on another phone, tablet or computer")
+      && t.includes("Moved a receiver? Calibrate the rooms next to it again.");
+  };
+  const map = { id: "m1", floor_id: "main", name: "Main", image: { filename: "main.png", width: 800, height: 600 } };
+  const base = () => ({ ...LIVE(), _modelLoaded: false, calibration: CALDATA(), maps: { list: [map] },
+    model: { room_geometry_m: { Kitchen: RECT("main"), Living: RECT("main") } } });
+  {
+    const st = base();
+    const s = screen(st);
+    s.render(); await tick(); await tick();
+    check("tips: Results gives both", tipsIn(s.render()));
+  }
+  {
+    const st = base();
+    const s = screen(st);
+    s.render();
+    Object.assign(st._calib, { tab: "pin", deviceId: "ibeacon:x:1:2", mapId: "m1", pinX: 0.5, pinY: 0.5 });
+    check("tips: Pin & Listen gives both beside Start Collecting", tipsIn(s.render()));
+  }
+  {
+    const st = base();
+    const s = screen(st);
+    s.render();
+    Object.assign(st._calib, { tab: "roam", deviceId: "ibeacon:x:1:2", mapId: "m1" });
+    check("tips: Roam gives both in the Next Target card", tipsIn(s.render()));
+  }
+  check("tips: one text for all of them", typeof R.CARRY_TIP === "string" && typeof R.MOVED_TIP === "string" && typeof R.calTips === "function");
+}
+
 console.log(JSON.stringify({ cases, failures }));

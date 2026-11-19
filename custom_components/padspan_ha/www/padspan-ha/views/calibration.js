@@ -86,7 +86,9 @@ const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflicti
         tuneBeaconInBounds } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
-const { renderResults } = await import(`./calibration_results.js${new URL(import.meta.url).search}`);
+// calTips: the two calibration tips (carry the phone as usual, re-do the rooms
+// next to a moved receiver), shown in Pin & Listen, Roam, Walk a room and Results.
+const { renderResults, calTips } = await import(`./calibration_results.js${new URL(import.meta.url).search}`);
 // Basic's links (views/focus.js): which lead out to an expert screen.
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
@@ -237,6 +239,7 @@ function _walkTab(ctx, el, cs, calData) {
   }
   return _WALK.renderWalk(ctx, el, cs, calData, {
     findAds: _findBeaconAds, accept: _acceptCalSample, snap: _recordableSnap, phase: tuneLivePhase, heldoutLine: _heldoutLine,
+    tips: calTips,
   });
 }
 
@@ -1276,6 +1279,7 @@ function _pinAndListen(ctx, el, cs, calData) {
           "Collection will start but may capture no data. Verify beacon is broadcasting."));
       }
       pinPanel.appendChild(signalBox);
+      pinPanel.appendChild(calTips(el));
 
       // Start button
       const startBtn = el("button", {
@@ -1672,6 +1676,7 @@ function _roam(ctx, el, cs, calData) {
       tgtRoom ? `Go to: ${tgtRoom}` : `Position: ${(target.x_frac * 100).toFixed(0)}% × ${(target.y_frac * 100).toFixed(0)}%`));
     tgtCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:12px" },
       "Walk to the blue crosshair location on the map. Stand still, then press the button below."));
+    tgtCard.appendChild(calTips(el));
 
     if (cs.collecting) {
       tgtCard.appendChild(_buildCollectionUI(ctx, el, cs));

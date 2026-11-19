@@ -36,6 +36,20 @@ export function houseAccuracy(calData) {
   return { kind: "none" };
 }
 
+// Two tips that make a calibration walk count, shown wherever the person
+// calibrates (Roam, Pin & Listen, Walk a room) and here. A phone held in the
+// hand with its screen on is heard differently from the same phone in a
+// pocket, which is how it is carried the rest of the day; and moving a
+// receiver changes what the rooms around it hear, while the calibration of
+// those rooms stays as it was.
+export const CARRY_TIP = "Carry the phone or tag the way you usually do (a phone in a pocket, screen off), " +
+  "and press the buttons here on another phone, tablet or computer.";
+export const MOVED_TIP = "Moved a receiver? Calibrate the rooms next to it again.";
+export function calTips(el) {
+  return el("ul", { "data-cal-tips": "", class: "muted", style: "font-size:12px;line-height:1.5;margin:8px 0 0 18px;padding:0" },
+    [el("li", {}, CARRY_TIP), el("li", {}, MOVED_TIP)]);
+}
+
 // A room with fewer points than this is listed as needing work, and below
 // 70% rooms right on the calibration score too.
 export const FEW_POINTS = 3;
@@ -358,6 +372,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
     wrap.appendChild(card);
   }
 
+  wrap.appendChild(calTips(el));
   wrap.appendChild(el("div", { class: "muted", "data-cal-results": "more", style: "font-size:12px;line-height:1.5" },
     "More tools are in the tabs above: Tune and Beacon Tune place receivers and beacons, Pin & Listen and Roam collect points, Model and Accuracy by spot show the details."));
   return wrap;

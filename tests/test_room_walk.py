@@ -366,6 +366,11 @@ const h = { heldoutLine: () => null };
 ok(text(W.renderWalk(ctx, el, {}, {points: []}, h)).includes('Setup required'), 'needs setup');
 const idle = text(W.renderWalk(ctx, el, {deviceId: 'p', mapId: 'm'}, {points: [{source: 'room_walk', room: 'Den'}]}, h));
 ok(idle.includes('Den (walked)') && !idle.includes('Hall') && idle.includes('Start walking'), 'idle ' + idle);
+// the carry and moved-receiver tips come in from calibration.js (h.tips), before Start
+const tipped = text(W.renderWalk(ctx, el, {deviceId: 'p', mapId: 'm'}, {points: []}, {...h, tips: (e) => e('ul', {}, 'TIPS')}));
+ok(tipped.indexOf('TIPS') >= 0 && tipped.indexOf('TIPS') < tipped.indexOf('Start walking'), 'tips ' + tipped);
+const walking = text(W.renderWalk(ctx, el, {deviceId: 'p', mapId: 'm', _walk: {phase: 'walking', room: 'Den', polls: []}}, {points: []}, h));
+ok(walking.includes('screen off') && !walking.includes('hand'), 'walking ' + walking);
 console.log('ok');
 """, encoding="utf-8")
     r = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, timeout=60)

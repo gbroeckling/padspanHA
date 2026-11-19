@@ -42,7 +42,8 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("data:", 10), ("empty:", 4), ("sample:", 3), ("link:", 10), ("priority:", 12)])
+@pytest.mark.parametrize("prefix,least", [("data:", 10), ("empty:", 4), ("sample:", 3), ("link:", 10), ("priority:", 12),
+                                           ("tips:", 4)])
 def test_the_results_tab(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"
