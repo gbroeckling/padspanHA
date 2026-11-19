@@ -49,8 +49,12 @@ def test_clear_scanner_removes_a_source_without_touching_dicts_in_use():
     pc._ema_rssi = {"A": a_ema, "B": {"kit": -55.0}, "C": {"off": -80.0}}
     pc._kalman_p = {"A": {"kit": 1.0, "off": 2.0}, "B": {"kit": 1.0}}
     pc._silence_miss = {"A": {"kit": 2}, "C": {"off": 1}}
+    a_gap = {"kit": 3.0, "off": 1.0}
+    pc._advert_gap = {"A": a_gap, "B": {"kit": 2.0}}
     assert pc.clear_scanner("kit") == 2
     assert pc._ema_rssi == {"A": {"off": -70.0}, "C": {"off": -80.0}}
     assert pc._kalman_p == {"A": {"off": 2.0}}
     assert pc._silence_miss == {"C": {"off": 1}}
+    assert pc._advert_gap == {"A": {"off": 1.0}}
+    assert a_gap == {"kit": 3.0, "off": 1.0}          # replaced, not edited
     assert a_ema == {"kit": -60.0, "off": -70.0}      # the loop's reference was not edited

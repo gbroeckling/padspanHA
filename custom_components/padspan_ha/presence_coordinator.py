@@ -4759,8 +4759,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._silence_miss[addr] = rest
             else:
                 self._silence_miss.pop(addr, None)
-        for gaps in self._advert_gap.values():
-            gaps.pop(source, None)
+        for addr in list(self._advert_gap):
+            gp = self._advert_gap.get(addr)
+            if not gp or source not in gp:
+                continue
+            rest = {k: v for k, v in gp.items() if k != source}
+            if rest:
+                self._advert_gap[addr] = rest
+            else:
+                self._advert_gap.pop(addr, None)
         return cleared
 
     async def _record_movement(self, result: dict[str, Any]) -> None:

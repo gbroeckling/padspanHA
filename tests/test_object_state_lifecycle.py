@@ -68,6 +68,8 @@ OBJECT_STATE: frozenset[str] = frozenset({
     "_prev_groups",
     "_room_unsure",                     # positioning_unsure's reason while a room is held
     "_unsure_run",                      # ...and how many unsure polls in a row named one room
+    "_clear_run",                       # how many polls in a row a move has been clear
+    "_advert_gap",                      # by address: each scanner's longest recent advert gap
 })
 
 # The subset of OBJECT_STATE that says WHERE the object was. An absence breaks
@@ -78,18 +80,21 @@ LOCATION_STATE: frozenset[str] = frozenset({
     "_room_votes", "_confirmed_room", "_room_confidence", "_knn_position",
     "_smooth_xy", "_spatial_position", "_spatial_smooth_xy",
     "_coverage_hist", "_outside_by_cov", "_floor_evidence", "_device_floor",
-    "_adaptive_last_vec", "_room_unsure", "_unsure_run",
+    "_adaptive_last_vec", "_room_unsure", "_unsure_run", "_clear_run",
 })
 
 
-# Non-dict containers that are REPLACED WHOLESALE on every poll, so a stale
-# member cannot outlive the current cycle and clearing them on eviction would
-# be noise. Anything not listed here must be cleared by _evict_object.
+# Containers that are REPLACED WHOLESALE on every poll, so a stale member
+# cannot outlive the current cycle and clearing them on eviction would be
+# noise. Anything not listed here must be cleared by _evict_object.
 REBUILT_EVERY_POLL: frozenset[str] = frozenset({
     # presence_coordinator.py: `self._prev_present = _cur_present` — assigned,
     # not mutated, at the end of every poll. Only feeds `_arrived` within the
     # same cycle.
     "_prev_present",
+    # {(address, scanner): advert time} of the readings the last poll used,
+    # assigned afresh from that poll's readings (each advert used once).
+    "_adverts_used",
 })
 
 
@@ -112,7 +117,7 @@ def test_every_dict_is_classified():
     failure at the moment of writing, not an outage six weeks later.
     """
     coord = make_coordinator()
-    known = SITE_STATE | OBJECT_STATE
+    known = SITE_STATE | OBJECT_STATE | REBUILT_EVERY_POLL
     found = set(_dict_attrs(coord))
     unclassified = found - known
     assert not unclassified, (

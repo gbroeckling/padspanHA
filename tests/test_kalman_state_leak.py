@@ -188,6 +188,7 @@ class TestEvictStillWorks:
             "_floor_cache",   # each receiver's minimum signal, from settings
             "_corr_cache",    # motion/occupancy per room (positioning_sensor_fusion)
             "_last_source_to_area",   # the last poll's scanner -> area map
+            "_adverts_used",  # by (address, scanner), replaced every poll
         }
         unexpected = [n for n in leaked if n not in by_other_key]
         assert not unexpected, (
