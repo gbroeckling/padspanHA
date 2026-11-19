@@ -807,7 +807,11 @@ const roomAt = (name) => slot._where({ room: name });
 function roomOpens(name, o){
   const n0 = api.calls.length;
   tap(roomAt(name), o);
-  return api.calls.slice(n0).some(c => c[0] === "room" && c[1] === name);
+  // The room opens in its panel beside the house (live_aboard_rooms.js), else the host's sheet; shut again after.
+  const panel = slot._state().rooms.panel, el = slot.element.querySelector(".la3d-room");
+  const x = el ? el.querySelectorAll("button").find(b => b.textContent === "✕") : null;
+  if (x) x.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+  return api.calls.slice(n0).some(c => c[0] === "room" && c[1] === name) || !!(panel && panel.room === name);
 }
 /** Down on the house, a poll mid-drag, and the lift off the view. */
 function strand(o){
