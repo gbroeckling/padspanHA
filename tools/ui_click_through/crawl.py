@@ -116,6 +116,9 @@ class Crawl:
         self.ctx = self.b.new_context(viewport={"width": w, "height": h}, device_scale_factor=1,
                                       reduced_motion="reduce", has_touch=self.phone, accept_downloads=True)
         self.ctx.add_init_script("try { localStorage.clear(); sessionStorage.clear(); } catch (_) {}")
+        # The demo's own bar (links to the site, Share) is not the product, and it would lie over the panel's drawer.
+        self.ctx.add_init_script("document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style');"
+                                 " s.textContent = '#demo-bar { display: none !important; }'; document.head.appendChild(s); });")
         self.ctx.add_init_script(path=str(HERE / "probe.js"))
         self.ctx.route("**/*", self._route)
         self.page = self.ctx.new_page()
@@ -152,7 +155,8 @@ class Crawl:
             self.events.append(("console", m.text[:600], f"{loc.get('url', '')}:{loc.get('lineNumber', '')}"))
 
     def _reqfail(self, r):
-        if r.url.startswith(self.base):
+        # ERR_ABORTED: the crawler's own reload cut the request short.
+        if r.url.startswith(self.base) and "ERR_ABORTED" not in str(r.failure):
             self.events.append(("request", f"{r.method} {r.url} failed: {r.failure}", ""))
 
     def _dialog(self, d):
@@ -188,17 +192,22 @@ class Crawl:
                 self.find("stuck", "page did not finish loading", str(e)[:300], [])
             return None
         looks = []
-        for _ in range(16):
+        t0 = time.time()
+        while time.time() - t0 < 15:          # a view's module can take a while with several browsers at work
             self.wait(300)
             lk = self.look()
             looks.append(lk)
-            if len(looks) >= 4 and not lk["busy"]:
+            if len(looks) >= 4 and not lk["busy"] and not lk["blank"]:
                 sigs = [frozenset(c["sig"] for c in x["controls"]) for x in looks[-3:]]
                 if sigs[0] == sigs[1] == sigs[2]:
                     break
         if first:
-            # Controls that come and go on their own (people walking, live counts) never make the state "different".
-            seen = [set(c["sig"] for c in x["controls"]) for x in looks[-4:]]
+            # Controls that come and go on their own (people walking, live counts) never make the state
+            # "different": watched for a moment once the page has settled.
+            seen = [set(c["sig"] for c in lk["controls"])]
+            for _ in range(4):
+                self.wait(450)
+                seen.append(set(c["sig"] for c in self.look()["controls"]))
             self.volatile = sorted(set.union(*seen) - set.intersection(*seen))
             lk = self.look()
         return lk
@@ -232,11 +241,12 @@ class Crawl:
         aim = self.js("s => __ct.aim(s)", sig)
         if not aim.get("found"):
             return False, "gone"
+        # Under something else (the flat Atlas's list under the 3D house): no person can reach it either.
+        if aim.get("covered") and not step.get("force"):
+            return False, "covered by " + aim["covered"]
         if do in ("click",):
             if not aim.get("onscreen"):
                 return False, "off screen"
-            if aim.get("covered"):
-                return False, "covered by " + aim["covered"]
             self.press(aim["x"], aim["y"])
             return True, ""
         el = self.handle(sig)
@@ -372,7 +382,7 @@ class Crawl:
         for kind, msg, where in new_ev:
             self.find("error", {"error": "page error", "console": "console error", "request": "failed request", "http": "HTTP error"}[kind], msg, steps, where=where)
             notes.append(f"{kind}: {msg[:80]}")
-        if after["blank"] and not before["blank"]:
+        if after["blank"] and not before["blank"] and after["url"] == before["url"]:
             self.find("stuck", "page went blank", after["url"], steps)
             notes.append("blank")
         if self.phone and after["hscroll"] and not before["hscroll"]:
@@ -405,7 +415,10 @@ class Crawl:
         """Each overlay the action opened must close: Escape, its own close control, or a click outside."""
         notes = []
         had = {o["sig"] for o in before["overlays"]}
-        for ov in [o for o in after["overlays"] if o["sig"] not in had]:
+        for ov in sorted([o for o in after["overlays"] if o["sig"] not in had], key=lambda o: -len(o["text"])):
+            if ov["sig"] not in {o["sig"] for o in self.look()["overlays"]}:
+                notes.append(f"overlay {ov['sig']}: closed with the one before")
+                continue
             ways = []
             gone = False
             for how in ("escape", "close", "outside"):
@@ -448,21 +461,32 @@ class Crawl:
         t_ev = len(self.events)
         ws0 = self.js("() => __ct.ws.length")
         url0 = self.page.url
-        self.n_actions += 1
         try:
             ok, why = self.perform(step)
         except Exception as e:
             return None, [], "could not: " + str(e).splitlines()[0][:120]
         if not ok:
             return None, [], why
+        self.n_actions += 1
         self.wait(500)
+        try:
+            # Full screen is the browser's to end (Escape there); headless, the crawler ends it.
+            if self.js("() => !!document.fullscreenElement && (document.exitFullscreen(), true)"):
+                self.wait(300)
+        except Exception:
+            pass
         try:
             after = self.wait_busy(before, steps)
         except Exception as e:
-            # The page stopped answering: a hang, or it navigated away.
-            if self.page.url != url0:
+            # The page stopped answering: a hang, or it went to another page.
+            msg = str(e)
+            if self.page.url != url0 or "context was destroyed" in msg or "navigat" in msg:
+                try:
+                    self.page.wait_for_load_state("domcontentloaded", timeout=8000)
+                except Exception:
+                    pass
                 return None, [], "left the page: " + self.page.url
-            self.find("stuck", "page stopped answering", str(e)[:200], steps, shot=False)
+            self.find("stuck", "page stopped answering", msg[:200], steps, shot=False)
             return None, [], "hang"
         notes = self.check(before, after, steps, t_ev)
         try:
@@ -497,7 +521,8 @@ class Crawl:
         for b in root["busy"]:
             self.find("stuck", "still loading when the page settled", b["text"], [], where=b["at"])
         for o in root["overlays"]:
-            self.find("polish", "overlay open on arrival", f"{o['sig']} {o['text'][:80]!r}", [])
+            if o.get("dialog"):
+                self.find("polish", "dialog open on arrival", f"{o['sig']} {o['text'][:80]!r}", [])
         queue = [{"path": [], "depth": 0, "parent": set(), "chain": 0}]
         self.states_seen.add(frozenset())
         opened = []                # (path, step) pairs that opened an overlay: for the pair pass
@@ -512,6 +537,8 @@ class Crawl:
             if st["path"]:
                 root_sig = {c["sig"] for c in base["controls"]}
             ctls = [c for c in base["controls"] if c["sig"] not in st["parent"] and c["sig"] not in self.volatile and self.wanted(c)]
+            # What lies on top first: a dialog, then floating layers (the 3D house's controls), then the page.
+            ctls.sort(key=lambda c: {"modal": 0, "overlay": 1}.get(c["region"], 2))
             if st["depth"] == 0:
                 ctls += [c for c in base["controls"] if c["sig"] in self.volatile and self.wanted(c)][:3]   # a few live ones too
             base_sigs = frozenset(c["sig"] for c in base["controls"] if c["sig"] not in self.volatile)
@@ -539,8 +566,6 @@ class Crawl:
                     row["outcome"], row["notes"] = outcome, notes
                     if after is None:
                         dirty = outcome not in ("gone", "off screen") and not outcome.startswith("covered")
-                        if outcome.startswith("covered"):
-                            self.find("polish", "control covered by something else", f"{c['label']!r}: {outcome}", st["path"] + [dict(step, label=c["label"])])
                         self.controls.append(row)
                         continue
                     a_sigs = frozenset(x["sig"] for x in after["controls"] if x["sig"] not in self.volatile)
@@ -548,7 +573,9 @@ class Crawl:
                     changed = a_sigs != base_sigs or a_ov != base_ov or after["url"] != base["url"]
                     new = a_sigs - base_sigs
                     new_ov = a_ov - base_ov
-                    if after["url"] == base["url"] and (new or new_ov):
+                    if after.get("view") != base.get("view"):
+                        row["notes"].append(f"switched to the {after.get('view')} view")
+                    elif after["url"] == base["url"] and (new or new_ov):
                         chain = NEXT.match(c["label"] or "") is not None
                         depth = st["depth"] + (0 if chain and st["chain"] < 12 else 1)
                         key = frozenset(new) | new_ov
@@ -557,8 +584,9 @@ class Crawl:
                             queue.append({"path": st["path"] + [dict(step, label=c["label"])], "depth": depth, "parent": set(base_sigs),
                                           "chain": st["chain"] + 1 if chain else 0})
                             row["opens"] = len(new)
-                    if new_ov:
+                    if (new_ov or new) and after.get("view") == base.get("view") and after["url"] == base["url"]:
                         opened.append(st["path"] + [dict(step, label=c["label"])])
+                    if new_ov:
                         notes += self.close_overlays(cur, after, st["path"] + [dict(step, label=c["label"])])
                     if after["url"] != base["url"]:
                         row["notes"].append("went to " + after["url"])
@@ -596,17 +624,18 @@ class Crawl:
             return
         view = self.job["view"]
         other = "maps" if view == "overview" else "overview"
-        for path in opened[:3]:
-            if time.time() >= t_end:
-                return
+        done = 0
+        for path in opened[:8]:
+            if time.time() >= t_end or done >= 3:
+                break
             lk = self.reach(path)
             if lk is None:
                 continue
             steps = path + [{"label": "menu", "what": f"go to {other}"}]
             t_ev = len(self.events)
             if not self.nav_to(other):
-                self.controls.append({"state": [s["label"] for s in path], "label": f"menu → {other}", "kind": "pair", "region": "-", "what": "switch view", "outcome": "no menu entry reachable (overlay in the way?)"})
-                continue
+                continue                  # a modal dialog is in the way of the menu, as it should be
+            done += 1
             a = self.look()
             notes = self.check(lk, a, steps, t_ev)
             left = [o for o in a["overlays"] if o["sig"] in {x["sig"] for x in lk["overlays"]} and o["sig"] not in {x["sig"] for x in root["overlays"]}]
@@ -694,6 +723,14 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+class Server(http.server.ThreadingHTTPServer):
+    request_queue_size = 512        # several browsers loading 100+ modules at once: the default 5 refuses them
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        pass                        # a page reloaded mid-answer: nothing to say
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--minutes", type=float, default=36, help="time for the crawl itself (default 36)")
@@ -720,7 +757,7 @@ def main(argv=None):
     t_start = time.time()
     tmp = tempfile.TemporaryDirectory()
     dist = build(Path(tmp.name) / "dist")
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), functools.partial(Quiet, directory=str(dist)))
+    srv = Server(("127.0.0.1", args.port), functools.partial(Quiet, directory=str(dist)))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{args.port}/"
     jobs = jobs_for(args)

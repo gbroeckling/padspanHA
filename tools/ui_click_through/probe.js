@@ -154,6 +154,8 @@
     if (tag === "canvas") return "canvas";
     if (tag === "a" && el.hasAttribute("href")) return "link";
     if (tag === "button" || tag === "summary") return "button";
+    // A toggle switch: a label around a checkbox drawn invisible, so the label is what a person presses.
+    if (tag === "label" && el.control && /^(checkbox|radio)$/.test(el.control.type) && !shown(el.control)) return "check";
     const role = el.getAttribute("role");
     if (["button", "tab", "link", "checkbox", "switch", "menuitem", "option", "radio", "slider"].includes(role)) return "button";
     const ls = LISTENERS.get(el);
@@ -260,9 +262,10 @@
       if (cs.pointerEvents === "none" && !dialog) return true;
       const r = el.getBoundingClientRect();
       const ix = Math.max(0, Math.min(r.right, vw()) - Math.max(r.left, 0)), iy = Math.max(0, Math.min(r.bottom, vh()) - Math.max(r.top, 0));
-      if (ix * iy < Math.max(0.02 * area, 6000) && !dialog) return true;
+      // A bar or a rail is part of the page; a sheet, a drawer or a popup covers a good part of it.
+      if (ix * iy < Math.max(0.12 * area, 6000) && !dialog) return true;
       if (els.some((o) => within(el, o))) return true;         // part of one already counted
-      out.push({ sig: nameOf(el), full: ix * iy >= 0.9 * area, modal: cs.position === "fixed", rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
+      out.push({ sig: nameOf(el), dialog, full: ix * iy >= 0.9 * area, modal: cs.position === "fixed", rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
                  text: textOf(el).slice(0, 80) });
       els.push(el);
       return true;
@@ -282,6 +285,7 @@
       if (!hit) continue;
       if (within(hit, document.getElementById("demo-bar"))) continue;
       if (!within(hit, ov)) return { x, y, on: "page" };
+      if (hit === ov && !ov.children.length) return { x, y, on: "backdrop" };     // the overlay is a backdrop
       // Its own surround: the overlay element itself, or a backdrop child nearly as big as the screen.
       const r = hit.getBoundingClientRect();
       if (hit === ov && ov.children.length && [...ov.children].every((c) => { const b = c.getBoundingClientRect(); return !(x >= b.left && x <= b.right && y >= b.top && y <= b.bottom); })) return { x, y, on: "surround" };
