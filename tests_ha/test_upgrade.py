@@ -204,6 +204,21 @@ async def test_nothing_the_person_made_is_lost(hass, hass_storage, hass_ws_clien
         assert reply["success"], (cmd, reply)
 
 
+async def test_a_home_on_the_old_defaults_moves_to_the_new_ones(hass, hass_storage, hass_ws_client, monkeypatch):
+    """The made-up house set both room-speed settings itself, and keeps them.
+    A home still on v0.38.231's defaults for them (almost every home) moves
+    to today's, once; nothing else it set moves with them."""
+    old = hass_storage["padspan_ha.settings"]["data"]
+    old.update(kalman_q=0.125, ble_reseed_interval_s=30)
+    _entry, admin = await _start(hass, hass_ws_client, monkeypatch)
+    settings = (await call(admin, {"type": "padspan_ha/settings_get"}))["result"]["settings"]
+    assert (settings["kalman_q"], settings["ble_reseed_interval_s"]) == (3.0, 5)
+    assert settings["room_speed_v1_applied"] is True and settings["enhanced_security"] is False
+    for key in OLD["settings_changed"]:
+        if key not in ("kalman_q", "ble_reseed_interval_s"):
+            assert settings.get(key) == OLD["reads"]["settings_get"]["settings"].get(key), key
+
+
 async def test_what_it_writes_back_reads_again(hass, hass_storage, hass_ws_client, monkeypatch, caplog):
     entry, admin = await _start(hass, hass_ws_client, monkeypatch)
     reply = await call(admin, {"type": "padspan_ha/settings_set", "light_theme": True})
