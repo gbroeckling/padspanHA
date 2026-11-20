@@ -43,6 +43,17 @@ FIXED_FIRST_RUN = [
 FIXED_FURNISHED = [
     Fixed({"type": "padspan_ha/capture_get", "session_id": "20261120-120425", "offset": 1e308}, True,
           "an offset past 64 bits could not be sent back"),
+    # "nan" and "inf" taken as numbers and stored.
+    Fixed({"type": "padspan_ha/fabric_light_position_set", "entity_id": "light.kitchen_ceiling", "x_m": 1, "y_m": 1,
+           "width_cm": "nan"}, True, "a light's width of nan"),
+    Fixed({"type": "padspan_ha/fabric_scanner_z_set", "source": "scanner_example_kitchen", "z_m": "inf"}, True,
+          "a receiver's height of inf"),
+    Fixed({"type": "padspan_ha/scanner_offset_set", "source": "scanner_example_kitchen", "offset_db": "nan"}, True,
+          "a receiver's offset of nan"),
+    Fixed({"type": "padspan_ha/guest_session_update", "session": "gs_789c232c", "end_at": "inf"}, True,
+          "a stay that ends at inf"),
+    Fixed({"type": "padspan_ha/guest_session_update", "session": "gs_789c232c", "end_at": 1e308}, True,
+          "a stay that ends past the next year"),
 ]
 
 
