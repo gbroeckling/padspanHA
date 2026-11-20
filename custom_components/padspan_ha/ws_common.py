@@ -178,7 +178,7 @@ def _ensure_log_handler() -> _RingLogHandler:
 
 
 @callback
-def _get_settings(hass: HomeAssistant) -> dict:
+def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     """Read current settings for the frontend, with the licence key redacted.
 
     Settings go to ANY authenticated Home Assistant user — the panel has to
@@ -187,6 +187,11 @@ def _get_settings(hass: HomeAssistant) -> dict:
     `pro_active` (the gate's own answer, so the frontend never re-implements
     the rule) plus the expiry, and an admin who needs the key itself asks for
     it explicitly via padspan_ha/forensics_license_reveal.
+
+    A command that sends the settings to its caller passes its `connection`.
+    The phone keys in `irk_devices` stay in the reply only when that caller
+    is a Home Assistant administrator; anyone else (and a call with no
+    connection) gets each phone's name without its key.
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
@@ -207,6 +212,11 @@ def _get_settings(hass: HomeAssistant) -> dict:
     # read and reply (round 6).
     out.pop("vacation_mode_pattern", None)
     out.pop("vacation_mode_pattern_prev", None)
+    # Settings sent to someone who is not an administrator carry no phone keys.
+    _user = getattr(connection, "user", None)
+    if not (_user is not None and getattr(_user, "is_admin", False) is True):
+        out["irk_devices"] = [{k: v for k, v in d.items() if k != "irk_hex"}
+                              for d in (out.get("irk_devices") or []) if isinstance(d, dict)]
     # "Become a tester" holds contact details a person typed (tester.py):
     # never for every user of this Home Assistant. Whether there is one is
     # all the panel needs here; an administrator reads the rest through

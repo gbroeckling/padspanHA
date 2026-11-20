@@ -409,12 +409,24 @@ async def _note_points_seen(hass: HomeAssistant, cal: Any) -> None:
         _LOGGER.debug("calibration_points_seen not updated: %s", err)
 
 
+_CLEAR_BACKUP_FAILED = "The safety backup couldn't be made, so no calibration point was removed."
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/calibration_clear"})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_calibration_clear(hass: HomeAssistant, connection, msg) -> None:
-    """Delete all calibration points and reset the model."""
+    """Delete all calibration points and reset the model.
+
+    The automatic safety backup is taken first; if it can't be made, nothing
+    is removed. Nothing to clear: no backup (an empty one would only take a
+    place among the automatic backups).
+    """
     cal = await _get_cal_store(hass)
+    if (cal.data.get("points") or cal.data.get("model")) and not await _auto_backup(
+            hass, "Before clearing all calibration points", [CALIBRATION_STORE_KEY]):
+        connection.send_error(msg["id"], "backup_failed", _CLEAR_BACKUP_FAILED)
+        return
     count = await cal.async_clear_all()
     _bump(hass, "calibration_cleared_all")
     await _note_points_seen(hass, cal)
@@ -436,6 +448,12 @@ async def ws_calibration_clear_map(hass: HomeAssistant, connection, msg) -> None
         connection.send_error(msg["id"], "invalid_map_id", "map_id is required")
         return
     cal = await _get_cal_store(hass)
+    # The automatic safety backup first, as ws_calibration_clear does; a map
+    # with no points has nothing to back up.
+    if any(p.get("map_id") == map_id for p in cal.data.get("points") or []) and not await _auto_backup(
+            hass, "Before clearing a map's calibration points", [CALIBRATION_STORE_KEY]):
+        connection.send_error(msg["id"], "backup_failed", _CLEAR_BACKUP_FAILED)
+        return
     count = await cal.async_clear_map(map_id, delete=True)
     _bump(hass, "calibration_cleared_map")
     await _note_points_seen(hass, cal)

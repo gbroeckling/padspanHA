@@ -161,7 +161,7 @@ def test_the_trial_command_stores_the_key_it_gets(monkeypatch):
     hass, session, _ = _wire(monkeypatch, (200, TRIAL_OK))
     monkeypatch.setattr(T, "enabled", lambda h: True)
     monkeypatch.setattr(F, "_invalidate_snapshot_cache", lambda h: None)
-    monkeypatch.setattr(F, "_get_settings", lambda h: {})
+    monkeypatch.setattr(F, "_get_settings", lambda h, c=None: {})
     sent = {}
     conn = SimpleNamespace(send_result=lambda i, r: sent.update(r), send_error=lambda i, c, m: sent.update(error=c))
     asyncio.run(F.ws_trial_start(hass, conn, {"id": 1, "email": "a@b.ca"}))
