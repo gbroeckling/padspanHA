@@ -19,7 +19,7 @@ release where PadSpan HA itself does not import or set up must stay red.
   fixture, so the one in conftest.py would do nothing and every test would
   share one config folder inside the installed package. The folder
   conftest.py asks for is given to them the way they take it.
-- Home Assistant before 2024.8 has no `get_scheduled_timer_handles`, which
+- Home Assistant before 2024.9 has no `get_scheduled_timer_handles`, which
   conftest.py imports.
 
 It also notes what Home Assistant says will stop working: every warning in

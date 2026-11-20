@@ -6,8 +6,9 @@ name: Home Assistant versions
 # with and the test harness release built for it. "Real Home Assistant" runs
 # the one release requirements_test_ha.txt pins; this says where else it works.
 #
-# Started by hand: every release in the list, one job each (5 to 10 minutes).
-# On a push: only the rows marked "every_push".
+# Started by hand: every release in the list, one job each (about 2 to 3
+# minutes; all at once). On a push: only the rows marked "every_push", the
+# newest release and the oldest hacs.json claims (its "homeassistant").
 # Never on a tag: scripts/release.py waits for every check a tag starts.
 
 on:
@@ -31,7 +32,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: rows
         env:
-          EVERY_ROW: ${{ github.event_name == 'workflow_dispatch' || github.ref_name == 'real-ha-versions' }}
+          EVERY_ROW: ${{ github.event_name == 'workflow_dispatch' }}
         run: echo "rows=$(jq -c --argjson all "$EVERY_ROW" 'map(select($all or .every_push))' tests_ha/ha_versions.json)" >> "$GITHUB_OUTPUT"
 
   real-ha:

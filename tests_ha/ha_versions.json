@@ -11,6 +11,5 @@
   {"ha": "2025.4.4", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.236"},
   {"ha": "2025.1.4", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.205", "pins": "pycares<4.9"},
   {"ha": "2024.10.4", "python": "3.12", "harness": "pytest-homeassistant-custom-component==0.13.175", "pins": "josepy<2 pycares<4.9"},
-  {"ha": "2024.6.4", "python": "3.12", "harness": "pytest-homeassistant-custom-component==0.13.136", "pins": "josepy<2 pycares<4.9"},
-  {"ha": "2024.1.5", "python": "3.11", "harness": "pytest-homeassistant-custom-component==0.13.91"}
+  {"ha": "2024.8.0", "python": "3.12", "harness": "pytest-homeassistant-custom-component==0.13.152", "pins": "josepy<2 pycares<4.9", "every_push": true}
 ]
