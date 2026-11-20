@@ -50,6 +50,7 @@ from homeassistant.core import HomeAssistant
 
 from .build_info import BUILD_VERSION
 from .const import DATA_SETTINGS, DATA_WLED_LOOKS, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -201,6 +202,7 @@ def _wled_devices(hass: HomeAssistant) -> int:
     try:
         return len(hass.config_entries.async_entries("wled"))
     except Exception:
+        _quiet_error("tester:wled_devices")
         return 0
 
 
@@ -285,6 +287,7 @@ async def setup_lines(hass: HomeAssistant) -> list[dict[str, Any]]:
         report = telemetry.build_payload(hass, consume=False)
         return lines_from_report(hass, report)
     except Exception as err:  # never let the summary stop a sign-up
+        _quiet_error("tester:setup_lines")
         _LOGGER.debug("Tester setup summary unavailable: %s", err)
         return []
 
@@ -409,6 +412,7 @@ async def _post(hass: HomeAssistant, body: dict[str, Any]) -> None:
             try:
                 reply = await resp.json(content_type=None)
             except Exception:
+                _quiet_error("tester:post")
                 reply = None
     except Exception as err:
         _LOGGER.debug("Tester sign-up send failed: %s", err)

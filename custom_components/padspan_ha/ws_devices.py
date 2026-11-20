@@ -22,6 +22,7 @@ from .const import (
     DATA_DEVICE_REGISTRY,
 )
 from .ws_common import admin_if_enhanced_security, _point_in_polygon
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -259,6 +260,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
                 try:
                     z_level = int(round(float(bounds[0][2]) if len(bounds[0]) > 2 else 0))
                 except Exception:
+                    _quiet_error("ws_devices:espresense_import_z")
                     pass
             floors_list.append({"id": fl_id, "name": fl_name, "level": z_level})
             existing_floors[fl_id] = floors_list[-1]
@@ -306,6 +308,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
                         else:
                             stats["skipped"] += 1
                 except Exception:
+                    _quiet_error("ws_devices:espresense_import_room")
                     stats["skipped"] += 1
 
     # ── Nodes (scanner positions) ────────────────────────────────────────

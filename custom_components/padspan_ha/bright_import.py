@@ -76,6 +76,7 @@ from .const import (
     MODEL_STORE_KEY,
     SETTINGS_STORE_KEY,
 )
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -302,6 +303,7 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
         from .telemetry import bump as _bump  # noqa: PLC0415
         _bump(hass, "bright_import")
     except Exception:
+        _quiet_error("bright_import:import")
         # Opt-in usage counter only — a Bright import that just moved a
         # person's whole house across products must never fail, or even log
         # a scary traceback, because the counter that describes it choked.

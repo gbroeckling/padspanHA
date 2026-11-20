@@ -18,6 +18,7 @@ from .const import DOMAIN, DATA_SETTINGS
 from .bluetooth_live import get_bluetooth_live
 from .private_ble_resolver import get_resolver as _get_ble_resolver
 from .telemetry import bump as _bump
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ def _looks_like_a_beacon_uuid(hass: HomeAssistant, irk_bytes: bytes) -> str | No
                 return (f"That is the iBeacon UUID that \u201c{who}\u201d is broadcasting, not its IRK. "
                         "A phone advertising an iBeacon is already tracked by that UUID and does not need an IRK.")
     except Exception:
+        _quiet_error("ws_irk:beacon_uuid_sensors")
         pass
     # Any iBeacon on the air
     try:
@@ -80,6 +82,7 @@ def _looks_like_a_beacon_uuid(hass: HomeAssistant, irk_bytes: bytes) -> str | No
                 return (f"That is the iBeacon UUID of \u201c{name}\u201d (major {ib.get('major')}, minor {ib.get('minor')}), "
                         "not an IRK. iBeacons are tracked by their UUID already.")
     except Exception:
+        _quiet_error("ws_irk:beacon_uuid_adverts")
         pass
     return None
 
@@ -271,6 +274,7 @@ async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
             _add_candidate(raw_b64, "base64_raw")
             _add_candidate(bytes(reversed(raw_b64)), "base64_reversed")
     except Exception:
+        _quiet_error("ws_irk:validate_base64")
         pass
     # Try with padding
     for pad in ("=", "=="):
@@ -280,6 +284,7 @@ async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
                 _add_candidate(raw_b64p, "base64_padded")
                 _add_candidate(bytes(reversed(raw_b64p)), "base64_padded_reversed")
         except Exception:
+            _quiet_error("ws_irk:validate_base64_padded")
             pass
 
     # Try hex with separator stripping
@@ -312,6 +317,7 @@ async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
                 if _address_matches_irk(addr, cand_bytes):
                     matched.append(addr)
             except Exception:
+                _quiet_error("ws_irk:validate_match")
                 pass
         if len(matched) > len(best_matched):
             best_matched = matched
@@ -419,6 +425,7 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
             already_registered[dev["irk_bytes"].hex()] = str(dev.get("name") or "")
             already_registered[bytes(reversed(dev["irk_bytes"])).hex()] = str(dev.get("name") or "")
     except Exception:
+        _quiet_error("ws_irk:auto_detect_resolver")
         pass
 
     # 1. System Bluetooth bonds
@@ -436,6 +443,7 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
                 "registered_as": already_registered.get(irk_hex, ""),
             })
     except Exception as err:
+        _quiet_error("ws_irk:auto_detect_system")
         _LOGGER.debug("IRK auto-detect system scan: %s", err)
 
     # 2. irk-capture ESP32s
@@ -457,6 +465,7 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
                 "registered_as": already_registered.get(irk_hex, ""),
             })
     except Exception as err:
+        _quiet_error("ws_irk:auto_detect_capture")
         _LOGGER.debug("IRK auto-detect irk-capture scan: %s", err)
 
     # Gather RPAs from live BLE to verify found IRKs
@@ -469,6 +478,7 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
             if addr and _is_rpa(addr):
                 rpas.add(addr)
     except Exception:
+        _quiet_error("ws_irk:auto_detect_ble")
         pass
 
     # Test each found IRK against live RPAs
@@ -483,6 +493,7 @@ async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
             item["verified"] = matched > 0
             item["matched_count"] = matched
         except Exception:
+            _quiet_error("ws_irk:auto_detect_verify")
             item["verified"] = False
             item["matched_count"] = 0
 
@@ -520,6 +531,7 @@ async def ws_irk_remove(hass: HomeAssistant, connection, msg) -> None:
         resolver = await _get_ble_resolver(hass)
         await resolver.async_load()
     except Exception:
+        _quiet_error("ws_irk:remove")
         pass
 
     connection.send_result(msg["id"], {"ok": True, "removed": removed})
@@ -561,6 +573,7 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
             if len(decoded) == 16:
                 irk_hex = decoded.hex()
     except Exception:
+        _quiet_error("ws_irk:add_irk_parse")
         pass
 
     if not irk_hex or len(irk_hex) != 32:
@@ -583,6 +596,7 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
             try:
                 b = _b64.b64decode(s)
             except Exception:
+                _quiet_error("ws_irk:stored_irk_hexes")
                 return set()
             if len(b) != 16:
                 return set()
@@ -622,6 +636,7 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
                 try:
                     hass.config_entries.flow.async_abort(flow_id)
                 except Exception:
+                    _quiet_error("ws_irk:abort_flow")
                     pass
 
         try:
@@ -662,6 +677,7 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
             _abort_flow()
             return None, f"flow returned {rtype2}"
         except Exception as e:
+            _quiet_error("ws_irk:try_create_entry")
             _abort_flow()
             return None, str(e)
 
@@ -685,6 +701,7 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
                 resolver = await _get_ble_resolver(hass)
                 await resolver.async_load()
             except Exception:
+                _quiet_error("ws_irk:add_irk_resolver")
                 pass
             connection.send_result(msg["id"], {
                 "ok": True, "duplicate": False,
@@ -738,6 +755,7 @@ async def ws_private_ble_delete_irk(hass: HomeAssistant, connection, msg) -> Non
             resolver = await _get_ble_resolver(hass)
             await resolver.async_load()
         except Exception:
+            _quiet_error("ws_irk:private_ble_delete_irk")
             pass
         connection.send_result(msg["id"], {"ok": True, "removed": entry.title or entry_id})
     except Exception as err:

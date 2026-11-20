@@ -33,6 +33,7 @@ from typing import Any, Callable, Dict, List
 from homeassistant.core import HomeAssistant, callback
 
 from .const import DATA_ESPRESENSE_MQTT, DATA_SETTINGS, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 _PRUNE_AGE_S = 14400  # 4 hours — same as bluetooth_live
@@ -133,6 +134,7 @@ class EspresenseMqtt:
             try:
                 unsub()
             except Exception:
+                _quiet_error("espresense_mqtt:stop")
                 pass
         self._unsubs.clear()
         self._seen.clear()
@@ -225,6 +227,7 @@ class EspresenseMqtt:
             self._seen.setdefault(address, {})[source] = adv
 
         except Exception:
+            _quiet_error("espresense_mqtt:on_device_message")
             pass  # fast path — never block MQTT thread
 
     @callback
@@ -278,6 +281,7 @@ class EspresenseMqtt:
                 except (json.JSONDecodeError, ValueError, TypeError):
                     pass
         except Exception:
+            _quiet_error("espresense_mqtt:on_room_message")
             pass
 
     # ── Snapshot (called from _live_snapshot) ─────────────────────────────

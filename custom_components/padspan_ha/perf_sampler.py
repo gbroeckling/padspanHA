@@ -89,6 +89,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DATA_ESPRESENSE_MQTT, DATA_LOST_AND_FOUND, DATA_OBJECT_HISTORY, DOMAIN
 from .telemetry import enabled
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -324,6 +325,7 @@ def record_duration(hass: HomeAssistant, metric: str, ms: float) -> None:
         if enabled(hass) and not _settling(hass):
             window(hass).add(metric, ms)
     except Exception:
+        _quiet_error("perf_sampler:record_duration")
         pass
 
 
@@ -333,6 +335,7 @@ def cpu_count() -> int | None:
     try:
         n = os.cpu_count()
     except Exception:
+        _quiet_error("perf_sampler:cpu_count")
         return None
     return n if isinstance(n, int) and n > 0 else None
 
@@ -402,6 +405,7 @@ def deep_bytes(obj: Any, cap: int = _SIZE_NODE_CAP, seen: set[int] | None = None
         try:
             total += sys.getsizeof(o)
         except Exception:
+            _quiet_error("perf_sampler:deep_bytes")
             continue
         if isinstance(o, _LEAVES):
             continue
@@ -455,6 +459,7 @@ def _snapshot_kb(items: list, original_of: Any) -> tuple[float, float] | None:
         try:
             js += len(json.dumps(it, default=str, separators=(",", ":")))
         except Exception:
+            _quiet_error("perf_sampler:snapshot_kb")
             pass
     return held / len(sample) / 1024.0, js / len(sample) / 1024.0
 
@@ -522,6 +527,7 @@ def padspan_sizes(hass: HomeAssistant, kb: dict[str, float], *, estimate: bool) 
         if isinstance(n_states, int):
             out["states"] = n_states
     except Exception:
+        _quiet_error("perf_sampler:sizes_entity_count")
         pass
     # Bermuda (the installs with slow builds all have it): how many entities
     # its config entries own, how many of its devices the build lists as
@@ -536,6 +542,7 @@ def padspan_sizes(hass: HomeAssistant, kb: dict[str, float], *, estimate: bool) 
             _ents += len(_er.async_entries_for_config_entry(_reg, _entry.entry_id))
         out["bermuda_ents"] = _ents
     except Exception:
+        _quiet_error("perf_sampler:sizes_registry")
         pass
     raw = snap.get("raw_counts") if isinstance(snap.get("raw_counts"), dict) else {}
     for _k, _m in (("receivers", "bermuda_rcv"), ("candidate_entities", "tag_cands"),
@@ -694,10 +701,12 @@ def _read_static(want_model: bool) -> dict[str, Any]:
     try:
         import homeassistant.helpers.system_info  # noqa: F401, PLC0415
     except Exception:
+        _quiet_error("perf_sampler:static_system_info")
         pass
     try:
         machine = platform.machine()
     except Exception:
+        _quiet_error("perf_sampler:static_machine")
         machine = ""
     return {"cpus": cpu_count(), "ram_bytes": _ram_total_bytes(), "machine": machine,
             "model": _read_dt_model() if want_model else ""}
@@ -745,10 +754,12 @@ async def async_ensure_hw(hass: HomeAssistant) -> bool:
             if callable(getattr(_hassio, "get_info", None)):
                 hassio = _hassio
     except Exception:
+        _quiet_error("perf_sampler:hw_hassio")
         hassio = None
     try:
         static = await hass.async_add_executor_job(_read_static, hassio is None)
     except Exception:
+        _quiet_error("perf_sampler:hw_static")
         static = {}
     static = static if isinstance(static, dict) else {}
     found: dict[str, Any] = {
@@ -763,6 +774,7 @@ async def async_ensure_hw(hass: HomeAssistant) -> bool:
             info = hassio.get_info(hass)
             os_info = hassio.get_os_info(hass)
         except Exception:
+            _quiet_error("perf_sampler:hw_hassio_info")
             pass
         if not isinstance(info, dict):
             found["ready"] = False
@@ -778,6 +790,7 @@ async def async_ensure_hw(hass: HomeAssistant) -> bool:
         if isinstance(si, dict):
             found["install"] = install_class(si.get("installation_type"))
     except Exception:
+        _quiet_error("perf_sampler:hw_system_info")
         pass
     dom[_DATA_HW] = found
     return True
@@ -798,6 +811,7 @@ def note_view(hass: HomeAssistant, cls: Any) -> None:
         if cls in VIEW_CLASSES:
             hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_VIEWS, {})[cls] = hass.loop.time()
     except Exception:
+        _quiet_error("perf_sampler:note_view")
         pass
 
 
@@ -807,6 +821,7 @@ def note_snapshot_request(hass: HomeAssistant) -> None:
         dom = hass.data.setdefault(DOMAIN, {})
         dom[_DATA_SNAP_REQS] = int(dom.get(_DATA_SNAP_REQS, 0)) + 1
     except Exception:
+        _quiet_error("perf_sampler:note_snapshot_request")
         pass
 
 
@@ -884,6 +899,7 @@ class RunLog:
         try:
             self.store.async_delay_save(self._snapshot, _RUNS_SAVE_DELAY_S)
         except Exception as err:
+            _quiet_error("perf_sampler:save_later")
             _LOGGER.debug("Run log not saved: %s", err)
 
     async def async_begin(self, with_ha: bool) -> None:
@@ -893,6 +909,7 @@ class RunLog:
         try:
             raw = await self.store.async_load()
         except Exception:
+            _quiet_error("perf_sampler:begin")
             raw = None
         d = _clean_runs(raw)
         if d["running"]:
@@ -974,6 +991,7 @@ def _start_runs(hass: HomeAssistant) -> None:
                 try:
                     await log.async_stopping()
                 except Exception as err:
+                    _quiet_error("perf_sampler:on_stop")
                     _LOGGER.debug("Run log not closed: %s", err)
 
         dom[_DATA_RUNS_STOP] = hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _on_stop)
@@ -992,6 +1010,7 @@ async def async_runs_opted_in(hass: HomeAssistant) -> None:
         dom[_DATA_RUNS] = log
         await log.async_reset()
     except Exception as err:
+        _quiet_error("perf_sampler:runs_opted_in")
         _LOGGER.debug("Run log not started: %s", err)
 
 
@@ -1003,6 +1022,7 @@ async def async_runs_opted_out(hass: HomeAssistant) -> None:
             log = RunLog(hass)
         await log.store.async_remove()
     except Exception as err:
+        _quiet_error("perf_sampler:runs_opted_out")
         _LOGGER.debug("Run log not removed: %s", err)
 
 
@@ -1043,6 +1063,7 @@ class PerfSampler:
             try:
                 h.cancel()
             except Exception:
+                _quiet_error("perf_sampler:sampler_stop")
                 pass
 
     def _on_timer(self) -> None:
@@ -1061,6 +1082,7 @@ class PerfSampler:
                 self._due = now + INTERVAL_S
             self._handle = loop.call_at(self._due, self._on_timer)
         except Exception as err:
+            _quiet_error("perf_sampler:timer_loop")
             _LOGGER.debug("Load sampler could not reschedule: %s", err)
         try:
             settling = _settling(self.hass)     # its clock runs with the report off too
@@ -1078,6 +1100,7 @@ class PerfSampler:
             try:
                 self._sample_padspan()
             except Exception as err:
+                _quiet_error("perf_sampler:timer_sizes")
                 _LOGGER.debug("PadSpan size sample skipped: %s", err)
             if self._busy:
                 return
@@ -1086,6 +1109,7 @@ class PerfSampler:
             fut = self.hass.async_add_executor_job(read_host)
             fut.add_done_callback(partial(self._on_read, lag_ms, views))
         except Exception as err:
+            _quiet_error("perf_sampler:timer_sample")
             self._busy = False
             _LOGGER.debug("Load sample skipped: %s", err)
 
@@ -1103,6 +1127,7 @@ class PerfSampler:
             try:
                 await async_ensure_hw(self.hass)
             except Exception:
+                _quiet_error("perf_sampler:detect")
                 pass
             finally:
                 self._hw_busy = False
@@ -1110,6 +1135,7 @@ class PerfSampler:
         try:
             self.hass.async_create_background_task(_detect(), "padspan_ha perf hw")
         except Exception:
+            _quiet_error("perf_sampler:maybe_detect_hw")
             self._hw_busy = False
 
     def _on_read(self, lag_ms: float, views: tuple[str, ...], fut: Any) -> None:
@@ -1120,6 +1146,7 @@ class PerfSampler:
                 return
             self.record(lag_ms, fut.result(), views)
         except Exception as err:
+            _quiet_error("perf_sampler:on_read")
             _LOGGER.debug("Load sample dropped: %s", err)
 
     def record(self, lag_ms: float, s: dict[str, Any], views: tuple[str, ...] = ()) -> None:
@@ -1236,10 +1263,12 @@ def async_start(hass: HomeAssistant) -> None:
         s.start()
         dom[_DATA_SAMPLER] = s
     except Exception as err:
+        _quiet_error("perf_sampler:start_sampler")
         _LOGGER.debug("Load sampler not started: %s", err)
     try:
         _start_runs(hass)
     except Exception as err:
+        _quiet_error("perf_sampler:start_runs")
         _LOGGER.debug("Run log not started: %s", err)
 
 
@@ -1250,4 +1279,5 @@ def async_stop(hass: HomeAssistant) -> None:
         if isinstance(s, PerfSampler):
             s.stop()
     except Exception:
+        _quiet_error("perf_sampler:stop")
         pass

@@ -35,6 +35,7 @@ from typing import Any, Iterator
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -272,6 +273,7 @@ class TracebackStore:
             try:
                 await self._store.async_remove()
             except Exception as err:
+                _quiet_error("traceback_store:load")
                 _LOGGER.debug("Legacy traceback store removal failed: %s", err)
             _LOGGER.info("TracebackStore migrated %d frames to append-only segments", len(legacy_frames))
         now = time.time()

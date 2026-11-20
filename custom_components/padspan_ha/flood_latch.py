@@ -64,6 +64,7 @@ from typing import Any
 from homeassistant.core import Event, HomeAssistant, callback as ha_callback
 
 from .const import DOMAIN, DATA_SETTINGS
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,6 +185,7 @@ def async_stop_flood_latch(hass: HomeAssistant) -> None:
             try:
                 unsub()
             except Exception:
+                _quiet_error("flood_latch:stop_flood_latch")
                 pass
 
 

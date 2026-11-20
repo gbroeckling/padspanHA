@@ -385,6 +385,15 @@ def _close_unstarted_tasks():
     _KEPT_TASKS.clear()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_quiet_error_counts():
+    """The quietly handled error counts (quiet_errors.py) live for the whole
+    process: each test starts from none, so no test sees another's."""
+    from custom_components.padspan_ha import quiet_errors
+    quiet_errors.reset()
+    yield
+
+
 class MockStore:
     """Minimal stand-in for homeassistant.helpers.storage.Store."""
 

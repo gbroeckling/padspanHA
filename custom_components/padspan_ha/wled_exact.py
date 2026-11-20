@@ -60,6 +60,7 @@ from . import ws_wled as W
 from .const import DATA_SETTINGS, DATA_WLED_LOOKS, DOMAIN, WLED_LOOKS_STORE_KEY
 from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -283,6 +284,7 @@ def is_exact_entity(hass: HomeAssistant, entity_id: str) -> bool:
     try:
         return _exact_record(hass, entity_id) is not None or _team_of_entity(hass, entity_id)[1] is not None
     except Exception:  # noqa: BLE001 — a registry hiccup means "plain light"
+        _quiet_error("wled_exact:is_exact_entity")
         return False
 
 
@@ -732,6 +734,7 @@ def _schedule_late(hass: HomeAssistant, worker: _Worker, gen: int, tt: int, stag
     try:
         worker.late_cancel = _later(hass, tt / 10 + LATE_EXTRA_S, _fire)
     except Exception as err:  # noqa: BLE001 — a missing timer loses only the late check
+        _quiet_error("wled_exact:schedule_late")
         _LOGGER.debug("WLED exact look: late check not scheduled: %s", err)
 
 
@@ -757,6 +760,7 @@ def _schedule_retry(hass: HomeAssistant, worker: _Worker, gen: int, want: dict, 
     try:
         worker.retry_cancel = _later(hass, result["retry_in"], _fire)
     except Exception as err:  # noqa: BLE001 — a missing timer leaves it to a reconnect
+        _quiet_error("wled_exact:schedule_retry")
         _LOGGER.debug("WLED exact look: retry not scheduled: %s", err)
 
 
@@ -882,6 +886,7 @@ def _plain_targets(hass: HomeAssistant, entity_id: str, brightness: int | None) 
     try:
         ident, team = _team_of_entity(hass, entity_id)
     except Exception:  # noqa: BLE001 — a registry hiccup: just the light
+        _quiet_error("wled_exact:plain_targets")
         return [(entity_id, brightness)]
     st = _store(hass)
     if not team or not st:
@@ -1003,6 +1008,7 @@ async def _lapsed_team_follows(hass: HomeAssistant, entity_id: str, old: Any, ne
         bri = (getattr(new, "attributes", None) or {}).get("brightness") if new_s == "on" else None
         targets = _plain_targets(hass, entity_id, int(bri) if isinstance(bri, (int, float)) else None)
     except Exception:  # noqa: BLE001 — a registry hiccup: the light alone, as HA switched it
+        _quiet_error("wled_exact:lapsed_team_follows")
         return
     await _plain_calls(hass, [t for t in targets if t[0] != entity_id], new_s == "on", None)
 
@@ -1152,6 +1158,7 @@ def _refresh_listener(hass: HomeAssistant) -> None:
         try:
             unsub()
         except Exception:  # noqa: BLE001
+            _quiet_error("wled_exact:refresh_listener")
             pass
     st = _store(hass)
     if st is None:
@@ -1197,6 +1204,7 @@ def async_stop_wled_exact(hass: HomeAssistant) -> None:
             try:
                 unsub()
             except Exception:  # noqa: BLE001
+                _quiet_error("wled_exact:stop_wled_exact")
                 pass
     for w in (dom.get(_WORKERS) or {}).values():
         w.cancel_timers()
@@ -1439,6 +1447,7 @@ async def async_give_back_all(hass: HomeAssistant) -> list[str]:
             other_runs = {str(m).upper() for m, r in (_o.get("devices") or {}).items()
                           if isinstance(r, dict) and (r.get("join") == "padspan" or r.get("sync_off"))}
     except Exception:  # noqa: BLE001 - unreadable: nothing is known to be the other's
+        _quiet_error("wled_exact:give_back_all")
         other_runs = set()
     missed: list[str] = []
     for mac, rec in list((st.data.get("devices") or {}).items()):
@@ -1847,6 +1856,7 @@ async def _service_entities(hass: HomeAssistant, call: Any) -> list[str]:
             found = await found
         ids = set(found or ())
     except Exception:  # noqa: BLE001 — fall back to the entity_id field itself
+        _quiet_error("wled_exact:service_entities")
         ids = set()
     raw = call.data.get("entity_id")
     if not ids and raw:

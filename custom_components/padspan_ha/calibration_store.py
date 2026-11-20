@@ -34,6 +34,7 @@ from homeassistant.helpers.storage import Store
 from .const import CALIBRATION_STORE_KEY, DATA_SETTINGS, DOMAIN
 from .safe_store import wrap_store
 from .random_forest import MISSING_RSSI, RandomForestLocator
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -210,6 +211,7 @@ class CalibrationStore:
             meta = (self._model.room_meta() or {}).get(str(room)) or {}
             return str(meta.get("floor_id") or "").strip()[:40]
         except Exception:
+            _quiet_error("calibration_store:room_floor")
             return ""
 
     def _resolve_floor_id(self, raw: Any, room: Any = None) -> str:
@@ -232,6 +234,7 @@ class CalibrationStore:
         try:
             floors = self._model.floor_base_elevations_m() if self._model else {}
         except Exception:
+            _quiet_error("calibration_store:resolve_floor_id")
             return ""
         return next(iter(floors)) if len(floors) == 1 else ""
 
@@ -759,6 +762,7 @@ class CalibrationStore:
                 if _st:
                     _dev_h = max(0.0, min(3.0, float(_st.data.get("assumed_device_height_m", 1.0))))
             except Exception:
+                _quiet_error("calibration_store:fit_path_loss")
                 pass
             # Metres are map-independent — use all metre points, cross-map.
             for pt in metre_pts:
@@ -861,6 +865,7 @@ class CalibrationStore:
             out = set(excluded_sources(d))
             return frozenset(out)
         except Exception:
+            _quiet_error("calibration_store:excluded_sources")
             return frozenset()
 
     @staticmethod
@@ -1287,6 +1292,7 @@ class CalibrationStore:
                 or "knn"
             )
         except Exception:
+            _quiet_error("calibration_store:active_algorithm")
             return "knn"
         return algo if algo in ("knn", "rf") else "knn"
 

@@ -48,6 +48,7 @@ from .const import (
     VENDOR_CACHE_STORE_KEY,
 )
 from .bluetooth_live import get_bluetooth_live
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -211,6 +212,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
             try:
                 await _aio.to_thread(f.unlink)
             except Exception:
+                _quiet_error("ws_factory_reset:delete_file")
                 pass
     except Exception as e:
         _LOGGER.warning("Factory reset: maps — %s", e)
@@ -547,6 +549,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
                 if hasattr(_coord, attr):
                     getattr(_coord, attr).clear()
     except Exception:
+        _quiet_error("ws_factory_reset:reset_presence")
         pass
 
     # Main coordinator caches
@@ -557,6 +560,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
                 if hasattr(_main_coord, attr):
                     getattr(_main_coord, attr).clear()
     except Exception:
+        _quiet_error("ws_factory_reset:reset_coordinator")
         pass
 
     # BluetoothLive advertisement cache — clear so old objects disappear.
@@ -569,6 +573,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
             _bl._last_reseed = None
             _bl._address_types.clear()
     except Exception:
+        _quiet_error("ws_factory_reset:reset_bluetooth")
         pass
 
     # The addresses a radio confirmed as public (bluetooth_live), removed through

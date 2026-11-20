@@ -20,6 +20,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant, Event, callback, CALLBACK_TYPE
 
 from .const import DOMAIN, DATA_SETTINGS, DATA_OBJECTS
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ def _ha_tag_name(hass: HomeAssistant, tag_id: str) -> str:
             if name:
                 return str(name)
     except Exception:  # noqa: BLE001 - a missing name falls back to the id
+        _quiet_error("tag_integration:ha_tag_name_registry")
         pass
     try:
         store = hass.data.get("tag")
@@ -69,6 +71,7 @@ def _ha_tag_name(hass: HomeAssistant, tag_id: str) -> str:
         name = item.get("name") if isinstance(item, dict) else getattr(item, "name", None)
         return str(name) if name else ""
     except Exception:  # noqa: BLE001
+        _quiet_error("tag_integration:ha_tag_name_store")
         return ""
 
 
@@ -186,6 +189,7 @@ class TagIntegration:
             _LOGGER.debug("TagIntegration: HA tag component not available")
             return False
         except Exception as err:
+            _quiet_error("tag_integration:emit_room_change")
             _LOGGER.debug("TagIntegration: tag emit failed for %s: %s", key, err)
 
         # Also fire a custom padspan event with richer data for automations
@@ -458,6 +462,7 @@ class TagIntegration:
             })
 
         except Exception as err:
+            _quiet_error("tag_integration:try_autolink_phone")
             _LOGGER.debug("TagIntegration autolink failed: %s", err)
 
     # ── Helper: find which room a phone is in ────────────────────────────────
@@ -539,5 +544,6 @@ class TagIntegration:
 
             return None
         except Exception as err:
+            _quiet_error("tag_integration:get_phone_room")
             _LOGGER.debug("TagIntegration: get_phone_room failed: %s", err)
             return None

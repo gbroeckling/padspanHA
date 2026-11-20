@@ -52,6 +52,7 @@ from .house3d_library import carried_over, without_tokens
 from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStore, NewerFile, ReadFailed,
                             apply_edit, async_get_store, empty, enabled, without_pieces, writable)
 from .ws_common import admin_if_enhanced_security, _tier_at_least
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ async def ws_house3d_get(hass: HomeAssistant, connection, msg) -> None:
         if sp:
             out["scan_pieces"] = sp
     except Exception:  # noqa: BLE001 — a guide to draw; the file is what the view came for
+        _quiet_error("ws_house3d:get")
         _LOGGER.debug("PadSpan: scan furniture not read", exc_info=True)
     connection.send_result(msg["id"], out)
 

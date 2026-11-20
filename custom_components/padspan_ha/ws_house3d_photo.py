@@ -69,6 +69,7 @@ from .const import DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled
 from .ws_common import admin_if_enhanced_security, _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -131,6 +132,7 @@ def _ha_version() -> tuple[int, int] | None:
         from homeassistant.const import MAJOR_VERSION, MINOR_VERSION  # noqa: PLC0415
         return int(MAJOR_VERSION), int(MINOR_VERSION)
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_house3d_photo:ha_version")
         return None
 
 
@@ -141,6 +143,7 @@ def _platform(hass: HomeAssistant, eid: str) -> str | None:
         p = getattr(ent, "platform", None)
         return p if isinstance(p, str) else None
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_house3d_photo:platform")
         return None
 
 
@@ -166,6 +169,7 @@ def ai_task(hass: HomeAssistant, *, with_backup: bool = False) -> dict[str, Any]
     try:
         has = bool(hass.services.has_service("ai_task", "generate_data"))
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_house3d_photo:ai_task")
         has = False
     if not has:
         return {"ready": False, "message": NO_AI_SERVICE}
@@ -645,6 +649,7 @@ def _write(folder: Path, path: Path, raw: bytes) -> tuple[int, int] | None:
     try:
         return U.picture_size(raw)
     except Exception:  # noqa: BLE001 — the tracker's count never stops a read
+        _quiet_error("ws_house3d_photo:write")
         return None
 
 
@@ -828,6 +833,7 @@ def _server_url(hass: HomeAssistant, eid: str) -> str | None:
         entry = hass.config_entries.async_get_entry(entry_id) if isinstance(entry_id, str) else None
         url = {**(entry.data or {}), **(entry.options or {})}.get("url") if entry is not None else None
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_house3d_photo:server_url")
         return None
     return url.strip() if isinstance(url, str) and url.strip() else None
 
@@ -858,6 +864,7 @@ async def _probe(hass: HomeAssistant, eid: str) -> str | None:
     try:
         await writer.wait_closed()
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_house3d_photo:probe")
         pass
     return None
 
@@ -928,6 +935,7 @@ def _bump(hass: HomeAssistant, event: str) -> None:
         from .telemetry import bump  # noqa: PLC0415
         bump(hass, event)
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_house3d_photo:bump")
         pass
 
 
@@ -1007,6 +1015,7 @@ async def _read_furniture(hass: HomeAssistant, ai: dict[str, Any], raw: bytes, m
             if o2["ok"]:
                 out, by = o2, by2
         except Exception as err:  # noqa: BLE001 — the first answer stands
+            _quiet_error("ws_house3d_photo:read_furniture")
             _LOGGER.debug("PadSpan Live Aboard: the second read of a photo failed: %s", _why(err))
     return out, by
 

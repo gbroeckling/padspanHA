@@ -24,6 +24,7 @@ import re
 from .const import (
     DATA_MODEL, DATA_SETTINGS, DEFAULT_PATH_LOSS_EXP, DEFAULT_REF_POWER, DOMAIN, OUTDOOR_FLOOR_NAMES,
 )
+from .quiet_errors import note as _quiet_error
 
 # Kinds that physically go away.  An HA entity has no radio and no age, so it
 # is never "away" — blanking those was how an earlier attempt at this rule
@@ -269,6 +270,7 @@ def known_rooms(hass: Any) -> set[str]:
             for r in names():
                 add(r)
         except Exception:  # noqa: BLE001 — a store or registry not ready: those rooms are not known yet
+            _quiet_error("presence_rules:known_rooms")
             continue
     return out
 
@@ -330,10 +332,12 @@ def home_context(hass: Any, objects: Any = None) -> dict[str, Any]:
         try:
             objects = [o for o in (getattr(pc, "data", None) or {}).values()]
         except Exception:  # noqa: BLE001
+            _quiet_error("presence_rules:home_context_objects")
             objects = []
     try:
         zones = home_zones(hass.states.async_all("zone"))
     except Exception:  # noqa: BLE001 — no states yet: no zones
+        _quiet_error("presence_rules:home_context_zones")
         zones = {}
     timeout = away_timeout_s(hass)
     return {"rooms": known_rooms(hass), "zones": zones,

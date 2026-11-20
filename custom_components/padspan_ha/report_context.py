@@ -23,6 +23,7 @@ from typing import Any, Callable, Iterable
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
+from .quiet_errors import note as _quiet_error
 
 REPOSITORY = "gbroeckling/padspanHA"
 STORE_WORDS: tuple[str, ...] = ("marketplace", "hacs", "manual", "unknown")
@@ -50,6 +51,7 @@ def install_store(hass: HomeAssistant) -> str:
         if hacs is not None and _lists_installed(hacs.repositories):
             return "hacs"
     except Exception:  # noqa: BLE001 - another integration's objects: any surprise is "unknown"
+        _quiet_error("report_context:install_store")
         return "unknown"
     return "manual"
 

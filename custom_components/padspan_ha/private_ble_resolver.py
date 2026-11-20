@@ -48,6 +48,7 @@ import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,6 +164,7 @@ class PrivateBLEResolver:
                 from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
                 _dev_reg = _dr.async_get(self._hass)
             except Exception:
+                _quiet_error("resolver:load_registry")
                 pass
             for entry in self._hass.config_entries.async_entries("private_ble_device"):
                 irk_raw = (entry.data or {}).get("irk")
@@ -180,6 +182,7 @@ class PrivateBLEResolver:
                                     _disp = _friendly
                                     break
                         except Exception:
+                            _quiet_error("resolver:load_device_name")
                             pass
                     _add_device(irk_bytes, _disp, "private_ble_device", entry.entry_id)
 
@@ -194,6 +197,7 @@ class PrivateBLEResolver:
                 if _sys_irks:
                     _LOGGER.info("Found %d IRK(s) from system Bluetooth bonds", len(_sys_irks))
             except Exception as _sys_err:
+                _quiet_error("resolver:load_system_irks")
                 _LOGGER.debug("System Bluetooth IRK scan: %s", _sys_err)
 
             # 3) mobile_app entries — companion app config entry data
@@ -224,6 +228,7 @@ class PrivateBLEResolver:
                                     if irk_raw:
                                         break
                     except Exception:
+                        _quiet_error("resolver:load_mobile_app_irk")
                         pass
                 if not irk_raw:
                     continue
@@ -254,6 +259,7 @@ class PrivateBLEResolver:
                         _add_device(irk_bytes, _name, "companion_sensor")
                         _LOGGER.info("Found IRK from BLE Transmitter sensor: %s", eid)
             except Exception as _bt_err:
+                _quiet_error("resolver:load_ble_transmitter")
                 _LOGGER.debug("BLE Transmitter sensor IRK scan: %s", _bt_err)
 
             # 4) PadSpan settings — IRKs added directly via PadSpan UI
@@ -271,6 +277,7 @@ class PrivateBLEResolver:
                             _add_device(irk_bytes, irk_name, "padspan",
                                         via="irk_capture" if irk_entry.get("via") == "irk_capture" else "")
             except Exception as _ps_err:
+                _quiet_error("resolver:load_padspan_irks")
                 _LOGGER.debug("PadSpan IRK load: %s", _ps_err)
 
             if devices:
@@ -372,6 +379,7 @@ class PrivateBLEResolver:
             from .telemetry import bump  # noqa: PLC0415
             bump(self._hass, event)
         except Exception:
+            _quiet_error("resolver:count")
             pass
 
     def take_resolved_ids(self) -> set[str]:
@@ -464,6 +472,7 @@ class PrivateBLEResolver:
             entries = list(self._hass.config_entries.async_entries("private_ble_device"))
             has_integration = len(entries) > 0
         except Exception:
+            _quiet_error("resolver:status_private_ble")
             pass
 
         mobile_apps: list[str] = []
@@ -471,6 +480,7 @@ class PrivateBLEResolver:
             for entry in self._hass.config_entries.async_entries("mobile_app"):
                 mobile_apps.append(entry.title or entry.entry_id)
         except Exception:
+            _quiet_error("resolver:status_mobile_app")
             pass
 
         # Merge source_info into device entries for unified UI display.
@@ -486,6 +496,7 @@ class PrivateBLEResolver:
             from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
             _dev_reg = _dr.async_get(self._hass)
         except Exception:
+            _quiet_error("resolver:status_registry")
             pass
         devs = []
         for i, d in enumerate(self._devices):
@@ -500,6 +511,7 @@ class PrivateBLEResolver:
                             name = _friendly
                             break
                 except Exception:
+                    _quiet_error("resolver:status_device_name")
                     pass
                 if name != d["name"]:
                     d["name"] = name        # resolve() labels pick it up too
@@ -563,6 +575,7 @@ class PrivateBLEResolver:
 
             return {"uuid": uuid, "major": major, "minor": minor, "tx_power": tx_power}
         except Exception:
+            _quiet_error("resolver:parse_ibeacon")
             return None
 
 
@@ -594,6 +607,7 @@ def _is_rpa(address: str) -> bool:
         msb = int(address.split(":")[0], 16)
         return (msb & _RPA_MASK) == _RPA_VALUE
     except Exception:
+        _quiet_error("resolver:is_rpa")
         return False
 
 
@@ -727,6 +741,7 @@ def _parse_irk(raw: Any) -> bytes | None:
                 if len(b) == 16:
                     return b
             except Exception:
+                _quiet_error("resolver:parse_irk_base64")
                 pass
             # Some base64 strings have padding stripped
             for pad in ("=", "==", "==="):
@@ -735,8 +750,10 @@ def _parse_irk(raw: Any) -> bytes | None:
                     if len(b) == 16:
                         return b
                 except Exception:
+                    _quiet_error("resolver:parse_irk_base64_padded")
                     pass
     except Exception:
+        _quiet_error("resolver:parse_irk")
         pass
     return None
 
@@ -801,8 +818,10 @@ def _read_system_bluetooth_irks() -> list[dict[str, Any]]:
                         name, device, adapter,
                     )
                 except Exception as _fe:
+                    _quiet_error("resolver:system_irks_file")
                     _LOGGER.debug("Error reading BT info %s: %s", info_file, _fe)
     except Exception as _de:
+        _quiet_error("resolver:system_irks_scan")
         _LOGGER.debug("Error scanning %s: %s", bt_base, _de)
 
     return results

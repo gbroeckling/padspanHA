@@ -23,6 +23,7 @@ from .const import (
 )
 from .snapshot_builder import _live_snapshot
 from .ws_common import admin_if_enhanced_security, _get_settings, _invalidate_snapshot_cache
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ async def ws_follow_alert_save(hass: HomeAssistant, connection, msg) -> None:
         if _dev_reg:
             _pid = _dev_reg.resolve(addr)
     except Exception:
+        _quiet_error("ws_follow:alert_save")
         # padspan_id is an optional stable-identity hint, not the record key
         # (addr still is) — a resolve failure here must not block saving the
         # alert config the user actually asked to save.
@@ -172,6 +174,7 @@ async def ws_area_delete(hass: HomeAssistant, connection, msg) -> None:
             # without this room left the room's colour and floor in place.
             await mdl.async_remove_room_meta(area_name)
         except Exception:
+            _quiet_error("ws_follow:area_delete")
             # The HA area is already gone by this point (ar.async_delete
             # above succeeded) — a failure tidying up the PadSpan-side
             # room_meta leftover must not surface as a failed area delete.

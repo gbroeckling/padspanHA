@@ -71,6 +71,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, DATA_SETTINGS
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -538,6 +539,7 @@ async def _async_fetch_history(
         from homeassistant.components.recorder.history import get_significant_states  # noqa: PLC0415
         from homeassistant.util import dt as dt_util  # noqa: PLC0415
     except Exception as err:
+        _quiet_error("vacation_mode:history_recorder")
         # No recorder at all is not a failed query: it's an empty answer, and
         # waits the hour like one (re-review round 3).
         _LOGGER.debug("Vacation mode: recorder not available: %s", err)
@@ -547,6 +549,7 @@ async def _async_fetch_history(
     try:
         instance = get_instance(hass)
     except Exception as err:        # recorder not set up: nothing to read, not a failure
+        _quiet_error("vacation_mode:history_instance")
         _LOGGER.debug("Vacation mode: recorder not set up: %s", err)
         return {}
     try:
@@ -585,6 +588,7 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
     try:
         states = {eid: hass.states.get(eid) for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)}
     except Exception:
+        _quiet_error("vacation_mode:eligible_states")
         return []
     drop: set[str] = set()
     for eid, st in states.items():
@@ -598,6 +602,7 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
         try:
             wled_main = _platform_of(hass, eid) == "wled"
         except Exception:  # noqa: BLE001 — no registry: treat as an ordinary group
+            _quiet_error("vacation_mode:eligible_platform")
             wled_main = False
         usable = st is not None and st.state not in ("unavailable", "unknown") and not attrs.get("restored")
         if wled_main and usable:
@@ -775,6 +780,7 @@ def who_from_connection(hass: HomeAssistant, connection: Any) -> dict:
         elif name:
             out["via"] = str(name)[:60]
     except Exception:  # noqa: BLE001 — the user's name is enough
+        _quiet_error("vacation_mode:who_from_connection")
         pass
     return out
 
@@ -806,6 +812,7 @@ async def async_notify_turned_off(hass: HomeAssistant, who: dict, now_ts: float)
         from homeassistant.components.persistent_notification import async_create  # noqa: PLC0415
         async_create(hass, message, title=title, notification_id="padspan_ha_vacation_off")
     except Exception as err:  # noqa: BLE001
+        _quiet_error("vacation_mode:off_notification")
         _LOGGER.debug("Vacation mode: no notification: %s", err)
     targets: list[tuple[str, str]] = []
     try:
@@ -818,6 +825,7 @@ async def async_notify_turned_off(hass: HomeAssistant, who: dict, now_ts: float)
             if any(t) and t not in targets:
                 targets.append(t)
     except Exception as err:  # noqa: BLE001
+        _quiet_error("vacation_mode:off_alert")
         _LOGGER.debug("Vacation mode: could not read alert targets: %s", err)
     sent = False
     if targets:
@@ -1177,11 +1185,13 @@ def someone_home(hass: HomeAssistant) -> bool:
         if any(person_home(hass, s, ctx) for s in persons):
             return True
     except Exception:  # noqa: BLE001
+        _quiet_error("vacation_mode:someone_home_people")
         pass
     try:
         from .guest_tags import counts_home_present  # noqa: PLC0415
         return counts_home_present(hass)
     except Exception:  # noqa: BLE001
+        _quiet_error("vacation_mode:someone_home_guests")
         return False
 
 
@@ -1193,6 +1203,7 @@ def _sun_times(hass: HomeAssistant, at_local: datetime) -> tuple[float | None, f
         sset = get_astral_event_date(hass, "sunset", at_local.date())
         return (rise.timestamp() if rise else None, sset.timestamp() if sset else None)
     except Exception:  # noqa: BLE001
+        _quiet_error("vacation_mode:sun_times")
         return (None, None)
 
 
@@ -1230,6 +1241,7 @@ def announce(hass: HomeAssistant, on: bool, how: str) -> None:
     try:
         hass.bus.async_fire(EVENT_VACATION, {"on": bool(on), "how": how})
     except Exception:  # noqa: BLE001
+        _quiet_error("vacation_mode:announce")
         pass
     refresh_status(hass)
 
@@ -1266,6 +1278,7 @@ def refresh_status(hass: HomeAssistant) -> None:
         from homeassistant.helpers.dispatcher import async_dispatcher_send  # noqa: PLC0415
         async_dispatcher_send(hass, SIGNAL_VACATION)
     except Exception:  # noqa: BLE001
+        _quiet_error("vacation_mode:refresh_status")
         pass
 
 
@@ -1288,6 +1301,7 @@ def _count_rule_once_a_day(hass: HomeAssistant, rule: str, day: str) -> None:
         elif rule == "anchor":
             bump(hass, "vacation_anchor_on")
     except Exception:  # noqa: BLE001
+        _quiet_error("vacation_mode:count_rule_once_a_day")
         pass
 
 
@@ -1301,6 +1315,7 @@ async def _async_end_trip(hass: HomeAssistant, st: Any, now_ts: float) -> None:
         from .telemetry import bump  # noqa: PLC0415
         bump(hass, "vacation_off_end_date")
     except Exception:  # noqa: BLE001
+        _quiet_error("vacation_mode:end_trip")
         pass
     announce(hass, False, "end_date")
     hass.async_create_task(async_notify_turned_off(hass, who, now_ts))
@@ -1518,6 +1533,7 @@ async def _async_tick(hass: HomeAssistant) -> None:
                 from .telemetry import bump  # noqa: PLC0415
                 bump(hass, "vacation_paused_home")
             except Exception:  # noqa: BLE001
+                _quiet_error("vacation_mode:tick_bump")
                 pass
             announce(hass, True, "paused_home")
         return
@@ -1601,6 +1617,7 @@ async def _async_tick(hass: HomeAssistant) -> None:
             else:
                 await hass.services.async_call(domain, service, {"entity_id": entity_id})
         except Exception as err:
+            _quiet_error("vacation_mode:tick_wled_power")
             _LOGGER.debug("Vacation mode: could not %s %s: %s", service, entity_id, err)
             continue
         log = dom.get(_VM_LOG)   # created by async_setup_vacation_mode
@@ -1635,4 +1652,5 @@ def async_stop_vacation_mode(hass: HomeAssistant) -> None:
         try:
             unsub()
         except Exception:
+            _quiet_error("vacation_mode:stop_vacation_mode")
             pass

@@ -51,6 +51,7 @@ from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 from . import ai_usage as U
 from . import ws_house3d_photo as P
 from .ws_common import admin_if_enhanced_security
+from .quiet_errors import note as _quiet_error
 
 # The master switch over every AI map-building feature (Settings → AI → AI
 # map-building research, experimental, 2026-11): off hides the stair finder too.
@@ -290,6 +291,7 @@ def _bump(hass: HomeAssistant, event: str, n: int = 1) -> None:
         from .telemetry import bump  # noqa: PLC0415
         bump(hass, event, n)
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_house3d_stairs:bump")
         pass
 
 
@@ -338,6 +340,7 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
             raise OSError("no image")
         raw, w, h = await hass.async_add_executor_job(shrink, fp)
     except Exception:  # noqa: BLE001 — a missing or unreadable picture is one answer
+        _quiet_error("ws_house3d_stairs:stairs_read_picture")
         connection.send_error(msg["id"], "bad_photo", "That floor plan's picture couldn't be read.")
         return
     mime = "image/jpeg"

@@ -22,6 +22,7 @@ from .const import DATA_DEVICE_REGISTRY, DOMAIN
 from .guest_tags import (RETENTION_CHOICES, async_get_store, enabled, fire, retention_days, session_out,
                          store_if_loaded, tag_state, valid_quiet)
 from .ws_common import admin_if_enhanced_security
+from .quiet_errors import note as _quiet_error
 
 OFF_CODE = "guest_tags_off"
 OFF_MESSAGE = "Guest tags are off. Turn them on in Settings → Tracking → Guest tags."
@@ -33,6 +34,7 @@ def _bump(hass: HomeAssistant, name: str) -> None:
         from .telemetry import bump  # noqa: PLC0415
         bump(hass, name)
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_guests:bump")
         pass
 
 
@@ -42,6 +44,7 @@ async def _objects(hass: HomeAssistant) -> list[dict]:
         snap = await _live_snapshot(hass)
         return [o for o in ((snap.get("objects") or {}).get("list") or []) if isinstance(o, dict)]
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_guests:objects")
         return []
 
 
@@ -117,6 +120,7 @@ async def ws_guest_tag_mark(hass: HomeAssistant, connection, msg) -> None:
         try:
             pid = reg.resolve_or_create(key, kind="ibeacon" if key.startswith("ibeacon:") else "mac", persist=True) or pid
         except Exception:  # noqa: BLE001
+            _quiet_error("ws_guests:guest_tag_mark")
             pass
     if not pid:
         connection.send_error(msg["id"], "no_identity", "PadSpan has no steady identity for this device yet.")

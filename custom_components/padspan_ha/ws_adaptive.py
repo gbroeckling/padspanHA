@@ -13,6 +13,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .ws_common import admin_if_enhanced_security
 from .const import DOMAIN, DATA_ADAPTIVE
+from .quiet_errors import note as _quiet_error
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/adaptive_status_get"})
@@ -63,6 +64,7 @@ async def ws_adaptive_fingerprints_get(hass: HomeAssistant, connection, msg) -> 
             "total_observations": (ad.data.get("stats") or {}).get("total_observations", 0),
         })
     except Exception:
+        _quiet_error("ws_adaptive:fingerprints_get")
         connection.send_result(msg["id"], _empty)
 
 
