@@ -493,7 +493,8 @@ def _sanitize_whole_house_presets(presets_in: Any) -> list[dict[str, Any]]:
 # check with its own words, and the end time arrives as a number already, so
 # the check on every value (_unstorable_number) refuses it.
 _NUMBER_KEYS = (
-    "room_change_delay_s", "away_timeout_m", "ref_power", "path_loss_exp", "kalman_q", "kalman_r",
+    "room_change_delay_s", "away_timeout_m", "thing_away_timeout_h",
+    "ref_power", "path_loss_exp", "kalman_q", "kalman_r",
     "hold_last_room_s", "assumed_device_height_m", "fabric_origin_lat", "fabric_origin_lon",
     "health_reminder_last_ts", "maps_iso_floor_gap", "maps_iso_horiz_gap", "maps_iso_focus",
     "overview_iso_floor_gap", "overview_iso_horiz_gap", "overview_iso_focus", "overview_iso_zoom",
@@ -614,7 +615,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
-        vol.Optional("thing_away_timeout_h"): vol.Coerce(float),  # things nobody carries keep their room; 0 = as away_timeout_m
+        vol.Optional("thing_away_timeout_h"): vol.Coerce(float),  # things nobody carries keep their room; 0 = off (as away_timeout_m)
         vol.Optional("ref_power"): vol.Coerce(float),
         vol.Optional("path_loss_exp"): vol.Coerce(float),
         vol.Optional("kalman_q"): vol.Coerce(float),
@@ -950,7 +951,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "away_timeout_m" in msg:
             payload["away_timeout_m"] = max(1.0, min(1440.0, float(msg["away_timeout_m"])))
         if "thing_away_timeout_h" in msg:
-            payload["thing_away_timeout_h"] = _clamped(msg["thing_away_timeout_h"], 0.5, 48, 6.0, zero_ok=True)
+            payload["thing_away_timeout_h"] = _clamped(msg["thing_away_timeout_h"], 0.5, 48, 0.0, zero_ok=True)
         if "ref_power" in msg:
             payload["ref_power"] = max(-100.0, min(0.0, float(msg["ref_power"])))
         if "path_loss_exp" in msg:

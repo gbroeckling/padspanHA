@@ -285,8 +285,9 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
         return str(obj.get("user_label") or obj.get("name") or self._init_label)
 
     def _away_after_s(self) -> float:
-        """The away timeout when a person carries this device; a thing
-        (nobody carries it) keeps its last room longer (presence_rules)."""
+        """The away timeout. With the things' time set (off by default), that
+        is for a device a person carries; a thing (nobody carries it) keeps
+        its last room for the hours set (presence_rules)."""
         return device_away_timeout_s(self.coordinator.hass, self._obj, self.coordinator.data)
 
     # ── HA entity identity ────────────────────────────────────────────────────

@@ -14,26 +14,19 @@ room, "not_home" once away, and otherwise whatever HA's TrackerEntity says.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.device_tracker import PadSpanDeviceTracker
 
 
-def _tracker(obj: dict, settings: dict | None = None, carried: bool = False) -> PadSpanDeviceTracker:
-    """carried: a Home Assistant person lists this tracker, so it goes away
-    after the away timeout; otherwise it is a thing (presence_rules)."""
+def _tracker(obj: dict, settings: dict | None = None) -> PadSpanDeviceTracker:
     coordinator = MagicMock()
     coordinator.data = {"key1": obj}
     store = MagicMock()
     store.data = settings or {}
     coordinator.hass.data = {DOMAIN: {DATA_SETTINGS: store}}
-    person = SimpleNamespace(attributes={"device_trackers": ["device_tracker.phone"]})
-    coordinator.hass.states.async_all.return_value = [person] if carried else []
-    t = PadSpanDeviceTracker(coordinator, "key1")
-    t.entity_id = "device_tracker.phone"
-    return t
+    return PadSpanDeviceTracker(coordinator, "key1")
 
 
 def test_no_property_ha_is_removing_is_overridden() -> None:
@@ -50,14 +43,14 @@ def test_the_state_is_the_room_while_seen() -> None:
 
 
 def test_the_state_is_not_home_once_away() -> None:
-    t = _tracker({"kind": "ble", "age_s": 3600, "room": "Kitchen"}, carried=True)
+    t = _tracker({"kind": "ble", "age_s": 3600, "room": "Kitchen"})
     assert t.state == "not_home"
 
 
 def test_the_away_timeout_setting_still_decides() -> None:
     obj = {"kind": "ble", "age_s": 600, "room": "Garage"}
-    assert _tracker(obj, {"away_timeout_m": 5}, carried=True).state == "not_home"
-    assert _tracker(obj, {"away_timeout_m": 20}, carried=True).state == "Garage"
+    assert _tracker(obj, {"away_timeout_m": 5}).state == "not_home"
+    assert _tracker(obj, {"away_timeout_m": 20}).state == "Garage"
 
 
 def test_without_a_room_it_is_ha_s_own_answer() -> None:

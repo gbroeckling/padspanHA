@@ -9,9 +9,10 @@ Creates device_tracker.{label} entities for every labelled BLE device.
 state = current room, so the tracker can be linked to a HA Person.
 
 When not seen for longer than the configured away timeout (Settings → Presence →
-Away timeout; default 5 minutes), the state is "not_home" explicitly. A device
-no Home Assistant person carries (keys, a tag) keeps its last room for the
-things' away time instead (default 6 hours; presence_rules.is_carried).
+Away timeout; default 5 minutes), the state is "not_home" explicitly. With
+"Things keep their room" set to a number of hours (off by default), a device
+no Home Assistant person carries (keys, a tag) keeps its last room for those
+hours instead (presence_rules.is_carried).
 It must be named, not left as None: HA falls through None to latitude/longitude,
 which this tracker does not have, so the state came out "unknown" instead.
 
@@ -231,8 +232,9 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         return str(obj.get("user_label") or obj.get("name") or self._init_label)
 
     def _away_after_s(self) -> float:
-        """The away timeout when a person carries this device (this tracker
-        on their list counts); a thing keeps its last room longer."""
+        """The away timeout. With the things' time set (off by default), that
+        is for a device a person carries (this tracker on their list counts);
+        a thing keeps its last room for the hours set."""
         return device_away_timeout_s(self.coordinator.hass, self._obj, self.coordinator.data,
                                      getattr(self, "entity_id", None))
 

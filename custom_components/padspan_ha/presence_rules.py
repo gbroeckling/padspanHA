@@ -358,22 +358,25 @@ def person_home(hass: Any, st: Any, ctx: dict[str, Any] | None = None) -> bool:
 # ── People and things ───────────────────────────────────────────────────────
 #
 # A phone in a pocket that goes quiet has left the house; keys in a drawer
-# that go quiet are still in the drawer. A device a Home Assistant person
-# carries goes away after the away timeout, as every device used to. Any
-# other labelled device is a thing: it keeps its last room for the things'
-# away time (thing_away_timeout_h, default 6 h), never less than the away
-# timeout. Read by the entities (sensor.py, device_tracker.py).
+# that go quiet are still in the drawer. An option, off unless a home turns
+# it on (thing_away_timeout_h, default 0): with 0 every labelled device goes
+# away after the away timeout. With hours set, a device a Home Assistant
+# person carries still goes away after the away timeout, and any other
+# labelled device is a thing: it keeps its last room for those hours, never
+# less than the away timeout. Every labelled device no person is linked to
+# counts as a thing, a phone nobody linked and a car's tag included, which is
+# why it is a choice. Read by the entities (sensor.py, device_tracker.py).
 
-DEFAULT_THING_AWAY_TIMEOUT_H = 6.0
+DEFAULT_THING_AWAY_TIMEOUT_H = 0.0   # off: the same as the away timeout
 MAX_THING_AWAY_TIMEOUT_H = 48.0
 
 
 def thing_away_timeout_s(hass: Any) -> float:
-    """How long a thing keeps its last room, in seconds (default 6 h).
+    """How long a thing keeps its last room, in seconds.
 
-    0 hours means "as long as a person": things go away after the away
-    timeout. Never shorter than the away timeout, and clamped to the range
-    the settings endpoint enforces.
+    0 hours (the default) means "as long as a person": things go away after
+    the away timeout. Never shorter than the away timeout, and clamped to the
+    range the settings endpoint enforces.
     """
     hours = DEFAULT_THING_AWAY_TIMEOUT_H
     try:
@@ -381,7 +384,7 @@ def thing_away_timeout_s(hass: Any) -> float:
         val = (st.data or {}).get("thing_away_timeout_h") if st else None
         if val is not None:
             f = float(val)
-            if f == f:
+            if math.isfinite(f):
                 hours = max(0.0, min(MAX_THING_AWAY_TIMEOUT_H, f))
     except (AttributeError, TypeError, ValueError):
         pass
@@ -431,6 +434,7 @@ def is_carried(hass: Any, obj: dict[str, Any], data: dict[str, Any] | None = Non
     try:
         persons = list(hass.states.async_all("person"))
     except Exception:  # noqa: BLE001 - no states to read: nobody carries it
+        _quiet_error("presence_rules:is_carried_persons")
         return False
     for person in persons:
         attrs = getattr(person, "attributes", None) or {}
@@ -453,11 +457,14 @@ def is_carried(hass: Any, obj: dict[str, Any], data: dict[str, Any] | None = Non
 
 def device_away_timeout_s(hass: Any, obj: dict[str, Any], data: dict[str, Any] | None = None,
                           own_entity_id: str | None = None) -> float:
-    """This device's away timeout: the away timeout when a person carries
-    it, the things' away time when nobody does (is_carried)."""
+    """This device's away timeout: the away timeout for every device while
+    the things' time is off (0, the default); with hours set, the away timeout
+    when a person carries it and those hours when nobody does (is_carried).
+    A thing with no room to keep (not placed since Home Assistant started)
+    goes away after the away timeout too: there is nothing to keep it in."""
     person_s = away_timeout_s(hass)
     thing_s = thing_away_timeout_s(hass)
-    if thing_s <= person_s or is_carried(hass, obj, data, own_entity_id):
+    if thing_s <= person_s or not obj.get("room") or is_carried(hass, obj, data, own_entity_id):
         return person_s
     return thing_s
 
