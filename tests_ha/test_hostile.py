@@ -49,6 +49,7 @@ import re
 import resource
 import site
 import sys
+import tempfile
 import time
 import traceback
 from pathlib import Path
@@ -219,6 +220,10 @@ _READ_OK_FILES = {"/etc/localtime", "/etc/hosts", "/etc/resolv.conf", "/etc/nssw
                   "/etc/host.conf", "/etc/mime.types", "/etc/os-release", "/etc/timezone"}
 # Python's own import machinery caching a module the message made it import.
 _PYC = re.compile(r"[/\\]__pycache__([/\\][^/\\]+\.pyc(\.\d+)?)?$")
+# Where tests_ha/other_versions.py (the versions workflow's plugin) notes the
+# warnings it collects, as the test runs.
+_HARNESS_NOTES = os.path.realpath(os.environ.get("PADSPAN_HA_NOTES")
+                                  or os.path.join(tempfile.gettempdir(), "padspan-ha-notes")) + os.sep
 _WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_TRUNC
 
 
@@ -253,7 +258,7 @@ def _outside(events: list, config: str) -> list[str]:
             paths = list(args[:2]) if event in ("os.rename", "shutil.copyfile", "shutil.copytree", "shutil.move",
                                                  "os.symlink", "os.link") else [args[0]]
         for raw in paths:
-            if (path := _path(raw)) is None or (path + os.sep).startswith(inside) or _PYC.search(path):
+            if (path := _path(raw)) is None or (path + os.sep).startswith((inside, _HARNESS_NOTES))                     or _PYC.search(path):
                 continue
             if writes:
                 out.append(f"{event} (write) {path}")
@@ -272,7 +277,7 @@ def _bad_log(record: logging.LogRecord) -> bool:
     traceback) is one."""
     if record.name.startswith("homeassistant.components.websocket_api"):
         return bool(record.exc_info) or "(unknown_error)" in record.getMessage()
-    if _NO_MQTT in record.getMessage():
+    if _NO_MQTT in record.getMessage() or (record.name.endswith(_MQTT_FEEDS) and "subscribe failed" in record.getMessage()):
         return False
     if record.name.startswith("custom_components.padspan_ha"):
         return record.levelno >= logging.ERROR or (record.levelno >= logging.WARNING and bool(record.exc_info))
@@ -280,8 +285,10 @@ def _bad_log(record: logging.LogRecord) -> bool:
 
 
 # The house has no MQTT, and the furnished one has the ESPresense and Tasmota
-# feeds switched on: they say so at error level each time they start.
+# feeds switched on: they say so at error level each time they start (in
+# words that differ between Home Assistant releases).
 _NO_MQTT = "mqtt_not_setup"
+_MQTT_FEEDS = (".espresense_mqtt", ".tasmota_ble")
 
 
 def _describe(record: logging.LogRecord) -> str:
