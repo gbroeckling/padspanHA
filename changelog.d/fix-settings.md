@@ -1,0 +1,8 @@
+# A refused settings save changes nothing
+
+### Fixed
+- **A settings save that is refused changes nothing.** When one save carried several settings and one of them was refused, PadSpan had sometimes already acted on another: a newly followed device was given a name, an unfollowed one was cleared from the map, the usage report's counts were started again, or a use was counted. Everything in a save is now checked first, and a refused save does nothing at all.
+- **"Not a number" is no longer saved as a number.** A value such as `nan` or `inf` sent for a numeric setting (the room change delay, the away timeout, the signal settings, the home's latitude and longitude, the zoom and others) was saved as that setting's highest allowed value. It is now refused with an error, for every numeric setting, and nothing is saved.
+- **Two settings no longer fail without an answer.** The list of extra tabs and the receivers' signal adjustments, sent with something that was not a tab name or not a number, made the save fail with no error. They now answer with an error and save nothing.
+- **Lists of maps, lights and devices hold names only.** Blank entries, and entries that were not text (they were saved as the words "None" or "[1]"), are no longer kept in the hidden maps, hidden lights, followed devices, beacon tuning and grouping, stationary references and the ESPresense room names.
+- **The ESPresense Companion address must be a web address.** It is saved only when it starts with `http://` or `https://`, or is empty to clear it. Anything else is refused, and the address already saved stays.
