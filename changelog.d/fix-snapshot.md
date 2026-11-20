@@ -1,0 +1,6 @@
+# Hidden devices stay hidden, and the device list keeps its order
+
+### Fixed
+- **A device hidden by an ingest rule is really left out of the device list.** A rule on a plain device's address, or on its maker's prefix (the `ingest_rules` setting), counted the device as hidden and listed it all the same; only iBeacons and phones with a key were kept out. A hidden device is now left out however it would have been listed: as a plain Bluetooth device, as the Home Assistant entity that tracks it, or from the object history. Nothing is deleted: take the rule away and the device is back. The count of hidden devices in the snapshot's summary counts each one once.
+- **`excluded_objects` hides a device by its address too.** An entry hid a device only when it was an iBeacon's or a phone's key; a plain device's address hid nothing. An entry can now be written any way the device list shows a device: its address (capitals or small letters), its key (`ble:…`, `ibeacon:…`, `irk:…`, `entity:…`), or, for one beacon of a pack that shares an id, the id followed by that beacon's address.
+- **Devices heard at the same moment keep the same order after a restart.** Adverts of exactly the same age came out in an order that changed each time Home Assistant started, and the device list was built in that order. They now go by address.

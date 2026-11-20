@@ -1278,6 +1278,47 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         except Exception:
             _quiet_error("snapshot:ingest_policy")
             _ingest = IngestPolicy()
+        # What the policy hid among this build's adverts: each address, and
+        # the key it was hidden under. There are several ways to become an
+        # object (a plain device, a merged identity, an entity, a row of the
+        # object history), and a masked device must come through none of them.
+        _masked_addrs: set[str] = set()
+        _masked_keys: set[str] = set()
+
+        def _advert_masked(ident: _IngestIdentity) -> bool:
+            """Whether the policy hides the device this address belongs to."""
+            if not _ingest.is_masked(ident):
+                return False
+            _masked_addrs.add(ident.addr)
+            _masked_keys.update(k.upper() for k in (ident.key, *ident.also) if k)
+            return True
+
+        def _row_masked(row: dict[str, Any]) -> bool:
+            """Whether the policy hides an object that is not made from this
+            build's adverts: an entity's, or one kept in the object history.
+            Asked as the object list shows it (its key, its address); a device
+            hidden and counted above, met here again, is not counted twice."""
+            if not _ingest.active:
+                return False
+            _addr = row.get("address")
+            _also = [str(row.get("canonical_id") or "")]
+            _uuid = ""
+            if row.get("kind") == "ibeacon":
+                # Its address field holds its key. One beacon of a pack is
+                # also listed under the pack's key; a beacon that has only
+                # ever used one address is that address.
+                _uuid = str(row.get("ibeacon_uuid") or "")
+                _also.append(f"ibeacon:{_uuid}:{row.get('ibeacon_major')}:{row.get('ibeacon_minor')}")
+                _own = row.get("all_addresses")
+                _addr = _own[0] if isinstance(_own, list) and len(_own) == 1 else ""
+            _addr = _addr.upper() if isinstance(_addr, str) and len(_addr) == 17 and _addr.count(":") == 5 else ""
+            if _addr in _masked_addrs:
+                return True
+            ident = _IngestIdentity(addr=_addr, key=str(row.get("key") or ""), uuid=_uuid,
+                                    name=str(row.get("name") or ""), also=tuple(k for k in _also if k))
+            _again = any(k.upper() in _masked_keys for k in (ident.key, *ident.also) if k)
+            return _ingest.is_masked(ident, count=not _again)
+
         _resolver_diag: dict[str, Any] = {"irk_devices": 0, "resolved": 0, "ibeacon_groups": 0, "rpa_count": 0, "crypto_ok": True, "errors": []}
         try:
             from .private_ble_resolver import crypto_available as _crypto_avail
@@ -1484,8 +1525,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     # address every 1.6 seconds costs nothing rather than being
                     # filtered out later at full price. Marked absorbed too, or
                     # it would simply reappear as a bare MAC object.
-                    if _ingest.active and _ingest.is_masked(_IngestIdentity(
-                            addr=addr, key=uuid_key, uuid=str(ib.get("uuid") or ""))):
+                    # One beacon of a pack that shares an id is listed under
+                    # the id with its address after it.
+                    if _ingest.active and _advert_masked(_IngestIdentity(
+                            addr=addr, key=uuid_key, uuid=str(ib.get("uuid") or ""),
+                            also=(f"{uuid_key}:{addr}",))):
                         ibeacon_addrs.add(addr)
                         continue
                     ibeacon_addrs.add(addr)
@@ -1660,13 +1704,17 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # MAC if it is static, or by vendor prefix. Checked here as well as
             # at the iBeacon grouping because these are two separate ways to
             # become an object, and a mask that only covered one of them would
-            # look like it had stopped working.
+            # look like it had stopped working. This loop builds the merged
+            # identities only: the plain objects are made further down (B-cont),
+            # from the same addresses, and leave out what was masked here.
             if _ingest.active:
                 canonical_for_mask = canonical_by_addr.get(addr) or {}
-                if _ingest.is_masked(_IngestIdentity(
+                if _advert_masked(_IngestIdentity(
                         addr=addr,
                         key=str(canonical_for_mask.get("canonical_id") or ""),
-                        name=str(rec.get("name") or ""))):
+                        name=str(rec.get("name") or ""),
+                        # A Find My tag keeps the key of its first address.
+                        also=(str(canonical_for_mask.get("key") or ""),))):
                     continue
             canonical = canonical_by_addr.get(addr)
             if canonical:
@@ -1819,6 +1867,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 _ent_obj["canonical_id"] = canonical_id
             if all_addrs:
                 _ent_obj["all_addresses"] = all_addrs
+            if _row_masked(_ent_obj):
+                # A masked device is not listed as its entity either; nor,
+                # the entity masked by its own key, as the plain device (B-cont)
+                # that would have been folded into it.
+                if addr:
+                    _masked_addrs.add(addr)
+                continue
             objects.append(_ent_obj)
 
         # (B-cont) Regular (non-rotating, non-iBeacon) BLE advertisement objects
@@ -1827,6 +1882,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 continue  # absorbed into a merged iBeacon group (section C)
             if canonical_by_addr.get(addr):
                 continue  # handled by _private_groups (section B2)
+            if addr in _masked_addrs:
+                continue  # masked by the ingest policy (the loop before section A, or as its entity in A)
             # Skip unresolved RPAs (rotating MACs from phones/watches that
             # aren't resolved by IRK and aren't part of an iBeacon group).
             # These are noise — duplicate entries from the same phone's non-
@@ -2826,6 +2883,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             _aa = cached_obj.get("all_addresses")
             if isinstance(_aa, list) and len(_aa) > _ALL_ADDR_CAP:
                 cached_obj["all_addresses"] = _capped_mac_history(_aa)
+            # A masked device is not listed from the history either. Its row
+            # is kept as any unheard device's is (a mask is never a delete),
+            # so it is back with its history once the rule is gone.
+            if _row_masked(cached_obj):
+                continue
             # Bring it back — compute age_s = original age + time since last seen
             obj_copy = dict(cached_obj)
             # Not heard this cycle: it has no live address (a Find My tag's

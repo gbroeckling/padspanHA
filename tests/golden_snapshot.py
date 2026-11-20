@@ -103,6 +103,13 @@ BARE = ("F2:00:00:00:00:61", "F2:00:00:00:00:62", "F2:00:00:00:00:63")
 WATCH, LAPTOP, URL_BEACON, EXPOSURE = "C4:00:00:00:00:71", "7A:00:00:00:00:72", "C4:00:00:00:00:73", "4D:00:00:00:00:74"
 TV, SIGN, HIDDEN_BEACON = "C4:00:00:00:00:81", "C4:00:00:00:00:82", "C4:00:00:00:00:83"
 OLD_TAG, DOG = "C4:00:00:00:00:91", "C4:00:00:00:00:92"
+# Heard at exactly the same instants as each other (_together): pairs the
+# guessing merges take for one device, and two lamps that are plainly two.
+ECHO = ("F6:00:00:00:00:A1", "F6:00:00:00:00:A2")           # say nothing at all
+BANDS = ("E6:00:00:00:00:B1", "E6:00:00:00:00:B2")          # no name, one service
+PODS = ("EA:00:00:00:00:C1", "EA:00:00:00:00:C2")           # one kind of Apple message
+LAMPS = ("C8:00:00:00:00:D2", "C8:00:00:00:00:D1")
+_HEART_RATE = "0000180d-0000-1000-8000-00805f9b34fb"
 UUID_HIDDEN = "0a1b2c3d-0000-4000-8000-00000000d00d"
 _NEARBY = {76: bytes.fromhex("1005031c6b2f1e")}
 _TILE_UUID = "0000feed-0000-1000-8000-00805f9b34fb"
@@ -120,14 +127,19 @@ _devices_so_far = [0]
 
 
 def _each(times: tuple, addr: str, heard_by: dict[str, int], **kw) -> list[dict]:
-    """One device's adverts at these times. No two adverts in the list are
-    heard at the same instant (each device is a few hundredths of a second
-    after the one before, each receiver a thousandth after the last): two
-    adverts of exactly the same age come out of BluetoothLive in an order
-    that changes from run to run (it walks a set)."""
+    """One device's adverts at these times, each device a few hundredths of
+    a second after the one before (and each receiver a thousandth after the
+    last, in _hear), so no two of them are heard at the same instant."""
     _devices_so_far[0] += 1
     late = 0.013 * _devices_so_far[0]
     return [_h(t + late, addr, {s: r - i for s, r in heard_by.items()}, **kw) for i, t in enumerate(times)]
+
+
+def _together(times: tuple, addr: str, heard_by: dict[str, int], **kw) -> list[dict]:
+    """One device's adverts at exactly these times: every device given the
+    same times is heard at the same instants, so their adverts have the same
+    age to the last digit and only their addresses put them in order."""
+    return [_h(t, addr, {s: r - i for s, r in heard_by.items()}, **kw) for i, t in enumerate(times)]
 
 
 _ALWAYS = (-4.0, 17.0, 86.0, 146.0, 396.0, 1296.0)
@@ -170,6 +182,16 @@ HEARD: list[dict] = sorted([
     *_each(_ALWAYS, HIDDEN_BEACON, {OFFICE: -59}, manuf=_ibeacon(UUID_HIDDEN, 3, 4)),
     *_each(_ALWAYS[:1], OLD_TAG, {OFFICE: -72}, name="Old tag"),
     *_each(_ALWAYS, DOG, {KITCHEN: -62, LOUNGE: -66, OFFICE: -83}, name="PetTag", tx=-59),
+    # Heard at the same instants, with the same signal: two random addresses
+    # that say nothing, two with one service and no name, two sending the same
+    # kind of Apple message (each pair is merged: its receivers, signal and
+    # age are the same to the last digit); and two named lamps, which stay two.
+    *[h for a in ECHO for h in _together(_ALWAYS[:3], a, {KITCHEN: -84})],
+    *[h for a in BANDS for h in _together(_ALWAYS, a, {LOUNGE: -69, OFFICE: -79}, uuids=(_HEART_RATE,))],
+    *_together(_ALWAYS, PODS[0], {OFFICE: -68}, manuf={76: bytes.fromhex("0906031c0a000001")}),
+    *_together(_ALWAYS, PODS[1], {OFFICE: -68}, manuf={76: bytes.fromhex("0906031c0a000002")}),
+    *_together(_ALWAYS, LAMPS[0], {LOUNGE: -56}, name="Lamp right"),
+    *_together(_ALWAYS, LAMPS[1], {LOUNGE: -56}, name="Lamp left"),
 ], key=lambda h: (h["t"], h["address"]))
 
 LABELS = {"ibeacon:" + UUID_BIKE + ":1:2": "Bike", KEYS_A: "Keys", DOG: "Dog collar", "C4:00:00:00:00:99": "Spare tag"}

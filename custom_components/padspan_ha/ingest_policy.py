@@ -63,6 +63,22 @@ class Identity:
     key: str = ""             # stable identity, e.g. "ibeacon:uuid:major:minor"
     uuid: str = ""            # iBeacon UUID, stable across major/minor
     name: str = ""            # advertised/local name, when there is one
+    also: tuple = ()          # other keys the same thing is listed under
+
+    def key_forms(self) -> tuple:
+        """Every way this thing can be written in a list of keys.
+
+        Its key, any other key it is listed under (one beacon of a pack is
+        "ibeacon:<uuid>:<major>:<minor>:<address>"), and its address: bare, as
+        the object list shows a plain device's address, or "ble:<address>", a
+        plain device's key. A key copied from the object list hides the object
+        it was copied from, whichever of these it is.
+        """
+        a = (self.addr or "").upper()
+        forms = [(self.key or "").upper(), *(str(k).upper() for k in self.also if k)]
+        if a:
+            forms += [a, "BLE:" + a]
+        return tuple(f for f in forms if f)
 
     @property
     def oui(self) -> str:
@@ -96,7 +112,7 @@ class Rule:
     def matches(self, ident: Identity) -> bool:
         if not (self.keys or self.uuids or self.ouis or self.addrs):
             return False
-        if self.keys and (ident.key or "").upper() in self.keys:
+        if self.keys and any(k in self.keys for k in ident.key_forms()):
             return True
         if self.uuids and (ident.uuid or "").upper() in self.uuids:
             return True
@@ -127,10 +143,10 @@ class IngestPolicy:
     def from_settings(cls, data: dict[str, Any] | None) -> "IngestPolicy":
         """Read `excluded_objects` and `ingest_rules` out of the settings dict.
 
-        `excluded_objects` is the simple form — a flat list of stable keys,
-        which is what a one-device exclusion writes and what the UI's "ignore
-        this device" button produces. `ingest_rules` is the general form. Both
-        end up as Rules so there is only ever one thing to evaluate.
+        `excluded_objects` is the simple form — a flat list of keys, one per
+        device, each written as the object list shows it: an object's key or
+        its address (Identity.key_forms). `ingest_rules` is the general form.
+        Both end up as Rules so there is only ever one thing to evaluate.
         """
         d = data or {}
         rules: list[Rule] = []
@@ -157,22 +173,25 @@ class IngestPolicy:
                 rules.append(rule)
         return cls(rules)
 
-    def decide(self, ident: Identity) -> tuple[str, str]:
+    def decide(self, ident: Identity, count: bool = True) -> tuple[str, str]:
         """Return (action, reason). First matching rule wins.
 
         ALLOW rules are honoured and stop evaluation, so a broad mask can be
         given a narrow exception — "mask this whole vendor except the two tags
         we actually issued" — without inverting the whole list.
+
+        count=False asks without counting: for a device this poll has already
+        counted, met again in another form (its row in the object history).
         """
         for rule in self.rules:
             if rule.matches(ident):
-                if rule.action == MASK:
+                if rule.action == MASK and count:
                     self.masked[rule.reason] = self.masked.get(rule.reason, 0) + 1
                 return rule.action, rule.reason
         return ALLOW, ""
 
-    def is_masked(self, ident: Identity) -> bool:
-        return self.decide(ident)[0] == MASK
+    def is_masked(self, ident: Identity, count: bool = True) -> bool:
+        return self.decide(ident, count)[0] == MASK
 
     @property
     def active(self) -> bool:
