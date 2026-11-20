@@ -57,11 +57,10 @@ class _FakeStore:
 
     async def async_save(self, data):
         _FakeStore.events.append(("save", self.key))
-        self._write_data(None, data)
+        await self._async_write_data(data)
 
-    def _write_data(self, path, data):
-        """Home Assistant's write (before 2025.12: the text is made and
-        written in one step), which SafeStore watches."""
+    async def _async_write_data(self, data):
+        """Home Assistant's write, which SafeStore watches."""
         _FakeStore.saved[self.key] = copy.deepcopy(data)
 
     async def async_remove(self):

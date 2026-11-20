@@ -11,25 +11,27 @@ Safe wrapper around homeassistant.helpers.storage.Store that adds:
 How a save is checked. Home Assistant's Store logs a failed write and returns
 normally, so "the save returned" and "the file can be read" say nothing: the
 read finds the old file. What tells is whether Home Assistant's own write of
-this save happened, and whether the file now holds what it wrote. So:
+this save happened, and whether the file now holds what it wrote. So
+SafeStore watches the Store's write:
 
-1. SafeStore watches the Store's write. When Home Assistant writes the file
-   (in its executor, with the text it made from the data), SafeStore takes a
-   digest of exactly that text, and only once the write has returned without
-   an error. A write that failed, or never ran, leaves no digest.
-2. After the save, the file is read and its digest compared with that one,
-   off the event loop.
+1. The write of this save must return without an error. Home Assistant's
+   write raises when the text cannot be made or the file cannot be written
+   (a full or read-only disk), and a write it skips never runs: either way
+   the save is not saved.
+2. Home Assistant 2025.12 and later hand the text they made to the part that
+   writes the file. SafeStore takes a digest of exactly that text once it is
+   written, and after the save reads the file and compares its digest, off
+   the event loop. Earlier versions make the text and write it in one step;
+   there the check is the first one. Home Assistant writes a temporary file
+   and moves it into place, all or nothing.
 
 Nothing is copied, turned into JSON a second time or parsed: the text is the
 one Home Assistant made, so data that other code changes while the write is
-under way is still judged by what was written. Home Assistant before 2025.12
-does not hand the text over (it makes it and writes it in one step); there
-the check is that its write of this save returned without an error. It writes
-to a temporary file and moves it into place, all or nothing.
+under way is still judged by what was written.
 
-One save at a time per store, so the digest is this save's own. Nothing here
-writes a second time, restores an older file or deletes one: a save that
-fails leaves the disk exactly as that failed write left it.
+One save at a time per store, so what the write leaves is this save's own.
+Nothing here writes a second time, restores an older file or deletes one: a
+save that fails leaves the disk exactly as that failed write left it.
 """
 from __future__ import annotations
 
@@ -49,10 +51,6 @@ from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
-# The write returned, and this Home Assistant hands over no text to compare.
-_WROTE_UNSEEN = b""
-
-
 def _digest(text: bytes | str) -> bytes:
     """The digest of what Home Assistant writes (bytes, or text it writes as
     UTF-8). Hashing a large buffer lets go of the interpreter lock."""
@@ -71,10 +69,12 @@ class SafeStore:
         self._store = store
         self._hass = hass
         self._name = name or store.key
-        # One save at a time: the digest a write leaves is that save's own.
+        # One save at a time: what a write leaves here is that save's own.
         self._lock = asyncio.Lock()
-        # The digest of what Home Assistant wrote for the save under way;
-        # None until (and unless) its write returns without an error.
+        # For the save under way: did Home Assistant's write of it return
+        # without an error, and the digest of the text it wrote (when its
+        # Store hands the text over).
+        self._written = False
         self._wrote: bytes | None = None
         self._watched = self._watch_writes()
         if not self._watched:
@@ -88,24 +88,31 @@ class SafeStore:
         self.failed_saves = 0
 
     def _watch_writes(self) -> bool:
-        """Have the Store tell this SafeStore what it wrote. Home Assistant
-        2025.12 and later write through _write_prepared_data(mode, text);
-        earlier ones through _write_data(path, data), which makes the text and
-        writes it in one step. Either raises when the write fails (Home
-        Assistant then logs it and returns normally)."""
-        for name in ("_write_prepared_data", "_write_data"):
-            write = getattr(self._store, name, None)
-            if callable(write):
-                break
-        else:
+        """Have the Store tell this SafeStore what it wrote.
+
+        Every Home Assistant since 2024.1 writes a store through
+        _async_write_data, which raises when the text cannot be made or the
+        file cannot be written (the Store then logs it and returns normally).
+        Home Assistant 2025.12 and later hand the text to
+        _write_prepared_data(mode, text) in the executor, where its digest is
+        taken once the write has returned."""
+        write = getattr(self._store, "_async_write_data", None)
+        if not callable(write):
             return False
-        sees_text = name == "_write_prepared_data"
 
-        def watched(*args: Any) -> None:   # in Home Assistant's executor
-            write(*args)
-            self._wrote = _digest(args[-1]) if sees_text else _WROTE_UNSEEN
+        async def watched(*args: Any) -> None:
+            await write(*args)
+            self._written = True
 
-        setattr(self._store, name, watched)
+        setattr(self._store, "_async_write_data", watched)
+
+        write_text = getattr(self._store, "_write_prepared_data", None)
+        if callable(write_text):
+            def watched_text(*args: Any) -> None:   # in Home Assistant's executor
+                write_text(*args)
+                self._wrote = _digest(args[-1])
+
+            setattr(self._store, "_write_prepared_data", watched_text)
         return True
 
     async def async_save(self, data: Any) -> bool:
@@ -115,7 +122,7 @@ class SafeStore:
         unchanged either way, and so is the file a failed write left).
         """
         async with self._lock:
-            self._wrote = None
+            self._written, self._wrote = False, None
             try:
                 await self._store.async_save(data)
             except Exception as exc:  # noqa: BLE001
@@ -127,12 +134,12 @@ class SafeStore:
                 # (Or a Store whose write cannot be watched: said at start.)
                 return True
 
-            if self._wrote is None:
+            if not self._written:
                 return self._failed(
                     "PadSpan save FAILED for %s: Home Assistant did not write the file (its log says why)"
                 )
 
-            if self._wrote is not _WROTE_UNSEEN:
+            if self._wrote is not None:
                 try:
                     on_disk = await self._hass.async_add_executor_job(_file_digest, self._store.path)
                 except Exception as exc:  # noqa: BLE001

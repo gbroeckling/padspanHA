@@ -6,11 +6,11 @@
 Home Assistant's Store logs a failed write and returns normally. SafeStore
 used to read the file back and check only that something came back, so it
 found the OLD file and called the save good. Now it watches the Store's own
-write: a digest of the text Home Assistant wrote, taken once that write has
-returned, compared with the file's. A write that failed or never ran leaves
-no digest. A save that did not reach the disk is reported as failed, logged
-once, counted and raised as a repair notice, and nothing here ever writes,
-deletes or restores a file to "fix" it.
+write: that write must return without an error, and (Home Assistant 2025.12
+and later) a digest of the text it wrote is compared with the file's. A save
+that did not reach the disk is reported as failed, logged once, counted and
+raised as a repair notice, and nothing here ever writes, deletes or restores
+a file to "fix" it.
 
 The stand-ins below write real files the way Home Assistant does (the text is
 made when the write starts, then written to a temporary file that is moved
@@ -51,14 +51,15 @@ def _text(data) -> bytes:
 
 class Disk:
     """Home Assistant's Store (2025.12 and later), as far as a save can tell.
-    async_save makes the text when the write starts, and then (after `slow`
-    event-loop turns) hands it to _write_prepared_data, which writes it to a
-    temporary file and moves that into place. `fail` makes it go wrong the
-    ways it can: "swallowed" (the write raises; Home Assistant logs it and
-    returns normally, the file is as it was), "unwritable" (the text cannot be
-    made; Home Assistant logs it and never writes), "raised" (something
-    escapes the save), "other" (the write works, then something else replaces
-    the file) and "unreadable" (the file cannot be read back)."""
+    async_save hands the data to _async_write_data, which makes the text
+    when the write starts and then (after `slow` event-loop turns) hands it to
+    _write_prepared_data, which writes it to a temporary file and moves that
+    into place. A write that raises is logged and swallowed, as Home
+    Assistant's Store does. `fail` makes it go wrong the ways it can:
+    "swallowed" (the file cannot be written; it is as it was), "unwritable"
+    (the text cannot be made, so nothing is written), "raised" (something
+    escapes the save), "other" (the write works, then something else
+    replaces the file) and "unreadable" (the file cannot be read back)."""
 
     def __init__(self, path: Path, on_disk=None) -> None:
         self.path = str(path)
@@ -73,17 +74,17 @@ class Disk:
         if self.fail == "raised":
             raise RuntimeError("something else went wrong")
         try:
-            text = _text({"version": 1, "data": data})     # made when the write starts
-        except (TypeError, ValueError):
-            return                                         # "Error writing config": logged, not raised
-        for _ in range(self.slow):
-            await asyncio.sleep(0)
-        try:
-            self._write_prepared_data("wb", text)          # in Home Assistant's executor
-        except OSError:
+            await self._async_write_data({"version": 1, "data": data})
+        except (OSError, TypeError, ValueError):
             return                                         # "Error writing config": logged, not raised
         if self.fail == "other":
             Path(self.path).write_bytes(_text({"version": 1, "data": {"something": "else"}}))
+
+    async def _async_write_data(self, data) -> None:
+        text = _text(data)                                 # made when the write starts
+        for _ in range(self.slow):
+            await asyncio.sleep(0)
+        self._write_prepared_data("wb", text)              # in Home Assistant's executor
 
     def _write_prepared_data(self, mode: str, text: bytes) -> None:
         if self.fail == "swallowed":
@@ -109,21 +110,24 @@ class Disk:
 
 
 class OldDisk(Disk):
-    """Home Assistant before 2025.12: _write_data(path, data) makes the text
-    and writes it in one step, and hands no text over."""
+    """Home Assistant before 2025.12: _async_write_data(path, data) hands the
+    data to _write_data, which makes the text and writes it in one step and
+    hands no text over."""
 
     async def async_save(self, data) -> None:
         self.calls.append("save")
-        for _ in range(self.slow):
-            await asyncio.sleep(0)
         try:
-            self._write_data(self.path, {"version": 1, "data": data})
+            await self._async_write_data(self.path, {"version": 1, "data": data})
         except (OSError, TypeError, ValueError):
             return
 
+    async def _async_write_data(self, path, data) -> None:
+        for _ in range(self.slow):
+            await asyncio.sleep(0)
+        self._write_data(path, data)
+
     def _write_data(self, path: str, data) -> None:
-        text = _text(data)
-        Disk._write_prepared_data(self, "wb", text)
+        Disk._write_prepared_data(self, "wb", _text(data))
 
     def __getattribute__(self, name):
         if name == "_write_prepared_data":
@@ -420,9 +424,9 @@ def test_while_home_assistant_stops_there_is_no_file_to_check_yet(notices, disk,
 # ═══ other Home Assistant versions ════════════════════════════════════════════
 
 def test_before_2025_12_the_check_is_that_the_write_returned(notices, disk, reads):
-    """_write_data makes the text and writes it in one step and hands no text
-    over: a save passes when that write of this save returned, and fails when
-    it raised (or never ran). Nothing is read back."""
+    """The text is made and written in one step and not handed over: a save
+    passes when the write of this save returned, and fails when it raised (or
+    never ran). Nothing is read back."""
     d = disk(_OLD, OldDisk)
     s = _safe(d)
 

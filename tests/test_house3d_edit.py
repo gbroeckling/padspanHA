@@ -79,10 +79,13 @@ class _DiskStore:
             raise OSError(28, "No space left on device")
         if how == "swallowed":
             return
-        self._write_prepared_data("wb", json.dumps({"version": 1, "key": self.key, "data": data}).encode())
+        await self._async_write_data({"version": 1, "key": self.key, "data": data})
+
+    async def _async_write_data(self, data):
+        """Home Assistant's write, which SafeStore watches."""
+        self._write_prepared_data("wb", json.dumps(data).encode())
 
     def _write_prepared_data(self, mode, text):
-        """Home Assistant's write (in its executor), which SafeStore watches."""
         p = self._path()
         p.parent.mkdir(parents=True, exist_ok=True)
         _DiskStore.writes.append(self.key)
