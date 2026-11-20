@@ -579,6 +579,134 @@ class TestLooAccuracy:
         assert result_b is None  # only 1 point on mapB, not enough
 
 
+def _random_points(n: int, seed: int) -> list[dict]:
+    """Walked points as a house has them: 2-8 of 10 scanners each, rooms, weights,
+    some readings equal so distances tie."""
+    import random  # noqa: PLC0415
+    rng = random.Random(seed)
+    out = []
+    for i in range(n):
+        srcs = rng.sample([f"s{k}" for k in range(10)], rng.randint(2, 8))
+        p = _make_point(x_m=round(rng.uniform(0, 12), 2), y_m=round(rng.uniform(0, 9), 2),
+                        room=rng.choice(["Kitchen", "Hall", "Office", ""]),
+                        readings={s: float(rng.choice([-60, -65, -70, -72.5, -80])) for s in srcs})
+        p["id"] = f"cp_{i}"
+        if i % 7 == 0:
+            p["weight"] = 2.0
+        out.append(p)
+    return out
+
+
+def _loo_as_it_was(store: CalibrationStore) -> dict | None:
+    """loo_accuracy's k-NN path before 0.38.272, word for word: the reference
+    the faster one must equal exactly."""
+    from custom_components.padspan_ha.calibration_store import MISSING_SCANNER_PENALTY_DB  # noqa: PLC0415
+    pts = [p for p in store.data.get("points", []) if p.get("x_m") is not None and p.get("y_m") is not None]
+    if len(pts) < KNN_K + 1:
+        return None
+    excl = store.excluded_sources()
+    errors_m, room_pairs = [], []
+    for i, pt in enumerate(pts):
+        loo_pts = [p for j, p in enumerate(pts) if j != i]
+        query = store._readings_to_map(pt, excl)
+        if not query:
+            continue
+        scored = []
+        for p2 in loo_pts:
+            fp = store._readings_to_map(p2, excl)
+            shared = set(query.keys()) & set(fp.keys())
+            if not shared:
+                continue
+            q_mean = sum(query[s] for s in shared) / len(shared)
+            p_mean = sum(fp[s] for s in shared) / len(shared)
+            sq_sum = sum(((query[s] - q_mean) - (fp[s] - p_mean)) ** 2 for s in shared)
+            missing = max(0, len(query) - len(shared))
+            scored.append(((sq_sum + missing * MISSING_SCANNER_PENALTY_DB ** 2) / (len(shared) + missing), p2))
+        if not scored:
+            continue
+        scored.sort(key=lambda t: t[0])
+        top_k = scored[:KNN_K]
+        tw = wx = wy = 0.0
+        for d, p2 in top_k:
+            w = 1.0 / (math.sqrt(d) + 1e-3)
+            wx += w * float(p2["x_m"])
+            wy += w * float(p2["y_m"])
+            tw += w
+        if tw < 1e-10:
+            continue
+        errors_m.append(math.sqrt((wx / tw - float(pt["x_m"])) ** 2 + (wy / tw - float(pt["y_m"])) ** 2))
+        true_room = str(pt.get("room") or "")
+        if true_room:
+            room_w: dict[str, float] = {}
+            for d, p2 in top_k:
+                rm = str(p2.get("room") or "")
+                if rm:
+                    room_w[rm] = room_w.get(rm, 0.0) + float(p2.get("weight") or 1.0) / (math.sqrt(d) + 1.0)
+            if room_w:
+                room_pairs.append((true_room, max(room_w, key=lambda r: room_w[r])))
+    if not errors_m:
+        return None
+    errors_m.sort()
+    out = {"algorithm": "knn", "mean_error_m": round(_mean(errors_m), 3),
+           "median_error_m": round(errors_m[len(errors_m) // 2], 3), "max_error_m": round(errors_m[-1], 3),
+           "point_count": len(errors_m)}
+    if room_pairs:
+        out["room_confusion"] = _summarize_room_confusion(room_pairs)
+    return out
+
+
+class TestLooAccuracyWork:
+    """The leave-one-out compares every point with every other, on the event
+    loop, for each of the health pages (fabric_health, propagation_health,
+    system_critics) every 30 s while one is open: over a second each at a few
+    hundred points."""
+
+    def test_same_answer_as_before(self) -> None:
+        for seed in (1, 2, 3):
+            store = _make_store(points=_random_points(60, seed))
+            assert store.loo_accuracy() == _loo_as_it_was(store)
+
+    def test_each_fingerprint_is_made_once_and_unchanged_points_are_not_worked_again(self) -> None:
+        store = _make_store(points=_random_points(40, 7))
+        made = [0]
+        real = CalibrationStore._readings_to_map
+
+        def _count(pt, excluded):
+            made[0] += 1
+            return real(pt, excluded)
+        store._readings_to_map = _count
+        first = store.loo_accuracy()
+        assert made[0] <= 40, f"{made[0]} fingerprints made for 40 points"
+        again = store.loo_accuracy()
+        assert again == first
+        assert made[0] <= 80
+
+    def test_a_changed_point_is_worked_again(self) -> None:
+        pts = _random_points(40, 9)
+        store = _make_store(points=pts)
+        before = store.loo_accuracy()
+        pts[3]["x_m"] += 4.0                     # moved
+        assert store.loo_accuracy() == _loo_as_it_was(store) != before
+        pts[5]["scanner_readings"][0]["mean_rssi"] -= 9.0   # read again
+        assert store.loo_accuracy() == _loo_as_it_was(store)
+
+    def test_a_kept_answer_cannot_be_changed_by_its_reader(self) -> None:
+        store = _make_store(points=_random_points(30, 11))
+        first = store.loo_accuracy()
+        first["mean_error_m"] = -1.0
+        first.get("room_confusion", {}).clear()
+        assert store.loo_accuracy() == _loo_as_it_was(store)
+
+    def test_answers_kept_are_bounded(self) -> None:
+        from custom_components.padspan_ha.calibration_store import _LOO_CACHE_MAX  # noqa: PLC0415
+        pts = _random_points(12, 13)
+        store = _make_store(points=pts)
+        for k in range(3 * _LOO_CACHE_MAX):
+            pts[0]["x_m"] = float(k)
+            store.loo_accuracy()
+        assert len(store._loo_cache) <= _LOO_CACHE_MAX
+
+
 # ---------------------------------------------------------------------------
 # Tests: loo_accuracy algorithm awareness (RF out-of-bag validation)
 # ---------------------------------------------------------------------------

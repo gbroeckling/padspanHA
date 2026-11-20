@@ -21,6 +21,8 @@ Data layout in .storage/padspan_ha.calibration:
   }
 """
 
+import copy
+import hashlib
 import logging
 import math
 import os
@@ -50,6 +52,17 @@ BEACON_TUNE_SOURCE = "beacon_tune"  # source on points Beacon Tune saved (hard r
 # evidence against the point, and a multiplicative penalty would vanish
 # whenever the centered distance is 0 (e.g. every 1-shared-scanner point).
 MISSING_SCANNER_PENALTY_DB = 12.0
+_LOO_CACHE_MAX = 8        # leave-one-out answers kept (the house's, each plan's)
+
+
+def _loo_cache_key(pts: list[dict[str, Any]], fps: list[dict[str, float]]) -> bytes:
+    """Everything the k-NN leave-one-out reads of its points, in their order:
+    where each is, its room and weight, and its fingerprint as compared (the
+    masked scanners already out), written out exactly (repr) and digested, so
+    a kept answer costs 16 bytes of key, not a copy of every point."""
+    text = repr([(p.get("x_m"), p.get("y_m"), p.get("room"), p.get("weight"), list(fp.items()))
+                 for p, fp in zip(pts, fps)])
+    return hashlib.blake2b(text.encode("utf-8", "backslashreplace"), digest_size=16).digest()
 
 
 def _now_iso() -> str:
@@ -1117,30 +1130,46 @@ class CalibrationStore:
             return None
 
         _loo_excluded = self.excluded_sources()
+        # Masked sources are excluded here too: this estimate is only
+        # meaningful if it measures the estimator actually deployed.
+        # Each point's fingerprint and scanner set, made once: every point is
+        # compared with every other, and making them again for each pair was
+        # most of the work (P² dicts and sets for P points).
+        fps = [self._readings_to_map(p, _loo_excluded) for p in pts]
+        keysets = [set(fp.keys()) for fp in fps]
+        # The answer depends on nothing but what is compared here, so the same
+        # points give the same answer without the work: the three health
+        # pages and Q&A each ask, every 30 s while open, on the event loop.
+        cache_key = _loo_cache_key(pts, fps)
+        cache: dict[bytes, Any] = self.__dict__.setdefault("_loo_cache", {})
+        if cache_key in cache:
+            return copy.deepcopy(cache[cache_key])
         errors_m: list[float] = []
         room_pairs: list[tuple[str, str]] = []
         for i, pt in enumerate(pts):
-            loo_pts = [p for j, p in enumerate(pts) if j != i]
-            # Masked sources are excluded here too: this estimate is only
-            # meaningful if it measures the estimator actually deployed.
-            query: dict[str, float] = self._readings_to_map(pt, _loo_excluded)
+            query: dict[str, float] = fps[i]
             if not query:
                 continue
+            qkeys = keysets[i]
 
             scored: list[tuple[float, dict[str, Any]]] = []
-            for p2 in loo_pts:
-                fp = self._readings_to_map(p2, _loo_excluded)
-                shared = set(query.keys()) & set(fp.keys())
+            for j, p2 in enumerate(pts):
+                if j == i:
+                    continue
+                fp = fps[j]
+                shared = qkeys & keysets[j]
                 if not shared:
                     continue
                 # Same metric as knn_locate: per-point mean-centered
                 # (TX-invariant) MSE + absolute missing-scanner penalty,
-                # so validation measures the deployed estimator.
-                q_mean = sum(query[s] for s in shared) / len(shared)
-                p_mean = sum(fp[s] for s in shared) / len(shared)
-                sq_sum = sum(
+                # so validation measures the deployed estimator. (Lists, not
+                # generators, inside sum(): the same additions in the same
+                # order, so the same numbers, faster.)
+                q_mean = sum([query[s] for s in shared]) / len(shared)
+                p_mean = sum([fp[s] for s in shared]) / len(shared)
+                sq_sum = sum([
                     ((query[s] - q_mean) - (fp[s] - p_mean)) ** 2 for s in shared
-                )
+                ])
                 missing = max(0, len(query) - len(shared))
                 dist_sq = (sq_sum + missing * MISSING_SCANNER_PENALTY_DB ** 2) / (
                     len(shared) + missing
@@ -1184,19 +1213,22 @@ class CalibrationStore:
                     pred_room = max(room_w, key=lambda r: room_w[r])
                     room_pairs.append((true_room, pred_room))
 
-        if not errors_m:
-            return None
-
-        errors_m.sort()
-        result: dict[str, Any] = {
-            "algorithm": "knn",
-            "mean_error_m": round(_mean(errors_m), 3),
-            "median_error_m": round(errors_m[len(errors_m) // 2], 3),
-            "max_error_m": round(errors_m[-1], 3),
-            "point_count": len(errors_m),
-        }
-        if room_pairs:
-            result["room_confusion"] = _summarize_room_confusion(room_pairs)
+        result: dict[str, Any] | None = None
+        if errors_m:
+            errors_m.sort()
+            result = {
+                "algorithm": "knn",
+                "mean_error_m": round(_mean(errors_m), 3),
+                "median_error_m": round(errors_m[len(errors_m) // 2], 3),
+                "max_error_m": round(errors_m[-1], 3),
+                "point_count": len(errors_m),
+            }
+            if room_pairs:
+                result["room_confusion"] = _summarize_room_confusion(room_pairs)
+        # A few answers at most: the whole house's and each plan's.
+        while len(cache) >= _LOO_CACHE_MAX:
+            cache.pop(next(iter(cache)))
+        cache[cache_key] = copy.deepcopy(result)
         return result
 
     def _rf_oob_accuracy(self, map_id: str | None = None) -> dict[str, Any] | None:
