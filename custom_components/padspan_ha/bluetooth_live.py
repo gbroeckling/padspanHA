@@ -990,16 +990,23 @@ class BluetoothLive:
                     if prev is None or age_s < prev:
                         addr_best_age[addr] = age_s
 
-            # Cap by unique address count (most recently seen first)
-            sorted_addrs = sorted(addr_best_age, key=lambda a: addr_best_age[a])
+            # Cap by unique address count (most recently seen first). Two
+            # addresses heard at the same instant go by address, so which one
+            # the cap keeps does not depend on the order they arrived in.
+            sorted_addrs = sorted(addr_best_age, key=lambda a: (addr_best_age[a], a))
             if max_ads and len(sorted_addrs) > max_ads:
                 sorted_addrs = sorted_addrs[:max_ads]
             kept = set(sorted_addrs)
-            for addr in kept:
+            for addr in sorted_addrs:
                 ads.extend(addr_records[addr])
 
-            # Sort: most recently seen first
-            ads.sort(key=lambda x: x.get("age_s", 1e9))
+            # Sort: most recently seen first; adverts of the same age by
+            # address. Addresses of one age used to come in the order of a
+            # walk over a set, which changes with each restart, and the
+            # object list is built in this order. (One address heard by
+            # several receivers at one instant keeps the order its receivers
+            # were first heard in: the sort is stable.)
+            ads.sort(key=lambda x: (x.get("age_s", 1e9), str(x.get("address") or "")))
 
             # --- Synthetic radios for orphaned sources ---
             # Some scanners (e.g. Shelly BLE proxies) relay advertisements

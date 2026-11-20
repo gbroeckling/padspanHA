@@ -159,3 +159,24 @@ def test_the_saving_is_the_whole_point():
     per_day = int(86400 / 1.6)
     masked = sum(1 for i in range(per_day) if policy.is_masked(_keypad(f"7A:{i % 256:02X}:00:00:00:01")))
     assert masked == per_day == 54000
+
+
+def test_a_key_may_be_written_as_the_address_or_any_key_the_device_is_listed_under():
+    """An entry copied from the object list hides the object it came from: a
+    plain device's address (any case), its "ble:" key, one beacon of a pack."""
+    plain = Identity(addr="C4:00:00:00:00:81")
+    for entry in ("C4:00:00:00:00:81", "c4:00:00:00:00:81", "ble:C4:00:00:00:00:81"):
+        assert IngestPolicy.from_settings({"excluded_objects": [entry]}).is_masked(plain), entry
+    assert not IngestPolicy.from_settings({"excluded_objects": ["C4:00:00:00:00:82"]}).is_masked(plain)
+
+    one_of_a_pack = Identity(addr="C4:00:00:00:00:41", key=KEYPAD_KEY, also=(KEYPAD_KEY + ":C4:00:00:00:00:41",))
+    its_twin = Identity(addr="C4:00:00:00:00:42", key=KEYPAD_KEY, also=(KEYPAD_KEY + ":C4:00:00:00:00:42",))
+    policy = IngestPolicy.from_settings({"excluded_objects": [KEYPAD_KEY + ":C4:00:00:00:00:41"]})
+    assert policy.is_masked(one_of_a_pack) and not policy.is_masked(its_twin)
+
+
+def test_a_device_met_twice_in_one_poll_can_be_asked_about_without_counting_it_again():
+    policy = IngestPolicy.from_settings({"excluded_objects": [KEYPAD_KEY]})
+    assert policy.is_masked(_keypad("7A:00:00:00:00:01"))
+    assert policy.is_masked(_keypad("7A:00:00:00:00:01"), count=False)
+    assert policy.diagnostics()["masked_total"] == 1
