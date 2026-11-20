@@ -10,7 +10,7 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 [![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in **Settings → Marketplace** (Home Assistant 2026.11 and newer) or in HACS (older versions). Or search either one for PadSpan.
 
-**What you need:** Home Assistant 2024.1 or newer and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/).
+**What you need:** Home Assistant 2024.8 or newer and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/).
 
 **Free and open source (GPL-3.0).** PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, plus Live Aboard (your house in 3D, like looking into a house in The Sims) and Furnish. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md#try-it-free-for-90-days)).
 
@@ -257,7 +257,7 @@ Setting up HACS for the first time? A GitHub change can make HACS's sign-in step
 
 ## Requirements
 
-- Home Assistant **2024.1** or newer
+- Home Assistant **2024.8** or newer
 - A machine with **more than 2 GB of RAM** is recommended (a Raspberry Pi 4 or 5 with 4 GB or more, or similar). Near a busy street PadSpan hears thousands of passing devices, and on a 2 GB Pi Home Assistant can run out of memory within hours. See [Minimum requirements](./docs/MINIMUM_REQUIREMENTS.md)
 - At least one BLE scanner: an HA Bluetooth proxy, a Bermuda proxy, or ESPresense nodes (ESPresense also needs HA's MQTT integration, and the ingestion switched on in Manage)
 - The Marketplace (built into Home Assistant from 2026.11) or HACS, for easy installation and updates
