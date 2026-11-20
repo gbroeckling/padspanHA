@@ -1,0 +1,63 @@
+name: Home Assistant versions
+
+# tests_ha/ (PadSpan HA set up, unloaded, reloaded and every websocket command
+# called in a real Home Assistant) against the Home Assistant releases listed
+# in tests_ha/ha_versions.json, each with the Python that release shipped
+# with and the test harness release built for it. "Real Home Assistant" runs
+# the one release requirements_test_ha.txt pins; this says where else it works.
+#
+# Started by hand: every release in the list, one job each (5 to 10 minutes).
+# On a push: only the rows marked "every_push".
+# Never on a tag: scripts/release.py waits for every check a tag starts.
+
+on:
+  push:
+    branches: [main, "real-ha-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  versions:
+    name: Which versions
+    # The generated Bright repository gets a copy of .github but not of
+    # tests_ha/ (scripts/bright_build.py): there is nothing to run there.
+    if: github.repository == 'gbroeckling/padspanHA'
+    runs-on: ubuntu-latest
+    outputs:
+      rows: ${{ steps.rows.outputs.rows }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: rows
+        env:
+          EVERY_ROW: ${{ github.event_name == 'workflow_dispatch' || github.ref_name == 'real-ha-versions' }}
+        run: echo "rows=$(jq -c --argjson all "$EVERY_ROW" 'map(select($all or .every_push))' tests_ha/ha_versions.json)" >> "$GITHUB_OUTPUT"
+
+  real-ha:
+    name: Home Assistant ${{ matrix.ha }} (Python ${{ matrix.python }})
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.versions.outputs.rows) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      # The harness release pins the Home Assistant it was built against.
+      - name: Install Home Assistant ${{ matrix.ha }} and its test harness
+        run: |
+          pip install "${{ matrix.harness }}"
+          python -c "import sys, homeassistant.const as c; print('Home Assistant', c.__version__, 'on Python', sys.version.split()[0])"
+          test "$(python -c 'import homeassistant.const as c; print(c.__version__)')" = "${{ matrix.ha }}"
+      # tests_ha/other_versions.py: what the harness of another release needs
+      # to run these files, and the list of what Home Assistant says will
+      # stop working. respx's own pytest plugin is off as Home Assistant's
+      # harness asks (2026.11 on); sugar (old harness releases bring it)
+      # would hide the plain result line.
+      - name: Run the tests in Home Assistant ${{ matrix.ha }}
+        run: python -m pytest tests_ha -q -n auto -p no:cacheprovider -p no:sugar -p no:respx -p tests_ha.other_versions
