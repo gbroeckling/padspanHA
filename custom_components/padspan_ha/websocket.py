@@ -802,7 +802,9 @@ async def ws_integration_reload(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({
     "type": "padspan_ha/movement_history_get",
     vol.Optional("device"): str,
-    vol.Optional("limit", default=100): int,
+    # At most 200 entries a request (the History tab's own page); more, or
+    # less than one, is brought to the nearest end.
+    vol.Optional("limit", default=100): vol.All(int, vol.Clamp(min=1, max=200)),
 })
 @websocket_api.async_response
 async def ws_movement_history_get(hass: HomeAssistant, connection, msg) -> None:
@@ -855,7 +857,9 @@ async def ws_lost_and_found_forget(hass: HomeAssistant, connection, msg) -> None
     vol.Optional("start_ts"): vol.Coerce(float),
     vol.Optional("end_ts"): vol.Coerce(float),
     vol.Optional("obj_key"): str,
-    vol.Optional("max_frames", default=4000): int,
+    # At most 4,000 frames a request (what Traceback asks for); a longer
+    # window is thinned to that many, never cut short.
+    vol.Optional("max_frames", default=4000): vol.All(int, vol.Clamp(min=1, max=4000)),
 })
 @websocket_api.async_response
 async def ws_traceback_get(hass: HomeAssistant, connection, msg) -> None:
