@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan ei voinut vahvistaa tallennusta ({store})",
+      "description": "PadSpan tallensi tietonsa ({store}), mutta levyllä oleva tiedosto ei sisällä tallennettua sisältöä, tai sitä ei voitu lukea takaisin. Viimeisimmät muutokset voivat olla vain muistissa, ja ne katoaisivat, kun Home Assistant käynnistyy uudelleen. Tarkista, ettei Home Assistantin levy ole täynnä tai vain luku -tilassa, ja etsi virhe Home Assistantin lokista. Tämä ilmoitus poistuu itsestään, kun tallennus seuraavan kerran vahvistetaan."
+    }
   }
 }

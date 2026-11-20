@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan kunde inte bekräfta en sparning ({store})",
+      "description": "PadSpan sparade sina data ({store}), men filen på disken innehåller inte det som sparades, eller kunde inte läsas tillbaka. De senaste ändringarna finns kanske bara i minnet och går då förlorade när Home Assistant startar om. Kontrollera att disken som Home Assistant körs på inte är full eller skrivskyddad, och leta efter felet i Home Assistants logg. Det här meddelandet försvinner av sig självt nästa gång en sparning bekräftas."
+    }
   }
 }
