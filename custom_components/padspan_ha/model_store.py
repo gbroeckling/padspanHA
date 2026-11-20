@@ -52,7 +52,7 @@ from homeassistant.helpers.storage import Store
 from . import fabric_truth
 from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
 from .presence_rules import ROOM_SPACES
-from .safe_store import wrap_store
+from .safe_store import async_load_readable, wrap_store
 from .util import ha_device_config_entries, ha_devices
 from .quiet_errors import note as _quiet_error
 
@@ -392,7 +392,7 @@ class ModelStore:
         return fab.rooms_flat() if fab else {}
 
     async def async_setup(self) -> None:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         _stamped = False
         if isinstance(loaded, dict):
             # Start from loaded data, then ensure required keys exist

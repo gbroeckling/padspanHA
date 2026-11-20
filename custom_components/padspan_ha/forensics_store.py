@@ -43,6 +43,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DATA_FORENSICS, DATA_SETTINGS, DOMAIN, FORENSICS_STORE_KEY
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ class ForensicsStore:
         self._last_save_ts = 0.0
 
     async def async_load(self) -> None:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict) and isinstance(d.get("addrs"), dict))
         if isinstance(loaded, dict) and isinstance(loaded.get("addrs"), dict):
             self.addrs = loaded["addrs"]
         else:

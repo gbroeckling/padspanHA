@@ -22,6 +22,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import OBJECT_STORE_KEY
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class ObjectStore:
 
     async def async_load(self) -> None:
         """Load persisted data from HA storage."""
-        loaded = await self._store.async_load()
+        loaded = await async_load_readable(self._store, lambda d: isinstance(d, dict))
         if isinstance(loaded, dict):
             self._data = loaded
         else:

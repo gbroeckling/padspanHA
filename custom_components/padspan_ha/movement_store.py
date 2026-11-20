@@ -28,6 +28,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import MOVEMENT_STORE_KEY
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class MovementStore:
         self.entries: list[dict[str, Any]] = []
 
     async def async_load(self) -> list[dict[str, Any]]:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, list))
         if isinstance(loaded, list):
             self.entries = loaded
         else:

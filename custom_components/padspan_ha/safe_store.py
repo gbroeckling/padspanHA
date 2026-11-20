@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,3 +94,35 @@ class SafeStore:
 def wrap_store(store: Store, hass: HomeAssistant, name: str = "") -> SafeStore:
     """Wrap a homeassistant Store with safety guarantees."""
     return SafeStore(store, hass, name)
+
+
+async def async_load_readable(store: Store | SafeStore, readable: Callable[[Any], bool]) -> Any:
+    """`store`'s data, or None when its file holds data `readable` says this
+    version cannot use.
+
+    Home Assistant moves a file it cannot parse aside (<file>.corrupt.<time>)
+    and logs it. A file that parses but holds the wrong kind of data (a list
+    where a dict is kept, a section missing) passed every check, so the store
+    started empty without a word and its next save wrote over the person's
+    file: rooms, labels, rules, safety copies, gone. That file is moved aside
+    the same way (<file>.unreadable.<time>) and said once; the store then
+    starts as with no file, which is what it did before, now with the file
+    kept to restore from.
+    """
+    loaded = await store.async_load()
+    if loaded is None or readable(loaded):
+        return loaded
+    raw = getattr(store, "_store", store)      # a SafeStore wraps the Store
+    path = raw.path
+    aside = f"{path}.unreadable.{dt_util.utcnow().isoformat()}"
+    try:
+        await raw.hass.async_add_executor_job(os.replace, path, aside)
+        kept = f"moved to {Path(aside).name}"
+    except OSError as err:
+        kept = f"could not be moved aside ({err.strerror or err})"
+    _LOGGER.error(
+        "PadSpan could not read %s: its file holds %s, not what this version keeps there. It starts "
+        "empty; the file %s. Restore a backup, or move the file back once a version that reads it runs.",
+        raw.key, type(loaded).__name__, kept,
+    )
+    return None

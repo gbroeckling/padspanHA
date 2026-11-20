@@ -44,6 +44,7 @@ from .ws_common import (
 )
 from .telemetry import bump as _bump
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ async def _load_backups(hass: HomeAssistant) -> dict[str, Any]:
     """Load the backup index from HA persistent storage."""
     from homeassistant.helpers.storage import Store as _St
     st = _St(hass, 1, BACKUPS_STORE_KEY)
-    loaded = await st.async_load()
+    loaded = await async_load_readable(st, lambda d: isinstance(d, dict))
     return loaded if isinstance(loaded, dict) else {"backups": []}
 
 

@@ -19,6 +19,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import ALERTS_STORE_KEY
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class AlertStore:
         self.data = {}
 
     async def async_load(self) -> dict[str, Any]:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         if isinstance(loaded, dict):
             self.data = loaded
         else:

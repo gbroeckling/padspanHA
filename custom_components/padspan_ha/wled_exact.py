@@ -61,6 +61,7 @@ from .const import DATA_SETTINGS, DATA_WLED_LOOKS, DOMAIN, WLED_LOOKS_STORE_KEY
 from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ class WledLooksStore:
         self.data: dict[str, Any] = {"devices": {}}
 
     async def async_load(self) -> dict[str, Any]:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict) and isinstance(d.get("devices"), dict))
         self.data = loaded if isinstance(loaded, dict) and isinstance(loaded.get("devices"), dict) else {"devices": {}}
         return self.data
 

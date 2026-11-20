@@ -1,0 +1,4 @@
+# A saved file PadSpan cannot read is kept, not replaced
+
+### Fixed
+- **A PadSpan file that holds the wrong kind of data is set aside, not written over.** When one of PadSpan's saved files in Home Assistant's `.storage` folder held something PadSpan could not use (after a hand edit, or a file written by a version that kept it differently), PadSpan started that part empty without saying so, and the next save replaced the file. For the settings, floor plans, rooms and devices that happened as Home Assistant started. Now the file is renamed to `<name>.unreadable.<date>` beside the others, one error in Home Assistant's log names it, and PadSpan starts that part empty, as Home Assistant itself does with a file it cannot open. Restore a backup, or put the file back once a version that reads it is running.

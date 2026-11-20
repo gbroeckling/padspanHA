@@ -29,6 +29,7 @@ from homeassistant.helpers.storage import Store
 from .build_info import EDITION
 from .const import SETTINGS_STORE_KEY
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -506,7 +507,7 @@ class SettingsStore:
         # Looked at BEFORE the load: the other stores load beside this one
         # and a brand-new install's would be written by the time it returned.
         first_run = await self._first_run()
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         if isinstance(loaded, dict):
             self.data = {**DEFAULT_SETTINGS, **loaded}
             # A stored False stays: it does nothing here, and an older version
