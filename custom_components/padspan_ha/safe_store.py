@@ -109,10 +109,44 @@ async def async_load_readable(store: Store | SafeStore, readable: Callable[[Any]
     starts as with no file, which is what it did before, now with the file
     kept to restore from.
     """
-    loaded = await store.async_load()
+    raw = getattr(store, "_store", store)      # a SafeStore wraps the Store
+    try:
+        loaded = await raw.async_load()
+    except Exception as exc:  # noqa: BLE001 - told apart below, re-raised unless set aside
+        # Valid JSON that is no store file at all (a bare list, a number, an
+        # object without "data") makes Home Assistant's loader raise, every
+        # time anything asks. Kept as a wrong-kind file is. Anything else (a
+        # read that fails, a file Home Assistant could not open) is raised as
+        # before, with the file left untouched.
+        kind = await raw.hass.async_add_executor_job(_not_a_store_document, raw.path)
+        if not kind:
+            if raw is not store:
+                _LOGGER.error("PadSpan load FAILED for %s: %s (the file is left untouched)",
+                              getattr(store, "_name", raw.key), exc)
+            raise
+        return await _set_aside(raw, f"{kind}, not a Home Assistant store file")
     if loaded is None or readable(loaded):
         return loaded
-    raw = getattr(store, "_store", store)      # a SafeStore wraps the Store
+    return await _set_aside(raw, f"{type(loaded).__name__}, not what this version keeps there")
+
+
+def _not_a_store_document(path: str) -> str:
+    """The kind of JSON the file holds when it is valid JSON but no Home
+    Assistant store document ({"version": ..., "data": ...}); "" when it is
+    one, or cannot be read or parsed (those are Home Assistant's to handle)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    if isinstance(doc, dict) and "data" in doc:
+        return ""
+    return type(doc).__name__
+
+
+async def _set_aside(raw: Store, what: str) -> None:
+    """Move the store's file to <file>.unreadable.<time>, say so once, and
+    let the store start as with no file."""
     path = raw.path
     aside = f"{path}.unreadable.{dt_util.utcnow().isoformat()}"
     try:
@@ -121,8 +155,8 @@ async def async_load_readable(store: Store | SafeStore, readable: Callable[[Any]
     except OSError as err:
         kept = f"could not be moved aside ({err.strerror or err})"
     _LOGGER.error(
-        "PadSpan could not read %s: its file holds %s, not what this version keeps there. It starts "
-        "empty; the file %s. Restore a backup, or move the file back once a version that reads it runs.",
-        raw.key, type(loaded).__name__, kept,
+        "PadSpan could not read %s: its file holds %s. It starts empty; the file %s. "
+        "Restore a backup, or move the file back once a version that reads it runs.",
+        raw.key, what, kept,
     )
     return None
