@@ -23,8 +23,9 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
+import homeassistant.helpers.json as ha_json
 import homeassistant.helpers.storage as storage
+import pytest
 from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE
 from homeassistant.core import CoreState
 from homeassistant.helpers import issue_registry as ir
@@ -36,6 +37,14 @@ from custom_components.padspan_ha.calibration_store import CalibrationStore
 DOMAIN = "padspan_ha"
 NOTICE = "save_not_written_calibration"
 SECRET = "cp_secret_7f3a"
+# Home Assistant 2025.12 and later hand the written text to
+# _write_prepared_data, and SafeStore compares its digest with the file's;
+# earlier ones make it and write it in one step, and the check is that the
+# write returned.
+HANDS_TEXT = hasattr(storage.Store, "_write_prepared_data")
+# Where the Store's write finds write_utf8_file: storage itself from 2025.12,
+# the JSON helper's save_json before.
+WRITER = storage if hasattr(storage, "write_utf8_file") else ha_json
 
 
 @pytest.fixture
@@ -67,7 +76,10 @@ async def test_the_check_sees_home_assistants_write(hass):
     data = _points(3)
     assert await s.async_save(data) is True
     assert _on_disk(cal) == data
-    assert s._wrote and s._wrote == await hass.async_add_executor_job(safe_store._file_digest, cal._raw_store.path)
+    if HANDS_TEXT:
+        assert s._wrote and s._wrote == await hass.async_add_executor_job(safe_store._file_digest, cal._raw_store.path)
+    else:
+        assert s._written and s._wrote is None
     assert s.failed_saves == 0
 
 
@@ -86,7 +98,7 @@ async def test_a_write_that_fails_is_a_failed_save_and_the_next_good_one_clears_
     folder = Path(cal._raw_store.path).parent
 
     caplog.clear()
-    full = patch.object(storage, "write_utf8_file", _full_disk) if how == "full disk" else contextlib.nullcontext()
+    full = patch.object(WRITER, "write_utf8_file", _full_disk) if how == "full disk" else contextlib.nullcontext()
     second = _points(3, SECRET)
     with caplog.at_level(logging.DEBUG), full:
         if how == "read-only folder":
