@@ -279,6 +279,10 @@ def test_an_unstorable_number_is_found_at_any_depth():
     for value in (nan, inf, -inf, 2 ** 64, -(2 ** 63) - 1, [1, [nan]], {"a": {"b": inf}}, {"a": [{"b": 10 ** 30}]},
                   [{"match": {"name": nan}}], {"snoozes": inf}):
         assert bad(value), value
+    deep: list = []
+    for _ in range(3000):       # far deeper than Python's own limit: answered, never raised
+        deep = [deep]
+    assert bad(deep)
     for value in (0, 1.5, -3, True, False, None, "nan", "inf", 2 ** 63, -(2 ** 63), 2 ** 64 - 1, [1, "nan", {"a": 2.5}],
                   {"a": {"b": [1, 2, 3]}}, "", [], {}):
         assert not bad(value), value

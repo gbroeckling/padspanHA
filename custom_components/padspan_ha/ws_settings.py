@@ -489,8 +489,9 @@ def _sanitize_whole_house_presets(presets_in: Any) -> list[dict[str, Any]]:
 # Every key the command reads as a number. A value that reads as a number but
 # is not a finite one (the text "nan" or "inf") is refused for all of them
 # alike: clamped, it was stored as the key's upper bound.
-# fabric_bearing_deg and vacation_mode_end_at are not here: each has its own
-# check, with its own words, that refuses the same values.
+# fabric_bearing_deg and vacation_mode_end_at are not here: North has its own
+# check with its own words, and the end time arrives as a number already, so
+# the check on every value (_unstorable_number) refuses it.
 _NUMBER_KEYS = (
     "room_change_delay_s", "away_timeout_m", "ref_power", "path_loss_exp", "kalman_q", "kalman_r",
     "hold_last_room_s", "assumed_device_height_m", "fabric_origin_lat", "fabric_origin_lon",
@@ -519,9 +520,12 @@ def _not_finite(value: Any) -> bool:
         return False
 
 
-def _unstorable_number(value: Any) -> bool:
+def _unstorable_number(value: Any, depth: int = 0) -> bool:
     """Whether value holds, at any depth, a number no setting can keep: a
-    float that is not finite, or a whole number past 64 bits."""
+    float that is not finite, or a whole number past 64 bits. Nested deeper
+    than any setting goes counts as one too (the walk would not end well)."""
+    if depth > 40:
+        return True
     if isinstance(value, bool):
         return False
     if isinstance(value, float):
@@ -529,9 +533,9 @@ def _unstorable_number(value: Any) -> bool:
     if isinstance(value, int):
         return not -(2 ** 63) <= value < 2 ** 64
     if isinstance(value, dict):
-        return any(_unstorable_number(k) or _unstorable_number(v) for k, v in value.items())
+        return any(_unstorable_number(k) or _unstorable_number(v, depth + 1) for k, v in value.items())
     if isinstance(value, (list, tuple)):
-        return any(_unstorable_number(v) for v in value)
+        return any(_unstorable_number(v, depth + 1) for v in value)
     return False
 
 
