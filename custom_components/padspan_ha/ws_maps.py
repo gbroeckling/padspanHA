@@ -159,7 +159,7 @@ _HAND_MEASURE = vol.Schema({vol.Optional("p1"): [vol.Coerce(float)], vol.Optiona
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/maps_scale_measure",
-        "map_id": str,
+        vol.Required("map_id"): str,
         vol.Optional("measures", default=list): vol.All([_HAND_MEASURE], vol.Length(max=2)),
         vol.Optional("save", default=False): bool,
         # "This picture isn't to scale" pressed on the screen (two lengths that disagree): each direction its own scale,
@@ -219,8 +219,8 @@ BLANK_WORDS: dict[str, str] = {
     {
         "type": "padspan_ha/maps_blank_create",
         "floor_id": str,
-        "across": vol.All(str, vol.Length(max=40)),
-        "down": vol.All(str, vol.Length(max=40)),
+        vol.Required("across"): vol.All(str, vol.Length(max=40)),
+        vol.Required("down"): vol.All(str, vol.Length(max=40)),
         vol.Optional("name", default=""): vol.All(str, vol.Length(max=120)),
     }
 )
@@ -236,7 +236,7 @@ async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
         return
-    floor_id = msg["floor_id"] or DEFAULT_FLOOR_ID
+    floor_id = msg.get("floor_id") or DEFAULT_FLOOR_ID
     feet = C.feet_on(hass)
     across, down = G.parse_length(msg["across"], feet=feet), G.parse_length(msg["down"], feet=feet)
     if is_outdoor_floor(floor_id):
@@ -255,7 +255,7 @@ async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"ok": True, "map": info})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/maps_scale_nudge_end", "map_id": str})
+@websocket_api.websocket_command({"type": "padspan_ha/maps_scale_nudge_end", vol.Required("map_id"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_scale_nudge_end(hass: HomeAssistant, connection, msg) -> None:
@@ -920,7 +920,7 @@ SCAN_MAX_M, SCAN_MAX_WALLS, SCAN_MAX_OBJECTS = 200.0, 3000, 2000
 SCAN_CORNER_M = 0.35          # a room outline's corner this near a wall end is that wall end
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/maps_fit_suggest", "map_id": str, "ref_map_id": str})
+@websocket_api.websocket_command({"type": "padspan_ha/maps_fit_suggest", vol.Required("map_id"): str, vol.Required("ref_map_id"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
@@ -955,7 +955,7 @@ async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/maps_scan_create",
         "floor_id": str,
-        "file_base64": str,
+        vol.Required("file_base64"): str,
         vol.Optional("name", default=""): vol.All(str, vol.Length(max=120)),
     }
 )
@@ -971,7 +971,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
         return
-    floor_id = msg["floor_id"] or DEFAULT_FLOOR_ID
+    floor_id = msg.get("floor_id") or DEFAULT_FLOOR_ID
 
     def no(code: str, message: str) -> None:
         connection.send_result(msg["id"], {"ok": False, "code": code, "message": message})

@@ -87,6 +87,28 @@ async def test_a_command_answers_with_everything_on(hass, admin, everything_on, 
         assert not _SWITCHED_OFF.search(reply["error"]["code"]), f"still off in the everything_on house: {reply['error']}"
 
 
+@pytest.mark.parametrize("command", sorted(DECLARED))
+async def test_a_command_answers_with_any_field_left_out(hass, admin, everything_on, command):
+    """Each field the schema names left out in turn, and all of them at once.
+    A field the handler cannot work without is vol.Required, so Home
+    Assistant refuses the message itself ("invalid_format") and says which
+    field is missing; a handler reached without a field answers anyway. Never
+    "unknown_error" (the handler raised, usually on msg["field"]), never the
+    bare field name as the whole refusal (the same KeyError, caught and passed
+    on), never silence."""
+    raised = {}
+    for left_out, msg in C.messages_with_a_field_left_out(command, _registered(hass)[command][1]).items():
+        try:
+            reply = await call(admin, msg)
+        except TimeoutError:
+            pytest.fail(f"no answer to {msg}")
+        error = {} if reply["success"] else reply["error"]
+        if error.get("code") == "unknown_error" or (left_out and str(error.get("message")) == repr(left_out)):
+            raised[left_out or "(every field)"] = error
+    assert not raised, (f"{command} raised with these fields left out: {raised}. Mark each one vol.Required in the "
+                        "schema, or read it with msg.get() and a default.")
+
+
 @pytest.mark.parametrize("command", ADMIN_ONLY)
 async def test_an_admin_only_command_refuses_a_member(hass, member, command):
     reply = await call(member, _message(hass, command))
