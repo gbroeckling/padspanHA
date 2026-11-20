@@ -56,8 +56,20 @@ function injectStyles(root) {
     .pl-zoom button:hover{background:rgba(82,183,136,.2)}
     .pl-zoom button:active{transform:scale(.92)}
 
+    /* The top row over the map: the counter on the left, the search in the
+       middle, the scanner strip on the right. One wrapping flex row, so the
+       three can never sit on top of each other: with room the two sides share
+       what the search leaves and it stays centred; without, the search moves
+       over, and then the row breaks onto further lines. The row itself lets
+       clicks and drags through to the map; only the three boxes take them. */
+    .pl-top{position:absolute;top:10px;left:10px;right:10px;z-index:8;display:flex;flex-wrap:wrap;
+      align-items:flex-start;gap:8px;pointer-events:none}
+    .pl-top-side{flex:1 1 0;display:flex;max-width:100%}
+    .pl-top-side.pl-top-right{justify-content:flex-end}
+    .pl-stats,.pl-search,.pl-scanners{pointer-events:auto}
+
     /* Floating stats */
-    .pl-stats{position:absolute;top:10px;left:10px;z-index:5;display:flex;gap:16px;
+    .pl-stats{flex:none;display:flex;gap:16px;
       background:rgba(10,30,15,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
       border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:8px 16px;
       box-shadow:0 6px 24px rgba(0,0,0,.3);color:#e2e8f0}
@@ -66,7 +78,7 @@ function injectStyles(root) {
     .pl-stats-lbl{font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
 
     /* Scanners */
-    .pl-scanners{position:absolute;top:10px;right:10px;z-index:5;display:flex;gap:6px;
+    .pl-scanners{flex:0 1 auto;min-width:0;max-width:100%;box-sizing:border-box;display:flex;gap:6px;
       background:rgba(10,30,15,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
       border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:6px 10px;
       box-shadow:0 4px 16px rgba(0,0,0,.25)}
@@ -130,12 +142,14 @@ function injectStyles(root) {
     .pl-feed-item .pl-feed-room{color:#52b788;font-weight:600}
 
     /* ── Search + fly-to (gap #16, best-in-class roadmap) ─────────────── */
-    .pl-search{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:8;width:min(320px,70vw)}
-    .pl-search input{width:100%;box-sizing:border-box;padding:7px 12px;border-radius:12px;
+    .pl-search{position:relative;z-index:1;flex:0 1 320px;min-width:0}
+    .pl-search input{width:100%;box-sizing:border-box;padding:7px 12px;border-radius:12px;text-overflow:ellipsis;
       border:1px solid rgba(255,255,255,.1);background:rgba(10,30,15,.7);backdrop-filter:blur(12px);
       -webkit-backdrop-filter:blur(12px);color:#e2e8f0;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.3)}
     .pl-search input::placeholder{color:#64748b}
-    .pl-search-results{margin-top:4px;background:rgba(8,20,12,.92);backdrop-filter:blur(12px);
+    /* Hangs below the box (never pushes the row), as wide as the box at its full size. */
+    .pl-search-results{position:absolute;top:100%;right:0;width:min(320px,calc(100vw - 20px));box-sizing:border-box;
+      margin-top:4px;background:rgba(8,20,12,.92);backdrop-filter:blur(12px);
       border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;
       box-shadow:0 8px 28px rgba(0,0,0,.4);max-height:260px;overflow-y:auto}
     .pl-search-result{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;
@@ -173,6 +187,10 @@ function injectStyles(root) {
       .pl-stats{padding:6px 10px;gap:10px;border-radius:10px}
       .pl-stats-val{font-size:18px}
       .pl-scanners{padding:4px 6px;gap:4px}
+      /* A phone: the search takes what the counter leaves on the first line and
+         the scanner strip the second, its codes sharing the width evenly. */
+      .pl-search{flex:1 1 150px}
+      .pl-scanner{flex:0 1 auto;width:32px;min-width:0}
       .pl-ticker{flex-wrap:wrap;gap:8px;justify-content:center}
       .pl-ticker>div:first-child{width:100%;order:-1}
       .pl-zoom button{width:32px;height:32px;font-size:16px}
@@ -1078,7 +1096,15 @@ function App({ ctx }) {
         <${MapViewport} ctx=${ctx}>
           <${IsoMap} ctx=${ctx} />
         <//>
-        <${SearchBox} ctx=${ctx} />
+        <div className="pl-top">
+          <div className="pl-top-side">
+            <${Stats} rooms=${rooms} objects=${identified} radios=${radios.length} loading=${loading} />
+          </div>
+          <${SearchBox} ctx=${ctx} />
+          <div className="pl-top-side pl-top-right">
+            <${Scanners} radios=${radios} ctx=${ctx} />
+          </div>
+        </div>
         ${_isSusp && html`
           <div style=${{
             position:"absolute",top:"8px",left:"50%",transform:"translateX(-50%)",zIndex:100,
@@ -1101,8 +1127,6 @@ function App({ ctx }) {
             }}>Resume</button>
           </div>
         `}
-        <${Stats} rooms=${rooms} objects=${identified} radios=${radios.length} loading=${loading} />
-        <${Scanners} radios=${radios} ctx=${ctx} />
         <${MovementGhosts} roomTagMap=${rtm} />
         <${ActivityFeed} roomTagMap=${rtm} />
         <button className="pl-info-toggle"
