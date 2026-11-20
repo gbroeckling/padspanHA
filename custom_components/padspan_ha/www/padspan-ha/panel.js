@@ -620,14 +620,14 @@ function scannerStatus(radio, ads){
 // Room colour lives in views/room_color.js — ONE implementation, shared with
 // the lights renderer. panel.js hands it to every view as ctx.helpers.roomColor.
 const { roomColor, roomColorAlpha } =
-  await import(`./views/room_color.js${new URL(import.meta.url).search}`);
+  await import(`./views/room_color.js?b=${BUILD_ID}`);
 // The object detail modal's "why is it here" evidence diagram (gap #2,
 // best-in-class roadmap) — a pure string builder, see its own header.
 const { buildEvidenceSvg, roomScoreBars } =
-  await import(`./views/evidence_diagram.js${new URL(import.meta.url).search}`);
+  await import(`./views/evidence_diagram.js?b=${BUILD_ID}`);
 // A push subscription kept across HA restarts (motion_reconnects, below).
 const { keepSubscribed } =
-  await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+  await import(`./views/push_subscription.js?b=${BUILD_ID}`);
 // The panel's translations (views/i18n.js), the same module help_content.js
 // imports. English, or a language not shipped, loads nothing. Not awaited:
 // if it fails to load, the help simply stays English.

@@ -87,7 +87,7 @@ const FLOOD_WAVE_PATH = (() => {
 // and this map was the only surface that ignored a hand-set room colour.
 // `export ... from` re-exports without binding the name locally, and this
 // file calls it — so import it and re-export the same binding.
-import { roomColor } from "./room_color.js";
+const { roomColor } = await import(`./room_color.js${new URL(import.meta.url).search}`);
 export { roomColor };
 // The one shared "which wall does this circle match" function — the same
 // one the door/window circle tool's commit handler uses (maps.js), so the
@@ -96,7 +96,7 @@ export { roomColor };
 // map-placement code — wall_geom.js, not stack_transform.js, which the
 // lights render path may never import (test_no_lights_file_touches_the_
 // photo_machinery).
-import { bestCircleWall, splitPolylineAtTwoPositions, roomEdgeForCircle, circlePolylineIntersections } from "./wall_geom.js";
+const { bestCircleWall, splitPolylineAtTwoPositions, roomEdgeForCircle, circlePolylineIntersections } = await import(`./wall_geom.js${new URL(import.meta.url).search}`);
 
 // ── Showcase themes (2026-09-10: "let's build all 20") ───────────────
 // Showcase has always drawn the SAME fabric, fixtures and feature surface

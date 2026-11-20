@@ -57,6 +57,12 @@ the browser's network tab or in a console stack trace, and confirm it changed.
   regexes are positional and a rename fails silently, freezing the stamp
   forever. `panel.js` keeps its literal as `RELEASE_BUILD_ID` only as the
   fallback for loading the module directly, outside the panel.
+- Every file is asked for under one address, `file.js?b=<stamp>`. `panel.js` and
+  `lights_panel.js` pass on the `b` of their own address alone (`?b=${BUILD_ID}`,
+  `${STAMP}`); every other module passes on its own query,
+  `${new URL(import.meta.url).search}`. No static `import ... from`: it cannot carry
+  the stamp, and a file reached both ways is downloaded twice and runs as two
+  copies. `tests/test_import_stamps.py` holds this for every file.
 - The digest uses mtime, so copying a file with an unchanged mtime (`cp -p`,
   some rsync flags) will not bust the cache. Use a plain copy.
 

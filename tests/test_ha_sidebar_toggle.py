@@ -82,7 +82,7 @@ def test_the_panels_button_sits_beside_toggle_and_stays_on_the_rail():
 
 def test_the_atlas_has_one_too_beside_refresh():
     src = (_WWW / "lights_panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert "await import(`./ha_sidebar.js${new URL(import.meta.url).search}`)" in src
+    assert "await import(`./ha_sidebar.js${STAMP}`)" in src
     head = src[src.index('el("div",{class:"lv-hero-title"},"Atlas")'):]
     head = head[:head.index("\\u21bb Refresh")]
     assert 'id:"haSide"' in head and "HA_SIDEBAR.toggleHaSidebar(this, this._hass)" in head, "beside Refresh"

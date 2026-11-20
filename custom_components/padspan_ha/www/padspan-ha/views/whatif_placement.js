@@ -23,7 +23,7 @@
 // Pure — no DOM, no live-drag/UI code (that lives in maps.js, calling
 // this on drag move with the existing runDrag primitive).
 
-import { FLOOR_ATTEN_DB, DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_N, barrierAttenuation } from "./radio_map.js";
+const { FLOOR_ATTEN_DB, DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_N, barrierAttenuation } = await import(`./radio_map.js${new URL(import.meta.url).search}`);
 
 const NO_SIGNAL_DBM = -120; // radio_map.js's own "nothing to hear" floor
 

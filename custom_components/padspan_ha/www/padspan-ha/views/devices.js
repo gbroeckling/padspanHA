@@ -428,8 +428,7 @@ function _renderByRoom(ctx) {
   }
 
   // Not loaded yet — trigger async load and show placeholder
-  const buildId = ctx.state.buildId || "";
-  import(`./objects.js?b=${buildId}`).then(m => {
+  import(`./objects.js${new URL(import.meta.url).search}`).then(m => {
     if (!window.__PADSPAN_VIEWS) window.__PADSPAN_VIEWS = {};
     window.__PADSPAN_VIEWS.objects = m;
     ctx.actions.renderRooms(); // re-render once loaded

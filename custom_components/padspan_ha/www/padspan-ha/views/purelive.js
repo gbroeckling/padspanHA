@@ -9,8 +9,8 @@
  * Map supports: scroll-to-zoom, pinch-to-zoom, click-drag pan, double-tap reset.
  */
 
-import { h, render as preactRender, html } from "../lib/preact-bundle.js";
-import { useState, useEffect, useRef, useMemo } from "../lib/preact-bundle.js";
+const { h, render: preactRender, html } = await import(`../lib/preact-bundle.js${new URL(import.meta.url).search}`);
+const { useState, useEffect, useRef, useMemo } = await import(`../lib/preact-bundle.js${new URL(import.meta.url).search}`);
 
 // Same metric frame Overview's own iso map is built from (gap #16, best-in-
 // class roadmap: search + fly-to). Pure Live never draws its own copy of the
