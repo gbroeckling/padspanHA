@@ -19,8 +19,8 @@
    "de": "Das umfassendste BLE-System für Anwesenheit pro Raum in Home Assistant. Es weiß nicht nur, dass du zu Hause bist, sondern <b>in welchem Raum</b> jedes Bluetooth-Gerät gerade ist, alle 5 Sekunden aktualisiert. Die Oberfläche von PadSpan ist derzeit auf Englisch."
   },
   {
-   "en": "<span class=\"badge\" data-latest-version></span> <span class=\"badge\">HA 2024.1+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Local tracking</span>",
-   "de": "<span class=\"badge\" data-latest-version>v0.37.0</span> <span class=\"badge\">HA 2024.1+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Lokales Tracking</span>"
+   "en": "<span class=\"badge\" data-latest-version></span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Local tracking</span>",
+   "de": "<span class=\"badge\" data-latest-version>v0.37.0</span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Lokales Tracking</span>"
   },
   {
    "en": "<a class=\"btn primary\" href=\"demo/\">Try the live demo</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA\">View on GitHub</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA/releases/latest\">Download Latest Release</a> <a class=\"btn ghost\" href=\"#install\">Install via HACS</a>",
@@ -911,8 +911,8 @@
    "de": "In wenigen Minuten startklar"
   },
   {
-   "en": "<b style=\"color:var(--acc2)\">Requirements:</b> Home Assistant 2024.1+ and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set up as a scanner, or your Home Assistant machine's own Bluetooth.",
-   "de": "<b style=\"color:var(--acc2)\">Voraussetzungen:</b> Home Assistant 2024.1+ und mindestens ein Bluetooth-Scanner: ein ESPHome-Bluetooth-Proxy, ein als Scanner eingerichteter Shelly ab Gen2 oder das eigene Bluetooth deines Home-Assistant-Rechners."
+   "en": "<b style=\"color:var(--acc2)\">Requirements:</b> Home Assistant 2024.8+ and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set up as a scanner, or your Home Assistant machine's own Bluetooth.",
+   "de": "<b style=\"color:var(--acc2)\">Voraussetzungen:</b> Home Assistant 2024.8+ und mindestens ein Bluetooth-Scanner: ein ESPHome-Bluetooth-Proxy, ein als Scanner eingerichteter Shelly ab Gen2 oder das eigene Bluetooth deines Home-Assistant-Rechners."
   },
   {
    "en": "From the Marketplace (Home Assistant 2026.11+)",
