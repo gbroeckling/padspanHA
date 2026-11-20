@@ -1,0 +1,24 @@
+{
+ "builds": {
+  "sha256": "f09e54cf2094258fd0e006e4e98227572d9fbafedb64e9f49e45ab83bc1bff69",
+  "records": 6,
+  "builds": 6,
+  "objects_per_build": [
+   23,
+   24,
+   24,
+   25,
+   25,
+   25
+  ],
+  "adverts_per_build": [
+   27,
+   30,
+   34,
+   35,
+   35,
+   35
+  ],
+  "object_keys": 27
+ }
+}
