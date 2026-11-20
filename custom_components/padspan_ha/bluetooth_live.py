@@ -780,10 +780,16 @@ class BluetoothLive:
         for addr in list(self._seen_by_source):
             if source in self._seen_by_source[addr]:
                 del self._seen_by_source[addr][source]
+                # Its signal samples go with them: left here, an address gone
+                # from the cache kept them for good (the age prune walks the cache).
+                _samples = self._rssi_samples.get(addr)
+                if _samples is not None:
+                    _samples.pop(source, None)
                 cleared += 1
                 if not self._seen_by_source[addr]:
                     del self._seen_by_source[addr]
                     self._address_types.pop(addr, None)
+                    self._rssi_samples.pop(addr, None)
         return cleared
 
     def _cap_addresses(self, now: dt.datetime) -> None:
