@@ -22,7 +22,8 @@ What it does:
     1. Validates hacs.json + repo structure (catches HACS-breaking mistakes)
     2. Updates version in all source files, and writes the panel's release
        notes (www/padspan-ha/assets/whatsnew.json) from CHANGELOG.md
-    3. Builds dist/padspan_ha.zip
+    3. Builds dist/padspan_ha.zip (git-ignored: it is attached to the GitHub
+       release in step 6, never committed)
     4. Validates the zip (manifest.json present + readable)
     5. Commits, tags, and pushes
     6. Creates and publishes the GitHub release with the zip attached
@@ -147,7 +148,9 @@ STATIC_FILES = [
     "README.md",
     "hacs.json",        # ← HACS reads this from the repo, not the zip
     ".gitignore",
-    "dist/padspan_ha.zip",
+    # dist/padspan_ha.zip is NOT here, and git ignores it: the release builds
+    # it and hands that file to `gh release create`. HACS downloads the
+    # release's attachment, never a file in the repository.
     "scripts/release.py",
     "scripts/bright_build.py",
     "scripts/bright_README.md",

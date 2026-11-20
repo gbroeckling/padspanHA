@@ -1089,7 +1089,7 @@ export function renderClassic(ctx){
     const _isoRadioMapOn = !!(ctx.state.settings && ctx.state.settings.radio_map_enabled);
     let _isoRadioMapMod = ctx.state._2dRadioMapMod || null; // reuse same cache
     if (_isoRadioMapOn && !_isoRadioMapMod) {
-      import("./radio_map.js?b=" + (ctx.state.buildId || "")).then(mod => {
+      import(`./radio_map.js${new URL(import.meta.url).search}`).then(mod => {
         ctx.state._2dRadioMapMod = mod;
         ctx.actions.renderRooms();
       }).catch(e => console.warn("PadSpan: radio_map module load failed", e));

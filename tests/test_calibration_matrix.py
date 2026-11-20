@@ -31,7 +31,7 @@ def _run(tmp_path: Path, script_body: str) -> dict:
     # the one import line to match, since Node resolves relative specifiers
     # literally rather than by sibling-file convention.
     cm_src = (_VIEWS / "calibration_matrix.js").read_text(encoding="utf-8")
-    cm_src = cm_src.replace('from "./path_loss.js"', 'from "./path_loss.mjs"')
+    cm_src = cm_src.replace("./path_loss.js${new URL(import.meta.url).search}", "./path_loss.mjs")
     (tmp_path / "calibration_matrix.mjs").write_text(cm_src, encoding="utf-8")
     shutil.copy(_VIEWS / "path_loss.js", tmp_path / "path_loss.mjs")
     script = "const CM = await import('./calibration_matrix.mjs');\n" + script_body

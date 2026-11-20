@@ -231,7 +231,11 @@ def test_the_stair_finders_loop_stops_on_the_master_code_and_its_menu_item_follo
     card = (_WWW / "views" / "lights_map.js").read_text(encoding="utf-8")
     assert 'plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")' in card
     assert 'typeof h3.edit === "function"' in card[card.index("plans: h3.settings.ai_plans_enabled"):card.index("setTopFloor:")]
-    assert 'sample: ctx.state.dataMode !== "live", admin: ctx.hass?.user?.is_admin !== false,' in (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    h3 = maps[maps.index("house3d: ctx.state.settings"):maps.index("saveSetting: async (key, v)")]
+    assert 'sample: ctx.state.dataMode !== "live",' in h3
+    # One `admin` for the house, an administrator's and nothing looser: a second key would replace the first unseen.
+    assert h3.count("admin:") == 1 and "admin: !!ctx.hass?.user?.is_admin," in h3
     # The module loads only when the editor asks, and nothing imports it statically.
     for path in (_WWW / "views").glob("*.js"):
         assert not re.search(r"^\s*import\b[^\n]*live_aboard_plans", path.read_text(encoding="utf-8"), re.M), path.name

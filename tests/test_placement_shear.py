@@ -331,7 +331,7 @@ def test_the_js_twins_agree_with_python_to_the_micron(tmp_path) -> None:
     """
     for name in ("stack_transform", "wall_geom"):
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
-        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        src = src.replace("./wall_geom.js${new URL(import.meta.url).search}", "./wall_geom.mjs")
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
 
     # traceback.js is a view module, not importable on its own; lift its
@@ -389,7 +389,7 @@ def test_the_js_twin_refuses_the_placements_python_refuses(tmp_path) -> None:
     """
     for name in ("stack_transform", "wall_geom"):
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
-        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        src = src.replace("./wall_geom.js${new URL(import.meta.url).search}", "./wall_geom.mjs")
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
 
     base = {"origin_x_m": 2.0, "origin_y_m": -3.0, "scale_x_m": 10.0,

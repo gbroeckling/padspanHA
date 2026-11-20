@@ -3,9 +3,9 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 const { deviceName, pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
-import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
-import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
-import { attachPanZoom } from "./pan_zoom.js";
+const { estimateDistanceM, formatDistanceM } = await import(`./path_loss.js${new URL(import.meta.url).search}`);
+const { buildCalibrationMatrix, errorColor } = await import(`./calibration_matrix.js${new URL(import.meta.url).search}`);
+const { attachPanZoom } = await import(`./pan_zoom.js${new URL(import.meta.url).search}`);
 
 // A tall plan fits the window instead of filling the card. Only the box's size
 // changes: its shape stays the plan's, and a point is a fraction of the plan's
@@ -1230,7 +1230,7 @@ function _pinAndListen(ctx, el, cs, calData) {
 
     if (cs.collecting) {
       // Active collection UI — injected as a real DOM node we can update
-      const collUI = _buildCollectionUI(ctx, el, cs, mapData);
+      const collUI = _buildCollectionUI(ctx, el, cs);
       pinPanel.appendChild(collUI);
     } else if (cs.readings) {
       // Collection done — show summary + save/discard

@@ -38,8 +38,8 @@ def _run_js(tmp_path: Path, script: str) -> dict:
     for name in ("iso_lights", "light_codes", "room_color", "wall_geom"):
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
         src = src.replace("./light_codes.js${new URL(import.meta.url).search}", "./light_codes.mjs")
-        src = src.replace('"./room_color.js"', '"./room_color.mjs"')
-        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        src = src.replace("./room_color.js${new URL(import.meta.url).search}", "./room_color.mjs")
+        src = src.replace("./wall_geom.js${new URL(import.meta.url).search}", "./wall_geom.mjs")
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
     (tmp_path / "run.mjs").write_text(script, encoding="utf-8")
     # encoding is explicit: text=True decodes with the locale codepage, which

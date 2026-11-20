@@ -29,13 +29,19 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "lts/*"
-      # The panel's one lint rule, no-undef — eslint.config.mjs says why.
+      # The panel's lint: undeclared names and the other correctness rules
+      # listed in eslint.config.mjs, which says why each is there.
       # tests/test_frontend_lint.py runs the same command locally, but skips
       # when eslint can't be fetched; this step fails instead.
-      - name: Lint panel JS for undeclared names
+      - name: Lint panel JS for undeclared names and other mistakes
         run: npx --yes -p eslint@9 -p globals@17 eslint "custom_components/padspan_ha/www/**/*.js"
       - name: Install test dependencies
         run: pip install -r requirements_test.txt
+      # Undefined names in the Python (ruff F821, F822, F823, nothing else).
+      # tests/test_backend_lint.py runs the same check and says why; ruff is
+      # pinned in requirements_test.txt, installed above.
+      - name: Lint Python for undefined names
+        run: python -m ruff check --isolated --no-cache --select F821,F822,F823 .
       # Spread over the runner's cores; pytest-xdist is pinned in
       # requirements_test.txt, installed above.
       - name: Run tests

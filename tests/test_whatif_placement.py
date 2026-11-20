@@ -27,7 +27,7 @@ pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 
 def _run(tmp_path: Path, script_body: str) -> dict:
     wi_src = (_VIEWS / "whatif_placement.js").read_text(encoding="utf-8")
-    wi_src = wi_src.replace('from "./radio_map.js"', 'from "./radio_map.mjs"')
+    wi_src = wi_src.replace("./radio_map.js${new URL(import.meta.url).search}", "./radio_map.mjs")
     (tmp_path / "whatif_placement.mjs").write_text(wi_src, encoding="utf-8")
     # radio_map.js dynamically imports stack_transform.js with a cache-buster
     # query string (`./stack_transform.js${new URL(import.meta.url).search}`)
@@ -43,7 +43,7 @@ def _run(tmp_path: Path, script_body: str) -> dict:
     )
     (tmp_path / "radio_map.mjs").write_text(rm_src, encoding="utf-8")
     st_src = (_VIEWS / "stack_transform.js").read_text(encoding="utf-8")
-    st_src = st_src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+    st_src = st_src.replace("./wall_geom.js${new URL(import.meta.url).search}", "./wall_geom.mjs")
     (tmp_path / "stack_transform.mjs").write_text(st_src, encoding="utf-8")
     shutil.copy(_VIEWS / "wall_geom.js", tmp_path / "wall_geom.mjs")
     script = "const WI = await import('./whatif_placement.mjs');\n" + script_body
