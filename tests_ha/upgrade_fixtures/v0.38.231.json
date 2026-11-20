@@ -1,0 +1,6538 @@
+{
+ "areas": [
+  {
+   "area_id": "kitchen",
+   "floor_id": "ground",
+   "name": "Kitchen"
+  },
+  {
+   "area_id": "living_room",
+   "floor_id": "ground",
+   "name": "Living Room"
+  },
+  {
+   "area_id": "hall",
+   "floor_id": "ground",
+   "name": "Hall"
+  },
+  {
+   "area_id": "bedroom",
+   "floor_id": "upstairs",
+   "name": "Bedroom"
+  },
+  {
+   "area_id": "office",
+   "floor_id": "upstairs",
+   "name": "Office"
+  }
+ ],
+ "devices": [
+  {
+   "connections": [],
+   "id": "242e7b4cceae5a652535c894246aff99",
+   "identifiers": [
+    [
+     "padspan_ha",
+     "padspan_occupancy"
+    ]
+   ],
+   "manufacturer": "PadSpan HA",
+   "model": "Occupancy Estimator",
+   "name": "PadSpan Occupancy",
+   "via_device_id": null
+  },
+  {
+   "connections": [
+    [
+     "bluetooth",
+     "02:00:00:00:00:02"
+    ]
+   ],
+   "id": "53cba5a5f0dd237741a08e154a078ac7",
+   "identifiers": [
+    [
+     "padspan_ha",
+     "ps_45f38c8a0011"
+    ]
+   ],
+   "manufacturer": "PadSpan HA",
+   "model": "BLE Presence Tracker",
+   "name": "Example phone",
+   "via_device_id": null
+  },
+  {
+   "connections": [
+    [
+     "bluetooth",
+     "02:00:00:00:00:04"
+    ]
+   ],
+   "id": "41ffa167c29e977d4ad871a3ba764c91",
+   "identifiers": [
+    [
+     "padspan_ha",
+     "ps_56aeedfb7c9d"
+    ]
+   ],
+   "manufacturer": "PadSpan HA",
+   "model": "BLE Presence Tracker",
+   "name": "Example fixed beacon",
+   "via_device_id": null
+  },
+  {
+   "connections": [
+    [
+     "bluetooth",
+     "ibeacon:00000000-0000-4000-8000-000000000001:1:1"
+    ]
+   ],
+   "id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "identifiers": [
+    [
+     "padspan_ha",
+     "ps_6454e3cb7fbe"
+    ]
+   ],
+   "manufacturer": "PadSpan HA",
+   "model": "BLE Presence Tracker",
+   "name": "Example companion",
+   "via_device_id": null
+  },
+  {
+   "connections": [
+    [
+     "bluetooth",
+     "02:00:00:00:00:01"
+    ]
+   ],
+   "id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "identifiers": [
+    [
+     "padspan_ha",
+     "ps_8c0453d8206c"
+    ]
+   ],
+   "manufacturer": "PadSpan HA",
+   "model": "BLE Presence Tracker",
+   "name": "Example keys (renamed)",
+   "via_device_id": null
+  },
+  {
+   "connections": [
+    [
+     "bluetooth",
+     "02:00:00:00:00:03"
+    ]
+   ],
+   "id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "identifiers": [
+    [
+     "padspan_ha",
+     "ps_e32014f7dcb9"
+    ]
+   ],
+   "manufacturer": "PadSpan HA",
+   "model": "BLE Presence Tracker",
+   "name": "Example wallet",
+   "via_device_id": null
+  },
+  {
+   "connections": [],
+   "id": "6beeb7b0f49ac53496ea5b76f6d1914e",
+   "identifiers": [
+    [
+     "padspan_ha",
+     "subzone_sz_40d9e53c"
+    ]
+   ],
+   "manufacturer": "PadSpan HA",
+   "model": "Sub-zone",
+   "name": "PadSpan Example couch",
+   "via_device_id": null
+  }
+ ],
+ "entities": [
+  {
+   "device_id": "6beeb7b0f49ac53496ea5b76f6d1914e",
+   "disabled_by": null,
+   "domain": "binary_sensor",
+   "entity_id": "binary_sensor.padspan_example_couch_occupied",
+   "has_entity_name": true,
+   "original_name": "Occupied",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__subzone__sz_40d9e53c__occupied"
+  },
+  {
+   "device_id": null,
+   "disabled_by": null,
+   "domain": "binary_sensor",
+   "entity_id": "binary_sensor.padspan_guest_home",
+   "has_entity_name": false,
+   "original_name": "PadSpan Guest home",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "01UPGRADETESTENTRY000000000_guest_home"
+  },
+  {
+   "device_id": null,
+   "disabled_by": null,
+   "domain": "binary_sensor",
+   "entity_id": "binary_sensor.padspan_vacation_mode",
+   "has_entity_name": false,
+   "original_name": "PadSpan Vacation Mode",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "01UPGRADETESTENTRY000000000_vacation_mode"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "device_tracker",
+   "entity_id": "device_tracker.example_fixed_beacon",
+   "has_entity_name": true,
+   "original_name": null,
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__tracker"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "device_tracker",
+   "entity_id": "device_tracker.example_ibeacon",
+   "has_entity_name": true,
+   "original_name": null,
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__tracker"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "device_tracker",
+   "entity_id": "device_tracker.example_keys_tag",
+   "has_entity_name": true,
+   "original_name": null,
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__tracker"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "device_tracker",
+   "entity_id": "device_tracker.example_phone",
+   "has_entity_name": true,
+   "original_name": null,
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__tracker"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "device_tracker",
+   "entity_id": "device_tracker.example_wallet",
+   "has_entity_name": true,
+   "original_name": null,
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__tracker"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_fixed_beacon_area",
+   "has_entity_name": true,
+   "original_name": "Area",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__area"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_fixed_beacon_distance",
+   "has_entity_name": true,
+   "original_name": "Distance",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__distance"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_fixed_beacon_distance_scanner_example_bedroom",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_bedroom",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__dist__scanner_example_bedroom"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_fixed_beacon_distance_scanner_example_hall",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_hall",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__dist__scanner_example_hall"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_fixed_beacon_distance_scanner_example_kitchen",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_kitchen",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__dist__scanner_example_kitchen"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_fixed_beacon_distance_scanner_example_living",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_living",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__dist__scanner_example_living"
+  },
+  {
+   "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_fixed_beacon_distance_scanner_example_office",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_office",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_56aeedfb7c9d__dist__scanner_example_office"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_ibeacon_area",
+   "has_entity_name": true,
+   "original_name": "Area",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__area"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_ibeacon_distance",
+   "has_entity_name": true,
+   "original_name": "Distance",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__distance"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_ibeacon_distance_scanner_example_bedroom",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_bedroom",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__dist__scanner_example_bedroom"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_ibeacon_distance_scanner_example_hall",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_hall",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__dist__scanner_example_hall"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_ibeacon_distance_scanner_example_kitchen",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_kitchen",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__dist__scanner_example_kitchen"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_ibeacon_distance_scanner_example_living",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_living",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__dist__scanner_example_living"
+  },
+  {
+   "device_id": "26c72fdf7f55fde85aa43b3f47cfb810",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_ibeacon_distance_scanner_example_office",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_office",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ibeacon_00000000-0000-4000-8000-000000000001_1_1__dist__scanner_example_office"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_keys_tag_area",
+   "has_entity_name": true,
+   "original_name": "Area",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__area"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_keys_tag_distance",
+   "has_entity_name": true,
+   "original_name": "Distance",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__distance"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_keys_tag_distance_scanner_example_bedroom",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_bedroom",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__dist__scanner_example_bedroom"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_keys_tag_distance_scanner_example_hall",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_hall",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__dist__scanner_example_hall"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_keys_tag_distance_scanner_example_kitchen",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_kitchen",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__dist__scanner_example_kitchen"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_keys_tag_distance_scanner_example_living",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_living",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__dist__scanner_example_living"
+  },
+  {
+   "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_keys_tag_distance_scanner_example_office",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_office",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_8c0453d8206c__dist__scanner_example_office"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_phone_area",
+   "has_entity_name": true,
+   "original_name": "Area",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__area"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_phone_distance",
+   "has_entity_name": true,
+   "original_name": "Distance",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__distance"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_phone_distance_scanner_example_bedroom",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_bedroom",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__dist__scanner_example_bedroom"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_phone_distance_scanner_example_hall",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_hall",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__dist__scanner_example_hall"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_phone_distance_scanner_example_kitchen",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_kitchen",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__dist__scanner_example_kitchen"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_phone_distance_scanner_example_living",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_living",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__dist__scanner_example_living"
+  },
+  {
+   "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_phone_distance_scanner_example_office",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_office",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_45f38c8a0011__dist__scanner_example_office"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_wallet_area",
+   "has_entity_name": true,
+   "original_name": "Area",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__area"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_wallet_distance",
+   "has_entity_name": true,
+   "original_name": "Distance",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__distance"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_wallet_distance_scanner_example_bedroom",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_bedroom",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__dist__scanner_example_bedroom"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_wallet_distance_scanner_example_hall",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_hall",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__dist__scanner_example_hall"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_wallet_distance_scanner_example_kitchen",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_kitchen",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__dist__scanner_example_kitchen"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_wallet_distance_scanner_example_living",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_living",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__dist__scanner_example_living"
+  },
+  {
+   "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.example_wallet_distance_scanner_example_office",
+   "has_entity_name": true,
+   "original_name": "Distance scanner_example_office",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__ps_e32014f7dcb9__dist__scanner_example_office"
+  },
+  {
+   "device_id": "6beeb7b0f49ac53496ea5b76f6d1914e",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.padspan_example_couch_who",
+   "has_entity_name": true,
+   "original_name": "Who",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__subzone__sz_40d9e53c__who"
+  },
+  {
+   "device_id": "242e7b4cceae5a652535c894246aff99",
+   "disabled_by": null,
+   "domain": "sensor",
+   "entity_id": "sensor.padspan_occupancy_occupancy",
+   "has_entity_name": true,
+   "original_name": "Occupancy",
+   "platform": "padspan_ha",
+   "translation_key": null,
+   "unique_id": "padspan_ha__occupancy_estimate"
+  }
+ ],
+ "entry_id": "01UPGRADETESTENTRY000000000",
+ "files": {
+  ".storage/padspan_ha.capture_sessions/20261120-120425.jsonl": "eyJ0IjoiaGRyIiwic3YiOjEsInRzIjoxNzk1MjA1MDY1LjUsImxibCI6IkV4YW1wbGUgY2FwdHVyZSIsInZlciI6IjAuMzguMjMxIiwiZG0iOiJsaXZlIiwicG9sbF9zIjo1LjAsInZ3Ijo0LCJ2dCI6Mywic3JjIjpbInNjYW5uZXJfZXhhbXBsZV9iZWRyb29tIiwic2Nhbm5lcl9leGFtcGxlX2hhbGwiLCJzY2FubmVyX2V4YW1wbGVfa2l0Y2hlbiIsInNjYW5uZXJfZXhhbXBsZV9saXZpbmciLCJzY2FubmVyX2V4YW1wbGVfb2ZmaWNlIl0sInMyYSI6e30sInMyZiI6e30sInJvb21zIjpbIkJlZHJvb20iLCJIYWxsIiwiS2l0Y2hlbiIsIkxpdmluZyBSb29tIiwiT2ZmaWNlIl0sInBvcyI6eyJzY2FubmVyX2V4YW1wbGVfa2l0Y2hlbiI6eyJ4X20iOjIuMCwieV9tIjoyLjQsImZsb29yX2lkIjoiZ3JvdW5kIn0sInNjYW5uZXJfZXhhbXBsZV9saXZpbmciOnsieF9tIjo3LjAsInlfbSI6My4yLCJmbG9vcl9pZCI6Imdyb3VuZCJ9LCJzY2FubmVyX2V4YW1wbGVfaGFsbCI6eyJ4X20iOjUuMCwieV9tIjo2LjQsImZsb29yX2lkIjoiZ3JvdW5kIn0sInNjYW5uZXJfZXhhbXBsZV9iZWRyb29tIjp7InhfbSI6My4wLCJ5X20iOjIuNCwiZmxvb3JfaWQiOiJ1cHN0YWlycyJ9LCJzY2FubmVyX2V4YW1wbGVfb2ZmaWNlIjp7InhfbSI6OC4wLCJ5X20iOjQuOCwiZmxvb3JfaWQiOiJ1cHN0YWlycyJ9fSwiYWJzeiI6eyJzY2FubmVyX2V4YW1wbGVfa2l0Y2hlbiI6MS44LCJzY2FubmVyX2V4YW1wbGVfbGl2aW5nIjoyLjQsInNjYW5uZXJfZXhhbXBsZV9oYWxsIjoyLjQsInNjYW5uZXJfZXhhbXBsZV9iZWRyb29tIjo1LjEsInNjYW5uZXJfZXhhbXBsZV9vZmZpY2UiOjUuMX0sImNlbnQiOnsiS2l0Y2hlbiI6WzIuMjUsMi40XSwiTGl2aW5nIFJvb20iOls3LjI1LDIuNF0sIkhhbGwiOls1LjAsNi41XSwiQmVkcm9vbSI6WzIuNSw0LjBdLCJPZmZpY2UiOls3LjUsNC4wXX0sImZiIjp7Imdyb3VuZCI6WzAuMCwxMC4wLDAuMCw4LjBdLCJ1cHN0YWlycyI6WzAuMCwxMC4wLDAuMCw4LjBdfSwiZmJhc2UiOnsiZ3JvdW5kIjowLjAsInVwc3RhaXJzIjoyLjd9LCJmc3RhY2siOnsiZ3JvdW5kIjowLCJ1cHN0YWlycyI6MX0sImNvdl9mbG9vciI6bnVsbCwiY292X2Zsb29yX3NyYyI6ImluYWN0aXZlOm5vX291dGRvb3JzIiwiYmFyIjpbeyJwb2ludHMiOltbNC41LDAuMF0sWzQuNSw0LjhdXSwiYXR0ZW51YXRpb25fZGJtIjo2LjAsIm1hdGVyaWFsIjoiYnJpY2siLCJmbG9vcl9pZCI6Imdyb3VuZCIsImxpbmtlZF9lbnRpdHlfaWQiOm51bGx9XSwidW0iOnRydWUsInBsZiI6e30sImNhbCI6eyJuIjoxMCwic2hhMSI6IjJjNTViODU5Njc0ODgwN2M5NzU2MWY3YmRmOThjYzg4OThhMTVlZGQifSwic2V0Ijp7ImthbG1hbl9xIjowLjEyNSwia2FsbWFuX3IiOjguMCwicmVmX3Bvd2VyIjotNTkuMCwicGF0aF9sb3NzX2V4cCI6Mi41LCJhc3N1bWVkX2RldmljZV9oZWlnaHRfbSI6MS4wLCJhZGFwdGl2ZV9mbG9vcl9kZXRlY3Rpb24iOmZhbHNlLCJhZGFwdGl2ZV9sZWFybmluZ19lbmFibGVkIjp0cnVlLCJwcmVzZW5jZV9wb2xsX2ludGVydmFsX3MiOjUsInBvc2l0aW9uaW5nX2FsZ29yaXRobSI6ImtubiIsImV4Y2x1ZGVkX3NjYW5uZXJzIjpbXSwic2Nhbm5lcl9vZmZzZXRzIjp7InNjYW5uZXJfZXhhbXBsZV9oYWxsIjo0LjB9LCJzY2FubmVyX21pbl9yc3NpIjp7fX0sInNpZCI6IjIwMjYxMTIwLTEyMDQyNSIsInQwIjoxNzk1MjA1MDY1LjV9CnsidCI6Imd0IiwidHMiOjE3OTUyMDUwNjUuNSwicm9vbSI6IktpdGNoZW4iLCJrZXlzIjpbXX0KeyJ0IjoiZW5kIiwidHMiOjE3OTUyMDUwNjUuNSwiZnJhbWVzIjowLCJzdG9wX3JlYXNvbiI6Im1hbnVhbCJ9Cg==",
+  "padspan_ha/maps/d1ebcbdb20e65113.png": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "padspan_ha/maps/ef444e6807a61e89.png": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+ },
+ "floors": [
+  {
+   "floor_id": "ground",
+   "level": 0,
+   "name": "Ground"
+  },
+  {
+   "floor_id": "upstairs",
+   "level": 1,
+   "name": "Upstairs"
+  }
+ ],
+ "made_by": "0.38.231",
+ "reads": {
+  "calibration_get": {
+   "heldout": {
+    "age_s": 0,
+    "better": null,
+    "knn": {
+     "median_error_m": 3.4,
+     "placed": 4,
+     "room_spots": 4,
+     "rooms_right_pc": 0,
+     "spots": 4
+    },
+    "radius_m": 1.5,
+    "spatial": {
+     "median_error_m": null,
+     "placed": 0,
+     "room_spots": 4,
+     "rooms_right_pc": 0,
+     "spots": 4
+    }
+   },
+   "model": {},
+   "points": [
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 15,
+     "floor_id": "ground",
+     "id": "cp_005de25c6efa",
+     "label": "Kitchen point",
+     "map_id": "ef444e6807a61e89",
+     "room": "Kitchen",
+     "scanner_readings": [
+      {
+       "mean_rssi": -60.0,
+       "name": "Kitchen receiver",
+       "rssi_samples": [
+        -60.0,
+        -61.0,
+        -59.0,
+        -62.0,
+        -60.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.14
+      },
+      {
+       "mean_rssi": -75.0,
+       "name": "Bedroom receiver",
+       "rssi_samples": [
+        -75.0,
+        -76.0,
+        -74.0,
+        -77.0,
+        -75.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_bedroom",
+       "std_rssi": 1.14
+      }
+     ],
+     "weight": 1.0,
+     "x_frac": 0.2,
+     "x_m": 2.0,
+     "y_frac": 0.3,
+     "y_m": 2.4
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 15,
+     "floor_id": "ground",
+     "id": "cp_ad1b320f0a18",
+     "label": "Living Room point",
+     "map_id": "ef444e6807a61e89",
+     "room": "Living Room",
+     "scanner_readings": [
+      {
+       "mean_rssi": -60.0,
+       "name": "Kitchen receiver",
+       "rssi_samples": [
+        -60.0,
+        -61.0,
+        -59.0,
+        -62.0,
+        -60.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.14
+      },
+      {
+       "mean_rssi": -75.0,
+       "name": "Bedroom receiver",
+       "rssi_samples": [
+        -75.0,
+        -76.0,
+        -74.0,
+        -77.0,
+        -75.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_bedroom",
+       "std_rssi": 1.14
+      }
+     ],
+     "weight": 1.0,
+     "x_frac": 0.7,
+     "x_m": 7.0,
+     "y_frac": 0.3,
+     "y_m": 2.4
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 15,
+     "floor_id": "upstairs",
+     "id": "cp_78678009a412",
+     "label": "Bedroom point",
+     "map_id": "d1ebcbdb20e65113",
+     "room": "Bedroom",
+     "scanner_readings": [
+      {
+       "mean_rssi": -60.0,
+       "name": "Kitchen receiver",
+       "rssi_samples": [
+        -60.0,
+        -61.0,
+        -59.0,
+        -62.0,
+        -60.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.14
+      },
+      {
+       "mean_rssi": -75.0,
+       "name": "Bedroom receiver",
+       "rssi_samples": [
+        -75.0,
+        -76.0,
+        -74.0,
+        -77.0,
+        -75.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_bedroom",
+       "std_rssi": 1.14
+      }
+     ],
+     "weight": 1.0,
+     "x_frac": 0.25,
+     "x_m": 2.5,
+     "y_frac": 0.5,
+     "y_m": 4.0
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 15,
+     "floor_id": "upstairs",
+     "id": "cp_0b97c02ca6bb",
+     "label": "Office point",
+     "map_id": "d1ebcbdb20e65113",
+     "room": "Office",
+     "scanner_readings": [
+      {
+       "mean_rssi": -60.0,
+       "name": "Kitchen receiver",
+       "rssi_samples": [
+        -60.0,
+        -61.0,
+        -59.0,
+        -62.0,
+        -60.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.14
+      },
+      {
+       "mean_rssi": -75.0,
+       "name": "Bedroom receiver",
+       "rssi_samples": [
+        -75.0,
+        -76.0,
+        -74.0,
+        -77.0,
+        -75.0
+       ],
+       "sample_count": 5,
+       "source": "scanner_example_bedroom",
+       "std_rssi": 1.14
+      }
+     ],
+     "weight": 1.0,
+     "x_frac": 0.75,
+     "x_m": 7.5,
+     "y_frac": 0.5,
+     "y_m": 4.0
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 5,
+     "floor_id": "ground",
+     "id": "cp_ffb1b784832c",
+     "label": "[walk] Hall",
+     "map_id": "ef444e6807a61e89",
+     "room": "Hall",
+     "scanner_readings": [
+      {
+       "mean_rssi": -59.0,
+       "name": "scanner_example_hall",
+       "rssi_samples": [
+        -58.0,
+        -59.0,
+        -60.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_hall",
+       "std_rssi": 1.0
+      },
+      {
+       "mean_rssi": -71.0,
+       "name": "scanner_example_kitchen",
+       "rssi_samples": [
+        -70.0,
+        -71.0,
+        -72.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.0
+      }
+     ],
+     "source": "room_walk",
+     "walk_id": "rw_57caedd7",
+     "weight": 1.0,
+     "x_frac": 0.5,
+     "x_m": 5.0,
+     "y_frac": 0.8125,
+     "y_m": 6.5
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 5,
+     "floor_id": "ground",
+     "id": "cp_660667e18cce",
+     "label": "[walk] Hall",
+     "map_id": "ef444e6807a61e89",
+     "room": "Hall",
+     "scanner_readings": [
+      {
+       "mean_rssi": -59.0,
+       "name": "scanner_example_hall",
+       "rssi_samples": [
+        -58.0,
+        -59.0,
+        -60.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_hall",
+       "std_rssi": 1.0
+      },
+      {
+       "mean_rssi": -71.0,
+       "name": "scanner_example_kitchen",
+       "rssi_samples": [
+        -73.0,
+        -70.0,
+        -71.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.53
+      }
+     ],
+     "source": "room_walk",
+     "walk_id": "rw_57caedd7",
+     "weight": 1.0,
+     "x_frac": 0.5,
+     "x_m": 5.0,
+     "y_frac": 0.8125,
+     "y_m": 6.5
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 5,
+     "floor_id": "ground",
+     "id": "cp_ce3b6e0bdf5e",
+     "label": "[walk] Hall",
+     "map_id": "ef444e6807a61e89",
+     "room": "Hall",
+     "scanner_readings": [
+      {
+       "mean_rssi": -58.5,
+       "name": "scanner_example_hall",
+       "rssi_samples": [
+        -58.0,
+        -59.0,
+        -60.0,
+        -58.0
+       ],
+       "sample_count": 4,
+       "source": "scanner_example_hall",
+       "std_rssi": 0.96
+      },
+      {
+       "mean_rssi": -71.5,
+       "name": "scanner_example_kitchen",
+       "rssi_samples": [
+        -72.0,
+        -73.0,
+        -70.0,
+        -71.0
+       ],
+       "sample_count": 4,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.29
+      }
+     ],
+     "source": "room_walk",
+     "walk_id": "rw_57caedd7",
+     "weight": 1.0,
+     "x_frac": 0.5,
+     "x_m": 5.0,
+     "y_frac": 0.8125,
+     "y_m": 6.5
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 5,
+     "floor_id": "ground",
+     "id": "cp_87a8ab5c83b9",
+     "label": "[walk] Hall",
+     "map_id": "ef444e6807a61e89",
+     "room": "Hall",
+     "scanner_readings": [
+      {
+       "mean_rssi": -59.0,
+       "name": "scanner_example_hall",
+       "rssi_samples": [
+        -59.0,
+        -60.0,
+        -58.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_hall",
+       "std_rssi": 1.0
+      },
+      {
+       "mean_rssi": -72.0,
+       "name": "scanner_example_kitchen",
+       "rssi_samples": [
+        -72.0,
+        -73.0,
+        -70.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.53
+      }
+     ],
+     "source": "room_walk",
+     "walk_id": "rw_57caedd7",
+     "weight": 1.0,
+     "x_frac": 0.5,
+     "x_m": 5.0,
+     "y_frac": 0.8125,
+     "y_m": 6.5
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 5,
+     "floor_id": "ground",
+     "id": "cp_bd2b753fca4c",
+     "label": "[walk] Hall",
+     "map_id": "ef444e6807a61e89",
+     "room": "Hall",
+     "scanner_readings": [
+      {
+       "mean_rssi": -59.0,
+       "name": "scanner_example_hall",
+       "rssi_samples": [
+        -59.0,
+        -60.0,
+        -58.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_hall",
+       "std_rssi": 1.0
+      },
+      {
+       "mean_rssi": -72.0,
+       "name": "scanner_example_kitchen",
+       "rssi_samples": [
+        -71.0,
+        -72.0,
+        -73.0
+       ],
+       "sample_count": 3,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.0
+      }
+     ],
+     "source": "room_walk",
+     "walk_id": "rw_57caedd7",
+     "weight": 1.0,
+     "x_frac": 0.5,
+     "x_m": 5.0,
+     "y_frac": 0.8125,
+     "y_m": 6.5
+    },
+    {
+     "collected_at": "2026-11-20T20:04:25+00:00",
+     "device_id": "example_phone",
+     "duration_s": 5,
+     "floor_id": "ground",
+     "id": "cp_8883b8b5e732",
+     "label": "[walk] Hall",
+     "map_id": "ef444e6807a61e89",
+     "room": "Hall",
+     "scanner_readings": [
+      {
+       "mean_rssi": -59.0,
+       "name": "scanner_example_hall",
+       "rssi_samples": [
+        -59.0,
+        -60.0,
+        -58.0,
+        -59.0
+       ],
+       "sample_count": 4,
+       "source": "scanner_example_hall",
+       "std_rssi": 0.82
+      },
+      {
+       "mean_rssi": -71.5,
+       "name": "scanner_example_kitchen",
+       "rssi_samples": [
+        -70.0,
+        -71.0,
+        -72.0,
+        -73.0
+       ],
+       "sample_count": 4,
+       "source": "scanner_example_kitchen",
+       "std_rssi": 1.29
+      }
+     ],
+     "source": "room_walk",
+     "walk_id": "rw_57caedd7",
+     "weight": 1.0,
+     "x_frac": 0.5,
+     "x_m": 5.0,
+     "y_frac": 0.8125,
+     "y_m": 6.5
+    }
+   ]
+  },
+  "capture_list": {
+   "sessions": [
+    {
+     "bytes": 1831,
+     "dm": "live",
+     "frames": 0,
+     "id": "20261120-120425",
+     "keys": [],
+     "label": "Example capture",
+     "names": {},
+     "objects": 0,
+     "open": false,
+     "stop_reason": "manual",
+     "t0": 1795205065.5,
+     "t1": 1795205065.5,
+     "truncated": 0,
+     "ver": "0.38.231"
+    }
+   ]
+  },
+  "device_registry_list": {
+   "count": 5,
+   "devices": {
+    "ps_45f38c8a0011": {
+     "created_at": "2026-11-20T20:04:25+00:00",
+     "device_type": "unknown",
+     "identities": [
+      {
+       "kind": "mac",
+       "value": "ble:02:00:00:00:00:02"
+      }
+     ],
+     "label": "Example phone",
+     "labeled_at": "2026-11-20T20:04:25+00:00",
+     "merged_from": [],
+     "meta": {},
+     "padspan_id": "ps_45f38c8a0011"
+    },
+    "ps_56aeedfb7c9d": {
+     "created_at": "2026-11-20T20:04:25+00:00",
+     "device_type": "unknown",
+     "identities": [
+      {
+       "kind": "mac",
+       "value": "ble:02:00:00:00:00:04"
+      }
+     ],
+     "label": "Example fixed beacon",
+     "labeled_at": "2026-11-20T20:04:25+00:00",
+     "merged_from": [],
+     "meta": {},
+     "padspan_id": "ps_56aeedfb7c9d"
+    },
+    "ps_6454e3cb7fbe": {
+     "created_at": "2026-11-20T20:04:25+00:00",
+     "device_type": "unknown",
+     "identities": [
+      {
+       "kind": "mac",
+       "value": "ibeacon:00000000-0000-4000-8000-000000000001:1:1"
+      }
+     ],
+     "label": "Example iBeacon",
+     "labeled_at": "2026-11-20T20:04:25+00:00",
+     "merged_from": [],
+     "meta": {},
+     "padspan_id": "ps_6454e3cb7fbe"
+    },
+    "ps_8c0453d8206c": {
+     "created_at": "2026-11-20T20:04:25+00:00",
+     "device_type": "unknown",
+     "identities": [
+      {
+       "kind": "mac",
+       "value": "ble:02:00:00:00:00:01"
+      },
+      {
+       "kind": "mac",
+       "value": "02:00:00:00:00:05"
+      }
+     ],
+     "label": "Example keys (renamed)",
+     "labeled_at": "2026-11-20T20:04:25+00:00",
+     "merged_from": [],
+     "meta": {},
+     "padspan_id": "ps_8c0453d8206c"
+    },
+    "ps_e32014f7dcb9": {
+     "created_at": "2026-11-20T20:04:25+00:00",
+     "device_type": "unknown",
+     "identities": [
+      {
+       "kind": "mac",
+       "value": "ble:02:00:00:00:00:03"
+      }
+     ],
+     "label": "Example wallet",
+     "labeled_at": "2026-11-20T20:04:25+00:00",
+     "merged_from": [],
+     "meta": {},
+     "padspan_id": "ps_e32014f7dcb9"
+    }
+   },
+   "labeled": 5
+  },
+  "follow_alert_get": {
+   "configs": {
+    "02:00:00:00:00:01": {
+     "enabled": true,
+     "lost_after_m": 30,
+     "notify_on_enter": [
+      "Kitchen"
+     ],
+     "notify_on_leave": [
+      "Hall"
+     ],
+     "notify_target": "notify.example",
+     "padspan_id": "ps_8c0453d8206c"
+    },
+    "02:00:00:00:00:02": {
+     "away_minutes": 15,
+     "enabled": false,
+     "padspan_id": "ps_45f38c8a0011"
+    }
+   }
+  },
+  "guests_get": {
+   "candidates": [
+    {
+     "age_s": 0.000362,
+     "key": "ble:02:00:00:00:00:04",
+     "kind": "ble",
+     "label": "Example fixed beacon",
+     "room": null
+    },
+    {
+     "age_s": 0.000429,
+     "key": "ble:02:00:00:00:00:02",
+     "kind": "ble",
+     "label": "Example phone",
+     "room": null
+    },
+    {
+     "age_s": 0.000464,
+     "key": "ble:02:00:00:00:00:01",
+     "kind": "ble",
+     "label": "Example keys (renamed)",
+     "room": null
+    },
+    {
+     "age_s": 0.000285,
+     "key": "ibeacon:00000000-0000-4000-8000-000000000001:1:1",
+     "kind": "ibeacon",
+     "label": "Example companion",
+     "room": null
+    }
+   ],
+   "enabled": true,
+   "retention_days": 30,
+   "sessions": [
+    {
+     "end_how": null,
+     "end_planned": null,
+     "ended": null,
+     "id": "gs_789c232c",
+     "name": "Example guest",
+     "opts": {
+      "counts_home": true,
+      "notify_arrive": true,
+      "notify_leave": false,
+      "notify_target": "",
+      "off_limits": [
+       "Office"
+      ],
+      "quiet": ""
+     },
+     "pid": "ps_e32014f7dcb9",
+     "present": true,
+     "room": "Bedroom",
+     "start": 1795205065.484261,
+     "summary": {
+      "arrivals": 0,
+      "departures": 0,
+      "first_in": 1795205065.977885,
+      "last_out": null,
+      "last_seen": 1795205066.0610037,
+      "length_s": 1,
+      "notices": 0,
+      "off_limits": [],
+      "rooms": {
+       "Bedroom": 0.0
+      }
+     },
+     "tag": "Example wallet"
+    }
+   ],
+   "tags": [
+    {
+     "guest": "Example guest",
+     "key": "ble:02:00:00:00:00:03",
+     "keys": [
+      "02:00:00:00:00:03",
+      "ble:02:00:00:00:00:03"
+     ],
+     "kind": "ble",
+     "label": "Example wallet",
+     "marked_at": 1795205065.4816918,
+     "pid": "ps_e32014f7dcb9",
+     "present": true,
+     "room": null,
+     "session": "gs_789c232c"
+    }
+   ]
+  },
+  "house3d_get": {
+   "counts": {
+    "devices": 0,
+    "figures": 0,
+    "lights": 1,
+    "openings": 2,
+    "pieces": 1
+   },
+   "data": {
+    "devices": {},
+    "figures": {},
+    "library": {},
+    "lights": {
+     "light.living_lamp": {
+      "kind": "lamp",
+      "z_m": 1.5
+     }
+    },
+    "openings": {
+     "door_0000000a": {
+      "a_m": [
+       4.0,
+       4.8
+      ],
+      "b_m": [
+       4.9,
+       4.8
+      ],
+      "floor_id": "ground",
+      "head_m": 2.1,
+      "hinge": "left",
+      "kind": "door",
+      "swing": "in"
+     },
+     "win_0000000b": {
+      "a_m": [
+       0.0,
+       1.0
+      ],
+      "b_m": [
+       0.0,
+       2.2
+      ],
+      "floor_id": "ground",
+      "head_m": 2.0,
+      "kind": "window",
+      "sill_m": 0.9
+     }
+    },
+    "pieces": {
+     "fur_0000000c": {
+      "entity_id": null,
+      "entity_reg_id": null,
+      "floor_id": "ground",
+      "id": "fur_0000000c",
+      "label": "Example sofa",
+      "library_id": null,
+      "origin": "build",
+      "recipe": {
+       "colors": [
+        "#5b6b7a"
+       ],
+       "depth_m": 0.9,
+       "height_m": 0.8,
+       "kind": "sofa",
+       "params": {},
+       "width_m": 2.0
+      },
+      "rotation": 90.0,
+      "submission_id": null,
+      "updated_at": "2026-11-20T20:04:25+00:00",
+      "x_m": 7.0,
+      "y_m": 1.5,
+      "z_m": 0.0
+     }
+    },
+    "rails_chosen": true,
+    "schema": 1
+   },
+   "enabled": true,
+   "writable": true
+  },
+  "maps_list": {
+   "image_urls": {
+    "d1ebcbdb20e65113": "/api/padspan_ha/maps/image/d1ebcbdb20e65113?v=20261120T2004250&authSig=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI2NmY4ODI1N2JiNmI0YjEwOGVhZDI5YTc4NjdjMzkxOSIsInBhdGgiOiIvYXBpL3BhZHNwYW5faGEvbWFwcy9pbWFnZS9kMWViY2JkYjIwZTY1MTEzIiwicGFyYW1zIjpbWyJ2IiwiMjAyNjExMjBUMjAwNDI1MCJdXSwiaWF0IjoxNzk1MjA1MDY2LCJleHAiOjE3OTUyOTE0NjZ9.gJO16QNmSqlqhynSszT6-FHUxnOw6JFs2SwEwjXpSew",
+    "ef444e6807a61e89": "/api/padspan_ha/maps/image/ef444e6807a61e89?v=20261120T2004250&authSig=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI2NmY4ODI1N2JiNmI0YjEwOGVhZDI5YTc4NjdjMzkxOSIsInBhdGgiOiIvYXBpL3BhZHNwYW5faGEvbWFwcy9pbWFnZS9lZjQ0NGU2ODA3YTYxZTg5IiwicGFyYW1zIjpbWyJ2IiwiMjAyNjExMjBUMjAwNDI1MCJdXSwiaWF0IjoxNzk1MjA1MDY2LCJleHAiOjE3OTUyOTE0NjZ9.ujN3KRPisnPqIG6HcQ-APXHIwrpHOarb73gkIZL_szw"
+   },
+   "maps": [
+    {
+     "beacons": [
+      {
+       "id": "bk_fixed1",
+       "key": "02:00:00:00:00:04",
+       "kind": "fixed",
+       "label": "Fixed beacon",
+       "x": 0.4,
+       "y": 0.5
+      }
+     ],
+     "calibration": {
+      "mode": "two_point",
+      "px_per_meter": 0.1,
+      "reference_points": [
+       {
+        "x": 0.0,
+        "y": 0.0
+       },
+       {
+        "d_m": 10.0,
+        "x": 1.0,
+        "y": 0.0
+       }
+      ]
+     },
+     "created": "2026-11-20T20:04:25+00:00",
+     "floor_id": "ground",
+     "id": "ef444e6807a61e89",
+     "image": {
+      "filename": "ef444e6807a61e89.png",
+      "height": 1,
+      "mime": "image/png",
+      "original_filename": "ground.png",
+      "original_mime": "image/png",
+      "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+      "size_bytes": 70,
+      "width": 1
+     },
+     "name": "Ground plan",
+     "notes": "Example ground floor",
+     "receivers": [
+      {
+       "id": "rx_kitchen",
+       "label": "Kitchen receiver",
+       "room": "Kitchen",
+       "source": "scanner_example_kitchen",
+       "x": 0.2,
+       "y": 0.3
+      },
+      {
+       "id": "rx_living",
+       "label": "Living receiver",
+       "room": "Living Room",
+       "source": "scanner_example_living",
+       "x": 0.7,
+       "y": 0.4
+      },
+      {
+       "id": "rx_hall",
+       "label": "Hall receiver",
+       "room": "Hall",
+       "source": "scanner_example_hall",
+       "x": 0.5,
+       "y": 0.8
+      }
+     ],
+     "room_bounds": {
+      "Hall": {
+       "cx": 0.5,
+       "cy": 0.8,
+       "r": 0.15,
+       "type": "circle"
+      },
+      "Kitchen": {
+       "points": [
+        [
+         0.0,
+         0.0
+        ],
+        [
+         0.45,
+         0.0
+        ],
+        [
+         0.45,
+         0.6
+        ],
+        [
+         0.0,
+         0.6
+        ]
+       ],
+       "type": "poly"
+      },
+      "Living Room": {
+       "points": [
+        [
+         0.45,
+         0.0
+        ],
+        [
+         1.0,
+         0.0
+        ],
+        [
+         1.0,
+         0.6
+        ],
+        [
+         0.45,
+         0.6
+        ]
+       ],
+       "type": "poly"
+      }
+     },
+     "stack": {
+      "ceiling_height_m": 2.4,
+      "z_level": 0
+     },
+     "updated": "2026-11-20T20:04:25+00:00"
+    },
+    {
+     "beacons": [],
+     "calibration": {
+      "mode": "none",
+      "px_per_meter": null,
+      "reference_points": []
+     },
+     "created": "2026-11-20T20:04:25+00:00",
+     "floor_id": "upstairs",
+     "id": "d1ebcbdb20e65113",
+     "image": {
+      "filename": "d1ebcbdb20e65113.png",
+      "height": 1,
+      "mime": "image/png",
+      "original_filename": "upstairs.png",
+      "original_mime": "image/png",
+      "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+      "size_bytes": 70,
+      "width": 1
+     },
+     "name": "Upstairs plan",
+     "notes": "",
+     "receivers": [
+      {
+       "id": "rx_bed",
+       "label": "Bedroom receiver",
+       "room": "Bedroom",
+       "source": "scanner_example_bedroom",
+       "x": 0.3,
+       "y": 0.3
+      },
+      {
+       "id": "rx_office",
+       "label": "Office receiver",
+       "room": "Office",
+       "source": "scanner_example_office",
+       "x": 0.8,
+       "y": 0.6
+      }
+     ],
+     "room_bounds": {
+      "Bedroom": {
+       "points": [
+        [
+         0.0,
+         0.0
+        ],
+        [
+         0.5,
+         0.0
+        ],
+        [
+         0.5,
+         1.0
+        ],
+        [
+         0.0,
+         1.0
+        ]
+       ],
+       "type": "poly"
+      },
+      "Office": {
+       "points": [
+        [
+         0.5,
+         0.0
+        ],
+        [
+         1.0,
+         0.0
+        ],
+        [
+         1.0,
+         1.0
+        ],
+        [
+         0.5,
+         1.0
+        ]
+       ],
+       "type": "poly"
+      }
+     },
+     "stack": {
+      "ceiling_height_m": 2.4,
+      "z_level": 0
+     },
+     "updated": "2026-11-20T20:04:25+00:00"
+    }
+   ]
+  },
+  "model_get": {
+   "areas": [
+    {
+     "floor_id": "upstairs",
+     "id": "bedroom",
+     "name": "Bedroom"
+    },
+    {
+     "floor_id": "ground",
+     "id": "hall",
+     "name": "Hall"
+    },
+    {
+     "floor_id": "ground",
+     "id": "kitchen",
+     "name": "Kitchen"
+    },
+    {
+     "floor_id": "ground",
+     "id": "living_room",
+     "name": "Living Room"
+    },
+    {
+     "floor_id": "upstairs",
+     "id": "office",
+     "name": "Office"
+    }
+   ],
+   "beacon_positions_m": {
+    "02:00:00:00:00:04": {
+     "floor_id": "ground",
+     "kind": "fixed",
+     "label": "Fixed beacon",
+     "map_id": null,
+     "room": "Kitchen",
+     "x_m": 4.0,
+     "y_m": 4.0,
+     "z_m": 1.2
+    }
+   },
+   "fabric_floors": {
+    "ground": {
+     "committed": false,
+     "committed_at": null,
+     "rooms": 3
+    },
+    "upstairs": {
+     "committed": false,
+     "committed_at": null,
+     "rooms": 2
+    }
+   },
+   "fabric_sync_mode": "auto",
+   "floor_elevations": {
+    "ground": 0.0,
+    "upstairs": 2.7
+   },
+   "floors": [
+    {
+     "base_elevation_m": 0.0,
+     "floor_to_floor_m": 2.7,
+     "id": "ground",
+     "level": 0,
+     "name": "Ground"
+    },
+    {
+     "base_elevation_m": 2.7,
+     "floor_to_floor_m": 2.5,
+     "id": "upstairs",
+     "level": 1,
+     "name": "Upstairs"
+    }
+   ],
+   "ha_started_at": "2026-11-20T20:04:25.168884+00:00",
+   "light_heights_gone": [],
+   "light_positions_m": {
+    "light.bedroom_strip": {
+     "color": "#fbbf24",
+     "floor_id": "upstairs",
+     "rotation": 0.0,
+     "shape": "hex",
+     "x_m": 1.0,
+     "y_m": 1.0
+    },
+    "light.kitchen_ceiling": {
+     "color": "#ffcc88",
+     "floor_id": "ground",
+     "label": "Ceiling",
+     "rotation": 0.0,
+     "shape": "circle",
+     "x_m": 2.2,
+     "y_m": 2.4,
+     "z_m": 2.6
+    }
+   },
+   "map_transforms": {
+    "d1ebcbdb20e65113": {
+     "floor_id": "upstairs",
+     "origin_anchored": true,
+     "origin_x_m": 0.0,
+     "origin_y_m": 0.0,
+     "rotation_rad": 0.0,
+     "scale_x_m": 10.0,
+     "scale_y_m": 8.0,
+     "shear_rad": 0.0
+    },
+    "ef444e6807a61e89": {
+     "floor_id": "ground",
+     "origin_anchored": true,
+     "origin_x_m": 0.0,
+     "origin_y_m": 0.0,
+     "rotation_rad": 0.0,
+     "scale_x_m": 10.0,
+     "scale_y_m": 8.0,
+     "shear_rad": 0.0
+    }
+   },
+   "rf_barriers_m": [
+    {
+     "floor_id": "ground",
+     "id": "bar_d090316a",
+     "invert_state": false,
+     "material": "brick",
+     "name": "Kitchen wall",
+     "points_m": [
+      [
+       4.5,
+       0.0
+      ],
+      [
+       4.5,
+       4.8
+      ]
+     ]
+    }
+   ],
+   "room_adjacency": {
+    "Bedroom": [],
+    "Hall": [],
+    "Kitchen": [],
+    "Living Room": [],
+    "Office": []
+   },
+   "room_geometry_m": {
+    "Bedroom": {
+     "committed_at": "2026-11-20T20:04:25.378776+00:00",
+     "committed_by": "correction",
+     "floor_id": "upstairs",
+     "points_m": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       5.0,
+       0.0
+      ],
+      [
+       5.0,
+       8.0
+      ],
+      [
+       0.0,
+       8.0
+      ]
+     ],
+     "revision": 1,
+     "source_image": null,
+     "source_map_id": null,
+     "source_transform": null,
+     "type": "poly"
+    },
+    "Hall": {
+     "committed_at": "2026-11-20T20:04:25.375500+00:00",
+     "committed_by": "correction",
+     "floor_id": "ground",
+     "points_m": [
+      [
+       3.5,
+       5.0
+      ],
+      [
+       6.5,
+       5.0
+      ],
+      [
+       6.5,
+       8.0
+      ],
+      [
+       3.5,
+       8.0
+      ]
+     ],
+     "revision": 1,
+     "source_image": null,
+     "source_map_id": null,
+     "source_transform": null,
+     "type": "poly"
+    },
+    "Kitchen": {
+     "committed_at": "2026-11-20T20:04:25.368923+00:00",
+     "committed_by": "correction",
+     "floor_id": "ground",
+     "points_m": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       4.5,
+       0.0
+      ],
+      [
+       4.5,
+       4.8
+      ],
+      [
+       0.0,
+       4.8
+      ]
+     ],
+     "revision": 1,
+     "source_image": null,
+     "source_map_id": null,
+     "source_transform": null,
+     "type": "poly"
+    },
+    "Living Room": {
+     "committed_at": "2026-11-20T20:04:25.372163+00:00",
+     "committed_by": "correction",
+     "floor_id": "ground",
+     "points_m": [
+      [
+       4.5,
+       0.0
+      ],
+      [
+       10.0,
+       0.0
+      ],
+      [
+       10.0,
+       4.8
+      ],
+      [
+       4.5,
+       4.8
+      ]
+     ],
+     "revision": 1,
+     "source_image": null,
+     "source_map_id": null,
+     "source_transform": null,
+     "type": "poly"
+    },
+    "Office": {
+     "committed_at": "2026-11-20T20:04:25.382017+00:00",
+     "committed_by": "correction",
+     "floor_id": "upstairs",
+     "points_m": [
+      [
+       5.0,
+       0.0
+      ],
+      [
+       10.0,
+       0.0
+      ],
+      [
+       10.0,
+       8.0
+      ],
+      [
+       5.0,
+       8.0
+      ]
+     ],
+     "revision": 1,
+     "source_image": null,
+     "source_map_id": null,
+     "source_transform": null,
+     "type": "poly"
+    }
+   },
+   "room_meta": {
+    "Bedroom": {
+     "color": "#a040a0",
+     "floor_id": "upstairs"
+    },
+    "Hall": {
+     "color": "#808080",
+     "floor_id": "ground"
+    },
+    "Kitchen": {
+     "color": "#d08040",
+     "floor_id": "ground"
+    },
+    "Living Room": {
+     "color": "#4080d0",
+     "floor_id": "ground",
+     "height_m": 4.2
+    },
+    "Office": {
+     "color": "#40a040",
+     "floor_id": "upstairs"
+    }
+   },
+   "scanner_positions_m": {
+    "scanner_example_bedroom": {
+     "floor_id": "upstairs",
+     "map_id": null,
+     "x_m": 3.0,
+     "y_m": 2.4,
+     "z_m": 2.4
+    },
+    "scanner_example_hall": {
+     "floor_id": "ground",
+     "map_id": null,
+     "x_m": 5.0,
+     "y_m": 6.4,
+     "z_m": 2.4
+    },
+    "scanner_example_kitchen": {
+     "floor_id": "ground",
+     "map_id": null,
+     "x_m": 2.0,
+     "y_m": 2.4,
+     "z_m": 1.8
+    },
+    "scanner_example_living": {
+     "floor_id": "ground",
+     "map_id": null,
+     "x_m": 7.0,
+     "y_m": 3.2,
+     "z_m": 2.4
+    },
+    "scanner_example_office": {
+     "floor_id": "upstairs",
+     "map_id": null,
+     "x_m": 8.0,
+     "y_m": 4.8,
+     "z_m": 2.4
+    }
+   },
+   "scanners": {},
+   "world_gauge": {
+    "m_per_unit": null,
+    "source_map_id": null
+   }
+  },
+  "object_label_list": {
+   "labels": {
+    "02:00:00:00:00:01": {
+     "label": "Example tag",
+     "tagged_at": "2026-11-20T20:04:25.684443+00:00"
+    },
+    "02:00:00:00:00:02": {
+     "label": "Example phone",
+     "tagged_at": "2026-11-20T20:04:25.684247+00:00"
+    },
+    "BLE:02:00:00:00:00:01": {
+     "label": "Example keys (renamed)",
+     "tagged_at": "2026-11-20T20:04:25.470215+00:00"
+    },
+    "BLE:02:00:00:00:00:02": {
+     "label": "Example phone",
+     "tagged_at": "2026-11-20T20:04:25.422602+00:00"
+    },
+    "BLE:02:00:00:00:00:03": {
+     "label": "Example wallet",
+     "tagged_at": "2026-11-20T20:04:25.423851+00:00"
+    },
+    "BLE:02:00:00:00:00:04": {
+     "label": "Example fixed beacon",
+     "tagged_at": "2026-11-20T20:04:25.425172+00:00"
+    },
+    "IBEACON:00000000-0000-4000-8000-000000000001:1:1": {
+     "label": "Example companion",
+     "tagged_at": "2026-11-20T20:04:25.479106+00:00"
+    }
+   },
+   "registry_labels": {
+    "ps_45f38c8a0011": {
+     "identities": 1,
+     "label": "Example phone",
+     "padspan_id": "ps_45f38c8a0011",
+     "source": "device_registry"
+    },
+    "ps_56aeedfb7c9d": {
+     "identities": 1,
+     "label": "Example fixed beacon",
+     "padspan_id": "ps_56aeedfb7c9d",
+     "source": "device_registry"
+    },
+    "ps_6454e3cb7fbe": {
+     "identities": 1,
+     "label": "Example iBeacon",
+     "padspan_id": "ps_6454e3cb7fbe",
+     "source": "device_registry"
+    },
+    "ps_8c0453d8206c": {
+     "identities": 2,
+     "label": "Example keys (renamed)",
+     "padspan_id": "ps_8c0453d8206c",
+     "source": "device_registry"
+    },
+    "ps_e32014f7dcb9": {
+     "identities": 1,
+     "label": "Example wallet",
+     "padspan_id": "ps_e32014f7dcb9",
+     "source": "device_registry"
+    }
+   }
+  },
+  "settings_get": {
+   "cpu_pinning_supported": true,
+   "settings": {
+    "adaptive_floor_detection": true,
+    "adaptive_learning_enabled": true,
+    "advanced_extra_tabs": [],
+    "aggressive_ble_reseed": true,
+    "ai_credit_month_usd": 1.0,
+    "ai_credit_warn_pct": 0,
+    "ai_photos_enabled": false,
+    "ai_plan_build_enabled": true,
+    "ai_plans_enabled": true,
+    "ai_stairs_enabled": true,
+    "assumed_device_height_m": 1.1,
+    "atlas_3d_ai_task_backup_entity": "",
+    "atlas_3d_ai_task_entity": "",
+    "atlas_3d_carries": {
+     "person.alex_example": [
+      "02:00:00:00:00:01"
+     ]
+    },
+    "atlas_3d_director": [
+     {
+      "camera": "",
+      "entity": "binary_sensor.front_door"
+     }
+    ],
+    "atlas_3d_director_people": [
+     {
+      "key": "person.alex_example",
+      "rooms": [
+       "Kitchen"
+      ]
+     }
+    ],
+    "atlas_3d_enabled": true,
+    "atlas_3d_home_idle_s": 30,
+    "atlas_3d_library": true,
+    "atlas_3d_look": "atlas",
+    "atlas_3d_people": true,
+    "atlas_3d_quality": "auto",
+    "atlas_3d_showcase": true,
+    "atlas_3d_tags": true,
+    "atlas_3d_weather": false,
+    "atlas_alert_pulse": true,
+    "atlas_default_v1_applied": true,
+    "atlas_emergency_button": false,
+    "atlas_heatmap_enabled": true,
+    "atlas_layout_v2": false,
+    "atlas_live_colours": true,
+    "atlas_weather_condition_entity": "",
+    "atlas_weather_enabled": false,
+    "atlas_weather_rain_entity": "",
+    "atlas_weather_strength": 1.5,
+    "atlas_weather_warning_entity": "",
+    "away_timeout_m": 12.0,
+    "beacon_auto_calibrate": false,
+    "beacon_group_overrides": {
+     "example_device": "example_model"
+    },
+    "beacon_profiling_enabled": false,
+    "beacon_tune_disabled": [
+     "example_device"
+    ],
+    "bermuda_ignore": true,
+    "ble_reseed_interval_s": 20,
+    "calibration_points_seen": 0,
+    "calibration_room_walk": true,
+    "cpu_mode": "shared",
+    "data_mode": "live",
+    "day_theme": true,
+    "distortion_map_enabled": true,
+    "door_composites": [],
+    "door_opener_ids": [
+     "cover.garage_example"
+    ],
+    "edition": "full",
+    "emergency_entities": [
+     "light.kitchen_ceiling"
+    ],
+    "enhanced_security": false,
+    "espresense_companion_url": "",
+    "espresense_mqtt_enabled": false,
+    "espresense_room_map": {
+     "kitchen": "Kitchen"
+    },
+    "espresense_topic_prefix": "espresense",
+    "excluded_objects": [
+     "02:00:00:00:00:99"
+    ],
+    "excluded_scanners": [
+     "scanner_example_attic"
+    ],
+    "fabric_bearing_deg": 15.0,
+    "fabric_origin_lat": 49.0,
+    "fabric_origin_lon": -123.0,
+    "first_seen_ts": 1795205065.1735497,
+    "flood_latches": {},
+    "followed_addrs": [
+     "02:00:00:00:00:01",
+     "02:00:00:00:00:02"
+    ],
+    "forensics_enabled": true,
+    "forensics_license_expires": "",
+    "forensics_license_key": "",
+    "forensics_retention_days": 7,
+    "guest_retention_days": 30,
+    "guest_tags_enabled": true,
+    "ha_entity_area_enabled": true,
+    "ha_entity_distance_enabled": true,
+    "ha_entity_occupancy_enabled": true,
+    "ha_entity_scanner_distance_enabled": true,
+    "ha_entity_tracker_enabled": true,
+    "health_reminder_enabled": true,
+    "health_reminder_last_ts": null,
+    "hidden_map_ids": [],
+    "hold_last_room_s": 1,
+    "ingest_rules": [],
+    "iphone_irk_guide": true,
+    "irk_devices": [
+     {
+      "irk_hex": "00112233445566778899aabbccddeeff",
+      "name": "Example iPhone"
+     }
+    ],
+    "kalman_q": 0.5,
+    "kalman_r": 6.0,
+    "license_home_label": "",
+    "license_home_status": "",
+    "license_home_token": "",
+    "license_homes_used": 0,
+    "license_homes_warning": {},
+    "license_is_trial": false,
+    "light_shapes": {
+     "light.kitchen_ceiling": "square"
+    },
+    "light_theme": true,
+    "light_type_overrides": {
+     "light.bedroom_strip": "wled"
+    },
+    "lights_automorph_enabled": true,
+    "lights_automorph_hardness": 1,
+    "lights_automorph_room_pct": 1,
+    "lights_automorph_style": "glow",
+    "lights_automorph_subtlety": 1,
+    "lights_fit_rooms": true,
+    "lights_hide_device_codes": true,
+    "lights_hide_untouched": true,
+    "lights_isolux": true,
+    "lights_panel_enabled": true,
+    "lights_show_beacons": true,
+    "lights_showcase": true,
+    "lights_showcase_presets": [],
+    "lights_showcase_seen": true,
+    "lights_showcase_theme": "classic",
+    "locate_self_key": "",
+    "low_memory_mode": false,
+    "maps_iso_floor_gap": 160,
+    "maps_iso_focus": null,
+    "maps_iso_horiz_gap": 1,
+    "maps_seen": 0,
+    "mqtt_publish_enabled": false,
+    "object_history_days": 2,
+    "offer_invite": true,
+    "offer_tester": true,
+    "onboarding": {
+     "first_calib": "lt15m",
+     "live_first": "switched",
+     "setup_ts": 1795205065.1735451
+    },
+    "optimize_for_scale": true,
+    "overview_2d_mode": true,
+    "overview_atlas": true,
+    "overview_iso_floor_gap": 170,
+    "overview_iso_focus": null,
+    "overview_iso_horiz_gap": 1,
+    "overview_iso_zoom": 1.25,
+    "overview_persistent_pins": true,
+    "overview_show_outdoor": true,
+    "overview_show_trails": true,
+    "overview_show_walls": true,
+    "padspan_automations": [
+     {
+      "action": "turn_on",
+      "device_key": "02:00:00:00:00:01",
+      "device_label": "Example tag",
+      "enabled": true,
+      "entity_id": "light.kitchen_ceiling",
+      "id": "",
+      "trigger": "enter"
+     }
+    ],
+    "path_loss_exp": 2.8,
+    "positioning_algorithm": "rf",
+    "positioning_pick_better": true,
+    "positioning_sensor_fusion": true,
+    "positioning_unsure": true,
+    "presence_poll_interval_s": 7,
+    "pro_active": true,
+    "pro_days_left": null,
+    "pro_has_key": true,
+    "pro_invite_open": false,
+    "pro_invite_until": "",
+    "quiet_mode": false,
+    "radio_map_enabled": true,
+    "ref_power": -62.0,
+    "report_locked": "",
+    "room_reason_attribute": true,
+    "room_tag_map": {},
+    "roomplan_import_enabled": true,
+    "rssi_capture_enabled": true,
+    "rssi_capture_retention_days": 7,
+    "scanner_min_rssi": {
+     "scanner_example_office": -92
+    },
+    "scanner_offsets": {
+     "scanner_example_kitchen": -3.0
+    },
+    "subzones_enabled": true,
+    "tags_nfc_identify_enabled": true,
+    "tags_phone_autolink_enabled": true,
+    "tags_room_events_enabled": true,
+    "tasmota_ble_enabled": false,
+    "telemetry_asked": true,
+    "telemetry_enabled": false,
+    "telemetry_install_id": "",
+    "telemetry_last_day": "",
+    "tester_nudge_done": true,
+    "tester_signed_up": false,
+    "theme_follow_sun": true,
+    "theme_palette": "",
+    "tier": "pro",
+    "tier_floor": "free",
+    "traceback_house_focus": 1,
+    "trial_nudge_done": true,
+    "ui_skin": "classic",
+    "update_check_enabled": true,
+    "vacation_mode_anchors": [
+     "light.living_lamp"
+    ],
+    "vacation_mode_bedtime": "23:30",
+    "vacation_mode_dark_offset_min": 1,
+    "vacation_mode_dark_only": true,
+    "vacation_mode_enabled": false,
+    "vacation_mode_enabled_at": 0,
+    "vacation_mode_end_at": 0,
+    "vacation_mode_intensity": 60,
+    "vacation_mode_last_off": {},
+    "vacation_mode_max_lights": 1,
+    "vacation_mode_max_on_min": 15,
+    "vacation_mode_pattern_attempt": [
+     0,
+     0
+    ],
+    "vacation_mode_pattern_built_at": 0,
+    "vacation_mode_pattern_end": 0,
+    "vacation_mode_pattern_for": 0,
+    "vacation_mode_pattern_prev_source": "",
+    "vacation_mode_pattern_source": "",
+    "vacation_mode_pattern_until": 0,
+    "vacation_mode_pause_home": true,
+    "vacation_mode_periods": [],
+    "vacation_mode_source": "month",
+    "vacation_mode_tracked_since": 0,
+    "vacation_mode_trip_source": "",
+    "vacuum_import_enabled": true,
+    "walk_to_identify_enabled": true,
+    "wall_distance_m": 5.0,
+    "wall_floor_cycle_s": 10,
+    "wall_fully": true,
+    "wall_night_dim": 0.7,
+    "wall_pixel_shift": true,
+    "wall_screen_in": 10,
+    "wall_text_arcmin": 36,
+    "whatsnew_seen_version": "0.38.231",
+    "whole_house_presets": [
+     {
+      "created_at": 0,
+      "entities": {
+       "light.kitchen_ceiling": {
+        "brightness": 180,
+        "state": "on"
+       }
+      },
+      "name": "All on example"
+     }
+    ],
+    "wled_teams": []
+   }
+  },
+  "store_backup_list": {
+   "backups": [
+    {
+     "created_at": "2026-11-20T20:04:25+00:00",
+     "id": "bk_f68efb7e22c8",
+     "map_image_count": 2,
+     "note": "Example backup",
+     "store_count": 15,
+     "store_keys": [
+      "padspan_ha.settings",
+      "padspan_ha.calibration",
+      "padspan_ha.adaptive",
+      "padspan_ha.objects",
+      "padspan_ha.maps",
+      "padspan_ha.model",
+      "padspan_ha.fabric",
+      "padspan_ha.follow_alerts",
+      "padspan_ha.movement_history",
+      "padspan_ha.traceback",
+      "padspan_ha.object_history",
+      "padspan_ha.forensics",
+      "padspan_ha.devices",
+      "padspan_ha.wled_looks",
+      "padspan_ha.lost_and_found"
+     ],
+     "version": "0.38.231"
+    }
+   ]
+  },
+  "subzones_list": {
+   "enabled": true,
+   "zones": [
+    {
+     "dwell_s": 20.0,
+     "enter_m": 0.1,
+     "floor_id": "ground",
+     "id": "sz_40d9e53c",
+     "leave_m": 0.3,
+     "name": "Example couch",
+     "people": [],
+     "piece_id": null,
+     "points_m": [
+      [
+       6.0,
+       1.0
+      ],
+      [
+       8.0,
+       1.0
+      ],
+      [
+       8.0,
+       2.0
+      ],
+      [
+       6.0,
+       2.0
+      ]
+     ],
+     "room": "Living Room",
+     "type": "poly"
+    }
+   ]
+  }
+ },
+ "settings_changed": [
+  "adaptive_floor_detection",
+  "aggressive_ble_reseed",
+  "ai_credit_month_usd",
+  "ai_photos_enabled",
+  "ai_plan_build_enabled",
+  "ai_plans_enabled",
+  "ai_stairs_enabled",
+  "assumed_device_height_m",
+  "atlas_3d_carries",
+  "atlas_3d_director",
+  "atlas_3d_director_people",
+  "atlas_3d_home_idle_s",
+  "atlas_3d_library",
+  "atlas_3d_people",
+  "atlas_3d_showcase",
+  "atlas_3d_tags",
+  "atlas_3d_weather",
+  "atlas_alert_pulse",
+  "atlas_emergency_button",
+  "atlas_heatmap_enabled",
+  "atlas_layout_v2",
+  "atlas_live_colours",
+  "atlas_weather_enabled",
+  "atlas_weather_strength",
+  "away_timeout_m",
+  "beacon_auto_calibrate",
+  "beacon_group_overrides",
+  "beacon_profiling_enabled",
+  "beacon_tune_disabled",
+  "bermuda_ignore",
+  "ble_reseed_interval_s",
+  "day_theme",
+  "distortion_map_enabled",
+  "door_opener_ids",
+  "emergency_entities",
+  "espresense_room_map",
+  "excluded_objects",
+  "excluded_scanners",
+  "fabric_bearing_deg",
+  "fabric_origin_lat",
+  "fabric_origin_lon",
+  "followed_addrs",
+  "forensics_retention_days",
+  "ha_entity_occupancy_enabled",
+  "health_reminder_enabled",
+  "hold_last_room_s",
+  "kalman_q",
+  "kalman_r",
+  "light_shapes",
+  "light_theme",
+  "light_type_overrides",
+  "lights_automorph_enabled",
+  "lights_automorph_hardness",
+  "lights_automorph_room_pct",
+  "lights_automorph_subtlety",
+  "lights_fit_rooms",
+  "lights_hide_device_codes",
+  "lights_hide_untouched",
+  "lights_isolux",
+  "lights_show_beacons",
+  "lights_showcase",
+  "lights_showcase_seen",
+  "maps_iso_floor_gap",
+  "maps_iso_horiz_gap",
+  "object_history_days",
+  "optimize_for_scale",
+  "overview_2d_mode",
+  "overview_atlas",
+  "overview_iso_floor_gap",
+  "overview_iso_horiz_gap",
+  "overview_iso_zoom",
+  "overview_persistent_pins",
+  "overview_show_outdoor",
+  "overview_show_trails",
+  "overview_show_walls",
+  "padspan_automations",
+  "path_loss_exp",
+  "positioning_algorithm",
+  "positioning_pick_better",
+  "positioning_sensor_fusion",
+  "positioning_unsure",
+  "presence_poll_interval_s",
+  "radio_map_enabled",
+  "ref_power",
+  "room_reason_attribute",
+  "roomplan_import_enabled",
+  "rssi_capture_retention_days",
+  "scanner_min_rssi",
+  "scanner_offsets",
+  "tags_nfc_identify_enabled",
+  "tags_phone_autolink_enabled",
+  "tags_room_events_enabled",
+  "telemetry_asked",
+  "tester_nudge_done",
+  "theme_follow_sun",
+  "traceback_house_focus",
+  "trial_nudge_done",
+  "ui_skin",
+  "vacation_mode_anchors",
+  "vacation_mode_bedtime",
+  "vacation_mode_dark_offset_min",
+  "vacation_mode_dark_only",
+  "vacation_mode_intensity",
+  "vacation_mode_max_lights",
+  "vacation_mode_max_on_min",
+  "vacation_mode_pause_home",
+  "vacation_mode_source",
+  "vacuum_import_enabled",
+  "walk_to_identify_enabled",
+  "wall_distance_m",
+  "wall_floor_cycle_s",
+  "wall_fully",
+  "wall_night_dim",
+  "wall_pixel_shift",
+  "wall_screen_in",
+  "wall_text_arcmin",
+  "whatsnew_seen_version",
+  "whole_house_presets"
+ ],
+ "states": {
+  "binary_sensor.front_door": {
+   "attributes": {
+    "device_class": "door",
+    "friendly_name": "Front door"
+   },
+   "state": "off"
+  },
+  "binary_sensor.hall_motion": {
+   "attributes": {
+    "device_class": "motion",
+    "friendly_name": "Hall motion"
+   },
+   "state": "off"
+  },
+  "cover.garage_example": {
+   "attributes": {
+    "friendly_name": "Garage example"
+   },
+   "state": "closed"
+  },
+  "light.bedroom_strip": {
+   "attributes": {
+    "color_mode": "rgb",
+    "friendly_name": "Bedroom strip",
+    "rgb_color": [
+     255,
+     120,
+     0
+    ],
+    "supported_color_modes": [
+     "rgb"
+    ]
+   },
+   "state": "on"
+  },
+  "light.kitchen_ceiling": {
+   "attributes": {
+    "brightness": 200,
+    "color_mode": "brightness",
+    "friendly_name": "Kitchen ceiling",
+    "supported_color_modes": [
+     "brightness"
+    ]
+   },
+   "state": "on"
+  },
+  "light.living_lamp": {
+   "attributes": {
+    "color_mode": null,
+    "friendly_name": "Living lamp",
+    "supported_color_modes": [
+     "brightness"
+    ]
+   },
+   "state": "off"
+  },
+  "person.alex_example": {
+   "attributes": {
+    "friendly_name": "Alex Example"
+   },
+   "state": "home"
+  },
+  "person.sam_example": {
+   "attributes": {
+    "friendly_name": "Sam Example"
+   },
+   "state": "not_home"
+  }
+ },
+ "steps": {
+  "calibration_room_walk_save": "ok",
+  "calibration_save_point": "ok",
+  "capture_mark": "ok",
+  "capture_start": "ok",
+  "capture_stop": "ok",
+  "companion_follow": "ok",
+  "device_registry_add_identity": "ok",
+  "device_registry_label_set": "ok",
+  "device_registry_list": "ok",
+  "fabric_beacon_position_set": "ok",
+  "fabric_correct_room": "ok",
+  "fabric_floor_elevations_set": "ok",
+  "fabric_light_position_set": "ok",
+  "fabric_map_transform_set:ground": "ok",
+  "fabric_map_transform_set:upstairs": "ok",
+  "fabric_rf_barrier_set": "ok",
+  "fabric_room_add": "ok",
+  "fabric_scanner_position_set": "ok",
+  "fabric_scanner_z_set": "ok",
+  "follow_alert_save": "ok",
+  "follow_alert_save:2": "ok",
+  "guest_session_start": "ok",
+  "guest_tag_mark": "ok",
+  "guest_tag_pid": "found",
+  "guests_get": "ok",
+  "heard_objects": "5 (ibeacon found)",
+  "house3d_edit": "ok",
+  "irk_add": "ok",
+  "maps_update:ground": "ok",
+  "maps_update:upstairs": "ok",
+  "maps_upload": "ok",
+  "model_update": "ok",
+  "object_label_set": "ok",
+  "room_height_set": "ok",
+  "scanner_offset_set": "ok",
+  "settings:accuracy_tips_hidden": "no change tried",
+  "settings:adaptive_floor_detection": "changed",
+  "settings:adaptive_learning_enabled": "changed",
+  "settings:advanced_extra_tabs": "accepted, unchanged",
+  "settings:aggressive_ble_reseed": "changed",
+  "settings:ai_credit_month_usd": "changed",
+  "settings:ai_credit_warn_pct": "accepted, unchanged",
+  "settings:ai_photos_enabled": "changed",
+  "settings:ai_plan_build_enabled": "changed",
+  "settings:ai_plans_enabled": "changed",
+  "settings:ai_stairs_enabled": "changed",
+  "settings:apple_auto_classify": "no change tried",
+  "settings:assumed_device_height_m": "changed",
+  "settings:atlas_3d_carries": "changed",
+  "settings:atlas_3d_director": "changed",
+  "settings:atlas_3d_director_people": "changed",
+  "settings:atlas_3d_enabled": "changed",
+  "settings:atlas_3d_home_idle_s": "changed",
+  "settings:atlas_3d_library": "changed",
+  "settings:atlas_3d_look": "no change tried",
+  "settings:atlas_3d_people": "changed",
+  "settings:atlas_3d_quality": "no change tried",
+  "settings:atlas_3d_showcase": "changed",
+  "settings:atlas_3d_tags": "changed",
+  "settings:atlas_3d_weather": "changed",
+  "settings:atlas_alert_pulse": "changed",
+  "settings:atlas_emergency_button": "changed",
+  "settings:atlas_heatmap_enabled": "changed",
+  "settings:atlas_layout_v2": "changed",
+  "settings:atlas_live_colours": "changed",
+  "settings:atlas_weather_enabled": "changed",
+  "settings:atlas_weather_strength": "changed",
+  "settings:auto_offset_mode": "no change tried",
+  "settings:away_timeout_m": "changed",
+  "settings:beacon_auto_calibrate": "changed",
+  "settings:beacon_group_overrides": "changed",
+  "settings:beacon_profiling_enabled": "changed",
+  "settings:beacon_tune_disabled": "changed",
+  "settings:bermuda_ignore": "changed",
+  "settings:ble_max_age_s": "no change tried",
+  "settings:ble_reseed_interval_s": "changed",
+  "settings:bright_reveal_presence": "no change tried",
+  "settings:calibration_room_walk": "changed",
+  "settings:cpu_mode": "accepted, unchanged",
+  "settings:day_theme": "changed",
+  "settings:distance_stationary_devices": "no change tried",
+  "settings:distortion_intensity": "no change tried",
+  "settings:distortion_map_enabled": "changed",
+  "settings:door_composites": "no change tried",
+  "settings:door_opener_ids": "changed",
+  "settings:emergency_entities": "changed",
+  "settings:espresense_room_map": "changed",
+  "settings:espresense_topic_prefix": "no change tried",
+  "settings:excluded_objects": "changed",
+  "settings:excluded_scanners": "changed",
+  "settings:fabric_bearing_deg": "changed",
+  "settings:fabric_origin_lat": "changed",
+  "settings:fabric_origin_lon": "changed",
+  "settings:followed_addrs": "changed",
+  "settings:forensics_enabled": "changed",
+  "settings:forensics_retention_days": "changed",
+  "settings:guest_retention_days": "invalid_format",
+  "settings:guest_tags_enabled": "changed",
+  "settings:ha_entity_occupancy_enabled": "changed",
+  "settings:health_reminder_enabled": "changed",
+  "settings:heatmap_contrast": "no change tried",
+  "settings:heatmap_gain": "no change tried",
+  "settings:heatmap_source": "no change tried",
+  "settings:hidden_map_ids": "accepted, unchanged",
+  "settings:hold_last_room_s": "changed",
+  "settings:ingest_rules": "accepted, unchanged",
+  "settings:iphone_irk_guide": "changed",
+  "settings:kalman_q": "changed",
+  "settings:kalman_r": "changed",
+  "settings:light_shapes": "changed",
+  "settings:light_theme": "changed",
+  "settings:light_type_overrides": "changed",
+  "settings:lights_automorph_enabled": "changed",
+  "settings:lights_automorph_hardness": "changed",
+  "settings:lights_automorph_room_pct": "changed",
+  "settings:lights_automorph_style": "accepted, unchanged",
+  "settings:lights_automorph_subtlety": "changed",
+  "settings:lights_fit_rooms": "changed",
+  "settings:lights_hidden": "no change tried",
+  "settings:lights_hide_device_codes": "changed",
+  "settings:lights_hide_untouched": "changed",
+  "settings:lights_isolux": "changed",
+  "settings:lights_show_beacons": "changed",
+  "settings:lights_showcase": "changed",
+  "settings:lights_showcase_presets": "accepted, unchanged",
+  "settings:lights_showcase_theme": "accepted, unchanged",
+  "settings:mac_rotation_bridging": "no change tried",
+  "settings:maps_iso_floor_gap": "changed",
+  "settings:maps_iso_focus": "no change tried",
+  "settings:maps_iso_horiz_gap": "changed",
+  "settings:object_history_days": "changed",
+  "settings:occupancy_cluster_threshold": "no change tried",
+  "settings:occupancy_hybrid_enabled": "no change tried",
+  "settings:optimize_for_scale": "changed",
+  "settings:overview_2d_mode": "changed",
+  "settings:overview_atlas": "changed",
+  "settings:overview_iso_floor_gap": "changed",
+  "settings:overview_iso_focus": "no change tried",
+  "settings:overview_iso_horiz_gap": "changed",
+  "settings:overview_iso_zoom": "changed",
+  "settings:overview_persistent_pins": "changed",
+  "settings:overview_show_outdoor": "changed",
+  "settings:overview_show_trails": "changed",
+  "settings:overview_show_walls": "changed",
+  "settings:padspan_automations": "changed",
+  "settings:path_loss_exp": "changed",
+  "settings:phone_wizard_enabled": "no change tried",
+  "settings:positioning_algorithm": "changed",
+  "settings:positioning_pick_better": "changed",
+  "settings:positioning_sensor_fusion": "changed",
+  "settings:positioning_unsure": "changed",
+  "settings:presence_poll_interval_s": "changed",
+  "settings:radio_map_enabled": "changed",
+  "settings:ref_power": "changed",
+  "settings:room_change_delay_s": "no change tried",
+  "settings:room_reason_attribute": "changed",
+  "settings:roomplan_import_enabled": "changed",
+  "settings:rssi_capture_enabled": "changed",
+  "settings:rssi_capture_retention_days": "changed",
+  "settings:scanner_min_rssi": "changed",
+  "settings:scanner_offsets": "changed",
+  "settings:signal_loss_linger_s": "no change tried",
+  "settings:subzones_enabled": "changed",
+  "settings:tags_nfc_identify_enabled": "changed",
+  "settings:tags_phone_autolink_enabled": "changed",
+  "settings:tags_room_events_enabled": "changed",
+  "settings:telemetry_asked": "changed",
+  "settings:tester_nudge_done": "changed",
+  "settings:theme_follow_sun": "changed",
+  "settings:theme_palette": "accepted, unchanged",
+  "settings:traceback_house_focus": "changed",
+  "settings:trial_nudge_done": "changed",
+  "settings:ui_skin": "changed",
+  "settings:vacation_mode_anchors": "changed",
+  "settings:vacation_mode_bedtime": "changed",
+  "settings:vacation_mode_dark_offset_min": "changed",
+  "settings:vacation_mode_dark_only": "changed",
+  "settings:vacation_mode_intensity": "changed",
+  "settings:vacation_mode_max_lights": "changed",
+  "settings:vacation_mode_max_on_min": "changed",
+  "settings:vacation_mode_pause_home": "changed",
+  "settings:vacation_mode_source": "changed",
+  "settings:vacuum_import_enabled": "changed",
+  "settings:walk_to_identify_enabled": "changed",
+  "settings:wall_distance_m": "changed",
+  "settings:wall_floor_cycle_s": "changed",
+  "settings:wall_fully": "changed",
+  "settings:wall_night_dim": "changed",
+  "settings:wall_pixel_shift": "changed",
+  "settings:wall_screen_in": "changed",
+  "settings:wall_text_arcmin": "changed",
+  "settings:whatsnew_seen_version": "changed",
+  "settings:whole_house_presets": "changed",
+  "settings_get": "ok",
+  "settings_set:switches": "ok",
+  "store_backup_create": "ok",
+  "subzone_add": "ok",
+  "trial_or_tester": "ok"
+ },
+ "storage": {
+  "padspan_ha.backups": {
+   "data": {
+    "backups": [
+     {
+      "created_at": "2026-11-20T20:04:25+00:00",
+      "id": "bk_f68efb7e22c8",
+      "map_images": {
+       "d1ebcbdb20e65113.png": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+       "ef444e6807a61e89.png": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+      },
+      "note": "Example backup",
+      "stores": {
+       "padspan_ha.adaptive": {
+        "floor_pairs": {},
+        "floor_transitions": {},
+        "fp_version": 2,
+        "room_fingerprints": {},
+        "stats": {
+         "days_active": 0,
+         "learning_since": null,
+         "total_observations": 0
+        },
+        "transition_counts": {}
+       },
+       "padspan_ha.calibration": {
+        "model": {},
+        "points": [
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 15,
+          "floor_id": "ground",
+          "id": "cp_005de25c6efa",
+          "label": "Kitchen point",
+          "map_id": "ef444e6807a61e89",
+          "room": "Kitchen",
+          "scanner_readings": [
+           {
+            "mean_rssi": -60.0,
+            "name": "Kitchen receiver",
+            "rssi_samples": [
+             -60.0,
+             -61.0,
+             -59.0,
+             -62.0,
+             -60.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.14
+           },
+           {
+            "mean_rssi": -75.0,
+            "name": "Bedroom receiver",
+            "rssi_samples": [
+             -75.0,
+             -76.0,
+             -74.0,
+             -77.0,
+             -75.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_bedroom",
+            "std_rssi": 1.14
+           }
+          ],
+          "weight": 1.0,
+          "x_frac": 0.2,
+          "x_m": 2.0,
+          "y_frac": 0.3,
+          "y_m": 2.4
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 15,
+          "floor_id": "ground",
+          "id": "cp_ad1b320f0a18",
+          "label": "Living Room point",
+          "map_id": "ef444e6807a61e89",
+          "room": "Living Room",
+          "scanner_readings": [
+           {
+            "mean_rssi": -60.0,
+            "name": "Kitchen receiver",
+            "rssi_samples": [
+             -60.0,
+             -61.0,
+             -59.0,
+             -62.0,
+             -60.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.14
+           },
+           {
+            "mean_rssi": -75.0,
+            "name": "Bedroom receiver",
+            "rssi_samples": [
+             -75.0,
+             -76.0,
+             -74.0,
+             -77.0,
+             -75.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_bedroom",
+            "std_rssi": 1.14
+           }
+          ],
+          "weight": 1.0,
+          "x_frac": 0.7,
+          "x_m": 7.0,
+          "y_frac": 0.3,
+          "y_m": 2.4
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 15,
+          "floor_id": "upstairs",
+          "id": "cp_78678009a412",
+          "label": "Bedroom point",
+          "map_id": "d1ebcbdb20e65113",
+          "room": "Bedroom",
+          "scanner_readings": [
+           {
+            "mean_rssi": -60.0,
+            "name": "Kitchen receiver",
+            "rssi_samples": [
+             -60.0,
+             -61.0,
+             -59.0,
+             -62.0,
+             -60.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.14
+           },
+           {
+            "mean_rssi": -75.0,
+            "name": "Bedroom receiver",
+            "rssi_samples": [
+             -75.0,
+             -76.0,
+             -74.0,
+             -77.0,
+             -75.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_bedroom",
+            "std_rssi": 1.14
+           }
+          ],
+          "weight": 1.0,
+          "x_frac": 0.25,
+          "x_m": 2.5,
+          "y_frac": 0.5,
+          "y_m": 4.0
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 15,
+          "floor_id": "upstairs",
+          "id": "cp_0b97c02ca6bb",
+          "label": "Office point",
+          "map_id": "d1ebcbdb20e65113",
+          "room": "Office",
+          "scanner_readings": [
+           {
+            "mean_rssi": -60.0,
+            "name": "Kitchen receiver",
+            "rssi_samples": [
+             -60.0,
+             -61.0,
+             -59.0,
+             -62.0,
+             -60.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.14
+           },
+           {
+            "mean_rssi": -75.0,
+            "name": "Bedroom receiver",
+            "rssi_samples": [
+             -75.0,
+             -76.0,
+             -74.0,
+             -77.0,
+             -75.0
+            ],
+            "sample_count": 5,
+            "source": "scanner_example_bedroom",
+            "std_rssi": 1.14
+           }
+          ],
+          "weight": 1.0,
+          "x_frac": 0.75,
+          "x_m": 7.5,
+          "y_frac": 0.5,
+          "y_m": 4.0
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 5,
+          "floor_id": "ground",
+          "id": "cp_ffb1b784832c",
+          "label": "[walk] Hall",
+          "map_id": "ef444e6807a61e89",
+          "room": "Hall",
+          "scanner_readings": [
+           {
+            "mean_rssi": -59.0,
+            "name": "scanner_example_hall",
+            "rssi_samples": [
+             -58.0,
+             -59.0,
+             -60.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_hall",
+            "std_rssi": 1.0
+           },
+           {
+            "mean_rssi": -71.0,
+            "name": "scanner_example_kitchen",
+            "rssi_samples": [
+             -70.0,
+             -71.0,
+             -72.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.0
+           }
+          ],
+          "source": "room_walk",
+          "walk_id": "rw_57caedd7",
+          "weight": 1.0,
+          "x_frac": 0.5,
+          "x_m": 5.0,
+          "y_frac": 0.8125,
+          "y_m": 6.5
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 5,
+          "floor_id": "ground",
+          "id": "cp_660667e18cce",
+          "label": "[walk] Hall",
+          "map_id": "ef444e6807a61e89",
+          "room": "Hall",
+          "scanner_readings": [
+           {
+            "mean_rssi": -59.0,
+            "name": "scanner_example_hall",
+            "rssi_samples": [
+             -58.0,
+             -59.0,
+             -60.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_hall",
+            "std_rssi": 1.0
+           },
+           {
+            "mean_rssi": -71.0,
+            "name": "scanner_example_kitchen",
+            "rssi_samples": [
+             -73.0,
+             -70.0,
+             -71.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.53
+           }
+          ],
+          "source": "room_walk",
+          "walk_id": "rw_57caedd7",
+          "weight": 1.0,
+          "x_frac": 0.5,
+          "x_m": 5.0,
+          "y_frac": 0.8125,
+          "y_m": 6.5
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 5,
+          "floor_id": "ground",
+          "id": "cp_ce3b6e0bdf5e",
+          "label": "[walk] Hall",
+          "map_id": "ef444e6807a61e89",
+          "room": "Hall",
+          "scanner_readings": [
+           {
+            "mean_rssi": -58.5,
+            "name": "scanner_example_hall",
+            "rssi_samples": [
+             -58.0,
+             -59.0,
+             -60.0,
+             -58.0
+            ],
+            "sample_count": 4,
+            "source": "scanner_example_hall",
+            "std_rssi": 0.96
+           },
+           {
+            "mean_rssi": -71.5,
+            "name": "scanner_example_kitchen",
+            "rssi_samples": [
+             -72.0,
+             -73.0,
+             -70.0,
+             -71.0
+            ],
+            "sample_count": 4,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.29
+           }
+          ],
+          "source": "room_walk",
+          "walk_id": "rw_57caedd7",
+          "weight": 1.0,
+          "x_frac": 0.5,
+          "x_m": 5.0,
+          "y_frac": 0.8125,
+          "y_m": 6.5
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 5,
+          "floor_id": "ground",
+          "id": "cp_87a8ab5c83b9",
+          "label": "[walk] Hall",
+          "map_id": "ef444e6807a61e89",
+          "room": "Hall",
+          "scanner_readings": [
+           {
+            "mean_rssi": -59.0,
+            "name": "scanner_example_hall",
+            "rssi_samples": [
+             -59.0,
+             -60.0,
+             -58.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_hall",
+            "std_rssi": 1.0
+           },
+           {
+            "mean_rssi": -72.0,
+            "name": "scanner_example_kitchen",
+            "rssi_samples": [
+             -72.0,
+             -73.0,
+             -70.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.53
+           }
+          ],
+          "source": "room_walk",
+          "walk_id": "rw_57caedd7",
+          "weight": 1.0,
+          "x_frac": 0.5,
+          "x_m": 5.0,
+          "y_frac": 0.8125,
+          "y_m": 6.5
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 5,
+          "floor_id": "ground",
+          "id": "cp_bd2b753fca4c",
+          "label": "[walk] Hall",
+          "map_id": "ef444e6807a61e89",
+          "room": "Hall",
+          "scanner_readings": [
+           {
+            "mean_rssi": -59.0,
+            "name": "scanner_example_hall",
+            "rssi_samples": [
+             -59.0,
+             -60.0,
+             -58.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_hall",
+            "std_rssi": 1.0
+           },
+           {
+            "mean_rssi": -72.0,
+            "name": "scanner_example_kitchen",
+            "rssi_samples": [
+             -71.0,
+             -72.0,
+             -73.0
+            ],
+            "sample_count": 3,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.0
+           }
+          ],
+          "source": "room_walk",
+          "walk_id": "rw_57caedd7",
+          "weight": 1.0,
+          "x_frac": 0.5,
+          "x_m": 5.0,
+          "y_frac": 0.8125,
+          "y_m": 6.5
+         },
+         {
+          "collected_at": "2026-11-20T20:04:25+00:00",
+          "device_id": "example_phone",
+          "duration_s": 5,
+          "floor_id": "ground",
+          "id": "cp_8883b8b5e732",
+          "label": "[walk] Hall",
+          "map_id": "ef444e6807a61e89",
+          "room": "Hall",
+          "scanner_readings": [
+           {
+            "mean_rssi": -59.0,
+            "name": "scanner_example_hall",
+            "rssi_samples": [
+             -59.0,
+             -60.0,
+             -58.0,
+             -59.0
+            ],
+            "sample_count": 4,
+            "source": "scanner_example_hall",
+            "std_rssi": 0.82
+           },
+           {
+            "mean_rssi": -71.5,
+            "name": "scanner_example_kitchen",
+            "rssi_samples": [
+             -70.0,
+             -71.0,
+             -72.0,
+             -73.0
+            ],
+            "sample_count": 4,
+            "source": "scanner_example_kitchen",
+            "std_rssi": 1.29
+           }
+          ],
+          "source": "room_walk",
+          "walk_id": "rw_57caedd7",
+          "weight": 1.0,
+          "x_frac": 0.5,
+          "x_m": 5.0,
+          "y_frac": 0.8125,
+          "y_m": 6.5
+         }
+        ],
+        "room_walk": {
+         "after": {
+          "knn": {
+           "rooms_right_pc": 0
+          }
+         },
+         "before": {
+          "knn": {
+           "rooms_right_pc": null
+          }
+         },
+         "walk_id": "rw_57caedd7"
+        }
+       },
+       "padspan_ha.devices": {
+        "devices": {
+         "ps_45f38c8a0011": {
+          "created_at": "2026-11-20T20:04:25+00:00",
+          "device_type": "unknown",
+          "identities": [
+           {
+            "kind": "mac",
+            "value": "ble:02:00:00:00:00:02"
+           }
+          ],
+          "label": "Example phone",
+          "labeled_at": "2026-11-20T20:04:25+00:00",
+          "merged_from": [],
+          "meta": {},
+          "padspan_id": "ps_45f38c8a0011"
+         },
+         "ps_56aeedfb7c9d": {
+          "created_at": "2026-11-20T20:04:25+00:00",
+          "device_type": "unknown",
+          "identities": [
+           {
+            "kind": "mac",
+            "value": "ble:02:00:00:00:00:04"
+           }
+          ],
+          "label": "Example fixed beacon",
+          "labeled_at": "2026-11-20T20:04:25+00:00",
+          "merged_from": [],
+          "meta": {},
+          "padspan_id": "ps_56aeedfb7c9d"
+         },
+         "ps_6454e3cb7fbe": {
+          "created_at": "2026-11-20T20:04:25+00:00",
+          "device_type": "unknown",
+          "identities": [
+           {
+            "kind": "mac",
+            "value": "ibeacon:00000000-0000-4000-8000-000000000001:1:1"
+           }
+          ],
+          "label": "Example iBeacon",
+          "labeled_at": "2026-11-20T20:04:25+00:00",
+          "merged_from": [],
+          "meta": {},
+          "padspan_id": "ps_6454e3cb7fbe"
+         },
+         "ps_8c0453d8206c": {
+          "created_at": "2026-11-20T20:04:25+00:00",
+          "device_type": "unknown",
+          "identities": [
+           {
+            "kind": "mac",
+            "value": "ble:02:00:00:00:00:01"
+           },
+           {
+            "kind": "mac",
+            "value": "02:00:00:00:00:05"
+           }
+          ],
+          "label": "Example keys (renamed)",
+          "labeled_at": "2026-11-20T20:04:25+00:00",
+          "merged_from": [],
+          "meta": {},
+          "padspan_id": "ps_8c0453d8206c"
+         },
+         "ps_e32014f7dcb9": {
+          "created_at": "2026-11-20T20:04:25+00:00",
+          "device_type": "unknown",
+          "identities": [
+           {
+            "kind": "mac",
+            "value": "ble:02:00:00:00:00:03"
+           }
+          ],
+          "label": "Example wallet",
+          "labeled_at": "2026-11-20T20:04:25+00:00",
+          "merged_from": [],
+          "meta": {},
+          "padspan_id": "ps_e32014f7dcb9"
+         }
+        },
+        "version": 1
+       },
+       "padspan_ha.fabric": {
+        "beacon_heights_m": {
+         "02:00:00:00:00:04": 1.2
+        },
+        "beacon_positions_m": {
+         "02:00:00:00:00:04": {
+          "floor_id": "ground",
+          "kind": "fixed",
+          "label": "Fixed beacon",
+          "map_id": null,
+          "room": "Kitchen",
+          "x_m": 4.0,
+          "y_m": 4.0
+         }
+        },
+        "floors": {
+         "ground": {
+          "committed": false,
+          "committed_at": null,
+          "frame_offset_m": {
+           "dx_m": 0.0,
+           "dy_m": 0.0,
+           "rotation_rad": 0.0
+          },
+          "rooms": {
+           "Hall": {
+            "committed_at": "2026-11-20T20:04:25.375500+00:00",
+            "committed_by": "correction",
+            "floor_id": "ground",
+            "points_m": [
+             [
+              3.5,
+              5.0
+             ],
+             [
+              6.5,
+              5.0
+             ],
+             [
+              6.5,
+              8.0
+             ],
+             [
+              3.5,
+              8.0
+             ]
+            ],
+            "revision": 1,
+            "source_image": null,
+            "source_map_id": null,
+            "source_transform": null,
+            "type": "poly"
+           },
+           "Kitchen": {
+            "committed_at": "2026-11-20T20:04:25.368923+00:00",
+            "committed_by": "correction",
+            "floor_id": "ground",
+            "points_m": [
+             [
+              0.0,
+              0.0
+             ],
+             [
+              4.5,
+              0.0
+             ],
+             [
+              4.5,
+              4.8
+             ],
+             [
+              0.0,
+              4.8
+             ]
+            ],
+            "revision": 1,
+            "source_image": null,
+            "source_map_id": null,
+            "source_transform": null,
+            "type": "poly"
+           },
+           "Living Room": {
+            "committed_at": "2026-11-20T20:04:25.372163+00:00",
+            "committed_by": "correction",
+            "floor_id": "ground",
+            "points_m": [
+             [
+              4.5,
+              0.0
+             ],
+             [
+              10.0,
+              0.0
+             ],
+             [
+              10.0,
+              4.8
+             ],
+             [
+              4.5,
+              4.8
+             ]
+            ],
+            "revision": 1,
+            "source_image": null,
+            "source_map_id": null,
+            "source_transform": null,
+            "type": "poly"
+           }
+          }
+         },
+         "upstairs": {
+          "committed": false,
+          "committed_at": null,
+          "frame_offset_m": {
+           "dx_m": 0.0,
+           "dy_m": 0.0,
+           "rotation_rad": 0.0
+          },
+          "rooms": {
+           "Bedroom": {
+            "committed_at": "2026-11-20T20:04:25.378776+00:00",
+            "committed_by": "correction",
+            "floor_id": "upstairs",
+            "points_m": [
+             [
+              0.0,
+              0.0
+             ],
+             [
+              5.0,
+              0.0
+             ],
+             [
+              5.0,
+              8.0
+             ],
+             [
+              0.0,
+              8.0
+             ]
+            ],
+            "revision": 1,
+            "source_image": null,
+            "source_map_id": null,
+            "source_transform": null,
+            "type": "poly"
+           },
+           "Office": {
+            "committed_at": "2026-11-20T20:04:25.382017+00:00",
+            "committed_by": "correction",
+            "floor_id": "upstairs",
+            "points_m": [
+             [
+              5.0,
+              0.0
+             ],
+             [
+              10.0,
+              0.0
+             ],
+             [
+              10.0,
+              8.0
+             ],
+             [
+              5.0,
+              8.0
+             ]
+            ],
+            "revision": 1,
+            "source_image": null,
+            "source_map_id": null,
+            "source_transform": null,
+            "type": "poly"
+           }
+          }
+         }
+        },
+        "history": [
+         {
+          "floor_id": "ground",
+          "op": "correction",
+          "revision": 1,
+          "room": "Kitchen",
+          "ts": "2026-11-20T20:04:25.368932+00:00"
+         },
+         {
+          "floor_id": "ground",
+          "op": "correction",
+          "revision": 1,
+          "room": "Living Room",
+          "ts": "2026-11-20T20:04:25.372170+00:00"
+         },
+         {
+          "floor_id": "ground",
+          "op": "correction",
+          "revision": 1,
+          "room": "Hall",
+          "ts": "2026-11-20T20:04:25.375505+00:00"
+         },
+         {
+          "floor_id": "upstairs",
+          "op": "correction",
+          "revision": 1,
+          "room": "Bedroom",
+          "ts": "2026-11-20T20:04:25.378781+00:00"
+         },
+         {
+          "floor_id": "upstairs",
+          "op": "correction",
+          "revision": 1,
+          "room": "Office",
+          "ts": "2026-11-20T20:04:25.382023+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "scanner_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.385186+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "scanner_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.386750+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "scanner_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.388305+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "scanner_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.389850+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "scanner_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.391433+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "scanner_z_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.393081+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "beacon_set",
+          "revision": 2,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.397143+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "light_set",
+          "revision": 2,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.399141+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "light_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.401625+00:00"
+         },
+         {
+          "floor_id": "",
+          "op": "barrier_set",
+          "revision": 1,
+          "room": "",
+          "ts": "2026-11-20T20:04:25.403334+00:00"
+         }
+        ],
+        "legacy_drift": false,
+        "legacy_fingerprint": "89f596c85e6bb27ca0e55611426cbcde",
+        "light_heights_m": {
+         "light.kitchen_ceiling": 2.6
+        },
+        "light_positions_m": {
+         "light.bedroom_strip": {
+          "color": "#fbbf24",
+          "floor_id": "upstairs",
+          "rotation": 0.0,
+          "shape": "hex",
+          "x_m": 1.0,
+          "y_m": 1.0
+         },
+         "light.kitchen_ceiling": {
+          "color": "#ffcc88",
+          "floor_id": "ground",
+          "label": "Ceiling",
+          "rotation": 0.0,
+          "shape": "circle",
+          "x_m": 2.2,
+          "y_m": 2.4
+         }
+        },
+        "migrations_done": [
+         "autocal_hygiene",
+         "barrier_ids",
+         "cal_point_floors",
+         "unreadable_placements"
+        ],
+        "rf_barriers_m": [
+         {
+          "floor_id": "ground",
+          "id": "bar_d090316a",
+          "invert_state": false,
+          "material": "brick",
+          "name": "Kitchen wall",
+          "points_m": [
+           [
+            4.5,
+            0.0
+           ],
+           [
+            4.5,
+            4.8
+           ]
+          ]
+         }
+        ],
+        "scanner_positions_m": {
+         "scanner_example_bedroom": {
+          "floor_id": "upstairs",
+          "map_id": null,
+          "x_m": 3.0,
+          "y_m": 2.4,
+          "z_m": 2.4
+         },
+         "scanner_example_hall": {
+          "floor_id": "ground",
+          "map_id": null,
+          "x_m": 5.0,
+          "y_m": 6.4,
+          "z_m": 2.4
+         },
+         "scanner_example_kitchen": {
+          "floor_id": "ground",
+          "map_id": null,
+          "x_m": 2.0,
+          "y_m": 2.4,
+          "z_m": 1.8
+         },
+         "scanner_example_living": {
+          "floor_id": "ground",
+          "map_id": null,
+          "x_m": 7.0,
+          "y_m": 3.2,
+          "z_m": 2.4
+         },
+         "scanner_example_office": {
+          "floor_id": "upstairs",
+          "map_id": null,
+          "x_m": 8.0,
+          "y_m": 4.8,
+          "z_m": 2.4
+         }
+        }
+       },
+       "padspan_ha.follow_alerts": {
+        "02:00:00:00:00:01": {
+         "enabled": true,
+         "lost_after_m": 30,
+         "notify_on_enter": [
+          "Kitchen"
+         ],
+         "notify_on_leave": [
+          "Hall"
+         ],
+         "notify_target": "notify.example",
+         "padspan_id": "ps_8c0453d8206c"
+        },
+        "02:00:00:00:00:02": {
+         "away_minutes": 15,
+         "enabled": false,
+         "padspan_id": "ps_45f38c8a0011"
+        }
+       },
+       "padspan_ha.forensics": {},
+       "padspan_ha.lost_and_found": {},
+       "padspan_ha.maps": {
+        "maps": [
+         {
+          "beacons": [
+           {
+            "id": "bk_fixed1",
+            "key": "02:00:00:00:00:04",
+            "kind": "fixed",
+            "label": "Fixed beacon",
+            "x": 0.4,
+            "y": 0.5
+           }
+          ],
+          "calibration": {
+           "mode": "two_point",
+           "px_per_meter": 0.1,
+           "reference_points": [
+            {
+             "x": 0.0,
+             "y": 0.0
+            },
+            {
+             "d_m": 10.0,
+             "x": 1.0,
+             "y": 0.0
+            }
+           ]
+          },
+          "created": "2026-11-20T20:04:25+00:00",
+          "floor_id": "ground",
+          "id": "ef444e6807a61e89",
+          "image": {
+           "filename": "ef444e6807a61e89.png",
+           "height": 1,
+           "mime": "image/png",
+           "original_filename": "ground.png",
+           "original_mime": "image/png",
+           "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+           "size_bytes": 70,
+           "width": 1
+          },
+          "name": "Ground plan",
+          "notes": "Example ground floor",
+          "receivers": [
+           {
+            "id": "rx_kitchen",
+            "label": "Kitchen receiver",
+            "room": "Kitchen",
+            "source": "scanner_example_kitchen",
+            "x": 0.2,
+            "y": 0.3
+           },
+           {
+            "id": "rx_living",
+            "label": "Living receiver",
+            "room": "Living Room",
+            "source": "scanner_example_living",
+            "x": 0.7,
+            "y": 0.4
+           },
+           {
+            "id": "rx_hall",
+            "label": "Hall receiver",
+            "room": "Hall",
+            "source": "scanner_example_hall",
+            "x": 0.5,
+            "y": 0.8
+           }
+          ],
+          "room_bounds": {
+           "Hall": {
+            "cx": 0.5,
+            "cy": 0.8,
+            "r": 0.15,
+            "type": "circle"
+           },
+           "Kitchen": {
+            "points": [
+             [
+              0.0,
+              0.0
+             ],
+             [
+              0.45,
+              0.0
+             ],
+             [
+              0.45,
+              0.6
+             ],
+             [
+              0.0,
+              0.6
+             ]
+            ],
+            "type": "poly"
+           },
+           "Living Room": {
+            "points": [
+             [
+              0.45,
+              0.0
+             ],
+             [
+              1.0,
+              0.0
+             ],
+             [
+              1.0,
+              0.6
+             ],
+             [
+              0.45,
+              0.6
+             ]
+            ],
+            "type": "poly"
+           }
+          },
+          "stack": {
+           "ceiling_height_m": 2.4,
+           "z_level": 0
+          },
+          "updated": "2026-11-20T20:04:25+00:00"
+         },
+         {
+          "beacons": [],
+          "calibration": {
+           "mode": "none",
+           "px_per_meter": null,
+           "reference_points": []
+          },
+          "created": "2026-11-20T20:04:25+00:00",
+          "floor_id": "upstairs",
+          "id": "d1ebcbdb20e65113",
+          "image": {
+           "filename": "d1ebcbdb20e65113.png",
+           "height": 1,
+           "mime": "image/png",
+           "original_filename": "upstairs.png",
+           "original_mime": "image/png",
+           "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+           "size_bytes": 70,
+           "width": 1
+          },
+          "name": "Upstairs plan",
+          "notes": "",
+          "receivers": [
+           {
+            "id": "rx_bed",
+            "label": "Bedroom receiver",
+            "room": "Bedroom",
+            "source": "scanner_example_bedroom",
+            "x": 0.3,
+            "y": 0.3
+           },
+           {
+            "id": "rx_office",
+            "label": "Office receiver",
+            "room": "Office",
+            "source": "scanner_example_office",
+            "x": 0.8,
+            "y": 0.6
+           }
+          ],
+          "room_bounds": {
+           "Bedroom": {
+            "points": [
+             [
+              0.0,
+              0.0
+             ],
+             [
+              0.5,
+              0.0
+             ],
+             [
+              0.5,
+              1.0
+             ],
+             [
+              0.0,
+              1.0
+             ]
+            ],
+            "type": "poly"
+           },
+           "Office": {
+            "points": [
+             [
+              0.5,
+              0.0
+             ],
+             [
+              1.0,
+              0.0
+             ],
+             [
+              1.0,
+              1.0
+             ],
+             [
+              0.5,
+              1.0
+             ]
+            ],
+            "type": "poly"
+           }
+          },
+          "stack": {
+           "ceiling_height_m": 2.4,
+           "z_level": 0
+          },
+          "updated": "2026-11-20T20:04:25+00:00"
+         }
+        ]
+       },
+       "padspan_ha.model": {
+        "fabric_sync_mode": "auto",
+        "floors": [
+         {
+          "base_elevation_m": 0.0,
+          "floor_to_floor_m": 2.7,
+          "id": "ground",
+          "level": 0,
+          "name": "Ground"
+         },
+         {
+          "base_elevation_m": 2.7,
+          "floor_to_floor_m": 2.5,
+          "id": "upstairs",
+          "level": 1,
+          "name": "Upstairs"
+         }
+        ],
+        "map_transforms": {
+         "d1ebcbdb20e65113": {
+          "floor_id": "upstairs",
+          "origin_anchored": true,
+          "origin_x_m": 0.0,
+          "origin_y_m": 0.0,
+          "rotation_rad": 0.0,
+          "scale_x_m": 10.0,
+          "scale_y_m": 8.0,
+          "shear_rad": 0.0
+         },
+         "ef444e6807a61e89": {
+          "floor_id": "ground",
+          "origin_anchored": true,
+          "origin_x_m": 0.0,
+          "origin_y_m": 0.0,
+          "rotation_rad": 0.0,
+          "scale_x_m": 10.0,
+          "scale_y_m": 8.0,
+          "shear_rad": 0.0
+         }
+        },
+        "room_adjacency": {
+         "Bedroom": [],
+         "Hall": [],
+         "Kitchen": [],
+         "Living Room": [],
+         "Office": []
+        },
+        "room_geometry_m": {},
+        "room_meta": {
+         "Bedroom": {
+          "color": "#a040a0",
+          "floor_id": "upstairs"
+         },
+         "Hall": {
+          "color": "#808080",
+          "floor_id": "ground"
+         },
+         "Kitchen": {
+          "color": "#d08040",
+          "floor_id": "ground"
+         },
+         "Living Room": {
+          "color": "#4080d0",
+          "floor_id": "ground",
+          "height_m": 4.2
+         },
+         "Office": {
+          "color": "#40a040",
+          "floor_id": "upstairs"
+         }
+        },
+        "scanners": {},
+        "world_gauge": {
+         "m_per_unit": null,
+         "source_map_id": null
+        }
+       },
+       "padspan_ha.movement_history": [
+        {
+         "device": "ble:02:00:00:00:00:04",
+         "from": null,
+         "label": "Example fixed beacon",
+         "padspan_id": "ps_56aeedfb7c9d",
+         "to": "Kitchen",
+         "ts": 1795205065.4662457
+        },
+        {
+         "device": "ble:02:00:00:00:00:03",
+         "from": null,
+         "label": "Example wallet",
+         "padspan_id": "ps_e32014f7dcb9",
+         "to": "Bedroom",
+         "ts": 1795205065.4663987
+        },
+        {
+         "device": "ble:02:00:00:00:00:02",
+         "from": null,
+         "label": "Example phone",
+         "padspan_id": "ps_45f38c8a0011",
+         "to": "Living Room",
+         "ts": 1795205065.4664972
+        },
+        {
+         "device": "ble:02:00:00:00:00:01",
+         "from": null,
+         "label": "Example keys tag",
+         "padspan_id": "ps_8c0453d8206c",
+         "to": "Kitchen",
+         "ts": 1795205065.4665818
+        }
+       ],
+       "padspan_ha.object_history": {},
+       "padspan_ha.objects": {
+        "BLE:02:00:00:00:00:01": {
+         "label": "Example keys (renamed)",
+         "tagged_at": "2026-11-20T20:04:25.470215+00:00"
+        },
+        "BLE:02:00:00:00:00:02": {
+         "label": "Example phone",
+         "tagged_at": "2026-11-20T20:04:25.422602+00:00"
+        },
+        "BLE:02:00:00:00:00:03": {
+         "label": "Example wallet",
+         "tagged_at": "2026-11-20T20:04:25.423851+00:00"
+        },
+        "BLE:02:00:00:00:00:04": {
+         "label": "Example fixed beacon",
+         "tagged_at": "2026-11-20T20:04:25.425172+00:00"
+        },
+        "IBEACON:00000000-0000-4000-8000-000000000001:1:1": {
+         "label": "Example companion",
+         "tagged_at": "2026-11-20T20:04:25.479106+00:00"
+        }
+       },
+       "padspan_ha.settings": {
+        "adaptive_floor_detection": false,
+        "adaptive_learning_enabled": true,
+        "advanced_extra_tabs": [],
+        "aggressive_ble_reseed": false,
+        "ai_credit_month_usd": 0,
+        "ai_credit_warn_pct": 0,
+        "ai_photos_enabled": true,
+        "ai_plan_build_enabled": false,
+        "ai_plans_enabled": false,
+        "ai_stairs_enabled": false,
+        "assumed_device_height_m": 1.0,
+        "atlas_3d_ai_task_backup_entity": "",
+        "atlas_3d_ai_task_entity": "",
+        "atlas_3d_carries": {},
+        "atlas_3d_director": [],
+        "atlas_3d_director_people": [],
+        "atlas_3d_enabled": true,
+        "atlas_3d_home_idle_s": 60,
+        "atlas_3d_library": false,
+        "atlas_3d_look": "atlas",
+        "atlas_3d_people": false,
+        "atlas_3d_quality": "auto",
+        "atlas_3d_showcase": false,
+        "atlas_3d_tags": false,
+        "atlas_3d_weather": true,
+        "atlas_alert_pulse": false,
+        "atlas_default_v1_applied": true,
+        "atlas_emergency_button": true,
+        "atlas_heatmap_enabled": false,
+        "atlas_layout_v2": true,
+        "atlas_live_colours": false,
+        "atlas_weather_condition_entity": "",
+        "atlas_weather_enabled": true,
+        "atlas_weather_rain_entity": "",
+        "atlas_weather_strength": 1.0,
+        "atlas_weather_warning_entity": "",
+        "beacon_auto_calibrate": true,
+        "beacon_group_overrides": {},
+        "beacon_profiling_enabled": true,
+        "beacon_tune_disabled": [],
+        "bermuda_ignore": false,
+        "ble_reseed_interval_s": 30,
+        "calibration_points_seen": 0,
+        "calibration_room_walk": true,
+        "cpu_mode": "shared",
+        "data_mode": "live",
+        "day_theme": false,
+        "distortion_map_enabled": false,
+        "door_composites": [],
+        "door_opener_ids": [],
+        "emergency_entities": [],
+        "enhanced_security": false,
+        "espresense_companion_url": "",
+        "espresense_mqtt_enabled": false,
+        "espresense_room_map": {},
+        "espresense_topic_prefix": "espresense",
+        "excluded_objects": [],
+        "excluded_scanners": [],
+        "fabric_bearing_deg": 0.0,
+        "fabric_origin_lat": null,
+        "fabric_origin_lon": null,
+        "first_seen_ts": 1795205065.1735497,
+        "flood_latches": {},
+        "followed_addrs": [
+         "IBEACON:00000000-0000-4000-8000-000000000001:1:1"
+        ],
+        "forensics_enabled": true,
+        "forensics_license_expires": "",
+        "forensics_license_key": "PSPAN-TEST-TEST-TEST-TEST",
+        "forensics_retention_days": 14,
+        "guest_retention_days": 30,
+        "guest_tags_enabled": true,
+        "ha_entity_area_enabled": true,
+        "ha_entity_distance_enabled": true,
+        "ha_entity_occupancy_enabled": false,
+        "ha_entity_scanner_distance_enabled": true,
+        "ha_entity_tracker_enabled": true,
+        "health_reminder_enabled": false,
+        "health_reminder_last_ts": null,
+        "hidden_map_ids": [],
+        "hold_last_room_s": 0.0,
+        "ingest_rules": [],
+        "iphone_irk_guide": true,
+        "irk_devices": [
+         {
+          "irk_hex": "00112233445566778899aabbccddeeff",
+          "name": "Example iPhone"
+         }
+        ],
+        "kalman_q": 0.125,
+        "kalman_r": 8.0,
+        "license_home_label": "",
+        "license_home_status": "",
+        "license_home_token": "",
+        "license_homes_used": 0,
+        "license_homes_warning": {},
+        "license_is_trial": false,
+        "light_shapes": {},
+        "light_theme": false,
+        "light_type_overrides": {},
+        "lights_automorph_enabled": false,
+        "lights_automorph_hardness": 0,
+        "lights_automorph_room_pct": 0,
+        "lights_automorph_style": "glow",
+        "lights_automorph_subtlety": 0,
+        "lights_fit_rooms": false,
+        "lights_hide_device_codes": false,
+        "lights_hide_untouched": false,
+        "lights_isolux": false,
+        "lights_panel_enabled": true,
+        "lights_show_beacons": false,
+        "lights_showcase": false,
+        "lights_showcase_presets": [],
+        "lights_showcase_seen": false,
+        "lights_showcase_theme": "classic",
+        "locate_self_key": "",
+        "low_memory_mode": false,
+        "maps_iso_floor_gap": 200,
+        "maps_iso_focus": null,
+        "maps_iso_horiz_gap": 0,
+        "maps_seen": 0,
+        "mqtt_publish_enabled": false,
+        "object_history_days": 1,
+        "onboarding": {
+         "first_calib": "lt15m",
+         "live_first": "switched",
+         "setup_ts": 1795205065.1735451
+        },
+        "optimize_for_scale": false,
+        "overview_2d_mode": false,
+        "overview_atlas": false,
+        "overview_iso_floor_gap": 150,
+        "overview_iso_focus": null,
+        "overview_iso_horiz_gap": 0,
+        "overview_iso_zoom": 1.0,
+        "overview_persistent_pins": false,
+        "overview_show_outdoor": false,
+        "overview_show_trails": false,
+        "overview_show_walls": false,
+        "path_loss_exp": 2.5,
+        "positioning_algorithm": "knn",
+        "positioning_pick_better": false,
+        "positioning_sensor_fusion": false,
+        "positioning_unsure": false,
+        "presence_poll_interval_s": 5,
+        "pro_invite": {},
+        "quiet_mode": false,
+        "radio_map_enabled": false,
+        "ref_power": -59.0,
+        "report_locked_key": "",
+        "room_reason_attribute": false,
+        "room_tag_map": {},
+        "roomplan_import_enabled": false,
+        "rssi_capture_enabled": true,
+        "rssi_capture_retention_days": 14,
+        "scanner_min_rssi": {},
+        "scanner_offsets": {
+         "scanner_example_hall": 4.0
+        },
+        "server_offers": {},
+        "subzones_enabled": true,
+        "tags_nfc_identify_enabled": false,
+        "tags_phone_autolink_enabled": false,
+        "tags_room_events_enabled": false,
+        "tasmota_ble_enabled": false,
+        "telemetry_asked": false,
+        "telemetry_enabled": false,
+        "telemetry_install_id": "",
+        "telemetry_last_day": "",
+        "tester_nudge_done": false,
+        "tester_signup": {},
+        "theme_follow_sun": false,
+        "theme_palette": "",
+        "traceback_house_focus": 0,
+        "trial_nudge_done": false,
+        "ui_skin": "2025",
+        "update_check_enabled": true,
+        "vacation_mode_anchors": [],
+        "vacation_mode_bedtime": "",
+        "vacation_mode_dark_offset_min": 0,
+        "vacation_mode_dark_only": false,
+        "vacation_mode_enabled": false,
+        "vacation_mode_enabled_at": 0,
+        "vacation_mode_end_at": 0,
+        "vacation_mode_intensity": 100,
+        "vacation_mode_last_off": {},
+        "vacation_mode_max_lights": 0,
+        "vacation_mode_max_on_min": 0,
+        "vacation_mode_pattern": {},
+        "vacation_mode_pattern_attempt": [
+         0,
+         0
+        ],
+        "vacation_mode_pattern_built_at": 0,
+        "vacation_mode_pattern_end": 0,
+        "vacation_mode_pattern_for": 0,
+        "vacation_mode_pattern_prev": {},
+        "vacation_mode_pattern_prev_source": "",
+        "vacation_mode_pattern_source": "",
+        "vacation_mode_pattern_until": 0,
+        "vacation_mode_pause_home": false,
+        "vacation_mode_periods": [],
+        "vacation_mode_source": "last_week",
+        "vacation_mode_tracked_since": 0,
+        "vacation_mode_trip_source": "",
+        "vacuum_import_enabled": false,
+        "walk_to_identify_enabled": false,
+        "wall_distance_m": 2.5,
+        "wall_floor_cycle_s": 0,
+        "wall_fully": false,
+        "wall_night_dim": 0.0,
+        "wall_pixel_shift": false,
+        "wall_screen_in": 0.0,
+        "wall_text_arcmin": 20.0,
+        "whatsnew_seen_version": "",
+        "whole_house_presets": [],
+        "wled_teams": []
+       },
+       "padspan_ha.traceback": [],
+       "padspan_ha.wled_looks": {
+        "devices": {}
+       }
+      },
+      "version": "0.38.231"
+     }
+    ]
+   },
+   "key": "padspan_ha.backups",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.calibration": {
+   "data": {
+    "model": {},
+    "points": [
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 15,
+      "floor_id": "ground",
+      "id": "cp_005de25c6efa",
+      "label": "Kitchen point",
+      "map_id": "ef444e6807a61e89",
+      "room": "Kitchen",
+      "scanner_readings": [
+       {
+        "mean_rssi": -60.0,
+        "name": "Kitchen receiver",
+        "rssi_samples": [
+         -60.0,
+         -61.0,
+         -59.0,
+         -62.0,
+         -60.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.14
+       },
+       {
+        "mean_rssi": -75.0,
+        "name": "Bedroom receiver",
+        "rssi_samples": [
+         -75.0,
+         -76.0,
+         -74.0,
+         -77.0,
+         -75.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_bedroom",
+        "std_rssi": 1.14
+       }
+      ],
+      "weight": 1.0,
+      "x_frac": 0.2,
+      "x_m": 2.0,
+      "y_frac": 0.3,
+      "y_m": 2.4
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 15,
+      "floor_id": "ground",
+      "id": "cp_ad1b320f0a18",
+      "label": "Living Room point",
+      "map_id": "ef444e6807a61e89",
+      "room": "Living Room",
+      "scanner_readings": [
+       {
+        "mean_rssi": -60.0,
+        "name": "Kitchen receiver",
+        "rssi_samples": [
+         -60.0,
+         -61.0,
+         -59.0,
+         -62.0,
+         -60.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.14
+       },
+       {
+        "mean_rssi": -75.0,
+        "name": "Bedroom receiver",
+        "rssi_samples": [
+         -75.0,
+         -76.0,
+         -74.0,
+         -77.0,
+         -75.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_bedroom",
+        "std_rssi": 1.14
+       }
+      ],
+      "weight": 1.0,
+      "x_frac": 0.7,
+      "x_m": 7.0,
+      "y_frac": 0.3,
+      "y_m": 2.4
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 15,
+      "floor_id": "upstairs",
+      "id": "cp_78678009a412",
+      "label": "Bedroom point",
+      "map_id": "d1ebcbdb20e65113",
+      "room": "Bedroom",
+      "scanner_readings": [
+       {
+        "mean_rssi": -60.0,
+        "name": "Kitchen receiver",
+        "rssi_samples": [
+         -60.0,
+         -61.0,
+         -59.0,
+         -62.0,
+         -60.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.14
+       },
+       {
+        "mean_rssi": -75.0,
+        "name": "Bedroom receiver",
+        "rssi_samples": [
+         -75.0,
+         -76.0,
+         -74.0,
+         -77.0,
+         -75.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_bedroom",
+        "std_rssi": 1.14
+       }
+      ],
+      "weight": 1.0,
+      "x_frac": 0.25,
+      "x_m": 2.5,
+      "y_frac": 0.5,
+      "y_m": 4.0
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 15,
+      "floor_id": "upstairs",
+      "id": "cp_0b97c02ca6bb",
+      "label": "Office point",
+      "map_id": "d1ebcbdb20e65113",
+      "room": "Office",
+      "scanner_readings": [
+       {
+        "mean_rssi": -60.0,
+        "name": "Kitchen receiver",
+        "rssi_samples": [
+         -60.0,
+         -61.0,
+         -59.0,
+         -62.0,
+         -60.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.14
+       },
+       {
+        "mean_rssi": -75.0,
+        "name": "Bedroom receiver",
+        "rssi_samples": [
+         -75.0,
+         -76.0,
+         -74.0,
+         -77.0,
+         -75.0
+        ],
+        "sample_count": 5,
+        "source": "scanner_example_bedroom",
+        "std_rssi": 1.14
+       }
+      ],
+      "weight": 1.0,
+      "x_frac": 0.75,
+      "x_m": 7.5,
+      "y_frac": 0.5,
+      "y_m": 4.0
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 5,
+      "floor_id": "ground",
+      "id": "cp_ffb1b784832c",
+      "label": "[walk] Hall",
+      "map_id": "ef444e6807a61e89",
+      "room": "Hall",
+      "scanner_readings": [
+       {
+        "mean_rssi": -59.0,
+        "name": "scanner_example_hall",
+        "rssi_samples": [
+         -58.0,
+         -59.0,
+         -60.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_hall",
+        "std_rssi": 1.0
+       },
+       {
+        "mean_rssi": -71.0,
+        "name": "scanner_example_kitchen",
+        "rssi_samples": [
+         -70.0,
+         -71.0,
+         -72.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.0
+       }
+      ],
+      "source": "room_walk",
+      "walk_id": "rw_57caedd7",
+      "weight": 1.0,
+      "x_frac": 0.5,
+      "x_m": 5.0,
+      "y_frac": 0.8125,
+      "y_m": 6.5
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 5,
+      "floor_id": "ground",
+      "id": "cp_660667e18cce",
+      "label": "[walk] Hall",
+      "map_id": "ef444e6807a61e89",
+      "room": "Hall",
+      "scanner_readings": [
+       {
+        "mean_rssi": -59.0,
+        "name": "scanner_example_hall",
+        "rssi_samples": [
+         -58.0,
+         -59.0,
+         -60.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_hall",
+        "std_rssi": 1.0
+       },
+       {
+        "mean_rssi": -71.0,
+        "name": "scanner_example_kitchen",
+        "rssi_samples": [
+         -73.0,
+         -70.0,
+         -71.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.53
+       }
+      ],
+      "source": "room_walk",
+      "walk_id": "rw_57caedd7",
+      "weight": 1.0,
+      "x_frac": 0.5,
+      "x_m": 5.0,
+      "y_frac": 0.8125,
+      "y_m": 6.5
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 5,
+      "floor_id": "ground",
+      "id": "cp_ce3b6e0bdf5e",
+      "label": "[walk] Hall",
+      "map_id": "ef444e6807a61e89",
+      "room": "Hall",
+      "scanner_readings": [
+       {
+        "mean_rssi": -58.5,
+        "name": "scanner_example_hall",
+        "rssi_samples": [
+         -58.0,
+         -59.0,
+         -60.0,
+         -58.0
+        ],
+        "sample_count": 4,
+        "source": "scanner_example_hall",
+        "std_rssi": 0.96
+       },
+       {
+        "mean_rssi": -71.5,
+        "name": "scanner_example_kitchen",
+        "rssi_samples": [
+         -72.0,
+         -73.0,
+         -70.0,
+         -71.0
+        ],
+        "sample_count": 4,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.29
+       }
+      ],
+      "source": "room_walk",
+      "walk_id": "rw_57caedd7",
+      "weight": 1.0,
+      "x_frac": 0.5,
+      "x_m": 5.0,
+      "y_frac": 0.8125,
+      "y_m": 6.5
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 5,
+      "floor_id": "ground",
+      "id": "cp_87a8ab5c83b9",
+      "label": "[walk] Hall",
+      "map_id": "ef444e6807a61e89",
+      "room": "Hall",
+      "scanner_readings": [
+       {
+        "mean_rssi": -59.0,
+        "name": "scanner_example_hall",
+        "rssi_samples": [
+         -59.0,
+         -60.0,
+         -58.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_hall",
+        "std_rssi": 1.0
+       },
+       {
+        "mean_rssi": -72.0,
+        "name": "scanner_example_kitchen",
+        "rssi_samples": [
+         -72.0,
+         -73.0,
+         -70.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.53
+       }
+      ],
+      "source": "room_walk",
+      "walk_id": "rw_57caedd7",
+      "weight": 1.0,
+      "x_frac": 0.5,
+      "x_m": 5.0,
+      "y_frac": 0.8125,
+      "y_m": 6.5
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 5,
+      "floor_id": "ground",
+      "id": "cp_bd2b753fca4c",
+      "label": "[walk] Hall",
+      "map_id": "ef444e6807a61e89",
+      "room": "Hall",
+      "scanner_readings": [
+       {
+        "mean_rssi": -59.0,
+        "name": "scanner_example_hall",
+        "rssi_samples": [
+         -59.0,
+         -60.0,
+         -58.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_hall",
+        "std_rssi": 1.0
+       },
+       {
+        "mean_rssi": -72.0,
+        "name": "scanner_example_kitchen",
+        "rssi_samples": [
+         -71.0,
+         -72.0,
+         -73.0
+        ],
+        "sample_count": 3,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.0
+       }
+      ],
+      "source": "room_walk",
+      "walk_id": "rw_57caedd7",
+      "weight": 1.0,
+      "x_frac": 0.5,
+      "x_m": 5.0,
+      "y_frac": 0.8125,
+      "y_m": 6.5
+     },
+     {
+      "collected_at": "2026-11-20T20:04:25+00:00",
+      "device_id": "example_phone",
+      "duration_s": 5,
+      "floor_id": "ground",
+      "id": "cp_8883b8b5e732",
+      "label": "[walk] Hall",
+      "map_id": "ef444e6807a61e89",
+      "room": "Hall",
+      "scanner_readings": [
+       {
+        "mean_rssi": -59.0,
+        "name": "scanner_example_hall",
+        "rssi_samples": [
+         -59.0,
+         -60.0,
+         -58.0,
+         -59.0
+        ],
+        "sample_count": 4,
+        "source": "scanner_example_hall",
+        "std_rssi": 0.82
+       },
+       {
+        "mean_rssi": -71.5,
+        "name": "scanner_example_kitchen",
+        "rssi_samples": [
+         -70.0,
+         -71.0,
+         -72.0,
+         -73.0
+        ],
+        "sample_count": 4,
+        "source": "scanner_example_kitchen",
+        "std_rssi": 1.29
+       }
+      ],
+      "source": "room_walk",
+      "walk_id": "rw_57caedd7",
+      "weight": 1.0,
+      "x_frac": 0.5,
+      "x_m": 5.0,
+      "y_frac": 0.8125,
+      "y_m": 6.5
+     }
+    ],
+    "room_walk": {
+     "after": {
+      "knn": {
+       "rooms_right_pc": 0
+      }
+     },
+     "before": {
+      "knn": {
+       "rooms_right_pc": null
+      }
+     },
+     "walk_id": "rw_57caedd7"
+    }
+   },
+   "key": "padspan_ha.calibration",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.capture": {
+   "data": {
+    "sessions": [
+     {
+      "bytes": 1831,
+      "dm": "live",
+      "frames": 0,
+      "id": "20261120-120425",
+      "keys": [],
+      "label": "Example capture",
+      "names": {},
+      "objects": 0,
+      "open": false,
+      "stop_reason": "manual",
+      "t0": 1795205065.5,
+      "t1": 1795205065.5,
+      "truncated": 0,
+      "ver": "0.38.231"
+     }
+    ]
+   },
+   "key": "padspan_ha.capture",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.devices": {
+   "data": {
+    "devices": {
+     "ps_45f38c8a0011": {
+      "created_at": "2026-11-20T20:04:25+00:00",
+      "device_type": "unknown",
+      "identities": [
+       {
+        "kind": "mac",
+        "value": "ble:02:00:00:00:00:02"
+       }
+      ],
+      "label": "Example phone",
+      "labeled_at": "2026-11-20T20:04:25+00:00",
+      "merged_from": [],
+      "meta": {},
+      "padspan_id": "ps_45f38c8a0011"
+     },
+     "ps_56aeedfb7c9d": {
+      "created_at": "2026-11-20T20:04:25+00:00",
+      "device_type": "unknown",
+      "identities": [
+       {
+        "kind": "mac",
+        "value": "ble:02:00:00:00:00:04"
+       }
+      ],
+      "label": "Example fixed beacon",
+      "labeled_at": "2026-11-20T20:04:25+00:00",
+      "merged_from": [],
+      "meta": {},
+      "padspan_id": "ps_56aeedfb7c9d"
+     },
+     "ps_6454e3cb7fbe": {
+      "created_at": "2026-11-20T20:04:25+00:00",
+      "device_type": "unknown",
+      "identities": [
+       {
+        "kind": "mac",
+        "value": "ibeacon:00000000-0000-4000-8000-000000000001:1:1"
+       }
+      ],
+      "label": "Example iBeacon",
+      "labeled_at": "2026-11-20T20:04:25+00:00",
+      "merged_from": [],
+      "meta": {},
+      "padspan_id": "ps_6454e3cb7fbe"
+     },
+     "ps_8c0453d8206c": {
+      "created_at": "2026-11-20T20:04:25+00:00",
+      "device_type": "unknown",
+      "identities": [
+       {
+        "kind": "mac",
+        "value": "ble:02:00:00:00:00:01"
+       },
+       {
+        "kind": "mac",
+        "value": "02:00:00:00:00:05"
+       }
+      ],
+      "label": "Example keys (renamed)",
+      "labeled_at": "2026-11-20T20:04:25+00:00",
+      "merged_from": [],
+      "meta": {},
+      "padspan_id": "ps_8c0453d8206c"
+     },
+     "ps_e32014f7dcb9": {
+      "created_at": "2026-11-20T20:04:25+00:00",
+      "device_type": "unknown",
+      "identities": [
+       {
+        "kind": "mac",
+        "value": "ble:02:00:00:00:00:03"
+       }
+      ],
+      "label": "Example wallet",
+      "labeled_at": "2026-11-20T20:04:25+00:00",
+      "merged_from": [],
+      "meta": {},
+      "padspan_id": "ps_e32014f7dcb9"
+     }
+    },
+    "version": 1
+   },
+   "key": "padspan_ha.devices",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.fabric": {
+   "data": {
+    "beacon_heights_m": {
+     "02:00:00:00:00:04": 1.2
+    },
+    "beacon_positions_m": {
+     "02:00:00:00:00:04": {
+      "floor_id": "ground",
+      "kind": "fixed",
+      "label": "Fixed beacon",
+      "map_id": null,
+      "room": "Kitchen",
+      "x_m": 4.0,
+      "y_m": 4.0
+     }
+    },
+    "floors": {
+     "ground": {
+      "committed": false,
+      "committed_at": null,
+      "frame_offset_m": {
+       "dx_m": 0.0,
+       "dy_m": 0.0,
+       "rotation_rad": 0.0
+      },
+      "rooms": {
+       "Hall": {
+        "committed_at": "2026-11-20T20:04:25.375500+00:00",
+        "committed_by": "correction",
+        "floor_id": "ground",
+        "points_m": [
+         [
+          3.5,
+          5.0
+         ],
+         [
+          6.5,
+          5.0
+         ],
+         [
+          6.5,
+          8.0
+         ],
+         [
+          3.5,
+          8.0
+         ]
+        ],
+        "revision": 1,
+        "source_image": null,
+        "source_map_id": null,
+        "source_transform": null,
+        "type": "poly"
+       },
+       "Kitchen": {
+        "committed_at": "2026-11-20T20:04:25.368923+00:00",
+        "committed_by": "correction",
+        "floor_id": "ground",
+        "points_m": [
+         [
+          0.0,
+          0.0
+         ],
+         [
+          4.5,
+          0.0
+         ],
+         [
+          4.5,
+          4.8
+         ],
+         [
+          0.0,
+          4.8
+         ]
+        ],
+        "revision": 1,
+        "source_image": null,
+        "source_map_id": null,
+        "source_transform": null,
+        "type": "poly"
+       },
+       "Living Room": {
+        "committed_at": "2026-11-20T20:04:25.372163+00:00",
+        "committed_by": "correction",
+        "floor_id": "ground",
+        "points_m": [
+         [
+          4.5,
+          0.0
+         ],
+         [
+          10.0,
+          0.0
+         ],
+         [
+          10.0,
+          4.8
+         ],
+         [
+          4.5,
+          4.8
+         ]
+        ],
+        "revision": 1,
+        "source_image": null,
+        "source_map_id": null,
+        "source_transform": null,
+        "type": "poly"
+       }
+      }
+     },
+     "upstairs": {
+      "committed": false,
+      "committed_at": null,
+      "frame_offset_m": {
+       "dx_m": 0.0,
+       "dy_m": 0.0,
+       "rotation_rad": 0.0
+      },
+      "rooms": {
+       "Bedroom": {
+        "committed_at": "2026-11-20T20:04:25.378776+00:00",
+        "committed_by": "correction",
+        "floor_id": "upstairs",
+        "points_m": [
+         [
+          0.0,
+          0.0
+         ],
+         [
+          5.0,
+          0.0
+         ],
+         [
+          5.0,
+          8.0
+         ],
+         [
+          0.0,
+          8.0
+         ]
+        ],
+        "revision": 1,
+        "source_image": null,
+        "source_map_id": null,
+        "source_transform": null,
+        "type": "poly"
+       },
+       "Office": {
+        "committed_at": "2026-11-20T20:04:25.382017+00:00",
+        "committed_by": "correction",
+        "floor_id": "upstairs",
+        "points_m": [
+         [
+          5.0,
+          0.0
+         ],
+         [
+          10.0,
+          0.0
+         ],
+         [
+          10.0,
+          8.0
+         ],
+         [
+          5.0,
+          8.0
+         ]
+        ],
+        "revision": 1,
+        "source_image": null,
+        "source_map_id": null,
+        "source_transform": null,
+        "type": "poly"
+       }
+      }
+     }
+    },
+    "history": [
+     {
+      "floor_id": "ground",
+      "op": "correction",
+      "revision": 1,
+      "room": "Kitchen",
+      "ts": "2026-11-20T20:04:25.368932+00:00"
+     },
+     {
+      "floor_id": "ground",
+      "op": "correction",
+      "revision": 1,
+      "room": "Living Room",
+      "ts": "2026-11-20T20:04:25.372170+00:00"
+     },
+     {
+      "floor_id": "ground",
+      "op": "correction",
+      "revision": 1,
+      "room": "Hall",
+      "ts": "2026-11-20T20:04:25.375505+00:00"
+     },
+     {
+      "floor_id": "upstairs",
+      "op": "correction",
+      "revision": 1,
+      "room": "Bedroom",
+      "ts": "2026-11-20T20:04:25.378781+00:00"
+     },
+     {
+      "floor_id": "upstairs",
+      "op": "correction",
+      "revision": 1,
+      "room": "Office",
+      "ts": "2026-11-20T20:04:25.382023+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "scanner_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.385186+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "scanner_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.386750+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "scanner_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.388305+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "scanner_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.389850+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "scanner_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.391433+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "scanner_z_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.393081+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "beacon_set",
+      "revision": 2,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.397143+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "light_set",
+      "revision": 2,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.399141+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "light_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.401625+00:00"
+     },
+     {
+      "floor_id": "",
+      "op": "barrier_set",
+      "revision": 1,
+      "room": "",
+      "ts": "2026-11-20T20:04:25.403334+00:00"
+     }
+    ],
+    "legacy_drift": false,
+    "legacy_fingerprint": "89f596c85e6bb27ca0e55611426cbcde",
+    "light_heights_m": {
+     "light.kitchen_ceiling": 2.6
+    },
+    "light_positions_m": {
+     "light.bedroom_strip": {
+      "color": "#fbbf24",
+      "floor_id": "upstairs",
+      "rotation": 0.0,
+      "shape": "hex",
+      "x_m": 1.0,
+      "y_m": 1.0
+     },
+     "light.kitchen_ceiling": {
+      "color": "#ffcc88",
+      "floor_id": "ground",
+      "label": "Ceiling",
+      "rotation": 0.0,
+      "shape": "circle",
+      "x_m": 2.2,
+      "y_m": 2.4
+     }
+    },
+    "migrations_done": [
+     "autocal_hygiene",
+     "barrier_ids",
+     "cal_point_floors",
+     "unreadable_placements"
+    ],
+    "rf_barriers_m": [
+     {
+      "floor_id": "ground",
+      "id": "bar_d090316a",
+      "invert_state": false,
+      "material": "brick",
+      "name": "Kitchen wall",
+      "points_m": [
+       [
+        4.5,
+        0.0
+       ],
+       [
+        4.5,
+        4.8
+       ]
+      ]
+     }
+    ],
+    "scanner_positions_m": {
+     "scanner_example_bedroom": {
+      "floor_id": "upstairs",
+      "map_id": null,
+      "x_m": 3.0,
+      "y_m": 2.4,
+      "z_m": 2.4
+     },
+     "scanner_example_hall": {
+      "floor_id": "ground",
+      "map_id": null,
+      "x_m": 5.0,
+      "y_m": 6.4,
+      "z_m": 2.4
+     },
+     "scanner_example_kitchen": {
+      "floor_id": "ground",
+      "map_id": null,
+      "x_m": 2.0,
+      "y_m": 2.4,
+      "z_m": 1.8
+     },
+     "scanner_example_living": {
+      "floor_id": "ground",
+      "map_id": null,
+      "x_m": 7.0,
+      "y_m": 3.2,
+      "z_m": 2.4
+     },
+     "scanner_example_office": {
+      "floor_id": "upstairs",
+      "map_id": null,
+      "x_m": 8.0,
+      "y_m": 4.8,
+      "z_m": 2.4
+     }
+    }
+   },
+   "key": "padspan_ha.fabric",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.follow_alerts": {
+   "data": {
+    "02:00:00:00:00:01": {
+     "enabled": true,
+     "lost_after_m": 30,
+     "notify_on_enter": [
+      "Kitchen"
+     ],
+     "notify_on_leave": [
+      "Hall"
+     ],
+     "notify_target": "notify.example",
+     "padspan_id": "ps_8c0453d8206c"
+    },
+    "02:00:00:00:00:02": {
+     "away_minutes": 15,
+     "enabled": false,
+     "padspan_id": "ps_45f38c8a0011"
+    }
+   },
+   "key": "padspan_ha.follow_alerts",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.guests": {
+   "data": {
+    "sessions": {
+     "gs_789c232c": {
+      "end_how": null,
+      "end_planned": null,
+      "ended": null,
+      "id": "gs_789c232c",
+      "live": {
+       "present": true,
+       "room": "Bedroom",
+       "room_since": 1795205066.03827,
+       "tick": 1795205066.0610037
+      },
+      "name": "Example guest",
+      "opts": {
+       "counts_home": true,
+       "notify_arrive": true,
+       "notify_leave": false,
+       "notify_target": "",
+       "off_limits": [
+        "Office"
+       ],
+       "quiet": ""
+      },
+      "pid": "ps_e32014f7dcb9",
+      "start": 1795205065.484261,
+      "summary": {
+       "arrivals": 0,
+       "departures": 0,
+       "first_in": 1795205065.977885,
+       "last_out": null,
+       "last_seen": 1795205066.0610037,
+       "notices": 0,
+       "off_limits": [],
+       "rooms": {
+        "Bedroom": 0.0
+       }
+      }
+     }
+    },
+    "tags": {
+     "ps_e32014f7dcb9": {
+      "key": "ble:02:00:00:00:00:03",
+      "keys": [
+       "02:00:00:00:00:03",
+       "ble:02:00:00:00:00:03"
+      ],
+      "kind": "ble",
+      "label": "Example wallet",
+      "marked_at": 1795205065.4816918,
+      "pid": "ps_e32014f7dcb9"
+     }
+    }
+   },
+   "key": "padspan_ha.guests",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.house3d": {
+   "data": {
+    "devices": {},
+    "figures": {},
+    "library": {},
+    "lights": {
+     "light.living_lamp": {
+      "kind": "lamp",
+      "z_m": 1.5
+     }
+    },
+    "openings": {
+     "door_0000000a": {
+      "a_m": [
+       4.0,
+       4.8
+      ],
+      "b_m": [
+       4.9,
+       4.8
+      ],
+      "floor_id": "ground",
+      "head_m": 2.1,
+      "hinge": "left",
+      "kind": "door",
+      "swing": "in"
+     },
+     "win_0000000b": {
+      "a_m": [
+       0.0,
+       1.0
+      ],
+      "b_m": [
+       0.0,
+       2.2
+      ],
+      "floor_id": "ground",
+      "head_m": 2.0,
+      "kind": "window",
+      "sill_m": 0.9
+     }
+    },
+    "pieces": {
+     "fur_0000000c": {
+      "entity_id": null,
+      "entity_reg_id": null,
+      "floor_id": "ground",
+      "id": "fur_0000000c",
+      "label": "Example sofa",
+      "library_id": null,
+      "origin": "build",
+      "recipe": {
+       "colors": [
+        "#5b6b7a"
+       ],
+       "depth_m": 0.9,
+       "height_m": 0.8,
+       "kind": "sofa",
+       "params": {},
+       "width_m": 2.0
+      },
+      "rotation": 90.0,
+      "submission_id": null,
+      "updated_at": "2026-11-20T20:04:25+00:00",
+      "x_m": 7.0,
+      "y_m": 1.5,
+      "z_m": 0.0
+     }
+    },
+    "rails_chosen": true,
+    "schema": 1
+   },
+   "key": "padspan_ha.house3d",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.maps": {
+   "data": {
+    "maps": [
+     {
+      "beacons": [
+       {
+        "id": "bk_fixed1",
+        "key": "02:00:00:00:00:04",
+        "kind": "fixed",
+        "label": "Fixed beacon",
+        "x": 0.4,
+        "y": 0.5
+       }
+      ],
+      "calibration": {
+       "mode": "two_point",
+       "px_per_meter": 0.1,
+       "reference_points": [
+        {
+         "x": 0.0,
+         "y": 0.0
+        },
+        {
+         "d_m": 10.0,
+         "x": 1.0,
+         "y": 0.0
+        }
+       ]
+      },
+      "created": "2026-11-20T20:04:25+00:00",
+      "floor_id": "ground",
+      "id": "ef444e6807a61e89",
+      "image": {
+       "filename": "ef444e6807a61e89.png",
+       "height": 1,
+       "mime": "image/png",
+       "original_filename": "ground.png",
+       "original_mime": "image/png",
+       "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+       "size_bytes": 70,
+       "width": 1
+      },
+      "name": "Ground plan",
+      "notes": "Example ground floor",
+      "receivers": [
+       {
+        "id": "rx_kitchen",
+        "label": "Kitchen receiver",
+        "room": "Kitchen",
+        "source": "scanner_example_kitchen",
+        "x": 0.2,
+        "y": 0.3
+       },
+       {
+        "id": "rx_living",
+        "label": "Living receiver",
+        "room": "Living Room",
+        "source": "scanner_example_living",
+        "x": 0.7,
+        "y": 0.4
+       },
+       {
+        "id": "rx_hall",
+        "label": "Hall receiver",
+        "room": "Hall",
+        "source": "scanner_example_hall",
+        "x": 0.5,
+        "y": 0.8
+       }
+      ],
+      "room_bounds": {
+       "Hall": {
+        "cx": 0.5,
+        "cy": 0.8,
+        "r": 0.15,
+        "type": "circle"
+       },
+       "Kitchen": {
+        "points": [
+         [
+          0.0,
+          0.0
+         ],
+         [
+          0.45,
+          0.0
+         ],
+         [
+          0.45,
+          0.6
+         ],
+         [
+          0.0,
+          0.6
+         ]
+        ],
+        "type": "poly"
+       },
+       "Living Room": {
+        "points": [
+         [
+          0.45,
+          0.0
+         ],
+         [
+          1.0,
+          0.0
+         ],
+         [
+          1.0,
+          0.6
+         ],
+         [
+          0.45,
+          0.6
+         ]
+        ],
+        "type": "poly"
+       }
+      },
+      "stack": {
+       "ceiling_height_m": 2.4,
+       "z_level": 0
+      },
+      "updated": "2026-11-20T20:04:25+00:00"
+     },
+     {
+      "beacons": [],
+      "calibration": {
+       "mode": "none",
+       "px_per_meter": null,
+       "reference_points": []
+      },
+      "created": "2026-11-20T20:04:25+00:00",
+      "floor_id": "upstairs",
+      "id": "d1ebcbdb20e65113",
+      "image": {
+       "filename": "d1ebcbdb20e65113.png",
+       "height": 1,
+       "mime": "image/png",
+       "original_filename": "upstairs.png",
+       "original_mime": "image/png",
+       "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+       "size_bytes": 70,
+       "width": 1
+      },
+      "name": "Upstairs plan",
+      "notes": "",
+      "receivers": [
+       {
+        "id": "rx_bed",
+        "label": "Bedroom receiver",
+        "room": "Bedroom",
+        "source": "scanner_example_bedroom",
+        "x": 0.3,
+        "y": 0.3
+       },
+       {
+        "id": "rx_office",
+        "label": "Office receiver",
+        "room": "Office",
+        "source": "scanner_example_office",
+        "x": 0.8,
+        "y": 0.6
+       }
+      ],
+      "room_bounds": {
+       "Bedroom": {
+        "points": [
+         [
+          0.0,
+          0.0
+         ],
+         [
+          0.5,
+          0.0
+         ],
+         [
+          0.5,
+          1.0
+         ],
+         [
+          0.0,
+          1.0
+         ]
+        ],
+        "type": "poly"
+       },
+       "Office": {
+        "points": [
+         [
+          0.5,
+          0.0
+         ],
+         [
+          1.0,
+          0.0
+         ],
+         [
+          1.0,
+          1.0
+         ],
+         [
+          0.5,
+          1.0
+         ]
+        ],
+        "type": "poly"
+       }
+      },
+      "stack": {
+       "ceiling_height_m": 2.4,
+       "z_level": 0
+      },
+      "updated": "2026-11-20T20:04:25+00:00"
+     }
+    ]
+   },
+   "key": "padspan_ha.maps",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.model": {
+   "data": {
+    "fabric_sync_mode": "auto",
+    "floors": [
+     {
+      "base_elevation_m": 0.0,
+      "floor_to_floor_m": 2.7,
+      "id": "ground",
+      "level": 0,
+      "name": "Ground"
+     },
+     {
+      "base_elevation_m": 2.7,
+      "floor_to_floor_m": 2.5,
+      "id": "upstairs",
+      "level": 1,
+      "name": "Upstairs"
+     }
+    ],
+    "map_transforms": {
+     "d1ebcbdb20e65113": {
+      "floor_id": "upstairs",
+      "origin_anchored": true,
+      "origin_x_m": 0.0,
+      "origin_y_m": 0.0,
+      "rotation_rad": 0.0,
+      "scale_x_m": 10.0,
+      "scale_y_m": 8.0,
+      "shear_rad": 0.0
+     },
+     "ef444e6807a61e89": {
+      "floor_id": "ground",
+      "origin_anchored": true,
+      "origin_x_m": 0.0,
+      "origin_y_m": 0.0,
+      "rotation_rad": 0.0,
+      "scale_x_m": 10.0,
+      "scale_y_m": 8.0,
+      "shear_rad": 0.0
+     }
+    },
+    "room_adjacency": {
+     "Bedroom": [],
+     "Hall": [],
+     "Kitchen": [],
+     "Living Room": [],
+     "Office": []
+    },
+    "room_geometry_m": {},
+    "room_meta": {
+     "Bedroom": {
+      "color": "#a040a0",
+      "floor_id": "upstairs"
+     },
+     "Hall": {
+      "color": "#808080",
+      "floor_id": "ground"
+     },
+     "Kitchen": {
+      "color": "#d08040",
+      "floor_id": "ground"
+     },
+     "Living Room": {
+      "color": "#4080d0",
+      "floor_id": "ground",
+      "height_m": 4.2
+     },
+     "Office": {
+      "color": "#40a040",
+      "floor_id": "upstairs"
+     }
+    },
+    "scanners": {},
+    "world_gauge": {
+     "m_per_unit": null,
+     "source_map_id": null
+    }
+   },
+   "key": "padspan_ha.model",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.movement_history": {
+   "data": [
+    {
+     "device": "ble:02:00:00:00:00:04",
+     "from": null,
+     "label": "Example fixed beacon",
+     "padspan_id": "ps_56aeedfb7c9d",
+     "to": "Kitchen",
+     "ts": 1795205065.4662457
+    },
+    {
+     "device": "ble:02:00:00:00:00:03",
+     "from": null,
+     "label": "Example wallet",
+     "padspan_id": "ps_e32014f7dcb9",
+     "to": "Bedroom",
+     "ts": 1795205065.4663987
+    },
+    {
+     "device": "ble:02:00:00:00:00:02",
+     "from": null,
+     "label": "Example phone",
+     "padspan_id": "ps_45f38c8a0011",
+     "to": "Living Room",
+     "ts": 1795205065.4664972
+    },
+    {
+     "device": "ble:02:00:00:00:00:01",
+     "from": null,
+     "label": "Example keys tag",
+     "padspan_id": "ps_8c0453d8206c",
+     "to": "Kitchen",
+     "ts": 1795205065.4665818
+    },
+    {
+     "device": "ibeacon:00000000-0000-4000-8000-000000000001:1:1",
+     "from": null,
+     "label": "Example iBeacon",
+     "padspan_id": "ps_6454e3cb7fbe",
+     "to": "Hall",
+     "ts": 1795205065.978143
+    },
+    {
+     "device": "ble:02:00:00:00:00:04",
+     "from": null,
+     "label": "Example fixed beacon",
+     "padspan_id": "ps_56aeedfb7c9d",
+     "to": "Kitchen",
+     "ts": 1795205066.0383706
+    },
+    {
+     "device": "ble:02:00:00:00:00:03",
+     "from": null,
+     "label": "Example wallet",
+     "padspan_id": "ps_e32014f7dcb9",
+     "to": "Bedroom",
+     "ts": 1795205066.0385628
+    },
+    {
+     "device": "ble:02:00:00:00:00:02",
+     "from": null,
+     "label": "Example phone",
+     "padspan_id": "ps_45f38c8a0011",
+     "to": "Living Room",
+     "ts": 1795205066.0387049
+    },
+    {
+     "device": "ble:02:00:00:00:00:01",
+     "from": null,
+     "label": "Example keys (renamed)",
+     "padspan_id": "ps_8c0453d8206c",
+     "to": "Kitchen",
+     "ts": 1795205066.038867
+    },
+    {
+     "device": "ibeacon:00000000-0000-4000-8000-000000000001:1:1",
+     "from": null,
+     "label": "Example iBeacon",
+     "padspan_id": "ps_6454e3cb7fbe",
+     "to": "Hall",
+     "ts": 1795205066.0389915
+    }
+   ],
+   "key": "padspan_ha.movement_history",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.object_history": {
+   "data": {
+    "ble:02:00:00:00:00:01": {
+     "_cache_age_s": 0.00026,
+     "_first_seen": 1795205065.343532,
+     "_last_seen_ts": 1795205065.9837358,
+     "address": "02:00:00:00:00:01",
+     "age_s": 0.00026,
+     "broadcast_name": "Example tag",
+     "company_name": null,
+     "connectable": false,
+     "device": {
+      "device_id": "7e38b3b83ddb83d92370ec80f6ff841c",
+      "manufacturer": "PadSpan HA",
+      "model": "BLE Presence Tracker",
+      "name": "Example keys tag"
+     },
+     "device_type": null,
+     "identified": true,
+     "key": "ble:02:00:00:00:00:01",
+     "kind": "ble",
+     "last_seen": "2026-11-20T20:04:25.982515+00:00",
+     "linked_entities": [],
+     "manufacturer_data": {},
+     "name": "Example tag",
+     "prefix": "02:00:00",
+     "prefix_count": 5,
+     "rssi": -55.5,
+     "service_data": {},
+     "service_names": [],
+     "service_uuid_map": {},
+     "service_uuids": [],
+     "sources": [
+      {
+       "age_s": 0.000264,
+       "rssi": -88.5,
+       "source": "scanner_example_bedroom"
+      },
+      {
+       "age_s": 0.000267,
+       "rssi": -72.5,
+       "source": "scanner_example_hall"
+      },
+      {
+       "age_s": 0.000276,
+       "rssi": -55.5,
+       "source": "scanner_example_kitchen"
+      },
+      {
+       "age_s": 0.000272,
+       "rssi": -70.5,
+       "source": "scanner_example_living"
+      },
+      {
+       "age_s": 0.00026,
+       "rssi": -90.5,
+       "source": "scanner_example_office"
+      }
+     ],
+     "user_label": "Example keys (renamed)"
+    },
+    "ble:02:00:00:00:00:02": {
+     "_cache_age_s": 0.000239,
+     "_first_seen": 1795205065.343532,
+     "_last_seen_ts": 1795205065.9837358,
+     "address": "02:00:00:00:00:02",
+     "age_s": 0.000239,
+     "broadcast_name": "Example phone",
+     "company_name": null,
+     "connectable": false,
+     "device": {
+      "device_id": "53cba5a5f0dd237741a08e154a078ac7",
+      "manufacturer": "PadSpan HA",
+      "model": "BLE Presence Tracker",
+      "name": "Example phone"
+     },
+     "device_type": null,
+     "identified": true,
+     "key": "ble:02:00:00:00:00:02",
+     "kind": "ble",
+     "last_seen": "2026-11-20T20:04:25.982536+00:00",
+     "linked_entities": [],
+     "manufacturer_data": {},
+     "name": "Example phone",
+     "prefix": "02:00:00",
+     "prefix_count": 5,
+     "rssi": -62.5,
+     "service_data": {},
+     "service_names": [],
+     "service_uuid_map": {},
+     "service_uuids": [],
+     "sources": [
+      {
+       "age_s": 0.000243,
+       "rssi": -85.5,
+       "source": "scanner_example_bedroom"
+      },
+      {
+       "age_s": 0.000247,
+       "rssi": -70.5,
+       "source": "scanner_example_hall"
+      },
+      {
+       "age_s": 0.000255,
+       "rssi": -80.5,
+       "source": "scanner_example_kitchen"
+      },
+      {
+       "age_s": 0.000251,
+       "rssi": -62.5,
+       "source": "scanner_example_living"
+      },
+      {
+       "age_s": 0.000239,
+       "rssi": -88.5,
+       "source": "scanner_example_office"
+      }
+     ],
+     "user_label": "Example phone"
+    },
+    "ble:02:00:00:00:00:03": {
+     "_cache_age_s": 0.000219,
+     "_first_seen": 1795205065.343532,
+     "_last_seen_ts": 1795205065.9837358,
+     "address": "02:00:00:00:00:03",
+     "age_s": 0.000219,
+     "broadcast_name": "Example wallet",
+     "company_name": null,
+     "connectable": false,
+     "device": {
+      "device_id": "9e15ca9331a48ec5e295ff3ad3d76073",
+      "manufacturer": "PadSpan HA",
+      "model": "BLE Presence Tracker",
+      "name": "Example wallet"
+     },
+     "device_type": null,
+     "identified": true,
+     "key": "ble:02:00:00:00:00:03",
+     "kind": "ble",
+     "last_seen": "2026-11-20T20:04:25.982556+00:00",
+     "linked_entities": [],
+     "manufacturer_data": {},
+     "name": "Example wallet",
+     "prefix": "02:00:00",
+     "prefix_count": 5,
+     "rssi": -58.5,
+     "service_data": {},
+     "service_names": [],
+     "service_uuid_map": {},
+     "service_uuids": [],
+     "sources": [
+      {
+       "age_s": 0.000223,
+       "rssi": -58.5,
+       "source": "scanner_example_bedroom"
+      },
+      {
+       "age_s": 0.000227,
+       "rssi": -78.5,
+       "source": "scanner_example_hall"
+      },
+      {
+       "age_s": 0.000235,
+       "rssi": -86.5,
+       "source": "scanner_example_kitchen"
+      },
+      {
+       "age_s": 0.000231,
+       "rssi": -84.5,
+       "source": "scanner_example_living"
+      },
+      {
+       "age_s": 0.000219,
+       "rssi": -74.5,
+       "source": "scanner_example_office"
+      }
+     ],
+     "user_label": "Example wallet"
+    },
+    "ble:02:00:00:00:00:04": {
+     "_cache_age_s": 0.000198,
+     "_first_seen": 1795205065.343532,
+     "_last_seen_ts": 1795205065.9837358,
+     "address": "02:00:00:00:00:04",
+     "age_s": 0.000198,
+     "broadcast_name": "Example beacon",
+     "company_name": null,
+     "connectable": false,
+     "device": {
+      "device_id": "41ffa167c29e977d4ad871a3ba764c91",
+      "manufacturer": "PadSpan HA",
+      "model": "BLE Presence Tracker",
+      "name": "Example fixed beacon"
+     },
+     "device_type": null,
+     "identified": true,
+     "key": "ble:02:00:00:00:00:04",
+     "kind": "ble",
+     "last_seen": "2026-11-20T20:04:25.982577+00:00",
+     "linked_entities": [],
+     "manufacturer_data": {},
+     "name": "Example beacon",
+     "prefix": "02:00:00",
+     "prefix_count": 5,
+     "rssi": -60.5,
+     "service_data": {},
+     "service_names": [],
+     "service_uuid_map": {},
+     "service_uuids": [],
+     "sources": [
+      {
+       "age_s": 0.000202,
+       "rssi": -84.5,
+       "source": "scanner_example_bedroom"
+      },
+      {
+       "age_s": 0.000206,
+       "rssi": -75.5,
+       "source": "scanner_example_hall"
+      },
+      {
+       "age_s": 0.000214,
+       "rssi": -60.5,
+       "source": "scanner_example_kitchen"
+      },
+      {
+       "age_s": 0.00021,
+       "rssi": -66.5,
+       "source": "scanner_example_living"
+      },
+      {
+       "age_s": 0.000198,
+       "rssi": -86.5,
+       "source": "scanner_example_office"
+      }
+     ],
+     "user_label": "Example fixed beacon"
+    },
+    "ibeacon:00000000-0000-4000-8000-000000000001:1:1": {
+     "_cache_age_s": 0.000158,
+     "_first_seen": 1795205065.343532,
+     "_last_seen_ts": 1795205065.9837358,
+     "address": "ibeacon:00000000-0000-4000-8000-000000000001:1:1",
+     "age_s": 0.000158,
+     "all_addresses": [
+      "02:00:00:00:00:06"
+     ],
+     "ble_name": null,
+     "company_name": null,
+     "connectable": false,
+     "device": null,
+     "device_type": "iBeacon",
+     "ibeacon_major": 1,
+     "ibeacon_minor": 1,
+     "ibeacon_uuid": "00000000-0000-4000-8000-000000000001",
+     "identified": true,
+     "key": "ibeacon:00000000-0000-4000-8000-000000000001:1:1",
+     "kind": "ibeacon",
+     "linked_entities": [],
+     "manufacturer_data": {
+      "76": "0x02 0x15 0x00 0x00 0x00 0x00 0x00 0x00 0x40 0x00 0x80 0x00 0x00 0x00 0x00 0x00 0x00 0x01 0x00 0x01 0x00 0x01 0xC5"
+     },
+     "name": "Example companion",
+     "rssi": -60.5,
+     "service_data": {},
+     "service_names": [],
+     "service_uuid_map": {},
+     "service_uuids": [],
+     "sources": [
+      {
+       "age_s": 0.000166,
+       "rssi": -82.5,
+       "source": "scanner_example_bedroom"
+      },
+      {
+       "age_s": 0.000175,
+       "rssi": -60.5,
+       "source": "scanner_example_hall"
+      },
+      {
+       "age_s": 0.000194,
+       "rssi": -75.5,
+       "source": "scanner_example_kitchen"
+      },
+      {
+       "age_s": 0.000184,
+       "rssi": -80.5,
+       "source": "scanner_example_living"
+      },
+      {
+       "age_s": 0.000158,
+       "rssi": -86.5,
+       "source": "scanner_example_office"
+      }
+     ],
+     "tx_power": -59,
+     "user_label": "Example companion"
+    }
+   },
+   "key": "padspan_ha.object_history",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.objects": {
+   "data": {
+    "02:00:00:00:00:01": {
+     "label": "Example tag",
+     "tagged_at": "2026-11-20T20:04:25.684443+00:00"
+    },
+    "02:00:00:00:00:02": {
+     "label": "Example phone",
+     "tagged_at": "2026-11-20T20:04:25.684247+00:00"
+    },
+    "BLE:02:00:00:00:00:01": {
+     "label": "Example keys (renamed)",
+     "tagged_at": "2026-11-20T20:04:25.470215+00:00"
+    },
+    "BLE:02:00:00:00:00:02": {
+     "label": "Example phone",
+     "tagged_at": "2026-11-20T20:04:25.422602+00:00"
+    },
+    "BLE:02:00:00:00:00:03": {
+     "label": "Example wallet",
+     "tagged_at": "2026-11-20T20:04:25.423851+00:00"
+    },
+    "BLE:02:00:00:00:00:04": {
+     "label": "Example fixed beacon",
+     "tagged_at": "2026-11-20T20:04:25.425172+00:00"
+    },
+    "IBEACON:00000000-0000-4000-8000-000000000001:1:1": {
+     "label": "Example companion",
+     "tagged_at": "2026-11-20T20:04:25.479106+00:00"
+    }
+   },
+   "key": "padspan_ha.objects",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.settings": {
+   "data": {
+    "adaptive_floor_detection": true,
+    "adaptive_learning_enabled": true,
+    "advanced_extra_tabs": [],
+    "aggressive_ble_reseed": true,
+    "ai_credit_month_usd": 1.0,
+    "ai_credit_warn_pct": 0,
+    "ai_photos_enabled": false,
+    "ai_plan_build_enabled": true,
+    "ai_plans_enabled": true,
+    "ai_stairs_enabled": true,
+    "assumed_device_height_m": 1.1,
+    "atlas_3d_ai_task_backup_entity": "",
+    "atlas_3d_ai_task_entity": "",
+    "atlas_3d_carries": {
+     "person.alex_example": [
+      "02:00:00:00:00:01"
+     ]
+    },
+    "atlas_3d_director": [
+     {
+      "camera": "",
+      "entity": "binary_sensor.front_door"
+     }
+    ],
+    "atlas_3d_director_people": [
+     {
+      "key": "person.alex_example",
+      "rooms": [
+       "Kitchen"
+      ]
+     }
+    ],
+    "atlas_3d_enabled": true,
+    "atlas_3d_home_idle_s": 30,
+    "atlas_3d_library": true,
+    "atlas_3d_look": "atlas",
+    "atlas_3d_people": true,
+    "atlas_3d_quality": "auto",
+    "atlas_3d_showcase": true,
+    "atlas_3d_tags": true,
+    "atlas_3d_weather": false,
+    "atlas_alert_pulse": true,
+    "atlas_default_v1_applied": true,
+    "atlas_emergency_button": false,
+    "atlas_heatmap_enabled": true,
+    "atlas_layout_v2": false,
+    "atlas_live_colours": true,
+    "atlas_weather_condition_entity": "",
+    "atlas_weather_enabled": false,
+    "atlas_weather_rain_entity": "",
+    "atlas_weather_strength": 1.5,
+    "atlas_weather_warning_entity": "",
+    "away_timeout_m": 12.0,
+    "beacon_auto_calibrate": false,
+    "beacon_group_overrides": {
+     "example_device": "example_model"
+    },
+    "beacon_profiling_enabled": false,
+    "beacon_tune_disabled": [
+     "example_device"
+    ],
+    "bermuda_ignore": true,
+    "ble_reseed_interval_s": 20,
+    "calibration_points_seen": 0,
+    "calibration_room_walk": true,
+    "cpu_mode": "shared",
+    "data_mode": "live",
+    "day_theme": true,
+    "distortion_map_enabled": true,
+    "door_composites": [],
+    "door_opener_ids": [
+     "cover.garage_example"
+    ],
+    "emergency_entities": [
+     "light.kitchen_ceiling"
+    ],
+    "enhanced_security": false,
+    "espresense_companion_url": "",
+    "espresense_mqtt_enabled": false,
+    "espresense_room_map": {
+     "kitchen": "Kitchen"
+    },
+    "espresense_topic_prefix": "espresense",
+    "excluded_objects": [
+     "02:00:00:00:00:99"
+    ],
+    "excluded_scanners": [
+     "scanner_example_attic"
+    ],
+    "fabric_bearing_deg": 15.0,
+    "fabric_origin_lat": 49.0,
+    "fabric_origin_lon": -123.0,
+    "first_seen_ts": 1795205065.1735497,
+    "flood_latches": {},
+    "followed_addrs": [
+     "02:00:00:00:00:01",
+     "02:00:00:00:00:02"
+    ],
+    "forensics_enabled": true,
+    "forensics_license_expires": "",
+    "forensics_license_key": "PSPAN-TEST-TEST-TEST-TEST",
+    "forensics_retention_days": 7,
+    "guest_retention_days": 30,
+    "guest_tags_enabled": true,
+    "ha_entity_area_enabled": true,
+    "ha_entity_distance_enabled": true,
+    "ha_entity_occupancy_enabled": true,
+    "ha_entity_scanner_distance_enabled": true,
+    "ha_entity_tracker_enabled": true,
+    "health_reminder_enabled": true,
+    "health_reminder_last_ts": null,
+    "hidden_map_ids": [],
+    "hold_last_room_s": 1,
+    "ingest_rules": [],
+    "iphone_irk_guide": true,
+    "irk_devices": [
+     {
+      "irk_hex": "00112233445566778899aabbccddeeff",
+      "name": "Example iPhone"
+     }
+    ],
+    "kalman_q": 0.5,
+    "kalman_r": 6.0,
+    "license_home_label": "",
+    "license_home_status": "",
+    "license_home_token": "",
+    "license_homes_used": 0,
+    "license_homes_warning": {},
+    "license_is_trial": false,
+    "light_shapes": {
+     "light.kitchen_ceiling": "square"
+    },
+    "light_theme": true,
+    "light_type_overrides": {
+     "light.bedroom_strip": "wled"
+    },
+    "lights_automorph_enabled": true,
+    "lights_automorph_hardness": 1,
+    "lights_automorph_room_pct": 1,
+    "lights_automorph_style": "glow",
+    "lights_automorph_subtlety": 1,
+    "lights_fit_rooms": true,
+    "lights_hide_device_codes": true,
+    "lights_hide_untouched": true,
+    "lights_isolux": true,
+    "lights_panel_enabled": true,
+    "lights_show_beacons": true,
+    "lights_showcase": true,
+    "lights_showcase_presets": [],
+    "lights_showcase_seen": true,
+    "lights_showcase_theme": "classic",
+    "locate_self_key": "",
+    "low_memory_mode": false,
+    "maps_iso_floor_gap": 160,
+    "maps_iso_focus": null,
+    "maps_iso_horiz_gap": 1,
+    "maps_seen": 0,
+    "mqtt_publish_enabled": false,
+    "object_history_days": 2,
+    "onboarding": {
+     "first_calib": "lt15m",
+     "live_first": "switched",
+     "setup_ts": 1795205065.1735451
+    },
+    "optimize_for_scale": true,
+    "overview_2d_mode": true,
+    "overview_atlas": true,
+    "overview_iso_floor_gap": 170,
+    "overview_iso_focus": null,
+    "overview_iso_horiz_gap": 1,
+    "overview_iso_zoom": 1.25,
+    "overview_persistent_pins": true,
+    "overview_show_outdoor": true,
+    "overview_show_trails": true,
+    "overview_show_walls": true,
+    "padspan_automations": [
+     {
+      "action": "turn_on",
+      "device_key": "02:00:00:00:00:01",
+      "device_label": "Example tag",
+      "enabled": true,
+      "entity_id": "light.kitchen_ceiling",
+      "id": "",
+      "trigger": "enter"
+     }
+    ],
+    "path_loss_exp": 2.8,
+    "positioning_algorithm": "rf",
+    "positioning_pick_better": true,
+    "positioning_sensor_fusion": true,
+    "positioning_unsure": true,
+    "presence_poll_interval_s": 7,
+    "pro_invite": {},
+    "quiet_mode": false,
+    "radio_map_enabled": true,
+    "ref_power": -62.0,
+    "report_locked_key": "",
+    "room_reason_attribute": true,
+    "room_tag_map": {},
+    "roomplan_import_enabled": true,
+    "rssi_capture_enabled": true,
+    "rssi_capture_retention_days": 7,
+    "scanner_min_rssi": {
+     "scanner_example_office": -92
+    },
+    "scanner_offsets": {
+     "scanner_example_kitchen": -3.0
+    },
+    "server_offers": {},
+    "subzones_enabled": true,
+    "tags_nfc_identify_enabled": true,
+    "tags_phone_autolink_enabled": true,
+    "tags_room_events_enabled": true,
+    "tasmota_ble_enabled": false,
+    "telemetry_asked": true,
+    "telemetry_enabled": false,
+    "telemetry_install_id": "",
+    "telemetry_last_day": "",
+    "tester_nudge_done": true,
+    "tester_signup": {},
+    "theme_follow_sun": true,
+    "theme_palette": "",
+    "traceback_house_focus": 1,
+    "trial_nudge_done": true,
+    "ui_skin": "classic",
+    "update_check_enabled": true,
+    "vacation_mode_anchors": [
+     "light.living_lamp"
+    ],
+    "vacation_mode_bedtime": "23:30",
+    "vacation_mode_dark_offset_min": 1,
+    "vacation_mode_dark_only": true,
+    "vacation_mode_enabled": false,
+    "vacation_mode_enabled_at": 0,
+    "vacation_mode_end_at": 0,
+    "vacation_mode_intensity": 60,
+    "vacation_mode_last_off": {},
+    "vacation_mode_max_lights": 1,
+    "vacation_mode_max_on_min": 15,
+    "vacation_mode_pattern": {},
+    "vacation_mode_pattern_attempt": [
+     0,
+     0
+    ],
+    "vacation_mode_pattern_built_at": 0,
+    "vacation_mode_pattern_end": 0,
+    "vacation_mode_pattern_for": 0,
+    "vacation_mode_pattern_prev": {},
+    "vacation_mode_pattern_prev_source": "",
+    "vacation_mode_pattern_source": "",
+    "vacation_mode_pattern_until": 0,
+    "vacation_mode_pause_home": true,
+    "vacation_mode_periods": [],
+    "vacation_mode_source": "month",
+    "vacation_mode_tracked_since": 0,
+    "vacation_mode_trip_source": "",
+    "vacuum_import_enabled": true,
+    "walk_to_identify_enabled": true,
+    "wall_distance_m": 5.0,
+    "wall_floor_cycle_s": 10,
+    "wall_fully": true,
+    "wall_night_dim": 0.7,
+    "wall_pixel_shift": true,
+    "wall_screen_in": 10,
+    "wall_text_arcmin": 36,
+    "whatsnew_seen_version": "0.38.231",
+    "whole_house_presets": [
+     {
+      "created_at": 0,
+      "entities": {
+       "light.kitchen_ceiling": {
+        "brightness": 180,
+        "state": "on"
+       }
+      },
+      "name": "All on example"
+     }
+    ],
+    "wled_teams": []
+   },
+   "key": "padspan_ha.settings",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.subzones": {
+   "data": {
+    "zones": {
+     "sz_40d9e53c": {
+      "dwell_s": 20.0,
+      "enter_m": 0.1,
+      "floor_id": "ground",
+      "id": "sz_40d9e53c",
+      "leave_m": 0.3,
+      "name": "Example couch",
+      "piece_id": null,
+      "points_m": [
+       [
+        6.0,
+        1.0
+       ],
+       [
+        8.0,
+        1.0
+       ],
+       [
+        8.0,
+        2.0
+       ],
+       [
+        6.0,
+        2.0
+       ]
+      ],
+      "room": "Living Room",
+      "type": "poly"
+     }
+    }
+   },
+   "key": "padspan_ha.subzones",
+   "minor_version": 1,
+   "version": 1
+  },
+  "padspan_ha.telemetry_counters": {
+   "data": {
+    "counters": {}
+   },
+   "key": "padspan_ha.telemetry_counters",
+   "minor_version": 1,
+   "version": 1
+  }
+ }
+}

@@ -307,7 +307,12 @@ async def test_capture_the_house(hass, hass_storage, hass_ws_client, hass_config
     changed = await _settings_everywhere(client, steps, DEFAULT_SETTINGS)
     await _ws(client, steps, "trial_or_tester", {"cmd": "settings_set", "trial_nudge_done": True, "tester_nudge_done": True})
 
-    # It runs for a while: polls, then everything written, as at a shutdown.
+    # It runs for a while, through a restart of its own (what a setting
+    # changed above takes effect on), then everything is written, as at a
+    # shutdown: the house as v0.38.231 itself would come back to it.
+    await poll(hass, DOMAIN, 2)
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
     await poll(hass, DOMAIN, 4)
     hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
     await hass.async_block_till_done()

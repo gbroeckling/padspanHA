@@ -46,7 +46,7 @@ HEARD = {
     TAG: ("Example tag", (-55, -70, -72, -88, -90), {}),
     PHONE: ("Example phone", (-80, -62, -70, -85, -88), {}),
     WALLET: ("Example wallet", (-86, -84, -78, -58, -74), {}),
-    BEACON: ("Example beacon", (-60, -66, -75, -90, -92), {}),
+    BEACON: ("Example beacon", (-60, -66, -75, -84, -86), {}),
     IBEACON_ADDR: ("", (-75, -80, -60, -82, -86),
                    {76: bytes.fromhex("0215" + IBEACON_UUID + "0001" + "0001" + "c5")}),
 }
