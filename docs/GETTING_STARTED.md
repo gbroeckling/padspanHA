@@ -8,7 +8,7 @@ This guide walks you through your first 30 minutes with PadSpan — from install
 
 ## Prerequisites
 
-- Home Assistant **2024.1** or newer
+- Home Assistant **2024.8** or newer
 - At least **one BLE scanner** (ESP32 Bluetooth Proxy, ESPresense, or built-in HA Bluetooth)
 - HACS installed (recommended)
 

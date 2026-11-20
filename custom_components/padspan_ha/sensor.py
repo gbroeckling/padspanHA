@@ -42,7 +42,7 @@ from .const import (
     DATA_DEVICE_REGISTRY,
 )
 from .presence_coordinator import PresenceCoordinator
-from .presence_rules import away_timeout_s, calc_distance as _calc_distance
+from .presence_rules import away_timeout_s, calc_distance as _calc_distance, device_away_timeout_s
 from .entity_identity import alternates_of, kept_device_info, pick_uid_key, registry_ready, uid_safe
 from .subzones import SubzoneEntityMixin, async_setup_entities as _subzone_entities
 from .quiet_errors import note as _quiet_error
@@ -284,6 +284,12 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
         obj = self._obj
         return str(obj.get("user_label") or obj.get("name") or self._init_label)
 
+    def _away_after_s(self) -> float:
+        """The away timeout. With the things' time set (off by default), that
+        is for a device a person carries; a thing (nobody carries it) keeps
+        its last room for the hours set (presence_rules)."""
+        return device_away_timeout_s(self.coordinator.hass, self._obj, self.coordinator.data)
+
     # ── HA entity identity ────────────────────────────────────────────────────
 
     @property
@@ -319,7 +325,7 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
     def native_value(self) -> str:
         obj = self._obj
         age = obj.get("age_s")
-        if isinstance(age, (int, float)) and age > _away_timeout_s(self.coordinator.hass):
+        if isinstance(age, (int, float)) and age > self._away_after_s():
             return "not_home"
         return obj.get("room") or "unknown"
 
@@ -333,7 +339,7 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         obj = self._obj
         age = obj.get("age_s")
-        timeout = _away_timeout_s(self.coordinator.hass)
+        timeout = self._away_after_s()
         home = not (isinstance(age, (int, float)) and age > timeout)
         attrs: dict[str, Any] = {
             "kind": obj.get("kind"),
@@ -343,6 +349,8 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
             "age_s": round(age, 1) if isinstance(age, (int, float)) else None,
             "sources": obj.get("sources") if home else None,
             "home": home,
+            # Where it was last placed: still there once it reads not_home.
+            "last_room": obj.get("room") or None,
             "room_confidence": obj.get("room_confidence"),
             "rssi_margin_confidence": obj.get("rssi_margin_confidence"),
         }

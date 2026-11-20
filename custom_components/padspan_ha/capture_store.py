@@ -61,6 +61,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import CAPTURE_STORE_KEY, VERSION
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -270,7 +271,7 @@ class CaptureStore:
         return self._session is not None
 
     async def async_load(self) -> None:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         sessions = (loaded.get("sessions") or []) if isinstance(loaded, dict) else []
         self.data = {"sessions": [s for s in sessions if isinstance(s, dict)]}
         # A session left open by a restart is closed here rather than left to

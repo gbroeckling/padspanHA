@@ -72,6 +72,7 @@ from . import ws_house3d_stairs as S
 from .fabric_truth import placement_metres
 from .ws_common import _point_in_polygon
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -224,7 +225,7 @@ class PlanAiStore:
         self._data = normalise(value)
 
     async def async_load(self) -> dict[str, Any]:
-        self.data = await self.store.async_load()
+        self.data = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         await self.async_sweep()
         return self._data
 

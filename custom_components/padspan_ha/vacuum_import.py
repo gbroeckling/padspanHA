@@ -51,6 +51,7 @@ from typing import Any
 
 from .const import DOMAIN
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -470,7 +471,7 @@ class VacuumStore:
         self._unsub = None
 
     async def async_load(self) -> None:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         if isinstance(loaded, dict):
             base = _default_data()
             base.update({k: loaded[k] for k in base if k in loaded})

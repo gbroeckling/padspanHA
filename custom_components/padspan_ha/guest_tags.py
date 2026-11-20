@@ -40,6 +40,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DATA_SETTINGS, DOMAIN
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class GuestStore:
     async def async_load(self) -> None:
         if self.loaded:
             return
-        raw = await self._store.async_load()
+        raw = await async_load_readable(self._store, lambda d: isinstance(d, dict))
         if isinstance(raw, dict):
             self.data = {"tags": dict(raw.get("tags") or {}), "sessions": dict(raw.get("sessions") or {})}
         self.loaded = True

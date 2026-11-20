@@ -52,7 +52,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import MAPS_STORE_KEY, MAPS_DIR, DEFAULT_FLOOR_ID, MAX_HEIGHT_M
-from .safe_store import wrap_store
+from .safe_store import async_load_readable, wrap_store
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ class MapsStore:
                 "or the move failed. Nothing was overwritten. Compare the two and "
                 "delete the copy in www/ once you have the one you want.",
                 left, legacy_maps_dir_for(self.hass), self.maps_dir)
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict) and "maps" in d)
         if isinstance(loaded, dict) and "maps" in loaded:
             self.data = loaded
         else:

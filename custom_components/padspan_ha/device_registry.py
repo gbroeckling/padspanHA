@@ -28,6 +28,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class DeviceRegistry:
 
     async def async_load(self) -> None:
         """Load from disk and rebuild the in-memory index."""
-        loaded = await self._store.async_load()
+        loaded = await async_load_readable(self._store, lambda d: isinstance(d, dict) and "devices" in d)
         if isinstance(loaded, dict) and "devices" in loaded:
             self._devices = loaded.get("devices") or {}
         else:

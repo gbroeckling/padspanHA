@@ -72,6 +72,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, DATA_SETTINGS
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1495,7 +1496,7 @@ class VacationLog:
     async def async_load(self) -> None:
         if self._loaded:
             return
-        data = await self._store.async_load() or {}
+        data = await async_load_readable(self._store, lambda d: isinstance(d, dict)) or {}
         self.entries = [e for e in (data.get("entries") or [])
                         if isinstance(e, list) and len(e) == 3 and isinstance(e[0], (int, float))]
         self._loaded = True
