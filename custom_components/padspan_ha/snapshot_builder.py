@@ -2268,8 +2268,38 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         # Runs twice: once on current objects, again after cache reintroduction.
         _dedup_absorbed: set[str] = set()
 
+        # all_addresses holds MAC addresses ONLY.  For ibeacon/private_ble
+        # objects the "address" field is a key string ("ibeacon:uuid:...")
+        # — appending those poisons the list (and the 7-day cache) with
+        # pseudo-addresses that later match nothing.
+        def _is_mac(s: Any) -> bool:
+            return isinstance(s, str) and len(s) == 17 and s.count(":") == 5
+
         # Helper: merge obj_src into obj_dst (like the iBeacon merge above)
         def _merge_into(dst: dict, src: dict) -> None:
+            _merge_group(dst, (src,))
+
+        def _merge_group(dst: dict, srcs: Any) -> None:
+            """_merge_into for each of srcs in turn, the addresses gathered once:
+            merged one by one, a group of k re-read, re-checked and re-sorted
+            the primary's growing list k times (k² work; D5 and D7 groups are
+            hundreds next to a street). Nothing reads the list between the
+            merges of one group, and sorted at the end it is the same list."""
+            ea = [a for a in dst.setdefault("all_addresses", []) if _is_mac(a)]
+            _held = set(ea)
+            if _is_mac(dst.get("address")) and dst["address"] not in _held:
+                ea.append(dst["address"])
+                _held.add(dst["address"])
+            for src in srcs:
+                for _ma in (src.get("all_addresses") or [src.get("address")]):
+                    if _is_mac(_ma) and _ma not in _held:
+                        ea.append(_ma)
+                        _held.add(_ma)
+                _merge_fields(dst, src)
+            dst["all_addresses"] = sorted(ea)
+
+        def _merge_fields(dst: dict, src: dict) -> None:
+            """Everything _merge_into merges but the addresses."""
             for _mf in ("manufacturer_data", "service_data"):
                 sd = src.get(_mf) or {}
                 if sd:
@@ -2278,19 +2308,6 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 tl = dst.setdefault("service_uuids", [])
                 if _u not in tl:
                     tl.append(_u)
-            # all_addresses holds MAC addresses ONLY.  For ibeacon/private_ble
-            # objects the "address" field is a key string ("ibeacon:uuid:...")
-            # — appending those poisons the list (and the 7-day cache) with
-            # pseudo-addresses that later match nothing.
-            def _is_mac(s: Any) -> bool:
-                return isinstance(s, str) and len(s) == 17 and s.count(":") == 5
-            ea = [a for a in dst.setdefault("all_addresses", []) if _is_mac(a)]
-            if _is_mac(dst.get("address")) and dst["address"] not in ea:
-                ea.append(dst["address"])
-            for _ma in (src.get("all_addresses") or [src.get("address")]):
-                if _is_mac(_ma) and _ma not in ea:
-                    ea.append(_ma)
-            dst["all_addresses"] = sorted(ea)
             for _le in (src.get("linked_entities") or []):
                 el2 = dst.setdefault("linked_entities", [])
                 if _le not in el2:
@@ -2419,7 +2436,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 primary["eddystone_uid"] = eddy_key
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
-                    _merge_into(primary, secondary)
+                _merge_group(primary, group[1:])
 
             # --- (D3) Same BLE name merging ──────────────────────────────────
             # Devices with identical non-generic broadcast names and random MACs
@@ -2461,7 +2478,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 _merge_counts["merge_same_name"] += len(group) - 1
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
-                    _merge_into(primary, secondary)
+                _merge_group(primary, group[1:])
                 primary.setdefault("merged_protocols", [primary.get("kind", "ble")])
                 primary["_dedup_reason"] = f"same_name:{name}"
 
@@ -2509,7 +2526,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 _merge_counts["merge_same_data"] += len(group) - 1
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
-                    _merge_into(primary, secondary)
+                _merge_group(primary, group[1:])
                 primary["_dedup_reason"] = "same_manuf_data"
 
             # --- (D5) Apple continuity dedup ─────────────────────────────────
@@ -2573,7 +2590,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 primary = group[0]
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
-                    _merge_into(primary, secondary)
+                _merge_group(primary, group[1:])
                 primary["_dedup_reason"] = f"apple_continuity:{apple_key}"
 
             # --- (D6) Identical service_uuids + same scanners dedup ──────────
@@ -2615,7 +2632,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 primary = group[0]
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
-                    _merge_into(primary, secondary)
+                _merge_group(primary, group[1:])
                 primary["_dedup_reason"] = "same_svc_uuids_scanners"
 
             # --- (D7) Bare random MACs with no data ──────────────────────────
@@ -2660,7 +2677,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 primary["name"] = f"Unknown BLE ({len(group)} rotations)"
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
-                    _merge_into(primary, secondary)
+                _merge_group(primary, group[1:])
                 primary["_dedup_reason"] = "bare_random_mac"
 
             # Remove all absorbed objects
