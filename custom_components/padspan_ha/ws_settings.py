@@ -9,12 +9,14 @@ Split out of websocket.py; registration stays there.
 
 from __future__ import annotations
 
+import inspect
 import math
 import re
 
 import logging
 import voluptuous as vol
 from typing import Any
+from urllib.parse import urlsplit
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
@@ -370,9 +372,11 @@ def _sanitize_showcase_presets(presets_in: Any) -> list[dict[str, Any]]:
                 f = vals["overview_iso_focus"]
                 values["overview_iso_focus"] = int(f) if f is not None else None
             if vals.get("overview_iso_zoom") is not None:
+                if _not_finite(vals["overview_iso_zoom"]):
+                    raise ValueError("a zoom that is not a finite number")
                 values["overview_iso_zoom"] = max(0.4, min(2.5, float(vals["overview_iso_zoom"])))
             presets_out.append({"name": name, "values": values})
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue  # one malformed preset must not reject the whole save
     return presets_out
 
@@ -480,6 +484,72 @@ def _sanitize_whole_house_presets(presets_in: Any) -> list[dict[str, Any]]:
         out.append({"name": name, "created_at": created if created and created > 0 else 0, "entities": entities})
     return out
 
+
+
+# Every key the command reads as a number. A value that reads as a number but
+# is not a finite one (the text "nan" or "inf") is refused for all of them
+# alike: clamped, it was stored as the key's upper bound.
+# fabric_bearing_deg and vacation_mode_end_at are not here: each has its own
+# check, with its own words, that refuses the same values.
+_NUMBER_KEYS = (
+    "room_change_delay_s", "away_timeout_m", "ref_power", "path_loss_exp", "kalman_q", "kalman_r",
+    "hold_last_room_s", "assumed_device_height_m", "fabric_origin_lat", "fabric_origin_lon",
+    "health_reminder_last_ts", "maps_iso_floor_gap", "maps_iso_horiz_gap", "maps_iso_focus",
+    "overview_iso_floor_gap", "overview_iso_horiz_gap", "overview_iso_focus", "overview_iso_zoom",
+    "atlas_weather_strength", "wall_screen_in", "wall_distance_m", "wall_text_arcmin", "wall_night_dim",
+    "wall_floor_cycle_s", "ai_credit_month_usd", "ai_credit_warn_pct", "atlas_3d_home_idle_s",
+    "lights_automorph_room_pct", "lights_automorph_hardness", "lights_automorph_subtlety",
+    "traceback_house_focus", "vacation_mode_intensity", "vacation_mode_dark_offset_min",
+    "vacation_mode_max_on_min", "vacation_mode_max_lights", "signal_loss_linger_s",
+    "presence_poll_interval_s", "ble_reseed_interval_s", "object_history_days", "guest_retention_days",
+    "forensics_retention_days", "rssi_capture_retention_days", "ble_max_age_s", "occupancy_cluster_threshold",
+    "heatmap_gain", "heatmap_contrast", "distortion_intensity", "heatmap_source",
+)
+
+
+def _not_finite(value: Any) -> bool:
+    """Whether value reads as a number that is not a finite one ("nan", "inf").
+    Nothing (None) and text that is no number at all are not: what a key does
+    with those is its own."""
+    if value is None:
+        return False
+    try:
+        return not math.isfinite(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def _texts(raw: Any) -> list[str]:
+    """The pieces of text in a list, each without the spaces around it, in the
+    order given. Anything that is not text, or is empty, is left out."""
+    if not isinstance(raw, list):
+        return []
+    return [x.strip() for x in raw if isinstance(x, str) and x.strip()]
+
+
+def _text_map(raw: Any) -> dict[str, str]:
+    """{text: text} out of a dict, each without the spaces around it. An entry
+    whose value is not text, or is empty, is left out."""
+    if not isinstance(raw, dict):
+        return {}
+    return {k.strip(): v.strip() for k, v in raw.items()
+            if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip()}
+
+
+def _companion_url(value: Any) -> str | None:
+    """The ESPresense Companion's address as stored: "" (none), or an http or
+    https URL without its last slash. None for anything else."""
+    v = str(value).strip().rstrip("/")
+    if not v:
+        return ""
+    try:
+        parts = urlsplit(v)
+        host = parts.hostname
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not host or any(c.isspace() or ord(c) < 32 for c in v):
+        return None
+    return v
 
 
 # How each person's own screen looks and what it has already been shown:
@@ -730,7 +800,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "fabric_bearing_deg" in msg and not math.isfinite(msg["fabric_bearing_deg"]):
             connection.send_error(msg["id"], "invalid", "North must be a finite number of degrees")
             return
+        for _nk in _NUMBER_KEYS:
+            if _nk in msg and _not_finite(msg[_nk]):
+                connection.send_error(msg["id"], "invalid", f"{_nk} must be a finite number")
+                return
         payload: dict[str, Any] = {}
+        # A refused message changes nothing. So until every key has been
+        # accepted, a key's branch below only checks and adds to payload; what
+        # it has to DO (count, label, start the report) it sets aside here, and
+        # those steps run in this order just before the save.
+        once_accepted: list[Any] = []
         # Only touch data_mode when the message actually carries it.  Callers
         # that omit it (e.g. the lights panel hiding a light) must not flip
         # the integration back to "sample" mode as a side effect.
@@ -792,15 +871,19 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 # Mint the anonymous id at opt-in, so the Preview shows the
                 # real report from that moment on — and start the usage and
                 # error windows here, so nothing from before the yes goes.
-                from .telemetry import ensure_install_id, reset_windows  # noqa: PLC0415
-                await ensure_install_id(hass)
-                reset_windows(hass)
-                from .perf_sampler import async_runs_opted_in  # noqa: PLC0415
-                await async_runs_opted_in(hass)
+                async def _report_switched_on() -> None:
+                    from .telemetry import ensure_install_id, reset_windows  # noqa: PLC0415
+                    await ensure_install_id(hass)
+                    reset_windows(hass)
+                    from .perf_sampler import async_runs_opted_in  # noqa: PLC0415
+                    await async_runs_opted_in(hass)
+                once_accepted.append(_report_switched_on)
             else:
                 # Off: the run log on disk (starts, crashes, worst minutes) goes too.
-                from .perf_sampler import async_runs_opted_out  # noqa: PLC0415
-                await async_runs_opted_out(hass)
+                async def _report_switched_off() -> None:
+                    from .perf_sampler import async_runs_opted_out  # noqa: PLC0415
+                    await async_runs_opted_out(hass)
+                once_accepted.append(_report_switched_off)
         if ("atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg or "ai_photos_enabled" in msg
                 or "ai_stairs_enabled" in msg or "ai_plans_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg
                 or "ai_credit_month_usd" in msg or "ai_credit_warn_pct" in msg or "ai_plan_build_enabled" in msg or "ai_map_wizard" in msg):
@@ -868,8 +951,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "fabric_bearing_deg" in msg:
             payload["fabric_bearing_deg"] = float(msg["fabric_bearing_deg"]) % 360.0
         if "hidden_map_ids" in msg:
-            ids = msg["hidden_map_ids"]
-            payload["hidden_map_ids"] = [str(x) for x in ids if isinstance(x, str)] if isinstance(ids, list) else []
+            payload["hidden_map_ids"] = _texts(msg["hidden_map_ids"])
         if "locate_self_key" in msg:
             # Locate is a PadSpan Pro feature; same gate as forensics_enabled
             # below — refusing the write here (not just hiding the tab) means
@@ -878,69 +960,71 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             _lsk = str(msg.get("locate_self_key") or "")
             payload["locate_self_key"] = _lsk if _padspan_pro_active(hass) else ""
         if "followed_addrs" in msg:
-            addrs = msg["followed_addrs"]
-            _new_followed = [str(x).upper() for x in addrs if isinstance(x, str)] if isinstance(addrs, list) else []
+            _new_followed = [x.upper() for x in _texts(msg["followed_addrs"])]
             payload["followed_addrs"] = _new_followed
             try:
                 _old_followed = set(str(x).upper() for x in (st.data.get("followed_addrs") or []))
             except Exception:
                 _quiet_error("ws_settings:set_followed_old")
                 _old_followed = set()
-            # Clear coordinator state for unfollowed objects so they don't
-            # linger on the overview 3D map as stale ghosts.
-            try:
-                _removed_f = _old_followed - set(x.upper() for x in _new_followed)
-                if _removed_f:
-                    _coord_f = hass.data.get(DOMAIN, {}).get("presence_coordinator")
-                    if _coord_f:
-                        for _rf in _removed_f:
-                            _coord_f.clear_object_state(_rf)
-            except Exception:
-                _quiet_error("ws_settings:set_followed_removed")
-                pass
-            # Auto-label newly-followed objects that have no label yet.
-            # Entity creation (device_tracker/sensor) requires user_label, so
-            # following alone used to produce no entities and the device never
-            # surfaced outside the panel.  Label = advertised BLE name when we
-            # can see one, else a readable fallback derived from the key.
-            try:
-                _added_f = set(_new_followed) - _old_followed
-                _obj_store_f = hass.data.get(DOMAIN, {}).get(DATA_OBJECTS)
-                if _added_f and _obj_store_f:
-                    _name_by_mac: dict[str, str] = {}
-                    try:
-                        _bl_f = get_bluetooth_live(hass)
-                        if _bl_f is not None:
-                            for _adf in (_bl_f.get_snapshot(max_ads=5000, max_age_s=14400).get("advertisements") or []):
-                                _a_addr = str(_adf.get("address") or "").upper()
-                                _a_name = str(_adf.get("name") or "").strip()
-                                if _a_addr and _a_name and _a_addr not in _name_by_mac:
-                                    _name_by_mac[_a_addr] = _a_name
-                    except Exception:
-                        _quiet_error("ws_settings:set_followed_ble")
-                        pass
-                    for _af in _added_f:
-                        if _obj_store_f.get(_af):
-                            continue  # already labelled by the user
-                        _parts_f = _af.split(":")
-                        _mac_f = None
-                        if len(_parts_f) >= 6 and all(len(p) == 2 for p in _parts_f[-6:]):
-                            _mac_f = ":".join(_parts_f[-6:])
-                        _lbl_f = _name_by_mac.get(_mac_f or _af, "")
-                        if not _lbl_f:
-                            if _af.startswith("IBEACON:") and len(_parts_f) >= 4:
-                                _lbl_f = f"iBeacon {_parts_f[1][:8].lower()}"
-                                if _mac_f:
-                                    _lbl_f += f" ({_mac_f[-8:]})"
-                            elif _mac_f:
-                                _lbl_f = _mac_f
-                            else:
-                                continue  # entity_id or unknown form — already tracked via HA
-                        await _obj_store_f.async_set(_af, _lbl_f)
-                        _LOGGER.info("Auto-labelled followed object %s as %r", _af, _lbl_f)
-            except Exception as _fl_err:
-                _quiet_error("ws_settings:set_follow_auto_label")
-                _LOGGER.debug("Follow auto-label failed: %s", _fl_err)
+
+            async def _follows_changed() -> None:
+                # Clear coordinator state for unfollowed objects so they don't
+                # linger on the overview 3D map as stale ghosts.
+                try:
+                    _removed_f = _old_followed - set(x.upper() for x in _new_followed)
+                    if _removed_f:
+                        _coord_f = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+                        if _coord_f:
+                            for _rf in _removed_f:
+                                _coord_f.clear_object_state(_rf)
+                except Exception:
+                    _quiet_error("ws_settings:set_followed_removed")
+                    pass
+                # Auto-label newly-followed objects that have no label yet.
+                # Entity creation (device_tracker/sensor) requires user_label, so
+                # following alone used to produce no entities and the device never
+                # surfaced outside the panel.  Label = advertised BLE name when we
+                # can see one, else a readable fallback derived from the key.
+                try:
+                    _added_f = set(_new_followed) - _old_followed
+                    _obj_store_f = hass.data.get(DOMAIN, {}).get(DATA_OBJECTS)
+                    if _added_f and _obj_store_f:
+                        _name_by_mac: dict[str, str] = {}
+                        try:
+                            _bl_f = get_bluetooth_live(hass)
+                            if _bl_f is not None:
+                                for _adf in (_bl_f.get_snapshot(max_ads=5000, max_age_s=14400).get("advertisements") or []):
+                                    _a_addr = str(_adf.get("address") or "").upper()
+                                    _a_name = str(_adf.get("name") or "").strip()
+                                    if _a_addr and _a_name and _a_addr not in _name_by_mac:
+                                        _name_by_mac[_a_addr] = _a_name
+                        except Exception:
+                            _quiet_error("ws_settings:set_followed_ble")
+                            pass
+                        for _af in _added_f:
+                            if _obj_store_f.get(_af):
+                                continue  # already labelled by the user
+                            _parts_f = _af.split(":")
+                            _mac_f = None
+                            if len(_parts_f) >= 6 and all(len(p) == 2 for p in _parts_f[-6:]):
+                                _mac_f = ":".join(_parts_f[-6:])
+                            _lbl_f = _name_by_mac.get(_mac_f or _af, "")
+                            if not _lbl_f:
+                                if _af.startswith("IBEACON:") and len(_parts_f) >= 4:
+                                    _lbl_f = f"iBeacon {_parts_f[1][:8].lower()}"
+                                    if _mac_f:
+                                        _lbl_f += f" ({_mac_f[-8:]})"
+                                elif _mac_f:
+                                    _lbl_f = _mac_f
+                                else:
+                                    continue  # entity_id or unknown form — already tracked via HA
+                            await _obj_store_f.async_set(_af, _lbl_f)
+                            _LOGGER.info("Auto-labelled followed object %s as %r", _af, _lbl_f)
+                except Exception as _fl_err:
+                    _quiet_error("ws_settings:set_follow_auto_label")
+                    _LOGGER.debug("Follow auto-label failed: %s", _fl_err)
+            once_accepted.append(_follows_changed)
         if "health_reminder_enabled" in msg:
             payload["health_reminder_enabled"] = bool(msg["health_reminder_enabled"])
         if "health_reminder_last_ts" in msg:
@@ -963,8 +1047,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "overview_iso_zoom" in msg:
             payload["overview_iso_zoom"] = max(0.4, min(2.5, float(msg["overview_iso_zoom"])))
         if "lights_hidden" in msg:
-            ids = msg["lights_hidden"]
-            payload["lights_hidden"] = [str(x) for x in ids if isinstance(x, str)] if isinstance(ids, list) else []
+            payload["lights_hidden"] = _texts(msg["lights_hidden"])
         if "emergency_entities" in msg:
             ids = msg["emergency_entities"]
             payload["emergency_entities"] = list(dict.fromkeys(
@@ -1014,14 +1097,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "ai_plan_build_enabled" in msg and bool(msg["ai_plan_build_enabled"]) != (((st.data if st is not None else {}) or {}).get("ai_plan_build_enabled") is True):
             # Build from plans (experimental): the switch changed (design 10).
             from .telemetry import bump as _t_bump  # noqa: PLC0415
-            _t_bump(hass, f"plan_build_setting:{'on' if msg['ai_plan_build_enabled'] else 'off'}")
+            _plan_event = f"plan_build_setting:{'on' if msg['ai_plan_build_enabled'] else 'off'}"
+            once_accepted.append(lambda: _t_bump(hass, _plan_event))
         if "ai_credit_warn_pct" in msg:
             from .ai_usage import WARN_PCTS  # noqa: PLC0415
             _pct = int(_clamped(msg["ai_credit_warn_pct"], 0, 100, 0))
             payload["ai_credit_warn_pct"] = _pct if _pct in WARN_PCTS else 0
             if payload["ai_credit_warn_pct"] != ((st.data if st is not None else {}) or {}).get("ai_credit_warn_pct", 0):
                 from .telemetry import bump as _t_bump  # noqa: PLC0415
-                _t_bump(hass, f"ai_credit_warn:set_{_pct}" if payload["ai_credit_warn_pct"] else "ai_credit_warn:off")
+                _warn_event = f"ai_credit_warn:set_{_pct}" if payload["ai_credit_warn_pct"] else "ai_credit_warn:off"
+                once_accepted.append(lambda: _t_bump(hass, _warn_event))
         if "ai_map_wizard" in msg and isinstance(msg["ai_map_wizard"], dict):
             # Let Claude draw your rooms: only the keys the helper keeps (ai_wizard.clean_wizard).
             from .ai_wizard import clean_wizard  # noqa: PLC0415
@@ -1053,7 +1138,15 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "scanner_offsets" in msg:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
-                payload["scanner_offsets"] = {str(k): float(v) for k, v in raw.items()}
+                try:
+                    _offsets = {str(k): float(v) for k, v in raw.items()}
+                except (TypeError, ValueError, OverflowError):
+                    _offsets = None
+                if _offsets is None or not all(math.isfinite(v) for v in _offsets.values()):
+                    connection.send_error(msg["id"], "invalid",
+                                          "scanner_offsets must give each receiver a finite number of dB")
+                    return
+                payload["scanner_offsets"] = _offsets
         if "excluded_objects" in msg:
             # Stable identity keys only. Sorted and de-duplicated so the stored
             # list stays readable — this is a setting people hand-edit and paste
@@ -1089,11 +1182,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             was_on = bool(st.data.get("lights_showcase"))
             if payload["lights_showcase"] and not was_on:
                 from .telemetry import bump as _bump  # noqa: PLC0415
-                _bump(hass, "showcase_on")
+                once_accepted.append(lambda: _bump(hass, "showcase_on"))
                 if (not st.data.get("lights_showcase_seen") and "lights_showcase_theme" not in msg
                         and st.data.get("lights_showcase_theme", "classic") == "classic" and _forested_home(hass.config)):
                     payload["lights_showcase_theme"] = "west_coast_forest"
-                    _bump(hass, "showcase_forest_default")
+                    once_accepted.append(lambda: _bump(hass, "showcase_forest_default"))
             if payload["lights_showcase"] or was_on:   # it has been used: from now on the look is theirs
                 payload["lights_showcase_seen"] = True
         if "lights_hide_untouched" in msg:
@@ -1303,6 +1396,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["signal_loss_linger_s"] = max(10, min(300, int(msg["signal_loss_linger_s"])))
         if "advanced_extra_tabs" in msg:
             valid = {"devices","bluetooth","presence","monitor","qa","sandbox"}
+            if not all(isinstance(t, str) for t in msg["advanced_extra_tabs"]):
+                connection.send_error(msg["id"], "invalid_format", "advanced_extra_tabs must be a list of tab names")
+                return
             payload["advanced_extra_tabs"] = [t for t in msg["advanced_extra_tabs"] if t in valid]
         if "ui_skin" in msg:
             # Anything unrecognised falls back to classic, so a bad value can
@@ -1365,14 +1461,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             algo = str(msg["positioning_algorithm"]).strip().lower()
             payload["positioning_algorithm"] = algo if algo in ("knn", "rf") else "knn"
         if "beacon_tune_disabled" in msg:
-            raw = msg["beacon_tune_disabled"]
-            payload["beacon_tune_disabled"] = [str(x) for x in raw] if isinstance(raw, list) else []
+            payload["beacon_tune_disabled"] = _texts(msg["beacon_tune_disabled"])
         if "beacon_group_overrides" in msg:
-            raw = msg["beacon_group_overrides"]
-            payload["beacon_group_overrides"] = {str(k): str(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+            payload["beacon_group_overrides"] = _text_map(msg["beacon_group_overrides"])
         if "distance_stationary_devices" in msg:
-            raw = msg["distance_stationary_devices"]
-            payload["distance_stationary_devices"] = [str(x) for x in raw] if isinstance(raw, list) else []
+            payload["distance_stationary_devices"] = _texts(msg["distance_stationary_devices"])
         if "onboarding_completed" in msg:
             payload["onboarding_completed"] = bool(msg["onboarding_completed"])
         if "accuracy_tips_hidden" in msg:
@@ -1393,15 +1486,18 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if _user is not None and getattr(_user, "is_admin", True) is False:
                 connection.send_error(msg["id"], "unauthorized", "Only an administrator can change the ESPresense Companion URL")
                 return
-            _url = str(msg["espresense_companion_url"]).strip().rstrip("/")
+            _url = _companion_url(msg["espresense_companion_url"])
+            if _url is None:
+                connection.send_error(msg["id"], "invalid_format",
+                                      "The ESPresense Companion URL must start with http:// or https://")
+                return
             payload["espresense_companion_url"] = _url
         if "espresense_topic_prefix" in msg:
             _raw_prefix = str(msg["espresense_topic_prefix"]).strip().strip("/").replace("#", "").replace("+", "")
             if _raw_prefix:
                 payload["espresense_topic_prefix"] = _raw_prefix
         if "espresense_room_map" in msg:
-            _raw_rm = msg["espresense_room_map"]
-            payload["espresense_room_map"] = {str(k): str(v) for k, v in _raw_rm.items()} if isinstance(_raw_rm, dict) else {}
+            payload["espresense_room_map"] = _text_map(msg["espresense_room_map"])
         # ── Occupancy estimation controls ──────────────────────────────────
         # occupancy_multiplier/occupancy_dwell_min appear to be unreachable
         # as written: unlike occupancy_hybrid_enabled/occupancy_cluster_threshold
@@ -1460,6 +1556,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "enabled": bool(r.get("enabled", True)),
                 })
             payload["padspan_automations"] = _clean_rules
+        # Every key is accepted. The steps set aside run now, in the order
+        # their keys were read, and before the save as they always have: each
+        # reads the settings as they were before this message.
+        for _step in once_accepted:
+            _stepped = _step()
+            if inspect.isawaitable(_stepped):
+                await _stepped
         _tel_before = bool(st.data.get("telemetry_enabled"))
         await st.async_set(**payload)
 
