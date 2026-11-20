@@ -268,3 +268,28 @@ def test_any_other_address_is_refused_and_the_old_one_stays(typed: str) -> None:
     got = send({"espresense_companion_url": typed}, start={"espresense_companion_url": "http://old:1"})
     assert changed_nothing(got) and got["error"][0] == "invalid_format"
     assert got["data"]["espresense_companion_url"] == "http://old:1"
+
+
+# ── a number that cannot be stored, anywhere inside a value ───────────────────
+
+def test_an_unstorable_number_is_found_at_any_depth():
+    from custom_components.padspan_ha.ws_settings import _unstorable_number as bad
+
+    nan, inf = float("nan"), float("inf")
+    for value in (nan, inf, -inf, 2 ** 64, -(2 ** 63) - 1, [1, [nan]], {"a": {"b": inf}}, {"a": [{"b": 10 ** 30}]},
+                  [{"match": {"name": nan}}], {"snoozes": inf}):
+        assert bad(value), value
+    for value in (0, 1.5, -3, True, False, None, "nan", "inf", 2 ** 63, -(2 ** 63), 2 ** 64 - 1, [1, "nan", {"a": 2.5}],
+                  {"a": {"b": [1, 2, 3]}}, "", [], {}):
+        assert not bad(value), value
+
+
+def test_the_command_checks_every_value_for_one_before_it_reads_any_key():
+    """Held on the source: the check sits before the first key is read, so a
+    message it refuses has done nothing."""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
+    body = src[src.index("async def ws_settings_set("):]
+    assert "_unstorable_number(_vv)" in body
+    assert body.index("_unstorable_number(_vv)") < body.index("payload: dict[str, Any] = {}")

@@ -519,6 +519,22 @@ def _not_finite(value: Any) -> bool:
         return False
 
 
+def _unstorable_number(value: Any) -> bool:
+    """Whether value holds, at any depth, a number no setting can keep: a
+    float that is not finite, or a whole number past 64 bits."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if isinstance(value, int):
+        return not -(2 ** 63) <= value < 2 ** 64
+    if isinstance(value, dict):
+        return any(_unstorable_number(k) or _unstorable_number(v) for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return any(_unstorable_number(v) for v in value)
+    return False
+
+
 def _texts(raw: Any) -> list[str]:
     """The pieces of text in a list, each without the spaces around it, in the
     order given. Anything that is not text, or is empty, is left out."""
@@ -803,6 +819,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         for _nk in _NUMBER_KEYS:
             if _nk in msg and _not_finite(msg[_nk]):
                 connection.send_error(msg["id"], "invalid", f"{_nk} must be a finite number")
+                return
+        # The same inside any value (a list of rules, a saved look).
+        for _vk, _vv in msg.items():
+            if _vk != "id" and _unstorable_number(_vv):
+                connection.send_error(msg["id"], "invalid", f"{_vk} holds a number that cannot be stored")
                 return
         payload: dict[str, Any] = {}
         # A refused message changes nothing. So until every key has been
