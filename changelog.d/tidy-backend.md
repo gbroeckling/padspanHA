@@ -6,3 +6,4 @@
 - **Traceback and movement history have a largest request.** One request returns at most 4,000 Traceback frames or 200 movement-history entries, which is the most the panel asks for.
 - **The integration's icon and logo are served as two single files**, at the addresses they always had.
 - **The README's privacy section now covers the shared furniture library and the AI reads**: what each sends, and when.
+- **A refused clear says why.** When clearing calibration points is refused (the safety backup could not be made), the message shows the reason; it used to read "[object Object]".

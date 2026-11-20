@@ -1877,7 +1877,7 @@ function _modelTab(ctx, el, cs, calData) {
             ctx.toast("All calibration data cleared.");
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Failed: " + String(e), true);
+            ctx.toast("Failed: " + String((e && e.message) || e), true);
             clearWrap.appendChild(makeClearBtn());
           }
         });

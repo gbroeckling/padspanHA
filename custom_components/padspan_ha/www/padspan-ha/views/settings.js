@@ -588,7 +588,7 @@ function _scannerMap(ctx, el, haFloors){
                 ctx.state.calibration = null;
                 ctx.actions.renderRooms();
               } catch(e) {
-                ctx.toast("Clear failed: " + String(e), true);
+                ctx.toast("Clear failed: " + String((e && e.message) || e), true);
                 makeClearBtn();
               }
             }
