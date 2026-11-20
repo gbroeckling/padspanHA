@@ -1,0 +1,39 @@
+name: Real Home Assistant
+
+# PadSpan HA loaded in a real Home Assistant (tests_ha/): it sets up, unloads
+# and reloads, and every websocket command is called over a real connection.
+# The Tests workflow replaces Home Assistant with stubs; this one does not.
+# It is its own workflow so neither waits for the other.
+
+on:
+  push:
+    branches: [main, "real-ha-*"]
+    tags: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-ha:
+    name: Real Home Assistant (Python 3.14)
+    # The generated Bright repository gets a copy of .github but not of
+    # tests_ha/ (scripts/bright_build.py): there is nothing to run there.
+    if: github.repository == 'gbroeckling/padspanHA'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test_ha.txt
+      # Its own environment: the harness pins a matching Home Assistant, and
+      # the main suite must run where Home Assistant is not installed.
+      - name: Install Home Assistant and its test harness
+        run: pip install -r requirements_test_ha.txt
+      # One Home Assistant per test, spread over the runner's cores.
+      - name: Run the tests in a real Home Assistant
+        run: python -m pytest tests_ha -q -n auto -p no:cacheprovider
