@@ -1,0 +1,6 @@
+# A plan's picture, pins and placement are checked before they are saved
+
+### Fixed
+- **A plan's picture is checked before it is replaced.** Replace Image took anything at all: a payload that was not a picture was written over the plan's picture as it came, and one that was not even base64 failed with "Unknown error". It now takes a PNG, at most 20 MB, as an upload does, and refuses anything else before touching the plan. A crop or a turn that is not numbers is refused before the picture is written, not after.
+- **A plan's pins can no longer be wiped by a bad save.** A save of a plan's beacons that held anything but beacons removed every beacon from the plan and then failed; a receiver pin at a position that was not a number, or a plan level of null, failed with "Unknown error". The pins must be a list of pins now, a position that is not a number is the corner as a missing one always was, and a level that is not a number is the ground floor.
+- **A plan's placement keeps only what a placement holds.** The Measure tool's save stored every field it was sent, whatever its name, as part of where the plan sits; one with no measurements in it failed afterwards. Only the placement's own fields are kept now, each of its own kind.

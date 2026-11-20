@@ -100,6 +100,8 @@ _PLACEMENT_FIELDS = ("origin_x_m", "origin_y_m", "scale_x_m", "scale_y_m",
 # record is REPLACED by the payload — so the one writer that takes a client
 # dict whole moved a map to 'main' whenever the client left the key out.
 _CARRIED_FIELDS = _PLACEMENT_FIELDS + ("reference_measurements", "floor_id")
+# Every field a map's placement record holds.
+_RECORD_FIELDS = _CARRIED_FIELDS + ("origin_anchored",)
 
 
 def _has_valid_origin(t: Any) -> bool:
@@ -1439,7 +1441,16 @@ class ModelStore:
         one has not restated the scale.
         """
         transforms = self.data.get("map_transforms") or {}
-        new_t = dict(transform)
+        # The record's own fields, each of its own kind, and nothing else: the
+        # websocket writer takes a client dict whole, and every other key in it
+        # was stored as sent (a 10,000-key dict became a map's placement). A
+        # field of the wrong kind is not stated, so the stored one is carried.
+        new_t = {k: v for k, v in transform.items() if k in _RECORD_FIELDS}
+        if not isinstance(new_t.get("floor_id", ""), str):
+            del new_t["floor_id"]
+        _refs = new_t.get("reference_measurements", [])
+        if not (isinstance(_refs, list) and all(isinstance(r, dict) for r in _refs)):
+            del new_t["reference_measurements"]
         old_t = transforms.get(str(map_id))
         # Sanitize the pose to finite floats (the ws layer accepts any dict).
         # shear_rad rides with them: it is a coordinate of the placement like

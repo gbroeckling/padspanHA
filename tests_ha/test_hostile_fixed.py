@@ -31,6 +31,9 @@ class Fixed(NamedTuple):
     why: str
 
 
+# The furnished house's ground-floor plan.
+PLAN = "ef444e6807a61e89"
+
 # The house as installed.
 FIXED_FIRST_RUN = [
     # A number past 64 bits kept in a store: that store could never be saved again.
@@ -72,6 +75,26 @@ FIXED_FURNISHED = [
            "set_barriers": [{"name": "Wall", "points_m": [{"a": 1}, {"b": 2}]}]}, True, "a wall whose points are dicts"),
     Fixed({"type": "padspan_ha/wled_teams_set", "teams": [{"leader": "x", "followers": -1, "group": 1}]}, True,
           "a team whose followers are a number"),
+    # A plan's picture replaced by anything at all.
+    Fixed({"type": "padspan_ha/maps_replace_image", "map_id": PLAN, "width": 1, "height": 1,
+           "png_base64": "not a picture"}, True, "a picture that is not base64"),
+    Fixed({"type": "padspan_ha/maps_replace_image", "map_id": PLAN, "width": 1, "height": 1,
+           "png_base64": H._b64(b"junk" * 64)}, True, "junk written as the plan's picture"),
+    Fixed({"type": "padspan_ha/maps_replace_image", "map_id": PLAN, "width": 1, "height": 1,
+           "png_base64": H._b64(H._png(1, 1)), "crop": {"fx0": "x"}}, True, "a crop of text, after the picture was written"),
+    # A plan's pins and stack.
+    Fixed({"type": "padspan_ha/maps_update", "map_id": PLAN, "beacons": ["x"]}, True,
+          "a list of text wiped the plan's beacons"),
+    Fixed({"type": "padspan_ha/maps_update", "map_id": PLAN, "beacons": [{"key": [], "x": 0.5, "y": 0.5}]}, False,
+          "a beacon whose key is a list"),
+    Fixed({"type": "padspan_ha/maps_update", "map_id": PLAN, "receivers": [{"id": "r1", "x": "x", "y": 0.5}]}, False,
+          "a receiver pin at x"),
+    Fixed({"type": "padspan_ha/maps_update", "map_id": PLAN, "stack": {"z_level": None}}, False,
+          "a stack level of null"),
+    # A plan's placement record took the client's dict whole.
+    Fixed({"type": "padspan_ha/fabric_map_transform_set", "map_id": PLAN, "transform": {
+        "scale_x_m": 10, "scale_y_m": 8, "reference_measurements": None, "zz_missing_field": "x"}}, False,
+        "a placement with a field it has not and measurements of null"),
 ]
 
 
