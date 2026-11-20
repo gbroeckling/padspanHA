@@ -146,7 +146,9 @@ def _norm_floor(f: dict[str, Any]) -> dict[str, Any]:
         "name": str(f.get("name") or fid)[:80],
     }
     lvl = f.get("level")
-    if isinstance(lvl, (int, float)) and not isinstance(lvl, bool):
+    # A storey number: a level past 64 bits kept here would stop the model
+    # ever being saved again.
+    if isinstance(lvl, (int, float)) and not isinstance(lvl, bool) and -1000 <= lvl <= 1000:
         out["level"] = int(lvl)
     for key, lo, hi in (("floor_to_floor_m", 1.5, MAX_HEIGHT_M), ("base_elevation_m", -50.0, 500.0)):
         val = f.get(key)
