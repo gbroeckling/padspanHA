@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.269 — A ready-made Christmas tree in Build (2026-11-19)
+
+### New
+- **Build has a ready-made Christmas tree.** In Live Aboard's Furnish, Build now lists "Christmas tree" after Plant: a 2 m fir with no pot, placed with one tap like the other ready-made pieces.
+
+---
+
 ## 0.38.268 — A fir for the plant, so a Christmas tree looks like one (2026-11-19)
 
 ### New
