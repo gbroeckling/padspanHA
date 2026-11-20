@@ -911,7 +911,7 @@ function FollowedTracker({ ctx, snap }) {
             <span style="font-size:11px;font-weight:600;color:#5eead4">${d.room}</span>
             ${d.rssi != null && html`<span style="font-size:9px;color:#64748b">${d.rssi}dBm</span>`}
             ${d.x_m != null && d.y_m != null && html`
-              <span className="pl-tracked-locate" title="Center camera on ${d.label}"
+              <span ...${ctx.helpers.asButton} className="pl-tracked-locate" title="Center camera on ${d.label}"
                     onClick=${(e) => { e.stopPropagation();
                       flyToResult(ctx, { kind: "object", key: d.key, x_m: d.x_m, y_m: d.y_m, floor_id: d.floor_id }); }}>
                 🎯

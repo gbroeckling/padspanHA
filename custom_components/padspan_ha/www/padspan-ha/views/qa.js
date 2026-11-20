@@ -10,7 +10,7 @@
  */
 
 export function render(ctx){
-  const { el, esc, helpBtn, radioShortId } = ctx.helpers;
+  const { el, helpBtn, radioShortId } = ctx.helpers;
   const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
   const root = el("section",{id:"qa"});
@@ -111,7 +111,7 @@ export function render(ctx){
       !c.pass && !c.warn && c.fix ? el("div",{style:"font-size:11px;color:#90caf9;margin-top:2px;display:flex;align-items:center;gap:4px"},[
         el("span",{}, c.fix),
         c.fixView ? (() => {
-          const link = el("span",{style:"cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:#5eead4"}, `Go \u2192`);
+          const link = el("span",{...ctx.helpers.asButton, style:"cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:#5eead4"}, `Go \u2192`);
           link.addEventListener("click", ()=>{
             ctx.state.view = c.fixView;
             ctx.actions.renderRooms();
@@ -143,7 +143,7 @@ export function render(ctx){
       const chips = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
       for(const o of orphaned.slice(0, 5)){
         const name = o.user_label || o.name || o.address;
-        const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, name);
+        const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, name);
         chip.addEventListener("click", ()=>ctx.actions.showObjectDetail(o));
         chips.appendChild(chip);
       }
@@ -162,7 +162,7 @@ export function render(ctx){
       const chips = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
       for(const s of unmapped){
         const chipLabel = (_sid(s.source||"") ? _sid(s.source||"")+" " : "") + (s.display_name||s.name||s.source);
-        const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, chipLabel);
+        const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, chipLabel);
         chip.addEventListener("click", ()=>ctx.actions.showScannerDetail(s));
         chips.appendChild(chip);
       }
@@ -178,7 +178,7 @@ export function render(ctx){
     if(uncovered.length > 0){
       const chips = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
       for(const r of uncovered){
-        const chip = el("span",{style:"font-size:11px;color:#90caf9;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, r);
+        const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#90caf9;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, r);
         chip.addEventListener("click", ()=>ctx.actions.showRoomDetail(r));
         chips.appendChild(chip);
       }
@@ -796,7 +796,7 @@ export function render(ctx){
       ].filter(Boolean)));
 
       // Row 2: full radio name (no truncation)
-      const nameLink = el("span",{style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, esc(r.display_name || r.name || r.source));
+      const nameLink = el("span",{...ctx.helpers.asButton, style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, String(r.display_name || r.name || r.source || ""));
       nameLink.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.actions.showScannerDetail(r); });
       summary.appendChild(el("div",{style:"padding-left:42px;margin-top:3px"},[nameLink]));
 
@@ -840,8 +840,8 @@ export function render(ctx){
             const delta = hwRaw[a.src] - hwRaw[bestNeighbor.src];
             if(Math.abs(delta) >= 2){
               const note = delta > 0
-                ? `This radio's hardware outperforms ${esc(bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src)} by ~${Math.abs(delta).toFixed(1)} dBm on average for shared devices, suggesting a better antenna or Bluetooth chipset.`
-                : `${esc(bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src)} outperforms this radio by ~${Math.abs(delta).toFixed(1)} dBm on shared devices \u2014 may have a better antenna or chipset.`;
+                ? `This radio's hardware outperforms ${bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src} by ~${Math.abs(delta).toFixed(1)} dBm on average for shared devices, suggesting a better antenna or Bluetooth chipset.`
+                : `${bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src} outperforms this radio by ~${Math.abs(delta).toFixed(1)} dBm on shared devices \u2014 may have a better antenna or chipset.`;
               rankGrid.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:4px;font-style:italic"}, note));
             }
           }
@@ -893,7 +893,7 @@ export function render(ctx){
               el("span",{}, "Shares "),
               el("span",{style:"font-weight:600;color:#5eead4"}, String(ov.shared)),
               el("span",{}, ` device${ov.shared>1?"s":""} with `),
-              el("span",{style:"font-weight:600"}, esc(ov.name)),
+              el("span",{style:"font-weight:600"}, String(ov.name ?? "")),
               el("span",{class:"muted",style:"font-size:10px;margin-left:4px"}, `[${_sid(ov.source)}]`),
             ]));
           }

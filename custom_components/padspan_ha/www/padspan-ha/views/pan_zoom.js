@@ -32,7 +32,21 @@ const MIN_SCALE = 0.3, MAX_SCALE = 5;
 const KEY_PAN_PX = 48;
 const KEY_ZOOM_FACTOR = 1.2;
 
+// One live pan/zoom per `opts.slot`. A view that redraws builds a new
+// viewport and attaches again; the attachment before it in the same slot
+// gives up its window listeners then, so they do not pile up redraw after
+// redraw. A caller that draws one viewport at a time names its slot.
+const _slots = new Map();
+
 export function attachPanZoom(viewport, inner, opts = {}) {
+  let signal;
+  if (opts.slot) {
+    const before = _slots.get(opts.slot);
+    if (before) before.abort();
+    const mine = new AbortController();
+    _slots.set(opts.slot, mine);
+    signal = mine.signal;
+  }
   const s = { scale: 1, tx: 0, ty: 0, dragging: false, startX: 0, startY: 0, startTx: 0, startTy: 0, pinchDist: 0, pinchScale: 1 };
   const apply = () => { inner.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`; };
   const zoomAt = (cx, cy, factor) => {
@@ -76,8 +90,8 @@ export function attachPanZoom(viewport, inner, opts = {}) {
     s.tx = s.startTx + (e.clientX - s.startX);
     s.ty = s.startTy + (e.clientY - s.startY);
     apply();
-  });
-  window.addEventListener("mouseup", () => { s.dragging = false; viewport.style.cursor = "grab"; });
+  }, { signal });
+  window.addEventListener("mouseup", () => { s.dragging = false; viewport.style.cursor = "grab"; }, { signal });
 
   // A touch's move and end go to the element it started on, even after a
   // redraw has taken that element out of the page (Beacon Tune redraws its

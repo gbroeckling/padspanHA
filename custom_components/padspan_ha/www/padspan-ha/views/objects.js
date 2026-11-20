@@ -839,6 +839,7 @@ export function render(ctx){
   // Badge factory: creates clickable badges that filter the object list
   function _mkFilterBadge(text, extraStyle, kindVal, statusVal, isWarn) {
     const badge = el("span", {
+      ...ctx.helpers.asButton,
       class: "badge" + (isWarn ? " warn" : ""),
       style: (extraStyle || "") + ";cursor:pointer",
       title: "Click to filter",

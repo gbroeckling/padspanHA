@@ -589,7 +589,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     empty.appendChild(startBtn);
     empty.appendChild(el("div",{style:"margin-top:10px"},[
       el("span",{class:"muted", style:"font-size:12px"}, "Prefer to do it by hand? "),
-      (()=>{ const a = el("span",{style:"font-size:12px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
+      (()=>{ const a = el("span",{...ctx.helpers.asButton, style:"font-size:12px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
         a.addEventListener("click", ()=>ctx.actions.setMapsTab("upload")); return a; })(),
     ]));
     wrap.appendChild(empty);
@@ -4535,9 +4535,16 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
   let rect = null;
   let _tapX = 0, _tapY = 0, _tapMoved = false;
   const _TAP_PX = 10;
+  // The window listeners of the gesture in progress. They are added on the
+  // press and removed on the release: markers are rebuilt on every redraw, so
+  // listeners left on window for each one would pile up redraw after redraw.
+  let _gesture = null;
 
   const onDown = (ev)=>{
     if(isEnabled && !isEnabled()) return;
+    if(_gesture) _gesture.abort();
+    _gesture = new AbortController();
+    _watchWindow(_gesture.signal);
     dragging = true;
     _tapMoved = false;
     if(ev && ev.touches && ev.touches[0]){ _tapX = ev.touches[0].clientX; _tapY = ev.touches[0].clientY; }
@@ -4576,6 +4583,7 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
   const onUp = ()=>{
     if(!dragging) return;
     dragging = false;
+    if(_gesture){ _gesture.abort(); _gesture = null; }
     if(onDragState) onDragState(false);
     rect = null;
     // A tap (no drag movement) fires onTap instead of onMoved — the mobile
@@ -4586,17 +4594,19 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
     if(onMoved) onMoved();
   };
 
-  node.addEventListener("mousedown", onDown);
-  window.addEventListener("mousemove", onMove);
-  window.addEventListener("mouseup", onUp);
+  const _watchWindow = (signal)=>{
+    window.addEventListener("mousemove", onMove, { signal });
+    window.addEventListener("mouseup", onUp, { signal });
+    window.addEventListener("touchmove", onMove, { passive:false, signal });
+    window.addEventListener("touchend", onUp, { signal });
+    // An OS-cancelled gesture (call, alert, browser takeover) must release the
+    // drag the same way a lift does - otherwise dragging/_editDragging stay
+    // stuck true and the poll re-render guard freezes the panel until reload.
+    window.addEventListener("touchcancel", onUp, { signal });
+  };
 
+  node.addEventListener("mousedown", onDown);
   node.addEventListener("touchstart", onDown, {passive:false});
-  window.addEventListener("touchmove", onMove, {passive:false});
-  window.addEventListener("touchend", onUp);
-  // An OS-cancelled gesture (call, alert, browser takeover) must release the
-  // drag the same way a lift does - otherwise dragging/_editDragging stay
-  // stuck true and the poll re-render guard freezes the panel until reload.
-  window.addEventListener("touchcancel", onUp);
 }
 
 // Format receiver list as a numbered text summary (for debug display).
@@ -12672,7 +12682,7 @@ function _roomsTab(ctx, maps) {
       onclick: () => panZoom.reset(),
     }, "Reset View");
     stage.appendChild(resetBtn);
-    const panZoom = attachPanZoom(stage, inner);
+    const panZoom = attachPanZoom(stage, inner, { slot: "maps-rooms" });
 
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "mapvector");

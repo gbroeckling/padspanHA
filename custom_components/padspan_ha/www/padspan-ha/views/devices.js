@@ -597,7 +597,7 @@ async function _loadRegistryAsync(ctx, el, container) {
       });
       addRow.appendChild(addKind); addRow.appendChild(addVal); addRow.appendChild(addGo);
 
-      const addLink = el("span", { style: "font-size:10px;color:#52b788;cursor:pointer;margin-top:4px;display:inline-block" }, "+ Add Identity");
+      const addLink = el("span", { ...ctx.helpers.asButton, style: "font-size:10px;color:#52b788;cursor:pointer;margin-top:4px;display:inline-block" }, "+ Add Identity");
       addLink.addEventListener("click", () => { addRow.style.display = addRow.style.display === "none" ? "flex" : "none"; });
       row.appendChild(addLink);
       row.appendChild(addRow);

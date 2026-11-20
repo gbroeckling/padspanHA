@@ -157,7 +157,7 @@ export function render(ctx){
               // The RSSI is a box of its own (inline-block) so it can go to
               // the next line whole: no space separates the two in the page.
               el("div",{style:"font-size:12px;overflow:hidden"},[
-                (() => { const s = el("span",{style:"cursor:pointer;font-size:12px;margin-right:6px"}, label); s.addEventListener("click",()=>{ const detailObj = o || { address: d.addr, name: d.name || d.addr, kind: "ble" }; ctx.actions.showObjectDetail(detailObj); }); return s; })(),
+                (() => { const s = el("span",{...ctx.helpers.asButton, style:"cursor:pointer;font-size:12px;margin-right:6px"}, label); s.addEventListener("click",()=>{ const detailObj = o || { address: d.addr, name: d.name || d.addr, kind: "ble" }; ctx.actions.showObjectDetail(detailObj); }); return s; })(),
                 rssiStr ? el("span",{class:"muted", style:"display:inline-block;white-space:nowrap;font-size:11px"}, rssiStr) : null,
               ].filter(Boolean)),
             ]),

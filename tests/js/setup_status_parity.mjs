@@ -93,8 +93,9 @@ if (a > 0 && b > a) {
     for (const c of [].concat(kids)) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); return n; };
   const run = (st, allDone, onboarded) => {
     const frag = document.createElement("div"), self = { state: st, _renderNav() {}, _scheduleRender() {} };
-    new Function("el", "frag", "_setupKnown", "_ss", "_allDone", "_onboardingDone", "_completedCount", "_setupRows", "VIEWS", "_loadView",
-      SRC.slice(i0, i1)).call(self, el, frag, true, STATUS, allDone, onboarded, 2, [1, 2, 3, 4, 5], { setup: {} }, async () => null);
+    // asButton: what the line's two clickable spans are given (role, tabindex, Enter and Space); this el writes attributes only.
+    new Function("el", "frag", "_setupKnown", "_ss", "_allDone", "_onboardingDone", "_completedCount", "_setupRows", "VIEWS", "_loadView", "asButton",
+      SRC.slice(i0, i1)).call(self, el, frag, true, STATUS, allDone, onboarded, 2, [1, 2, 3, 4, 5], { setup: {} }, async () => null, { role: "button", tabindex: "0" });
     return frag.children[0] || null;
   };
   try { localStorage.removeItem("padspan_setup_line"); } catch (e) {}

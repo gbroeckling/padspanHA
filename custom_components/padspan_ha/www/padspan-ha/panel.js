@@ -480,9 +480,12 @@ const MENU_GROUPS = [
 // ── DOM Utility Functions ────────────────────────────────────────────────────
 // Shared helpers used by panel.js and all view modules (passed via ctx.helpers).
 
-/** HTML-escape a string to prevent XSS when inserting into innerHTML. */
+/** HTML-escape a string to prevent XSS when inserting into innerHTML. Both
+ *  quotes too, so a value placed inside an attribute cannot end the attribute.
+ *  For markup built as a string only: el() and textContent take plain text. */
 function esc(s){
-  return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#39;");
 }
 
 /** Convenience DOM builder: el("div", {class:"foo", onclick:fn}, ["text", childNode]) */
@@ -524,6 +527,25 @@ function el(tag, attrs={}, children=[]){
   }
   return n;
 }
+
+/**
+ * Attributes for an element that acts as a button but is not one, such as a
+ * clickable <span>: el("span", { ...asButton, style: "…" }, "Hide"), with its
+ * click listener added as it always was. It is announced as a button, Tab
+ * reaches it, and Enter or Space clicks it, so the key does exactly what the
+ * click does. Nothing about how it looks changes. The views get it as
+ * ctx.helpers.asButton.
+ */
+const asButton = Object.freeze({
+  role: "button",
+  tabindex: "0",
+  onkeydown(e){
+    const n = e.currentTarget;
+    if(e.target !== n || e.repeat || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    n.click();
+  },
+});
 
 /**
  * URL for a map's image: the signed link maps_list handed out for it.
@@ -1350,7 +1372,7 @@ class PadSpanHaApp extends HTMLElement {
     const card = el("div", { "data-accuracy-tips": "card", style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:8px 12px;margin-bottom:12px" });
     const hdr = el("div", { style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px" });
     hdr.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#52b788" }, "Improve accuracy"));
-    const off = el("span", { "data-accuracy-tips": "off", style: "cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline" }, "Hide these tips");
+    const off = el("span", { "data-accuracy-tips": "off", ...asButton, style: "cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline" }, "Hide these tips");
     off.addEventListener("click", () => { this._telemetryEvent("tip_hidden:all"); save([...hidden, "all"]); });
     hdr.appendChild(off);
     card.appendChild(hdr);
@@ -1364,7 +1386,7 @@ class PadSpanHaApp extends HTMLElement {
       ]));
       const fix = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px", title: "Go there" }, btnText);
       fix.addEventListener("click", () => go(t));
-      const x = el("span", { style: "cursor:pointer;color:#64748b;font-size:13px;padding:0 4px", title: "Hide this tip", "aria-label": "Hide this tip", role: "button" }, "\u00d7");
+      const x = el("span", { style: "cursor:pointer;color:#64748b;font-size:13px;padding:0 4px", title: "Hide this tip", "aria-label": "Hide this tip", ...asButton }, "\u00d7");
       x.addEventListener("click", () => { this._telemetryEvent("tip_hidden:" + t); save([...hidden, t]); });
       row.appendChild(fix);
       row.appendChild(x);
@@ -3935,6 +3957,7 @@ class PadSpanHaApp extends HTMLElement {
       state: this.state,
       helpers: {
         el, esc, pill,
+        asButton,
         HELP,
         /** "" in English; in a shipped language, the note a translated help page opens with. */
         helpNote: () => (HELP_MOD && HELP_MOD.helpNote ? HELP_MOD.helpNote() : ""),
@@ -5324,7 +5347,7 @@ class PadSpanHaApp extends HTMLElement {
         const _mapOptional = this.state.dataMode === "live" && !Object.keys((this.state.model || {}).room_geometry_m || {}).length;
         hdr.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788"},
           _mapOptional ? `Make it a map (optional) \u2014 ${_completedCount}/${_setupRows.length}` : `Getting started \u2014 ${_completedCount}/${_setupRows.length}`));
-        const skipBtn = el("span",{"data-getting-started":"dismiss",style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, "Skip setup");
+        const skipBtn = el("span",{"data-getting-started":"dismiss",...asButton,style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, "Skip setup");
         skipBtn.addEventListener("click", () => {
           this.state._onboardingDismissed = true;
           if (this.state.settings) this.state.settings.onboarding_completed = true;
@@ -5334,7 +5357,7 @@ class PadSpanHaApp extends HTMLElement {
           this._scheduleRender();
         });
         // The guided Setup: the same steps in order, with skip and resume.
-        const setupBtn = el("span",{"data-getting-started":"setup",style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, "Open Setup");
+        const setupBtn = el("span",{"data-getting-started":"setup",...asButton,style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, "Open Setup");
         setupBtn.addEventListener("click", () => {
           this.state.view = "setup";
           this._renderNav();
@@ -5424,14 +5447,14 @@ class PadSpanHaApp extends HTMLElement {
             && !this.state.kioskMode && !_lineHidden && !this._setupLineHidden) {
           const line = el("div",{"data-setup-line":"",style:"display:flex;align-items:center;gap:10px;font-size:12px;color:#94a3b8;margin-bottom:10px"});
           line.appendChild(el("span",{}, `Set-up: ${_completedCount} of ${_setupRows.length} done \u00b7 `));
-          const open = el("span",{"data-setup-line":"open",style:"cursor:pointer;color:#5eead4;text-decoration:underline"}, "Open Setup");
+          const open = el("span",{"data-setup-line":"open",...asButton,style:"cursor:pointer;color:#5eead4;text-decoration:underline"}, "Open Setup");
           open.addEventListener("click", () => {
             this.state.view = "setup";
             this._renderNav();
             if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
             this._scheduleRender();
           });
-          const hide = el("span",{"data-setup-line":"hide",title:"Hide this line in this browser",style:"cursor:pointer;margin-left:auto;color:#64748b"}, "\u2715");
+          const hide = el("span",{"data-setup-line":"hide",...asButton,title:"Hide this line in this browser",style:"cursor:pointer;margin-left:auto;color:#64748b"}, "\u2715");
           hide.addEventListener("click", () => {
             this._setupLineHidden = true;
             try { localStorage.setItem("padspan_setup_line", "hidden"); } catch (e) { /* this page only */ }

@@ -176,7 +176,7 @@ async function _addIrk(ctx, name, irk, msgEl, after, force = false, via = "") {
 }
 
 export function render(ctx) {
-  const { el, esc } = ctx.helpers;
+  const { el } = ctx.helpers;
 
   // ── Extract BLE data from the live snapshot ───────────────────────────────
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
@@ -532,7 +532,7 @@ export function render(ctx) {
             el("div", { class: "bt-notice-sub" },
               "Usually the HA Bluetooth integration is not enabled, or the scanner API callback failed. The page still renders; the data may be empty."),
           ]),
-          el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, esc(JSON.stringify(diag, null, 2))),
+          el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, JSON.stringify(diag, null, 2)),
         ])
       : null;
 
@@ -1176,7 +1176,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
 // and a raw JSON toggle. Clicking a row selects it; clicking the Tag button
 // opens the label prompt for object tracking.
 function renderMonitor(ctx, ads, radios, objIndex) {
-  const { el, esc } = ctx.helpers;
+  const { el } = ctx.helpers;
   const _rsid = ctx.helpers.radioShortId || (() => "");
 
   const selected = ctx.state.btSelectedAddr || null;
@@ -1404,7 +1404,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
 
     // Raw JSON (collapsible)
     const rawToggle = el("button", { class: "btn tiny", style: "margin-top:12px" }, "Show raw JSON");
-    const rawPre = el("pre", { class: "pre", style: "display:none;margin-top:6px" }, esc(JSON.stringify(a, null, 2)));
+    const rawPre = el("pre", { class: "pre", style: "display:none;margin-top:6px" }, JSON.stringify(a, null, 2));
     rawToggle.addEventListener("click", () => {
       const vis = rawPre.style.display !== "none";
       rawPre.style.display = vis ? "none" : "block";

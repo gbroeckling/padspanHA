@@ -77,8 +77,8 @@ def test_export_buttons_are_only_offered_when_frames_are_loaded():
 
 
 def test_the_object_key_attribute_is_attribute_safe():
-    # ctx.helpers.esc leaves quotes alone, so a key with a quote in it would
-    # end data-obj-key early; ordinary keys (addresses) render the same.
+    # A key with a quote in it must not end data-obj-key early; ordinary keys
+    # (addresses) render the same.
     src = _TB.read_text(encoding="utf-8")
     assert '<g data-obj-key="${_esc(o.k || "").replaceAll(\'"\', "&quot;")}"' in src
     assert 'data-obj-key="${_esc(o.k || "")}"' not in src

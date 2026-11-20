@@ -1197,7 +1197,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   </svg>`;
 
   mapInner.innerHTML = svgStr;
-  attachPanZoom(mapWrap, mapInner);
+  attachPanZoom(mapWrap, mapInner, { slot: "calibration-pin" });
 
   // Tap handler — must attach after setting innerHTML
   const svgEl = mapInner.querySelector("svg");
@@ -1655,7 +1655,7 @@ function _roam(ctx, el, cs, calData) {
     ${dotsSvg}
     ${pct < 100 ? targetSvg : ""}
   </svg>`;
-  attachPanZoom(mapWrap, mapInner);
+  attachPanZoom(mapWrap, mapInner, { slot: "calibration-roam" });
   wrap.appendChild(mapWrap);
 
   // Legend
@@ -3631,9 +3631,10 @@ function _tuneTab(ctx, el, cs, calData) {
   function _refreshPlaceBanner() {
     if (ts.pendingPlace) {
       const nm = ts.pendingPlace.shown || ts.pendingPlace.name || ts.pendingPlace.source || "radio";
-      placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
+      placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelPlace");
+      if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
       if (cancelEl) cancelEl.addEventListener("click", () => {
         ts.pendingPlace = null;
         _refreshPlaceBanner();
@@ -4956,7 +4957,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   isoInner.style.cssText = "transform-origin:0 0";
   isoDiv.appendChild(isoInner);
   isoInner.innerHTML = buildBeaconSVG(_getFocusZ(bs.focusIdx));
-  const _bkPanZoom = attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false });
+  const _bkPanZoom = attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false, slot: "calibration-beacon" });
   const _bkViewReset = document.createElement("button");
   _bkViewReset.className = "btn inline";
   _bkViewReset.style.cssText = "position:absolute;top:8px;right:8px;z-index:4;padding:2px 8px;font-size:12px";
@@ -5620,9 +5621,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (bs.pendingPlace) {
       const nm = bs.pendingPlace.label || bs.pendingPlace.key || "beacon";
       const verb = bs._relocating ? "relocate" : "mark the current location of";
-      placeBanner.innerHTML = `<b style="color:#f59e0b">Double-click</b> on the 3D map to ${verb} <b style="color:#5eead4">${_esc(nm)}</b> &nbsp; <span style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">Cancel</span>`;
+      placeBanner.innerHTML = `<b style="color:#f59e0b">Double-click</b> on the 3D map to ${verb} <b style="color:#5eead4">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">Cancel</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelBkPlace");
+      if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
       if (cancelEl) cancelEl.addEventListener("click", () => {
         bs.pendingPlace = null;
         bs._relocating = null;
