@@ -67,7 +67,7 @@ def _hass(settings: dict | None = None, persons: list | None = None, states: dic
     return hass
 
 
-def _person(name: str = "Garry", trackers: list | None = None, source: str | None = None):
+def _person(name: str = "Alex", trackers: list | None = None, source: str | None = None):
     attrs = {"friendly_name": name, "device_trackers": list(trackers or [])}
     if source:
         attrs["source"] = source
@@ -159,7 +159,7 @@ def test_with_the_option_off_every_device_goes_away_after_the_away_timeout(setti
     """The rule both entities had before the option: not_home once the age is
     past the away timeout, the room until then, for a device on a person and
     for one on nobody alike. Who carries what is not even looked up."""
-    persons = [_person("Garry", ["device_tracker.keys"])] if carried else []
+    persons = [_person("Alex", ["device_tracker.keys"])] if carried else []
     for age in AGES:
         hass = _hass(settings, persons=persons, states={"device_tracker.keys": _state(user_label="Keys")})
         obj = _keys(age, sources=["office"])
@@ -189,49 +189,49 @@ def test_with_the_option_off_the_attributes_are_the_ones_before_plus_last_room()
 
 def test_a_labelled_device_nobody_carries_is_a_thing():
     assert not is_carried(_hass(), _keys(10))
-    assert not is_carried(_hass(persons=[_person("Nicole", ["device_tracker.pixel"])],
+    assert not is_carried(_hass(persons=[_person("Sam", ["device_tracker.pixel"])],
                                 states={"device_tracker.pixel": _state(friendly_name="Pixel")}), _keys(10))
 
 
 def test_picked_for_a_person_in_people_and_devices():
-    hass = _hass({"atlas_3d_carries": {"person.garry": [K]}})
+    hass = _hass({"atlas_3d_carries": {"person.alex": [K]}})
     assert is_carried(hass, _keys(10))
 
 
 def test_picked_under_another_key_of_the_same_device():
     """The phone wizard's iBeacon and IRK keys are one device, by its name."""
     other = "irk:0011"
-    hass = _hass({"atlas_3d_carries": {"person.garry": [other]}})
+    hass = _hass({"atlas_3d_carries": {"person.alex": [other]}})
     data = {K: _keys(10), other: {"key": other, "kind": "private_ble", "user_label": "keys"}}
     assert is_carried(hass, _keys(10), data)
     assert not is_carried(hass, _keys(10), {K: _keys(10)})
 
 
 def test_its_own_tracker_is_on_a_person():
-    hass = _hass(persons=[_person("Garry", ["device_tracker.garrys_thing"])])
-    assert is_carried(hass, _keys(10), own_entity_id="device_tracker.garrys_thing")
+    hass = _hass(persons=[_person("Alex", ["device_tracker.alexs_thing"])])
+    assert is_carried(hass, _keys(10), own_entity_id="device_tracker.alexs_thing")
     assert not is_carried(hass, _keys(10), own_entity_id="device_tracker.other")
 
 
 def test_the_area_sensor_finds_the_tracker_on_a_person_by_its_name():
     """The sensor has no tracker id of its own: PadSpan's tracker says its label."""
-    hass = _hass(persons=[_person("Garry", ["device_tracker.renamed"])],
+    hass = _hass(persons=[_person("Alex", ["device_tracker.renamed"])],
                  states={"device_tracker.renamed": _state(user_label="Keys", friendly_name="Anything")})
     assert is_carried(hass, _keys(10))
 
 
 def test_an_ha_entity_on_the_same_bluetooth_device_is_on_a_person():
-    hass = _hass(persons=[_person("Garry", source="device_tracker.bermuda_keys")])
+    hass = _hass(persons=[_person("Alex", source="device_tracker.bermuda_keys")])
     assert is_carried(hass, _keys(10, linked_entities=["device_tracker.bermuda_keys"]))
 
 
 def test_named_as_the_person_or_one_of_their_trackers():
     assert is_carried(_hass(persons=[_person("Keys")]), _keys(10))
-    hass = _hass(persons=[_person("Garry", ["device_tracker.pixel_9"])],
+    hass = _hass(persons=[_person("Alex", ["device_tracker.pixel_9"])],
                  states={"device_tracker.pixel_9": _state(friendly_name="Pixel 9")})
     assert is_carried(hass, _keys(10, user_label="Pixel 9"))
-    assert is_carried(_hass(persons=[_person("Garry", ["device_tracker.garry_phone"])]),
-                      _keys(10, user_label="Garry phone"))
+    assert is_carried(_hass(persons=[_person("Alex", ["device_tracker.alex_phone"])]),
+                      _keys(10, user_label="Alex phone"))
 
 
 def test_carried_uses_the_away_timeout_and_a_thing_the_longer_time():
@@ -273,7 +273,7 @@ def test_a_thing_reads_not_home_after_its_time_and_says_where_it_was():
 
 
 def test_a_person_s_device_still_goes_away_after_the_away_timeout():
-    hass = _hass(ON, persons=[_person("Garry", ["device_tracker.keys"])])
+    hass = _hass(ON, persons=[_person("Alex", ["device_tracker.keys"])])
     t = _tracker(_keys(600.0), hass)
     assert t.state == "not_home"
     assert t.extra_state_attributes["last_room"] == "Kitchen"
