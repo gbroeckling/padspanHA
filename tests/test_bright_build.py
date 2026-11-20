@@ -174,8 +174,15 @@ def test_release_publishes_bright_now_that_the_listing_is_live():
         "the public Bright repo is live; every source release must publish its matching Bright build"
     assert "bright_pass(version, channel, message)" in src
     assert "if not BRIGHT_PUBLISH:" in src
-    # The pass runs AFTER the full release is out, never before it.
-    assert src.index("create_github_release(tag, channel, message)") < src.index("bright_pass(version, channel, message)")
+    # The pass runs AFTER the full release is out, never before it: the
+    # release is published (only once its checks are green) and the update
+    # check told, then Bright.
+    public = src[src.index("def go_public("):]
+    assert (public.index("publish_github_release(tag, channel)") < public.index("publish_update_manifest(version, channel)")
+            < public.index("bright_pass(version, channel, message)"))
+    main = src[src.index("def main():"):]
+    assert main.index("create_github_release(tag, channel, message)") < main.index("go_public(version, tag, channel")
+    assert "bright_pass(" not in main
     # And the build tooling ships with the release commit.
     assert '"scripts/bright_build.py"' in src and '"scripts/bright_README.md"' in src
 

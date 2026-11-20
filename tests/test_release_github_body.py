@@ -5,8 +5,9 @@
 show in the update dialog. They said "Release v0.38.x" and an ad; they now
 carry the CHANGELOG.md sections (a beta its own, a stable every section since
 the last stable), how to update, and the footer, with each note's "thanks
-@name (#123)" as written. The fallback path makes the release a draft and
-publishes it only once the zip is on it."""
+@name (#123)" as written. The release is made as a draft with its zip on it,
+by either path; it is published later, once its tag's checks are green
+(tests/test_release_when_green.py)."""
 
 from __future__ import annotations
 
@@ -163,16 +164,17 @@ def test_the_one_shot_release_carries_the_notes(monkeypatch, tmp_path):
     calls, notes, run_ = _gh(monkeypatch, tmp_path, [("gh release create", (0, ""))])
     R.create_github_release("v1.0.4", "stable", run_=run_, sleep=lambda s: None)
     assert len(calls) == 1 and "--prerelease" not in calls[0]
+    assert " --draft --verify-tag " in calls[0], "a draft, on the tag already pushed"
     assert "### 1.0.3 — Three" in notes[0] and "Thanks @reporter (#44)." in notes[0]
 
 
-def test_the_fallback_publishes_only_once_the_zip_is_on_the_draft(monkeypatch, tmp_path):
+def test_the_fallback_leaves_a_draft_with_its_zip_and_publishes_nothing(monkeypatch, tmp_path):
     calls, notes, run_ = _gh(monkeypatch, tmp_path, [
         ("gh release create", (1, "")),
+        ("gh release view", (1, "")),                                     # the first try left no draft
         ("gh api repos/gbroeckling/padspanHA/releases -f", (0, "4242\n")),
         ("gh release upload", (0, "")),
         ("gh api repos/gbroeckling/padspanHA/releases/4242 --jq", (0, '["padspan_ha.zip"]')),
-        ("gh api -X PATCH", (0, "false")),
     ])
     R.create_github_release("v1.0.4", "beta", run_=run_, sleep=lambda s: None)
     create = next(c for c in calls if c.startswith("gh api repos/gbroeckling/padspanHA/releases -f"))
@@ -181,14 +183,17 @@ def test_the_fallback_publishes_only_once_the_zip_is_on_the_draft(monkeypatch, t
     assert "Thanks @reporter (#44)." in notes[calls.index(create)]
     order = [c.split(" --")[0][:40] for c in calls]
     i = {k: next(n for n, c in enumerate(calls) if c.startswith(k)) for k in
-         ("gh release upload", "gh api repos/gbroeckling/padspanHA/releases/4242", "gh api -X PATCH")}
-    assert i["gh release upload"] < i["gh api repos/gbroeckling/padspanHA/releases/4242"] < i["gh api -X PATCH"], order
-    assert "releases/4242 -F draft=false" in calls[i["gh api -X PATCH"]]
+         ("gh release upload", "gh api repos/gbroeckling/padspanHA/releases/4242")}
+    assert i["gh release upload"] < i["gh api repos/gbroeckling/padspanHA/releases/4242"], order
+    assert calls[-1].startswith("gh api repos/gbroeckling/padspanHA/releases/4242 --jq"), "it ends at the check that the zip is on it"
+    assert not any("draft=false" in c or c.startswith(("gh api -X PATCH", "gh release edit")) for c in calls), \
+        "publishing is not this step's: it waits for the tag's checks"
 
 
 def test_a_draft_without_its_zip_is_never_published(monkeypatch, tmp_path, capsys):
     calls, _, run_ = _gh(monkeypatch, tmp_path, [
         ("gh release create", (1, "")),
+        ("gh release view", (1, "")),
         ("gh api repos/gbroeckling/padspanHA/releases -f", (0, "4242")),
         ("gh release upload", (0, "")),                                   # says yes...
         ("gh api repos/gbroeckling/padspanHA/releases/4242 --jq", (0, "[]")),  # ...but no zip on the draft

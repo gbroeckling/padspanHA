@@ -4,6 +4,8 @@ PadSpan HA release script.
 
 Usage:
     python scripts/release.py <version> [--stable] [--no-bright]
+    python scripts/release.py <version> --finish [--no-bright]       # publish a release left as a draft
+    python scripts/release.py <version> --abandon                    # delete a draft and its tag
     python scripts/release.py <version> --manifest-only [--stable]   # re-push latest.json only
 
 Examples:
@@ -15,8 +17,13 @@ Two sessions at once (2026-10-28): it holds a lock every checkout on this
 computer shares (a second release waits), starts from origin/main, takes the
 next free version if the one given is taken, gathers changelog.d/*.md notes
 into CHANGELOG.md (see changelog.d/README.md), and if a push is refused
-because someone pushed meanwhile, merges theirs in and pushes again. After
-the push it waits for GitHub's checks on the tag and says how they went.
+because someone pushed meanwhile, merges theirs in and pushes again.
+
+Published only when green (2026-11-19): after the push the GitHub release is
+made as a DRAFT, the script waits for GitHub's checks on the tag, and only
+when every one passed does it publish the release and tell the update check.
+A build whose checks are red is never installable. See "PUBLISHED ONLY WHEN
+GREEN" in the notes below.
 
 What it does:
     1. Validates hacs.json + repo structure (catches HACS-breaking mistakes)
@@ -26,15 +33,70 @@ What it does:
        release in step 6, never committed)
     4. Validates the zip (manifest.json present + readable)
     5. Commits, tags, and pushes
-    6. Creates and publishes the GitHub release with the zip attached
-    7. Derives PadSpan Bright from the tree just released (scripts/bright_build.py):
+    6. Creates the GitHub release as a DRAFT with the zip attached. No
+       install is offered a draft.
+    7. Waits for GitHub's checks on the tag (TAG_CHECKS: Tests, Real Home
+       Assistant, Hassfest Validation, HACS Validation; about twelve
+       minutes), saying what it is waiting for.
+    8. Every check green: publishes the draft (pre-release or stable, as
+       asked), THEN writes the update-check manifest on the web host, THEN,
+       for a stable, deploys the landing page.
+       A check red, or not finished in time: stops, exit 4. The draft stays a
+       draft, the manifest is not written, the landing page and Bright are
+       not touched.
+    9. Derives PadSpan Bright from the tree just released (scripts/bright_build.py):
        copy, rename, stamp, verify, run ITS suite, zip — and publish to the
        Bright repo only once BRIGHT_PUBLISH below is True. Bright never
-       blocks the full release: it runs after, and a red pass exits non-zero
-       so it is seen. --no-bright skips it.
+       blocks the full release: it runs after the release is published, and
+       a red pass exits non-zero so it is seen. --no-bright skips it.
+
+Exit codes: 0 released. 1 stopped by an error (what was and wasn't done is
+printed). 3 released, but a later step failed (look for "!!"). 4 NOT
+released: the checks were red or did not finish, a draft is waiting.
 
 ─────────────────────────────────────────────────────────────────────
 NOTES FOR CLAUDE (read these when resuming after a session restart):
+
+PUBLISHED ONLY WHEN GREEN — the order after the tag is pushed, and why:
+  Until 2026-11-19 the release was published and the update check told
+  about it ten seconds after the push, and only then were GitHub's checks
+  waited for: a release with a red check was installable all the while.
+  Now:
+    tag pushed -> DRAFT release with the zip -> wait for the checks
+      green   -> publish the draft -> update-check manifest -> landing page
+                 (stable) -> Bright
+      red, or not finished in CI_WAIT_S -> stop, exit 4, the draft kept
+  What a draft is: GitHub lists a draft only to people who can push to the
+  repository, and HACS and Home Assistant's Marketplace skip any release
+  marked draft besides, so no install is offered one. Publishing a draft
+  keeps its tag and its zip (`gh release edit vX --draft=false` sends the
+  tag it already has, and nothing about its files).
+  The checks: TAG_CHECKS names the workflows a tag push starts. Every one
+  must be seen, on the tag's own commit, and finish in success: one missing
+  is "not finished", never green. A new workflow that runs on tags goes
+  into TAG_CHECKS (tests/test_release_when_green.py holds this).
+  The lock is held from the start to the end of the run, as before, so it
+  covers the draft, the wait and the publish: a second session waits and is
+  told whose release it is waiting for.
+  A run that stopped or died with a draft left behind:
+    - `release.py X --finish [--no-bright]` waits for the checks if they
+      are still running and publishes if they are green, then does the
+      manifest and the rest. Safe to run twice. It refuses when a newer
+      version is already published (the update check would go backwards).
+      The landing page and Bright are built from this checkout's files, so
+      --finish does them only from a checkout whose HEAD is the tag.
+    - `release.py X --abandon` deletes the draft and the tag, on GitHub and
+      here. It refuses a published release. The release commit stays on
+      main; the number is free again.
+    - a failed check that was not the build's fault can be run again on
+      GitHub (gh run rerun <id> --failed), then --finish.
+  The next release looks first (stop_for_unpublished_draft). A draft whose
+  checks FAILED can never be published: the release says so and goes ahead,
+  which is "fix it and release the next version". A draft whose checks are
+  green, still running or unknown stops the release, nothing changed: finish
+  or abandon it first, so versions are published in order.
+  --manifest-only writes the manifest only for a release GitHub shows as
+  published (never a draft, never a version with no release).
 
 HACS DOWNLOAD ARCHITECTURE — how HACS installs a zip_release integration:
   1. HACS fetches the **git tree** from GitHub API (recursive) for the tag.
@@ -850,15 +912,18 @@ def release_body(tag, channel, sections, message=None, since=None):
 
 def create_github_release(tag, channel, message=None, run_=None, sleep=time.sleep):
     """
-    Create the GitHub release with the zip attached and the CHANGELOG notes.
+    Create the GitHub release as a DRAFT, with the zip attached and the
+    CHANGELOG notes. It is published later, by publish_github_release, and
+    only once the tag's checks are green.
 
-    `gh release create` with the zip does it in one go (gh makes it a draft,
-    uploads, then publishes). GitHub's API sometimes answers HTTP 500; then:
-      1. gh api repos/.../releases   create it as a DRAFT, with the notes
+    `gh release create --draft` with the zip does it in one go. GitHub's API
+    sometimes answers HTTP 500; then:
+      1. gh api repos/.../releases   create the draft, with the notes
+                                     (or take the one the first try left)
       2. gh release upload           attach the zip
-      3. check the draft has the zip, then publish it (draft=false)
-    A published release without its zip is a failed install for anyone whose
-    HACS looks in that window (zip_release), so it is never published first.
+      3. check the draft has the zip
+    --verify-tag: the tag is already pushed, and GitHub must never make one
+    of its own from whatever main is.
     """
     run_ = run_ or (lambda cmd: run(cmd, check=False))
     is_prerelease = channel != "stable"
@@ -883,22 +948,40 @@ def create_github_release(tag, channel, message=None, run_=None, sleep=time.slee
 
 
 def _create_release(tag, is_prerelease, notes_file, run_, sleep):
-    # ── Attempt 1: gh release create (one-shot, preferred) ──
+    version = tag.lstrip("v")
+    # ── Attempt 1: gh release create --draft (one-shot, preferred) ──
     prerelease_flag = " --prerelease" if is_prerelease else ""
     result = run_(
-        f'gh release create {tag} "{ZIP_PATH}" '
+        f'gh release create {tag} "{ZIP_PATH}" --draft --verify-tag '
         f'--title "{tag}" '
         f'--notes-file "{notes_file}" '
         f'--repo {REPO}{prerelease_flag}'
     )
     if result.returncode == 0:
         return  # success
-    print("    gh release create failed, trying API fallback (a draft until the zip is on it)...")
+    print("    gh release create failed, trying API fallback...")
 
-    # ── Attempt 2: a draft through the API, the zip, a check, then publish ──
-    prerelease_api = " -F prerelease=true" if is_prerelease else ""
+    # ── Attempt 2: a draft through the API, the zip, a check that it is on it ──
+    # Asked for a draft, gh leaves the draft it made behind when it is the
+    # upload that failed, and GitHub lets two drafts wait for one tag: the one
+    # that is there is used, never a second made beside it.
     rel_id = None
+    found = run_(f'gh release view {tag} --repo {REPO} --json databaseId,isDraft --jq "[.databaseId,.isDraft]"')
+    if found.returncode == 0:
+        try:
+            found_id, found_draft = json.loads(found.stdout or "")
+        except ValueError:
+            found_id, found_draft = None, None
+        if found_id and found_draft is False:
+            print(f"  ERROR: GitHub already has a PUBLISHED release for {tag}. Nothing more was done: look at it.")
+            sys.exit(1)
+        if found_id:
+            rel_id = str(found_id)
+            print(f"    Using the draft the first try left (id {rel_id}).")
+    prerelease_api = " -F prerelease=true" if is_prerelease else ""
     for attempt in range(3):
+        if rel_id:
+            break
         result = run_(
             f'gh api repos/{REPO}/releases '
             f'-f tag_name={tag} -f name={tag} -F "body=@{notes_file}" -F draft=true{prerelease_api} --jq .id'
@@ -909,10 +992,13 @@ def _create_release(tag, is_prerelease, notes_file, run_, sleep):
         print(f"    API release create failed (attempt {attempt + 1}/3), retrying in 3s...")
         sleep(3)
     else:
-        print("  ERROR: Could not create GitHub release after all attempts.")
-        print("  The code is pushed. Create the release manually (the notes: CHANGELOG.md's section):")
-        print(f'    gh release create {tag} "dist/padspan_ha.zip" --title "{tag}" --notes "{tag}" --repo {REPO}'
+        print("  ERROR: Could not create the GitHub release (a draft) after all attempts.")
+        print(f"  The code and the tag {tag} are pushed; nothing is published. Make the draft by hand, with the zip")
+        print("  this run built (the notes: CHANGELOG.md's section), then let the script finish it once the checks are green:")
+        print(f'    gh release create {tag} "dist/padspan_ha.zip" --draft --verify-tag --title "{tag}" --notes "{tag}" --repo {REPO}'
               + (" --prerelease" if is_prerelease else ""))
+        print(f"    python -u scripts/release.py {version} --finish")
+        print(f"  Or give the version up: python scripts/release.py {version} --abandon")
         sys.exit(1)
 
     def _has_zip():
@@ -923,24 +1009,15 @@ def _create_release(tag, is_prerelease, notes_file, run_, sleep):
             return False
 
     for attempt in range(3):
-        if run_(f'gh release upload {tag} "{ZIP_PATH}" --repo {REPO}').returncode == 0 and _has_zip():
-            break
+        if run_(f'gh release upload {tag} "{ZIP_PATH}" --clobber --repo {REPO}').returncode == 0 and _has_zip():
+            return
         print(f"    Asset upload failed (attempt {attempt + 1}/3), retrying in 3s...")
         sleep(3)
-    else:
-        print(f"  ERROR: the release {tag} is a DRAFT (id {rel_id}) without the zip: nobody can install it yet.")
-        print("  Upload the zip, then publish it:")
-        print(f'    gh release upload {tag} "dist/padspan_ha.zip" --repo {REPO}')
-        print(f"    gh api -X PATCH repos/{REPO}/releases/{rel_id} -F draft=false")
-        sys.exit(1)
-
-    for attempt in range(3):
-        if run_(f"gh api -X PATCH repos/{REPO}/releases/{rel_id} -F draft=false --jq .draft").returncode == 0:
-            return
-        print(f"    Publishing the draft failed (attempt {attempt + 1}/3), retrying in 3s...")
-        sleep(3)
-    print(f"  ERROR: the release {tag} has its zip but is still a DRAFT (id {rel_id}). Publish it:")
-    print(f"    gh api -X PATCH repos/{REPO}/releases/{rel_id} -F draft=false")
+    print(f"  ERROR: the release {tag} is a DRAFT (id {rel_id}) without the zip, and it is not published.")
+    print("  Upload the zip this run built, then let the script finish it once the checks are green:")
+    print(f'    gh release upload {tag} "dist/padspan_ha.zip" --clobber --repo {REPO}')
+    print(f"    python -u scripts/release.py {version} --finish")
+    print(f"  Or give the version up: python scripts/release.py {version} --abandon")
     sys.exit(1)
 
 
@@ -1152,34 +1229,446 @@ def publish_update_manifest(version, channel):
         return False
 
 
-def wait_for_ci(tag, timeout_s=1200, every_s=20):
-    """GitHub's checks on the tag (Tests, Hassfest, HACS), waited for and
-    reported. 0.38.188 and 0.38.189 went out red (an undeclared Pillow) and
-    nobody saw it, because a release never looked. True: every run passed.
-    """
-    deadline = time.time() + timeout_s
-    seen = []
-    while time.time() < deadline:
-        res = subprocess.run(
-            f'gh run list --repo {REPO} --branch {tag} --json workflowName,status,conclusion,url',
-            shell=True, text=True, capture_output=True)
-        try:
-            seen = json.loads(res.stdout or "[]")
-        except ValueError:
-            seen = []
-        if seen and all(r.get("status") == "completed" for r in seen):
+# ── Published only when green ───────────────────────────────────────────────
+# Until 2026-11-19 a release was published, and the update check told about
+# it, ten seconds after the push; GitHub's checks were waited for afterwards
+# and only reported. A release whose checks were red was installable all the
+# while. Now the release is a draft until the checks are green (the order,
+# and what a draft is, are in the notes at the top of this file).
+
+# The workflows a tag push starts (.github/workflows: the ones whose `push:`
+# names tags, or names neither tags nor branches). All of them must be seen
+# and pass; a new one goes here.
+TAG_CHECKS = ("Tests", "Real Home Assistant", "Hassfest Validation", "HACS Validation")
+CI_WAIT_S = 30 * 60          # the Tests check takes about twelve minutes
+CI_POLL_S = 20
+EXIT_NOT_GREEN = 4           # not released: the checks were red or did not finish
+_VERSION_TAG = re.compile(r"v\d+\.\d+\.\d+")
+
+
+def _quiet(cmd):
+    """Run a command that only asks a question: nothing printed."""
+    return subprocess.run(cmd, shell=True, text=True, capture_output=True, cwd=ROOT,
+                          encoding="utf-8", errors="replace")
+
+
+def github_releases(run_=None):
+    """The newest hundred releases GitHub lists, drafts too (it lists drafts
+    only to those who can push, which a machine that releases can), as
+    [{tagName, isDraft, isPrerelease}]. None: GitHub could not be asked."""
+    res = (run_ or _quiet)(f"gh release list --repo {REPO} --limit 100 --json tagName,isDraft,isPrerelease")
+    try:
+        rels = json.loads(res.stdout or "") if res.returncode == 0 else None
+    except ValueError:
+        rels = None
+    return rels if isinstance(rels, list) else None
+
+
+def github_release(tag, run_=None):
+    """The release GitHub holds for the tag, a draft waiting for that tag too:
+    {tagName, isDraft, isPrerelease, assets}. {}: there is none. None: GitHub
+    could not be asked."""
+    res = (run_ or _quiet)(f"gh release view {tag} --repo {REPO} --json tagName,isDraft,isPrerelease,assets")
+    if res.returncode != 0:
+        return {} if "release not found" in (res.stderr or "").lower() else None
+    try:
+        rel = json.loads(res.stdout or "")
+    except ValueError:
+        return None
+    return rel if isinstance(rel, dict) else None
+
+
+def _versions(rels, draft):
+    """The X.Y.Z of every release in `rels` that is (or is not) a draft."""
+    return [r["tagName"][1:] for r in rels
+            if bool(r.get("isDraft")) == draft and _VERSION_TAG.fullmatch(str(r.get("tagName") or ""))]
+
+
+def publish_github_release(tag, channel, run_=None, sleep=time.sleep, look=None):
+    """Publish the tag's draft, as the pre-release or the stable it was asked
+    to be. Called only once the tag's checks are green. Looks before (the
+    draft must be there, with its zip) and after (published, the same tag,
+    the zip still on it); a release that is already published is left as it
+    is. Anything else stops here with the draft still a draft."""
+    run_ = run_ or (lambda cmd: run(cmd, check=False))
+    look = look or github_release
+    version = tag.lstrip("v")
+    want_pre = channel != "stable"
+
+    def _stop(why):
+        print(f"  ERROR: {why}")
+        print(f"  {tag} may not be published, and the update check was not told. Once that is put right:")
+        print(f"    python -u scripts/release.py {version} --finish")
+        sys.exit(1)
+
+    def _has_zip(rel):
+        return ZIP_PATH.name in [a.get("name") for a in rel.get("assets") or []]
+
+    rel = look(tag)
+    if rel is None:
+        _stop(f"GitHub could not be asked about the release for {tag}.")
+    if not rel:
+        _stop(f"GitHub has no release for {tag}, not even a draft.")
+    if not _has_zip(rel):
+        _stop(f"the release for {tag} has no {ZIP_PATH.name} on it, and a release without its zip is a failed install.")
+    if rel.get("isDraft"):
+        # --tag with --verify-tag: gh stops if the tag is gone from GitHub
+        # (publishing would have GitHub make a new one from main as it is now).
+        # A stable is marked Latest in so many words; a pre-release can't be.
+        kind = "--prerelease" if want_pre else "--prerelease=false --latest"
+        for attempt in range(3):
+            if run_(f"gh release edit {tag} --repo {REPO} --draft=false --tag {tag} --verify-tag {kind}").returncode == 0:
+                break
+            print(f"    Publishing the draft failed (attempt {attempt + 1}/3), retrying in 3s...")
+            sleep(3)
+        else:
+            _stop(f"GitHub would not publish the draft for {tag}.")
+        rel = look(tag) or {}
+
+    def _as_wanted(rel):
+        return (rel.get("isDraft") is False and rel.get("tagName") == tag
+                and bool(rel.get("isPrerelease")) == want_pre and _has_zip(rel))
+
+    for _ in range(2):          # GitHub can take a moment to show what it just did
+        if _as_wanted(rel):
             break
-        time.sleep(every_s)
-    if not seen:
-        print(f"  !! no GitHub checks seen for {tag}: look at https://github.com/{REPO}/actions")
+        sleep(3)
+        rel = look(tag) or {}
+    if not _as_wanted(rel):
+        _stop(f"GitHub shows {tag} as draft={rel.get('isDraft')}, tag={rel.get('tagName')}, "
+              f"pre-release={rel.get('isPrerelease')}, zip={'yes' if _has_zip(rel) else 'NO'}; "
+              f"wanted: published, {tag}, pre-release={want_pre}, zip. Look at https://github.com/{REPO}/releases")
+    print(f"  {tag} is published ({'pre-release' if want_pre else 'stable, marked Latest'}), its zip on it.")
+
+
+def tag_commit(tag, run_=None):
+    """The commit the tag points at on GitHub. "": the tag isn't there.
+    None: GitHub could not be asked."""
+    res = (run_ or _quiet)(f"git ls-remote origin refs/tags/{tag}")
+    if res.returncode != 0:
+        return None
+    return (res.stdout or "").split()[0] if (res.stdout or "").strip() else ""
+
+
+def tag_checks(tag, sha=None, run_=None):
+    """GitHub's checks on the tag: {workflow name: its newest run on the
+    tag's commit}. Runs on another commit don't count (a number given up and
+    used again has the old tag's runs under the same name). None: the tag is
+    not on GitHub, or GitHub could not be asked."""
+    run_ = run_ or _quiet
+    sha = sha or tag_commit(tag, run_)
+    if not sha:
+        return None
+    res = run_(f"gh run list --repo {REPO} --branch {tag} --limit 50 "
+               "--json workflowName,status,conclusion,url,createdAt,headSha")
+    try:
+        runs = json.loads(res.stdout or "") if res.returncode == 0 else None
+    except ValueError:
+        runs = None
+    if not isinstance(runs, list):
+        return None
+    checks = {}
+    for r in sorted((r for r in runs if r.get("headSha") == sha), key=lambda r: r.get("createdAt") or ""):
+        checks[r.get("workflowName")] = r
+    return checks
+
+
+def checks_state(checks):
+    """"green": every TAG_CHECKS check, and any other seen on the tag, has
+    finished in success. "red": one has finished any other way. "running":
+    neither yet (one not started counts). "unknown": GitHub could not be
+    asked."""
+    if checks is None:
+        return "unknown"
+    done = [r for r in checks.values() if r.get("status") == "completed"]
+    if any(r.get("conclusion") != "success" for r in done):
+        return "red"
+    if len(done) == len(checks) and all(n in checks for n in TAG_CHECKS):
+        return "green"
+    return "running"
+
+
+def _check_names(checks):
+    return list(TAG_CHECKS) + sorted(n for n in (checks or {}) if n not in TAG_CHECKS)
+
+
+def _check_word(check):
+    return (check.get("conclusion") or check.get("status") or "?") if check else "not started"
+
+
+def _checks_line(checks):
+    if checks is None:
+        return "GitHub did not answer"
+    return "; ".join(f"{n}: {_check_word(checks.get(n))}" for n in _check_names(checks))
+
+
+def wait_for_ci(tag, timeout_s=CI_WAIT_S, every_s=CI_POLL_S, checks_=None, commit_=None, now=time.time, sleep=time.sleep):
+    """GitHub's checks on the tag (TAG_CHECKS), waited for and reported; while
+    it waits it says, at least once a minute, which checks it is waiting for.
+    True: every one passed, and the release may be published. False: one
+    failed, or they had not all finished after `timeout_s` (said as a
+    timeout). 0.38.188 and 0.38.189 went out red (an undeclared Pillow) and
+    nobody saw it, because a release never looked."""
+    checks_ = checks_ or tag_checks
+    sha = (commit_ or tag_commit)(tag)
+    if not sha:
+        print(f"  !! the tag {tag} " + ("is not on GitHub." if sha == "" else "could not be looked up on GitHub."))
         return False
-    ok = True
-    for r in sorted(seen, key=lambda r: r.get("workflowName", "")):
-        state = r.get("conclusion") or r.get("status")
-        good = state == "success"
-        ok = ok and good
-        print(f"  {'ok' if good else '!!'} {r.get('workflowName')}: {state}" + ("" if good else f"  {r.get('url')}"))
+    start = now()
+    print(f"  Up to {timeout_s // 60} minutes (the Tests check alone takes about twelve): "
+          f"https://github.com/{REPO}/actions?query=branch%3A{tag}", flush=True)
+    said, said_at, timed_out = None, start, False
+    while True:
+        checks = checks_(tag, sha)
+        names = _check_names(checks)
+        waiting = [n for n in names if (checks or {}).get(n, {}).get("status") != "completed"]
+        if checks is not None and not waiting:
+            break
+        if now() - start >= timeout_s:
+            timed_out = True
+            break
+        line = _checks_line(checks)
+        if line != said or now() - said_at >= 60:
+            print(f"  {int(now() - start) // 60:>2} min, waiting for {', '.join(waiting)}  [{line}]", flush=True)
+            said, said_at = line, now()
+        sleep(every_s)
+    ok = not timed_out
+    for n in names:
+        check = (checks or {}).get(n)
+        if check and check.get("status") == "completed":
+            good = check.get("conclusion") == "success"
+            ok = ok and good
+            print(f"  {'ok' if good else '!!'} {n}: {_check_word(check)}" + ("" if good else f"  {check.get('url')}"))
+    if timed_out:
+        print(f"  !! timed out after {timeout_s // 60} minutes, still waiting for: {', '.join(waiting)}  [{_checks_line(checks)}]")
     return ok
+
+
+def stop_at_draft(tag, flags=()):
+    """The checks were not green: say what that leaves and what to do, and
+    exit EXIT_NOT_GREEN. wait_for_ci has just said which checks, and why."""
+    version = tag.lstrip("v")
+    nb = " --no-bright" if "--no-bright" in flags else ""
+    print(f"\n  !! {tag} is NOT published. Its release on GitHub stays a DRAFT, which no install is offered,")
+    print("     and the update check was not told about it (the manifest was not written).")
+    print("  Look at the checks:")
+    print(f"    gh run list --repo {REPO} --branch {tag}")
+    print(f"    gh run view <id> --repo {REPO} --log-failed")
+    print("  Two ways forward:")
+    print("    1. Fix it and release the next version, as usual. The draft and the tag stay as they are;")
+    print("       the next release says so and goes ahead.")
+    print(f"    2. Give this version up: python scripts/release.py {version} --abandon")
+    print("       (deletes the draft and the tag; the release commit stays on main).")
+    print("  If the checks are only late, or one failed through no fault of the build and has been run again")
+    print("  (gh run rerun <id> --failed), publish this version once they are green:")
+    print(f"    python -u scripts/release.py {version} --finish{nb}")
+    sys.exit(EXIT_NOT_GREEN)
+
+
+def stop_for_unpublished_draft(releases_=None, checks_=None):
+    """Before a release starts: is an earlier one still an unpublished draft?
+    A draft whose checks failed can never be published, so the release says
+    so and goes ahead (it is how a failed release is put right). A draft
+    whose checks are green, still running or unknown could still be
+    published, and a later version must not go out over it unnoticed: the
+    release stops, nothing changed, until it is finished or abandoned."""
+    rels = (releases_ or github_releases)()
+    if rels is None:
+        print("  ERROR: GitHub could not be asked for its releases (gh release list), so an unpublished\n"
+              "  draft could not be ruled out. Nothing was changed.")
+        sys.exit(1)
+    published = _versions(rels, draft=False)
+    newest = max(published, key=_vkey) if published else None
+    drafts = sorted(set(_versions(rels, draft=True)), key=_vkey)
+    passed = [v for v in drafts if newest and _vkey(v) < _vkey(newest)]
+    if passed:
+        print(f"  Drafts never published, with a later version out since: {', '.join('v' + v for v in passed)}. "
+              "To remove one: python scripts/release.py <version> --abandon")
+    blocked = False
+    for v in (v for v in drafts if v not in passed):
+        checks = (checks_ or tag_checks)(f"v{v}")
+        state = checks_state(checks)
+        if state == "red":
+            print(f"  !! v{v} was never published: its checks failed [{_checks_line(checks)}]. It stays a draft.\n"
+                  "     This release goes out in its place; make sure it carries the fix.")
+            continue
+        blocked = True
+        print(f"  ERROR: v{v} is still an unpublished draft, and its checks "
+              + {"green": "are green", "running": "have not finished"}.get(state, "could not be read")
+              + f" [{_checks_line(checks)}].\n"
+              "  A later version must not go out over it. Nothing was changed. First either\n"
+              f"    publish it:    python -u scripts/release.py {v} --finish   (add --no-bright for a beta)\n"
+              f"    or give it up: python scripts/release.py {v} --abandon")
+    if blocked:
+        sys.exit(1)
+    if not drafts:
+        print("  none.")
+
+
+def manifest_only_problem(version, channel, releases_=None):
+    """Why --manifest-only must not write the manifest for this version, or
+    None. The manifest tells every install a version exists, so the version
+    has to be a release GitHub shows as published."""
+    rels = (releases_ or github_releases)()
+    if rels is None:
+        return "GitHub could not be asked whether the release is published (gh release list)."
+    mine = [r for r in rels if r.get("tagName") == f"v{version}"]
+    if not mine:
+        return f"GitHub has no release for v{version} among its newest hundred."
+    if any(r.get("isDraft") for r in mine):
+        return (f"v{version} is still a draft on GitHub: no install is offered it. "
+                f"Publish it first: python -u scripts/release.py {version} --finish")
+    if channel == "stable" and mine[0].get("isPrerelease"):
+        return f"v{version} is a pre-release on GitHub: --stable would name it as the stable version."
+    return None
+
+
+def go_public(version, tag, channel, message, flags, whatsnew_ok=True, from_these_files=True):
+    """Everything that tells the world the version exists, in this order,
+    and only ever after the tag's checks were green: publish the GitHub
+    release, write the update-check manifest, deploy the landing page (a
+    stable), derive Bright. `from_these_files` False (a --finish from a
+    checkout that is not at the tag): the landing page and Bright, which are
+    built from the checkout's files, are left and said so."""
+    print("\nPublishing the GitHub release (its checks are green)...")
+    publish_github_release(tag, channel)
+
+    print("\nPublishing update-check manifest...")
+    manifest_ok = publish_update_manifest(version, channel)
+    if not manifest_ok:
+        print("  !! latest.json on the colo was NOT updated — installs will not "
+              "hear about this release until it is. Fix and re-run: "
+              f"python scripts/release.py --manifest-only {version}"
+              + (" --stable" if channel == "stable" else ""))
+
+    # The landing page states the current STABLE version, so only a stable
+    # release may restamp it — a beta must never advertise itself as stable.
+    # The page also reads /api/version.php at runtime, so browsers self-correct
+    # even if this step is skipped; this keeps the no-JavaScript fallback honest.
+    site_ok = True
+    left = []
+    if channel != "stable":
+        print("\nLanding page not touched (it names the stable release; this is a pre-release).")
+    elif not from_these_files:
+        left.append("the landing page")
+    else:
+        print("\nDeploying the landing page...")
+        site_res = run(f'"{sys.executable}" "{ROOT / "scripts" / "deploy_site.py"}"', check=False)
+        site_ok = site_res.returncode == 0
+        if not site_ok:
+            print("  !! padspan.traks.ca was NOT updated. Re-run: python scripts/deploy_site.py")
+
+    print(f"\n=== Done! {tag} ({channel}) is live on GitHub. ===\n")
+
+    # The site, manifest and notes steps above don't touch Bright, so a miss
+    # there still releases Bright (it used to exit first and leave Bright
+    # users on the old version, the miss seen only in the exit code).
+    if "--no-bright" in flags:
+        print("PadSpan Bright pass skipped (--no-bright).\n")
+    elif not from_these_files:
+        left.append("PadSpan Bright")
+    else:
+        print("PadSpan Bright pass...")
+        bright_pass(version, channel, message)
+        print()
+
+    if left:
+        print(f"  !! Not done: {' and '.join(left)}. They are built from the files of {tag}, and this checkout is not at {tag}.\n"
+              f"  In a checkout that is (git worktree add --detach <folder> {tag}): python -u scripts/release.py {version} --finish\n")
+    if not manifest_ok or not site_ok or not whatsnew_ok or left:
+        print("  !! Released, but a step above failed (look for '!!'): exit 3.")
+        sys.exit(3)
+
+
+def _at_tag(tag):
+    """Is this checkout's HEAD the commit the tag is on?"""
+    head = _quiet("git rev-parse HEAD").stdout.strip()
+    return bool(head) and head == _quiet(f"git rev-parse --verify --quiet refs/tags/{tag}").stdout.strip()
+
+
+def finish_release(version, flags, message=None):
+    """--finish: carry a release on from its draft. Waits for the tag's
+    checks if they are still running, publishes only if they are green, then
+    the manifest and the rest, exactly as the release itself would have.
+    Run again after it has published, it does only what is left."""
+    tag = f"v{version}"
+    rels = github_releases()
+    if rels is None:
+        print("  ERROR: GitHub could not be asked for its releases (gh release list). Nothing was changed.")
+        sys.exit(1)
+    mine = [r for r in rels if r.get("tagName") == tag]
+    if not mine:
+        print(f"  ERROR: GitHub has no release for {tag}, not even a draft: nothing to finish.\n"
+              f"  If the tag was pushed and the draft never made, give the version up and release again:\n"
+              f"    python scripts/release.py {version} --abandon")
+        sys.exit(1)
+    if len(mine) > 1:
+        print(f"  ERROR: GitHub has {len(mine)} releases for {tag}. Delete the extra one at\n"
+              f"  https://github.com/{REPO}/releases and run this again. Nothing was changed.")
+        sys.exit(1)
+    rel = mine[0]
+    channel = "beta" if rel.get("isPrerelease") else "stable"
+    if "--stable" in flags and channel != "stable":
+        print(f"  ERROR: {tag} was made as a pre-release, and --finish publishes it as what it was made.\n"
+              "  A stable is a release of its own. Nothing was changed.")
+        sys.exit(1)
+    newer = [v for v in _versions(rels, draft=False) if _vkey(v) > _vkey(version)]
+    if newer:
+        print(f"  ERROR: v{max(newer, key=_vkey)} is already published and is newer than {tag}: publishing {tag} now, or\n"
+              "  telling the update check about it, would send installs back to an older version. Nothing was changed."
+              + (f"\n  Give the draft up: python scripts/release.py {version} --abandon" if rel.get("isDraft") else ""))
+        sys.exit(1)
+
+    print(f"\n=== Finishing {tag} ({channel}) ===\n")
+    if rel.get("isDraft"):
+        print("Waiting for GitHub's checks on the tag (the release stays a draft until they pass)...")
+        if not wait_for_ci(tag):
+            stop_at_draft(tag, flags)
+    else:
+        print(f"{tag} is already published: doing what is left.")
+    go_public(version, tag, channel, message, flags, from_these_files=_at_tag(tag))
+
+
+def abandon_release(version, run_=None):
+    """--abandon: give a version up before it was ever published. Deletes
+    its draft on GitHub, then its tag there and here. A published release is
+    never touched; the release commit stays on main."""
+    run_ = run_ or (lambda cmd: run(cmd, check=False))
+    tag = f"v{version}"
+    rels = github_releases()
+    remote = tag_commit(tag)
+    if rels is None or remote is None:
+        print("  ERROR: GitHub could not be asked about the release or the tag. Nothing was changed.")
+        sys.exit(1)
+    mine = [r for r in rels if r.get("tagName") == tag]
+    if any(not r.get("isDraft") for r in mine):
+        print(f"  ERROR: {tag} is published: installs may already have it, and it can't be given up.\n"
+              "  Put it right with the next version. Nothing was changed.")
+        sys.exit(1)
+    local = _quiet(f"git rev-parse --verify --quiet refs/tags/{tag}").returncode == 0
+    if not mine and not remote and not local:
+        print(f"  ERROR: there is no draft and no tag for {tag}: nothing to give up.")
+        sys.exit(1)
+    published = _versions(rels, draft=False)
+    if not mine and published and _vkey(version) <= _vkey(max(published, key=_vkey)):
+        print(f"  ERROR: {tag} has no draft on GitHub and is not newer than the newest published release\n"
+              f"  (v{max(published, key=_vkey)}): its tag is left alone. Nothing was changed.")
+        sys.exit(1)
+
+    print(f"\n=== Giving up {tag} ===\n")
+    for _ in mine:
+        if run_(f"gh release delete {tag} --repo {REPO} --yes").returncode != 0:
+            print(f"  ERROR: the draft for {tag} could not be deleted. The tag was left. Run this again.")
+            sys.exit(1)
+    if remote and run_(f"git push origin :refs/tags/{tag}").returncode != 0:
+        print(f"  ERROR: the draft is deleted but the tag {tag} is still on GitHub. Run this again.")
+        sys.exit(1)
+    if local:
+        run_(f"git tag -d {tag}")
+    print(f"\n  {tag} is given up: no draft, no tag. Its release commit stays on main, and so does its section in\n"
+          f"  CHANGELOG.md. The number is free: the next release is {tag} again, unless a later tag exists.\n"
+          "  It uses that section as it is; if there are new notes in changelog.d/ as well, it stops and asks\n"
+          "  for one or the other (move the new lines into the section, or the section's lines back into a note).")
 
 
 def main():
@@ -1206,17 +1695,36 @@ def main():
     version = args[0].lstrip("v")
     channel = "stable" if "--stable" in flags else "beta"
 
+    one_of = [f for f in ("--manifest-only", "--finish", "--abandon") if f in flags]
+    if len(one_of) > 1 or (one_of and not re.fullmatch(r"\d+\.\d+\.\d+", version)):
+        print(f"  ERROR: {' and '.join(one_of)}: one of them at a time, with the version as X.Y.Z. Nothing was changed.")
+        sys.exit(1)
+
     if "--manifest-only" in flags:
         print(f"\n=== Manifest only: {version} ({channel}) ===\n")
+        problem = manifest_only_problem(version, channel)
+        if problem:
+            print(f"  ERROR: {problem}\n  The manifest was not written.")
+            sys.exit(1)
         sys.exit(0 if publish_update_manifest(version, channel) else 3)
 
     # One release at a time on this computer, from what everyone has pushed,
     # under a version no one has taken ("next": the one after the newest tag).
+    # The lock is held until this process ends: through the draft, the wait
+    # for the checks and the publish, and through --finish and --abandon.
     print("Taking the release lock...")
     lock = acquire_release_lock(version)
     atexit.register(release_release_lock, lock)
+    if "--abandon" in flags:
+        abandon_release(version)
+        return
+    if "--finish" in flags:
+        finish_release(version, flags, message)
+        return
     print("\nStarting from origin/main...")
     sync_with_origin()
+    print("\nLooking for an earlier release left as an unpublished draft...")
+    stop_for_unpublished_draft()
     taken = _tags()
     if version == "next":
         newest = latest_tag_version(taken)
@@ -1267,51 +1775,14 @@ def main():
     print("\nCommitting, tagging, pushing...")
     git_commit_tag_push(version, tag, message)
 
-    print("\nCreating GitHub release...")
+    print("\nCreating the GitHub release as a draft (published only once its checks are green)...")
     create_github_release(tag, channel, message)
 
-    print("\nPublishing update-check manifest...")
-    manifest_ok = publish_update_manifest(version, channel)
-    if not manifest_ok:
-        print("  !! latest.json on the colo was NOT updated — installs will not "
-              "hear about this release until it is. Fix and re-run: "
-              f"python scripts/release.py --manifest-only {version}"
-              + (" --stable" if channel == "stable" else ""))
+    print("\nWaiting for GitHub's checks on the tag (the release stays a draft until they pass)...")
+    if not wait_for_ci(tag):
+        stop_at_draft(tag, flags)
 
-    print("\nWaiting for GitHub's checks on the tag...")
-    ci_ok = wait_for_ci(tag)
-    if not ci_ok:
-        print(f"  !! {tag} is out but its checks did not all pass: fix it and release again.")
-
-    # The landing page states the current STABLE version, so only a stable
-    # release may restamp it — a beta must never advertise itself as stable.
-    # The page also reads /api/version.php at runtime, so browsers self-correct
-    # even if this step is skipped; this keeps the no-JavaScript fallback honest.
-    site_ok = True
-    if channel == "stable":
-        print("\nDeploying the landing page...")
-        site_res = run(f'"{sys.executable}" "{ROOT / "scripts" / "deploy_site.py"}"', check=False)
-        site_ok = site_res.returncode == 0
-        if not site_ok:
-            print("  !! padspan.traks.ca was NOT updated. Re-run: python scripts/deploy_site.py")
-    else:
-        print("\nLanding page not touched (it names the stable release; this is a pre-release).")
-
-    print(f"\n=== Done! {tag} ({channel}) is live on GitHub. ===\n")
-
-    # The site, manifest and notes steps above don't touch Bright, so a miss
-    # there still releases Bright (it used to exit first and leave Bright
-    # users on the old version, the miss seen only in the exit code).
-    if "--no-bright" in flags:
-        print("PadSpan Bright pass skipped (--no-bright).\n")
-    else:
-        print("PadSpan Bright pass...")
-        bright_pass(version, channel, message)
-        print()
-
-    if not manifest_ok or not site_ok or not whatsnew_ok or not ci_ok:
-        print("  !! Released, but a step above failed (look for '!!'): exit 3.")
-        sys.exit(3)
+    go_public(version, tag, channel, message, flags, whatsnew_ok)
 
 
 if __name__ == "__main__":
