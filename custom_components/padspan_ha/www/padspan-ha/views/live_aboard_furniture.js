@@ -458,6 +458,7 @@ export const STARTER_SET = [
   starter("Desk", "desk", { legs: "four", drawers: "right" }),
   starter("Office chair", "chair", { style: "office", cushion: true, arms: true }),
   starter("Plant", "plant", { style: "bush", pot: "round" }),
+  starter("Christmas tree", "plant", { style: "fir", pot: "none" }, { width_m: 1.2, depth_m: 1.2, height_m: 2.0 }, ["#1f5a32", "#b5653d"]),
 ];
 
 // ── room sets ────────────────────────────────────────────────────────────────
