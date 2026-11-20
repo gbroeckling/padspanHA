@@ -1721,6 +1721,21 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Away timeout set to ${v} min`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
+  // An option, off (0) unless hours are set: things nobody carries keep their
+  // last room that long (presence_rules.thing_away_timeout_s).
+  const currentThingH = (settings.thing_away_timeout_h != null ? Number(settings.thing_away_timeout_h) : 0);
+  const thingInp = el("input", {
+    type: "number", min: "0", max: "48", step: "0.5", value: String(currentThingH), style: inpStyle,
+  });
+  const thingSaveBtn = el("button", { class: "btn" }, "Save");
+  thingSaveBtn.addEventListener("click", async () => {
+    const raw = parseFloat(thingInp.value);
+    const v = Number.isFinite(raw) ? (raw <= 0 ? 0 : Math.max(0.5, Math.min(48, raw))) : 0;
+    try {
+      await ctx.actions.settingsSet({ thing_away_timeout_h: v });
+      ctx.toast(v === 0 ? "Off: everything goes away after the away timeout" : `Things keep their room for ${v} h`);
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
   put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Home/Away Timeout"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
@@ -1736,6 +1751,26 @@ function _settingsPresence(ctx, el){
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
       `Current: ${currentAwayM} min (${currentAwayM * 60}s). Default: 5 min. Range: 1 min – 24 h.`
+    ),
+    el("div", { class: "muted", style: "font-size:12px;margin:16px 0 14px" },
+      "Optional, and off to start with. For keys in a drawer, a tag on a bag and other things nobody carries: " +
+      "set a number of hours and they stay in the room they were last seen in for that long, then switch to " +
+      "not_home. What a person carries still goes away after the away timeout above. A device counts as carried " +
+      "when it is added to a person in Home Assistant (Settings → People → Track devices), is picked for them in " +
+      "Live Aboard (Furnish → People & devices), or has the person's name. Every other named device counts as a " +
+      "thing. So before you turn this on, add each phone and watch to its person, or it reads as home in its " +
+      "last room for these hours after it has left. A car's tag does the same: it stays in the garage for " +
+      "these hours after the car has gone. " +
+      "0 = off: everything goes away after the away timeout."
+    ),
+    el("div", { style: rowStyle, "data-thing-away": "" }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Things keep their room"),
+      thingInp,
+      el("div", { class: "muted", style: "font-size:12px" }, "hours"),
+      thingSaveBtn,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      `Current: ${currentThingH === 0 ? "off (same as the away timeout)" : currentThingH + " h"}. Default: off (0). Range: 0.5 – 48 h.`
     ),
   ]));
 

@@ -76,8 +76,8 @@ def _attrs(cls) -> set[str]:
 EXPECTED = {
     sensor.PadSpanAreaSensor: (
         {"rssi", "age_s", "sources", "room_confidence", "rssi_margin_confidence", "room_unsure", "room_reason"},
-        {"kind", "address", "padspan_id", "home", "ibeacon_uuid", "ibeacon_major", "ibeacon_minor",
-         "num_addresses", "all_addresses"},
+        {"kind", "address", "padspan_id", "home", "last_room", "ibeacon_uuid", "ibeacon_major",
+         "ibeacon_minor", "num_addresses", "all_addresses"},
     ),
     sensor.PadSpanDistanceSensor: ({"rssi", "age_s"}, {"tx_power", "room"}),
     sensor.PadSpanScannerDistanceSensor: ({"rssi", "age_s"}, {"scanner", "room"}),
@@ -85,7 +85,7 @@ EXPECTED = {
     device_tracker.PadSpanDeviceTracker: (
         {"rssi", "age_s"},
         # latitude/longitude/gps_accuracy stay recorded: they draw the trail on HA's map
-        {"latitude", "longitude", "gps_accuracy", "address", "padspan_id", "user_label", "home", "source_type"},
+        {"latitude", "longitude", "gps_accuracy", "address", "padspan_id", "user_label", "home", "last_room", "source_type"},
     ),
 }
 
