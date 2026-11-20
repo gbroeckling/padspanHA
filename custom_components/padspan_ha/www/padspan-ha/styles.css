@@ -16,6 +16,15 @@
 /* Cards with tables or bars in them: at 220 px they clip. A few cards share the row. */
 .grid-wide{grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr))}
 .card{background:#0f1a12;border:1px solid var(--line);border-radius:12px;padding:12px}
+#manage>.card+.card{margin-top:12px}
+/* Occupancy, "Rooms with evidence": room, people, phones, sensors, agreement. */
+.occ-rooms{display:grid;grid-template-columns:minmax(96px,1fr) auto auto auto auto;gap:6px 14px;font-size:12px;align-items:center}
+@media(max-width:600px){
+  /* A phone: the room's name on a line of its own, its four values under it. */
+  .occ-rooms{grid-template-columns:auto auto minmax(0,1fr) auto}
+  .occ-rooms>.occ-room{grid-column:1/-1;margin-top:6px}
+  .occ-rooms>.occ-room:first-child{margin-top:0}
+}
 .kpi{font-size:24px;font-weight:700;margin-top:4px}
 .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#0c1a0e;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto}
 textarea.mono{color:var(--text)}

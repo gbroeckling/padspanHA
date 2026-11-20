@@ -99,8 +99,10 @@ def test_the_reported_tables_sit_in_a_scroller() -> None:
     assert 'el("div",{class:"table-scroll"}, objTable)' in objects
     assert 'class:"muted obj-scanner"' in objects
     manage = _read("views/manage.js")
-    for card in ("orphCard", "tagsCard", "areasCard", "mapsCard"):
+    for card in ("orphCard", "tagsCard", "mapsCard"):
         assert f'{card}.appendChild(el("div",{{class:"table-scroll"}},el("table",{{class:"table"}},[' in manage
+    # The areas table drops the phone's 360 px floor: a long ID wraps and Delete stays on the screen.
+    assert 'areasCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table",style:"min-width:0"},[' in manage
     maps = _read("views/maps.js")
     assert 'const tableWrap = el("div",{class:"table-scroll",style:"overflow-x:auto;margin-top:8px"});' in maps
 

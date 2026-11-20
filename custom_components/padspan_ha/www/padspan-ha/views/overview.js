@@ -3488,7 +3488,7 @@ export function renderClassic(ctx){
         el("div",{class:"v"}, liveLoading ? "--" : String(roomsCount)),
       ]),
       el("div",{class:"row"},[
-        el("button",{class:"btn", onclick: openRoomsList}, "View rooms list"),
+        el("button",{class:"btn", style:"width:auto", onclick: openRoomsList}, "View rooms list"),
       ])
     ]),
     el("div",{class:"card"},[
@@ -3497,8 +3497,8 @@ export function renderClassic(ctx){
         el("div",{class:"v"}, liveLoading ? "--" : String(objectsTotal)),
       ]),
       el("div",{class:"row"},[
-        el("button",{class:"btn", onclick: ()=>openObjectsList("all")}, _quietMode ? "Tracked objects" : "All objects"),
-        _quietMode ? null : el("button",{class:"btn", onclick: ()=>openObjectsList("unidentified")}, `Unidentified (${liveLoading ? "--" : unidentifiedCount})`),
+        el("button",{class:"btn", style:"width:auto", onclick: ()=>openObjectsList("all")}, _quietMode ? "Tracked objects" : "All objects"),
+        _quietMode ? null : el("button",{class:"btn", style:"width:auto", onclick: ()=>openObjectsList("unidentified")}, `Unidentified (${liveLoading ? "--" : unidentifiedCount})`),
       ].filter(Boolean)),
       unidentifiedCount > 0 ? el("div",{style:"margin-top:6px"},[
         el("button",{class:"btn inline",style:"font-size:11px;color:#f87171;border-color:#7f1d1d", onclick: async function(){
@@ -3524,7 +3524,7 @@ export function renderClassic(ctx){
             radioModeLabel)
         : null,
       el("div",{class:"row"},[
-        el("button",{class:"btn", onclick: openRadiosList}, "View radios list"),
+        el("button",{class:"btn", style:"width:auto", onclick: openRadiosList}, "View radios list"),
       ]),
       el("div",{style:"margin-top:8px;color:#94a3b8;font-size:12px"}, dataMode==="live" ? "Live snapshot" : !modeKnown ? "Connecting to Home Assistant…" : "Sample data — switch to Live to see your real devices")
     ]),

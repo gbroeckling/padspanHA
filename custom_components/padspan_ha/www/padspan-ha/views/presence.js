@@ -34,7 +34,7 @@ export function render(ctx){
 
   const input = el("input",{type:"text", placeholder:"Enter object id (e.g., tag.keys)"});
   const out = el("div",{class:"mono"},"Enter an object id to see which rooms it appears in.");
-  const btn = el("button",{class:"btn"}, "Find");
+  const btn = el("button",{class:"btn inline"}, "Find");
 
   btn.addEventListener("click", ()=>{
     const id = (input.value||"").trim();

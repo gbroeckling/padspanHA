@@ -182,7 +182,9 @@ export function groupDevices(entries, objOf, isKept){
   return out;
 }
 
-const ago = (s) => s == null ? "" : s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+/** "45 s ago" / "12 min ago" / "3 h ago" / "56 days ago": how long since a device was heard. */
+export const ago = (s) => s == null ? "" : s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago`
+  : s < 172800 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
 
 /** "169 Windows PC addresses", or "3 of 169 ..." while a search narrows them. */
 export function groupTitle(group, shown = group.entries.length){
