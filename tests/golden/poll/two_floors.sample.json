@@ -77,9 +77,9 @@
        "spatial_xy": [12.7425731, 5.69156311, "__outside__"],
        "rssi_best": "Garden",
        "rssi_top3": [
-        ["Garden", -59.623074],
-        ["Bedroom", -76.8895778],
-        ["Lounge", -87.659422]
+        ["Garden", -55.743074],
+        ["Bedroom", -71.8895778],
+        ["Lounge", -83.109422]
        ]
       },
       "_last_room_change_mono": 10467.5,
@@ -213,9 +213,9 @@
        "spatial_xy": [9.02609042, 1.88268601, "upper"],
        "rssi_best": "Study",
        "rssi_top3": [
-        ["Study", -68.6958898],
-        ["Loft", -88.8412956],
-        ["Landing", -92.888333]
+        ["Study", -64.3558898],
+        ["Loft", -84.6112956],
+        ["Landing", -87.888333]
        ]
       },
       "_last_room_change_mono": 10012.5,
@@ -352,9 +352,9 @@
        "spatial_xy": [3.28133736, 8.1442274, "main"],
        "rssi_best": "Lounge",
        "rssi_top3": [
-        ["Lounge", -68.1003054],
-        ["Kitchen", -88.2307885],
-        ["Bath", -89.6864351]
+        ["Lounge", -63.5503054],
+        ["Kitchen", -83.2307885],
+        ["Bath", -85.5664351]
        ]
       },
       "_last_room_change_mono": 10287.5,
@@ -502,9 +502,9 @@
        "spatial_xy": [8.07073509, 9.95896302, "main"],
        "rssi_best": "Bath",
        "rssi_top3": [
-        ["Bath", -69.0484126],
-        ["Hall", -85.8419077],
-        ["Bedroom", -86.4184147]
+        ["Bath", -64.9284126],
+        ["Hall", -80.8419077],
+        ["Bedroom", -81.4184147]
        ]
       },
       "_beacon_autocal_last": 10012.5,
@@ -657,9 +657,9 @@
        "spatial_xy": [2.26296763, 1.4519746, "upper"],
        "rssi_best": "Loft",
        "rssi_top3": [
-        ["Loft", -78.8096594],
-        ["Study", -87.7702185],
-        ["Landing", -89.925905]
+        ["Loft", -74.5796594],
+        ["Study", -83.4302185],
+        ["Landing", -84.925905]
        ]
       },
       "_beacon_autocal_last": 10012.5,
@@ -806,9 +806,9 @@
        "spatial_xy": [7.42942959, 9.61499516, "main"],
        "rssi_best": "Bath",
        "rssi_top3": [
-        ["Bath", -64.7716672],
-        ["Bedroom", -80.0426977],
-        ["Hall", -84.6885093]
+        ["Bath", -60.6516672],
+        ["Bedroom", -75.0426977],
+        ["Hall", -79.6885093]
        ]
       },
       "_last_room_change_mono": 10387.5,
@@ -968,71 +968,59 @@
     }
    },
    "scanner_health": {
-    "AA:00:00:00:00:03": {
-     "reliability": 0.5,
-     "agree_pct": 0.0,
-     "polls": 30,
-     "room": "Hall"
-    },
     "AA:00:00:00:00:01": {
-     "reliability": 0.5,
-     "agree_pct": 0.0,
+     "reliability": 1.0,
+     "agree_pct": 100.0,
      "polls": 30,
      "room": "Kitchen"
     },
+    "AA:00:00:00:01:03": {
+     "reliability": 1.0,
+     "agree_pct": 100.0,
+     "polls": 30,
+     "room": "Study"
+    },
     "AA:00:00:00:00:05": {
-     "reliability": 0.5,
-     "agree_pct": 0.0,
+     "reliability": 0.857,
+     "agree_pct": 83.0,
      "polls": 30,
      "room": "Bedroom"
     },
     "AA:00:00:00:01:01": {
-     "reliability": 0.588,
-     "agree_pct": 30.0,
-     "polls": 30,
-     "room": "Loft"
-    },
-    "AA:00:00:00:01:03": {
-     "reliability": 0.566,
-     "agree_pct": 23.0,
-     "polls": 30,
-     "room": "Study"
-    },
-    "AA:00:00:00:01:04": {
-     "reliability": 0.5,
-     "agree_pct": 0.0,
-     "polls": 30,
-     "room": "Landing"
-    },
-    "AA:00:00:00:02:01": {
-     "reliability": 0.612,
-     "agree_pct": 37.0,
-     "polls": 30,
-     "room": "Garden"
-    },
-    "AA:00:00:00:00:04": {
-     "reliability": 0.5,
-     "agree_pct": 0.0,
-     "polls": 30,
-     "room": "Office"
-    },
-    "AA:00:00:00:00:02": {
-     "reliability": 0.556,
-     "agree_pct": 20.0,
-     "polls": 30,
-     "room": "Lounge"
-    },
-    "AA:00:00:00:01:02": {
-     "reliability": 0.566,
-     "agree_pct": 23.0,
+     "reliability": 1.0,
+     "agree_pct": 100.0,
      "polls": 30,
      "room": "Loft"
     },
     "AA:00:00:00:00:06": {
-     "reliability": 0.588,
-     "agree_pct": 30.0,
+     "reliability": 1.0,
+     "agree_pct": 100.0,
      "polls": 30,
      "room": "Bath"
+    },
+    "AA:00:00:00:00:04": {
+     "reliability": 1.0,
+     "agree_pct": 100.0,
+     "polls": 3,
+     "room": "Office"
+    },
+    "AA:00:00:00:00:02": {
+     "reliability": 1.0,
+     "agree_pct": 100.0,
+     "polls": 30,
+     "room": "Lounge"
+    },
+    "AA:00:00:00:00:03": {
+     "reliability": 1.0,
+     "agree_pct": 33.0,
+     "polls": 3,
+     "room": "Hall"
+    },
+    "AA:00:00:00:02:01": {
+     "reliability": 1.0,
+     "agree_pct": 100.0,
+     "polls": 27,
+     "room": "Garden"
     }
    },
    "events": {},
@@ -1097,63 +1085,53 @@
     },
     "_floor_cache": {},
     "_scanner_agree": {
-     "AA:00:00:00:00:03": {
-      "__deque__": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-      "maxlen": 30
-     },
      "AA:00:00:00:00:01": {
-      "__deque__": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-      "maxlen": 30
-     },
-     "AA:00:00:00:00:05": {
-      "__deque__": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-      "maxlen": 30
-     },
-     "AA:00:00:00:01:01": {
-      "__deque__": [false, true, false, false, false, true, false, false, false, true, false, false, true, false, false, true, false, false, false, true, false, false, false, true, false, false, true, false, false, true],
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
      "AA:00:00:00:01:03": {
-      "__deque__": [false, false, false, true, false, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false, false, true, false, false, true, false, false, true, false, false],
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
-     "AA:00:00:00:01:04": {
-      "__deque__": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
+     "AA:00:00:00:00:05": {
+      "__deque__": [true, true, true, true, true, true, true, true, false, true, true, true, true, true, true, true, true, true, true, true, true, true, false, true, false, true, false, true, false, true],
       "maxlen": 30
      },
-     "AA:00:00:00:02:01": {
-      "__deque__": [false, true, false, false, true, false, false, true, false, false, false, true, false, false, true, false, false, true, false, true, false, true, false, false, true, false, true, false, true, false],
-      "maxlen": 30
-     },
-     "AA:00:00:00:00:04": {
-      "__deque__": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-      "maxlen": 30
-     },
-     "AA:00:00:00:00:02": {
-      "__deque__": [true, false, false, false, true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, true, false, false, true, false, false, true, false],
-      "maxlen": 30
-     },
-     "AA:00:00:00:01:02": {
-      "__deque__": [false, false, false, true, false, false, false, true, false, false, false, true, false, false, false, false, true, false, false, false, false, true, false, false, false, true, false, false, false, true],
+     "AA:00:00:00:01:01": {
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
      "AA:00:00:00:00:06": {
-      "__deque__": [false, true, true, false, false, true, true, false, false, true, true, false, false, true, false, false, true, false, false, false, true, false, false, false, false, false, false, false, false, false],
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+      "maxlen": 30
+     },
+     "AA:00:00:00:00:04": {
+      "__deque__": [true, true, true],
+      "maxlen": 30
+     },
+     "AA:00:00:00:00:02": {
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+      "maxlen": 30
+     },
+     "AA:00:00:00:00:03": {
+      "__deque__": [false, true, false],
+      "maxlen": 30
+     },
+     "AA:00:00:00:02:01": {
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      }
     },
     "_scanner_reliability": {
-     "AA:00:00:00:00:03": 0.5,
-     "AA:00:00:00:00:01": 0.5,
-     "AA:00:00:00:00:05": 0.5,
-     "AA:00:00:00:01:01": 0.588,
-     "AA:00:00:00:01:03": 0.566,
-     "AA:00:00:00:01:04": 0.5,
-     "AA:00:00:00:02:01": 0.612,
-     "AA:00:00:00:00:04": 0.5,
-     "AA:00:00:00:00:02": 0.556,
-     "AA:00:00:00:01:02": 0.566,
-     "AA:00:00:00:00:06": 0.588
+     "AA:00:00:00:00:01": 1.0,
+     "AA:00:00:00:01:03": 1.0,
+     "AA:00:00:00:00:05": 0.857,
+     "AA:00:00:00:01:01": 1.0,
+     "AA:00:00:00:00:06": 1.0,
+     "AA:00:00:00:00:04": 1.0,
+     "AA:00:00:00:00:02": 1.0,
+     "AA:00:00:00:00:03": 1.0,
+     "AA:00:00:00:02:01": 1.0
     },
     "_co_visible": {},
     "_adj_learn_polls": 0,

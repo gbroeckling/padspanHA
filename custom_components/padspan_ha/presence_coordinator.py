@@ -286,11 +286,18 @@ _ISOLATED_SCANNER_STRONG_DBM: float = -65.0  # RSSI above this = strong enough t
 
 # ── Per-scanner reliability scoring (Phase 3) ────────────────────────────────
 # Each scanner accumulates a rolling "disagreement" count — how often its best
-# RSSI implies a different room than the consensus (confirmed room).
+# RSSI implies a different room than the consensus (confirmed room). A scanner
+# implies a room for an object only when it is the one that hears that object
+# best: it is judged on those objects, and not on the ones it merely overhears
+# from another room.
 # reliability = 1 / (1 + disagreement_rate)  where rate ∈ [0, 1].
-# Used as a weight multiplier on each scanner's Gaussian score.
+# Shown only (the poll's scanner health, System Critics): it is not applied to
+# any reading. It used to weaken a low scanner's readings in room scoring. But
+# the figure takes the solve's own answer as the truth, so as a weight it
+# weakened scanners that were right when the solve was wrong, and measured, it
+# did not put more devices in the right room.
 _RELIABILITY_WINDOW: int = 30         # rolling window size (polls)
-_RELIABILITY_MIN_POLLS: int = 6       # min observations before weight differs from 1.0
+_RELIABILITY_MIN_POLLS: int = 6       # min observations before the figure differs from 1.0
 
 # ── k-NN live fingerprint gating ─────────────────────────────────────────────
 # Minimum calibration points before k-NN is consulted for live room assignment.
@@ -950,7 +957,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ── Per-scanner reliability (Phase 3) ─────────────────────────────────
         # {source: deque of bools} — True = scanner agreed with consensus this poll
         self._scanner_agree: dict[str, deque] = {}
-        # {source: float} — cached reliability weight ∈ [0.5, 1.0]
+        # {source: float} — reliability figure ∈ [0.5, 1.0], shown only
         self._scanner_reliability: dict[str, float] = {}
 
         # ── Adjacency co-visibility learning (Phase 1) ────────────────────────
@@ -2180,7 +2187,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("Proactive cleanup: evicted %d stale objects", len(_stale_keys))
 
         # ── Scanner health summary (Phase 3) ──────────────────────────────────
-        # Expose per-scanner reliability weights for the UI to display.
+        # Expose per-scanner reliability figures for the UI to display.
         # Stored under a special key that won't collide with object keys.
         _sh: dict[str, Any] = {}
         for _src, _rel in self._scanner_reliability.items():
@@ -3052,11 +3059,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _LOGGER.debug("Floor attenuation error: %s", _fl_err)
                         if not _applied_floor_atten:
                             _eff_rssi -= 10.0  # default cross-floor penalty
-                # Scanner reliability penalty (convert to dBm: low reliability = weaker)
-                # Skip when suspended — reliability scores may be poisoned
-                _rel = 1.0 if self.suspended else self._scanner_reliability.get(_src, 1.0)
-                if _rel < 0.8:
-                    _eff_rssi -= (1.0 - _rel) * 10.0  # up to -5 dBm for worst scanners
+                # A scanner's reliability figure is not applied here. A
+                # scanner under 0.8 had up to 5 dB taken off its reading; see
+                # _RELIABILITY_WINDOW for why that stopped.
                 # Outdoor penalty: -15 dBm for indoor→outdoor transitions only.
                 # Skip when device has no confirmed room yet (first placement)
                 # so outdoor devices aren't forced indoors on initial detection.
@@ -3644,24 +3649,36 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Skip when suspended — don't pollute reliability with potentially wrong data.
         _spatial_agrees = (_spatial_candidate == confirmed) if _spatial_candidate else False
         if confirmed and confidence >= 0.9 and _spatial_agrees and ema and not self.suspended:
-            for _src in ema:
-                _src_room = source_to_area.get(_src)
-                if not _src_room:
+            # Only the scanner that hears the object best is judged: it is the
+            # one whose reading says "in my room". Every scanner that heard
+            # the object at all used to be marked, and marked wrong unless the
+            # object was in its own room: with objects in several rooms each
+            # scanner was "wrong" about all the ones next door, so every
+            # scanner in a house sank to about 0.5 and was reported as
+            # disagreeing. A reading past its
+            # silence grace is left out, as room scoring leaves it out (Path B
+            # above): a decayed value says nothing.
+            _claim: str | None = None
+            for _src, _rssi in ema.items():
+                if _miss.get(_src, 0) > _grace(_src) or not source_to_area.get(_src):
                     continue
-                _agreed = (_src_room == confirmed)
-                _q = self._scanner_agree.get(_src)
+                if _claim is None or _rssi > ema[_claim]:
+                    _claim = _src
+            if _claim is not None:
+                _agreed = (source_to_area[_claim] == confirmed)
+                _q = self._scanner_agree.get(_claim)
                 if _q is None:
                     _q = deque(maxlen=_RELIABILITY_WINDOW)
-                    self._scanner_agree[_src] = _q
+                    self._scanner_agree[_claim] = _q
                 _q.append(_agreed)
                 if len(_q) >= _RELIABILITY_MIN_POLLS:
                     _agree_rate = sum(_q) / len(_q)
                     _disagree = 1.0 - _agree_rate
                     _w = 1.0 / (1.0 + _disagree)
                     # 1 / (1 + disagreement) lies in [0.5, 1]: a scanner is never zeroed out.
-                    self._scanner_reliability[_src] = round(_w, 3)
+                    self._scanner_reliability[_claim] = round(_w, 3)
                 else:
-                    self._scanner_reliability[_src] = 1.0
+                    self._scanner_reliability[_claim] = 1.0
 
         # ── Adaptive learning: record observation ────────────────────────────
         # Feed confirmed room assignments back into the adaptive store so it

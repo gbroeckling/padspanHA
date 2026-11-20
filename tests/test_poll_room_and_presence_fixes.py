@@ -27,6 +27,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -38,6 +39,7 @@ from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 from tests import golden_poll as gp
 from tests import room_speed_sim as sim
+from tests.test_honest_accuracy import S2A, S2F, ROOMS, make_coord, rssi_at
 
 POLL_S = 5.0
 TAG = "C0:FF:EE:00:00:AA"
@@ -300,3 +302,70 @@ def test_a_follow_alert_is_not_sent_twice_running() -> None:
     at(1200.0, "Hall", "Bedroom")
     messages = [c.args[2]["message"] for c in coord.hass.services.async_call.call_args_list]
     assert messages == ["Phone moved from Kitchen to Hall", "Phone moved from Hall to Bedroom"]
+
+
+# Receiver reliability marked every receiver that heard an object, and marked
+# it wrong unless the object was in the receiver's own room. With objects in
+# several rooms every receiver sank to about 0.5, had its readings weakened,
+# and was reported as "disagrees with consensus". Only the receiver that hears
+# the object best is judged: the one whose reading says "in my room".
+
+# ── 5. Reliability judges the receiver that claims the object ────────────────
+
+def _sit(coord, where: dict[str, tuple[float, float]], polls: int = 40, seed: int = 5) -> None:
+    rng = random.Random(seed)
+    for _ in range(polls):
+        for key, (x, y) in where.items():
+            addr = "AA:00:00:00:00:" + key
+            coord._smooth_room(key, addr, {addr: rssi_at(x, y, rng, sd=1.0)}, S2A, 3, 2, S2F, ROOMS)
+
+
+def test_a_receiver_is_not_marked_wrong_for_objects_in_other_rooms() -> None:
+    """Two tags sit still, one in the Kitchen and one in the Office. Every
+    receiver hears both. None of them has put anything in the wrong room."""
+    coord = make_coord()
+    _sit(coord, {"01": (1.5, 1.5), "02": (11.5, 2.5)})
+    assert coord._confirmed_room == {"01": "Kitchen", "02": "Office"}
+    assert coord._scanner_reliability, "the receivers nearest each tag were judged"
+    assert all(r == 1.0 for r in coord._scanner_reliability.values()), coord._scanner_reliability
+    # Only a receiver that heard one of the tags best has a record at all.
+    assert set(coord._scanner_agree) <= {"k1", "k2", "o1", "o2"}
+
+
+def test_a_receiver_that_claims_objects_for_the_wrong_room_is_still_marked_down() -> None:
+    """The receiver beside the Kitchen tag is set to the Office in Home
+    Assistant: it hears the tag best, and its room is not where the tag is."""
+    coord = make_coord()
+    wrong_area = {**S2A, "k1": "Office"}
+    rng = random.Random(5)
+    for _ in range(40):
+        coord._smooth_room("01", "AA:00:00:00:00:01", {"AA:00:00:00:00:01": rssi_at(1.2, 1.2, rng, sd=1.0)},
+                           wrong_area, 3, 2, S2F, ROOMS)
+    assert coord._confirmed_room["01"] == "Kitchen"
+    assert coord._scanner_reliability["k1"] < 0.8
+    assert all(r == 1.0 for s, r in coord._scanner_reliability.items() if s != "k1")
+
+
+def test_the_reliability_figure_is_shown_and_not_applied(monkeypatch) -> None:
+    """A receiver with a low figure scores a room exactly as it would with
+    1.0: the figure is for the scanner health list and System Critics. Applied
+    as a weight it took up to 5 dB off a receiver's readings, on the word of
+    the same solve it then fed."""
+    def walk(mark: bool):
+        if not mark:
+            monkeypatch.setattr(pc, "_RELIABILITY_MIN_POLLS", 10 ** 9)   # never enough polls for a figure
+        coord = make_coord()
+        wrong_area = {**S2A, "k1": "Office"}
+        rng = random.Random(5)
+        out = []
+        for _ in range(60):
+            got = coord._smooth_room("01", "AA:00:00:00:00:01", {"AA:00:00:00:00:01": rssi_at(1.2, 1.2, rng, sd=1.0)},
+                                     wrong_area, 3, 2, S2F, ROOMS)
+            out.append((repr(got), coord._room_confidence.get("01"), coord._rssi_margin_confidence.get("01"),
+                        repr(coord._last_candidate.get("01"))))      # carries each room's signal score
+        return coord, out
+
+    marked, with_figure = walk(True)
+    plain, without = walk(False)
+    assert marked._scanner_reliability["k1"] < 0.8 and plain._scanner_reliability.get("k1", 1.0) == 1.0
+    assert with_figure == without
