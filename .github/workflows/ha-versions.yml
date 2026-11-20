@@ -49,9 +49,16 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       # The harness release pins the Home Assistant it was built against.
+      # "pins": a library that release left unpinned and that has since
+      # broken it, held to what that release was built with (josepy 2 drops
+      # what acme needs; pycares 5 breaks aiodns 3.5; pycares 4.9 starts a
+      # thread the harness before 2025.7 fails a test for).
       - name: Install Home Assistant ${{ matrix.ha }} and its test harness
+        env:
+          HARNESS: ${{ matrix.harness }}
+          PINS: ${{ matrix.pins }}
         run: |
-          pip install "${{ matrix.harness }}"
+          pip install "$HARNESS" $PINS
           python -c "import sys, homeassistant.const as c; print('Home Assistant', c.__version__, 'on Python', sys.version.split()[0])"
           test "$(python -c 'import homeassistant.const as c; print(c.__version__)')" = "${{ matrix.ha }}"
       # tests_ha/other_versions.py: what the harness of another release needs

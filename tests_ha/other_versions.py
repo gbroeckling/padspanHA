@@ -113,9 +113,14 @@ def _note(line: str) -> None:
 
 class _Notes(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
-        if record.levelno < logging.WARNING:
+        # asyncio's slow-step notes (the harness runs the loop in debug mode)
+        # and the loader's line about every custom integration say nothing
+        # about what will stop working.
+        if record.levelno < logging.WARNING or record.name == "asyncio":
             return
         text = record.getMessage()
+        if "has not been tested by Home Assistant" in text:
+            return
         if _SPEAKS_OF_IT.search(text) or ("padspan_ha" in text and not record.name.startswith(_OWN_LOGGER)):
             _note(f"log {record.levelname} {record.name}: {text}")
 
