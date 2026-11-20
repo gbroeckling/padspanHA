@@ -109,6 +109,29 @@ function makeCtx(state, calls = [], actionsExtra = {}) {
   check("health: Sample's snapshot counts its receivers", radiosLine(SAMPLE_SNAPSHOT) === `Radios: ${n}`, radiosLine(SAMPLE_SNAPSHOT));
   check("health: Live's top-level radios still win", radiosLine({ radios: [{}, {}], ble: { radios: [{}] } }) === "Radios: 2",
     radiosLine({ radios: [{}, {}], ble: { radios: [{}] } }));
+  // Tags/Objects is every device heard (objects, as Devices lists them), not
+  // only Home Assistant's room-tracker entities (tags), none in most houses:
+  // it read 0 beside 2,605 devices (audit 2026-11-19).
+  const lines = (state) => all(HEALTH.render(makeCtx(Object.assign({ view: "health" }, state)))).map(text);
+  const line = (state, label) => lines(state).find(t => t.startsWith(label + ": ")) || "";
+  const heard = { ble: { radios: [] }, tags: [], objects: { list: [{}, {}, {}], summary: { total: 3 } } };
+  check("health: Tags/Objects counts the devices heard", line({ live: { snapshot: heard } }, "Tags/Objects") === "Tags/Objects: 3",
+    line({ live: { snapshot: heard } }, "Tags/Objects"));
+  const slim = { ble: { radios: [] }, tags: [], objects: { list: [{}], summary: { total: 2605 } } };
+  check("health: the slim snapshot's shorter list doesn't lower the count", line({ live: { snapshot: slim } }, "Tags/Objects") === "Tags/Objects: 2605",
+    line({ live: { snapshot: slim } }, "Tags/Objects"));
+  check("health: a snapshot with no objects still counts its tags", line({ live: { snapshot: { tags: [{}, {}] } } }, "Tags/Objects") === "Tags/Objects: 2",
+    line({ live: { snapshot: { tags: [{}, {}] } } }, "Tags/Objects"));
+  // Opened directly, before the first refresh has answered: loading, not 0 and a dash.
+  const early = { live: { snapshot: null }, timing: { lastRefreshMs: null } };
+  const got = ["Refresh", "Rooms", "Radios", "Tags/Objects"].map(l => line(early, l));
+  check("health: before the first refresh every reading says loading",
+    JSON.stringify(got) === JSON.stringify(["Refresh: loading…", "Rooms: loading…", "Radios: loading…", "Tags/Objects: loading…"]), got);
+  // The refresh answered but no snapshot came (a failed read): the counts as before, no endless "loading".
+  const failed = { live: { snapshot: null }, timing: { lastRefreshMs: 412 } };
+  check("health: after a refresh with no snapshot it is not still loading",
+    line(failed, "Refresh") === "Refresh: 412ms" && line(failed, "Rooms") === "Rooms: 0" && line(failed, "Tags/Objects") === "Tags/Objects: 0",
+    ["Refresh", "Rooms", "Tags/Objects"].map(l => line(failed, l)));
 }
 
 // ── 3. Diagnostics ───────────────────────────────────────────────────────────

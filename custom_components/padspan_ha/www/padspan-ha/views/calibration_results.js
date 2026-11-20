@@ -297,10 +297,16 @@ export function renderResults(ctx, el, cs, calData, deps) {
   // How accurate it is now.
   const acc = houseAccuracy(data);
   const accCard = el("div", { class: "card", "data-cal-results": "accuracy" });
-  accCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px" }, [
-    el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, "How accurate it is now"),
-    ctx.helpers.helpBtn("calibration_results"),
-    el("div", { style: "margin-left:auto" }, [guidedBtn(true)]),
+  // The heading and its ? stay together on the left, the button on the right.
+  // Where both don't fit on one line (a phone) the button takes the next line
+  // from the left, under the heading: pushed right there (margin-left:auto) it
+  // sat alone at the far edge with an empty gap before it.
+  accCard.appendChild(el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px" }, [
+    el("div", { style: "display:flex;align-items:center;gap:10px" }, [
+      el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, "How accurate it is now"),
+      ctx.helpers.helpBtn("calibration_results"),
+    ]),
+    el("div", {}, [guidedBtn(true)]),
   ]));
   const big = (value, label, color) => el("div", { style: "flex:1;min-width:120px;background:#0a150e;border:1px solid #1b3526;border-radius:8px;padding:10px;text-align:center" }, [
     el("div", { style: `font-size:24px;font-weight:700;color:${color}` }, value),

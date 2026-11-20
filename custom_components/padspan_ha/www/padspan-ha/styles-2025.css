@@ -247,6 +247,38 @@ svg text, svg tspan { letter-spacing: normal; }
 .tab:active{transform:none;filter:none}
 .tab:focus-visible{outline:2px solid var(--ps-ac-ln);outline-offset:-2px}
 
+/* A strip that scrolls sideways with tabs past its edge (maps.js _tabsMore
+   marks it): that edge fades out, so a tab cut off there reads as "more this
+   way", not as a strip that ends mid-word. */
+.tabs.more-end{
+  -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 44px),transparent);
+  mask-image:linear-gradient(to right,#000 calc(100% - 44px),transparent);
+}
+.tabs.more-start{
+  -webkit-mask-image:linear-gradient(to left,#000 calc(100% - 44px),transparent);
+  mask-image:linear-gradient(to left,#000 calc(100% - 44px),transparent);
+}
+.tabs.more-start.more-end{
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 44px,#000 calc(100% - 44px),transparent);
+  mask-image:linear-gradient(to right,transparent,#000 44px,#000 calc(100% - 44px),transparent);
+}
+
+/* A strip that wraps to more rows (Calibration and Manage on a phone): the
+   strip's own bottom border is under the last row only, so the rows above
+   had no line and an active tab's underline hung in mid-air. Every row above
+   the last gets the same line, drawn at one tab's height, the rows 4px apart
+   (the strips' own gap). One row: nothing is drawn, it is as it was. */
+.tabs.tabs-rows{
+  --ps-tab-h:34px;
+  background:repeating-linear-gradient(to bottom,
+    transparent 0,transparent var(--ps-tab-h),
+    var(--line) var(--ps-tab-h),var(--line) calc(var(--ps-tab-h) + 1px),
+    transparent calc(var(--ps-tab-h) + 1px),transparent calc(var(--ps-tab-h) + 4px));
+}
+.tabs.tabs-rows .tab{height:var(--ps-tab-h);min-height:0}
+/* styles.css makes a tab at least 40px tall for a finger at this width */
+@media(max-width:900px){.tabs.tabs-rows{--ps-tab-h:40px}}
+
 /* ── Top bar ─────────────────────────────────────────────────────────────── */
 .desktop-topbar{
   height:50px;align-items:center;gap:8px;
@@ -358,6 +390,10 @@ svg text, svg tspan { letter-spacing: normal; }
   .mobile-topbar{margin:0 -12px 10px}
   .desktop-topbar{display:none}
 }
+/* The phone's top bar and bottom tab bar are this skin's rail, as the sidebar
+   is (styles.css gives them brown gradients, which read as another app
+   against this skin's page). */
+.mobile-topbar,.mobile-bottom-nav{background:var(--ps-s1)}
 .mobile-bottom-nav-btn.active{color:var(--ps-ac)}
 .mobile-bottom-nav-btn .bn-dot{display:none}
 .mobile-topbar-pill{

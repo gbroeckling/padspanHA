@@ -72,7 +72,7 @@ def test_the_panel_loads_it_optionally_and_counts_once_per_poll() -> None:
 
 def test_it_sits_in_both_top_bars_and_a_wall_corner() -> None:
     js = _read(_WWW / "panel.js")
-    assert '<span class="pill" id="statusBadge">Status: —</span>\n            <button class="status-dot hidden" type="button" data-status-dot="desktop"></button>' in js
+    assert '<span class="pill" id="statusBadge">Status: …</span>\n            <button class="status-dot hidden" type="button" data-status-dot="desktop"></button>' in js
     assert '<button class="status-dot hidden" type="button" data-status-dot="mobile"></button>' in js
     assert '<div class="status-dot status-dot-wall hidden" role="status" data-status-dot="wall"></div>' in js
     # Kiosk hides the top bars: the corner shows there, the bars' dots elsewhere.
