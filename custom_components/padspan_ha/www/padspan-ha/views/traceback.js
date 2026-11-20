@@ -685,7 +685,7 @@ export function render(ctx) {
         // One <g> per object, keyed + anchored, so mergeObjectLayer can
         // glide it to its next-frame position instead of the whole overlay
         // teleporting on every frame swap.
-        // _esc leaves quotes alone; a key is an attribute value here.
+        // A key is an attribute value here: a quote in it must not end the attribute.
         s += `<g data-obj-key="${_esc(o.k || "").replaceAll('"', "&quot;")}" data-ann="${px} ${py}">`;
         // Outer glow ring (pulsing)
         s += `<circle cx="${px}" cy="${py}" r="26" fill="none" stroke="${col}" stroke-width="2" opacity="0.35">`;

@@ -480,9 +480,12 @@ const MENU_GROUPS = [
 // ── DOM Utility Functions ────────────────────────────────────────────────────
 // Shared helpers used by panel.js and all view modules (passed via ctx.helpers).
 
-/** HTML-escape a string to prevent XSS when inserting into innerHTML. */
+/** HTML-escape a string to prevent XSS when inserting into innerHTML. Both
+ *  quotes too, so a value placed inside an attribute cannot end the attribute.
+ *  For markup built as a string only: el() and textContent take plain text. */
 function esc(s){
-  return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#39;");
 }
 
 /** Convenience DOM builder: el("div", {class:"foo", onclick:fn}, ["text", childNode]) */

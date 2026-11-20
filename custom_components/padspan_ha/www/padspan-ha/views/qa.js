@@ -10,7 +10,7 @@
  */
 
 export function render(ctx){
-  const { el, esc, helpBtn, radioShortId } = ctx.helpers;
+  const { el, helpBtn, radioShortId } = ctx.helpers;
   const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
   const root = el("section",{id:"qa"});
@@ -796,7 +796,7 @@ export function render(ctx){
       ].filter(Boolean)));
 
       // Row 2: full radio name (no truncation)
-      const nameLink = el("span",{style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, esc(r.display_name || r.name || r.source));
+      const nameLink = el("span",{style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, String(r.display_name || r.name || r.source || ""));
       nameLink.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.actions.showScannerDetail(r); });
       summary.appendChild(el("div",{style:"padding-left:42px;margin-top:3px"},[nameLink]));
 
@@ -840,8 +840,8 @@ export function render(ctx){
             const delta = hwRaw[a.src] - hwRaw[bestNeighbor.src];
             if(Math.abs(delta) >= 2){
               const note = delta > 0
-                ? `This radio's hardware outperforms ${esc(bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src)} by ~${Math.abs(delta).toFixed(1)} dBm on average for shared devices, suggesting a better antenna or Bluetooth chipset.`
-                : `${esc(bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src)} outperforms this radio by ~${Math.abs(delta).toFixed(1)} dBm on shared devices \u2014 may have a better antenna or chipset.`;
+                ? `This radio's hardware outperforms ${bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src} by ~${Math.abs(delta).toFixed(1)} dBm on average for shared devices, suggesting a better antenna or Bluetooth chipset.`
+                : `${bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src} outperforms this radio by ~${Math.abs(delta).toFixed(1)} dBm on shared devices \u2014 may have a better antenna or chipset.`;
               rankGrid.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:4px;font-style:italic"}, note));
             }
           }
@@ -893,7 +893,7 @@ export function render(ctx){
               el("span",{}, "Shares "),
               el("span",{style:"font-weight:600;color:#5eead4"}, String(ov.shared)),
               el("span",{}, ` device${ov.shared>1?"s":""} with `),
-              el("span",{style:"font-weight:600"}, esc(ov.name)),
+              el("span",{style:"font-weight:600"}, String(ov.name ?? "")),
               el("span",{class:"muted",style:"font-size:10px;margin-left:4px"}, `[${_sid(ov.source)}]`),
             ]));
           }
