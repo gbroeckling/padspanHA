@@ -1065,6 +1065,13 @@ input.input[type="email"]{min-height:37px}
 #bluetooth .bt-controls .input:focus,#bluetooth .bt-controls .select:focus{
   border-color:rgba(82,183,136,.65);
 }
+/* From 900px down the Source list and Max rows get 16px text (the rule that
+   stops a phone zooming in on focus) and grow taller than Search beside them,
+   each by a different amount. One height keeps the labels above them on one
+   line. */
+@media(max-width:900px){
+  #bluetooth .bt-controls .input,#bluetooth .bt-controls .select{min-height:40px}
+}
 
 /* ── the graph ──────────────────────────────────────────────────────────── */
 #bluetooth .bt-viz{border-color:var(--bt-line);background:var(--bt-inset);border-radius:12px}
@@ -1108,8 +1115,10 @@ input.input[type="email"]{min-height:37px}
   #bluetooth .bt-stat-num{font-size:18px}
   #bluetooth .bt-kv{grid-template-columns:1fr;gap:0}
   #bluetooth .bt-kv dt{margin-top:6px}
-  #bluetooth .bt-seg{width:100%}
-  #bluetooth .bt-seg .tab{flex:1 1 auto;text-align:center;min-height:38px}
+  /* border-box: its padding and border are inside the 100%, so it ends where
+     the cards above it end. Equal shares on each line it wraps to. */
+  #bluetooth .bt-seg{width:100%;box-sizing:border-box}
+  #bluetooth .bt-seg .tab{flex:1 1 0;text-align:center;min-height:38px;white-space:nowrap}
 }
 @media(max-width:480px){
   #bluetooth .bt-adv-row{flex-wrap:wrap}
