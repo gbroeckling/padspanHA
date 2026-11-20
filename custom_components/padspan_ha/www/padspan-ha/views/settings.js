@@ -1463,7 +1463,7 @@ function _settingsPresence(ctx, el){
       secBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      secAdmin ? "Off by default. Takes effect at once, no restart needed." : "Only an administrator can change this."
+      secAdmin ? "On for a new install; a home set up before November 2026 keeps it as it was. Takes effect at once, no restart needed." : "Only an administrator can change this."
     ),
   ]));
 

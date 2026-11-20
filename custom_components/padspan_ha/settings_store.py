@@ -47,7 +47,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Enhanced security (ws_common.require_admin_if_enhanced): off = every
     # command as before; on = only an admin changes the home's shared setup.
     # Only an admin turns it on or off.
-    "enhanced_security": False,
+    "enhanced_security": False,    # ON for a brand-new install (async_load); an existing home keeps what it has
     "update_check_enabled": True,  # daily version ping to padspan.traks.ca (see README)
     # Opt-in usage report (telemetry.py). OFF until a person turns it on;
     # the id is minted on first enable and can be replaced from Settings.
@@ -525,6 +525,10 @@ class SettingsStore:
         # reset or a restore writes one too.
         if loaded is None and first_run:
             self.data["iphone_irk_guide"] = True
+            # Enhanced security starts ON for a new install (owner, 2026-11-19):
+            # changes to the home's shared setup need an administrator from the
+            # first day. A home set up before keeps the switch as it has it.
+            self.data["enhanced_security"] = True
             self.data["onboarding"] = {"setup_ts": time.time()}
             # PadSpan Bright is the Atlas alone: it has no presence screens to
             # open on, so its mode is left as it always was.

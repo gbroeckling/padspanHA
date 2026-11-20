@@ -376,3 +376,68 @@ def test_positioning_choices_are_the_homes_setup(key):
     data, conn = _set(False, False, **{key: True})
     conn.send_error.assert_not_called()
     assert data[key] is True
+
+
+# ── a new install starts with it on (owner, 2026-11-19) ──────────────────────
+
+def _load(first_run: bool, stored):
+    """SettingsStore.async_load over a fake disk: (settings after the load, what was saved)."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from custom_components.padspan_ha.settings_store import SettingsStore
+
+    saved = {}
+
+    class _Disk:
+        async def async_load(self):
+            return stored
+
+        async def async_save(self, data):
+            saved.clear()
+            saved.update(data)
+
+    store = SettingsStore.__new__(SettingsStore)
+    store.store = _Disk()
+    store.hass = SimpleNamespace(data={}, config=SimpleNamespace(path=lambda *a: "."))
+    store.data = {}
+
+    async def _first():
+        return first_run
+
+    store._first_run = _first
+    asyncio.new_event_loop().run_until_complete(store.async_load())
+    return store.data, saved
+
+
+def test_a_brand_new_install_starts_with_enhanced_security_on():
+    data, saved = _load(True, None)
+    assert data["enhanced_security"] is True and saved["enhanced_security"] is True
+
+
+def test_a_home_already_set_up_keeps_the_switch_as_it_has_it():
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+
+    assert DEFAULT_SETTINGS["enhanced_security"] is False, "the default for a home that never chose stays off"
+    # settings on disk without the key (an older version), with it off, with it on
+    assert _load(False, {"quiet_mode": True})[0]["enhanced_security"] is False
+    assert _load(False, {"enhanced_security": False})[0]["enhanced_security"] is False
+    assert _load(False, {"enhanced_security": True})[0]["enhanced_security"] is True
+    # no settings file but other PadSpan files in .storage (not a first run): unsure is an existing home
+    assert _load(False, None)[0]["enhanced_security"] is False
+    # and a settings file on a first-run-looking disk is still an existing home
+    assert _load(True, {"enhanced_security": False})[0]["enhanced_security"] is False
+
+
+def test_the_docs_and_the_switch_say_when_it_is_on():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    js = (root / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "settings.js").read_text(encoding="utf-8")
+    assert "On for a new install; a home set up before November 2026 keeps it as it was." in js
+    assert "Off by default. Takes effect" not in js
+    for name, want in (("README.md", "on for a new install, off in a home set up before November 2026"),
+                       ("docs/GETTING_STARTED.md", "A new install starts with it on")):
+        p = root / name
+        if p.exists():          # the Bright derivation carries neither
+            assert want in p.read_text(encoding="utf-8"), name

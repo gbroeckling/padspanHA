@@ -323,7 +323,7 @@ Details: [What PadSpan never touches](./docs/GETTING_STARTED.md#what-padspan-nev
 
 ## Security
 
-Names from devices, scanners and rooms are always shown as plain text in the panel. Backups, restores, factory reset, IRKs, map uploads and anything that sends data out of the house need a Home Assistant administrator. For homes where other people have accounts, **Settings → Tracking → Enhanced security** (off by default, admin-only) makes every change to PadSpan's shared setup need an administrator as well, while the household can still view and use PadSpan. See [Who can change what](./docs/GETTING_STARTED.md#who-can-change-what) and [SECURITY.md](./SECURITY.md) to report an issue.
+Names from devices, scanners and rooms are always shown as plain text in the panel. Backups, restores, factory reset, IRKs, map uploads and anything that sends data out of the house need a Home Assistant administrator. For homes where other people have accounts, **Settings → Tracking → Enhanced security** (on for a new install, off in a home set up before November 2026 until someone turns it on; admin-only) makes every change to PadSpan's shared setup need an administrator as well, while the household can still view and use PadSpan. See [Who can change what](./docs/GETTING_STARTED.md#who-can-change-what) and [SECURITY.md](./SECURITY.md) to report an issue.
 
 ---
 
