@@ -65,7 +65,9 @@ HOME/AWAY PERSISTENCE
 ─────────────────────
 Devices that disappear from the live snapshot are kept in the result dict for a
 fixed grace of _AWAY_GRACE_S (120 s, converted to polls) so a momentary signal
-gap does not end their presence; after it they are evicted.  (The old
+gap does not end their presence; after it they are evicted.  Their age_s goes
+on from the age they were last listed with, so one that was already away stays
+away, and one evicted while still present is reported as departed.  (The old
 signal_loss_linger_s setting that tuned this was retired in 0.20.16 and is not
 read.)  Labelled devices also stay in the list through the object history, with
 an age_s that keeps growing.  Entities read age_s and return "not_home" when
@@ -284,7 +286,10 @@ _ISOLATED_SCANNER_STRONG_DBM: float = -65.0  # RSSI above this = strong enough t
 
 # ── Per-scanner reliability scoring (Phase 3) ────────────────────────────────
 # Each scanner accumulates a rolling "disagreement" count — how often its best
-# RSSI implies a different room than the consensus (confirmed room).
+# RSSI implies a different room than the consensus (confirmed room). A scanner
+# implies a room for an object only when it is the one that hears that object
+# best: it is judged on those objects, and not on the ones it merely overhears
+# from another room.
 # reliability = 1 / (1 + disagreement_rate)  where rate ∈ [0, 1].
 # Used as a weight multiplier on each scanner's Gaussian score.
 _RELIABILITY_WINDOW: int = 30         # rolling window size (polls)
@@ -993,6 +998,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # (labelled ones, replayed by the object history): heard again, they
         # get the re-entry reset (see _object_loop).
         self._quiet_keys: set[str] = set()
+        # {key: room} — this poll's pinned objects whose pin names a real room
+        # (rebuilt each poll). Their room is the pin's: the vote does not
+        # change it (_smooth_room).
+        self._pin_rooms: dict[str, str] = {}
 
         # Suspend: when set, use only raw radio + spatial centroid (no k-NN, no adaptive)
         self._suspend_until: float = 0.0  # monotonic timestamp when suspend ends
@@ -1267,6 +1276,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Accumulates (key, old_room, new_room) tuples during this poll cycle;
         # processed at the end for alerts, movement history, and HA tag events.
         self._pending_room_changes: list[tuple[str, str | None, str]] = []
+        # Who was present after the last poll, by device, kept aside as that
+        # poll left it: an object dropped during this poll (_evict_object) is
+        # taken out of self._prev_groups, and one dropped while present was
+        # then never reported as departed.
+        _prev_groups = {_g: list(_ks) for _g, _ks in self._prev_groups.items()}
 
         # ── Resolve rotating MACs to canonical IDs ────────────────────────────
         # Build a mapping {raw_addr_upper → canonical_key} so that all rotating
@@ -1614,6 +1628,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # The poll's scanner -> area map, kept for the held-out test (heldout.py).
         self._last_source_to_area = dict(source_to_area)
 
+        # Pinned objects whose room is the pin's. A pin's room must be a real
+        # room. Legacy pins stamped a device LABEL into room when geometry
+        # couldn't resolve — confirming those creates phantom "rooms" on the
+        # overview.
+        self._pin_rooms = {
+            _pk: _pp["room"] for _pk, _pp in _pinned.items()
+            if _pp["room"] and (_pp["room"] in _fabric_rooms or _pp["room"] in self._room_centroids)
+        }
+
         def _object_loop() -> None:
             """CPU-heavy per-object smoothing pipeline (Kalman + k-NN + votes).
 
@@ -1810,14 +1833,25 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if key in _pinned:
                         _pin = _pinned[key]
                         obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
-                        # A pin's room must be a real room. Legacy pins stamped a
-                        # device LABEL into room when geometry couldn't resolve —
-                        # confirming those creates phantom "rooms" on the overview.
-                        if _pin["room"] and (
-                                _pin["room"] in _fabric_rooms
-                                or _pin["room"] in self._room_centroids):
-                            obj["room"] = _pin["room"]
-                            self._confirmed_room[key] = _pin["room"]
+                        _pin_room = self._pin_rooms.get(key)
+                        if _pin_room:
+                            obj["room"] = _pin_room
+                            # The room it is SHOWN in changed (first shown
+                            # here, or just pinned): that is its room change,
+                            # reported as any other is. _smooth_room reports
+                            # none for it. It did: the pin put the confirmed
+                            # room back every poll, so each poll the vote was
+                            # met was "pin room -> solved room" again, with an
+                            # alert, a history row and a tag event each time,
+                            # for a beacon whose shown room never changed.
+                            _was_room = self._confirmed_room.get(key)
+                            if _was_room != _pin_room:
+                                _from_room = _was_room if _was_room is not None else self._room_before_gap.pop(key, None)
+                                if _from_room != _pin_room:
+                                    self._pending_room_changes.append((key, _from_room, _pin_room))
+                                self._last_room_change_mono[key] = now
+                                self._room_dwell_start[key] = now
+                            self._confirmed_room[key] = _pin_room
                         obj["_pinned"] = True
                         # Drift (gap #6, best-in-class roadmap): this branch
                         # only ever overrides room — x_m/y_m above is still
@@ -1934,9 +1968,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             miss = self._away_miss.get(key, 0) + 1
             self._away_miss[key] = miss
             if miss < _away_grace_polls:
-                # Grace period — treat as still present
+                # Grace period — kept in the result as it was last listed,
+                # its age going on from there. The age was set to 0 here
+                # ("just heard"), so a device that had been silent for hours
+                # or days, away all that time, "arrived" at the moment the
+                # snapshot stopped listing it: an arrival alert and the
+                # arrive rules for a device nobody had heard.
                 grace = dict(last_obj)
-                grace["age_s"] = 0.0
+                _age0 = last_obj.get("age_s")
+                if isinstance(_age0, (int, float)) and not isinstance(_age0, bool):
+                    grace["age_s"] = float(_age0) + max(0.0, now - self._last_seen.get(key, now))
+                else:
+                    grace["age_s"] = 0.0
                 # After a REAL absence (>60 s, not a routine 1-2 poll ad gap),
                 # mark the cached copy stale so re-entry gets a fresh vote /
                 # Kalman state instead of resuming old-location votes.  This
@@ -1983,16 +2026,16 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # A device whose label changed (named, renamed, the wizard naming
             # its second key) is a new group with a key that was already
             # present: not an arrival, and the old group is not a departure.
-            for _g in _cur_groups.keys() - self._prev_groups.keys():
+            for _g in _cur_groups.keys() - _prev_groups.keys():
                 if any(_k in self._prev_present for _k in _cur_groups[_g]):
                     continue
                 _arrived.add(_cur_groups[_g][0])
                 _members[_cur_groups[_g][0]] = set(_cur_groups[_g]) | _label_keys.get(_g, set())
-            for _g in self._prev_groups.keys() - _cur_groups.keys():
-                if any(_k in _cur_present for _k in self._prev_groups[_g]):
+            for _g in _prev_groups.keys() - _cur_groups.keys():
+                if any(_k in _cur_present for _k in _prev_groups[_g]):
                     continue
-                _departed.add(self._prev_groups[_g][0])
-                _members[self._prev_groups[_g][0]] = set(self._prev_groups[_g]) | _label_keys.get(_g, set())
+                _departed.add(_prev_groups[_g][0])
+                _members[_prev_groups[_g][0]] = set(_prev_groups[_g]) | _label_keys.get(_g, set())
         else:
             # First poll since start: a baseline, not an arrival of everyone
             # (that sent every on_arrive alert on each Home Assistant restart).
@@ -3392,8 +3435,23 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # unsure poll is skipped the same way once there is a room to keep,
         # for its first _UNSURE_HOLD_POLLS polls: the same room that many
         # times in a row is consistent evidence, thin or not, and is voted.
+        #
+        # No fresh reading is skipped the same way. Fresh: some scanner had a
+        # new advert from it within the last _SILENCE_GRACE polls (about
+        # 20 s), the time a missing advert is taken as ordinary loss and a
+        # reading is held as it was. Longer than that with nothing new from
+        # any scanner and there is no news of where it is: the scanners that
+        # hear it every poll have let go of their readings, and what is left
+        # is an old reading or two held by scanners that seldom hear it (their
+        # grace is longer, _grace above). Those alone were voted, and moved a
+        # device that had left the house to the room of whichever scanner had
+        # heard it least often, another floor included. It keeps its room
+        # until it is heard again.
+        _unheard = min((_miss.get(_src, 0) for _src in ema), default=0)
         _hold = False
-        if _unsure and self._confirmed_room.get(key):
+        if _unheard >= _SILENCE_GRACE:
+            _hold = True
+        elif _unsure and self._confirmed_room.get(key):
             _prev_run = self._unsure_run.get(key)
             _run = _prev_run[1] + 1 if _prev_run and _prev_run[0] == candidate else 1
             self._unsure_run[key] = (candidate, _run)
@@ -3448,7 +3506,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _clear_move = _clear_n >= _fast_n
             if _clear_move:
                 top_room, top_count = candidate, counts.get(candidate, 0)
-            if top_count >= vote_threshold or _clear_move:
+            # A pinned object's room is its pin's (_async_poll puts it there
+            # and reports that change): what the vote says is never a change.
+            if (top_count >= vote_threshold or _clear_move) and key not in self._pin_rooms:
                 if top_room != confirmed:
                     # ── Velocity gate ────────────────────────────────────
                     # Three checks prevent teleportation:
@@ -3577,24 +3637,36 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Skip when suspended — don't pollute reliability with potentially wrong data.
         _spatial_agrees = (_spatial_candidate == confirmed) if _spatial_candidate else False
         if confirmed and confidence >= 0.9 and _spatial_agrees and ema and not self.suspended:
-            for _src in ema:
-                _src_room = source_to_area.get(_src)
-                if not _src_room:
+            # Only the scanner that hears the object best is judged: it is the
+            # one whose reading says "in my room". Every scanner that heard
+            # the object at all used to be marked, and marked wrong unless the
+            # object was in its own room: with objects in several rooms each
+            # scanner was "wrong" about all the ones next door, so every
+            # scanner in a house sank to about 0.5, had its readings weakened
+            # below, and was reported as disagreeing. A reading past its
+            # silence grace is left out, as room scoring leaves it out (Path B
+            # above): a decayed value says nothing.
+            _claim: str | None = None
+            for _src, _rssi in ema.items():
+                if _miss.get(_src, 0) > _grace(_src) or not source_to_area.get(_src):
                     continue
-                _agreed = (_src_room == confirmed)
-                _q = self._scanner_agree.get(_src)
+                if _claim is None or _rssi > ema[_claim]:
+                    _claim = _src
+            if _claim is not None:
+                _agreed = (source_to_area[_claim] == confirmed)
+                _q = self._scanner_agree.get(_claim)
                 if _q is None:
                     _q = deque(maxlen=_RELIABILITY_WINDOW)
-                    self._scanner_agree[_src] = _q
+                    self._scanner_agree[_claim] = _q
                 _q.append(_agreed)
                 if len(_q) >= _RELIABILITY_MIN_POLLS:
                     _agree_rate = sum(_q) / len(_q)
                     _disagree = 1.0 - _agree_rate
                     _w = 1.0 / (1.0 + _disagree)
                     # 1 / (1 + disagreement) lies in [0.5, 1]: a scanner is never zeroed out.
-                    self._scanner_reliability[_src] = round(_w, 3)
+                    self._scanner_reliability[_claim] = round(_w, 3)
                 else:
-                    self._scanner_reliability[_src] = 1.0
+                    self._scanner_reliability[_claim] = 1.0
 
         # ── Adaptive learning: record observation ────────────────────────────
         # Feed confirmed room assignments back into the adaptive store so it
@@ -4068,6 +4140,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._room_gap_mono.pop(key, None)
         self._room_alert_held.pop(key, None)
         self._room_alert_reported.pop(key, None)
+        self._pin_rooms.pop(key, None)      # rebuilt every poll from the pins
         # Out of its device group (rebuilt every poll, but not before the
         # next one, and an unlabelled key is its own group).
         self._prev_groups.pop(key, None)

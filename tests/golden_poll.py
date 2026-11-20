@@ -93,6 +93,7 @@ STATE_LEFT_OUT = {
     "_floor_bounds": "geometry read each poll", "_rf_barriers": "geometry read each poll",
     "_floor_rooms": "geometry read each poll", "_pl_fits": "calibration fits read each poll",
     "_last_source_to_area": "scanner areas read each poll",
+    "_pin_rooms": "the pins read each poll",
     # The object as last listed: the same dict the poll returned (recorded as
     # the object's result); only its "_stale" mark is state, recorded as stale.
     "_known_objs": "recorded as result and stale",
