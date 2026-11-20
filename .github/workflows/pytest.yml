@@ -36,6 +36,11 @@ jobs:
         run: npx --yes -p eslint@9 -p globals@17 eslint "custom_components/padspan_ha/www/**/*.js"
       - name: Install test dependencies
         run: pip install -r requirements_test.txt
+      # Undefined names in the Python (ruff F821, F822, F823, nothing else).
+      # tests/test_backend_lint.py runs the same check and says why; ruff is
+      # pinned in requirements_test.txt, installed above.
+      - name: Lint Python for undefined names
+        run: python -m ruff check --isolated --no-cache --select F821,F822,F823 .
       # Spread over the runner's cores; pytest-xdist is pinned in
       # requirements_test.txt, installed above.
       - name: Run tests

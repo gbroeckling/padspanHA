@@ -27,3 +27,6 @@ pillow==13.0.0
 # time-zone database, so without this even ZoneInfo("UTC") raises and every
 # tests/test_dwell_analytics.py test fails there (Linux CI reads /usr/share/zoneinfo).
 tzdata==2026.6
+# The undefined-name check on the Python (tests/test_backend_lint.py and the
+# Tests workflow's lint step): rules F821, F822 and F823 only.
+ruff==0.15.11
