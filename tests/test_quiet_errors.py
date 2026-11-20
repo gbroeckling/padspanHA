@@ -23,6 +23,7 @@ import asyncio
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -49,7 +50,7 @@ def clock(monkeypatch):
     """The helper's clock, moved by hand: clock.t += seconds."""
     class _Clock:
         t = 1_800_000_000.0
-    monkeypatch.setattr(Q.time, "time", lambda: _Clock.t)
+    monkeypatch.setattr(Q, "time", SimpleNamespace(time=lambda: _Clock.t))
     return _Clock
 
 
