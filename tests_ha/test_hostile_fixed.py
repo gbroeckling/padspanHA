@@ -38,6 +38,9 @@ FIXED_FIRST_RUN = [
     Fixed({"type": "padspan_ha/settings_set", "ai_map_wizard": {"snoozes": 1e308}}, False, "snooze count past 64 bits"),
     Fixed({"type": "padspan_ha/fabric_floor_elevations_set", "floors": [{"id": "main", "level": 1e308}]}, False,
           "storey number past 64 bits"),
+    # The secret check on a tester's notes took time with the square of their length.
+    Fixed({"type": "padspan_ha/tester_preview", "email": "a@example.com", "consent": True, "notes": "x" * 100_000},
+          False, "100,000 characters of notes held Home Assistant for a minute"),
 ]
 # The last stable's house, every switch on.
 FIXED_FURNISHED = [

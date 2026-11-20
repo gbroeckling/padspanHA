@@ -75,6 +75,11 @@ SETUP_KEYS: tuple[str, ...] = (
 LIMITS: dict[str, int] = {
     "email": 254, "github": 39, "name": 64, "interests_other": 80, "notes": 500, "timezone": 64,
 }
+# How much of one field is looked through for a secret: twice the longest
+# field allowed, so every verdict the panel can reach is the same here. The
+# last pattern takes time that grows with the square of the length: 100,000
+# characters held Home Assistant for about a minute.
+_SECRET_SCAN_MAX = 1000
 _SETUP_INT_MAX = 1_000_000
 _SETUP_DICT_MAX = 12
 
@@ -343,7 +348,7 @@ def clean_form(form: dict[str, Any], known_setup: Iterable[str]) -> tuple[dict[s
         problems.append("That time zone doesn't look right (for example America/Vancouver).")
     for where, text in (("your name", name), ("the GitHub username", github),
                         ("'Other'", other), ("your notes", notes)):
-        what = secret_in(text)
+        what = secret_in(text[:_SECRET_SCAN_MAX])
         if what:
             problems.append(f"That looks like {what} in {where} — please take it out. A sign-up never needs one.")
     if form.get("consent") is not True:
