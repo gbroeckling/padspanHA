@@ -238,7 +238,16 @@ class Crawl:
         return el
 
     def perform(self, step) -> tuple[bool, str]:
-        """Do one step; (done, what happened if not)."""
+        """Do one step; (done, what happened if not). A row drawn again under the crawler is found again, once."""
+        try:
+            return self._perform(step)
+        except Exception as e:
+            if "not attached" not in str(e):
+                raise
+            self.wait(300)
+            return self._perform(step)
+
+    def _perform(self, step) -> tuple[bool, str]:
         sig, do = step["sig"], step["do"]
         aim = self.js("s => __ct.aim(s)", sig)
         if not aim.get("found"):
@@ -656,11 +665,13 @@ class Crawl:
             t_ev = len(self.events)
             back = self.nav_to(view)
             b = self.look()
+            in_menu = view in self.labels
             notes += self.check(a, b, steps2, t_ev)
             if back and b["blank"]:
                 self.find("stuck", "view blank after coming back", b["url"], steps2)
             self.n_actions += 2
-            self.controls.append({"state": [s["label"] for s in path], "label": f"menu → {other} → {view}", "kind": "pair", "region": "-", "what": "switch view and back", "outcome": "ok" if back else "could not come back", "notes": notes})
+            self.controls.append({"state": [s["label"] for s in path], "label": f"menu → {other} → {view}", "kind": "pair", "region": "-", "what": "switch view and back",
+                                  "outcome": "ok" if back else "could not come back" if in_menu else "ok (away; not in the menu to come back by)", "notes": notes})
         # Two changes in a row, from the arrival state.
         cs = [c for c in root["controls"] if c["kind"] in ("check", "select", "number", "text", "range") and self.wanted(c) and not c.get("disabled")]
         for i in range(0, min(len(cs) - 1, 6), 2):

@@ -313,8 +313,9 @@
   };
 
   // ── What the page says ────────────────────────────────────────────────────
+  // A {name} inside an entity id or a topic (sensor.{label}_area, padspan/devices/{label}/state) is the pattern, shown on purpose.
   const JUNK = [[/\bundefined\b/, "undefined"], [/\bNaN\b/, "NaN"], [/\[object [A-Za-z]+\]/, "[object Object]"], [/\bnull\b/, "null"],
-                [/\$\{[^}]*\}/, "an unfilled ${…}"], [/\{[a-z_]+\}/, "an unfilled {name}"], [/%[sd]\b/, "an unfilled %s"]];
+                [/\$\{[^}]*\}/, "an unfilled ${…}"], [/(?<![\w./])\{[a-z_]+\}(?![\w./])/, "an unfilled {name}"], [/%[sd]\b/, "an unfilled %s"]];
   const BUSY = /\b(loading|working|saving|checking|fetching|generating|uploading|scanning|searching|waiting|please wait|one moment|just a moment)\b[^.!?\n]{0,60}(…|\.\.\.)/i;
   const texts = () => {
     const junk = [], busy = [];
