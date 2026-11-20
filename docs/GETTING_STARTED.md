@@ -219,7 +219,7 @@ One shared-device note: before Home Assistant 2026.8, a PadSpan sensor that gave
 
 ## Who can change what
 
-Every Home Assistant user can open PadSpan. Some things always need a Home Assistant administrator: backups and restores, factory reset, adding or removing IRKs, uploading or deleting floor plans, the usage report, and the Live Aboard switches that let data leave the house.
+Every Home Assistant user can open PadSpan. Some things always need a Home Assistant administrator: backups and restores, factory reset, adding, removing, testing or looking for IRKs, uploading or deleting floor plans, the usage report, and the Live Aboard switches that let data leave the house.
 
 Everything else is open to every user unless you turn on **Settings → Tracking → Enhanced security**. It is off by default, and only an administrator can turn it on or off. While it is on, only an administrator can change PadSpan's shared setup for the home:
 
