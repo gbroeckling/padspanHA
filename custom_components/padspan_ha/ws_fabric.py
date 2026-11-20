@@ -1466,7 +1466,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
         })
 
         # LOO accuracy
-        loo = cal.loo_accuracy()
+        loo = await cal.async_loo_accuracy()      # the executor: P² comparisons
         if loo:
             err_str = f"{loo['mean_error_m']}m"
             checks.append({

@@ -1120,7 +1120,63 @@ class CalibrationStore:
         """
         if algorithm == "rf":
             return self._rf_oob_accuracy(map_id)
+        prep = self._loo_inputs(map_id)
+        if prep is None:
+            return None
+        cache_key, rows, fps, keysets = prep
+        cache = self._loo_cache_dict()
+        if cache_key in cache:
+            return copy.deepcopy(cache[cache_key])
+        return self._loo_keep(cache_key, _loo_knn(rows, fps, keysets))
 
+    async def async_loo_accuracy(
+        self, map_id: str | None = None, algorithm: str = "knn"
+    ) -> dict[str, Any] | None:
+        """loo_accuracy, with the k-NN comparison of every point with every
+        other done in the executor, not on Home Assistant's event loop (1-8 s
+        at 500-1,000 points). What it compares is copied here first, so the
+        job reads nothing the event loop can change under it; the answer is
+        kept here too, where loo_accuracy finds it."""
+        if algorithm == "rf":
+            return self._rf_oob_accuracy(map_id)
+        prep = self._loo_inputs(map_id)
+        if prep is None:
+            return None
+        cache_key, rows, fps, keysets = prep
+        cache = self._loo_cache_dict()
+        if cache_key in cache:
+            return copy.deepcopy(cache[cache_key])
+        result = await self.hass.async_add_executor_job(_loo_knn, rows, fps, keysets)
+        return self._loo_keep(cache_key, result)
+
+    async def async_prepare_model(self) -> None:
+        """Work out, in the executor, the leave-one-out answers compute_model
+        asks for (each plan's and the whole house's), so that compute_model,
+        run on the event loop next, finds them kept."""
+        if self._active_algorithm() != "knn":
+            return
+        pts = self.data.get("points", [])
+        for mid in list({p["map_id"] for p in pts if p.get("map_id")}) + [None]:
+            await self.async_loo_accuracy(mid)
+
+    def _loo_cache_dict(self) -> dict[bytes, Any]:
+        # The answers already worked out: the same points give the same answer.
+        return self.__dict__.setdefault("_loo_cache", {})
+
+    def _loo_keep(self, cache_key: bytes, result: dict[str, Any] | None) -> dict[str, Any] | None:
+        cache = self._loo_cache_dict()
+        # A few answers at most: the whole house's and each plan's.
+        while len(cache) >= _LOO_CACHE_MAX:
+            cache.pop(next(iter(cache)))
+        cache[cache_key] = copy.deepcopy(result)
+        return result
+
+    def _loo_inputs(self, map_id: str | None) -> tuple | None:
+        """What the k-NN leave-one-out compares, copied: each placed point's
+        position, room and weight as stored, its fingerprint and scanner set
+        (masked scanners out: this estimate is only meaningful if it measures
+        the estimator actually deployed), and the key its answer is kept by.
+        None when there are too few points for an answer."""
         pts = self.data.get("points", [])
         if map_id:
             pts = [p for p in pts if p.get("map_id") == map_id]
@@ -1128,109 +1184,14 @@ class CalibrationStore:
         pts = [p for p in pts if p.get("x_m") is not None and p.get("y_m") is not None]
         if len(pts) < KNN_K + 1:
             return None
-
         _loo_excluded = self.excluded_sources()
-        # Masked sources are excluded here too: this estimate is only
-        # meaningful if it measures the estimator actually deployed.
         # Each point's fingerprint and scanner set, made once: every point is
         # compared with every other, and making them again for each pair was
         # most of the work (P² dicts and sets for P points).
         fps = [self._readings_to_map(p, _loo_excluded) for p in pts]
         keysets = [set(fp.keys()) for fp in fps]
-        # The answer depends on nothing but what is compared here, so the same
-        # points give the same answer without the work: the three health
-        # pages and Q&A each ask, every 30 s while open, on the event loop.
-        cache_key = _loo_cache_key(pts, fps)
-        cache: dict[bytes, Any] = self.__dict__.setdefault("_loo_cache", {})
-        if cache_key in cache:
-            return copy.deepcopy(cache[cache_key])
-        errors_m: list[float] = []
-        room_pairs: list[tuple[str, str]] = []
-        for i, pt in enumerate(pts):
-            query: dict[str, float] = fps[i]
-            if not query:
-                continue
-            qkeys = keysets[i]
-
-            scored: list[tuple[float, dict[str, Any]]] = []
-            for j, p2 in enumerate(pts):
-                if j == i:
-                    continue
-                fp = fps[j]
-                shared = qkeys & keysets[j]
-                if not shared:
-                    continue
-                # Same metric as knn_locate: per-point mean-centered
-                # (TX-invariant) MSE + absolute missing-scanner penalty,
-                # so validation measures the deployed estimator. (Lists, not
-                # generators, inside sum(): the same additions in the same
-                # order, so the same numbers, faster.)
-                q_mean = sum([query[s] for s in shared]) / len(shared)
-                p_mean = sum([fp[s] for s in shared]) / len(shared)
-                sq_sum = sum([
-                    ((query[s] - q_mean) - (fp[s] - p_mean)) ** 2 for s in shared
-                ])
-                missing = max(0, len(query) - len(shared))
-                dist_sq = (sq_sum + missing * MISSING_SCANNER_PENALTY_DB ** 2) / (
-                    len(shared) + missing
-                )
-                scored.append((dist_sq, p2))
-
-            if not scored:
-                continue
-            scored.sort(key=lambda t: t[0])
-            top_k = scored[: KNN_K]
-            total_w_m, wx_m, wy_m = 0.0, 0.0, 0.0
-            for dist_sq, p2 in top_k:
-                w = 1.0 / (math.sqrt(dist_sq) + 1e-3)
-                wx_m += w * float(p2["x_m"])
-                wy_m += w * float(p2["y_m"])
-                total_w_m += w
-
-            if total_w_m < 1e-10:
-                continue
-            pred_xm = wx_m / total_w_m
-            pred_ym = wy_m / total_w_m
-            errors_m.append(math.sqrt(
-                (pred_xm - float(pt["x_m"])) ** 2 + (pred_ym - float(pt["y_m"])) ** 2
-            ))
-
-            # Room confusion (gap #12): same weighted vote as knn_locate's
-            # room_scores, reusing the SAME top_k neighbours already scored
-            # for position — an unlabeled held-out point has no ground truth
-            # to score against, so it is skipped here without affecting the
-            # position-error metric above.
-            true_room = str(pt.get("room") or "")
-            if true_room:
-                room_w: dict[str, float] = {}
-                for dist_sq, p2 in top_k:
-                    rm = str(p2.get("room") or "")
-                    if not rm:
-                        continue
-                    pw = float(p2.get("weight") or 1.0)
-                    room_w[rm] = room_w.get(rm, 0.0) + pw / (math.sqrt(dist_sq) + 1.0)
-                if room_w:
-                    pred_room = max(room_w, key=lambda r: room_w[r])
-                    room_pairs.append((true_room, pred_room))
-
-        result: dict[str, Any] | None = None
-        if errors_m:
-            errors_m.sort()
-            result = {
-                "algorithm": "knn",
-                "mean_error_m": round(_mean(errors_m), 3),
-                "median_error_m": round(errors_m[len(errors_m) // 2], 3),
-                "max_error_m": round(errors_m[-1], 3),
-                "point_count": len(errors_m),
-            }
-            if room_pairs:
-                result["room_confusion"] = _summarize_room_confusion(room_pairs)
-        # A few answers at most: the whole house's and each plan's.
-        while len(cache) >= _LOO_CACHE_MAX:
-            cache.pop(next(iter(cache)))
-        cache[cache_key] = copy.deepcopy(result)
-        return result
-
+        rows = [(p["x_m"], p["y_m"], p.get("room"), p.get("weight")) for p in pts]
+        return _loo_cache_key(pts, fps), rows, fps, keysets
     def _rf_oob_accuracy(self, map_id: str | None = None) -> dict[str, Any] | None:
         """Out-of-bag validation accuracy for the trained Random Forest.
 
@@ -1579,3 +1540,91 @@ class CalibrationStore:
             "models": models,
             "scanner_names": scanner_names,
         }
+
+
+def _loo_knn(rows: list[tuple], fps: list[dict[str, float]], keysets: list[set[str]]) -> dict[str, Any] | None:
+    """The k-NN leave-one-out over what CalibrationStore._loo_inputs copied:
+    rows[i] = (x_m, y_m, room, weight) as stored, fps[i] its fingerprint,
+    keysets[i] its scanners. Reads nothing else, so it can run in the executor."""
+    errors_m: list[float] = []
+    room_pairs: list[tuple[str, str]] = []
+    for i, pt in enumerate(rows):
+        query: dict[str, float] = fps[i]
+        if not query:
+            continue
+        qkeys = keysets[i]
+
+        scored: list[tuple[float, int]] = []
+        for j in range(len(rows)):
+            if j == i:
+                continue
+            fp = fps[j]
+            shared = qkeys & keysets[j]
+            if not shared:
+                continue
+            # Same metric as knn_locate: per-point mean-centered
+            # (TX-invariant) MSE + absolute missing-scanner penalty,
+            # so validation measures the deployed estimator. (Lists, not
+            # generators, inside sum(): the same additions in the same
+            # order, so the same numbers, faster.)
+            q_mean = sum([query[s] for s in shared]) / len(shared)
+            p_mean = sum([fp[s] for s in shared]) / len(shared)
+            sq_sum = sum([
+                ((query[s] - q_mean) - (fp[s] - p_mean)) ** 2 for s in shared
+            ])
+            missing = max(0, len(query) - len(shared))
+            dist_sq = (sq_sum + missing * MISSING_SCANNER_PENALTY_DB ** 2) / (
+                len(shared) + missing
+            )
+            scored.append((dist_sq, j))
+
+        if not scored:
+            continue
+        scored.sort(key=lambda t: t[0])
+        top_k = scored[: KNN_K]
+        total_w_m, wx_m, wy_m = 0.0, 0.0, 0.0
+        for dist_sq, j in top_k:
+            w = 1.0 / (math.sqrt(dist_sq) + 1e-3)
+            wx_m += w * float(rows[j][0])
+            wy_m += w * float(rows[j][1])
+            total_w_m += w
+
+        if total_w_m < 1e-10:
+            continue
+        pred_xm = wx_m / total_w_m
+        pred_ym = wy_m / total_w_m
+        errors_m.append(math.sqrt(
+            (pred_xm - float(pt[0])) ** 2 + (pred_ym - float(pt[1])) ** 2
+        ))
+
+        # Room confusion (gap #12): same weighted vote as knn_locate's
+        # room_scores, reusing the SAME top_k neighbours already scored
+        # for position — an unlabeled held-out point has no ground truth
+        # to score against, so it is skipped here without affecting the
+        # position-error metric above.
+        true_room = str(pt[2] or "")
+        if true_room:
+            room_w: dict[str, float] = {}
+            for dist_sq, j in top_k:
+                rm = str(rows[j][2] or "")
+                if not rm:
+                    continue
+                pw = float(rows[j][3] or 1.0)
+                room_w[rm] = room_w.get(rm, 0.0) + pw / (math.sqrt(dist_sq) + 1.0)
+            if room_w:
+                pred_room = max(room_w, key=lambda r: room_w[r])
+                room_pairs.append((true_room, pred_room))
+
+    if not errors_m:
+        return None
+    errors_m.sort()
+    result: dict[str, Any] = {
+        "algorithm": "knn",
+        "mean_error_m": round(_mean(errors_m), 3),
+        "median_error_m": round(errors_m[len(errors_m) // 2], 3),
+        "max_error_m": round(errors_m[-1], 3),
+        "point_count": len(errors_m),
+    }
+    if room_pairs:
+        result["room_confusion"] = _summarize_room_confusion(room_pairs)
+    return result

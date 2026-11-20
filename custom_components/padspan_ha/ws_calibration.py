@@ -505,6 +505,7 @@ async def ws_calibration_compute_model(hass: HomeAssistant, connection, msg) -> 
     maps_store = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     maps_data = maps_store.list_maps() if maps_store else None
     try:
+        await cal.async_prepare_model()      # its leave-one-out in the executor
         model = cal.compute_model(maps_data=maps_data)
         await cal.store.async_save(cal.data)
         connection.send_result(msg["id"], {"ok": True, "model": model})
@@ -673,6 +674,7 @@ async def ws_calibration_relearn_radio(hass: HomeAssistant, connection, msg) -> 
         ms = hass.data.get(DOMAIN, {}).get("maps")
         if ms:
             maps_data = ms.data if hasattr(ms, "data") else ms
+        await cal.async_prepare_model()      # its leave-one-out in the executor
         cal.compute_model(maps_data=maps_data)
         await cal.store.async_save(cal.data)
         await cal._async_train_rf()

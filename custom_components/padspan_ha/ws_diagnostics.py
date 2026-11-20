@@ -293,6 +293,7 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
         try:
             maps_store = domain.get(DATA_MAPS)
             maps_data = maps_store.list_maps() if maps_store else []
+            await calib.async_prepare_model()     # its leave-one-out in the executor
             model = calib.compute_model(maps_data)
             loo = model.get("loo_accuracy")
             if loo:
@@ -481,6 +482,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
     if calib:
         try:
             maps_data = maps_store.list_maps() if maps_store else []
+            await calib.async_prepare_model()     # its leave-one-out in the executor
             model = calib.compute_model(maps_data)
             cov_by_map = model.get("coverage_by_map", {})
             map_name_lookup: dict[str, str] = {}
