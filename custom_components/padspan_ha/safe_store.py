@@ -83,11 +83,15 @@ class SafeStore:
         try:
             return await self._store.async_load()
         except Exception as exc:  # noqa: BLE001
-            _LOGGER.error(
-                "PadSpan load FAILED for %s: %s (the file is left untouched)",
-                self._name,
-                exc,
-            )
+            # Valid JSON that is no store file at all is not a failed read:
+            # async_load_readable sets it aside and says so once.
+            path = getattr(self._store, "path", None)
+            if not path or not await self._hass.async_add_executor_job(_not_a_store_document, path):
+                _LOGGER.error(
+                    "PadSpan load FAILED for %s: %s (the file is left untouched)",
+                    self._name,
+                    exc,
+                )
             raise
 
 
@@ -111,18 +115,17 @@ async def async_load_readable(store: Store | SafeStore, readable: Callable[[Any]
     """
     raw = getattr(store, "_store", store)      # a SafeStore wraps the Store
     try:
-        loaded = await raw.async_load()
-    except Exception as exc:  # noqa: BLE001 - told apart below, re-raised unless set aside
+        loaded = await store.async_load()
+    except Exception:  # noqa: BLE001 - told apart below, re-raised unless set aside
         # Valid JSON that is no store file at all (a bare list, a number, an
         # object without "data") makes Home Assistant's loader raise, every
         # time anything asks. Kept as a wrong-kind file is. Anything else (a
         # read that fails, a file Home Assistant could not open) is raised as
         # before, with the file left untouched.
-        kind = await raw.hass.async_add_executor_job(_not_a_store_document, raw.path)
+        hass = getattr(raw, "hass", None) or getattr(store, "_hass", None)
+        path = getattr(raw, "path", None)
+        kind = await hass.async_add_executor_job(_not_a_store_document, path) if hass is not None and path else ""
         if not kind:
-            if raw is not store:
-                _LOGGER.error("PadSpan load FAILED for %s: %s (the file is left untouched)",
-                              getattr(store, "_name", raw.key), exc)
             raise
         return await _set_aside(raw, f"{kind}, not a Home Assistant store file")
     if loaded is None or readable(loaded):
@@ -137,7 +140,7 @@ def _not_a_store_document(path: str) -> str:
     try:
         with open(path, encoding="utf-8") as f:
             doc = json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError, TypeError):
         return ""
     if isinstance(doc, dict) and "data" in doc:
         return ""
