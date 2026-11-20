@@ -32,7 +32,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import CALIBRATION_STORE_KEY, DATA_SETTINGS, DOMAIN
-from .safe_store import wrap_store
+from .safe_store import async_load_readable, wrap_store
 from .random_forest import MISSING_RSSI, RandomForestLocator
 from .quiet_errors import note as _quiet_error
 
@@ -174,7 +174,7 @@ class CalibrationStore:
         self._model = model
 
     async def async_setup(self) -> None:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict) and "points" in d)
         if isinstance(loaded, dict) and "points" in loaded:
             self.data = loaded
         else:
@@ -184,7 +184,7 @@ class CalibrationStore:
 
     async def async_setup_fast(self) -> None:
         """Load persisted data but skip RF training (deferred to background)."""
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict) and "points" in d)
         if isinstance(loaded, dict) and "points" in loaded:
             self.data = loaded
         else:

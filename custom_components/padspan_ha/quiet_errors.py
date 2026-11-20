@@ -332,6 +332,7 @@ presence:unsuspend_databases
 presence:usual_move
 presence_rules:home_context_objects
 presence_rules:home_context_zones
+presence_rules:is_carried_persons
 presence_rules:known_rooms
 pro_invite:send_decline
 report_context:install_store

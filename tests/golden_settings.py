@@ -73,6 +73,7 @@ VALUES: dict[str, list[tuple[str, Any]]] = {
     "whatsnew_seen_version": one("0.38.268"),
     "room_change_delay_s": one(45),
     "away_timeout_m": one(10),
+    "thing_away_timeout_h": one(6),
     "ref_power": one(-65.5),
     "path_loss_exp": one(2.7),
     "kalman_q": one(0.3),
