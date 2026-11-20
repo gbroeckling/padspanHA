@@ -2384,10 +2384,20 @@ export function renderClassic(ctx){
 
     const ctrlRow = document.createElement("div");
     ctrlRow.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:10px";
+    // A label, its slider and its value are one unit: when the row wraps (a
+    // phone) the whole unit moves to the next line, never the slider alone.
+    // Same 4px gap as the row, so an unwrapped row is spaced as it always was.
+    const _ctrlUnit = () => {
+      const g = document.createElement("span");
+      g.style.cssText = "display:inline-flex;align-items:center;gap:4px;white-space:nowrap";
+      ctrlRow.appendChild(g);
+      return g;
+    };
+    const floorUnit = _ctrlUnit();
     const floorLbl = document.createElement("span");
     floorLbl.style.cssText = "color:#94a3b8";
     floorLbl.textContent = "Floor:";
-    ctrlRow.appendChild(floorLbl);
+    floorUnit.appendChild(floorLbl);
     // Step buttons (gap #18, best-in-class roadmap) — the practical benefit
     // of "swipe floor switching" without the gesture-conflict risk: a
     // single-finger swipe on the map is already how Pure Live's viewport
@@ -2409,18 +2419,18 @@ export function renderClassic(ctx){
     floorPrevBtn.textContent = "◀";
     floorPrevBtn.title = "Previous floor";
     floorPrevBtn.addEventListener("click", () => _stepFloor(-1));
-    ctrlRow.appendChild(floorPrevBtn);
+    floorUnit.appendChild(floorPrevBtn);
     focusSlider.style.cssText = "width:90px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
     focusLbl.style.cssText = "color:#94a3b8;min-width:60px;display:inline-block";
-    ctrlRow.appendChild(focusSlider);
+    floorUnit.appendChild(focusSlider);
     const floorNextBtn = document.createElement("button");
     floorNextBtn.className = "btn inline";
     floorNextBtn.style.cssText = "padding:1px 6px;font-size:10px;color:#94a3b8";
     floorNextBtn.textContent = "▶";
     floorNextBtn.title = "Next floor";
     floorNextBtn.addEventListener("click", () => _stepFloor(1));
-    ctrlRow.appendChild(floorNextBtn);
-    ctrlRow.appendChild(focusLbl);
+    floorUnit.appendChild(floorNextBtn);
+    floorUnit.appendChild(focusLbl);
     // Outdoor — sits with the floor control because that is what it is: the
     // areas that are not a storey of the building.
     const ovOutBtn = document.createElement("button");
@@ -2443,18 +2453,20 @@ export function renderClassic(ctx){
     const ovSpacingLbl = document.createElement("span");
     ovSpacingLbl.style.cssText = "color:#94a3b8;margin-left:4px";
     ovSpacingLbl.textContent = "Gap:";
-    ctrlRow.appendChild(ovSpacingLbl);
+    const gapUnit = _ctrlUnit();
+    gapUnit.appendChild(ovSpacingLbl);
     ovGapSlider.style.cssText = "width:70px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
-    ctrlRow.appendChild(ovGapSlider);
-    ctrlRow.appendChild(ovGapLbl);
+    gapUnit.appendChild(ovGapSlider);
+    gapUnit.appendChild(ovGapLbl);
     // L/R
     const ovLRLbl = document.createElement("span");
     ovLRLbl.style.cssText = "color:#94a3b8;margin-left:4px";
     ovLRLbl.textContent = "L/R:";
-    ctrlRow.appendChild(ovLRLbl);
+    const lrUnit = _ctrlUnit();
+    lrUnit.appendChild(ovLRLbl);
     ovHorizSlider.style.cssText = "width:70px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
-    ctrlRow.appendChild(ovHorizSlider);
-    ctrlRow.appendChild(ovHorizLbl);
+    lrUnit.appendChild(ovHorizSlider);
+    lrUnit.appendChild(ovHorizLbl);
     // Save button — persists all three slider values to settings store
     const ovSaveLbl = document.createElement("span");
     ovSaveLbl.style.cssText = "color:#94a3b8;min-width:40px";
