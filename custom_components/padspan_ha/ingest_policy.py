@@ -138,6 +138,13 @@ class IngestPolicy:
     def __init__(self, rules: list[Rule] | None = None) -> None:
         self.rules: list[Rule] = list(rules or [])
         self.masked: dict[str, int] = {}   # reason → count, this poll
+        # Everything any rule matches on, for could_match(): a rule matches
+        # when one of its four lists does, so "some rule matches" is the same
+        # four tests against the four lists of all the rules together.
+        self._keys = frozenset().union(*(r.keys for r in self.rules))
+        self._uuids = frozenset().union(*(r.uuids for r in self.rules))
+        self._ouis = frozenset().union(*(r.ouis for r in self.rules))
+        self._addrs = frozenset().union(*(r.addrs for r in self.rules))
 
     @classmethod
     def from_settings(cls, data: dict[str, Any] | None) -> "IngestPolicy":
@@ -183,12 +190,36 @@ class IngestPolicy:
         count=False asks without counting: for a device this poll has already
         counted, met again in another form (its row in the object history).
         """
-        for rule in self.rules:
-            if rule.matches(ident):
-                if rule.action == MASK and count:
-                    self.masked[rule.reason] = self.masked.get(rule.reason, 0) + 1
-                return rule.action, rule.reason
+        if self.could_match(ident.addr, (ident.key, *ident.also), ident.uuid):
+            for rule in self.rules:
+                if rule.matches(ident):
+                    if rule.action == MASK and count:
+                        self.masked[rule.reason] = self.masked.get(rule.reason, 0) + 1
+                    return rule.action, rule.reason
         return ALLOW, ""
+
+    def could_match(self, addr: str, keys: Iterable[str], uuid: str = "") -> bool:
+        """Whether any rule, MASK or ALLOW, matches a thing with this address,
+        these keys (its key and any other it is listed under) and this iBeacon
+        UUID: exactly when decide() would find a rule for it.
+
+        A few set lookups whatever the number of rules, and no Identity to
+        build. The object history is asked row by row on every poll, and
+        nearly every row of a long one is named by no rule.
+        """
+        a = (addr or "").upper()
+        if a:
+            if a in self._addrs or a in self._keys or ("BLE:" + a) in self._keys:
+                return True
+            if self._ouis and len(a) >= 8 and a[:8] in self._ouis:
+                return True
+        if uuid and self._uuids and uuid.upper() in self._uuids:
+            return True
+        if self._keys:
+            for k in keys:
+                if k and str(k).upper() in self._keys:
+                    return True
+        return False
 
     def is_masked(self, ident: Identity, count: bool = True) -> bool:
         return self.decide(ident, count)[0] == MASK

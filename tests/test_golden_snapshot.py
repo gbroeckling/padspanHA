@@ -92,6 +92,7 @@ def test_the_house_takes_the_builder_through_what_it_is_there_for(builds) -> Non
     # The object history: a labelled tag from the file, never heard here; a
     # tag heard once, still listed twenty minutes on.
     assert first["ble:C4:00:00:00:00:99"]["user_label"] == "Spare tag"
+    assert builds[-1]["kept_for_the_next_build"]["object_history"]["ble:C4:00:00:00:00:99"]["user_label"] == "Spare tag"
     assert last["ble:" + gsn.OLD_TAG]["age_s"] > 1200
     assert builds[-1]["kept_for_the_next_build"]["saved_files"]["history"]["saves"] >= 2
     # Names from the tables, ids from the registry, rooms from the strongest receiver.

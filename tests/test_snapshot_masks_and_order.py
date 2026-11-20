@@ -1,5 +1,6 @@
 """The object list: what a mask hides, how an exclusion may be written, which
-devices the receiver-set merges may join, and the order of adverts of one age.
+devices the receiver-set merges may join, the order of adverts of one age,
+and what the object history keeps of a labelled device.
 
 Each test builds a small house with tests/golden_snapshot.py's stand-ins (its
 receivers, its Home Assistant side, PadSpan's own BluetoothLive on a simulated
@@ -9,10 +10,12 @@ clock) and runs snapshot_builder._build_live_snapshot over it.
 from __future__ import annotations
 
 import random
+from datetime import datetime, timezone
 
 import pytest
 
 from custom_components.padspan_ha import bluetooth_live as _bl
+from custom_components.padspan_ha import snapshot_builder as SB
 from tests import golden_snapshot as gsn
 from tests import room_speed_sim as sim
 
@@ -245,3 +248,140 @@ def _live_snapshot(heard: list[tuple[str, str]], **kw) -> dict:
                                 connectable=False, device=None, **fields))
         clock.t = 0.0
         return live.get_snapshot(**kw)
+
+
+# ── An ALLOW rule on a row's own key ─────────────────────────────────────────
+# First matching rule wins, and an ALLOW stops there: for an entity's row as
+# for an advert. The tag's adverts are masked by its maker's prefix either way.
+
+_ALLOW_THE_ENTITY = {"action": "allow", "match": {"keys": ["entity:device_tracker.tile_keys"]}}
+_MASK_THE_MAKER = {"action": "mask", "match": {"ouis": ["C4:00:00"]}}
+_SIGN_LAMP_AND_TAG = _TWO_PLAIN + [gsn._h(-2.0, gsn.TILE, {K: -58}, name="Tile Keys")]
+
+
+def test_an_allow_on_an_entitys_key_holds_though_its_address_is_masked(monkeypatch) -> None:
+    build = _builds(monkeypatch, _SIGN_LAMP_AND_TAG, {"ingest_rules": [_ALLOW_THE_ENTITY, _MASK_THE_MAKER]})[0]
+    listed = _objects(build)
+    assert "entity:device_tracker.tile_keys" in listed
+    assert "ble:" + SIGN not in listed and "ble:" + gsn.TILE not in listed
+    assert _masked(build) == 2                     # the sign, and the tag's adverts
+
+
+def test_a_mask_that_comes_before_the_allow_wins(monkeypatch) -> None:
+    build = _builds(monkeypatch, _SIGN_LAMP_AND_TAG, {"ingest_rules": [_MASK_THE_MAKER, _ALLOW_THE_ENTITY]})[0]
+    listed = _objects(build)
+    assert "entity:device_tracker.tile_keys" not in listed
+    assert "ble:" + SIGN not in listed and "ble:" + gsn.TILE not in listed
+    assert _masked(build) == 2                     # the tag is one device, counted once
+
+
+# ── A labelled device's row in the object history ────────────────────────────
+# A row with a label is kept for good: silent, masked or both. The history
+# looks for the label where the list does (the object store under the
+# device's address as well as its key; the device registry).
+
+_E = sim.Clock.EPOCH0
+_MONTH = 30 * 86400.0
+_SPARE, _STRANGER = "C4:00:00:00:00:99", "C8:00:00:00:00:98"
+
+
+def _row(addr: str, name: str, silent_s: float, labelled: bool = True) -> dict:
+    """A plain device's row as the history stores it, last heard `silent_s` ago."""
+    row = {"key": "ble:" + addr, "kind": "ble", "address": addr, "name": name, "room": "Office", "rssi": -70,
+           "age_s": 5.0, "sources": [{"source": O, "rssi": -70, "age_s": 5.0}], "manufacturer_data": {},
+           "service_data": {}, "service_uuids": [], "_first_seen": _E - 2 * _MONTH, "_last_seen_ts": _E - silent_s}
+    if labelled:
+        row.update(user_label=name, identified=True)
+    return row
+
+
+def _when(ts: float) -> str:
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+
+
+def _history(build: dict) -> dict:
+    return build["kept_for_the_next_build"]["object_history"]
+
+
+def test_a_labelled_device_silent_longer_than_the_history_time_keeps_its_row(monkeypatch) -> None:
+    monkeypatch.setattr(gsn, "LABELS", {_SPARE: "Spare tag"})
+    rows = [_row(_SPARE, "Spare tag", _MONTH), _row(_STRANGER, "Nobody's", _MONTH, labelled=False)]
+    for build in _builds(monkeypatch, _TWO_PLAIN, build_at=(0.0, 100.0), history={r["key"]: r for r in rows}):
+        kept = _history(build)["ble:" + _SPARE]
+        assert kept["user_label"] == "Spare tag" and kept["identified"] is True
+        assert kept["_first_seen"] == rows[0]["_first_seen"]
+        listed = _objects(build)["ble:" + _SPARE]
+        assert listed["user_label"] == "Spare tag" and listed["first_seen"] == _when(rows[0]["_first_seen"])
+        # One with no label goes after the history time, as before.
+        assert "ble:" + _STRANGER not in _history(build) and "ble:" + _STRANGER not in _objects(build)
+
+
+def test_a_device_labelled_only_in_the_device_registry_keeps_its_row(monkeypatch) -> None:
+    """The list reads the registry's label after the row is stored, so the
+    row carries no flag for it. The house's registry names the dog's collar."""
+    monkeypatch.setattr(gsn, "LABELS", {})
+    row = _row(gsn.DOG, "PetTag", _MONTH, labelled=False)
+    for build in _builds(monkeypatch, _TWO_PLAIN, build_at=(0.0, 100.0), history={row["key"]: row}):
+        assert _history(build)["ble:" + gsn.DOG]["_first_seen"] == row["_first_seen"]
+        listed = _objects(build)["ble:" + gsn.DOG]
+        assert listed["user_label"] == "Dog collar" and listed["first_seen"] == _when(row["_first_seen"])
+
+
+def test_a_row_whose_label_is_gone_loses_its_flags_and_goes(monkeypatch) -> None:
+    """What the check is there for: the label deleted, the row still flagged."""
+    monkeypatch.setattr(gsn, "LABELS", {})
+    row = _row(_SPARE, "Spare tag", _MONTH)
+    build = _builds(monkeypatch, _TWO_PLAIN, history={row["key"]: row})[0]
+    assert "ble:" + _SPARE not in _history(build) and "ble:" + _SPARE not in _objects(build)
+
+
+@pytest.mark.parametrize("hidden_by", ["a rule on its maker's prefix", "an exclusion"])
+def test_a_labelled_device_masked_for_longer_than_the_history_time_is_back_as_it_was(monkeypatch, hidden_by) -> None:
+    monkeypatch.setattr(gsn, "LABELS", {gsn.DOG: "Dog collar"})
+    heard = [gsn._h(-4.0, gsn.DOG, {K: -62}, name="PetTag")]
+    row = dict(_history(_builds(monkeypatch, heard)[0])["ble:" + gsn.DOG])
+    assert row["user_label"] == "Dog collar"
+    # 25 hours on (the history time is a day), hidden all that while.
+    row["_first_seen"] -= 90000.0
+    row["_last_seen_ts"] -= 90000.0
+    rule = _rule(ouis=["C4:00:00"]) if "prefix" in hidden_by else {"excluded_objects": [gsn.DOG]}
+    builds = _builds(monkeypatch, heard, rule, build_at=(0.0, 100.0), history={row["key"]: row})
+    for build in builds:
+        assert "ble:" + gsn.DOG not in _objects(build)
+        kept = _history(build)["ble:" + gsn.DOG]
+        assert kept["user_label"] == "Dog collar" and kept["_first_seen"] == row["_first_seen"]
+    # The rule removed: the same device, first seen when it was.
+    back = _objects(_builds(monkeypatch, heard, history=_history(builds[-1]))[0])["ble:" + gsn.DOG]
+    assert back["user_label"] == "Dog collar" and back["first_seen"] == _when(row["_first_seen"])
+
+
+def test_an_excluded_find_my_tag_keeps_its_row_when_it_moves_to_its_next_address(monkeypatch) -> None:
+    """The tag is labelled and followed, and has a row from before it was
+    excluded. When the bridge links its next address, its first address is
+    claimed by that link: the row is held back, not deleted."""
+    row = _row(gsn.KEYS_A, "Keys", 3600.0)
+    excluded = {**gsn.SETTINGS, **NO_RULES, "excluded_objects": [gsn.KEYS_A]}
+    builds = _builds(monkeypatch, gsn.HEARD, excluded, gsn.BUILD_AT, {row["key"]: row})
+    for build in builds:
+        assert "ble:" + gsn.KEYS_A not in _objects(build), gsn.label(build)
+        kept = _history(build).get("ble:" + gsn.KEYS_A)
+        assert kept and kept["user_label"] == "Keys" and kept["_first_seen"] == row["_first_seen"], gsn.label(build)
+    back = _builds(monkeypatch, gsn.HEARD, {**gsn.SETTINGS, **NO_RULES}, gsn.BUILD_AT, _history(builds[-1]))
+    keys = _objects(back[-1])["ble:" + gsn.KEYS_A]
+    assert keys["user_label"] == "Keys" and keys["first_seen"] == _when(row["_first_seen"])
+
+
+def test_the_count_cap_spares_a_row_labelled_only_in_the_device_registry(monkeypatch) -> None:
+    monkeypatch.setattr(gsn, "LABELS", {})
+    monkeypatch.setattr(SB._low_memory, "history_max", lambda _hass: 5)
+    rows = [_row(gsn.DOG, "PetTag", 3000.0, labelled=False)]         # heard longest ago
+    rows += [_row(f"C8:00:00:00:01:{n:02X}", "Nobody's", 1000.0 + n, labelled=False) for n in range(20)]
+    kept = _history(_builds(monkeypatch, _TWO_PLAIN, history={r["key"]: r for r in rows})[0])
+    assert "ble:" + gsn.DOG in kept
+    assert len([k for k in kept if k.startswith("ble:C8:00:00:00:01:")]) < 20
+
+
+def test_the_count_cap_asks_its_keeper_before_an_entry_goes() -> None:
+    cache = {f"ble:{n}": {"_last_seen_ts": n} for n in range(150)}
+    gone = SB.cap_object_history(cache, 100, set(), keep=lambda entry: entry["_last_seen_ts"] == 0)
+    assert "ble:0" in cache and gone == 59 and len(cache) == 91
