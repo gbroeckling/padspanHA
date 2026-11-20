@@ -1,0 +1,15 @@
+[
+  {"ha": "2026.11.2", "python": "3.14", "harness": "pytest-homeassistant==2026.11.2", "every_push": true},
+  {"ha": "2026.10.4", "python": "3.14", "harness": "pytest-homeassistant-custom-component==0.13.375"},
+  {"ha": "2026.9.4", "python": "3.14", "harness": "pytest-homeassistant-custom-component==0.13.367"},
+  {"ha": "2026.7.4", "python": "3.14", "harness": "pytest-homeassistant-custom-component==0.13.348"},
+  {"ha": "2026.4.4", "python": "3.14", "harness": "pytest-homeassistant-custom-component==0.13.325"},
+  {"ha": "2026.2.3", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.316"},
+  {"ha": "2026.1.3", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.308"},
+  {"ha": "2025.10.4", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.289", "pins": "pycares<5"},
+  {"ha": "2025.7.4", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.264", "pins": "pycares<5"},
+  {"ha": "2025.4.4", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.236"},
+  {"ha": "2025.1.4", "python": "3.13", "harness": "pytest-homeassistant-custom-component==0.13.205", "pins": "pycares<4.9"},
+  {"ha": "2024.10.4", "python": "3.12", "harness": "pytest-homeassistant-custom-component==0.13.175", "pins": "josepy<2 pycares<4.9"},
+  {"ha": "2024.8.0", "python": "3.12", "harness": "pytest-homeassistant-custom-component==0.13.152", "pins": "josepy<2 pycares<4.9", "every_push": true}
+]

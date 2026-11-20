@@ -84,7 +84,7 @@ Then:
    Mapping. The **Atlas** sidebar panel shows the result (it is on by default;
    Settings turns it off).
 
-Home Assistant 2024.1 or newer. No hardware needed — it reads your `light.*`
+Home Assistant 2024.8 or newer. No hardware needed — it reads your `light.*`
 entities and their room assignments from Home Assistant.
 
 ## Already running PadSpan HA?
