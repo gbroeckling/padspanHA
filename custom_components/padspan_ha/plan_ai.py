@@ -71,6 +71,7 @@ from . import ws_house3d_photo as P
 from . import ws_house3d_stairs as S
 from .fabric_truth import placement_metres
 from .ws_common import _point_in_polygon
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -328,6 +329,7 @@ def _bump(hass: HomeAssistant, event: str, n: int = 1) -> None:
         from .telemetry import bump  # noqa: PLC0415
         bump(hass, event, n)
     except Exception:  # noqa: BLE001
+        _quiet_error("plan_ai:bump")
         pass
 
 
@@ -432,6 +434,7 @@ def _registry(hass: HomeAssistant, eid: str) -> tuple[Any, Any, Any, Any]:
         sub = (getattr(entry, "subentries", None) or {}).get(getattr(ent, "config_subentry_id", None))
         return ent, entry, sub, dr.async_get(hass).async_get(getattr(ent, "device_id", None))
     except Exception:  # noqa: BLE001
+        _quiet_error("plan_ai:registry")
         return None, None, None, None
 
 
@@ -483,6 +486,7 @@ def floor_order(model: Any) -> list[dict[str, Any]]:
     try:
         elev = model.floor_base_elevations_m()
     except Exception:  # noqa: BLE001
+        _quiet_error("plan_ai:floor_order")
         elev = {}
     out = []
     for i, f in enumerate(model.floors() if model is not None else []):
@@ -1168,6 +1172,7 @@ class Runner:
                 usd = U.estimate_usd(U.price_of(U.model_of(self.hass, eid)), size, len(prompt))
                 sess["est_usd"] = round(float(sess.get("est_usd") or 0.0) + (usd or 0.0), 5)
             except Exception:  # noqa: BLE001 — the estimate never stops a read
+                _quiet_error("plan_ai:ask")
                 pass
         timeout_s = max(1.0, min(self.read_cap(), self.left()))
         try:
@@ -1242,6 +1247,7 @@ class Runner:
                 raise OSError("no image")
             raw, w, h = await self.hass.async_add_executor_job(S.shrink, fp)
         except Exception:  # noqa: BLE001 — a missing or unreadable picture: the AI was never asked
+            _quiet_error("plan_ai:read_plan")
             self._err("no_picture")
             return []
         self.files[mid] = fp
@@ -1298,6 +1304,7 @@ class Runner:
             craw, cw, ch, (bx0, by0, bx1, by1) = await self.hass.async_add_executor_job(
                 crop, self.files[mid], (x1 + x2) / 2 / w, (y1 + y2) / 2 / h, side / 2 / mx, side / 2 / my)
         except Exception:  # noqa: BLE001 — a picture that won't crop: the find stays as the whole read had it
+            _quiet_error("plan_ai:look_again")
             return True
         if light:
             def parse(a: Any) -> tuple | None:
@@ -1379,6 +1386,7 @@ class Runner:
             try:
                 parts = await self.hass.async_add_executor_job(tiles, self.files[mid])
             except Exception:  # noqa: BLE001 — a picture that won't cut: this plan's lights stay unread
+                _quiet_error("plan_ai:read_lights")
                 self._err("no_picture")
                 continue
             W, H = pl["frame"]
@@ -2016,6 +2024,7 @@ def _bump_once(hass: HomeAssistant, event: str) -> None:
         if int((hass.data.get(DOMAIN, {}).get(_DATA_COUNTERS) or {}).get(event) or 0) > 0:
             return
     except Exception:  # noqa: BLE001
+        _quiet_error("plan_ai:bump_once")
         pass
     _bump(hass, event)
 
@@ -2410,6 +2419,7 @@ class LocalSteps:
             try:
                 pl["tilt_rad"] = round(G.scan_tilt(self.pic(pl["map_id"])), 6)
             except Exception:  # noqa: BLE001
+                _quiet_error("plan_ai:measure_tilt")
                 pl["tilt_rad"] = 0.0
         # PadSpan's own reading of what is printed must agree with Claude's metres:
         # the text (a chain joined by +), else the chain's segments summed.
@@ -2462,6 +2472,7 @@ class LocalSteps:
                 ticks = G.dimension_ticks(self.pic(pl["map_id"]), box, d["axis"], ends=d.get("ends_px"), tilt=float(pl.get("tilt_rad") or 0.0),
                                           chain=seg_m or None, expect_span=expect)
             except Exception:  # noqa: BLE001
+                _quiet_error("plan_ai:measure_ticks")
                 ticks = None
             if ticks is None:
                 d.update(ok=False, why="no_ticks")
@@ -2989,6 +3000,7 @@ class LineupRunner(Runner):
         try:
             raw, w, h, W, H = await self.hass.async_add_executor_job(picture, fp)
         except Exception:  # noqa: BLE001 — a picture that won't open: the AI was never asked
+            _quiet_error("plan_ai:read_whole_picture")
             self._err("no_media")
             return
         k = w / W if W else 1.0
@@ -3008,6 +3020,7 @@ class LineupRunner(Runner):
             ink = await self.hass.async_add_executor_job(check)
             ink = ink if ink[0] else None
         except Exception:  # noqa: BLE001
+            _quiet_error("plan_ai:read_whole_ink")
             ink = None
         if ink and len(got["outline"]) >= 3:
             xs, ys = [p[0] for p in got["outline"]], [p[1] for p in got["outline"]]
@@ -3032,6 +3045,7 @@ class LineupRunner(Runner):
             try:
                 raw, w, h, (x0, y0, kx, ky) = await self.hass.async_add_executor_job(dim_crop, fp, d["box"], d["axis"])
             except Exception:  # noqa: BLE001
+                _quiet_error("plan_ai:read_dims")
                 d["read"] = True
                 continue
             _bump(self.hass, f"plan_build_read:{self.STAGE}_dimension")
@@ -4105,6 +4119,7 @@ def rooms_gate(points: list[dict], floor_id: str, rooms_now: dict[str, dict], ou
         if ka.get("rooms_right_pc") is not None and kb.get("rooms_right_pc") is not None:
             out["held_out"] = {"now": ka["rooms_right_pc"], "with": kb["rooms_right_pc"], "spots": ka.get("room_spots")}
     except Exception:  # noqa: BLE001 — shown only; a score that can't be made is left out
+        _quiet_error("plan_ai:rooms_gate")
         pass
     return out
 
@@ -4209,6 +4224,7 @@ class RoomsRunner(LineupRunner):
         try:
             raw, w, h = await self.hass.async_add_executor_job(lambda: S.shrink(fp, S2_PICTURE_PX, S2_PICTURE_MP, framed=False))
         except Exception:  # noqa: BLE001 — a picture that won't open: the AI was never asked
+            _quiet_error("plan_ai:read_rooms")
             self._err("no_media")
             return
         W = int(pl["size_px"][0]) or w
@@ -4415,6 +4431,7 @@ async def rooms_inputs(hass: HomeAssistant) -> tuple[dict, dict, list, list]:
     try:
         house = copy.deepcopy((await house_store(hass)).data)
     except Exception:  # noqa: BLE001 — unreadable: nothing is matched against it, and Save refuses (plan_ai_write)
+        _quiet_error("plan_ai:rooms_inputs")
         house = {}
     dom = hass.data.get(DOMAIN, {})
     cal, model = dom.get(DATA_CALIBRATION), dom.get(DATA_MODEL)

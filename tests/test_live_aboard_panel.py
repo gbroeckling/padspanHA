@@ -141,16 +141,18 @@ def test_carries_saves_through_settings_set_and_a_bad_payload_wipes_nothing() ->
 
 
 @pytest.mark.parametrize("raw", ["inf", "-inf", "1e400", float("inf"), float("-inf"), "nan"])
-def test_a_return_time_that_is_no_number_never_breaks_the_save(raw) -> None:
-    """Review: "inf" or "1e400" raised OverflowError in int(), and the whole
-    save failed, every other setting in it lost."""
+def test_a_return_time_that_is_no_number_is_refused_and_never_raises(raw) -> None:
+    """Review: "inf" or "1e400" raised OverflowError in int(), and the save
+    failed with no answer. It is answered with an error, as for every number
+    that is not finite, and a refused save keeps nothing of the message."""
     assert WS._atlas_3d_idle(raw) == 60
     h, conn = _hass(), MagicMock()
     conn.user = MagicMock(is_admin=True)
     _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_home_idle_s": raw, "quiet_mode": False}))
-    assert not conn.send_error.called
+    assert conn.send_error.call_args[0][1:] == ("invalid", "atlas_3d_home_idle_s must be a finite number")
+    assert not conn.send_result.called
     data = h.data[DOMAIN][DATA_SETTINGS].data
-    assert data["atlas_3d_home_idle_s"] == 60 and data["quiet_mode"] is False
+    assert "atlas_3d_home_idle_s" not in data and data["quiet_mode"] is True
 
 
 @pytest.mark.parametrize(("key", "value"), [("atlas_3d_carries", {"person.alex": ["irk:0a1b2c3d4e"]}),

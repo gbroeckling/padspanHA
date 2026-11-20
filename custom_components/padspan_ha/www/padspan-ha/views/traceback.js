@@ -207,6 +207,24 @@ export function render(ctx) {
     return null;
   }
 
+  // A marker for something in `room`, wanted at (x, y), must not cover the
+  // room's own name, which is drawn at the room's middle (roomIsoPos): the
+  // tag's "Garage" chip sat right on the room's "Garage". `up` and `down` are
+  // how far the marker's plates reach above and below its centre, halfW half
+  // its width. Returns the y to draw it at: where the two would overlap, one
+  // marker's height up (down, for a marker whose centre is under the name) so
+  // it stands just clear of the name; a room's markers keep their places
+  // relative to each other on each side. Otherwise y as it was.
+  function _clearOfRoomName(room, x, y, up, down, halfW) {
+    const name = roomIsoPos[room] ? room : _roomLower[String(room || "").toLowerCase()];
+    const at = name && roomIsoPos[name];
+    if (!at) return y;
+    const NAME_HALF_H = 8, nameHalfW = name.length * 2.7 + 2;   // 9-unit bold text and a little air
+    if (Math.abs(x - at[0]) >= halfW + nameHalfW) return y;
+    if (y + down <= at[1] - NAME_HALF_H || y - up >= at[1] + NAME_HALF_H) return y;
+    return y > at[1] ? y + up + NAME_HALF_H : y - down - NAME_HALF_H;
+  }
+
   // Slider positions for floor focus
   const _isoPos = [null];
   for (let i = 0; i < sortedIsoLevels.length; i++) {
@@ -429,6 +447,52 @@ export function render(ctx) {
     _buildControls();
     _renderHouseEvents(true);
     _renderFrame();
+  }
+
+  // ── The legend under the map (both map modes) ──────────────────────────
+  // A numbered dot and a name for each storey. The name is the floor's own
+  // (the floor list's), "Main/Garden" when two floors share a storey; only a
+  // storey whose plans belong to no named floor falls back to the plans' own
+  // names. It used to be every plan's name joined with "+", which on a house
+  // with several plans a floor was a row of file names running off the right
+  // edge. The row stays inside the drawing: names that do not fit are each cut
+  // to the same length (the full name is then the label's tooltip).
+  function _legendSVG() {
+    const floorName = {};
+    for (const f of (ctx.state.model?.floors || [])) {
+      if (f && f.id != null && f.name) floorName[String(f.id)] = String(f.name);
+    }
+    const labels = sortedIsoLevels.map(z => {
+      const group = byLevel.get(z);
+      const names = [];
+      for (const m of group) {
+        const n = floorName[String(m.stack?.floor_id || m.floor_id || "main")];
+        if (n && !names.includes(n)) names.push(n);
+      }
+      return names.length ? names.join("/") : group.map(m => m.name || m.id).join("+");
+    });
+    // 22 for the dot and its gap, about 6 a letter, 10 for the "·" between two.
+    const width = (max) => labels.reduce((a, l) => a + 22 + Math.min(l.length, max) * 6, 0) + 10 * (labels.length - 1);
+    let max = Math.max(1, ...labels.map(l => l.length));
+    while (max > 2 && 12 + width(max) > W - 12) max--;
+    const ly = BASE_H + 10;
+    let lx = 12;
+    let s = "";
+    sortedIsoLevels.forEach((z, i) => {
+      const color = levelColor(z);
+      const full = labels[i];
+      const cut = full.length > max;
+      const groupLabel = cut ? full.slice(0, max - 1).trimEnd() + "\u2026" : full;
+      s += `<circle cx="${lx+7}" cy="${ly+7}" r="7" fill="${color}" opacity="0.9"/>`;
+      s += `<text x="${lx+7}" y="${ly+10}" text-anchor="middle" fill="#071008" font-size="9" font-weight="700">${i+1}</text>`;
+      s += `<text x="${lx+18}" y="${ly+10}" fill="${color}" font-size="11" font-weight="500">${cut ? `<title>${_esc(full)}</title>` : ""}${_esc(groupLabel)}</text>`;
+      lx += 22 + groupLabel.length * 6;
+      if (i < sortedIsoLevels.length - 1) {
+        s += `<text x="${lx}" y="${ly+10}" fill="#4a6052" font-size="10">\u00B7</text>`;
+        lx += 10;
+      }
+    });
+    return s;
   }
 
   // ── SVG builder ────────────────────────────────────────────────────────
@@ -677,7 +741,8 @@ export function render(ctx) {
         const offX = Math.cos(angle) * Math.min(radius, 45);
         const offY = Math.sin(angle) * Math.min(radius, 30);
         const px = Math.round(pos[0] + offX);
-        const py = Math.round(pos[1] + offY);
+        // 34 up to the top of the name plate, 30 down to the foot of the room chip, 130 wide at most.
+        const py = Math.round(_clearOfRoomName(o.r, px, pos[1] + offY, 34, 30, 65));
         const col = _colorMap[o.k] || "#fbbf24";
         const lbl = _friendlyLabel(o);
         const tip = `${lbl} | Room: ${o.r}${o.rssi ? " | RSSI: " + o.rssi + " dBm" : ""}`;
@@ -685,7 +750,7 @@ export function render(ctx) {
         // One <g> per object, keyed + anchored, so mergeObjectLayer can
         // glide it to its next-frame position instead of the whole overlay
         // teleporting on every frame swap.
-        // _esc leaves quotes alone; a key is an attribute value here.
+        // A key is an attribute value here: a quote in it must not end the attribute.
         s += `<g data-obj-key="${_esc(o.k || "").replaceAll('"', "&quot;")}" data-ann="${px} ${py}">`;
         // Outer glow ring (pulsing)
         s += `<circle cx="${px}" cy="${py}" r="26" fill="none" stroke="${col}" stroke-width="2" opacity="0.35">`;
@@ -735,22 +800,7 @@ export function render(ctx) {
 
     // Legend — compact single row (matches overview)
     s += `<line x1="10" y1="${BASE_H + 4}" x2="${W - 10}" y2="${BASE_H + 4}" stroke="#1b3526" stroke-width="0.8"/>`;
-    {
-      const ly = BASE_H + 10;
-      let lx = 12;
-      sortedIsoLevels.forEach((z, i) => {
-        const color = levelColor(z);
-        const groupLabel = byLevel.get(z).map(m => m.name || m.id).join("+");
-        s += `<circle cx="${lx+7}" cy="${ly+7}" r="7" fill="${color}" opacity="0.9"/>`;
-        s += `<text x="${lx+7}" y="${ly+10}" text-anchor="middle" fill="#071008" font-size="9" font-weight="700">${i+1}</text>`;
-        s += `<text x="${lx+18}" y="${ly+10}" fill="${color}" font-size="11" font-weight="500">${_esc(groupLabel)}</text>`;
-        lx += 22 + groupLabel.length * 6;
-        if (i < sortedIsoLevels.length - 1) {
-          s += `<text x="${lx}" y="${ly+10}" fill="#4a6052" font-size="10">\u00B7</text>`;
-          lx += 10;
-        }
-      });
-    }
+    s += _legendSVG();
 
     s += `</svg>`;
     return s;
@@ -894,7 +944,8 @@ export function render(ctx) {
         const angle = idx * 2.4;
         const radius = 6 + idx * 5;
         px = Math.round(pos[0] + Math.cos(angle) * Math.min(radius, 35));
-        py = Math.round(pos[1] + Math.sin(angle) * Math.min(radius, 22));
+        // 26 up to the top of the name plate, 18 down to the foot of the halo, 100 wide at most.
+        py = Math.round(_clearOfRoomName(room, px, pos[1] + Math.sin(angle) * Math.min(radius, 22), 26, 18, 50));
       } else {
         // Unplaced: arrange in a grid cluster
         const col2 = unplacedCount % 6;
@@ -944,22 +995,7 @@ export function render(ctx) {
 
     // Legend
     s += `<line x1="10" y1="${BASE_H + 4}" x2="${W - 10}" y2="${BASE_H + 4}" stroke="#1b3526" stroke-width="0.8"/>`;
-    {
-      const ly = BASE_H + 10;
-      let lx = 12;
-      sortedIsoLevels.forEach((z, i) => {
-        const color = levelColor(z);
-        const groupLabel = byLevel.get(z).map(m => m.name || m.id).join("+");
-        s += `<circle cx="${lx+7}" cy="${ly+7}" r="7" fill="${color}" opacity="0.9"/>`;
-        s += `<text x="${lx+7}" y="${ly+10}" text-anchor="middle" fill="#071008" font-size="9" font-weight="700">${i+1}</text>`;
-        s += `<text x="${lx+18}" y="${ly+10}" fill="${color}" font-size="11" font-weight="500">${_esc(groupLabel)}</text>`;
-        lx += 22 + groupLabel.length * 6;
-        if (i < sortedIsoLevels.length - 1) {
-          s += `<text x="${lx}" y="${ly+10}" fill="#4a6052" font-size="10">\u00B7</text>`;
-          lx += 10;
-        }
-      });
-    }
+    s += _legendSVG();
     s += `</svg>`;
     return s;
   }
@@ -1715,7 +1751,18 @@ export function render(ctx) {
   const floorLbl = document.createElement("span");
   floorLbl.style.cssText = "font-size:12px;color:#94a3b8";
   floorLbl.textContent = "Floor:";
-  isoCtrlRow.appendChild(floorLbl);
+  // A label, its slider and its value are one unit that does not break: when
+  // the row wraps (a phone) the whole unit moves to the next line, never the
+  // slider alone. A plain inline span, so an unwrapped row is laid out as it
+  // always was.
+  const _ctrlUnit = () => {
+    const g = document.createElement("span");
+    g.style.cssText = "white-space:nowrap";
+    isoCtrlRow.appendChild(g);
+    return g;
+  };
+  const floorUnit = _ctrlUnit();
+  floorUnit.appendChild(floorLbl);
 
   const focusLbl = document.createElement("span");
   focusLbl.style.cssText = "font-size:12px;color:#94a3b8;min-width:80px;display:inline-block";
@@ -1739,8 +1786,8 @@ export function render(ctx) {
     _resetStaticBase();
     _renderFrame();
   });
-  isoCtrlRow.appendChild(focusSlider);
-  isoCtrlRow.appendChild(focusLbl);
+  floorUnit.appendChild(focusSlider);
+  floorUnit.appendChild(focusLbl);
   // In house mode the slider walks the Atlas's floors (fabric floors, the
   // list the Atlas drawing uses), not the photo z_levels of the 3D stack.
   function _syncFocusSlider() {
@@ -1762,7 +1809,8 @@ export function render(ctx) {
   const ovSpacingLbl = document.createElement("span");
   ovSpacingLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:8px";
   ovSpacingLbl.textContent = "Spacing:";
-  isoCtrlRow.appendChild(ovSpacingLbl);
+  const gapUnit = _ctrlUnit();
+  gapUnit.appendChild(ovSpacingLbl);
 
   const ovGapLbl = document.createElement("span");
   ovGapLbl.style.cssText = "font-size:12px;color:#94a3b8;min-width:36px;display:inline-block;text-align:right";
@@ -1779,14 +1827,15 @@ export function render(ctx) {
     _resetStaticBase();
     _renderFrame();
   });
-  isoCtrlRow.appendChild(ovGapSlider);
-  isoCtrlRow.appendChild(ovGapLbl);
+  gapUnit.appendChild(ovGapSlider);
+  gapUnit.appendChild(ovGapLbl);
 
   // L/R horizontal offset slider
   const ovLRLbl = document.createElement("span");
   ovLRLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:8px";
   ovLRLbl.textContent = "L/R:";
-  isoCtrlRow.appendChild(ovLRLbl);
+  const lrUnit = _ctrlUnit();
+  lrUnit.appendChild(ovLRLbl);
 
   const ovHorizLbl = document.createElement("span");
   ovHorizLbl.style.cssText = "font-size:12px;color:#94a3b8;min-width:36px;display:inline-block;text-align:right";
@@ -1803,8 +1852,8 @@ export function render(ctx) {
     _resetStaticBase();
     _renderFrame();
   });
-  isoCtrlRow.appendChild(ovHorizSlider);
-  isoCtrlRow.appendChild(ovHorizLbl);
+  lrUnit.appendChild(ovHorizSlider);
+  lrUnit.appendChild(ovHorizLbl);
 
   // Save button
   const ovSaveLbl = document.createElement("span");
@@ -1840,7 +1889,7 @@ export function render(ctx) {
   // Reset button
   const ovResetBtn = document.createElement("button");
   ovResetBtn.className = "btn inline";
-  ovResetBtn.style.cssText = "padding:2px 10px;font-size:12px";
+  ovResetBtn.style.cssText = "padding:2px 10px;font-size:12px;margin-left:6px";   // a gap from Save
   ovResetBtn.title = "Reset sliders to default values";
   ovResetBtn.textContent = "Reset";
   ovResetBtn.addEventListener("click", async ()=>{
@@ -1862,8 +1911,12 @@ export function render(ctx) {
     }catch(e){ ovSaveLbl.textContent = "Error"; }
     ovResetBtn.disabled = false;
   });
-  isoCtrlRow.appendChild(ovSaveBtn);
-  isoCtrlRow.appendChild(ovResetBtn);
+  // Save and Reset stay side by side, 6px apart, and 8px clear of the L/R
+  // value before them (the step between the other units of this row).
+  const saveUnit = _ctrlUnit();
+  saveUnit.style.marginLeft = "8px";
+  saveUnit.appendChild(ovSaveBtn);
+  saveUnit.appendChild(ovResetBtn);
   isoCtrlRow.appendChild(ovSaveLbl);
 
   // ── Discovery controls card ───────────────────────────────────────────
@@ -2154,7 +2207,10 @@ export function render(ctx) {
 
   // ── Mode toggle ─────────────────────────────────────────────────────────
   const modeRow = document.createElement("div");
-  modeRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:8px";
+  // Wraps between buttons, never inside one: on a phone the labels broke onto
+  // two and three lines each ("Full / house / activity"), every button a
+  // different height. The buttons inherit the nowrap.
+  modeRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:8px;flex-wrap:wrap;white-space:nowrap";
 
   const MODE_COLOR = { playback: "#fbbf24", discovery: "#e879f9", insights: "#ffd54f", busytimes: "#f57c00" };
   const _isMapMode = (mode) => mode === "playback" || mode === "discovery";
@@ -2542,7 +2598,7 @@ export function render(ctx) {
           filterSel.appendChild(opt);
         }
         filterSel.addEventListener("change", () => { ctx.state._distFilter = filterSel.value; _renderTable(); });
-        filterRow.appendChild(el("span",{style:"font-size:10px;color:#64748b"},"Filter:"));
+        filterRow.appendChild(el("span",{style:"font-size:10px;color:#64748b;flex:none;white-space:nowrap"},"Filter:"));
         filterRow.appendChild(filterSel);
         distResults.appendChild(filterRow);
 

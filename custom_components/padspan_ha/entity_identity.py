@@ -17,6 +17,7 @@ import time
 from typing import Any, Callable
 
 from .const import DATA_DEVICE_REGISTRY, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 # Kinds whose key is already a stable identity, most stable first.
 _PREFERRED = ("irk:", "ibeacon:")
@@ -51,6 +52,7 @@ def kept_device_info(hass: Any, platform: str, unique_id: str, uid: str,
             return fresh
         return {held[0]}, set()
     except Exception:  # noqa: BLE001 - no registry answer: as it always was
+        _quiet_error("entity_identity:kept_device_info")
         return fresh
 
 
@@ -92,6 +94,7 @@ def pick_uid_key(hass: Any, platform: str, unique_ids: Callable[[str], list[str]
                 if reg.async_get_entity_id(platform, DOMAIN, unique_id):
                     return uid
     except Exception:  # noqa: BLE001 - no registry answer: the fixed order decides
+        _quiet_error("entity_identity:pick_uid_key")
         pass
     if fallback:
         return fallback

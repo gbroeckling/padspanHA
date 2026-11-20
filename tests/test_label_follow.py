@@ -1121,7 +1121,9 @@ def test_nothing_that_stores_or_alerts_reads_a_link() -> None:
     readers = {p.name for p in pkg.glob("*.py")
                if p.name != "label_follow.py"
                and any(w in p.read_text(encoding="utf-8") for w in ("label_follow", "label_links", "label_link", "_label_links"))}
-    assert readers == {"snapshot_builder.py", "ws_objects.py", "ws_factory_reset.py", "websocket.py", "telemetry.py", "const.py"}
+    # quiet_errors.py only lists the names of snapshot_builder.py's counted handlers (SITES).
+    assert readers == {"snapshot_builder.py", "ws_objects.py", "ws_factory_reset.py", "websocket.py", "telemetry.py", "const.py",
+                       "quiet_errors.py"}
     for name in ("presence_coordinator.py", "calibration_store.py", "capture_store.py", "adaptive_store.py",
                  "device_registry.py", "object_store.py", "alert_store.py", "movement_store.py", "traceback_store.py",
                  "ws_follow.py", "sensor.py", "device_tracker.py", "ws_calibration.py", "ws_capture.py"):
@@ -1255,7 +1257,10 @@ async def test_a_moved_name_stays_on_screen_long_after_the_first_address_stops(m
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("root", SHAPES)
-async def test_a_no_outlives_the_row_whatever_the_address_looks_like(monkeypatch, root) -> None:
+async def test_a_no_is_kept_with_the_named_row_whatever_the_address_looks_like(monkeypatch, root) -> None:
+    """A named device's row is kept however long it is silent (its label is
+    found under the plain address), with or without a link to show; the No
+    someone gave stays with it."""
     state = {"refused": {root: [C]}, "quiet": {root: NOON + 3600.0}}
     links = LF.LabelLinks(json.loads(json.dumps(state)))
     house = _house(monkeypatch, links=links, labels={root: "My Car"})
@@ -1263,7 +1268,7 @@ async def test_a_no_outlives_the_row_whatever_the_address_looks_like(monkeypatch
     dom[DATA_OBJECT_HISTORY] = _silent_since(root, 25.0)
     for at in (0.0, 10.0):
         await house.build(at, [])
-    assert f"ble:{root}" not in dom[DATA_OBJECT_HISTORY], "a row with nothing to show still ages out"
+    assert dom[DATA_OBJECT_HISTORY][f"ble:{root}"]["user_label"] == "My Car"
     assert links.refused[root] == [C] and links.quiet[root] == NOON + 3600.0
 
 

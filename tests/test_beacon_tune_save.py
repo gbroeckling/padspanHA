@@ -276,7 +276,7 @@ class TestBeaconTuneIsWired:
         assert self.SRC.count("bs.editBaseline[m.id] = tuneBeaconBaseline(bs.draftBeacons[m.id])") == 2
 
     def test_beacon_tune_pans_and_zooms_without_stealing_its_gestures(self):
-        assert 'attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false })' in self.SRC
+        assert 'attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false, slot: "calibration-beacon" })' in self.SRC
         # every Beacon Tune SVG rebuild targets the moved layer
         assert "isoDiv.innerHTML = buildBeaconSVG" not in self.SRC
 

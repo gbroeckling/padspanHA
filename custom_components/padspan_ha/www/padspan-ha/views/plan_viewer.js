@@ -143,7 +143,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
     if ((_radioMapOn || _distortionOn) && !_radioMapMod) {
       (async () => {
         try {
-          const mod = await import("./radio_map.js?b=" + (ctx.state.buildId || ""));
+          const mod = await import(`./radio_map.js${new URL(import.meta.url).search}`);
           ctx.state._2dRadioMapMod = mod;
           _radioMapMod = mod;
           // Recompute scanner list if cal data is already loaded

@@ -31,6 +31,7 @@ from .const import (
     CRITIC_WARNING_ERROR_M,
 )
 from .bluetooth_live import get_bluetooth_live
+from .quiet_errors import listing as _quiet_listing, note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ async def ws_auto_diagnostics(hass: HomeAssistant, connection, msg) -> None:
                     room_count = len(_rooms)
                     room_source = "map room boundaries"
             except Exception:  # noqa: BLE001 — diagnostics must never raise
+                _quiet_error("ws_diagnostics:auto_diagnostics")
                 pass
         if room_count:
             checks.append({"name": "room_tag_map", "ok": True, "detail": f"{room_count} rooms loaded ({room_source})"})
@@ -185,6 +187,7 @@ async def ws_positioning_diag(hass: HomeAssistant, connection, msg) -> None:
         from .bluetooth_live import get_bluetooth_live
         _bl = get_bluetooth_live(hass)
     except Exception:
+        _quiet_error("ws_diagnostics:positioning_diag")
         pass
     ble_seed = {
         "method": getattr(_bl, "seed_method", "?") if _bl else "no_bluetooth_live",
@@ -233,6 +236,7 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
         from homeassistant.helpers import area_registry as _ar
         rooms_discovered = [a.name for a in _ar.async_get(hass).async_list_areas()]
     except Exception:
+        _quiet_error("ws_diagnostics:propagation_areas")
         pass
     total_rooms = max(len(rooms_discovered), 1)
 
@@ -365,6 +369,7 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
         try:
             heldout = _pc.heldout_cached()
         except Exception:
+            _quiet_error("ws_diagnostics:propagation_heldout")
             heldout = None
 
     connection.send_result(msg["id"], {
@@ -528,6 +533,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                         "action": f"Run a calibration walk-around on \u201c{map_name}\u201d.",
                     })
         except Exception:
+            _quiet_error("ws_diagnostics:critics_map_quality")
             pass
 
     # ── 2b. Map geometry self-consistency ────────────────────────────────────
@@ -611,6 +617,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                         ),
                     })
     except Exception:
+        _quiet_error("ws_diagnostics:critics_geometry")
         pass
 
     # ── 2c. Room footprint vs. map scale ─────────────────────────────────────
@@ -648,6 +655,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     ),
                 })
     except Exception:
+        _quiet_error("ws_diagnostics:critics_room_footprint")
         pass
 
     # ── 2d. Room trace vs. committed fabric — group divergence ───────────────
@@ -685,6 +693,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     ),
                 })
     except Exception:
+        _quiet_error("ws_diagnostics:critics_room_divergence")
         pass
 
     # ── 3. Scanner Disagreement (from coordinator Phase 3 data) ───────────────
@@ -699,6 +708,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
             from .snapshot_builder import _live_snapshot  # noqa: PLC0415
             live_radios = ((await _live_snapshot(hass)).get("ble") or {}).get("radios") or []
         except Exception:
+            _quiet_error("ws_diagnostics:critics_live_radios")
             pass
         radio_name_map: dict[str, str] = {}
         for _r in live_radios:
@@ -774,6 +784,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                             "action": "Schedule a calibration session to keep accuracy optimal.",
                         })
                 except Exception:
+                    _quiet_error("ws_diagnostics:critics_calibration_age")
                     pass
         elif not points:
             critics.append({
@@ -862,6 +873,7 @@ async def ws_ha_entities_audit(hass: HomeAssistant, connection, msg) -> None:
             if refs:
                 _auto_users[eid] = list(refs)
     except Exception:
+        _quiet_error("ws_diagnostics:audit_automations")
         pass
     try:
         from homeassistant.components.script import scripts_with_entity  # noqa: PLC0415
@@ -870,6 +882,7 @@ async def ws_ha_entities_audit(hass: HomeAssistant, connection, msg) -> None:
             if refs:
                 _script_users[eid] = list(refs)
     except Exception:
+        _quiet_error("ws_diagnostics:audit_scripts")
         pass
 
     # Classify entity type from unique_id suffix. These suffixes are set at
@@ -953,6 +966,7 @@ async def ws_ha_entities_audit(hass: HomeAssistant, connection, msg) -> None:
                 if dev and dev.name:
                     dev_label = dev.name
             except Exception:
+                _quiet_error("ws_diagnostics:audit_device")
                 pass
 
         entities.append({
@@ -997,3 +1011,17 @@ async def ws_ha_entities_audit(hass: HomeAssistant, connection, msg) -> None:
         "by_type": by_type,
         "total_used_in_automations": total_used,
     })
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/quiet_errors"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_quiet_errors(hass: HomeAssistant, connection, msg) -> None:
+    """Errors PadSpan handled quietly since Home Assistant started (quiet_errors.py):
+    each site that fired, its count, and its last error with the time.
+
+    Administrators only, and never part of any report: an error's text can
+    name rooms and devices. The opt-in usage report carries the site names
+    and counts alone (telemetry.build_payload).
+    """
+    connection.send_result(msg["id"], {"sites": _quiet_listing()})

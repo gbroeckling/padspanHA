@@ -48,6 +48,7 @@ from . import plan_geom as G
 from . import ws_house3d_photo as P
 from .const import DATA_MODEL, DOMAIN, HOUSE3D_STORE_KEY
 from .house3d_library import without_tokens
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -971,6 +972,7 @@ def _invalidate(hass: HomeAssistant) -> None:
         from .ws_common import _invalidate_snapshot_cache  # noqa: PLC0415
         _invalidate_snapshot_cache(hass)
     except Exception:  # noqa: BLE001
+        _quiet_error("plan_ai_write:invalidate")
         pass
 
 
@@ -1733,6 +1735,7 @@ def _excluded(hass: HomeAssistant) -> frozenset:
     try:
         return frozenset(cal.excluded_sources()) if cal is not None and hasattr(cal, "excluded_sources") else frozenset()
     except Exception:  # noqa: BLE001
+        _quiet_error("plan_ai_write:excluded")
         return frozenset()
 
 

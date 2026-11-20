@@ -13,6 +13,9 @@ backups/
 # Working notes containing LAN addresses and deploy commands — never publish
 docs/fabric-independence-plan-*.md
 docs/fabric-simplification-pass*.md
+# The release zip: built by scripts/release.py and attached to the GitHub
+# release, which is where HACS downloads it. Never committed.
+dist/padspan_ha.zip
 # The generated PadSpan Bright edition — built by scripts/release.py, lives in ITS repo
 dist/padspan_bright.zip
 dist/bright/

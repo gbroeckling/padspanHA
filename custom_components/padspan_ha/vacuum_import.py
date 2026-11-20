@@ -50,6 +50,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .const import DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -494,6 +495,7 @@ class VacuumStore:
             try:
                 await self.async_tick()
             except Exception:  # noqa: BLE001 — a robot that cannot be read is not an error
+                _quiet_error("vacuum_import:tick")
                 _LOGGER.debug("Vacuum read failed", exc_info=True)
         self._unsub = async_track_time_interval(self.hass, _tick, timedelta(seconds=TICK_S))
 

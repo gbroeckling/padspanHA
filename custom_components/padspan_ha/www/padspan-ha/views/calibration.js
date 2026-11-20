@@ -3,9 +3,9 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 const { deviceName, pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
-import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
-import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
-import { attachPanZoom } from "./pan_zoom.js";
+const { estimateDistanceM, formatDistanceM } = await import(`./path_loss.js${new URL(import.meta.url).search}`);
+const { buildCalibrationMatrix, errorColor } = await import(`./calibration_matrix.js${new URL(import.meta.url).search}`);
+const { attachPanZoom } = await import(`./pan_zoom.js${new URL(import.meta.url).search}`);
 
 // A tall plan fits the window instead of filling the card. Only the box's size
 // changes: its shape stays the plan's, and a point is a fraction of the plan's
@@ -193,7 +193,7 @@ export function render(ctx) {
   ]));
 
   // Tab bar
-  const tabBar = el("div", { class: "tabs", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
+  const tabBar = el("div", { class: "tabs tabs-rows", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
   for (const [id, label] of TABS) {
     tabBar.appendChild(el("button", {
       class: "tab" + (cs.tab === id ? " active" : ""),
@@ -1197,7 +1197,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   </svg>`;
 
   mapInner.innerHTML = svgStr;
-  attachPanZoom(mapWrap, mapInner);
+  attachPanZoom(mapWrap, mapInner, { slot: "calibration-pin" });
 
   // Tap handler — must attach after setting innerHTML
   const svgEl = mapInner.querySelector("svg");
@@ -1230,7 +1230,7 @@ function _pinAndListen(ctx, el, cs, calData) {
 
     if (cs.collecting) {
       // Active collection UI — injected as a real DOM node we can update
-      const collUI = _buildCollectionUI(ctx, el, cs, mapData);
+      const collUI = _buildCollectionUI(ctx, el, cs);
       pinPanel.appendChild(collUI);
     } else if (cs.readings) {
       // Collection done — show summary + save/discard
@@ -1655,7 +1655,7 @@ function _roam(ctx, el, cs, calData) {
     ${dotsSvg}
     ${pct < 100 ? targetSvg : ""}
   </svg>`;
-  attachPanZoom(mapWrap, mapInner);
+  attachPanZoom(mapWrap, mapInner, { slot: "calibration-roam" });
   wrap.appendChild(mapWrap);
 
   // Legend
@@ -1877,7 +1877,7 @@ function _modelTab(ctx, el, cs, calData) {
             ctx.toast("All calibration data cleared.");
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Failed: " + String(e), true);
+            ctx.toast("Failed: " + String((e && e.message) || e), true);
             clearWrap.appendChild(makeClearBtn());
           }
         });
@@ -3631,9 +3631,10 @@ function _tuneTab(ctx, el, cs, calData) {
   function _refreshPlaceBanner() {
     if (ts.pendingPlace) {
       const nm = ts.pendingPlace.shown || ts.pendingPlace.name || ts.pendingPlace.source || "radio";
-      placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
+      placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelPlace");
+      if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
       if (cancelEl) cancelEl.addEventListener("click", () => {
         ts.pendingPlace = null;
         _refreshPlaceBanner();
@@ -4956,7 +4957,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   isoInner.style.cssText = "transform-origin:0 0";
   isoDiv.appendChild(isoInner);
   isoInner.innerHTML = buildBeaconSVG(_getFocusZ(bs.focusIdx));
-  const _bkPanZoom = attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false });
+  const _bkPanZoom = attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false, slot: "calibration-beacon" });
   const _bkViewReset = document.createElement("button");
   _bkViewReset.className = "btn inline";
   _bkViewReset.style.cssText = "position:absolute;top:8px;right:8px;z-index:4;padding:2px 8px;font-size:12px";
@@ -5620,9 +5621,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (bs.pendingPlace) {
       const nm = bs.pendingPlace.label || bs.pendingPlace.key || "beacon";
       const verb = bs._relocating ? "relocate" : "mark the current location of";
-      placeBanner.innerHTML = `<b style="color:#f59e0b">Double-click</b> on the 3D map to ${verb} <b style="color:#5eead4">${_esc(nm)}</b> &nbsp; <span style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">Cancel</span>`;
+      placeBanner.innerHTML = `<b style="color:#f59e0b">Double-click</b> on the 3D map to ${verb} <b style="color:#5eead4">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">Cancel</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelBkPlace");
+      if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
       if (cancelEl) cancelEl.addEventListener("click", () => {
         bs.pendingPlace = null;
         bs._relocating = null;

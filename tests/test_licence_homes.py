@@ -143,7 +143,7 @@ def _activate(monkeypatch, stored, answer, key):
     mod.async_get_clientsession = lambda hass: session
     monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", mod)
     monkeypatch.setattr(F, "_invalidate_snapshot_cache", lambda hass: None)
-    monkeypatch.setattr(F, "_get_settings", lambda hass: {})
+    monkeypatch.setattr(F, "_get_settings", lambda hass, connection=None: {})
 
     async def _mid(hass):
         return "m1"

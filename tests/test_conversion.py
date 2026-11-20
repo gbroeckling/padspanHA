@@ -228,7 +228,7 @@ def test_every_new_import_carries_the_cache_buster() -> None:
         src = (_VIEWS / name).read_text(encoding="utf-8")
         assert "import(`./trial_offer.js${new URL(import.meta.url).search}`)" in src, name
     lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
-    assert "import(`./views/trial_offer.js${new URL(import.meta.url).search}`)" in lp
+    assert "import(`./views/trial_offer.js${STAMP}`)" in lp
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     assert "import(`./views/trial_offer.js?b=${BUILD_ID}`)" in panel
 

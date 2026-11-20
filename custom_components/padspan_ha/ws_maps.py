@@ -31,6 +31,7 @@ import math
 import time as _time
 from .map_image_view import signed_image_urls
 from .presence_rules import is_outdoor_floor
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -158,7 +159,7 @@ _HAND_MEASURE = vol.Schema({vol.Optional("p1"): [vol.Coerce(float)], vol.Optiona
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/maps_scale_measure",
-        "map_id": str,
+        vol.Required("map_id"): str,
         vol.Optional("measures", default=list): vol.All([_HAND_MEASURE], vol.Length(max=2)),
         vol.Optional("save", default=False): bool,
         # "This picture isn't to scale" pressed on the screen (two lengths that disagree): each direction its own scale,
@@ -218,8 +219,8 @@ BLANK_WORDS: dict[str, str] = {
     {
         "type": "padspan_ha/maps_blank_create",
         "floor_id": str,
-        "across": vol.All(str, vol.Length(max=40)),
-        "down": vol.All(str, vol.Length(max=40)),
+        vol.Required("across"): vol.All(str, vol.Length(max=40)),
+        vol.Required("down"): vol.All(str, vol.Length(max=40)),
         vol.Optional("name", default=""): vol.All(str, vol.Length(max=120)),
     }
 )
@@ -235,7 +236,7 @@ async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
         return
-    floor_id = msg["floor_id"] or DEFAULT_FLOOR_ID
+    floor_id = msg.get("floor_id") or DEFAULT_FLOOR_ID
     feet = C.feet_on(hass)
     across, down = G.parse_length(msg["across"], feet=feet), G.parse_length(msg["down"], feet=feet)
     if is_outdoor_floor(floor_id):
@@ -254,7 +255,7 @@ async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"ok": True, "map": info})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/maps_scale_nudge_end", "map_id": str})
+@websocket_api.websocket_command({"type": "padspan_ha/maps_scale_nudge_end", vol.Required("map_id"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_scale_nudge_end(hass: HomeAssistant, connection, msg) -> None:
@@ -319,6 +320,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
                     if _bk.get("key"):
                         _old_beacon_keys.add(_bk["key"])
         except Exception:
+            _quiet_error("ws_maps:update_old_map")
             pass
 
     # Diagnostic: log incoming room_bounds for persistence debugging
@@ -367,6 +369,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
                         if _rk not in _all_map_keys:
                             _coord.clear_object_state(_rk)
             except Exception:
+                _quiet_error("ws_maps:update_beacons_removed")
                 pass
 
     # ── Immediate calibration injection when beacons are saved ────────────
@@ -385,6 +388,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
                         _injected, map_id,
                     )
         except Exception:
+            _quiet_error("ws_maps:update_beacon_calibration")
             pass  # best-effort; don't fail the save
 
     # A map save does NOT write spatial fabric. Scanner/beacon/barrier metres
@@ -410,6 +414,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
             if _cal:
                 await _cal.async_remap_from_metres(map_id)
         except Exception:
+            _quiet_error("ws_maps:update_calibration")
             pass  # best-effort
 
     connection.send_result(msg["id"], {"map": updated})
@@ -523,6 +528,7 @@ async def ws_maps_delete(hass: HomeAssistant, connection, msg) -> None:
             from .ws_calibration import _note_points_seen  # noqa: PLC0415
             await _note_points_seen(hass, cal)
     except Exception:
+        _quiet_error("ws_maps:delete_calibration")
         pass
 
     # Clean up traceback frames referencing this map
@@ -537,6 +543,7 @@ async def ws_maps_delete(hass: HomeAssistant, connection, msg) -> None:
                     if _obj.get("m") == map_id:
                         _obj["m"] = ""
     except Exception:
+        _quiet_error("ws_maps:delete_traceback")
         pass
 
     # Clean up hidden_map_ids in settings
@@ -548,6 +555,7 @@ async def ws_maps_delete(hass: HomeAssistant, connection, msg) -> None:
                 _st.data["hidden_map_ids"] = [x for x in _hidden if x != map_id]
                 await _st.async_save()
     except Exception:
+        _quiet_error("ws_maps:delete_settings")
         pass
 
     await ms.async_delete_map(map_id)
@@ -571,6 +579,7 @@ def _note_map_deleted(hass: HomeAssistant, ms: Any, migrated: bool) -> None:
             _st.data["maps_seen"] = _n                       # this run's report reads it at once
             hass.async_create_task(_st.async_set(maps_seen=_n))   # and a restart keeps it
     except Exception as err:  # noqa: BLE001
+        _quiet_error("ws_maps:note_map_deleted")
         _LOGGER.debug("map delete not noted: %s", err)
 
 
@@ -790,6 +799,7 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
                         b["cy"] = _renorm_y(b.get("cy", 0.5))
                         b["r"] = float(b.get("r", 0.12)) * min(old_w_ratio, old_h_ratio)
             except Exception as _ext_err:
+                _quiet_error("ws_maps:delete_migrate_canvas")
                 _LOGGER.debug("Canvas extension failed: %s", _ext_err)
         elif needs_extend and not msg.get("extend_canvas"):
             # Data needs extending but user hasn't approved — report overflow
@@ -845,6 +855,7 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
                     cov.pop(tgt_id, None)
                 await cal.store.async_save(cal.data)
     except Exception:
+        _quiet_error("ws_maps:delete_migrate_calibration")
         pass
 
     # --- Delete the source map ---
@@ -909,7 +920,7 @@ SCAN_MAX_M, SCAN_MAX_WALLS, SCAN_MAX_OBJECTS = 200.0, 3000, 2000
 SCAN_CORNER_M = 0.35          # a room outline's corner this near a wall end is that wall end
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/maps_fit_suggest", "map_id": str, "ref_map_id": str})
+@websocket_api.websocket_command({"type": "padspan_ha/maps_fit_suggest", vol.Required("map_id"): str, vol.Required("ref_map_id"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
@@ -935,6 +946,7 @@ async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
             if got:
                 fit = {k: got[k] for k in ("origin_x_m", "origin_y_m", "rotation_rad", "score")}
     except Exception:  # noqa: BLE001 — a suggestion that can't be worked out is no suggestion
+        _quiet_error("ws_maps:fit_suggest")
         _LOGGER.debug("PadSpan: no fit suggested", exc_info=True)
     connection.send_result(msg["id"], {"fit": fit})
 
@@ -943,7 +955,7 @@ async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/maps_scan_create",
         "floor_id": str,
-        "file_base64": str,
+        vol.Required("file_base64"): str,
         vol.Optional("name", default=""): vol.All(str, vol.Length(max=120)),
     }
 )
@@ -959,7 +971,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
         return
-    floor_id = msg["floor_id"] or DEFAULT_FLOOR_ID
+    floor_id = msg.get("floor_id") or DEFAULT_FLOOR_ID
 
     def no(code: str, message: str) -> None:
         connection.send_result(msg["id"], {"ok": False, "code": code, "message": message})
@@ -987,6 +999,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     except _TooBig:
         return no("too_large", SCAN_WORDS["too_big"])
     except Exception:  # noqa: BLE001 — a file from anywhere: whatever it does, the answer is that it couldn't be read
+        _quiet_error("ws_maps:scan_create_read")
         _LOGGER.debug("PadSpan: a scan file could not be read", exc_info=True)
         return no("unreadable", "This file could not be read.")
     if not frame or not pic:
@@ -1038,6 +1051,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
                     placed = {"fit": True, **{k: fit[k] for k in ("room", "score", "fits_both_ways", "size_scan_m") if k in fit},
                               **({"size_room_m": fit["size_room_m"]} if fit.get("size_room_m") else {})}
     except Exception:  # noqa: BLE001 — the plan is saved either way: it is only not placed
+        _quiet_error("ws_maps:scan_create_model")
         _LOGGER.debug("PadSpan: a scan could not be placed among the floor's rooms", exc_info=True)
     connection.send_result(msg["id"], {"ok": True, "map": info, "rooms": len(frame["rooms"]), "walls": len(frame["walls"]),
                                        **({"placed": placed} if placed is not None else {}),

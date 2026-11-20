@@ -176,7 +176,7 @@ async function _addIrk(ctx, name, irk, msgEl, after, force = false, via = "") {
 }
 
 export function render(ctx) {
-  const { el, esc } = ctx.helpers;
+  const { el } = ctx.helpers;
 
   // ── Extract BLE data from the live snapshot ───────────────────────────────
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
@@ -532,7 +532,7 @@ export function render(ctx) {
             el("div", { class: "bt-notice-sub" },
               "Usually the HA Bluetooth integration is not enabled, or the scanner API callback failed. The page still renders; the data may be empty."),
           ]),
-          el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, esc(JSON.stringify(diag, null, 2))),
+          el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, JSON.stringify(diag, null, 2)),
         ])
       : null;
 
@@ -1176,7 +1176,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
 // and a raw JSON toggle. Clicking a row selects it; clicking the Tag button
 // opens the label prompt for object tracking.
 function renderMonitor(ctx, ads, radios, objIndex) {
-  const { el, esc } = ctx.helpers;
+  const { el } = ctx.helpers;
   const _rsid = ctx.helpers.radioShortId || (() => "");
 
   const selected = ctx.state.btSelectedAddr || null;
@@ -1404,7 +1404,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
 
     // Raw JSON (collapsible)
     const rawToggle = el("button", { class: "btn tiny", style: "margin-top:12px" }, "Show raw JSON");
-    const rawPre = el("pre", { class: "pre", style: "display:none;margin-top:6px" }, esc(JSON.stringify(a, null, 2)));
+    const rawPre = el("pre", { class: "pre", style: "display:none;margin-top:6px" }, JSON.stringify(a, null, 2));
     rawToggle.addEventListener("click", () => {
       const vis = rawPre.style.display !== "none";
       rawPre.style.display = vis ? "none" : "block";
@@ -1464,6 +1464,32 @@ function renderMonitor(ctx, ads, radios, objIndex) {
   ]);
 }
 
+// The "Who hears what" graph is drawn at the width it is shown at, one unit to
+// one screen pixel, so its text is the page's own size on a phone and on a
+// wide screen alike (it used to be a fixed 920 units stretched to fit: 4 px
+// text on a phone, 19 px on a wide monitor). _vizW is the width it was last
+// shown at and _vizFont the page's font there; a render draws with those
+// first, and again only if the page then turns out to be different.
+const VIZ_LABEL_PX = 11;                              // styles.css: #bluetooth .bt-viz-label
+let _vizW = 920;
+let _vizFont = "Inter,system-ui,Arial,sans-serif";    // styles.css :host, until the graph is on the page
+let _vizG = null;
+function _vizTextW(text) {
+  _vizG = _vizG || document.createElement("canvas").getContext("2d");
+  _vizG.font = `${VIZ_LABEL_PX}px ${_vizFont}`;
+  return _vizG.measureText(text).width;
+}
+// The text, cut with an ellipsis only if it is wider than maxW pixels.
+function _vizFit(text, maxW) {
+  if (_vizTextW(text) <= maxW + 0.5) return text;
+  let lo = 0, hi = text.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (_vizTextW(text.slice(0, mid) + "\u2026") <= maxW) lo = mid; else hi = mid - 1;
+  }
+  return text.slice(0, lo).trimEnd() + "\u2026";
+}
+
 // ── Visualization Sub-Tab ────────────────────────────────────────────────────
 // Renders an SVG bipartite graph: scanners on the left, devices on the right,
 // with lines connecting each device to the scanner that reported it.
@@ -1488,15 +1514,9 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   }
 
   // ── SVG coordinate system ─────────────────────────────────────────────────
-  // Fixed width, dynamic height based on device count.
-  // Scanner labels left-aligned at scannerLabelX, scanner circles at scannerNodeX.
-  // Device circles at deviceNodeX, device labels right-aligned at deviceLabelX.
-  const w = 920;
+  // The height depends on the device count, never on the width. The two
+  // columns of dots get their x from the width, in draw() below.
   const pad = 24;
-  const scannerLabelX = pad + 10;          // labels start here (left-aligned)
-  const scannerNodeX = pad + 300;          // scanner circles — more room for labels
-  const deviceNodeX = w - pad - 300;       // device circles — more room for labels
-  const deviceLabelX = w - pad - 10;       // device labels end here
 
   // Deduplicated sorted scanner source IDs, with index for positional lookups
   const srcs = Array.from(new Set(radios.map(r => String(r.source || "")).filter(Boolean))).sort();
@@ -1542,7 +1562,7 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     const sid = _vizSid(src);
     const _r = radios.find(r => String(r.source || "") === src);
     const name = _r?.display_name || _r?.name || src;
-    return { id: src, label: (sid ? "[" + sid + "] " : "") + name, x: scannerNodeX, y };
+    return { id: src, label: (sid ? "[" + sid + "] " : "") + name, x: 0, y };
   });
 
   // ── Device node placement (right column) ───────────────────────────────────
@@ -1556,7 +1576,7 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     // has sIdx -1 — fall through to the neutral position rather than
     // aliasing to scannerNodes[0], which would wrongly cluster its devices
     // under the first scanner.
-    const base = (sIdx >= 0 ? scannerNodes[sIdx] : null) || { x: scannerNodeX, y: h / 2 };
+    const base = (sIdx >= 0 ? scannerNodes[sIdx] : null) || { y: h / 2 };
     const list = bySrc[src].slice(0, 24);
     const blockH = list.length * DEV_ROW_H;
     const startY = base.y - blockH / 2;
@@ -1578,7 +1598,7 @@ function renderVisualization(ctx, radios, ads, objIndex) {
       deviceNodes.push({
         id: addr,
         label: devLabel,
-        x: deviceNodeX,
+        x: 0,
         y: startY + i * DEV_ROW_H,
         src,
         rssi: a.rssi,
@@ -1654,6 +1674,14 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     }
   }
 
+  // Moving a scanner's devices along with it (above) can drop them onto the
+  // next scanner's: one more pass keeps every device a row from the one above,
+  // so no two labels are drawn over each other.
+  deviceNodes.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < deviceNodes.length; i++) {
+    if (deviceNodes[i].y - deviceNodes[i - 1].y < MIN_GAP) deviceNodes[i].y = deviceNodes[i - 1].y + MIN_GAP;
+  }
+
   // Expand SVG height if nodes extend beyond the initial estimate
   const allYs = [...deviceNodes.map(d => d.y), ...scannerNodes.map(s => s.y)];
   if (allYs.length) {
@@ -1673,30 +1701,6 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     return "rssi-bad";
   };
 
-  // ── SVG rendering (innerHTML string approach) ─────────────────────────────
-  // Must use innerHTML, not document.createElement, because SVG elements
-  // created in the HTML namespace are invisible in HA's WebView.
-  // Embedded <style> provides hover effects: labels turn teal, circles glow.
-  let s = `<svg class="bt-viz" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
-  // Only the cursor and the hover reaction live here; every colour is in
-  // styles.css (#bluetooth .bt-viz-*), so the graph cannot drift from the
-  // rest of the view — the two used to disagree about what a label looks like.
-  s += `<style>.bt-viz-click{cursor:pointer}`
-    + `.bt-viz-click:hover text.bt-viz-label{fill:#5eead4}`
-    + `.bt-viz-click:hover circle{opacity:.85;stroke:#5eead4;stroke-width:2}</style>`;
-
-  // Lines first (back layer) — RSSI-colored connections between scanner and device circles
-  for (const d of deviceNodes) {
-    const sn = scannerNodes.find(n => n.id === d.src);
-    if (!sn) continue;
-    const rc = rssiClass(d.rssi);
-    s += `<line x1="${sn.x + 10}" y1="${sn.y}" x2="${d.x - 10}" y2="${d.y}" class="bt-viz-line ${rc}"/>`;
-  }
-
-  // Truncate helper — keeps SVG text from overflowing
-  const MAX_LABEL = 38;
-  const trunc = (s) => s.length > MAX_LABEL ? s.slice(0, MAX_LABEL - 1) + "…" : s;
-
   // ── Click handlers ──────────────────────────────────────────────────────────
   // Store callbacks keyed by index. After innerHTML parse, we attach click
   // listeners directly to each <g> via querySelectorAll — no event delegation
@@ -1705,112 +1709,177 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   const _scannerClicks = [];  // index → callback
   const _deviceClicks = [];   // index → callback
 
-  // ── Scanner nodes + labels (left column) ───────────────────────────────────
-  // Labels are right-aligned just before the circle (text-anchor:end) so the
-  // gap matches the device side (~10px between text edge and circle edge).
-  for (let si = 0; si < scannerNodes.length; si++) {
-    const sn = scannerNodes[si];
-    const textX = sn.x - 12;  // 12px left of circle centre (7r + 5px gap)
-    const lblText = trunc(sn.label);
-    s += `<g data-vs="${si}" class="bt-viz-click" style="cursor:pointer">`;
-    s += `<rect x="${Math.max(0, textX - 280)}" y="${sn.y - 12}" width="${280 + 24}" height="24" fill="rgba(0,0,0,0)" pointer-events="all"/>`;
-    s += `<circle cx="${sn.x}" cy="${sn.y}" r="7" class="bt-viz-node scanner" pointer-events="all"/>`;
-    s += `<text x="${textX}" y="${sn.y}" class="bt-viz-label" text-anchor="end" dominant-baseline="middle" pointer-events="all">${_escSvg(lblText)}</text>`;
-    s += `</g>`;
-    _scannerClicks[si] = () => {
-      const radio = radios.find(r => String(r.source || "") === sn.id);
-      if (radio) {
-        ctx.actions.showScannerDetail(radio);
-      } else {
-        // Fallback: construct a minimal scanner object from available data
-        ctx.actions.showScannerDetail({ source: sn.id, name: sn.label.replace(/^\[\w+\]\s*/, "") });
-      }
-    };
-  }
+  // ── Where the columns go, for a graph w pixels wide ────────────────────────
+  // Each label column is as wide as its longest label when there is room. The
+  // dots stay where they have always been (35% and 65% across) unless a label
+  // needs more than that leaves; a label is cut only when the two columns and
+  // the shortest lines worth drawing do not fit side by side.
+  const S_GAP = 12, D_GAP = 10;            // a label to the centre of its dot
+  const columns = (w) => {
+    const sNeed = Math.max(0, ...scannerNodes.map(n => _vizTextW(n.label)));
+    const dNeed = Math.max(0, ...deviceNodes.map(n => _vizTextW(n.label)));
+    const padX = w < 560 ? 8 : pad;
+    const minLine = Math.max(40, Math.round(w * 0.12));
+    const avail = Math.max(0, w - 2 * padX - S_GAP - D_GAP - minLine);
+    let sW = Math.min(sNeed, avail / 2);
+    const dW = Math.min(dNeed, avail - sW);
+    sW = Math.min(sNeed, avail - dW);
+    const sx0 = Math.round(w * 324 / 920);
+    let sx = Math.max(sx0, Math.ceil(padX + sW + S_GAP));
+    let dx = Math.min(w - sx0, Math.floor(w - padX - dW - D_GAP));
+    if (dx - sx < minLine) { if (sx > sx0) dx = sx + minLine; else sx = dx - minLine; }
+    return { padX, sx, dx, sMax: sx - S_GAP - padX, dMax: w - padX - dx - D_GAP };
+  };
 
-  // ── Device nodes + labels (right column) ───────────────────────────────────
-  for (let di = 0; di < deviceNodes.length; di++) {
-    const d = deviceNodes[di];
-    const rc = rssiClass(d.rssi);
-    s += `<g data-vd="${di}" class="bt-viz-click" style="cursor:pointer">`;
-    s += `<rect x="${d.x - 8}" y="${d.y - 9}" width="${deviceLabelX - d.x + 18}" height="18" fill="rgba(0,0,0,0)" pointer-events="all"/>`;
-    s += `<circle cx="${d.x}" cy="${d.y}" r="5" class="bt-viz-node device ${rc}" pointer-events="all"/>`;
-    s += `<text x="${d.x + 10}" y="${d.y}" class="bt-viz-label" font-size="11" text-anchor="start" dominant-baseline="middle" pointer-events="all">${_escSvg(trunc(d.label))}</text>`;
-    s += `</g>`;
-    _deviceClicks[di] = () => {
-      const obj = objIndex.get(d.id.toUpperCase());
-      if (obj) {
-        ctx.actions.showObjectDetail(obj);
-      } else {
-        const ad = ads.find(a => String(a.address || "") === d.id || String(a.name || "") === d.id);
-        if (ad) {
-          ctx.actions.showObjectDetail({
-            address: ad.address || d.id,
-            name: ad.name || ad.address || d.id,
-            kind: "ble",
-            room: ad.area_name || "",
-            rssi: ad.rssi,
-            source: ad.source || "",
-          });
+  // ── SVG rendering (innerHTML string approach) ─────────────────────────────
+  // Must use innerHTML, not document.createElement, because SVG elements
+  // created in the HTML namespace are invisible in HA's WebView.
+  // Embedded <style> provides hover effects: labels turn teal, circles glow.
+  const draw = (w) => {
+    const { padX, sx, dx, sMax, dMax } = columns(w);
+    for (const sn of scannerNodes) sn.x = sx;
+    for (const d of deviceNodes) d.x = dx;
+    let s = `<svg class="bt-viz" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
+    // Only the cursor and the hover reaction live here; every colour is in
+    // styles.css (#bluetooth .bt-viz-*), so the graph cannot drift from the
+    // rest of the view — the two used to disagree about what a label looks like.
+    s += `<style>.bt-viz-click{cursor:pointer}`
+      + `.bt-viz-click:hover text.bt-viz-label{fill:#5eead4}`
+      + `.bt-viz-click:hover circle{opacity:.85;stroke:#5eead4;stroke-width:2}</style>`;
+
+    // Lines first (back layer) — RSSI-colored connections between scanner and device circles
+    for (const d of deviceNodes) {
+      const sn = scannerNodes.find(n => n.id === d.src);
+      if (!sn) continue;
+      const rc = rssiClass(d.rssi);
+      s += `<line x1="${sn.x + 10}" y1="${sn.y}" x2="${d.x - 10}" y2="${d.y}" class="bt-viz-line ${rc}"/>`;
+    }
+
+    // ── Scanner nodes + labels (left column) ───────────────────────────────────
+    // Labels are right-aligned just before the circle (text-anchor:end) so the
+    // gap matches the device side (~10px between text edge and circle edge).
+    for (let si = 0; si < scannerNodes.length; si++) {
+      const sn = scannerNodes[si];
+      const textX = sn.x - 12;  // 12px left of circle centre (7r + 5px gap)
+      const lblText = _vizFit(sn.label, sMax);
+      s += `<g data-vs="${si}" class="bt-viz-click" style="cursor:pointer">`;
+      s += `<rect x="${padX}" y="${sn.y - 12}" width="${sn.x + 12 - padX}" height="24" fill="rgba(0,0,0,0)" pointer-events="all"/>`;
+      s += `<circle cx="${sn.x}" cy="${sn.y}" r="7" class="bt-viz-node scanner" pointer-events="all"/>`;
+      s += `<text x="${textX}" y="${sn.y}" class="bt-viz-label" text-anchor="end" dominant-baseline="middle" pointer-events="all">${_escSvg(lblText)}</text>`;
+      s += `</g>`;
+      _scannerClicks[si] = () => {
+        const radio = radios.find(r => String(r.source || "") === sn.id);
+        if (radio) {
+          ctx.actions.showScannerDetail(radio);
+        } else {
+          // Fallback: construct a minimal scanner object from available data
+          ctx.actions.showScannerDetail({ source: sn.id, name: sn.label.replace(/^\[\w+\]\s*/, "") });
         }
-      }
-    };
-  }
+      };
+    }
 
-  // Column titles at the top of the SVG
-  s += `<text x="${scannerNodeX - 12}" y="${pad}" class="bt-viz-title" text-anchor="end" dominant-baseline="middle">Scanners</text>`;
-  s += `<text x="${deviceNodeX + 10}" y="${pad}" class="bt-viz-title" text-anchor="start" dominant-baseline="middle">Devices</text>`;
+    // ── Device nodes + labels (right column) ───────────────────────────────────
+    for (let di = 0; di < deviceNodes.length; di++) {
+      const d = deviceNodes[di];
+      const rc = rssiClass(d.rssi);
+      s += `<g data-vd="${di}" class="bt-viz-click" style="cursor:pointer">`;
+      s += `<rect x="${d.x - 8}" y="${d.y - 9}" width="${w - padX - d.x + 8}" height="18" fill="rgba(0,0,0,0)" pointer-events="all"/>`;
+      s += `<circle cx="${d.x}" cy="${d.y}" r="5" class="bt-viz-node device ${rc}" pointer-events="all"/>`;
+      s += `<text x="${d.x + 10}" y="${d.y}" class="bt-viz-label" font-size="11" text-anchor="start" dominant-baseline="middle" pointer-events="all">${_escSvg(_vizFit(d.label, dMax))}</text>`;
+      s += `</g>`;
+      _deviceClicks[di] = () => {
+        const obj = objIndex.get(d.id.toUpperCase());
+        if (obj) {
+          ctx.actions.showObjectDetail(obj);
+        } else {
+          const ad = ads.find(a => String(a.address || "") === d.id || String(a.name || "") === d.id);
+          if (ad) {
+            ctx.actions.showObjectDetail({
+              address: ad.address || d.id,
+              name: ad.name || ad.address || d.id,
+              kind: "ble",
+              room: ad.area_name || "",
+              rssi: ad.rssi,
+              source: ad.source || "",
+            });
+          }
+        }
+      };
+    }
 
-  s += `</svg>`;
+    // Column titles at the top of the SVG
+    s += `<text x="${sx - S_GAP}" y="${pad}" class="bt-viz-title" text-anchor="end" dominant-baseline="middle">Scanners</text>`;
+    s += `<text x="${dx + D_GAP}" y="${pad}" class="bt-viz-title" text-anchor="start" dominant-baseline="middle">Devices</text>`;
+
+    return s + `</svg>`;
+  };
 
   const svgWrap = document.createElement("div");
-  svgWrap.innerHTML = s;
+  const paint = () => {
+    svgWrap.innerHTML = draw(_vizW);
 
-  // ── Click handlers: use requestAnimationFrame to attach AFTER DOM render ────
-  // All previous attempts to attach clicks during render failed because SVG
-  // elements parsed via innerHTML may not be fully queryable until the next
-  // frame. We schedule attachment to run after the browser has processed the DOM.
-  requestAnimationFrame(() => {
-    try {
-      // Try querySelectorAll first (works in most browsers)
-      const gEls = svgWrap.querySelectorAll("g[data-vs], g[data-vd]");
-      if (gEls.length > 0) {
-        gEls.forEach(g => {
-          const vs = g.getAttribute("data-vs");
-          const vd = g.getAttribute("data-vd");
-          if (vs != null) {
-            const idx = parseInt(vs, 10);
-            if (_scannerClicks[idx]) g.addEventListener("click", (e) => { e.stopPropagation(); _scannerClicks[idx](); });
-          }
-          if (vd != null) {
-            const idx = parseInt(vd, 10);
-            if (_deviceClicks[idx]) g.addEventListener("click", (e) => { e.stopPropagation(); _deviceClicks[idx](); });
-          }
-        });
-      } else {
-        // Fallback: walk ALL elements manually
-        const all = svgWrap.getElementsByTagName("*");
-        for (let i = 0; i < all.length; i++) {
-          const el = all[i];
-          let vs = null, vd = null;
-          try { vs = el.getAttribute("data-vs"); } catch(_){}
-          try { vd = el.getAttribute("data-vd"); } catch(_){}
-          if (vs != null && vs !== "") {
-            const idx = parseInt(String(vs), 10);
-            if (!isNaN(idx) && _scannerClicks[idx]) {
-              el.addEventListener("click", (e) => { e.stopPropagation(); _scannerClicks[idx](); });
+    // ── Click handlers: use requestAnimationFrame to attach AFTER DOM render ────
+    // All previous attempts to attach clicks during render failed because SVG
+    // elements parsed via innerHTML may not be fully queryable until the next
+    // frame. We schedule attachment to run after the browser has processed the DOM.
+    requestAnimationFrame(() => {
+      try {
+        // Try querySelectorAll first (works in most browsers)
+        const gEls = svgWrap.querySelectorAll("g[data-vs], g[data-vd]");
+        if (gEls.length > 0) {
+          gEls.forEach(g => {
+            const vs = g.getAttribute("data-vs");
+            const vd = g.getAttribute("data-vd");
+            if (vs != null) {
+              const idx = parseInt(vs, 10);
+              if (_scannerClicks[idx]) g.addEventListener("click", (e) => { e.stopPropagation(); _scannerClicks[idx](); });
             }
-          }
-          if (vd != null && vd !== "") {
-            const idx = parseInt(String(vd), 10);
-            if (!isNaN(idx) && _deviceClicks[idx]) {
-              el.addEventListener("click", (e) => { e.stopPropagation(); _deviceClicks[idx](); });
+            if (vd != null) {
+              const idx = parseInt(vd, 10);
+              if (_deviceClicks[idx]) g.addEventListener("click", (e) => { e.stopPropagation(); _deviceClicks[idx](); });
+            }
+          });
+        } else {
+          // Fallback: walk ALL elements manually
+          const all = svgWrap.getElementsByTagName("*");
+          for (let i = 0; i < all.length; i++) {
+            const el = all[i];
+            let vs = null, vd = null;
+            try { vs = el.getAttribute("data-vs"); } catch(_){}
+            try { vd = el.getAttribute("data-vd"); } catch(_){}
+            if (vs != null && vs !== "") {
+              const idx = parseInt(String(vs), 10);
+              if (!isNaN(idx) && _scannerClicks[idx]) {
+                el.addEventListener("click", (e) => { e.stopPropagation(); _scannerClicks[idx](); });
+              }
+            }
+            if (vd != null && vd !== "") {
+              const idx = parseInt(String(vd), 10);
+              if (!isNaN(idx) && _deviceClicks[idx]) {
+                el.addEventListener("click", (e) => { e.stopPropagation(); _deviceClicks[idx](); });
+              }
             }
           }
         }
-      }
-    } catch(err) { console.warn("PadSpan: BT viz click attach failed", err); }
-  });
+      } catch(err) { console.warn("PadSpan: BT viz click attach failed", err); }
+    });
+  };
+  paint();
+  // Drawn again when the page turns out to be a different width (or font) from
+  // the last one: the first time the view opens, and when the window changes
+  // size. The height does not depend on the width, so this settles at once.
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => {
+      if (!svgWrap.isConnected) { ro.disconnect(); return; }
+      const cw = Math.round(svgWrap.clientWidth);
+      const font = getComputedStyle(svgWrap).fontFamily || _vizFont;
+      if (!cw || (cw === _vizW && font === _vizFont)) return;
+      _vizW = cw;
+      _vizFont = font;
+      paint();
+    });
+    ro.observe(svgWrap);
+  }
 
   return el("div", { class: "bt-panel" }, [
     el("div", { class: "bt-panel-head" }, [

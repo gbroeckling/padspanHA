@@ -10,6 +10,7 @@ Split out of websocket.py; registration stays there.
 from __future__ import annotations
 
 import logging
+import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
@@ -22,6 +23,7 @@ from .const import (
     DATA_DEVICE_REGISTRY,
 )
 from .ws_common import admin_if_enhanced_security, _point_in_polygon
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,8 +71,8 @@ async def ws_device_registry_migrate(hass: HomeAssistant, connection, msg) -> No
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_merge",
-    "keep_id": str,
-    "absorb_id": str,
+    vol.Required("keep_id"): str,
+    vol.Required("absorb_id"): str,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -100,8 +102,8 @@ async def ws_device_registry_merge(hass: HomeAssistant, connection, msg) -> None
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_label_set",
-    "padspan_id": str,
-    "label": str,
+    vol.Required("padspan_id"): str,
+    vol.Required("label"): str,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -134,9 +136,9 @@ async def ws_device_registry_label_set(hass: HomeAssistant, connection, msg) -> 
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_add_identity",
-    "padspan_id": str,
-    "kind": str,
-    "value": str,
+    vol.Required("padspan_id"): str,
+    vol.Required("kind"): str,
+    vol.Required("value"): str,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -160,7 +162,7 @@ async def ws_device_registry_add_identity(hass: HomeAssistant, connection, msg) 
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_delete",
-    "padspan_id": str,
+    vol.Required("padspan_id"): str,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -259,6 +261,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
                 try:
                     z_level = int(round(float(bounds[0][2]) if len(bounds[0]) > 2 else 0))
                 except Exception:
+                    _quiet_error("ws_devices:espresense_import_z")
                     pass
             floors_list.append({"id": fl_id, "name": fl_name, "level": z_level})
             existing_floors[fl_id] = floors_list[-1]
@@ -306,6 +309,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
                         else:
                             stats["skipped"] += 1
                 except Exception:
+                    _quiet_error("ws_devices:espresense_import_room")
                     stats["skipped"] += 1
 
     # ── Nodes (scanner positions) ────────────────────────────────────────

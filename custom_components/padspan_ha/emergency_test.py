@@ -58,6 +58,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import Context, HomeAssistant, callback
 
 from .const import DATA_SETTINGS, DOMAIN, EMERGENCY_TEST_STORE_KEY
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -354,6 +355,7 @@ def emergency_automations_since(hass: HomeAssistant, since: Any) -> list[str]:
             else:
                 ts = _dt.datetime.fromisoformat(str(last).replace("Z", "+00:00")).timestamp()
         except Exception:  # noqa: BLE001 - never triggered, or unreadable
+            _quiet_error("emergency_test:automations_since")
             continue
         if ts > since_ts:
             out.append(name)

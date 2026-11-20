@@ -40,7 +40,7 @@ const wg = join(tmp, "wall_geom.mjs");
 fs.writeFileSync(wg, fs.readFileSync(join(VIEWS_DIR, "wall_geom.js"), "utf8"));
 const st = join(tmp, "stack_transform.mjs");
 fs.writeFileSync(st, fs.readFileSync(join(VIEWS_DIR, "stack_transform.js"), "utf8")
-  .replace('"./wall_geom.js"', '"./wall_geom.mjs"'));
+  .replace("./wall_geom.js${new URL(import.meta.url).search}", "./wall_geom.mjs"));
 const { mapFracToMetres } = await import(pathToFileURL(st).href);
 
 function grabFn(name) {                       // top-level `function name(...)`

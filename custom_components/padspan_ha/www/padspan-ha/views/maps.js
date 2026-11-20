@@ -221,6 +221,7 @@ export function render(ctx){
     else if (fs) fs.waited = true; }
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
+  _tabsMore(tabs);
   const _setupShown = !!(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView);
   // The Library's empty state (_library): its Start Setup Wizard is Setup's first step.
   const _noPlansYet = activeTab === "library" && !maps.length && ctx.state.dataMode === "live";
@@ -286,6 +287,20 @@ function _tabBtn(id,label,active,setTab){
   b.textContent = label;
   b.addEventListener("click", ()=>setTab(id));
   return b;
+}
+
+// Where the tab strip is one row that scrolls sideways (the 2025 skin on a
+// narrow screen), a tab cut off at the edge ("Atl") gave no sign of more. The
+// strip is marked more-start / more-end while tabs lie past that edge, and
+// the skin fades the edge (styles-2025.css). No mark where every tab fits.
+function _tabsMore(tabs){
+  const mark = () => {
+    const past = tabs.scrollWidth - tabs.clientWidth;
+    tabs.classList.toggle("more-start", past > 1 && tabs.scrollLeft > 1);
+    tabs.classList.toggle("more-end", past > 1 && tabs.scrollLeft < past - 1);
+  };
+  tabs.addEventListener("scroll", mark, { passive: true });
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(mark).observe(tabs);
 }
 
 // Sentinel floor_id for outdoor/exterior maps — treated specially in the
@@ -507,6 +522,14 @@ function _openMeasure(ctx, mapId, door = "reminder"){
   _openForEdit(ctx, mapId);
 }
 
+// A plan's "updated" stamp (the server's ISO time, in UTC) as this browser's
+// own date and time; anything that is not a time is shown as it came.
+function _whenUpdated(stamp){
+  const d = stamp ? new Date(stamp) : null;
+  if (!d || Number.isNaN(d.getTime())) return String(stamp || "");
+  return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function _library(ctx, maps, activeId, helpBtn, isBasic){
   // Which plans were moved with things still where they stood: read when a placement changes, never on a poll.
   if (CARRY) CARRY.ensure(ctx, JSON.stringify((ctx.state.model && ctx.state.model.map_transforms) || {}));
@@ -517,7 +540,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     el("div",{class:"card-head"},[
       el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
         el("div",{class:"muted"}, isBasic ? "Your floor plans" : "Maps Library"),
-        el("div",{class:"muted"},`${maps.length} map(s)`),
+        el("div",{class:"muted"},`${maps.length} map${maps.length === 1 ? "" : "s"}`),
         ...(!isBasic && maps.length >= 2 ? [el("button",{class:"btn inline",style:"font-size:11px;padding:2px 10px;background:#0a1a2a;border-color:#1e4976;color:#7dd3fc",
           onclick:()=>{ _compareAllMaps(ctx, maps, _compareResultDiv); }
         }, "Compare Maps")] : []),
@@ -566,7 +589,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     empty.appendChild(startBtn);
     empty.appendChild(el("div",{style:"margin-top:10px"},[
       el("span",{class:"muted", style:"font-size:12px"}, "Prefer to do it by hand? "),
-      (()=>{ const a = el("span",{style:"font-size:12px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
+      (()=>{ const a = el("span",{...ctx.helpers.asButton, style:"font-size:12px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
         a.addEventListener("click", ()=>ctx.actions.setMapsTab("upload")); return a; })(),
     ]));
     wrap.appendChild(empty);
@@ -695,7 +718,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const left = el("div",{style:"flex:1;min-width:0"},[
       nameRow,
       el("div",{class:"muted", style:"font-size:12px"}, `${m.image?.width||0}×${m.image?.height||0} • floor: ${(_floorName(ctx,m.floor_id))} • receivers: ${(m.receivers||[]).length}`),
-      el("div",{class:"muted", style:"font-size:12px"}, `updated: ${m.updated || ""}` + (reco ? " • gap detected" : "")
+      el("div",{class:"muted", style:"font-size:12px"}, `updated: ${_whenUpdated(m.updated)}` + (reco ? " • gap detected" : "")
         + (_placed ? (PM.feetOn(ctx) ? ` • ${PM.feetText(_pl.scale_x_m)} × ${PM.feetText(_pl.scale_y_m)}` : ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m`) : " • not placed")),
     ]);
     { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id, "reminder")); if (n) left.appendChild(n); }
@@ -4512,9 +4535,16 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
   let rect = null;
   let _tapX = 0, _tapY = 0, _tapMoved = false;
   const _TAP_PX = 10;
+  // The window listeners of the gesture in progress. They are added on the
+  // press and removed on the release: markers are rebuilt on every redraw, so
+  // listeners left on window for each one would pile up redraw after redraw.
+  let _gesture = null;
 
   const onDown = (ev)=>{
     if(isEnabled && !isEnabled()) return;
+    if(_gesture) _gesture.abort();
+    _gesture = new AbortController();
+    _watchWindow(_gesture.signal);
     dragging = true;
     _tapMoved = false;
     if(ev && ev.touches && ev.touches[0]){ _tapX = ev.touches[0].clientX; _tapY = ev.touches[0].clientY; }
@@ -4553,6 +4583,7 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
   const onUp = ()=>{
     if(!dragging) return;
     dragging = false;
+    if(_gesture){ _gesture.abort(); _gesture = null; }
     if(onDragState) onDragState(false);
     rect = null;
     // A tap (no drag movement) fires onTap instead of onMoved — the mobile
@@ -4563,17 +4594,19 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
     if(onMoved) onMoved();
   };
 
-  node.addEventListener("mousedown", onDown);
-  window.addEventListener("mousemove", onMove);
-  window.addEventListener("mouseup", onUp);
+  const _watchWindow = (signal)=>{
+    window.addEventListener("mousemove", onMove, { signal });
+    window.addEventListener("mouseup", onUp, { signal });
+    window.addEventListener("touchmove", onMove, { passive:false, signal });
+    window.addEventListener("touchend", onUp, { signal });
+    // An OS-cancelled gesture (call, alert, browser takeover) must release the
+    // drag the same way a lift does - otherwise dragging/_editDragging stay
+    // stuck true and the poll re-render guard freezes the panel until reload.
+    window.addEventListener("touchcancel", onUp, { signal });
+  };
 
+  node.addEventListener("mousedown", onDown);
   node.addEventListener("touchstart", onDown, {passive:false});
-  window.addEventListener("touchmove", onMove, {passive:false});
-  window.addEventListener("touchend", onUp);
-  // An OS-cancelled gesture (call, alert, browser takeover) must release the
-  // drag the same way a lift does - otherwise dragging/_editDragging stay
-  // stuck true and the poll re-render guard freezes the panel until reload.
-  window.addEventListener("touchcancel", onUp);
 }
 
 // Format receiver list as a numbered text summary (for debug display).
@@ -11017,7 +11050,7 @@ function _lightsTab(ctx, maps, active) {
     // slot and its own remembered choice), only while the setting is on and
     // the tier is Pro.
     house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ? {
-      slot: "builder", settings: ctx.state.settings, sample: ctx.state.dataMode !== "live", admin: ctx.hass?.user?.is_admin !== false,
+      slot: "builder", settings: ctx.state.settings, sample: ctx.state.dataMode !== "live",
       states: ctx.hass?.states || {}, config: ctx.hass?.config || null,
       // Mapping → Furnish (P2): the Furnish tool open, and what its flows and
       // "This is a device…" need: the connection, a toast, the entity registry.
@@ -12649,7 +12682,7 @@ function _roomsTab(ctx, maps) {
       onclick: () => panZoom.reset(),
     }, "Reset View");
     stage.appendChild(resetBtn);
-    const panZoom = attachPanZoom(stage, inner);
+    const panZoom = attachPanZoom(stage, inner, { slot: "maps-rooms" });
 
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "mapvector");

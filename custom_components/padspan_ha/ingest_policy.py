@@ -63,6 +63,22 @@ class Identity:
     key: str = ""             # stable identity, e.g. "ibeacon:uuid:major:minor"
     uuid: str = ""            # iBeacon UUID, stable across major/minor
     name: str = ""            # advertised/local name, when there is one
+    also: tuple = ()          # other keys the same thing is listed under
+
+    def key_forms(self) -> tuple:
+        """Every way this thing can be written in a list of keys.
+
+        Its key, any other key it is listed under (one beacon of a pack is
+        "ibeacon:<uuid>:<major>:<minor>:<address>"), and its address: bare, as
+        the object list shows a plain device's address, or "ble:<address>", a
+        plain device's key. A key copied from the object list hides the object
+        it was copied from, whichever of these it is.
+        """
+        a = (self.addr or "").upper()
+        forms = [(self.key or "").upper(), *(str(k).upper() for k in self.also if k)]
+        if a:
+            forms += [a, "BLE:" + a]
+        return tuple(f for f in forms if f)
 
     @property
     def oui(self) -> str:
@@ -96,7 +112,7 @@ class Rule:
     def matches(self, ident: Identity) -> bool:
         if not (self.keys or self.uuids or self.ouis or self.addrs):
             return False
-        if self.keys and (ident.key or "").upper() in self.keys:
+        if self.keys and any(k in self.keys for k in ident.key_forms()):
             return True
         if self.uuids and (ident.uuid or "").upper() in self.uuids:
             return True
@@ -122,15 +138,22 @@ class IngestPolicy:
     def __init__(self, rules: list[Rule] | None = None) -> None:
         self.rules: list[Rule] = list(rules or [])
         self.masked: dict[str, int] = {}   # reason → count, this poll
+        # Everything any rule matches on, for could_match(): a rule matches
+        # when one of its four lists does, so "some rule matches" is the same
+        # four tests against the four lists of all the rules together.
+        self._keys = frozenset().union(*(r.keys for r in self.rules))
+        self._uuids = frozenset().union(*(r.uuids for r in self.rules))
+        self._ouis = frozenset().union(*(r.ouis for r in self.rules))
+        self._addrs = frozenset().union(*(r.addrs for r in self.rules))
 
     @classmethod
     def from_settings(cls, data: dict[str, Any] | None) -> "IngestPolicy":
         """Read `excluded_objects` and `ingest_rules` out of the settings dict.
 
-        `excluded_objects` is the simple form — a flat list of stable keys,
-        which is what a one-device exclusion writes and what the UI's "ignore
-        this device" button produces. `ingest_rules` is the general form. Both
-        end up as Rules so there is only ever one thing to evaluate.
+        `excluded_objects` is the simple form — a flat list of keys, one per
+        device, each written as the object list shows it: an object's key or
+        its address (Identity.key_forms). `ingest_rules` is the general form.
+        Both end up as Rules so there is only ever one thing to evaluate.
         """
         d = data or {}
         rules: list[Rule] = []
@@ -157,22 +180,49 @@ class IngestPolicy:
                 rules.append(rule)
         return cls(rules)
 
-    def decide(self, ident: Identity) -> tuple[str, str]:
+    def decide(self, ident: Identity, count: bool = True) -> tuple[str, str]:
         """Return (action, reason). First matching rule wins.
 
         ALLOW rules are honoured and stop evaluation, so a broad mask can be
         given a narrow exception — "mask this whole vendor except the two tags
         we actually issued" — without inverting the whole list.
+
+        count=False asks without counting: for a device this poll has already
+        counted, met again in another form (its row in the object history).
         """
-        for rule in self.rules:
-            if rule.matches(ident):
-                if rule.action == MASK:
-                    self.masked[rule.reason] = self.masked.get(rule.reason, 0) + 1
-                return rule.action, rule.reason
+        if self.could_match(ident.addr, (ident.key, *ident.also), ident.uuid):
+            for rule in self.rules:
+                if rule.matches(ident):
+                    if rule.action == MASK and count:
+                        self.masked[rule.reason] = self.masked.get(rule.reason, 0) + 1
+                    return rule.action, rule.reason
         return ALLOW, ""
 
-    def is_masked(self, ident: Identity) -> bool:
-        return self.decide(ident)[0] == MASK
+    def could_match(self, addr: str, keys: Iterable[str], uuid: str = "") -> bool:
+        """Whether any rule, MASK or ALLOW, matches a thing with this address,
+        these keys (its key and any other it is listed under) and this iBeacon
+        UUID: exactly when decide() would find a rule for it.
+
+        A few set lookups whatever the number of rules, and no Identity to
+        build. The object history is asked row by row on every poll, and
+        nearly every row of a long one is named by no rule.
+        """
+        a = (addr or "").upper()
+        if a:
+            if a in self._addrs or a in self._keys or ("BLE:" + a) in self._keys:
+                return True
+            if self._ouis and len(a) >= 8 and a[:8] in self._ouis:
+                return True
+        if uuid and self._uuids and uuid.upper() in self._uuids:
+            return True
+        if self._keys:
+            for k in keys:
+                if k and str(k).upper() in self._keys:
+                    return True
+        return False
+
+    def is_masked(self, ident: Identity, count: bool = True) -> bool:
+        return self.decide(ident, count)[0] == MASK
 
     @property
     def active(self) -> bool:

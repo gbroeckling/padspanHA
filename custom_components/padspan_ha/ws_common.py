@@ -57,6 +57,7 @@ from . import low_memory as _low_memory
 from .device_registry import DEVICE_REGISTRY_STORE_KEY
 from .tester import SETTINGS_KEY as _TESTER_KEY
 from .util import ha_devices
+from .quiet_errors import note as _quiet_error
 
 
 # ── In-memory ring buffer for PadSpan logs ────────────────────────────────────
@@ -106,6 +107,7 @@ def _object_history_ttl_s(hass) -> int:
             if raw in _OBJECT_HISTORY_DAY_CHOICES:
                 days = raw
     except Exception:
+        _quiet_error("ws_common:object_history_ttl_s")
         pass
     if _low_memory.enabled(hass):
         days = min(days, _low_memory.LOW_MEM_HISTORY_DAYS)
@@ -178,7 +180,7 @@ def _ensure_log_handler() -> _RingLogHandler:
 
 
 @callback
-def _get_settings(hass: HomeAssistant) -> dict:
+def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     """Read current settings for the frontend, with the licence key redacted.
 
     Settings go to ANY authenticated Home Assistant user — the panel has to
@@ -187,6 +189,11 @@ def _get_settings(hass: HomeAssistant) -> dict:
     `pro_active` (the gate's own answer, so the frontend never re-implements
     the rule) plus the expiry, and an admin who needs the key itself asks for
     it explicitly via padspan_ha/forensics_license_reveal.
+
+    A command that sends the settings to its caller passes its `connection`.
+    The phone keys in `irk_devices` stay in the reply only when that caller
+    is a Home Assistant administrator; anyone else (and a call with no
+    connection) gets each phone's name without its key.
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
@@ -207,6 +214,11 @@ def _get_settings(hass: HomeAssistant) -> dict:
     # read and reply (round 6).
     out.pop("vacation_mode_pattern", None)
     out.pop("vacation_mode_pattern_prev", None)
+    # Settings sent to someone who is not an administrator carry no phone keys.
+    _user = getattr(connection, "user", None)
+    if not (_user is not None and getattr(_user, "is_admin", False) is True):
+        out["irk_devices"] = [{k: v for k, v in d.items() if k != "irk_hex"}
+                              for d in (out.get("irk_devices") or []) if isinstance(d, dict)]
     # "Become a tester" holds contact details a person typed (tester.py):
     # never for every user of this Home Assistant. Whether there is one is
     # all the panel needs here; an administrator reads the rest through
@@ -317,6 +329,7 @@ def _pro_expiry_state(hass: HomeAssistant) -> dict[str, Any]:
             # .days rounds down, so comparing it cut the grace to 13 days.
             active = left > -_td(days=PRO_GRACE_DAYS)
         except Exception:
+            _quiet_error("ws_common:pro_expiry_state")
             days_left = None      # unreadable date → treat as non-expiring
     return {"has_key": has_key, "active": active, "expires": expires, "days_left": days_left}
 
@@ -358,6 +371,7 @@ def _is_rpa_addr(address: str) -> bool:
         msb = int(address.upper().split(":")[0], 16)
         return (msb & 0xC0) == 0x40
     except Exception:
+        _quiet_error("ws_common:is_rpa_addr")
         return False
 
 
@@ -486,6 +500,7 @@ async def _store_file_written(hass, store_key: str) -> bool:
         path = hass.config.path(".storage", store_key)
         return bool(await hass.async_add_executor_job(os.path.isfile, path))
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_common:store_file_written")
         return True
 
 
@@ -701,6 +716,7 @@ class RadioDeviceIndex:
             from homeassistant.helpers import device_registry  # noqa: PLC0415
             devices = ha_devices(device_registry.async_get(hass))
         except Exception:
+            _quiet_error("ws_common:init")
             devices = []
         # Sorted by id so a run is reproducible. Ties are refused rather than
         # broken, but determinism means the same install answers the same way.

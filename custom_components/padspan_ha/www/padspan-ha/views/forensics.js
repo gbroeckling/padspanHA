@@ -51,7 +51,7 @@ export function render(ctx){
   const isLive = ctx.state.dataMode === "live";
 
   root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:10px"},[
-    el("h2",{},"Forensics"),
+    el("h2",{style:"margin:0"},"Forensics"),
     helpBtn("forensics"),
   ]));
 
@@ -114,7 +114,7 @@ export function render(ctx){
   endInput.style.cssText = _dtStyle;
   endInput.value = _toLocalISO(ctx.state._forensicsTo);
 
-  const searchBtn = el("button",{class:"btn",style:"color:#fbbf24;border-color:#92400e;font-weight:600"},"Search window");
+  const searchBtn = el("button",{class:"btn inline",style:"color:#fbbf24;border-color:#92400e;font-weight:600"},"Search window");
   const statusSpan = el("span",{class:"muted",style:"font-size:12px"});
 
   searchBtn.addEventListener("click", async () => {

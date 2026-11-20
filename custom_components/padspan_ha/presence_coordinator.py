@@ -65,7 +65,9 @@ HOME/AWAY PERSISTENCE
 ─────────────────────
 Devices that disappear from the live snapshot are kept in the result dict for a
 fixed grace of _AWAY_GRACE_S (120 s, converted to polls) so a momentary signal
-gap does not end their presence; after it they are evicted.  (The old
+gap does not end their presence; after it they are evicted.  Their age_s goes
+on from the age they were last listed with, so one that was already away stays
+away, and one evicted while still present is reported as departed.  (The old
 signal_loss_linger_s setting that tuned this was retired in 0.20.16 and is not
 read.)  Labelled devices also stay in the list through the object history, with
 an age_s that keeps growing.  Entities read age_s and return "not_home" when
@@ -124,6 +126,7 @@ from .presence_rules import (
     coverage_evidence, coverage_window_polls, outdoor_attribution,
     outside_by_coverage, away_timeout_s, is_away,
 )
+from .quiet_errors import COUNTS as _QUIET_COUNTS, note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -283,11 +286,18 @@ _ISOLATED_SCANNER_STRONG_DBM: float = -65.0  # RSSI above this = strong enough t
 
 # ── Per-scanner reliability scoring (Phase 3) ────────────────────────────────
 # Each scanner accumulates a rolling "disagreement" count — how often its best
-# RSSI implies a different room than the consensus (confirmed room).
+# RSSI implies a different room than the consensus (confirmed room). A scanner
+# implies a room for an object only when it is the one that hears that object
+# best: it is judged on those objects, and not on the ones it merely overhears
+# from another room.
 # reliability = 1 / (1 + disagreement_rate)  where rate ∈ [0, 1].
-# Used as a weight multiplier on each scanner's Gaussian score.
+# Shown only (the poll's scanner health, System Critics): it is not applied to
+# any reading. It used to weaken a low scanner's readings in room scoring. But
+# the figure takes the solve's own answer as the truth, so as a weight it
+# weakened scanners that were right when the solve was wrong, and measured, it
+# did not put more devices in the right room.
 _RELIABILITY_WINDOW: int = 30         # rolling window size (polls)
-_RELIABILITY_MIN_POLLS: int = 6       # min observations before weight differs from 1.0
+_RELIABILITY_MIN_POLLS: int = 6       # min observations before the figure differs from 1.0
 
 # ── k-NN live fingerprint gating ─────────────────────────────────────────────
 # Minimum calibration points before k-NN is consulted for live room assignment.
@@ -726,6 +736,7 @@ async def async_send_follow_notify(
                 )
                 return slug
             except Exception:  # noqa: BLE001
+                _quiet_error("presence:follow_notify_service")
                 try:
                     await hass.services.async_call("notify", slug, alert_data, context=context)
                     return slug
@@ -946,7 +957,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ── Per-scanner reliability (Phase 3) ─────────────────────────────────
         # {source: deque of bools} — True = scanner agreed with consensus this poll
         self._scanner_agree: dict[str, deque] = {}
-        # {source: float} — cached reliability weight ∈ [0.5, 1.0]
+        # {source: float} — reliability figure ∈ [0.5, 1.0], shown only
         self._scanner_reliability: dict[str, float] = {}
 
         # ── Adjacency co-visibility learning (Phase 1) ────────────────────────
@@ -991,6 +1002,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # (labelled ones, replayed by the object history): heard again, they
         # get the re-entry reset (see _object_loop).
         self._quiet_keys: set[str] = set()
+        # {key: room} — this poll's pinned objects whose pin names a real room
+        # (rebuilt each poll). Their room is the pin's: the vote does not
+        # change it (_smooth_room).
+        self._pin_rooms: dict[str, str] = {}
 
         # Suspend: when set, use only raw radio + spatial centroid (no k-NN, no adaptive)
         self._suspend_until: float = 0.0  # monotonic timestamp when suspend ends
@@ -1003,6 +1018,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._suspend_permanent = True
                 _LOGGER.info("Databases suspended (restored from settings)")
         except Exception:
+            _quiet_error("presence:init")
             pass
 
     # ── Suspend / reset smoothing state ─────────────────────────────────────
@@ -1031,6 +1047,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _st.data["databases_suspended"] = True
                 self.hass.async_create_task(_st.store.async_save(_st.data))
         except Exception:
+            _quiet_error("presence:suspend_databases")
             pass
         _LOGGER.info(
             "Databases suspended for %d minutes — raw radio + spatial centroid only",
@@ -1049,6 +1066,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _st.data.pop("databases_suspended", None)
                 self.hass.async_create_task(_st.store.async_save(_st.data))
         except Exception:
+            _quiet_error("presence:unsuspend_databases")
             pass
         _LOGGER.info("Database suspension ended — full pipeline resumed")
 
@@ -1120,6 +1138,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if len(cpus) > 1:
                 os.sched_setaffinity(0, {max(cpus)})
         except Exception:  # never let pinning failure kill the worker
+            _quiet_error("presence:pin_compute_thread")
             pass
 
     def _compute_executor_for(self, mode: str) -> ThreadPoolExecutor:
@@ -1157,6 +1176,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             from .presence_rules import scanner_floors  # noqa: PLC0415
             self._floor_cache = scanner_floors((_st.data if _st else {}) or {})
         except Exception:
+            _QUIET_COUNTS["presence:excluded_sources"] += 1
             pass
         return self._excluded_cache
 
@@ -1218,6 +1238,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for _ in range(min(self._fusion_nudges, 1000)):
                     record_duration(self.hass, "fusion_chg", 1.0)
         except Exception:
+            _QUIET_COUNTS["presence:note_steadiness"] += 1
             pass
 
     async def _async_poll(self) -> dict[str, Any]:
@@ -1253,11 +1274,17 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self.update_interval != _new_interval:
                 self.update_interval = _new_interval
         except Exception:
+            _QUIET_COUNTS["presence:poll_interval"] += 1
             pass
 
         # Accumulates (key, old_room, new_room) tuples during this poll cycle;
         # processed at the end for alerts, movement history, and HA tag events.
         self._pending_room_changes: list[tuple[str, str | None, str]] = []
+        # Who was present after the last poll, by device, kept aside as that
+        # poll left it: an object dropped during this poll (_evict_object) is
+        # taken out of self._prev_groups, and one dropped while present was
+        # then never reported as departed.
+        _prev_groups = {_g: list(_ks) for _g, _ks in self._prev_groups.items()}
 
         # ── Resolve rotating MACs to canonical IDs ────────────────────────────
         # Build a mapping {raw_addr_upper → canonical_key} so that all rotating
@@ -1385,6 +1412,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             else:
                 self._pl_fits = {}
         except Exception:
+            _QUIET_COUNTS["presence:poll_path_loss_fits"] += 1
             self._pl_fits = {}
 
         # ── Build source-to-area and source-to-floor lookups ──────────────
@@ -1407,6 +1435,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     for f in _fr.async_list_floors()
                 ])
             except Exception as _fl_err:
+                _QUIET_COUNTS["presence:poll_floor_registry"] += 1
                 _LOGGER.debug("Floor registry sync: %s", _fl_err)
 
             # In auto mode, sync snapshot radios into the fabric
@@ -1437,6 +1466,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if _a.name and _fl:
                         _area_to_floor[_a.name] = str(_fl)
             except Exception as _area_err:
+                _QUIET_COUNTS["presence:poll_area_registry"] += 1
                 _LOGGER.debug("Area registry floor lookup: %s", _area_err)
             for r in (snap.get("ble") or {}).get("radios") or []:
                 src  = r.get("source")
@@ -1461,6 +1491,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if _off:
                             _am[_src] = _am[_src] + float(_off)
         except Exception as _off_err:
+            _QUIET_COUNTS["presence:poll_scanner_offsets"] += 1
             _LOGGER.debug("Scanner offset application: %s", _off_err)
 
         # ── Mask excluded scanners (issue #59) ───────────────────────────
@@ -1509,6 +1540,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _dyn_vote_window = max(1, round(_delay_s / self.update_interval.total_seconds()))
             _dyn_vote_threshold = _dyn_vote_window // 2 + 1
         except Exception:
+            _QUIET_COUNTS["presence:poll_vote_settings"] += 1
             _dyn_vote_window = _VOTE_WINDOW
             _dyn_vote_threshold = _VOTE_THRESHOLD
 
@@ -1529,6 +1561,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         "y_m": _bk_pos.get("y_m"),
                     }
         except Exception:
+            _QUIET_COUNTS["presence:poll_pinned_beacons"] += 1
             pass
 
         # Floor-based room set from fabric geometry, and each room's floor —
@@ -1577,6 +1610,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if self._room_centroids or self._scanner_positions:
                     self._use_metres = True
         except Exception:
+            _QUIET_COUNTS["presence:poll_model_geometry"] += 1
             pass
 
         # ── The site's coverage floor (outside attribution) ─────────────────
@@ -1586,6 +1620,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             self._refresh_coverage_floor(_model, source_to_floor)
         except Exception as _cov_err:
+            _QUIET_COUNTS["presence:poll_coverage_floor"] += 1
             _LOGGER.debug("Coverage floor: %s", _cov_err)
 
         # Followed objects are never background (is_background_object). Read
@@ -1596,6 +1631,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # The poll's scanner -> area map, kept for the held-out test (heldout.py).
         self._last_source_to_area = dict(source_to_area)
+
+        # Pinned objects whose room is the pin's. A pin's room must be a real
+        # room. Legacy pins stamped a device LABEL into room when geometry
+        # couldn't resolve — confirming those creates phantom "rooms" on the
+        # overview.
+        self._pin_rooms = {
+            _pk: _pp["room"] for _pk, _pp in _pinned.items()
+            if _pp["room"] and (_pp["room"] in _fabric_rooms or _pp["room"] in self._room_centroids)
+        }
 
         def _object_loop() -> None:
             """CPU-heavy per-object smoothing pipeline (Kalman + k-NN + votes).
@@ -1658,8 +1702,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         # Back from a short gap (quiet, never away): the room
                         # is kept as the next confirmation's "from" room, or
                         # Kitchen -> Garden after 90 s unheard was never reported.
+                        # The same for one the snapshot stopped listing for a
+                        # minute or two (the _stale mark): it was shown in that
+                        # room all the while, and the next room was reported
+                        # as a first placement, from nowhere.
                         _was_room = self._confirmed_room.pop(key, None)
-                        if _back and _was_room and key in self._prev_present:
+                        if _was_room and key in self._prev_present:
                             self._room_before_gap[key] = _was_room
                             self._room_gap_mono[key] = time.monotonic()
                         self._adaptive_last_vec.pop(key, None)
@@ -1793,14 +1841,25 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if key in _pinned:
                         _pin = _pinned[key]
                         obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
-                        # A pin's room must be a real room. Legacy pins stamped a
-                        # device LABEL into room when geometry couldn't resolve —
-                        # confirming those creates phantom "rooms" on the overview.
-                        if _pin["room"] and (
-                                _pin["room"] in _fabric_rooms
-                                or _pin["room"] in self._room_centroids):
-                            obj["room"] = _pin["room"]
-                            self._confirmed_room[key] = _pin["room"]
+                        _pin_room = self._pin_rooms.get(key)
+                        if _pin_room:
+                            obj["room"] = _pin_room
+                            # The room it is SHOWN in changed (first shown
+                            # here, or just pinned): that is its room change,
+                            # reported as any other is. _smooth_room reports
+                            # none for it. It did: the pin put the confirmed
+                            # room back every poll, so each poll the vote was
+                            # met was "pin room -> solved room" again, with an
+                            # alert, a history row and a tag event each time,
+                            # for a beacon whose shown room never changed.
+                            _was_room = self._confirmed_room.get(key)
+                            if _was_room != _pin_room:
+                                _from_room = _was_room if _was_room is not None else self._room_before_gap.pop(key, None)
+                                if _from_room != _pin_room:
+                                    self._pending_room_changes.append((key, _from_room, _pin_room))
+                                self._last_room_change_mono[key] = now
+                                self._room_dwell_start[key] = now
+                            self._confirmed_room[key] = _pin_room
                         obj["_pinned"] = True
                         # Drift (gap #6, best-in-class roadmap): this branch
                         # only ever overrides room — x_m/y_m above is still
@@ -1897,6 +1956,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     pinned=_pinned, followed=_followed_addrs, coord=self)
                 await _cap.async_maybe_flush()
             except Exception as err:
+                _QUIET_COUNTS["presence:poll_capture_frame"] += 1
                 _LOGGER.debug("Capture frame failed: %s", err)
 
         # ── Auto-calibration from pinned beacons ─────────────────────────────
@@ -1916,9 +1976,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             miss = self._away_miss.get(key, 0) + 1
             self._away_miss[key] = miss
             if miss < _away_grace_polls:
-                # Grace period — treat as still present
+                # Grace period — kept in the result as it was last listed,
+                # its age going on from there. The age was set to 0 here
+                # ("just heard"), so a device that had been silent for hours
+                # or days, away all that time, "arrived" at the moment the
+                # snapshot stopped listing it: an arrival alert and the
+                # arrive rules for a device nobody had heard.
                 grace = dict(last_obj)
-                grace["age_s"] = 0.0
+                _age0 = last_obj.get("age_s")
+                if isinstance(_age0, (int, float)) and not isinstance(_age0, bool):
+                    grace["age_s"] = float(_age0) + max(0.0, now - self._last_seen.get(key, now))
+                else:
+                    grace["age_s"] = 0.0
                 # After a REAL absence (>60 s, not a routine 1-2 poll ad gap),
                 # mark the cached copy stale so re-entry gets a fresh vote /
                 # Kalman state instead of resuming old-location votes.  This
@@ -1948,8 +2017,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # By device: a label on two keys "left" when one key went quiet while
         # the other was still heard (depart alert and rules with the phone home).
         _cur_groups: dict[str, list[str]] = {}
-        for _k in sorted(_cur_present, key=lambda k: (result[k].get("age_s")
-                         if isinstance(result[k].get("age_s"), (int, float)) else 1e12)):
+        # Freshest first; two keys of the same age in key order (they came in
+        # the order of a set, which is not the same from one start to the next).
+        for _k in sorted(_cur_present, key=lambda k: ((result[k].get("age_s")
+                         if isinstance(result[k].get("age_s"), (int, float)) else 1e12), k)):
             _lbl = str(result[_k].get("user_label") or "").strip().lower()
             _cur_groups.setdefault(f"label:{_lbl}" if _lbl else _k, []).append(_k)
         # Every key a label is on, present or not: a rule or alert saved under
@@ -1965,16 +2036,16 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # A device whose label changed (named, renamed, the wizard naming
             # its second key) is a new group with a key that was already
             # present: not an arrival, and the old group is not a departure.
-            for _g in _cur_groups.keys() - self._prev_groups.keys():
+            for _g in _cur_groups.keys() - _prev_groups.keys():
                 if any(_k in self._prev_present for _k in _cur_groups[_g]):
                     continue
                 _arrived.add(_cur_groups[_g][0])
                 _members[_cur_groups[_g][0]] = set(_cur_groups[_g]) | _label_keys.get(_g, set())
-            for _g in self._prev_groups.keys() - _cur_groups.keys():
-                if any(_k in _cur_present for _k in self._prev_groups[_g]):
+            for _g in _prev_groups.keys() - _cur_groups.keys():
+                if any(_k in _cur_present for _k in _prev_groups[_g]):
                     continue
-                _departed.add(self._prev_groups[_g][0])
-                _members[self._prev_groups[_g][0]] = set(self._prev_groups[_g]) | _label_keys.get(_g, set())
+                _departed.add(_prev_groups[_g][0])
+                _members[_prev_groups[_g][0]] = set(_prev_groups[_g]) | _label_keys.get(_g, set())
         else:
             # First poll since start: a baseline, not an arrival of everyone
             # (that sent every on_arrive alert on each Home Assistant restart).
@@ -2004,6 +2075,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _tb.record_frame([o for k, o in result.items() if k in _cur_present], followed_set=_tb_followed)
                 await _tb.async_maybe_save()
             except Exception as _tb_err:
+                _QUIET_COUNTS["presence:poll_traceback"] += 1
                 _LOGGER.debug("Traceback record failed: %s", _tb_err)
 
         if _arrived or _departed:
@@ -2058,6 +2130,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             try:
                                 await _model.async_set_adjacency(_rm_name, sorted(set(_neighbors)))
                             except Exception:
+                                _QUIET_COUNTS["presence:poll_adjacency"] += 1
                                 pass
                     self._co_visible.clear()
 
@@ -2074,6 +2147,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._pending_room_changes, result
                     )
             except Exception:
+                _QUIET_COUNTS["presence:poll_tag_events"] += 1
                 pass
             self._pending_room_changes.clear()
         # Follow room alerts held back by their cooldown.
@@ -2081,6 +2155,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 await self._flush_held_room_alerts(now, result)
             except Exception as _held_err:
+                _QUIET_COUNTS["presence:poll_held_room_alerts"] += 1
                 _LOGGER.debug("Held room alerts: %s", _held_err)
         # Room changes the tag events held back during their cooldown.
         try:
@@ -2089,6 +2164,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if _ti is not None and _ti.has_held():
                 await _ti.async_emit_held(result)
         except Exception:
+            _QUIET_COUNTS["presence:poll_tag_events_held"] += 1
             pass
 
         # ── Proactive state cleanup ─────────────────────────────────────────────
@@ -2111,7 +2187,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("Proactive cleanup: evicted %d stale objects", len(_stale_keys))
 
         # ── Scanner health summary (Phase 3) ──────────────────────────────────
-        # Expose per-scanner reliability weights for the UI to display.
+        # Expose per-scanner reliability figures for the UI to display.
         # Stored under a special key that won't collide with object keys.
         _sh: dict[str, Any] = {}
         for _src, _rel in self._scanner_reliability.items():
@@ -2182,12 +2258,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         await async_publish(self.hass, f"{topic_base}/distance",
                                             str(calc_distance(float(rssi), obj, self.hass)), retain=True)
                 except Exception:
+                    _QUIET_COUNTS["presence:mqtt_publish_one"] += 1
                     _LOGGER.debug("MQTT publish for %s failed", slug, exc_info=True)
                     from .telemetry import bump  # noqa: PLC0415
                     bump(self.hass, "mqtt_publish_failed")
         except ImportError:
             _LOGGER.debug("MQTT component not available — skipping MQTT publish")
         except Exception:
+            _QUIET_COUNTS["presence:mqtt_publish"] += 1
             _LOGGER.debug("MQTT publish error", exc_info=True)
 
     # ── smoothing helpers ─────────────────────────────────────────────────────
@@ -2410,6 +2488,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _Q = float(_d.get("kalman_q", _KALMAN_Q))
             _R = float(_d.get("kalman_r", _KALMAN_R))
         except Exception:
+            _QUIET_COUNTS["presence:smooth_kalman_settings"] += 1
             _Q = _KALMAN_Q
             _R = _KALMAN_R
         # Process noise accumulates per unit TIME — scale Q with the poll
@@ -2555,6 +2634,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _floor_on = bool(_d_pl.get("adaptive_floor_detection", False))
             _dev_h = max(0.0, min(3.0, float(_d_pl.get("assumed_device_height_m", 1.0))))
         except Exception:
+            _QUIET_COUNTS["presence:smooth_path_loss_settings"] += 1
             _ref   = DEFAULT_REF_POWER
             _n_exp = DEFAULT_PATH_LOSS_EXP
             _floor_on = False
@@ -2975,14 +3055,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     _eff_rssi += _learned_delta
                                     _applied_floor_atten = True
                         except Exception as _fl_err:
+                            _QUIET_COUNTS["presence:smooth_floor_attenuation"] += 1
                             _LOGGER.debug("Floor attenuation error: %s", _fl_err)
                         if not _applied_floor_atten:
                             _eff_rssi -= 10.0  # default cross-floor penalty
-                # Scanner reliability penalty (convert to dBm: low reliability = weaker)
-                # Skip when suspended — reliability scores may be poisoned
-                _rel = 1.0 if self.suspended else self._scanner_reliability.get(_src, 1.0)
-                if _rel < 0.8:
-                    _eff_rssi -= (1.0 - _rel) * 10.0  # up to -5 dBm for worst scanners
+                # A scanner's reliability figure is not applied here. A
+                # scanner under 0.8 had up to 5 dB taken off its reading; see
+                # _RELIABILITY_WINDOW for why that stopped.
                 # Outdoor penalty: -15 dBm for indoor→outdoor transitions only.
                 # Skip when device has no confirmed room yet (first placement)
                 # so outdoor devices aren't forced indoors on initial detection.
@@ -3098,6 +3177,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _d_ad = (_st_ad.data if _st_ad else {}) or {}
             _adaptive_on = bool(_d_ad.get("adaptive_learning_enabled", False))
         except Exception:
+            _QUIET_COUNTS["presence:smooth_adaptive_setting"] += 1
             _adaptive_on = False
         if self.suspended:
             _adaptive_on = False
@@ -3135,6 +3215,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _unsure_on = _d_ha.get("positioning_unsure") is True
             _fusion_on = _d_ha.get("positioning_sensor_fusion") is True
         except Exception:
+            _QUIET_COUNTS["presence:smooth_fusion_settings"] += 1
             _pick_on = _unsure_on = _fusion_on = False
         # The held-out test found fingerprints better in this house: k-NN's
         # room may override a spatial one (heldout.next_preferred, hysteresis).
@@ -3362,8 +3443,27 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # unsure poll is skipped the same way once there is a room to keep,
         # for its first _UNSURE_HOLD_POLLS polls: the same room that many
         # times in a row is consistent evidence, thin or not, and is voted.
+        #
+        # No fresh reading is skipped the same way. Fresh: some scanner had a
+        # new advert from it in this poll or one of the few before it, up to
+        # one poll short of the silence grace (_SILENCE_GRACE, about 20 s:
+        # two polls back at the default 5 s poll, so an advert at most 15 s
+        # old). The grace is how long a missing advert is taken as ordinary
+        # loss and a reading is held as it was; on its last poll every
+        # scanner that missed the device's last advert has already begun to
+        # decay, so the vote stops one poll sooner. Longer than that with
+        # nothing new from any scanner and there is no news of where it is:
+        # the scanners that hear it every poll let go of their readings, and
+        # what is left is an old reading or two held by scanners that seldom
+        # hear it (their grace is longer, _grace above). Those alone were
+        # voted, and moved a device that had left the house to the room of
+        # whichever scanner had heard it least often, another floor
+        # included. It keeps its room until it is heard again.
+        _unheard = min((_miss.get(_src, 0) for _src in ema), default=0)
         _hold = False
-        if _unsure and self._confirmed_room.get(key):
+        if _unheard >= max(1, _SILENCE_GRACE - 1):
+            _hold = True
+        elif _unsure and self._confirmed_room.get(key):
             _prev_run = self._unsure_run.get(key)
             _run = _prev_run[1] + 1 if _prev_run and _prev_run[0] == candidate else 1
             self._unsure_run[key] = (candidate, _run)
@@ -3418,7 +3518,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _clear_move = _clear_n >= _fast_n
             if _clear_move:
                 top_room, top_count = candidate, counts.get(candidate, 0)
-            if top_count >= vote_threshold or _clear_move:
+            # A pinned object's room is its pin's (_async_poll puts it there
+            # and reports that change): what the vote says is never a change.
+            if (top_count >= vote_threshold or _clear_move) and key not in self._pin_rooms:
                 if top_room != confirmed:
                     # ── Velocity gate ────────────────────────────────────
                     # Three checks prevent teleportation:
@@ -3529,6 +3631,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 if _ad:
                                     _ad.record_floor_transition(_old_fl, _new_fl, _fl_dwell)
                             except Exception:
+                                _QUIET_COUNTS["presence:smooth_floor_transition"] += 1
                                 pass
                         elif _new_fl:
                             self._device_floor[key] = _new_fl
@@ -3546,24 +3649,36 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Skip when suspended — don't pollute reliability with potentially wrong data.
         _spatial_agrees = (_spatial_candidate == confirmed) if _spatial_candidate else False
         if confirmed and confidence >= 0.9 and _spatial_agrees and ema and not self.suspended:
-            for _src in ema:
-                _src_room = source_to_area.get(_src)
-                if not _src_room:
+            # Only the scanner that hears the object best is judged: it is the
+            # one whose reading says "in my room". Every scanner that heard
+            # the object at all used to be marked, and marked wrong unless the
+            # object was in its own room: with objects in several rooms each
+            # scanner was "wrong" about all the ones next door, so every
+            # scanner in a house sank to about 0.5 and was reported as
+            # disagreeing. A reading past its
+            # silence grace is left out, as room scoring leaves it out (Path B
+            # above): a decayed value says nothing.
+            _claim: str | None = None
+            for _src, _rssi in ema.items():
+                if _miss.get(_src, 0) > _grace(_src) or not source_to_area.get(_src):
                     continue
-                _agreed = (_src_room == confirmed)
-                _q = self._scanner_agree.get(_src)
+                if _claim is None or _rssi > ema[_claim]:
+                    _claim = _src
+            if _claim is not None:
+                _agreed = (source_to_area[_claim] == confirmed)
+                _q = self._scanner_agree.get(_claim)
                 if _q is None:
                     _q = deque(maxlen=_RELIABILITY_WINDOW)
-                    self._scanner_agree[_src] = _q
+                    self._scanner_agree[_claim] = _q
                 _q.append(_agreed)
                 if len(_q) >= _RELIABILITY_MIN_POLLS:
                     _agree_rate = sum(_q) / len(_q)
                     _disagree = 1.0 - _agree_rate
                     _w = 1.0 / (1.0 + _disagree)
                     # 1 / (1 + disagreement) lies in [0.5, 1]: a scanner is never zeroed out.
-                    self._scanner_reliability[_src] = round(_w, 3)
+                    self._scanner_reliability[_claim] = round(_w, 3)
                 else:
-                    self._scanner_reliability[_src] = 1.0
+                    self._scanner_reliability[_claim] = 1.0
 
         # ── Adaptive learning: record observation ────────────────────────────
         # Feed confirmed room assignments back into the adaptive store so it
@@ -3764,6 +3879,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         return True
             return False if _found_sensor else None
         except Exception as _corr_err:
+            _QUIET_COUNTS["presence:room_corroborated"] += 1
             _LOGGER.debug("Corroboration check for %s failed: %s", room, _corr_err)
             return None
 
@@ -3776,6 +3892,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return False
             return float((_ad.transition_prior(from_room, [to_room]) or {}).get(to_room, 0.0)) >= _USUAL_MOVE_SHARE
         except Exception:
+            _QUIET_COUNTS["presence:usual_move"] += 1
             return False
 
     def _prefer_knn_now(self) -> bool:
@@ -3786,6 +3903,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _d = (getattr(self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS), "data", None) or {})
             return _d.get("positioning_pick_better") is True
         except Exception:
+            _QUIET_COUNTS["presence:prefer_knn_now"] += 1
             return False
 
     def _corroborated_cached(self, room: str) -> bool | None:
@@ -3826,6 +3944,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if _ad is not None and hasattr(_ad, "transition_prior"):
                     prior = _ad.transition_prior(confirmed, close) or {}
             except Exception:
+                _QUIET_COUNTS["presence:fusion_nudge"] += 1
                 prior = {}
 
         def _score(r: str) -> float:
@@ -3875,6 +3994,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 n_exp = float(_d.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
                 dev_h = max(0.0, min(3.0, float(_d.get("assumed_device_height_m", 1.0))))
             except Exception:
+                _quiet_error("presence:heldout_job_settings")
                 ref, n_exp, dev_h = DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP, 1.0
             site = _ho.SpatialSite(
                 positions=dict(self._scanner_positions), fit_sources=set(self._pl_fits),
@@ -3885,6 +4005,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             excluded = cal.excluded_sources()
         except Exception:
+            _quiet_error("presence:heldout_job_excluded")
             excluded = frozenset()
         return partial(_ho.evaluate, pts, excluded=excluded, room_at=room_at, site=site,
                        source_area=dict(self._last_source_to_area))
@@ -3914,6 +4035,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 walk["after"] = {"knn": {"rooms_right_pc": (res.get("knn") or {}).get("rooms_right_pc")}}
                 await cal.store.async_save(cal.data)
         except Exception as _ho_err:
+            _quiet_error("presence:heldout")
             _LOGGER.debug("Held-out accuracy failed: %s", _ho_err)
         finally:
             self._heldout_mono = time.monotonic()
@@ -3974,6 +4096,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return
             self.hass.async_create_task(self.async_heldout(3600.0))
         except Exception:
+            _QUIET_COUNTS["presence:maybe_refresh_heldout"] += 1
             pass
 
     # ── Door/window barrier attenuation (IDEA_DOOR_WINDOW_BARRIERS.md step 4) ──
@@ -4011,6 +4134,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if _confirmed == "on":
                     _bar["attenuation_dbm"] = 0.0
             except Exception as _door_err:
+                _QUIET_COUNTS["presence:resolve_door_attenuation"] += 1
                 _LOGGER.debug("Door attenuation resolve for %s failed: %s", _eid, _door_err)
 
     # ── Object state cleanup ─────────────────────────────────────────────
@@ -4028,6 +4152,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._room_gap_mono.pop(key, None)
         self._room_alert_held.pop(key, None)
         self._room_alert_reported.pop(key, None)
+        self._pin_rooms.pop(key, None)      # rebuilt every poll from the pins
         # Out of its device group (rebuilt every poll, but not before the
         # next one, and an unlabelled key is its own group).
         self._prev_groups.pop(key, None)
@@ -4317,6 +4442,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             rules = (_st.data if _st else {}).get("padspan_automations") or []
         except Exception:
+            _QUIET_COUNTS["presence:run_automations"] += 1
             return
         if not rules:
             return
@@ -4438,6 +4564,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if not _auto_cal and not _adaptive:
                     return
         except Exception:
+            _QUIET_COUNTS["presence:beacon_cal_settings"] += 1
             pass
 
         cal_store = self.hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
@@ -4494,6 +4621,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 })
                 await cal_store.async_prune_auto_points(max_per_beacon=50)
             except Exception:
+                _QUIET_COUNTS["presence:beacon_cal_add_point"] += 1
                 _LOGGER.debug("Beacon auto-cal injection failed for %s", key)
 
     async def inject_immediate_calibration(
@@ -4562,6 +4690,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await cal_store.async_prune_auto_points(max_per_beacon=50)
                 injected += 1
             except Exception:
+                _quiet_error("presence:immediate_cal_add_point")
                 _LOGGER.debug("Immediate beacon cal injection failed for %s", key)
         return injected
 
@@ -4608,6 +4737,20 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 watch = cfg.get("watch_rooms") or []
                 if watch and new_room not in watch:
                     continue
+
+                # A change is still held from the cooldown (Hall -> Kitchen,
+                # never sent): this one is told from the room last reported,
+                # as the held one would have been. Back in that room, there
+                # is nothing to tell. It was sent with the poll's own "from",
+                # so Kitchen -> Hall, back inside the cooldown, and Kitchen ->
+                # Hall again read "moved from Kitchen to Hall" twice running.
+                if key in self._room_alert_held:
+                    _reported = self._room_alert_reported.get(key)
+                    if _reported:
+                        if new_room == _reported:
+                            self._room_alert_held.pop(key, None)
+                            continue
+                        old_room = _reported
 
                 # Rate limit: 60s cooldown per device. Read under the key
                 # _send_follow_notify writes ("<key>:room"); this read the bare
@@ -4702,6 +4845,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if key_in_active_session(self.hass, key):
                 return False
         except Exception:  # noqa: BLE001
+            _quiet_error("presence:follow_notify_guest")
             pass
         email = (cfg.get("email") or "").strip()
         preferred = cfg.get("notify_service") or ""
@@ -4795,4 +4939,5 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     label = obj_store.get_label(key)
                 await mv_store.record(key, old_room, new_room, label=label, padspan_id=pid)
         except Exception as err:
+            _QUIET_COUNTS["presence:record_movement"] += 1
             _LOGGER.debug("Movement recording failed: %s", err)

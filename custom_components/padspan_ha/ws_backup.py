@@ -43,6 +43,7 @@ from .ws_common import (
     _store_file_written,
 )
 from .telemetry import bump as _bump
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -132,6 +133,7 @@ async def _backup_exists(hass: HomeAssistant, backup_id: str) -> bool:
     try:
         bk = await _load_backups(hass)
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_backup:exists")
         return False
     return any(b.get("id") == backup_id for b in bk.get("backups") or [])
 
@@ -175,6 +177,7 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
             else:
                 stores_data[store_key] = await _St(hass, 1, store_key).async_load() or {}
         except Exception:
+            _quiet_error("ws_backup:auto_backup_store")
             return None
     backup_id = f"bk_{_os.urandom(6).hex()}"
     try:
@@ -201,6 +204,7 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
             # and returns normally, so "saved" is only known by reading it back.
             written = await _load_backups(hass)
     except Exception:
+        _quiet_error("ws_backup:auto_backup")
         return None
     if not any(b.get("id") == backup_id for b in written.get("backups") or []):
         _LOGGER.error("The automatic backup (%s) was not written to disk", note)
@@ -300,8 +304,10 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
                 raw = await asyncio.get_event_loop().run_in_executor(None, fp.read_bytes)
                 map_images[fp.name] = _b64.b64encode(raw).decode("ascii")
             except Exception:
+                _quiet_error("ws_backup:create_map_file")
                 pass
     except Exception:
+        _quiet_error("ws_backup:create_maps")
         pass
 
     backup_id = f"bk_{os.urandom(6).hex()}"
@@ -628,6 +634,7 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
             from .wled_exact import _refresh_listener
             _refresh_listener(hass)
         except Exception as e:  # noqa: BLE001
+            _quiet_error("ws_backup:restore_wled_listener")
             _LOGGER.debug("WLED listener refresh after restore failed: %s", e)
 
     # ── Restore map images to disk ────────────────────────────────────────────
@@ -654,6 +661,7 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                     await asyncio.get_event_loop().run_in_executor(None, fp.write_bytes, raw)
                     images_restored += 1
                 except Exception:
+                    _quiet_error("ws_backup:restore_map_file")
                     pass
         except Exception as e:
             _LOGGER.warning("Failed to restore map images: %s", e)

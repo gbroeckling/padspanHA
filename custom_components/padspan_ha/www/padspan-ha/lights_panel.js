@@ -12,13 +12,17 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.38.269";
-const BUILD_ID = "20261120T000940Z";
+const APP_VERSION = "0.38.271";
+const BUILD_ID = "20261120T100811Z";
 
-// Query inherited from our own module URL so the ?b= cache-buster propagates
+// The stamp on every import below: the b of this module's own URL and nothing
+// else. Home Assistant loads this page with ?v=...&b=... and the panel's
+// Overview loads it with ?b=... alone; passing the whole query on would have
+// the two ask for every file under two addresses and run two copies of each
 // (see docs/06_UI_CACHE_BUSTING.md).
+const STAMP = ((b) => (b ? `?b=${b}` : ""))(new URL(import.meta.url).searchParams.get("b"));
 const { hasControlCard } =
-  await import(`./views/light_codes.js${new URL(import.meta.url).search}`);
+  await import(`./views/light_codes.js${STAMP}`);
 // THE shared lights view — data pipeline, map card and index table, also used
 // verbatim by the Mapping → Lights tab (the builder for this display), so the
 // two tools always show the identical map. All lights-view edits go in there.
@@ -27,25 +31,25 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openLightsSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
         vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn } =
-  await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
+  await import(`./views/lights_map.js${STAMP}`);
 const { keepSubscribed } =
-  await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+  await import(`./views/push_subscription.js${STAMP}`);
 // Wall mode's numbers. Optional: if the file can't load, the Atlas page runs
 // as an ordinary page (no wall mode) rather than not at all.
-const WALLS = await import(`./views/wall_scale.js${new URL(import.meta.url).search}`)
+const WALLS = await import(`./views/wall_scale.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: wall_scale failed to load", err); return null; });
 // Hide HA / Show HA beside Refresh, shared with the panel's toolbar. Optional:
 // without it the button is simply not there.
-const HA_SIDEBAR = await import(`./ha_sidebar.js${new URL(import.meta.url).search}`)
+const HA_SIDEBAR = await import(`./ha_sidebar.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: ha_sidebar failed to load", err); return null; });
 // The 90-day trial card, shared with every other paid wall. Optional: a card
 // that fails to load must not blank the house map.
-const { trialOfferCard } = await import(`./views/trial_offer.js${new URL(import.meta.url).search}`)
+const { trialOfferCard } = await import(`./views/trial_offer.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferCard: () => null }; });
 // Which PadSpan module an uncaught error came from (see panel.js "Uncaught
 // panel errors"). Not awaited: the sidebar must come up without it.
 let UI_ERROR = null;
-import(`./views/ui_error.js${new URL(import.meta.url).search}`)
+import(`./views/ui_error.js${STAMP}`)
   .then(m => { UI_ERROR = m; })
   .catch(err => console.warn("PadSpan: ui_error module failed to load", err));
 
@@ -929,6 +933,9 @@ class PadSpanLightsApp extends HTMLElement {
         this._regStore.reg=null; this._boot().then(()=>this._render());
       }},"\u21bb Refresh"),
     ]));
+    // While the one-time tip below is up it says all of this and more: the
+    // header's line waits (hidden, still kept in step) until "Got it".
+    this._tipEl.hidden = !this.state._coachSeen;
     // One-time coach mark. Dismissed once per browser; never again.
     if(!this.state._coachSeen){
       parts.push(el("div",{class:"lv-coach"},[
@@ -1524,7 +1531,7 @@ class PadSpanLightsApp extends HTMLElement {
     // heap once a minute ("atlas", or "sim" while the 3D house draws), the
     // device class once per page load — only while the report is on.
     if(!this._clientPerf && !this._clientPerfLoading){
-      this._clientPerfLoading = import(`./client_perf.js${new URL(import.meta.url).search}`).then((m)=>{
+      this._clientPerfLoading = import(`./client_perf.js${STAMP}`).then((m)=>{
         this._clientPerfLoading = null;
         if(!this.isConnected || this._clientPerf) return;
         this._clientPerf = m.startClientPerf({

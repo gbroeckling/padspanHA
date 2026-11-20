@@ -60,6 +60,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import CAPTURE_STORE_KEY, VERSION
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -173,6 +174,7 @@ def build_header(
         cal = domain.get(DATA_CALIBRATION)
         points = list((getattr(cal, "data", None) or {}).get("points") or [])
     except Exception:
+        _quiet_error("capture_store:build_header")
         points = []
     hdr["cal"] = {"n": len(points), "sha1": _fingerprint(points)}
     if include_calibration and points:
@@ -849,6 +851,7 @@ class CaptureStore:
             days = int((getattr(st, "data", None) or {}).get(
                 "rssi_capture_retention_days", DEFAULT_RETENTION_DAYS))
         except Exception:
+            _quiet_error("capture_store:retention_days")
             # Any failure reading the setting (missing store, bad value) falls
             # back to the default rather than raising — this feeds _prune(),
             # and a pruning pass that cannot run at all leaks disk faster than

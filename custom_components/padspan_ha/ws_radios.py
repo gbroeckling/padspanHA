@@ -27,6 +27,7 @@ from .bluetooth_live import get_bluetooth_live
 from .ws_calibration import _get_cal_store
 from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, RadioDeviceIndex
 from .util import ha_device_config_entries
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
                 dev_id = match.device.id
             ambiguous = match.candidates
         except Exception:
+            _quiet_error("ws_radios:area_set_match")
             pass
 
     if not dev_id:
@@ -111,6 +113,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
                     area_id = a.id
                     break
         except Exception:
+            _quiet_error("ws_radios:area_set_areas")
             pass
         if not area_id:
             connection.send_error(msg["id"], "area_not_found", f"Area '{area_name}' not found in HA area registry")

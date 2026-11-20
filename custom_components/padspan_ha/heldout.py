@@ -34,6 +34,7 @@ import random
 from typing import Any, Callable
 
 from .room_walk import is_walk_point
+from .quiet_errors import note as _quiet_error
 
 HELDOUT_RADIUS_M = 1.5
 # Spots tested per run, at most. Each spot is a k-NN pass over every point,
@@ -433,6 +434,7 @@ def evaluate(points: list[dict[str, Any]], *,
         try:
             return str(room_at(x, y, fl) or "") if room_at else ""
         except Exception:
+            _quiet_error("heldout:room_of")
             return ""
 
     k_err: list[float] = []

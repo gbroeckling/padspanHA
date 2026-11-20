@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.38.269";
-const RELEASE_BUILD_ID = "20261120T000940Z";
+const APP_VERSION = "0.38.271";
+const RELEASE_BUILD_ID = "20261120T100811Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -480,9 +480,12 @@ const MENU_GROUPS = [
 // ── DOM Utility Functions ────────────────────────────────────────────────────
 // Shared helpers used by panel.js and all view modules (passed via ctx.helpers).
 
-/** HTML-escape a string to prevent XSS when inserting into innerHTML. */
+/** HTML-escape a string to prevent XSS when inserting into innerHTML. Both
+ *  quotes too, so a value placed inside an attribute cannot end the attribute.
+ *  For markup built as a string only: el() and textContent take plain text. */
 function esc(s){
-  return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#39;");
 }
 
 /** Convenience DOM builder: el("div", {class:"foo", onclick:fn}, ["text", childNode]) */
@@ -524,6 +527,25 @@ function el(tag, attrs={}, children=[]){
   }
   return n;
 }
+
+/**
+ * Attributes for an element that acts as a button but is not one, such as a
+ * clickable <span>: el("span", { ...asButton, style: "…" }, "Hide"), with its
+ * click listener added as it always was. It is announced as a button, Tab
+ * reaches it, and Enter or Space clicks it, so the key does exactly what the
+ * click does. Nothing about how it looks changes. The views get it as
+ * ctx.helpers.asButton.
+ */
+const asButton = Object.freeze({
+  role: "button",
+  tabindex: "0",
+  onkeydown(e){
+    const n = e.currentTarget;
+    if(e.target !== n || e.repeat || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    n.click();
+  },
+});
 
 /**
  * URL for a map's image: the signed link maps_list handed out for it.
@@ -620,14 +642,14 @@ function scannerStatus(radio, ads){
 // Room colour lives in views/room_color.js — ONE implementation, shared with
 // the lights renderer. panel.js hands it to every view as ctx.helpers.roomColor.
 const { roomColor, roomColorAlpha } =
-  await import(`./views/room_color.js${new URL(import.meta.url).search}`);
+  await import(`./views/room_color.js?b=${BUILD_ID}`);
 // The object detail modal's "why is it here" evidence diagram (gap #2,
 // best-in-class roadmap) — a pure string builder, see its own header.
 const { buildEvidenceSvg, roomScoreBars } =
-  await import(`./views/evidence_diagram.js${new URL(import.meta.url).search}`);
+  await import(`./views/evidence_diagram.js?b=${BUILD_ID}`);
 // A push subscription kept across HA restarts (motion_reconnects, below).
 const { keepSubscribed } =
-  await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+  await import(`./views/push_subscription.js?b=${BUILD_ID}`);
 // The panel's translations (views/i18n.js), the same module help_content.js
 // imports. English, or a language not shipped, loads nothing. Not awaited:
 // if it fails to load, the help simply stays English.
@@ -891,8 +913,8 @@ class PadSpanHaApp extends HTMLElement {
           </div>
           <div class="row desktop-topbar" style="margin-bottom:10px;align-items:center">
             <span class="pill" id="cloudBadge">Cloud disabled</span>
-            <span class="pill" id="scanBadge">Scan: —</span>
-            <span class="pill" id="statusBadge">Status: —</span>
+            <span class="pill" id="scanBadge">Scan: …</span>
+            <span class="pill" id="statusBadge">Status: …</span>
             <button class="status-dot hidden" type="button" data-status-dot="desktop"></button>
 
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
@@ -1350,7 +1372,7 @@ class PadSpanHaApp extends HTMLElement {
     const card = el("div", { "data-accuracy-tips": "card", style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:8px 12px;margin-bottom:12px" });
     const hdr = el("div", { style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px" });
     hdr.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#52b788" }, "Improve accuracy"));
-    const off = el("span", { "data-accuracy-tips": "off", style: "cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline" }, "Hide these tips");
+    const off = el("span", { "data-accuracy-tips": "off", ...asButton, style: "cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline" }, "Hide these tips");
     off.addEventListener("click", () => { this._telemetryEvent("tip_hidden:all"); save([...hidden, "all"]); });
     hdr.appendChild(off);
     card.appendChild(hdr);
@@ -1364,7 +1386,7 @@ class PadSpanHaApp extends HTMLElement {
       ]));
       const fix = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px", title: "Go there" }, btnText);
       fix.addEventListener("click", () => go(t));
-      const x = el("span", { style: "cursor:pointer;color:#64748b;font-size:13px;padding:0 4px", title: "Hide this tip", "aria-label": "Hide this tip", role: "button" }, "\u00d7");
+      const x = el("span", { style: "cursor:pointer;color:#64748b;font-size:13px;padding:0 4px", title: "Hide this tip", "aria-label": "Hide this tip", ...asButton }, "\u00d7");
       x.addEventListener("click", () => { this._telemetryEvent("tip_hidden:" + t); save([...hidden, t]); });
       row.appendChild(fix);
       row.appendChild(x);
@@ -2698,8 +2720,19 @@ class PadSpanHaApp extends HTMLElement {
   // Independent of the theme (_applyTheme): both skins still invert the host
   // for the Light theme, and the Day theme re-applies itself to the skin's
   // stylesheet as well.
+  //
+  // The settings arrive seconds after the page is built, and until then the
+  // panel wore classic whatever was chosen (the 2025 menu and colours came
+  // late, with a jump). So the skin the settings last gave is kept in this
+  // browser (padspan_ui_skin) and worn until they arrive, when they decide
+  // as ever. Nothing kept (a first visit, no storage): classic, as before.
   _applySkin(){
-    const skin = (this.state.settings?.ui_skin === "2025") ? "2025" : "classic";
+    const set = this.state.settings?.ui_skin;
+    const known = typeof set === "string";
+    let kept = null;
+    try { kept = localStorage.getItem("padspan_ui_skin"); } catch (_) { /* no storage: nothing kept */ }
+    const skin = ((known ? set : kept) === "2025") ? "2025" : "classic";
+    if (known && kept !== skin) { try { localStorage.setItem("padspan_ui_skin", skin); } catch (_) { /* no storage */ } }
     if (this._skin === skin) return false;
     this._skin = skin;
     this.setAttribute("data-skin", skin);
@@ -3360,10 +3393,13 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   _updateBadges(){
+    // Until the first refresh has answered there is no reading to show: "…",
+    // as the Data button beside them, not a dash that reads as one.
+    const waiting = this.state.timing.lastRefreshMs === null && !Object.keys(this.state.status || {}).length;
     const scan = this.state.status?.scan_interval ?? "—";
     const st = this.state.status?.status ?? "—";
-    this.$("#scanBadge").textContent = `Scan: ${scan}s`;
-    this.$("#statusBadge").textContent = `Status: ${st}`;
+    this.$("#scanBadge").textContent = waiting ? "Scan: …" : `Scan: ${scan}s`;
+    this.$("#statusBadge").textContent = waiting ? "Status: …" : `Status: ${st}`;
     this.$("#cloudBadge").textContent = "Cloud disabled";
     this._updateEmergencyBanner();
     this._paintStatusDot();
@@ -3921,6 +3957,7 @@ class PadSpanHaApp extends HTMLElement {
       state: this.state,
       helpers: {
         el, esc, pill,
+        asButton,
         HELP,
         /** "" in English; in a shipped language, the note a translated help page opens with. */
         helpNote: () => (HELP_MOD && HELP_MOD.helpNote ? HELP_MOD.helpNote() : ""),
@@ -5310,7 +5347,7 @@ class PadSpanHaApp extends HTMLElement {
         const _mapOptional = this.state.dataMode === "live" && !Object.keys((this.state.model || {}).room_geometry_m || {}).length;
         hdr.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788"},
           _mapOptional ? `Make it a map (optional) \u2014 ${_completedCount}/${_setupRows.length}` : `Getting started \u2014 ${_completedCount}/${_setupRows.length}`));
-        const skipBtn = el("span",{"data-getting-started":"dismiss",style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, "Skip setup");
+        const skipBtn = el("span",{"data-getting-started":"dismiss",...asButton,style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, "Skip setup");
         skipBtn.addEventListener("click", () => {
           this.state._onboardingDismissed = true;
           if (this.state.settings) this.state.settings.onboarding_completed = true;
@@ -5320,7 +5357,7 @@ class PadSpanHaApp extends HTMLElement {
           this._scheduleRender();
         });
         // The guided Setup: the same steps in order, with skip and resume.
-        const setupBtn = el("span",{"data-getting-started":"setup",style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, "Open Setup");
+        const setupBtn = el("span",{"data-getting-started":"setup",...asButton,style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, "Open Setup");
         setupBtn.addEventListener("click", () => {
           this.state.view = "setup";
           this._renderNav();
@@ -5410,14 +5447,14 @@ class PadSpanHaApp extends HTMLElement {
             && !this.state.kioskMode && !_lineHidden && !this._setupLineHidden) {
           const line = el("div",{"data-setup-line":"",style:"display:flex;align-items:center;gap:10px;font-size:12px;color:#94a3b8;margin-bottom:10px"});
           line.appendChild(el("span",{}, `Set-up: ${_completedCount} of ${_setupRows.length} done \u00b7 `));
-          const open = el("span",{"data-setup-line":"open",style:"cursor:pointer;color:#5eead4;text-decoration:underline"}, "Open Setup");
+          const open = el("span",{"data-setup-line":"open",...asButton,style:"cursor:pointer;color:#5eead4;text-decoration:underline"}, "Open Setup");
           open.addEventListener("click", () => {
             this.state.view = "setup";
             this._renderNav();
             if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
             this._scheduleRender();
           });
-          const hide = el("span",{"data-setup-line":"hide",title:"Hide this line in this browser",style:"cursor:pointer;margin-left:auto;color:#64748b"}, "\u2715");
+          const hide = el("span",{"data-setup-line":"hide",...asButton,title:"Hide this line in this browser",style:"cursor:pointer;margin-left:auto;color:#64748b"}, "\u2715");
           hide.addEventListener("click", () => {
             this._setupLineHidden = true;
             try { localStorage.setItem("padspan_setup_line", "hidden"); } catch (e) { /* this page only */ }

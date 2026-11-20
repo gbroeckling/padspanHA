@@ -25,7 +25,7 @@
 // floor's elevation is unresolvable, 3D otherwise), so a cell's residual
 // means the same thing here as it does in the fit it is checking.
 
-import { estimateDistanceM } from "./path_loss.js";
+const { estimateDistanceM } = await import(`./path_loss.js${new URL(import.meta.url).search}`);
 
 /**
  * points: calibration points ({x_m, y_m, floor_id, room, label, id,

@@ -25,6 +25,7 @@ from .const import (
 from .device_detail import describe as _describe
 from .telemetry import bump as _bump
 from .ws_common import admin_if_enhanced_security, _DEFAULT_IBEACON_UUIDS, _invalidate_snapshot_cache
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
                     addr, store_addr,
                 )
         except Exception:
+            _quiet_error("ws_objects:label_set_resolver")
             pass
 
     await obj_store.async_set(store_addr, label)
@@ -178,6 +180,7 @@ async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
                     label, len(_cross_stored), _cross_stored,
                 )
     except Exception as _xs_err:
+        _quiet_error("ws_objects:label_set_cross")
         _LOGGER.debug("object_label_set cross-store: %s", _xs_err)
 
     # ── DeviceRegistry: persist label on stable padspan_id ──────────────
@@ -203,6 +206,7 @@ async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
             await _dev_reg.async_set_label(_padspan_id, label)
             _LOGGER.debug("DeviceRegistry: labeled %s as '%s' (padspan_id=%s)", store_addr, label, _padspan_id)
     except Exception as _dr_err:
+        _quiet_error("ws_objects:label_set_registry")
         _LOGGER.debug("DeviceRegistry label_set: %s", _dr_err)
 
     # Warn when another DEVICE already uses this label.  Labels drive HA
@@ -215,6 +219,7 @@ async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
             if str(_oe.get("label") or "").strip() == label and str(_ok).upper() not in _cross_set:
                 _dup_keys.append(_ok)
     except Exception:
+        _quiet_error("ws_objects:label_set_cross_keys")
         pass
 
     _result: dict[str, Any] = {
@@ -259,6 +264,7 @@ async def ws_object_label_delete(hass: HomeAssistant, connection, msg) -> None:
             if resolved and resolved.get("canonical_id"):
                 addr = resolved["canonical_id"]
         except Exception:
+            _quiet_error("ws_objects:label_delete_resolver")
             pass
     if addr:
         # Get the label before deleting so we can find cross-stored copies
@@ -304,6 +310,7 @@ async def ws_object_label_delete(hass: HomeAssistant, connection, msg) -> None:
                             await obj_store.async_delete(_key)
                             _cross_deleted.append(_key)
             except Exception as _xd_err:
+                _quiet_error("ws_objects:label_delete_cross")
                 _LOGGER.debug("object_label_delete cross-delete: %s", _xd_err)
 
         # Clear identified/user_label from object history cache so the ghost
@@ -323,6 +330,7 @@ async def ws_object_label_delete(hass: HomeAssistant, connection, msg) -> None:
                         _hv.pop("identified", None)
                         _hv.pop("user_label", None)
         except Exception:
+            _quiet_error("ws_objects:label_delete_stores")
             pass
 
     # ── DeviceRegistry: clear label on stable padspan_id ──────────────
@@ -335,6 +343,7 @@ async def ws_object_label_delete(hass: HomeAssistant, connection, msg) -> None:
                 await _dev_reg.async_delete_label(_pid)
                 _LOGGER.debug("DeviceRegistry: cleared label for %s (padspan_id=%s)", addr, _pid)
     except Exception as _dr_err:
+        _quiet_error("ws_objects:label_delete_registry")
         _LOGGER.debug("DeviceRegistry label_delete: %s", _dr_err)
 
     _invalidate_snapshot_cache(hass)
@@ -361,6 +370,7 @@ async def ws_object_label_list(hass: HomeAssistant, connection, msg) -> None:
                     "source": "device_registry",
                 }
     except Exception:
+        _quiet_error("ws_objects:object_label_list")
         pass
     connection.send_result(msg["id"], {
         "labels": labels,
@@ -415,7 +425,7 @@ def _name_links_saved(hass: HomeAssistant, links: Any) -> None:
     _invalidate_snapshot_cache(hass)
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/label_link_answer", "key": str, "address": str, "same": bool})
+@websocket_api.websocket_command({"type": "padspan_ha/label_link_answer", "key": str, vol.Required("address"): str, vol.Required("same"): bool})
 @websocket_api.async_response
 @admin_if_enhanced_security
 async def ws_label_link_answer(hass: HomeAssistant, connection, msg) -> None:

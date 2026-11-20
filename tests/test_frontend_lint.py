@@ -1,11 +1,12 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""The panel uses no undeclared names — eslint no-undef, in the local suite.
+"""The panel uses no undeclared names — eslint no-undef, in the local suite —
+and passes the other correctness rules eslint.config.mjs lists.
 
 CI runs the same command as its own step (.github/workflows/pytest.yml);
 this is so a local run catches it before a push. eslint.config.mjs says why
-the rule exists and why nothing else is enabled.
+each rule is there and why no style rule is enabled.
 
 An undeclared name parses, so test_frontend_parses.py passes it, and it only
 throws on the branch that reaches it, so render_smoke.mjs sees it only if its
@@ -69,3 +70,14 @@ def test_the_lint_can_actually_fail() -> None:
     res = _eslint("--stdin", "--stdin-filename",
                   "custom_components/padspan_ha/www/padspan-ha/views/maps.js", stdin=src)
     assert res.returncode == 1 and "'el' is not defined" in res.stdout, res.stdout + res.stderr
+
+
+def test_the_lint_catches_a_key_written_twice() -> None:
+    """An object literal with the same key twice keeps the second and drops
+    the first without a word. maps.js handed the 3D house `admin` twice, with
+    two different tests of the same user; only the later one ever counted."""
+    src = ('export const house = (user) => ({\n  slot: "builder", admin: user.is_admin !== false,\n'
+           '  admin: !!user.is_admin,\n});\n')
+    res = _eslint("--stdin", "--stdin-filename",
+                  "custom_components/padspan_ha/www/padspan-ha/views/maps.js", stdin=src)
+    assert res.returncode == 1 and "Duplicate key 'admin'" in res.stdout, res.stdout + res.stderr

@@ -45,6 +45,7 @@ from .presence_coordinator import PresenceCoordinator
 from .presence_rules import away_timeout_s, calc_distance as _calc_distance
 from .entity_identity import alternates_of, kept_device_info, pick_uid_key, registry_ready, uid_safe
 from .subzones import SubzoneEntityMixin, async_setup_entities as _subzone_entities
+from .quiet_errors import note as _quiet_error
 
 # A PadSpan device names its Bluetooth address as a device connection. Before
 # Home Assistant 2026.8 the device registry matched connections across ALL
@@ -58,6 +59,7 @@ try:
     from homeassistant.const import MAJOR_VERSION as _HA_MAJOR, MINOR_VERSION as _HA_MINOR
     _HA_KEEPS_BT_APART = (int(_HA_MAJOR), int(_HA_MINOR)) >= (2026, 8)
 except Exception:  # noqa: BLE001
+    _quiet_error("sensor:ha_version")
     _HA_KEEPS_BT_APART = True
 
 
@@ -374,6 +376,7 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
             if hasattr(coord, "room_reason"):
                 reason.update(coord.room_reason(self._key))
         except Exception:
+            _quiet_error("sensor:room_reason")
             _LOGGER.debug("room_reason failed for %s", self._key, exc_info=True)
         scores = obj.get("room_scores")
         if isinstance(scores, dict) and scores:
@@ -386,6 +389,7 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
             if hold_s > 0 and not obj.get("room") and hasattr(coord, "held_room"):
                 held = bool(coord.held_room(self._key, hold_s))
         except Exception:
+            _quiet_error("sensor:room_reason_hold")
             held = False
         reason["room_held"] = held
         return reason

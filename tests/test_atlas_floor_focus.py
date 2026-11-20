@@ -73,7 +73,7 @@ def _draw(tmp_path: Path, calls: dict, model: dict | None = None, lbe: dict | No
     for name in ("iso_lights", "light_codes", "room_color", "wall_geom"):
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
         src = src.replace("./light_codes.js${new URL(import.meta.url).search}", "./light_codes.mjs")
-        src = src.replace('"./room_color.js"', '"./room_color.mjs"').replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        src = src.replace("./room_color.js${new URL(import.meta.url).search}", "./room_color.mjs").replace("./wall_geom.js${new URL(import.meta.url).search}", "./wall_geom.mjs")
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
     script = (
         "import * as M from './iso_lights.mjs';\n"

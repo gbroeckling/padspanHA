@@ -37,6 +37,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_SETTINGS, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 # Upper edges in seconds; past the last one is "gt7d".
 BUCKETS: tuple[tuple[float, str], ...] = (
@@ -104,6 +105,7 @@ def note_snapshot(hass: HomeAssistant, snap: Any) -> None:
             st.data["onboarding"] = new   # at once, so the next build does not count it again
             hass.async_create_task(st.async_set(onboarding=new))
     except Exception:  # noqa: BLE001 - a measurement must never cost a snapshot
+        _quiet_error("onboarding:note_snapshot")
         pass
 
 

@@ -70,6 +70,7 @@ OBJECT_STATE: frozenset[str] = frozenset({
     "_unsure_run",                      # ...and how many unsure polls in a row named one room
     "_clear_run",                       # how many polls in a row a move has been clear
     "_advert_gap",                      # by address: each scanner's longest recent advert gap
+    "_pin_rooms",                       # this poll's pinned objects shown in their pin's room (rebuilt every poll)
 })
 
 # The subset of OBJECT_STATE that says WHERE the object was. An absence breaks

@@ -29,11 +29,13 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, VERSION, DATA_PANEL_REGISTERED, DATA_SETTINGS
 from .build_info import ASSET_ID, BUILD_ID
 from .licence import edition
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
 STATIC_URL = "/padspan_ha_static"
 ICON_STATIC_URL = "/padspan_ha_int"
+ICON_FILES = ("icon.png", "logo.png")
 WEB_COMPONENT        = "padspan-ha-app"
 LIGHTS_WEB_COMPONENT = "padspan-lights-app"
 
@@ -53,17 +55,20 @@ async def _register_static(hass: HomeAssistant, static_dir: Path, url: str = STA
         )
         return
     except Exception:
+        _quiet_error("panel:static_path_config")
         pass
 
     try:
         await hass.http.async_register_static_path(url, str(static_dir), False)
         return
     except Exception:
+        _quiet_error("panel:static_path_async")
         pass
 
     try:
         hass.http.register_static_path(url, str(static_dir), False)
     except Exception:
+        _quiet_error("panel:static_path_legacy")
         _LOGGER.debug("Static register fallback failed (url=%s)", url)
 
 def _remove_panels(hass: HomeAssistant) -> None:
@@ -78,6 +83,7 @@ def _remove_panels(hass: HomeAssistant) -> None:
             if path in panels:
                 async_remove_panel(hass, path)
     except Exception:
+        _quiet_error("panel:remove_panels")
         pass
 
 
@@ -101,8 +107,12 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         async_register_map_image_view(hass)
     except Exception:
         _LOGGER.exception("Map image view registration failed: floor plans will not show")
-    # Also serve the integration root so icon.png is accessible at /padspan_ha_int/icon.png
-    await _register_static(hass, Path(__file__).parent, url=ICON_STATIC_URL)
+    # The integration's two images, at /padspan_ha_int/icon.png and
+    # /padspan_ha_int/logo.png. Each is registered as one file (Home Assistant
+    # serves a path that is a file at exactly its URL), so nothing else in
+    # this folder has a URL.
+    for _image in ICON_FILES:
+        await _register_static(hass, Path(__file__).parent / _image, url=f"{ICON_STATIC_URL}/{_image}")
 
     from homeassistant.components import panel_custom
 
@@ -137,6 +147,7 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         if _st and _st.data:
             _lights_on = bool(_st.data.get("lights_panel_enabled", False))
     except Exception:
+        _quiet_error("panel:setup_panel")
         pass
     if _lights_on:
         await _register_panel(

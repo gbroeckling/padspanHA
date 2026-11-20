@@ -13,6 +13,7 @@ import logging
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ async def ws_notify_services_list(hass: HomeAssistant, connection, msg) -> None:
     try:
         has_send_message = "send_message" in hass.services.async_services().get("notify", {})
     except Exception:
+        _quiet_error("ws_notify:services_list")
         pass
 
     result = sorted(result_set)

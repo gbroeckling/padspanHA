@@ -42,6 +42,7 @@ from homeassistant.core import HomeAssistant
 from . import fabric_truth
 from .const import (CALIBRATION_STORE_KEY, DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN, FABRIC_STORE_KEY,
                     MAPS_STORE_KEY, MODEL_STORE_KEY)
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -335,6 +336,7 @@ async def carry_apply(hass: HomeAssistant, map_id: str, kinds: list[str]) -> dic
         from .ws_common import _invalidate_snapshot_cache  # noqa: PLC0415
         _invalidate_snapshot_cache(hass)
     except Exception:  # noqa: BLE001
+        _quiet_error("plan_carry:carry_apply")
         pass
     return {"ok": True, "moved": moved, "backup_id": backup_id}
 
@@ -346,14 +348,14 @@ async def ws_plan_carry_list(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"plans": await carry_list(hass)})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_apply", "map_id": str, "kinds": [vol.In(KINDS)]})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_apply", vol.Required("map_id"): str, vol.Required("kinds"): [vol.In(KINDS)]})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_carry_apply(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], await carry_apply(hass, msg["map_id"], msg["kinds"]))
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_dismiss", "map_id": str})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_dismiss", vol.Required("map_id"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_carry_dismiss(hass: HomeAssistant, connection, msg) -> None:

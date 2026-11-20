@@ -39,6 +39,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DATA_SETTINGS, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -369,6 +370,7 @@ async def _async_notify(hass: HomeAssistant, session: dict, title: str, message:
         async_create(hass, message, title=title, notification_id=f"padspan_ha_guest_{session.get('id')}")
         return True
     except Exception as err:  # noqa: BLE001
+        _quiet_error("guest_tags:notify")
         _LOGGER.debug("Guest notice not shown: %s", err)
         return False
 
@@ -378,6 +380,7 @@ def fire(hass: HomeAssistant, kind: str, session: dict, tag: dict | None, detail
         hass.bus.async_fire(EVENT_GUEST, {"type": kind, "session": session.get("id"), "guest": session.get("name"),
                                           "tag": (tag or {}).get("label"), **(detail or {})})
     except Exception:  # noqa: BLE001
+        _quiet_error("guest_tags:fire")
         pass
     refresh(hass)
 
@@ -387,6 +390,7 @@ def refresh(hass: HomeAssistant) -> None:
         from homeassistant.helpers.dispatcher import async_dispatcher_send  # noqa: PLC0415
         async_dispatcher_send(hass, SIGNAL_GUESTS)
     except Exception:  # noqa: BLE001
+        _quiet_error("guest_tags:refresh")
         pass
 
 
@@ -395,6 +399,7 @@ def _bump(hass: HomeAssistant, name: str) -> None:
         from .telemetry import bump  # noqa: PLC0415
         bump(hass, name)
     except Exception:  # noqa: BLE001
+        _quiet_error("guest_tags:bump")
         pass
 
 

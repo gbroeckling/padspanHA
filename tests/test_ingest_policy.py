@@ -159,3 +159,52 @@ def test_the_saving_is_the_whole_point():
     per_day = int(86400 / 1.6)
     masked = sum(1 for i in range(per_day) if policy.is_masked(_keypad(f"7A:{i % 256:02X}:00:00:00:01")))
     assert masked == per_day == 54000
+
+
+def test_a_key_may_be_written_as_the_address_or_any_key_the_device_is_listed_under():
+    """An entry copied from the object list hides the object it came from: a
+    plain device's address (any case), its "ble:" key, one beacon of a pack."""
+    plain = Identity(addr="C4:00:00:00:00:81")
+    for entry in ("C4:00:00:00:00:81", "c4:00:00:00:00:81", "ble:C4:00:00:00:00:81"):
+        assert IngestPolicy.from_settings({"excluded_objects": [entry]}).is_masked(plain), entry
+    assert not IngestPolicy.from_settings({"excluded_objects": ["C4:00:00:00:00:82"]}).is_masked(plain)
+
+    one_of_a_pack = Identity(addr="C4:00:00:00:00:41", key=KEYPAD_KEY, also=(KEYPAD_KEY + ":C4:00:00:00:00:41",))
+    its_twin = Identity(addr="C4:00:00:00:00:42", key=KEYPAD_KEY, also=(KEYPAD_KEY + ":C4:00:00:00:00:42",))
+    policy = IngestPolicy.from_settings({"excluded_objects": [KEYPAD_KEY + ":C4:00:00:00:00:41"]})
+    assert policy.is_masked(one_of_a_pack) and not policy.is_masked(its_twin)
+
+
+def test_a_device_met_twice_in_one_poll_can_be_asked_about_without_counting_it_again():
+    policy = IngestPolicy.from_settings({"excluded_objects": [KEYPAD_KEY]})
+    assert policy.is_masked(_keypad("7A:00:00:00:00:01"))
+    assert policy.is_masked(_keypad("7A:00:00:00:00:01"), count=False)
+    assert policy.diagnostics()["masked_total"] == 1
+
+
+def test_the_quick_test_says_exactly_whether_a_rule_decides():
+    """could_match() is asked before any rule is tried, and for every row of
+    the object history: it must say yes exactly when some rule matches."""
+    uuid = "e2c56db5-dffb-48d2-b060-d0f5a71096e0"
+    policies = [IngestPolicy.from_settings(s) for s in (
+        {},
+        {"excluded_objects": [KEYPAD_KEY]},
+        {"excluded_objects": ["c4:00:00:00:00:81", "ble:C4:00:00:00:00:82", KEYPAD_KEY + ":C4:00:00:00:00:41"]},
+        {"ingest_rules": [{"match": {"uuids": [uuid]}}]},
+        {"ingest_rules": [{"match": {"ouis": ["48:87:2D"]}}]},
+        {"ingest_rules": [{"match": {"addrs": ["AA:BB:CC:00:11:22"]}}]},
+        {"ingest_rules": [{"action": "allow", "match": {"keys": ["entity:sensor.x"]}},
+                          {"match": {"ouis": ["C4:00:00"], "uuids": [uuid]}}]},
+    )]
+    identities = [
+        Identity(), _keypad("7A:11:22:33:44:55"), Identity(key=KEYPAD_KEY.upper()),
+        Identity(addr="C4:00:00:00:00:81"), Identity(addr="c4:00:00:00:00:82"), Identity(addr="C4:00:00:00:00:83"),
+        Identity(addr="C4:00:00:00:00:41", key="ibeacon:other:1:1", also=(KEYPAD_KEY + ":C4:00:00:00:00:41",)),
+        Identity(addr="48:87:2D:00:00:01"), Identity(addr="48:87"), Identity(addr="AA:BB:CC:00:11:22"),
+        Identity(key="ibeacon:other:1:1", uuid=uuid.upper()), Identity(key="entity:sensor.x"),
+        Identity(addr="C4:00:00:00:00:21", key="entity:sensor.x"), Identity(key="irk:00ff", also=("", "ble:x")),
+    ]
+    for policy in policies:
+        for ident in identities:
+            assert policy.could_match(ident.addr, (ident.key, *ident.also), ident.uuid) \
+                == any(rule.matches(ident) for rule in policy.rules), (policy.rules, ident)

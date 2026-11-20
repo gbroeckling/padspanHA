@@ -52,6 +52,7 @@ from .ws_common import _tier_at_least
 from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DEFAULT_FLOOR_ID, DOMAIN
 from .ws_floorplan_import import MAX_SH3D_BYTES, ROOMPLAN_OFF_CODE
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
+from .quiet_errors import note as _quiet_error
 
 BOX = "other"                  # the builders' own box, "Box" in the Build menu (contracts §3)
 # Words → PadSpan kinds. A pair first (two words that mean something the
@@ -447,6 +448,7 @@ async def ws_house3d_import_preview(hass: HomeAssistant, connection, msg) -> Non
     try:
         raw = base64.b64decode(b64, validate=True)
     except Exception:
+        _quiet_error("ws_house3d_import:preview_base64")
         connection.send_error(msg["id"], "bad_base64", "Could not decode the uploaded file")
         return
     roomplan = msg.get("format") == "roomplan"

@@ -79,6 +79,7 @@ from .ws_common import (
     _is_rpa_addr,
     _object_history_ttl_s,
 )
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,6 +100,7 @@ async def _findmy_bridge(hass: HomeAssistant):
         try:
             state = await store.async_load()
         except Exception:  # noqa: BLE001 — a bad file starts empty, never blocks the snapshot
+            _quiet_error("snapshot:findmy_bridge")
             state = None
         bridge = dom[_FINDMY] = FindMyBridge(state if isinstance(state, dict) else None)
         dom[_FINDMY_STORE] = store
@@ -121,6 +123,7 @@ async def _label_links(hass: HomeAssistant):
         try:
             state = await store.async_load()
         except Exception:  # noqa: BLE001 — a bad file starts empty, never blocks the snapshot
+            _quiet_error("snapshot:label_links")
             state = None
         links = dom[_LABEL_LINKS] = LabelLinks(state if isinstance(state, dict) else None)
         dom[_LABEL_LINKS_STORE] = store
@@ -338,6 +341,42 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
         return snap
 
 
+def _object_store_label(store: Any, obj: dict[str, Any]) -> str | None:
+    """The label the object store holds for a Bluetooth object, under any id
+    the object is listed by: its key, its address, its canonical id, an
+    iBeacon's id, any address it has used. The list and the object history
+    both ask here, so one cannot find a label the other misses."""
+    try_keys = [obj.get("key"), obj.get("address"), obj.get("canonical_id")]
+    # Split iBeacon objects (key = ibeacon:uuid:major:minor:MAC) are
+    # DISTINCT physical devices sharing a factory-default UUID.  They
+    # must NOT inherit the unsplit group key's label — that resurrects
+    # a stale label onto every beacon in the pack AND shadows per-MAC
+    # renames made in the Bluetooth tab.
+    is_split = obj.get("kind") == "ibeacon" and len(str(obj.get("key") or "").split(":")) > 4
+    ib_u = obj.get("ibeacon_uuid")
+    if ib_u is not None and not is_split:
+        ibk = f"ibeacon:{ib_u}:{obj.get('ibeacon_major', 0)}:{obj.get('ibeacon_minor', 0)}"
+        try_keys.extend([ibk, ibk.upper()])
+    try_keys.extend(obj.get("all_addresses") or [])
+    for k in try_keys:
+        if k and isinstance(k, str):
+            entry = store.get(k)
+            if entry and entry.get("label"):
+                return entry["label"]
+    return None
+
+
+def _registry_id(dev_reg: Any, obj: dict[str, Any]) -> str | None:
+    """The padspan_id the device registry holds for an object: by its key,
+    its address, its canonical id, then any address it has used."""
+    for k in (obj.get("key"), obj.get("address"), obj.get("canonical_id"), *(obj.get("all_addresses") or [])):
+        if k:
+            pid = dev_reg.resolve(str(k))
+            if pid:
+                return pid
+    return None
+
+
 def _reenrich_history(cache: dict[str, Any]) -> None:
     """Work out each kept object's maker, type and service names again from what
     it stored, so an object not heard since an older version doesn't go on
@@ -351,6 +390,7 @@ def _reenrich_history(cache: dict[str, Any]) -> None:
                     _md["76"] = _scrub_apple_hex(_md["76"])
                 _enrich_ble_object(entry)
             except Exception:  # noqa: BLE001 - one odd old entry keeps what it had
+                _quiet_error("snapshot:reenrich_history")
                 pass
 
 
@@ -372,6 +412,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     try:
         await _device_tables.async_load_tables(hass)  # the name tables, off the loop, once
     except Exception as _tbl_err:  # noqa: BLE001 - without them objects just have no maker yet
+        _quiet_error("snapshot:device_tables")
         _LOGGER.debug("Name tables not loaded: %s", _tbl_err)
     snapshot: dict[str, Any] = {
         "source": "live",
@@ -428,6 +469,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         else:
             snapshot["ble"] = {"radios": [], "advertisements": [], "diag": {"ok": False, "errors": ["no_bluetooth_live"]}}
     except Exception as e:
+        _quiet_error("snapshot:ble")
         snapshot["ble"] = {"radios": [], "advertisements": [], "diag": {"ok": False, "errors": ["ble_snapshot_error"]}}
 
 
@@ -444,6 +486,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # Re-sort merged advertisements by age
             ble["advertisements"].sort(key=lambda x: x.get("age_s", 1e9))
     except Exception:
+        _quiet_error("snapshot:espresense")
         pass
 
     # --- Tasmota BLE over MQTT (merged the same way, if enabled) ---
@@ -460,6 +503,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             ble.setdefault("diag", {})["tasmota"] = _tas_snap.get("diag", {})
             ble["advertisements"].sort(key=lambda x: x.get("age_s", 1e9))
     except Exception:
+        _quiet_error("snapshot:tasmota")
         pass
 
     _phase_done("ble")
@@ -471,6 +515,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         area_by_id = {a.id: a.name for a in ar.async_list_areas()}
         snapshot["rooms_discovered"] = sorted(area_by_id.values())
     except Exception:
+        _quiet_error("snapshot:areas")
         pass
 
     # --- Find Bermuda config entries (if installed) ---
@@ -483,6 +528,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         if _st and _st.get("bermuda_ignore"):
             _bermuda_ignore = True
     except Exception:
+        _quiet_error("snapshot:bermuda_ignore")
         pass
     # Always discover Bermuda entry IDs (needed for both include and exclude logic)
     _all_bermuda_entry_ids: set[str] = set()
@@ -491,6 +537,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if ent.domain == "bermuda":
                 _all_bermuda_entry_ids.add(ent.entry_id)
     except Exception:
+        _quiet_error("snapshot:config_entries")
         pass
     if not _bermuda_ignore:
         bermuda_entry_ids = set(_all_bermuda_entry_ids)
@@ -512,6 +559,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 )
         snapshot["receivers"] = sorted(receivers, key=lambda d: (d.get("name") or "").lower())
     except Exception:
+        _quiet_error("snapshot:receivers")
         snapshot["receivers"] = []
 
     _sub_done("ha_areas")   # areas, Bermuda entries, receivers
@@ -622,6 +670,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         if coord and getattr(coord, 'room_tag_map', None):
             saved_room_tag_map = {str(k): list(v) for k, v in (coord.room_tag_map or {}).items() if isinstance(v, (list, tuple))}
     except Exception:
+        _quiet_error("snapshot:saved_room_tags")
         saved_room_tag_map = {}
     def _resolve_saved_entity_id(tag_id: str) -> str:
         """Resolve a saved tag ID (which may be a tag.* placeholder) to a real HA entity.
@@ -712,6 +761,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     if _e0 and _e0.device_id and _e0.config_entry_id in _all_bermuda_entry_ids:
                         _bermuda_area_devices.add(_e0.device_id)
         except Exception:
+            _quiet_error("snapshot:bermuda_area_devices")
             pass
 
     def _bermuda_never_an_object(entity_id: str, attrs: Any, device_id: str) -> bool:
@@ -740,6 +790,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if _ent_entry and _ent_entry.platform == DOMAIN:
                     continue
             except Exception:
+                _quiet_error("snapshot:entity_entry")
                 pass
 
             # Determine room/area first (state often contains the room name).
@@ -778,6 +829,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         for _rank, entity_id, st, room in _bermuda_best.values():
             _add_tag(entity_id, st, room)
     except Exception:
+        _quiet_error("snapshot:entities")
         # If anything weird happens, keep the UI alive with whatever we collected.
         pass
 
@@ -825,6 +877,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 room_tag_map_live.setdefault(room, []).append(resolved)
                 mapped += 1
     except Exception:
+        _quiet_error("snapshot:room_tag_rows")
         pass
 
     # De-dupe tags by entity_id while keeping first occurrence
@@ -901,6 +954,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         # health.radios_shelly_mac / radios_area_via). Counts, never names.
         (snapshot.setdefault("ble", {}))["shelly_rules"] = {"mac": index.shelly_matched, "area_via": index.area_from_via}
     except Exception:
+        _quiet_error("snapshot:radio_areas")
         pass
 
     # Attach network info (IP, WiFi SSID) from entity states for each radio's device
@@ -1004,6 +1058,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if ents:
                 _apply_net_info(radio, ents)
     except Exception:
+        _quiet_error("snapshot:radio_network")
         pass
 
     # Mark radios flagged as "lost" or "disabled" in PadSpan settings.
@@ -1033,6 +1088,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 radio["disabled"] = True
                 radio["disabled_since"] = disabled_set[src].get("marked_at", "")
     except Exception:
+        _quiet_error("snapshot:excluded_sources")
         pass
 
     # ---- Backwards-compatible aliases for the frontend ----
@@ -1073,6 +1129,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                             "model": dev.model or "",
                         }
             except Exception:
+                _quiet_error("snapshot:device_connections")
                 continue
 
         # Map Bluetooth address -> tag entities that belong to the same HA device.
@@ -1171,6 +1228,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if _fm_addr(addr) and _fm_separated(md, a.get("age_s")):
                     rec["findmy_separated"] = True
             except Exception:
+                _quiet_error("snapshot:adv_object")
                 pass
 
             # Keep the most "useful" RSSI (largest / closest to 0).
@@ -1179,6 +1237,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if rssi is not None and (rec.get("rssi") is None or rssi > rec.get("rssi")):
                     rec["rssi"] = rssi
             except Exception:
+                _quiet_error("snapshot:adv_rssi")
                 pass
 
             # Keep newest last_seen (ISO8601 string; lexicographic compare works for same-format UTC stamps)
@@ -1187,6 +1246,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if ls and (not rec.get("last_seen") or str(ls) > str(rec.get("last_seen"))):
                     rec["last_seen"] = ls
             except Exception:
+                _quiet_error("snapshot:adv_last_seen")
                 pass
 
             # Keep minimum age_s (lower == newer)
@@ -1196,6 +1256,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     if rec.get("age_s") is None or age < rec.get("age_s"):
                         rec["age_s"] = age
             except Exception:
+                _quiet_error("snapshot:adv_age")
                 pass
 
         # Count how often each OUI/prefix appears (useful heuristic: repeated prefixes often mean "a bunch of the same device type").
@@ -1251,7 +1312,55 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             _st_ing = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             _ingest = IngestPolicy.from_settings((_st_ing.data if _st_ing else {}) or {})
         except Exception:
+            _quiet_error("snapshot:ingest_policy")
             _ingest = IngestPolicy()
+        # What the policy hid among this build's adverts: each address, and
+        # the key it was hidden under. There are several ways to become an
+        # object (a plain device, a merged identity, an entity, a row of the
+        # object history), and a masked device must come through none of them.
+        _masked_addrs: set[str] = set()
+        _masked_keys: set[str] = set()
+
+        def _advert_masked(ident: _IngestIdentity) -> bool:
+            """Whether the policy hides the device this address belongs to."""
+            if not _ingest.is_masked(ident):
+                return False
+            _masked_addrs.add(ident.addr)
+            _masked_keys.update(k.upper() for k in (ident.key, *ident.also) if k)
+            return True
+
+        def _row_masked(row: dict[str, Any]) -> bool:
+            """Whether the policy hides an object that is not made from this
+            build's adverts: an entity's, or one kept in the object history.
+            Asked as the object list shows it (its key, its address); a device
+            hidden and counted above, met here again, is not counted twice."""
+            if not _ingest.active:
+                return False
+            _addr = row.get("address")
+            _keys = [str(row.get("key") or ""), str(row.get("canonical_id") or "")]
+            _uuid = ""
+            if row.get("kind") == "ibeacon":
+                # Its address field holds its key. One beacon of a pack is
+                # also listed under the pack's key; a beacon that has only
+                # ever used one address is that address.
+                _uuid = str(row.get("ibeacon_uuid") or "")
+                _keys.append(f"ibeacon:{_uuid}:{row.get('ibeacon_major')}:{row.get('ibeacon_minor')}")
+                _own = row.get("all_addresses")
+                _addr = _own[0] if isinstance(_own, list) and len(_own) == 1 else ""
+            _addr = _addr.upper() if isinstance(_addr, str) and len(_addr) == 17 and _addr.count(":") == 5 else ""
+            # First matching rule wins, for a row as for an advert: an ALLOW
+            # on the row's own key holds though its address was masked. Only
+            # when no rule names the row itself does its address decide.
+            # (Asked the quick way first: the history is thousands of rows,
+            # every poll, and a rule names very few of them.)
+            if not _ingest.could_match(_addr, _keys, _uuid):
+                return _addr in _masked_addrs
+            _again = _addr in _masked_addrs or any(k.upper() in _masked_keys for k in _keys if k)
+            return _ingest.is_masked(
+                _IngestIdentity(addr=_addr, key=_keys[0], uuid=_uuid, name=str(row.get("name") or ""),
+                                also=tuple(k for k in _keys[1:] if k)),
+                count=not _again)
+
         _resolver_diag: dict[str, Any] = {"irk_devices": 0, "resolved": 0, "ibeacon_groups": 0, "rpa_count": 0, "crypto_ok": True, "errors": []}
         try:
             from .private_ble_resolver import crypto_available as _crypto_avail
@@ -1415,6 +1524,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                         "ts": _now_ts,
                     }
         except Exception as _bridge_err:
+            _quiet_error("snapshot:mac_rotation_bridge")
             _LOGGER.debug("MAC rotation bridging error: %s", _bridge_err)
 
         # ── Find My tags across address changes (findmy.py) ──────────────
@@ -1428,6 +1538,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 # report must not file it as a miss once it is back on.
                 hass.data[DOMAIN][_FINDMY].unwatched(time.time())
         except Exception as _fm_err:
+            _quiet_error("snapshot:findmy_bridge_step")
             _LOGGER.debug("Find My bridging error: %s", _fm_err)
 
         # Parse iBeacon from every advertisement; group by stable UUID/major/minor key.
@@ -1456,8 +1567,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     # address every 1.6 seconds costs nothing rather than being
                     # filtered out later at full price. Marked absorbed too, or
                     # it would simply reappear as a bare MAC object.
-                    if _ingest.active and _ingest.is_masked(_IngestIdentity(
-                            addr=addr, key=uuid_key, uuid=str(ib.get("uuid") or ""))):
+                    # One beacon of a pack that shares an id is listed under
+                    # the id with its address after it.
+                    if _ingest.active and _advert_masked(_IngestIdentity(
+                            addr=addr, key=uuid_key, uuid=str(ib.get("uuid") or ""),
+                            also=(f"{uuid_key}:{addr}",))):
                         ibeacon_addrs.add(addr)
                         continue
                     ibeacon_addrs.add(addr)
@@ -1609,6 +1723,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if _beacon_seen_now:
                 hass.data.setdefault(DOMAIN, {})[DATA_BEACON_LAST_MACS] = _beacon_seen_now
         except Exception as _ib_err:
+            _quiet_error("snapshot:ibeacon")
             _resolver_diag["errors"].append(f"ibeacon: {_ib_err}")
 
         # (B) BLE advertisement objects (what HA Bluetooth "Advertisement monitor" shows)
@@ -1622,6 +1737,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         try:
             await _label_follow_step(hass, ble_by_addr, canonical_by_addr, ibeacon_addrs, addr_to_device, addr_to_entities)
         except Exception as _lf_err:  # noqa: BLE001 — a name that doesn't follow is the old behaviour
+            _quiet_error("snapshot:label_follow")
             _LOGGER.debug("Name links: %s", _lf_err)
         for addr, rec in ble_by_addr.items():
             if addr in ibeacon_addrs:
@@ -1630,13 +1746,17 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # MAC if it is static, or by vendor prefix. Checked here as well as
             # at the iBeacon grouping because these are two separate ways to
             # become an object, and a mask that only covered one of them would
-            # look like it had stopped working.
+            # look like it had stopped working. This loop builds the merged
+            # identities only: the plain objects are made further down (B-cont),
+            # from the same addresses, and leave out what was masked here.
             if _ingest.active:
                 canonical_for_mask = canonical_by_addr.get(addr) or {}
-                if _ingest.is_masked(_IngestIdentity(
+                if _advert_masked(_IngestIdentity(
                         addr=addr,
                         key=str(canonical_for_mask.get("canonical_id") or ""),
-                        name=str(rec.get("name") or ""))):
+                        name=str(rec.get("name") or ""),
+                        # A Find My tag keeps the key of its first address.
+                        also=(str(canonical_for_mask.get("key") or ""),))):
                     continue
             canonical = canonical_by_addr.get(addr)
             if canonical:
@@ -1768,6 +1888,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                                 addr = _attr_val.upper()
                                 break
             except Exception:
+                _quiet_error("snapshot:entity_address")
                 addr = ""
 
             prefix = ":".join(addr.split(":")[:3]) if addr else ""
@@ -1788,6 +1909,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 _ent_obj["canonical_id"] = canonical_id
             if all_addrs:
                 _ent_obj["all_addresses"] = all_addrs
+            if _row_masked(_ent_obj):
+                # A masked device is not listed as its entity either; nor,
+                # the entity masked by its own key, as the plain device (B-cont)
+                # that would have been folded into it.
+                if addr:
+                    _masked_addrs.add(addr)
+                continue
             objects.append(_ent_obj)
 
         # (B-cont) Regular (non-rotating, non-iBeacon) BLE advertisement objects
@@ -1796,6 +1924,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 continue  # absorbed into a merged iBeacon group (section C)
             if canonical_by_addr.get(addr):
                 continue  # handled by _private_groups (section B2)
+            if addr in _masked_addrs:
+                continue  # masked by the ingest policy (the loop before section A, or as its entity in A)
             # Skip unresolved RPAs (rotating MACs from phones/watches that
             # aren't resolved by IRK and aren't part of an iBeacon group).
             # These are noise — duplicate entries from the same phone's non-
@@ -2121,6 +2251,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 objects = [o for o in objects if o.get("key", "") not in _absorbed_keys]
             (snapshot.get("raw_counts") or {})["merged_by_device"] = _merged_by_device
         except Exception as _merge_err:
+            _quiet_error("snapshot:object_merge")
             _LOGGER.debug("Object merge error: %s", _merge_err)
 
         # ── Aggressive beacon deduplication (D1–D7) ─────────────────────────
@@ -2276,6 +2407,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                             eddy_key = f"eddy:{ns}:{inst}"
                             _eddystone_groups.setdefault(eddy_key, []).append(obj)
                     except Exception:
+                        _quiet_error("snapshot:dedup_payload")
                         pass
 
             for eddy_key, group in _eddystone_groups.items():
@@ -2312,6 +2444,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     first_octet = int(addr.split(":")[0], 16)
                     is_random = bool(first_octet & 0x02)  # locally administered bit
                 except Exception:
+                    _quiet_error("snapshot:dedup_name_random")
                     is_random = False
                 if not is_random:
                     continue
@@ -2350,6 +2483,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     first_octet = int(addr.split(":")[0], 16)
                     is_random = bool(first_octet & 0x02)
                 except Exception:
+                    _quiet_error("snapshot:dedup_maker_random")
                     is_random = False
                 if not is_random:
                     continue
@@ -2401,6 +2535,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     first_octet = int(addr.split(":")[0], 16)
                     is_random = bool(first_octet & 0x02)
                 except Exception:
+                    _quiet_error("snapshot:dedup_apple_random")
                     is_random = False
                 if not is_random:
                     continue
@@ -2417,6 +2552,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     subtype = raw_bytes[0]
                     data_len = raw_bytes[1]
                 except Exception:
+                    _quiet_error("snapshot:dedup_apple_subtype")
                     continue
                 # Skip iBeacon subtype (already handled)
                 if subtype == 0x02 and data_len == 0x15:
@@ -2457,6 +2593,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     first_octet = int(addr.split(":")[0], 16)
                     is_random = bool(first_octet & 0x02)
                 except Exception:
+                    _quiet_error("snapshot:dedup_uuid_random")
                     is_random = False
                 if not is_random:
                     continue
@@ -2496,6 +2633,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     first_octet = int(addr.split(":")[0], 16)
                     is_random = bool(first_octet & 0x02)
                 except Exception:
+                    _quiet_error("snapshot:dedup_ble_random")
                     is_random = False
                 if not is_random:
                     continue
@@ -2538,6 +2676,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         try:
             objects = _run_dedup(objects, _dedup_absorbed)
         except Exception as _dedup_err:
+            _quiet_error("snapshot:dedup")
             _LOGGER.debug("Aggressive dedup error: %s", _dedup_err)
 
         # Attach user labels — DeviceRegistry is the primary source (resolved later
@@ -2564,6 +2703,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                             if kind in ("ble", "ibeacon", "private_ble"):
                                 obj["identified"] = True
         except Exception:
+            _quiet_error("snapshot:object_labels")
             pass
 
         # BLE enrichment: decode company names, device types, service names
@@ -2572,6 +2712,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 try:
                     _enrich_ble_object(obj)
                 except Exception:
+                    _quiet_error("snapshot:enrich_object")
                     pass
 
         # ── Persistent object history (rolling, disk-backed) ───────────────
@@ -2607,6 +2748,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             try:
                 await hass.async_add_executor_job(_reenrich_history, _cache)
             except Exception as _re_err:  # noqa: BLE001 - old names until heard again, nothing worse
+                _quiet_error("snapshot:reenrich_history_job")
                 _LOGGER.debug("Object history names not refreshed: %s", _re_err)
             _dom[DATA_OBJECT_HISTORY] = _cache
             _dom["_obj_hist_last_save"] = _now_ts
@@ -2673,12 +2815,33 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             obj["_cache_age_s"] = obj.get("age_s") or 0
             _cache[key] = dict(obj)  # snapshot copy
 
+        # Whether a row of the history has a label, looked for where the list
+        # looks: the object store under every id the list tries, then the
+        # device registry, which the list reads after the row is stored (so
+        # a device labelled only there has no flag in its row at all). An
+        # entity's row is asked under its own key alone, as before: a row
+        # here is one Home Assistant no longer lists, and its device's label
+        # must not keep it for good.
+        _hist_dev_reg = _dom.get(DATA_DEVICE_REGISTRY)
+
+        def _row_has_label(row: dict[str, Any]) -> bool:
+            if row.get("kind") == "entity":
+                return bool(obj_store) and any(
+                    (obj_store.get(str(k)) or {}).get("label")
+                    for k in (row.get("canonical_id"), row.get("key")) if k)
+            if obj_store and _object_store_label(obj_store, row):
+                return True
+            if _hist_dev_reg:
+                _pid = _registry_id(_hist_dev_reg, row)
+                return bool(_pid and _hist_dev_reg.get_label(_pid))
+            return False
+
         # Count cap (low_memory.py): next to a busy street a day of strangers
         # is tens of thousands of entries (one install: 80,000), all held in
         # memory, saved every 15 s and replayed into every build. Past the
         # cap the unidentified entries heard longest ago go first; someone's
         # object, and anything heard this cycle, never does.
-        cap_object_history(_cache, _low_memory.history_max(hass), _current_keys)
+        cap_object_history(_cache, _low_memory.history_max(hass), _current_keys, keep=_row_has_label)
 
         # Merge cached objects not seen this cycle back into the list
         # Skip keys absorbed by deduplication — they are ghosts of merged objects
@@ -2701,6 +2864,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                             del _cache[key]
                             continue
                     except Exception:
+                        _quiet_error("snapshot:cache_bermuda_drop")
                         pass
             # A plain object whose address now belongs to a merged identity
             # (an IRK phone, a bridged rotation, a Find My tag's next address
@@ -2713,7 +2877,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             _claim = (canonical_by_addr.get(str(cached_obj.get("address") or "").upper())
                       if cached_obj.get("kind") == "ble" else None)
             if _claim and (_claim.get("findmy") or not _claim.get("bridge_match")):
-                if cached_obj.get("identified") or cached_obj.get("user_label"):
+                if cached_obj.get("identified") or cached_obj.get("user_label") or _row_has_label(cached_obj):
                     continue
                 del _cache[key]
                 continue
@@ -2740,19 +2904,24 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # Verify label still exists — if deleted from obj_store, clear the
             # cached flags so the ghost can expire normally instead of lingering
             # forever as a phantom identified object.
+            _labelled = None            # asked at most once for a row
             if is_identified and obj_store and stale_s > 60:
-                _cache_label_key = cached_obj.get("canonical_id") or key
-                _cache_entry = obj_store.get(_cache_label_key) or obj_store.get(key)
-                if not _cache_entry or not _cache_entry.get("label"):
+                _labelled = _row_has_label(cached_obj)
+                if not _labelled:
                     cached_obj.pop("identified", None)
                     cached_obj.pop("user_label", None)
                     is_identified = False
             # Tagged/identified objects never expire from history
-            # ... nor one whose name follows a new address, or has a question open.
+            # ... nor one whose name follows a new address, or has a question open,
+            # nor one with a label its row does not show (asked only now,
+            # for a row about to go).
             _ll = _dom.get(_LABEL_LINKS)
             if not is_identified and stale_s > _HISTORY_TTL and not (_ll is not None and _ll.needs_row(key[4:])):
-                del _cache[key]
-                continue
+                if _labelled is None:
+                    _labelled = _row_has_label(cached_obj)
+                if not _labelled:
+                    del _cache[key]
+                    continue
             # 0.38.105 made a Bermuda device's Floor, Area Last Seen and each
             # "Distance to" sensor objects of their own. The selection never
             # makes them now; replayed, they sat frozen in their old rooms
@@ -2773,6 +2942,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                                 _bermuda_purged += 1
                                 continue
                     except Exception:
+                        _quiet_error("snapshot:cache_bermuda_state")
                         pass
             # Heal pre-cap poisoned address histories in place: cache entries
             # persisted before _ALL_ADDR_CAP existed can carry tens of
@@ -2781,6 +2951,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             _aa = cached_obj.get("all_addresses")
             if isinstance(_aa, list) and len(_aa) > _ALL_ADDR_CAP:
                 cached_obj["all_addresses"] = _capped_mac_history(_aa)
+            # A masked device is not listed from the history either. Its row
+            # is kept as any unheard device's is (a mask is never a delete),
+            # so it is back with its history once the rule is gone.
+            if _row_masked(cached_obj):
+                continue
             # Bring it back — compute age_s = original age + time since last seen
             obj_copy = dict(cached_obj)
             # Not heard this cycle: it has no live address (a Find My tag's
@@ -2808,6 +2983,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             try:
                 objects = _run_dedup(objects, _dedup_absorbed)
             except Exception as _dedup2_err:
+                _quiet_error("snapshot:dedup_after_cache")
                 _LOGGER.debug("Post-cache dedup error: %s", _dedup2_err)
 
         # Re-apply user labels to any cached objects that were merged back
@@ -2821,33 +2997,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     kind = obj.get("kind", "")
                     if kind not in ("ble", "private_ble", "ibeacon"):
                         continue
-                    # Try the object's key, address, canonical_id, ibeacon key variants
-                    _lbl = None
-                    _try_keys = [obj.get("key"), obj.get("address"), obj.get("canonical_id")]
-                    # Split iBeacon objects (key = ibeacon:uuid:major:minor:MAC) are
-                    # DISTINCT physical devices sharing a factory-default UUID.  They
-                    # must NOT inherit the unsplit group key's label — that resurrects
-                    # a stale label onto every beacon in the pack AND shadows per-MAC
-                    # renames made in the Bluetooth tab.
-                    _is_split_ib = kind == "ibeacon" and len(str(obj.get("key") or "").split(":")) > 4
-                    # Also try ibeacon key from metadata (unsplit objects only)
-                    _ib_u = obj.get("ibeacon_uuid")
-                    if _ib_u is not None and not _is_split_ib:
-                        _ibk = f"ibeacon:{_ib_u}:{obj.get('ibeacon_major', 0)}:{obj.get('ibeacon_minor', 0)}"
-                        _try_keys.extend([_ibk, _ibk.upper()])
-                    # Also try all_addresses
-                    for _a in (obj.get("all_addresses") or []):
-                        _try_keys.append(_a)
-                    for _try_key in _try_keys:
-                        if _try_key:
-                            _e = _obj_store2.get(_try_key)
-                            if _e and _e.get("label"):
-                                _lbl = _e["label"]
-                                break
+                    # Try the object's key, address, canonical_id, ibeacon key
+                    # variants (unsplit objects only) and all_addresses
+                    _lbl = _object_store_label(_obj_store2, obj)
                     if _lbl:
                         obj["user_label"] = _lbl
                         obj["identified"] = True
         except Exception:
+            _quiet_error("snapshot:object_labels_cached")
             pass
 
         # ── Same-label dedup (post-labelling safety net) ───────────────────
@@ -2894,6 +3051,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if _dedup_absorbed:
                 objects = [o for o in objects if o.get("key", "") not in _dedup_absorbed]
         except Exception as _sld_err:
+            _quiet_error("snapshot:same_label_dedup")
             _LOGGER.debug("Same-label dedup error: %s", _sld_err)
 
         # Periodic disk save (at most every 60 s)
@@ -2970,7 +3128,6 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
 
     # ── Enrich objects with stable padspan_id from DeviceRegistry ──
     try:
-        from .const import DATA_DEVICE_REGISTRY
         _dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
         if _dev_reg:
             for _o in (snapshot.get("objects") or {}).get("list") or []:
@@ -2978,16 +3135,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if not _okey:
                     continue
                 # Try resolving by key, address, canonical_id, all_addresses
-                _pid = _dev_reg.resolve(_okey)
-                if not _pid:
-                    _pid = _dev_reg.resolve(_o.get("address") or "")
-                if not _pid and _o.get("canonical_id"):
-                    _pid = _dev_reg.resolve(_o["canonical_id"])
-                if not _pid:
-                    for _alt in (_o.get("all_addresses") or []):
-                        _pid = _dev_reg.resolve(str(_alt))
-                        if _pid:
-                            break
+                _pid = _registry_id(_dev_reg, _o)
                 if _pid:
                     _o["padspan_id"] = _pid
                     _plbl = _dev_reg.get_label(_pid)
@@ -3000,6 +3148,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     _pid = _dev_reg.resolve_or_create(_okey, kind=_kind, persist=False)
                     _o["padspan_id"] = _pid
     except Exception as _dr_err:
+        _quiet_error("snapshot:device_registry")
         _LOGGER.debug("DeviceRegistry enrichment: %s", _dr_err)
 
     # ── Apple Device Classification (setting: apple_auto_classify) ──
@@ -3023,6 +3172,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             else:
                 _o.pop("auto_class", None)
     except Exception as _apple_err:
+        _quiet_error("snapshot:apple_classify")
         _LOGGER.debug("Apple auto-classify error: %s", _apple_err)
 
     # ── Makers from the built-in address list ──
@@ -3057,6 +3207,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         if _macs:
             (snapshot.get("raw_counts") or {})["type_known_pc"] = round(100.0 * _typed / _macs, 1)
     except Exception as _maker_err:
+        _quiet_error("snapshot:address_makers")
         _LOGGER.debug("Address makers: %s", _maker_err)
 
     # ── One name, maker and type for each object (device_detail.py) ──
@@ -3065,6 +3216,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         for _o in (snapshot.get("objects") or {}).get("list") or []:
             _apply_detail(_o, _classify)
     except Exception as _detail_err:
+        _quiet_error("snapshot:device_detail")
         _LOGGER.debug("Device detail: %s", _detail_err)
 
     # ── Enrich raw advertisements with decoded metadata + object cross-reference ──
@@ -3111,6 +3263,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 _ad["_xref"] = None
                 _apply_detail(_ad, _classify)  # a row with an object reads the object's
     except Exception:
+        _quiet_error("snapshot:ad_enrichment")
         pass
 
     snapshot["bermuda_devices"] = snapshot.get("receivers") or []
@@ -3167,6 +3320,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                             if _off:
                                 _am[_src] = _am[_src] + float(_off)
             except Exception:
+                _quiet_error("snapshot:scanner_offsets")
                 pass
             snapshot["scanner_offsets"] = _scanner_offsets
 
@@ -3220,6 +3374,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     if best_area:
                         obj["room"] = best_area
     except Exception:
+        _quiet_error("snapshot:room_by_rssi")
         pass
 
     # ── Traceback recording moved to ws_live_snapshot (after k-NN overlay) ──
@@ -3232,17 +3387,21 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if _sh:
                 snapshot["scanner_health"] = _sh
     except Exception:
+        _quiet_error("snapshot:scanner_health")
         pass
 
     _phase_done("enrich")
     return snapshot
 
 
-def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys: set[str]) -> int:
+def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys: set[str],
+                       keep: Any = None) -> int:
     """Hold the object history to `cap` unidentified entries (low_memory.py).
     Past it, the ones heard longest ago go, down to 90% of the cap so the sort
     is not paid every build. Someone's object, and anything heard this build
-    (`current_keys`), is never dropped. Returns how many went."""
+    (`current_keys`), is never dropped. `keep(entry)`: asked for an entry
+    about to go, True for one that is someone's though its flags do not say
+    so (a label held only in the device registry). Returns how many went."""
     if len(cache) <= cap:
         return 0
     # An IRK phone is someone's too, labelled or not (low_memory.py says so).
@@ -3253,9 +3412,13 @@ def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys:
         return 0
     excess = len(unid) - int(cap * 0.9)
     drop = sorted(t for t in unid if t[1] not in current_keys)[:excess]
+    gone = 0
     for _ts, k in drop:
+        if keep is not None and keep(cache[k]):
+            continue
         del cache[k]
-    return len(drop)
+        gone += 1
+    return gone
 
 
 _LF_PRUNED = "_lost_and_found_strangers_pruned"
@@ -3300,6 +3463,7 @@ def _prune_lost_and_found_strangers(hass: HomeAssistant, lf: Any, objects: list)
             from .telemetry import bump as _bump  # noqa: PLC0415
             _bump(hass, "lost_and_found_pruned", n)
     except Exception as err:
+        _quiet_error("snapshot:lost_found_prune")
         _LOGGER.debug("Lost & Found stranger prune: %s", err)
 
 
@@ -3322,6 +3486,7 @@ def snapshot_ttl_s(hass: HomeAssistant) -> float:
     try:
         return SCALE_SNAPSHOT_TTL_S if _scale_on(hass) else _SNAPSHOT_CACHE_TTL_S
     except Exception:  # noqa: BLE001
+        _quiet_error("snapshot:snapshot_ttl_s")
         return _SNAPSHOT_CACHE_TTL_S
 
 
@@ -3375,12 +3540,14 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         _objs_env["list"] = [dict(_o) for _o in (_objs_env.get("list") or [])]
         snap["objects"] = _objs_env
     except Exception:
+        _quiet_error("snapshot:ws_objects_envelope")
         pass
     # Guest tags (guest_tags.py): a lent tag's objects carry the guest.
     try:
         from .guest_tags import snapshot_overlay  # noqa: PLC0415
         snapshot_overlay(hass, snap["objects"]["list"])
     except Exception:  # noqa: BLE001
+        _quiet_error("snapshot:ws_guest_overlay")
         pass
 
     # Overlay presence-coordinator smoothed data (x_frac, y_frac,
@@ -3502,6 +3669,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
             from .label_follow import overlay as _ll_overlay  # noqa: PLC0415
             snap["objects"]["list"] = _ll_overlay(snap["objects"]["list"], _ll)
     except Exception as _ll_err:  # noqa: BLE001 — the rows as they were
+        _quiet_error("snapshot:ws_label_links")
         _LOGGER.debug("Name links not shown: %s", _ll_err)
 
     # Rebuild room_tag_map from overlaid objects so the map matches the
@@ -3525,6 +3693,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
             snap["room_tag_map_live"] = _rtm_fresh
             snap["room_tag_map"] = _rtm_fresh
     except Exception:
+        _quiet_error("snapshot:ws_away")
         pass
 
     # Inject calibration status so the UI knows the state of the cal store
@@ -3601,6 +3770,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                 "spatial_positioned_objects": 0,
             }
     except Exception:
+        _quiet_error("snapshot:ws_calibration_status")
         pass
 
     # (Traceback recorded here, from a panel's request — so nothing was
@@ -3625,6 +3795,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
             if getattr(_pc_sus, "last_update_success", True) is False:
                 snap["positioning_failed"] = True
     except Exception:
+        _quiet_error("snapshot:ws_suspended")
         pass
 
     # A linked robot vacuum's spot (vacuum_import.py) — only while the user
@@ -3635,6 +3806,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         if _vac:
             snap["vacuum"] = _vac
     except Exception:
+        _quiet_error("snapshot:ws_vacuum")
         pass
 
     # Optimize for scale: the slim copy, only while the setting is on.
@@ -3646,5 +3818,6 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
             from .telemetry import bump  # noqa: PLC0415
             bump(hass, "snapshot_slim_sent")
         except Exception as err:  # noqa: BLE001 — the full one goes instead
+            _quiet_error("snapshot:ws_slim")
             _LOGGER.debug("Slim snapshot not made: %s", err)
     connection.send_result(msg["id"], {"snapshot": snap})

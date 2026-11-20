@@ -37,6 +37,7 @@ from typing import Any, Callable, Dict, List
 from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -108,6 +109,7 @@ class TasmotaBle:
             try:
                 unsub()
             except Exception:  # noqa: BLE001
+                _quiet_error("tasmota_ble:stop")
                 pass
         self._unsubs.clear()
         self._seen.clear()
@@ -128,6 +130,7 @@ class TasmotaBle:
                 return
             self.handle(topic, data, _now())
         except Exception:  # noqa: BLE001 - one bad message never stops the rest
+            _quiet_error("tasmota_ble:on_message")
             pass
 
     def handle(self, topic: str, data: dict[str, Any], now: dt.datetime) -> None:
@@ -170,6 +173,7 @@ class TasmotaBle:
             self.hass.async_create_task(async_publish(self.hass, f"cmnd/{sc.topic}/BLEDevices", ""))
             _LOGGER.debug("Tasmota BLE: asked %s for its device list", sc.topic)
         except Exception as err:  # noqa: BLE001
+            _quiet_error("tasmota_ble:maybe_request")
             _LOGGER.debug("Tasmota BLE: could not ask %s for its list: %s", sc.topic, err)
 
     def _cap(self) -> None:

@@ -57,7 +57,7 @@ export function render(ctx){
 
   // Header
   root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:14px"},[
-    el("h2",{},"Monitor"),
+    el("h2",{style:"margin:0"},"Monitor"),
     helpBtn("monitor"),
   ]));
 
@@ -132,7 +132,7 @@ export function render(ctx){
     const displayTotal = _quietMode ? quietList.length - quietHidden : total;
 
     const unidBadge = _quietMode ? null : (unid > 0
-      ? el("span",{class:"badge warn",style:"cursor:pointer"}, `${unid} unidentified`)
+      ? el("span",{...ctx.helpers.asButton, class:"badge warn",style:"cursor:pointer"}, `${unid} unidentified`)
       : el("span",{class:"badge"}, "All identified"));
     if(unidBadge && unid > 0){
       unidBadge.addEventListener("click", ()=>{
@@ -558,7 +558,7 @@ function _insights(ctx, el, _sid){
   if(emptyRooms.length > 0){
     const roomLinks = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
     for(const r of emptyRooms){
-      const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, r);
+      const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, r);
       chip.addEventListener("click", ()=>ctx.actions.showRoomDetail(r));
       roomLinks.appendChild(chip);
     }
@@ -576,7 +576,7 @@ function _insights(ctx, el, _sid){
   if(unmappedScanners.length > 0){
     const scanLinks = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
     for(const s of unmappedScanners){
-      const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, s.display_name||s.name||s.source);
+      const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, s.display_name||s.name||s.source);
       chip.addEventListener("click", ()=>ctx.actions.showScannerDetail(s));
       scanLinks.appendChild(chip);
     }

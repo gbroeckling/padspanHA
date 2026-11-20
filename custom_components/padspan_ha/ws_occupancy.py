@@ -51,6 +51,7 @@ from .presence_rules import (
 )
 from .perf_sampler import record_duration
 from .ws_common import admin_if_enhanced_security, _is_rpa_addr
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,6 +105,7 @@ def _entity_area_name(hass: HomeAssistant, entity_id: str) -> str | None:
         area = ar.async_get(hass).async_get_area(area_id)
         return area.name if area else None
     except Exception as err:  # registries missing in tests / early boot
+        _quiet_error("ws_occupancy:entity_area_name")
         _LOGGER.debug("area lookup for %s failed: %s", entity_id, err)
         return None
 
@@ -647,7 +649,7 @@ async def ws_occupancy_estimate(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/occupancy_train",
-    "actual_count": vol.Coerce(int),
+    vol.Required("actual_count"): vol.Coerce(int),
     vol.Optional("room"): str,
 })
 @websocket_api.async_response

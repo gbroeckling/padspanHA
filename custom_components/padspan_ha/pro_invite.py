@@ -38,6 +38,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_SETTINGS, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ async def _send_decline(hass: HomeAssistant, token: str) -> bool:
         data = await _post(hass, "invite_decline", {"token": token})
         sent = isinstance(data, dict) and bool(data.get("ok"))
     except Exception as err:  # offline: retried when the report's reply carries it again
+        _quiet_error("pro_invite:send_decline")
         _LOGGER.debug("Pro invite decline not sent: %s", err)
         sent = False
     if st:
@@ -190,7 +192,7 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
     })
     _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"ok": True, "expires_at": data.get("expires_at"),
-                                       "days_left": data.get("days_left"), "settings": _get_settings(hass)})
+                                       "days_left": data.get("days_left"), "settings": _get_settings(hass, connection)})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/pro_invite_decline"})
@@ -204,4 +206,4 @@ async def ws_pro_invite_decline(hass: HomeAssistant, connection, msg) -> None:
     token = ((st.data if st else {}).get(SETTINGS_KEY) or {}).get("token")
     if token:
         await _send_decline(hass, token)
-    connection.send_result(msg["id"], {"ok": True, "settings": _get_settings(hass)})
+    connection.send_result(msg["id"], {"ok": True, "settings": _get_settings(hass, connection)})

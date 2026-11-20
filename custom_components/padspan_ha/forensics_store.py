@@ -42,6 +42,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DATA_FORENSICS, DATA_SETTINGS, DOMAIN, FORENSICS_STORE_KEY
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -323,6 +324,7 @@ async def _tick(hass: HomeAssistant) -> None:
         store.record_sightings(snap.get("advertisements") or [])
         await store.async_save_if_due()
     except Exception as err:
+        _quiet_error("forensics_store:tick")
         _LOGGER.debug("Forensics tick failed: %s", err)
 
 
@@ -350,4 +352,5 @@ def async_stop_forensics(hass: HomeAssistant) -> None:
         try:
             unsub()
         except Exception:
+            _quiet_error("forensics_store:stop_forensics")
             pass

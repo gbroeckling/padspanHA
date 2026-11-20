@@ -17,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .subzones import SubzoneEntityMixin, async_setup_entities
+from .quiet_errors import note as _quiet_error
 
 
 async def async_setup_entry(
@@ -44,6 +45,7 @@ async def async_setup_entry(
         from .guest_tags import SIGNAL_GUESTS  # noqa: PLC0415
         entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_GUESTS, _maybe_add_guest))
     except Exception:  # noqa: BLE001
+        _quiet_error("binary_sensor:setup_entry")
         pass
 
 

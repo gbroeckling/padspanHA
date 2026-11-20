@@ -58,6 +58,9 @@ check("rotating", DN.addressBadge(el, { address_kind: "rotating" }).textContent 
 check("fresh stays", DN.fadeFor({ age_s: 10 }) === 1);
 check("old fades", DN.fadeFor({ age_s: 90000 }) === 0.5);
 check("a named device doesn't", DN.fadeFor({ age_s: 90000, user_label: "Car" }) === 1);
+// How long ago, in words: the Devices list said "4837956s ago" for 56 days.
+check("ago: seconds, minutes, hours, days", DN.ago(45) === "45 s ago" && DN.ago(720) === "12 min ago" && DN.ago(7300) === "2 h ago"
+  && DN.ago(4837956) === "56 days ago" && DN.ago(null) === "", [45, 720, 7300, 4837956].map(DN.ago).join(" | "));
 
 // ── Grouping ──────────────────────────────────────────────────────────────────
 const rot = (over) => ({ address_kind: "rotating", name_source: "maker", age_s: 5, ...over });

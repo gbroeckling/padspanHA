@@ -39,6 +39,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_SETTINGS, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -187,6 +188,7 @@ def prompt_chars(instructions: Any, structure: Any) -> int:
     try:
         return len(str(instructions or "")) + (len(json.dumps(structure, default=str)) if structure else 0)
     except Exception:  # noqa: BLE001
+        _quiet_error("ai_usage:prompt_chars")
         return len(str(instructions or ""))
 
 
@@ -286,6 +288,7 @@ def _bump(hass: HomeAssistant, event: str) -> None:
         from .telemetry import bump  # noqa: PLC0415
         bump(hass, event)
     except Exception:  # noqa: BLE001
+        _quiet_error("ai_usage:bump")
         pass
 
 
@@ -322,6 +325,7 @@ class Usage:
         try:
             raw = await self.store.async_load()
         except Exception as err:  # noqa: BLE001 — a store that can't be read starts empty
+            _quiet_error("ai_usage:load")
             _LOGGER.debug("PadSpan AI usage not read back: %s", err)
             raw = None
         if isinstance(raw, dict) and isinstance(raw.get("months"), dict):
@@ -331,6 +335,7 @@ class Usage:
         try:
             self.store.async_delay_save(lambda: self.data, SAVE_DELAY_S)
         except Exception as err:  # noqa: BLE001
+            _quiet_error("ai_usage:save")
             _LOGGER.debug("PadSpan AI usage not saved: %s", err)
 
     def entity(self, month: str, eid: str, maker: str | None = None, model: str | None = None) -> dict[str, Any]:
@@ -428,6 +433,7 @@ def note_read(hass: HomeAssistant, eid: str, task_name: str, *, size: tuple[int,
         u.save()
         _check_warning(hass, u, month)
     except Exception as err:  # noqa: BLE001 — counting must never fail a read
+        _quiet_error("ai_usage:note_read")
         _LOGGER.debug("PadSpan AI usage: a read not counted: %s", err)
 
 
@@ -448,6 +454,7 @@ def unusable(hass: HomeAssistant, eid: str | None, answer: Any = None) -> str:
         _stop(hass, u.entity(month, str(eid or "")), reason)
         u.save()
     except Exception as err:  # noqa: BLE001
+        _quiet_error("ai_usage:unusable")
         _LOGGER.debug("PadSpan AI usage: an unusable answer not counted: %s", err)
     return reason
 
@@ -462,6 +469,7 @@ async def refused(hass: HomeAssistant, reason: str, eid: str | None = None) -> N
         _stop(hass, u.entity(month, str(eid or "")), reason)
         u.save()
     except Exception as err:  # noqa: BLE001
+        _quiet_error("ai_usage:refused")
         _LOGGER.debug("PadSpan AI usage: a refused read not counted: %s", err)
 
 
@@ -518,6 +526,7 @@ def _check_warning(hass: HomeAssistant, u: Usage, month: str) -> None:
                      "This notice comes once a month.",
                      title="PadSpan: AI credit", notification_id=f"padspan_ha_ai_credit_{month}")
     except Exception as err:  # noqa: BLE001
+        _quiet_error("ai_usage:check_warning")
         _LOGGER.debug("PadSpan AI credit notice not shown: %s", err)
 
 

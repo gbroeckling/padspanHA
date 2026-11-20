@@ -32,6 +32,7 @@ from .ble_enrichment import with_model_maker as _with_model_maker
 from .calibration_store import CalibrationStore
 from .snapshot_builder import _live_snapshot
 from .ws_backup import _auto_backup
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ async def ws_calibration_health_check(hass: HomeAssistant, connection, msg) -> N
                 latest_ts = datetime.fromisoformat(latest_iso).timestamp()
                 stale_days = round((now_ts - latest_ts) / 86400)
             except Exception:
+                _quiet_error("ws_calibration:health_latest_point")
                 pass
 
     # ── Per-scanner mean-RSSI anomalies ───────────────────────────────────────
@@ -112,6 +114,7 @@ async def ws_calibration_health_check(hass: HomeAssistant, connection, msg) -> N
             all_maps = maps_store.data.get("maps") or []
             map_ids = [m["id"] for m in all_maps]
         except Exception:
+            _quiet_error("ws_calibration:health_maps")
             pass
     map_name_lookup: dict[str, str] = {m["id"]: m.get("name", "") for m in all_maps}
 
@@ -153,6 +156,7 @@ async def ws_calibration_health_check(hass: HomeAssistant, connection, msg) -> N
     try:
         live_radios = ((await _live_snapshot(hass)).get("ble") or {}).get("radios") or []
     except Exception:
+        _quiet_error("ws_calibration:health_live_radios")
         pass
     radio_name_map: dict[str, str] = {}
     for _r in live_radios:
@@ -224,6 +228,7 @@ def _heldout(hass: HomeAssistant) -> dict[str, Any] | None:
     try:
         return coord.heldout_cached()
     except Exception:
+        _quiet_error("ws_calibration:heldout")
         return None
 
 
@@ -406,15 +411,28 @@ async def _note_points_seen(hass: HomeAssistant, cal: Any) -> None:
         if st is not None:
             await st.async_set(calibration_points_seen=len(cal.data.get("points") or []))
     except Exception as err:  # noqa: BLE001
+        _quiet_error("ws_calibration:note_points_seen")
         _LOGGER.debug("calibration_points_seen not updated: %s", err)
+
+
+_CLEAR_BACKUP_FAILED = "The safety backup couldn't be made, so no calibration point was removed."
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/calibration_clear"})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_calibration_clear(hass: HomeAssistant, connection, msg) -> None:
-    """Delete all calibration points and reset the model."""
+    """Delete all calibration points and reset the model.
+
+    The automatic safety backup is taken first; if it can't be made, nothing
+    is removed. Nothing to clear: no backup (an empty one would only take a
+    place among the automatic backups).
+    """
     cal = await _get_cal_store(hass)
+    if (cal.data.get("points") or cal.data.get("model")) and not await _auto_backup(
+            hass, "Before clearing all calibration points", [CALIBRATION_STORE_KEY]):
+        connection.send_error(msg["id"], "backup_failed", _CLEAR_BACKUP_FAILED)
+        return
     count = await cal.async_clear_all()
     _bump(hass, "calibration_cleared_all")
     await _note_points_seen(hass, cal)
@@ -436,6 +454,12 @@ async def ws_calibration_clear_map(hass: HomeAssistant, connection, msg) -> None
         connection.send_error(msg["id"], "invalid_map_id", "map_id is required")
         return
     cal = await _get_cal_store(hass)
+    # The automatic safety backup first, as ws_calibration_clear does; a map
+    # with no points has nothing to back up.
+    if any(p.get("map_id") == map_id for p in cal.data.get("points") or []) and not await _auto_backup(
+            hass, "Before clearing a map's calibration points", [CALIBRATION_STORE_KEY]):
+        connection.send_error(msg["id"], "backup_failed", _CLEAR_BACKUP_FAILED)
+        return
     count = await cal.async_clear_map(map_id, delete=True)
     _bump(hass, "calibration_cleared_map")
     await _note_points_seen(hass, cal)
