@@ -35,8 +35,9 @@ What it does:
     5. Commits, tags, and pushes
     6. Creates the GitHub release as a DRAFT with the zip attached. No
        install is offered a draft.
-    7. Waits for GitHub's checks on the tag (Tests, Hassfest Validation, HACS
-       Validation: about twelve minutes), saying what it is waiting for.
+    7. Waits for GitHub's checks on the tag (TAG_CHECKS: Tests, Real Home
+       Assistant, Hassfest Validation, HACS Validation; about twelve
+       minutes), saying what it is waiting for.
     8. Every check green: publishes the draft (pre-release or stable, as
        asked), THEN writes the update-check manifest on the web host, THEN,
        for a stable, deploys the landing page.
@@ -70,10 +71,10 @@ PUBLISHED ONLY WHEN GREEN — the order after the tag is pushed, and why:
   marked draft besides, so no install is offered one. Publishing a draft
   keeps its tag and its zip (`gh release edit vX --draft=false` sends the
   tag it already has, and nothing about its files).
-  The checks: TAG_CHECKS names the three workflows a tag push starts. All
-  three must be seen, on the tag's own commit, and finish in success: one
-  missing is "not finished", never green. A new workflow that runs on tags
-  goes into TAG_CHECKS (tests/test_release_when_green.py holds this).
+  The checks: TAG_CHECKS names the workflows a tag push starts. Every one
+  must be seen, on the tag's own commit, and finish in success: one missing
+  is "not finished", never green. A new workflow that runs on tags goes
+  into TAG_CHECKS (tests/test_release_when_green.py holds this).
   The lock is held from the start to the end of the run, as before, so it
   covers the draft, the wait and the publish: a second session waits and is
   told whose release it is waiting for.
@@ -992,8 +993,8 @@ def _create_release(tag, is_prerelease, notes_file, run_, sleep):
         sleep(3)
     else:
         print("  ERROR: Could not create the GitHub release (a draft) after all attempts.")
-        print(f"  The code and the tag {tag} are pushed; nothing is published. Make the draft by hand")
-        print("  (the notes: CHANGELOG.md's section), then let the script finish it once the checks are green:")
+        print(f"  The code and the tag {tag} are pushed; nothing is published. Make the draft by hand, with the zip")
+        print("  this run built (the notes: CHANGELOG.md's section), then let the script finish it once the checks are green:")
         print(f'    gh release create {tag} "dist/padspan_ha.zip" --draft --verify-tag --title "{tag}" --notes "{tag}" --repo {REPO}'
               + (" --prerelease" if is_prerelease else ""))
         print(f"    python -u scripts/release.py {version} --finish")
@@ -1013,7 +1014,7 @@ def _create_release(tag, is_prerelease, notes_file, run_, sleep):
         print(f"    Asset upload failed (attempt {attempt + 1}/3), retrying in 3s...")
         sleep(3)
     print(f"  ERROR: the release {tag} is a DRAFT (id {rel_id}) without the zip, and it is not published.")
-    print("  Upload the zip, then let the script finish it once the checks are green:")
+    print("  Upload the zip this run built, then let the script finish it once the checks are green:")
     print(f'    gh release upload {tag} "dist/padspan_ha.zip" --clobber --repo {REPO}')
     print(f"    python -u scripts/release.py {version} --finish")
     print(f"  Or give the version up: python scripts/release.py {version} --abandon")
@@ -1236,8 +1237,9 @@ def publish_update_manifest(version, channel):
 # and what a draft is, are in the notes at the top of this file).
 
 # The workflows a tag push starts (.github/workflows: the ones whose `push:`
-# names no branches). All of them must be seen and pass; a new one goes here.
-TAG_CHECKS = ("Tests", "Hassfest Validation", "HACS Validation")
+# names tags, or names neither tags nor branches). All of them must be seen
+# and pass; a new one goes here.
+TAG_CHECKS = ("Tests", "Real Home Assistant", "Hassfest Validation", "HACS Validation")
 CI_WAIT_S = 30 * 60          # the Tests check takes about twelve minutes
 CI_POLL_S = 20
 EXIT_NOT_GREEN = 4           # not released: the checks were red or did not finish

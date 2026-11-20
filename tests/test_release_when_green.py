@@ -71,10 +71,11 @@ class Outside:
         self.releases[tag] = {"isDraft": draft, "isPrerelease": prerelease, "assets": list(assets)}
 
     def checks(self, tag, sha=SHA, **words):
-        """checks("v1", Tests="failure"): the three checks, success unless said.
+        """checks("v1", Tests="failure"): every check, success unless said.
         A word that is a status (in_progress, queued) is a run not finished;
         None leaves the check out, as one GitHub has not started."""
-        names = {"Tests": "Tests", "Hassfest": "Hassfest Validation", "HACS": "HACS Validation"}
+        names = {"Tests": "Tests", "RealHA": "Real Home Assistant", "Hassfest": "Hassfest Validation", "HACS": "HACS Validation"}
+        assert tuple(names.values()) == R.TAG_CHECKS and not set(words) - set(names)
         runs = []
         for key, name in names.items():
             word = words.get(key, "success")
@@ -254,7 +255,7 @@ def test_a_red_check_leaves_the_draft_and_writes_no_manifest(monkeypatch, outsid
 
 
 def test_a_check_that_never_started_is_not_green(monkeypatch, outside):
-    # Two of the three passed and the third is not listed: not a release.
+    # Every check but one passed, and that one is not listed: not a release.
     real = R.wait_for_ci
     clock = {"t": 0.0}
     monkeypatch.setattr(R, "wait_for_ci", lambda tag: real(tag, now=lambda: clock["t"],
@@ -280,14 +281,14 @@ def test_a_timeout_leaves_the_draft_and_says_it_timed_out(monkeypatch, outside, 
     assert "!! timed out after 30 minutes, still waiting for: Tests  [Tests: in_progress; " in out
     assert "v9.9.9 is NOT published" in out and "python -u scripts/release.py 9.9.9 --finish --no-bright" in out
     # While it waited it said what for: at the start, then once a minute.
-    waits = re.findall(r"^\s+(\d+) min, waiting for Tests  \[Tests: in_progress; Hassfest Validation: success; "
-                       r"HACS Validation: success\]$", out, re.MULTILINE)
+    rest = re.escape("; ".join(f"{n}: success" for n in R.TAG_CHECKS[1:]))
+    waits = re.findall(r"^\s+(\d+) min, waiting for Tests  \[Tests: in_progress; " + rest + r"\]$", out, re.MULTILINE)
     assert [int(m) for m in waits] == list(range(30))
     assert "Up to 30 minutes" in out and "actions?query=branch%3Av9.9.9" in out
 
 
 def test_the_wait_says_each_change_and_ends_when_all_are_done(capsys):
-    polls = [{"Tests": "queued", "Hassfest": None, "HACS": None},
+    polls = [{"Tests": "queued", "RealHA": None, "Hassfest": None, "HACS": None},
              {"Tests": "in_progress", "Hassfest": "in_progress", "HACS": "success"},
              {"Tests": "in_progress", "Hassfest": "success", "HACS": "success"},
              {"Tests": "success", "Hassfest": "success", "HACS": "success"}]
@@ -304,9 +305,10 @@ def test_the_wait_says_each_change_and_ends_when_all_are_done(capsys):
                          sleep=lambda s: clock.__setitem__("t", clock["t"] + s)) is True
     assert asked == [SHA] * 4 and clock["t"] == 3 * R.CI_POLL_S
     out = capsys.readouterr().out
-    assert "waiting for Tests, Hassfest Validation, HACS Validation  [Tests: queued; Hassfest Validation: not started; " in out
+    assert ("waiting for Tests, Real Home Assistant, Hassfest Validation, HACS Validation  "
+            "[Tests: queued; Real Home Assistant: not started; ") in out
     assert "waiting for Tests, Hassfest Validation  [" in out and "waiting for Tests  [" in out
-    assert out.count("ok ") == 3 and "!!" not in out
+    assert out.count("ok ") == len(R.TAG_CHECKS) and "!!" not in out
 
 
 def test_a_tag_that_is_not_on_github_is_not_green(capsys):
@@ -347,11 +349,12 @@ def test_what_green_means():
     for word in ("cancelled", "skipped", "timed_out", "neutral"):
         assert state(Tests=word) == "red", word
     assert R.checks_state(None) == "unknown"
-    extra = {"Tests": {"status": "completed", "conclusion": "success"},
-             "Hassfest Validation": {"status": "completed", "conclusion": "success"},
-             "HACS Validation": {"status": "completed", "conclusion": "success"},
-             "A new check": {"status": "completed", "conclusion": "failure"}}
-    assert R.checks_state(extra) == "red", "a check not in TAG_CHECKS that ran on the tag counts too"
+    extra = {n: {"status": "completed", "conclusion": "success"} for n in R.TAG_CHECKS}
+    assert R.checks_state(extra) == "green"
+    extra["A new check"] = {"status": "in_progress", "conclusion": ""}
+    assert R.checks_state(extra) == "running", "a check not in TAG_CHECKS that runs on the tag is waited for too"
+    extra["A new check"] = {"status": "completed", "conclusion": "failure"}
+    assert R.checks_state(extra) == "red", "and counts when it fails"
 
 
 def test_tag_checks_names_every_workflow_a_tag_push_starts():
@@ -362,7 +365,13 @@ def test_tag_checks_names_every_workflow_a_tag_push_starts():
     for f in sorted(flows.glob("*.yml")):
         text = f.read_text(encoding="utf-8")
         push = re.search(r"^  push:[^\n]*\n((?:    [^\n]*\n)*)", text, re.MULTILINE)
-        if push and "branches" not in push.group(1) and "tags-ignore" not in push.group(1):
+        if not push:
+            continue
+        keys = set(re.findall(r"^    ([a-z-]+):", push.group(1), re.MULTILINE))
+        assert "tags-ignore" not in keys, f"{f.name}: say by hand whether it runs on a release tag"
+        # GitHub: a push filter that names tags runs on them; one that names
+        # only branches does not; one that names neither runs on every push.
+        if "tags" in keys or "branches" not in keys:
             on_tags.add(re.search(r"^name:\s*(.+?)\s*$", text, re.MULTILINE).group(1).strip("\"'"))
     assert on_tags == set(R.TAG_CHECKS), "a workflow that runs on a tag push must be in release.py's TAG_CHECKS, and only those"
 

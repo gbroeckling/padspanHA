@@ -95,9 +95,11 @@ def test_the_github_release_gets_the_zip_the_release_just_built(tmp_path, monkey
     monkeypatch.setattr(R, "update_whatsnew_entry", lambda *a, **k: True)
     monkeypatch.setattr(R, "publish_update_manifest", lambda *a, **k: True)
     monkeypatch.setattr(R, "last_stable_release", lambda *a, **k: None)
-    # Nothing real: no lock, no fetch or pull, no tags read, no wait for GitHub.
+    # Nothing real: no lock, no fetch or pull, no look for a draft left behind,
+    # no tags read, no wait for GitHub, no publishing of the draft.
     for name, val in (("acquire_release_lock", "lock"), ("release_release_lock", None), ("sync_with_origin", None),
-                      ("_tags", set()), ("gather_notes", None), ("wait_for_ci", True)):
+                      ("stop_for_unpublished_draft", None), ("_tags", set()), ("gather_notes", None), ("wait_for_ci", True),
+                      ("publish_github_release", None)):
         monkeypatch.setattr(R, name, lambda *a, _v=val, **k: _v)
 
     def run(cmd, check=True):
