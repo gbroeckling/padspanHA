@@ -1,0 +1,13 @@
+# Test dependencies for tests_ha/: PadSpan HA loaded in a real Home Assistant
+# (the "Real Home Assistant" workflow).
+#
+# Kept apart from requirements_test.txt on purpose. The main suite (tests/)
+# replaces the `homeassistant` package with stubs and must run where Home
+# Assistant is NOT installed; these tests need the real one. Install this
+# file into its own environment (Linux or WSL: Home Assistant does not import
+# on Windows) and run `python -m pytest tests_ha` there.
+#
+# The harness pins the Home Assistant it was built against (0.13.375 pins
+# Home Assistant 2026.10.4, which needs Python 3.14.2 or newer) and brings
+# pytest, pytest-asyncio and pytest-xdist with it.
+pytest-homeassistant-custom-component==0.13.375
