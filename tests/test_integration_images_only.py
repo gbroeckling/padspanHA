@@ -60,8 +60,11 @@ def _set_up(monkeypatch, api: str) -> _Http:
     if api == "configs":
         monkeypatch.setattr(ha_http, "StaticPathConfig", namedtuple("StaticPathConfig", "url_path path cache_headers"),
                             raising=False)
-    else:
-        monkeypatch.delattr(ha_http, "StaticPathConfig", raising=False)
+    elif "StaticPathConfig" in vars(ha_http):
+        # Only when it is really there: the stub module answers any name it does not have (tests/conftest.py), so
+        # hasattr is always true and deleting a name that was never set fails. Which test ran first in this worker
+        # decided that, so the run passed or failed by the order of the tests.
+        monkeypatch.delattr(ha_http, "StaticPathConfig")
     pc = types.SimpleNamespace(async_register_panel=lambda **kw: None)
     monkeypatch.setattr(comps, "panel_custom", pc, raising=False)
     monkeypatch.setitem(sys.modules, "homeassistant.components.panel_custom", pc)
