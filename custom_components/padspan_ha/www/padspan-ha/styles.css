@@ -1056,9 +1056,10 @@ input.input[type="email"]{min-height:37px}
 #bluetooth .bt-controls .input:focus,#bluetooth .bt-controls .select:focus{
   border-color:rgba(82,183,136,.65);
 }
-/* From 900px down every field's text is 16px (the rule that stops a phone
-   zooming in on focus), which makes each taller than 34px, and not all by the
-   same amount. One height keeps the labels above them on one line. */
+/* From 900px down the Source list and Max rows get 16px text (the rule that
+   stops a phone zooming in on focus) and grow taller than Search beside them,
+   each by a different amount. One height keeps the labels above them on one
+   line. */
 @media(max-width:900px){
   #bluetooth .bt-controls .input,#bluetooth .bt-controls .select{min-height:40px}
 }
