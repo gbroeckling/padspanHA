@@ -71,18 +71,28 @@ def test_the_house_takes_the_builder_through_what_it_is_there_for(builds) -> Non
     keys = last["ble:" + gsn.KEYS_A]
     assert keys["findmy"] and keys["current_address"] == gsn.KEYS_B and keys["user_label"] == "Keys"
     assert "ble:" + gsn.KEYS_B in objs[1] and "ble:" + gsn.KEYS_B not in last
-    # A guessing merge: one name on two random addresses is one object. (The
-    # three bare random addresses stay three: that merge wants their signal
-    # and age equal to the last digit, and adverts of exactly the same age
-    # come in an order that is not fixed, so the house has none.)
+    # A guessing merge: one name on two random addresses is one object.
     assert objs[1]["ble:" + gsn.CAR_B]["_dedup_reason"] == "same_name:EX90" and "ble:" + gsn.CAR_A not in objs[1]
+    # The three merges that go by the receivers that hear a device want the
+    # signal and age equal to the last digit too: three bare random addresses
+    # heard a moment apart stay three, and each pair heard at the same
+    # instants with the same signal is one object.
     assert all("ble:" + a in first for a in gsn.BARE)
-    # What the settings hide, counted.
-    assert snaps[0]["objects"]["summary"]["ingest"]["masked_total"] == 2
-    assert not any(k.startswith("ibeacon:" + gsn.UUID_HIDDEN) for k in first)
+    for pair, reason in ((gsn.ECHO, "bare_random_mac"), (gsn.BANDS, "same_svc_uuids_scanners"),
+                         (gsn.PODS, "apple_continuity:")):
+        assert first["ble:" + pair[0]]["_dedup_reason"].startswith(reason) and "ble:" + pair[1] not in first
+    # Adverts of one age come in address order, and the objects made from them.
+    lamps = [k for k in first if k in {"ble:" + a for a in gsn.LAMPS}]
+    assert lamps == sorted("ble:" + a for a in gsn.LAMPS) and lamps != ["ble:" + a for a in gsn.LAMPS]
+    # What the settings hide (an address in the simple list, an address rule,
+    # a beacon id), counted: not listed in any build.
+    assert snaps[0]["objects"]["summary"]["ingest"]["masked_total"] == 3
+    assert not any(k in o for o in objs for k in ("ble:" + gsn.TV, "ble:" + gsn.SIGN))
+    assert not any(k.startswith("ibeacon:" + gsn.UUID_HIDDEN) for o in objs for k in o)
     # The object history: a labelled tag from the file, never heard here; a
     # tag heard once, still listed twenty minutes on.
     assert first["ble:C4:00:00:00:00:99"]["user_label"] == "Spare tag"
+    assert builds[-1]["kept_for_the_next_build"]["object_history"]["ble:C4:00:00:00:00:99"]["user_label"] == "Spare tag"
     assert last["ble:" + gsn.OLD_TAG]["age_s"] > 1200
     assert builds[-1]["kept_for_the_next_build"]["saved_files"]["history"]["saves"] >= 2
     # Names from the tables, ids from the registry, rooms from the strongest receiver.

@@ -348,14 +348,14 @@ async def ws_plan_carry_list(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"plans": await carry_list(hass)})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_apply", "map_id": str, "kinds": [vol.In(KINDS)]})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_apply", vol.Required("map_id"): str, vol.Required("kinds"): [vol.In(KINDS)]})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_carry_apply(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], await carry_apply(hass, msg["map_id"], msg["kinds"]))
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_dismiss", "map_id": str})
+@websocket_api.websocket_command({"type": "padspan_ha/plan_carry_dismiss", vol.Required("map_id"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_carry_dismiss(hass: HomeAssistant, connection, msg) -> None:

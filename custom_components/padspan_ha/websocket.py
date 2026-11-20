@@ -841,7 +841,7 @@ async def ws_lost_and_found_get(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/lost_and_found_forget",
-    "key": str,
+    vol.Required("key"): str,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -994,7 +994,7 @@ async def ws_vacation_lights(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/flood_reset",
-    "entity_id": str,
+    vol.Required("entity_id"): str,
 })
 @websocket_api.async_response
 async def ws_flood_reset(hass: HomeAssistant, connection, msg) -> None:

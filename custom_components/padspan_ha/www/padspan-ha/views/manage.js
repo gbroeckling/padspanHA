@@ -1803,7 +1803,7 @@ function _haEspresenseSection(ctx, el, settings){
       ctx.toast(v ? "Companion URL saved." : "Companion URL cleared.");
       urlSave.textContent = "Saved \u2714";
       setTimeout(()=>{ urlSave.textContent = "Save URL"; urlSave.disabled = false; }, 2000);
-    } catch(e){ ctx.toast("Failed: "+String(e), true); urlSave.disabled = false; }
+    } catch(e){ ctx.toast("Failed: "+String((e && e.message) || e), true); urlSave.disabled = false; }
   });
   urlRow.appendChild(urlInput);
   urlRow.appendChild(urlSave);

@@ -110,8 +110,8 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
     {
         "type": "padspan_ha/fabric_light_position_set",
         "entity_id": str,
-        "x_m": vol.Coerce(float),
-        "y_m": vol.Coerce(float),
+        vol.Required("x_m"): vol.Coerce(float),
+        vol.Required("y_m"): vol.Coerce(float),
         vol.Optional("floor_id"): str,
         vol.Optional("color"): str,
         vol.Optional("shape"): str,
@@ -243,8 +243,8 @@ async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/fabric_beacon_position_set",
         "key": str,
-        "x_m": vol.Coerce(float),
-        "y_m": vol.Coerce(float),
+        vol.Required("x_m"): vol.Coerce(float),
+        vol.Required("y_m"): vol.Coerce(float),
         vol.Optional("floor_id"): str,
         vol.Optional("room"): str,
         vol.Optional("kind"): str,
@@ -461,8 +461,8 @@ async def ws_fabric_sync_mode_set(hass: HomeAssistant, connection, msg) -> None:
         # Coerce, not float: the browser sends 2.0 back as the integer 2, and
         # a plain float check refused it — so a scanner at a whole-metre
         # height or position could never be saved again ("Saved N, failed 1").
-        "x_m": vol.Coerce(float),
-        "y_m": vol.Coerce(float),
+        vol.Required("x_m"): vol.Coerce(float),
+        vol.Required("y_m"): vol.Coerce(float),
         vol.Optional("z_m"): vol.Coerce(float),
         vol.Optional("floor_id"): str,
     }
@@ -631,7 +631,7 @@ async def ws_receivers_to_rooms(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/fabric_scanner_z_set",
         "source": str,
-        "z_m": vol.Coerce(float),
+        vol.Required("z_m"): vol.Coerce(float),
     }
 )
 @websocket_api.async_response
@@ -1027,7 +1027,7 @@ async def ws_fabric_rf_barrier_remove(hass: HomeAssistant, connection, msg) -> N
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_rf_barrier_rails_stamp",
-        "rails": {str: vol.In(("glass", "none"))},
+        vol.Required("rails"): {str: vol.In(("glass", "none"))},
     }
 )
 @websocket_api.async_response
@@ -1052,7 +1052,7 @@ async def ws_fabric_rf_barrier_rails_stamp(hass: HomeAssistant, connection, msg)
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_open_edges_apply",
-        "action": vol.In(OPEN_EDGE_ACTIONS),
+        vol.Required("action"): vol.In(OPEN_EDGE_ACTIONS),
         vol.Optional("set_barriers", default=list): [dict],
         vol.Optional("remove_barrier_ids", default=list): [str],
     }

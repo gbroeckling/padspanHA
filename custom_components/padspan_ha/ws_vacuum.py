@@ -262,7 +262,7 @@ async def ws_vacuum_cal_pending_list(hass: HomeAssistant, connection, msg) -> No
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/vacuum_cal_pending_accept",
-    "point_id": str,
+    vol.Required("point_id"): str,
 })
 @websocket_api.require_admin
 @websocket_api.async_response

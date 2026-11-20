@@ -35,8 +35,8 @@ class Declared(NamedTuple):
 def declared() -> dict[str, Declared]:
     """Every padspan_ha/* command a handler in the source is decorated as.
 
-    The same reading tests/test_enhanced_security.py does, except that it also
-    looks inside functions: two commands are declared there (power_team.py).
+    The same reading tests/test_enhanced_security.py does: every function,
+    because two commands are declared inside one (power_team.py).
     """
     out: dict[str, Declared] = {}
     for f in sorted(SOURCE.glob("*.py")):
@@ -108,18 +108,23 @@ def _value(validator: Any) -> Any:
     raise AssertionError(f"no harmless value found for {validator!r}")
 
 
-def _fields(schema: dict) -> dict:
+def _fields(schema: dict, optional: bool = False) -> dict:
     """A value for every field the handler expects: the ones marked
     vol.Required and the ones written as a bare name (Home Assistant treats a
-    bare name as optional, but every handler reads it as given). vol.Optional
-    fields are left out."""
+    bare name as optional). vol.Optional fields are left out unless
+    `optional` asks for them too, and then one that no plain value fits (a
+    date pattern, a number range) is still left out."""
     out = {}
     for key, validator in schema.items():
-        if isinstance(key, (vol.Optional, vol.Remove)) or key is vol.Extra:
+        if isinstance(key, vol.Remove) or key is vol.Extra or (isinstance(key, vol.Optional) and not optional):
             continue
         name = key.schema if isinstance(key, vol.Marker) else key
         if isinstance(name, str) and name not in ("id", "type"):
-            out[name] = _value(validator)
+            try:
+                out[name] = _value(validator)
+            except AssertionError:
+                if not isinstance(key, vol.Optional):
+                    raise
     return out
 
 
@@ -131,3 +136,16 @@ def minimal_message(command: str, schema: vol.Schema | bool) -> dict:
     msg = {"type": PREFIX + command, **_fields(schema.schema)}
     schema({"id": 1, **msg})        # the builder's own mistake fails here, not in Home Assistant
     return msg
+
+def messages_with_a_field_left_out(command: str, schema: vol.Schema | bool) -> dict[str, dict]:
+    """{field left out: message}: the message with every field the schema
+    names, optional ones too, less one field at a time; and under "" the
+    message with none of them."""
+    out = {"": {"type": PREFIX + command}}
+    if schema is False:
+        return out
+    full = _fields(schema.schema, optional=True)
+    schema({"id": 1, "type": PREFIX + command, **full})     # the builder's own mistake fails here
+    for name in full:
+        out[name] = {"type": PREFIX + command, **{k: v for k, v in full.items() if k != name}}
+    return out
