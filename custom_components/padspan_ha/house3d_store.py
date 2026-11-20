@@ -39,7 +39,6 @@ from homeassistant.util import dt as dt_util
 
 from .const import DATA_HOUSE3D, DATA_SETTINGS, DOMAIN, HOUSE3D_STORE_KEY
 from .safe_store import async_load_readable, wrap_store
-from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
