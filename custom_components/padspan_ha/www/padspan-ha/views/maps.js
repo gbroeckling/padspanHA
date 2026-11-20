@@ -566,7 +566,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     empty.appendChild(startBtn);
     empty.appendChild(el("div",{style:"margin-top:10px"},[
       el("span",{class:"muted", style:"font-size:12px"}, "Prefer to do it by hand? "),
-      (()=>{ const a = el("span",{style:"font-size:12px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
+      (()=>{ const a = el("span",{...ctx.helpers.asButton, style:"font-size:12px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
         a.addEventListener("click", ()=>ctx.actions.setMapsTab("upload")); return a; })(),
     ]));
     wrap.appendChild(empty);

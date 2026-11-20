@@ -111,7 +111,7 @@ export function render(ctx){
       !c.pass && !c.warn && c.fix ? el("div",{style:"font-size:11px;color:#90caf9;margin-top:2px;display:flex;align-items:center;gap:4px"},[
         el("span",{}, c.fix),
         c.fixView ? (() => {
-          const link = el("span",{style:"cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:#5eead4"}, `Go \u2192`);
+          const link = el("span",{...ctx.helpers.asButton, style:"cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:#5eead4"}, `Go \u2192`);
           link.addEventListener("click", ()=>{
             ctx.state.view = c.fixView;
             ctx.actions.renderRooms();
@@ -143,7 +143,7 @@ export function render(ctx){
       const chips = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
       for(const o of orphaned.slice(0, 5)){
         const name = o.user_label || o.name || o.address;
-        const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, name);
+        const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, name);
         chip.addEventListener("click", ()=>ctx.actions.showObjectDetail(o));
         chips.appendChild(chip);
       }
@@ -162,7 +162,7 @@ export function render(ctx){
       const chips = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
       for(const s of unmapped){
         const chipLabel = (_sid(s.source||"") ? _sid(s.source||"")+" " : "") + (s.display_name||s.name||s.source);
-        const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, chipLabel);
+        const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, chipLabel);
         chip.addEventListener("click", ()=>ctx.actions.showScannerDetail(s));
         chips.appendChild(chip);
       }
@@ -178,7 +178,7 @@ export function render(ctx){
     if(uncovered.length > 0){
       const chips = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
       for(const r of uncovered){
-        const chip = el("span",{style:"font-size:11px;color:#90caf9;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, r);
+        const chip = el("span",{...ctx.helpers.asButton, style:"font-size:11px;color:#90caf9;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, r);
         chip.addEventListener("click", ()=>ctx.actions.showRoomDetail(r));
         chips.appendChild(chip);
       }
@@ -796,7 +796,7 @@ export function render(ctx){
       ].filter(Boolean)));
 
       // Row 2: full radio name (no truncation)
-      const nameLink = el("span",{style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, String(r.display_name || r.name || r.source || ""));
+      const nameLink = el("span",{...ctx.helpers.asButton, style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, String(r.display_name || r.name || r.source || ""));
       nameLink.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.actions.showScannerDetail(r); });
       summary.appendChild(el("div",{style:"padding-left:42px;margin-top:3px"},[nameLink]));
 

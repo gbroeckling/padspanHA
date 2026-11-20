@@ -151,7 +151,7 @@ export function render(ctx){
           return el("div",{class:"item",style:"display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #1b3526;overflow:hidden"},[
             el("div",{style:"flex:1;min-width:0;overflow:hidden"},[
               el("div",{style:"display:flex;align-items:center;gap:6px;overflow:hidden"},[
-                (() => { const s = el("span",{style:"cursor:pointer;font-size:12px"}, label); s.addEventListener("click",()=>{ const detailObj = o || { address: d.addr, name: d.name || d.addr, kind: "ble" }; ctx.actions.showObjectDetail(detailObj); }); return s; })(),
+                (() => { const s = el("span",{...ctx.helpers.asButton, style:"cursor:pointer;font-size:12px"}, label); s.addEventListener("click",()=>{ const detailObj = o || { address: d.addr, name: d.name || d.addr, kind: "ble" }; ctx.actions.showObjectDetail(detailObj); }); return s; })(),
                 rssiStr ? el("span",{class:"muted", style:"white-space:nowrap;font-size:11px"}, rssiStr) : null,
               ].filter(Boolean)),
             ]),

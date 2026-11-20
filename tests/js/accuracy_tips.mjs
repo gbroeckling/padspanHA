@@ -22,6 +22,9 @@ const src = readFileSync(join(WWW, "panel.js"), "utf-8").replace(/\r\n/g, "\n");
 const start = src.indexOf("  _accuracyTipsCard(){");
 const end = src.indexOf("\n  _proInviteOverviewCard(){", start);
 const elSrc = src.slice(src.indexOf("function el(tag, attrs={}, children=[]){"), src.indexOf("\n}\n", src.indexOf("function el(tag, attrs={}, children=[]){")) + 2);
+// What a clickable <span> is given (role, tabindex, Enter and Space): the card spreads it into its two.
+const asButtonAt = src.indexOf("const asButton = Object.freeze({");
+const asButtonSrc = src.slice(asButtonAt, src.indexOf("\n});\n", asButtonAt) + 5);
 const method = src.slice(start, end).trim().replace(/^_accuracyTipsCard\(\)\{/, "").replace(/\}\s*$/, "");
 
 const failures = [];
@@ -33,7 +36,7 @@ let wall = false;
 const VIEWS = { maps: {}, calibration: {} };
 // Basic's focused views (views/focus.js), as panel.js loads them.
 const _focusPromise = import(pathToFileURL(join(WWW, "views", "focus.js")).href);
-const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", "_focusPromise", elSrc + "\nreturn function(){" + method + "};");
+const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", "_focusPromise", elSrc + asButtonSrc + "\nreturn function(){" + method + "};");
 
 function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "scale"], hidden = [], kiosk = false, mode = "live", shape = null } = {}){
   const calls = [], events = [], toasts = [];
@@ -104,6 +107,26 @@ const rows = (card) => card ? card.querySelectorAll("[data-accuracy-tips]").map(
   const set2 = p.calls.filter(c => c.type === "padspan_ha/settings_set").pop();
   check("hide: Hide these tips turns the card off for good",
     set2 && set2.accuracy_tips_hidden.includes("all") && p.events.includes("tip_hidden:all") && p.card() === null, { set2, events: p.events });
+}
+// × and Hide these tips are spans: from the keyboard, Enter or Space does what the click does.
+{
+  const key = (n, k) => n.dispatchEvent({ type: "keydown", key: k, target: n, currentTarget: n, repeat: false, preventDefault() {}, stopPropagation() {} });
+  const p = panel({ hidden: ["scale"] });
+  p.card(); await tick(); await tick();
+  const card = p.card();
+  const x = card.querySelector('[data-accuracy-tips="tip-floor_heights"]').querySelectorAll("span").find(n => n.getAttribute("title") === "Hide this tip");
+  key(x, "Enter"); await tick();
+  const set1 = p.calls.find(c => c.type === "padspan_ha/settings_set");
+  const after = p.card();
+  const off = after.querySelector('[data-accuracy-tips="off"]');
+  key(off, " "); await tick();
+  const set2 = p.calls.filter(c => c.type === "padspan_ha/settings_set").pop();
+  check("hide: Enter on × and Space on Hide these tips do what a click does",
+    [x, off].every(n => n.getAttribute("role") === "button" && n.getAttribute("tabindex") === "0")
+    && set1 && JSON.stringify(set1.accuracy_tips_hidden) === JSON.stringify(["scale", "floor_heights"])
+    && p.events.includes("tip_hidden:floor_heights") && JSON.stringify(rows(after)) === JSON.stringify(["tip-receiver_heights"])
+    && set2 && set2.accuracy_tips_hidden.includes("all") && p.events.includes("tip_hidden:all") && p.card() === null,
+    { set1, set2, after: rows(after), events: p.events, x: [x.getAttribute("role"), x.getAttribute("tabindex")] });
 }
 // Each fix goes to its place.
 {

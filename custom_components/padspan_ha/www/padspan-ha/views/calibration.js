@@ -3631,9 +3631,10 @@ function _tuneTab(ctx, el, cs, calData) {
   function _refreshPlaceBanner() {
     if (ts.pendingPlace) {
       const nm = ts.pendingPlace.shown || ts.pendingPlace.name || ts.pendingPlace.source || "radio";
-      placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
+      placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelPlace");
+      if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
       if (cancelEl) cancelEl.addEventListener("click", () => {
         ts.pendingPlace = null;
         _refreshPlaceBanner();
@@ -5620,9 +5621,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (bs.pendingPlace) {
       const nm = bs.pendingPlace.label || bs.pendingPlace.key || "beacon";
       const verb = bs._relocating ? "relocate" : "mark the current location of";
-      placeBanner.innerHTML = `<b style="color:#f59e0b">Double-click</b> on the 3D map to ${verb} <b style="color:#5eead4">${_esc(nm)}</b> &nbsp; <span style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">Cancel</span>`;
+      placeBanner.innerHTML = `<b style="color:#f59e0b">Double-click</b> on the 3D map to ${verb} <b style="color:#5eead4">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">Cancel</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelBkPlace");
+      if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
       if (cancelEl) cancelEl.addEventListener("click", () => {
         bs.pendingPlace = null;
         bs._relocating = null;
