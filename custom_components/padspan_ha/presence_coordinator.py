@@ -286,10 +286,7 @@ _ISOLATED_SCANNER_STRONG_DBM: float = -65.0  # RSSI above this = strong enough t
 
 # ── Per-scanner reliability scoring (Phase 3) ────────────────────────────────
 # Each scanner accumulates a rolling "disagreement" count — how often its best
-# RSSI implies a different room than the consensus (confirmed room). A scanner
-# implies a room for an object only when it is the one that hears that object
-# best: it is judged on those objects, and not on the ones it merely overhears
-# from another room.
+# RSSI implies a different room than the consensus (confirmed room).
 # reliability = 1 / (1 + disagreement_rate)  where rate ∈ [0, 1].
 # Used as a weight multiplier on each scanner's Gaussian score.
 _RELIABILITY_WINDOW: int = 30         # rolling window size (polls)
@@ -1698,8 +1695,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         # Back from a short gap (quiet, never away): the room
                         # is kept as the next confirmation's "from" room, or
                         # Kitchen -> Garden after 90 s unheard was never reported.
+                        # The same for one the snapshot stopped listing for a
+                        # minute or two (the _stale mark): it was shown in that
+                        # room all the while, and the next room was reported
+                        # as a first placement, from nowhere.
                         _was_room = self._confirmed_room.pop(key, None)
-                        if _back and _was_room and key in self._prev_present:
+                        if _was_room and key in self._prev_present:
                             self._room_before_gap[key] = _was_room
                             self._room_gap_mono[key] = time.monotonic()
                         self._adaptive_last_vec.pop(key, None)
@@ -3439,19 +3440,23 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # times in a row is consistent evidence, thin or not, and is voted.
         #
         # No fresh reading is skipped the same way. Fresh: some scanner had a
-        # new advert from it within the last _SILENCE_GRACE polls (about
-        # 20 s), the time a missing advert is taken as ordinary loss and a
-        # reading is held as it was. Longer than that with nothing new from
-        # any scanner and there is no news of where it is: the scanners that
-        # hear it every poll have let go of their readings, and what is left
-        # is an old reading or two held by scanners that seldom hear it (their
-        # grace is longer, _grace above). Those alone were voted, and moved a
-        # device that had left the house to the room of whichever scanner had
-        # heard it least often, another floor included. It keeps its room
-        # until it is heard again.
+        # new advert from it in this poll or one of the few before it, up to
+        # one poll short of the silence grace (_SILENCE_GRACE, about 20 s:
+        # two polls back at the default 5 s poll, so an advert at most 15 s
+        # old). The grace is how long a missing advert is taken as ordinary
+        # loss and a reading is held as it was; on its last poll every
+        # scanner that missed the device's last advert has already begun to
+        # decay, so the vote stops one poll sooner. Longer than that with
+        # nothing new from any scanner and there is no news of where it is:
+        # the scanners that hear it every poll let go of their readings, and
+        # what is left is an old reading or two held by scanners that seldom
+        # hear it (their grace is longer, _grace above). Those alone were
+        # voted, and moved a device that had left the house to the room of
+        # whichever scanner had heard it least often, another floor
+        # included. It keeps its room until it is heard again.
         _unheard = min((_miss.get(_src, 0) for _src in ema), default=0)
         _hold = False
-        if _unheard >= _SILENCE_GRACE:
+        if _unheard >= max(1, _SILENCE_GRACE - 1):
             _hold = True
         elif _unsure and self._confirmed_room.get(key):
             _prev_run = self._unsure_run.get(key)
@@ -3639,36 +3644,24 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Skip when suspended — don't pollute reliability with potentially wrong data.
         _spatial_agrees = (_spatial_candidate == confirmed) if _spatial_candidate else False
         if confirmed and confidence >= 0.9 and _spatial_agrees and ema and not self.suspended:
-            # Only the scanner that hears the object best is judged: it is the
-            # one whose reading says "in my room". Every scanner that heard
-            # the object at all used to be marked, and marked wrong unless the
-            # object was in its own room: with objects in several rooms each
-            # scanner was "wrong" about all the ones next door, so every
-            # scanner in a house sank to about 0.5, had its readings weakened
-            # below, and was reported as disagreeing. A reading past its
-            # silence grace is left out, as room scoring leaves it out (Path B
-            # above): a decayed value says nothing.
-            _claim: str | None = None
-            for _src, _rssi in ema.items():
-                if _miss.get(_src, 0) > _grace(_src) or not source_to_area.get(_src):
+            for _src in ema:
+                _src_room = source_to_area.get(_src)
+                if not _src_room:
                     continue
-                if _claim is None or _rssi > ema[_claim]:
-                    _claim = _src
-            if _claim is not None:
-                _agreed = (source_to_area[_claim] == confirmed)
-                _q = self._scanner_agree.get(_claim)
+                _agreed = (_src_room == confirmed)
+                _q = self._scanner_agree.get(_src)
                 if _q is None:
                     _q = deque(maxlen=_RELIABILITY_WINDOW)
-                    self._scanner_agree[_claim] = _q
+                    self._scanner_agree[_src] = _q
                 _q.append(_agreed)
                 if len(_q) >= _RELIABILITY_MIN_POLLS:
                     _agree_rate = sum(_q) / len(_q)
                     _disagree = 1.0 - _agree_rate
                     _w = 1.0 / (1.0 + _disagree)
                     # 1 / (1 + disagreement) lies in [0.5, 1]: a scanner is never zeroed out.
-                    self._scanner_reliability[_claim] = round(_w, 3)
+                    self._scanner_reliability[_src] = round(_w, 3)
                 else:
-                    self._scanner_reliability[_claim] = 1.0
+                    self._scanner_reliability[_src] = 1.0
 
         # ── Adaptive learning: record observation ────────────────────────────
         # Feed confirmed room assignments back into the adaptive store so it
@@ -4727,6 +4720,20 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 watch = cfg.get("watch_rooms") or []
                 if watch and new_room not in watch:
                     continue
+
+                # A change is still held from the cooldown (Hall -> Kitchen,
+                # never sent): this one is told from the room last reported,
+                # as the held one would have been. Back in that room, there
+                # is nothing to tell. It was sent with the poll's own "from",
+                # so Kitchen -> Hall, back inside the cooldown, and Kitchen ->
+                # Hall again read "moved from Kitchen to Hall" twice running.
+                if key in self._room_alert_held:
+                    _reported = self._room_alert_reported.get(key)
+                    if _reported:
+                        if new_room == _reported:
+                            self._room_alert_held.pop(key, None)
+                            continue
+                        old_room = _reported
 
                 # Rate limit: 60s cooldown per device. Read under the key
                 # _send_follow_notify writes ("<key>:room"); this read the bare

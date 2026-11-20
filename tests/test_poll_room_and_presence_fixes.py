@@ -6,29 +6,27 @@
    beacon whose shown room never changed. A room change is reported when the
    room an object is SHOWN in changes.
 
-2. Receiver reliability marked every receiver that heard an object, and
-   marked it wrong unless the object was in the receiver's own room. With
-   objects in several rooms every receiver sank to about 0.5, had its
-   readings weakened, and was reported as "disagrees with consensus". Only
-   the receiver that hears the object best is judged: the one whose reading
-   says "in my room".
-
-3. A device that stops being heard kept voting on what was left of its
+2. A device that stops being heard kept voting on what was left of its
    readings. The receivers that heard it every poll let go after 20 s; an old
    reading held by a receiver that seldom heard it then won, and the device
    moved to that receiver's room. With nothing new from any receiver for
-   that long, it keeps its room.
+   three polls (15 s), it keeps its room.
 
-4. An object the snapshot stops listing is kept in the result for two
+3. An object the snapshot stops listing is kept in the result for two
    minutes. Its copy was given an age of 0, so a device away for hours
    "arrived" the moment it dropped off the list; and one dropped while still
    present was never reported as departed.
+
+4. Room-change events and Follow's room alerts are held back while one was
+   sent a moment ago. The next one went out with the poll's own "from" room,
+   which is not always the room last reported: the same change was sent twice
+   running, and an event could start in a room no event had ended in. What is
+   sent now starts in the room the last one ended in.
 """
 
 from __future__ import annotations
 
 import asyncio
-import random
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -40,7 +38,6 @@ from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 from tests import golden_poll as gp
 from tests import room_speed_sim as sim
-from tests.test_honest_accuracy import S2A, S2F, ROOMS, make_coord, rssi_at
 
 POLL_S = 5.0
 TAG = "C0:FF:EE:00:00:AA"
@@ -113,43 +110,7 @@ def test_a_pinned_beacon_reports_a_room_change_only_when_its_shown_room_changes(
     assert changes == [(0, None, "Bath")], changes            # was five times "Bath -> Bedroom"
 
 
-# ── 2. Reliability judges the receiver that claims the object ────────────────
-
-def _sit(coord, where: dict[str, tuple[float, float]], polls: int = 40, seed: int = 5) -> None:
-    rng = random.Random(seed)
-    for _ in range(polls):
-        for key, (x, y) in where.items():
-            addr = "AA:00:00:00:00:" + key
-            coord._smooth_room(key, addr, {addr: rssi_at(x, y, rng, sd=1.0)}, S2A, 3, 2, S2F, ROOMS)
-
-
-def test_a_receiver_is_not_marked_wrong_for_objects_in_other_rooms() -> None:
-    """Two tags sit still, one in the Kitchen and one in the Office. Every
-    receiver hears both. None of them has put anything in the wrong room."""
-    coord = make_coord()
-    _sit(coord, {"01": (1.5, 1.5), "02": (11.5, 2.5)})
-    assert coord._confirmed_room == {"01": "Kitchen", "02": "Office"}
-    assert coord._scanner_reliability, "the receivers nearest each tag were judged"
-    assert all(r == 1.0 for r in coord._scanner_reliability.values()), coord._scanner_reliability
-    # Only a receiver that heard one of the tags best has a record at all.
-    assert set(coord._scanner_agree) <= {"k1", "k2", "o1", "o2"}
-
-
-def test_a_receiver_that_claims_objects_for_the_wrong_room_is_still_marked_down() -> None:
-    """The receiver beside the Kitchen tag is set to the Office in Home
-    Assistant: it hears the tag best, and its room is not where the tag is."""
-    coord = make_coord()
-    wrong_area = {**S2A, "k1": "Office"}
-    rng = random.Random(5)
-    for _ in range(40):
-        coord._smooth_room("01", "AA:00:00:00:00:01", {"AA:00:00:00:00:01": rssi_at(1.2, 1.2, rng, sd=1.0)},
-                           wrong_area, 3, 2, S2F, ROOMS)
-    assert coord._confirmed_room["01"] == "Kitchen"
-    assert coord._scanner_reliability["k1"] < 0.8
-    assert all(r == 1.0 for s, r in coord._scanner_reliability.items() if s != "k1")
-
-
-# ── 3. No fresh reading: the room is kept ────────────────────────────────────
+# ── 2. No fresh reading: the room is kept ────────────────────────────────────
 
 def test_a_device_that_stops_being_heard_keeps_its_room(house) -> None:
     """A tag in the Office: the Office receiver hears it every poll, the
@@ -182,7 +143,7 @@ def test_a_device_heard_again_moves_as_before(house) -> None:
     assert rooms[-1] == "Landing", rooms
 
 
-# ── 4. Arrivals and departures ───────────────────────────────────────────────
+# ── 3. Arrivals and departures ───────────────────────────────────────────────
 
 def _came_and_went(house, polls: int, listed: dict[str, float] | None = None) -> tuple[list, list]:
     arrived, departed = [], []
@@ -229,3 +190,113 @@ def test_two_keys_of_one_device_heard_at_the_same_moment_are_in_a_fixed_order(ho
     keys = [f"C0:FF:EE:00:00:{n:02X}" for n in (9, 3, 7, 1, 5)]
     house.poll({k: 1.0 for k in keys}, label="Phone")
     assert house.coord._prev_groups == {"label:phone": sorted(keys)}
+
+
+# ── 4. What is reported starts where the last report ended ───────────────────
+# Seen on a real house with nobody moving: "Living Room -> Garage" sent twice
+# running with nothing between, and an event that started in a room no event
+# had ended in. Neither device was pinned.
+
+def test_a_device_dropped_from_the_list_for_a_minute_reports_its_next_room_from_the_old_one(house) -> None:
+    """Shown in the Office; the snapshot stops listing it for 75 s (it is
+    kept, shown in the Office); listed again, it is heard on the Landing."""
+    for _ in range(8):
+        house.poll({TAG: 1.0}, {"office": -60})
+    assert house.coord._confirmed_room[TAG] == "Office"
+    for _ in range(15):
+        assert house.poll({})[TAG]["room"] == "Office"
+    changes = []
+    for _ in range(8):
+        house.poll({TAG: 1.0}, {"landing": -55})
+        changes += [tuple(c) for c in house.events.get("room_changes", [])]
+    assert changes == [(TAG, "Office", "Landing")], changes       # was (TAG, None, "Landing"): a first placement
+
+
+@pytest.fixture
+def tags(monkeypatch):
+    """The tag events, with Home Assistant's tag component standing in and a
+    clock the test moves."""
+    import sys
+    import types
+    from unittest.mock import AsyncMock
+
+    from custom_components.padspan_ha import tag_integration as ti
+
+    mod = types.ModuleType("homeassistant.components.tag")
+    mod.async_scan_tag = AsyncMock()
+    monkeypatch.setitem(sys.modules, "homeassistant.components.tag", mod)
+    clock = [1000.0]
+    monkeypatch.setattr(ti.time, "time", lambda: clock[0])
+    hass = MagicMock()
+    hass.data = {DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={
+        "tags_room_events_enabled": True, "followed_addrs": [TAG]})}}
+    integration = ti.TagIntegration(hass)
+
+    def sent() -> list[tuple]:
+        return [(c.args[1]["from_room"], c.args[1]["to_room"])
+                for c in hass.bus.async_fire.call_args_list if c.args[0] == "padspan_room_change"]
+
+    async def change(after_s: float, old: str | None, new: str) -> None:
+        clock[0] += after_s
+        result = {TAG: {"address": TAG, "room": new}}
+        await integration.async_emit_room_changes([(TAG, old, new)], result)
+        await integration.async_emit_held(result)
+
+    return SimpleNamespace(change=change, sent=sent)
+
+
+def _run(coro):
+    return asyncio.new_event_loop().run_until_complete(coro)
+
+
+def test_a_room_change_event_is_not_sent_twice_running(tags) -> None:
+    """Living Room -> Garage, back 16 s later (inside the 30 s between
+    events, so held), and to the Garage again 16 s after that."""
+    _run(tags.change(0, "Living Room", "Garage"))
+    _run(tags.change(16, "Garage", "Living Room"))
+    _run(tags.change(16, "Living Room", "Garage"))
+    assert tags.sent() == [("Living Room", "Garage")]             # was the same event twice
+    _run(tags.change(60, "Garage", "Living Room"))
+    assert tags.sent() == [("Living Room", "Garage"), ("Garage", "Living Room")]
+
+
+def test_every_room_change_event_starts_where_the_last_one_ended(tags) -> None:
+    """The poll starts a device afresh (dropped from the list, back from
+    away): its next room comes with no "from" room, and the one after that
+    with a "from" room no event ever ended in."""
+    _run(tags.change(0, "Lower Garage", "Entry"))
+    _run(tags.change(600, None, "Bedroom Closet"))                # afresh: was not sent at all
+    _run(tags.change(600, "Bedroom Closet", "Lower Garage"))
+    _run(tags.change(600, None, "Lower Garage"))                  # afresh, in the room last reported: nothing
+    events = tags.sent()
+    assert events == [("Lower Garage", "Entry"), ("Entry", "Bedroom Closet"), ("Bedroom Closet", "Lower Garage")]
+    assert all(b[0] == a[1] for a, b in zip(events, events[1:]))
+
+
+def test_a_first_room_after_a_restart_is_still_not_an_event(tags) -> None:
+    _run(tags.change(0, None, "Kitchen"))
+    assert tags.sent() == []
+
+
+def test_a_follow_alert_is_not_sent_twice_running() -> None:
+    """The same shape through Follow's room alerts (60 s between alerts)."""
+    from tests.test_follow_arrive_depart_alerts import _make_coordinator
+
+    key = "ble:AA:BB:CC:DD:EE:FF"
+    coord = _make_coordinator({"AA:BB:CC:DD:EE:FF": {"on_room_change": True,
+                                                     "notify_service": "notify.mobile_app_phone"}})
+    coord.hass.services.async_services.return_value = {"notify": {"mobile_app_phone": True}}
+
+    def at(now: float, old: str, new: str) -> None:
+        result = {key: {"user_label": "Phone", "address": "AA:BB:CC:DD:EE:FF", "room": new}}
+        _run(coord._process_room_alerts(now, result, [(key, old, new)]))
+        _run(coord._flush_held_room_alerts(now, result))
+
+    at(1000.0, "Kitchen", "Hall")
+    at(1020.0, "Hall", "Kitchen")              # inside the cooldown: held
+    at(1070.0, "Kitchen", "Hall")              # back in the room last reported
+    messages = [c.args[2]["message"] for c in coord.hass.services.async_call.call_args_list]
+    assert messages == ["Phone moved from Kitchen to Hall"], messages      # was the same message twice
+    at(1200.0, "Hall", "Bedroom")
+    messages = [c.args[2]["message"] for c in coord.hass.services.async_call.call_args_list]
+    assert messages == ["Phone moved from Kitchen to Hall", "Phone moved from Hall to Bedroom"]

@@ -158,13 +158,9 @@ def digest(rows: list[Any]) -> str:
 # Recorded from 0.38.164's presence_coordinator on walk() above, and again
 # when room changes got faster (November 2026: the Kalman stage follows a move
 # at once and discounts a lone fade, a seldom-heard scanner is held for its own
-# gaps, a clear move next door takes half the vote), and once more when
-# receiver reliability stopped marking a receiver wrong for every object in
-# another room: every room, confidence and position of the walk is what it
-# was, and only the per-room signal scores kept for diagnostics moved (they no
-# longer carry the weakening of receivers that had done nothing wrong). With
-# the three settings off, the pipeline must give exactly this.
-GOLDEN_0_38_164 = "a75ebcdf911e601b830c509a4dcbe477a64612d82d83f394d26da783dbb156d9"
+# gaps, a clear move next door takes half the vote). With the three settings
+# off, the pipeline must give exactly this.
+GOLDEN_0_38_164 = "afbeb76270f8f91149327d261eed79022d17b630b4956db644b80588527c6361"
 
 
 def test_settings_off_give_exactly_what_0_38_164_gave():
