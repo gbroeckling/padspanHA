@@ -221,6 +221,7 @@ export function render(ctx){
     else if (fs) fs.waited = true; }
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
+  _tabsMore(tabs);
   const _setupShown = !!(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView);
   // The Library's empty state (_library): its Start Setup Wizard is Setup's first step.
   const _noPlansYet = activeTab === "library" && !maps.length && ctx.state.dataMode === "live";
@@ -286,6 +287,20 @@ function _tabBtn(id,label,active,setTab){
   b.textContent = label;
   b.addEventListener("click", ()=>setTab(id));
   return b;
+}
+
+// Where the tab strip is one row that scrolls sideways (the 2025 skin on a
+// narrow screen), a tab cut off at the edge ("Atl") gave no sign of more. The
+// strip is marked more-start / more-end while tabs lie past that edge, and
+// the skin fades the edge (styles-2025.css). No mark where every tab fits.
+function _tabsMore(tabs){
+  const mark = () => {
+    const past = tabs.scrollWidth - tabs.clientWidth;
+    tabs.classList.toggle("more-start", past > 1 && tabs.scrollLeft > 1);
+    tabs.classList.toggle("more-end", past > 1 && tabs.scrollLeft < past - 1);
+  };
+  tabs.addEventListener("scroll", mark, { passive: true });
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(mark).observe(tabs);
 }
 
 // Sentinel floor_id for outdoor/exterior maps — treated specially in the
@@ -507,6 +522,14 @@ function _openMeasure(ctx, mapId, door = "reminder"){
   _openForEdit(ctx, mapId);
 }
 
+// A plan's "updated" stamp (the server's ISO time, in UTC) as this browser's
+// own date and time; anything that is not a time is shown as it came.
+function _whenUpdated(stamp){
+  const d = stamp ? new Date(stamp) : null;
+  if (!d || Number.isNaN(d.getTime())) return String(stamp || "");
+  return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function _library(ctx, maps, activeId, helpBtn, isBasic){
   // Which plans were moved with things still where they stood: read when a placement changes, never on a poll.
   if (CARRY) CARRY.ensure(ctx, JSON.stringify((ctx.state.model && ctx.state.model.map_transforms) || {}));
@@ -517,7 +540,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     el("div",{class:"card-head"},[
       el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
         el("div",{class:"muted"}, isBasic ? "Your floor plans" : "Maps Library"),
-        el("div",{class:"muted"},`${maps.length} map(s)`),
+        el("div",{class:"muted"},`${maps.length} map${maps.length === 1 ? "" : "s"}`),
         ...(!isBasic && maps.length >= 2 ? [el("button",{class:"btn inline",style:"font-size:11px;padding:2px 10px;background:#0a1a2a;border-color:#1e4976;color:#7dd3fc",
           onclick:()=>{ _compareAllMaps(ctx, maps, _compareResultDiv); }
         }, "Compare Maps")] : []),
@@ -695,7 +718,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const left = el("div",{style:"flex:1;min-width:0"},[
       nameRow,
       el("div",{class:"muted", style:"font-size:12px"}, `${m.image?.width||0}×${m.image?.height||0} • floor: ${(_floorName(ctx,m.floor_id))} • receivers: ${(m.receivers||[]).length}`),
-      el("div",{class:"muted", style:"font-size:12px"}, `updated: ${m.updated || ""}` + (reco ? " • gap detected" : "")
+      el("div",{class:"muted", style:"font-size:12px"}, `updated: ${_whenUpdated(m.updated)}` + (reco ? " • gap detected" : "")
         + (_placed ? (PM.feetOn(ctx) ? ` • ${PM.feetText(_pl.scale_x_m)} × ${PM.feetText(_pl.scale_y_m)}` : ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m`) : " • not placed")),
     ]);
     { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id, "reminder")); if (n) left.appendChild(n); }

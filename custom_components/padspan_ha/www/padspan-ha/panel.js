@@ -891,8 +891,8 @@ class PadSpanHaApp extends HTMLElement {
           </div>
           <div class="row desktop-topbar" style="margin-bottom:10px;align-items:center">
             <span class="pill" id="cloudBadge">Cloud disabled</span>
-            <span class="pill" id="scanBadge">Scan: —</span>
-            <span class="pill" id="statusBadge">Status: —</span>
+            <span class="pill" id="scanBadge">Scan: …</span>
+            <span class="pill" id="statusBadge">Status: …</span>
             <button class="status-dot hidden" type="button" data-status-dot="desktop"></button>
 
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
@@ -2698,8 +2698,19 @@ class PadSpanHaApp extends HTMLElement {
   // Independent of the theme (_applyTheme): both skins still invert the host
   // for the Light theme, and the Day theme re-applies itself to the skin's
   // stylesheet as well.
+  //
+  // The settings arrive seconds after the page is built, and until then the
+  // panel wore classic whatever was chosen (the 2025 menu and colours came
+  // late, with a jump). So the skin the settings last gave is kept in this
+  // browser (padspan_ui_skin) and worn until they arrive, when they decide
+  // as ever. Nothing kept (a first visit, no storage): classic, as before.
   _applySkin(){
-    const skin = (this.state.settings?.ui_skin === "2025") ? "2025" : "classic";
+    const set = this.state.settings?.ui_skin;
+    const known = typeof set === "string";
+    let kept = null;
+    try { kept = localStorage.getItem("padspan_ui_skin"); } catch (_) { /* no storage: nothing kept */ }
+    const skin = ((known ? set : kept) === "2025") ? "2025" : "classic";
+    if (known && kept !== skin) { try { localStorage.setItem("padspan_ui_skin", skin); } catch (_) { /* no storage */ } }
     if (this._skin === skin) return false;
     this._skin = skin;
     this.setAttribute("data-skin", skin);
@@ -3360,10 +3371,13 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   _updateBadges(){
+    // Until the first refresh has answered there is no reading to show: "…",
+    // as the Data button beside them, not a dash that reads as one.
+    const waiting = this.state.timing.lastRefreshMs === null && !Object.keys(this.state.status || {}).length;
     const scan = this.state.status?.scan_interval ?? "—";
     const st = this.state.status?.status ?? "—";
-    this.$("#scanBadge").textContent = `Scan: ${scan}s`;
-    this.$("#statusBadge").textContent = `Status: ${st}`;
+    this.$("#scanBadge").textContent = waiting ? "Scan: …" : `Scan: ${scan}s`;
+    this.$("#statusBadge").textContent = waiting ? "Status: …" : `Status: ${st}`;
     this.$("#cloudBadge").textContent = "Cloud disabled";
     this._updateEmergencyBanner();
     this._paintStatusDot();

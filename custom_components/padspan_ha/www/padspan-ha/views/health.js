@@ -26,10 +26,20 @@ export function render(ctx){
 
   const snap = ctx.state.live.snapshot;
   const rooms = snap?.rooms?.length ?? Object.keys(ctx.state.roomTagMap||{}).length;
-  const tags = snap?.tags?.length ?? Object.values(ctx.state.roomTagMap||{}).reduce((a,b)=>a+(b?.length||0),0);
+  // Every device heard is in objects.list (what Devices lists; objects.summary
+  // .total counts it, and stays whole when the list is the slim one). `tags`
+  // is only Home Assistant's own room-tracker entities, none in most houses:
+  // reading it alone said 0 beside thousands of devices.
+  const tags = snap?.objects?.summary?.total ?? snap?.objects?.list?.length
+    ?? snap?.tags?.length ?? Object.values(ctx.state.roomTagMap||{}).reduce((a,b)=>a+(b?.length||0),0);
   // The server copies ble.radios to the top level (snapshot_builder.py); the
   // sample house's snapshot has only ble.radios, so Sample read 0 without this.
   const radios = snap?.radios?.length ?? snap?.ble?.radios?.length ?? 0;
+  // Opened directly, this draws before the first refresh has answered: no
+  // snapshot and no timing yet. That is "loading", not a count of 0 or a dash.
+  const refreshMs = ctx.state.timing.lastRefreshMs ?? null;
+  const waiting = !snap && refreshMs === null;
+  const count = (n) => waiting ? "loading…" : n;
 
   // Header
   root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:14px"},[
@@ -42,13 +52,13 @@ export function render(ctx){
       el("div",{style:"font-weight:700"},"System"),
       el("div",{class:"mono"}, `UI v${ctx.state.version} • build ${ctx.state.buildId}`),
       el("div",{class:"mono"}, `Data mode: ${ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…"}`),
-      el("div",{class:"mono"}, `Refresh: ${ctx.state.timing.lastRefreshMs ?? "\u2014"}ms`),
+      el("div",{class:"mono"}, refreshMs === null ? "Refresh: loading\u2026" : `Refresh: ${refreshMs}ms`),
     ]),
     el("div",{class:"card"},[
       el("div",{style:"font-weight:700"},"Live Discovery (best-effort)"),
-      el("div",{class:"mono"}, `Rooms: ${rooms}`),
-      el("div",{class:"mono"}, `Radios: ${radios}`),
-      el("div",{class:"mono"}, `Tags/Objects: ${tags}`),
+      el("div",{class:"mono"}, `Rooms: ${count(rooms)}`),
+      el("div",{class:"mono"}, `Radios: ${count(radios)}`),
+      el("div",{class:"mono"}, `Tags/Objects: ${count(tags)}`),
       el("div",{class:"muted", style:"margin-top:8px"},"To send details to support, open Diagnostics (QA \u2192 Go to Diagnostics) and email its report to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first)."),
     ]),
   ]));

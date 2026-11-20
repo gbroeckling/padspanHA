@@ -929,6 +929,9 @@ class PadSpanLightsApp extends HTMLElement {
         this._regStore.reg=null; this._boot().then(()=>this._render());
       }},"\u21bb Refresh"),
     ]));
+    // While the one-time tip below is up it says all of this and more: the
+    // header's line waits (hidden, still kept in step) until "Got it".
+    this._tipEl.hidden = !this.state._coachSeen;
     // One-time coach mark. Dismissed once per browser; never again.
     if(!this.state._coachSeen){
       parts.push(el("div",{class:"lv-coach"},[

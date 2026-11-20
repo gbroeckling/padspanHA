@@ -46,7 +46,7 @@ export function render(ctx){
     ["factory_reset","Factory Reset"],
   ];
 
-  const tabBar = el("div",{class:"tabs",style:"margin-bottom:12px;flex-wrap:wrap;gap:4px"});
+  const tabBar = el("div",{class:"tabs tabs-rows",style:"margin-bottom:12px;flex-wrap:wrap;gap:4px"});
   for(const [id,label] of TABS){
     tabBar.appendChild(el("button",{class:"tab"+(mTab===id?" active":""),onclick:()=>setTab(id)},label));
   }

@@ -729,6 +729,24 @@ await tryCase("panel: the header's tip follows Tap a light to switch it, on Pro'
     /^Tap a light to switch it · /.test(ticked) && /^A tap doesn't switch a light on this screen · tap its code or hold it for controls · tap a room name/.test(off)
     && notV2 === ticked && free === ticked, { ticked, off, notV2, free });
 });
+// The one-time tip box says what the header's line says and more: while it is up the line is hidden, not shown twice (audit 2026-11-19).
+await tryCase("panel: the header's tip waits while the one-time tip box is up", async () => {
+  const p = new Panel();
+  p.connectedCallback();
+  p.hass = mkHass(BASE);
+  await p._boot(); await flush(); await flush();
+  const all = () => { p._render(); return p.shadowRoot.querySelector("#content")._all(); };
+  const line = (ns) => ns.find(n => (n.className || "") === "lv-hint");
+  const box = (ns) => ns.find(n => (n.className || "") === "lv-coach");
+  p.state._coachSeen = false;
+  const up = all();
+  p.state._coachSeen = true;
+  const gone = all();
+  p.disconnectedCallback();
+  check("panel: the header's tip waits while the one-time tip box is up",
+    !!box(up) && line(up).hidden === true && !box(gone) && line(gone).hidden === false && /^Tap a light to switch it · /.test(line(gone).textContent),
+    { box: !!box(up), hiddenUp: line(up) && line(up).hidden, boxGone: !box(gone), hiddenGone: line(gone) && line(gone).hidden });
+});
 // The emergency button sits right before the stage; a kept card holds one, never two.
 await tryCase("panel: a kept card holds one emergency button, right before the stage", async () => {
   const p = new Panel();

@@ -193,7 +193,7 @@ export function render(ctx) {
   ]));
 
   // Tab bar
-  const tabBar = el("div", { class: "tabs", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
+  const tabBar = el("div", { class: "tabs tabs-rows", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
   for (const [id, label] of TABS) {
     tabBar.appendChild(el("button", {
       class: "tab" + (cs.tab === id ? " active" : ""),
