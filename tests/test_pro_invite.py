@@ -111,7 +111,7 @@ def _wire_licence(monkeypatch, answer):
         return answer
     monkeypatch.setattr(P, "_post", _post)
     from custom_components.padspan_ha import ws_common
-    monkeypatch.setattr(ws_common, "_get_settings", lambda h: {"ok": "settings"})
+    monkeypatch.setattr(ws_common, "_get_settings", lambda h, c=None: {"ok": "settings"})
     monkeypatch.setattr(ws_common, "_invalidate_snapshot_cache", lambda h: None)
     return calls
 

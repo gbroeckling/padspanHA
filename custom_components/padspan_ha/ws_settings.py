@@ -502,7 +502,7 @@ _EVERYONE_KEYS = frozenset({
 async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
     from .presence_coordinator import PresenceCoordinator  # noqa: PLC0415
     connection.send_result(msg["id"], {
-        "settings": _get_settings(hass),
+        "settings": _get_settings(hass, connection),
         "cpu_pinning_supported": PresenceCoordinator.cpu_pinning_supported(),
     })
 
@@ -1586,4 +1586,4 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             except Exception:
                 _LOGGER.debug("Failed to toggle entities for %s", _skey, exc_info=True)
     _invalidate_snapshot_cache(hass)
-    connection.send_result(msg["id"], {"settings": _get_settings(hass)})
+    connection.send_result(msg["id"], {"settings": _get_settings(hass, connection)})

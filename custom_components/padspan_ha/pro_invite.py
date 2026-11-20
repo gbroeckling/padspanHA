@@ -190,7 +190,7 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
     })
     _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"ok": True, "expires_at": data.get("expires_at"),
-                                       "days_left": data.get("days_left"), "settings": _get_settings(hass)})
+                                       "days_left": data.get("days_left"), "settings": _get_settings(hass, connection)})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/pro_invite_decline"})
@@ -204,4 +204,4 @@ async def ws_pro_invite_decline(hass: HomeAssistant, connection, msg) -> None:
     token = ((st.data if st else {}).get(SETTINGS_KEY) or {}).get("token")
     if token:
         await _send_decline(hass, token)
-    connection.send_result(msg["id"], {"ok": True, "settings": _get_settings(hass)})
+    connection.send_result(msg["id"], {"ok": True, "settings": _get_settings(hass, connection)})

@@ -310,7 +310,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             "ok": True,
             "expires_at": data.get("expires_at"),
             "days_left": data.get("days_left"),
-            "settings": _get_settings(hass),
+            "settings": _get_settings(hass, connection),
         })
     else:
         connection.send_result(msg["id"], {
@@ -393,7 +393,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             "ok": True,
             "expires_at": data.get("expires_at"),
             "days_left": data.get("days_left"),
-            "settings": _get_settings(hass),
+            "settings": _get_settings(hass, connection),
         })
     else:
         connection.send_result(msg["id"], {

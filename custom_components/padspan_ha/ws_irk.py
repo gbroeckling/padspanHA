@@ -215,7 +215,6 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {
         "ok": True,
         "name": name,
-        "irk_hex": irk_clean,
         "canonical_id": f"irk:{irk_clean}",
         "device_count": resolver.device_count if resolver else 0,
         "verified": bool(matched),
@@ -230,6 +229,7 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
         vol.Required("irk_hex"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
     """Test an IRK against all currently-visible BLE RPAs.
@@ -388,6 +388,7 @@ def _irk_capture_devices(hass: HomeAssistant) -> list[dict[str, Any]]:
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/irk_auto_detect"})
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_irk_auto_detect(hass: HomeAssistant, connection, msg) -> None:
     """Scan system Bluetooth bonds and live BLE cache to find IRKs automatically.
