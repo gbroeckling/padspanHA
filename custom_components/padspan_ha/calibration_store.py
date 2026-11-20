@@ -149,6 +149,19 @@ class NoScaleError(ValueError):
     """A calibration point on a floor with no metre scale: it has no position."""
 
 
+def _finite(value: Any, what: str) -> float:
+    """One of a point's numbers: finite, or a refusal that names it. Python's
+    own words ("could not convert string to float") went to the panel, and a
+    NaN position was stored."""
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"The point's {what} is not a number") from None
+    if not math.isfinite(out):
+        raise ValueError(f"The point's {what} is not a finite number")
+    return out
+
+
 @dataclass
 class CalibrationStore:
     # @dataclass only supplies __init__ when the class doesn't define its
@@ -252,6 +265,8 @@ class CalibrationStore:
         point_id = f"cp_{os.urandom(6).hex()}"
 
         raw_readings = point.get("scanner_readings") or []
+        if not isinstance(raw_readings, list):
+            raw_readings = []
         # Fallback: accept "readings" dict {source: {samples, name}} from older
         # callers and convert to the expected list-of-dicts format.
         if not raw_readings and isinstance(point.get("readings"), dict):
@@ -272,8 +287,9 @@ class CalibrationStore:
                 continue
             if str(r.get("source") or "") in _excluded_new:
                 continue
+            raw_samples = r.get("rssi_samples")
             samples = [
-                float(x) for x in (r.get("rssi_samples") or [])
+                float(x) for x in (raw_samples if isinstance(raw_samples, list) else [])
                 if isinstance(x, (int, float)) and not math.isnan(float(x))
             ]
             if not samples:
@@ -311,15 +327,15 @@ class CalibrationStore:
         clean: dict[str, Any] = {
             "id": point_id,
             "map_id": str(point.get("map_id") or "")[:80],
-            "x_frac": max(0.0, min(1.0, float(point.get("x_frac", 0.5)))),
-            "y_frac": max(0.0, min(1.0, float(point.get("y_frac", 0.5)))),
+            "x_frac": max(0.0, min(1.0, _finite(point.get("x_frac", 0.5), "x_frac"))),
+            "y_frac": max(0.0, min(1.0, _finite(point.get("y_frac", 0.5), "y_frac"))),
             "floor_id": self._resolve_floor_id(point.get("floor_id"), point.get("room")),
             "room": str(point.get("room") or "")[:120],
             "label": str(point.get("label") or "")[:200],
             "device_id": str(point.get("device_id") or "")[:80],
             "collected_at": _collected_at(point.get("collected_at")),
-            "duration_s": max(5, min(120, int(point.get("duration_s") or 15))),
-            "weight": max(0.1, min(10.0, float(point.get("weight") or 1.0))),
+            "duration_s": max(5, min(120, int(_finite(point.get("duration_s") or 15, "duration_s")))),
+            "weight": max(0.1, min(10.0, _finite(point.get("weight") or 1.0, "weight"))),
             "scanner_readings": clean_readings,
         }
         if point_quality:
@@ -331,8 +347,8 @@ class CalibrationStore:
         # Phase 3: compute real-world metre coordinates
         if point.get("x_m") is not None and point.get("y_m") is not None:
             # Caller provided explicit metres (standalone/mapless calibration)
-            clean["x_m"] = round(float(point["x_m"]), 3)
-            clean["y_m"] = round(float(point["y_m"]), 3)
+            clean["x_m"] = round(_finite(point["x_m"], "x_m"), 3)
+            clean["y_m"] = round(_finite(point["y_m"], "y_m"), 3)
         elif self._model and clean["map_id"]:
             coords = self._model.map_frac_to_metres(clean["x_frac"], clean["y_frac"], clean["map_id"])
             if coords:

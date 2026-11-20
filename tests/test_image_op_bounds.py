@@ -54,7 +54,8 @@ def _store(tmp_path, *, width=1000, height=800) -> tuple[MapsStore, dict]:
     return ms, m
 
 
-_PNG = base64.b64encode(b"new-image-bytes").decode()
+# The bytes are never decoded; only a PNG's signature is checked before they are written.
+_PNG = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"new-image-bytes").decode()
 _CROP = {"fx0": 0.0, "fy0": 0.0, "fx1": 0.55, "fy1": 1.0}  # a right-side trim
 
 

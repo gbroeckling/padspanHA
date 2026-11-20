@@ -222,7 +222,9 @@ def clean_wizard(raw: dict) -> dict[str, Any]:
             out["seen"] = seen
     for k in ("snooze_until", "snoozes"):
         v = raw.get(k)
-        if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
+        # A count or a time, finite and below 2**53: a number past 64 bits kept
+        # in the settings would stop them ever being saved again.
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and 0 < v < 2 ** 53:
             out[k] = int(v) if k == "snoozes" else float(v)
     if isinstance(raw.get("finished_day"), str) and _DAY.fullmatch(raw["finished_day"]):
         out["finished_day"] = raw["finished_day"]

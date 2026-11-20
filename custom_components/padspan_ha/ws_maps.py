@@ -14,7 +14,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
-from .ws_common import admin_if_enhanced_security
+from .ws_common import admin_if_enhanced_security, finite_float
 from .const import (
     DOMAIN,
     DATA_SETTINGS,
@@ -269,13 +269,14 @@ async def ws_maps_scale_nudge_end(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/maps_update",
         "map_id": str,
-        vol.Optional("receivers"): list,
+        # Pins, each an object: a list holding anything else saved as no pins at all.
+        vol.Optional("receivers"): [dict],
         vol.Optional("calibration"): dict,
         vol.Optional("notes"): str,
         vol.Optional("floor_id"): str,
         vol.Optional("room_bounds"): dict,
         vol.Optional("stack"): dict,
-        vol.Optional("beacons"): list,
+        vol.Optional("beacons"): [dict],
         vol.Optional("lights"): list,
     }
 )
@@ -353,7 +354,9 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
     # state (room lock, k-NN position, etc.) must be cleared so they don't
     # linger on the overview 3D map.
     if _beacons is not None and _old_beacon_keys:
-        _new_beacon_keys = {bk.get("key", "") for bk in _beacons}
+        # What was stored, cleaned (maps_store.async_update_map), not the
+        # message: a key of the wrong kind there is no key at all.
+        _new_beacon_keys = {bk.get("key", "") for bk in (updated.get("beacons") or [])}
         _removed = _old_beacon_keys - _new_beacon_keys
         if _removed:
             try:
@@ -424,11 +427,13 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/maps_replace_image",
         "map_id": str,
-        "width": int,
-        "height": int,
+        "width": vol.All(int, vol.Range(min=1)),
+        "height": vol.All(int, vol.Range(min=1)),
         "png_base64": str,
-        vol.Optional("crop"): dict,      # {fx0, fy0, fx1, fy1} in 0-1 image fractions
-        vol.Optional("pixel_op"): dict,  # {deg, sx, sy} baked rotate/scale (canvas op)
+        # {fx0, fy0, fx1, fy1} in 0-1 image fractions
+        vol.Optional("crop"): {vol.Optional(k): finite_float for k in ("fx0", "fy0", "fx1", "fy1")},
+        # {deg, sx, sy} baked rotate/scale (canvas op)
+        vol.Optional("pixel_op"): {vol.Optional(k): finite_float for k in ("deg", "sx", "sy")},
     }
 )
 @websocket_api.require_admin
@@ -466,6 +471,10 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
         )
     except KeyError:
         connection.send_error(msg["id"], "not_found", "Map not found")
+        return
+    except ValueError as exc:
+        # As an upload says it: only the size limit is "too large".
+        connection.send_error(msg["id"], "upload_too_large" if "limit" in str(exc) else "invalid_image", str(exc))
         return
 
     # Phase 4: recompute transform + re-derive all map fracs from metres

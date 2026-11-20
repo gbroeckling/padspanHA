@@ -445,13 +445,25 @@ async def ws_label_link_answer(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"same": msg["same"], "current": links.current(root)})
 
 
+# What describe() reads from a snapshot object, and the kind of value each
+# field holds there. The window sends the object back; a field of another kind
+# is not one the snapshot made, and is left out.
+_HOW_KNOWN_FIELDS: dict[str, type] = {
+    "company_name": str, "maker_source": str, "service_owner": str, "maker_guess": str, "broadcast_name": str,
+    "name": str, "user_label": str, "espresense_id": str, "private_ble_name": str, "kind": str, "entity_id": str,
+    "address_type": str, "address": str, "device": dict, "manufacturer_data": dict, "service_data": dict,
+    "service_uuids": list, "all_addresses": list,
+}
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/device_how_known", vol.Required("object"): dict})
 @websocket_api.async_response
 async def ws_device_how_known(hass: HomeAssistant, connection, msg) -> None:
     """The device window's "How we know": left off the snapshot, which goes to every
     screen every 5 s, and worked out from the fields the window already has."""
     st = hass.data[DOMAIN].get(DATA_SETTINGS)
-    connection.send_result(msg["id"], {"how_known": _describe(msg["object"], bool(st and st.get("apple_auto_classify")))["how_known"]})
+    obj = {k: v for k, v in msg["object"].items() if isinstance(v, _HOW_KNOWN_FIELDS.get(k, ()))}
+    connection.send_result(msg["id"], {"how_known": _describe(obj, bool(st and st.get("apple_auto_classify")))["how_known"]})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/label_link_undo", "key": str})
