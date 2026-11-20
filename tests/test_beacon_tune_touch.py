@@ -80,9 +80,10 @@ class TestPanZoomTouch:
     def test_callers_unchanged(self):
         cal = (_VIEWS / "calibration.js").read_text(encoding="utf-8")
         maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
-        assert cal.count("attachPanZoom(mapWrap, mapInner);") == 2
-        assert 'attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false })' in cal
-        assert "attachPanZoom(stage, inner)" in maps
+        assert 'attachPanZoom(mapWrap, mapInner, { slot: "calibration-pin" });' in cal
+        assert 'attachPanZoom(mapWrap, mapInner, { slot: "calibration-roam" });' in cal
+        assert 'attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false, slot: "calibration-beacon" })' in cal
+        assert 'attachPanZoom(stage, inner, { slot: "maps-rooms" })' in maps
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")

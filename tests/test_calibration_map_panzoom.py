@@ -41,11 +41,11 @@ def _fn_block(name: str) -> str:
 
 
 def test_pin_and_listen_calls_attach_pan_zoom():
-    assert "attachPanZoom(mapWrap, mapInner)" in _fn_block("_pinAndListen")
+    assert 'attachPanZoom(mapWrap, mapInner, { slot: "calibration-pin" })' in _fn_block("_pinAndListen")
 
 
 def test_roam_now_calls_attach_pan_zoom_too():
-    assert "attachPanZoom(mapWrap, mapInner)" in _fn_block("_roam")
+    assert 'attachPanZoom(mapWrap, mapInner, { slot: "calibration-roam" })' in _fn_block("_roam")
 
 
 def test_both_tabs_tie_the_wrapper_to_the_svgs_own_aspect_ratio():

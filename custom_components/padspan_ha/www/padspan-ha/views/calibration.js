@@ -1197,7 +1197,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   </svg>`;
 
   mapInner.innerHTML = svgStr;
-  attachPanZoom(mapWrap, mapInner);
+  attachPanZoom(mapWrap, mapInner, { slot: "calibration-pin" });
 
   // Tap handler — must attach after setting innerHTML
   const svgEl = mapInner.querySelector("svg");
@@ -1655,7 +1655,7 @@ function _roam(ctx, el, cs, calData) {
     ${dotsSvg}
     ${pct < 100 ? targetSvg : ""}
   </svg>`;
-  attachPanZoom(mapWrap, mapInner);
+  attachPanZoom(mapWrap, mapInner, { slot: "calibration-roam" });
   wrap.appendChild(mapWrap);
 
   // Legend
@@ -4956,7 +4956,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   isoInner.style.cssText = "transform-origin:0 0";
   isoDiv.appendChild(isoInner);
   isoInner.innerHTML = buildBeaconSVG(_getFocusZ(bs.focusIdx));
-  const _bkPanZoom = attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false });
+  const _bkPanZoom = attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false, slot: "calibration-beacon" });
   const _bkViewReset = document.createElement("button");
   _bkViewReset.className = "btn inline";
   _bkViewReset.style.cssText = "position:absolute;top:8px;right:8px;z-index:4;padding:2px 8px;font-size:12px";
