@@ -2913,7 +2913,6 @@ function _settingsPresence(ctx, el){
         await ctx.actions.settingsSet({ padspan_automations: newRules });
         ctx.state.settings = { ...ctx.state.settings, padspan_automations: newRules };
         ctx.toast("Automation saved");
-        ctx.actions.renderView && ctx.actions.renderView();
       } catch(e) { ctx.toast("Save failed: " + String(e), true); }
     };
 

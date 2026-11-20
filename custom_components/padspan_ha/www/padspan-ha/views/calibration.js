@@ -1230,7 +1230,7 @@ function _pinAndListen(ctx, el, cs, calData) {
 
     if (cs.collecting) {
       // Active collection UI — injected as a real DOM node we can update
-      const collUI = _buildCollectionUI(ctx, el, cs, mapData);
+      const collUI = _buildCollectionUI(ctx, el, cs);
       pinPanel.appendChild(collUI);
     } else if (cs.readings) {
       // Collection done — show summary + save/discard
