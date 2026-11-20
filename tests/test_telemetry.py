@@ -273,7 +273,13 @@ def test_nothing_from_the_house_is_in_the_report():
     # bytes): how many homes use an irk-capture ESP32 for phone keys; with
     # irks_by_source's "irk_capture" (no bytes here: no such key in this
     # fixture), whether those keys work. A count, never a name.
-    assert len(text) < 4590
+    # Raised 4590 -> 4880 (2026-11-19) for health.quiet_errors (~275 bytes
+    # here): the places in the code where an error was handled quietly, by
+    # their fixed names, with counts (quiet_errors.py). This stand-in house
+    # trips six of them while the report is built (it has no areas, no maps);
+    # a real house sends only the ones that fire, 20 at most, and on a day
+    # too full they are the first thing left out.
+    assert len(text) < 4880
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1713,6 +1719,7 @@ def test_a_quiet_off_report_is_unchanged_by_the_quiet_signal():
     and is byte for byte the quiet-on report less that key and the switch."""
     objs = [{"kind": "ble", "address": "a"}, {"kind": "ble", "address": "b", "identified": True}]
     on = T.build_payload(_quiet_house(True, objs))
+    T._quiet_errors.reset()     # health.quiet_errors counts every build's own stumbles: both start from none
     off = T.build_payload(_quiet_house(False, objs))
     assert "quiet_hidden" not in off["env"] and on["env"]["quiet_hidden"] == "50_75"
     del on["env"]["quiet_hidden"]

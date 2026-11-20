@@ -12,6 +12,11 @@
 // identity keys (IRKs) left out of anything meant to be sent.
 const { _isMine, hideIrks } = await import(`./monitor.js${new URL(import.meta.url).search}`);
 
+// Errors PadSpan handled quietly (quiet_errors.py), asked for at most every 30 s.
+let _quietCache = null;
+let _quietFetchTs = 0;
+const _QUIET_TTL_MS = 30000;
+
 export function render(ctx){
   const { el } = ctx.helpers;
   const root = el("section",{id:"diagnostics"});
@@ -183,5 +188,62 @@ export function render(ctx){
     ]),
   ]));
 
+  // ── Errors PadSpan handled quietly ──────────────────────────────────────
+  // For an administrator only, and never in the report above: an error's
+  // text can name rooms and devices, so it stays on this screen.
+  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) {
+    const quiet = el("div",{class:"card","data-quiet-errors":"",style:"margin-top:12px"});
+    root.appendChild(quiet);
+    _fetchAndRenderQuiet(ctx, quiet);
+  }
+
   return root;
+}
+
+async function _fetchAndRenderQuiet(ctx, card) {
+  // Sample mode shows a sample house; these are the real one's, so they are not asked for
+  // (the website demo is its own house: panel.js _sampleGateOn).
+  if (ctx.state.dataMode === "sample" && !(ctx.hass && ctx.hass.padspan_demo === true)) { _renderQuiet(ctx, card, null, "Not shown in Sample mode. Switch to Live to see your own."); return; }
+  if (_quietCache && (Date.now() - _quietFetchTs) < _QUIET_TTL_MS) { _renderQuiet(ctx, card, _quietCache); return; }
+  _renderQuiet(ctx, card, null);
+  try {
+    const res = await ctx.actions.callWS({ type: "padspan_ha/quiet_errors" });
+    _quietCache = (res && Array.isArray(res.sites)) ? res.sites : [];
+    _quietFetchTs = Date.now();
+    _renderQuiet(ctx, card, _quietCache);
+  } catch (err) {
+    _renderQuiet(ctx, card, null, `Could not read them: ${err.message || err}`);
+  }
+}
+
+// sites: null while loading, else [{site, count, type, text, at}] busiest first
+// (a site that only counts has no error kept: type "" and at null).
+function _renderQuiet(ctx, card, sites, failed) {
+  const { el } = ctx.helpers;
+  card.innerHTML = "";
+  card.appendChild(el("div",{style:"font-weight:700"}, "Errors PadSpan handled quietly"));
+  card.appendChild(el("div",{class:"muted"},
+    "When one part of PadSpan fails, the rest carries on and nothing is written to the log. Each line is a place in the code where that has happened since Home Assistant started: how many times, and the last error. Many are harmless, such as a feature that is not set up. Only administrators see this, and it is not in the report above, because an error can name your rooms and devices."));
+  if (failed || !sites) {
+    card.appendChild(el("div",{class:"muted",style:"margin-top:8px"}, failed || "Loading…"));
+    return;
+  }
+  if (!sites.length) {
+    card.appendChild(el("div",{style:"margin-top:8px"}, "None since Home Assistant started."));
+  } else {
+    const tbl = el("div",{style:"display:grid;grid-template-columns:auto auto 1fr auto;gap:4px 10px;font-size:11px;align-items:start;margin-top:8px"});
+    for (const h of ["Where","Count","Last error","When"]) {
+      tbl.appendChild(el("div",{style:"font-weight:600;color:#94a3b8;font-size:10px;text-transform:uppercase"}, h));
+    }
+    for (const s of sites) {
+      tbl.appendChild(el("div",{style:"font-family:monospace"}, String(s.site)));
+      tbl.appendChild(el("div",{style:"text-align:right"}, String(s.count)));
+      tbl.appendChild(el("div",{style:"overflow-wrap:anywhere"}, s.type ? `${s.type}: ${s.text}` : "counted only"));
+      tbl.appendChild(el("div",{class:"muted"}, s.at ? new Date(s.at * 1000).toLocaleString() : "—"));
+    }
+    card.appendChild(tbl);
+  }
+  const again = el("button",{class:"btn",style:"margin-top:12px;width:auto;padding:6px 16px"}, "Check again");
+  again.addEventListener("click", () => { _quietCache = null; _fetchAndRenderQuiet(ctx, card); });
+  card.appendChild(again);
 }

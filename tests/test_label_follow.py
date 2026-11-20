@@ -1121,7 +1121,9 @@ def test_nothing_that_stores_or_alerts_reads_a_link() -> None:
     readers = {p.name for p in pkg.glob("*.py")
                if p.name != "label_follow.py"
                and any(w in p.read_text(encoding="utf-8") for w in ("label_follow", "label_links", "label_link", "_label_links"))}
-    assert readers == {"snapshot_builder.py", "ws_objects.py", "ws_factory_reset.py", "websocket.py", "telemetry.py", "const.py"}
+    # quiet_errors.py only lists the names of snapshot_builder.py's counted handlers (SITES).
+    assert readers == {"snapshot_builder.py", "ws_objects.py", "ws_factory_reset.py", "websocket.py", "telemetry.py", "const.py",
+                       "quiet_errors.py"}
     for name in ("presence_coordinator.py", "calibration_store.py", "capture_store.py", "adaptive_store.py",
                  "device_registry.py", "object_store.py", "alert_store.py", "movement_store.py", "traceback_store.py",
                  "ws_follow.py", "sensor.py", "device_tracker.py", "ws_calibration.py", "ws_capture.py"):

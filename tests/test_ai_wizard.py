@@ -320,6 +320,7 @@ def test_a_calibrated_house_s_report_is_byte_for_byte_what_it_was(monkeypatch):
     h = _calibrated_house()
     with_block = json.dumps(T.build_payload(h), sort_keys=True)
     monkeypatch.setattr(W, "report_env", lambda *a, **k: None)
+    T._quiet_errors.reset()     # health.quiet_errors counts every build's own stumbles: both start from none
     without = json.dumps(T.build_payload(h), sort_keys=True)
     assert with_block == without
     assert "mapping" not in json.loads(with_block)["env"]
@@ -339,6 +340,7 @@ def test_setup_wide_marks_never_make_a_set_up_house_report_the_helper():
     before = T.build_payload(h)
     h.data[DOMAIN][DATA_SETTINGS].data["ai_map_wizard"] = {"receivers_placed": {_MAC1: [1.0, 1.0, 2.4, "main"]}, "seen": {"rooms": "p1"},
                                                            "struggled": True, "step_open": {"rooms": "p1"}}
+    T._quiet_errors.reset()     # health.quiet_errors counts every build's own stumbles: both start from none
     after = T.build_payload(h)
     assert W.report_env(h, _NOW) is None and "mapping" not in after["env"]
     for p in (before, after):
