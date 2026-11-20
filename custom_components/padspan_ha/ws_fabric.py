@@ -37,6 +37,7 @@ from .snapshot_builder import _live_snapshot
 from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least
 from .ws_backup import _auto_backup
 from .telemetry import OPEN_EDGE_ACTIONS, bump as _bump
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -442,6 +443,7 @@ async def ws_fabric_sync_mode_set(hass: HomeAssistant, connection, msg) -> None:
         try:
             await mdl.async_sync_from_ha()
         except Exception:
+            _quiet_error("ws_fabric:sync_mode_set")
             # The mode switch itself already succeeded and was already
             # persisted above — this is only the "don't make the user wait
             # for the next scheduled sync" convenience. A failure here (HA
@@ -788,6 +790,7 @@ async def ws_fabric_rooms_merge(hass: HomeAssistant, connection, msg) -> None:
         try:
             res = await mdl.async_remove_room(r)
         except Exception:  # noqa: BLE001
+            _quiet_error("ws_fabric:rooms_merge")
             res = {}
         (removed if res.get("ok") else failed).append(r)
     _bump(hass, "room_merged")
@@ -1134,6 +1137,7 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
         _by_helper = any(isinstance(r, dict) and r.get("source") in HELPER_SCALE_SOURCES for r in _old.get("reference_measurements") or [])
         _was_sx = _old.get("scale_x_m")
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_fabric:measured_transform_old")
         _by_helper, _was_sx = False, None
     # A payload that does not STATE a floor has not moved the map to 'main'.
     # `_put_map_transform` carries `floor_id` with the placement coordinates
@@ -1162,6 +1166,7 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
         if _cal:
             await _cal.async_remap_from_metres(map_id)
     except Exception:
+        _quiet_error("ws_fabric:measured_transform_calibration")
         pass
     _stored = (mdl.data.get("map_transforms") or {}).get(map_id, {})
     # The plan has a scale, by whichever door it came (Measure, the helper, the upload's own screen): the upload's
@@ -1177,6 +1182,7 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
             if _was > 0 and _now > 0:
                 _bump(hass, f"plan_build_scale_remeasured:{_scale_band(abs(_now / _was - 1) * 100)}")
     except Exception:  # noqa: BLE001 — a count, never a failed save
+        _quiet_error("ws_fabric:measured_transform_refs")
         pass
     return _stored
 
@@ -1509,6 +1515,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                 "detail": "DeviceRegistry is not initialized",
             })
     except Exception:
+        _quiet_error("ws_fabric:health_device_registry")
         pass
 
     # ── Dependent store identity migration ──────────────────────────────────
@@ -1553,6 +1560,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                     "detail": f"{_al_with_pid} of {_al_total} alert configs have stable padspan_id",
                 })
     except Exception:
+        _quiet_error("ws_fabric:health_padspan_ids")
         pass
 
     # ── Label pipeline health ───────────────────────────────────────────────
@@ -1582,6 +1590,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                            f"All labels in DeviceRegistry ({_reg_labeled} devices). Legacy ObjectStore has {_obj_labeled} entries (fallback only)."),
             })
     except Exception:
+        _quiet_error("ws_fabric:health_label_pipeline")
         pass
 
     # ── HA Entity identity ──────────────────────────────────────────────────
@@ -1599,6 +1608,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                 "detail": f"{_ent_with_pid} of {_ent_total} tracked objects have padspan_id (used for HA device identity)",
             })
     except Exception:
+        _quiet_error("ws_fabric:health_entity_identity")
         pass
 
     # ── Phase B: Multi-floor + Occupancy ────────────────────────────────────
@@ -1648,8 +1658,10 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                           (f" (trained from {len(_occ_training)} observations)" if _occ_training else " (default — train with actual headcounts to improve accuracy)"),
             })
         except Exception:
+            _quiet_error("ws_fabric:health_occupancy")
             pass
     except Exception:
+        _quiet_error("ws_fabric:health_adaptive")
         pass
 
     # ── Phase 4: HA recorder health ────────────────────────────────────────
@@ -1721,6 +1733,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                       (" — schema migration in progress" if getattr(_rec, "migration_in_progress", False) else ""),
         })
     except Exception as _e:
+        _quiet_error("ws_fabric:health_recorder")
         checks.append({
             "group": "recorder", "name": "Recorder Writing History",
             "ok": False, "value": "error",
@@ -1797,6 +1810,7 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
             if _radio_srcs:
                 pruned = await mdl.async_prune_non_radio_scanners(_radio_srcs)
         except Exception:
+            _quiet_error("ws_fabric:resync_prune")
             # Pruning is a cleanup pass on top of the clean rebuild
             # `async_resync_clean` already committed above — a snapshot that
             # is momentarily empty or a coordinator still warming up must not
@@ -1810,6 +1824,7 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
         if _radios:
             await mdl.async_sync_from_snapshot(_radios)
     except Exception:
+        _quiet_error("ws_fabric:resync_snapshot")
         # Same reasoning as the prune step above: this is a best-effort
         # freshness pass after the resync already succeeded, not a
         # precondition for it — an empty/unavailable snapshot here just means

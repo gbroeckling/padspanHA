@@ -41,6 +41,7 @@ from typing import Any, Callable
 
 from . import adaptive_curve as CURVE
 from .const import DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -214,6 +215,7 @@ class Team:
         try:
             await self.io.call(eid.split(".")[0], "turn_on" if on else "turn_off", {"entity_id": eid, **(data or {})})
         except Exception as err:  # noqa: BLE001 - a bulb still starting refuses; the next send asks again
+            _quiet_error("power_team:call")
             _LOGGER.debug("Power team %s: %s did not take the command: %s", self.cfg.get("name"), eid, err)
 
     def _bulb_data(self, fade: float | None = None) -> dict:
@@ -486,6 +488,7 @@ class Manager:
                 try:
                     await t.tick()
                 except Exception as err:  # noqa: BLE001 - one team's trouble never stops the others
+                    _quiet_error("power_team:tick")
                     _LOGGER.debug("Power team tick failed: %s", err)
         from datetime import timedelta  # noqa: PLC0415
         self._unsub = [async_track_state_change_event(hass, [*by_power, *by_bulb], seen),
@@ -557,6 +560,7 @@ def _ws_commands() -> list:
             from homeassistant.helpers.dispatcher import async_dispatcher_send  # noqa: PLC0415
             async_dispatcher_send(hass, SIGNAL_TEAMS)
         except Exception as err:  # noqa: BLE001
+            _quiet_error("power_team:power_teams_set")
             _LOGGER.debug("Power teams: the light platform was not told: %s", err)
         connection.send_result(msg["id"], view(hass))
 

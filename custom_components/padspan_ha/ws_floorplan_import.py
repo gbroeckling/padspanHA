@@ -26,6 +26,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_SETTINGS, DOMAIN
 from .roomplan_import import RoomPlanParseError, parse_roomplan
 from .sh3d_import import Sh3dParseError, parse_sh3d
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ async def ws_floorplan_import_sh3d(hass: HomeAssistant, connection, msg) -> None
     try:
         raw = base64.b64decode(b64, validate=True)
     except Exception:
+        _quiet_error("ws_floorplan_import:sh3d_base64")
         connection.send_error(msg["id"], "bad_base64", "Could not decode the uploaded file")
         return
     try:
@@ -104,6 +106,7 @@ async def ws_floorplan_import_roomplan(hass: HomeAssistant, connection, msg) -> 
     try:
         raw = base64.b64decode(b64, validate=True)
     except Exception:
+        _quiet_error("ws_floorplan_import:roomplan_base64")
         connection.send_error(msg["id"], "bad_base64", "Could not decode the uploaded file")
         return
     try:

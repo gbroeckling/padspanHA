@@ -26,6 +26,7 @@ something already computed.
 from datetime import datetime
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
+from .quiet_errors import note as _quiet_error
 
 # A gap between two consecutive frames for the same object longer than this
 # is an OUTAGE (away, HA restart, the object dropped out of range) — not
@@ -66,6 +67,7 @@ def compute_dwell_stats(
     try:
         tz = ZoneInfo(tz_name)
     except Exception:
+        _quiet_error("dwell_analytics:compute_dwell_stats")
         tz = ZoneInfo("UTC")
 
     def local_day_hour(ts: float) -> tuple[str, str]:

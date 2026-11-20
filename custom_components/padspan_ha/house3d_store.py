@@ -39,6 +39,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DATA_HOUSE3D, DATA_SETTINGS, DOMAIN, HOUSE3D_STORE_KEY
 from .safe_store import wrap_store
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -188,6 +189,7 @@ class House3dStore:
         try:
             back = await self._raw_store.async_load()
         except Exception:  # noqa: BLE001
+            _quiet_error("house3d_store:write")
             back = None
         if back != new:
             _LOGGER.error("PadSpan save VERIFICATION FAILED for house3d: the file does not hold what was written")

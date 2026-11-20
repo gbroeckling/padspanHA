@@ -38,6 +38,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_SETTINGS, DOMAIN
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ async def _send_decline(hass: HomeAssistant, token: str) -> bool:
         data = await _post(hass, "invite_decline", {"token": token})
         sent = isinstance(data, dict) and bool(data.get("ok"))
     except Exception as err:  # offline: retried when the report's reply carries it again
+        _quiet_error("pro_invite:send_decline")
         _LOGGER.debug("Pro invite decline not sent: %s", err)
         sent = False
     if st:

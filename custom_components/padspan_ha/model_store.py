@@ -54,6 +54,7 @@ from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_
 from .presence_rules import ROOM_SPACES
 from .safe_store import wrap_store
 from .util import ha_device_config_entries, ha_devices
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -643,6 +644,7 @@ class ModelStore:
             used = {str((g or {}).get("floor_id") or "")
                     for g in (self.room_geometry_m() or {}).values()}
         except Exception:
+            _quiet_error("model_store:sync_floors")
             used = set()
         reg_ids = {str(f["id"]) for f in incoming}
         kept = [prev for fid, prev in stored.items() if fid not in reg_ids and fid in used]
@@ -745,6 +747,7 @@ class ModelStore:
                 if _a.name and _fl:
                     _area_to_floor[_a.name] = str(_fl)
         except Exception:
+            _quiet_error("model_store:sync_from_snapshot")
             pass
 
         scanners = self.data.setdefault("scanners", {})
@@ -1369,6 +1372,7 @@ class ModelStore:
                 if str(map_id) not in _moved:
                     _moved[str(map_id)] = {**_was, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "stood": self._carry_stood()}
         except Exception:  # noqa: BLE001
+            _quiet_error("model_store:put_map_transform")
             _LOGGER.debug("carry-along: no note for %s", map_id, exc_info=True)
         self.data.setdefault("map_transforms", {})[str(map_id)] = transform
         return transform
@@ -2147,6 +2151,7 @@ class ModelStore:
             try:
                 await self.store.async_save(self.data)
             except Exception:
+                _quiet_error("model_store:reanchor_map")
                 pass  # best-effort — the in-memory state is consistent
             return {"ok": False, "error": "remap_failed", "detail": str(err)}
         return {

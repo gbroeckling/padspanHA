@@ -117,6 +117,8 @@ from .const import (
     DOMAIN,
 )
 from .onboarding import BUCKET_WORDS as _ONB_BUCKETS, STEPS as _ONB_STEPS
+from . import quiet_errors as _quiet_errors
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1112,6 +1114,7 @@ def ai_task_word(hass: HomeAssistant) -> str | None:
         from .ws_house3d_photo import ai_task  # noqa: PLC0415
         ai = ai_task(hass)
     except Exception:  # noqa: BLE001
+        _quiet_error("telemetry:ai_task_word")
         return None
     if not ai.get("ready"):
         return "unready"
@@ -1698,6 +1701,7 @@ def _persist_counters(hass: HomeAssistant, now: bool = False) -> None:
         dom[_DATA_COUNTERS_SAVE_DUE] = True
         async_call_later(hass, COUNTERS_SAVE_DELAY_S, _due)
     except Exception as err:  # noqa: BLE001 — counting must never fail anything
+        _quiet_error("telemetry:persist_counters")
         _LOGGER.debug("Telemetry counters not saved: %s", err)
 
 
@@ -1720,6 +1724,7 @@ async def async_restore_counters(hass: HomeAssistant) -> None:
     try:
         saved = await _counters_store(hass).async_load()
     except Exception as err:  # noqa: BLE001
+        _quiet_error("telemetry:restore_counters")
         _LOGGER.debug("Telemetry counters not read back: %s", err)
         return
     if enabled(hass):
@@ -1744,6 +1749,7 @@ def _take_windows(hass: HomeAssistant) -> tuple[dict[str, int], dict[str, int], 
     """The usage counters, WARNING+ log counts, keys that resolved and the
     load window since the last report — and reset them."""
     usage = _take_counters(hass)
+    _quiet_errors.mark_reported()
     errors: dict[str, int] = {}
     ids: set[str] = set()
     perf = None
@@ -1752,6 +1758,7 @@ def _take_windows(hass: HomeAssistant) -> tuple[dict[str, int], dict[str, int], 
         if _log_handler is not None:
             errors = _log_handler.take_counts()
     except Exception:
+        _quiet_error("telemetry:take_log_counts")
         pass
     try:
         from .private_ble_resolver import _resolvers  # noqa: PLC0415
@@ -1759,11 +1766,13 @@ def _take_windows(hass: HomeAssistant) -> tuple[dict[str, int], dict[str, int], 
         if _r is not None:
             ids = _r.take_resolved_ids()
     except Exception:
+        _quiet_error("telemetry:take_resolvers")
         pass
     try:
         from . import perf_sampler  # noqa: PLC0415
         perf = perf_sampler.take_window(hass)
     except Exception:
+        _quiet_error("telemetry:take_perf")
         pass
     return usage, errors, ids, perf
 
@@ -1772,10 +1781,12 @@ def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[st
     """A send that failed: what it took goes with the next report, on top of
     whatever was counted meanwhile."""
     usage, errors, ids, perf = taken
+    _quiet_errors.unmark_reported()
     try:
         from . import perf_sampler  # noqa: PLC0415
         perf_sampler.give_back_window(hass, perf)
     except Exception:
+        _quiet_error("telemetry:give_back_perf")
         pass
     counters = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_COUNTERS, {})
     for k, v in usage.items():
@@ -1798,6 +1809,7 @@ def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[st
             for k, v in errors.items():
                 _log_handler.counts[k] = _log_handler.counts.get(k, 0) + v
     except Exception:
+        _quiet_error("telemetry:give_back_log_counts")
         pass
     try:
         from .private_ble_resolver import _resolvers  # noqa: PLC0415
@@ -1805,6 +1817,7 @@ def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[st
         if _r is not None:
             _r._resolved_ids_window |= ids
     except Exception:
+        _quiet_error("telemetry:give_back_resolvers")
         pass
 
 
@@ -1824,6 +1837,7 @@ def _len(x: Any) -> int:
     try:
         return len(x)
     except Exception:
+        _quiet_error("telemetry:len")
         return 0
 
 
@@ -1876,6 +1890,7 @@ def _temp_fresh_note(st: Any, now: Any, tf: dict[str, Any]) -> None:
             t = getattr(st, attr, None)
             ages[key] = (now - t).total_seconds() if isinstance(t, datetime) else None
     except Exception:
+        _quiet_error("telemetry:temp_fresh_note")
         return
     tf["n"] += 1
     for key, a in ages.items():
@@ -1894,6 +1909,7 @@ def _history_days(hass: HomeAssistant) -> float | None:
         from .ws_common import _object_history_ttl_s  # noqa: PLC0415
         return round(_object_history_ttl_s(hass) / 86400.0, 2)
     except Exception:
+        _quiet_error("telemetry:history_days")
         return None
 
 
@@ -2051,6 +2067,7 @@ def _positioning_now(coord) -> dict[str, int]:
             if not ident(key):
                 continue
         except Exception:
+            _quiet_error("telemetry:positioning_now")
             continue
         if v.get("x_m") is not None and v.get("y_m") is not None:
             out["positioned"] += 1
@@ -2071,6 +2088,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         from homeassistant.const import __version__ as _HA_VERSION  # noqa: PLC0415
         ha_version = str(_HA_VERSION)
     except Exception:
+        _quiet_error("telemetry:payload_ha_version")
         ha_version = ""
 
     # Environment — sizes of things, from the stores that own them.
@@ -2096,6 +2114,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         try:
             integrations[name] = _len(hass.config_entries.async_entries(name))
         except Exception:
+            _quiet_error("telemetry:payload_integrations")
             integrations[name] = 0
 
     radios = [r for r in (ble.get("radios") or []) if isinstance(r, dict)]
@@ -2220,6 +2239,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             resolving = len(_ids)
             _identity = _res.identity_breakdown(_ids)
     except Exception:
+        _quiet_error("telemetry:payload_irk_resolving")
         resolving = 0
 
     # Read-only self-check: maps this install cannot draw.
@@ -2255,6 +2275,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             # readable, not whether it remembers which picture it came from.
             _has_anchor = _ft.metre_gauge(_mdl_store) is not None
     except Exception:
+        _quiet_error("telemetry:payload_geometry_faults")
         pass
 
     # A floor whose rooms are a different size than the map they were built
@@ -2284,6 +2305,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             _maps_divergent = len(_ft.room_divergence_faults(
                 _mdl_store.room_geometry_m(), _maps_list, _mdl_store))
     except Exception:
+        _quiet_error("telemetry:payload_room_footprints")
         pass
 
     # Placement adoption by CLASS, not just a single "placed_lights" total —
@@ -2435,6 +2457,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     try:
         env["hw"] = _hw_payload(hass)
     except Exception:
+        _quiet_error("telemetry:payload_hw")
         pass
     # Split levels (room_meta floor_raise_m, 0.38.190), only from a house
     # with one: how many rooms are raised and how many sunk. Counts, never
@@ -2459,6 +2482,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _stairs:
             env["stairs"] = _stairs
     except Exception:
+        _quiet_error("telemetry:payload_house3d")
         pass
     # Quiet mode on only (a panel filter the backend never applies): how much
     # of the house it hides. A quiet-off report is exactly what it was.
@@ -2475,6 +2499,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _ho:
             env["heldout"] = _ho
     except Exception:
+        _quiet_error("telemetry:payload_heldout")
         pass
     # Walk a room (room_walk.py), only while it is on and a walk was saved:
     # rooms walked as a bucket word, and whether the last walk moved k-NN's
@@ -2491,6 +2516,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _rw:
             env["room_walk"] = _rw
     except Exception:
+        _quiet_error("telemetry:payload_room_walk")
         pass
     _age = install_age_word(settings.get("first_seen_ts"), time.time())
     if _age:
@@ -2507,6 +2533,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _used is not None:
             env["used_in"] = _used
     except Exception as err:
+        _quiet_error("telemetry:payload_store_used_in")
         _LOGGER.debug("Telemetry: store / used_in left out: %s", err)
     # Guest tags (guest_tags.report_buckets): words only, never a name, only where on and used.
     try:
@@ -2515,6 +2542,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _gb:
             env["guest"] = _gb
     except Exception:
+        _quiet_error("telemetry:payload_guest")
         pass
     # Room timing off the default, and a registry floor named outside (presence_cfg_words).
     try:
@@ -2522,11 +2550,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             from homeassistant.helpers import floor_registry as _fr  # noqa: PLC0415
             _fids = [f.floor_id for f in _fr.async_get(hass).async_list_floors()]
         except Exception:
+            _quiet_error("telemetry:payload_floor_ids")
             _fids = []
         _pc = presence_cfg_words(settings, _fids)
         if _pc:
             env["presence_cfg"] = _pc
     except Exception:
+        _quiet_error("telemetry:payload_presence_cfg")
         pass
     # The plans by where they came from and how far each kind has got (plan_sources), only with a plan.
     try:
@@ -2535,6 +2565,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _ps:
             env["plans"] = _ps
     except Exception:
+        _quiet_error("telemetry:payload_plans")
         pass
     # The AI Task chosen for photos (ai_task_word), only where one is chosen.
     try:
@@ -2542,6 +2573,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _ai:
             env["ai"] = {"task": _ai}
     except Exception:
+        _quiet_error("telemetry:payload_ai_task")
         pass
     # Getting to a map (ai_wizard.report_env), only from a house with a plan
     # whose setup isn't finished, or that used the helper: the step it is stuck
@@ -2560,6 +2592,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             if not _u.get("ok") and _pa.claude_unchosen(hass):
                 env["ai"]["claude_available"] = "yes"
     except Exception:
+        _quiet_error("telemetry:payload_ai_mapping")
         pass
     # Vacation Mode (vacation_mode.report_buckets), only where it was used.
     try:
@@ -2569,6 +2602,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _vac:
             env["vacation"] = _vac
     except Exception:
+        _quiet_error("telemetry:payload_vacation")
         pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
     features.update(_overview_features(settings))
@@ -2690,6 +2724,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             from .forensics_store import _recording_enabled  # noqa: PLC0415
             health["forensics_paused_licence"] = not _recording_enabled(hass)
     except Exception:
+        _quiet_error("telemetry:payload_forensics_paused")
         pass
     # Rooms on one floor drawn over each other by more than 10 cm (0.38.193):
     # a hand-traced outline past its wall, which can put a flight of stairs
@@ -2700,6 +2735,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _geo:
             health["rooms_overlap"] = rooms_overlapping(_geo)
     except Exception:
+        _quiet_error("telemetry:payload_rooms_overlap")
         pass
     # Plans placed out of shape (setup_checks.plans_out_of_shape, 2026-11-16): a count, only with a plan placed.
     try:
@@ -2708,6 +2744,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _tf:
             health["plans_out_of_shape"] = len(plans_out_of_shape((getattr(dom.get(DATA_MAPS), "data", None) or {}).get("maps"), _tf))
     except Exception:
+        _quiet_error("telemetry:payload_plans_out_of_shape")
         pass
     # 0.38.122's fixes, read at the report. Each is left out, not a 0, when
     # what it reads is not there, and a failure leaves out only that one.
@@ -2728,6 +2765,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             if isinstance(_seen, int) and not isinstance(_seen, bool) and _seen > 0 and not cal_points:
                 health["calibration_points_vanished"] = True
     except Exception as err:
+        _quiet_error("telemetry:payload_cal_phantom_rooms")
         _LOGGER.debug("Telemetry: calibration health left out: %s", err)
     # 0.38.177: fewer maps than the last report, with no delete recorded in
     # between (maps_seen, kept by send_now and by every delete).
@@ -2738,6 +2776,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                 and dom.get(DATA_MAPS) is not None:
             health["maps_vanished"] = True
     except Exception as err:
+        _quiet_error("telemetry:payload_maps_vanished")
         _LOGGER.debug("Telemetry: cal_points_phantom_room_n left out: %s", err)
     # #147: Beacon Tune pins on a device that moves (tune_save_plan.js
     # tuneBeaconHeld: private_ble or followed; a Bermuda entity is a fixed
@@ -2756,6 +2795,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                     _movers += 1
             health["pinned_movers_n"] = _movers
     except Exception as err:
+        _quiet_error("telemetry:payload_pinned_movers")
         _LOGGER.debug("Telemetry: pinned_movers_n left out: %s", err)
     # #153: PadSpan trackers and sensors registered again as <entity_id>_2 —
     # should not grow.
@@ -2766,12 +2806,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         _bases = (re.fullmatch(r"(.+)_\d+", _eid) for _eid in _ids)
         health["entity_dup_n"] = sum(1 for _m in _bases if _m and _m.group(1) in _ids)
     except Exception as err:
+        _quiet_error("telemetry:payload_entity_dups")
         _LOGGER.debug("Telemetry: entity_dup_n left out: %s", err)
     try:
         _ids = _padspan_device_ids(hass)
         if _ids:
             health["device_ids"] = _ids
     except Exception as err:
+        _quiet_error("telemetry:payload_device_ids")
         _LOGGER.debug("Telemetry: device_ids left out: %s", err)
     # How many irk-capture ESP32s (github.com/DerekSeaman/irk-capture) this
     # Home Assistant has. With irks_by_source["irk_capture"] above: how many
@@ -2781,6 +2823,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         from .ws_irk import _irk_capture_devices  # noqa: PLC0415
         health["irk_capture_boards"] = len(_irk_capture_devices(hass))
     except Exception as err:
+        _quiet_error("telemetry:payload_irk_capture_boards")
         _LOGGER.debug("Telemetry: irk_capture_boards left out: %s", err)
     try:
         from . import perf_sampler as _ps  # noqa: PLC0415
@@ -2791,7 +2834,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _runs is not None:
             health["runs"] = _runs_payload(_runs)
     except Exception:
+        _quiet_error("telemetry:payload_perf")
         pass
+    # Errors handled quietly since the last report (quiet_errors.py): fixed
+    # site names and counts, never an error's text. Only when any fired.
+    _quiet = _quiet_errors.report_counts(consume)
+    if _quiet:
+        health["quiet_errors"] = _quiet
     usage = _take_counters(hass) if consume else dict(dom.get(_DATA_COUNTERS) or {})
     _drops = usage.pop("proxy_rate_drop", 0)
     if isinstance(_drops, int) and _drops > 0:
@@ -2801,6 +2850,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         for _ev in _onb_events(settings):
             usage[_ev] = 1
     except Exception as err:
+        _quiet_error("telemetry:payload_onboarding")
         _LOGGER.debug("Telemetry: onboarding left out: %s", err)
     _screens = _screens_listed(dom.get(_DATA_SCREEN_WORDS_TAKEN if consume else _DATA_SCREEN_WORDS))
     if _screens:
@@ -2813,6 +2863,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _log_handler is not None:
             errors = _log_handler.take_counts() if consume else dict(_log_handler.counts)
     except Exception:
+        _quiet_error("telemetry:payload_log_counts")
         errors = {}
 
     import sys as _sys  # noqa: PLC0415
@@ -2846,6 +2897,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _grp = licence_group(str(_sd.get("forensics_license_key") or ""))
     if _grp and int(_sd.get("license_homes_used") or 0) > 2:
         payload["licence_group"] = _grp
+    # The quiet-error counts ride only when there is room: on a day too full
+    # they are the first to go, before any preset or usage counter.
+    if len(json.dumps(payload)) > _MAX_BYTES:
+        health.pop("quiet_errors", None)
     # The cap refuses the WHOLE report, and a refused one keeps its counters,
     # so the next is no smaller: one busy day silenced an install until HA
     # restarted. The presets are a courtesy sample (popular_presets.py) — on
@@ -2925,7 +2980,8 @@ def assert_shareable(payload: dict[str, Any]) -> None:
 def _check_load_sections(payload: dict[str, Any]) -> None:
     """env.hw and health.perf carry only the keys and words listed in
     HW_VALUES / PERF_METRICS / PERF_OVER, and only finite, non-negative
-    numbers — the generic walk refuses identifier SHAPES; this refuses
+    numbers (health.quiet_errors: only the site names in quiet_errors.SITES,
+    each with a count) — the generic walk refuses identifier SHAPES; this refuses
     anything that is not on the list at all (a board's model string, a
     hostname, a NaN the receiver could not parse)."""
     def _num(v: Any, path: str, *, allow_none: bool = False) -> None:
@@ -3048,6 +3104,8 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
             if k not in RUNS_KEYS:
                 raise ValueError(f"unexpected key in health.runs: {str(k)[:32]}")
             _num(v, f"health.runs.{k}")
+    if isinstance(health, dict) and "quiet_errors" in health:
+        _quiet_errors.check_report(health["quiet_errors"])
 
 
 # ── the schedule ─────────────────────────────────────────────────────────────
@@ -3093,6 +3151,7 @@ async def ensure_snapshot(hass: HomeAssistant) -> None:
         from .snapshot_builder import _live_snapshot  # noqa: PLC0415
         await _live_snapshot(hass)
     except Exception as err:
+        _quiet_error("telemetry:ensure_snapshot")
         _LOGGER.debug("Telemetry could not build a snapshot: %s", err)
 
 
@@ -3104,6 +3163,7 @@ async def ensure_hw(hass: HomeAssistant) -> None:
         from . import perf_sampler  # noqa: PLC0415
         await perf_sampler.async_ensure_hw(hass)
     except Exception as err:
+        _quiet_error("telemetry:ensure_hw")
         _LOGGER.debug("Telemetry could not read the hardware class: %s", err)
 
 
@@ -3116,6 +3176,7 @@ async def ensure_plan_ai(hass: HomeAssistant) -> None:
             from .plan_ai import async_get_store  # noqa: PLC0415
             await async_get_store(hass)
     except Exception as err:
+        _quiet_error("telemetry:ensure_plan_ai")
         _LOGGER.debug("Telemetry could not read the plan AI's store: %s", err)
 
 
@@ -3163,8 +3224,10 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
             try:
                 reply = await resp.json(content_type=None)
             except Exception:
+                _quiet_error("telemetry:send_reply_json")
                 reply = None
     except Exception as err:  # network errors are expected and non-fatal
+        _quiet_error("telemetry:send_post")
         _LOGGER.debug("Telemetry send failed: %s", err)
         _give_back_windows(hass, taken)
         return {"sent": False, "reason": "network", "bytes": len(body)}
@@ -3174,18 +3237,21 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
                                calibration_points_seen=int((payload.get("env") or {}).get("calibration_points") or 0),
                                maps_seen=int((payload.get("env") or {}).get("maps") or 0))
         except Exception:
+            _quiet_error("telemetry:send_last_day")
             pass
     # A new install's first steps went: never again (onboarding.py).
     try:
         from .onboarding import async_mark_reported  # noqa: PLC0415
         await async_mark_reported(hass, [k for k in payload.get("usage") or {} if k in ONBOARDING_EVENTS])
     except Exception as err:
+        _quiet_error("telemetry:send_onboarding")
         _LOGGER.debug("Telemetry: onboarding not marked sent: %s", err)
     # The reply may carry a free-year Pro invite (pro_invite.py). Never fatal.
     try:
         from .pro_invite import store_from_reply  # noqa: PLC0415
         await store_from_reply(hass, reply)
     except Exception as err:
+        _quiet_error("telemetry:send_pro_invite")
         _LOGGER.debug("Pro invite from the report reply not kept: %s", err)
     return {"sent": True, "reason": "", "bytes": len(body)}
 
@@ -3217,6 +3283,7 @@ async def async_send_removed(hass: HomeAssistant) -> bool:
                 headers={"Content-Type": "application/json"}, timeout=5) as resp:
             return 200 <= resp.status < 300
     except Exception as err:  # noqa: BLE001 - the removal goes ahead whatever happens here
+        _quiet_error("telemetry:send_removed")
         _LOGGER.debug("Telemetry: the removal was not reported: %s", err)
         return False
 
@@ -3228,11 +3295,13 @@ def reset_windows(hass: HomeAssistant) -> None:
     hass.data[DOMAIN][_DATA_SCREENS] = set()
     hass.data[DOMAIN][_DATA_SCREEN_WORDS] = {}
     _persist_counters(hass, now=True)
+    _quiet_errors.mark_reported()
     try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:
             _log_handler.take_counts()
     except Exception:
+        _quiet_error("telemetry:reset_log_counts")
         pass
     try:
         from .private_ble_resolver import _resolvers  # noqa: PLC0415
@@ -3240,11 +3309,13 @@ def reset_windows(hass: HomeAssistant) -> None:
         if _r is not None:
             _r.take_resolved_ids()
     except Exception:
+        _quiet_error("telemetry:reset_resolvers")
         pass
     try:
         from . import perf_sampler  # noqa: PLC0415
         perf_sampler.reset_window(hass)
     except Exception:
+        _quiet_error("telemetry:reset_perf")
         pass
 
 
@@ -3260,11 +3331,13 @@ def async_setup_telemetry(hass: HomeAssistant) -> None:
     try:
         hass.async_create_task(async_restore_counters(hass))
     except Exception as err:  # noqa: BLE001
+        _quiet_error("telemetry:setup_restore_counters")
         _LOGGER.debug("Telemetry counters not restored: %s", err)
     try:
         from . import perf_sampler  # noqa: PLC0415
         perf_sampler.async_start(hass)
     except Exception as err:
+        _quiet_error("telemetry:setup_perf")
         _LOGGER.debug("Load sampler not started: %s", err)
     if dom.get(_DATA_UNSUBS):
         return
@@ -3292,9 +3365,11 @@ def async_stop_telemetry(hass: HomeAssistant) -> None:
         try:
             unsub()
         except Exception:
+            _quiet_error("telemetry:stop_unsub")
             pass
     try:
         from . import perf_sampler  # noqa: PLC0415
         perf_sampler.async_stop(hass)
     except Exception:
+        _quiet_error("telemetry:stop_perf")
         pass

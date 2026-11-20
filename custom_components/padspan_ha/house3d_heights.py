@@ -51,6 +51,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_FABRIC, DATA_MODEL, DOMAIN, FABRIC_STORE_KEY
 from .fabric_store import device_height
 from .house3d_store import ReadFailed, async_file_exists, async_get_store, enabled, writable
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ async def async_move_heights(hass: HomeAssistant) -> dict[str, int]:
     try:
         back = await fab.store.async_load()
     except Exception:  # noqa: BLE001 — said below
+        _quiet_error("house3d_heights:move_heights")
         back = None
     on_disk = (back or {}).get("light_heights_m") if isinstance(back, dict) else None
     if not isinstance(on_disk, dict) or any(on_disk.get(eid) != z for eid, z in copy_in.items()):

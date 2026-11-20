@@ -31,6 +31,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DATA_PLAN_AI, DATA_SETTINGS, DOMAIN
 from .presence_rules import is_outdoor_floor
 from .telemetry import AI_WIZARD_STEPS, AI_WIZARD_SURFACES, INSTALL_AGE_WORDS, install_age_word
+from .quiet_errors import note as _quiet_error
 
 OFFER_AFTER_DAYS = 7    # a plan this many days old with no rooms is stuck (the field's median stuck house: 18 days)
 SCALE_BUILT = True      # piece 3: the helper sets a plan's scale by one measurement, so no_scale is never the answer (kept in REASONS for older reports)
@@ -692,6 +693,7 @@ def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:
         from homeassistant.helpers import area_registry  # noqa: PLC0415
         areas = list(area_registry.async_get(hass).async_list_areas())
     except Exception:  # noqa: BLE001
+        _quiet_error("ai_wizard:ha_areas")
         return []
     return [{"name": str(a.name), "floor_id": getattr(a, "floor_id", None)} for a in areas if getattr(a, "name", None)]
 
@@ -711,6 +713,7 @@ def create_area(areas_reg: Any, floors_reg: Any, name: str, floor_id: str | None
         areas_reg.async_create(name, floor_id=fid)
         return "created"
     except Exception:  # noqa: BLE001 — said on the Done screen, the rooms stay saved
+        _quiet_error("ai_wizard:create_area")
         return "failed"
 
 
@@ -719,11 +722,13 @@ def ensure_area(hass: HomeAssistant, name: str, floor_id: str | None) -> str:
         from homeassistant.helpers import area_registry  # noqa: PLC0415
         areas_reg = area_registry.async_get(hass)
     except Exception:  # noqa: BLE001
+        _quiet_error("ai_wizard:ensure_area_areas")
         return "failed"
     try:
         from homeassistant.helpers import floor_registry  # noqa: PLC0415
         floors_reg = floor_registry.async_get(hass)
     except Exception:  # noqa: BLE001
+        _quiet_error("ai_wizard:ensure_area_floors")
         floors_reg = None
     return create_area(areas_reg, floors_reg, name, floor_id)
 

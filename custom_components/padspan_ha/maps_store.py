@@ -53,6 +53,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import MAPS_STORE_KEY, MAPS_DIR, DEFAULT_FLOOR_ID, MAX_HEIGHT_M
 from .safe_store import wrap_store
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -468,6 +469,7 @@ class MapsStore:
                         rr = max(0.01, min(0.5, rr))
                         clean_rb[rname] = {"type": "circle", "cx": cx, "cy": cy, "r": rr}
                     except Exception:
+                        _quiet_error("maps_store:update_map")
                         continue
             m["room_bounds"] = clean_rb
 
@@ -762,6 +764,7 @@ class MapsStore:
                 try:
                     await asyncio.to_thread(fp.unlink)
                 except Exception:
+                    _quiet_error("maps_store:delete_map")
                     pass
         self.data["maps"] = [x for x in self.data.get("maps", []) if x.get("id") != map_id]
         await self.store.async_save(self.data)
@@ -1009,6 +1012,7 @@ def _extend_png(old_png: bytes, old_w: int, old_h: int,
         raw_data = b''.join(rows)
         return _encode_rgba_to_png(raw_data, new_w, new_h)
     except Exception:
+        _quiet_error("maps_store:extend_png")
         return old_png  # safety fallback
 
 
@@ -1037,6 +1041,7 @@ def _crop_png(png_data: bytes, cur_w: int, cur_h: int,
         raw_data = b''.join(rows)
         return _encode_rgba_to_png(raw_data, crop_w, crop_h)
     except Exception:
+        _quiet_error("maps_store:crop_png")
         return None
 
 
@@ -1121,6 +1126,7 @@ def _decode_png_to_rgba(png_data: bytes, expected_w: int, expected_h: int) -> by
                     rgba[off] = v; rgba[off + 1] = v; rgba[off + 2] = v; rgba[off + 3] = a
         return bytes(rgba)
     except Exception:
+        _quiet_error("maps_store:decode_png_to_rgba")
         return None
 
 
@@ -1165,6 +1171,7 @@ def _unfilter_png(raw: bytes, width: int, height: int, bpp: int, stride: int) ->
                 result[dst_off:dst_off + stride] = row_raw
         return bytes(result)
     except Exception:
+        _quiet_error("maps_store:unfilter_png")
         return None
 
 

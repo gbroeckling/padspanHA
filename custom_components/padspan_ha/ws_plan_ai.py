@@ -84,6 +84,7 @@ from .house3d_store import enabled as house3d_on
 from .ws_common import _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESSAGE
 from .ws_house3d_stairs import NOT_PLACED_CODE, PLANS_OFF_CODE, PLANS_OFF_MESSAGE
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -493,6 +494,7 @@ def _candidates(hass: HomeAssistant) -> list[dict[str, Any]]:
     try:
         eids = sorted(hass.states.async_entity_ids("ai_task"))
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_plan_ai:candidates")
         return out
     for eid in eids:
         u = A.unlock_rule(P._platform(hass, eid), A.model_sources(hass, eid))  # noqa: SLF001
@@ -507,6 +509,7 @@ def _anthropic_set_up(hass: HomeAssistant) -> bool:
     try:
         return bool(hass.config_entries.async_entries("anthropic"))
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_plan_ai:anthropic_set_up")
         return False
 
 
@@ -923,6 +926,7 @@ async def _rooms_settled(hass: HomeAssistant, store: A.PlanAiStore) -> None:
     try:
         house = await house_store(hass)
     except Exception:  # noqa: BLE001 — the 3D file can't be read now: settled next time
+        _quiet_error("ws_plan_ai:rooms_settled")
         return
     async with house.lock, store.lock:
         if await C.settle_rooms(hass, store, house):
@@ -962,6 +966,7 @@ async def helper_undo(hass: HomeAssistant, store: Any) -> dict[str, Any] | None:
     try:
         scale = await C.rooms_undo_scale(hass, store, und["session"], und.get("map_id"))
     except Exception:  # noqa: BLE001 — never at the cost of the answer: no word about the scale
+        _quiet_error("ws_plan_ai:helper_undo")
         scale = "none"
     model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     names = {str(fl.get("id")): fl.get("name") for fl in (model.floors() if model is not None else [])}
@@ -991,6 +996,7 @@ def _scale_check(hass: HomeAssistant, store: A.PlanAiStore, sess: dict[str, Any]
             printed = {"k": k, "text": ax.get("text"), "metres": ax.get("metres"), "here_m": round(float(ax.get("metres") or 0) * k, 2)}
         return W.scale_signs((sess.get("proposal") or {}).get("spaces") or {}, list(rows), printed)
     except Exception:  # noqa: BLE001
+        _quiet_error("ws_plan_ai:scale_check")
         _LOGGER.debug("PadSpan rooms helper: the scale check couldn't be worked out", exc_info=True)
         return None
 
@@ -1107,6 +1113,7 @@ async def _undo_scale_word(hass: HomeAssistant, store: A.PlanAiStore, ans: dict[
         try:
             u["scale"] = await C.rooms_undo_scale(hass, store, u["session"], u.get("map_id"))
         except Exception:  # noqa: BLE001
+            _quiet_error("ws_plan_ai:undo_scale_word")
             u["scale"] = "none"
 
 
@@ -1134,6 +1141,7 @@ async def _reprojected(hass: HomeAssistant, store: A.PlanAiStore, sid: str) -> d
                 A.reset_rooms_edits(work)
                 prop = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(work), snap, house, points, barriers)
         except Exception:  # noqa: BLE001 — the session as it was: nothing lost
+            _quiet_error("ws_plan_ai:reprojected")
             _LOGGER.debug("PadSpan rooms helper: the rooms couldn't be drawn again at the new scale", exc_info=True)
             return {"redrawn": False, "reset": False}
         work["proposal"] = prop
@@ -1239,6 +1247,7 @@ async def ws_plan_build_rooms_edit(hass: HomeAssistant, connection, msg) -> None
         try:
             prop = await hass.async_add_executor_job(A.rooms_proposal, copy.deepcopy(sess), snap, house, points, barriers)
         except Exception:  # noqa: BLE001 — an edit that can't be worked out is taken back
+            _quiet_error("ws_plan_ai:plan_build_rooms_edit")
             sess["edits"] = was
             connection.send_error(msg["id"], "invalid", RP + "that edit couldn't be worked out, so it was taken back.")
             return
@@ -1448,6 +1457,7 @@ async def ws_plan_build_scale_preview(hass: HomeAssistant, connection, msg) -> N
         try:
             out["replace"] = await C.scale_replace_word(hass, store, msg["map_id"])
         except Exception:  # noqa: BLE001
+            _quiet_error("ws_plan_ai:plan_build_scale_preview")
             out["replace"] = "none"
     connection.send_result(msg["id"], out)
 

@@ -26,6 +26,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import ADAPTIVE_STORE_KEY
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -437,6 +438,7 @@ class AdaptiveStore:
                 start = datetime.fromisoformat(learning_since)
                 days = max(0, (datetime.now(timezone.utc) - start).days)
             except Exception:
+                _quiet_error("adaptive_store:summary")
                 pass
 
         rooms_learned = len(fps)

@@ -29,6 +29,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_SETTINGS, DOMAIN, VERSION
+from .quiet_errors import note as _quiet_error
 
 LICENCE_URL = "https://traks.ca/license/"
 
@@ -44,6 +45,7 @@ async def machine_id(hass: HomeAssistant) -> str:
         if iid:
             return str(iid)
     except Exception:
+        _quiet_error("licence_homes:machine_id")
         pass
     st = hass.data[DOMAIN][DATA_SETTINGS]
     mid = str(st.data.get("license_install_id") or "")

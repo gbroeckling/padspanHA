@@ -27,6 +27,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DATA_FABRIC, DATA_HOUSE3D, DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .presence_rules import is_outdoor_floor
+from .quiet_errors import note as _quiet_error
 
 TIPS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale", "plan_shape")
 # The guided Setup's steps, in order (views/setup.js SETUP_STEPS, held equal
@@ -224,6 +225,7 @@ def setup_tips(hass: HomeAssistant) -> list[str]:
             if fabric_truth.metre_gauge(mdl_store) is None:
                 out.append("scale")
         except Exception:  # noqa: BLE001 — a check that can't run says nothing
+            _quiet_error("setup_checks:setup_tips")
             pass
     if plans_out_of_shape(maps, mdl.get("map_transforms")):
         out.append("plan_shape")

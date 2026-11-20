@@ -124,6 +124,7 @@ from .presence_rules import (
     coverage_evidence, coverage_window_polls, outdoor_attribution,
     outside_by_coverage, away_timeout_s, is_away,
 )
+from .quiet_errors import COUNTS as _QUIET_COUNTS, note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -726,6 +727,7 @@ async def async_send_follow_notify(
                 )
                 return slug
             except Exception:  # noqa: BLE001
+                _quiet_error("presence:follow_notify_service")
                 try:
                     await hass.services.async_call("notify", slug, alert_data, context=context)
                     return slug
@@ -1003,6 +1005,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._suspend_permanent = True
                 _LOGGER.info("Databases suspended (restored from settings)")
         except Exception:
+            _quiet_error("presence:init")
             pass
 
     # ── Suspend / reset smoothing state ─────────────────────────────────────
@@ -1031,6 +1034,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _st.data["databases_suspended"] = True
                 self.hass.async_create_task(_st.store.async_save(_st.data))
         except Exception:
+            _quiet_error("presence:suspend_databases")
             pass
         _LOGGER.info(
             "Databases suspended for %d minutes — raw radio + spatial centroid only",
@@ -1049,6 +1053,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _st.data.pop("databases_suspended", None)
                 self.hass.async_create_task(_st.store.async_save(_st.data))
         except Exception:
+            _quiet_error("presence:unsuspend_databases")
             pass
         _LOGGER.info("Database suspension ended — full pipeline resumed")
 
@@ -1120,6 +1125,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if len(cpus) > 1:
                 os.sched_setaffinity(0, {max(cpus)})
         except Exception:  # never let pinning failure kill the worker
+            _quiet_error("presence:pin_compute_thread")
             pass
 
     def _compute_executor_for(self, mode: str) -> ThreadPoolExecutor:
@@ -1157,6 +1163,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             from .presence_rules import scanner_floors  # noqa: PLC0415
             self._floor_cache = scanner_floors((_st.data if _st else {}) or {})
         except Exception:
+            _QUIET_COUNTS["presence:excluded_sources"] += 1
             pass
         return self._excluded_cache
 
@@ -1218,6 +1225,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for _ in range(min(self._fusion_nudges, 1000)):
                     record_duration(self.hass, "fusion_chg", 1.0)
         except Exception:
+            _QUIET_COUNTS["presence:note_steadiness"] += 1
             pass
 
     async def _async_poll(self) -> dict[str, Any]:
@@ -1253,6 +1261,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self.update_interval != _new_interval:
                 self.update_interval = _new_interval
         except Exception:
+            _QUIET_COUNTS["presence:poll_interval"] += 1
             pass
 
         # Accumulates (key, old_room, new_room) tuples during this poll cycle;
@@ -1385,6 +1394,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             else:
                 self._pl_fits = {}
         except Exception:
+            _QUIET_COUNTS["presence:poll_path_loss_fits"] += 1
             self._pl_fits = {}
 
         # ── Build source-to-area and source-to-floor lookups ──────────────
@@ -1407,6 +1417,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     for f in _fr.async_list_floors()
                 ])
             except Exception as _fl_err:
+                _QUIET_COUNTS["presence:poll_floor_registry"] += 1
                 _LOGGER.debug("Floor registry sync: %s", _fl_err)
 
             # In auto mode, sync snapshot radios into the fabric
@@ -1437,6 +1448,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if _a.name and _fl:
                         _area_to_floor[_a.name] = str(_fl)
             except Exception as _area_err:
+                _QUIET_COUNTS["presence:poll_area_registry"] += 1
                 _LOGGER.debug("Area registry floor lookup: %s", _area_err)
             for r in (snap.get("ble") or {}).get("radios") or []:
                 src  = r.get("source")
@@ -1461,6 +1473,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if _off:
                             _am[_src] = _am[_src] + float(_off)
         except Exception as _off_err:
+            _QUIET_COUNTS["presence:poll_scanner_offsets"] += 1
             _LOGGER.debug("Scanner offset application: %s", _off_err)
 
         # ── Mask excluded scanners (issue #59) ───────────────────────────
@@ -1509,6 +1522,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _dyn_vote_window = max(1, round(_delay_s / self.update_interval.total_seconds()))
             _dyn_vote_threshold = _dyn_vote_window // 2 + 1
         except Exception:
+            _QUIET_COUNTS["presence:poll_vote_settings"] += 1
             _dyn_vote_window = _VOTE_WINDOW
             _dyn_vote_threshold = _VOTE_THRESHOLD
 
@@ -1529,6 +1543,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         "y_m": _bk_pos.get("y_m"),
                     }
         except Exception:
+            _QUIET_COUNTS["presence:poll_pinned_beacons"] += 1
             pass
 
         # Floor-based room set from fabric geometry, and each room's floor —
@@ -1577,6 +1592,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if self._room_centroids or self._scanner_positions:
                     self._use_metres = True
         except Exception:
+            _QUIET_COUNTS["presence:poll_model_geometry"] += 1
             pass
 
         # ── The site's coverage floor (outside attribution) ─────────────────
@@ -1586,6 +1602,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             self._refresh_coverage_floor(_model, source_to_floor)
         except Exception as _cov_err:
+            _QUIET_COUNTS["presence:poll_coverage_floor"] += 1
             _LOGGER.debug("Coverage floor: %s", _cov_err)
 
         # Followed objects are never background (is_background_object). Read
@@ -1897,6 +1914,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     pinned=_pinned, followed=_followed_addrs, coord=self)
                 await _cap.async_maybe_flush()
             except Exception as err:
+                _QUIET_COUNTS["presence:poll_capture_frame"] += 1
                 _LOGGER.debug("Capture frame failed: %s", err)
 
         # ── Auto-calibration from pinned beacons ─────────────────────────────
@@ -2004,6 +2022,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _tb.record_frame([o for k, o in result.items() if k in _cur_present], followed_set=_tb_followed)
                 await _tb.async_maybe_save()
             except Exception as _tb_err:
+                _QUIET_COUNTS["presence:poll_traceback"] += 1
                 _LOGGER.debug("Traceback record failed: %s", _tb_err)
 
         if _arrived or _departed:
@@ -2058,6 +2077,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             try:
                                 await _model.async_set_adjacency(_rm_name, sorted(set(_neighbors)))
                             except Exception:
+                                _QUIET_COUNTS["presence:poll_adjacency"] += 1
                                 pass
                     self._co_visible.clear()
 
@@ -2074,6 +2094,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._pending_room_changes, result
                     )
             except Exception:
+                _QUIET_COUNTS["presence:poll_tag_events"] += 1
                 pass
             self._pending_room_changes.clear()
         # Follow room alerts held back by their cooldown.
@@ -2081,6 +2102,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 await self._flush_held_room_alerts(now, result)
             except Exception as _held_err:
+                _QUIET_COUNTS["presence:poll_held_room_alerts"] += 1
                 _LOGGER.debug("Held room alerts: %s", _held_err)
         # Room changes the tag events held back during their cooldown.
         try:
@@ -2089,6 +2111,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if _ti is not None and _ti.has_held():
                 await _ti.async_emit_held(result)
         except Exception:
+            _QUIET_COUNTS["presence:poll_tag_events_held"] += 1
             pass
 
         # ── Proactive state cleanup ─────────────────────────────────────────────
@@ -2182,12 +2205,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         await async_publish(self.hass, f"{topic_base}/distance",
                                             str(calc_distance(float(rssi), obj, self.hass)), retain=True)
                 except Exception:
+                    _QUIET_COUNTS["presence:mqtt_publish_one"] += 1
                     _LOGGER.debug("MQTT publish for %s failed", slug, exc_info=True)
                     from .telemetry import bump  # noqa: PLC0415
                     bump(self.hass, "mqtt_publish_failed")
         except ImportError:
             _LOGGER.debug("MQTT component not available — skipping MQTT publish")
         except Exception:
+            _QUIET_COUNTS["presence:mqtt_publish"] += 1
             _LOGGER.debug("MQTT publish error", exc_info=True)
 
     # ── smoothing helpers ─────────────────────────────────────────────────────
@@ -2410,6 +2435,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _Q = float(_d.get("kalman_q", _KALMAN_Q))
             _R = float(_d.get("kalman_r", _KALMAN_R))
         except Exception:
+            _QUIET_COUNTS["presence:smooth_kalman_settings"] += 1
             _Q = _KALMAN_Q
             _R = _KALMAN_R
         # Process noise accumulates per unit TIME — scale Q with the poll
@@ -2555,6 +2581,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _floor_on = bool(_d_pl.get("adaptive_floor_detection", False))
             _dev_h = max(0.0, min(3.0, float(_d_pl.get("assumed_device_height_m", 1.0))))
         except Exception:
+            _QUIET_COUNTS["presence:smooth_path_loss_settings"] += 1
             _ref   = DEFAULT_REF_POWER
             _n_exp = DEFAULT_PATH_LOSS_EXP
             _floor_on = False
@@ -2975,6 +3002,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     _eff_rssi += _learned_delta
                                     _applied_floor_atten = True
                         except Exception as _fl_err:
+                            _QUIET_COUNTS["presence:smooth_floor_attenuation"] += 1
                             _LOGGER.debug("Floor attenuation error: %s", _fl_err)
                         if not _applied_floor_atten:
                             _eff_rssi -= 10.0  # default cross-floor penalty
@@ -3098,6 +3126,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _d_ad = (_st_ad.data if _st_ad else {}) or {}
             _adaptive_on = bool(_d_ad.get("adaptive_learning_enabled", False))
         except Exception:
+            _QUIET_COUNTS["presence:smooth_adaptive_setting"] += 1
             _adaptive_on = False
         if self.suspended:
             _adaptive_on = False
@@ -3135,6 +3164,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _unsure_on = _d_ha.get("positioning_unsure") is True
             _fusion_on = _d_ha.get("positioning_sensor_fusion") is True
         except Exception:
+            _QUIET_COUNTS["presence:smooth_fusion_settings"] += 1
             _pick_on = _unsure_on = _fusion_on = False
         # The held-out test found fingerprints better in this house: k-NN's
         # room may override a spatial one (heldout.next_preferred, hysteresis).
@@ -3529,6 +3559,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 if _ad:
                                     _ad.record_floor_transition(_old_fl, _new_fl, _fl_dwell)
                             except Exception:
+                                _QUIET_COUNTS["presence:smooth_floor_transition"] += 1
                                 pass
                         elif _new_fl:
                             self._device_floor[key] = _new_fl
@@ -3764,6 +3795,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         return True
             return False if _found_sensor else None
         except Exception as _corr_err:
+            _QUIET_COUNTS["presence:room_corroborated"] += 1
             _LOGGER.debug("Corroboration check for %s failed: %s", room, _corr_err)
             return None
 
@@ -3776,6 +3808,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return False
             return float((_ad.transition_prior(from_room, [to_room]) or {}).get(to_room, 0.0)) >= _USUAL_MOVE_SHARE
         except Exception:
+            _QUIET_COUNTS["presence:usual_move"] += 1
             return False
 
     def _prefer_knn_now(self) -> bool:
@@ -3786,6 +3819,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _d = (getattr(self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS), "data", None) or {})
             return _d.get("positioning_pick_better") is True
         except Exception:
+            _QUIET_COUNTS["presence:prefer_knn_now"] += 1
             return False
 
     def _corroborated_cached(self, room: str) -> bool | None:
@@ -3826,6 +3860,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if _ad is not None and hasattr(_ad, "transition_prior"):
                     prior = _ad.transition_prior(confirmed, close) or {}
             except Exception:
+                _QUIET_COUNTS["presence:fusion_nudge"] += 1
                 prior = {}
 
         def _score(r: str) -> float:
@@ -3875,6 +3910,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 n_exp = float(_d.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
                 dev_h = max(0.0, min(3.0, float(_d.get("assumed_device_height_m", 1.0))))
             except Exception:
+                _quiet_error("presence:heldout_job_settings")
                 ref, n_exp, dev_h = DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP, 1.0
             site = _ho.SpatialSite(
                 positions=dict(self._scanner_positions), fit_sources=set(self._pl_fits),
@@ -3885,6 +3921,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             excluded = cal.excluded_sources()
         except Exception:
+            _quiet_error("presence:heldout_job_excluded")
             excluded = frozenset()
         return partial(_ho.evaluate, pts, excluded=excluded, room_at=room_at, site=site,
                        source_area=dict(self._last_source_to_area))
@@ -3914,6 +3951,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 walk["after"] = {"knn": {"rooms_right_pc": (res.get("knn") or {}).get("rooms_right_pc")}}
                 await cal.store.async_save(cal.data)
         except Exception as _ho_err:
+            _quiet_error("presence:heldout")
             _LOGGER.debug("Held-out accuracy failed: %s", _ho_err)
         finally:
             self._heldout_mono = time.monotonic()
@@ -3974,6 +4012,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return
             self.hass.async_create_task(self.async_heldout(3600.0))
         except Exception:
+            _QUIET_COUNTS["presence:maybe_refresh_heldout"] += 1
             pass
 
     # ── Door/window barrier attenuation (IDEA_DOOR_WINDOW_BARRIERS.md step 4) ──
@@ -4011,6 +4050,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if _confirmed == "on":
                     _bar["attenuation_dbm"] = 0.0
             except Exception as _door_err:
+                _QUIET_COUNTS["presence:resolve_door_attenuation"] += 1
                 _LOGGER.debug("Door attenuation resolve for %s failed: %s", _eid, _door_err)
 
     # ── Object state cleanup ─────────────────────────────────────────────
@@ -4317,6 +4357,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             rules = (_st.data if _st else {}).get("padspan_automations") or []
         except Exception:
+            _QUIET_COUNTS["presence:run_automations"] += 1
             return
         if not rules:
             return
@@ -4438,6 +4479,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if not _auto_cal and not _adaptive:
                     return
         except Exception:
+            _QUIET_COUNTS["presence:beacon_cal_settings"] += 1
             pass
 
         cal_store = self.hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
@@ -4494,6 +4536,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 })
                 await cal_store.async_prune_auto_points(max_per_beacon=50)
             except Exception:
+                _QUIET_COUNTS["presence:beacon_cal_add_point"] += 1
                 _LOGGER.debug("Beacon auto-cal injection failed for %s", key)
 
     async def inject_immediate_calibration(
@@ -4562,6 +4605,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await cal_store.async_prune_auto_points(max_per_beacon=50)
                 injected += 1
             except Exception:
+                _quiet_error("presence:immediate_cal_add_point")
                 _LOGGER.debug("Immediate beacon cal injection failed for %s", key)
         return injected
 
@@ -4702,6 +4746,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if key_in_active_session(self.hass, key):
                 return False
         except Exception:  # noqa: BLE001
+            _quiet_error("presence:follow_notify_guest")
             pass
         email = (cfg.get("email") or "").strip()
         preferred = cfg.get("notify_service") or ""
@@ -4795,4 +4840,5 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     label = obj_store.get_label(key)
                 await mv_store.record(key, old_room, new_room, label=label, padspan_id=pid)
         except Exception as err:
+            _QUIET_COUNTS["presence:record_movement"] += 1
             _LOGGER.debug("Movement recording failed: %s", err)

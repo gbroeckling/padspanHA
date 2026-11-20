@@ -26,6 +26,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from .device_detail import scrub_apple_block
 from .proxy_health import AdvertRateHealth
+from .quiet_errors import COUNTS as _QUIET_COUNTS, note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ def _scanning_mode(obj: Any, attr: str) -> Optional[str]:
     try:
         return str(m).rsplit(".", 1)[-1].lower() or None
     except Exception:
+        _quiet_error("ble:scanning_mode")
         return None
 
 
@@ -120,6 +122,7 @@ def _coerce_source(src: Any) -> str:
                 return s
         return ""
     except Exception:
+        _QUIET_COUNTS["ble:coerce_source"] += 1
         return str(src)
 
 
@@ -145,6 +148,7 @@ def address_type_of(device: Any, esphome_ok: Optional[Callable[[str], bool]] = N
         try:
             return "public" if esphome_ok is not None and esphome_ok(str(details.get("source") or "")) else None
         except Exception:
+            _QUIET_COUNTS["ble:address_type_of"] += 1
             return None
     props = details.get("props")
     if isinstance(props, dict):
@@ -225,6 +229,7 @@ def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None,
             else:
                 manuf_out[str(k)] = str(v)
     except Exception:
+        _QUIET_COUNTS["ble:record_manufacturer"] += 1
         manuf_out = {}
 
     svc_out: Dict[str, str] = {}
@@ -235,6 +240,7 @@ def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None,
             else:
                 svc_out[str(k)] = str(v)
     except Exception:
+        _QUIET_COUNTS["ble:record_service_data"] += 1
         svc_out = {}
 
     # TX Power Level AD type (0x0A) — device's declared transmit power at 1 m.
@@ -281,6 +287,7 @@ def _service_info_to_record_from_adv(
             else:
                 manuf_out[str(k)] = str(v)
     except Exception:
+        _QUIET_COUNTS["ble:adv_record_manufacturer"] += 1
         pass
 
     svcdata = getattr(adv_data, "service_data", None) or {}
@@ -292,6 +299,7 @@ def _service_info_to_record_from_adv(
             else:
                 svc_out[str(k)] = str(v)
     except Exception:
+        _QUIET_COUNTS["ble:adv_record_service_data"] += 1
         pass
 
     service_uuids = getattr(adv_data, "service_uuids", None) or []
@@ -417,6 +425,7 @@ class BluetoothLive:
         try:
             from .telemetry import bump  # noqa: PLC0415 - avoids an import cycle
         except Exception:
+            _quiet_error("ble:scan_mode_flips")
             return
         for r in radios:
             src = r.get("source") or ""
@@ -444,6 +453,7 @@ class BluetoothLive:
                 bump(self.hass, "proxy_rate_drop", len(started))
             return self.rate_health.low_sources()
         except Exception as e:  # noqa: BLE001 - never costs the snapshot
+            _quiet_error("ble:rate_health_tick")
             _LOGGER.debug("Advert rate health skipped: %s", e)
             return set()
 
@@ -452,6 +462,7 @@ class BluetoothLive:
             try:
                 u()
             except Exception:
+                _quiet_error("ble:unload")
                 pass
         self._unsubs.clear()
         self._seen_by_source.clear()
@@ -492,9 +503,11 @@ class BluetoothLive:
             else:
                 self._public_store.async_delay_save(_data, 60)
         except Exception:
+            _quiet_error("ble:save_public")
             try:
                 self._public_store.async_delay_save(_data, 0 if at_once else 60)
             except Exception as e:  # noqa: BLE001
+                _quiet_error("ble:save_public_fallback")
                 _LOGGER.debug("public address save failed: %s", e)
 
     def _esphome_public_ok(self, source: str) -> bool:
@@ -522,6 +535,7 @@ class BluetoothLive:
         try:
             data = await store.async_load()
         except Exception as e:  # noqa: BLE001
+            _quiet_error("ble:load_public")
             _LOGGER.debug("public address load failed: %s", e)
             data = None
         # Only a file written under this rule: 0.38.211 also kept ESPHome's 0
@@ -590,6 +604,7 @@ class BluetoothLive:
             if src != "_unknown" and (src not in self._radio_last_heard or self._radio_last_heard[src] < seen):
                 self._radio_last_heard[src] = seen
         except Exception as e:
+            _QUIET_COUNTS["ble:on_adv"] += 1
             _LOGGER.debug("BLE adv parse failed: %s", e)
 
     def _seed_from_discovered(self) -> None:
@@ -667,6 +682,7 @@ class BluetoothLive:
                                     try:
                                         _last = manager.async_last_service_info(addr, _conn)
                                     except Exception:  # noqa: BLE001
+                                        _QUIET_COUNTS["ble:seed_last_info"] += 1
                                         _last = None
                                     if _last is not None and str(getattr(_last, "source", "")) == str(src):
                                         _lt = getattr(_last, "time", None)
@@ -721,6 +737,7 @@ class BluetoothLive:
             except ImportError as _imp_err:
                 self.seed_error = f"habluetooth import: {_imp_err}"
             except Exception as _mgr_err:
+                _QUIET_COUNTS["ble:seed_scanner_iteration"] += 1
                 self.seed_error = f"scanner iteration: {_mgr_err}"
 
             # ── Fallback: deduplicated API (1 scanner per device) ──
@@ -742,6 +759,7 @@ class BluetoothLive:
 
             self._last_reseed = _now()
         except Exception as e:
+            _QUIET_COUNTS["ble:seed_from_discovered"] += 1
             _LOGGER.debug("BLE seed failed: %s", e)
 
     @property
@@ -876,6 +894,7 @@ class BluetoothLive:
                             }
                         )
             except Exception as e:
+                _quiet_error("ble:snapshot_scanner_list")
                 diag["ok"] = False
                 diag["errors"].append(f"scanner_list_failed: {e!s}")
                 radios = []
@@ -895,6 +914,7 @@ class BluetoothLive:
                     _RESEED_INTERVAL_S = reseed_interval_s(_st.data)
                     _median_s = median_window_s(_st.data)
             except Exception:
+                _quiet_error("ble:snapshot_settings")
                 pass
             # How late a passive proxy's reports can arrive — the Find My
             # report's "late" (findmy.py _report_lag) reads it here.
@@ -1024,6 +1044,7 @@ class BluetoothLive:
                 "diag": diag,
             }
         except Exception as e:
+            _quiet_error("ble:snapshot")
             _LOGGER.debug("BLE snapshot failed: %s", e)
             return {"radios": [], "advertisements": [], "diag": {"ok": False, "errors": [str(e)]}}
 DATA_KEY = "bluetooth_live"
@@ -1070,6 +1091,7 @@ def esphome_version(hass: Any, source: str) -> Optional[str]:
             if v:
                 return str(v)
     except Exception:
+        _quiet_error("ble:esphome_version_manager")
         pass
     try:
         for entry in hass.config_entries.async_entries("esphome"):
@@ -1082,6 +1104,7 @@ def esphome_version(hass: Any, source: str) -> Optional[str]:
             if src in macs and v:
                 return str(v)
     except Exception:
+        _quiet_error("ble:esphome_version_entries")
         pass
     return None
 
@@ -1096,6 +1119,7 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
         # The answers the online maker lookup kept. Nothing reads them any more.
         await Store(hass, 1, VENDOR_CACHE_STORE_KEY).async_remove()
     except Exception as e:  # noqa: BLE001
+        _quiet_error("ble:setup_public_store")
         _LOGGER.debug("public address store unavailable: %s", e)
 
     try:
@@ -1121,6 +1145,7 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
                     try:
                         return bluetooth.async_register_callback(hass, bl._on_adv, matcher={})
                     except Exception:
+                        _quiet_error("ble:register_cb")
                         return None
 
         # Register for connectable (ACTIVE) scanner advertisements
@@ -1139,6 +1164,7 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
         bl._seed_from_discovered()
 
     except Exception as e:
+        _quiet_error("ble:setup_callbacks")
         _LOGGER.debug("Bluetooth callbacks not available: %s", e)
 
     hass.data.setdefault("padspan_ha", {})[DATA_KEY] = bl

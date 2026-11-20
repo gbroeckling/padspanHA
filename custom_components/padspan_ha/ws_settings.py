@@ -28,6 +28,7 @@ from .const import (
 )
 from .bluetooth_live import get_bluetooth_live
 from .ws_common import require_admin_if_enhanced, _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache, _padspan_pro_active
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -883,6 +884,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             try:
                 _old_followed = set(str(x).upper() for x in (st.data.get("followed_addrs") or []))
             except Exception:
+                _quiet_error("ws_settings:set_followed_old")
                 _old_followed = set()
             # Clear coordinator state for unfollowed objects so they don't
             # linger on the overview 3D map as stale ghosts.
@@ -894,6 +896,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                         for _rf in _removed_f:
                             _coord_f.clear_object_state(_rf)
             except Exception:
+                _quiet_error("ws_settings:set_followed_removed")
                 pass
             # Auto-label newly-followed objects that have no label yet.
             # Entity creation (device_tracker/sensor) requires user_label, so
@@ -914,6 +917,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                                 if _a_addr and _a_name and _a_addr not in _name_by_mac:
                                     _name_by_mac[_a_addr] = _a_name
                     except Exception:
+                        _quiet_error("ws_settings:set_followed_ble")
                         pass
                     for _af in _added_f:
                         if _obj_store_f.get(_af):
@@ -935,6 +939,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                         await _obj_store_f.async_set(_af, _lbl_f)
                         _LOGGER.info("Auto-labelled followed object %s as %r", _af, _lbl_f)
             except Exception as _fl_err:
+                _quiet_error("ws_settings:set_follow_auto_label")
                 _LOGGER.debug("Follow auto-label failed: %s", _fl_err)
         if "health_reminder_enabled" in msg:
             payload["health_reminder_enabled"] = bool(msg["health_reminder_enabled"])
@@ -1522,6 +1527,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 if _cal_ex:
                     hass.async_create_task(_cal_ex._async_train_rf())
             except Exception as _ex_err:
+                _quiet_error("ws_settings:set_excluded_scanners")
                 _LOGGER.debug("Excluded-scanner retrain: %s", _ex_err)
 
         # ── Tasmota BLE toggle (tasmota_ble.py) ───────────────────────────────
@@ -1536,6 +1542,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     if _tb:
                         hass.async_create_task(_tb.async_stop())
             except Exception:
+                _quiet_error("ws_settings:set_tasmota")
                 pass
 
         # ── Dynamic ESPresense MQTT toggle ───────────────────────────────────
@@ -1550,6 +1557,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     if _esp:
                         hass.async_create_task(_esp.async_stop())
             except Exception:
+                _quiet_error("ws_settings:set_espresense")
                 pass
 
         # ── Toggle existing PadSpan entities in HA registry ──────────────────
@@ -1584,6 +1592,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                         _er.async_update_entity(_entry.entity_id, disabled_by=_disabler)
                         _toggled_any = True
             except Exception:
+                _quiet_error("ws_settings:set_toggle_entities")
                 _LOGGER.debug("Failed to toggle entities for %s", _skey, exc_info=True)
     _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"settings": _get_settings(hass)})

@@ -20,6 +20,7 @@ from .const import (
     DATA_OBJECTS,
 )
 from .bluetooth_live import get_bluetooth_live
+from .quiet_errors import note as _quiet_error
 
 
 def _is_ble_transmitter(entry: Any) -> bool:
@@ -50,6 +51,7 @@ async def _phone_canonical_ids(hass: HomeAssistant, follow_key: str, obj_store: 
                 found.append(str(resolved["canonical_id"]))
             break
     except Exception:
+        _quiet_error("ws_companion:phone_ids_resolver")
         pass
     if not found and label:
         try:
@@ -59,6 +61,7 @@ async def _phone_canonical_ids(hass: HomeAssistant, follow_key: str, obj_store: 
             if len(same) == 1:
                 found = same
         except Exception:
+            _quiet_error("ws_companion:phone_ids_labels")
             pass
     return found
 
@@ -76,6 +79,7 @@ def mobile_app_notify_service(hass: HomeAssistant, device: Any) -> str | None:
         svcs = [s for s in hass.services.async_services().get("notify", {})
                 if isinstance(s, str) and s.startswith("mobile_app_")]
     except Exception:
+        _quiet_error("ws_companion:mobile_app_notify_service")
         return None
     ids = {f"mobile_app_{i[1]}" for i in (device.identifiers or set())
            if isinstance(i, tuple) and len(i) == 2 and i[0] == "mobile_app"}
@@ -346,6 +350,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                                 _vis_rssi = _rssi
                             _vis_scanner_count += 1
             except Exception:
+                _quiet_error("ws_companion:discover_ble")
                 pass
 
             phones.append({
@@ -408,6 +413,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                                 _fb_irk_cid = _fb_dev["canonical_id"]
                                 break
                     except Exception:
+                        _quiet_error("ws_companion:discover_resolver")
                         pass
                     phones.append({
                         "entity_id": "",
@@ -431,6 +437,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                         "irk_canonical": _fb_irk_cid,
                     })
         except Exception as e:
+            _quiet_error("ws_companion:discover_devices")
             _LOGGER.debug("companion_discover device-registry scan: %s", e)
 
         # ── Notify-service discovery ──────────────────────────────────────
@@ -469,6 +476,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                                 _dev_id = device.id
                                 break
                     except Exception:
+                        _quiet_error("ws_companion:discover_device_lookup")
                         pass
                     phones.append({
                         "entity_id": "",
@@ -494,6 +502,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                     })
                     _phones_names_lc.add(dev_name.lower())
         except Exception as e:
+            _quiet_error("ws_companion:discover_notify")
             _LOGGER.debug("companion_discover notify scan: %s", e)
 
         # ── Device-tracker entity discovery ───────────────────────────────
@@ -543,6 +552,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                 })
                 _phones_names_lc.add(dev_name.lower())
         except Exception as e:
+            _quiet_error("ws_companion:discover_entities")
             _LOGGER.debug("companion_discover device-tracker scan: %s", e)
 
         # ── Webhook / hass.data discovery ─────────────────────────────────
@@ -600,6 +610,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                             "os_name": rv.get("os_name", ""),
                         })
         except Exception as e:
+            _quiet_error("ws_companion:discover_webhooks")
             _LOGGER.debug("companion_discover webhook scan: %s", e)
 
         # Sort platforms by count descending, top 20
@@ -651,6 +662,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                             "identifiers": [list(i) for i in (device.identifiers or set())],
                         })
             except Exception as e:
+                _quiet_error("ws_companion:discover_registry_scan")
                 _LOGGER.debug("companion_discover broad device scan: %s", e)
 
         # ── iBeacon scan from live BLE ────────────────────────────────────
@@ -677,6 +689,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                             "name": ad.get("name", ""),
                         })
             except Exception as e:
+                _quiet_error("ws_companion:discover_ibeacons")
                 _LOGGER.debug("companion_discover iBeacon scan: %s", e)
 
         connection.send_result(msg["id"], {
@@ -782,6 +795,7 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
                         )
                     break
             except Exception as _cid_err:
+                _quiet_error("ws_companion:follow_canonical_id")
                 _LOGGER.debug("companion_follow: canonical_id cross-label: %s", _cid_err)
 
             labelled = True
@@ -816,6 +830,7 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
                     transmitter_enabled = True
                     results.append("BLE Transmitter entity enabled")
             except Exception as te:
+                _quiet_error("ws_companion:follow_enable_entity")
                 _LOGGER.debug("Entity registry enable for %s: %s", transmitter_eid, te)
 
             # 3b) Send notification command to Companion App to turn on the
@@ -938,6 +953,7 @@ async def ws_companion_unfollow(hass: HomeAssistant, connection, msg) -> None:
             if _coord_uf:
                 _coord_uf.clear_object_state(ibeacon_key)
         except Exception:
+            _quiet_error("ws_companion:unfollow")
             pass
 
         connection.send_result(msg["id"], {

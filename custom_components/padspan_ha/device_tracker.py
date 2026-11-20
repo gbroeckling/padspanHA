@@ -32,6 +32,7 @@ from .geo_bridge import accuracy_from_confidence, metres_to_latlon
 from .presence_coordinator import PresenceCoordinator
 from .entity_identity import alternates_of, kept_device_info, pick_uid_key, registry_ready, uid_safe
 from .presence_rules import away_timeout_s, is_away
+from .quiet_errors import note as _quiet_error
 
 # HA's own constant, with a literal fallback so an import change upstream
 # cannot silently turn the away state back into "unknown".
@@ -348,4 +349,5 @@ def _guest_attrs(hass, obj):
         from .guest_tags import tracker_attributes  # noqa: PLC0415
         return tracker_attributes(hass, obj)
     except Exception:  # noqa: BLE001
+        _quiet_error("device_tracker:guest_attrs")
         return {}

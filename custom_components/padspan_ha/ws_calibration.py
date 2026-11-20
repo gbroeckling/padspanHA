@@ -32,6 +32,7 @@ from .ble_enrichment import with_model_maker as _with_model_maker
 from .calibration_store import CalibrationStore
 from .snapshot_builder import _live_snapshot
 from .ws_backup import _auto_backup
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ async def ws_calibration_health_check(hass: HomeAssistant, connection, msg) -> N
                 latest_ts = datetime.fromisoformat(latest_iso).timestamp()
                 stale_days = round((now_ts - latest_ts) / 86400)
             except Exception:
+                _quiet_error("ws_calibration:health_latest_point")
                 pass
 
     # ── Per-scanner mean-RSSI anomalies ───────────────────────────────────────
@@ -112,6 +114,7 @@ async def ws_calibration_health_check(hass: HomeAssistant, connection, msg) -> N
             all_maps = maps_store.data.get("maps") or []
             map_ids = [m["id"] for m in all_maps]
         except Exception:
+            _quiet_error("ws_calibration:health_maps")
             pass
     map_name_lookup: dict[str, str] = {m["id"]: m.get("name", "") for m in all_maps}
 
@@ -153,6 +156,7 @@ async def ws_calibration_health_check(hass: HomeAssistant, connection, msg) -> N
     try:
         live_radios = ((await _live_snapshot(hass)).get("ble") or {}).get("radios") or []
     except Exception:
+        _quiet_error("ws_calibration:health_live_radios")
         pass
     radio_name_map: dict[str, str] = {}
     for _r in live_radios:
@@ -224,6 +228,7 @@ def _heldout(hass: HomeAssistant) -> dict[str, Any] | None:
     try:
         return coord.heldout_cached()
     except Exception:
+        _quiet_error("ws_calibration:heldout")
         return None
 
 
@@ -406,6 +411,7 @@ async def _note_points_seen(hass: HomeAssistant, cal: Any) -> None:
         if st is not None:
             await st.async_set(calibration_points_seen=len(cal.data.get("points") or []))
     except Exception as err:  # noqa: BLE001
+        _quiet_error("ws_calibration:note_points_seen")
         _LOGGER.debug("calibration_points_seen not updated: %s", err)
 
 

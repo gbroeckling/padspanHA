@@ -28,6 +28,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, DATA_SETTINGS, VERSION
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ async def _keep_offers(hass: HomeAssistant, manifest: dict) -> None:
         try:
             await st.async_set(server_offers=vals)
         except Exception as err:  # never at the cost of the update notice
+            _quiet_error("update_check:keep_offers")
             _LOGGER.debug("Offer switches not kept: %s", err)
 
 
@@ -91,6 +93,7 @@ def _tester_line(hass: HomeAssistant) -> str:
         from .licence import edition  # noqa: PLC0415
         full = edition() == "full"
     except Exception:
+        _quiet_error("update_check:tester_line_edition")
         full = False
     if not full or not offer_on(data, "tester") or str(data.get("forensics_license_key") or "").strip():
         return ""
@@ -99,6 +102,7 @@ def _tester_line(hass: HomeAssistant) -> str:
         if signed_up(data.get(_TESTER_KEY) or {}):
             return ""          # signed up already: the key is on its way
     except Exception:
+        _quiet_error("update_check:tester_line_signed_up")
         pass
     return ("\n\nTesters get PadSpan Pro free for two years. "
             "Sign up under Help improve PadSpan in PadSpan's Settings.")
@@ -117,6 +121,7 @@ async def _check(hass: HomeAssistant) -> None:
             return
         manifest = _json.loads(text.lstrip("\ufeff"))
     except Exception as err:  # network errors are expected and non-fatal
+        _quiet_error("update_check:check_fetch")
         _LOGGER.debug("Update check failed: %s", err)
         return
 
@@ -146,6 +151,7 @@ async def _check(hass: HomeAssistant) -> None:
             notification_id="padspan_ha_update_available",
         )
     except Exception:
+        _quiet_error("update_check:check_notify")
         pass
 
 
@@ -170,6 +176,7 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         from .licence_homes import call, home_params  # noqa: PLC0415
         data = await call(hass, "validate", key, home_params(st.data))
     except Exception as err:
+        _quiet_error("update_check:revalidate_license")
         _LOGGER.debug("PadSpan Pro revalidation skipped (%s)", err)
         return
     expires = str(data.get("expires_at") or "").strip()
@@ -309,4 +316,5 @@ def async_stop_update_check(hass: HomeAssistant) -> None:
         try:
             unsub()
         except Exception:
+            _quiet_error("update_check:stop_update_check")
             pass

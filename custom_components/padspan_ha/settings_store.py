@@ -28,6 +28,7 @@ from homeassistant.helpers.storage import Store
 
 from .build_info import EDITION
 from .const import SETTINGS_STORE_KEY
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -550,6 +551,7 @@ class SettingsStore:
                 self.data["followed_addrs"] = _norm
                 _normalized = True
         except Exception:
+            _quiet_error("settings_store:load")
             pass
         # Vacation Mode spans are recorded from this code on. An install
         # that ran Vacation Mode before has unrecorded ones in the recorder
@@ -605,6 +607,7 @@ class SettingsStore:
         try:
             return (await hass.async_add_executor_job(_scan)) is True
         except Exception:  # noqa: BLE001 - unsure: an existing install
+            _quiet_error("settings_store:first_run")
             return False
 
     async def async_set(self, **kwargs: Any) -> dict[str, Any]:

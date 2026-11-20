@@ -60,6 +60,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1065,10 +1066,12 @@ class _LiveRelay:
                 try:
                     await ws.send_str('{"lv":false}')
                 except Exception:  # noqa: BLE001 — closing anyway
+                    _quiet_error("ws_wled:run")
                     pass
         except asyncio.CancelledError:
             raise
         except Exception as err:  # noqa: BLE001
+            _quiet_error("ws_wled:run_ended")
             _LOGGER.debug("WLED live view %s ended: %s", self.host, err)
             for send in list(self.subs.values()):
                 send({"error": str(err)[:120]})

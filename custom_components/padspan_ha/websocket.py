@@ -108,6 +108,7 @@ from .ws_diagnostics import (  # noqa: F401  (re-exported: registration, tests, 
     ws_ha_entities_audit,
     ws_positioning_diag,
     ws_propagation_health,
+    ws_quiet_errors,
     ws_system_critics,
 )
 from .snapshot_builder import (  # noqa: F401  (re-exported: registration, tests, callers)
@@ -294,6 +295,7 @@ from .ws_devices import (  # noqa: F401  (re-exported: registration, tests, call
     ws_device_registry_migrate,
     ws_espresense_companion_import,
 )
+from .quiet_errors import note as _quiet_error
 
 
 # ── WebSocket Command Registration ─────────────────────────────────────────────
@@ -451,6 +453,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_store_backup_restore)
     websocket_api.async_register_command(hass, ws_store_backup_delete)
     websocket_api.async_register_command(hass, ws_ha_entities_audit)
+    websocket_api.async_register_command(hass, ws_quiet_errors)
     websocket_api.async_register_command(hass, ws_logs_get)
     websocket_api.async_register_command(hass, ws_private_ble_status)
     websocket_api.async_register_command(hass, ws_irk_add)
@@ -578,6 +581,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
             for f in sorted(fr.async_list_floors(), key=lambda x: (getattr(x, "level", 0) or 0, x.name))
         ]
     except Exception:
+        _quiet_error("websocket:model_get_floors")
         pass
     if not floors:
         mdl_fb = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -609,6 +613,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
             for a in sorted(ar_r.async_list_areas(), key=lambda x: x.name)
         ]
     except Exception:
+        _quiet_error("websocket:model_get_areas")
         pass
 
     # --- Room meta: from ModelStore ---

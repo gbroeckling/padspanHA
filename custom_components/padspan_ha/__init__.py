@@ -71,6 +71,7 @@ from .panel import async_setup_panel
 from .presence_coordinator import PresenceCoordinator
 from .settings_store import SettingsStore
 from .websocket import async_register_websockets
+from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
             try:
                 await mdl.async_sync_from_ha()
             except Exception as err:
+                _quiet_error("setup:init_model")
                 _LOGGER.debug("Fabric HA sync on startup skipped: %s", err)
         _sc = len(mdl.data.get("scanners", {}))
         _sp = len(mdl.scanner_positions_m())
@@ -334,6 +336,7 @@ async def _async_start_live_feeds(hass: HomeAssistant) -> None:
             if get_bluetooth_live(hass) is None:
                 await async_setup_bluetooth_live(hass)
         except Exception as err:
+            _quiet_error("setup:feeds_bluetooth")
             _LOGGER.debug("Bluetooth live setup skipped: %s", err)
 
         try:
@@ -344,6 +347,7 @@ async def _async_start_live_feeds(hass: HomeAssistant) -> None:
                 dom[DATA_TAG_INTEGRATION] = tag_int
                 _LOGGER.debug("TagIntegration ready")
         except Exception as err:
+            _quiet_error("setup:feeds_tags")
             _LOGGER.debug("Tag integration setup skipped: %s", err)
 
         # ESPresense MQTT ingestion (off by default)
@@ -360,6 +364,7 @@ async def _async_start_live_feeds(hass: HomeAssistant) -> None:
                 await async_setup_espresense_mqtt(hass, _prefix)
                 _LOGGER.info("ESPresense MQTT ingestion started (prefix: %s)", _prefix)
         except Exception as err:
+            _quiet_error("setup:feeds_espresense")
             _LOGGER.debug("ESPresense MQTT setup skipped: %s", err)
 
         # Tasmota BLE over MQTT (off by default)
@@ -370,6 +375,7 @@ async def _async_start_live_feeds(hass: HomeAssistant) -> None:
                 await async_setup_tasmota_ble(hass)
                 _LOGGER.info("Tasmota BLE ingestion started")
         except Exception as err:
+            _quiet_error("setup:feeds_tasmota")
             _LOGGER.debug("Tasmota BLE setup skipped: %s", err)
 
 
@@ -427,6 +433,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         try:
             await _ensure_deferred_stores(hass)
         except Exception as err:
+            _quiet_error("setup:background_stores")
             _LOGGER.debug("Deferred store init error: %s", err)
 
         # Upgrade repair: existing installs carry coordinates that were
@@ -483,6 +490,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     await _dev_reg.async_flush_dirty()
                     _LOGGER.info("Phase 4: backfilled padspan_id on %d alert configs", _backfilled)
         except Exception as err:
+            _quiet_error("setup:background_alerts")
             _LOGGER.debug("Phase 4 alert backfill skipped: %s", err)
 
         # Bluetooth live feed + TagIntegration + ESPresense MQTT (idempotent —
@@ -555,6 +563,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 notification_id="padspan_ha_dump_devices",
             )
         except Exception:
+            _quiet_error("setup:dump_devices")
             pass
 
         return result
@@ -669,6 +678,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except asyncio.TimeoutError:
         _LOGGER.info("Presence coordinator first refresh timed out (8 s) — will retry on next poll")
     except Exception as err:
+        _quiet_error("setup:entry_first_fetch")
         _LOGGER.info("Presence coordinator initial fetch deferred (BLE may not be ready yet): %s", err)
 
     # Bright has no entity platforms, so nothing listened to the presence
@@ -687,6 +697,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .telemetry import async_setup_telemetry
         async_setup_telemetry(hass)
     except Exception as err:
+        _quiet_error("setup:entry_update_check")
         _LOGGER.debug("Update check setup failed: %s", err)
 
     # Forensics presence-session sampler (per-tick no-op unless the
@@ -695,6 +706,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .forensics_store import async_setup_forensics
         async_setup_forensics(hass)
     except Exception as err:
+        _quiet_error("setup:entry_forensics")
         _LOGGER.debug("Forensics setup failed: %s", err)
 
     # Flood/water-leak alarm latching — event-driven, not a poller (a real
@@ -703,6 +715,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .flood_latch import async_setup_flood_latch
         async_setup_flood_latch(hass)
     except Exception as err:
+        _quiet_error("setup:entry_flood_latch")
         _LOGGER.debug("Flood latch setup failed: %s", err)
 
     # Emergency lighting test: a member unreachable when a test ended is
@@ -711,6 +724,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .emergency_test import async_setup_emergency_test
         async_setup_emergency_test(hass)
     except Exception as err:
+        _quiet_error("setup:entry_emergency_test")
         _LOGGER.debug("Emergency test listener setup failed: %s", err)
 
     # Live Aboard: a person deleted in Home Assistant takes their figure
@@ -720,6 +734,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .house3d_people import async_setup_house3d_people
         async_setup_house3d_people(hass)
     except Exception as err:
+        _quiet_error("setup:entry_house3d_people")
         _LOGGER.debug("Live Aboard people listener setup failed: %s", err)
 
     # Vacation Mode's 5-minute check — a per-tick no-op unless
@@ -728,6 +743,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .vacation_mode import async_setup_vacation_mode
         async_setup_vacation_mode(hass)
     except Exception as err:
+        _quiet_error("setup:entry_vacation")
         _LOGGER.debug("Vacation mode setup failed: %s", err)
 
     # WLED exact looks: hold the look when something else turns a light on,
@@ -737,6 +753,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .wled_exact import async_setup_wled_exact
         hass.async_create_task(async_setup_wled_exact(hass))
     except Exception as err:
+        _quiet_error("setup:entry_wled_exact")
         _LOGGER.debug("WLED exact look setup failed: %s", err)
 
     # Home Assistant does not unload integrations when it stops, so the
@@ -777,12 +794,14 @@ async def _async_flush_history(hass: HomeAssistant) -> None:
         if _fs is not None:
             await _fs.async_save_if_due(force=True)
     except Exception as err:
+        _quiet_error("setup:flush_forensics")
         _LOGGER.debug("Forensics flush at stop failed: %s", err)
     try:
         _tb = dom.get(DATA_TRACEBACK)
         if _tb is not None:
             await _tb.async_flush()
     except Exception as err:
+        _quiet_error("setup:flush_traceback")
         _LOGGER.debug("Traceback flush at stop failed: %s", err)
 
 
@@ -842,6 +861,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .power_team import async_stop_power_teams
         async_stop_power_teams(hass)
     except Exception:
+        _quiet_error("setup:unload_power_teams")
         pass
 
     # Clear panel registration flag so setup_entry re-registers with the
@@ -849,6 +869,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         hass.data.get(DOMAIN, {}).pop(DATA_PANEL_REGISTERED, None)
     except Exception:
+        _quiet_error("setup:unload_panel")
         pass
 
     # Stop the daily update check
@@ -858,6 +879,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .telemetry import async_stop_telemetry
         async_stop_telemetry(hass)
     except Exception:
+        _quiet_error("setup:unload_update_check")
         pass
 
     # Stop the forensics sampler and flush unsaved sessions
@@ -868,6 +890,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if _fs is not None:
             await _fs.async_save_if_due(force=True)
     except Exception as err:
+        _quiet_error("setup:unload_forensics")
         _LOGGER.debug("Forensics teardown error: %s", err)
 
     # Stop the flood-latch event listener
@@ -875,16 +898,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .flood_latch import async_stop_flood_latch
         async_stop_flood_latch(hass)
     except Exception as err:
+        _quiet_error("setup:unload_flood_latch")
         _LOGGER.debug("Flood latch teardown error: %s", err)
     try:
         from .emergency_test import async_stop_emergency_test
         async_stop_emergency_test(hass)
     except Exception as err:
+        _quiet_error("setup:unload_emergency_test")
         _LOGGER.debug("Emergency test listener teardown error: %s", err)
     try:
         from .house3d_people import async_stop_house3d_people
         async_stop_house3d_people(hass)
     except Exception as err:
+        _quiet_error("setup:unload_house3d_people")
         _LOGGER.debug("Live Aboard people listener teardown error: %s", err)
 
     # Stop reading a linked robot vacuum
@@ -894,6 +920,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if _vs:
             _vs.stop()
     except Exception as err:
+        _quiet_error("setup:unload_vacuum")
         _LOGGER.debug("Vacuum link teardown error: %s", err)
 
     # Stop Vacation Mode's check timer
@@ -901,6 +928,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .vacation_mode import async_stop_vacation_mode
         async_stop_vacation_mode(hass)
     except Exception as err:
+        _quiet_error("setup:unload_vacation")
         _LOGGER.debug("Vacation mode teardown error: %s", err)
 
     # Stop the WLED exact-look listener and late checks
@@ -908,6 +936,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .wled_exact import async_stop_wled_exact
         async_stop_wled_exact(hass)
     except Exception as err:
+        _quiet_error("setup:unload_wled_exact")
         _LOGGER.debug("WLED exact look teardown error: %s", err)
 
     # Stop presence coordinator (and its CPU-mode compute executor)
@@ -916,6 +945,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if _pc is not None:
             _pc.shutdown_compute_executor()
     except Exception:
+        _quiet_error("setup:unload_presence")
         pass
 
     # Stop tag integration listener
@@ -924,6 +954,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if tag_int:
             tag_int.unload()
     except Exception:
+        _quiet_error("setup:unload_tags")
         pass
 
     # Stop the Tasmota BLE subscriber
@@ -933,6 +964,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if _tbl:
             await _tbl.async_stop()
     except Exception:
+        _quiet_error("setup:unload_tasmota")
         pass
 
     # Stop ESPresense MQTT subscriber
@@ -942,6 +974,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if esp:
             await esp.async_stop()
     except Exception:
+        _quiet_error("setup:unload_espresense")
         pass
 
     # Stop BLE callbacks/cache
@@ -952,6 +985,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             bl.unload()
         hass.data.get(DOMAIN, {}).pop(DATA_KEY, None)
     except Exception as err:
+        _quiet_error("setup:unload_bluetooth")
         _LOGGER.debug("BLE cleanup error: %s", err)
 
     # Mark the live feeds as stopped so async_setup_entry re-creates them on
@@ -968,6 +1002,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await _store.async_save(dict(_hist))
             _LOGGER.debug("Object history flushed to disk (%d entries)", len(_hist))
     except Exception as err:
+        _quiet_error("setup:unload_object_history")
         _LOGGER.debug("Object history flush error: %s", err)
 
     # Flush device registry to disk before shutdown
@@ -976,6 +1011,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if _dev_reg:
             await _dev_reg.async_flush_dirty()
     except Exception as err:
+        _quiet_error("setup:unload_device_registry")
         _LOGGER.debug("DeviceRegistry flush error: %s", err)
 
     # Flush traceback store to disk before shutdown
@@ -986,6 +1022,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await _tb.async_flush()
             _LOGGER.debug("Traceback flushed to disk (%d frames)", len(_tb.frames))
     except Exception as err:
+        _quiet_error("setup:unload_traceback")
         _LOGGER.debug("Traceback flush error: %s", err)
 
     # Close any running capture session — an unload it did not hear about
@@ -996,6 +1033,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await _cap.async_stop(reason="unload")
             _LOGGER.debug("Capture session closed on unload")
     except Exception as err:
+        _quiet_error("setup:unload_capture")
         _LOGGER.debug("Capture teardown error: %s", err)
 
     return unload_ok
