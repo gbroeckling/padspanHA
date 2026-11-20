@@ -5,11 +5,17 @@
 
 Home Assistant's Store logs a failed write and returns normally. SafeStore
 used to read the file back and check only that something came back, so it
-found the OLD file and called the save good. It compares now: what it wrote
-with what it reads back, both in the form a JSON file holds them. A save that
-did not reach the disk is reported as failed, logged once, counted and raised
-as a repair notice, and nothing here ever writes, deletes or restores a file
-to "fix" it.
+found the OLD file and called the save good. Now it watches the Store's own
+write: a digest of the text Home Assistant wrote, taken once that write has
+returned, compared with the file's. A write that failed or never ran leaves
+no digest. A save that did not reach the disk is reported as failed, logged
+once, counted and raised as a repair notice, and nothing here ever writes,
+deletes or restores a file to "fix" it.
+
+The stand-ins below write real files the way Home Assistant does (the text is
+made when the write starts, then written to a temporary file that is moved
+into place); tests_ha/test_safe_store_real.py does the same with Home
+Assistant's own Store.
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -32,40 +39,96 @@ from custom_components.padspan_ha.safe_store import SafeStore
 _INTEG = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
 
 
-class Disk:
-    """Home Assistant's Store, as far as a save can tell: a save writes JSON
-    text to `file`, a load parses `file`. `fail` makes it go wrong the ways it
-    can: "swallowed" (Home Assistant logs the write error and returns
-    normally; the file is as it was), "raised", "other" (something else ends
-    up in the file) and "unreadable" (the read back raises)."""
+def _json_default(o):
+    if isinstance(o, set):
+        return sorted(o)
+    raise TypeError(f"{type(o).__name__} is not JSON serializable")
 
-    def __init__(self, on_disk=None) -> None:
-        self.file = None if on_disk is None else json.dumps(on_disk)
+
+def _text(data) -> bytes:
+    return json.dumps(data, indent=2, default=_json_default).encode()
+
+
+class Disk:
+    """Home Assistant's Store (2025.12 and later), as far as a save can tell.
+    async_save makes the text when the write starts, and then (after `slow`
+    event-loop turns) hands it to _write_prepared_data, which writes it to a
+    temporary file and moves that into place. `fail` makes it go wrong the
+    ways it can: "swallowed" (the write raises; Home Assistant logs it and
+    returns normally, the file is as it was), "unwritable" (the text cannot be
+    made; Home Assistant logs it and never writes), "raised" (something
+    escapes the save), "other" (the write works, then something else replaces
+    the file) and "unreadable" (the file cannot be read back)."""
+
+    def __init__(self, path: Path, on_disk=None) -> None:
+        self.path = str(path)
+        if on_disk is not None:
+            path.write_bytes(_text({"version": 1, "data": on_disk}))
         self.fail = None
-        self.slow = 0            # event-loop turns one write takes
+        self.slow = 0
         self.calls: list[str] = []
 
     async def async_save(self, data) -> None:
         self.calls.append("save")
-        text = json.dumps(data)  # serialised when the write starts, as Home Assistant does
+        if self.fail == "raised":
+            raise RuntimeError("something else went wrong")
+        try:
+            text = _text({"version": 1, "data": data})     # made when the write starts
+        except (TypeError, ValueError):
+            return                                         # "Error writing config": logged, not raised
         for _ in range(self.slow):
             await asyncio.sleep(0)
-        if self.fail == "raised":
-            raise OSError(28, "No space left on device")
+        try:
+            self._write_prepared_data("wb", text)          # in Home Assistant's executor
+        except OSError:
+            return                                         # "Error writing config": logged, not raised
+        if self.fail == "other":
+            Path(self.path).write_bytes(_text({"version": 1, "data": {"something": "else"}}))
+
+    def _write_prepared_data(self, mode: str, text: bytes) -> None:
         if self.fail == "swallowed":
-            return
-        self.file = json.dumps({"something": "else"}) if self.fail == "other" else text
+            raise OSError(28, "No space left on device")
+        tmp = f"{self.path}.tmp"
+        Path(tmp).write_bytes(text)
+        os.replace(tmp, self.path)
 
     async def async_load(self):
         self.calls.append("load")
-        if self.fail == "unreadable":
-            raise OSError(5, "Input/output error")
-        return None if self.file is None else json.loads(self.file)
+        p = Path(self.path)
+        return json.loads(p.read_bytes())["data"] if p.exists() else None
+
+    def on_disk(self):
+        return json.loads(Path(self.path).read_bytes())["data"]
 
     def __getattr__(self, name):
+        if name.startswith("_write"):
+            raise AttributeError(name)
         # Anything else (async_remove, async_delay_save, ...) is something a
         # save has no business calling.
         raise AssertionError(f"SafeStore called store.{name}")
+
+
+class OldDisk(Disk):
+    """Home Assistant before 2025.12: _write_data(path, data) makes the text
+    and writes it in one step, and hands no text over."""
+
+    async def async_save(self, data) -> None:
+        self.calls.append("save")
+        for _ in range(self.slow):
+            await asyncio.sleep(0)
+        try:
+            self._write_data(self.path, {"version": 1, "data": data})
+        except (OSError, TypeError, ValueError):
+            return
+
+    def _write_data(self, path: str, data) -> None:
+        text = _text(data)
+        Disk._write_prepared_data(self, "wb", text)
+
+    def __getattribute__(self, name):
+        if name == "_write_prepared_data":
+            raise AttributeError(name)
+        return object.__getattribute__(self, name)
 
 
 def _hass():
@@ -78,8 +141,13 @@ def _hass():
     return h
 
 
-def _safe(disk: Disk, name: str = "calibration") -> SafeStore:
-    return safe_store.wrap_store(disk, _hass(), name)
+@pytest.fixture
+def disk(tmp_path):
+    return lambda on_disk=None, cls=Disk: cls(tmp_path / "padspan_ha.calibration", on_disk)
+
+
+def _safe(d: Disk, name: str = "calibration") -> SafeStore:
+    return safe_store.wrap_store(d, _hass(), name)
 
 
 def _run(coro):
@@ -104,6 +172,20 @@ def notices(monkeypatch):
     return box
 
 
+@pytest.fixture
+def reads(monkeypatch):
+    """Every time a save reads the file back."""
+    box = []
+    real = safe_store._file_digest
+
+    def counted(path):
+        box.append(path)
+        return real(path)
+
+    monkeypatch.setattr(safe_store, "_file_digest", counted)
+    return box
+
+
 _OLD = {"points": [{"id": "cp_old", "x_m": 1.0, "y_m": 2.0}], "model": {}}
 _NEW = {"points": [{"id": "cp_old", "x_m": 1.0, "y_m": 2.0}, {"id": "cp_secret_new", "x_m": 3.5, "y_m": 4.25}],
         "model": {}}
@@ -112,50 +194,48 @@ _NOTICE = (DOMAIN, "save_not_written_calibration")
 
 # ═══ a save that works ════════════════════════════════════════════════════════
 
-def test_a_normal_save_passes(notices):
-    disk = Disk(_OLD)
-    s = _safe(disk)
+def test_a_normal_save_passes(notices, disk):
+    d = disk(_OLD)
+    s = _safe(d)
     assert _run(s.async_save(_NEW)) is True
-    assert json.loads(disk.file) == _NEW
+    assert d.on_disk() == _NEW
     assert s.failed_saves == 0 and notices.up == {}
 
 
-def test_one_write_and_one_read_back_per_save(notices):
-    """The check never runs twice for one save."""
-    disk = Disk(_OLD)
-    s = _safe(disk)
+def test_one_write_and_one_file_read_per_save_and_nothing_else(notices, disk, reads):
+    """No copy, no load through the Store, no second write: the Store saves
+    once, and the file is read once to take its digest."""
+    d = disk(_OLD)
+    s = _safe(d)
 
     async def go():
         await s.async_save(_NEW)
         await s.async_save(_OLD)
 
     _run(go())
-    assert disk.calls == ["save", "load", "save", "load"]
+    assert d.calls == ["save", "save"]
+    assert reads == [d.path, d.path]
 
 
-def test_tuples_sets_and_keys_that_are_not_text_pass(notices):
-    """Data a JSON file cannot hold as it is (a tuple comes back a list, a
-    number key comes back text, NaN comes back None) is compared in the form
-    the file holds it, so it passes, and the caller's own data is not touched."""
+def test_data_json_holds_another_way_passes_and_is_not_touched(notices, disk):
+    """A tuple, a number key, a set: the file holds the Store's own text of
+    them, and that text is what is compared. The caller's data is not touched."""
     data = {"corner": (1.5, 2.5), "by_level": {0: "ground", 1: "upstairs"}, "seen": {"aa"},
-            "poly": [(0, 0), (4, 0), (4, 3)], "gap": float("nan")}
-    kept = copy.deepcopy({k: v for k, v in data.items() if k != "gap"})
-    disk = Disk()
-    s = _safe(disk)
+            "poly": [(0, 0), (4, 0), (4, 3)]}
+    kept = copy.deepcopy(data)
+    s = _safe(disk())
     assert _run(s.async_save(data)) is True
-    assert json.loads(disk.file) == {"corner": [1.5, 2.5], "by_level": {"0": "ground", "1": "upstairs"},
-                                     "seen": ["aa"], "poly": [[0, 0], [4, 0], [4, 3]], "gap": None}
-    assert {k: v for k, v in data.items() if k != "gap"} == kept and isinstance(data["corner"], tuple)
+    assert data == kept and isinstance(data["corner"], tuple)
     assert s.failed_saves == 0 and notices.up == {}
 
 
-def test_data_that_changes_while_it_is_being_written_is_not_a_failure(notices):
+def test_data_that_changes_while_it_is_being_written_is_not_a_failure(notices, disk):
     """The stores hand over their live dict, and other code goes on changing
-    it while the write is under way. The file is compared with what was
-    written, not with what the dict has become since."""
-    disk = Disk()
-    disk.slow = 3
-    s = _safe(disk)
+    it while the write is under way. The file is judged by what was written,
+    not by what the dict has become since."""
+    d = disk()
+    d.slow = 3
+    s = _safe(d)
     live = {"points": [1]}
 
     async def go():
@@ -163,38 +243,70 @@ def test_data_that_changes_while_it_is_being_written_is_not_a_failure(notices):
         await asyncio.sleep(0)
         live["points"].append(2)          # mid-write
         first = await save
-        on_disk_then = json.loads(disk.file)
+        on_disk_then = d.on_disk()
         return first, on_disk_then, await s.async_save(live)
 
     first, on_disk_then, second = _run(go())
     assert first is True and on_disk_then == {"points": [1]}
-    assert second is True and json.loads(disk.file) == {"points": [1, 2]}
+    assert second is True and d.on_disk() == {"points": [1, 2]}
     assert s.failed_saves == 0 and notices.up == {}
 
 
-def test_two_saves_at_once_are_each_checked_against_their_own_write(notices):
-    disk = Disk()
-    disk.slow = 2
-    s = _safe(disk)
+def test_two_saves_at_once_are_each_checked_against_their_own_write(notices, disk, monkeypatch):
+    d = disk()
+    d.slow = 2
+    s = _safe(d)
+    order = []
+    watched = d._write_prepared_data          # SafeStore's watch on the Store's write
+
+    def write(*a):
+        order.append("write")
+        watched(*a)
+
+    d._write_prepared_data = write
+    real = safe_store._file_digest
+
+    def read(path):
+        order.append("read")
+        return real(path)
+
+    monkeypatch.setattr(safe_store, "_file_digest", read)
 
     async def go():
         return await asyncio.gather(s.async_save({"n": 1}), s.async_save({"n": 2}))
 
     assert _run(go()) == [True, True]
-    assert disk.calls == ["save", "load", "save", "load"], "the second save waits for the first one's read back"
-    assert json.loads(disk.file) == {"n": 2} and s.failed_saves == 0
+    assert order == ["write", "read", "write", "read"], "the second save waits for the first one's check"
+    assert d.on_disk() == {"n": 2} and s.failed_saves == 0
+
+
+def test_a_load_does_not_wait_for_a_save(notices, disk):
+    """A load reads through the Store as before; it does not queue behind a
+    save under way (nothing in the check needs it to)."""
+    d = disk(_OLD)
+    d.slow = 50
+    s = _safe(d)
+
+    async def go():
+        save = asyncio.ensure_future(s.async_save(_NEW))
+        await asyncio.sleep(0)
+        loaded = await s.async_load()
+        return loaded, save.done(), await save
+
+    loaded, save_done, saved = _run(go())
+    assert loaded == _OLD and save_done is False and saved is True
 
 
 # ═══ a save that does not reach the disk ══════════════════════════════════════
 
-def test_a_write_that_silently_fails_is_reported_and_raises_the_notice(notices, caplog):
+def test_a_write_that_silently_fails_is_reported_and_raises_the_notice(notices, caplog, disk):
     """The store's save returns, the file is unchanged."""
-    disk = Disk(_OLD)
-    disk.fail = "swallowed"
-    s = _safe(disk)
+    d = disk(_OLD)
+    d.fail = "swallowed"
+    s = _safe(d)
     with caplog.at_level(logging.DEBUG, logger=safe_store.__name__):
         assert _run(s.async_save(_NEW)) is False
-    assert json.loads(disk.file) == _OLD
+    assert d.on_disk() == _OLD
     assert s.failed_saves == 1
     notice = notices.up[_NOTICE]
     assert notice["translation_key"] == "save_not_written" and notice["translation_placeholders"] == {"store": "calibration"}
@@ -205,27 +317,34 @@ def test_a_write_that_silently_fails_is_reported_and_raises_the_notice(notices, 
         "the log names the store, never the data"
 
 
-@pytest.mark.parametrize("how", ["swallowed", "raised", "other", "unreadable"])
-def test_a_failed_save_never_changes_what_is_on_disk(notices, how):
-    """Whatever went wrong, SafeStore writes once and then only reads: no
-    second write, no delete, no putting an older file back. The file is
-    exactly what the store's own write left."""
-    disk = Disk(_OLD)
-    disk.fail = how
-    s = _safe(disk)
+@pytest.mark.parametrize("how", ["swallowed", "unwritable", "raised", "other", "unreadable"])
+def test_a_failed_save_never_changes_what_is_on_disk(notices, disk, monkeypatch, how):
+    """Whatever went wrong, SafeStore has the Store write once and then only
+    reads: no second write, no delete, no putting an older file back. The
+    file is exactly what the store's own write left."""
+    d = disk(_OLD)
+    d.fail = None if how == "unreadable" else how
+    if how == "unreadable":
+        def unreadable(path):
+            raise OSError(5, "Input/output error")
+        monkeypatch.setattr(safe_store, "_file_digest", unreadable)
+    s = _safe(d)
     live = copy.deepcopy(_NEW)
+    if how == "unwritable":
+        live["points"].append(object())
     assert _run(s.async_save(live)) is False
-    assert disk.calls == (["save"] if how == "raised" else ["save", "load"])
-    left = {"swallowed": _OLD, "raised": _OLD, "other": {"something": "else"}, "unreadable": _NEW}[how]
-    assert json.loads(disk.file) == left
-    assert live == _NEW, "the caller's data is as it was"
+    assert d.calls == ["save"]
+    left = {"swallowed": _OLD, "unwritable": _OLD, "raised": _OLD, "other": {"something": "else"},
+            "unreadable": _NEW}[how]
+    assert d.on_disk() == left
+    assert live["points"][:2] == _NEW["points"], "the caller's data is as it was"
     assert s.failed_saves == 1 and _NOTICE in notices.up
 
 
-def test_a_failure_is_logged_and_raised_once_and_counted_every_time(notices, caplog):
-    disk = Disk(_OLD)
-    disk.fail = "swallowed"
-    s = _safe(disk)
+def test_a_failure_is_logged_and_raised_once_and_counted_every_time(notices, caplog, disk):
+    d = disk(_OLD)
+    d.fail = "swallowed"
+    s = _safe(d)
 
     async def go():
         return [await s.async_save(_NEW) for _ in range(3)]
@@ -237,31 +356,31 @@ def test_a_failure_is_logged_and_raised_once_and_counted_every_time(notices, cap
     assert notices.calls == [("create", *_NOTICE)]
 
 
-def test_the_next_save_that_reaches_the_disk_takes_the_notice_down(notices, caplog):
-    disk = Disk(_OLD)
-    disk.fail = "swallowed"
-    s = _safe(disk)
+def test_the_next_save_that_reaches_the_disk_takes_the_notice_down(notices, caplog, disk):
+    d = disk(_OLD)
+    d.fail = "swallowed"
+    s = _safe(d)
 
     async def go():
         bad = await s.async_save(_NEW)
-        disk.fail = None
+        d.fail = None
         good = await s.async_save(_NEW)
-        disk.fail = "swallowed"
+        d.fail = "swallowed"
         return bad, good, await s.async_save(_OLD)
 
     with caplog.at_level(logging.DEBUG, logger=safe_store.__name__):
         assert _run(go()) == (False, True, False)
     assert notices.calls == [("create", *_NOTICE), ("delete", *_NOTICE), ("create", *_NOTICE)]
     assert len([r for r in caplog.records if r.levelno >= logging.ERROR]) == 2, "a new failure is logged again"
-    assert s.failed_saves == 2 and json.loads(disk.file) == _NEW
+    assert s.failed_saves == 2 and d.on_disk() == _NEW
 
 
-def test_a_notice_left_from_before_a_restart_comes_down_on_the_first_good_save(notices):
+def test_a_notice_left_from_before_a_restart_comes_down_on_the_first_good_save(notices, disk):
     """The notice is kept over a restart. A new run does not know one is up,
     so its first save that checks out takes it down, and later ones leave the
     registry alone."""
     notices.up[_NOTICE] = {}
-    s = _safe(Disk(_OLD))
+    s = _safe(disk(_OLD))
 
     async def go():
         await s.async_save(_NEW)
@@ -271,54 +390,88 @@ def test_a_notice_left_from_before_a_restart_comes_down_on_the_first_good_save(n
     assert notices.up == {} and notices.calls == [("delete", *_NOTICE)]
 
 
-def test_data_that_cannot_be_written_as_json_is_a_failed_save_and_nothing_is_written(notices):
-    disk = Disk(_OLD)
-    s = _safe(disk)
-    assert _run(s.async_save({"points": [object()]})) is False
-    assert disk.calls == [] and json.loads(disk.file) == _OLD
-    assert s.failed_saves == 1 and _NOTICE in notices.up
-
-
-def test_a_notice_that_cannot_be_raised_does_not_turn_the_save_into_an_exception(monkeypatch):
+def test_a_notice_that_cannot_be_raised_does_not_turn_the_save_into_an_exception(monkeypatch, disk):
     def boom(*a, **k):
         raise RuntimeError("issue registry is not loaded")
 
     monkeypatch.setitem(ha_helpers.__dict__, "issue_registry", SimpleNamespace(
         async_create_issue=boom, async_delete_issue=boom, IssueSeverity=SimpleNamespace(ERROR="error")))
-    disk = Disk(_OLD)
-    s = _safe(disk)
+    d = disk(_OLD)
+    s = _safe(d)
 
     async def go():
         ok = await s.async_save(_NEW)
-        disk.fail = "swallowed"
+        d.fail = "swallowed"
         return ok, await s.async_save(_OLD)
 
     assert _run(go()) == (True, False)
 
 
-def test_while_home_assistant_stops_there_is_no_file_to_check_yet(notices):
+def test_while_home_assistant_stops_there_is_no_file_to_check_yet(notices, disk, reads):
     """Home Assistant keeps a save made during shutdown and writes it in its
-    own last step, so the read back would only return what it is holding."""
-    disk = Disk(_OLD)
-    s = _safe(disk)
+    own last step, so there is nothing to check yet."""
+    d = disk(_OLD)
+    s = _safe(d)
     s._hass.state = safe_store.CoreState.stopping
     assert _run(s.async_save(_NEW)) is True
-    assert disk.calls == ["save"]
+    assert d.calls == ["save"] and reads == []
+
+
+# ═══ other Home Assistant versions ════════════════════════════════════════════
+
+def test_before_2025_12_the_check_is_that_the_write_returned(notices, disk, reads):
+    """_write_data makes the text and writes it in one step and hands no text
+    over: a save passes when that write of this save returned, and fails when
+    it raised (or never ran). Nothing is read back."""
+    d = disk(_OLD, OldDisk)
+    s = _safe(d)
+
+    async def go():
+        good = await s.async_save(_NEW)
+        d.fail = "swallowed"
+        bad = await s.async_save(_OLD)
+        unwritable = await s.async_save({"points": [object()]})
+        return good, bad, unwritable
+
+    assert _run(go()) == (True, False, False)
+    assert d.on_disk() == _NEW and reads == []
+    assert s.failed_saves == 2 and _NOTICE in notices.up
+
+
+def test_a_store_whose_write_cannot_be_watched_is_said_at_start_and_saves_as_before(notices, caplog, tmp_path):
+    """A Store with neither write (no Home Assistant has one) cannot be
+    checked: that is said once, when the store is made, and its saves pass
+    when the Store's save returns, as they did before the check."""
+    class Plain:
+        key = "padspan_ha.calibration"
+
+        def __init__(self) -> None:
+            self.saved = []
+
+        async def async_save(self, data) -> None:
+            self.saved.append(data)
+
+    st = Plain()
+    with caplog.at_level(logging.WARNING, logger=safe_store.__name__):
+        s = _safe(st)
+    assert [r.levelno for r in caplog.records] == [logging.WARNING] and "calibration" in caplog.records[0].getMessage()
+    assert _run(s.async_save(_NEW)) is True and st.saved == [_NEW]
+    assert s.failed_saves == 0 and notices.up == {}
 
 
 # ═══ the stores that save through it ══════════════════════════════════════════
 
-def test_house3d_leaves_the_check_to_safe_store(monkeypatch):
+def test_house3d_leaves_the_check_to_safe_store(monkeypatch, tmp_path):
     """Live Aboard's store compared the file itself, after SafeStore had
-    already read it back: two reads for one save. One now, and a write that
-    Home Assistant swallows is still refused."""
+    already read it back: two reads for one save. SafeStore's check alone now,
+    and a write that Home Assistant swallows is still refused."""
     import homeassistant.helpers.storage as _hs
     from custom_components.padspan_ha import house3d_store as H
 
     disks: list[Disk] = []
 
     def _store(hass, version, key):
-        disks.append(Disk())
+        disks.append(Disk(tmp_path / key))
         return disks[-1]
 
     monkeypatch.setattr(_hs, "Store", _store)
@@ -328,7 +481,7 @@ def test_house3d_leaves_the_check_to_safe_store(monkeypatch):
     store = H.House3dStore(h)
     new = {**H.empty(), "lights": {"light.kitchen": {"z_m": 2.4}}}
     assert _run(store.async_write(new)) is True
-    assert disks[0].calls == ["save", "load"] and store.data["lights"] == {"light.kitchen": {"z_m": 2.4}}
+    assert disks[0].calls == ["save"] and store.data["lights"] == {"light.kitchen": {"z_m": 2.4}}
     disks[0].fail = "swallowed"
     assert _run(store.async_write(H.empty())) is False
     assert store.data["lights"] == {"light.kitchen": {"z_m": 2.4}}, "memory keeps what the file holds"
@@ -345,7 +498,7 @@ def test_the_notice_has_its_words_in_every_language():
 # Each store, built the way its own tests build it and changed through its own
 # methods: what it hands to a save comes back from a JSON file unchanged (no
 # tuple, no key that is not text, nothing JSON cannot hold). The check above
-# does not depend on this (it compares the JSON forms), but a store that
+# does not depend on this (it compares the text Home Assistant wrote), but a store that
 # starts keeping such a value will read something else back after a restart,
 # and this is where that shows.
 
