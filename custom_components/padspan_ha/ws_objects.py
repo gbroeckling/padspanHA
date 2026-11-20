@@ -425,7 +425,7 @@ def _name_links_saved(hass: HomeAssistant, links: Any) -> None:
     _invalidate_snapshot_cache(hass)
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/label_link_answer", "key": str, "address": str, "same": bool})
+@websocket_api.websocket_command({"type": "padspan_ha/label_link_answer", "key": str, vol.Required("address"): str, vol.Required("same"): bool})
 @websocket_api.async_response
 @admin_if_enhanced_security
 async def ws_label_link_answer(hass: HomeAssistant, connection, msg) -> None:

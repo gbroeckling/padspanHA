@@ -73,7 +73,7 @@ fabric_truth_candidates fabric_health room_tags follow_alert_get forensics_stats
 house3d_import_preview house3d_library_search house3d_library_get private_ble_status
 maps_list maps_image_urls notify_services_list object_label_list occupancy_estimate
 radio_audit settings_get subzones_list telemetry_preview live_snapshot motion_reconnects emergency_status
-wled_devices wled_get wled_state wled_backups wled_teams_get
+wled_devices wled_get wled_state wled_backups wled_teams_get power_teams_get
 setup_tips rooms_overlap
 """.split())
 # Everyday use, open to everyone as Home Assistant's own controls are.
@@ -83,11 +83,13 @@ EVERYDAY = {"emergency_test", "emergency_force_off", "emergency_member", "flood_
 
 
 def _commands() -> dict[str, tuple[str, bool, bool]]:
-    """command -> (module, require_admin, admin_if_enhanced_security), from the source."""
+    """command -> (module, require_admin, admin_if_enhanced_security), from the source.
+    Every function is read, not only a module's own: power_team.py declares its
+    two commands inside one, and reading the top level alone never saw them."""
     out = {}
     for f in sorted(_CC.glob("*.py")):
         tree = ast.parse(f.read_text(encoding="utf-8"))
-        for node in tree.body:
+        for node in ast.walk(tree):
             if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
                 continue
             src = [ast.unparse(d) for d in node.decorator_list]

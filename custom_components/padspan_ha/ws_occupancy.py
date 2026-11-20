@@ -649,7 +649,7 @@ async def ws_occupancy_estimate(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/occupancy_train",
-    "actual_count": vol.Coerce(int),
+    vol.Required("actual_count"): vol.Coerce(int),
     vol.Optional("room"): str,
 })
 @websocket_api.async_response
