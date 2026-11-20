@@ -51,7 +51,7 @@ export function render(ctx){
   const isLive = ctx.state.dataMode === "live";
 
   root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:10px"},[
-    el("h2",{},"Forensics"),
+    el("h2",{style:"margin:0"},"Forensics"),
     helpBtn("forensics"),
   ]));
 

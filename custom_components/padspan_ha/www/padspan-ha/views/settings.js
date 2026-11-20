@@ -232,10 +232,18 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     const haFloor = haFloors.find(f => f.id === meta.floor_id);
     const floorLabel = haFloor ? (haFloor.name || haFloor.id) : (meta.floor_id || "—");
 
-    const row = el("div",{style:"display:grid;grid-template-columns:1fr 140px 90px;gap:10px;align-items:center;border:1px solid #1b3526;border-radius:12px;padding:10px;background:#0a150e"});
-    row.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
-      el("span",{class:"dot", style:`background:${meta.color || roomColor(room)};`}),
-      el("div",{style:"font-weight:600"}, room),
+    // The floor and colour columns are 140px and 90px wherever there is room
+    // (any row wider than 467px) and give way on a phone, where they used to
+    // leave the name about 66px. The dot sits in a box one text line tall and
+    // does not wrap away from the name, so it stays beside the name's first
+    // line when the name runs to a second.
+    const row = el("div",{style:"display:grid;grid-template-columns:1fr min(140px,30%) min(90px,20%);gap:10px;align-items:center;border:1px solid #1b3526;border-radius:12px;padding:10px;background:#0a150e"});
+    row.appendChild(el("div",{style:"display:flex;align-items:flex-start;gap:10px"},[
+      el("span",{style:"display:flex;align-items:center;flex:none"},[
+        "\u200b",   // a zero-width space: gives the box the height of one line of text
+        el("span",{class:"dot", style:`background:${meta.color || roomColor(room)};`}),
+      ]),
+      el("div",{style:"font-weight:600;min-width:0"}, room),
     ]));
     row.appendChild(el("div",{style:"display:flex;flex-direction:column;gap:2px"},[
       el("div",{class:"muted", style:"font-size:10px"}, "Floor (HA)"),

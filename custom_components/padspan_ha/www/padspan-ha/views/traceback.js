@@ -1715,7 +1715,18 @@ export function render(ctx) {
   const floorLbl = document.createElement("span");
   floorLbl.style.cssText = "font-size:12px;color:#94a3b8";
   floorLbl.textContent = "Floor:";
-  isoCtrlRow.appendChild(floorLbl);
+  // A label, its slider and its value are one unit that does not break: when
+  // the row wraps (a phone) the whole unit moves to the next line, never the
+  // slider alone. A plain inline span, so an unwrapped row is laid out as it
+  // always was.
+  const _ctrlUnit = () => {
+    const g = document.createElement("span");
+    g.style.cssText = "white-space:nowrap";
+    isoCtrlRow.appendChild(g);
+    return g;
+  };
+  const floorUnit = _ctrlUnit();
+  floorUnit.appendChild(floorLbl);
 
   const focusLbl = document.createElement("span");
   focusLbl.style.cssText = "font-size:12px;color:#94a3b8;min-width:80px;display:inline-block";
@@ -1739,8 +1750,8 @@ export function render(ctx) {
     _resetStaticBase();
     _renderFrame();
   });
-  isoCtrlRow.appendChild(focusSlider);
-  isoCtrlRow.appendChild(focusLbl);
+  floorUnit.appendChild(focusSlider);
+  floorUnit.appendChild(focusLbl);
   // In house mode the slider walks the Atlas's floors (fabric floors, the
   // list the Atlas drawing uses), not the photo z_levels of the 3D stack.
   function _syncFocusSlider() {
@@ -1762,7 +1773,8 @@ export function render(ctx) {
   const ovSpacingLbl = document.createElement("span");
   ovSpacingLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:8px";
   ovSpacingLbl.textContent = "Spacing:";
-  isoCtrlRow.appendChild(ovSpacingLbl);
+  const gapUnit = _ctrlUnit();
+  gapUnit.appendChild(ovSpacingLbl);
 
   const ovGapLbl = document.createElement("span");
   ovGapLbl.style.cssText = "font-size:12px;color:#94a3b8;min-width:36px;display:inline-block;text-align:right";
@@ -1779,14 +1791,15 @@ export function render(ctx) {
     _resetStaticBase();
     _renderFrame();
   });
-  isoCtrlRow.appendChild(ovGapSlider);
-  isoCtrlRow.appendChild(ovGapLbl);
+  gapUnit.appendChild(ovGapSlider);
+  gapUnit.appendChild(ovGapLbl);
 
   // L/R horizontal offset slider
   const ovLRLbl = document.createElement("span");
   ovLRLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:8px";
   ovLRLbl.textContent = "L/R:";
-  isoCtrlRow.appendChild(ovLRLbl);
+  const lrUnit = _ctrlUnit();
+  lrUnit.appendChild(ovLRLbl);
 
   const ovHorizLbl = document.createElement("span");
   ovHorizLbl.style.cssText = "font-size:12px;color:#94a3b8;min-width:36px;display:inline-block;text-align:right";
@@ -1803,8 +1816,8 @@ export function render(ctx) {
     _resetStaticBase();
     _renderFrame();
   });
-  isoCtrlRow.appendChild(ovHorizSlider);
-  isoCtrlRow.appendChild(ovHorizLbl);
+  lrUnit.appendChild(ovHorizSlider);
+  lrUnit.appendChild(ovHorizLbl);
 
   // Save button
   const ovSaveLbl = document.createElement("span");
@@ -1840,7 +1853,7 @@ export function render(ctx) {
   // Reset button
   const ovResetBtn = document.createElement("button");
   ovResetBtn.className = "btn inline";
-  ovResetBtn.style.cssText = "padding:2px 10px;font-size:12px";
+  ovResetBtn.style.cssText = "padding:2px 10px;font-size:12px;margin-left:6px";   // a gap from Save
   ovResetBtn.title = "Reset sliders to default values";
   ovResetBtn.textContent = "Reset";
   ovResetBtn.addEventListener("click", async ()=>{
@@ -1862,8 +1875,12 @@ export function render(ctx) {
     }catch(e){ ovSaveLbl.textContent = "Error"; }
     ovResetBtn.disabled = false;
   });
-  isoCtrlRow.appendChild(ovSaveBtn);
-  isoCtrlRow.appendChild(ovResetBtn);
+  // Save and Reset stay side by side, 6px apart, and 8px clear of the L/R
+  // value before them (the step between the other units of this row).
+  const saveUnit = _ctrlUnit();
+  saveUnit.style.marginLeft = "8px";
+  saveUnit.appendChild(ovSaveBtn);
+  saveUnit.appendChild(ovResetBtn);
   isoCtrlRow.appendChild(ovSaveLbl);
 
   // ── Discovery controls card ───────────────────────────────────────────

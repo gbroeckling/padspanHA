@@ -150,9 +150,15 @@ export function render(ctx){
 
           return el("div",{class:"item",style:"display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #1b3526;overflow:hidden"},[
             el("div",{style:"flex:1;min-width:0;overflow:hidden"},[
-              el("div",{style:"display:flex;align-items:center;gap:6px;overflow:hidden"},[
-                (() => { const s = el("span",{style:"cursor:pointer;font-size:12px"}, label); s.addEventListener("click",()=>{ const detailObj = o || { address: d.addr, name: d.name || d.addr, kind: "ble" }; ctx.actions.showObjectDetail(detailObj); }); return s; })(),
-                rssiStr ? el("span",{class:"muted", style:"white-space:nowrap;font-size:11px"}, rssiStr) : null,
+              // The name and its RSSI run on as one line of text: in a narrow
+              // card the name has the whole first line and the RSSI follows
+              // where it fits (it used to hold a column of its own, which left
+              // the name a third line and cut the RSSI off beside a long one).
+              // The RSSI is a box of its own (inline-block) so it can go to
+              // the next line whole: no space separates the two in the page.
+              el("div",{style:"font-size:12px;overflow:hidden"},[
+                (() => { const s = el("span",{style:"cursor:pointer;font-size:12px;margin-right:6px"}, label); s.addEventListener("click",()=>{ const detailObj = o || { address: d.addr, name: d.name || d.addr, kind: "ble" }; ctx.actions.showObjectDetail(detailObj); }); return s; })(),
+                rssiStr ? el("span",{class:"muted", style:"display:inline-block;white-space:nowrap;font-size:11px"}, rssiStr) : null,
               ].filter(Boolean)),
             ]),
             followBtn,
@@ -163,12 +169,18 @@ export function render(ctx){
         const areaName = radioAreas[src];
         const card = el("div",{class:"card",style:"overflow:hidden;break-inside:avoid;margin-bottom:10px"},[
           el("div",{class:"row",style:"flex-wrap:wrap;gap:4px"},[
-            el("div",{style:"flex:1;min-width:0"},[
+            // Sized by its text (not from nothing): when the name and the two
+            // counts do not fit on one line the counts go to the next line
+            // together, and the name has the card's whole width before it is
+            // cut.
+            el("div",{style:"flex:1 1 auto;min-width:0"},[
               el("div",{class:"h2",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, scannerName),
               areaName ? el("div",{class:"muted",style:"font-size:12px;margin-top:2px"}, areaName) : null,
             ].filter(Boolean)),
-            el("span",{class:"badge"}, `${tagged.length} tagged`),
-            _quietMode ? null : el("span",{class:"badge warn"}, `${untagged.length} untagged`),
+            el("span",{style:"display:inline-flex;align-items:center;gap:4px;flex:none"},[
+              el("span",{class:"badge"}, `${tagged.length} tagged`),
+              _quietMode ? null : el("span",{class:"badge warn"}, `${untagged.length} untagged`),
+            ].filter(Boolean)),
           ]),
           el("div",{class:"muted",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px"}, src),
           tagged.length ? el("div",{},[

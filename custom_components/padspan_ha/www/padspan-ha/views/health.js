@@ -43,7 +43,7 @@ export function render(ctx){
 
   // Header
   root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:14px"},[
-    el("h2",{},"Health"),
+    el("h2",{style:"margin:0"},"Health"),
     ctx.helpers.helpBtn("health"),
   ]));
 
