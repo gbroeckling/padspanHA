@@ -70,8 +70,11 @@ export function render(ctx){
 
   // Danger zone banner — prominent red warning at top of the Data tab.
   // In sample mode, an extra line tells the user to switch to Live.
-  root.appendChild(el("div",{style:"background:#3d0c0c;border:2px solid #dc2626;border-radius:12px;padding:16px"},[
-    el("div",{style:"font-weight:800;font-size:15px;color:#fca5a5;margin-bottom:6px"},"⚠  Danger Zone — Read before proceeding"),
+  root.appendChild(el("div",{style:"background:#3d0c0c;border:2px solid #dc2626;border-radius:12px;padding:16px;margin-bottom:12px"},[
+    el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"},[
+      el("div",{style:"font-weight:800;font-size:15px;color:#fca5a5"},"⚠  Danger Zone — Read before proceeding"),
+      ctx.helpers.helpBtn("manage_data"),
+    ]),
     el("div",{style:"font-size:13px;color:#fcd5d5;line-height:1.6"},
       "Actions here directly modify Home Assistant. Deleting areas, entities, or BLE labels cannot be undone. Only proceed if you understand what you are changing."
     ),
@@ -79,7 +82,6 @@ export function render(ctx){
       ? el("div",{style:"margin-top:10px;font-weight:700;color:#fbbf24"},"⚡ Switch to Live mode to enable management actions.")
       : null,
   ].filter(Boolean)));
-  root.appendChild(ctx.helpers.helpBtn("manage_data"));
 
   // Master gate: all destructive buttons check this flag.
   // In sample mode, buttons render with "disabled" class + .disabled = true.
@@ -534,14 +536,18 @@ export function render(ctx){
         return b;
       };
       areaBtnWrap.appendChild(makeAreaDelBtn());
+      // A long ID may wrap after an underscore (a <wbr>, so copying it gives the plain ID).
+      const idParts = String(area.id).split("_");
       tbody.appendChild(el("tr",{},[
         el("td",{style:"font-weight:600"},area.name),
         el("td",{class:"muted"},floorLabel),
-        el("td",{style:"font-family:monospace;font-size:10px;color:#4a5568"},area.id),
+        el("td",{style:"font-family:monospace;font-size:11px;color:#94a3b8"},
+          idParts.flatMap((part,i)=> i < idParts.length-1 ? [part+"_", el("wbr")] : [part])),
         el("td",{},areaBtnWrap),
       ]));
     }
-    areasCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
+    // min-width:0: on a phone a long ID wraps instead of pushing Delete off the edge.
+    areasCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table",style:"min-width:0"},[
       el("thead",{},el("tr",{},[el("th",{},"Name"),el("th",{},"Floor"),el("th",{},"ID"),el("th",{},"")])),
       tbody,
     ])));

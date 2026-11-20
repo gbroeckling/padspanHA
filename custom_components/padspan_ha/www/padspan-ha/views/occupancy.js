@@ -96,9 +96,11 @@ async function _loadOccupancy(ctx, el, container) {
     if ((res.rooms || []).length) {
       const roomCard = el("div", { class: "card", style: "margin-bottom:12px" });
       roomCard.appendChild(H("Rooms with evidence"));
-      const grid = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto auto;gap:6px 14px;font-size:12px;align-items:center" });
+      // The columns are in styles.css (.occ-rooms): on a phone the room's name
+      // gets a line of its own, so the other four columns cannot crush it.
+      const grid = el("div", { class: "occ-rooms" });
       for (const h of ["Room", "People", "Phones", "Sensors", "Agreement"]) {
-        grid.appendChild(el("div", { style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
+        grid.appendChild(el("div", { class: h === "Room" ? "occ-room" : "", style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
       }
       // BLE-vs-sensor agreement (gap #14, best-in-class roadmap) — computed
       // server-side (ws_occupancy.py) from the same evidence already in
@@ -109,7 +111,7 @@ async function _loadOccupancy(ctx, el, container) {
         const rc = ctx.helpers.roomColor ? ctx.helpers.roomColor(r.room) : "#5eead4";
         const sensors = [r.occupancy ? "occupancy" : null, r.motion ? "motion" : null].filter(Boolean).join(", ");
         const [agreeText, agreeColor] = AGREE_LABEL[r.agreement] || ["—", "#64748b"];
-        grid.appendChild(el("div", { style: `color:${rc};font-weight:600` }, r.room));
+        grid.appendChild(el("div", { class: "occ-room", style: `color:${rc};font-weight:600` }, r.room));
         grid.appendChild(el("div", { style: "color:#52b788" }, (r.people || []).join(", ") || "—"));
         grid.appendChild(el("div", { style: "text-align:right;color:#a78bfa;font-family:monospace" }, String(r.phones || 0)));
         grid.appendChild(el("div", { style: "color:#60a5fa" }, sensors || "—"));
@@ -186,7 +188,7 @@ async function _loadOccupancy(ctx, el, container) {
     threshSlider.addEventListener("input", () => {
       threshLbl.textContent = `Threshold: ${threshSlider.value} dBm`;
     });
-    const threshSaveBtn = el("button", { class: "btn", style: "padding:4px 12px;font-size:11px" }, "Save & Refresh");
+    const threshSaveBtn = el("button", { class: "btn inline", style: "padding:4px 12px;font-size:11px;flex:none" }, "Save & Refresh");
     threshSaveBtn.addEventListener("click", async () => {
       const v = parseFloat(threshSlider.value) || 8;
       threshSaveBtn.disabled = true; threshSaveBtn.textContent = "Saving…";
@@ -236,7 +238,7 @@ async function _loadOccupancy(ctx, el, container) {
     trainInput.placeholder = "Actual headcount";
     trainInput.style.cssText = "width:120px;padding:6px 10px;border:1px solid #2d4a38;border-radius:6px;background:#1b3526;color:#e2e8f0;font-size:13px";
     trainRow.appendChild(trainInput);
-    const trainBtn = el("button", { class: "btn", style: "padding:6px 16px;font-size:12px" }, "Save");
+    const trainBtn = el("button", { class: "btn inline", style: "padding:6px 16px;font-size:12px" }, "Save");
     trainBtn.addEventListener("click", async () => {
       const actual = parseInt(trainInput.value, 10);
       if (isNaN(actual) || actual < 0) { ctx.toast("Enter a valid count"); return; }

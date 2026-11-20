@@ -11,7 +11,7 @@
  */
 
 // ── Sub-tab state ────────────────────────────────────────────────────────────
-const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, groupHead, groupTitle } =
+const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, groupHead, groupTitle, ago } =
   await import(`./device_name.js${new URL(import.meta.url).search}`);
 const TABS = [
   { id: "all",      label: "All Devices" },
@@ -252,7 +252,7 @@ function _renderAll(ctx) {
     if (what) sub.unshift(what);
     if (d.padspan_id) sub.push(d.padspan_id);
     if (d.rssi != null) sub.push(`RSSI ${d.rssi}`);
-    if (d.age_s != null) sub.push(`${Math.round(d.age_s)}s ago`);
+    if (d.age_s != null) sub.push(ago(d.age_s));
     if (d.sources && d.sources.length) sub.push(`${d.sources.length} radio${d.sources.length > 1 ? "s" : ""}`);
     if (d.type === "entity" && d.stateRaw) sub.push(`state: ${d.stateRaw}`);
 
@@ -309,7 +309,8 @@ function _renderAll(ctx) {
         kindBadge,
         addressBadge(el, d.obj),
         statusBadge,
-        ...btns,
+        // One group, so the buttons stay side by side and wrap together.
+        el("div", { style: "display:flex;gap:6px;flex:none;margin-left:auto" }, btns),
       ].filter(Boolean)),
     ]);
   };
