@@ -411,6 +411,7 @@ class Watch:
                    must_refuse: bool = False) -> dict:
         before = (self.storage(), self.tree(), self.entities())
         canary = self.canary.stat().st_mtime_ns
+        self.caplog.clear()     # every refusal is logged: kept, a long pass runs out of memory
         nlog, nnet = len(self.caplog.records), len(self.network)
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         _AUDIT["events"] = []
@@ -616,13 +617,15 @@ def test_the_pool_covers_every_field():
 @pytest.mark.parametrize("command", sorted(DECLARED))
 async def test_hostile_first_run(hass, padspan, admin, hass_ws_client, hass_storage, caplog, network, monkeypatch,
                                  command):
-    """The house as installed: free, sample data, every extra off."""
+    """The house as installed: free, sample data, every extra off. (A new
+    connection for each step: one left unread for a minute misses Home
+    Assistant's heartbeat and is closed.)"""
     watch = Watch(hass, hass_storage, caplog, network, monkeypatch, command)
     schema = _registered(hass)[command][1]
     await watch.phase(admin, schema, "first_run/admin", {}, member=False)
     if FULL:
         await watch.phase(await _member(hass, hass_ws_client), schema, "first_run/member", {}, member=True)
-    await watch.still_works(admin, schema, padspan)
+    await watch.still_works(await hass_ws_client(hass), schema, padspan)
     watch.finish(f"first_run[{command}]")
 
 
@@ -632,17 +635,16 @@ async def test_hostile_furnished(hass, hass_ws_client, hass_storage, caplog, net
     key; an administrator and a member, Enhanced security on and off."""
     entry, admin = await _start(hass, hass_ws_client, monkeypatch)
     await _everything_on(hass)
-    member = await _member(hass, hass_ws_client)
     watch = Watch(hass, hass_storage, caplog, network, monkeypatch, command)
     schema = _registered(hass)[command][1]
     existing = existing_ids()
     await _secure(hass, True)
     await watch.phase(admin, schema, "furnished/admin/secure", existing, member=False)
-    await watch.phase(member, schema, "furnished/member/secure", existing, member=True)
+    await watch.phase(await _member(hass, hass_ws_client), schema, "furnished/member/secure", existing, member=True)
     await _secure(hass, False)
-    await watch.phase(member, schema, "furnished/member/open", existing, member=True)
+    await watch.phase(await _member(hass, hass_ws_client), schema, "furnished/member/open", existing, member=True)
     if FULL:
-        await watch.phase(admin, schema, "furnished/admin/open", existing, member=False)
-    await watch.still_works(admin, schema, entry)
+        await watch.phase(await hass_ws_client(hass), schema, "furnished/admin/open", existing, member=False)
+    await watch.still_works(await hass_ws_client(hass), schema, entry)
     watch.finish(f"furnished[{command}]")
 
