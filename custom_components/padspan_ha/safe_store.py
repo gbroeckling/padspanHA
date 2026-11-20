@@ -18,12 +18,16 @@ SafeStore watches the Store's write:
    write raises when the text cannot be made or the file cannot be written
    (a full or read-only disk), and a write it skips never runs: either way
    the save is not saved.
-2. Home Assistant 2025.12 and later hand the text they made to the part that
-   writes the file. SafeStore takes a digest of exactly that text once it is
-   written, and after the save reads the file and compares its digest, off
-   the event loop. Earlier versions make the text and write it in one step;
-   there the check is the first one. Home Assistant writes a temporary file
-   and moves it into place, all or nothing.
+2. Home Assistant 2025.12 to 2026.10 hand the text they made to the part
+   that writes the file (_write_prepared_data(mode, json_data)). SafeStore
+   takes a digest of exactly that text once it is written, and after the save
+   reads the file and compares its digest, off the event loop. Other versions
+   (before, and 2026.11, which writes through an I/O object) make the text
+   and write it in one step; there the check is the first one. The digest is
+   only taken when that function's last parameter is the text, so a later
+   Home Assistant that changes it falls back to the first check rather than
+   reporting good saves as failed. Home Assistant writes a temporary file and
+   moves it into place, all or nothing.
 
 Nothing is copied, turned into JSON a second time or parsed: the text is the
 one Home Assistant made, so data that other code changes while the write is
@@ -37,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -56,6 +61,18 @@ def _digest(text: bytes | str) -> bytes:
     """The digest of what Home Assistant writes (bytes, or text it writes as
     UTF-8). Hashing a large buffer lets go of the interpreter lock."""
     return hashlib.blake2b(text.encode("utf-8") if isinstance(text, str) else text).digest()
+
+
+def _text_is_last(write_text: Callable[..., Any]) -> bool:
+    """Is the last parameter of the Store's file writer the text it writes
+    (json_data, as in Home Assistant 2025.12 to 2026.10)? Only then is its
+    digest taken: a writer whose parameters say something else must not have
+    good saves reported as failed."""
+    try:
+        params = list(inspect.signature(write_text).parameters)
+    except (TypeError, ValueError):
+        return False
+    return bool(params) and params[-1] == "json_data"
 
 
 def _file_digest(path: str) -> bytes:
@@ -108,10 +125,11 @@ class SafeStore:
         setattr(self._store, "_async_write_data", watched)
 
         write_text = getattr(self._store, "_write_prepared_data", None)
-        if callable(write_text):
+        if callable(write_text) and _text_is_last(write_text):
             def watched_text(*args: Any) -> None:   # in Home Assistant's executor
                 write_text(*args)
-                self._wrote = _digest(args[-1])
+                if args and isinstance(args[-1], (str, bytes)):
+                    self._wrote = _digest(args[-1])
 
             setattr(self._store, "_write_prepared_data", watched_text)
         return True

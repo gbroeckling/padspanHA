@@ -85,11 +85,11 @@ class _DiskStore:
         """Home Assistant's write, which SafeStore watches."""
         self._write_prepared_data("wb", json.dumps(data).encode())
 
-    def _write_prepared_data(self, mode, text):
+    def _write_prepared_data(self, mode, json_data):     # Home Assistant's own names
         p = self._path()
         p.parent.mkdir(parents=True, exist_ok=True)
         _DiskStore.writes.append(self.key)
-        p.write_bytes(text)
+        p.write_bytes(json_data)
 
 
 @pytest.fixture

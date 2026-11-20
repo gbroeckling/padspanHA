@@ -86,11 +86,11 @@ class Disk:
             await asyncio.sleep(0)
         self._write_prepared_data("wb", text)              # in Home Assistant's executor
 
-    def _write_prepared_data(self, mode: str, text: bytes) -> None:
+    def _write_prepared_data(self, mode: str, json_data: bytes) -> None:   # Home Assistant's own names
         if self.fail == "swallowed":
             raise OSError(28, "No space left on device")
         tmp = f"{self.path}.tmp"
-        Path(tmp).write_bytes(text)
+        Path(tmp).write_bytes(json_data)
         os.replace(tmp, self.path)
 
     async def async_load(self):
@@ -440,6 +440,23 @@ def test_before_2025_12_the_check_is_that_the_write_returned(notices, disk, read
     assert _run(go()) == (True, False, False)
     assert d.on_disk() == _NEW and reads == []
     assert s.failed_saves == 2 and _NOTICE in notices.up
+
+
+def test_a_writer_whose_last_parameter_is_not_the_text_is_not_digested(notices, disk, reads):
+    """A later Home Assistant that keeps the name _write_prepared_data but
+    changes what it takes must not have its good saves reported as failed:
+    without json_data last, the check is that the write returned."""
+    class Reordered(Disk):
+        def _write_prepared_data(self, json_data: bytes, mode: str) -> None:   # the text no longer last
+            Disk._write_prepared_data(self, mode, json_data)
+
+        async def _async_write_data(self, data):
+            self._write_prepared_data(_text(data), "wb")
+
+    d = disk(_OLD, Reordered)
+    s = _safe(d)
+    assert _run(s.async_save(_NEW)) is True
+    assert d.on_disk() == _NEW and reads == [] and s.failed_saves == 0 and not notices.up
 
 
 def test_a_store_whose_write_cannot_be_watched_is_said_at_start_and_saves_as_before(notices, caplog, tmp_path):
