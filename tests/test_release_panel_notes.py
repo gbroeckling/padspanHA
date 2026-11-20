@@ -123,13 +123,15 @@ def test_write_panel_notes_refuses_a_changelog_with_no_sections(tmp_path, monkey
 def test_the_release_writes_the_notes_before_it_zips_and_commits(monkeypatch) -> None:
     calls = []
     for name in ("preflight_checks", "run_tests", "update_version_files", "write_panel_notes",
-                 "build_zip", "validate_zip", "git_commit_tag_push", "create_github_release", "bright_pass"):
+                 "build_zip", "validate_zip", "git_commit_tag_push", "create_github_release",
+                 "publish_github_release", "bright_pass"):
         monkeypatch.setattr(R, name, lambda *a, _n=name, **k: calls.append(_n))
     monkeypatch.setattr(R, "update_whatsnew_entry", lambda *a, **k: calls.append("update_whatsnew_entry") or True)
     monkeypatch.setattr(R, "publish_update_manifest", lambda *a, **k: True)
-    # Nothing real: no lock, no fetch or pull, no tags read, no wait for GitHub.
+    # Nothing real: no lock, no fetch or pull, no look for a draft left behind,
+    # no tags read, no wait for GitHub.
     for name, val in (("acquire_release_lock", "lock"), ("release_release_lock", None), ("sync_with_origin", None),
-                      ("_tags", set()), ("gather_notes", None), ("wait_for_ci", True)):
+                      ("stop_for_unpublished_draft", None), ("_tags", set()), ("gather_notes", None), ("wait_for_ci", True)):
         if hasattr(R, name):
             monkeypatch.setattr(R, name, lambda *a, _v=val, **k: _v)
     monkeypatch.setattr(sys, "argv", ["release.py", "9.9.9", "--no-bright"])
