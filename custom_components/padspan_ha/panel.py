@@ -34,6 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 
 STATIC_URL = "/padspan_ha_static"
 ICON_STATIC_URL = "/padspan_ha_int"
+ICON_FILES = ("icon.png", "logo.png")
 WEB_COMPONENT        = "padspan-ha-app"
 LIGHTS_WEB_COMPONENT = "padspan-lights-app"
 
@@ -101,8 +102,12 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         async_register_map_image_view(hass)
     except Exception:
         _LOGGER.exception("Map image view registration failed: floor plans will not show")
-    # Also serve the integration root so icon.png is accessible at /padspan_ha_int/icon.png
-    await _register_static(hass, Path(__file__).parent, url=ICON_STATIC_URL)
+    # The integration's two images, at /padspan_ha_int/icon.png and
+    # /padspan_ha_int/logo.png. Each is registered as one file (Home Assistant
+    # serves a path that is a file at exactly its URL), so nothing else in
+    # this folder has a URL.
+    for _image in ICON_FILES:
+        await _register_static(hass, Path(__file__).parent / _image, url=f"{ICON_STATIC_URL}/{_image}")
 
     from homeassistant.components import panel_custom
 
