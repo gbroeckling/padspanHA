@@ -106,6 +106,7 @@ class Crawl:
         self.states_seen: set = set()
         self.n_actions = 0
         self.n_reloads = 0
+        self.n_repeats_skipped = 0
         self.volatile: list[str] = []
         self.load_junk: set = set()
         self.ctx = self.page = self.cdp = None
@@ -193,13 +194,14 @@ class Crawl:
             return None
         looks = []
         t0 = time.time()
+        need = 3 if first else 2              # the same controls this many looks running: settled
         while time.time() - t0 < 15:          # a view's module can take a while with several browsers at work
-            self.wait(300)
+            self.wait(250)
             lk = self.look()
             looks.append(lk)
-            if len(looks) >= 4 and not lk["busy"] and not lk["blank"]:
-                sigs = [frozenset(c["sig"] for c in x["controls"]) for x in looks[-3:]]
-                if sigs[0] == sigs[1] == sigs[2]:
+            if len(looks) >= need + 1 and not lk["busy"] and not lk["blank"]:
+                sigs = {frozenset(c["sig"] for c in x["controls"] if c["sig"] not in self.volatile) for x in looks[-need:]}
+                if len(sigs) == 1:
                     break
         if first:
             # Controls that come and go on their own (people walking, live counts) never make the state
@@ -537,6 +539,11 @@ class Crawl:
             if st["path"]:
                 root_sig = {c["sig"] for c in base["controls"]}
             ctls = [c for c in base["controls"] if c["sig"] not in st["parent"] and c["sig"] not in self.volatile and self.wanted(c)]
+            # A control repeated on every row (a room's Rename, a light's Hide) is the same code each time:
+            # the first few are pressed, the rest are counted.
+            skipped = [c for c in ctls if c["nth"] > self.opts.get("repeats", 2)]
+            ctls = [c for c in ctls if c["nth"] <= self.opts.get("repeats", 2)]
+            self.n_repeats_skipped += len(skipped)
             # What lies on top first: a dialog, then floating layers (the 3D house's controls), then the page.
             ctls.sort(key=lambda c: {"modal": 0, "overlay": 1}.get(c["region"], 2))
             if st["depth"] == 0:
@@ -588,9 +595,13 @@ class Crawl:
                         opened.append(st["path"] + [dict(step, label=c["label"])])
                     if new_ov:
                         notes += self.close_overlays(cur, after, st["path"] + [dict(step, label=c["label"])])
+                        # Closed and the page is as it was: no reload needed.
+                        after = self.look()
+                        changed = (frozenset(x["sig"] for x in after["controls"] if x["sig"] not in self.volatile) != base_sigs
+                                   or frozenset(o["sig"] for o in after["overlays"]) != base_ov or after["url"] != base["url"])
                     if after["url"] != base["url"]:
                         row["notes"].append("went to " + after["url"])
-                    dirty = changed or bool(new_ov)
+                    dirty = changed
                     if not dirty:
                         cur = after
                     self.controls.append(row)
@@ -675,14 +686,14 @@ class Crawl:
 
     def result(self, load_s, budget_s, t0) -> dict:
         return {"job": self.job, "load_s": load_s, "budget_s": round(budget_s), "took_s": round(time.time() - t0, 1),
-                "actions": self.n_actions, "reloads": self.n_reloads, "states": len(self.states_seen),
+                "actions": self.n_actions, "reloads": self.n_reloads, "states": len(self.states_seen), "repeats_skipped": self.n_repeats_skipped,
                 "controls": self.controls, "findings": self.findings, "blocked": sorted(set(self.blocked))[:20],
                 "dialogs": self.dialogs[:40], "ws": self.ws_rows, "volatile": self.volatile}
 
 
 # ── Workers ───────────────────────────────────────────────────────────────────
 
-def worker(jobs, budgets, base, settings_bodies, out: Path, q):
+def worker(jobs, budgets, base, settings_bodies, out: Path, q, opts):
     from playwright.sync_api import sync_playwright
     shots = out / "shots"
     with sync_playwright() as p:
@@ -692,7 +703,7 @@ def worker(jobs, budgets, base, settings_bodies, out: Path, q):
             t0 = time.time()
             if not browser.is_connected():
                 browser = p.chromium.launch(channel="chrome", headless=True, args=LAUNCH_ARGS)
-            cr = Crawl(browser, job, {}, base, settings_bodies[job["skin"]], shots)
+            cr = Crawl(browser, job, opts, base, settings_bodies[job["skin"]], shots)
             try:
                 res = cr.run(budget + carry)
             except Exception:
@@ -737,6 +748,7 @@ def main(argv=None):
     ap.add_argument("--depth", type=int, default=3, help="how many presses deep to follow what a press opens (default 3)")
     ap.add_argument("--second-skin-depth", type=int, default=1, help="depth for the second skin, whose views share the first's code (default 1)")
     ap.add_argument("--workers", type=int, default=4, help="browsers at once (default 4)")
+    ap.add_argument("--repeats", type=int, default=2, help="of a control repeated on every row, how many to press (default 2)")
     ap.add_argument("--skins", default="2025,classic")
     ap.add_argument("--sizes", default="phone,desk")
     ap.add_argument("--pages", default="", help="only these views/pages (comma list), e.g. overview,atlas3d")
@@ -770,7 +782,7 @@ def main(argv=None):
     procs = []
     for w in range(args.workers):
         mine = list(range(w, len(jobs), args.workers))
-        pr = mp.Process(target=worker, args=([jobs[i] for i in mine], [budgets[i] for i in mine], base, bodies, out, q))
+        pr = mp.Process(target=worker, args=([jobs[i] for i in mine], [budgets[i] for i in mine], base, bodies, out, q, {"repeats": args.repeats}))
         pr.start()
         procs.append(pr)
     done = 0

@@ -60,6 +60,7 @@ def write_report(out: Path, jobs, seconds: float, args) -> None:
     crashes = [(r["job"]["id"], r["crash"]) for r in results if r.get("crash")]
     summary = {"pages": len(results), "pages_planned": len(jobs), "controls": controls, "actions": actions,
                "reloads": sum(r["reloads"] for r in results), "states": sum(r["states"] for r in results),
+               "repeats_skipped": sum(r.get("repeats_skipped", 0) for r in results),
                "minutes": round(seconds / 60, 1), "depth": args.depth, "workers": args.workers,
                "outcomes": dict(outcomes), "unvisited_states": sum(r.get("unvisited_states", 0) for r in results)}
     (out / "results.json").write_text(json.dumps({"summary": summary, "findings": findings, "demo_gaps": gaps,
@@ -67,7 +68,8 @@ def write_report(out: Path, jobs, seconds: float, args) -> None:
     L = [f"# Click-through results", "",
          f"{summary['pages']} pages ({summary['pages_planned']} planned), {controls} controls, {actions} actions, "
          f"{summary['states']} states, {summary['reloads']} reloads, {summary['minutes']} min "
-         f"(depth {args.depth}, {args.workers} browsers). States queued but not visited for lack of time: {summary['unvisited_states']}.", "",
+         f"(depth {args.depth}, {args.workers} browsers). States queued but not visited for lack of time: {summary['unvisited_states']}. "
+         f"Repeats of a row's control not pressed (the first {getattr(args, 'repeats', 2)} were): {summary['repeats_skipped']}.", "",
          "Outcomes: " + ", ".join(f"{k} {v}" for k, v in outcomes.most_common()), ""]
     for kind in ORDER:
         rows = [f for f in findings if f["kind"] == kind]
