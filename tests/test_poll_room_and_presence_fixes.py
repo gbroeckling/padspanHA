@@ -70,14 +70,16 @@ class _House:
         self._patched.__exit__(None, None, None)
         self._loop.close()
 
-    def poll(self, listed: dict[str, float], heard: dict[str, int] | None = None) -> dict:
+    def poll(self, listed: dict[str, float], heard: dict[str, int] | None = None, label: str = "") -> dict:
         """listed: {key: age_s} as the snapshot lists them. heard: {source:
-        rssi} for TAG, each a new advert this poll."""
+        rssi} for TAG, each a new advert this poll. label: the name every
+        listed key carries."""
         self.clock.t = self.n * POLL_S
         self.n += 1
         ads = [{"address": TAG, "source": s, "rssi": r, "age_s": 1.0, "last_seen": f"advert {self.n} {s}"}
                for s, r in (heard or {}).items()]
-        objects = [{"key": k, "address": k, "kind": "ble", "name": k, "identified": True, "age_s": age}
+        objects = [{"key": k, "address": k, "kind": "ble", "name": k, "identified": True, "age_s": age,
+                    **({"user_label": label} if label else {})}
                    for k, age in listed.items()]
         self._snap[0] = {"objects": {"list": objects}, "ble": {"advertisements": ads, "radios": RADIOS}}
         return self._loop.run_until_complete(self.coord._async_update_data())
@@ -218,3 +220,12 @@ def test_a_device_dropped_while_present_departs(house) -> None:
     arrived, departed = _came_and_went(house, 30)
     assert TAG not in house.poll({})
     assert arrived == [] and departed == [TAG]            # was: never reported as departed
+
+
+def test_two_keys_of_one_device_heard_at_the_same_moment_are_in_a_fixed_order(house) -> None:
+    """One name on several keys is one device, reported by its freshest key.
+    Keys of exactly the same age were taken in the order of a Python set,
+    which changes from one start to the next."""
+    keys = [f"C0:FF:EE:00:00:{n:02X}" for n in (9, 3, 7, 1, 5)]
+    house.poll({k: 1.0 for k in keys}, label="Phone")
+    assert house.coord._prev_groups == {"label:phone": sorted(keys)}

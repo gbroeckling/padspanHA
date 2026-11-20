@@ -2009,8 +2009,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # By device: a label on two keys "left" when one key went quiet while
         # the other was still heard (depart alert and rules with the phone home).
         _cur_groups: dict[str, list[str]] = {}
-        for _k in sorted(_cur_present, key=lambda k: (result[k].get("age_s")
-                         if isinstance(result[k].get("age_s"), (int, float)) else 1e12)):
+        # Freshest first; two keys of the same age in key order (they came in
+        # the order of a set, which is not the same from one start to the next).
+        for _k in sorted(_cur_present, key=lambda k: ((result[k].get("age_s")
+                         if isinstance(result[k].get("age_s"), (int, float)) else 1e12), k)):
             _lbl = str(result[_k].get("user_label") or "").strip().lower()
             _cur_groups.setdefault(f"label:{_lbl}" if _lbl else _k, []).append(_k)
         # Every key a label is on, present or not: a rule or alert saved under
