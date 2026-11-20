@@ -298,7 +298,8 @@ class SubzoneStore:
         self._data = _normalise_data(value)
 
     async def async_load(self) -> dict[str, Any]:
-        self.data = await self.store.async_load()
+        from .safe_store import async_load_readable  # noqa: PLC0415
+        self.data = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         return self._data
 
     def zones(self) -> dict[str, dict]:

@@ -355,6 +355,120 @@ def person_home(hass: Any, st: Any, ctx: dict[str, Any] | None = None) -> bool:
     return person_is_home(getattr(st, "state", None), rooms=ctx["rooms"], zones=ctx["zones"], placed=placed)
 
 
+# ── People and things ───────────────────────────────────────────────────────
+#
+# A phone in a pocket that goes quiet has left the house; keys in a drawer
+# that go quiet are still in the drawer. An option, off unless a home turns
+# it on (thing_away_timeout_h, default 0): with 0 every labelled device goes
+# away after the away timeout. With hours set, a device a Home Assistant
+# person carries still goes away after the away timeout, and any other
+# labelled device is a thing: it keeps its last room for those hours, never
+# less than the away timeout. Every labelled device no person is linked to
+# counts as a thing, a phone nobody linked and a car's tag included, which is
+# why it is a choice. Read by the entities (sensor.py, device_tracker.py).
+
+DEFAULT_THING_AWAY_TIMEOUT_H = 0.0   # off: the same as the away timeout
+MAX_THING_AWAY_TIMEOUT_H = 48.0
+
+
+def thing_away_timeout_s(hass: Any) -> float:
+    """How long a thing keeps its last room, in seconds.
+
+    0 hours (the default) means "as long as a person": things go away after
+    the away timeout. Never shorter than the away timeout, and clamped to the
+    range the settings endpoint enforces.
+    """
+    hours = DEFAULT_THING_AWAY_TIMEOUT_H
+    try:
+        st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        val = (st.data or {}).get("thing_away_timeout_h") if st else None
+        if val is not None:
+            f = float(val)
+            if math.isfinite(f):
+                hours = max(0.0, min(MAX_THING_AWAY_TIMEOUT_H, f))
+    except (AttributeError, TypeError, ValueError):
+        pass
+    return max(away_timeout_s(hass), hours * 3600.0)
+
+
+def _low(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def is_carried(hass: Any, obj: dict[str, Any], data: dict[str, Any] | None = None,
+               own_entity_id: str | None = None) -> bool:
+    """Does a Home Assistant person carry this device?
+
+    By the links PadSpan already reads to tie a device to a person (Live
+    Aboard's People & devices, the people count in ws_occupancy.py):
+      - picked for them in People & devices (settings.atlas_3d_carries), by
+        its key or by any key with the same name (`data`: the coordinator's);
+      - one of the person's device trackers (device_trackers, or source) is
+        this device: PadSpan's own tracker for it (`own_entity_id`, or a
+        tracker whose user_label is this name), an HA entity on the same
+        Bluetooth device (linked_entities), or the object's own entity;
+      - it is named as the person is, or as one of their trackers is.
+    """
+    if not isinstance(obj, dict):
+        return False
+    label = _low(obj.get("user_label"))
+    key = obj.get("key")
+    try:
+        st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        carries = ((st.data if st else None) or {}).get("atlas_3d_carries")
+    except AttributeError:
+        carries = None
+    if isinstance(carries, dict):
+        for keys in carries.values():
+            for k in (keys if isinstance(keys, list) else ()):
+                if key and k == key:
+                    return True
+                other = (data or {}).get(k)
+                if label and isinstance(other, dict) and _low(other.get("user_label")) == label:
+                    return True
+    mine = {str(e) for e in (obj.get("linked_entities") or [])}
+    if obj.get("entity_id"):
+        mine.add(str(obj["entity_id"]))
+    if own_entity_id:
+        mine.add(str(own_entity_id))
+    try:
+        persons = list(hass.states.async_all("person"))
+    except Exception:  # noqa: BLE001 - no states to read: nobody carries it
+        _quiet_error("presence_rules:is_carried_persons")
+        return False
+    for person in persons:
+        attrs = getattr(person, "attributes", None) or {}
+        trackers = [str(t) for t in (attrs.get("device_trackers") or []) if t]
+        if attrs.get("source"):
+            trackers.append(str(attrs["source"]))
+        names = {_low(attrs.get("friendly_name"))}
+        for t in trackers:
+            if t in mine:
+                return True
+            t_attrs = getattr(hass.states.get(t), "attributes", None) or {}
+            if label and _low(t_attrs.get("user_label")) == label:
+                return True
+            names.add(_low(t_attrs.get("friendly_name")))
+            names.add(t.split(".", 1)[-1].replace("_", " ").lower())
+        if label and label in names:
+            return True
+    return False
+
+
+def device_away_timeout_s(hass: Any, obj: dict[str, Any], data: dict[str, Any] | None = None,
+                          own_entity_id: str | None = None) -> float:
+    """This device's away timeout: the away timeout for every device while
+    the things' time is off (0, the default); with hours set, the away timeout
+    when a person carries it and those hours when nobody does (is_carried).
+    A thing with no room to keep (not placed since Home Assistant started)
+    goes away after the away timeout too: there is nothing to keep it in."""
+    person_s = away_timeout_s(hass)
+    thing_s = thing_away_timeout_s(hass)
+    if thing_s <= person_s or not obj.get("room") or is_carried(hass, obj, data, own_entity_id):
+        return person_s
+    return thing_s
+
+
 # ── Outside: the site's indoor coverage envelope ────────────────────────────
 #
 # A device on the property but not in the building is heard by every indoor

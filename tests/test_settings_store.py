@@ -20,6 +20,17 @@ from custom_components.padspan_ha.settings_store import (
 class _MockStore:
     """Minimal stand-in for homeassistant.helpers.storage.Store."""
 
+    # What a Store also has, read when its file holds the wrong kind of data
+    # (safe_store.async_load_readable): its key, its path (no file here, so
+    # nothing to move aside) and Home Assistant's executor.
+    key = "padspan_ha.settings"
+    path = "/nonexistent/.storage/padspan_ha.settings"
+
+    class hass:  # noqa: N801
+        @staticmethod
+        async def async_add_executor_job(func, *args):
+            return func(*args)
+
     def __init__(self) -> None:
         self._data: dict | None = None
 

@@ -27,6 +27,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import ADAPTIVE_STORE_KEY
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ class AdaptiveStore:
         self.data = _empty_data()
 
     async def async_load(self) -> dict[str, Any]:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict) and "room_fingerprints" in d)
         if isinstance(loaded, dict) and "room_fingerprints" in loaded:
             self.data = loaded
         else:

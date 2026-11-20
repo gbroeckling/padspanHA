@@ -117,7 +117,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import DEFAULT_FLOOR_ID, FABRIC_STORE_KEY, MAX_HEIGHT_M
-from .safe_store import wrap_store
+from .safe_store import async_load_readable, wrap_store
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -221,7 +221,7 @@ class FabricStore:
         fabric file does not carry that key yet — so a pass-1 fabric file
         picks up its spatial sections on first boot of pass 2 and never again.
         """
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         if isinstance(loaded, dict):
             self.data = dict(loaded)
             if not isinstance(self.data.get("floors"), dict):

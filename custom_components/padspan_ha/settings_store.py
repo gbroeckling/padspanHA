@@ -29,6 +29,7 @@ from homeassistant.helpers.storage import Store
 from .build_info import EDITION
 from .const import SETTINGS_STORE_KEY
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -122,6 +123,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # attribute on each area sensor.
     "hold_last_room_s": 0.0,       # 0 = off, else 1-600
     "room_reason_attribute": False,
+    # An option, off by default. Set to 0.5-48, a labelled device no Home
+    # Assistant person carries (keys, a tag) keeps its last room this many
+    # hours before its entities read not_home; carried devices use
+    # away_timeout_m. 0 = off: every device uses away_timeout_m
+    # (presence_rules.thing_away_timeout_s).
+    "thing_away_timeout_h": 0.0,
     # Honest accuracy (0.38.165), all OFF by default; off, rooms and positions
     # are exactly what they were. pick_better: prefer whichever of k-NN and
     # the spatial solve wins the held-out test (heldout.py). unsure: hold and
@@ -506,7 +513,7 @@ class SettingsStore:
         # Looked at BEFORE the load: the other stores load beside this one
         # and a brand-new install's would be written by the time it returned.
         first_run = await self._first_run()
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         if isinstance(loaded, dict):
             self.data = {**DEFAULT_SETTINGS, **loaded}
             # A stored False stays: it does nothing here, and an older version

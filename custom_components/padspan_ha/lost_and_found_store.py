@@ -28,6 +28,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import LOST_AND_FOUND_STORE_KEY
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class LostAndFoundStore:
         self.records: dict[str, dict[str, Any]] = {}
 
     async def async_load(self) -> dict[str, dict[str, Any]]:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         self.records = loaded if isinstance(loaded, dict) else {}
         return self.records
 

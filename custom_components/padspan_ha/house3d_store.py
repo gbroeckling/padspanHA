@@ -38,7 +38,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .const import DATA_HOUSE3D, DATA_SETTINGS, DOMAIN, HOUSE3D_STORE_KEY
-from .safe_store import wrap_store
+from .safe_store import async_load_readable, wrap_store
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -169,7 +169,7 @@ class House3dStore:
         empty house; a read that fails while the file is there raises
         ReadFailed instead."""
         try:
-            raw = await self._raw_store.async_load()
+            raw = await async_load_readable(self._raw_store, lambda d: isinstance(d, dict))
         except Exception as exc:  # noqa: BLE001
             if await async_file_exists(self.hass):
                 _LOGGER.error("PadSpan load FAILED for house3d: %s", exc)

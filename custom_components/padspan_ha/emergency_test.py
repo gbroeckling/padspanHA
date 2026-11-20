@@ -59,6 +59,7 @@ from homeassistant.core import Context, HomeAssistant, callback
 
 from .const import DATA_SETTINGS, DOMAIN, EMERGENCY_TEST_STORE_KEY
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -196,7 +197,7 @@ class EmergencyTestStore:
         self.data: dict[str, Any] = dict(_EMPTY)
 
     async def async_load(self) -> None:
-        loaded = await self.store.async_load()
+        loaded = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         self.data = {**_EMPTY, **loaded} if isinstance(loaded, dict) else dict(_EMPTY)
 
     async def async_set(self, data: dict[str, Any]) -> None:
