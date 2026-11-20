@@ -341,6 +341,42 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
         return snap
 
 
+def _object_store_label(store: Any, obj: dict[str, Any]) -> str | None:
+    """The label the object store holds for a Bluetooth object, under any id
+    the object is listed by: its key, its address, its canonical id, an
+    iBeacon's id, any address it has used. The list and the object history
+    both ask here, so one cannot find a label the other misses."""
+    try_keys = [obj.get("key"), obj.get("address"), obj.get("canonical_id")]
+    # Split iBeacon objects (key = ibeacon:uuid:major:minor:MAC) are
+    # DISTINCT physical devices sharing a factory-default UUID.  They
+    # must NOT inherit the unsplit group key's label — that resurrects
+    # a stale label onto every beacon in the pack AND shadows per-MAC
+    # renames made in the Bluetooth tab.
+    is_split = obj.get("kind") == "ibeacon" and len(str(obj.get("key") or "").split(":")) > 4
+    ib_u = obj.get("ibeacon_uuid")
+    if ib_u is not None and not is_split:
+        ibk = f"ibeacon:{ib_u}:{obj.get('ibeacon_major', 0)}:{obj.get('ibeacon_minor', 0)}"
+        try_keys.extend([ibk, ibk.upper()])
+    try_keys.extend(obj.get("all_addresses") or [])
+    for k in try_keys:
+        if k and isinstance(k, str):
+            entry = store.get(k)
+            if entry and entry.get("label"):
+                return entry["label"]
+    return None
+
+
+def _registry_id(dev_reg: Any, obj: dict[str, Any]) -> str | None:
+    """The padspan_id the device registry holds for an object: by its key,
+    its address, its canonical id, then any address it has used."""
+    for k in (obj.get("key"), obj.get("address"), obj.get("canonical_id"), *(obj.get("all_addresses") or [])):
+        if k:
+            pid = dev_reg.resolve(str(k))
+            if pid:
+                return pid
+    return None
+
+
 def _reenrich_history(cache: dict[str, Any]) -> None:
     """Work out each kept object's maker, type and service names again from what
     it stored, so an object not heard since an older version doesn't go on
@@ -1301,23 +1337,29 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if not _ingest.active:
                 return False
             _addr = row.get("address")
-            _also = [str(row.get("canonical_id") or "")]
+            _keys = [str(row.get("key") or ""), str(row.get("canonical_id") or "")]
             _uuid = ""
             if row.get("kind") == "ibeacon":
                 # Its address field holds its key. One beacon of a pack is
                 # also listed under the pack's key; a beacon that has only
                 # ever used one address is that address.
                 _uuid = str(row.get("ibeacon_uuid") or "")
-                _also.append(f"ibeacon:{_uuid}:{row.get('ibeacon_major')}:{row.get('ibeacon_minor')}")
+                _keys.append(f"ibeacon:{_uuid}:{row.get('ibeacon_major')}:{row.get('ibeacon_minor')}")
                 _own = row.get("all_addresses")
                 _addr = _own[0] if isinstance(_own, list) and len(_own) == 1 else ""
             _addr = _addr.upper() if isinstance(_addr, str) and len(_addr) == 17 and _addr.count(":") == 5 else ""
-            if _addr in _masked_addrs:
-                return True
-            ident = _IngestIdentity(addr=_addr, key=str(row.get("key") or ""), uuid=_uuid,
-                                    name=str(row.get("name") or ""), also=tuple(k for k in _also if k))
-            _again = any(k.upper() in _masked_keys for k in (ident.key, *ident.also) if k)
-            return _ingest.is_masked(ident, count=not _again)
+            # First matching rule wins, for a row as for an advert: an ALLOW
+            # on the row's own key holds though its address was masked. Only
+            # when no rule names the row itself does its address decide.
+            # (Asked the quick way first: the history is thousands of rows,
+            # every poll, and a rule names very few of them.)
+            if not _ingest.could_match(_addr, _keys, _uuid):
+                return _addr in _masked_addrs
+            _again = _addr in _masked_addrs or any(k.upper() in _masked_keys for k in _keys if k)
+            return _ingest.is_masked(
+                _IngestIdentity(addr=_addr, key=_keys[0], uuid=_uuid, name=str(row.get("name") or ""),
+                                also=tuple(k for k in _keys[1:] if k)),
+                count=not _again)
 
         _resolver_diag: dict[str, Any] = {"irk_devices": 0, "resolved": 0, "ibeacon_groups": 0, "rpa_count": 0, "crypto_ok": True, "errors": []}
         try:
@@ -2773,12 +2815,33 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             obj["_cache_age_s"] = obj.get("age_s") or 0
             _cache[key] = dict(obj)  # snapshot copy
 
+        # Whether a row of the history has a label, looked for where the list
+        # looks: the object store under every id the list tries, then the
+        # device registry, which the list reads after the row is stored (so
+        # a device labelled only there has no flag in its row at all). An
+        # entity's row is asked under its own key alone, as before: a row
+        # here is one Home Assistant no longer lists, and its device's label
+        # must not keep it for good.
+        _hist_dev_reg = _dom.get(DATA_DEVICE_REGISTRY)
+
+        def _row_has_label(row: dict[str, Any]) -> bool:
+            if row.get("kind") == "entity":
+                return bool(obj_store) and any(
+                    (obj_store.get(str(k)) or {}).get("label")
+                    for k in (row.get("canonical_id"), row.get("key")) if k)
+            if obj_store and _object_store_label(obj_store, row):
+                return True
+            if _hist_dev_reg:
+                _pid = _registry_id(_hist_dev_reg, row)
+                return bool(_pid and _hist_dev_reg.get_label(_pid))
+            return False
+
         # Count cap (low_memory.py): next to a busy street a day of strangers
         # is tens of thousands of entries (one install: 80,000), all held in
         # memory, saved every 15 s and replayed into every build. Past the
         # cap the unidentified entries heard longest ago go first; someone's
         # object, and anything heard this cycle, never does.
-        cap_object_history(_cache, _low_memory.history_max(hass), _current_keys)
+        cap_object_history(_cache, _low_memory.history_max(hass), _current_keys, keep=_row_has_label)
 
         # Merge cached objects not seen this cycle back into the list
         # Skip keys absorbed by deduplication — they are ghosts of merged objects
@@ -2814,7 +2877,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             _claim = (canonical_by_addr.get(str(cached_obj.get("address") or "").upper())
                       if cached_obj.get("kind") == "ble" else None)
             if _claim and (_claim.get("findmy") or not _claim.get("bridge_match")):
-                if cached_obj.get("identified") or cached_obj.get("user_label"):
+                if cached_obj.get("identified") or cached_obj.get("user_label") or _row_has_label(cached_obj):
                     continue
                 del _cache[key]
                 continue
@@ -2841,19 +2904,24 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # Verify label still exists — if deleted from obj_store, clear the
             # cached flags so the ghost can expire normally instead of lingering
             # forever as a phantom identified object.
+            _labelled = None            # asked at most once for a row
             if is_identified and obj_store and stale_s > 60:
-                _cache_label_key = cached_obj.get("canonical_id") or key
-                _cache_entry = obj_store.get(_cache_label_key) or obj_store.get(key)
-                if not _cache_entry or not _cache_entry.get("label"):
+                _labelled = _row_has_label(cached_obj)
+                if not _labelled:
                     cached_obj.pop("identified", None)
                     cached_obj.pop("user_label", None)
                     is_identified = False
             # Tagged/identified objects never expire from history
-            # ... nor one whose name follows a new address, or has a question open.
+            # ... nor one whose name follows a new address, or has a question open,
+            # nor one with a label its row does not show (asked only now,
+            # for a row about to go).
             _ll = _dom.get(_LABEL_LINKS)
             if not is_identified and stale_s > _HISTORY_TTL and not (_ll is not None and _ll.needs_row(key[4:])):
-                del _cache[key]
-                continue
+                if _labelled is None:
+                    _labelled = _row_has_label(cached_obj)
+                if not _labelled:
+                    del _cache[key]
+                    continue
             # 0.38.105 made a Bermuda device's Floor, Area Last Seen and each
             # "Distance to" sensor objects of their own. The selection never
             # makes them now; replayed, they sat frozen in their old rooms
@@ -2929,29 +2997,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     kind = obj.get("kind", "")
                     if kind not in ("ble", "private_ble", "ibeacon"):
                         continue
-                    # Try the object's key, address, canonical_id, ibeacon key variants
-                    _lbl = None
-                    _try_keys = [obj.get("key"), obj.get("address"), obj.get("canonical_id")]
-                    # Split iBeacon objects (key = ibeacon:uuid:major:minor:MAC) are
-                    # DISTINCT physical devices sharing a factory-default UUID.  They
-                    # must NOT inherit the unsplit group key's label — that resurrects
-                    # a stale label onto every beacon in the pack AND shadows per-MAC
-                    # renames made in the Bluetooth tab.
-                    _is_split_ib = kind == "ibeacon" and len(str(obj.get("key") or "").split(":")) > 4
-                    # Also try ibeacon key from metadata (unsplit objects only)
-                    _ib_u = obj.get("ibeacon_uuid")
-                    if _ib_u is not None and not _is_split_ib:
-                        _ibk = f"ibeacon:{_ib_u}:{obj.get('ibeacon_major', 0)}:{obj.get('ibeacon_minor', 0)}"
-                        _try_keys.extend([_ibk, _ibk.upper()])
-                    # Also try all_addresses
-                    for _a in (obj.get("all_addresses") or []):
-                        _try_keys.append(_a)
-                    for _try_key in _try_keys:
-                        if _try_key:
-                            _e = _obj_store2.get(_try_key)
-                            if _e and _e.get("label"):
-                                _lbl = _e["label"]
-                                break
+                    # Try the object's key, address, canonical_id, ibeacon key
+                    # variants (unsplit objects only) and all_addresses
+                    _lbl = _object_store_label(_obj_store2, obj)
                     if _lbl:
                         obj["user_label"] = _lbl
                         obj["identified"] = True
@@ -3080,7 +3128,6 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
 
     # ── Enrich objects with stable padspan_id from DeviceRegistry ──
     try:
-        from .const import DATA_DEVICE_REGISTRY
         _dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
         if _dev_reg:
             for _o in (snapshot.get("objects") or {}).get("list") or []:
@@ -3088,16 +3135,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if not _okey:
                     continue
                 # Try resolving by key, address, canonical_id, all_addresses
-                _pid = _dev_reg.resolve(_okey)
-                if not _pid:
-                    _pid = _dev_reg.resolve(_o.get("address") or "")
-                if not _pid and _o.get("canonical_id"):
-                    _pid = _dev_reg.resolve(_o["canonical_id"])
-                if not _pid:
-                    for _alt in (_o.get("all_addresses") or []):
-                        _pid = _dev_reg.resolve(str(_alt))
-                        if _pid:
-                            break
+                _pid = _registry_id(_dev_reg, _o)
                 if _pid:
                     _o["padspan_id"] = _pid
                     _plbl = _dev_reg.get_label(_pid)
@@ -3356,11 +3394,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     return snapshot
 
 
-def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys: set[str]) -> int:
+def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys: set[str],
+                       keep: Any = None) -> int:
     """Hold the object history to `cap` unidentified entries (low_memory.py).
     Past it, the ones heard longest ago go, down to 90% of the cap so the sort
     is not paid every build. Someone's object, and anything heard this build
-    (`current_keys`), is never dropped. Returns how many went."""
+    (`current_keys`), is never dropped. `keep(entry)`: asked for an entry
+    about to go, True for one that is someone's though its flags do not say
+    so (a label held only in the device registry). Returns how many went."""
     if len(cache) <= cap:
         return 0
     # An IRK phone is someone's too, labelled or not (low_memory.py says so).
@@ -3371,9 +3412,13 @@ def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys:
         return 0
     excess = len(unid) - int(cap * 0.9)
     drop = sorted(t for t in unid if t[1] not in current_keys)[:excess]
+    gone = 0
     for _ts, k in drop:
+        if keep is not None and keep(cache[k]):
+            continue
         del cache[k]
-    return len(drop)
+        gone += 1
+    return gone
 
 
 _LF_PRUNED = "_lost_and_found_strangers_pruned"

@@ -1257,7 +1257,10 @@ async def test_a_moved_name_stays_on_screen_long_after_the_first_address_stops(m
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("root", SHAPES)
-async def test_a_no_outlives_the_row_whatever_the_address_looks_like(monkeypatch, root) -> None:
+async def test_a_no_is_kept_with_the_named_row_whatever_the_address_looks_like(monkeypatch, root) -> None:
+    """A named device's row is kept however long it is silent (its label is
+    found under the plain address), with or without a link to show; the No
+    someone gave stays with it."""
     state = {"refused": {root: [C]}, "quiet": {root: NOON + 3600.0}}
     links = LF.LabelLinks(json.loads(json.dumps(state)))
     house = _house(monkeypatch, links=links, labels={root: "My Car"})
@@ -1265,7 +1268,7 @@ async def test_a_no_outlives_the_row_whatever_the_address_looks_like(monkeypatch
     dom[DATA_OBJECT_HISTORY] = _silent_since(root, 25.0)
     for at in (0.0, 10.0):
         await house.build(at, [])
-    assert f"ble:{root}" not in dom[DATA_OBJECT_HISTORY], "a row with nothing to show still ages out"
+    assert dom[DATA_OBJECT_HISTORY][f"ble:{root}"]["user_label"] == "My Car"
     assert links.refused[root] == [C] and links.quiet[root] == NOON + 3600.0
 
 
