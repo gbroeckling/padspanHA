@@ -122,6 +122,21 @@ class TagIntegration:
         now = time.time()
 
         for key, old_room, new_room in changes:
+            # What is sent is a chain: each event starts in the room the last
+            # one ended in. The poll's own "from" room is not always that
+            # room: a change inside the cooldown is held and may never be
+            # sent, and after the poll starts a device afresh (dropped from
+            # the list for a minute, back from away) its next room comes
+            # with no "from" at all. Sent as given, Living Room -> Garage
+            # went out twice running with nothing between, and an event
+            # could start in a room no event had ended in. A device shown
+            # again in the room last reported has nothing to report.
+            sent = self._room_tag_sent.get(key)
+            if sent:
+                if new_room == sent:
+                    self._room_tag_held.pop(key, None)
+                    continue
+                old_room = sent
             # A first confirmation (no room before it, as after every restart)
             # is not a room change: it fired padspan_room_change with
             # from_room None for every followed device on each restart.
