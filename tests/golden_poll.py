@@ -12,11 +12,15 @@ on a simulated clock:
     on a rotating private address, a passer-by nobody named, a tag that
     leaves and comes back, one that leaves for good), calibration points for
     the fingerprint match, and the pinned beacons' own automatic calibration
-    points.
+    points. It is run twice: with a new install's settings, and with the
+    settings the poll and the smoothing read moved off their defaults
+    (OTHER_SETTINGS), a 10 s poll and adaptive learning on.
 
 After every poll a record is taken of everything the poll returned and of
-all the state the coordinator keeps between polls (STATE below says which
-attribute is recorded where). Nothing is rounded.
+all the state the coordinator keeps between polls (the STATE_ lists below
+say which attribute is recorded where). The record keeps every digit;
+tests/golden_tools.py says how it is compared on a machine whose maths
+functions round differently.
 """
 
 from __future__ import annotations
@@ -33,11 +37,12 @@ from types import SimpleNamespace
 from typing import Any, Callable, Iterator
 from unittest.mock import MagicMock, patch
 
+from custom_components.padspan_ha import adaptive_store as _ad
 from custom_components.padspan_ha import bluetooth_live as _bl
 from custom_components.padspan_ha import calibration_store as _cs
 from custom_components.padspan_ha import presence_coordinator as _pc
 from custom_components.padspan_ha.const import (
-    DATA_CALIBRATION, DATA_MODEL, DATA_SETTINGS, DOMAIN, OUTSIDE_FLOOR_ID,
+    DATA_ADAPTIVE, DATA_CALIBRATION, DATA_MODEL, DATA_SETTINGS, DOMAIN, OUTSIDE_FLOOR_ID,
 )
 from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 from tests import golden_tools as gt
@@ -511,9 +516,12 @@ def _pinned_ids_and_dates(clock: sim.Clock) -> Iterator[None]:
 
 
 def run_house(settings: dict[str, Any] | None = None, run_s: float = RUN_S,
-              poll_s: float = 5.0) -> Recorder:
-    """HOUSE for run_s seconds; every poll recorded. Also records, per poll,
-    the calibration points the poll itself saved (rec.polls[i]["saved_points"])."""
+              poll_s: float = 5.0, learning: bool = False) -> Recorder:
+    """The house for run_s seconds; every poll recorded. Also records, per
+    poll, the calibration points the poll itself saved ("saved_points").
+    learning: the house has an adaptive-learning store (empty at the start);
+    each poll then records a digest of what it holds, and the last poll all
+    of it."""
     devs = devices()
     for d in devs:
         d.timeline = _timeline(d.route)
@@ -534,6 +542,14 @@ def run_house(settings: dict[str, Any] | None = None, run_s: float = RUN_S,
     hass.async_add_executor_job = _executor_job
     cal = _calibration_store(hass, model)
     hass.data[DOMAIN][DATA_CALIBRATION] = cal
+    learned = None
+    if learning:
+        async def _save(_data):
+            return None
+
+        learned = _ad.AdaptiveStore.__new__(_ad.AdaptiveStore)
+        learned.hass, learned.store, learned.data = hass, SimpleNamespace(async_save=_save), _ad._empty_data()
+        hass.data[DOMAIN][DATA_ADAPTIVE] = learned
     private = next(d for d in devs if d.kind == "private_ble")
     resolver = _Resolver(private.addresses)
 
@@ -543,6 +559,7 @@ def run_house(settings: dict[str, Any] | None = None, run_s: float = RUN_S,
     snap_box: list = [None]
     loop = asyncio.new_event_loop()
     hass.loop = loop            # where the worker modes run the smoothing from
+    hass.async_create_task = loop.create_task   # the learning store's own saves
     radios = [{"source": s, "area_name": v[3]} for s, v in SCANNERS.items()]
     rngs = {d.key: random.Random(d.seed * 7919 + 17) for d in devs}
     slow = {d.key: {s: 0.0 for s in SCANNERS} for d in devs}
@@ -553,7 +570,9 @@ def run_house(settings: dict[str, Any] | None = None, run_s: float = RUN_S,
     mean_cache: dict[tuple, float] = {}
 
     with recording() as rec, sim._patched(clock, manager, snap_box), _pinned_ids_and_dates(clock), \
-            patch("custom_components.padspan_ha.private_ble_resolver.get_resolver", _get_resolver):
+            patch("custom_components.padspan_ha.private_ble_resolver.get_resolver", _get_resolver), \
+            patch.object(_ad, "time", clock), \
+            patch.object(_ad, "_now_iso", lambda: clock.now().replace(microsecond=0).isoformat()):
         bl = _bl.BluetoothLive(hass)
         coord = _pc.PresenceCoordinator(hass)
         coord.update_interval = timedelta(seconds=poll_s)
@@ -577,7 +596,11 @@ def run_house(settings: dict[str, Any] | None = None, run_s: float = RUN_S,
                     loop.run_until_complete(coord._async_update_data())
                     rec.polls[-1]["saved_points"] = gt.plain(cal.data["points"][n_before:])
                     rec.polls[-1]["calibration_points"] = len(cal.data["points"])
+                    if learned is not None:
+                        rec.polls[-1]["learned"] = gt.short(learned.data)
                     next_poll = t + poll_s
+            if learned is not None and rec.polls:
+                rec.polls[-1]["learned_in_all"] = gt.plain(learned.data)
         finally:
             coord.shutdown_compute_executor()
             loop.close()
@@ -657,13 +680,27 @@ def _objects(devs: list[Dev], ble: dict[str, Any], t: float) -> list[dict[str, A
 
 # ── The scenarios the test holds ─────────────────────────────────────────────
 
+# The same house with the settings the poll and the smoothing read moved off
+# their defaults, a 10 s poll, and adaptive learning on from an empty store.
+OTHER_SETTINGS: dict[str, Any] = {
+    "kalman_q": 0.3, "kalman_r": 12.0, "ref_power": -61.0, "path_loss_exp": 2.6,
+    "assumed_device_height_m": 1.3, "room_change_delay_s": 30, "away_timeout_m": 2,
+    "scanner_offsets": {"AA:00:00:00:00:05": -4.0},
+    "excluded_scanners": ["AA:00:00:00:01:02"],
+    "scanner_min_rssi": {"AA:00:00:00:00:03": -85},
+    "adaptive_learning_enabled": True, "adaptive_floor_detection": True,
+    "positioning_unsure": True, "positioning_sensor_fusion": True,
+}
+
 SCENARIOS: dict[str, Callable[[], Recorder]] = {
     "walk_phone": lambda: run_sim_walk(sim.PHONE, 0, fabric=False),
     "walk_tag_house_drawn": lambda: run_sim_walk(sim.TAG, 1, fabric=True),
     "two_floors": run_house,
+    "two_floors_other_settings": lambda: run_house(settings=OTHER_SETTINGS, poll_s=10.0, learning=True),
 }
 # The polls stored whole, to read (the summary has a line for every poll).
-SAMPLE = {"walk_phone": [0, 200], "walk_tag_house_drawn": [0, 200], "two_floors": [120]}
+SAMPLE = {"walk_phone": [0, 200], "walk_tag_house_drawn": [0, 200], "two_floors": [120],
+          "two_floors_other_settings": [60]}
 
 
 def counts(polls: list[dict[str, Any]]) -> dict[str, int]:

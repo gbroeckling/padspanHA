@@ -40,7 +40,17 @@ def _settings(dump: Path | None) -> None:
     print(f"settings/settings_set: {len(records)} cases, {'stored' if changed else 'unchanged'}")
 
 
-PARTS = {"poll": _poll, "settings": _settings}
+def _snapshot(dump: Path | None) -> None:
+    from tests import golden_snapshot as gsn
+    records = gsn.run()
+    if dump:
+        _dump(dump, "snapshot", "builds", records)
+        return
+    changed = gt.write_whole("snapshot", "builds", records, gsn.counts(records))
+    print(f"snapshot/builds: {len(records)} builds, {'stored' if changed else 'unchanged'}")
+
+
+PARTS = {"poll": _poll, "settings": _settings, "snapshot": _snapshot}
 
 
 def _dump(folder: Path, part: str, name: str, records: list) -> None:

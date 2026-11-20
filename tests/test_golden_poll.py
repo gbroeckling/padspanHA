@@ -136,3 +136,24 @@ def test_the_two_floor_run_takes_the_paths_it_is_there_for(runs) -> None:
     assert "C0:FF:EE:00:00:09" in polls[0]["objects"] and "C0:FF:EE:00:00:09" not in polls[-1]["objects"]
     assert any(p["events"].get("arrived") for p in polls) and any(p["events"].get("departed") for p in polls)
     assert all(p["shared"]["_object_failures"] == [] for p in polls)
+
+
+def test_the_other_settings_run_takes_the_paths_it_is_there_for(runs) -> None:
+    """The second run of that house moves the settings the poll and the
+    smoothing read off their defaults. Each line is one of them, seen."""
+    polls = runs["two_floors_other_settings"].polls
+    objs = [(k, o["result"] or {}, o["state"]) for p in polls for k, o in p["objects"].items()]
+    # A 10 s poll and a 30 s Room Change Delay: a vote window of three.
+    assert {p["poll_s"] for p in polls} == {10.0}
+    assert {s["_room_votes"]["maxlen"] for _k, _r, s in objs if "_room_votes" in s} == {3}
+    # A masked receiver is in no filter; a receiver's minimum signal is read.
+    assert not any("AA:00:00:00:01:02" in s.get("_ema_rssi", {}) for _k, _r, s in objs)
+    assert polls[-1]["shared"]["_floor_cache"] == {"AA:00:00:00:00:03": -85.0}
+    # "Unsure" on thin evidence, both kinds.
+    assert {r.get("room_unsure") for _k, r, _s in objs} >= {"few_scanners", "far_fingerprint"}
+    # Adaptive learning: observations taken, and moves between floors learned.
+    learned = polls[-1]["learned_in_all"]
+    assert learned["stats"]["total_observations"] > 10 and len(learned["room_fingerprints"]) >= 5
+    assert "main|upper" in learned["floor_transitions"]
+    assert len({p["learned"] for p in polls}) > 10
+    assert all(p["shared"]["_object_failures"] == [] for p in polls)

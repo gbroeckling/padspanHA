@@ -8,6 +8,15 @@
   "objects": 9,
   "object_polls": 2527
  },
+ "two_floors_other_settings": {
+  "sha256": "2ed896b30d30a1526b3f7a199a1cecbcfb0df1ecc3a33197048bf9c45f7f7c7e",
+  "sha256_exact": "8d094c467a2a44e5fa7e877526d24a5fa5d784e3571091840bbb6f6b47c479b7",
+  "exact_on": "ee91f523c509c73f",
+  "records": 150,
+  "polls": 150,
+  "objects": 9,
+  "object_polls": 1263
+ },
  "walk_phone": {
   "sha256": "45df48e17f26e5750f127eb90f7522d927b5c701402e05105794ba1135d75813",
   "sha256_exact": "4526a608447428c0b4c49f42ae4defbe5d9e205f6c91238a3dc592984c7f6eb2",
