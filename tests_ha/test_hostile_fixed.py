@@ -41,6 +41,14 @@ FIXED_FIRST_RUN = [
     # The secret check on a tester's notes took time with the square of their length.
     Fixed({"type": "padspan_ha/tester_preview", "email": "a@example.com", "consent": True, "notes": "x" * 100_000},
           False, "100,000 characters of notes held Home Assistant for a minute"),
+    # A field of the wrong kind inside a dict the handler takes whole.
+    Fixed({"type": "padspan_ha/rooms_overlap", "rooms": {"Kitchen": -1}}, False, "a room's outline a number"),
+    Fixed({"type": "padspan_ha/device_how_known", "object": {
+        "manufacturer_data": "x", "service_data": -1, "service_uuids": 1, "all_addresses": -1, "maker_source": [],
+        "company_name": [], "address_type": "random", "address": "x", "device": "x"}}, False,
+        "an object with every field of the wrong kind"),
+    Fixed({"type": "padspan_ha/calibration_save_point", "point": {"x_frac": "x", "scanner_readings": -1}}, True,
+          "a point refused in Python's own words"),
 ]
 # The last stable's house, every switch on.
 FIXED_FURNISHED = [
@@ -57,6 +65,13 @@ FIXED_FURNISHED = [
           "a stay that ends at inf"),
     Fixed({"type": "padspan_ha/guest_session_update", "session": "gs_789c232c", "end_at": 1e308}, True,
           "a stay that ends past the next year"),
+    # A field of the wrong kind inside a dict the handler takes whole.
+    Fixed({"type": "padspan_ha/fabric_rf_barrier_set", "barrier": {"name": "Wall", "points_m": -1}}, True,
+          "a wall whose points are a number"),
+    Fixed({"type": "padspan_ha/fabric_open_edges_apply", "action": "tap",
+           "set_barriers": [{"name": "Wall", "points_m": [{"a": 1}, {"b": 2}]}]}, True, "a wall whose points are dicts"),
+    Fixed({"type": "padspan_ha/wled_teams_set", "teams": [{"leader": "x", "followers": -1, "group": 1}]}, True,
+          "a team whose followers are a number"),
 ]
 
 

@@ -65,7 +65,7 @@ def floor_has_height(f: dict[str, Any]) -> bool:
 def _poly(g: Any) -> list[tuple[float, float]]:
     pts = g.get("points_m") if isinstance(g, dict) else None
     out = []
-    for p in pts or []:
+    for p in pts if isinstance(pts, list) else []:
         if isinstance(p, (list, tuple)) and len(p) >= 2 and _num(p[0]) is not None and _num(p[1]) is not None:
             out.append((float(p[0]), float(p[1])))
     return out if len(out) >= 3 else []
