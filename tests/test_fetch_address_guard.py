@@ -92,7 +92,7 @@ def test_only_http_and_https_with_a_host(url):
     ("http://192.168.1.50/?x=", "http://192.168.1.50/api/v2/robot/state/map"),
     ("http://192.168.1.50/#a", "http://192.168.1.50/api/v2/robot/state/map"),
     ("http://192.168.1.50/?x=/api/v2/robot/state/map", "http://192.168.1.50/api/v2/robot/state/map"),
-    ("http://user:pw@192.168.1.50:81/", "http://user:pw@192.168.1.50:81/api/v2/robot/state/map"),
+    ("http://user:pw@robot.lan:81/", "http://user:pw@robot.lan:81/api/v2/robot/state/map"),
     ("http://192.168.1.50/api/v2/robot/state/map", "http://192.168.1.50/api/v2/robot/state/map"),
     ("http://192.168.1.50/sub/", "http://192.168.1.50/sub/api/v2/robot/state/map"),
 ])
