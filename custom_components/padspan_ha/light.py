@@ -96,8 +96,12 @@ class PadSpanTeamLight(LightEntity):
         t = self._team
         if not t:
             return False
-        if t.powerless:                                    # its lights are all there is: there while any of them is
-            return any((s := self.hass.states.get(b)) and s.state != "unavailable" for b in t.cfg["bulbs"])
+        # Switched by its bulbs (no power source, or an off that leaves the power on): there while any bulb is, even
+        # with the wall dimmer out of reach. Otherwise there while the power source is.
+        if t.by_bulbs and any((s := self.hass.states.get(b)) and s.state != "unavailable" for b in t.cfg["bulbs"]):
+            return True
+        if t.powerless:
+            return False
         st = self.hass.states.get(t.cfg["power"])
         return bool(st and st.state != "unavailable")
 
@@ -129,7 +133,8 @@ class PadSpanTeamLight(LightEntity):
     @property
     def supported_features(self) -> LightEntityFeature:
         t = self._team
-        return LightEntityFeature.EFFECT if t and t.adaptive else LightEntityFeature(0)
+        # A fade (transition) of any length: half an hour from dim and warm is a wake-up light.
+        return LightEntityFeature.TRANSITION | (LightEntityFeature.EFFECT if t and t.adaptive else LightEntityFeature(0))
 
     @property
     def effect_list(self) -> list[str] | None:
@@ -146,9 +151,11 @@ class PadSpanTeamLight(LightEntity):
         t = self._team
         if not t:
             return {}
-        # starting: the bulbs are being woken; failed: `missing` never answered.
+        # starting: the bulbs are being woken; failed: `missing` never answered. turns_off: "power" (cut) or "bulbs"
+        # (the power left on). waking: the wake-up's light (fading, or faded and kept). The map's team card reads these.
         return {"padspan_power_team": True, "power": t.cfg.get("power") or None, "bulbs": list(t.cfg["bulbs"]),
-                "phase": t.phase, "missing": list(t.missing), "follows_the_day": t.effect == EFFECT_ADAPTIVE}
+                "phase": t.phase, "missing": list(t.missing), "follows_the_day": t.effect == EFFECT_ADAPTIVE,
+                "turns_off": t.cfg.get("off") or "power", "waking": t.waking, "fading": t.fading}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         t = self._team
@@ -156,9 +163,10 @@ class PadSpanTeamLight(LightEntity):
             return
         # In the background: the bulbs can take BOOT_DEADLINE_S to answer, and a service call should not wait on that.
         self.hass.async_create_task(t.turn_on(brightness=kwargs.get("brightness"), kelvin=kwargs.get("color_temp_kelvin"),
-                                              hs=kwargs.get("hs_color"), effect=kwargs.get("effect")))
+                                              hs=kwargs.get("hs_color"), effect=kwargs.get("effect"),
+                                              transition=kwargs.get("transition")))
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         t = self._team
         if t:
-            await t.turn_off()
+            await t.turn_off(transition=kwargs.get("transition"))

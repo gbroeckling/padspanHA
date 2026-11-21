@@ -117,6 +117,8 @@ class House:
         if service == "turn_on":
             self.states[eid] = SimpleNamespace(state="on", attributes={"brightness": data.get("brightness"), "color_temp_kelvin": data.get("color_temp_kelvin"),
                                                                     "hs_color": data.get("hs_color")})
+        else:
+            self.states[eid] = SimpleNamespace(state="off", attributes={})
 
     def wall(self, on: bool, level: int | None = 255) -> tuple[SimpleNamespace, SimpleNamespace]:
         """The wall button, seen by Home Assistant: (new, old) of the dimmer."""
@@ -485,3 +487,148 @@ def test_the_settings_card_makes_saves_and_removes_a_team() -> None:
     assert 'if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el));' in settings
     panel = (views.parent / "panel.js").read_text(encoding="utf-8")
     assert "wled_teams_get power_teams_get " in panel       # reading the teams is a read; saving them stays a write
+
+
+# ── 2026-11-21: "when controlling the team with a single button press, use hue, but when pressing to get the card,
+# give control4 power as an option" — an off that leaves the power on ─────────────────────────────────────────
+BCFG = {**CFG, "off": "bulbs"}
+
+
+def test_what_off_does_is_stored_per_team_and_lights_that_always_have_power_are_always_switched_themselves() -> None:
+    ok = P.sanitize_teams([{"name": "A", "power": "light.d", "bulbs": ["light.b"]},
+                           {"name": "B", "power": "light.e", "bulbs": ["light.c"], "off": "bulbs"},
+                           {"name": "C", "power": "", "bulbs": ["light.f"], "off": "power"},
+                           {"name": "D", "power": "light.g", "bulbs": ["light.h"], "off": "nonsense"}])
+    assert [t["off"] for t in ok] == ["power", "bulbs", "bulbs", "power"]   # a team saved before has no word: it cuts the power, as it did
+    assert P.sanitize_teams(ok) == ok
+
+
+def test_a_press_off_turns_the_bulbs_off_and_leaves_the_power_on_so_the_next_on_is_at_once() -> None:
+    h = House(boot=5.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())                                                       # the first on still starts the bulbs
+    assert t.phase == "ready" and t.is_on and h.states["light.dimmer"].state == "on"
+    h.calls.clear()
+    run(t.turn_off())
+    assert all(h.states[b].state == "off" for b in BCFG["bulbs"]) and h.to("light.dimmer") == []
+    assert not t.is_on and t.phase == "off" and h.states["light.dimmer"].state == "on"     # dark, the power still on
+    h.calls.clear()
+    t0 = h.t
+    run(t.turn_on())
+    assert h.to("light.dimmer") == [] and len(h.to("light.b1")) == 1 and h.t - t0 < P.BOOT_MIN_S   # at once: nothing to start
+    assert h.states["light.b1"].attributes == {"brightness": 200, "color_temp_kelvin": 4000, "hs_color": None} and t.is_on
+
+
+def test_with_the_power_left_on_the_wall_still_works_and_cutting_the_power_is_off() -> None:
+    h = House(boot=3.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    h.t += 60
+    new, old = h.wall(False)                                               # the card's "Cut power", or the wall
+    run(t.on_power(new, old))
+    assert t.phase == "off" and not t.is_on                                # a cut bulb still shows "on": no power, not on
+    h.t += 60
+    h.calls.clear()
+    new, old = h.wall(True)
+    run(t.on_power(new, old))                                              # the wall again: started and set, as ever
+    assert t.phase == "ready" and t.is_on and h.states["light.b2"].attributes["brightness"] == 200
+
+
+def test_with_the_power_left_on_one_bulb_switched_from_outside_takes_the_others_with_it() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    run(t.turn_off())
+    h.t += 60
+    old = h.states["light.b1"]
+    h.states["light.b1"] = SimpleNamespace(state="on", attributes={"brightness": 30, "color_temp_kelvin": 2700})   # a Hue remote, say
+    run(t.on_bulb("light.b1", h.states["light.b1"], old))
+    assert t.phase == "ready" and all(h.states[b].attributes.get("brightness") == 200 for b in BCFG["bulbs"])
+    h.t += 60
+    old = h.states["light.b2"]
+    h.states["light.b2"] = SimpleNamespace(state="off", attributes={})
+    run(t.on_bulb("light.b2", h.states["light.b2"], old))
+    assert t.phase == "off" and all(h.states[b].state == "off" for b in BCFG["bulbs"]) and h.states["light.dimmer"].state == "on"
+
+
+def test_a_team_that_cuts_the_power_still_does() -> None:
+    h = House(boot=1.0)
+    t = P.Team(dict(CFG), h.io)
+    run(t.turn_on())
+    h.calls.clear()
+    run(t.turn_off(transition=5))
+    assert h.calls == [(h.t, "light.dimmer", "turn_off", {})]
+
+
+# ── a fade of any length: the wake-up light ──────────────────────────────────
+def test_a_long_fade_is_sent_once_and_the_day_and_the_hand_watch_wait_for_it_to_run() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    run(t.turn_off())
+    h.calls.clear()
+    run(t.turn_on(transition=1800))
+    sends = h.to("light.b1")
+    assert len(sends) == 1 and sends[0][2]["transition"] == 1800 and t.phase == "ready" and t.missing == []
+    assert t.fading
+    # Partway: the bulb shows a level of its own on the way. Not someone's hand, and the day does not move it.
+    h.t += 600
+    old = h.states["light.b1"]
+    h.states["light.b1"] = SimpleNamespace(state="on", attributes={"brightness": 70, "color_temp_kelvin": 3100})
+    run(t.on_bulb("light.b1", h.states["light.b1"], old))
+    h.now_target = {"brightness": 150, "kelvin": 3500}
+    h.calls.clear()
+    run(t.tick())
+    assert h.calls == [] and not t.manual
+    h.t += 1300                                                           # done: the day leads again
+    run(t.tick())
+    assert {d.get("color_temp_kelvin") for _, _, d in h.to("light.b1")} == {3500} and not t.fading
+    assert P._fade(99999) == P.MAX_FADE_S and P._fade(0) is None and P._fade("x") is None
+
+
+def test_the_wake_up_comes_on_dim_and_warm_and_fades_to_its_light_and_leaves_a_lit_room_alone() -> None:
+    h = House(boot=0.0)
+    cfg = {**BCFG, "wake": {"on": True, "time": "06:30", "days": [0, 1, 2, 3, 4], "minutes": 20, "brightness": 80, "kelvin": 4200}}
+    t = P.Team(cfg, h.io)
+    run(t.turn_on())
+    run(t.turn_off())
+    h.calls.clear()
+    assert run(t.wake()) is True
+    sends = [d for _, s, d in h.to("light.b1") if s == "turn_on"]
+    assert sends[0] == {"brightness": P.WAKE_START, "color_temp_kelvin": 2000}               # the dimmest, the sleep colour
+    assert sends[-1] == {"brightness": 204, "color_temp_kelvin": 4200, "transition": 1200.0}
+    assert t.waking and t.manual and t.effect is None and t.is_on
+    h.calls.clear()
+    assert run(t.wake()) is False and h.calls == []                                           # someone is up: left alone
+    run(t.turn_off())
+    assert not t.waking
+
+
+def test_the_wake_up_is_due_on_its_days_its_minutes_before_its_time_once() -> None:
+    from datetime import datetime
+    w = {"on": True, "time": "06:30", "days": [0, 1, 2, 3, 4], "minutes": 30}
+    mon = datetime(2026, 11, 23, 6, 0)                                     # a Monday
+    assert P.wake_due(w, mon) == "2026-11-23" and P.wake_due(w, mon.replace(minute=1, second=30)) == "2026-11-23"
+    assert P.wake_due(w, mon.replace(minute=2)) is None and P.wake_due(w, mon.replace(hour=5, minute=59)) is None
+    assert P.wake_due(w, datetime(2026, 11, 22, 6, 0)) is None            # Sunday is not one of its days
+    assert P.wake_due({**w, "on": False}, mon) is None
+    late = {"on": True, "time": "00:10", "days": [1], "minutes": 30}      # Tuesday 00:10 starts Monday 23:40
+    assert P.wake_due(late, datetime(2026, 11, 23, 23, 40)) == "2026-11-24"
+    c = P.clean_wake({"time": "25:00", "days": [1, 9, "x", True, 1], "minutes": 500, "brightness": 0, "kelvin": 99999})
+    assert c == {"on": False, "time": "06:30", "days": [1], "minutes": 90, "brightness": 1, "kelvin": 9000}
+    assert P.sanitize_teams([{"name": "A", "power": "light.d", "bulbs": ["light.b"]}])[0]["wake"] == P.WAKE_DEFAULT
+
+
+# ── the day moved or fixed (Adaptive Lighting's sunrise/sunset offset and time) ─────────────────────
+def test_a_lights_day_can_start_and_end_at_fixed_times_or_the_suns_moved_by_minutes() -> None:
+    at = lambda i, hhmm: (i - 1) * DAY + int(hhmm[:2]) * H + int(hhmm[3:]) * 60    # noqa: E731
+    assert C.shift_days(DAYS, None, at) == DAYS
+    moved = C.shift_days(DAYS, {"sunrise_offset": -30, "sunset_offset": 60}, at)
+    assert moved[1] == (DAYS[1][0] - 1800, DAYS[1][1] + 3600)
+    fixed = C.shift_days(DAYS, {"sunrise_time": "06:30", "sunset_offset": 600}, at)
+    assert fixed[1] == (6.5 * H, DAYS[1][1] + 3 * H)                       # the offset is held to its limit, 180 minutes
+    assert C.shift_days(DAYS, {"sunrise_time": "20:00", "sunset_time": "08:00"}, at) == DAYS   # a day ending before it starts: the sun's
+    c = C.clean({"sunrise_time": "6:30", "sunset_time": "18:45", "sunrise_offset": -999})
+    assert c["sunrise_time"] == "" and c["sunset_time"] == "18:45" and c["sunrise_offset"] == -180
+    # At 06:45, a day fixed to start at 06:30 is already day (brightest); the sun's own (07:00) is still night.
+    assert C.sun_position(6.75 * H, fixed) > 0 > C.sun_position(6.75 * H, DAYS)
