@@ -229,7 +229,17 @@ def test_the_companion_is_asked_at_its_own_path_without_following_a_redirect(web
     assert conn.error[0] == "http_error" and "another address" in conn.error[1]
 
 
-@pytest.mark.parametrize("typed", ["http://localhost:8267", "http://127.0.0.1:8267", "http://169.254.169.254",
+def test_a_companion_that_does_not_answer_is_said_so(web, monkeypatch):
+    """The 15 s timeout is not a ClientError: it must not read as a Companion
+    that answered with something PadSpan couldn't read."""
+    async def _no_answer(self):
+        raise TimeoutError
+    monkeypatch.setattr(_Resp, "__aenter__", _no_answer)
+    conn = _companion(_hass(), "http://192.168.1.60:8267")
+    assert conn.error[0] == "connect_failed" and "didn't answer within 15 seconds" in conn.error[1]
+
+
+@pytest.mark.parametrize("typed",["http://localhost:8267", "http://127.0.0.1:8267", "http://169.254.169.254",
                                    "http://[::1]:8267", "http://0.0.0.0:8267"])
 def test_saving_the_companion_as_this_machine_is_refused_and_the_old_one_stays(typed):
     got = send({"espresense_companion_url": typed}, start={"espresense_companion_url": "http://old:1"})

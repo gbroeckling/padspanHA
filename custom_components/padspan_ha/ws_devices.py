@@ -230,6 +230,10 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
                                           f"Companion returned HTTP {resp.status} from {api_url}")
                     return
                 data = await resp.json()
+    except TimeoutError:            # the 15 s limit (aiohttp's own timeouts are TimeoutErrors too)
+        connection.send_error(msg["id"], "connect_failed",
+                              f"ESPresense Companion at {api_url} didn't answer within 15 seconds.")
+        return
     except aiohttp.ClientError as e:
         connection.send_error(msg["id"], "connect_failed",
                               f"Cannot reach ESPresense Companion at {api_url}: {e}")
