@@ -63,6 +63,18 @@ FIXED_FIRST_RUN = [
     Fixed({"type": "padspan_ha/settings_set", "positioning_algorithm": "zz"}, True, "an unknown positioning method"),
     Fixed({"type": "padspan_ha/settings_set", "license_tier_override": "zz"}, True, "an unknown tier"),
     Fixed({"type": "padspan_ha/settings_set", "auto_offset_mode": "zz"}, True, "an unknown offset mode"),
+    # Sizes: 100,000 characters, a NUL, 1e308 metres, 10,000 entries, 200 levels, a wall's extra key.
+    Fixed({"type": "padspan_ha/object_label_set", "address": "AA:BB:CC:DD:EE:01", "label": "x" * 100_000}, True,
+          "a label of 100,000 characters"),
+    Fixed({"type": "padspan_ha/fabric_room_add", "room": "Hall\x00"}, True, "a room name with a NUL"),
+    Fixed({"type": "padspan_ha/fabric_scanner_position_set", "source": "scanner_x", "x_m": 1e308, "y_m": 0}, True,
+          "a receiver 1e308 m away"),
+    Fixed({"type": "padspan_ha/settings_set", "followed_addrs": ["AA:BB:CC:DD:EE:01"] * 10_000}, True,
+          "10,000 followed devices"),
+    Fixed({"type": "padspan_ha/follow_alert_save", "addr": "AA:BB:CC:DD:EE:01", "config": H._nested(200, 1, False)},
+          True, "a follow alert nested 200 deep"),
+    Fixed({"type": "padspan_ha/fabric_rf_barrier_set", "barrier": {
+        "name": "Wall", "points_m": [[0, 0], [2, 0]], "zz_missing_field": "x"}}, False, "a wall with a key of its own"),
 ]
 # The last stable's house, every switch on.
 FIXED_FURNISHED = [

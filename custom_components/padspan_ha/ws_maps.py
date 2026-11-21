@@ -14,7 +14,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
-from .ws_common import admin_if_enhanced_security, finite_float
+from .ws_common import admin_if_enhanced_security, finite_float, id_text, note_text, shallow, PINS_MAX, ROOMS_MAX
 from .const import (
     DOMAIN,
     DATA_SETTINGS,
@@ -268,16 +268,16 @@ async def ws_maps_scale_nudge_end(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/maps_update",
-        "map_id": str,
+        "map_id": id_text,
         # Pins, each an object: a list holding anything else saved as no pins at all.
-        vol.Optional("receivers"): [dict],
-        vol.Optional("calibration"): dict,
-        vol.Optional("notes"): str,
-        vol.Optional("floor_id"): str,
-        vol.Optional("room_bounds"): dict,
-        vol.Optional("stack"): dict,
-        vol.Optional("beacons"): [dict],
-        vol.Optional("lights"): list,
+        vol.Optional("receivers"): vol.All([dict], shallow, vol.Length(max=PINS_MAX)),
+        vol.Optional("calibration"): vol.All(dict, shallow),
+        vol.Optional("notes"): note_text,
+        vol.Optional("floor_id"): id_text,
+        vol.Optional("room_bounds"): vol.All(dict, shallow, vol.Length(max=ROOMS_MAX)),
+        vol.Optional("stack"): vol.All(dict, shallow),
+        vol.Optional("beacons"): vol.All([dict], shallow, vol.Length(max=PINS_MAX)),
+        vol.Optional("lights"): vol.All(list, shallow, vol.Length(max=PINS_MAX)),
     }
 )
 @websocket_api.async_response

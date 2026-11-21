@@ -22,7 +22,7 @@ from .const import (
     DEFAULT_FLOOR_ID,
     DATA_DEVICE_REGISTRY,
 )
-from .ws_common import admin_if_enhanced_security, _point_in_polygon
+from .ws_common import admin_if_enhanced_security, _point_in_polygon, id_text, name_text
 from .quiet_errors import note as _quiet_error
 from .util import AddressRefused, address_url, async_check_address
 
@@ -103,8 +103,8 @@ async def ws_device_registry_merge(hass: HomeAssistant, connection, msg) -> None
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_label_set",
-    vol.Required("padspan_id"): str,
-    vol.Required("label"): str,
+    vol.Required("padspan_id"): id_text,
+    vol.Required("label"): name_text,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -137,9 +137,9 @@ async def ws_device_registry_label_set(hass: HomeAssistant, connection, msg) -> 
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_add_identity",
-    vol.Required("padspan_id"): str,
-    vol.Required("kind"): str,
-    vol.Required("value"): str,
+    vol.Required("padspan_id"): id_text,
+    vol.Required("kind"): id_text,
+    vol.Required("value"): id_text,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security

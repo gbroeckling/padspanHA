@@ -25,7 +25,7 @@ from .const import (
 )
 from .bluetooth_live import get_bluetooth_live
 from .ws_calibration import _get_cal_store
-from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, RadioDeviceIndex, finite_float
+from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, RadioDeviceIndex, finite_float, id_text
 from .util import ha_device_config_entries
 from .quiet_errors import note as _quiet_error
 
@@ -131,7 +131,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/radio_lost_set",
-        "source": str,
+        "source": id_text,
         "lost": bool,
     }
 )
@@ -160,7 +160,7 @@ async def ws_radio_lost_set(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/radio_disabled_set",
-        "source": str,
+        "source": id_text,
         "disabled": bool,
     }
 )

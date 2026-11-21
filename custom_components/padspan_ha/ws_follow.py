@@ -22,7 +22,7 @@ from .const import (
     DATA_DEVICE_REGISTRY,
 )
 from .snapshot_builder import _live_snapshot
-from .ws_common import admin_if_enhanced_security, _get_settings, _invalidate_snapshot_cache
+from .ws_common import admin_if_enhanced_security, _get_settings, _invalidate_snapshot_cache, id_text, shallow
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,8 +78,8 @@ async def ws_follow_alert_get(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/follow_alert_save",
-        vol.Optional("addr"): str,
-        vol.Optional("config"): dict,
+        vol.Optional("addr"): id_text,
+        vol.Optional("config"): vol.All(dict, shallow),
     }
 )
 @websocket_api.async_response

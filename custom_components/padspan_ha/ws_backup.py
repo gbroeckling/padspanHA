@@ -38,6 +38,7 @@ from .const import (
     LOST_AND_FOUND_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
+from .ws_common import note_text
 from .ws_common import (
     ABSENT_MARKER, _BACKUP_ONLY_ONCE_WRITTEN, _DATA_KEY_MAP, _MAX_AUTO_BACKUPS, _MAX_BACKUPS, _is_absent_marker,
     _store_file_written,
@@ -215,7 +216,7 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/store_backup_create",
-    vol.Optional("note"): str,
+    vol.Optional("note"): note_text,
 })
 @websocket_api.require_admin
 @websocket_api.async_response

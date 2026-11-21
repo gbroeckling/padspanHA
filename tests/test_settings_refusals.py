@@ -61,6 +61,8 @@ def _reads_numbers(validator: Any) -> bool:
         return validator.type in (int, float)
     if isinstance(validator, vol.Any):
         return any(v in (int, float) or _reads_numbers(v) for v in validator.validators)
+    if isinstance(validator, vol.All):
+        return _reads_numbers(validator.validators[0])     # what it takes; the rest only limit it
     return False
 
 
