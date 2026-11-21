@@ -183,7 +183,8 @@ export function render(ctx){
       const q = qualityBySrc[src];
       const avg = q && q.count > 0 ? Math.round(q.rssiSum / q.count) : null;
       const { label: quality, color: qColor } = _qualityGrade(avg);
-      const tr = el("tr",{style:"cursor:pointer"});
+      // data-src: which receiver the row is (its numbers change every poll), so the focus finds it again (dialog_keys.js).
+      const tr = el("tr",{style:"cursor:pointer","data-src":src,"data-table":"now"});
       tr.addEventListener("mouseenter", ()=>{ tr.style.background = "rgba(255,255,255,0.04)"; });
       tr.addEventListener("mouseleave", ()=>{ tr.style.background = ""; });
       tr.addEventListener("click", ()=>{
@@ -366,7 +367,8 @@ function _zones(ctx, el){
         const label = pickName(o, "Unknown");
         const rssiText = o.rssi != null ? ` (${o.rssi} dBm)` : "";
         const isFollowed = ctx.actions.followedHas && ctx.actions.followedHas(o.address || o.key);
-        const objRow = el("div",{"data-obj-click":"1",style:"font-size:12px;cursor:pointer;padding:2px 4px;border-radius:3px;display:flex;align-items:center;gap:4px"});
+        // data-obj: which object (its dBm changes every poll), so the focus finds the row again (dialog_keys.js).
+        const objRow = el("div",{"data-obj-click":"1","data-obj":o.canonical_id || o.key || o.address || o.entity_id || "",style:"font-size:12px;cursor:pointer;padding:2px 4px;border-radius:3px;display:flex;align-items:center;gap:4px"});
         objRow.addEventListener("mouseenter", ()=>{ objRow.style.background = "rgba(255,255,255,0.06)"; });
         objRow.addEventListener("mouseleave", ()=>{ objRow.style.background = ""; });
         objRow.addEventListener("click", (e)=>{ e.stopPropagation(); ctx.actions.showObjectDetail(o); });
@@ -494,7 +496,7 @@ function _insights(ctx, el, _sid){
       const { label: grade, color: gradeColor } = _qualityGrade(avg);
       const radio = radios.find(r=>r.source===src);
       const name = (radio && (radio.display_name || radio.name)) || src;
-      const tr = el("tr",{style:"cursor:pointer"});
+      const tr = el("tr",{style:"cursor:pointer","data-src":src,"data-table":"totals"});
       tr.addEventListener("mouseenter", ()=>{ tr.style.background = "rgba(255,255,255,0.04)"; });
       tr.addEventListener("mouseleave", ()=>{ tr.style.background = ""; });
       tr.addEventListener("click", ()=>{

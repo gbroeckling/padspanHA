@@ -38,6 +38,8 @@ const PIECES = await import(`./live_aboard_pieces.js${new URL(import.meta.url).s
 // Who is in which room, as text for screen readers (map_text.js). If it can't
 // load, the map is as it was, with no hidden text.
 const MAP_TEXT = await import(`./map_text.js${new URL(import.meta.url).search}`).catch(() => null);
+// Escape closes a card as ✕ does, and the focus goes back where it was (dialog_keys.js). Optional.
+const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 
 const NS = "http://www.w3.org/2000/svg";
 const TAG = "#5eead4";                      // the flat Atlas's beacon teal (Live Aboard's tag)
@@ -159,7 +161,7 @@ function inkOn(hex){
 export const personCard = TRACKED.personCard;
 
 // The card a tap opens: Live Aboard's face (live_aboard_use.js), fixed by the
-// spot that was tapped; the next press anywhere, or ✕, closes it.
+// spot that was tapped; the next press anywhere, ✕ or Escape closes it.
 const CARD = "position:fixed;z-index:60;box-sizing:border-box;min-width:170px;max-width:min(280px,calc(100vw - 12px));padding:8px 10px 9px;"
   + "border-radius:10px;background:rgba(6,14,9,.95);border:1px solid rgba(94,234,212,.45);color:#e2e8f0;font:13px/1.45 Inter,system-ui,sans-serif;"
   + "box-shadow:0 12px 32px rgba(0,0,0,.5);pointer-events:auto";
@@ -168,7 +170,9 @@ export function closeCard(){
   if (!_card) return;
   try { _card.el.remove(); } catch (_) { /* gone with the page */ }
   window.removeEventListener("pointerdown", _card.away, true);
+  const release = _card.release;
   _card = null;
+  if (release) release();
 }
 /** Show `c` ({title, lines}) by the screen box `at` (a DOMRect), in `home` (the panel's shadow root). */
 export function showCard(c, at, home, key){
@@ -199,7 +203,7 @@ export function showCard(c, at, home, key){
   el.style.left = `${Math.round(left)}px`; el.style.top = `${Math.round(top)}px`;
   const away = (e) => { if (!el.contains(e.target)) closeCard(); };
   window.addEventListener("pointerdown", away, true);
-  _card = { el, away, key };
+  _card = { el, away, key, release: KEYS ? KEYS.holdKeys(el, { close: closeCard }) : null };
   return el;
 }
 export const cardOpen = () => (_card ? { key: _card.key, text: _card.el.textContent } : null);

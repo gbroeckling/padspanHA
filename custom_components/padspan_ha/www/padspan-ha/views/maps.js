@@ -6,6 +6,9 @@
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Escape, Tab and the focus for the builder's guide and the Point Align
+// window (dialog_keys.js). Optional: missing, they close as they did.
+const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
         surfacesForEdition: _surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -6711,8 +6714,9 @@ function _stack(ctx, maps, helpBtn){
     // Helper: get map image URL with cache-buster
     const _mapUrl = (map) => ctx.helpers.mapImageUrl(map);
 
-    // Helper: close modal
-    const _close = () => { try { overlay.remove(); } catch (_e) {} };
+    // Helper: close modal (and give the focus back: dialog_keys.js)
+    let _release = null;
+    const _close = () => { try { overlay.remove(); } catch (_e) {} if (_release) { const r = _release; _release = null; r(); } };
 
     // ── Toolbar (top bar) ──
     const toolbar = document.createElement("div");
@@ -7469,6 +7473,8 @@ function _stack(ctx, maps, helpBtn){
     } else {
       document.body.appendChild(overlay);
     }
+    // It takes the focus and Tab stays inside it while it is open; Escape is its own, above.
+    if (KEYS) _release = KEYS.holdKeys(overlay, { modal: true });
   };
 
   // Point Align button — opens the modal overlay
@@ -9629,9 +9635,11 @@ function _wireHoverHud(ctx, isoDiv, svg, o) {
 
 function _wireLightsPicker(ctx, isoDiv, svg, o, toVB) {
   const { el } = ctx.helpers;
+  let release = null;
   const close = () => {
     const old = isoDiv.querySelector(".lpick");
     if (old) old.remove();
+    if (release) { const r = release; release = null; r(); }
   };
   isoDiv.addEventListener("pointerdown", (ev) => { if (ev.button !== 2) close(); }, true);
 
@@ -9677,6 +9685,8 @@ function _wireLightsPicker(ctx, isoDiv, svg, o, toVB) {
     menu.style.left = Math.min(ev.clientX, window.innerWidth - 220) + "px";
     menu.style.top = Math.min(ev.clientY, window.innerHeight - 280) + "px";
     isoDiv.appendChild(menu);
+    // Escape closes it as a press elsewhere does; the focus goes back (dialog_keys.js).
+    if (KEYS) release = KEYS.holdKeys(menu, { close });
   });
 }
 
@@ -9993,10 +10003,19 @@ function _lightsTourCard(ctx, wrap, paid){
   if (tour.step > steps.length) tour.step = steps.length;
   const s = steps[tour.step - 1];
 
+  // Where the focus was when it opened: it goes back there (or to what
+  // replaced it) when the guide closes (dialog_keys.js).
+  if (KEYS && !tour.from) tour.from = KEYS.remember(KEYS.deepActive()) || {};
   const close = () => {
+    const from = tour.from;
     ctx.state._lightsTour = null;
     try { localStorage.setItem("padspan_ha_lights_tour_seen", "1"); } catch(e) {}
     ctx.actions.renderRooms();
+    if (KEYS) setTimeout(() => { if (!KEYS.deepActive()) KEYS.refocus(from); }, 0);
+  };
+  const dismiss = () => {
+    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_dismissed_early");
+    close();
   };
 
   const card = el("div", { style:
@@ -10008,10 +10027,7 @@ function _lightsTourCard(ctx, wrap, paid){
     el("span", { style: "font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#5eead4;font-weight:700" },
       `Guide · ${tour.step} of ${steps.length}`),
     (() => { const x = el("button", { class: "btn inline", style: "font-size:11px;padding:1px 8px" }, "✕");
-      x.addEventListener("click", () => {
-        if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_dismissed_early");
-        close();
-      });
+      x.addEventListener("click", dismiss);
       return x; })(),
   ]);
   card.appendChild(head);
@@ -10048,6 +10064,16 @@ function _lightsTourCard(ctx, wrap, paid){
   }
   nav.appendChild(right);
   card.appendChild(nav);
+
+  // Escape does what ✕ does once the card is on the page. It takes the focus
+  // when it opens, and after that only when nothing has it (Next/Back drew it
+  // again), so work on the builder beside it keeps the keyboard.
+  if (KEYS) setTimeout(() => {
+    if (!card.isConnected || ctx.state._lightsTour !== tour) return;
+    const first = !tour.held;
+    tour.held = true;
+    KEYS.holdKeys(card, { close: dismiss, take: first || !KEYS.deepActive(), opener: null });
+  }, 0);
 
   return card;
 }
