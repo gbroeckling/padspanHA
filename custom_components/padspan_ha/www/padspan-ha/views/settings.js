@@ -1046,11 +1046,15 @@ function _settingsPresence(ctx, el){
     const cs = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.calibration_status) || {};
     const curAlgo = settings.positioning_algorithm || "knn";
     const rfReady = cs.rf_trained === true;
+    // With matching chosen the model is not trained at all (it trains when
+    // chosen): not a fault (calibration_store.rf_state).
+    const rfUnused = cs.rf_state === "not_used";
+    const rfTraining = cs.rf_state === "training";
     const algoSel = el("select", {
       style: "width:180px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
     });
     const optKnn = el("option", { value: "knn", title: "k-NN (k-nearest neighbours)" }, "Matched to calibration points (default)");
-    const optRf = el("option", { value: "rf", title: "Random Forest" }, "Learned model (experimental)" + (rfReady ? "" : " — not trained"));
+    const optRf = el("option", { value: "rf", title: "Random Forest" }, "Learned model (experimental)" + (rfReady || rfUnused ? "" : " — not trained"));
     if (curAlgo === "knn") optKnn.selected = true;
     else optRf.selected = true;
     algoSel.appendChild(optKnn);
@@ -1067,7 +1071,8 @@ function _settingsPresence(ctx, el){
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
         algoSel,
         el("span", { class: "muted", style: "font-size:12px" },
-          curAlgo === "rf" ? (rfReady ? "Active" : "Falling back to matching calibration points") : ""),
+          curAlgo === "rf" ? (rfReady ? "Active" : rfTraining ? "Training — matching calibration points until it is ready"
+            : "Falling back to matching calibration points") : ""),
       ]),
       el("div", { class: "muted", style: "font-size:12px;line-height:1.6" },
         "Matched to calibration points compares live signals to the nearest calibration points — works well even with sparse scanner coverage. " +

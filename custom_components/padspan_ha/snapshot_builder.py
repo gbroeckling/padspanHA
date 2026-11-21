@@ -3769,6 +3769,8 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                 "spatial_positioned_objects": _spatial_active_count,
                 "store_initialized": True,
                 "rf_trained": getattr(_cal, "rf_trained", False),
+                # not_used (k-NN is the setting) | training | ready | not_trained
+                "rf_state": getattr(_cal, "rf_state", "not_used"),
                 "positioning_algorithm": (
                     (hass.data.get(DOMAIN, {}).get(DATA_SETTINGS).data.get("positioning_algorithm", "knn"))
                     if hass.data.get(DOMAIN, {}).get(DATA_SETTINGS) else "knn"

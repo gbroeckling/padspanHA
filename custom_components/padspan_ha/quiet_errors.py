@@ -196,6 +196,7 @@ calibration_store:active_algorithm
 calibration_store:excluded_sources
 calibration_store:fit_path_loss
 calibration_store:resolve_floor_id
+calibration_store:rf_background
 calibration_store:room_floor
 capture_store:build_header
 capture_store:retention_days
@@ -711,6 +712,7 @@ ws_settings:set_follow_auto_label
 ws_settings:set_followed_ble
 ws_settings:set_followed_old
 ws_settings:set_followed_removed
+ws_settings:set_positioning_algorithm
 ws_settings:set_tasmota
 ws_settings:set_toggle_entities
 ws_vacuum:import_preview

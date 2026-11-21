@@ -1456,13 +1456,26 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
             "detail": "CalibrationStore " + ("has" if has_model_ref else "MISSING") + " reference to ModelStore for metre conversions",
         })
 
-        # RF trained in metres?
+        # RF trained in metres? Only the Random Forest setting uses it: with
+        # k-NN it is not trained at all, which is not a fault.
         rf_trained = cal.rf_trained
+        rf_state = cal.rf_state
         rf_metres = getattr(cal._rf, "_use_metres", False) if rf_trained else False
+        if rf_state == "not_used":
+            rf_ok, rf_value = True, "not used"
+            rf_detail = "Only the Learned model setting uses it; positioning matches calibration points (k-NN)"
+        elif rf_trained:
+            rf_ok, rf_value = True, "metres" if rf_metres else "fractions"
+            rf_detail = "Random Forest trained in " + ("metre" if rf_metres else "fraction") + " space" + (
+                "; training again with the new points" if rf_state == "training" else "")
+        elif rf_state == "training":
+            rf_ok, rf_value = True, "training"
+            rf_detail = "Random Forest training; positioning matches calibration points until it is ready"
+        else:
+            rf_ok, rf_value, rf_detail = False, "not trained", "RF not trained (need ≥4 points)"
         checks.append({
             "group": "calibration", "name": "RF Model",
-            "ok": rf_trained, "value": ("metres" if rf_metres else "fractions") if rf_trained else "not trained",
-            "detail": ("Random Forest trained in " + ("metre" if rf_metres else "fraction") + " space") if rf_trained else "RF not trained (need ≥4 points)",
+            "ok": rf_ok, "value": rf_value, "detail": rf_detail,
         })
 
         # LOO accuracy

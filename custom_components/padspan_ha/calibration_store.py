@@ -21,6 +21,7 @@ Data layout in .storage/padspan_ha.calibration:
   }
 """
 
+import asyncio
 import copy
 import hashlib
 import logging
@@ -187,6 +188,16 @@ class CalibrationStore:
     store: Store
     data: dict[str, Any] = field(default_factory=lambda: {"points": [], "model": {}})
 
+    # The Random Forest's state. Only the "rf" positioning setting uses the
+    # forest, and training it is pure Python (about 25 s on a desktop), so it
+    # is never awaited by whoever changed the points: a change counts itself
+    # in _rf_changes, the forest remembers which count it was trained at, and
+    # it trains in the background (_rf_task) only while the setting is "rf".
+    # Class defaults, not dataclass fields: stores made with __new__ have them.
+    _rf_changes = 0
+    _rf_trained_at = -1     # never trained: out of date until it is
+    _rf_task = None         # asyncio.Task | None
+
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
         self._raw_store = Store(hass, 1, CALIBRATION_STORE_KEY)
@@ -205,8 +216,8 @@ class CalibrationStore:
             self.data = loaded
         else:
             self.data = {"points": [], "model": {}}
-        # Train Random Forest on startup
-        await self._async_train_rf()
+        # Train the Random Forest on startup, in the background, if it is used
+        self.rf_train_if_used()
 
     async def async_setup_fast(self) -> None:
         """Load persisted data but skip RF training (deferred to background)."""
@@ -277,7 +288,8 @@ class CalibrationStore:
         if auto_cap is not None:
             self._trim_auto_points(auto_cap)
         await self.store.async_save(self.data)
-        await self._async_train_rf()
+        # Never waited for: the presence poll adds points (pinned beacons).
+        self.rf_points_changed()
         return clean
 
     def _clean_point(self, point: dict[str, Any]) -> dict[str, Any]:
@@ -418,7 +430,7 @@ class CalibrationStore:
         old_ids = {p.get("id") for p in old}
         self.data["points"] = [p for p in existing if p.get("id") not in old_ids] + clean_pts
         await self.store.async_save(self.data)
-        await self._async_train_rf()
+        self.rf_points_changed()
         return {"walk_id": walk_id, "added": len(clean_pts), "replaced": len(old_ids)}
 
     async def async_remove_room_walk(self, room: str) -> int:
@@ -431,7 +443,7 @@ class CalibrationStore:
         if removed:
             self.data["points"] = keep
             await self.store.async_save(self.data)
-            await self._async_train_rf()
+            self.rf_points_changed()
         return removed
 
     async def async_delete_point(self, point_id: str) -> bool:
@@ -442,7 +454,7 @@ class CalibrationStore:
         changed = len(self.data["points"]) < before
         if changed:
             await self.store.async_save(self.data)
-            await self._async_train_rf()
+            self.rf_points_changed()
         return changed
 
     async def async_clear_all(self) -> int:
@@ -450,6 +462,10 @@ class CalibrationStore:
         self.data = {"points": [], "model": {}}
         await self.store.async_save(self.data)
         self._rf = RandomForestLocator()  # reset
+        # Nothing left to learn from: the empty forest is up to date, and a
+        # training still running on the old points is not kept.
+        self._rf_changes += 1
+        self._rf_trained_at = self._rf_changes
         return count
 
     async def async_clear_map(self, map_id: str, delete: bool = False) -> int:
@@ -481,7 +497,7 @@ class CalibrationStore:
             if isinstance(cov, dict):
                 cov.pop(map_id, None)
             await self.store.async_save(self.data)
-            await self._async_train_rf()
+            self.rf_points_changed()
         return removed
 
     async def async_prune_auto_points(self, max_per_beacon: int = 50) -> int:
@@ -510,6 +526,9 @@ class CalibrationStore:
                     remove_ids.add(p.get("id", ""))
         if remove_ids:
             self.data["points"] = [p for p in points if p.get("id") not in remove_ids]
+            # Before the save (the callers save): the poll trims as it adds, and the
+            # training the add asked for then reads both changes at once.
+            self.rf_points_changed()
         return len(remove_ids)
 
     async def async_prune_one_scanner_auto_points(self) -> int:
@@ -536,6 +555,7 @@ class CalibrationStore:
         if removed:
             self.data["points"] = keep
             await self.store.async_save(self.data)
+            self.rf_points_changed()
         return removed
 
     async def async_remove_scanner(self, source: str) -> dict[str, int]:
@@ -601,6 +621,7 @@ class CalibrationStore:
                 count += 1
         if count:
             await self.store.async_save(self.data)
+            self.rf_points_changed()
         return count
 
     async def async_backfill_floors(self, map_floor: dict[str, str]) -> int:
@@ -624,6 +645,7 @@ class CalibrationStore:
                 count += 1
         if count:
             await self.store.async_save(self.data)
+            self.rf_points_changed()
         return count
 
     async def async_move_points(self, moves: dict[str, tuple[float, float]], map_id: str | None = None) -> int:
@@ -644,7 +666,7 @@ class CalibrationStore:
             await self.store.async_save(self.data)
             if map_id:
                 await self.async_remap_from_metres(map_id)
-            await self._async_train_rf()
+            self.rf_points_changed()
         return n
 
     async def async_remap_from_metres(self, map_id: str) -> int:
@@ -1108,26 +1130,90 @@ class CalibrationStore:
         return result
 
     async def _async_train_rf(self) -> None:
-        """Retrain RF from current calibration points (runs in executor)."""
+        """Retrain RF from current calibration points (runs in executor).
+
+        Awaited only where a training was asked for (calibration_retrain_rf)
+        and by the background training; everything else calls
+        rf_points_changed()."""
+        seen = self._rf_changes
+        rf = RandomForestLocator()
         pts = list(self.data.get("points", []))
-        if len(pts) < 4:
-            self._rf = RandomForestLocator()
-            return
         # Metres only — a point with no real-world position is a fingerprint,
         # not something to regress a position from.
-        metre_pts = [p for p in pts if p.get("x_m") is not None]
-        if len(metre_pts) < 4:
-            self._rf = RandomForestLocator()
-            return
-        rf = RandomForestLocator()
-        await self.hass.async_add_executor_job(
-            rf.train, metre_pts, self.excluded_sources()
-        )
-        self._rf = rf
+        metre_pts = [p for p in pts if p.get("x_m") is not None] if len(pts) >= 4 else []
+        if len(metre_pts) >= 4:
+            await self.hass.async_add_executor_job(
+                rf.train, metre_pts, self.excluded_sources()
+            )
+        # Two trainings can overlap (the retrain button during a background
+        # one): an older one finishing last does not replace a newer one.
+        if seen >= self._rf_trained_at:
+            self._rf, self._rf_trained_at = rf, seen
 
     @property
     def rf_trained(self) -> bool:
         return self._rf.is_trained
+
+    @property
+    def rf_stale(self) -> bool:
+        """The points or the scanners left out changed since the forest was
+        trained (or it never was)."""
+        return self._rf_trained_at != self._rf_changes
+
+    @property
+    def rf_training(self) -> bool:
+        return self._rf_task is not None and not self._rf_task.done()
+
+    @property
+    def rf_state(self) -> str:
+        """For the panel: "not_used" (the setting is k-NN), "training",
+        "ready", or "not_trained" (too few points with a position)."""
+        if self._active_algorithm() != "rf":
+            return "not_used"
+        if self.rf_training:
+            return "training"
+        return "ready" if self.rf_trained else "not_trained"
+
+    def rf_points_changed(self) -> None:
+        """What the forest learns from changed: the points, or the scanners
+        left out. It is out of date now; it trains again (in the background)
+        only when the setting uses it."""
+        self._rf_changes += 1
+        if self._active_algorithm() == "rf":
+            self._rf_train_soon()
+
+    def rf_train_if_used(self) -> None:
+        """At start-up, and when the setting is switched to "rf": train in the
+        background if the setting uses the forest and it is out of date. The
+        coordinator matches calibration points (k-NN) until it is trained."""
+        if self._active_algorithm() == "rf" and self.rf_stale:
+            self._rf_train_soon()
+
+    def _rf_train_soon(self) -> None:
+        # One training at a time: one already running sees the change when it
+        # finishes and trains once more (_async_rf_background's loop), so
+        # however many points arrive meanwhile there is at most one queued.
+        if not self.rf_training:
+            self._rf_task = self.hass.async_create_background_task(
+                self._async_rf_background(), "padspan_ha forest training")
+
+    async def _async_rf_background(self) -> None:
+        try:
+            # Let the change that asked finish first: the presence poll trims
+            # the auto points right after it adds one.
+            await asyncio.sleep(0)
+            while self.rf_stale and self._active_algorithm() == "rf":
+                await self._async_train_rf()
+        except Exception as err:  # noqa: BLE001 - logged; positioning keeps k-NN
+            _quiet_error("calibration_store:rf_background")
+            _LOGGER.debug("Random Forest training failed: %s", err)
+
+    async def async_rf_settled(self) -> None:
+        """With the "rf" setting: wait for the background training, and the
+        one queued after it. Shielded: whoever waits being cancelled does not
+        stop the training."""
+        if self.rf_training and self._active_algorithm() == "rf":
+            await asyncio.shield(self._rf_task)
 
     # ── Leave-one-out accuracy estimate ───────────────────────────────────────
 
@@ -1338,12 +1424,16 @@ class CalibrationStore:
         # loo_accuracy from this model, so it must not report k-NN accuracy
         # while positioning_algorithm='rf'.
         algo = self._active_algorithm()
+        # A forest trained before the points last changed (still training, or
+        # never trained since) would report the old points' accuracy as
+        # today's: none is reported until it is up to date.
+        rf_out_of_date = algo == "rf" and self.rf_stale
 
         # Per-map coverage
         coverage_by_map: dict[str, Any] = {}
         for mid in map_ids:
             cov = self.compute_coverage(mid)
-            loo = self.loo_accuracy(mid, algorithm=algo)
+            loo = None if rf_out_of_date else self.loo_accuracy(mid, algorithm=algo)
             coverage_by_map[mid] = {**cov, "loo_accuracy": loo}
 
         # Aggregate scanner stats
@@ -1377,7 +1467,7 @@ class CalibrationStore:
                 path_loss[src] = {**fit, "scanner_name": src}
 
         # Global LOO accuracy (for the active algorithm)
-        global_loo = self.loo_accuracy(algorithm=algo)
+        global_loo = None if rf_out_of_date else self.loo_accuracy(algorithm=algo)
 
         model = {
             "point_count": len(pts),

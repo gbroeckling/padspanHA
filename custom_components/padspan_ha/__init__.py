@@ -304,10 +304,11 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         hass.data[DOMAIN][data_key] = store
         _LOGGER.debug(msg)
 
-    # Kick off deferred RF training in background (non-blocking)
+    # Kick off deferred RF training in background (non-blocking), only when
+    # the positioning setting uses the forest (calibration_store.rf_state)
     cal = hass.data[DOMAIN].get(DATA_CALIBRATION)
-    if cal and not cal.rf_trained and len(cal.data.get("points", [])) >= 4:
-        hass.async_create_task(cal._async_train_rf())
+    if cal:
+        cal.rf_train_if_used()
 
 
 async def _ensure_deferred_stores(hass: HomeAssistant) -> None:

@@ -1,0 +1,4 @@
+# Room changes no longer wait for the learned model
+
+### Fixed
+- **Room changes and alerts were late by up to a minute every few minutes in homes with pinned beacons.** A pinned beacon adds a calibration point by itself about every ten minutes, and each time PadSpan stopped tracking until it had trained the learned model (Random Forest) again: about 25 seconds on a desktop computer, longer on a Raspberry Pi, while Home Assistant itself also ran slower. Only the "Learned model" positioning setting uses that model; the default, "Matched to calibration points", never did. Now tracking never waits for it. With the default setting the model is not trained at all, and the Health page says "not used" for it instead of showing it as a problem. With "Learned model" chosen it trains in the background, and PadSpan matches calibration points until it is ready.

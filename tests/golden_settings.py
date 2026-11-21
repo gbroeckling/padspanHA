@@ -38,6 +38,8 @@ import voluptuous as vol
 from custom_components.padspan_ha import guest_tags, perf_sampler, vacation_mode
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_settings as WS
+from custom_components.padspan_ha.calibration_store import CalibrationStore
+from custom_components.padspan_ha.random_forest import RandomForestLocator
 from custom_components.padspan_ha.const import (
     DATA_CALIBRATION, DATA_ESPRESENSE_MQTT, DATA_OBJECTS, DATA_SETTINGS, DOMAIN,
 )
@@ -399,9 +401,13 @@ class _Entry:
         self.entity_id, self.unique_id, self.platform, self.disabled_by = entity_id, unique_id, platform, disabled_by
 
 
-class CalibrationStandIn:
-    async def _async_train_rf(self) -> None:
-        return None
+def _calibration(hass: Any) -> Any:
+    """The real calibration store, with no points: what a settings change
+    makes it do (train the Random Forest in the background, or only mark it
+    out of date) is decided by its own code and shows as a background task."""
+    cal = CalibrationStore.__new__(CalibrationStore)
+    cal.hass, cal.data, cal._rf = hass, {"points": [], "model": {}}, RandomForestLocator()
+    return cal
 
 
 class EspresenseStandIn:
@@ -452,6 +458,11 @@ def _house(start: dict[str, Any], admin: bool, effects: list[str]) -> tuple[Any,
                                                                      client_name="Test browser")
     hass.async_create_task = lambda coro, *a, **kw: effects.append("task started: " + _coro_name(coro))
 
+    def _background(coro, *a, **kw):
+        effects.append("background task started: " + _coro_name(coro))
+        return SimpleNamespace(done=lambda: False)     # still running, as far as the command can tell
+    hass.async_create_background_task = _background
+
     async def _label(key, label):
         effects.append(f"object labelled: {key} = {label!r}")
 
@@ -460,7 +471,7 @@ def _house(start: dict[str, Any], admin: bool, effects: list[str]) -> tuple[Any,
         "presence_coordinator": SimpleNamespace(
             clear_object_state=lambda key: effects.append(f"object state cleared: {key}")),
         DATA_OBJECTS: SimpleNamespace(get=lambda key: None, async_set=_label),
-        DATA_CALIBRATION: CalibrationStandIn(),
+        DATA_CALIBRATION: _calibration(hass),
         DATA_ESPRESENSE_MQTT: EspresenseStandIn(),
         _DATA_SNAPSHOT_CACHE: {"a": "cached snapshot"},
     }}
