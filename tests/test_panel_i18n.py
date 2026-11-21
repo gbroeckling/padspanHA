@@ -36,7 +36,7 @@ _T_RE = re.compile(r"(?<![\w.$])t\(\s*" + _JS_STR)
 _TN_RE = re.compile(r"(?<![\w.$])tn\(\s*[^,()]+,\s*" + _JS_STR + r"\s*,\s*" + _JS_STR)
 _PH_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 _PLURAL_CATS = {"zero", "one", "two", "few", "many", "other"}
-_HELPER_BUDGET = 4096        # bytes, comments included
+_HELPER_BUDGET = 4066        # bytes, comments included, the product's name not
 _GROUP_BUDGET = 60 * 1024    # bytes per language group file
 # The help group is the exception: its keys are whole English paragraphs
 # (~60 KB on their own) beside the translation, so one language is ~120-130 KB
@@ -134,9 +134,11 @@ def test_every_case_in_the_harness_passes(harness) -> None:
 def test_the_helper_stays_small() -> None:
     # Measured with LF line endings: a Windows checkout stores CRLF, which would
     # make the same file look bigger than it is in git and in the release zip.
-    # The Bright build renames the product in it ("PadSpan Bright", 4 bytes
-    # longer each time): the budget is the source's.
-    size = len(_HELPER.read_bytes().replace(b"\r\n", b"\n").replace(b"PadSpan Bright", b"PadSpan HA"))
+    # The product's name is not counted: the Bright build renames it (three
+    # times, a longer name), which would make the same file bigger there.
+    data = _HELPER.read_bytes().replace(b"\r\n", b"\n")
+    product = re.search(rb'export const PRODUCT = "([^"]+)";', data).group(1)
+    size = len(data) - data.count(product) * len(product)
     assert size <= _HELPER_BUDGET, f"views/i18n.js is {size} bytes"
 
 
