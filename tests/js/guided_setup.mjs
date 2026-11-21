@@ -605,6 +605,55 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   RR._resetRooms(); S._resetReceivers();
 }
 
+// 2026-11-21: "Signals say this receiver is in X". Each calibration point holds its room and what each receiver heard
+// there: where most of a receiver's strongest-heard points are in one other room (and its own room has points of its
+// own), that room is suggested on the receivers step, one tap to accept.
+{
+  const flush = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
+  const RR = await import(pathToFileURL(join(WWW, "views", "receiver_room.js")).href);
+  RR._resetRooms(); RR._resetSignals(); S._resetReceivers();
+  const pt = (room, heard) => ({ room, scanner_readings: Object.entries(heard).map(([source, mean_rssi]) => ({ source, mean_rssi })) });
+  // "kitchen-proxy" is filed in Kitchen but hears the Hall's spots best; "office-proxy" hears its own room best.
+  const points = [
+    pt("Kitchen", { "kitchen-proxy": -78, "office-proxy": -85 }), pt("Kitchen", { "kitchen-proxy": -80 }),
+    pt("Hall", { "kitchen-proxy": -55 }), pt("Hall", { "kitchen-proxy": -58 }), pt("Hall", { "kitchen-proxy": -60 }),
+    pt("Office", { "office-proxy": -50, "kitchen-proxy": -88 }), pt("Office", { "office-proxy": -52 }), pt("Office", { "office-proxy": -54 }),
+    pt("Attic", { "attic-proxy": -50 }), pt("Attic", { "attic-proxy": -50 }), pt("Hall", { "attic-proxy": -40 }),
+  ];
+  const radios = [{ source: "kitchen-proxy", name: "Kitchen proxy", area_name: "Kitchen", device_id: "dev-k" },
+    { source: "office-proxy", name: "Office proxy", area_name: "Office" }, { source: "lost-proxy", area_name: "Kitchen", lost: true },
+    { source: "attic-proxy", name: "Attic proxy", area_name: "Attic" }, { source: "den-proxy", area_name: "Den" }];
+  const AREAS = ["Attic", "Den", "Hall", "Kitchen", "Office"];
+  const got = RR.signalRooms(points, radios, AREAS);
+  check("signals: a receiver whose strongest points are mostly in another room is suggested that room", got.length === 1 && got[0].source === "kitchen-proxy"
+    && got[0].room === "Hall" && got[0].now === "Kitchen" && got[0].n === 3 && got[0].of === 5, got);
+  check("signals: not one that hears its own room best, a lost one, one whose room has no points, or a room that isn't an area",
+    !got.some(x => ["office-proxy", "lost-proxy", "den-proxy", "attic-proxy"].includes(x.source)) && RR.signalRooms(points, radios, ["Kitchen", "Office"]).length === 0, got);
+  // attic-proxy: 2 of 3 strongest in Attic, 1 in Hall: not mostly elsewhere. Few points: nothing to say.
+  check("signals: too few points heard, nothing said", RR.signalRooms(points.slice(0, 2), radios, AREAS).length === 0 && RR.signalRooms(null, null, null).length === 0);
+  const st = house(7, { calibration: { points, model: {} }, live: { snapshot: { rooms_discovered: AREAS, ble: { radios } } } });
+  const m = mkCtx(st), set = [];
+  m.ctx.actions.radioAreaSet = async (p) => { set.push(p); };
+  m.ctx.actions.refreshSnapshot = async () => {};
+  let root = S.render(m.ctx);
+  const row = root.querySelector('[data-setup="step-receivers"]');
+  check("signals: on the receivers step, with its reason and the two buttons", row && row.textContent.includes("Signals say Kitchen proxy is in Hall, not Kitchen: 3 of the 5 calibration points it hears best are there.")
+    && !!row.querySelector('[data-receiver-signals-use="kitchen-proxy"]') && row.querySelector('[data-receiver-signals-use="kitchen-proxy"]').textContent === "Use Hall"
+    && row.querySelector('[data-receiver-signals-keep="kitchen-proxy"]').textContent === "Keep Kitchen", row && row.textContent);
+  row.querySelector('[data-receiver-signals-use="kitchen-proxy"]').click();
+  await flush();
+  check("signals: Use sets that room as its Home Assistant area", JSON.stringify(set) === '[{"area_name":"Hall","device_id":"dev-k"}]', set);
+  RR._resetRooms();
+  root = S.render(m.ctx);
+  root.querySelector('[data-receiver-signals-keep="kitchen-proxy"]').click();
+  check("signals: Keep leaves it and says nothing more on this page", !S.render(m.ctx).querySelector("[data-receiver-signals-use]"));
+  RR._resetSignals();
+  const none = house(7, { calibration: { points: [], model: {} }, live: { snapshot: { rooms_discovered: AREAS, ble: { radios } } } });
+  const n0 = mkCtx(none); n0.ctx.actions.radioAreaSet = async () => {};
+  check("signals: nothing before calibration points exist", !S.render(n0.ctx).querySelector("[data-receiver-signals]"));
+  RR._resetRooms(); RR._resetSignals(); S._resetReceivers();
+}
+
 // Review 2026-11-13, break 4: one rule for "placed" — receivers only on the map of the house (the button's) count, in Setup.
 {
   const st = house(4);

@@ -573,6 +573,9 @@ export function render(ctx) {
     if (s.id === "receivers") {
       const rb = receiversBlock(ctx);
       if (rb) info.appendChild(rb);
+      // Once there are calibration points: a receiver they say is in another room, one tap to accept (receiver_room.js).
+      const sig = RR && !_demo(st) ? RR.signalLines(ctx) : null;
+      if (sig) info.appendChild(sig);
     }
     if (s.id === "calibration") info.appendChild(_walkLine(ctx));
     if (s.id === "rooms" && AIW && AIW.helperUndo && !_demo(st) && !st.kioskMode) {

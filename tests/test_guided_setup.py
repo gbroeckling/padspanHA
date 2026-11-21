@@ -47,7 +47,7 @@ def run() -> dict:
 
 
 @pytest.mark.parametrize("prefix,least", [("derive:", 13), ("resume:", 3), ("skip:", 4), ("view:", 7),
-                                          ("open:", 7), ("bar:", 3), ("done:", 3), ("phone:", 9), ("walk:", 6)])
+                                          ("open:", 7), ("bar:", 3), ("done:", 3), ("phone:", 9), ("walk:", 6), ("signals:", 7)])
 def test_the_setup(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"

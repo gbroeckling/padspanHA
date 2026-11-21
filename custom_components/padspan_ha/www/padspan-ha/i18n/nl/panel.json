@@ -353,5 +353,8 @@
 "Quickest: walk each room for 90 seconds with your phone (Walk a room). Point by point is the other way.": "Het snelst: loop met je telefoon 90 seconden door elke kamer (“Walk a room”). Punt voor punt is de andere manier.",
 "Point by point": "Punt voor punt",
 "Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).": "Sneller: loop in plaats daarvan 90 seconden door elke kamer (“Walk a room”). Dat staat hier uit; zet het aan in “Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)”.",
-"Open that setting": "Die instelling openen"
+"Open that setting": "Die instelling openen",
+"Signals say {receiver} is in {room}, not {now}: {n} of the {of} calibration points it hears best are there.": "De signalen zeggen dat {receiver} in {room} staat, niet in {now}: {n} van de {of} kalibratiepunten die hij het best hoort, liggen daar.",
+"Use {room}": "{room} gebruiken",
+"Keep {room}": "{room} houden"
 }
