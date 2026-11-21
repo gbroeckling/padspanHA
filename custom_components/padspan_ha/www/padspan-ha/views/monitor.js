@@ -367,7 +367,8 @@ function _zones(ctx, el){
         const label = pickName(o, "Unknown");
         const rssiText = o.rssi != null ? ` (${o.rssi} dBm)` : "";
         const isFollowed = ctx.actions.followedHas && ctx.actions.followedHas(o.address || o.key);
-        const objRow = el("div",{"data-obj-click":"1",style:"font-size:12px;cursor:pointer;padding:2px 4px;border-radius:3px;display:flex;align-items:center;gap:4px"});
+        // data-obj: which object (its dBm changes every poll), so the focus finds the row again (dialog_keys.js).
+        const objRow = el("div",{"data-obj-click":"1","data-obj":o.canonical_id || o.key || o.address || o.entity_id || "",style:"font-size:12px;cursor:pointer;padding:2px 4px;border-radius:3px;display:flex;align-items:center;gap:4px"});
         objRow.addEventListener("mouseenter", ()=>{ objRow.style.background = "rgba(255,255,255,0.06)"; });
         objRow.addEventListener("mouseleave", ()=>{ objRow.style.background = ""; });
         objRow.addEventListener("click", (e)=>{ e.stopPropagation(); ctx.actions.showObjectDetail(o); });
