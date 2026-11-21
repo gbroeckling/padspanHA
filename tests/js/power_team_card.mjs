@@ -131,6 +131,8 @@ try {
     check("bulbs: their light, off, out of reach, not answering",
       bs({}) === "100%, 4761 K" && bs({ "light.pot_1": { state: "off" } }) === "off" && bs({ "light.pot_1": { state: "unavailable" } }) === "out of reach"
       && bs({}, ["light.pot_1"]) === "not answering");
+    check("bulbs with the power cut: no power, whatever a cut bulb last said (Zigbee2MQTT keeps its last state)",
+      T.bulbState(house(), "light.pot_1", [], true)[0] === "no power");
   }
 
   // ── the marker (before any tap: a tap leaves a claim the marker shows until Home Assistant agrees) ──
@@ -231,9 +233,27 @@ try {
       m2 && m2.curve.sunrise_time === "06:30" && m2.curve.max_kelvin === 4500 && m2.curve.sunset_offset === -30 && m2.curve.sunset_time === ""
       && m2.off === "power" && m2.wake.time === "06:45" && tracked(h).includes("team_card:off_mode_saved"), m2);
 
+    // Out of reach: Home Assistant drops the team light's attributes; the card keeps its power row and bulbs.
+    h.push(TEAM, "unavailable", null);
+    h.subs.forEach(s2 => s2.live && s2.cb({ data: { entity_id: TEAM, new_state: { state: "unavailable", attributes: { friendly_name: "Master Pots" } } } }));
+    await wait(200);
+    check("out of reach: the card says so and still shows the power and each bulb",
+      card.textContent.includes("out of Home Assistant's reach") && find(card, "data-team-bulb").length === 3 && card.textContent.includes("Master Bedroom Pots"),
+      card.textContent.slice(0, 400));
     const live = h.subs.filter(s => s.live).length;
     document.body._all().find(n => n.tagName === "BUTTON" && n.textContent === "✕").click();
     check("closed: it stops following Home Assistant", live === 1 && h.subs.every(s => !s.live), h.subs.length);
+  }
+
+  // ── the pencil edits what was held on the map (the dimmer), not the team's light ──
+  {
+    const h = fakeHass(house());
+    document.body.children.length = 0;
+    let edited = null;
+    LM.openControlCard(h, DIM, { toast: () => {}, rerender: () => {}, onEdit: (e) => { edited = e; } });
+    await settle();
+    document.body._all().find(n => n.tagName === "BUTTON" && n.textContent === "✎").click();
+    check("pencil: Mapping opens on the dimmer that is placed", edited === DIM, edited);
   }
 
   // ── not an administrator: switched, never changed ──

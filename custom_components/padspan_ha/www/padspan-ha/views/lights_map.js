@@ -2149,6 +2149,7 @@ export function openControlCard(hass, eid, api){
   if (!hass) return;
   // A power team's wall dimmer or bulb opens the team's card: the team's light, with the power and each bulb in it.
   const team = _teamOf(hass.states, eid);
+  const placed = eid;                  // what was held: the pencil edits it, where it is on the map
   if (team && team !== eid && hass.states[team]) eid = team;
   const st = hass.states[eid];
   if (!st) return;
@@ -2184,7 +2185,7 @@ export function openControlCard(hass, eid, api){
     // Admin only: the pencil jumps to Mapping → Lights with THIS light
     // selected — the build ↔ use loop closed from the use side.
     ...(api && api.onEdit ? [el("button", { title: "Edit this light in Mapping → Lights", style: smallBtn + ";margin-left:auto",
-      onclick: () => { close(); api.onEdit(eid); } }, "✎")] : []),
+      onclick: () => { close(); api.onEdit(placed); } }, "✎")] : []),
     el("button", { style: smallBtn + (api && api.onEdit ? "" : ";margin-left:auto"), onclick: close }, "✕"),
   ]));
 

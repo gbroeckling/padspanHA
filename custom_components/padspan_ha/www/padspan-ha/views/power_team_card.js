@@ -99,7 +99,7 @@ export function teamStatus(states, teamEid){
   if (a.phase === "failed" && missing.length) {
     return [`On, but ${missing.length === 1 ? "1 bulb has" : `${missing.length} bulbs have`} not answered`, "warn"];
   }
-  if (a.fading) return ["Waking up: fading in", "busy"];
+  if (a.fading) return [a.waking ? "Waking up: fading in" : "On · fading", "busy"];
   if (a.waking) return ["On · the wake-up's light", "ok"];
   if (a.effect === "Sleep") return ["On · sleep: dim and warm", "ok"];
   if (a.follows_the_day) return [`On · following the day: ${pct(a.brightness)}%, ${a.color_temp_kelvin || "–"} K`, "ok"];
@@ -107,9 +107,10 @@ export function teamStatus(states, teamEid){
 }
 
 /** One bulb's state in words: [text, colour of its dot]. */
-export function bulbState(states, eid, missing){
+export function bulbState(states, eid, missing, powerCut){
   const st = states[eid];
   if (!st) return ["not in Home Assistant", "#f87171"];
+  if (powerCut) return ["no power", "#475569"];          // a cut bulb goes on showing its last state
   if (st.state === "unavailable") return ["out of reach", "#f87171"];
   if ((missing || []).includes(eid)) return ["not answering", "#fbbf24"];
   if (st.state !== "on") return ["off", "#475569"];
@@ -139,6 +140,7 @@ export function teamSection(teamEid, o){
   const track = o.track || (() => {});
   const states = { ...(hass.states || {}) };
   const members = new Set(teamMembers(states, teamEid));
+  const base = ((states[teamEid] || {}).attributes) || {};
   const admin = !!(hass.user && hass.user.is_admin);
   const node = el("div", { "data-team-card": teamEid, style: "margin-top:4px" });
   const live = el("div");
@@ -219,7 +221,7 @@ export function teamSection(teamEid, o){
       live.appendChild(el("div", { style: cap }, `Bulbs (${bulbs.length})`));
       const list = el("div", { style: "max-height:150px;overflow:auto" });
       for (const b of bulbs) {
-        const [words, dot] = bulbState(states, b, missing);
+        const [words, dot] = bulbState(states, b, missing, !!a.power && !!states[a.power] && states[a.power].state === "off");
         list.appendChild(el("div", { "data-team-bulb": b, style: "display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0" }, [
           el("span", { style: `width:8px;height:8px;border-radius:50%;flex:none;background:${dot}` }),
           el("span", { style: "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, name(states, b)),
@@ -378,7 +380,12 @@ export function teamSection(teamEid, o){
     conn.subscribeEvents((ev) => {
       const d = ev && ev.data;
       if (!d || !members.has(d.entity_id)) return;
-      if (d.new_state) states[d.entity_id] = d.new_state; else delete states[d.entity_id];
+      if (d.new_state) {
+        const ns = d.new_state;
+        // Out of reach, Home Assistant drops a light's attributes: the team's power and bulbs stay as they were.
+        states[d.entity_id] = d.entity_id === teamEid && !(ns.attributes && ns.attributes.bulbs)
+          ? { ...ns, attributes: { ...(ns.attributes || {}), power: base.power, bulbs: base.bulbs, team_id: base.team_id } } : ns;
+      } else delete states[d.entity_id];
       if (queued) return;
       queued = true;
       setTimeout(() => { queued = false; if (!stopped) drawLive(); }, 150);

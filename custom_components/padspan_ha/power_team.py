@@ -61,6 +61,7 @@ BOOT_MIN_S = 8.0           # after a power-on, keep sending this long whatever H
 RETRY_S = 2.0              # between sends while waiting
 SETTLE_S = 2.0             # a dimmer level must hold this long to be a hand on the wall (a ramp passes through levels)
 OWN_S = 6.0                # a power change this soon after our own command is ours
+ECHO_S = 30.0              # ... and a power-on this soon after our own power-on (nobody presses on what is already on)
 ADAPT_EVERY_S = 60
 ADAPT_FADE_S = 30
 QUIET_S = ADAPT_FADE_S + 10   # a bulb still moving to what we sent is not someone's hand
@@ -142,10 +143,11 @@ def clean_wake(raw: Any) -> dict[str, Any]:
     return out
 
 
-def wake_due(wake: dict, now: datetime) -> str | None:
-    """The day (ISO) a wake-up starting now belongs to, or None. `now` is local time; the wake-up starts `minutes`
-    before its `time` on one of its `days` (Monday 0), and counts as due for two minutes from then (the team's tick
-    runs once a minute)."""
+def wake_due(wake: dict, now: datetime) -> tuple[str, float] | None:
+    """(the day it belongs to, ISO; the seconds left until its full light) for a wake-up that should be running at
+    `now`, or None. `now` is local time; a wake-up runs from `minutes` before its `time` until its time, on one of its
+    `days` (Monday 0). Due all that while, not only at its start: Home Assistant restarted or busy at the start still
+    wakes the room, fading over what is left (the caller runs each day's once)."""
     w = clean_wake(wake)
     if not w["on"]:
         return None
@@ -153,9 +155,9 @@ def wake_due(wake: dict, now: datetime) -> str | None:
     for day in (now.date(), now.date() + timedelta(days=1)):     # a 00:10 alarm starts the evening before
         if day.weekday() not in w["days"]:
             continue
-        start = datetime.combine(day, datetime.min.time(), now.tzinfo).replace(hour=hh, minute=mm) - timedelta(minutes=w["minutes"])
-        if start <= now < start + timedelta(seconds=2 * ADAPT_EVERY_S):
-            return day.isoformat()
+        full = datetime.combine(day, datetime.min.time(), now.tzinfo).replace(hour=hh, minute=mm)
+        if full - timedelta(minutes=w["minutes"]) <= now < full:
+            return day.isoformat(), (full - now).total_seconds()
     return None
 
 
@@ -186,6 +188,7 @@ class Team:
         self._sent_at = -1e9
         self._quiet_until = -1e9       # a long fade we sent runs until then: the day waits, and what the bulbs show is ours
         self.waking = False            # the light is the wake-up's (its fade, then its brightness and colour)
+        self._was_fading = False       # so the light is written again when a long fade ends
         self.woke_day: str | None = None   # the day the last wake-up ran, so it runs once
         self._dim_seen: tuple[int, float] | None = None
         self._rgb: dict[str, tuple] = {}   # each bulb's colour as it showed it after our last send (lights with no colour temperature to read)
@@ -214,6 +217,11 @@ class Team:
             return True
         st = self._power()
         return bool(st and st.state == "on")
+
+    def _power_cut(self) -> bool:
+        """Does the power source read off? (Out of reach is not off: the bulbs may well have power.)"""
+        st = self._power()
+        return bool(st is not None and st.state == "off")
 
     def _quiet(self, now: float) -> bool:
         """Is what the bulbs show still ours (just sent, or a long fade still running)?"""
@@ -281,7 +289,7 @@ class Team:
         # their power by an off of their own, answer at once).
         await self._run(boot=not powered, fade=_fade(transition))
 
-    async def wake(self) -> bool:
+    async def wake(self, fade_s: float | None = None) -> bool:
         """The morning alarm: a team that is off comes on at its dimmest and warmest and fades over the wake-up's
         minutes to its brightness and colour, which it then keeps (as one chosen by hand) until turned off or set
         back to the day. A team already on is left alone. True when it ran."""
@@ -291,13 +299,12 @@ class Team:
         c = CURVE.clean(self.cfg.get("curve"))
         self.sleep, self.manual = False, True
         self.want = {"brightness": WAKE_START, "kelvin": c["sleep_kelvin"]}
-        g = self._gen + 1                              # the start's own run
         await self._run(boot=not self._powered())
-        if self._gen != g or self.phase not in ("ready", "failed"):
-            return False                               # turned off, or switched by someone, while it started
+        if self.phase not in ("ready", "failed") or not self.manual or self.sleep or self.want.get("brightness") != WAKE_START:
+            return False                               # turned off, or switched or set by someone, while it started
         self.want = {"brightness": max(1, round(w["brightness"] * 255 / 100)), "kelvin": w["kelvin"]}
         self.waking = True
-        await self._run(boot=False, fade=w["minutes"] * 60.0)
+        await self._run(boot=False, fade=max(60.0, fade_s if fade_s is not None else w["minutes"] * 60.0))
         return True
 
     async def turn_off(self, transition: float | None = None) -> None:
@@ -306,6 +313,9 @@ class Team:
         self.waking = False
         self.phase, self.missing = "off", []
         self._quiet_until = -1e9
+        if self.by_bulbs and self._power_cut():
+            self.io.changed()                          # no power: already dark, and a cut bulb could never answer
+            return
         if self.by_bulbs:
             # Each light told off, again and again until it shows off (a string on weak Wi-Fi drops a command).
             g, t0 = self._gen, self.io.now()
@@ -365,6 +375,7 @@ class Team:
         self._gen += 1
         g = self._gen
         self._quiet_until = self.io.now() + fade + QUIET_S if fade and fade > ADAPT_FADE_S else -1e9
+        self._was_fading = self._was_fading or self._quiet_until > 0
         st = self._power()
         dimmer = str(self.cfg.get("power") or "").startswith("light.")
         level = _num((st.attributes or {}).get("brightness")) if st else None
@@ -411,7 +422,7 @@ class Team:
             self.waking, self._quiet_until = False, -1e9
         # Ours: soon after our own command AND the way it went (the wall button pressed on a moment after we cut
         # the power is a person, found on a real Home Assistant, 2026-11-14).
-        ours = now - self._power_cmd_at < OWN_S and self._power_cmd_on == (new.state == "on")
+        ours = self._power_cmd_on == (new.state == "on") and now - self._power_cmd_at < (ECHO_S if new.state == "on" else OWN_S)
         if new.state != "on":
             if self.phase != "off":
                 self._gen += 1
@@ -419,6 +430,14 @@ class Team:
                 self.io.changed()
             return
         if not old or old.state != "on":
+            if self.phase == "starting":
+                return                                 # we are starting the bulbs: our own power-on, reported late
+            if not old or old.state != "off":
+                # Heard from for the first time (Home Assistant starting), or back from out of reach: nobody pressed
+                # anything. Taken as it is, nothing sent (with its power left on, a team that is off is just that).
+                self.phase = "ready" if self.is_on else "off"
+                self.io.changed()
+                return
             if not ours:                               # the wall button: answered as a turn-on
                 if self._follows():
                     self.want = self._target()
@@ -448,7 +467,7 @@ class Team:
         if not new or new.state in ("unavailable", "unknown"):
             return
         now = self.io.now()
-        if self.by_bulbs and self._powered():
+        if self.by_bulbs and not self._power_cut():
             self.io.changed()
             ours = now - self._sent_at < OWN_S
             was = old.state if old else None
@@ -488,11 +507,16 @@ class Team:
 
     async def tick(self) -> None:
         """Every ADAPT_EVERY_S: the day moves what is wanted; a bulb that never answered is asked again."""
+        fading = self.fading
+        if self._was_fading and not fading:
+            self.io.changed()                          # the fade has run: its light says so
+        self._was_fading = fading
         if not self.is_on or self.phase not in ("ready", "failed"):
             return
         if self.missing:
+            left = self._quiet_until - QUIET_S - self.io.now() if fading else 0
             for b in list(self.missing):
-                await self._call(b, True, self._bulb_data())
+                await self._call(b, True, self._bulb_data(left if left > 1 else None))   # with the others, mid-fade
             self.missing = [b for b in self.missing if not self._answered(b)]
             if not self.missing:
                 self.phase = "ready"
@@ -596,7 +620,11 @@ class Manager:
         for cfg in stored or []:
             t = was.get(cfg["id"])
             if t and t.cfg.get("power") == cfg["power"] and t.cfg.get("bulbs") == cfg["bulbs"]:
+                dark_powered = t.by_bulbs and not t.is_on and t._powered() and cfg.get("power")
                 t.cfg = cfg
+                if dark_powered and not t.by_bulbs:
+                    # Off with its power left on, now a team whose off cuts the power: it is cut, so off is off.
+                    self.hass.async_create_task(t.turn_off())
             else:
                 t = Team(cfg, self._io(cfg["id"]))
                 if t.is_on:
@@ -620,10 +648,11 @@ class Manager:
             local = dt_util.now()
             for t in list(self.teams.values()):
                 try:
-                    day = wake_due(t.cfg.get("wake") or {}, local)
-                    if day and t.woke_day != day:
-                        t.woke_day = day
-                        hass.async_create_task(t.wake())   # its fade runs for minutes: never held up by the tick
+                    due = wake_due(t.cfg.get("wake") or {}, local)
+                    if due and t.woke_day != due[0]:
+                        t.woke_day = due[0]                # once a day, lit or not (lit: someone is up already)
+                        if not t.is_on:
+                            hass.async_create_task(t.wake(due[1]))   # its fade runs for minutes: never held up by the tick
                     await t.tick()
                 except Exception as err:  # noqa: BLE001 - one team's trouble never stops the others
                     _quiet_error("power_team:tick")
