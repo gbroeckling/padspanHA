@@ -47,6 +47,8 @@ def test_the_weak_transmitter_warning(run: dict, prefix: str, least: int) -> Non
 
 
 def test_the_guide_says_what_to_set_in_both_languages() -> None:
+    if not (_GUIDE / "index.html").is_file():
+        pytest.skip("no site/ in this tree (the Bright derivation carries none)")
     en = (_GUIDE / "index.html").read_text(encoding="utf-8")
     de = (_GUIDE / "de" / "index.html").read_text(encoding="utf-8")
     assert "Start with its settings as they are" not in en

@@ -441,5 +441,5 @@ def test_the_docs_and_the_switch_say_when_it_is_on():
     for name, want in (("README.md", "on for a new install, off in a home set up before November 2026"),
                        ("docs/GETTING_STARTED.md", "A new install starts with it on")):
         p = root / name
-        if p.exists():          # the Bright derivation carries neither
+        if p.exists() and not p.read_text(encoding="utf-8").startswith("# PadSpan Bright"):          # the Bright derivation carries neither
             assert want in p.read_text(encoding="utf-8"), name

@@ -20,6 +20,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from custom_components.padspan_ha import settings_store as ss
 from custom_components.padspan_ha import websocket as ws
 from custom_components.padspan_ha import ws_settings
@@ -63,6 +65,8 @@ def test_one_launch_date_everywhere() -> None:
                          .replace('"PadSpan Pro for life is " + EDITIONS.proLifetimeWords() + "."', "")), \
         "a date or a price written into the card itself"
     # The site's buy box switches on the same moment (tests/test_site_claims.py pins the prices).
+    if not (_ROOT / "site" / "index.html").is_file():
+        pytest.skip("no site/ in this tree (the Bright derivation carries none)")
     site = _js(_ROOT / "site" / "index.html")
     assert 'data-launch-until="2026-12-01T08:00:00Z"' in site
 

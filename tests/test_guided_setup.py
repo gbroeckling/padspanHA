@@ -96,7 +96,10 @@ def test_the_next_buttons_are_counted_summed_and_labelled() -> None:
     for s in telemetry.SETUP_NEXT:
         assert telemetry.event_allowed(f"setup_next:{s}")
     assert not telemetry.event_allowed("setup_next:other")
-    spec = importlib.util.spec_from_file_location("telemetry_summary", Path(__file__).resolve().parents[1] / "server" / "telemetry_summary.py")
+    summary = Path(__file__).resolve().parents[1] / "server" / "telemetry_summary.py"
+    if not summary.is_file():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
+    spec = importlib.util.spec_from_file_location("telemetry_summary", summary)
     S = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(S)
     assert S._SETUP_NEXT == tuple(f"setup_next:{s}" for s in telemetry.SETUP_NEXT)

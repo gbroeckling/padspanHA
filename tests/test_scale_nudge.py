@@ -159,6 +159,8 @@ def test_the_counters_are_allowed_summed_and_labelled():
     doors = ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")
     words = {f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "not_to_scale", "per_axis", "measured_one", "measured_two", "later", "reminder_measure")} | {f"scale_nudge:via_{d}" for d in doors}
     assert T.SCALE_NUDGE_EVENTS == words and all(T.event_allowed(e) for e in words)
+    if not (_ROOT / "server" / "telemetry_summary.py").is_file():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
     spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
     S = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(S)
@@ -312,6 +314,8 @@ def test_the_report_says_where_plans_came_from_and_how_far_each_kind_got():
     for bad in ({"picture": "nearly"}, {"house": "full"}, {"picture_n": "9"}, {}, {"picture": "full", "picture_n": 3}):
         with pytest.raises(ValueError, match="env.plans"):
             T.assert_shareable({"install_id": "", "env": {"plans": bad}})
+    if not (_ROOT / "server" / "telemetry_summary.py").is_file():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
     spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
     S = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(S)
