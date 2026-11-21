@@ -78,7 +78,7 @@ footer p{margin:4px 0}
   <li><b>Home Assistant.</b> The Marketplace comes with 2026.11. PadSpan itself runs on 2024.8 or newer, installed through HACS on anything before 2026.11.</li>
   <li><b>At least one Bluetooth scanner.</b> An ESPHome Bluetooth proxy, a Shelly Gen2 or newer <a href="/guides/shelly-bluetooth-proxy/">set up as a scanner</a>, or your Home Assistant machine's own Bluetooth. One scanner tells home from away. For rooms, put one in every room you want to tell apart: <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></li>
   <li><b>An area for each room.</b> PadSpan's rooms are Home Assistant's areas, under <b>Settings → Areas, labels &amp; zones</b>.</li>
-  <li><b>More than 2 GB of RAM</b> is recommended. Near a busy street PadSpan hears thousands of passing devices, and a 2 GB Raspberry Pi can run out of memory within hours. On a small machine, PadSpan's own <b>Settings → Presence</b> has a <b>Low-memory mode</b>.</li>
+  <li><b>More than 2 GB of RAM</b> is recommended. Near a busy street PadSpan hears thousands of passing devices, and a 2 GB Raspberry Pi can run out of memory within hours. On a small machine, PadSpan's own <b>Settings → Tracking → Performance</b> has a <b>Low-memory mode</b>.</li>
 </ul>
 <p>No scanner yet? You can install PadSpan anyway. It shows a made-up house until it hears its first scanner, then switches to yours by itself. Or <a href="/demo/">try the demo</a> in your browser, with nothing to install.</p>
 
@@ -86,7 +86,7 @@ footer p{margin:4px 0}
 <p>On Home Assistant 2026.11 or newer:</p>
 <ol>
   <li>Open <b>Settings → Marketplace</b>. The first time, Home Assistant warns you that community projects aren't reviewed by the Home Assistant project. It can't install anything until you accept.</li>
-  <li>Search for <b>room presence</b> or <b>PadSpan</b>, open <b>PadSpan HA</b> and select <b>Install</b>. Check that the dialog offers 0.38.199 or newer, then select <b>Install</b> again.</li>
+  <li>Search for <b>room presence</b> or <b>PadSpan</b>, open <b>PadSpan HA</b> and select <b>Install</b>. Check that the dialog offers 0.38.274 or newer, then select <b>Install</b> again.</li>
   <li>The setup dialog opens straight away, with no restart and nothing to fill in. Select <b>Submit</b>.</li>
   <li>Open <b>PadSpan HA</b> in the sidebar. The other new entry, <b>Atlas</b>, is the map of your lights and devices. Leave it for later.</li>
 </ol>
@@ -106,13 +106,13 @@ footer p{margin:4px 0}
 <div style="overflow-x:auto">
 <table>
   <tr><th>What it says</th><th>What it means</th></tr>
-  <tr><td>"You're looking at a made-up house, with every feature set up."</td><td>PadSpan hasn't heard a scanner yet, or you chose <b>Preview a finished house</b>. A brand-new install switches to your house by itself when it hears one. Otherwise select <b>Back to my house</b>.</td></tr>
-  <tr><td>"No Bluetooth scanners found yet."</td><td>Add an ESPHome Bluetooth proxy, or use your Home Assistant machine's own Bluetooth. It shows up within a minute.</td></tr>
+  <tr><td>"You're looking at a sample house, with every feature set up."</td><td>PadSpan hasn't heard a scanner yet, or you chose <b>Preview a finished house</b>. A brand-new install switches to your house by itself when it hears one. Otherwise select <b>Back to my house</b>.</td></tr>
+  <tr><td>"No Bluetooth receivers found yet."</td><td>Add an ESPHome Bluetooth proxy, or use your Home Assistant machine's own Bluetooth. It shows up within a minute.</td></tr>
   <tr><td>"… so PadSpan can tell home from away but not rooms."</td><td>No scanner has an area yet. Give each one the area it's in.</td></tr>
   <tr><td>"… so you get home or away."</td><td>All your scanners are in one area. Put one in another room.</td></tr>
-  <tr><td>"One scanner has no Home Assistant area yet, so it gives no room: <i>its name</i>."</td><td>The others work. Give this one its area.</td></tr>
+  <tr><td>"One receiver has no Home Assistant area yet, so it gives no room: <i>its name</i>."</td><td>The others work. Give this one its area.</td></tr>
   <tr><td>"Heard, no room yet"</td><td>A named device or phone that only a scanner with no area can hear. Give that scanner its area.</td></tr>
-  <tr><td>"Your 3 scanners cover 3 rooms."</td><td>It's working. Each device goes to the room whose scanner hears it best.</td></tr>
+  <tr><td>"Your 3 receivers cover 3 rooms."</td><td>It's working. Each device goes to the room whose scanner hears it best.</td></tr>
 </table>
 </div>
 
@@ -131,24 +131,25 @@ footer p{margin:4px 0}
   <img src="/demo/media/setup-overview-rooms.jpg" width="1400" height="1242" alt="The demo house's rooms on PadSpan's Overview: three floors stacked one above the other, each room outlined in its own colour with its name" loading="lazy">
   <figcaption>The demo house on the <b>Overview</b>, with the floors stacked. <a href="/demo/?page=panel">Open it yourself</a>.</figcaption>
 </figure>
-<p>Select <b>Make it a map</b> on the <b>Who's where now</b> card. The wizard has five steps, one floor at a time:</p>
+<p>Select <b>Make it a map</b> on the <b>Who's where now</b> card. It opens <b>Setup</b>, a list of the steps in order: upload a floor plan, set the scale, draw the rooms, floors and their heights (only with two floors or more), place receivers and set their heights, and calibrate. Any step after the upload can be skipped and done later. Each step opens the <b>Setup Wizard</b> on Mapping at that step, one floor plan at a time:</p>
 <ol>
-  <li><b>Upload floor plan.</b> Any picture of the floor works, even a photo of a sketch (PNG, JPG, WebP, GIF or SVG). Choose its floor, give it a name and select <b>Upload &amp; Convert</b>.</li>
-  <li><b>Set the scale.</b> Click both ends of a wall you know, type its length in metres and select <b>Add 1st Measurement</b>. Do the same along a wall at a different angle, ideally at right angles to the first, and select <b>Add 2nd Measurement</b>. Then select <b>Save Scale</b>. It only takes metres, so 12 feet is 3.66. A sketch may show a warning that the map appears stretched, and you can still save. Don't skip this one: without a scale, nothing can go on the map at the end, and calibration can't start.</li>
-  <li><b>Draw rooms.</b> Under the map, pick a room from <b>Choose room…</b> (the list is your Home Assistant areas), select <b>Start drawing</b>, click each corner, then select <b>Finish</b> or double-click. When the floor's rooms are drawn, select <b>Save Layout</b>, because <b>Next</b> doesn't save for you. A room missing from the list? Check under <b>Settings → Areas, labels &amp; zones</b> that its area is on this floor.</li>
-  <li><b>Place scanners.</b> In the <b>Live BLE Radios</b> list under the map, select <b>Add</b> beside each scanner on this floor, drag it to where it's mounted, and select <b>Save Layout</b>. Use <b>Add</b> in this list, not <b>Add Receiver</b> above it or a double-click on the map, even though the step's own text suggests that: only a marker from this list is linked to a real scanner.</li>
-  <li><b>Finish, then Put it on the map.</b> This is the step that's easy to miss. Until you select <b>Put it on the map</b>, your rooms and scanners are only on the picture, and <b>Done</b> doesn't move them. Once the first room is on, your house takes the place of <b>Who's where now</b> on the Overview, for the whole house, so draw every room your scanners cover: a device in a room you haven't drawn may not show. For the next floor, select <b>+ Set up another floor</b> and set its scale too, even though the step says the scale is set. With two floors or more, line them up and set their heights in <b>Mapping → 3D Stack</b>.</li>
+  <li><b>Upload a floor plan.</b> Any picture of the floor works, even a photo of a sketch (PNG, JPG, GIF, BMP, WebP or SVG). Choose its floor, give it a name and select <b>Upload &amp; Convert</b>. No floor plan? <b>No floor plan? Ways to get one</b>, on the same step, offers a room scan with an iPhone or iPad, a sketch you photograph, or a blank floor of the size you type.</li>
+  <li><b>Set the scale.</b> Right after the upload, <b>Set this plan's scale now</b> asks for one length: click both ends of a wall you know, type its length and select <b>Save the scale</b>. A second length running the other way is optional (<b>Add a length the other way</b>) and checks that the picture isn't stretched. Lengths are in metres, or in feet with <b>Settings → Appearance → Show lengths in feet and inches</b> on. Don't skip this one: without a scale, nothing can go on the map at the end, and calibration can't start.</li>
+  <li><b>Draw the rooms.</b> Press a room's name above the plan (the names are your Home Assistant areas on this floor), click each corner, then double-click the last one or select <b>Finish outline</b>. Each room is saved as you finish it. A room missing from the list? Check under <b>Settings → Areas, labels &amp; zones</b> that its area is on this floor.</li>
+  <li><b>Floors and their heights.</b> Only with two indoor floors or more: how tall each floor is, so PadSpan can tell the floors apart. Until you set them, it uses an ordinary storey height.</li>
+  <li><b>Place receivers and set their heights.</b> In the <b>Live BLE Receivers</b> list beside the plan, select <b>Add</b> beside each scanner on this floor, drag it to where it's mounted and set its <b>Height above floor</b>. Use <b>Add</b> in this list, not <b>Add Receiver</b> or a double-click on the map, even though the step's own text suggests that: only a marker from this list is linked to a real scanner. Or select <b>Put my receivers in their rooms</b>: each scanner whose area has an outline goes in the middle of its room, to drag into place later.</li>
+  <li><b>Finish, then Put it on the map.</b> This is the step that's easy to miss. Until you select <b>Put it on the map</b>, your rooms and scanners are only on the picture, and <b>Done</b> doesn't move them. Once the first room is on, your house takes the place of <b>Who's where now</b> on the Overview, for the whole house, so draw every room your scanners cover: a device in a room you haven't drawn may not show. For the next floor, select <b>+ Set up another floor</b> and set its scale too. With two floors or more, line them up in <b>Mapping → 3D Stack</b>.</li>
 </ol>
 <figure>
   <img src="/demo/media/setup-finish.jpg" width="1600" height="758" alt="The wizard's last step, Ground floor is set up: 3 rooms and 3 scanners are on this floor plan but not yet on the map of your house, with a Put it on the map button" loading="lazy">
-  <figcaption>Step 5, on the demo's sample plan. <a href="/demo/?page=panel&amp;fresh=wizard">Try it yourself</a>: select <b>Make it a map</b>, then <b>5. Finish</b>.</figcaption>
+  <figcaption>The Setup Wizard's last step, <b>Finish</b>, on the demo's sample plan. <a href="/demo/?page=panel&amp;fresh=wizard">Try it yourself</a> in the demo.</figcaption>
 </figure>
-<p><b>Already finished, and the Overview says "Positioning fabric not built yet"?</b> You don't have to start again, and you don't have to go to <b>Mapping → Rooms</b>, where that message sends you. Select <b>Make it a map</b>, then <b>5. Finish</b>, then <b>Put it on the map</b>. That covers your first plan. For another floor, use <b>Commit this layout to fabric</b> in <b>Mapping → Rooms</b> and <b>Calibration → Tune → Save</b>. A scanner you placed with a double-click needs adding again from <b>Live BLE Radios</b> first. Versions before 0.38.174 don't have the button, so update PadSpan first.</p>
-<p><b>No picture of the floor?</b> In <b>Mapping → Rooms</b> you can add rooms in metres with no picture: type the area's exact name in the <b>New room name</b> box, select <b>+ Add room</b>, then drag it to shape and select <b>Save corrections</b>. Calibration still needs a plan with a scale. The same screen imports a Sweet Home 3D file, and a <a href="/guides/robot-vacuum-floor-plan/">robot vacuum's map</a> can give you the plan and rooms at once on an empty floor: turn on PadSpan's <b>Settings → Features → Robot Vacuum Import</b> first (experimental, off by default). <a href="/guides/floor-plans/">Which floor plan for Home Assistant?</a> compares your options.</p>
+<p><b>Already finished, and the Overview says "Room and receiver layout not built yet"?</b> You don't have to start again. Open the Setup Wizard on that plan (<b>Mapping → Library → Open</b> in Basic mode, or any step of <b>Setup</b>), go to <b>Finish</b> and select <b>Put it on the map</b>. Or, in Advanced mode, open <b>Mapping → Layout</b>, switch <b>Layout</b> to <b>Map placements</b> and select <b>Commit this layout</b>. A scanner you placed with a double-click needs adding again from <b>Live BLE Receivers</b> first.</p>
+<p><b>No picture of the floor?</b> Start from a blank floor (above), or, in <b>Mapping → Layout</b>, add rooms in metres with no picture: type the area's exact name in the <b>New room name</b> box, select <b>+ Add room</b>, then drag it to shape and select <b>Save corrections</b>. Calibration still needs a plan with a scale. The same screen imports a Sweet Home 3D file, and a <a href="/guides/robot-vacuum-floor-plan/">robot vacuum's map</a> can give you the plan and rooms at once on an empty floor: turn on PadSpan's <b>Settings → Features → Robot Vacuum Import</b> first (experimental, off by default). <a href="/guides/floor-plans/">Which floor plan for Home Assistant?</a> compares your options.</p>
 
 <h2>6. Calibrate</h2>
 <p>The strongest scanner is a good first answer. Calibration teaches PadSpan what each spot in your house really sounds like, and it's free. It needs a floor with a plan and a scale. Open <b>Calibration</b> in PadSpan's menu, select <b>Guided calibration</b>, choose your phone or a tag and the floor, walk the house, then select <b>Compute Model</b>. PadSpan listens at each spot: 15 seconds is the default, the panel recommends 60, and it asks for 10–20 spots spread across each floor.</p>
-<p>Open it yourself rather than waiting for the checklist: the Overview's checklist counts a scanner on the map as calibrated, so it closes itself after <b>Put it on the map</b>, before you've walked anywhere. If a phone still jumps between rooms, see <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a></p>
+<p>Setup's <b>Calibrate</b> step opens the same guided walk-through, and counts as done once there are five calibration points or a fitted model. If a phone still jumps between rooms, see <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a></p>
 
 <h2>Free, and what Pro adds</h2>
 <p>Everything on this page is free. PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, so every light and device sits where it really is; Live Aboard, the same house in 3D, like looking into a house in The Sims (still experimental); Furnish, for your furniture; the wall screen; and Forensics, Busy Times and Locate. You can try all of Pro free for 90 days, no card. Start it from PadSpan's <b>Settings → Features → PadSpan licence</b>, or from the last row of the Overview's checklist while that's showing. It asks for an email to send your key and needs the usage report on, which can't be turned off until the trial ends.</p>
@@ -157,7 +158,7 @@ footer p{margin:4px 0}
 <ul>
   <li><b>"Bluetooth feed unavailable".</b> Restart Home Assistant fully, under <b>Settings → System → Restart</b>. The panel says a reload isn't enough after a first install.</li>
   <li><b>Uploading a plan, saving the scale or starting the trial is refused.</b> Those need a Home Assistant administrator.</li>
-  <li><b>Calibration has gone from the menu, or Mapping has lost Edit and Rooms.</b> The mode button at the top right has switched the panel to <b>Basic</b>. Select it again and it goes back to <b>Advanced</b>.</li>
+  <li><b>Mapping has only Library and Upload, or Settings has no tabs.</b> The mode button at the top right has switched the panel to <b>Basic</b>. Every screen is still in the menu, the ones Basic leaves out of its short list under <b>More tools</b>. Select the button again and it goes back to <b>Advanced</b>.</li>
   <li><b>All objects is full of strangers' devices.</b> Normal near a street. In that list, change <b>All statuses</b> to <b>Identified</b>, or search by name.</li>
   <li><b>Something else.</b> <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> on GitHub.</li>
 </ul>
@@ -166,9 +167,9 @@ footer p{margin:4px 0}
 <ul>
   <li>The Marketplace: <a href="https://www.hacs.xyz/docs/marketplace/">HACS's page on the move</a> and <a href="https://frenck.dev/hacs-is-now-the-home-assistant-marketplace/">Franck Nijhof's post</a>.</li>
   <li>Home Assistant's <a href="https://www.home-assistant.io/docs/organizing/areas/">areas</a> docs.</li>
-  <li>PadSpan's <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/README.md">README</a> and its code at the 0.38.199 stable. The pictures are from the <a href="/demo/">demo</a>, which runs as Pro.</li>
+  <li>PadSpan's <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.274/README.md">README</a> and its code at the 0.38.274 stable. The pictures are from the <a href="/demo/">demo</a>, which runs as Pro, and some show an earlier version of these screens.</li>
 </ul>
-<p style="font-size:13px;color:var(--mut)">Written for 0.38.199, the current stable. From the 0.38.203 beta, <b>Make it a map</b> opens a guided <b>Setup</b> list that leads to these same steps, with floor heights added for a house of two floors or more. <b>Settings → Presence</b> is called <b>Tracking</b> there, and the warning reads "Room and receiver layout not built yet". Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
+<p style="font-size:13px;color:var(--mut)">Written for 0.38.274, the current stable. Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
 
 <div class="cta">
   <a class="btn primary" href="/demo/">Try the demo in your browser</a>

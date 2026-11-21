@@ -109,7 +109,7 @@ footer p{margin:4px 0}
 <p>Then give the key to Home Assistant, in either of two places:</p>
 <ul>
   <li><b>In Home Assistant:</b> <b>Settings → Devices &amp; services → Add integration → Private BLE Device</b>, and paste it. Hex and base64 both work.</li>
-  <li><b>In PadSpan:</b> <b>Settings → Presence → Phone Tracking (Private BLE) → Add IRK</b>. PadSpan listens for up to 30 seconds to check that the key matches a phone your proxies can hear, then adds the Private BLE Device entry to Home Assistant for you. (From the 0.38.202 beta, Presence is called Tracking.)</li>
+  <li><b>In PadSpan:</b> <b>Settings → Tracking → Phones and guest tags → Phone Tracking (Private BLE) → Add IRK</b>. PadSpan listens for up to 30 seconds to check that the key matches a phone your proxies can hear, then adds the Private BLE Device entry to Home Assistant for you. (From the 0.38.202 beta, Presence is called Tracking.)</li>
 </ul>
 <p>Either way, keep the iPhone awake, with Bluetooth on, near a proxy while you do it: Home Assistant only accepts a key once it can hear the phone it belongs to. Adding a key needs a Home Assistant administrator. PadSpan reloads its list of keys every five minutes, so a key added in Home Assistant reaches it within about five minutes. Bermuda gives every Private BLE Device its sensors automatically.</p>
 <p>Last, name the iPhone in PadSpan, which is what gives it its Home Assistant entities. On <b>Overview</b>, open <b>All objects</b> in the <b>Objects</b> card, select <b>Tag</b> on the iPhone's row, type a name and select <b>Save label</b>. On a new install, before you've drawn any rooms, the <b>Who's where now</b> card has a <b>Track</b> button beside the iPhone's name that does the same.</p>

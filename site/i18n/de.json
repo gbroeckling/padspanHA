@@ -195,16 +195,8 @@
    "de": "RSSI-Glättung mit Kalman-Filter"
   },
   {
-   "en": "Home/away binary sensors",
-   "de": "Binärsensoren für zu Hause/abwesend"
-  },
-  {
    "en": "Private BLE address resolution (iBeacon + IRK)",
    "de": "Auflösung privater BLE-Adressen (iBeacon + IRK)"
-  },
-  {
-   "en": "Hybrid occupancy estimation (BLE + sensors + WiFi)",
-   "de": "Hybride Belegungsschätzung (BLE + Sensoren + WLAN)"
   },
   {
    "en": "Device Identity",
@@ -229,10 +221,6 @@
   {
    "en": "Floor Plans &amp; Maps",
    "de": "Grundrisse &amp; Karten"
-  },
-  {
-   "en": "Upload architectural plans (PNG/JPG) with auto-scaling",
-   "de": "Baupläne hochladen (PNG/JPG), mit automatischer Skalierung"
   },
   {
    "en": "Two-point measure tool for real-world scale",
@@ -351,14 +339,6 @@
    "de": "E-Mail-Benachrichtigung bei Raumwechsel (höchstens alle 60 s)"
   },
   {
-   "en": "Area sensors, distance sensors, device trackers, binary sensors",
-   "de": "Bereichssensoren, Distanzsensoren, Device Tracker, Binärsensoren"
-  },
-  {
-   "en": "Full WebSocket API for custom dashboards",
-   "de": "Vollständige WebSocket-API für eigene Dashboards"
-  },
-  {
    "en": "UI &amp; Experience",
    "de": "Oberfläche &amp; Bedienung"
   },
@@ -369,10 +349,6 @@
   {
    "en": "22 dedicated views, Basic and Advanced modes",
    "de": "22 eigene Ansichten, Basic- und Advanced-Modus"
-  },
-  {
-   "en": "5-step onboarding wizard with auto-detection",
-   "de": "Einrichtungsassistent in 5 Schritten, mit automatischer Erkennung"
   },
   {
    "en": "Training Hub: 16 animated walkthroughs + manual",
@@ -427,8 +403,8 @@
    "de": "Deine Lichter auf demselben Grundriss"
   },
   {
-   "en": "PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.",
-   "de": "PadSpan kennt die Form deines Hauses schon in Metern: die Räume, die Etagen, die Wände. <b>Mapping → Atlas</b> setzt deine Lichter, Ventilatoren, Bewegungs- und Temperatursensoren, Schlösser sowie Türen und Fenster aus Home Assistant auf genau diesen Plan. So siehst und schaltest du sie dort, wo sie wirklich sind, statt eine Liste von Entitätsnamen zu durchsuchen. Die fertige Karte ist <b>der Atlas</b>: eine eigene Seite in der Seitenleiste von Home Assistant und ein gutes Wanddisplay."
+   "en": "PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas builder</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.",
+   "de": "PadSpan kennt die Form deines Hauses schon in Metern: die Räume, die Etagen, die Wände. <b>Mapping → Atlas builder</b> setzt deine Lichter, Ventilatoren, Bewegungs- und Temperatursensoren, Schlösser sowie Türen und Fenster aus Home Assistant auf genau diesen Plan. So siehst und schaltest du sie dort, wo sie wirklich sind, statt eine Liste von Entitätsnamen zu durchsuchen. Die fertige Karte ist <b>der Atlas</b>: eine eigene Seite in der Seitenleiste von Home Assistant und ein gutes Wanddisplay."
   },
   {
    "en": "Free, in every install <span class=\"pill free\">No key</span>",
@@ -763,144 +739,12 @@
    "de": "Im Vergleich"
   },
   {
-   "en": "No other HA BLE integration comes close",
-   "de": "Keine andere BLE-Integration für HA bietet so viel"
-  },
-  {
    "en": "Feature",
    "de": "Funktion"
   },
   {
    "en": "Bermuda",
    "de": "Bermuda"
-  },
-  {
-   "en": "Room Assistant",
-   "de": "Room Assistant"
-  },
-  {
-   "en": "ESPresense",
-   "de": "ESPresense"
-  },
-  {
-   "en": "Room-level tracking",
-   "de": "Tracking pro Raum"
-  },
-  {
-   "en": "Phone tracking wizard",
-   "de": "Assistent für Handy-Tracking"
-  },
-  {
-   "en": "IRK capture integration",
-   "de": "IRK-Erfassung eingebaut"
-  },
-  {
-   "en": "MAC rotation bridging",
-   "de": "Verfolgung über MAC-Wechsel hinweg"
-  },
-  {
-   "en": "Apple device auto-classify",
-   "de": "Automatische Apple-Erkennung"
-  },
-  {
-   "en": "Visual floor plans",
-   "de": "Grundrisse"
-  },
-  {
-   "en": "3D multi-floor maps",
-   "de": "3D-Karten über mehrere Etagen"
-  },
-  {
-   "en": "2D flat map + zoom/pan",
-   "de": "Flache 2D-Karte + Zoom und Verschieben"
-  },
-  {
-   "en": "Room boundary editor",
-   "de": "Editor für Raumgrenzen"
-  },
-  {
-   "en": "Walls as RF barriers",
-   "de": "Wände als Funkbarrieren"
-  },
-  {
-   "en": "Fingerprint calibration",
-   "de": "Fingerprint-Kalibrierung"
-  },
-  {
-   "en": "Lighting map on the floor plan (lights, fans, sensors, locks)",
-   "de": "Lichtkarte auf dem Grundriss (Lichter, Ventilatoren, Sensoren, Schlösser)"
-  },
-  {
-   "en": "Door/window RF barriers (live open/closed, material-aware)",
-   "de": "Türen und Fenster als Funkbarrieren (live offen/geschlossen, je nach Material)"
-  },
-  {
-   "en": "Motion hold-time normalized across sensor hardware",
-   "de": "Haltezeit bei Bewegung über alle Sensoren angeglichen"
-  },
-  {
-   "en": "Hybrid occupancy counting",
-   "de": "Hybride Belegungszählung"
-  },
-  {
-   "en": "Stable device identity",
-   "de": "Stabile Geräteidentität"
-  },
-  {
-   "en": "Training hub (16 walkthroughs)",
-   "de": "Training Hub (16 Anleitungen)"
-  },
-  {
-   "en": "Follow mode + email alerts",
-   "de": "Folgemodus + E-Mail-Benachrichtigungen"
-  },
-  {
-   "en": "Onboarding wizard",
-   "de": "Einrichtungsassistent"
-  },
-  {
-   "en": "Movement history playback",
-   "de": "Wiedergabe des Bewegungsverlaufs"
-  },
-  {
-   "en": "Sample/demo mode",
-   "de": "Beispiel- und Demo-Modus"
-  },
-  {
-   "en": "Dedicated UI views",
-   "de": "Eigene Ansichten"
-  },
-  {
-   "en": "Config flow",
-   "de": "Einrichtungsdialog"
-  },
-  {
-   "en": "MQTT config",
-   "de": "MQTT-Konfiguration"
-  },
-  {
-   "en": "Web UI",
-   "de": "Weboberfläche"
-  },
-  {
-   "en": "HA sensor entities",
-   "de": "HA-Sensor-Entitäten"
-  },
-  {
-   "en": "Distance estimation",
-   "de": "Entfernungsschätzung"
-  },
-  {
-   "en": "Kalman RSSI filtering",
-   "de": "Kalman-Filter für RSSI"
-  },
-  {
-   "en": "Works with ESPHome proxies",
-   "de": "Funktioniert mit ESPHome-Proxys"
-  },
-  {
-   "en": "PadSpan reads from these rather than replacing them: Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly, and ESPresense nodes come in over MQTT. Already running Bermuda? <a href=\"/guides/bermuda/\">How the two work together</a>.",
-   "de": "PadSpan liest von diesen Systemen, statt sie zu ersetzen: Bluetooth-Proxys von Home Assistant und Bermuda-Proxys werden direkt erkannt, und ESPresense-Knoten kommen über MQTT. Du nutzt schon Bermuda? <a href=\"/guides/bermuda/de/\">So arbeiten beide zusammen</a>."
   },
   {
    "en": "Installation",
@@ -971,10 +815,6 @@
    "de": "Der eingebaute Training Hub hat 16 animierte Anleitungen zu jeder Funktion, von den BLE-Grundlagen bis zur Einrichtung von Private BLE/IRK. Die Anleitungen und Dokumente unten sind auf Englisch."
   },
   {
-   "en": "<a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md\"><b>Getting Started</b><span>First 30 minutes: install, explore, track</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md\"><b>Floor Plan Setup</b><span>Upload, draw rooms, place scanners, set scale</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/90_TROUBLESHOOTING.md\"><b>Troubleshooting</b><span>Common issues and fixes</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md\"><b>Architecture</b><span>High-level codebase architecture</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md\"><b>WebSocket API</b><span>API reference for custom integrations</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\"><b>Changelog</b><span>Full version history</span></a>",
-   "de": "<a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md\"><b>Erste Schritte</b><span>Die ersten 30 Minuten: installieren, ausprobieren, tracken</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md\"><b>Grundriss einrichten</b><span>Hochladen, Räume zeichnen, Scanner platzieren, Maßstab setzen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/90_TROUBLESHOOTING.md\"><b>Fehlersuche</b><span>Häufige Probleme und Lösungen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md\"><b>Architektur</b><span>Überblick über den Code</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md\"><b>WebSocket-API</b><span>API-Referenz für eigene Integrationen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\"><b>Changelog</b><span>Alle Versionen</span></a>"
-  },
-  {
    "en": "Development",
    "de": "Entwicklung"
   },
@@ -1011,10 +851,6 @@
    "de": "Freiwillig und datenschutzfreundlich: standardmäßig aus, Einschalten nur mit Bestätigung, einstellbare Aufbewahrung (7–90 Tage), Aufzeichnungen verlassen nie dein System."
   },
   {
-   "en": "<b>Light placement</b> — place each light exactly where it hangs, with fixture shapes and sizes, WLED support, Showcase and Fit room. See <a href=\"#lights\">Lighting</a>.",
-   "de": "<b>Lichter platzieren</b>: jedes Licht genau dort, wo es hängt, mit Leuchtenformen und -größen, WLED, Showcase und Fit room. Siehe <a href=\"#lights\">Licht</a>."
-  },
-  {
    "en": "<b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.",
    "de": "<b>Alles aus PadSpan Bright Pro ist enthalten.</b> Pro ist das ganze Produkt; Bright Pro ist dessen Licht-Hälfte, einzeln verkauft. Kauf nie beides."
   },
@@ -1025,10 +861,6 @@
   {
    "en": "Or get Pro free",
    "de": "Oder Pro kostenlos bekommen"
-  },
-  {
-   "en": "<b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Presence → Help improve PadSpan. You see exactly what's sent before anything goes.",
-   "de": "<b>Teste es.</b> Tester bekommen zwei Jahre PadSpan Pro kostenlos, solange der anonyme Nutzungsbericht eingeschaltet bleibt. Anmelden unter Settings → Presence → Help improve PadSpan. Du siehst genau, was gesendet wird, bevor irgendetwas rausgeht."
   },
   {
    "en": "<b>Ask for a year.</b> Until December 31, the first 20 people running PadSpan who email <a href=\"mailto:hello@traks.ca\">hello@traks.ca</a> get a year of Pro free. No card, nothing renews.",
@@ -1185,6 +1017,270 @@
   {
    "en": "Day and three more themes",
    "de": "Day und drei weitere Designs"
+  },
+  {
+   "en": "<a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md\"><b>Getting Started</b><span>First 30 minutes: install, explore, track</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md\"><b>Floor Plan Setup</b><span>Upload, draw rooms, place scanners, set scale</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md#troubleshooting\"><b>Troubleshooting</b><span>Common issues and fixes</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md\"><b>Architecture</b><span>High-level codebase architecture</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\"><b>Changelog</b><span>Full version history</span></a>",
+   "de": "<a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md\"><b>Erste Schritte</b><span>Die ersten 30 Minuten: installieren, ausprobieren, tracken</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md\"><b>Grundriss einrichten</b><span>Hochladen, Räume zeichnen, Scanner platzieren, Maßstab setzen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md#troubleshooting\"><b>Fehlersuche</b><span>Häufige Probleme und Lösungen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md\"><b>Architektur</b><span>Überblick über den Code</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\"><b>Changelog</b><span>Alle Versionen</span></a>"
+  },
+  {
+   "en": "No",
+   "de": "Nein"
+  },
+  {
+   "en": "Signal smoothing",
+   "de": "Signalglättung"
+  },
+  {
+   "en": "Experimental",
+   "de": "Experimentell"
+  },
+  {
+   "en": "Home/away from each device's tracker",
+   "de": "Zu Hause/abwesend über den Tracker jedes Geräts"
+  },
+  {
+   "en": "Hybrid occupancy estimation (BLE, HA people and occupancy sensors)",
+   "de": "Hybride Belegungsschätzung (BLE, HA-Personen und Präsenzsensoren)"
+  },
+  {
+   "en": "Upload any picture of a plan, or start from a room scan or a blank floor",
+   "de": "Beliebiges Bild eines Grundrisses hochladen, oder mit einem Raumscan oder einer leeren Etage anfangen"
+  },
+  {
+   "en": "Hardware",
+   "de": "Hardware"
+  },
+  {
+   "en": "Device trackers (the state is the room), area and distance sensors",
+   "de": "Device Tracker (der Zustand ist der Raum), Bereichs- und Distanzsensoren"
+  },
+  {
+   "en": "Events for arrivals, departures and room changes",
+   "de": "Ereignisse für Ankunft, Weggang und Raumwechsel"
+  },
+  {
+   "en": "Guided Setup: each step opens its tool and says when it's done",
+   "de": "Geführtes Setup: Jeder Schritt öffnet sein Werkzeug und sagt, wann er erledigt ist"
+  },
+  {
+   "en": "Room-level presence",
+   "de": "Anwesenheit pro Raum"
+  },
+  {
+   "en": "Bermuda, ESPresense and PadSpan side by side",
+   "de": "Bermuda, ESPresense und PadSpan im direkten Vergleich"
+  },
+  {
+   "en": "<a href=\"https://github.com/agittins/bermuda\">Bermuda</a> and <a href=\"https://espresense.com/\">ESPresense</a> are both good, and lots of people run them. This is what each does, from their own docs as of October 2026 (<a href=\"/guides/bermuda-vs-espresense/\">more detail</a>). If something here is out of date, <a href=\"https://github.com/gbroeckling/padspanHA/issues\">open an issue</a> and it gets fixed.",
+   "de": "<a href=\"https://github.com/agittins/bermuda\">Bermuda</a> und <a href=\"https://espresense.com/\">ESPresense</a> sind beide gut, und viele nutzen sie. Hier steht, was jedes kann, nach seiner eigenen Doku, Stand Oktober 2026 (<a href=\"/guides/bermuda-vs-espresense/de/\">mehr dazu</a>). Ist etwas davon veraltet, <a href=\"https://github.com/gbroeckling/padspanHA/issues\">öffne ein Issue</a>, dann wird es korrigiert."
+  },
+  {
+   "en": "ESPresense (+ Companion)",
+   "de": "ESPresense (+ Companion)"
+  },
+  {
+   "en": "ESPHome Bluetooth proxies, Shelly Gen2+, HA's own Bluetooth or a USB adapter, or ESPresense over MQTT once switched on",
+   "de": "ESPHome-Bluetooth-Proxys, Shelly ab Gen2, das eigene Bluetooth von HA oder ein USB-Adapter, oder ESPresense über MQTT, sobald eingeschaltet"
+  },
+  {
+   "en": "ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters",
+   "de": "ESPHome-Bluetooth-Proxys, Shelly ab Gen2, USB-Adapter"
+  },
+  {
+   "en": "Its own firmware on ESP32 nodes",
+   "de": "Eigene Firmware auf ESP32-Knoten"
+  },
+  {
+   "en": "Floor plan needed?",
+   "de": "Grundriss nötig?"
+  },
+  {
+   "en": "No: rooms come from each scanner's HA area; the map is optional",
+   "de": "Nein: Die Räume kommen aus dem HA-Bereich jedes Scanners; die Karte ist optional"
+  },
+  {
+   "en": "No for rooms; Companion's map needs your rooms as coordinates (YAML, or made with MagicPlan or its Floorplan Creator)",
+   "de": "Für Räume nicht; die Karte von Companion braucht deine Räume als Koordinaten (YAML, oder erstellt mit MagicPlan oder seinem Floorplan Creator)"
+  },
+  {
+   "en": "Map of your home",
+   "de": "Karte deines Zuhauses"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> draw rooms on your floor plan",
+   "de": "<span class=\"yes\">✓</span> Räume auf deinem Grundriss zeichnen"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> Companion",
+   "de": "<span class=\"yes\">✓</span> Companion"
+  },
+  {
+   "en": "Multi-floor 3D view",
+   "de": "3D-Ansicht über mehrere Etagen"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> (the full 3D house, Live Aboard, is Pro)",
+   "de": "<span class=\"yes\">✓</span> (das ganze 3D-Haus, Live Aboard, ist Pro)"
+  },
+  {
+   "en": "<span class=\"no\">—</span> (has a Floor sensor)",
+   "de": "<span class=\"no\">—</span> (hat einen Etagen-Sensor)"
+  },
+  {
+   "en": "Position between scanners",
+   "de": "Position zwischen Scannern"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> with 3+ scanners placed on a measured plan",
+   "de": "<span class=\"yes\">✓</span> mit 3 oder mehr Scannern auf einem vermessenen Plan"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> Companion (X/Y/Z)",
+   "de": "<span class=\"yes\">✓</span> Companion (X/Y/Z)"
+  },
+  {
+   "en": "Walk-around fingerprints and per-scanner signal fit",
+   "de": "Fingerabdrücke beim Rundgang und Signalanpassung pro Scanner"
+  },
+  {
+   "en": "Guided: global, per proxy and per device",
+   "de": "Geführt: global, pro Proxy und pro Gerät"
+  },
+  {
+   "en": "Manual on each node; automatic in Companion",
+   "de": "Von Hand an jedem Knoten; automatisch in Companion"
+  },
+  {
+   "en": "Kalman filter plus a room vote",
+   "de": "Kalman-Filter plus eine Raumabstimmung"
+  },
+  {
+   "en": "Averaging, a speed limit on moving away, and area hysteresis",
+   "de": "Mittelung, ein Tempolimit beim Wegbewegen und Bereichs-Hysterese"
+  },
+  {
+   "en": "Filtering on the node, Kalman on position (Companion)",
+   "de": "Filterung auf dem Knoten, Kalman auf der Position (Companion)"
+  },
+  {
+   "en": "iPhones and Apple Watches (IRK)",
+   "de": "iPhones und Apple Watches (IRK)"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> via Private BLE Device",
+   "de": "<span class=\"yes\">✓</span> über Private BLE Device"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> via Private BLE Device or irk-capture, with a setup guide",
+   "de": "<span class=\"yes\">✓</span> über Private BLE Device oder irk-capture, mit Einrichtungsanleitung"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> enrolled on the node's web page",
+   "de": "<span class=\"yes\">✓</span> auf der Weboberfläche des Knotens angemeldet"
+  },
+  {
+   "en": "Tags that change address (AirTag, SmartTag)",
+   "de": "Tracker, die ihre Adresse wechseln (AirTag, SmartTag)"
+  },
+  {
+   "en": "<span class=\"no\">—</span> (AirTags can only be counted)",
+   "de": "<span class=\"no\">—</span> (AirTags lassen sich nur zählen)"
+  },
+  {
+   "en": "HA room, distance and tracker entities",
+   "de": "HA-Entitäten für Raum, Entfernung und Tracker"
+  },
+  {
+   "en": "A room sensor with distance; a tracker from Companion",
+   "de": "Ein Raumsensor mit Entfernung; ein Tracker aus Companion"
+  },
+  {
+   "en": "Movement history",
+   "de": "Bewegungsverlauf"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> playback (Traceback)",
+   "de": "<span class=\"yes\">✓</span> Wiedergabe (Traceback)"
+  },
+  {
+   "en": "HA's own history, no playback",
+   "de": "Der eigene Verlauf von HA, keine Wiedergabe"
+  },
+  {
+   "en": "Path view in Companion (its history logging is in beta)",
+   "de": "Wegansicht in Companion (die Verlaufsaufzeichnung ist in der Beta)"
+  },
+  {
+   "en": "Alerts when a device changes room",
+   "de": "Benachrichtigung, wenn ein Gerät den Raum wechselt"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> built in (Follow)",
+   "de": "<span class=\"yes\">✓</span> eingebaut (Follow)"
+  },
+  {
+   "en": "With your own HA automations",
+   "de": "Mit deinen eigenen HA-Automationen"
+  },
+  {
+   "en": "Where you set it up",
+   "de": "Wo du es einrichtest"
+  },
+  {
+   "en": "A PadSpan panel in the HA sidebar",
+   "de": "Ein PadSpan-Panel in der HA-Seitenleiste"
+  },
+  {
+   "en": "Home Assistant's setup dialogs",
+   "de": "Die Einrichtungsdialoge von Home Assistant"
+  },
+  {
+   "en": "The node's web page and the Companion app",
+   "de": "Die Weboberfläche des Knotens und die Companion-App"
+  },
+  {
+   "en": "Try it before installing",
+   "de": "Vor der Installation ausprobieren"
+  },
+  {
+   "en": "<span class=\"yes\">✓</span> <a href=\"/demo/\">browser demo</a> and a sample house",
+   "de": "<span class=\"yes\">✓</span> <a href=\"/demo/?hl=de\">Demo im Browser</a> und ein Beispielhaus"
+  },
+  {
+   "en": "Room Assistant isn't in the table: its last release was in March 2022. PadSpan reads from the others rather than replacing them: the ESPHome and Shelly proxies Bermuda uses are picked up directly, and ESPresense nodes come in over MQTT. Already running Bermuda? <a href=\"/guides/bermuda/\">How the two work together</a>.",
+   "de": "Room Assistant steht nicht in der Tabelle: Seine letzte Version erschien im März 2022. PadSpan liest von den anderen, statt sie zu ersetzen: Die ESPHome- und Shelly-Proxys, die Bermuda nutzt, übernimmt es direkt, und ESPresense-Knoten kommen über MQTT dazu. Du nutzt schon Bermuda? <a href=\"/guides/bermuda/de/\">So arbeiten die beiden zusammen</a>."
+  },
+  {
+   "en": "<b>Light and device placement on the Atlas</b> — place each light and device exactly where it is, with fixture shapes and sizes, WLED, Automorph, Showcase and Fit room. See <a href=\"#lights\">Lighting</a>.",
+   "de": "<b>Lichter und Geräte auf dem Atlas platzieren</b> – jedes Licht und Gerät genau dort, wo es ist, mit Leuchtenformen und -größen, WLED, Automorph, Showcase und Fit room. Siehe <a href=\"#lights\">Licht</a>."
+  },
+  {
+   "en": "<b>Live Aboard</b> — your house in 3D (still experimental), with <b>Furnish</b> for furniture, people and devices.",
+   "de": "<b>Live Aboard</b> – dein Haus in 3D (noch experimentell), mit <b>Furnish</b> für Möbel, Personen und Geräte."
+  },
+  {
+   "en": "<b>Wall mode</b> — the Atlas on a wall screen, sized for the room.",
+   "de": "<b>Wandmodus</b> – der Atlas auf einem Wanddisplay, passend für den Raum."
+  },
+  {
+   "en": "<b>The Atlas as your Overview</b>, and its <b>Heatmap</b> chip for temperature, humidity and CO₂.",
+   "de": "<b>Der Atlas als deine Overview</b> und sein <b>Heatmap</b>-Chip für Temperatur, Luftfeuchtigkeit und CO₂."
+  },
+  {
+   "en": "<b>Whole House Presets</b> and <b>Vacation Mode</b>.",
+   "de": "<b>Whole House Presets</b> und <b>Vacation Mode</b>."
+  },
+  {
+   "en": "<b>Busy Times</b> (the busiest rooms, by hour) and <b>Locate</b> (room-by-room directions to whoever you follow).",
+   "de": "<b>Busy Times</b> (die belebtesten Räume, nach Stunde) und <b>Locate</b> (Raum für Raum der Weg zu dem, dem du folgst)."
+  },
+  {
+   "en": "<b>The Graphite, Ocean, Dusk and Day themes.</b>",
+   "de": "<b>Die Designs Graphite, Ocean, Dusk und Day.</b>"
+  },
+  {
+   "en": "<b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.",
+   "de": "<b>Teste es.</b> Tester bekommen zwei Jahre PadSpan Pro kostenlos, solange der anonyme Nutzungsbericht eingeschaltet bleibt. Anmelden unter Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. Du siehst genau, was gesendet wird, bevor irgendetwas rausgeht."
   }
  ],
  "attrs": {

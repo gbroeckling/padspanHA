@@ -196,7 +196,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           <li><b>No floor plan? Ways to get one.</b> Start a blank floor, use a drawing you have, or upload a phone's room scan: its rooms, doors, windows and furniture come with it, and it finds its own place. When a plan is moved, what was placed on it can move with it, and lining up plans can suggest a fit.</li>
           <li><b>Let Claude draw your rooms (experimental).</b> With an AI Task set up, Claude reads a plan and proposes room outlines that you check and keep.</li>
           <li><b>Live Aboard</b> opens on the whole house with labels that follow the zoom, glass walls, a look for each screen, room chips and a room panel, kitchen and bathroom furniture, one-tap room sets, people and cars, covered patios, open decks and an Outside floor, and a ready-made Christmas tree.</li>
-          <li><b>Keys can keep their room (an option, off unless you turn it on).</b> Settings → Presence → Home/Away Timeout: things no person carries can stay in their last room for hours. Every device's area sensor and tracker also gain <code>last_room</code>, the room it was last seen in.</li>
+          <li><b>Keys can keep their room (an option, off unless you turn it on).</b> Settings → Tracking → Rooms and timing → Home/Away Timeout → Things keep their room: things no person carries can stay in their last room for hours. Every device's area sensor and tracker also gain <code>last_room</code>, the room it was last seen in.</li>
           <li><b>Home Assistant 2024.8 or newer.</b> It said 2024.1, but before 2024.8 the sensors of the devices PadSpan tracks could not be added. Every release from 2024.8 to 2026.11 is now tested on each change.</li>
           <li><b>Rooms are steadier.</b> A device that goes quiet keeps its room instead of drifting to another, possibly on another floor; a device nobody heard no longer "arrives"; a pinned beacon reports its room once; and a room change is never sent twice running. On a real house's four-hour recording, wrong room changes for devices that never moved halved compared with 0.38.231, and repeated room-change events went from 882 to 3.</li>
           <li><b>Room tracking never waits.</b> It stalled for half a minute or more each time a calibration point was added, while a model only the "Learned model" setting uses was retrained; that model now trains in the background, and only when that setting is on. The health pages and the device list next to a busy street are much faster.</li>
@@ -253,7 +253,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <div class="relbody">
         <ul>
           <li><b><code>last_room</code> on the area sensor and the device tracker:</b> the room the device was last seen in. It stays there after the device reads not_home, so an automation or a card can still say where it was left.</li>
-          <li><b>An option: keys, tags and other things can stay in their room for hours.</b> It is off unless you turn it on, and nothing changes until you do. Every device switches to not_home once it has not been heard for the away timeout (5 minutes unless you changed it), so keys in a drawer or a tag on a bag go "away" while they sit in the kitchen. If you would rather they stayed in their room, set a number of hours in Settings → Presence → Home/Away Timeout, under "Things keep their room": 0.5 to 48 hours, or 0 for off. What a person carries still goes away after the away timeout; anything nobody carries keeps the room it was last seen in for the hours you set, then switches to not_home. This is the area sensor and the device tracker in Home Assistant; the PadSpan panel, arrive and leave alerts and events are unchanged.</li>
+          <li><b>An option: keys, tags and other things can stay in their room for hours.</b> It is off unless you turn it on, and nothing changes until you do. Every device switches to not_home once it has not been heard for the away timeout (5 minutes unless you changed it), so keys in a drawer or a tag on a bag go "away" while they sit in the kitchen. If you would rather they stayed in their room, set a number of hours in Settings → Tracking → Rooms and timing → Home/Away Timeout, under "Things keep their room": 0.5 to 48 hours, or 0 for off. What a person carries still goes away after the away timeout; anything nobody carries keeps the room it was last seen in for the hours you set, then switches to not_home. This is the area sensor and the device tracker in Home Assistant; the PadSpan panel, arrive and leave alerts and events are unchanged.</li>
           <li><b>Before you turn it on: what counts as carried.</b> A device is carried when it is added to a person in Home Assistant (Settings → People → Track devices), is picked for them in Live Aboard (Furnish → People &amp; devices), or has the person's name. Every other named device counts as a thing. A phone or watch that is not linked to a person would read as home in its last room for those hours after it has left, so add each one to its person first. A car's tag does the same: it stays in the garage for those hours after the car has gone.</li>
           <li><b>PadSpan needs Home Assistant 2024.8 or newer.</b> It said 2024.1, but on Home Assistant before 2024.8 the sensors of the devices it tracks could not be added, so a device had no room sensor. HACS now offers PadSpan only on 2024.8 and newer. If your Home Assistant is older, update Home Assistant first. PadSpan has been checked on Home Assistant releases from 2024.8 to 2026.11.</li>
           <li><b>Less work after each save.</b> After a save, PadSpan used to read the whole file back and unpack it. With a large calibration file, which is saved about once a minute while beacons calibrate themselves, that held Home Assistant up for a moment each time. The check below reads the file without unpacking it.</li>
@@ -547,7 +547,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           <li><b>New pieces start in calmer colours</b>: a grey sofa, light bedding, an oak table and chairs.</li>
           <li><b>Signal readings are no longer stored in Home Assistant's history.</b> Every few seconds each tracked device's area sensor, distance sensors and tracker got a new signal strength, "seconds since heard" and confidence, and Home Assistant stored all of them each time. Those values are still shown on the entity, live, and automations can still use them; they are just not saved to the history database any more. The room, home or away, and the device's name are still saved, so history still shows where everything was. The occupancy sensor's per-room evidence and how sure it is are left out the same way.</li>
           <li><b>A room change shows in seconds instead of over a minute.</b> Walk from the hall into the bedroom and PadSpan now shows the bedroom about 12 seconds later where the room's scanner hears well, and about 25 seconds later where it hears only now and then (a proxy left at ESPHome's standard scan settings catches about one advert in ten). With the house drawn on the map it takes a few seconds more. Before, a move took a minute and a half (median), and a short visit to a room was often never shown at all. Measured on simulated walks through PadSpan's own code, as no recorded walk with marked rooms exists yet. A device standing still switches rooms by mistake no more often than before, and far less often with the house drawn.</li>
-          <li><b>Every scanner is read on every update.</b> Home Assistant passes only the strongest scanner's adverts along as they arrive, so the others' readings were refreshed every 30 seconds and could be half a minute old. PadSpan now reads every scanner's list every 5 seconds, skipping adverts it already has, so it costs little more than before. Settings → Presence → Bluetooth refresh interval now defaults to 5 seconds.</li>
+          <li><b>Every scanner is read on every update.</b> Home Assistant passes only the strongest scanner's adverts along as they arrive, so the others' readings were refreshed every 30 seconds and could be half a minute old. PadSpan now reads every scanner's list every 5 seconds, skipping adverts it already has, so it costs little more than before. Settings → Tracking → Receivers → Bluetooth refresh interval now defaults to 5 seconds.</li>
           <li><b>Signal smoothing follows a real move at once.</b> When one scanner suddenly hears a device much more strongly, the device has moved, and PadSpan follows it straight away (and drops the readings of scanners that have heard nothing since). A reading that is suddenly much weaker on its own is usually a passing fade and only counts a little. The smoothing setting (Q) now defaults to 3, and the panel accepts up to 10; the old 0.125 was meant for smoothing each advert, many a second, not one update every 5 seconds.</li>
           <li><b>A clear move next door needs half the Room Change Delay.</b> When the new room's scanner is well ahead of the old room's for two updates in a row, the device moves then. A close call, as by a doorway, still waits the whole Room Change Delay, and so do far-apart rooms, another floor and going outdoors.</li>
           <li><b>Installs on the old defaults move to the new ones once.</b> If you never changed the smoothing (0.125) or the Bluetooth refresh interval (30 s), they become 3 and 5 s. A value you set yourself is kept.</li>
@@ -1495,7 +1495,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           <li><b>A new staircase has no rail until you pick one.</b> Choose Both, Left/Inside or Right/Outside on its panel in Furnish. Stairs you already have were given the rail they showed as their own setting, so nothing looks different; stairs a stair room or the AI suggests start with none.</li>
           <li><b>An Open (Loft) edge's railing is a setting of its own.</b> The Railing button on its row in Signal walls gives it one, or none. Edges you already have keep the railing they show, and that becomes their own setting the first time you Save in Live Aboard; one railed on only part of its length (round a corner, or along a floor room and a raised room) stays as it is until you choose. An edge you draw from now on starts with none. The usage report (when on) counts how many were brought over, by word only.</li>
           <li><b>Moving a beacon keeps its Calibration Guide points.</b> Beacon Tune's hard relocation deleted them with its own points. New Guide points now stay, like Pin &amp; Listen and Roam points. If a moved beacon keeps showing at its old spot, delete them by hand. Guide points saved by 0.38.209 to 0.38.217 are still treated as Beacon Tune points.</li>
-          <li><b>Settings and the help now say the sidebar Atlas page stays dark.</b> Settings said a theme applied in every browser and offered Light to anyone who can't use a dark screen, but the sidebar Atlas page never takes a theme. It stays dark on purpose, Light (inverted) included, and Settings → Theme and the help now say so.</li>
+          <li><b>Settings and the help now say the sidebar Atlas page stays dark.</b> Settings said a theme applied in every browser and offered Light to anyone who can't use a dark screen, but the sidebar Atlas page never takes a theme. It stays dark on purpose, Light (inverted) included, and Settings → Appearance → Theme and the help now say so.</li>
           <li><b>An open wall saved at 6 dB.</b> An old path could store an Open (Loft) wall with the default 6 dB loss. An Open wall saved from now on stores 0 dB. One already stored at 6 dB keeps counting 6 dB in positioning and coverage until it is saved again (a door cut, a reshape, the Railing button); nothing changes at upgrade.</li>
           <li><b>A rain sensor that has stopped reporting no longer makes it rain.</b> A sensor that goes silent while wet stays on, and it can stay that way for days, so rain kept falling on the Atlas and in Live Aboard under a dry sky. If the sensor's device has a Last seen sensor and it's more than 3 hours old, PadSpan now treats the rain sensor as having no reading and goes by the weather entity. A sensor with no Last seen works as before.</li>
           <li><b>Settings tells you.</b> Under the rain sensor it now says "This sensor hasn't reported since" and the date, and that it's using the weather forecast instead. The opt-in usage report counts it (<code>weather_note:sensor_stale</code>): a name only, never which sensor.</li>
@@ -5023,9 +5023,9 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <li>Follow mode — animated map + movement timeline</li>
       <li>Multi-device tracking with per-device email alerts</li>
       <li>Kalman-filtered RSSI smoothing</li>
-      <li>Home/away binary sensors</li>
+      <li>Home/away from each device's tracker</li>
       <li>Private BLE address resolution (iBeacon + IRK)</li>
-      <li>Hybrid occupancy estimation (BLE + sensors + WiFi)</li>
+      <li>Hybrid occupancy estimation (BLE, HA people and occupancy sensors)</li>
     </ul></div>
     <div class="feat"><h3>Device Identity</h3><ul>
       <li>Stable padspan_id survives MAC rotation and firmware updates</li>
@@ -5034,7 +5034,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <li>Interactive registry: merge, relabel, delete</li>
     </ul></div>
     <div class="feat"><h3>Floor Plans &amp; Maps</h3><ul>
-      <li>Upload architectural plans (PNG/JPG) with auto-scaling</li>
+      <li>Upload any picture of a plan, or start from a room scan or a blank floor</li>
       <li>Two-point measure tool for real-world scale</li>
       <li>Draw room boundary polygons over blueprints</li>
       <li>3D isometric multi-floor visualization</li>
@@ -5068,13 +5068,13 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     </ul></div>
     <div class="feat"><h3>Alerts &amp; Automation</h3><ul>
       <li>Email alerts on room change (60 s rate limit)</li>
-      <li>Area sensors, distance sensors, device trackers, binary sensors</li>
-      <li>Full WebSocket API for custom dashboards</li>
+      <li>Device trackers (the state is the room), area and distance sensors</li>
+      <li>Events for arrivals, departures and room changes</li>
     </ul></div>
     <div class="feat"><h3>UI &amp; Experience</h3><ul>
       <li>Live Tracker immersive full-screen 3D dashboard</li>
       <li>22 dedicated views, Basic and Advanced modes</li>
-      <li>5-step onboarding wizard with auto-detection</li>
+      <li>Guided Setup: each step opens its tool and says when it's done</li>
       <li>Training Hub: 16 animated walkthroughs + manual</li>
       <li>Sample mode — full demo, no hardware needed</li>
       <li>NVR-style movement playback</li>
@@ -5096,7 +5096,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="lights">
   <div class="kick">Lighting</div>
   <h2>Your lights on the same floor plan</h2>
-  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.</p>
+  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas builder</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));margin-bottom:22px">
     <a class="shot" href="images/atlas-lighting-map.jpg" target="_blank"><img src="images/atlas-lighting-map.jpg" alt="The Atlas: every light on a two-floor house, lit" loading="lazy"><div class="cap"><b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it</div></a>
     <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental</div></a>
@@ -5250,40 +5250,29 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
 <section class="wrap" id="compare">
   <div class="kick">How It Compares</div>
-  <h2>No other HA BLE integration comes close</h2>
-  <p class="lede"></p>
+  <h2>Bermuda, ESPresense and PadSpan side by side</h2>
+  <p class="lede"><a href="https://github.com/agittins/bermuda">Bermuda</a> and <a href="https://espresense.com/">ESPresense</a> are both good, and lots of people run them. This is what each does, from their own docs as of October 2026 (<a href="/guides/bermuda-vs-espresense/">more detail</a>). If something here is out of date, <a href="https://github.com/gbroeckling/padspanHA/issues">open an issue</a> and it gets fixed.</p>
   <div class="tablewrap">
   <table>
-    <tr><th style="text-align:left">Feature</th><th>PadSpan HA</th><th>Bermuda</th><th>Room Assistant</th><th>ESPresense</th></tr>
-    <tr><td>Room-level tracking</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-    <tr><td>Phone tracking wizard</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>IRK capture integration</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>MAC rotation bridging</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Apple device auto-classify</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Visual floor plans</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>3D multi-floor maps</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>2D flat map + zoom/pan</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Room boundary editor</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Walls as RF barriers</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Fingerprint calibration</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Lighting map on the floor plan (lights, fans, sensors, locks)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Door/window RF barriers (live open/closed, material-aware)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Motion hold-time normalized across sensor hardware</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Hybrid occupancy counting</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Stable device identity</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Training hub (16 walkthroughs)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Follow mode + email alerts</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Onboarding wizard</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Movement history playback</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Sample/demo mode</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Dedicated UI views</td><td class="num">22</td><td>Config flow</td><td>MQTT config</td><td>Web UI</td></tr>
-    <tr><td>HA sensor entities</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-    <tr><td>Distance estimation</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Kalman RSSI filtering</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Works with ESPHome proxies</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">✗</td></tr>
+    <tr><th style="text-align:left">Feature</th><th>PadSpan HA</th><th>Bermuda</th><th>ESPresense (+ Companion)</th></tr>
+    <tr><td>Room-level presence</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Hardware</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, HA's own Bluetooth or a USB adapter, or ESPresense over MQTT once switched on</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters</td><td>Its own firmware on ESP32 nodes</td></tr>
+    <tr><td>Floor plan needed?</td><td>No: rooms come from each scanner's HA area; the map is optional</td><td>No</td><td>No for rooms; Companion's map needs your rooms as coordinates (YAML, or made with MagicPlan or its Floorplan Creator)</td></tr>
+    <tr><td>Map of your home</td><td><span class="yes">✓</span> draw rooms on your floor plan</td><td class="no">—</td><td><span class="yes">✓</span> Companion</td></tr>
+    <tr><td>Multi-floor 3D view</td><td><span class="yes">✓</span> (the full 3D house, Live Aboard, is Pro)</td><td><span class="no">—</span> (has a Floor sensor)</td><td><span class="yes">✓</span> Companion</td></tr>
+    <tr><td>Position between scanners</td><td><span class="yes">✓</span> with 3+ scanners placed on a measured plan</td><td class="no">—</td><td><span class="yes">✓</span> Companion (X/Y/Z)</td></tr>
+    <tr><td>Calibration</td><td>Walk-around fingerprints and per-scanner signal fit</td><td>Guided: global, per proxy and per device</td><td>Manual on each node; automatic in Companion</td></tr>
+    <tr><td>Signal smoothing</td><td>Kalman filter plus a room vote</td><td>Averaging, a speed limit on moving away, and area hysteresis</td><td>Filtering on the node, Kalman on position (Companion)</td></tr>
+    <tr><td>iPhones and Apple Watches (IRK)</td><td><span class="yes">✓</span> via Private BLE Device or irk-capture, with a setup guide</td><td><span class="yes">✓</span> via Private BLE Device</td><td><span class="yes">✓</span> enrolled on the node's web page</td></tr>
+    <tr><td>Tags that change address (AirTag, SmartTag)</td><td>Experimental</td><td class="no">—</td><td><span class="no">—</span> (AirTags can only be counted)</td></tr>
+    <tr><td>HA room, distance and tracker entities</td><td class="yes">✓</td><td class="yes">✓</td><td>A room sensor with distance; a tracker from Companion</td></tr>
+    <tr><td>Movement history</td><td><span class="yes">✓</span> playback (Traceback)</td><td>HA's own history, no playback</td><td>Path view in Companion (its history logging is in beta)</td></tr>
+    <tr><td>Alerts when a device changes room</td><td><span class="yes">✓</span> built in (Follow)</td><td>With your own HA automations</td><td>With your own HA automations</td></tr>
+    <tr><td>Where you set it up</td><td>A PadSpan panel in the HA sidebar</td><td>Home Assistant's setup dialogs</td><td>The node's web page and the Companion app</td></tr>
+    <tr><td>Try it before installing</td><td><span class="yes">✓</span> <a href="/demo/">browser demo</a> and a sample house</td><td class="no">—</td><td class="no">—</td></tr>
   </table>
   </div>
-  <p class="lede" style="margin-top:14px">PadSpan reads from these rather than replacing them: Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly, and ESPresense nodes come in over MQTT. Already running Bermuda? <a href="/guides/bermuda/">How the two work together</a>.</p>
+  <p class="lede" style="margin-top:14px">Room Assistant isn't in the table: its last release was in March 2022. PadSpan reads from the others rather than replacing them: the ESPHome and Shelly proxies Bermuda uses are picked up directly, and ESPresense nodes come in over MQTT. Already running Bermuda? <a href="/guides/bermuda/">How the two work together</a>.</p>
 </section>
 
 <div class="divider"></div>
@@ -5324,9 +5313,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <div class="docgrid">
     <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md"><b>Getting Started</b><span>First 30 minutes: install, explore, track</span></a>
     <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md"><b>Floor Plan Setup</b><span>Upload, draw rooms, place scanners, set scale</span></a>
-    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/90_TROUBLESHOOTING.md"><b>Troubleshooting</b><span>Common issues and fixes</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md#troubleshooting"><b>Troubleshooting</b><span>Common issues and fixes</span></a>
     <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md"><b>Architecture</b><span>High-level codebase architecture</span></a>
-    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md"><b>WebSocket API</b><span>API reference for custom integrations</span></a>
     <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md"><b>Changelog</b><span>Full version history</span></a>
   </div>
 </section>
@@ -5352,9 +5340,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <div class="feat">
       <h3>What Pro unlocks today</h3>
       <ul class="steps">
+        <li><b>Light and device placement on the Atlas</b> — place each light and device exactly where it is, with fixture shapes and sizes, WLED, Automorph, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
+        <li><b>Live Aboard</b> — your house in 3D (still experimental), with <b>Furnish</b> for furniture, people and devices.</li>
+        <li><b>Wall mode</b> — the Atlas on a wall screen, sized for the room.</li>
+        <li><b>The Atlas as your Overview</b>, and its <b>Heatmap</b> chip for temperature, humidity and CO₂.</li>
+        <li><b>Whole House Presets</b> and <b>Vacation Mode</b>.</li>
+        <li><b>Busy Times</b> (the busiest rooms, by hour) and <b>Locate</b> (room-by-room directions to whoever you follow).</li>
         <li><b>Forensics</b> — search which BLE devices were near your scanners in any time window. Recorded presence sessions (dwell time, peak signal, per-scanner detail) plus lower-confidence "possible" matches, with CSV export.</li>
         <li>Opt-in and privacy-guarded: off by default, explicit enable confirmation, configurable retention (7–90 days), recordings never leave your instance.</li>
-        <li><b>Light placement</b> — place each light exactly where it hangs, with fixture shapes and sizes, WLED support, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
+        <li><b>The Graphite, Ocean, Dusk and Day themes.</b></li>
         <li><b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.</li>
         <li>More Pro features will join under the same key.</li>
       </ul>
@@ -5362,7 +5356,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <div class="feat" id="pro-free">
       <h3>Or get Pro free</h3>
       <ul class="steps">
-        <li><b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Presence → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
+        <li><b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
         <li data-offer-until="2027-01-01T08:00:00Z"><b>Ask for a year.</b> Until December 31, the first 20 people running PadSpan who email <a href="mailto:hello@traks.ca">hello@traks.ca</a> get a year of Pro free. No card, nothing renews.</li>
         <li data-offer-until="2027-01-01T08:00:00Z"><b>Show your setup.</b> Post your house anywhere (the HA forum, Reddit, a blog, a video) with a few screenshots, send the link to hello@traks.ca, and get a year too.</li>
         <li><b>Invites.</b> Now and then an install that sends the usage report gets an invite for a free year, right in the panel.</li>
