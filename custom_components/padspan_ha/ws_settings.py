@@ -558,6 +558,19 @@ def _text_map(raw: Any) -> dict[str, str]:
             if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip()}
 
 
+def _pro_after(hass: HomeAssistant, st: Any, msg: dict[str, Any]) -> bool:
+    """Pro at the tier this message leaves: a Pro-only key sent beside a tier
+    override is judged by that override, not by the one stored before it, so
+    the same message gives the same result every time it is sent."""
+    if "license_tier_override" not in msg:
+        return _padspan_pro_active(hass)
+    from .licence import effective_tier, tier_at_least  # noqa: PLC0415
+    from .ws_common import _pro_expiry_state  # noqa: PLC0415
+    after = {**((getattr(st, "data", None) or {})),
+             "license_tier_override": str(msg["license_tier_override"] or "").strip().lower()}
+    return tier_at_least(effective_tier(after, bool(_pro_expiry_state(hass)["active"])), "pro")
+
+
 def _companion_url(value: Any) -> str | None:
     """The ESPresense Companion's address as stored: "" (none), or an http or
     https URL without its last slash. None for anything else."""
@@ -992,7 +1005,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # a free install can't get room-graph wayfinding by editing the
             # frontend, only by not persisting who "you" are.
             _lsk = str(msg.get("locate_self_key") or "")
-            payload["locate_self_key"] = _lsk if _padspan_pro_active(hass) else ""
+            payload["locate_self_key"] = _lsk if _pro_after(hass, st, msg) else ""
         if "followed_addrs" in msg:
             _new_followed = [x.upper() for x in _texts(msg["followed_addrs"])]
             payload["followed_addrs"] = _new_followed
@@ -1484,7 +1497,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # Enabling requires an activated PadSpan Pro licence key (set via
             # padspan_ha/forensics_license_activate).  Disabling is always allowed.
             _want = bool(msg["forensics_enabled"])
-            if _want and not _padspan_pro_active(hass):
+            if _want and not _pro_after(hass, st, msg):
                 _want = False      # same gate as everywhere else: expiry included
             payload["forensics_enabled"] = _want
         if "forensics_retention_days" in msg:
