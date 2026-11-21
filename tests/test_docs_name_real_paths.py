@@ -23,7 +23,7 @@ The real labels are read from the panel's own code, never typed here:
 
 What it reads (user-facing only; the internal design notes in docs/ are not read):
   * README.md and SECURITY.md
-  * the user guides in docs/ (USER_DOCS below)
+  * the user guides in docs/ (USER_DOCS below) and every chapter of the manual, docs/manual/*.md
   * site/index.html outside its release history, every site guide and its de/ twin
   * the in-panel help: help_content.js and i18n/{de,fr,nl}/help.json
   * the release notes waiting in changelog.d/, and CHANGELOG.md's sections from
@@ -66,6 +66,7 @@ HA_PAGES = (
     "Marketplace", "Devices & services", "Devices &amp; services", "Devices & Services", "Devices &amp; Services",
     "System", "Repairs", "Areas, labels & zones", "Areas, labels &amp; zones", "People", "Voice assistants",
     "Automations & scenes", "Automations &amp; scenes", "Tools", "Companion App", "Companion app", "Bluetooth",
+    "Tags",
 )
 # The release note that announced the rename names the old tab on purpose.
 RENAME_NOTE = re.compile(r"Presence is (?:now )?Settings")
@@ -196,6 +197,7 @@ def _recent_changelog() -> str:
 def _sources(with_changelog: bool) -> list[tuple[str, str]]:
     out = [(n, (ROOT / n).read_text(encoding="utf-8")) for n in ("README.md", "SECURITY.md")]
     out += [(f"docs/{d}.md", (ROOT / "docs" / f"{d}.md").read_text(encoding="utf-8")) for d in USER_DOCS]
+    out += [(p.relative_to(ROOT).as_posix(), p.read_text(encoding="utf-8")) for p in sorted((ROOT / "docs" / "manual").glob("*.md"))]
     out.append(("site/index.html", _strip_release_history((ROOT / "site" / "index.html").read_text(encoding="utf-8"))))
     guides = ROOT / "site" / "guides"
     for p in sorted(guides.glob("*/index.html")) + sorted(guides.glob("*/de/index.html")):
@@ -300,6 +302,7 @@ def test_the_labels_are_read_from_the_panel() -> None:
     assert {"Library", "Layout", "3D Stack", "Atlas builder"} <= set(_mapping_tabs()) and "Rooms" not in _mapping_tabs()
     names = [n for n, _ in _sources(True)]
     assert "site/guides/get-started/de/index.html" in names and "help_content.js" in names
+    assert "docs/manual/README.md" in names and "docs/manual/03-install-update-uninstall.md" in names
 
 
 def test_every_settings_path_names_a_real_tab() -> None:
