@@ -100,6 +100,8 @@ _PLACEMENT_FIELDS = ("origin_x_m", "origin_y_m", "scale_x_m", "scale_y_m",
 # record is REPLACED by the payload — so the one writer that takes a client
 # dict whole moved a map to 'main' whenever the client left the key out.
 _CARRIED_FIELDS = _PLACEMENT_FIELDS + ("reference_measurements", "floor_id")
+# Every field a map's placement record holds.
+_RECORD_FIELDS = _CARRIED_FIELDS + ("origin_anchored",)
 
 
 def _has_valid_origin(t: Any) -> bool:
@@ -146,7 +148,9 @@ def _norm_floor(f: dict[str, Any]) -> dict[str, Any]:
         "name": str(f.get("name") or fid)[:80],
     }
     lvl = f.get("level")
-    if isinstance(lvl, (int, float)) and not isinstance(lvl, bool):
+    # A storey number: a level past 64 bits kept here would stop the model
+    # ever being saved again.
+    if isinstance(lvl, (int, float)) and not isinstance(lvl, bool) and -1000 <= lvl <= 1000:
         out["level"] = int(lvl)
     for key, lo, hi in (("floor_to_floor_m", 1.5, MAX_HEIGHT_M), ("base_elevation_m", -50.0, 500.0)):
         val = f.get(key)
@@ -1437,7 +1441,16 @@ class ModelStore:
         one has not restated the scale.
         """
         transforms = self.data.get("map_transforms") or {}
-        new_t = dict(transform)
+        # The record's own fields, each of its own kind, and nothing else: the
+        # websocket writer takes a client dict whole, and every other key in it
+        # was stored as sent (a 10,000-key dict became a map's placement). A
+        # field of the wrong kind is not stated, so the stored one is carried.
+        new_t = {k: v for k, v in transform.items() if k in _RECORD_FIELDS}
+        if not isinstance(new_t.get("floor_id", ""), str):
+            del new_t["floor_id"]
+        _refs = new_t.get("reference_measurements", [])
+        if not (isinstance(_refs, list) and all(isinstance(r, dict) for r in _refs)):
+            del new_t["reference_measurements"]
         old_t = transforms.get(str(map_id))
         # Sanitize the pose to finite floats (the ws layer accepts any dict).
         # shear_rad rides with them: it is a coordinate of the placement like

@@ -34,7 +34,7 @@ from .const import (
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
 from .model_store import KEEP_HEIGHT
 from .snapshot_builder import _live_snapshot
-from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least
+from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least, finite_float
 from .ws_backup import _auto_backup
 from .telemetry import OPEN_EDGE_ACTIONS, bump as _bump
 from .quiet_errors import note as _quiet_error
@@ -110,15 +110,15 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
     {
         "type": "padspan_ha/fabric_light_position_set",
         "entity_id": str,
-        vol.Required("x_m"): vol.Coerce(float),
-        vol.Required("y_m"): vol.Coerce(float),
+        vol.Required("x_m"): finite_float,
+        vol.Required("y_m"): finite_float,
         vol.Optional("floor_id"): str,
         vol.Optional("color"): str,
         vol.Optional("shape"): str,
-        vol.Optional("rotation"): vol.Coerce(float),
-        vol.Optional("width_cm"): vol.Coerce(float),
-        vol.Optional("height_cm"): vol.Coerce(float),
-        vol.Optional("margin_cm"): vol.Coerce(float),
+        vol.Optional("rotation"): finite_float,
+        vol.Optional("width_cm"): finite_float,
+        vol.Optional("height_cm"): finite_float,
+        vol.Optional("margin_cm"): finite_float,
         vol.Optional("label"): str,
         # Its height above its floor, for Live Aboard: left out, the stored
         # height stays (a drag never wipes it); null clears it.
@@ -631,7 +631,7 @@ async def ws_receivers_to_rooms(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/fabric_scanner_z_set",
         "source": str,
-        vol.Required("z_m"): vol.Coerce(float),
+        vol.Required("z_m"): finite_float,
     }
 )
 @websocket_api.async_response

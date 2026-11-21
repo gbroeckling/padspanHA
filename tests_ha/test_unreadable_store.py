@@ -92,3 +92,64 @@ async def test_a_file_it_reads_is_left_alone(hass, caplog):
     await ObjectStore(hass).async_load()
     assert sorted(p.name for p in storage.iterdir()) == ["padspan_ha.objects"]
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+@pytest.mark.parametrize("key", [*sorted(STORES), "padspan_ha.backups"])
+@pytest.mark.parametrize("body", ["[]", "[1, 2]", "5", '{"version": 1, "key": "x"}'],
+                         ids=["empty list", "list", "number", "no data"])
+async def test_json_that_is_no_store_file_is_kept_and_said(hass, key, body, caplog):
+    """Valid JSON but no store document at all: Home Assistant's own loader
+    raised on it at every load (several error lines, and a background load
+    raised with nobody to hear it). It is kept and said as a wrong-kind file
+    is, and the store starts empty."""
+    storage = Path(hass.config.path(".storage"))
+    storage.mkdir(parents=True, exist_ok=True)
+    module, cls, load, _wrong = STORES.get(key, (None, None, None, None))
+    (storage / key).write_text(body, encoding="utf-8")
+
+    if module is None:
+        await _load_backups(hass)
+    else:
+        store = getattr(import_module(f"custom_components.padspan_ha.{module}"), cls)(hass)
+        await getattr(store, load)()
+        await getattr(store, load)()                             # a second load finds no file, says nothing
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
+    await hass.async_block_till_done()
+
+    kept = [p for p in storage.iterdir() if p.name.startswith(f"{key}.unreadable.")]
+    assert len(kept) == 1, f"{key}: the file was not kept ({sorted(p.name for p in storage.iterdir())})"
+    assert kept[0].read_text(encoding="utf-8") == body
+    said = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(said) == 1 and key in said[0].getMessage(), [r.getMessage() for r in said]
+
+
+@pytest.mark.parametrize("key", ["padspan_ha.settings", "padspan_ha.calibration", "padspan_ha.objects"])
+async def test_a_file_that_cannot_be_read_is_left_where_it_is(hass, key, caplog):
+    """A read that fails (here: a folder where the file should be) is not a
+    file of the wrong kind: nothing is moved, and the load raises as before."""
+    storage = Path(hass.config.path(".storage"))
+    (storage / key).mkdir(parents=True)
+    module, cls, load, _wrong = STORES[key]
+    store = getattr(import_module(f"custom_components.padspan_ha.{module}"), cls)(hass)
+    with pytest.raises(Exception):  # noqa: B017 - whatever Home Assistant raises for it
+        await getattr(store, load)()
+    assert sorted(p.name for p in storage.iterdir()) == [key]
+    assert (storage / key).is_dir()
+
+
+async def test_the_background_loads_at_setup_raise_nothing_on_such_a_file(hass, caplog):
+    """emergency_test and wled_exact load their stores in tasks started at
+    set-up; a bare list in either file raised there, logged by Home
+    Assistant as 'Task exception was never retrieved'."""
+    storage = Path(hass.config.path(".storage"))
+    storage.mkdir(parents=True, exist_ok=True)
+    for key in ("padspan_ha.emergency_test", "padspan_ha.wled_looks"):
+        (storage / key).write_text("[]", encoding="utf-8")
+    from custom_components.padspan_ha import emergency_test, wled_exact  # noqa: PLC0415
+    emergency_test.async_setup_emergency_test(hass)
+    hass.async_create_task(wled_exact.async_setup_wled_exact(hass))
+    await hass.async_block_till_done()
+    assert not [r for r in caplog.records if "never retrieved" in r.getMessage() or r.exc_info]
+    for key in ("padspan_ha.emergency_test", "padspan_ha.wled_looks"):
+        assert [p for p in storage.iterdir() if p.name.startswith(f"{key}.unreadable.")], key
+    emergency_test.async_stop_emergency_test(hass)

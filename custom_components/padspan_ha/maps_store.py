@@ -289,23 +289,8 @@ class MapsStore:
         own drawing, not to scale) or "blank" (no picture at all: a blank floor
         of the size they typed, blank_plan_png).
         """
-        # Reject oversized uploads before decoding (avoid OOM)
-        max_b64_len = (MAX_MAP_BYTES * 4) // 3 + 4
-        if len(png_base64) > max_b64_len:
-            raise ValueError(f"Map image exceeds {MAX_MAP_BYTES // (1024*1024)} MB limit")
-        try:
-            raw = base64.b64decode(png_base64)
-        except ValueError:
-            raise ValueError("Map image is not valid base64") from None
-        if len(raw) > MAX_MAP_BYTES:
-            raise ValueError(f"Map image exceeds {MAX_MAP_BYTES // (1024*1024)} MB limit")
-        # An empty payload (a backup whose image export failed) would be
-        # written as a 0-byte picture the map can never show.
+        raw = _decoded_png(png_base64, allow_empty=allow_no_image)
         no_image = allow_no_image and not raw
-        if not raw and not no_image:
-            raise ValueError("Map image is empty")
-        if raw and raw[:8] != b'\x89PNG\r\n\x1a\n':
-            raise ValueError("Map image is not a PNG")
         map_id = os.urandom(8).hex()
         file_name = f"{map_id}.png"
         if not no_image:
@@ -393,13 +378,11 @@ class MapsStore:
                 rx = {
                     "id": str(r.get("id") or "")[:80],
                     "label": str(r.get("label") or "")[:120],
-                    "x": float(r.get("x") or 0.0),
-                    "y": float(r.get("y") or 0.0),
+                    "x": _frac(r.get("x")),
+                    "y": _frac(r.get("y")),
                     "room": str(r.get("room") or "")[:120],
                     "source": str(r.get("source") or "")[:80],
                 }
-                rx["x"] = max(0.0, min(1.0, rx["x"]))
-                rx["y"] = max(0.0, min(1.0, rx["y"]))
                 if rx["id"] or rx["label"]:
                     clean.append(rx)
             m["receivers"] = clean
@@ -413,12 +396,10 @@ class MapsStore:
                     "id": str(bk.get("id") or f"bk_{os.urandom(4).hex()}")[:80],
                     "label": str(bk.get("label") or "")[:120],
                     "key": str(bk.get("key") or "")[:200],
-                    "x": float(bk.get("x") or 0.0),
-                    "y": float(bk.get("y") or 0.0),
+                    "x": _frac(bk.get("x")),
+                    "y": _frac(bk.get("y")),
                     "kind": str(bk.get("kind") or "")[:20],
                 }
-                entry["x"] = max(0.0, min(1.0, entry["x"]))
-                entry["y"] = max(0.0, min(1.0, entry["y"]))
                 if entry["key"]:
                     clean_bk.append(entry)
             m["beacons"] = clean_bk
@@ -450,13 +431,9 @@ class MapsStore:
                         continue
                     clean_pts = []
                     for p in pts:
-                        if not isinstance(p, (list, tuple)) or len(p) < 2:
+                        if not isinstance(p, (list, tuple)) or len(p) < 2 or _number(p[0]) is None                                 or _number(p[1]) is None:
                             continue
-                        x = float(p[0])
-                        y = float(p[1])
-                        x = max(0.0, min(1.0, x))
-                        y = max(0.0, min(1.0, y))
-                        clean_pts.append([x, y])
+                        clean_pts.append([_frac(p[0]), _frac(p[1])])
                     if len(clean_pts) >= 3:
                         clean_rb[rname] = {"type": "poly", "points": clean_pts}
                 elif btype == "circle":
@@ -497,10 +474,10 @@ class MapsStore:
                 """A field is changed only by a payload that STATES it."""
                 return stack[key] if key in stack else old_stk.get(key, default)
 
+            _z, _ceiling = _number(_kept("z_level", 0)), _number(_kept("ceiling_height_m", 2.4))
             new_stack: dict[str, Any] = {
-                "z_level": max(0, min(20, int(_kept("z_level", 0)))),
-                "ceiling_height_m": max(1.5, min(MAX_HEIGHT_M,
-                                                 float(_kept("ceiling_height_m", 2.4)))),
+                "z_level": max(0, min(20, int(_z if _z is not None else 0))),
+                "ceiling_height_m": max(1.5, min(MAX_HEIGHT_M, _ceiling if _ceiling is not None else 2.4)),
             }
             # `floor_id` is preserved although nothing writes it any more:
             # three panel views still read it as a fallback ahead of the map's
@@ -565,9 +542,10 @@ class MapsStore:
         m = self.get_map(map_id)
         if not m:
             raise KeyError("not_found")
+        # Checked before anything is touched: a payload that is not a PNG was
+        # written over the plan's picture as it came.
+        raw = _decoded_png(png_base64)
         _scan_stale(m)
-
-        raw = base64.b64decode(png_base64)
 
         # Old dims, captured before they are overwritten — the pixel_op
         # arithmetic is centred on the old canvas.
@@ -1043,6 +1021,47 @@ def _crop_png(png_data: bytes, cur_w: int, cur_h: int,
     except Exception:
         _quiet_error("maps_store:crop_png")
         return None
+
+
+def _number(value: Any) -> float | None:
+    """A finite number as a float, or None for anything else (a payload's
+    junk, a NaN)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
+    try:
+        out = float(value)
+    except ValueError:
+        return None
+    return out if math.isfinite(out) else None
+
+
+def _frac(value: Any) -> float:
+    """An image fraction as stored: clamped to the picture; 0 for anything
+    that is not a finite number, as for a missing one."""
+    v = _number(value)
+    return 0.0 if v is None else max(0.0, min(1.0, v))
+
+
+def _decoded_png(png_base64: str, *, allow_empty: bool = False) -> bytes:
+    """A plan's picture as the panel sends it: base64 of a PNG of at most
+    MAX_MAP_BYTES. ValueError, in words the panel shows, for anything else.
+    `allow_empty`: a backup restore's map whose picture could not be exported
+    (async_add_map's allow_no_image); otherwise an empty payload would be
+    written as a 0-byte picture the map can never show."""
+    # Oversized uploads are refused before decoding (no out-of-memory).
+    if len(png_base64) > (MAX_MAP_BYTES * 4) // 3 + 4:
+        raise ValueError(f"Map image exceeds {MAX_MAP_BYTES // (1024*1024)} MB limit")
+    try:
+        raw = base64.b64decode(png_base64)
+    except ValueError:
+        raise ValueError("Map image is not valid base64") from None
+    if len(raw) > MAX_MAP_BYTES:
+        raise ValueError(f"Map image exceeds {MAX_MAP_BYTES // (1024*1024)} MB limit")
+    if not raw and not allow_empty:
+        raise ValueError("Map image is empty")
+    if raw and raw[:8] != b'\x89PNG\r\n\x1a\n':
+        raise ValueError("Map image is not a PNG")
+    return raw
 
 
 def _decode_png_to_rgba(png_data: bytes, expected_w: int, expected_h: int) -> bytes | None:

@@ -649,8 +649,10 @@ async def ws_occupancy_estimate(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/occupancy_train",
-    vol.Required("actual_count"): vol.Coerce(int),
-    vol.Optional("room"): str,
+    # A headcount: a whole number a home can hold. A number past 64 bits would
+    # be kept in the settings, which could then never be saved again.
+    vol.Required("actual_count"): vol.All(vol.Coerce(int), vol.Range(min=0, max=1000)),
+    vol.Optional("room"): vol.All(str, vol.Length(max=120)),
 })
 @websocket_api.async_response
 @admin_if_enhanced_security

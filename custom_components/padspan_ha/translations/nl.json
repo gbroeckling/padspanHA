@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan kon een opslag niet bevestigen ({store})",
+      "description": "PadSpan heeft zijn gegevens ({store}) opgeslagen, maar het bestand op de schijf bevat niet wat er is opgeslagen, of kon niet worden teruggelezen. De laatste wijzigingen staan mogelijk alleen in het geheugen en gaan dan verloren wanneer Home Assistant opnieuw start. Controleer of de schijf van Home Assistant niet vol of alleen-lezen is, en zoek de fout in het logboek van Home Assistant. Deze melding verdwijnt vanzelf zodra een opslag weer wordt bevestigd."
+    }
   }
 }

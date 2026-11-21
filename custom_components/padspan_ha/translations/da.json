@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan kunne ikke bekræfte en lagring ({store})",
+      "description": "PadSpan gemte sine data ({store}), men filen på disken indeholder ikke det, der blev gemt, eller kunne ikke læses igen. De seneste ændringer findes måske kun i hukommelsen og går så tabt, når Home Assistant genstarter. Kontrollér, at disken, som Home Assistant kører på, ikke er fuld eller skrivebeskyttet, og se efter fejlen i Home Assistant-loggen. Denne besked forsvinder af sig selv, næste gang en lagring bliver bekræftet."
+    }
   }
 }

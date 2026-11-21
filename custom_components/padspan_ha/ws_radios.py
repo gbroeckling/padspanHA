@@ -25,7 +25,7 @@ from .const import (
 )
 from .bluetooth_live import get_bluetooth_live
 from .ws_calibration import _get_cal_store
-from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, RadioDeviceIndex
+from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, RadioDeviceIndex, finite_float
 from .util import ha_device_config_entries
 from .quiet_errors import note as _quiet_error
 
@@ -35,7 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 @websocket_api.websocket_command({
     "type": "padspan_ha/scanner_offset_set",
     "source": str,
-    vol.Optional("offset_db", default=0.0): vol.Coerce(float),
+    vol.Optional("offset_db", default=0.0): finite_float,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security

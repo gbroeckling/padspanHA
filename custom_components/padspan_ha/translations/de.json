@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan konnte ein Speichern nicht bestätigen ({store})",
+      "description": "PadSpan hat seine Daten ({store}) gespeichert, aber die Datei auf dem Datenträger enthält nicht das Gespeicherte oder ließ sich nicht wieder lesen. Die letzten Änderungen sind möglicherweise nur im Arbeitsspeicher und gingen bei einem Neustart von Home Assistant verloren. Bitte prüfen, ob der Datenträger von Home Assistant voll oder schreibgeschützt ist, und im Home-Assistant-Protokoll nach dem Fehler suchen. Dieser Hinweis verschwindet von selbst, sobald ein Speichern wieder bestätigt wird."
+    }
   }
 }

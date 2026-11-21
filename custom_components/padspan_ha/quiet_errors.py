@@ -216,7 +216,6 @@ guest_tags:notify
 guest_tags:refresh
 heldout:room_of
 house3d_heights:move_heights
-house3d_store:write
 licence_homes:machine_id
 maps_store:crop_png
 maps_store:decode_png_to_rgba
@@ -354,6 +353,7 @@ resolver:status_private_ble
 resolver:status_registry
 resolver:system_irks_file
 resolver:system_irks_scan
+safe_store:notice
 sensor:ha_version
 sensor:room_reason
 sensor:room_reason_hold

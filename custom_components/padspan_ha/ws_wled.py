@@ -1132,6 +1132,8 @@ def sanitize_teams(hass: HomeAssistant, teams: Any, stored: list | None = None) 
         if not isinstance(t, dict):
             return "each team must be an object"
         leader = str(t.get("leader") or "")
+        if not isinstance(t.get("followers") or [], list) or not isinstance(t.get("incomplete") or [], list):
+            return "a team's followers must be a list"
         followers = [str(f) for f in (t.get("followers") or []) if f]
         group = t.get("group")
         if t.get("mode", "mirror") not in TEAM_MODES:
@@ -1157,8 +1159,8 @@ def sanitize_teams(hass: HomeAssistant, teams: Any, stored: list | None = None) 
                     "leader": leader, "followers": followers,
                     # Each member's sync settings before the team — what
                     # break-up puts back (only the send/recv blocks).
-                    "prior": {str(d): {k: v for k, v in (p or {}).items() if k in ("send", "recv")}
-                              for d, p in prior.items() if str(d) in (leader, *followers)},
+                    "prior": {str(d): {k: v for k, v in p.items() if k in ("send", "recv")}
+                              for d, p in prior.items() if isinstance(p, dict) and str(d) in (leader, *followers)},
                     "incomplete": [str(d) for d in (t.get("incomplete") or []) if str(d) in (leader, *followers)]})
     return out
 

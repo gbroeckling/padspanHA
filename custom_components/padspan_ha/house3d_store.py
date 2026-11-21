@@ -39,7 +39,6 @@ from homeassistant.util import dt as dt_util
 
 from .const import DATA_HOUSE3D, DATA_SETTINGS, DOMAIN, HOUSE3D_STORE_KEY
 from .safe_store import async_load_readable, wrap_store
-from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -179,20 +178,12 @@ class House3dStore:
         return self.data
 
     async def async_write(self, new: dict[str, Any]) -> bool:
-        """Write `new` as the whole file and read it back: written only if the
-        file then holds exactly `new`. Home Assistant's Store logs a failed
-        write and returns normally, and SafeStore's read-back then finds the
-        old file, so only the comparison tells (as ws_backup._auto_backup
-        does). Memory becomes `new` only then; on a failure it is unchanged."""
+        """Write `new` as the whole file: written only if the file then holds
+        exactly `new`. Home Assistant's Store logs a failed write and returns
+        normally, so only a comparison tells: SafeStore reads the file back
+        and compares it with what it wrote (as ws_backup._auto_backup does).
+        Memory becomes `new` only then; on a failure it is unchanged."""
         if not await self.store.async_save(new):
-            return False
-        try:
-            back = await self._raw_store.async_load()
-        except Exception:  # noqa: BLE001
-            _quiet_error("house3d_store:write")
-            back = None
-        if back != new:
-            _LOGGER.error("PadSpan save VERIFICATION FAILED for house3d: the file does not hold what was written")
             return False
         self.data = new
         return True

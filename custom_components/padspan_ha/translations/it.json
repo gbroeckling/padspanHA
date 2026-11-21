@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan non ha potuto confermare un salvataggio ({store})",
+      "description": "PadSpan ha salvato i suoi dati ({store}), ma il file sul disco non contiene ciò che è stato salvato, oppure non è stato possibile rileggerlo. Le ultime modifiche potrebbero essere solo in memoria e andrebbero perse al riavvio di Home Assistant. Controlla che il disco di Home Assistant non sia pieno o in sola lettura e cerca l'errore nel registro di Home Assistant. Questo avviso scompare da solo la prossima volta che un salvataggio viene confermato."
+    }
   }
 }
