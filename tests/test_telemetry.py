@@ -1913,7 +1913,7 @@ def test_the_heard_question_is_wired_the_same_everywhere():
         got = re.search(r"_HEARD_WORDS = \(([^)]*)\)", src).group(1)
         assert tuple(re.findall(r'"([a-z_]+)"', got)) == T.HEARD_WORDS
     readme = root / "README.md"
-    if readme.exists():
+    if readme.exists() and not readme.read_text(encoding="utf-8").startswith("# PadSpan Bright"):
         assert "`heard_from`: where you heard about PadSpan" in readme.read_text(encoding="utf-8")
 
 

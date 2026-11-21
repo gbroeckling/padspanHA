@@ -24,6 +24,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from custom_components.padspan_ha import ai_wizard as W
+from custom_components.padspan_ha import licence as L
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_settings as WS
 from custom_components.padspan_ha.const import DATA_FABRIC, DATA_MAPS, DATA_SETTINGS, DOMAIN, OUTSIDE_FLOOR_ID
@@ -224,7 +225,8 @@ def _stuck_house(**maps_kw):
     return h
 
 
-def test_facts_read_the_stores():
+def test_facts_read_the_stores(monkeypatch):
+    monkeypatch.setattr(L, "edition", lambda: "full")   # Bright builds show no presence: these are the full edition's
     h = _stuck_house()
     f = W.facts(h, now=_NOW)
     assert f["indoor_plans"] == 1 and f["rooms"] is False and f["room_bounds"] is False
@@ -349,7 +351,8 @@ def test_setup_wide_marks_never_make_a_set_up_house_report_the_helper():
     assert W.helper_used({"offered": True}) and not W.helper_used({"struggled": True, "seen": {"scale": "x"}, "receivers_placed": {}})
 
 
-def test_env_mapping_only_where_it_applies():
+def test_env_mapping_only_where_it_applies(monkeypatch):
+    monkeypatch.setattr(L, "edition", lambda: "full")   # Bright builds show no presence: these are the full edition's
     assert W.report_env(_stuck_house(), _NOW)["stuck"] == "plan_no_rooms"
     h = _report_house()                              # rooms, no receivers on a plan, 2 calibration points
     assert W.report_env(h, _NOW)["stuck"] == "rooms_no_receivers"
@@ -534,6 +537,8 @@ def test_the_report_reads_setup_through_the_ported_checks():
 
 def test_the_summary_s_words_are_the_integration_s_and_it_splits_the_stuck_by_day():
     import importlib.util
+    if not (_ROOT / "server" / "telemetry_summary.py").is_file():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
     spec = importlib.util.spec_from_file_location("telemetry_summary", _ROOT / "server" / "telemetry_summary.py")
     S = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(S)

@@ -390,5 +390,7 @@ def test_a_report_too_full_gives_up_these_counts_first(monkeypatch):
 
 def test_the_readme_lists_the_section():
     readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    if readme.startswith("# PadSpan Bright"):
+        pytest.skip("the Bright derivation has its own README")
     assert "also in `health`, `quiet_errors`:" in readme and "Never the error's text" in readme
     assert "`hw` / `perf` / `runs` / `quiet_errors` that is not on their fixed lists" in readme
