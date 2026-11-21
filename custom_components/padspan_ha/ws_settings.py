@@ -31,6 +31,13 @@ from .const import (
 from .bluetooth_live import get_bluetooth_live
 from .ws_common import require_admin_if_enhanced, _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache, _padspan_pro_active
 from .quiet_errors import note as _quiet_error
+from .util import address_refusal
+from .ws_common import id_text, name_text, shallow, SETTINGS_LIST_MAX
+
+# A setting's list or map of ids, addresses or rules: far longer than a home's
+# (its longest holds 14), never nested past ws_common.DEPTH_MAX.
+_LIST = vol.All(list, shallow, vol.Length(max=SETTINGS_LIST_MAX))
+_MAP = vol.All(dict, shallow, vol.Length(max=SETTINGS_LIST_MAX))
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -557,6 +564,19 @@ def _text_map(raw: Any) -> dict[str, str]:
             if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip()}
 
 
+def _pro_after(hass: HomeAssistant, st: Any, msg: dict[str, Any]) -> bool:
+    """Pro at the tier this message leaves: a Pro-only key sent beside a tier
+    override is judged by that override, not by the one stored before it, so
+    the same message gives the same result every time it is sent."""
+    if "license_tier_override" not in msg:
+        return _padspan_pro_active(hass)
+    from .licence import effective_tier, tier_at_least  # noqa: PLC0415
+    from .ws_common import _pro_expiry_state  # noqa: PLC0415
+    after = {**((getattr(st, "data", None) or {})),
+             "license_tier_override": str(msg["license_tier_override"] or "").strip().lower()}
+    return tier_at_least(effective_tier(after, bool(_pro_expiry_state(hass)["active"])), "pro")
+
+
 def _companion_url(value: Any) -> str | None:
     """The ESPresense Companion's address as stored: "" (none), or an http or
     https URL without its last slash. None for anything else."""
@@ -630,11 +650,12 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("fabric_origin_lat"): vol.Any(vol.Coerce(float), None),
         vol.Optional("fabric_origin_lon"): vol.Any(vol.Coerce(float), None),
         vol.Optional("fabric_bearing_deg"): vol.Coerce(float),
-        vol.Optional("hidden_map_ids"): list,
-        vol.Optional("locate_self_key"): str,
-        vol.Optional("followed_addrs"): list,
+        vol.Optional("hidden_map_ids"): _LIST,
+        vol.Optional("locate_self_key"): id_text,
+        vol.Optional("followed_addrs"): _LIST,
         vol.Optional("health_reminder_enabled"): bool,
-        vol.Optional("health_reminder_last_ts"): vol.Any(float, int, None),
+        # A time in seconds since 1970 (the panel sends Date.now()/1000), before the year 2286.
+        vol.Optional("health_reminder_last_ts"): vol.All(vol.Any(float, int, None), vol.Any(None, vol.Range(min=0, max=1e10))),
         vol.Optional("maps_iso_floor_gap"): vol.Coerce(int),
         vol.Optional("maps_iso_horiz_gap"): vol.Coerce(int),
         vol.Optional("maps_iso_focus"): vol.Any(int, None),
@@ -642,11 +663,11 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("overview_iso_horiz_gap"): vol.Coerce(int),
         vol.Optional("overview_iso_focus"): vol.Any(int, None),
         vol.Optional("overview_iso_zoom"): vol.Coerce(float),
-        vol.Optional("lights_hidden"): list,
+        vol.Optional("lights_hidden"): _LIST,
         vol.Optional("atlas_emergency_button"): bool,
         vol.Optional("atlas_live_colours"): bool,
         vol.Optional("overview_atlas"): bool,
-        vol.Optional("emergency_entities"): list,             # emergency_test.py — [] = find them
+        vol.Optional("emergency_entities"): _LIST,             # emergency_test.py — [] = find them
         vol.Optional("atlas_alert_pulse"): bool,
         vol.Optional("atlas_heatmap_enabled"): bool,
         vol.Optional("atlas_weather_enabled"): bool,
@@ -679,9 +700,9 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_showcase"): bool,
         vol.Optional("atlas_3d_look"): vol.Any(str, None),
         vol.Optional("atlas_3d_home_idle_s"): vol.Any(int, float, str, None),
-        vol.Optional("atlas_3d_carries"): vol.Any(dict, None),
-        vol.Optional("atlas_3d_director"): vol.Any(list, None),
-        vol.Optional("atlas_3d_director_people"): vol.Any(list, None),
+        vol.Optional("atlas_3d_carries"): vol.Any(_MAP, None),
+        vol.Optional("atlas_3d_director"): vol.Any(_LIST, None),
+        vol.Optional("atlas_3d_director_people"): vol.Any(_LIST, None),
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -695,7 +716,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_automorph_subtlety"): vol.Coerce(int),
         vol.Optional("lights_showcase_theme"): str,
         vol.Optional("lights_showcase_presets"): list,
-        vol.Optional("whole_house_presets"): list,
+        vol.Optional("whole_house_presets"): _LIST,
         vol.Optional("atlas_layout_v2"): bool,
         vol.Optional("traceback_house_focus"): vol.Coerce(int),
         vol.Optional("vacation_mode_enabled"): bool,
@@ -707,12 +728,12 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("vacation_mode_bedtime"): str,
         vol.Optional("vacation_mode_max_on_min"): vol.Coerce(int),
         vol.Optional("vacation_mode_max_lights"): vol.Coerce(int),
-        vol.Optional("vacation_mode_anchors"): list,
+        vol.Optional("vacation_mode_anchors"): _LIST,
         vol.Optional("vacation_mode_source"): str,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
-        vol.Optional("advanced_extra_tabs"): list,
+        vol.Optional("advanced_extra_tabs"): _LIST,
         vol.Optional("ha_entity_tracker_enabled"): bool,
         vol.Optional("ha_entity_area_enabled"): bool,
         vol.Optional("ha_entity_distance_enabled"): bool,
@@ -721,9 +742,9 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("subzones_enabled"): bool,
         vol.Optional("mqtt_publish_enabled"): bool,
         vol.Optional("espresense_mqtt_enabled"): bool,
-        vol.Optional("espresense_topic_prefix"): str,
+        vol.Optional("espresense_topic_prefix"): name_text,
         vol.Optional("tasmota_ble_enabled"): bool,
-        vol.Optional("espresense_room_map"): dict,
+        vol.Optional("espresense_room_map"): _MAP,
         vol.Optional("espresense_companion_url"): str,
         vol.Optional("aggressive_ble_reseed"): bool,
         vol.Optional("presence_poll_interval_s"): vol.Coerce(int),
@@ -740,26 +761,26 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("theme_palette"): vol.Any(str, None),
         vol.Optional("theme_follow_sun"): bool,
         vol.Optional("ui_skin"): str,
-        vol.Optional("light_shapes"): dict,
-        vol.Optional("light_type_overrides"): dict,
-        vol.Optional("door_opener_ids"): list,
-        vol.Optional("door_composites"): list,
+        vol.Optional("light_shapes"): _MAP,
+        vol.Optional("light_type_overrides"): _MAP,
+        vol.Optional("door_opener_ids"): _LIST,
+        vol.Optional("door_composites"): _LIST,
         vol.Optional("beacon_auto_calibrate"): bool,
         vol.Optional("overview_persistent_pins"): bool,
         vol.Optional("overview_show_walls"): bool,
         vol.Optional("overview_show_outdoor"): bool,
         vol.Optional("overview_show_trails"): bool,
         vol.Optional("object_history_days"): vol.Coerce(int),
-        vol.Optional("scanner_offsets"): dict,
-        vol.Optional("excluded_scanners"): list,
+        vol.Optional("scanner_offsets"): _MAP,
+        vol.Optional("excluded_scanners"): _LIST,
         vol.Optional("scanner_min_rssi"): vol.Any(dict, None),
-        vol.Optional("excluded_objects"): list,
-        vol.Optional("ingest_rules"): list,
+        vol.Optional("excluded_objects"): _LIST,
+        vol.Optional("ingest_rules"): _LIST,
         vol.Optional("overview_2d_mode"): bool,
         vol.Optional("positioning_algorithm"): str,
         vol.Optional("beacon_profiling_enabled"): bool,
-        vol.Optional("beacon_tune_disabled"): list,
-        vol.Optional("beacon_group_overrides"): dict,
+        vol.Optional("beacon_tune_disabled"): _LIST,
+        vol.Optional("beacon_group_overrides"): _MAP,
         vol.Optional("walk_to_identify_enabled"): bool,
         vol.Optional("radio_map_enabled"): bool,
         vol.Optional("distortion_map_enabled"): bool,
@@ -783,19 +804,19 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("ble_max_age_s"): vol.Coerce(int),
         vol.Optional("occupancy_hybrid_enabled"): bool,
         vol.Optional("occupancy_cluster_threshold"): vol.Coerce(float),
-        vol.Optional("distance_stationary_devices"): list,
+        vol.Optional("distance_stationary_devices"): _LIST,
         vol.Optional("onboarding_completed"): bool,
         # The Overview's accuracy tips hidden (setup_checks.TIPS), or "all": the card off.
-        vol.Optional("accuracy_tips_hidden"): list,
+        vol.Optional("accuracy_tips_hidden"): _LIST,
         # The guided Setup's place (setup_checks.clean_setup_progress).
-        vol.Optional("setup_progress"): dict,
+        vol.Optional("setup_progress"): _MAP,
         # Radio map visualization parameters (clamped in handler below)
         vol.Optional("heatmap_gain"): vol.Coerce(int),        # -20 to +20 dB
         vol.Optional("heatmap_contrast"): vol.Coerce(int),    # -15 to +15
         vol.Optional("distortion_intensity"): vol.Coerce(int),  # 0-100 %
         vol.Optional("heatmap_source"): vol.Coerce(int),      # 0-100 % (calibration vs adaptive blend)
         vol.Optional("auto_offset_mode"): str,                # "off"|"partial"|"full"
-        vol.Optional("padspan_automations"): list,              # [{trigger, device_key, device_label, action, entity_id, enabled}]
+        vol.Optional("padspan_automations"): _LIST,              # [{trigger, device_key, device_label, action, entity_id, enabled}]
     }
 )
 @websocket_api.async_response
@@ -841,9 +862,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         # that omit it (e.g. the lights panel hiding a light) must not flip
         # the integration back to "sample" mode as a side effect.
         if "data_mode" in msg:
-            mode = (msg.get("data_mode") or "sample").strip().lower()
+            # Only the two modes: an unknown word used to switch the house to
+            # the sample house without a word.
+            mode = str(msg.get("data_mode") or "").strip().lower()
             if mode not in ("sample", "live"):
-                mode = "sample"
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The data mode is "live" (your own house) or "sample" (the sample house)')
+                return
             payload["data_mode"] = mode
             # Someone chose: a new install's own switch to Live
             # (onboarding.py, live_first) never overrides that.
@@ -987,7 +1012,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # a free install can't get room-graph wayfinding by editing the
             # frontend, only by not persisting who "you" are.
             _lsk = str(msg.get("locate_self_key") or "")
-            payload["locate_self_key"] = _lsk if _padspan_pro_active(hass) else ""
+            payload["locate_self_key"] = _lsk if _pro_after(hass, st, msg) else ""
         if "followed_addrs" in msg:
             _new_followed = [x.upper() for x in _texts(msg["followed_addrs"])]
             payload["followed_addrs"] = _new_followed
@@ -1163,7 +1188,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # "off" = manual offsets only, "partial" = auto-adjust weak scanners,
             # "full" = auto-adjust all scanners to minimize prediction error
             mode = str(msg["auto_offset_mode"]).strip().lower()
-            payload["auto_offset_mode"] = mode if mode in ("off", "partial", "full") else "partial"
+            if mode not in ("off", "partial", "full"):
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The automatic offset mode is "off", "partial" or "full"')
+                return
+            payload["auto_offset_mode"] = mode
         if "scanner_offsets" in msg:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
@@ -1466,12 +1495,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # (licence.effective_tier), so it is not a way past the licence.
             from .licence import TIERS  # noqa: PLC0415
             _ov = str(msg["license_tier_override"] or "").strip().lower()
-            payload["license_tier_override"] = _ov if _ov in TIERS else ""
+            if _ov and _ov not in TIERS:
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The tier to look at is "free", "bright" or "pro", or empty for no override')
+                return
+            payload["license_tier_override"] = _ov
         if "forensics_enabled" in msg:
             # Enabling requires an activated PadSpan Pro licence key (set via
             # padspan_ha/forensics_license_activate).  Disabling is always allowed.
             _want = bool(msg["forensics_enabled"])
-            if _want and not _padspan_pro_active(hass):
+            if _want and not _pro_after(hass, st, msg):
                 _want = False      # same gate as everywhere else: expiry included
             payload["forensics_enabled"] = _want
         if "forensics_retention_days" in msg:
@@ -1488,7 +1521,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["ble_reseed_interval_s"] = max(1, min(60, int(msg["ble_reseed_interval_s"])))
         if "positioning_algorithm" in msg:
             algo = str(msg["positioning_algorithm"]).strip().lower()
-            payload["positioning_algorithm"] = algo if algo in ("knn", "rf") else "knn"
+            if algo not in ("knn", "rf"):
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The positioning method is "knn" (matched to calibration points) '
+                                      'or "rf" (the learned model)')
+                return
+            payload["positioning_algorithm"] = algo
         if "beacon_tune_disabled" in msg:
             payload["beacon_tune_disabled"] = _texts(msg["beacon_tune_disabled"])
         if "beacon_group_overrides" in msg:
@@ -1519,6 +1557,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if _url is None:
                 connection.send_error(msg["id"], "invalid_format",
                                       "The ESPresense Companion URL must start with http:// or https://")
+                return
+            # This machine itself or a link-local address, said now; the
+            # import judges again on what the name resolves to.
+            _why = address_refusal(urlsplit(_url).hostname or "") if _url else None
+            if _why:
+                connection.send_error(msg["id"], "address_refused",
+                                      f"PadSpan does not fetch from that address: it is {_why}. Give ESPresense "
+                                      "Companion's own address on your home network, for example http://192.168.1.50:8267.")
                 return
             payload["espresense_companion_url"] = _url
         if "espresense_topic_prefix" in msg:

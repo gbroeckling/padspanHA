@@ -52,6 +52,7 @@ from typing import Any
 from .const import DOMAIN
 from .quiet_errors import note as _quiet_error
 from .safe_store import async_load_readable
+from .util import address_url, async_check_address
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -602,10 +603,19 @@ async def camera_image(hass, entity_id: str) -> bytes:
 
 
 async def fetch_url_json(hass, url: str) -> Any:
-    """GET a Valetudo map from the robot's REST API (the address the user gave)."""
+    """GET a Valetudo map from the robot's REST API (the address the user gave).
+
+    Never this machine itself nor a link-local address (util.async_check_address,
+    on every address the name resolves to: AddressRefused), and a redirect is
+    not followed: it could lead to either."""
     from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
     import aiohttp  # noqa: PLC0415
-    async with async_get_clientsession(hass).get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+    await async_check_address(hass, url, "the robot")
+    async with async_get_clientsession(hass).get(url, timeout=aiohttp.ClientTimeout(total=15),
+                                                 allow_redirects=False) as resp:
+        if 300 <= resp.status < 400:
+            raise VacuumImportError(f"The robot's address sent PadSpan on to another address (HTTP {resp.status}). "
+                                    "Give the robot's own address instead.")
         if resp.status != 200:
             raise VacuumImportError(f"The robot answered HTTP {resp.status}")
         raw = await resp.content.read(MAX_JSON_BYTES + 1)
@@ -623,11 +633,12 @@ def _json_answer(raw: bytes) -> Any:
 
 
 def valetudo_map_url(url: str) -> str:
-    """A robot's address (or its map URL) as the map URL. http(s) only."""
+    """A robot's address (or its map URL) as the map URL. http(s) only; a
+    query or fragment in it is dropped, so it cannot take the map's path."""
     u = str(url or "").strip().rstrip("/")
     if not u.lower().startswith(("http://", "https://")):
         raise VacuumImportError("The robot's address must start with http:// or https://")
-    return u if u.endswith("/api/v2/robot/state/map") else u + "/api/v2/robot/state/map"
+    return address_url(u, "/api/v2/robot/state/map")
 
 
 def live_position(hass) -> dict | None:

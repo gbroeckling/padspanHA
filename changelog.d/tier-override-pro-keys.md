@@ -1,0 +1,4 @@
+# A tier override and a Pro feature in one save
+
+### Fixed
+- **A Pro feature saved together with a tier override follows that override.** The tier override (Settings, development view: "Look at this install as tier") lets a PadSpan Pro install look at what a free or Bright install sees. A single save that set the override and a Pro-only setting (Forensics recording, or who "you" are for Locate) judged the Pro setting by the tier from before the save, so the same save sent twice gave two results: lowering the tier and turning Forensics on in one save turned it on, and the next identical save turned it off. The Pro setting is now judged by the tier the save leaves, so it stays off at a lowered tier and works at once when the override is lifted. An override still never raises the tier past your licence.

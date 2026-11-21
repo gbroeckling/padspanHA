@@ -31,6 +31,8 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN
 from . import vacuum_import as vi
 from .quiet_errors import note as _quiet_error
+from .util import AddressRefused
+from .ws_common import id_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,6 +121,9 @@ async def ws_vacuum_import_preview(hass: HomeAssistant, connection, msg) -> None
             return
     except vi.VacuumImportError as exc:
         connection.send_error(msg["id"], "parse_failed", str(exc))
+        return
+    except AddressRefused as exc:
+        connection.send_error(msg["id"], "address_refused", str(exc))
         return
     except Exception as exc:  # noqa: BLE001 — a robot that cannot be reached says so
         _quiet_error("ws_vacuum:import_preview")
@@ -221,9 +226,9 @@ async def ws_vacuum_status(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({
     "type": "padspan_ha/vacuum_link_set",
     vol.Optional("enabled"): bool,
-    vol.Optional("vacuum_entity"): str,
+    vol.Optional("vacuum_entity"): id_text,
     vol.Optional("walker_enabled"): bool,
-    vol.Optional("walker_tag"): str,
+    vol.Optional("walker_tag"): id_text,
     vol.Optional("unlink", default=False): bool,
 })
 @websocket_api.require_admin

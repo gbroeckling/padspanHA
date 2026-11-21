@@ -186,7 +186,7 @@ def test_the_hidden_tips_setting_keeps_only_known_ids():
     import inspect
     from custom_components.padspan_ha import ws_settings
     src = inspect.getsource(ws_settings)
-    assert 'vol.Optional("accuracy_tips_hidden"): list' in src
+    assert 'vol.Optional("accuracy_tips_hidden"): _LIST' in src   # a list, of a size a home has
     assert 'str(x) in _TIPS or str(x) == "all"' in src
     assert C.TIPS == T.TIP_IDS, "the tips and the report's names for them are one list"
 

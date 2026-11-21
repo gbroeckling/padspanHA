@@ -333,6 +333,10 @@ SEVERAL_KEYS: list[tuple[str, dict[str, Any], str, dict[str, Any]]] = [
 
 # ── Values a key is not meant to take, by how the schema reads it ────────────
 def _kind(validator: Any) -> str:
+    if isinstance(validator, vol.All):
+        return _kind(validator.validators[0])     # what it takes; the rest only limit it
+    if getattr(validator, "padspan_expects", None) == "text":
+        return "str"                              # ws_common.name_text and its kin: text, limited
     if isinstance(validator, vol.Coerce):
         return f"number ({validator.type.__name__})"
     if isinstance(validator, vol.Any):

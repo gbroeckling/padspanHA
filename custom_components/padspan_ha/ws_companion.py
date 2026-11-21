@@ -93,7 +93,7 @@ def mobile_app_notify_service(hass: HomeAssistant, device: Any) -> str | None:
     return None
 from .private_ble_resolver import PrivateBLEResolver, get_resolver as _get_ble_resolver
 from .util import ha_device_config_entries, ha_devices
-from .ws_common import admin_if_enhanced_security, _get_settings, _is_rpa_addr
+from .ws_common import admin_if_enhanced_security, _get_settings, _is_rpa_addr, id_text, name_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -718,9 +718,9 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/companion_follow",
-    vol.Required("ibeacon_key"): str,
-    vol.Required("device_name"): str,
-    vol.Optional("entity_id"): str,
+    vol.Required("ibeacon_key"): id_text,
+    vol.Required("device_name"): name_text,
+    vol.Optional("entity_id"): id_text,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security

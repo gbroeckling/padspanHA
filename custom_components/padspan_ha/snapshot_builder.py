@@ -2760,8 +2760,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         if _cache is None:
             from homeassistant.helpers.storage import Store as _Store
             _hist_store = _dom.setdefault("_obj_hist_store", _Store(hass, 1, OBJECT_HISTORY_STORE_KEY))
-            _loaded = await _hist_store.async_load()
-            _cache = _loaded if isinstance(_loaded, dict) else {}
+            _cache = await async_load_object_history(_hist_store)
             try:
                 await hass.async_add_executor_job(_reenrich_history, _cache)
             except Exception as _re_err:  # noqa: BLE001 - old names until heard again, nothing worse
@@ -3409,6 +3408,15 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
 
     _phase_done("enrich")
     return snapshot
+
+
+async def async_load_object_history(store: Any) -> dict[str, dict[str, Any]]:
+    """The object history on disk; {} with no file, and with a file of the
+    wrong kind, which is set aside and said (safe_store) rather than written
+    over by the next save."""
+    from .safe_store import async_load_readable  # noqa: PLC0415
+    loaded = await async_load_readable(store, lambda d: isinstance(d, dict))
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys: set[str],

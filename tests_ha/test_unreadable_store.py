@@ -48,6 +48,44 @@ STORES = {
 }
 
 
+async def _object_history(hass):
+    from homeassistant.helpers.storage import Store  # noqa: PLC0415
+    from custom_components.padspan_ha.snapshot_builder import async_load_object_history  # noqa: PLC0415
+    await async_load_object_history(Store(hass, 1, "padspan_ha.object_history"))
+
+
+async def _perf_runs(hass):
+    from custom_components.padspan_ha.perf_sampler import RunLog  # noqa: PLC0415
+    await RunLog(hass).async_begin(False)
+
+
+async def _usage_counters(hass):
+    from custom_components.padspan_ha import telemetry  # noqa: PLC0415
+    hass.data.setdefault("padspan_ha", {}).pop("_telemetry_counters_restored", None)
+    await telemetry.async_restore_counters(hass)
+
+
+# Stores read by a function rather than a store class: store key -> (how it
+# loads, data of the wrong kind). The live snapshot reads the object
+# history, the opt-in report its run log and its usage counters.
+LOADERS = {
+    "padspan_ha.object_history": (_object_history, []),
+    "padspan_ha.perf_runs": (_perf_runs, []),
+    "padspan_ha.telemetry_counters": (_usage_counters, []),
+}
+
+
+async def _load(hass, key):
+    if key in LOADERS:
+        await LOADERS[key][0](hass)
+    elif key in STORES:
+        module, cls, load, _wrong = STORES[key]
+        store = getattr(import_module(f"custom_components.padspan_ha.{module}"), cls)(hass)
+        await getattr(store, load)()
+    else:
+        await _load_backups(hass)
+
+
 @pytest.fixture
 def hass_storage():
     """Real files: the stores read and write .storage on disk."""
@@ -59,19 +97,15 @@ async def _load_backups(hass):
     return await _load_backups(hass)
 
 
-@pytest.mark.parametrize("key", [*sorted(STORES), "padspan_ha.backups"])
+@pytest.mark.parametrize("key", [*sorted(STORES), *sorted(LOADERS), "padspan_ha.backups"])
 async def test_a_file_of_the_wrong_kind_is_kept_and_said(hass, key, caplog):
     storage = Path(hass.config.path(".storage"))
     storage.mkdir(parents=True, exist_ok=True)
-    module, cls, load, wrong = STORES.get(key, (None, None, None, []))
+    wrong = STORES[key][3] if key in STORES else LOADERS[key][1] if key in LOADERS else []
     body = json.dumps({"version": 1, "minor_version": 1, "key": key, "data": wrong})
     (storage / key).write_text(body, encoding="utf-8")
 
-    if module is None:
-        await _load_backups(hass)
-    else:
-        store = getattr(import_module(f"custom_components.padspan_ha.{module}"), cls)(hass)
-        await getattr(store, load)()
+    await _load(hass, key)
     hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)     # every delayed save written
     await hass.async_block_till_done()
 
@@ -94,7 +128,7 @@ async def test_a_file_it_reads_is_left_alone(hass, caplog):
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
-@pytest.mark.parametrize("key", [*sorted(STORES), "padspan_ha.backups"])
+@pytest.mark.parametrize("key", [*sorted(STORES), *sorted(LOADERS), "padspan_ha.backups"])
 @pytest.mark.parametrize("body", ["[]", "[1, 2]", "5", '{"version": 1, "key": "x"}'],
                          ids=["empty list", "list", "number", "no data"])
 async def test_json_that_is_no_store_file_is_kept_and_said(hass, key, body, caplog):
@@ -104,15 +138,11 @@ async def test_json_that_is_no_store_file_is_kept_and_said(hass, key, body, capl
     is, and the store starts empty."""
     storage = Path(hass.config.path(".storage"))
     storage.mkdir(parents=True, exist_ok=True)
-    module, cls, load, _wrong = STORES.get(key, (None, None, None, None))
     (storage / key).write_text(body, encoding="utf-8")
 
-    if module is None:
-        await _load_backups(hass)
-    else:
-        store = getattr(import_module(f"custom_components.padspan_ha.{module}"), cls)(hass)
-        await getattr(store, load)()
-        await getattr(store, load)()                             # a second load finds no file, says nothing
+    await _load(hass, key)
+    if key != "padspan_ha.backups":
+        await _load(hass, key)                                   # a second load finds no file, says nothing
     hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
     await hass.async_block_till_done()
 

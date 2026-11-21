@@ -1722,7 +1722,9 @@ async def async_restore_counters(hass: HomeAssistant) -> None:
         return
     dom["_telemetry_counters_restored"] = True
     try:
-        saved = await _counters_store(hass).async_load()
+        # A file of the wrong kind is set aside and said, not written over below.
+        from .safe_store import async_load_readable  # noqa: PLC0415
+        saved = await async_load_readable(_counters_store(hass), lambda d: isinstance(d, dict))
     except Exception as err:  # noqa: BLE001
         _quiet_error("telemetry:restore_counters")
         _LOGGER.debug("Telemetry counters not read back: %s", err)

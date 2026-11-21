@@ -5,8 +5,11 @@
 """Small helpers shared across the integration."""
 from __future__ import annotations
 
+import ipaddress
+import socket
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 
 def ha_devices(dev_reg: Any) -> list[Any]:
@@ -51,3 +54,87 @@ def ha_device_config_entries(dev: Any) -> set[str]:
         return {cid}
     return set(getattr(dev, "config_entries", None) or ())
 
+
+# ── addresses PadSpan fetches for the owner ─────────────────────────────────
+# A robot vacuum (Valetudo) and the ESPresense Companion live on the home's
+# network, so private addresses (10/8, 172.16/12, 192.168/16, fd00::/8) are
+# what an owner gives and stay allowed. Never fetched: this machine itself
+# (loopback, "localhost"), link-local (169.254/16, fe80::/10, where a cloud
+# server's metadata answers), multicast and the empty address, judged on
+# every address the host name resolves to.
+
+class AddressRefused(ValueError):
+    """An address PadSpan will not fetch, or cannot find; the text is for the owner."""
+
+
+def _refused_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str | None:
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    if ip.is_loopback:
+        return "this Home Assistant machine itself"
+    if ip.is_link_local:
+        return "a link-local address, not a device's address on your home network"
+    if ip.is_multicast:
+        return "a multicast address, not one device"
+    if ip.is_unspecified:
+        return "the empty address"
+    return None
+
+
+def address_url(base: str, path: str) -> str:
+    """An http(s) address the owner gave, with `path` as its path.
+
+    A query or fragment in what they gave is dropped, so it cannot swallow
+    the path ("http://robot/?x" + path would fetch http://robot/). A `base`
+    whose path already ends with `path` keeps it."""
+    parts = urlsplit(str(base or "").strip())
+    p = parts.path.rstrip("/")
+    if not p.endswith(path):
+        p += path
+    return urlunsplit((parts.scheme, parts.netloc, p, "", ""))
+
+
+def address_refusal(host: str) -> str | None:
+    """Why `host` is never fetched, from the name alone (no lookup), or None."""
+    h = (host or "").strip().lower().rstrip(".")
+    if h == "localhost" or h.endswith(".localhost"):
+        return "this Home Assistant machine itself"
+    try:
+        return _refused_ip(ipaddress.ip_address(h.split("%")[0]))
+    except ValueError:
+        return None
+
+
+async def async_check_address(hass: Any, url: str, what: str) -> None:
+    """Raise AddressRefused, in words for the owner, unless `url` is an http or
+    https address PadSpan may fetch. `what` names the device ("the robot")."""
+    example = f"Give {what}'s own address on your home network, for example http://192.168.1.50."
+    try:
+        parts = urlsplit(str(url or "").strip())
+        host, port = parts.hostname, parts.port
+    except ValueError as exc:
+        raise AddressRefused(f"That is not a web address. {example}") from exc
+    if parts.scheme not in ("http", "https") or not host:
+        raise AddressRefused(f"The address must start with http:// or https://. {example}")
+    why = address_refusal(host)
+    if why:
+        raise AddressRefused(f"PadSpan does not fetch from {host}: it is {why}. {example}")
+    try:
+        ipaddress.ip_address(host.split("%")[0])
+        return  # a number, judged above
+    except ValueError:
+        pass
+    try:
+        infos = await hass.loop.getaddrinfo(host, port or (443 if parts.scheme == "https" else 80),
+                                            type=socket.SOCK_STREAM)
+    except (OSError, UnicodeError) as exc:
+        raise AddressRefused(f"PadSpan could not find {host} on your network. Check the address, "
+                             f"or use its number, for example http://192.168.1.50.") from exc
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(str(info[4][0]).split("%")[0])
+        except ValueError:
+            continue
+        why = _refused_ip(ip)
+        if why:
+            raise AddressRefused(f"PadSpan does not fetch from {host}: it leads to {ip}, {why}. {example}")

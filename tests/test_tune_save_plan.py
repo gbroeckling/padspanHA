@@ -245,4 +245,8 @@ def test_scanner_position_save_takes_whole_numbers():
     i = src.index('"type": "padspan_ha/fabric_scanner_position_set"')
     block = src[i:src.index("@websocket_api.async_response", i)]
     for f in ("x_m", "y_m", "z_m"):
-        assert re.search(rf'"{f}"\)?: vol\.Coerce\(float\)', block), f
+        assert re.search(rf'"{f}"\)?: (vol\.Coerce\(float\)|metres)', block), f
+    import voluptuous as vol
+    for key, validator in ws_fabric.ws_fabric_scanner_position_set.ws_schema.items():
+        if str(getattr(key, "schema", key)) in ("x_m", "y_m", "z_m"):
+            assert vol.Schema(validator)(2) == 2.0 and vol.Schema(validator)("2") == 2.0

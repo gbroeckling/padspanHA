@@ -1,0 +1,4 @@
+# Settings with a few choices refuse any other
+
+### Fixed
+- **A setting with a few fixed choices refuses a word it does not know.** The data mode (Live or Sample), the positioning method (matched to calibration points, or the learned model), the tier override for looking at a lower tier, and the automatic offset mode took any word, sent by a script or an automation calling PadSpan directly, and stored a fallback without saying so: an unknown data mode switched your house to the sample house, an unknown positioning method went back to calibration matching, and an unknown tier cleared the override. Now such a word is refused in words and the setting stays as it was. The panel sends only the known choices, so nothing changes on screen. The panel style still falls back to Classic for a word it does not know, so a bad value can never leave the panel on a style that does not load.

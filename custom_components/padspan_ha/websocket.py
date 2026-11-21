@@ -47,7 +47,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry
 
-from .ws_common import admin_if_enhanced_security
+from .ws_common import admin_if_enhanced_security, shallow, ROOMS_MAX
 from .const import (
     DOMAIN,
     VERSION,
@@ -663,7 +663,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/model_update",
         vol.Optional("floors"): list,  # accepted for schema compat; ignored — floors come from HA
-        vol.Optional("room_meta"): dict,
+        vol.Optional("room_meta"): vol.All(dict, shallow, vol.Length(max=ROOMS_MAX)),
     }
 )
 @websocket_api.async_response

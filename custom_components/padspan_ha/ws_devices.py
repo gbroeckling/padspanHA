@@ -22,8 +22,9 @@ from .const import (
     DEFAULT_FLOOR_ID,
     DATA_DEVICE_REGISTRY,
 )
-from .ws_common import admin_if_enhanced_security, _point_in_polygon
+from .ws_common import admin_if_enhanced_security, _point_in_polygon, id_text, name_text
 from .quiet_errors import note as _quiet_error
+from .util import AddressRefused, address_url, async_check_address
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,8 +103,8 @@ async def ws_device_registry_merge(hass: HomeAssistant, connection, msg) -> None
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_label_set",
-    vol.Required("padspan_id"): str,
-    vol.Required("label"): str,
+    vol.Required("padspan_id"): id_text,
+    vol.Required("label"): name_text,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -136,9 +137,9 @@ async def ws_device_registry_label_set(hass: HomeAssistant, connection, msg) -> 
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/device_registry_add_identity",
-    vol.Required("padspan_id"): str,
-    vol.Required("kind"): str,
-    vol.Required("value"): str,
+    vol.Required("padspan_id"): id_text,
+    vol.Required("kind"): id_text,
+    vol.Required("value"): id_text,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -206,10 +207,23 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
         return
 
     # ── Fetch config from Companion REST API ─────────────────────────────
-    api_url = f"{url}/api/state/config"
+    # Never this machine itself nor a link-local address, judged on what the
+    # name resolves to; a query in the stored address cannot take the path;
+    # a redirect is not followed (it could lead to either).
+    api_url = address_url(url, "/api/state/config")
+    try:
+        await async_check_address(hass, api_url, "ESPresense Companion")
+    except AddressRefused as exc:
+        connection.send_error(msg["id"], "address_refused", str(exc))
+        return
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=15), allow_redirects=False) as resp:
+                if 300 <= resp.status < 400:
+                    connection.send_error(msg["id"], "http_error",
+                                          f"ESPresense Companion's address sent PadSpan on to another address "
+                                          f"(HTTP {resp.status}). Give the Companion's own address instead.")
+                    return
                 if resp.status != 200:
                     connection.send_error(msg["id"], "http_error",
                                           f"Companion returned HTTP {resp.status} from {api_url}")

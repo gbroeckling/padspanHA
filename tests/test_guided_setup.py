@@ -75,7 +75,7 @@ def test_stored_progress_is_cleaned() -> None:
     assert c({"at": "<script>", "skipped": "scale", "done": 1}) == {"at": None, "skipped": [], "done": False}
     assert c("nonsense") == {"at": None, "skipped": [], "done": False}
     src = (_ROOT / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
-    assert 'vol.Optional("setup_progress"): dict' in src
+    assert 'vol.Optional("setup_progress"): _MAP' in src      # a dict, of a size a home has
     assert 'payload["setup_progress"] = clean_setup_progress(msg["setup_progress"])' in src
     # Like onboarding_completed: the panel writes it as anyone goes through setup.
     assert "setup_progress" in WS._EVERYONE_KEYS
