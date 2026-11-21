@@ -4003,6 +4003,9 @@ class PadSpanHaApp extends HTMLElement {
           b.className = "btn-help";
           b.title = title || "Help";
           b.textContent = "?";
+          // Which help it opens: the focus finds this button again when the
+          // help closes after the view was drawn again (views/dialog_keys.js).
+          b.setAttribute("data-help", key);
           b.addEventListener("click", (e)=>{ e.stopPropagation(); self._showHelp(key); });
           return b;
         },
