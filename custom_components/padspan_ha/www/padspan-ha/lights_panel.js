@@ -557,7 +557,7 @@ class PadSpanLightsApp extends HTMLElement {
       if(failed.length) lines.push(`Could not switch: ${names(failed)}`);
       if(lines.filter(Boolean).length) this._toast(lines.filter(Boolean).join("\n"), failed.length > 0);
     }catch(e){
-      this._toast("Emergency lighting: " + String((e && e.message) || e), true);
+      this._toast("Emergency lighting: " + this._errorText(e), true);
     }finally{
       this._emergBusy = false;
       const next = this._emergQueued;
@@ -871,7 +871,7 @@ class PadSpanLightsApp extends HTMLElement {
       onFloodReset: (eid)=>{
         this._ws({ type: "padspan_ha/flood_reset", entity_id: eid })
           .then(()=>this._render())
-          .catch((e)=>this._toast("Could not reset: " + String(e), true));
+          .catch((e)=>this._toast("Could not reset: " + this._errorText(e), true));
       },
     };
     // The room sheet stays live: _buildUI hands it each newer api and lights.
@@ -1145,7 +1145,7 @@ class PadSpanLightsApp extends HTMLElement {
         if (!this._hass) return false;
         let res = null;
         try { res = await this._ws({ type: "padspan_ha/settings_set", ...patch }); }
-        catch (e) { this._toast("Could not save the Vacation Mode option: " + String(e), true); return false; }
+        catch (e) { this._toast("Could not save the Vacation Mode option: " + this._errorText(e), true); return false; }
         if (res?.settings) this.state._vacationSettings = res.settings;
         return true;
       },
@@ -1153,7 +1153,7 @@ class PadSpanLightsApp extends HTMLElement {
       onVacationModeDisable: async () => {
         if (!this._hass) return false;
         try { await this._ws({ type: "padspan_ha/settings_set", vacation_mode_enabled: false }); }
-        catch (e) { this._toast("Could not disable Vacation Mode: " + String(e), true); return false; }
+        catch (e) { this._toast("Could not disable Vacation Mode: " + this._errorText(e), true); return false; }
         this.state._vacationModeEnabled = false;
         this._render();
         return true;
@@ -1161,7 +1161,7 @@ class PadSpanLightsApp extends HTMLElement {
       onVacationModeIntensity: async (pct) => {
         this.state._vacationModeIntensity = pct;
         try { await this._ws({ type: "padspan_ha/settings_set", vacation_mode_intensity: pct }); }
-        catch (e) { this._toast("Could not change the intensity: " + String(e), true); }
+        catch (e) { this._toast("Could not change the intensity: " + this._errorText(e), true); }
       },
       onApplyPreset: async (values) => {
         // The same one reading of the look as _loadSettings (and Traceback).
@@ -1186,7 +1186,7 @@ class PadSpanLightsApp extends HTMLElement {
         if (values.overview_iso_focus !== undefined) this._view.focusIdx = values.overview_iso_focus ?? 0;
         if (values.overview_iso_zoom !== undefined) this._view.zoom = values.overview_iso_zoom;
         try { await this._ws({ type: "padspan_ha/settings_set", ...values }); }
-        catch (e) { this._toast("Could not apply the preset: " + String(e), true); }
+        catch (e) { this._toast("Could not apply the preset: " + this._errorText(e), true); }
         this._render();
       },
       // Same read-only reflection as the modes above — no onHideDeviceCodes,
@@ -1406,7 +1406,7 @@ class PadSpanLightsApp extends HTMLElement {
         if (!kind || kind === "auto") delete next[eid]; else next[eid] = kind;
         this.state._typeOverrides = next;
         try { await this._ws({ type: "padspan_ha/settings_set", light_type_overrides: next }); }
-        catch (e) { this._toast("Could not save the type override: " + String(e), true); }
+        catch (e) { this._toast("Could not save the type override: " + this._errorText(e), true); }
         this._render();
       } : null,
       // The index's own filter + sort — independent of the map's layer
@@ -1423,7 +1423,7 @@ class PadSpanLightsApp extends HTMLElement {
       onFloodReset: (eid)=>{
         this._ws({ type: "padspan_ha/flood_reset", entity_id: eid })
           .then(()=>this._render())
-          .catch((e)=>this._toast("Could not reset: " + String(e), true));
+          .catch((e)=>this._toast("Could not reset: " + this._errorText(e), true));
       },
     };
 
@@ -1490,6 +1490,12 @@ class PadSpanLightsApp extends HTMLElement {
       }
       throw err;
     });
+  }
+
+  /** views/ui_error.js errorText, or the error's own text until that module has loaded. */
+  _errorText(e){
+    if (UI_ERROR && UI_ERROR.errorText) return UI_ERROR.errorText(e);
+    return (e && typeof e.message === "string" && e.message) || (typeof e === "string" && e) || "Something went wrong. Try again.";
   }
 
   _toast(msg, isError=false, durationMs=null){

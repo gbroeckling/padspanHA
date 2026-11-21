@@ -30,6 +30,12 @@ const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
 // double-tap on a room. Optional too: missing, the map is as it always was.
 const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: atlas_screen failed to load", err); return null; });
+// The words a toast shows for a failure (ui_error.js errorText): PadSpan's own
+// sentence as it is, a plain line for a lost connection and the like.
+const UI_ERROR = await import(`./ui_error.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: ui_error failed to load", err); return null; });
+const errorText = (e) => (UI_ERROR && UI_ERROR.errorText) ? UI_ERROR.errorText(e)
+  : String((e && (e.message || e.code)) || e);
 // How big the house is drawn on a wall (atlas_fit.js: the rule, the measure, and why a saved spacing could never do
 // it). Optional: missing, a wall draws with the saved spacing as it did.
 const FIT = await import(`./atlas_fit.js${new URL(import.meta.url).search}`)
@@ -648,7 +654,7 @@ export async function applyWholeHouse(hass, preset){
       for (const x of (r && r.results) || []) if (x.ok) took.add(x.device_id);
       problems.push(...exactProblems(r));
     })
-    .catch(e => { problems.push({ text: `${exactDeviceOf(eid).name}: ${(e && (e.message || e.code)) || "didn't answer"}`, error: true }); }));
+    .catch(e => { problems.push({ text: `${exactDeviceOf(eid).name}: ${e ? errorText(e) : "didn't answer"}`, error: true }); }));
   try { if (plain) await hass.callService("scene", "apply", { entities }); }
   finally { await Promise.all(jobs); }
   const sent = exactLights.filter(([key]) => exactCmds.has(key));
@@ -1609,7 +1615,7 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
         const [domain] = sc.eid.split(".");
         Promise.resolve(api.hass.callService(domain, "turn_on", { entity_id: sc.eid }))
           .then(() => api.toast && api.toast(sc.name))
-          .catch((e) => api.toast && api.toast(`Could not run ${sc.name}: ${String(e && e.message || e)}`, true));
+          .catch((e) => api.toast && api.toast(`Could not run ${sc.name}: ${errorText(e)}`, true));
       } });
     }
   }
@@ -2428,7 +2434,7 @@ export function openControlCard(hass, eid, api){
           await mod.mountWledAdvanced(advanced, { hass, eid,
             api: { ...api, onExactChanged: () => ensureExactDevices(hass, rerender, { force: true }) } });
         } catch (e) {
-          advanced.textContent = "Couldn't open the WLED workbench: " + String((e && e.message) || e);
+          advanced.textContent = "Couldn't open the WLED workbench: " + errorText(e);
         }
       }
     };
@@ -2464,7 +2470,7 @@ export function openControlCard(hass, eid, api){
               toast("The team is back on WLED sync — each member's sync settings from before the team are back");
               ensureExactDevices(hass, rerender, { force: true });
               close();
-            } catch (e) { toast("Couldn't switch: " + String((e && (e.message || e.code)) || e), true); }
+            } catch (e) { toast("Couldn't switch: " + errorText(e), true); }
           },
         }, "Give the whole team back to WLED sync"));
         return;
@@ -2480,7 +2486,7 @@ export function openControlCard(hass, eid, api){
             toast("WLED sync gives this light its instructions again — its sync settings are back");
             ensureExactDevices(hass, rerender, { force: true });
             close();
-          } catch (e) { toast("Couldn't switch: " + String((e && (e.message || e.code)) || e), true); }
+          } catch (e) { toast("Couldn't switch: " + errorText(e), true); }
         },
       }, "Give this light back to WLED sync"));
     })();
@@ -5932,7 +5938,7 @@ export function buildLightsTable(hostIn, lights){
                 host.toast(`Assigned ${l.friendly_name} to room`);
                 host.afterAssign();
               } catch (e) {
-                host.toast("Failed to assign room: " + (e.message || e), true);
+                host.toast("Couldn't put it in that room: " + errorText(e), true);
                 sel.disabled = false;
               }
             });

@@ -37,9 +37,6 @@ WWW = PKG / "www" / "padspan-ha"
 # "not initialized", a field name with an underscore, a Python type.
 INTERNAL = re.compile(r"\b[A-Z][a-z]+(?:Store|Registry)\b|[Rr]egistry\b|not initiali[sz]ed|\bnot loaded\b|"
                       r"\b[a-z]+_[a-z_]*[a-z]\b|\bdict\b|\bfabric\b|[Cc]oordinator\b")
-# The toasts of these files wait for another branch (chore/demo-declutter,
-# the flat Atlas) to land; they are done after it.
-HELD = {"lights_panel.js", "lights_map.js"}
 
 
 def _said(node: ast.AST) -> list[str]:
@@ -105,7 +102,7 @@ def test_the_panels_toasts_show_errors_through_error_text() -> None:
     raw = re.compile(r"\b(?:e|err|error|ex|exc|e2)\??\.message\b|String\(\s*\(?\s*(?:e|err|error)\b")
     bad = []
     for p in sorted(WWW.rglob("*.js")):
-        if "lib" in p.parts or p.name in HELD:
+        if "lib" in p.parts:
             continue
         for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             m = toast.search(line)
