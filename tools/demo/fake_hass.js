@@ -182,6 +182,11 @@ export async function startDemo(page){
       case "padspan_ha/object_label_list": return { labels: clone(labels), registry_labels: {} };
       case "padspan_ha/object_label_set": labels[String(m.address).toUpperCase()] = m.label; return { ok: true };
       case "padspan_ha/occupancy_estimate": return occupancy();
+      // Clear unidentified (ws_objects.py): the demo's devices come back with the next snapshot, so nothing is removed.
+      case "padspan_ha/objects_clear_history": return { ok: true, removed: 0, kept: 0 };
+      // Health → Resync Scanners (ws_fabric.py): the demo's receivers are already in step.
+      case "padspan_ha/fabric_resync":
+        return { ok: true, removed: 0, added: 0, pruned: 0, final_count: Object.keys(model.scanner_positions_m || {}).length };
       case "padspan_ha/house3d_get": return { enabled: true, data: clone(house3d), writable: true, counts: {} };
       case "padspan_ha/house3d_edit": {
         // Each part is {key: entry to set | null to remove}, as ws_house3d.py takes it.
