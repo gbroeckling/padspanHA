@@ -239,9 +239,16 @@ const _rcv = { busy: false, said: "", plan: null, asked: null, waiting: false, f
 export function _resetReceivers() { Object.assign(_rcv, { busy: false, said: "", plan: null, asked: null, waiting: false, fill: null }); }   // a test's new page
 
 const _names = (xs) => xs.length > 4 ? t("{names} and {more} more", { names: xs.slice(0, 4).join(", "), more: xs.length - 4 }) : xs.join(", ");
+/** A receiver's name as the rest of the panel shows it (the snapshot's radios: the room pickers below use the same),
+ *  its source id until the snapshot has it. */
+function _rname(ctx, source) {
+  const radios = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.ble && ctx.state.live.snapshot.ble.radios) || [];
+  const r = radios.find(x => x && x.source === source);
+  return String((r && (r.display_name || r.name)) || source);
+}
 /** Why the server's one rule leaves receivers where they are, in words (placed_already is left unsaid). */
-function _whyWords(skipped) {
-  const why = (w) => (skipped || []).filter(x => x.why === w).map(x => x.source), bits = [];
+function _whyWords(ctx, skipped) {
+  const why = (w) => (skipped || []).filter(x => x.why === w).map(x => _rname(ctx, x.source)), bits = [];
   if (why("no_area").length) bits.push(t("no Home Assistant area: {names} (pick its room below, or place it by hand)", { names: _names(why("no_area")) }));
   if (why("two_plans").length) bits.push(t("its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: {names} (place it by hand)", { names: _names(why("two_plans")) }));
   if (why("no_outline").length) bits.push(t("its room has no outline yet: {names}", { names: _names(why("no_outline")) }));
@@ -293,12 +300,12 @@ async function _placeReceivers(ctx) {
   try {
     const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms" });
     const placed = (r && r.placed) || [], skipped = (r && r.skipped) || [];
-    const list = _names(placed.map(p => t("{receiver} in {room}", { receiver: p.source, room: p.room })));
+    const list = _names(placed.map(p => t("{receiver} in {room}", { receiver: _rname(ctx, p.source), room: p.room })));
     const bits = [placed.length ? tn(placed.length,
       "Placed {n} receiver inside its room ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.",
       "Placed {n} receivers inside their rooms ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.",
       { list }) : t("No receiver was placed.")];
-    const not = _whyWords(skipped);
+    const not = _whyWords(ctx, skipped);
     if (not.length) bits.push(t("Not placed, {why}.", { why: not.join("; ") }));
     const already = skipped.filter(x => x.why === "placed_already").length;
     if (already) bits.push(tn(already, "{n} already on the map, left where it is.", "{n} already on the map, left where they are."));
@@ -346,7 +353,7 @@ export function receiversBlock(ctx, opts = {}) {
 function _block(ctx, opts, p) {
   const { el } = ctx.helpers;
   const st = ctx.state;
-  const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(p.skipped);
+  const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(ctx, p.skipped);
   const rooms = hasRooms(st);                       // any rooms, drawn by hand or by the helper (setup_status: the button is for everyone)
   if (!n && !_rcv.said && !undo) {
     if ((opts && opts.quiet) || !rooms) return null;

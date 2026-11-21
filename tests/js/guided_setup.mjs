@@ -500,6 +500,21 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     && !btn(root, "receivers-undo"));
   const demo = house(4, { dataMode: "sample" });
   check("receivers: nothing on the demo house", !S.receiversBlock(fake(demo, [{ ready: [], skipped: [], undo: 0 }]).ctx));
+  // A receiver is named as the rest of the panel (and the room pickers under the line) name it: the snapshot's
+  // radios, not the server's source id.
+  {
+    S._resetReceivers();
+    const st2 = house(4, { calibration: { points: [], model: {} } });
+    st2._viewVisit = 1;
+    st2.live = { snapshot: { ble: { radios: [{ source: "porch-proxy", display_name: "Porch receiver" }] } } };
+    const m2 = fake(st2, [{ ok: true, ready: [{ source: "kitchen-proxy", room: "Kitchen" }], skipped, undo: 0 }]);
+    S.render(m2.ctx);
+    await flush();
+    const row2 = S.render(m2.ctx).querySelector('[data-setup="step-receivers"]');
+    check("receivers: named as the panel names them, not by their source id",
+      row2 && row2.textContent.includes("no Home Assistant area: Porch receiver") && !row2.textContent.includes("porch-proxy"),
+      row2 && row2.textContent);
+  }
   // Nothing the server would place: no button; the line says why (or, with no receiver yet, that it will work later).
   S._resetReceivers();
   const none = house(4, { calibration: { points: [], model: {} } });
