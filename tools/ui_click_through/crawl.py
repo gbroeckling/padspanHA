@@ -42,6 +42,9 @@ NUMBERS = [("negative", "-5"), ("zero", "0"), ("huge", "999999999"), ("letters",
 # A press that leads to the next step of a wizard: followed without counting against the depth.
 NEXT = re.compile(r"^(next|continue|next step|start|begin|let's go|go|i'm ready|ready|→|next →|continue →|start →|skip)\b", re.I)
 SEVERITY = {"stuck": 1, "error": 2, "junk": 3, "polish": 4}
+WARN = re.compile(r"fail|error|exception|cannot|could not|undefined|is not a function|null", re.I)
+EVENT_NAMES = {"error": "page error", "console": "console error", "request": "failed request", "http": "HTTP error",
+               "warning": "warning logged (a caught failure)"}
 TINY_PNG = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
                          "1f15c4890000000d49444154789c6360f8cfc0f01f0005000201e2213"
                          "fbc0000000049454e44ae426082".replace(" ", ""))
@@ -151,9 +154,12 @@ class Crawl:
         return route.continue_()
 
     def _console(self, m):
+        loc = m.location or {}
         if m.type == "error":
-            loc = m.location or {}
             self.events.append(("console", m.text[:600], f"{loc.get('url', '')}:{loc.get('lineNumber', '')}"))
+        elif m.type == "warning" and WARN.search(m.text):
+            # A failure the panel caught and only logged: nothing on screen may show it.
+            self.events.append(("warning", m.text[:600], f"{loc.get('url', '')}:{loc.get('lineNumber', '')}"))
 
     def _reqfail(self, r):
         # ERR_ABORTED: the crawler's own reload cut the request short.
@@ -391,7 +397,7 @@ class Crawl:
         notes = []
         new_ev = self.events[t_action:]
         for kind, msg, where in new_ev:
-            self.find("error", {"error": "page error", "console": "console error", "request": "failed request", "http": "HTTP error"}[kind], msg, steps, where=where)
+            self.find("error", EVENT_NAMES[kind], msg, steps, where=where)
             notes.append(f"{kind}: {msg[:80]}")
         if after["blank"] and not before["blank"] and after["url"] == before["url"]:
             self.find("stuck", "page went blank", after["url"], steps)
@@ -521,7 +527,7 @@ class Crawl:
             return self.result(load_s, budget_s, t0)
         # Whatever is wrong on arrival.
         for kind, msg, where in self.events:
-            self.find("error", {"error": "page error", "console": "console error", "request": "failed request", "http": "HTTP error"}[kind], msg, [], where=where)
+            self.find("error", EVENT_NAMES[kind], msg, [], where=where)
         if root["blank"]:
             self.find("stuck", "page is blank on arrival", root["url"], [])
         if self.phone and root["hscroll"]:
@@ -741,6 +747,14 @@ def settings_variants(dist: Path, skins) -> dict:
 
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
+    # One connection for a page's hundred-odd modules (a new one each ran Windows out of ports: ERR_ADDRESS_IN_USE),
+    # and the files kept by the browser between the crawl's reloads: they do not change during a run.
+    protocol_version = "HTTP/1.1"
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "max-age=86400")
+        super().end_headers()
+
     def log_message(self, *a):
         pass
 
