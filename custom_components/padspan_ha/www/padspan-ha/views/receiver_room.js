@@ -34,12 +34,12 @@ export function guessArea(radio, areas) {
     || "";
 }
 
-/** Whether this person may set a receiver's room here: on the house's own data, never on a wall screen, and with
- *  Enhanced security on only an administrator (as Who's where's Track). */
+/** Whether a receiver's room can be set here: on the house's own data, never on a wall screen. For anyone, as the
+ *  Bluetooth Radios list's Assign is (the owner's standing rule: radio_area_set stays open to everyone in the house,
+ *  Enhanced security or not; tests/test_enhanced_security.py EVERYDAY). */
 export function canSetRooms(ctx) {
   const st = ctx.state;
-  return st.dataMode === "live" && !st.kioskMode && !!(ctx.actions && ctx.actions.radioAreaSet)
-    && !(st.settings && st.settings.enhanced_security === true && ctx.hass && ctx.hass.user && ctx.hass.user.is_admin === false);
+  return st.dataMode === "live" && !st.kioskMode && !!(ctx.actions && ctx.actions.radioAreaSet);
 }
 
 /** The house's Home Assistant areas, by name: the snapshot's (rooms_discovered), else the model's. */
@@ -87,7 +87,7 @@ export function roomPickers(ctx, radios, onSet) {
       continue;
     }
     const guess = guessArea(r, areas);
-    const sel = el("select", { class: "select", "data-receiver-room-pick": r.source, "aria-label": t("Room for {receiver}", { receiver: name }), style: "font-size:12px;max-width:100%" });
+    const sel = el("select", { class: "select", "data-receiver-room-pick": r.source, "aria-label": t("Room for {receiver}", { receiver: name }), style: "font-size:12px;width:auto;flex:0 1 220px;min-width:0;max-width:100%;padding:4px 8px" });
     sel.appendChild(el("option", { value: "" }, t("Choose a room…")));
     for (const a of areas) {
       const o = el("option", { value: a }, a);

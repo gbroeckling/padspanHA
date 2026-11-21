@@ -285,7 +285,11 @@ check("guess: from the display name too, accents aside", RR.guessArea({ name: "e
   const cy = mkCtx("live", sn);
   cy.state.settings = { enhanced_security: true }; cy.hass = { user: { is_admin: false } };
   cy.actions.radioAreaSet = async () => {};
-  check("card: no room to pick for someone who can't change the house's setup (Enhanced security)", !WW.whosWhereCard(cy).querySelector("[data-receiver-room-pick]"));
+  // The owner's standing rule: Assign (radio_area_set) stays open to everyone, Enhanced security or not.
+  check("card: anyone can pick a receiver's room, as with Assign (Enhanced security, not an administrator)", !!WW.whosWhereCard(cy).querySelector("[data-receiver-room-pick]"));
+  const cw = mkCtx("live", sn);
+  cw.state.kioskMode = true; cw.actions.radioAreaSet = async () => {};
+  check("card: never on a wall screen", !WW.whosWhereCard(cw).querySelector("[data-receiver-room-pick]"));
   const cz = mkCtx("live", { ...snapOf(sr, []), rooms_discovered: [] });
   cz.actions.radioAreaSet = async () => {};
   const nz = WW.whosWhereCard(cz);
