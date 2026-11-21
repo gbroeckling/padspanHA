@@ -294,7 +294,7 @@ function createLiveLayer(slot){
     const keep = new Set();
     const S = fr.scale || 1, now = Date.now();
     for (const w of wants) {
-      if (w.kind === "scanner" && !d.tags) continue;
+      if (w.kind === "scanner" && (!d.tags || d.scanners === false)) continue;
       const fid = String(w.floor_id || "main");
       if (d.outdoor && d.outdoor(fid)) continue;
       const z = fr.levelOf(fid);
@@ -352,6 +352,7 @@ function createLiveLayer(slot){
      * frameKey (what moves every marker at once: spacing, L/R), model,
      * states, file (the 3D file: each person's figure), people, tags,
      * carries (settings.atlas_3d_carries: what each person carries),
+     * scanners (false: no scanner squares, as with the device codes hidden),
      * hideNames, focused(z), outdoor(fid),
      * home() (where a card goes)}; snapshot when a read came in (else the
      * last one).
@@ -380,7 +381,7 @@ function createLiveLayer(slot){
     groups: () => [...floorsG.entries()].map(([z, fg]) => ({ z, n: fg.children.length, parent: fg.parentNode })),
     /** What is drawn (the tests and the harness). */
     state: () => [...items.entries()].map(([key, it]) => ({ key, kind: it.kind, at: it.at, shown: it.g.style.display !== "none",
-      jump: it.g.classList.contains("lv-live-jump"), name: it.name || null, color: it.color || null,
+      jump: it.g.classList.contains("lv-live-jump"), name: it.name || null, label: it.parts.name ? it.parts.name.textContent : null, color: it.color || null,
       initial: it.parts.initial ? it.parts.initial.textContent : null, dim: !!it.dim, opacity: it.g.getAttribute("opacity"), ring: it.parts.ring ? [Number(it.parts.ring.getAttribute("rx")), Number(it.parts.ring.getAttribute("ry"))] : null,
       card: it.card || null })),
     hasSnapshot: () => !!snap,
