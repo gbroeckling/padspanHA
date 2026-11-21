@@ -573,6 +573,24 @@ await tryCase("live: on the sidebar, one read serves both views at Overview's in
   check("live: on the sidebar, one read serves both views at Overview's interval, through the same reader; none while off",
     one === 1 && shared === 1 && next === 2 && offReads === 0 && offLayer === 0 && !!off.svg, { one, shared, next, offReads, offLayer });
 });
+await tryCase("live: device codes hidden or zoomed out, a tag keeps its name drawn; hidden, the scanners' squares go too", async () => {
+  SCREEN.dropReads();
+  const h = H3(false, { atlas_3d_people: true, atlas_3d_tags: true });
+  const drawn = async (o) => {
+    card({ house3d: h, ...o }); await settle(); await sleep(5);
+    card({ house3d: h, ...o }); await settle();
+    return AB.liveLayer("atlas").state();
+  };
+  const shown = await drawn({}), hidden = await drawn({ more: { hideDeviceCodes: true } });
+  const far = await drawn({ view: { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 0.8 } });   // below 100%: the codes leave the drawing
+  const label = (s) => (s.find(i => i.key === "beacon:ble:keys") || {}).label;
+  const scanners = (s) => s.filter(i => i.kind === "scanner").length;
+  const alice = (s) => (s.find(i => i.key === "person.alice") || {}).initial;
+  const got = { shown: [label(shown), scanners(shown), alice(shown)], hidden: [label(hidden), scanners(hidden), alice(hidden)],
+                far: [label(far), scanners(far), alice(far)] };
+  check("live: device codes hidden or zoomed out, a tag keeps its name drawn; hidden, the scanners' squares go too",
+    JSON.stringify(got) === JSON.stringify({ shown: ["Keys", 2, "A"], hidden: ["Keys", 0, "A"], far: ["Keys", 2, "A"] }), got);
+});
 
 // ── kinds and furniture ──────────────────────────────────────────────────────
 await tryCase("kinds: a Live Aboard kind draws as its Atlas shape, a shape the person set wins, sensors keep theirs", async () => {

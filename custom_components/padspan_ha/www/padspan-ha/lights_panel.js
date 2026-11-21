@@ -21,7 +21,7 @@ const BUILD_ID = "20261121T193037Z";
 // the two ask for every file under two addresses and run two copies of each
 // (see docs/06_UI_CACHE_BUSTING.md).
 const STAMP = ((b) => (b ? `?b=${b}` : ""))(new URL(import.meta.url).searchParams.get("b"));
-const { hasControlCard } =
+const { hasControlCard, hasFixedGlyph, isControllable } =
   await import(`./views/light_codes.js${STAMP}`);
 // THE shared lights view — data pipeline, map card and index table, also used
 // verbatim by the Mapping → Lights tab (the builder for this display), so the
@@ -911,9 +911,14 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   _tipText(){
-    return (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2 && screenShowLine("atlas","light_taps")===false
-        ? "A tap doesn't switch a light on this screen \u00b7 tap its code or hold it for controls" : "Tap a light to switch it \u00b7 tap its code or hold for controls")
-        +" \u00b7 tap a room name for the whole room \u00b7 motion, temperature and air-quality tiles are read-only";
+    const off = String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2 && screenShowLine("atlas","light_taps")===false;
+    // Device codes hidden (Mapping \u2192 Atlas builder): no code to tap. The
+    // read-only tiles are named while one is on the map (_tilesShown, _buildUI).
+    const codes = !this.state._hideDeviceCodes;
+    return (off ? "A tap doesn't switch a light on this screen" : "Tap a light to switch it")
+        +(codes ? (off ? " \u00b7 tap its code or hold it for controls" : " \u00b7 tap its code or hold for controls") : " \u00b7 hold it for controls")
+        +" \u00b7 tap a room name for the whole room"
+        +(this._tilesShown === false ? "" : " \u00b7 motion, temperature and air-quality tiles are read-only");
   }
 
   _buildUI(){
@@ -986,6 +991,9 @@ class PadSpanLightsApp extends HTMLElement {
 
     // Group by room (hidden excluded from map)
     const hidden=this.state._hidden;
+    // A read-only tile (light_codes.js: a fixed glyph with no action) on the map: the tip names them (_tipText).
+    this._tilesShown = lights.some(l => hasFixedGlyph(l) && !isControllable(l) && !hidden.has(l.entity_id));
+    if(this._tipEl) this._tipEl.textContent = this._tipText();
     const byRoom={};
     for(const l of lights){
       if(l.area_name && !hidden.has(l.entity_id))

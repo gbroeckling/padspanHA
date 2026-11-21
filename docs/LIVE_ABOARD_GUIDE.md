@@ -24,7 +24,7 @@ Live Aboard comes with PadSpan Pro.
 2. Under **🏠 Live Aboard**, turn on **Show Live Aboard on the Atlas**. It saves right away, no
    restart.
 3. Open the Atlas. In the sidebar, tap **🏠** on the left rail to switch between the flat map and
-   Live Aboard. In Mapping → Atlas, use the **Map | Live Aboard** switch beside the zoom.
+   Live Aboard. In Mapping → Atlas builder, use the **Map | Live Aboard** switch beside the zoom.
 
 The same card has a few more choices:
 
@@ -38,7 +38,7 @@ The same card has a few more choices:
 - **Show people** and **Show tags & scanners:** on the map and in Live Aboard.
 
 **Set it up step by step:** the **✨ Set it up step by step** button on that card (or **🏠 Set up
-Live Aboard** at the top of Mapping → Atlas) opens a wizard that builds the whole house with you:
+Live Aboard** at the top of Mapping → Atlas builder) opens a wizard that builds the whole house with you:
 turn it on, floor heights, rooms, devices, heights, doors and windows, LED strips, furniture, the
 optional extras (look, quality, rain and snow, people, tags and scanners, the shared furniture
 library, furniture from a photo, back to home view) and making it your screen, including the
@@ -154,7 +154,7 @@ warm from outside.
 **Emergency:** a leak sensor, smoke alarm, gas alarm or CO alarm that goes off sends alarm rings across its room's floor and shows a red word over everything (**WET**, **SMOKE**, **GAS**, **CO**, or **ALARM** while it's still latched), so you see it from anywhere in the house. The banner across the top of every PadSpan page lists it until you reset it.
 
 **Mezzanines and open edges:** draw a mezzanine, gallery or loft as its own floor in Home Assistant.
-In Mapping → Floor Heights, give the hall underneath its full height (floor to roof) and the
+In Mapping → 3D Stack → Floor Heights, give the hall underneath its full height (floor to roof) and the
 mezzanine its real **base elevation**. Live Aboard then draws the mezzanine inside the hall, under
 the hall's roof. Where its edge is open in real life, mark it in Mapping → Edit → Signal walls
 (**Open edge: tap a room edge**, or draw it with the **Open (Loft)** material), and where it has a
@@ -184,7 +184,7 @@ overlap, the farther one steps aside; its device still shows and still takes tap
 
 ## Building: doors, windows, heights and strips
 
-Building happens in **Mapping → Atlas**, in Live Aboard, with **Edit**. Nothing is stored until you
+Building happens in **Mapping → Atlas builder**, in Live Aboard, with **Edit**. Nothing is stored until you
 press **Save**.
 
 ### Doors, windows and doorways
@@ -226,7 +226,7 @@ swing or its sill and head. Those live on the map, so you move or delete them th
 3. **Reset to default** puts it back to what PadSpan uses for its kind. For a light you can also
    say what it is (**What is this?**: a pot light, a pendant, a lamp…).
 
-You can set heights on the flat map too: in Mapping → Atlas, pick a device and use its **Height**
+You can set heights on the flat map too: in Mapping → Atlas builder, pick a device and use its **Height**
 row, or the **Heights** list to set several at once. They're the same heights.
 
 ### Strip (LED strips, valances, coves, string lights)
@@ -265,7 +265,7 @@ AI keeps your plans in the house; a cloud AI gets a copy.
    before Save, and it only ever writes your 3D house, never your map, rooms, walls or calibration.
 
 Lights are never placed or moved from a plan. A symbol can only change what a light you already
-placed is drawn as. If there's no placed light near a symbol, **Open Mapping → Atlas** closes the tool
+placed is drawn as. If there's no placed light near a symbol, **Open Mapping → Atlas builder** closes the tool
 (asking first if something isn't saved) and opens the flat Atlas on that room, so you can place it
 yourself. A mark near a placed light that the AI didn't read closely is listed as that, not as
 already there.
@@ -317,7 +317,7 @@ renames or removes one.
 **Accept all for this floor** saves everything ticked in one save, after one safety backup. It stops
 only to keep your data safe: a plan or a room changed since the read, or a backup that couldn't be
 made. **Undo this rooms session** puts it all back, here or in **Settings → AI**; anything you
-changed since is left alone. Rooms made this way edit in **Mapping → Rooms** like any other, where
+changed since is left alone. Rooms made this way edit in **Mapping → Layout** like any other, where
 **Merge into one** and adding or removing a corner tidy an outline by hand.
 
 ### Undo, Save, keyboard
