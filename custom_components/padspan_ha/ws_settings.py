@@ -1653,14 +1653,28 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         # its column (and its influence on every split) until the next
         # calibration edit. Retraining reads the new exclusion set and rebuilds
         # from the untouched stored samples, so this is reversible either way.
+        # It trains (in the background) only when the setting uses the forest;
+        # otherwise it is marked out of date.
         if "excluded_scanners" in msg:
             try:
                 _cal_ex = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
                 if _cal_ex:
-                    hass.async_create_task(_cal_ex._async_train_rf())
+                    _cal_ex.rf_points_changed()
             except Exception as _ex_err:
                 _quiet_error("ws_settings:set_excluded_scanners")
                 _LOGGER.debug("Excluded-scanner retrain: %s", _ex_err)
+
+        # ── Positioning switched to the Random Forest → it trains now, in the
+        # background, after the save so it reads the new setting; positioning
+        # matches calibration points (k-NN) until it is trained.
+        if payload.get("positioning_algorithm") == "rf":
+            try:
+                _cal_rf = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
+                if _cal_rf:
+                    _cal_rf.rf_train_if_used()
+            except Exception as _rf_err:
+                _quiet_error("ws_settings:set_positioning_algorithm")
+                _LOGGER.debug("Random Forest training on switch: %s", _rf_err)
 
         # ── Tasmota BLE toggle (tasmota_ble.py) ───────────────────────────────
         if "tasmota_ble_enabled" in msg:

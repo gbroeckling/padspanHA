@@ -1319,37 +1319,49 @@ async def test_one_scanner_auto_points_are_pruned_and_human_points_are_not() -> 
 
 class TestSwapAndRelearn:
     """The forest's scanner columns are fixed when it is trained; both tools
-    changed the readings without retraining it."""
+    changed the readings without retraining it. Now the forest is marked out
+    of date, and trains again (in the background, never waited for) when the
+    positioning setting uses it (test_rf_background.py)."""
 
     @staticmethod
-    async def _call(handler, store, msg):
+    async def _call(handler, store, msg, algorithm="knn"):
+        from types import SimpleNamespace
         from unittest.mock import AsyncMock, MagicMock, patch
         from custom_components.padspan_ha import ws_calibration
+        from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
         conn = MagicMock()
+        store.hass.data = {DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={"positioning_algorithm": algorithm})}}
+        store.hass.async_create_background_task = MagicMock(side_effect=lambda coro, *a, **kw: coro.close())
         store._async_train_rf = AsyncMock()
-        store.compute_model = MagicMock()
+        store.compute_model = MagicMock(side_effect=lambda **kw: setattr(store, "_stale_at_compute", store.rf_stale))
         with patch.object(ws_calibration, "_get_cal_store", AsyncMock(return_value=store)):
             await getattr(ws_calibration, handler)(MagicMock(), conn, msg)
         return conn
 
-    async def test_swap_retrains_and_keeps_new_scanners_own_reading(self) -> None:
+    @pytest.mark.parametrize("algorithm", ["knn", "rf"])
+    async def test_swap_marks_the_forest_and_keeps_new_scanners_own_reading(self, algorithm) -> None:
         both = _make_point(readings={"old": -60.0, "new": -70.0})
         only_old = _make_point(x_frac=0.2, readings={"old": -65.0})
         store = _make_store(points=[both, only_old])
         conn = await self._call("ws_calibration_swap_radio", store,
-                                {"id": 1, "old_source": "old", "new_source": "new"})
-        store._async_train_rf.assert_awaited_once()
+                                {"id": 1, "old_source": "old", "new_source": "new"}, algorithm)
+        store._async_train_rf.assert_not_awaited()      # never waited for
+        assert store.rf_stale
+        assert store.hass.async_create_background_task.call_count == (algorithm == "rf")
         assert [r["source"] for r in both["scanner_readings"]] == ["new"]
         assert both["scanner_readings"][0]["mean_rssi"] == -70.0
         assert [r["source"] for r in only_old["scanner_readings"]] == ["new"]
         res = conn.send_result.call_args.args[1]
         assert res["updated_readings"] == 1 and res["dropped_readings"] == 1
 
-    async def test_relearn_retrains(self) -> None:
+    @pytest.mark.parametrize("algorithm", ["knn", "rf"])
+    async def test_relearn_marks_the_forest_before_the_model_is_computed(self, algorithm) -> None:
         store = _make_store(points=[_make_point(readings={"s1": -60.0})])
         await self._call("ws_calibration_relearn_radio", store,
-                         {"id": 1, "source": "s1", "gain_db": 3})
-        store._async_train_rf.assert_awaited_once()
+                         {"id": 1, "source": "s1", "gain_db": 3}, algorithm)
+        store._async_train_rf.assert_not_awaited()
+        assert store._stale_at_compute is True          # its accuracy is not reported as today's
+        assert store.hass.async_create_background_task.call_count == (algorithm == "rf")
 
 
 

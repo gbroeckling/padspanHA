@@ -20,6 +20,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from .const import (
     DOMAIN,
+    DATA_CALIBRATION,
     DATA_SETTINGS,
     DATA_FABRIC,
     DATA_HOUSE3D,
@@ -637,6 +638,15 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
         except Exception as e:  # noqa: BLE001
             _quiet_error("ws_backup:restore_wled_listener")
             _LOGGER.debug("WLED listener refresh after restore failed: %s", e)
+
+    # The Random Forest learns from the calibration points and the settings'
+    # scanners left out: after a restore it is out of date, and trains again
+    # (in the background) if the positioning setting, perhaps restored too,
+    # uses it. It was trained at every start-up until it trained only then.
+    if restored:
+        _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
+        if _cal is not None and hasattr(_cal, "rf_points_changed"):
+            _cal.rf_points_changed()
 
     # ── Restore map images to disk ────────────────────────────────────────────
     images_restored = 0

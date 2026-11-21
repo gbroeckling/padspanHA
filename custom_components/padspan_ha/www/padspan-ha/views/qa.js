@@ -265,10 +265,13 @@ export function render(ctx){
   if(!ctx.state._qaExpandedProp) ctx.state._qaExpandedProp = false;
   if(!ctx.state._qaExpandedMath) ctx.state._qaExpandedMath = false;
 
-  const _renderPropHealth = (ph) => {
+  const _renderPropHealth = (ph, failed = false) => {
     while(propStatusDiv.firstChild) propStatusDiv.removeChild(propStatusDiv.firstChild);
     if(!ph || !ph.grade){
-      propStatusDiv.appendChild(el("div",{class:"muted",style:"font-size:12px"},"Loading propagation analysis..."));
+      // Still loading only while nothing has answered: an answer with no grade
+      // (Sample mode's sample house has none) or a failed call says so.
+      const msg = failed ? "Propagation analysis could not be loaded." : ph ? "No propagation analysis for this house yet." : "Loading propagation analysis...";
+      propStatusDiv.appendChild(el("div",{class:"muted",style:"font-size:12px"}, msg));
       return;
     }
     const gc = _gradeColor(ph.grade);
@@ -442,7 +445,7 @@ export function render(ctx){
       const r = await ctx.actions.wsCall("padspan_ha/propagation_health");
       ctx.state._qaPropHealth = r;
       _renderPropHealth(r);
-    } catch(e){ /* best-effort */ }
+    } catch(e){ _renderPropHealth(null, true); }
   })();
   propCard.appendChild(propStatusDiv);
   grid.appendChild(propCard);
