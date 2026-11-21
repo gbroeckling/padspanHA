@@ -26,7 +26,7 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
 
-It works with your existing BLE scanners. HA Bluetooth proxies (ESPHome, or Shelly Gen2+ set as a Bluetooth scanner) and Bermuda proxies are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → HA Entities → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.
+It works with your existing BLE scanners. HA Bluetooth proxies (ESPHome, or Shelly Gen2+ set as a Bluetooth scanner, the same ones Bermuda uses) and Home Assistant's own Bluetooth are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → HA Entities → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.
 
 ---
 
