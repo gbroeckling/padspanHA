@@ -571,7 +571,7 @@ async def ws_version(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
     """Return floors from HA floor registry, areas from HA area registry, and per-room metadata."""
-    # --- Floors: prefer HA floor registry (HA 2024.1+), fall back to ModelStore ---
+    # --- Floors: prefer HA floor registry (HA 2024.4+), fall back to ModelStore ---
     floors: list[dict[str, Any]] = []
     try:
         from homeassistant.helpers import floor_registry as fr_helper

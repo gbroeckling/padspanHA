@@ -202,7 +202,7 @@ the AI Task the customer chose, and is then discarded. PadSpan never stores it a
 to a PadSpan server. Only the recipe is kept.
 
 **Without AI Task** (older Home Assistant, or none set up): the button explains what's needed and
-offers Library and Build instead. `hacs.json` stays at `2024.1.0`; the photo button is simply
+offers Library and Build instead. `hacs.json` says `2024.8.0` (the oldest release tested; see `tests_ha/ha_versions.json`); the photo button is simply
 unavailable below Home Assistant 2025.8, the release that added `structure` and `attachments` to
 `ai_task.generate_data` (checked against Home Assistant's source: 2025.7.0 has neither).
 
