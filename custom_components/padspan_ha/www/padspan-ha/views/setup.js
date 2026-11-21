@@ -21,6 +21,8 @@ const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
 // "No scale yet: Measure" under the scale step, for each plan that has none (scale_nudge.js).
 const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // The steps, their names and their words are setup_status.js's: Getting started and the Setup Wizard read the same
 // (review 2026-11-13: one order, one vocabulary). setup_checks.SETUP_STEPS holds the same ids.
@@ -38,30 +40,30 @@ function _calPoints(state) {
 /** What a step's line says under its name. */
 function _detail(state, id, done) {
   if (id === "plan" && done) {
-    const n = state.maps.list.length;
-    return `${n} floor plan${n === 1 ? "" : "s"} uploaded.`;
+    return tn(state.maps.list.length, "{n} floor plan uploaded.", "{n} floor plans uploaded.");
   }
-  if (id === "scale" && done) return "The scale is set.";
+  if (id === "scale" && done) return t("The scale is set.");
   if (id === "floors") {
     const fl = indoorFloors(state);
-    if (fl.length <= 1) return "One floor: nothing to set here.";
+    if (fl.length <= 1) return t("One floor: nothing to set here.");
     const k = fl.filter(floorHasHeight).length;
-    return k ? `${k} of ${fl.length} floors have a height.` : `Every one of the ${fl.length} floors is at the default height. ${ABOUT.floors}`;
+    return k ? t("{k} of {total} floors have a height.", { k, total: fl.length })
+      : t("Every one of the {total} floors is at the default height.", { total: fl.length }) + " " + ABOUT.floors;
   }
   if (id === "rooms") {
     const total = ((state.model && state.model.areas) || []).filter(a => a && a.name).length;
-    if (done && total) return `${total - undrawnAreaNames(state).length} of ${total} rooms drawn.`;
+    if (done && total) return t("{drawn} of {total} rooms drawn.", { drawn: total - undrawnAreaNames(state).length, total });
   }
   if (id === "receivers") {
     const n = placedReceivers(state).size;
-    if (n && !receiverHeightsOk(state)) return `${n} placed, all at one height. Say how high each one is mounted.`;
-    if (done) return `${n} placed.`;
+    if (n && !receiverHeightsOk(state)) return t("{n} placed, all at one height. Say how high each one is mounted.", { n });
+    if (done) return t("{n} placed.", { n });
   }
   if (id === "calibration") {
-    if (done === null) return "Checking…";
+    if (done === null) return t("Checking…");
     const p = _calPoints(state);
-    if (!done) return p ? `${p} of ${CAL_POINTS_NEEDED} calibration points so far. ${ABOUT.calibration}` : ABOUT.calibration;
-    return `${p} calibration point${p === 1 ? "" : "s"}.`;
+    if (!done) return p ? t("{p} of {needed} calibration points so far.", { p, needed: CAL_POINTS_NEEDED }) + " " + ABOUT.calibration : ABOUT.calibration;
+    return tn(p, "{n} calibration point.", "{n} calibration points.");
   }
   return ABOUT[id];
 }
@@ -156,7 +158,7 @@ export function openStep(ctx, id, mapId = null, door = null) {
   if (id === "floors") {
     // Floor Heights, on Mapping → 3D Stack: in Basic only that card
     // (views/focus.js), under the bar back to Setup; Advanced, the tab.
-    FOCUS.openFocus(ctx, FOCUS.part("floorHeights", { back: { view: "setup", label: "Setup" } }));
+    FOCUS.openFocus(ctx, FOCUS.part("floorHeights", { back: { view: "setup", label: t("Setup") } }));
     return;
   }
   const maps = (st.maps && st.maps.list) || [];
@@ -191,11 +193,11 @@ export function returnBar(ctx) {
   const { el } = ctx.helpers;
   const bar = el("div", { "data-setup": "return", style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:6px 12px;margin-bottom:12px" });
   bar.appendChild(el("div", { style: "flex:1 1 auto;min-width:0;font-size:12px;color:#94a3b8" }, [
-    el("span", { style: "color:#52b788;font-weight:700" }, "Setup"),
+    el("span", { style: "color:#52b788;font-weight:700" }, t("Setup")),
     // A step this house's list leaves out (floor heights on one floor, opened by a link): its name, no number.
-    !id ? "" : i < 0 ? ` · ${LABELS[id]}` : ` · step ${steps[i].n} of ${steps.length}: ${LABELS[id]}`,
+    !id ? "" : i < 0 ? ` · ${LABELS[id]}` : " · " + t("step {n} of {total}: {step}", { n: steps[i].n, total: steps.length, step: LABELS[id] }),
   ]));
-  const back = el("button", { class: "btn inline", style: "font-size:12px;white-space:nowrap", "data-setup": "back" }, "← Back to Setup");
+  const back = el("button", { class: "btn inline", style: "font-size:12px;white-space:nowrap", "data-setup": "back" }, t("← Back to Setup"));
   back.addEventListener("click", () => {
     if (ctx.state.maps && ctx.state.maps._keepDraft) ctx.state.maps._keepDraft();   // the Setup Wizard's unsaved rooms and receivers (maps.js _wizKeep)
     ctx.state._setupReturn = null; ctx.actions.showView("setup");
@@ -211,14 +213,14 @@ export function returnBar(ctx) {
 const _rcv = { busy: false, said: "", plan: null, asked: null, waiting: false, fill: null };
 export function _resetReceivers() { Object.assign(_rcv, { busy: false, said: "", plan: null, asked: null, waiting: false, fill: null }); }   // a test's new page
 
-const _names = (xs) => xs.length > 4 ? `${xs.slice(0, 4).join(", ")} and ${xs.length - 4} more` : xs.join(", ");
+const _names = (xs) => xs.length > 4 ? t("{names} and {more} more", { names: xs.slice(0, 4).join(", "), more: xs.length - 4 }) : xs.join(", ");
 /** Why the server's one rule leaves receivers where they are, in words (placed_already is left unsaid). */
 function _whyWords(skipped) {
   const why = (w) => (skipped || []).filter(x => x.why === w).map(x => x.source), bits = [];
-  if (why("no_area").length) bits.push(`no Home Assistant area: ${_names(why("no_area"))} (give it an area in Home Assistant, or place it by hand)`);
-  if (why("two_plans").length) bits.push(`its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: ${_names(why("two_plans"))} (place it by hand)`);
-  if (why("no_outline").length) bits.push(`its room has no outline yet: ${_names(why("no_outline"))}`);
-  if (why("no_scale").length) bits.push(`its room is drawn on a floor plan with no scale yet: ${_names(why("no_scale"))}`);
+  if (why("no_area").length) bits.push(t("no Home Assistant area: {names} (give it an area in Home Assistant, or place it by hand)", { names: _names(why("no_area")) }));
+  if (why("two_plans").length) bits.push(t("its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: {names} (place it by hand)", { names: _names(why("two_plans")) }));
+  if (why("no_outline").length) bits.push(t("its room has no outline yet: {names}", { names: _names(why("no_outline")) }));
+  if (why("no_scale").length) bits.push(t("its room is drawn on a floor plan with no scale yet: {names}", { names: _names(why("no_scale")) }));
   return bits;
 }
 
@@ -229,7 +231,7 @@ function _scaleFirst(ctx, skipped) {
   const map = mapId && ((ctx.state.maps && ctx.state.maps.list) || []).find(m => m.id === mapId);
   if (!map) return null;
   const x = ctx.helpers.el("button", { class: "btn inline", style: "font-size:12px;margin:4px 6px 0 0", "data-setup": "receivers-scale" },
-    `Set the scale of ${map.name || "that plan"}`);
+    map.name ? t("Set the scale of {name}", { name: map.name }) : t("Set the scale of that plan"));
   x.addEventListener("click", () => openStep(ctx, "scale", map.id));
   return x;
 }
@@ -252,13 +254,15 @@ async function _placeReceivers(ctx) {
   try {
     const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms" });
     const placed = (r && r.placed) || [], skipped = (r && r.skipped) || [];
-    const bits = [placed.length ? `Placed ${placed.length} receiver${placed.length === 1 ? "" : "s"} inside ${placed.length === 1 ? "its room" : "their rooms"} ` +
-      `(${_names(placed.map(p => `${p.source} in ${p.room}`))}), on the map of your house. Drag each to where it is mounted, and set its height, ` +
-      `in Calibration's first step, "Check receiver positions"; the Receivers page sets heights too.` : "No receiver was placed."];
+    const list = _names(placed.map(p => t("{receiver} in {room}", { receiver: p.source, room: p.room })));
+    const bits = [placed.length ? tn(placed.length,
+      "Placed {n} receiver inside its room ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.",
+      "Placed {n} receivers inside their rooms ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.",
+      { list }) : t("No receiver was placed.")];
     const not = _whyWords(skipped);
-    if (not.length) bits.push(`Not placed, ${not.join("; ")}.`);
+    if (not.length) bits.push(t("Not placed, {why}.", { why: not.join("; ") }));
     const already = skipped.filter(x => x.why === "placed_already").length;
-    if (already) bits.push(`${already} already on the map, left where ${already === 1 ? "it is" : "they are"}.`);
+    if (already) bits.push(tn(already, "{n} already on the map, left where it is.", "{n} already on the map, left where they are."));
     _rcv.said = bits.join(" ");
   } catch (e) {
     _rcv.said = String((e && e.message) || "That didn't work. Try again in a moment.");
@@ -273,7 +277,8 @@ async function _unplaceReceivers(ctx) {
   try {
     const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms", undo: true });   // the last press's, kept on the server
     const n = ((r && r.undone) || []).length, left = ((r && r.left) || []).length;
-    _rcv.said = `${n} taken back off the map${left ? `; ${left} moved since, left where ${left === 1 ? "it is" : "they are"}` : ""}.`;
+    _rcv.said = left ? tn(left, "{undone} taken back off the map; {n} moved since, left where it is.", "{undone} taken back off the map; {n} moved since, left where they are.", { undone: n })
+      : t("{undone} taken back off the map.", { undone: n });
   } catch (e) {
     _rcv.said = String((e && e.message) || "That didn't work. Try again in a moment.");
   }
@@ -310,8 +315,8 @@ function _block(ctx, opts, p) {
     // for a house with no receiver at all (none live: nothing ready, nothing skipped).
     if (!not.length && (p.skipped || []).length) return null;
     const later = el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length
-      ? `PadSpan can put a receiver in its room once it has an area that is one of your rooms with an outline. Not ready: ${not.join("; ")}.`
-      : "Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here.");
+      ? t("PadSpan can put a receiver in its room once it has an area that is one of your rooms with an outline. Not ready: {why}.", { why: not.join("; ") })
+      : t("Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here."));
     const sc = _scaleFirst(ctx, p.skipped);
     if (sc) later.appendChild(el("div", {}, [sc]));
     return later;
@@ -324,12 +329,13 @@ function _block(ctx, opts, p) {
     return x;
   };
   if (_rcv.said) box.appendChild(el("div", { "data-setup": "receivers-said", style: "color:#a7f3d0" }, _rcv.said));
-  if (undo) box.appendChild(b(`Undo the ${undo} placed last`, "receivers-undo", () => _unplaceReceivers(ctx), false));
+  if (undo) box.appendChild(b(t("Undo the {n} placed last", { n: undo }), "receivers-undo", () => _unplaceReceivers(ctx), false));
   if (n) {
-    box.appendChild(el("div", {}, `${n} receiver${n === 1 ? " has" : "s have"} a room with an outline and no place on the map yet: ` +
-      `each can go inside ${n === 1 ? "its room" : "their rooms"}, to drag to where it is mounted. No AI, nothing to pay.` +
-      (not.length ? ` Not ready: ${not.join("; ")}.` : "")));
-    box.appendChild(b("Put my receivers in their rooms", "receivers-place", () => _placeReceivers(ctx), true));
+    box.appendChild(el("div", {}, tn(n,
+      "{n} receiver has a room with an outline and no place on the map yet: each can go inside its room, to drag to where it is mounted. No AI, nothing to pay.",
+      "{n} receivers have a room with an outline and no place on the map yet: each can go inside their rooms, to drag to where it is mounted. No AI, nothing to pay.") +
+      (not.length ? " " + t("Not ready: {why}.", { why: not.join("; ") }) : "")));
+    box.appendChild(b(t("Put my receivers in their rooms"), "receivers-place", () => _placeReceivers(ctx), true));
   }
   const sc = _scaleFirst(ctx, p.skipped);
   if (sc) box.appendChild(sc);
@@ -357,17 +363,17 @@ function _helperUndo(ctx, u) {
     return box;
   }
   box.appendChild(el("div", { style: "color:#fde68a;margin-top:2px" }, AIW.undoSure(u)));
-  box.appendChild(b("Undo it (experimental)", "helper-undo-go", async () => {
+  box.appendChild(b(t("Undo it (experimental)"), "helper-undo-go", async () => {
     _undoBusy = true; ctx.actions.renderRooms();
     let out;
     try { out = await AIW.undoHelperRooms(ctx, u); } catch (e) { out = { ok: false, message: String((e && e.message) || "That didn't work.") }; }
     _undoBusy = false; _undoAsking = false;
-    _undoSaid = out.ok ? `${AIW.undoDone(out)} To try again, use the line below; to draw them yourself, this step's own button.` : out.message;
+    _undoSaid = out.ok ? AIW.undoDone(out) + " " + t("To try again, use the line below; to draw them yourself, this step's own button.") : out.message;
     if (out.ok && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("ai_wizard:undo_from_setup");
     if (out.ok && ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
     ctx.actions.renderRooms();
   }, true));
-  box.appendChild(b("Cancel", "helper-undo-cancel", () => { _undoAsking = false; ctx.actions.renderRooms(); }));
+  box.appendChild(b(t("Cancel"), "helper-undo-cancel", () => { _undoAsking = false; ctx.actions.renderRooms(); }));
   return box;
 }
 
@@ -379,7 +385,9 @@ const _COLORS = {
   todo: { ring: "#2d4a38", fill: "#0f1a12", text: "#e2e8f0" },
   skipped: { ring: "#2d4a38", fill: "#0f1a12", text: "#94a3b8" },
 };
-const _WORD = { done: "Done", current: "Next", todo: "To do", skipped: "Skipped" };
+// Read when drawn, in the panel's language then.
+const _WORD = { get done() { return t("Done"); }, get current() { return t("Next"); }, get todo() { return t("To do"); }, get skipped() { return t("Skipped"); } };
+const _COUNT = () => ["", t("One"), t("Two"), t("Three"), t("Four"), t("Five"), t("Six")];
 
 export function render(ctx) {
   const { el } = ctx.helpers;
@@ -402,32 +410,32 @@ export function render(ctx) {
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-      el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "Setup"),
+      el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, t("Setup")),
       ctx.helpers.helpBtn("setup"),
     ]),
-    el("div", { class: "muted", style: "font-size:12px", "data-setup": "count" }, d.known ? `${d.doneCount} of ${d.steps.length} done` : "Checking…"),
+    el("div", { class: "muted", style: "font-size:12px", "data-setup": "count" }, d.known ? t("{done} of {total} done", { done: d.doneCount, total: d.steps.length }) : t("Checking…")),
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:13px;line-height:1.5;margin-top:4px" },
-    `${["", "One", "Two", "Three", "Four", "Five", "Six"][d.steps.length] || d.steps.length} steps, in this order. Each one opens the tool for it; come back here when it's done. ` +
-    "Skip any step and come back to it later: Setup remembers where you were."));
+    t("{count} steps, in this order. Each one opens the tool for it; come back here when it's done.", { count: _COUNT()[d.steps.length] || d.steps.length }) + " " +
+    t("Skip any step and come back to it later: Setup remembers where you were.")));
 
   if (_demo(st)) {
     const note = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border:1px solid #f59e0b;border-radius:8px;font-size:12px;color:#e2e8f0" }, [
-      el("span", { style: "flex:1 1 auto;min-width:0" }, "The demo house is showing. Setup works on your own house."),
+      el("span", { style: "flex:1 1 auto;min-width:0" }, t("The demo house is showing. Setup works on your own house.")),
     ]);
     if (ctx.actions.setDataMode) {
-      const b = el("button", { class: "btn inline", style: "font-size:12px" }, "Back to my house");
+      const b = el("button", { class: "btn inline", style: "font-size:12px" }, t("Back to my house"));
       b.addEventListener("click", () => ctx.actions.setDataMode("live"));
       note.appendChild(b);
     }
     card.appendChild(note);
   }
   if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin === false) {
-    card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px" }, "Only an administrator can add or change floor plans."));
+    card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px" }, t("Only an administrator can add or change floor plans.")));
   }
 
   if (!d.known) {
-    card.appendChild(el("div", { class: "muted", style: "padding:16px 0;text-align:center" }, "Loading…"));
+    card.appendChild(el("div", { class: "muted", style: "padding:16px 0;text-align:center" }, t("Loading…")));
     root.appendChild(card);
     return root;
   }
@@ -440,7 +448,7 @@ export function render(ctx) {
 
   if (d.allDone) {
     card.appendChild(el("div", { "data-setup": "all-done", style: "margin-top:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:8px;color:#a7f3d0;font-size:13px" },
-      "Your house is set up. Every step stays here if you want to change one."));
+      t("Your house is set up. Every step stays here if you want to change one.")));
     // Finished: counted once per install, and only by a house that used Setup.
     if ((progress.at || progress.skipped.length) && !progress.done && !_demo(st)) {
       if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("setup_done");
@@ -498,7 +506,7 @@ export function render(ctx) {
     const btns = el("div", { style: "display:flex;gap:6px;flex:none;margin-left:auto" });
     // Every step after it draws on a plan: no Skip for the plan (as the wizard's Upload).
     if (cur && !s.done && s.id !== "plan") {
-      const sk = el("button", { class: "btn inline", style: "font-size:12px;color:#94a3b8", "data-setup": "skip-" + s.id }, "Skip for now");
+      const sk = el("button", { class: "btn inline", style: "font-size:12px;color:#94a3b8", "data-setup": "skip-" + s.id }, t("Skip for now"));
       if (_demo(st)) sk.disabled = true;
       sk.addEventListener("click", () => {
         if (_demo(st)) return;
@@ -508,7 +516,7 @@ export function render(ctx) {
       });
       btns.appendChild(sk);
     }
-    const word = s.done ? (s.id === "plan" ? "Add a floor" : "Change") : cur ? (progress.at === s.id ? "Continue →" : "Start →") : "Open";
+    const word = s.done ? (s.id === "plan" ? t("Add a floor") : t("Change")) : cur ? (progress.at === s.id ? t("Continue →") : t("Start →")) : t("Open");
     const go = el("button", { class: "btn inline" + (cur ? " primary" : ""), style: "font-size:12px", "data-setup": "open-" + s.id }, word);
     // The tools show the demo house too: open them from your own.
     if (_demo(st)) go.disabled = true;

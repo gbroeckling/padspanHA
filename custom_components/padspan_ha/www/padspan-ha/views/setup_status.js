@@ -13,6 +13,8 @@
 
 // Which floors are indoors: Outside (a garden, a yard) is never a storey (iso_lights' one rule).
 const { isOutdoorFloorId } = await import(`./iso_lights.js${new URL(import.meta.url).search}`);
+// The steps' names and words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 /** At least one map has been uploaded. */
 export function hasMaps(state) {
@@ -144,21 +146,22 @@ export function receiversDone(state) {
 // indoor floors or more has the step (setupSteps). Nothing before it needs a height: rooms, the rooms helper, receivers'
 // heights (above their own floor) and the 3D house use the default storey height until one is set.
 export const SETUP_STEPS = ["plan", "scale", "rooms", "floors", "receivers", "calibration"];
+// Read when drawn, so each is in the panel's language at that moment.
 export const STEP_LABELS = {
-  plan: "Upload a floor plan",
-  scale: "Set the scale",
-  floors: "Floors and their heights",
-  rooms: "Draw the rooms",
-  receivers: "Place receivers and set their heights",
-  calibration: "Calibrate",
+  get plan() { return t("Upload a floor plan"); },
+  get scale() { return t("Set the scale"); },
+  get floors() { return t("Floors and their heights"); },
+  get rooms() { return t("Draw the rooms"); },
+  get receivers() { return t("Place receivers and set their heights"); },
+  get calibration() { return t("Calibrate"); },
 };
 export const STEP_ABOUT = {
-  plan: "A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a phone's room scan, your own sketch or a blank floor.",
-  scale: "Measure one distance you know, a doorway or a wall, so the map is to scale.",
-  floors: "How tall each floor is, so PadSpan can tell the floors apart.",
-  rooms: "Trace each Home Assistant room onto its floor plan.",
-  receivers: "Put each Bluetooth receiver where it is mounted, and say how high.",
-  calibration: "Walk around the house with your phone so PadSpan learns what each spot sounds like.",
+  get plan() { return t("A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a phone's room scan, your own sketch or a blank floor."); },
+  get scale() { return t("Measure one distance you know, a doorway or a wall, so the map is to scale."); },
+  get floors() { return t("How tall each floor is, so PadSpan can tell the floors apart."); },
+  get rooms() { return t("Trace each Home Assistant room onto its floor plan."); },
+  get receivers() { return t("Put each Bluetooth receiver where it is mounted, and say how high."); },
+  get calibration() { return t("Walk around the house with your phone so PadSpan learns what each spot sounds like."); },
 };
 
 /** The house's indoor floors (Outside does not count). */

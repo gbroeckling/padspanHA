@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as shim from "./dom_shim.mjs";
 import { pathToFileURL } from "node:url";
+import { panelT } from "./panel_t.mjs";
 
 const WWW = process.argv[2];
 shim.install(globalThis);
@@ -36,7 +37,9 @@ let wall = false;
 const VIEWS = { maps: {}, calibration: {} };
 // Basic's focused views (views/focus.js), as panel.js loads them.
 const _focusPromise = import(pathToFileURL(join(WWW, "views", "focus.js")).href);
-const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", "_focusPromise", elSrc + asButtonSrc + "\nreturn function(){" + method + "};");
+// t(): panel.js's own, the English (2026-11-21, panel translations).
+const { t } = panelT(src);
+const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", "_focusPromise", "t", elSrc + asButtonSrc + "\nreturn function(){" + method + "};");
 
 function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "scale"], hidden = [], kiosk = false, mode = "live", shape = null } = {}){
   const calls = [], events = [], toasts = [];
@@ -53,7 +56,7 @@ function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "sca
       actions: { showView: (id, o) => { if (!(o && o.keepFocus)) p.state._focus = null; p.state.view = id; }, renderNav: () => {}, renderRooms: () => {} } }),
     calls, events, toasts,
   };
-  p.card = make((t, a, c) => globalThis.__el(t, a, c), () => wall, VIEWS, {}, async () => {}, _focusPromise).bind(p);
+  p.card = make((tag, a, c) => globalThis.__el(tag, a, c), () => wall, VIEWS, {}, async () => {}, _focusPromise, t).bind(p);
   return p;
 }
 globalThis.__el = new Function("return " + elSrc.replace(/^function el/, "function"))();

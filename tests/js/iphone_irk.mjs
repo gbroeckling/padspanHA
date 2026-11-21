@@ -61,7 +61,7 @@ console.log(JSON.stringify({
   detected: /Looks like an iPhone: Alex's iPhone\./.test(iphText),
   checked: calls.length === 1 && calls[0][0] === "padspan_ha/irk_validate" && /It resolves: 2 of 5/.test(iph.textContent),
   onlyGuideShowsPath: !!path(onlyGuide, "I have an iPhone") && /Private BLE Device/.test(path(onlyGuide, "I have an iPhone").textContent),
-  alertNoTransmitter: !/Transmitter/i.test(IP.iphoneSetupAlert() + IP.IPHONE_META),
+  alertNoTransmitter: !/Transmitter/i.test(IP.iphoneSetupAlert() + IP.iphoneMeta()),
   apple: [
     IP.isApplePhone({ manufacturer: "Apple", model: "iPhone15,2" }),
     IP.isApplePhone({ model: "iPhone 13" }),

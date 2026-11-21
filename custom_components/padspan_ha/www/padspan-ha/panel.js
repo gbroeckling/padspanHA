@@ -663,6 +663,14 @@ const { keepSubscribed } =
 // if it fails to load, the help simply stays English.
 const _i18nPromise = import(`./views/i18n.js?b=${BUILD_ID}`)
   .catch(err => { console.warn("PadSpan: i18n module failed to load", err); return null; });
+// The panel's own words through t() and tn(), as in the views:
+// views/i18n.js once it is in (i18n/<lang>/panel.json, _loadPanelLanguage),
+// and until then, or if it never loads, the English with {placeholders} filled.
+let _I18N = null;
+_i18nPromise.then(m => { _I18N = m; });
+const _enFill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k)) ? String(v[k]) : m);
+function t(text, vars){ return _I18N ? _I18N.t(text, vars) : _enFill(text, vars); }
+function tn(n, one, other, vars){ return _I18N ? _I18N.tn(n, one, other, vars) : _enFill(n === 1 ? one : other, { n, ...vars }); }
 
 function pill(text){ return el("span",{class:"pill"}, text); }
 
@@ -792,6 +800,8 @@ class PadSpanHaApp extends HTMLElement {
     const langSeen = hass ? ((hass.locale && hass.locale.language) || hass.language || "") : "";
     if(hass && langSeen !== this._langSeen){ this._langSeen = langSeen; if(this._helpLoad) this._loadHelpLanguage(); }
     if(this.state?.settings?.theme_follow_sun === true && (hass?.states?.["sun.sun"]?.state || null) !== (this._sunSeen ?? null)) this._applyTheme();
+    // The panel's own words in the profile's language: at once, and again when it changes (_loadPanelLanguage).
+    if(hass && langSeen !== this._panelLangSeen){ this._panelLangSeen = langSeen; this._loadPanelLanguage(); }
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
     // on every change — one subscription per connection (a new connection,
     // or a re-entry after disconnectedCallback, subscribes afresh), kept
@@ -926,9 +936,9 @@ class PadSpanHaApp extends HTMLElement {
             <button class="status-dot hidden" type="button" data-status-dot="desktop"></button>
 
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
-              <span class="muted" style="font-size:12px">Data</span>
-              <button class="btn inline" id="dataModeToggle" title="Toggle sample vs live data">…</button>
-              <button class="btn-help" id="dataModeHelp" title="Help: Live and Sample">?</button>
+              <span class="muted" style="font-size:12px" id="dataModeWord">${esc(t("Data"))}</span>
+              <button class="btn inline" id="dataModeToggle" title="${esc(t("Toggle sample vs live data"))}">…</button>
+              <button class="btn-help" id="dataModeHelp" title="${esc(t("Help: Live and Sample"))}">?</button>
               <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
               <button class="btn-help" id="complexityHelp" title="Help: Basic, Advanced and Development">?</button>
             </span>
@@ -1340,19 +1350,22 @@ class PadSpanHaApp extends HTMLElement {
         .finally(() => { T.at = Date.now(); T.busy = false; this._scheduleRender(); });
     }
     const WORDS = {
-      floor_heights: ["Give your floors their real heights",
-        "Every floor is at the default height, so PadSpan tells floors apart less well than it could.", "Floor Heights"],
-      receiver_heights: ["Say how high each receiver is mounted",
-        "They're all at one height, which makes it harder to tell which floor someone is on.", "Receiver heights"],
-      scale: ["Measure one distance on a floor plan",
-        "With no real-world scale, positions and distances on the map are guesses.", "Measure"],
+      floor_heights: [t("Give your floors their real heights"),
+        t("Every floor is at the default height, so PadSpan tells floors apart less well than it could."), t("Floor Heights")],
+      receiver_heights: [t("Say how high each receiver is mounted"),
+        t("They're all at one height, which makes it harder to tell which floor someone is on."), t("Receiver heights")],
+      scale: [t("Measure one distance on a floor plan"),
+        t("With no real-world scale, positions and distances on the map are guesses."), t("Measure")],
     };
     // A plan placed out of shape (setup_checks.plans_out_of_shape): named, with how far off, and Measure on that plan.
     const shape = (T.shape || [])[0];
     if (shape) {
       const more = T.shape.length - 1, pct = Math.abs(shape.off);
-      WORDS.plan_shape = [`Check the shape of "${shape.name}"` + (more > 0 ? ` and ${more} more` : ""),
-        `It is placed ${pct}% ${shape.off < 0 ? "narrower" : "wider"} than its picture, so rooms and receivers on it can be off. Measure a distance each way on it.`, "Measure"];
+      WORDS.plan_shape = [more > 0 ? t("Check the shape of \"{name}\" and {more} more", { name: shape.name, more }) : t("Check the shape of \"{name}\"", { name: shape.name }),
+        shape.off < 0
+          ? t("It is placed {pct}% narrower than its picture, so rooms and receivers on it can be off. Measure a distance each way on it.", { pct })
+          : t("It is placed {pct}% wider than its picture, so rooms and receivers on it can be off. Measure a distance each way on it.", { pct }),
+        t("Measure")];
     }
     const tips = (T.list || []).filter(t => WORDS[t] && !hidden.has(t));
     if (!tips.length) return null;
@@ -1390,23 +1403,23 @@ class PadSpanHaApp extends HTMLElement {
     };
     const card = el("div", { "data-accuracy-tips": "card", style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:8px 12px;margin-bottom:12px" });
     const hdr = el("div", { style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px" });
-    hdr.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#52b788" }, "Improve accuracy"));
-    const off = el("span", { "data-accuracy-tips": "off", ...asButton, style: "cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline" }, "Hide these tips");
+    hdr.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#52b788" }, t("Improve accuracy")));
+    const off = el("span", { "data-accuracy-tips": "off", ...asButton, style: "cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline" }, t("Hide these tips"));
     off.addEventListener("click", () => { this._telemetryEvent("tip_hidden:all"); save([...hidden, "all"]); });
     hdr.appendChild(off);
     card.appendChild(hdr);
-    for (const t of tips) {
-      if (!T.shown.has(t)) { T.shown.add(t); this._telemetryEvent("tip_shown:" + t); }
-      const [title, why, btnText] = WORDS[t];
-      const row = el("div", { "data-accuracy-tips": "tip-" + t, style: "display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-top:1px solid #12301f" });
+    for (const tip of tips) {
+      if (!T.shown.has(tip)) { T.shown.add(tip); this._telemetryEvent("tip_shown:" + tip); }
+      const [title, why, btnText] = WORDS[tip];
+      const row = el("div", { "data-accuracy-tips": "tip-" + tip, style: "display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-top:1px solid #12301f" });
       row.appendChild(el("div", { style: "flex:1;min-width:0" }, [
         el("span", { style: "color:#e2e8f0;font-weight:600" }, title + ". "),
         el("span", { style: "color:#94a3b8" }, why),
       ]));
-      const fix = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px", title: "Go there" }, btnText);
-      fix.addEventListener("click", () => go(t));
-      const x = el("span", { style: "cursor:pointer;color:#64748b;font-size:13px;padding:0 4px", title: "Hide this tip", "aria-label": "Hide this tip", ...asButton }, "\u00d7");
-      x.addEventListener("click", () => { this._telemetryEvent("tip_hidden:" + t); save([...hidden, t]); });
+      const fix = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px", title: t("Go there") }, btnText);
+      fix.addEventListener("click", () => go(tip));
+      const x = el("span", { style: "cursor:pointer;color:#64748b;font-size:13px;padding:0 4px", title: t("Hide this tip"), "aria-label": t("Hide this tip"), ...asButton }, "\u00d7");
+      x.addEventListener("click", () => { this._telemetryEvent("tip_hidden:" + tip); save([...hidden, tip]); });
       row.appendChild(fix);
       row.appendChild(x);
       card.appendChild(row);
@@ -2863,8 +2876,8 @@ class PadSpanHaApp extends HTMLElement {
    *  the constructor's "sample" is a default, not an answer (#88). */
   _dataModeLabel(){
     if(!this.state._dataModeKnown) return "…";
-    if(this.state.dataMode === "live" && this._sampleConfirmT) return "Show demo data?";
-    return (this.state.dataMode === "live") ? "Live" : "Sample";
+    if(this.state.dataMode === "live" && this._sampleConfirmT) return t("Show demo data?");
+    return (this.state.dataMode === "live") ? t("Live") : t("Sample");
   }
 
   /**
@@ -2998,7 +3011,7 @@ class PadSpanHaApp extends HTMLElement {
       // Only when the server made the switch, not someone's own click or
       // another tab.
       if(this.state.settings?.onboarding?.live_first === "switched")
-        this._toast("PadSpan found your Bluetooth scanners: this is your own house now.");
+        this._toast(t("PadSpan found your Bluetooth scanners: this is your own house now."));
       await this._refreshAll(false);
       this._startPolling();
       this._scheduleRender();
@@ -3881,6 +3894,30 @@ class PadSpanHaApp extends HTMLElement {
     this._renderSidebarTrial();
   }
 
+  /** The panel's own words (t() here and in the views) in hass's language:
+   *  a shipped one fetches i18n/<lang>/panel.json at startup and again when
+   *  the profile's language changes; English fetches nothing. Once it is in
+   *  (or the language goes back to English), the top bar's words and the
+   *  open view are drawn again in it. A string not translated stays English. */
+  _loadPanelLanguage(){
+    const req = this._panelLangReq = (this._panelLangReq || 0) + 1;
+    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel"]) : "en").then(got => {
+      if(req !== this._panelLangReq || got === (this._panelLangShown || "en")) return;
+      this._panelLangShown = got;
+      if(this.$){ this._paintShellWords(); this._paintDataModeLabel(); }
+      this._scheduleRender();
+    }).catch(err => console.warn("PadSpan: panel translation failed to load", err));
+  }
+
+  /** The top bar's fixed words, in the panel's language (connectedCallback
+   *  writes them first; _loadPanelLanguage again once the language is in). */
+  _paintShellWords(){
+    const set = (q, text, title) => { const n = this.$(q); if(!n) return; if(text != null) n.textContent = text; if(title != null) n.title = title; };
+    set("#dataModeWord", t("Data"), null);
+    set("#dataModeToggle", null, t("Toggle sample vs live data"));
+    set("#dataModeHelp", null, t("Help: Live and Sample"));
+  }
+
   /** HELP in hass's language, loaded on first need (the first "?" or the
    *  Training page), not at startup: a shipped one fetches
    *  i18n/<lang>/help.json (~340 KB) and rebuilds HELP through it; English
@@ -3894,6 +3931,8 @@ class PadSpanHaApp extends HTMLElement {
     const load = this._helpLoad = { lang, p: null, done: false, failedAt: 0 };
     let I18N = null;
     const p = load.p = Promise.all([_i18nPromise, _criticalPromise]).then(([m]) => (I18N = m) ? I18N.useLanguage(this._hass, ["help"]) : "en").then(got => {
+      // The panel's own words may be in while help.json is not: the help stays English.
+      if(got !== "en" && I18N && I18N.loaded && !I18N.loaded("help")) got = "en";
       // A shipped language that came back English: its help.json didn't load.
       if(got === "en" && I18N && I18N.LANGUAGES.includes(I18N.langOf(this._hass))) load.failedAt = Date.now();
       if(HELP_MOD && (got !== "en" || HELP !== HELP_MOD.HELP)) HELP = got === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();
@@ -5333,8 +5372,8 @@ class PadSpanHaApp extends HTMLElement {
         { id: "floors",   label: _lbl("floors"),      step: "floors" },
         { id: "scanners", label: _lbl("receivers"),   step: "receivers" },
         { id: "calibrate", label: _lbl("calibration"), step: "calibration" },
-        { id: "positioned", label: "See someone on the map", done: _hasPositioned, view: "follow",
-          hint: this.state.dataMode === "live" ? "Follow \u2192 pick your phone or a tag" : "Switch the top bar to Live first" },
+        { id: "positioned", label: t("See someone on the map"), done: _hasPositioned, view: "follow",
+          hint: this.state.dataMode === "live" ? t("Follow \u2192 pick your phone or a tag") : t("Switch the top bar to Live first") },
       ].filter(s => !s.step || _order.some(t => t.id === s.step))
         .map(s => s.step ? { ...s, done: _ss.stepDone(this.state, s.step) === true, hint: _ss.STEP_ABOUT[s.step] } : s);
       // Counted and dotted: the set-up steps only, as Setup counts them; "See someone on the map" is shown after them as
@@ -5385,8 +5424,9 @@ class PadSpanHaApp extends HTMLElement {
         // step, not a gate in front of seeing anything.
         const _mapOptional = this.state.dataMode === "live" && !Object.keys((this.state.model || {}).room_geometry_m || {}).length;
         hdr.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788"},
-          _mapOptional ? `Make it a map (optional) \u2014 ${_completedCount}/${_setupRows.length}` : `Getting started \u2014 ${_completedCount}/${_setupRows.length}`));
-        const skipBtn = el("span",{"data-getting-started":"dismiss",...asButton,style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, "Skip setup");
+          _mapOptional ? t("Make it a map (optional) \u2014 {done}/{total}", { done: _completedCount, total: _setupRows.length })
+            : t("Getting started \u2014 {done}/{total}", { done: _completedCount, total: _setupRows.length })));
+        const skipBtn = el("span",{"data-getting-started":"dismiss",...asButton,style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, t("Skip setup"));
         skipBtn.addEventListener("click", () => {
           this.state._onboardingDismissed = true;
           if (this.state.settings) this.state.settings.onboarding_completed = true;
@@ -5396,19 +5436,19 @@ class PadSpanHaApp extends HTMLElement {
           this._scheduleRender();
         });
         // The guided Setup: the same steps in order, with skip and resume.
-        const setupBtn = el("span",{"data-getting-started":"setup",...asButton,style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, "Open Setup");
+        const setupBtn = el("span",{"data-getting-started":"setup",...asButton,style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, t("Open Setup"));
         setupBtn.addEventListener("click", () => {
           this.state.view = "setup";
           this._renderNav();
           if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
           this._scheduleRender();
         });
-        const gsHelp = el("button",{class:"btn-help",title:"Help","data-getting-started":"help",style:"margin-left:10px"}, "?");
+        const gsHelp = el("button",{class:"btn-help",title:t("Help"),"data-getting-started":"help",style:"margin-left:10px"}, "?");
         gsHelp.addEventListener("click", (e) => { e.stopPropagation(); this._showHelp("getting_started"); });
         hdr.appendChild(el("span",{style:"display:flex;align-items:baseline"},[setupBtn, skipBtn, gsHelp]));
         bar.appendChild(hdr);
         if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
-          "Who's where already works below. A floor plan adds the map, and with three or more receivers placed on it, positions between them."));
+          t("Who's where already works below. A floor plan adds the map, and with three or more receivers placed on it, positions between them.")));
 
         // Progress dots
         const dots = el("div",{style:"display:flex;gap:4px;margin-bottom:8px"});
@@ -5425,7 +5465,7 @@ class PadSpanHaApp extends HTMLElement {
           const then = !s.step;   // See someone on the map: what the steps lead to, after them
           const row = el("div",{style:`display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;${isNext ? "background:#0f2a1a;cursor:pointer" : "cursor:pointer"}${then ? ";margin-top:4px;border-top:1px solid #1b3526" : ""}`});
           row.appendChild(el("span",{style:`font-size:14px`}, s.done ? "\u2705" : isNext ? "\u25b6\ufe0f" : then ? "\u27a1\ufe0f" : "\u2b1c"));
-          row.appendChild(el("span",{style:`color:${s.done ? "#52b788" : isNext ? "#5eead4" : "#64748b"};font-weight:${isNext ? "700" : "400"}`}, then ? "Then: " + s.label : s.label));
+          row.appendChild(el("span",{style:`color:${s.done ? "#52b788" : isNext ? "#5eead4" : "#64748b"};font-weight:${isNext ? "700" : "400"}`}, then ? t("Then: {step}", { step: s.label }) : s.label));
           if (isNext) row.appendChild(el("span",{style:"font-size:10px;color:#94a3b8;margin-left:auto"}, s.hint));
           row.setAttribute("data-getting-started", "step-" + s.id);
           row.addEventListener("click", () => {
@@ -5454,7 +5494,7 @@ class PadSpanHaApp extends HTMLElement {
         if (TRIAL && (_trialOffer || this.state._gettingStartedTrialOpen)) {
           const row = el("div",{"data-getting-started":"step-trial",style:"display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;margin-top:2px;border-top:1px solid #1a4228"});
           row.appendChild(el("span",{style:"font-size:14px"}, "✨"));
-          row.appendChild(el("span",{style:"color:#8ee5b4"}, "Try all of PadSpan Pro on your house — 90 days free, no card"));
+          row.appendChild(el("span",{style:"color:#8ee5b4"}, t("Try all of PadSpan Pro on your house — 90 days free, no card")));
           row.addEventListener("click", () => {
             this.state._gettingStartedTrialOpen = !this.state._gettingStartedTrialOpen;
             if (this.state._gettingStartedTrialOpen) this._telemetryEvent("getting_started_step:trial");
@@ -5485,15 +5525,15 @@ class PadSpanHaApp extends HTMLElement {
             && (_onboardingDone || _p.done === true) && this.state.dataMode === "live"
             && !this.state.kioskMode && !_lineHidden && !this._setupLineHidden) {
           const line = el("div",{"data-setup-line":"",style:"display:flex;align-items:center;gap:10px;font-size:12px;color:#94a3b8;margin-bottom:10px"});
-          line.appendChild(el("span",{}, `Set-up: ${_completedCount} of ${_setupRows.length} done \u00b7 `));
-          const open = el("span",{"data-setup-line":"open",...asButton,style:"cursor:pointer;color:#5eead4;text-decoration:underline"}, "Open Setup");
+          line.appendChild(el("span",{}, t("Set-up: {done} of {total} done", { done: _completedCount, total: _setupRows.length }) + " \u00b7 "));
+          const open = el("span",{"data-setup-line":"open",...asButton,style:"cursor:pointer;color:#5eead4;text-decoration:underline"}, t("Open Setup"));
           open.addEventListener("click", () => {
             this.state.view = "setup";
             this._renderNav();
             if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
             this._scheduleRender();
           });
-          const hide = el("span",{"data-setup-line":"hide",...asButton,title:"Hide this line in this browser",style:"cursor:pointer;margin-left:auto;color:#64748b"}, "\u2715");
+          const hide = el("span",{"data-setup-line":"hide",...asButton,title:t("Hide this line in this browser"),style:"cursor:pointer;margin-left:auto;color:#64748b"}, "\u2715");
           hide.addEventListener("click", () => {
             this._setupLineHidden = true;
             try { localStorage.setItem("padspan_setup_line", "hidden"); } catch (e) { /* this page only */ }

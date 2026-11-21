@@ -99,7 +99,8 @@ def test_enable_and_track_says_only_what_it_did():
     """A disabled phone has no iBeacon key, so no command was sent, yet the
     message said one was."""
     s = _src("views/overview.js")
-    assert s.count('meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent.') == 2
+    # 2026-11-21: the words come through t() (views/i18n.js), English as the key.
+    assert s.count('meta.textContent = phone.ibeacon_key ? t("Entity enabled & BLE command sent.') == 2
 
 
 def test_review_fixes_follow_log_force_flag_and_reset_mode():
