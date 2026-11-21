@@ -21,7 +21,7 @@ const BUILD_ID = "20261121T193037Z";
 // the two ask for every file under two addresses and run two copies of each
 // (see docs/06_UI_CACHE_BUSTING.md).
 const STAMP = ((b) => (b ? `?b=${b}` : ""))(new URL(import.meta.url).searchParams.get("b"));
-const { hasControlCard } =
+const { hasControlCard, hasFixedGlyph, isControllable } =
   await import(`./views/light_codes.js${STAMP}`);
 // THE shared lights view — data pipeline, map card and index table, also used
 // verbatim by the Mapping → Lights tab (the builder for this display), so the
@@ -991,7 +991,8 @@ class PadSpanLightsApp extends HTMLElement {
 
     // Group by room (hidden excluded from map)
     const hidden=this.state._hidden;
-    this._tilesShown = lights.some(l => (l.isMotion || l.isTemp || l.isHumidity || l.isAir) && !hidden.has(l.entity_id));
+    // A read-only tile (light_codes.js: a fixed glyph with no action) on the map: the tip names them (_tipText).
+    this._tilesShown = lights.some(l => hasFixedGlyph(l) && !isControllable(l) && !hidden.has(l.entity_id));
     if(this._tipEl) this._tipEl.textContent = this._tipText();
     const byRoom={};
     for(const l of lights){
