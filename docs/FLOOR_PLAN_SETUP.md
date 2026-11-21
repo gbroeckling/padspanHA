@@ -62,7 +62,7 @@ Upload one plan per floor and set each one's scale. There is no master map: each
 In Basic mode Mapping has **Library** and **Upload**. Advanced and Development mode add **Edit**, **3D Stack**, **Layout**, **Atlas builder**, **Export** and **Help**, plus **Furnish** while Live Aboard is on.
 
 - **Edit**: the plan's own tools (Measure, Rooms, Receivers and Signal walls) outside the wizard. There, rooms and receivers are drafts until you press **Save Layout**.
-- **Layout**: the rooms and receivers in metres, the way positioning sees them, with no picture behind them. Rooms can be added there with no plan at all (**+ Add room**), and a Sweet Home 3D file imported (**Import floorplan (.sh3d)**). With **Settings → Features → Robot Vacuum Import** on (experimental), a robot vacuum's map can give you a plan and its rooms. If the Overview says "Room and receiver layout not built yet", **Commit this layout** here writes it.
+- **Layout**: the rooms and receivers in metres, the way positioning sees them, with no picture behind them. Rooms can be added there with no plan at all (**+ Add room**), and a Sweet Home 3D file imported (**Import floorplan (.sh3d)**). With **Settings → Features → Robot Vacuum Import** on (experimental), a robot vacuum's map can give you a plan and its rooms. If the Overview says "Room and receiver layout not built yet", switch **Layout** to **Map placements** here and select **Commit this layout** (or use **Put it on the map** at the wizard's **Finish**).
 - **2D Map Mode** (experimental, **Settings → Appearance**) draws the Overview as a flat map instead of the 3D stack.
 
 ## Checking your scanners
