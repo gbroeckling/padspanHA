@@ -128,7 +128,7 @@ footer p{margin:4px 0}
 </ol>
 <p>The name is what gives the tag its Home Assistant entities. For a tag called Keys:</p>
 <ul>
-  <li><code>device_tracker.keys</code>: its state is the room, <code>not_home</code> once it hasn't been heard for five minutes, or <code>unknown</code> while it has no room. Change the five minutes under <b>Settings → Presence → Home/Away Timeout → Away timeout</b>. (From the 0.38.202 beta, Presence is called Tracking.)</li>
+  <li><code>device_tracker.keys</code>: its state is the room, <code>not_home</code> once it hasn't been heard for five minutes, or <code>unknown</code> while it has no room. Change the five minutes under <b>Settings → Tracking → Rooms and timing → Home/Away Timeout → Away timeout</b>.</li>
   <li><code>sensor.keys_area</code>: the room, with <code>room_confidence</code> as an attribute, plus <b>Distance</b> sensors.</li>
 </ul>
 <p>The same <b>Follow</b> screen has <b>Movement Alerts</b>, for when the tag changes room, arrives home or leaves. <b>Traceback</b> keeps its last 7 days. A named tag never counts as a person: PadSpan's people count leaves out keys, beacons, boxes and vehicles, so keys on the hall table don't make an empty house look occupied. Two things it can't do are ring a tag and read its battery, so a tag with a flat battery looks the same as one that left the house.</p>
@@ -154,7 +154,7 @@ actions:
 <h2>Lending a tag to a guest</h2>
 <p>Give each guest a small Bluetooth tag for their visit, and PadSpan shows which room they're in, wherever your proxies reach. <b>Guest tags</b> are new in 0.38.178, so they're in the current stable. They're free, and off until you turn them on.</p>
 <ol>
-  <li>Turn on <b>Settings → Presence → Guest tags → Use tags as guest tags</b>. It takes a Home Assistant administrator. Here you also choose how long a finished stay's report is kept: not at all, 7, 30 (the default) or 90 days.</li>
+  <li>Turn on <b>Settings → Tracking → Phones and guest tags → Guest tags → Use tags as guest tags</b>. It takes a Home Assistant administrator. Here you also choose how long a finished stay's report is kept: not at all, 7, 30 (the default) or 90 days.</li>
   <li>Name a spare tag as above, such as "Guest tag 1". In the new <b>Guests</b> tab, pick it under <b>Use as a guest tag</b> and select <b>Add</b>.</li>
   <li>On the tag, select <b>Lend to a guest</b>. Enter who has it and, if you want, until when, which rooms they shouldn't go into, whether to tell you when they arrive or leave, and quiet hours.</li>
   <li><b>Guests → Staying now</b> shows where they are, since when, and the time spent in each room. When it comes back, select <b>Tag returned</b>, and the report moves to <b>Past stays</b>.</li>

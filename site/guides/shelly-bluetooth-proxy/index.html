@@ -105,7 +105,7 @@ footer p{margin:4px 0}
 <ul>
   <li><b>It shows up without a room although the Shelly has an area?</b> PadSpan uses the area of the Shelly's scanner, its own device under <b>Settings → Devices &amp; services → Bluetooth</b>. Home Assistant copies the Shelly's area to it only when Home Assistant starts, and only if it has none, so set the scanner's area there, or restart Home Assistant. From PadSpan 0.38.176 (in the stable since 0.38.199), a scanner with no area of its own takes its Shelly's.</li>
   <li>Check that its <b>Bluetooth scanner mode</b> isn't <b>Disabled</b> and that its firmware is up to date. If it still hears nothing, try another mode, such as <b>Passive</b>.</li>
-  <li>If it hears devices but PadSpan's calibration shows no signal strengths for it, open <b>Settings → Presence</b> in PadSpan, set <b>BLE Reseed Interval</b> to 5 and select <b>Save</b>. It works around a change in Home Assistant 2026.4 that holds back repeat readings from passive scanners. (The <b>BLE Proxy Compatibility</b> checkbox under Manage → HA Entities does the same from 0.38.176; before that it did nothing.)</li>
+  <li>If it hears devices but PadSpan's calibration shows no signal strengths for it, open <b>Settings → Tracking → Receivers</b> in PadSpan, check that <b>Bluetooth refresh interval</b> is 5 seconds (the default from 0.38.259; an install that changed it keeps its own number) and select <b>Save</b>, or tick <b>Refresh every 5 s for passive proxy scanners</b> there. It works around a change in Home Assistant 2026.4 that holds back repeat readings from passive scanners. (The <b>BLE Proxy Compatibility</b> checkbox under Manage → HA Entities does the same from 0.38.176; before that it did nothing.)</li>
 </ul>
 
 <h2>Phones need one more step</h2>
