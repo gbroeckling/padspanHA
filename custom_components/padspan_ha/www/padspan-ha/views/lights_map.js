@@ -5525,13 +5525,14 @@ export function buildLightsMapCard(hostIn){
   if (scr) mapCard.appendChild(scr.anchor);
   // The scene row under the map (scene_row.js): Live Aboard draws its own.
   if (sceneRow) { mapCard.appendChild(sceneRow.el); sceneRow.update(scenesFlat(host)); }
-  // The shapes as drawn: with Live Aboard's kinds once its file has been read.
+  // The shapes as drawn: with Live Aboard's kinds once its file has been read,
+  // and none of a device hidden from the map.
   const legendOf = (h, h3x) => {
     const abLegend = _AB && abFile && h3x ? _AB.fileData(abSlot) : null;
-    const notes = [];
+    const notes = [], hid = h.hiddenEidsMap || h.hiddenEids;
     const node = buildShapeLegend(_noting(el, notes), Object.values(abLegend
       ? _AB.drawnWith(h.lightsByEid, h.byRoom, _AB.kindShapes(abLegend, h.lightsByEid, h3x.settings.light_shapes)).lightsByEid
-      : h.lightsByEid));
+      : h.lightsByEid).filter(l => !(hid && hid.has(l.entity_id))));
     return { node, key: JSON.stringify(notes) };
   };
   const legend = legendOf(host, h3);
