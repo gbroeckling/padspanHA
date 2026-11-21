@@ -80,12 +80,13 @@ export async function startDemo(page){
   settings.lights_hidden = page !== "atlas" ? [] : Object.keys(model.light_positions_m || {})
     .filter(eid => /^(sensor|lock)\./.test(eid) || (states[eid] && states[eid].attributes.device_class === "motion"));
   if (page === "atlas") settings.lights_hide_device_codes = true;
-  // Not on the wall (?kiosk=1), which is as it was: the whole house in view on
-  // a 16:9 screen (the floors closer, and stepped to the side: ⚙'s spacing),
-  // in the Atlas's calm Showcase look, Data-Viz Precision (Mapping → Atlas
-  // builder → Showcase).
+  // Not on the wall (?kiosk=1), which is as it was: the main floor alone, where
+  // the people are (⚙'s floor slider shows the others, and every floor at once;
+  // Live Aboard 3D shows them all), in the Atlas's calm Showcase look,
+  // Data-Viz Precision (Mapping → Atlas builder → Showcase). Three floors
+  // squeezed onto one screen overlapped each other (owner, 2026-11-21).
   if (page === "atlas" && q.get("kiosk") !== "1") Object.assign(settings, {
-    overview_iso_floor_gap: 78, overview_iso_horiz_gap: 80, lights_showcase: true, lights_showcase_theme: "dataviz_precision" });
+    overview_iso_focus: 3, lights_showcase: true, lights_showcase_theme: "dataviz_precision" });
   // ?look= and ?quality=: Live Aboard's look (atlas, own or studio) and quality (auto, low or high),
   // as Settings → UI Structure → 🏠 Live Aboard sets them.
   if (["atlas", "own", "studio"].includes(q.get("look"))) settings.atlas_3d_look = q.get("look");
