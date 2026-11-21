@@ -560,6 +560,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "aboard_wizard",                                # the Live Aboard setup wizard (Settings, Mapping → Atlas builder)
     "i18n",                                         # the panel's translations helper (t / tn)
     "status_dot",                                   # the top bar's status dot (what is wrong, from the live poll)
+    "dialog_keys",                                  # Escape, Tab and the focus for the panel's cards, sheets and dialogs
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
 # 0.38.177: beside each, the kind of error (views/ui_error.js UI_ERROR_KINDS)

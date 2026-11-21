@@ -131,9 +131,12 @@ export function renderNotes(notes) {
  *   url      where whatsnew.json is (with the panel's cache-buster)
  *   history  the website's full history, or null to leave the link out
  *            (a kiosk: the new tab it opens can't be closed there)
+ *   keys     the panel's holdKeys (views/dialog_keys.js), or null: the
+ *            focus is held in the notes while they are open (Tab stays
+ *            inside) and goes back to what opened them on closing
  * Returns { close, loaded }: loaded settles once the notes are shown or failed.
  */
-export function openReleaseNotes(host, { url, history = null } = {}) {
+export function openReleaseNotes(host, { url, history = null, keys = null } = {}) {
   const overlay = node("div", "overlay notes-overlay");
   const panel = overlay.appendChild(node("div", "panel notes-panel"));
   panel.setAttribute("role", "dialog");
@@ -166,7 +169,7 @@ export function openReleaseNotes(host, { url, history = null } = {}) {
   const closeBtn = foot.appendChild(node("button", "btn notes-close", NOTES_CLOSE));
   closeBtn.setAttribute("data-notes-close", "button");
 
-  let open = true;
+  let open = true, release = null;
   const onKey = (e) => { if (e && e.key === "Escape") close(); };
   function close() {
     if (!open) return;
@@ -178,6 +181,7 @@ export function openReleaseNotes(host, { url, history = null } = {}) {
       host.removeChild(overlay);
       host.classList.add("hidden");
     }
+    if (release) release();
   }
   x.addEventListener("click", close);
   closeBtn.addEventListener("click", close);
@@ -186,7 +190,8 @@ export function openReleaseNotes(host, { url, history = null } = {}) {
 
   host.replaceChildren(overlay);
   host.classList.remove("hidden");
-  try { closeBtn.focus(); } catch (_) { /* focus is a nicety */ }
+  if (typeof keys === "function") release = keys(panel, { modal: true, focus: closeBtn });
+  else try { closeBtn.focus(); } catch (_) { /* focus is a nicety */ }
 
   const loaded = Promise.resolve()
     .then(() => fetch(url))

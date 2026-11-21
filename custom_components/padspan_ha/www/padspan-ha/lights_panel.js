@@ -32,6 +32,10 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
         vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn } =
   await import(`./views/lights_map.js${STAMP}`);
+// Escape, Tab and the focus for the emergency card and the page drawn again
+// (views/dialog_keys.js). Optional: without it they work as they did.
+const KEYS = await import(`./views/dialog_keys.js${STAMP}`)
+  .catch(err => { console.warn("PadSpan: dialog_keys failed to load", err); return null; });
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${STAMP}`);
 // Wall mode's numbers. Optional: if the file can't load, the Atlas page runs
@@ -675,7 +679,9 @@ class PadSpanLightsApp extends HTMLElement {
       + `border-radius:${desktop ? "16px" : "18px 18px 0 0"};color:#e2e8f0;font-family:Inter,system-ui,sans-serif;`
       + "box-shadow:0 -12px 50px rgba(0,0,0,.6)"});
     overlay.appendChild(sheet);
-    const close = ()=>{ overlay.remove(); this._emergCard = null; };
+    // Escape does what ✕ does, Tab stays in the card, the focus goes back (views/dialog_keys.js).
+    let release = ()=>{};
+    const close = ()=>{ overlay.remove(); this._emergCard = null; release(); };
     overlay.addEventListener("click", e=>{ if(e.target === overlay) close(); });
     let down = false, shown = null;
     overlay.addEventListener("pointerdown", ()=>{ down = true; });
@@ -764,6 +770,7 @@ class PadSpanLightsApp extends HTMLElement {
     this._emergCard = { fill, close, refresh, sheet, overlay };
     fill();
     document.body.appendChild(overlay);
+    if(this._emergCard && KEYS) release = KEYS.holdKeys(sheet, { close, modal: true });
   }
 
   /** This screen is a wall that asked for its floors arranged for its shape (?arrange=1 on its link), not moved by
@@ -884,6 +891,11 @@ class PadSpanLightsApp extends HTMLElement {
     // something in it changed. Everything else comes out first and is built
     // again, as ever.
     const kept=[this._tableKeep && this._tableKeep.root, this._cardKeep && this._cardKeep.card].filter(Boolean);
+    // What is drawn again replaces the control that had the focus (a light
+    // on the map, a row): the focus goes on its replacement, the same control
+    // by its id or data key (views/dialog_keys.js), not to the page.
+    const focused=KEYS ? KEYS.deepActive() : null;
+    const back=focused && $c.contains(focused) ? KEYS.remember(focused) : null;
     let root=$c.firstChild;
     if(root && kept.some(k=>k.parentNode===root) && root===$c.lastChild){
       for(const n of [...root.childNodes]) if(!kept.includes(n)) root.removeChild(n);
@@ -894,6 +906,7 @@ class PadSpanLightsApp extends HTMLElement {
     const parts=this._buildUI();
     if(!root){ root=el("div",{}); $c.appendChild(root); }
     layChildren(root, parts);
+    if(back && !KEYS.deepActive()){ back.root=$c; KEYS.refocus(back); }
     if(this._emergCard) this._emergCard.refresh();
   }
 

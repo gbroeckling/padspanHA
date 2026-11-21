@@ -23,6 +23,8 @@
 const _q = new URL(import.meta.url).search;
 const M = await import(`./wled_model.js${_q}`);
 const { C, S, h, numberBox, check, select, field, errText, reportCfg } = await import(`./wled_ui.js${_q}`);
+// Escape is the wizard's Cancel, Tab stays in it, the focus goes back (dialog_keys.js). Optional.
+const KEYS = await import(`./dialog_keys.js${_q}`).catch(() => null);
 
 export function ledsView(ctx) {
   const root = h("div");
@@ -291,6 +293,8 @@ async function colourWizard(ctx, led, bus, i, changed) {
   const overlay = h("div", { style: "position:fixed;inset:0;z-index:10001;background:rgba(3,8,5,.7);display:flex;align-items:center;justify-content:center" });
   const box = h("div", { style: "background:#101f15;border:1px solid " + C.line + ";border-radius:14px;padding:18px;width:320px;max-width:92vw;color:" + C.text });
   overlay.appendChild(box); document.body.appendChild(overlay);
+  let cancel = null;
+  const release = KEYS ? KEYS.holdKeys(box, { close: () => { if (cancel) cancel(); }, modal: true }) : null;
   const show = async (rgb) => ctx.post({ on: true, bri: 128, tt: 0, seg: [
     { id: 0, start, stop, on: true, bri: 255, fx: 0, frz: false, col: [rgb, [0, 0, 0], [0, 0, 0]] },
     ...(saved.seg || []).filter(s => s.id !== 0).map(s => ({ id: s.id, on: false })),
@@ -299,6 +303,7 @@ async function colourWizard(ctx, led, bus, i, changed) {
   // the device and throw away the wizard's answer before Save (round 5).
   const restore = async () => {
     overlay.remove();
+    if (release) release();
     try {
       // Split to fit the device's buffer, like the backend's identify restore.
       for (const body of M.restoreBodies(saved, ctx.info)) ctx.state = await ctx.post(body) || ctx.state;
@@ -306,6 +311,7 @@ async function colourWizard(ctx, led, bus, i, changed) {
     } catch (e) { ctx.toast("Couldn't put the lights back: " + errText(e), true); }
   };
   const ask = (label, rgb) => new Promise(async (resolve) => {
+    cancel = () => resolve(null);
     box.innerHTML = "";
     box.appendChild(h("div", { style: "font-weight:700;margin-bottom:8px" }, `Output ${i + 1} — step ${Object.keys(answers).length + 1} of 3`));
     box.appendChild(h("div", { style: "font-size:13px;margin-bottom:10px" }, `The LEDs on this output should now be pure ${label}. What colour are they?`));

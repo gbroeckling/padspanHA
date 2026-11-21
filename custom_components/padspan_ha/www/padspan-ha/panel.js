@@ -176,6 +176,14 @@ import(`./views/map_text.js?b=${BUILD_ID}`)
   .then(m => { MAP_TEXT = m; })
   .catch(err => console.warn("PadSpan: map_text module failed to load", err));
 
+// The keyboard for the dialog, the phone menu and a view drawn again
+// (views/dialog_keys.js): Escape, Tab kept inside, the focus given back.
+// Until it lands, or if it never does, they work as they did without it.
+let DIALOG_KEYS = null;
+import(`./views/dialog_keys.js?b=${BUILD_ID}`)
+  .then(m => { DIALOG_KEYS = m; })
+  .catch(err => console.warn("PadSpan: dialog_keys module failed to load", err));
+
 // ── Dynamic view imports ─────────────────────────────────────────────────────
 // Two-phase loading for fast first paint:
 //   Phase 1 (critical): sample_data, help_content, overview, follow — enough to
@@ -991,13 +999,22 @@ class PadSpanHaApp extends HTMLElement {
     this._paintStatusDot();
 
     // Mobile navigation wiring
+    // Escape closes the drawer as × does, Tab stays in it, and the focus goes
+    // back to ☰ (or More) when it closes (views/dialog_keys.js).
     const _openDrawer = () => {
       this.$("#app").classList.add("mobile-open");
       this.$("#sideBackdrop").classList.add("active");
+      if (DIALOG_KEYS) {
+        const app = this.$("#app"), was = this._drawerHold;
+        if (was) was(false);
+        this._drawerHold = DIALOG_KEYS.holdKeys(this.$("aside.left"), { close: _closeDrawer, modal: true,
+          opener: was ? was.opener : undefined, open: () => app.isConnected && app.classList.contains("mobile-open") });
+      }
     };
     const _closeDrawer = () => {
       this.$("#app").classList.remove("mobile-open");
       this.$("#sideBackdrop").classList.remove("active");
+      if (this._drawerHold) { const h = this._drawerHold; this._drawerHold = null; h(); }
     };
     this.$("#mobileBackBtn").addEventListener("click", () => {
       // Navigate back to HA dashboard — works in Companion App on iPhone
@@ -1010,6 +1027,7 @@ class PadSpanHaApp extends HTMLElement {
     this.$("#mobileMenuBtn").addEventListener("click", _openDrawer);
     this.$("#sidebarClose").addEventListener("click", _closeDrawer);
     this.$("#sideBackdrop").addEventListener("click", _closeDrawer);
+    this._openDrawer = _openDrawer;
     this._closeDrawer = _closeDrawer;
 
     // Mobile topbar pills mirror the desktop toggles
@@ -1280,6 +1298,7 @@ class PadSpanHaApp extends HTMLElement {
       .then(m => m.openReleaseNotes(this.$modal, {
         url: `/padspan_ha_static/padspan-ha/assets/whatsnew.json?v=${APP_VERSION}&b=${BUILD_ID}`,
         history: m.notesHistoryLink(historyUrl, this.state.kioskMode),
+        keys: DIALOG_KEYS ? DIALOG_KEYS.holdKeys : null,
       }))
       .catch(err => {
         console.warn("PadSpan: release notes failed to open", err);
@@ -3837,6 +3856,8 @@ class PadSpanHaApp extends HTMLElement {
       moreBtn.addEventListener("click", () => {
         if (this.$("#app").classList.contains("mobile-open")) {
           if (this._closeDrawer) this._closeDrawer();
+        } else if (this._openDrawer) {
+          this._openDrawer();
         } else {
           this.$("#app").classList.add("mobile-open");
           this.$("#sideBackdrop").classList.add("active");
@@ -4250,6 +4271,10 @@ class PadSpanHaApp extends HTMLElement {
   // ESC key and clicking the overlay backdrop both close the modal.
   _openModal(title, bodyNode, subtitle=""){
     if(!this.$modal) return;
+    // One modal replacing another gives the focus back, on closing, to what
+    // opened the first.
+    const _from = this._modalHold ? this._modalHold.opener : undefined;
+    if(this._modalHold){ this._modalHold(false); this._modalHold = null; }
     this.$modal.classList.remove("hidden");
     this.$modal.innerHTML = "";
 
@@ -4286,6 +4311,10 @@ class PadSpanHaApp extends HTMLElement {
     // Not { once: true }: typing a letter in the modal's own box (Tag,
     // Rename) used the listener up, and Escape stopped closing it.
     window.addEventListener("keydown", esc);
+    // The keyboard is the modal's while it is open (views/dialog_keys.js): it
+    // takes the focus, Tab stays inside it, and on closing the focus goes
+    // back to what opened it. Escape stays the listener above.
+    if(DIALOG_KEYS) this._modalHold = DIALOG_KEYS.holdKeys(panel, { modal: true, opener: _from });
   }
 
   _closeModal(){
@@ -4293,6 +4322,7 @@ class PadSpanHaApp extends HTMLElement {
     if(!this.$modal) return;
     this.$modal.classList.add("hidden");
     this.$modal.innerHTML = "";
+    if(this._modalHold){ const h = this._modalHold; this._modalHold = null; h(); }
   }
 
 
@@ -5542,12 +5572,19 @@ class PadSpanHaApp extends HTMLElement {
 
       frag.appendChild(node);
 
+      // The redraw replaces the control that had the focus: the focus goes on
+      // its replacement, the same control by its id or data key
+      // (views/dialog_keys.js), instead of falling to the page.
+      const _focused = DIALOG_KEYS ? DIALOG_KEYS.deepActive() : null;
+      const _refocus = _focused && this.$content.contains(_focused) ? DIALOG_KEYS.remember(_focused) : null;
+
       // ── Swap: clear old content and append new content atomically ────────
       this.$content.innerHTML = "";
       this.$content.appendChild(frag);
       this._lastGoodRender = performance.now();
       this._renderFailCount = 0;
       if(v === "overview") this._lastSuspendState = !!(this.state.live?.snapshot?.suspended);
+      if(_refocus && !DIALOG_KEYS.deepActive()){ _refocus.root = this.$content; DIALOG_KEYS.refocus(_refocus); }
 
       // Restore scroll after DOM paint
       requestAnimationFrame(()=> {

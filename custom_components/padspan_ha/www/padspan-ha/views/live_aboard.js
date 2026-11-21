@@ -77,6 +77,8 @@ const ROOMS = await import(`./live_aboard_rooms.js${new URL(import.meta.url).sea
 const { airQualityWord, airQualityBadness } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // The heights in Live Aboard's file no view reads (out of date: the map's).
 const { withoutGone, isTapLight, roomAggregate, openRoomSheet } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
+// The focus back on a menu's button when it closes (dialog_keys.js). Optional.
+const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 // P5: furniture that is a device behaves like it (optional too: missing, the
 // pieces are only furniture and the fixtures stay where they are).
 const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url).search}`)
@@ -722,7 +724,7 @@ function createSlot(slotKey){
   // The view about to show afresh (made, or back after Map): on the sidebar
   // (not a wall, not Furnish) its first frame steps the bars aside (openBare).
   let freshShow = true;
-  let coverOff = null, coverStyle = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null, menuAnchor = null;
+  let coverOff = null, coverStyle = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null, menuAnchor = null, menuKeys = null;
   let floorSteps = null, floorEls = [], hintCard = null, tipEl = null, narrow = false;
   // A camera kept per floor on this screen (and one for All), as the Atlas
   // keeps each floor's zoom and scroll: left on a floor, it is there again on
@@ -1066,12 +1068,18 @@ function createSlot(slotKey){
     const want = !!(root && mapOnly && (bare || fsOn));
     if (want === cover) { layCover(); return; }
     cover = want;
+    // Moved in the page (out of the card or back), the view would drop the
+    // focus it holds (the 3D view's keys): it stays on what had it.
+    const rn0 = root && root.getRootNode ? root.getRootNode() : null;
+    const held = rn0 && rn0.activeElement && root.contains(rn0.activeElement) ? rn0.activeElement : null;
+    const keep = () => { if (held && held.isConnected && rn0.activeElement !== held) { try { held.focus({ preventScroll: true }); } catch (_) { /* focus is a nicety */ } } };
     if (want) {
       // Out of the card, to the top of the panel's own tree: the poll's new
       // cards never move it, and nothing of the card stacks over it.
       const r0 = root.getBoundingClientRect(), rn = root.getRootNode ? root.getRootNode() : null;
       const home = rn && rn.host ? rn : document.body;
       if (home && root.parentNode !== home) home.appendChild(root);
+      keep();
       root.classList.remove("la3d-cover");
       Object.assign(root.style, { position: "fixed", margin: "0", borderRadius: "0", border: "none", zIndex: String(COVER_Z), maxWidth: "none",
                                   left: `${r0.left}px`, top: `${r0.top}px`, width: `${r0.width}px`, height: `${r0.height}px` });
@@ -1093,6 +1101,7 @@ function createSlot(slotKey){
       root.classList.remove("la3d-cover");
       for (const k of COVER_KEYS) root.style[k] = "";
       if (stage && stage.parentNode) stage.parentNode.insertBefore(root, stage.nextSibling);   // back beside the newest card's stage
+      keep();
     }
     resize();
   }
@@ -1501,6 +1510,7 @@ function createSlot(slotKey){
     if (menuEl && menuEl.parentNode) menuEl.parentNode.removeChild(menuEl);
     menuEl = null;
     markMenus();
+    if (menuKeys) { const k = menuKeys; menuKeys = null; k(); }
   }
   /** The panel's element says whether the ⋯ list or a menu is open, so
    *  Vacation Mode's banner steps under it (the CSS's data-la3d-menu). */
@@ -1589,6 +1599,9 @@ function createSlot(slotKey){
     window.addEventListener("pointerdown", away, true);
     window.addEventListener("keydown", esc);
     menuOff = () => { window.removeEventListener("pointerdown", away, true); window.removeEventListener("keydown", esc); };
+    // Closed, the focus goes back to its button (or the button drawn in its
+    // place: dialog_keys.js); Escape stays the listener above.
+    menuKeys = KEYS ? KEYS.holdKeys(m, { take: false, opener: anchor }) : null;
   }
 
   // ── the first time: a card with the ways round ────────────────────────────

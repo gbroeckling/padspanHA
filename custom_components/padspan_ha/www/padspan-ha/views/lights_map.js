@@ -34,6 +34,12 @@ const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}
 // it). Optional: missing, a wall draws with the saved spacing as it did.
 const FIT = await import(`./atlas_fit.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: atlas_fit failed to load", err); return null; });
+// Escape, Tab and the focus for the cards and sheets below (dialog_keys.js):
+// Escape does what ✕ does, Tab stays in the card, and the focus goes back to
+// what opened it. Optional: missing, they close with ✕ or a tap outside, as before.
+const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: dialog_keys failed to load", err); return null; });
+const _holdKeys = (box, o) => (KEYS ? KEYS.holdKeys(box, o) : () => {});
 // The arrangement for a house on a stage, worked out once per model and stage shape (about 30 ms for three floors).
 const _fitMemo = new WeakMap();
 function _wallLayout(host, floors){
@@ -331,13 +337,14 @@ export function confirmUnlock(name){
     overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10002;"
       + "display:flex;align-items:center;justify-content:center;"
       + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-    let done = false;
+    let done = false, release = () => {};
     const onKey = (e) => { if (e && e.key === "Escape") finish(false); };
     const finish = (ok) => {
       if (done) return;
       done = true;
       document.removeEventListener("keydown", onKey, true);
       overlay.remove();
+      release();
       resolve(ok);
     };
     overlay.addEventListener("click", e => { if (e.target === overlay) finish(false); });
@@ -362,7 +369,9 @@ export function confirmUnlock(name){
     ]));
     overlay.appendChild(box);
     document.body.appendChild(overlay);
-    document.addEventListener("keydown", onKey, true);
+    // Escape is Cancel (dialog_keys.js; without it, the listener here).
+    if (KEYS) release = _holdKeys(box, { close: () => finish(false), modal: true, focus: no });
+    else document.addEventListener("keydown", onKey, true);
     // Enter on a keyboard must not unlock by itself: Cancel has the focus.
     try { no.focus(); } catch (_) { /* no focus to give */ }
   });
@@ -1418,8 +1427,8 @@ export function openAggregateSheet(api, spec, o = {}){
   const overlay = into ? null : mk("div", _S.overlay);
   const desktop = !into && typeof window !== "undefined" && window.innerWidth > 768;
   if (desktop) overlay.style.alignItems = "center";
-  let open = true;
-  const close = () => { if (!open) return; open = false; (overlay || sheet).remove(); if (o && typeof o.onClose === "function") o.onClose(); };
+  let open = true, release = () => {};
+  const close = () => { if (!open) return; open = false; (overlay || sheet).remove(); release(); if (o && typeof o.onClose === "function") o.onClose(); };
   if (overlay) overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", into ? _S.inPanel : _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const greyed = ";opacity:.45;cursor:default";
@@ -1513,7 +1522,7 @@ export function openAggregateSheet(api, spec, o = {}){
     }
   };
   fill(api, spec);
-  if (overlay) { overlay.appendChild(sheet); document.body.appendChild(overlay); }
+  if (overlay) { overlay.appendChild(sheet); document.body.appendChild(overlay); release = _holdKeys(sheet, { close, modal: true }); }
   else into.appendChild(sheet);
   return { update: (nextApi, nextSpec) => { if (!open) return false; fill(nextApi, nextSpec); return true; }, close };
 }
@@ -1771,7 +1780,8 @@ export async function openActivityCalendar(hass, eid) {
   const overlay = mk("div", _S.overlay);
   const desktop = typeof window !== "undefined" && window.innerWidth > 768;
   if (desktop) overlay.style.alignItems = "center";
-  const close = () => { overlay.remove(); };
+  let release = () => {};
+  const close = () => { overlay.remove(); release(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const head = mk("div", _S.head);
@@ -1783,6 +1793,7 @@ export async function openActivityCalendar(hass, eid) {
   sheet.appendChild(body);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
+  release = _holdKeys(sheet, { close, modal: true });
 
   try {
     const raw = await hass.callApi(
@@ -2120,7 +2131,8 @@ export function openControlCard(hass, eid, api){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
     + "display:flex;align-items:center;justify-content:center;"
     + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-  const close = () => { overlay.remove(); };
+  let release = () => {};
+  const close = () => { overlay.remove(); release(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
 
   const box = el("div", { style:
@@ -2251,6 +2263,7 @@ export function openControlCard(hass, eid, api){
     if (det) box.appendChild(det);
     overlay.appendChild(box);
     document.body.appendChild(overlay);
+    release = _holdKeys(box, { close, modal: true });
     return;
   }
 
@@ -2477,6 +2490,7 @@ export function openControlCard(hass, eid, api){
   if (det) box.appendChild(det);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+  release = _holdKeys(box, { close, modal: true });
 }
 
 // The Lock/Unlock button + jammed note, factored out because the barrier
@@ -2517,7 +2531,8 @@ function _pickEntityOverlay(title, candidates, onPick){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
     + "display:flex;align-items:center;justify-content:center;"
     + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-  const close = () => { overlay.remove(); };
+  let release = () => {};
+  const close = () => { overlay.remove(); release(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const box = el("div", { style:
     "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
@@ -2554,6 +2569,7 @@ function _pickEntityOverlay(title, candidates, onPick){
   ]));
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+  release = _holdKeys(box, { close, modal: true });
 }
 
 // ── The door/window/lock barrier card ───────────────────────────────────────
@@ -2627,7 +2643,8 @@ export function openBarrierCard(hass, bar, api){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
     + "display:flex;align-items:center;justify-content:center;"
     + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-  const close = () => { overlay.remove(); };
+  let release = () => {};
+  const close = () => { overlay.remove(); release(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
 
   const box = el("div", { style:
@@ -2730,6 +2747,7 @@ export function openBarrierCard(hass, bar, api){
 
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+  release = _holdKeys(box, { close, modal: true });
 }
 
 // Aggregate action: every light (and, separately, every fan) in a room or
