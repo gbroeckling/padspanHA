@@ -13,13 +13,13 @@ Either free tier gets floors, rooms and one marker per light — tap the marker 
 
 ## Getting there
 
-Open **Mapping → Atlas**, or the standalone **Atlas** sidebar panel (on by default; Settings turns it off) for a lighter view without the rest of Mapping.
+Open **Mapping → Atlas builder**, or the standalone **Atlas** sidebar panel (on by default; Settings turns it off) for a lighter view without the rest of Mapping.
 
 ## Placing fixtures
 
 With a Pro/Bright Pro key:
 
-1. Go to **Mapping → Atlas** and find the device in the row list (or the "Queue all unplaced" control if you're placing several at once).
+1. Go to **Mapping → Atlas builder** and find the device in the row list (or the "Queue all unplaced" control if you're placing several at once).
 2. Either drag the pulsing pin straight onto the floor plate, or tap **+ Place** to queue it and then tap the map where it belongs.
 3. Set shape, size and rotation from the inspector — a light might be a pendant, sconce, strip or chandelier; sizes and angles are in real units (centimetres), not a generic dot.
 
@@ -74,7 +74,7 @@ The **presets bar** saves a whole look — Showcase theme, Automorph style, and 
 
 ## Outdoor weather
 
-When it's raining or snowing, Atlas shows it: faint rain or snow falls everywhere around the house, never over a room or a floor, and never in the space between two stacked floors (that's inside the house). It's off while it's dry, so most of the time you won't see it. It's in both the Atlas sidebar and Mapping → Atlas. PadSpan Pro and Bright Pro animate it; the free map shows the same weather as a still texture. With the phone or tablet set to reduce motion, it's still there too.
+When it's raining or snowing, Atlas shows it: faint rain or snow falls everywhere around the house, never over a room or a floor, and never in the space between two stacked floors (that's inside the house). It's off while it's dry, so most of the time you won't see it. It's in both the Atlas sidebar and Mapping → Atlas builder. PadSpan Pro and Bright Pro animate it; the free map shows the same weather as a still texture. With the phone or tablet set to reduce motion, it's still there too.
 
 What it shows:
 
@@ -92,7 +92,7 @@ Set it up in **Settings → Atlas** (Advanced mode) **→ Atlas — Mapped Light
 ## Heights
 
 Every placed device has a height above its floor, used by [Live Aboard](LIVE_ABOARD_GUIDE.md) (the
-3D house) to put it where it really is. In **Mapping → Atlas**, pick a device and use its **Height**
+3D house) to put it where it really is. In **Mapping → Atlas builder**, pick a device and use its **Height**
 row: tap one of the spots offered for its kind (a motion sensor: Corner, Ceiling, High on the
 wall…; a leak sensor: Floor), type centimetres, or **Default**. The **Heights** list shows every
 placed device with its height (or "default"); tick several and set them all at once. Hovering a
@@ -143,7 +143,7 @@ Only an administrator can change who runs a light.
 
 Got a garage door, window opener, door strike or light wired to plain relays (a ProDino channel, a
 PoE port, any switch or light entity)? **Build an Opener, Lock, or Light from Relays** turns them
-into a proper Home Assistant cover, lock or light. Find it in **Mapping → Atlas** (**+ Build an
+into a proper Home Assistant cover, lock or light. Find it in **Mapping → Atlas builder** (**+ Build an
 opener, lock, or light from relays** in the device list) or on the **Devices** page. PadSpan Pro.
 
 - **Opener:** pick the open and close relays (they must be different), the **travel time** for a

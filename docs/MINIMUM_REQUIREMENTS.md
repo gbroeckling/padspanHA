@@ -4,6 +4,8 @@ What PadSpan HA needs from the machine running Home Assistant and from the scree
 
 ## The Home Assistant machine
 
+PadSpan HA needs **Home Assistant 2024.8 or newer**.
+
 | | |
 |---|---|
 | **Recommended** | **More than 2 GB of RAM.** A Raspberry Pi 4 or 5 with 4 GB or more, a Home Assistant Green, or any mini PC or VM with 4 GB or more. |
@@ -14,7 +16,7 @@ What PadSpan HA needs from the machine running Home Assistant and from the scree
 
 PadSpan keeps three things in memory that grow with every device it hears, not only the ones you track:
 
-- **The object history.** Every device it hears that is not a rotating phone address is kept for a day by default, so it shows in the device list (Settings → Tracking → object history: 1, 2, 7 or 14 days). Tagged and identified devices are always kept. Since 0.38.106 it keeps at most 10,000 devices nobody has identified; past that, the ones heard longest ago go first.
+- **The object history.** Every device it hears that is not a rotating phone address is kept for a day by default, so it shows in the device list (Settings → Tracking → What the panel shows → Object History Retention: 1, 2, 7 or 14 days). Tagged and identified devices are always kept. Since 0.38.106 it keeps at most 10,000 devices nobody has identified; past that, the ones heard longest ago go first.
 - **The Bluetooth cache.** The last reading from every scanner for every address, kept for the BLE Advertisement Timeout (Settings → Tracking; 4 hours unless you change it).
 - **The live snapshot.** Everything above, built into one list that is sent to every open PadSpan panel every 5 seconds.
 
@@ -64,7 +66,7 @@ How smoothly each kind of screen runs the Atlas and Live Aboard is being measure
 
 ## Bluetooth scanners
 
-At least one: a Home Assistant Bluetooth proxy (ESPHome), a Bermuda proxy, or ESPresense nodes. ESPresense also needs Home Assistant's MQTT integration, with ingestion switched on in Manage.
+At least one: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner, the Home Assistant machine's own Bluetooth, ESPresense nodes, or Tasmota devices (experimental). ESPresense and Tasmota also need Home Assistant's MQTT integration, with their ingestion switched on in Manage → HA Entities.
 
 ## How these numbers are gathered
 
