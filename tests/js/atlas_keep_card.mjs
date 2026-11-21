@@ -729,6 +729,26 @@ await tryCase("panel: the header's tip follows Tap a light to switch it, on Pro'
     /^Tap a light to switch it · /.test(ticked) && /^A tap doesn't switch a light on this screen · tap its code or hold it for controls · tap a room name/.test(off)
     && notV2 === ticked && free === ticked, { ticked, off, notV2, free });
 });
+// Codes hidden and the sensors hidden from the map: the tip names neither, and the shapes' key lists only what is drawn.
+await tryCase("panel: with the codes and the sensors hidden, the tip and the shapes' key leave them out", async () => {
+  const p = new Panel();
+  p.connectedCallback();
+  p.hass = mkHass(BASE);
+  await p._boot(); await flush(); await flush();
+  const read = () => { p._render(); const ns = p.shadowRoot.querySelector("#content")._all();
+    const h = ns.find(n => (n.className || "") === "lv-hint"), k = ns.find(n => /\blv-legend\b/.test(n.className || ""));
+    return { tip: h ? h.textContent : null, key: k ? k.textContent : "" }; };
+  const before = read();
+  p.state._hideDeviceCodes = true;
+  p.state._hidden = new Set(["binary_sensor.den_motion", "sensor.kitchen_temperature"]);
+  const after = read();
+  p.disconnectedCallback();
+  check("panel: with the codes and the sensors hidden, the tip and the shapes' key leave them out",
+    before.tip === "Tap a light to switch it · tap its code or hold for controls · tap a room name for the whole room · motion, temperature and air-quality tiles are read-only"
+    && /Motion sensor/.test(before.key) && /Temperature readout/.test(before.key)
+    && after.tip === "Tap a light to switch it · hold it for controls · tap a room name for the whole room"
+    && !/Motion sensor|Temperature readout/.test(after.key) && after.key.length > 0, { before, after });
+});
 // The one-time tip box says what the header's line says and more: while it is up the line is hidden, not shown twice (audit 2026-11-19).
 await tryCase("panel: the header's tip waits while the one-time tip box is up", async () => {
   const p = new Panel();
