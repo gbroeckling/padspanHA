@@ -1220,7 +1220,7 @@ function _settingsPresence(ctx, el){
         ctx.toast(`Walk a room: ${tg.checked ? "on" : "off"}`);
       } catch (e) { ctx.toast("Failed to save", true); }
     });
-    put("positioning", el("div", { class: "card" }, [
+    put("positioning", el("div", { class: "card", "data-focus-part": "room_walk" }, [
       el("div", { class: "h2" }, "Walk a Room (Calibration)"),
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
         tg,

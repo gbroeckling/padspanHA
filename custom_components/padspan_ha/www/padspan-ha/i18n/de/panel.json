@@ -349,5 +349,9 @@
 "Chosen from its name; change it if it's wrong.": "Nach seinem Namen gewählt; ändere es, wenn es nicht stimmt.",
 "{receiver} is in {room} now.": "{receiver} ist jetzt in {room}.",
 "That didn't work. Try again in a moment.": "Das hat nicht geklappt. Versuch es gleich noch einmal.",
-"no Home Assistant area: {names} (pick its room below, or place it by hand)": "kein Home-Assistant-Bereich: {names} (wähl unten seinen Raum oder platziere ihn von Hand)"
+"no Home Assistant area: {names} (pick its room below, or place it by hand)": "kein Home-Assistant-Bereich: {names} (wähl unten seinen Raum oder platziere ihn von Hand)",
+"Quickest: walk each room for 90 seconds with your phone (Walk a room). Point by point is the other way.": "Am schnellsten: Geh mit deinem Handy 90 Sekunden durch jeden Raum („Walk a room“). Punkt für Punkt ist der andere Weg.",
+"Point by point": "Punkt für Punkt",
+"Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).": "Schneller: Geh stattdessen 90 Sekunden durch jeden Raum („Walk a room“). Das ist hier ausgeschaltet; schalte es unter „Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)“ ein.",
+"Open that setting": "Diese Einstellung öffnen"
 }

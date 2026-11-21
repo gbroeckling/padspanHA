@@ -127,6 +127,19 @@ for (const [btn, part, mustNot] of [
     [ctx.state._focus, ctx.state.view]);
 }
 
+// ── settings: Setup's calibration step, Walk a room off (2026-11-21): "Open that setting", the switch's card alone ──
+{
+  const calls = [];
+  const ctx = makeCtx({ view: "setup", calibration: { points: [] }, _mapsLoaded: true, _modelLoaded: true }, calls);
+  const sr = SETUP.render(ctx);
+  click(attr(sr, "data-setup", "calibration-walk-setting"));
+  const f = ctx.state._focus || {};
+  const root = SET.render(ctx);
+  check("settings: Setup's Open that setting draws the Walk a Room card alone, back to Setup, still Basic",
+    ctx.state.view === "settings" && f.part === "room_walk" && f.back && f.back.view === "setup" && focusedOnly(root, "room_walk")
+    && /Add a "Walk a room" tab to Calibration/.test(text(root)) && !/Positioning Choices|Help improve PadSpan/.test(text(root)) && noSwitch(calls), [f, text(root).slice(0, 300)]);
+}
+
 // ── settings: Guests' "Open Settings" (guest tags off) ──────────────────────
 {
   const calls = [];

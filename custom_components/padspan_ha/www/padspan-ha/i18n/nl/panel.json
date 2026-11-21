@@ -349,5 +349,9 @@
 "Chosen from its name; change it if it's wrong.": "Gekozen op basis van de naam; pas het aan als het niet klopt.",
 "{receiver} is in {room} now.": "{receiver} staat nu in {room}.",
 "That didn't work. Try again in a moment.": "Dat is niet gelukt. Probeer het zo nog eens.",
-"no Home Assistant area: {names} (pick its room below, or place it by hand)": "geen Home Assistant-ruimte: {names} (kies hieronder zijn kamer, of plaats hem met de hand)"
+"no Home Assistant area: {names} (pick its room below, or place it by hand)": "geen Home Assistant-ruimte: {names} (kies hieronder zijn kamer, of plaats hem met de hand)",
+"Quickest: walk each room for 90 seconds with your phone (Walk a room). Point by point is the other way.": "Het snelst: loop met je telefoon 90 seconden door elke kamer (“Walk a room”). Punt voor punt is de andere manier.",
+"Point by point": "Punt voor punt",
+"Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).": "Sneller: loop in plaats daarvan 90 seconden door elke kamer (“Walk a room”). Dat staat hier uit; zet het aan in “Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)”.",
+"Open that setting": "Die instelling openen"
 }

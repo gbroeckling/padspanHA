@@ -270,6 +270,37 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("phone: done names what is tracked", drow && drow.getAttribute("data-setup-status") === "done" && drow.textContent.includes("Tracked: Sam's phone, Kim's watch."), drow && drow.textContent);
 }
 
+// 2026-11-21: the quick first calibration. Walk a room (calibration_room_walk) is off by default and stays so (the
+// owner's call): off, Start opens the guided calibration as before and one line says how to turn the walk on, with a
+// button to that setting; on, Start opens Calibration's Walk a room tab and "Point by point" the guided calibration.
+{
+  const st = house(6, { calibration: { points: [], model: {} }, complexity: "basic" });
+  const { ctx } = mkCtx(st);
+  let root = S.render(ctx);
+  const line = root.querySelector('[data-setup="calibration-walk"]');
+  check("walk: off: the calibration row says how to turn Walk a room on, Start is the guided calibration",
+    line && line.textContent.includes("It is off on this install") && !btn(root, "open-calibration-points"), line && line.textContent);
+  btn(root, "calibration-walk-setting").click();
+  const f = st._focus || {};
+  check("walk: its button opens only that setting's card in Basic, back to Setup", st.view === "settings" && f.part === "room_walk"
+    && f.back && f.back.view === "setup" && st._settingsTab === "presence", f);
+  st.view = "setup"; st._focus = null;
+  btn(S.render(ctx), "open-calibration").click();
+  check("walk: off: Start opens the guided calibration at its first step", st.view === "calibration" && st._calibWizard && st._calibWizard.step === 1);
+  st.view = "setup"; st.settings = { calibration_room_walk: true };
+  root = S.render(ctx);
+  const on = root.querySelector('[data-setup="calibration-walk"]');
+  check("walk: on: the row offers the walk first, point by point beside it", on && on.textContent.startsWith("Quickest: walk each room for 90 seconds")
+    && !!btn(root, "open-calibration-points"), on && on.textContent);
+  btn(root, "open-calibration").click();
+  check("walk: on: Start opens Calibration's Walk a room tab, with the bar back to Setup", st.view === "calibration" && !st._calibWizard
+    && st._calibTabRequest === "walk" && st._setupReturn === "calibration", [st._calibWizard, st._calibTabRequest]);
+  st.view = "setup"; st._calibTabRequest = null;
+  btn(S.render(ctx), "open-calibration-points").click();
+  check("walk: on: Point by point opens the guided calibration", st.view === "calibration" && st._calibWizard && st._calibWizard.step === 1
+    && st._setupReturn === "calibration" && !st._calibTabRequest);
+}
+
 // The rooms helper's Done (end-to-end test 2026-11-11): its receivers step opens on the plan it just saved, not the
 // first plan or the one open in Mapping.
 {

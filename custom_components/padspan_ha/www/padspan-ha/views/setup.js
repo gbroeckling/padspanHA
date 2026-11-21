@@ -149,18 +149,25 @@ function _save(ctx, p) {
 // ── opening a step: the tool that already does it ───────────────────────────
 
 
+/** Whether Calibration has its Walk a room tab (calibration_room_walk: off by default, and the server refuses a walk
+ *  while it is off). Where it is on, Setup's calibration step offers the walk first. */
+export const walkFirst = (s) => !!s && s.calibration_room_walk === true;
+
 /** Whether the IRK Manager shows the phone wizard (views/bluetooth.js: "Phone Setup Wizard" or "iPhone Setup Path"). */
 export const phoneWizardShown = (s) => !!s && (s.phone_wizard_enabled === true || s.iphone_irk_guide === true);
 
 /** Open a step's own tool, with the bar back to Setup over it. `mapId`: on that plan (the rooms helper's Done opens
  *  receivers on the plan it just saved), else the plan open in Mapping, else the first. */
-export function openStep(ctx, id, mapId = null, door = null) {
+export function openStep(ctx, id, mapId = null, door = null, points = false) {
   const st = ctx.state;
   _save(ctx, openProgress(progressOf(st), id));
   _countStep(ctx, id);
   st._setupReturn = id;
   if (id === "calibration") {
-    st._calibWizard = { step: 1 };
+    // The quick way first where it is on (2026-11-21): Calibration's Walk a room, 90 seconds per room. The guided
+    // calibration, point by point (`points`), is the other way, and the only one while the setting is off.
+    if (walkFirst(st.settings) && !points) { st._calibWizard = null; st._calibTabRequest = "walk"; }
+    else st._calibWizard = { step: 1 };
     ctx.actions.showView("calibration");
     return;
   }
@@ -413,6 +420,30 @@ function _helperUndo(ctx, u) {
   return box;
 }
 
+// ── calibrating: the quick way first (2026-11-21) ───────────────────────────
+// Walk a room (views/calibration_walk.js) is a 90-second walk per room; it is off by default (calibration_room_walk,
+// settings_store.py), and turning it on for every install is the owner's call, so this does not. Where it is on, the
+// step's Start walks the rooms and "Point by point" opens the guided calibration; where it is off, one line says how to
+// turn it on, with a button to that setting.
+function _walkLine(ctx) {
+  const { el } = ctx.helpers, st = ctx.state;
+  const box = el("div", { "data-setup": "calibration-walk", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px" });
+  if (walkFirst(st.settings)) {
+    box.textContent = t("Quickest: walk each room for 90 seconds with your phone (Walk a room). Point by point is the other way.");
+    return box;
+  }
+  box.appendChild(el("span", {}, t("Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).") + " "));
+  const go = el("button", { class: "btn inline", style: "font-size:12px;margin-top:4px", "data-setup": "calibration-walk-setting" }, t("Open that setting"));
+  if (_demo(st)) go.disabled = true;
+  go.addEventListener("click", () => {
+    if (_demo(st)) return;
+    st._presenceReveal = "positioning"; st._settingsPart = "room_walk";   // Advanced: the whole tab, its section open, scrolled there
+    FOCUS.openFocus(ctx, FOCUS.part("roomWalk", { back: { view: "setup", label: t("Setup") } }));
+  });
+  box.appendChild(go);
+  return box;
+}
+
 // ── the view ────────────────────────────────────────────────────────────────
 
 const _COLORS = {
@@ -543,6 +574,7 @@ export function render(ctx) {
       const rb = receiversBlock(ctx);
       if (rb) info.appendChild(rb);
     }
+    if (s.id === "calibration") info.appendChild(_walkLine(ctx));
     if (s.id === "rooms" && AIW && AIW.helperUndo && !_demo(st) && !st.kioskMode) {
       const u = AIW.helperUndo(ctx);
       if (u || _undoSaid) info.appendChild(_helperUndo(ctx, u));
@@ -560,6 +592,13 @@ export function render(ctx) {
         ctx.actions.renderRooms();
       });
       btns.appendChild(sk);
+    }
+    // Calibrate with Walk a room on: Start walks the rooms; point by point is the second way, beside it.
+    if (s.id === "calibration" && walkFirst(st.settings)) {
+      const pp = el("button", { class: "btn inline", style: "font-size:12px", "data-setup": "open-calibration-points" }, t("Point by point"));
+      if (_demo(st)) pp.disabled = true;
+      pp.addEventListener("click", () => { if (!_demo(st)) openStep(ctx, "calibration", null, null, true); });
+      btns.appendChild(pp);
     }
     const word = s.done ? (s.id === "plan" ? t("Add a floor") : t("Change")) : cur ? (progress.at === s.id ? t("Continue →") : t("Start →")) : t("Open");
     const go = el("button", { class: "btn inline" + (cur ? " primary" : ""), style: "font-size:12px", "data-setup": "open-" + s.id }, word);
