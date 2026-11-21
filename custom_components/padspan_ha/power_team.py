@@ -185,6 +185,8 @@ class Team:
         self._gen = 0
         self._power_cmd_at = -1e9
         self._power_cmd_on = False     # which way our last power command went: only a change that way is its echo
+        st = io.state(cfg["power"]) if cfg.get("power") else None
+        self._last_power = st.state if st is not None and st.state in ("on", "off") else None   # its last real reading
         self._sent_at = -1e9
         self._quiet_until = -1e9       # a long fade we sent runs until then: the day waits, and what the bulbs show is ours
         self.waking = False            # the light is the wake-up's (its fade, then its brightness and colour)
@@ -313,7 +315,7 @@ class Team:
         self.waking = False
         self.phase, self.missing = "off", []
         self._quiet_until = -1e9
-        if self.by_bulbs and self._power_cut():
+        if self.by_bulbs and self._power_cut() and not (self._power_cmd_on and self.io.now() - self._power_cmd_at < ECHO_S):
             self.io.changed()                          # no power: already dark, and a cut bulb could never answer
             return
         if self.by_bulbs:
@@ -420,28 +422,37 @@ class Team:
         now = self.io.now()
         if new.state != "on":
             self.waking, self._quiet_until = False, -1e9
+        # What it last really read: across a spell out of reach (or Home Assistant starting), off then on is still
+        # the wall; nothing known is not.
+        was = old.state if old is not None and old.state in ("on", "off") else self._last_power
+        if new.state in ("on", "off"):
+            self._last_power = new.state
         # Ours: soon after our own command AND the way it went (the wall button pressed on a moment after we cut
-        # the power is a person, found on a real Home Assistant, 2026-11-14).
-        ours = self._power_cmd_on == (new.state == "on") and now - self._power_cmd_at < (ECHO_S if new.state == "on" else OWN_S)
+        # the power is a person, found on a real Home Assistant, 2026-11-14). Our power-on reported late (Control4,
+        # up to ECHO_S) is ours too, but only as the switch on itself: a level held at the wall is a hand, at once.
+        same_way = self._power_cmd_on == (new.state == "on")
+        ours = same_way and now - self._power_cmd_at < OWN_S
+        echo = same_way and new.state == "on" and was != "on" and now - self._power_cmd_at < ECHO_S
+        if was != new.state and not (ours or echo):
+            self._power_cmd_at = -1e9                  # someone else switched it: what follows is never our echo
         if new.state != "on":
             if self.phase != "off":
                 self._gen += 1
                 self.phase, self.missing, self.manual = "off", [], False
                 self.io.changed()
             return
-        if not old or old.state != "on":
-            if self.phase == "starting":
-                return                                 # we are starting the bulbs: our own power-on, reported late
-            if not old or old.state != "off":
-                # Heard from for the first time (Home Assistant starting), or back from out of reach: nobody pressed
-                # anything. Taken as it is, nothing sent (with its power left on, a team that is off is just that).
+        if was != "on":
+            if self.phase == "starting" or ours or echo:
+                return                                 # our own power-on (we are starting the bulbs, or it came late)
+            if was is None and self.by_bulbs:
+                # Never read before (Home Assistant starting): nobody pressed anything, and a team that leaves its
+                # power on is off with its dimmer on. Taken as it is, nothing sent.
                 self.phase = "ready" if self.is_on else "off"
                 self.io.changed()
                 return
-            if not ours:                               # the wall button: answered as a turn-on
-                if self._follows():
-                    self.want = self._target()
-                await self._run(boot=True)
+            if self._follows():                        # the wall button: answered as a turn-on
+                self.want = self._target()
+            await self._run(boot=True)
             return
         level = _num((new.attributes or {}).get("brightness"))
         if level is None or level >= FULL or ours or not self.cfg["power"].startswith("light."):
@@ -629,6 +640,7 @@ class Manager:
                 t = Team(cfg, self._io(cfg["id"]))
                 if t.is_on:
                     t.phase = "ready"
+                t.woke_day = _woke(self.hass).get(cfg["id"])
             self.teams[cfg["id"]] = t
         if not self.teams:
             return
@@ -651,6 +663,7 @@ class Manager:
                     due = wake_due(t.cfg.get("wake") or {}, local)
                     if due and t.woke_day != due[0]:
                         t.woke_day = due[0]                # once a day, lit or not (lit: someone is up already)
+                        hass.async_create_task(self._keep_woke())   # and across a restart: never woken twice
                         if not t.is_on:
                             hass.async_create_task(t.wake(due[1]))   # its fade runs for minutes: never held up by the tick
                     await t.tick()
@@ -660,6 +673,14 @@ class Manager:
         from datetime import timedelta  # noqa: PLC0415
         self._unsub = [async_track_state_change_event(hass, [*by_power, *by_bulb], seen),
                        async_track_time_interval(hass, tick, timedelta(seconds=ADAPT_EVERY_S))]
+
+    async def _keep_woke(self) -> None:
+        """Each team's last wake-up day, in the settings (power_teams_woke), so a restart mid-window never wakes the
+        room a second time (someone may have turned it off since)."""
+        from .const import DATA_SETTINGS  # noqa: PLC0415
+        st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        if st:
+            await st.async_set(power_teams_woke={tid: t.woke_day for tid, t in self.teams.items() if t.woke_day})
 
     def stop(self) -> None:
         for u in self._unsub:
@@ -683,6 +704,13 @@ def team_light_of(hass: Any, eid: str) -> str:
 
 def manager(hass: Any) -> Manager | None:
     return hass.data.get(DOMAIN, {}).get("power_team_manager")
+
+
+def _woke(hass: Any) -> dict:
+    from .const import DATA_SETTINGS  # noqa: PLC0415
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    v = (st.data if st else {}).get("power_teams_woke")
+    return v if isinstance(v, dict) else {}
 
 
 def _stored(hass: Any) -> list[dict]:
