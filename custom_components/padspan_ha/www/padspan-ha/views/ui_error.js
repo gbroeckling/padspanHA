@@ -114,6 +114,49 @@ export function uiErrorModule(ev) {
   }
 }
 
+// ── What a person is told when something fails (2026-11-21) ─────────────
+// A toast used to show an error's own text: "FabricStore not loaded",
+// "required key not provided @ data['map_id']", "Cannot read properties of
+// undefined", "[object Object]" (String() of Home Assistant's error object)
+// or just "3" (a lost connection). PadSpan's own refusals are sentences
+// written for people (tests/test_plain_errors.py holds them to that), so
+// those are shown as they are; what comes from Home Assistant's machinery or
+// from a bug on this page gets a plain line that says what to do.
+export const ERROR_WORDS = Object.freeze({
+  connection: "The connection to Home Assistant was lost. Wait a moment and try again.",
+  restart: "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.",
+  sent: "PadSpan couldn't use what this page sent. Refresh the page and try again.",
+  server: "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.",
+  page: "Something went wrong on this page. Refresh it and try again.",
+  admin: "Only an administrator can do this.",
+  other: "Something went wrong. Try again.",
+});
+// Home Assistant's schema check (voluptuous) words its refusals for programmers.
+const _SCHEMA = /@ data\[|required key not provided|extra keys not allowed|expected (a |an )?(str|int|float|bool|dict|list|number)|not a valid value|value must be (at|one)|length of value/i;
+// Python's own words, should one ever reach a refusal.
+const _PYTHON = /Traceback|NoneType|has no attribute|is not defined|object is not (subscriptable|iterable|callable)|unsupported operand|positional argument|keyword argument/;
+const _BUG = new Set(["TypeError", "ReferenceError", "RangeError", "SyntaxError"]);
+
+/** The words to show for an error a call or the page threw. Never throws. */
+export function errorText(e) {
+  try {
+    if (e == null) return ERROR_WORDS.other;
+    if (typeof e === "string") return e.trim() || ERROR_WORDS.other;
+    if (typeof e === "number") return ERROR_WORDS.connection;   // home-assistant-js-websocket's ERR_* codes
+    if (typeof e !== "object") return ERROR_WORDS.other;
+    const code = e.code, msg = typeof e.message === "string" ? e.message.trim() : "";
+    if (code === 3 || /^connection lost/i.test(msg)) return ERROR_WORDS.connection;
+    if (code === "unknown_command") return ERROR_WORDS.restart;
+    if (code === "unknown_error" || _PYTHON.test(msg)) return ERROR_WORDS.server;
+    if (_SCHEMA.test(msg)) return ERROR_WORDS.sent;
+    if (msg === "Unauthorized") return ERROR_WORDS.admin;
+    if (_BUG.has(String(e.name || ""))) return ERROR_WORDS.page;
+    return msg || ERROR_WORDS.other;
+  } catch (_e) {
+    return ERROR_WORDS.other;
+  }
+}
+
 // Shared by every copy of this module on the page. panel.js and
 // lights_panel.js import it under different cache-buster queries, i.e. as
 // two module instances; the throttle has to be one, or both panels count

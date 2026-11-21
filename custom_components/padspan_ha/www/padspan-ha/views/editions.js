@@ -34,6 +34,10 @@ export const LIGHTS_URL = "https://padspan.traks.ca/#lights";
 export const IDEAS_URL = "https://github.com/gbroeckling/padspanHA/discussions/categories/ideas";
 export const IDEAS_NEW_URL = "https://github.com/gbroeckling/padspanHA/discussions/new?category=ideas";
 export const IDEAS_MAIL = "mailto:hello@traks.ca?subject=PadSpan%20idea";
+// Something wrong (2026-11-21): Diagnostics' "Email support" and "Open an
+// issue", the two places its report has always said to send it.
+export const SUPPORT_MAIL = "mailto:hello@traks.ca?subject=PadSpan%20problem&body=What%20happened%3A%0A%0A%0AThe%20report%20from%20PadSpan%27s%20Diagnostics%20(paste%20it%20here)%3A%0A";
+export const ISSUES_NEW_URL = "https://github.com/gbroeckling/padspanHA/issues/new";
 export const PRO_PRICE = "$45 CAD/year";
 // The other two SKUs padspan.traks.ca#editions actually sells — pinned exactly
 // against the site's own PayPal forms by tests/test_site_claims.py. Added so

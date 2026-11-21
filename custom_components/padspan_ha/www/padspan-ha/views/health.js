@@ -12,6 +12,102 @@
  *   the padspan_ha/system_critics WS handler on each render.
  */
 
+// Basic's focused parts (views/focus.js): a setting a problem points to opens on its own there.
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+
+// ── "Go there" (2026-11-21) ─────────────────────────────────────────────
+// A problem says where it is fixed (ws_diagnostics.py `go`, status_dot.js
+// `go`); this opens that screen the ways the panel already opens it: the
+// accuracy tips' Measure (the Mapping wizard on that plan), Setup's
+// Calibrate (the guided calibration), Mapping → Layout on that floor, the
+// Receivers page, Basic's focused card for a setting, Diagnostics. A screen
+// this install or mode can't open gets no button.
+export const GO_LABELS = {
+  measure: "Measure",
+  calibrate: "Calibrate",
+  layout: "Open Layout",
+  receivers: "Open Receivers",
+  adaptive_learning: "Open the setting",
+  overview: "Open the Overview",
+  diagnostics: "Open Diagnostics",
+};
+
+/** Whether this panel can open `go` (null: no button). */
+export function canGo(ctx, go) {
+  if (!go || !GO_LABELS[go.to]) return false;
+  const st = ctx.state, can = (id) => !ctx.actions.canOpen || ctx.actions.canOpen(id);
+  const maps = (st.maps && st.maps.list) || [];
+  if (go.to === "measure") return maps.length > 0 && can("maps");
+  if (go.to === "calibrate") return can("calibration");
+  // Layout is an expert tab: Basic's Mapping has Library and Upload only.
+  if (go.to === "layout") return FOCUS.expertLinks(st) && can("maps");
+  if (go.to === "receivers") return !!ctx.actions.openReceivers && can("receivers");
+  if (go.to === "adaptive_learning") return can("settings");
+  return true;
+}
+
+/** Open the screen `go` names. */
+export function goThere(ctx, go) {
+  const st = ctx.state;
+  const maps = (st.maps && st.maps.list) || [];
+  const has = (id) => !!id && maps.some(m => m.id === id);
+  if (go.to === "measure") {
+    const id = has(go.map_id) ? go.map_id : has(st.activeMapId) ? st.activeMapId : ((maps[0] && maps[0].id) || null);
+    st._mapsWizard = { step: 2, mapId: id };
+    ctx.actions.showView("maps");
+  } else if (go.to === "calibrate") {
+    if (has(go.map_id)) st.activeMapId = go.map_id;
+    st._calibWizard = { step: 1 };
+    ctx.actions.showView("calibration");
+  } else if (go.to === "layout") {
+    const ms = st.maps || (st.maps = {});
+    if (go.floor_id && ms._roomsFloorId !== go.floor_id) {
+      ms._roomsFloorId = go.floor_id; ms._roomsDraftFloorId = null; ms._roomsCarryNote = null;
+    }
+    st._mapsWizard = null;
+    st.mapsTab = "rooms";
+    ctx.actions.showView("maps");
+  } else if (go.to === "receivers") {
+    st._receivers = Object.assign({ sort: "name", dir: 1 }, st._receivers || {}, { problems: !!go.problems });
+    ctx.actions.openReceivers();
+  } else if (go.to === "adaptive_learning") {
+    // Advanced: the whole Tracking tab, its section open and scrolled to the card (settings.js _settingsPart).
+    if (FOCUS.expertLinks(st)) { st._presenceReveal = "positioning"; st._settingsPart = "adaptive_learning"; }
+    FOCUS.openFocus(ctx, FOCUS.part("adaptiveLearning"));
+  } else {
+    ctx.actions.showView(go.to);
+  }
+}
+
+/** The "Go there" button for a problem, or null. */
+function _goButton(ctx, go) {
+  if (!canGo(ctx, go)) return null;
+  return ctx.helpers.el("button", { class: "btn inline", "data-go": go.to, title: "Go there",
+    style: "font-size:11px;padding:2px 10px;margin:0;white-space:nowrap", onclick: () => goThere(ctx, go) }, GO_LABELS[go.to]);
+}
+
+// What the status dot says (status_dot.js trackIssues), at the top of Health:
+// the dot opens Health, and Health said nothing about most of what the dot
+// counts (a silent receiver, positioning stopped). Shown only while the dot is.
+function _dotNow(ctx) {
+  const { el } = ctx.helpers;
+  const got = typeof ctx.helpers.statusIssues === "function" ? ctx.helpers.statusIssues() : null;
+  const issues = Array.isArray(got) ? got : [];
+  if (!issues.length) return null;
+  const red = issues.some(i => i.level === "red");
+  const card = el("div", { class: "card", "data-health-now": red ? "red" : "amber",
+    style: `margin-bottom:12px;border:1px solid ${red ? "#f8717155" : "#f59e0b55"}` });
+  card.appendChild(el("div", { style: `font-weight:700;margin-bottom:4px;color:${red ? "#fca5a5" : "#fbbf24"}` },
+    red ? "Something is broken" : "Something needs attention"));
+  for (const is of issues) {
+    card.appendChild(el("div", { "data-health-issue": is.id, style: "display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px" }, [
+      el("span", { style: "flex:1;min-width:0;color:#e2e8f0" }, is.text + "."),
+      _goButton(ctx, is.go),
+    ].filter(Boolean)));
+  }
+  return card;
+}
+
 // Cache for critics data — refreshed when view is active
 let _criticsCache = null;
 let _criticsFetchTs = 0;
@@ -46,6 +142,8 @@ export function render(ctx){
     el("h2",{style:"margin:0"},"Health"),
     ctx.helpers.helpBtn("health"),
   ]));
+  const now = _dotNow(ctx);
+  if (now) root.appendChild(now);
 
   root.appendChild(el("div",{class:"grid grid-wide"},[
     el("div",{class:"card"},[
@@ -59,7 +157,8 @@ export function render(ctx){
       el("div",{class:"mono"}, `Rooms: ${count(rooms)}`),
       el("div",{class:"mono"}, `Radios: ${count(radios)}`),
       el("div",{class:"mono"}, `Tags/Objects: ${count(tags)}`),
-      el("div",{class:"muted", style:"margin-top:8px"},"To send details to support, open Diagnostics (QA \u2192 Go to Diagnostics) and email its report to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first)."),
+      el("div",{class:"muted", style:"margin-top:8px"},"To send details to support, open Diagnostics and email its report to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first)."),
+      el("button",{class:"btn inline","data-open-diagnostics":"health",style:"margin-top:6px",onclick:()=>goThere(ctx, { to: "diagnostics" })},"Open Diagnostics"),
     ]),
   ]));
 
@@ -124,9 +223,9 @@ export function render(ctx){
     const bad = entries.filter(([,d]) => d.reliability < 0.7 && d.polls >= 12);
     if(bad.length){
       const warn = el("div",{style:"margin-top:8px;padding:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:6px;font-size:11px;color:#fca5a5"});
-      warn.innerHTML = `<b>\u26a0 ${bad.length} scanner(s) below 70% reliability</b><br>` +
+      warn.innerHTML = `<b>\u26a0 ${bad.length === 1 ? "1 receiver often points to a different room than the others" : `${bad.length} receivers often point to a different room than the others`}</b><br>` +
         bad.map(([src,d]) => `${_escHtml(nameMap[src]||src)} (${_escHtml(d.agree_pct)}% agreement)`).join(", ") +
-        `<br><span style="color:#94a3b8;font-size:10px">These scanners frequently disagree with consensus room assignments. Check placement, antenna orientation, or RSSI offset.</span>`;
+        `<br><span style="color:#94a3b8;font-size:10px">Check that each is in the right room in Home Assistant and where it is mounted. If it hears devices louder or quieter than it should, change its signal adjustment on the Receivers page. (Each has a weight below 0.7.)</span>`;
       shCard.appendChild(warn);
     }
     root.appendChild(shCard);
@@ -650,7 +749,7 @@ async function _fetchAndRenderCritics(ctx, container) {
   // Loading state
   container.innerHTML = "";
   container.appendChild(el("div",{class:"card",style:"text-align:center;color:#94a3b8;padding:20px"},
-    "Loading system diagnostics\u2026"
+    "Checking for problems\u2026"
   ));
 
   try {
@@ -661,10 +760,24 @@ async function _fetchAndRenderCritics(ctx, container) {
   } catch (err) {
     container.innerHTML = "";
     container.appendChild(el("div",{class:"card",style:"color:#fca5a5"},
-      `Could not check for problems: ${err.message || err}`
+      `Could not check for problems: ${ctx.helpers.errorText ? ctx.helpers.errorText(err) : (err.message || err)}`
     ));
   }
 }
+
+// Each kind of check and how serious it is, in a house owner's words; the
+// ids (ws_diagnostics.py) stay what other code reads.
+export const CATEGORY_LABELS = {
+  room_confusion: "Rooms mixed up",
+  map_quality: "Calibration accuracy",
+  map_geometry: "Floor plan",
+  room_footprint: "Room sizes",
+  room_divergence: "Saved rooms",
+  scanner: "Receiver",
+  calibration: "Calibration",
+  propagation: "Signal and learning",
+};
+export const SEVERITY_LABELS = { critical: "Fix this", warning: "Worth fixing", info: "Good to know" };
 
 function _renderCritics(ctx, container, data) {
   const { el } = ctx.helpers;
@@ -673,20 +786,18 @@ function _renderCritics(ctx, container, data) {
   const { summary, critics, confusion_matrix, per_map_quality } = data;
 
   // ── Summary Banner ──────────────────────────────────────────────────────
-  const bannerColor = summary.healthy ? "#52b788" :
-    summary.critical > 0 ? "#f87171" :
-    summary.warning > 0 ? "#f59e0b" : "#52b788";
-  const bannerBg = summary.healthy ? "rgba(82,183,136,.08)" :
-    summary.critical > 0 ? "rgba(248,113,113,.08)" :
+  // Notes alone (a new house's next steps) are not issues: green, and said so.
+  const issues = (summary.critical || 0) + (summary.warning || 0);
+  const bannerColor = summary.critical > 0 ? "#f87171" : summary.warning > 0 ? "#f59e0b" : "#52b788";
+  const bannerBg = summary.critical > 0 ? "rgba(248,113,113,.08)" :
     summary.warning > 0 ? "rgba(245,158,11,.08)" : "rgba(82,183,136,.08)";
-  const bannerText = summary.healthy
-    ? "All systems healthy \u2014 no issues detected."
-    : `${summary.total} issue${summary.total !== 1 ? "s" : ""} found: ` +
-      [
-        summary.critical > 0 ? `${summary.critical} critical` : "",
-        summary.warning > 0 ? `${summary.warning} warning` : "",
-        summary.info > 0 ? `${summary.info} info` : "",
-      ].filter(Boolean).join(", ");
+  const counts = [
+    summary.critical > 0 ? `${summary.critical} to fix` : "",
+    summary.warning > 0 ? `${summary.warning} worth fixing` : "",
+    summary.info > 0 ? `${summary.info} good to know` : "",
+  ].filter(Boolean).join(" \u00b7 ");
+  const bannerText = summary.healthy ? "Nothing wrong found."
+    : issues ? counts : `Nothing to fix. ${counts}.`;
 
   container.appendChild(el("div",{
     class:"card",
@@ -694,7 +805,7 @@ function _renderCritics(ctx, container, data) {
   },[
     el("div",{style:`display:flex;align-items:center;gap:8px`},[
       el("div",{class:"pill",style:`background:${bannerColor}22;color:${bannerColor};font-size:10px;padding:2px 8px`},
-        summary.healthy ? "HEALTHY" : `${summary.total} ISSUE${summary.total !== 1 ? "S" : ""}`
+        summary.healthy ? "HEALTHY" : issues ? (issues === 1 ? "1 ISSUE" : `${issues} ISSUES`) : "NOTHING TO FIX"
       ),
     ]),
     el("div",{style:`font-size:12px;color:${bannerColor};margin-top:4px`}, bannerText),
@@ -712,21 +823,26 @@ function _renderCritics(ctx, container, data) {
       const sev = sevColors[critic.severity] || sevColors.info;
       const card = el("div",{
         class:"card",
+        "data-critic": critic.category,
         style:`border:1px solid ${sev.border};background:${sev.bg};margin-bottom:8px;padding:12px`
       });
+      const kind = CATEGORY_LABELS[critic.category] || String(critic.category || "").replace(/_/g, " ");
       card.innerHTML = `
         <div style="display:flex;align-items:flex-start;gap:8px">
           <span style="font-size:14px;line-height:1">${sev.icon}</span>
           <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:12px;color:${sev.text};text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">
-              ${_escHtml(critic.category.replace(/_/g, " "))} \u2022 ${_escHtml(critic.severity)}
+              ${_escHtml(kind)} \u2022 ${_escHtml(SEVERITY_LABELS[critic.severity] || critic.severity)}
             </div>
             <div style="font-weight:600;font-size:13px;color:#e2e8f0;margin-bottom:4px">${_escHtml(critic.title)}</div>
             <div style="font-size:11px;color:#94a3b8;line-height:1.5">${_escHtml(critic.message)}</div>
-            <div style="font-size:11px;color:#5eead4;margin-top:6px;line-height:1.4"><b>Action:</b> ${_escHtml(critic.action)}</div>
+            <div data-critic-action style="font-size:11px;color:#5eead4;margin-top:6px;line-height:1.4;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span><b>Action:</b> ${_escHtml(critic.action)}</span></div>
+            ${critic.detail ? `<div data-critic-detail style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.4">Details: ${_escHtml(critic.detail)}</div>` : ""}
           </div>
         </div>
       `;
+      const go = _goButton(ctx, critic.go);
+      if (go) ((card.querySelector && card.querySelector("[data-critic-action]")) || card).appendChild(go);
       container.appendChild(card);
     }
   }
@@ -736,12 +852,12 @@ function _renderCritics(ctx, container, data) {
     const cmCard = el("div",{class:"card",style:"margin-top:12px"});
     cmCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px"},"Room mix-ups"));
     cmCard.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px"},
-      "Bidirectional transitions between room pairs. High counts suggest the system oscillates between these rooms."
+      "Rooms PadSpan keeps moving devices back and forth between. The more moves, the more often one of the two is wrong."
     ));
 
     const tbl = el("div",{style:"display:grid;grid-template-columns:1fr 1fr auto auto;gap:4px 10px;font-size:11px;align-items:center"});
     // Header
-    for (const h of ["Room A","Room B","Transitions","Rate"]) {
+    for (const h of ["Room A","Room B","Moves","Share"]) {
       tbl.appendChild(el("div",{style:"font-weight:600;color:#94a3b8;font-size:10px;text-transform:uppercase"},h));
     }
     // Find max count for heat coloring
@@ -763,11 +879,11 @@ function _renderCritics(ctx, container, data) {
     const mqCard = el("div",{class:"card",style:"margin-top:12px"});
     mqCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px"},"Map Calibration Quality"));
     mqCard.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px"},
-      "Leave-one-out cross-validation error per map. Lower is better."
+      "How far off PadSpan is when it checks each plan's calibration points against each other, on average and at worst. Lower is better."
     ));
 
     const tbl = el("div",{style:"display:grid;grid-template-columns:1fr auto auto auto;gap:4px 10px;font-size:11px;align-items:center"});
-    for (const h of ["Map","Points","Mean Error","Max Error"]) {
+    for (const h of ["Map","Points","Average","Worst"]) {
       tbl.appendChild(el("div",{style:"font-weight:600;color:#94a3b8;font-size:10px;text-transform:uppercase"},h));
     }
     for (const m of per_map_quality) {

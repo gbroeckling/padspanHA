@@ -199,8 +199,12 @@ async def test_the_health_critic_says_the_placement_cannot_be_read() -> None:
     geo = [c for c in conn.send_result.call_args[0][1]["critics"]
            if c["category"] == "map_geometry"]
     assert len(geo) == 1, geo
-    assert "not a placement" in geo[0]["message"]
-    assert "— ." not in geo[0]["message"], geo[0]["message"]
+    # Said plainly to the owner, the record's own words kept for the expert
+    # (2026-11-21): either way, never a sentence with nothing in the middle.
+    assert "can't read where" in geo[0]["title"] and "damaged" in geo[0]["message"]
+    assert "not a placement" in geo[0]["detail"]
+    for k in ("message", "detail"):
+        assert "— ." not in geo[0][k], geo[0][k]
 
 
 def test_the_usage_report_counts_it() -> None:

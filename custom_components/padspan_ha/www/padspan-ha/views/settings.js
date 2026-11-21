@@ -2905,7 +2905,7 @@ function _settingsPresence(ctx, el){
     finally{ resetAdaptiveBtn.disabled=false; resetAdaptiveBtn.textContent="Reset Learned Data"; }
   });
 
-  put("positioning", el("div",{class:"card"},[
+  put("positioning", el("div",{class:"card","data-focus-part":"adaptive_learning"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
       el("div",{class:"h2",style:"margin:0"},"Adaptive Learning"),
       el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},"EXPERIMENTAL"),

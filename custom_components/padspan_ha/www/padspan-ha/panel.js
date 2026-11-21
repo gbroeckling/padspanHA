@@ -2301,7 +2301,7 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   async _callWS(payload){
-    if(!this._hass) throw new Error("hass not ready");
+    if(!this._hass) throw new Error("Home Assistant isn't connected yet. Wait a moment and try again.");
     this._wsCount(payload.type);
     this._logEvent("ws_call", payload.type);
     try {
@@ -3996,6 +3996,11 @@ class PadSpanHaApp extends HTMLElement {
           return (n && n !== s) ? n : "";
         },
         scannerStatus,
+        /** The words a toast shows for a failure (views/ui_error.js errorText): PadSpan's own
+         *  refusal as it is, a plain line for Home Assistant's machinery or a bug on the page. */
+        errorText: (e) => self._errorText(e),
+        /** What the status dot says now (views/status_dot.js trackIssues): [{id, level, text, go}]. */
+        statusIssues: () => (self._statusDotActive || []).slice(),
         roomColor: (n)=>roomColor(n, this.state.model),
         roomColorAlpha,
         helpBtn: (key, title)=>{
@@ -5636,6 +5641,12 @@ class PadSpanHaApp extends HTMLElement {
   // Temporary message bar at the top of the content area. Auto-hides after 4.5s.
   // Used for confirmations ("Tagged: Kitchen Beacon"), errors ("WS call failed"),
   // and progress ("Refreshing..."). Only one toast visible at a time.
+  /** views/ui_error.js errorText, or the error's own text until that module has loaded. */
+  _errorText(e){
+    if (UI_ERROR && UI_ERROR.errorText) return UI_ERROR.errorText(e);
+    return (e && typeof e.message === "string" && e.message) || (typeof e === "string" && e) || "Something went wrong. Try again.";
+  }
+
   _toast(msg, isErr=false){
     const t = this.$("#toast");
     if(!t) return;

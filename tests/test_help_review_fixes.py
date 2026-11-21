@@ -35,7 +35,7 @@ def test_no_pointers_to_tabs_that_moved() -> None:
     assert "Maps \\u2192 Edit" not in _read(_PKG / "ws_fabric.py")
     diag = _read(_PKG / "ws_diagnostics.py")
     assert "(Maps tab)" not in diag and "Calibration \\u2192 Tune workflow" not in diag
-    assert "Start \\U0001f9ed Guided calibration in Calibration" in diag
+    assert "with your phone in \\U0001f9ed Guided calibration." in diag   # the next step's own words (2026-11-21)
     settings = _read(_WWW / "views" / "settings.js")
     assert "the Objects list" not in settings and "Objects first/last-seen" not in settings
     assert "Set it in Manage → HA Entities → ESPresense MQTT." in _read(_PKG / "ws_devices.py")

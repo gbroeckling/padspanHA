@@ -12,7 +12,8 @@
 //   red    broken: PadSpan isn't answering, positioning's last update
 //          failed, or no Bluetooth receiver is reporting
 //   amber  needs attention: a receiver silent for over 10 minutes, one
-//          hearing far less than usual (proxy_health.py), learning suspended
+//          hearing far less than usual (proxy_health.py), learning paused
+//          (the snapshot's `suspended`)
 //   none   fine: no dot at all. On a wall screen, only red shows.
 //
 // Only the receivers in use count: one marked lost, disabled or excluded
@@ -94,19 +95,23 @@ export function receiverStatus(r, heardNow = 0, { heard, masked } = {}) {
 
 const _n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 
-/** What is wrong right now, worst first: [{id, level: "red"|"amber", text}].
+/** What is wrong right now, worst first: [{id, level: "red"|"amber", text, go}].
+ *  go: the screen where it is looked into or fixed, for Health's list of what
+ *  the dot says (health.js goThere): Diagnostics when PadSpan itself is
+ *  failing, the Receivers page (only the ones that need attention) for a
+ *  receiver, the Overview (its Resume Normal) for learning suspended.
  *  input: { live: bool, failed: bool, snapshot, excluded: sources (iterable),
  *  warmup: bool, receivers: bool (false: this build has no Receivers screen,
  *  as PadSpan Bright, which runs fine with no Bluetooth at all, so receivers
  *  are not its faults) } */
 export function statusIssues({ live, failed, snapshot, excluded, warmup = false, receivers = true } = {}) {
   if (!live) return [];
-  if (failed) return [{ id: "no_answer", level: "red", text: "PadSpan isn't answering, so the live data has stopped updating" }];
+  if (failed) return [{ id: "no_answer", level: "red", text: "PadSpan isn't answering, so the live data has stopped updating", go: { to: "diagnostics" } }];
   const snap = snapshot && typeof snapshot === "object" ? snapshot : null;
   if (!snap) return [];
   const out = [];
   if (snap.positioning_failed === true) {
-    out.push({ id: "positioning_failed", level: "red", text: "Positioning has stopped: its last update failed" });
+    out.push({ id: "positioning_failed", level: "red", text: "Positioning has stopped: its last update failed", go: { to: "diagnostics" } });
   }
   const masked = new Set([...(excluded || [])].map(String));
   const radios = receivers && Array.isArray(snap.ble && snap.ble.radios)
@@ -116,21 +121,21 @@ export function statusIssues({ live, failed, snapshot, excluded, warmup = false,
     const heard = heardSources(snap);
     const silent = radios.filter(r => isSilent(r, heard));
     if (!radios.length || silent.length === radios.length) {
-      if (!warmup) out.push({ id: "no_receivers", level: "red", text: "No Bluetooth receivers are reporting" });
+      if (!warmup) out.push({ id: "no_receivers", level: "red", text: "No Bluetooth receivers are reporting", go: { to: "receivers" } });
     } else {
       if (silent.length) {
         out.push({ id: "receivers_silent", level: "amber",
-          text: `${_n(silent.length, "receiver hasn't", "receivers haven't")} been heard from in over 10 minutes` });
+          text: `${_n(silent.length, "receiver hasn't", "receivers haven't")} been heard from in over 10 minutes`, go: { to: "receivers", problems: true } });
       }
       const deaf = radios.filter(isHearingLess);
       if (deaf.length) {
         out.push({ id: "hearing_less", level: "amber",
-          text: `${_n(deaf.length, "receiver is", "receivers are")} hearing far fewer devices than usual` });
+          text: `${_n(deaf.length, "receiver is", "receivers are")} hearing far fewer devices than usual`, go: { to: "receivers", problems: true } });
       }
     }
   }
   if (snap.suspended === true) {
-    out.push({ id: "learning_suspended", level: "amber", text: "Learning is suspended: rooms come from the raw signal only" });
+    out.push({ id: "learning_suspended", level: "amber", text: "Learning is paused for now: rooms come from the live signals alone", go: { to: "overview" } });
   }
   return out;
 }

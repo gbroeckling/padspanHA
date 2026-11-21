@@ -405,6 +405,17 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
 
     Collects diagnostics from every data source and emits a flat list of
     critic messages sorted by severity, plus a room-confusion matrix.
+
+    Each critic is written for the person who owns the house (2026-11-21):
+    `title` says what they would notice, `message` why, `action` what to do,
+    and `detail` keeps the measurements and the engineer's terms (LOO error,
+    RSSI variance, agreement, fabric) for anyone who wants them. `go`, where
+    the panel has a screen that fixes it, names that screen: {"to": "measure",
+    "map_id"}, {"to": "calibrate", "map_id"?}, {"to": "layout", "floor_id"},
+    {"to": "receivers", "source"} or {"to": "adaptive_learning"} (health.js
+    opens it). Severity follows the house's stage: what a house still being
+    set up simply hasn't done yet (no calibration, a plan just uploaded) is
+    its next step, "info", never a critical problem.
     """
     from datetime import datetime, timezone as _tz  # noqa: PLC0415
     import math as _math  # noqa: PLC0415
@@ -417,6 +428,17 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
     settings: dict[str, Any] = (st.data if st else {}) or {}
 
     critics: list[dict[str, Any]] = []
+
+    def _floor_name(fid: str) -> str:
+        """A floor as people know it: its Home Assistant name, not the id."""
+        if fid == "__outside__":
+            return "Outside"
+        data = getattr(domain.get(DATA_MODEL), "data", None)
+        floors = data.get("floors") if isinstance(data, dict) else None
+        for f in floors if isinstance(floors, list) else []:
+            if isinstance(f, dict) and str(f.get("id") or f.get("floor_id") or "") == str(fid):
+                return str(f.get("name") or fid)
+        return str(fid)
 
     # ── 1. Room Confusion Matrix ──────────────────────────────────────────────
     # Analyse bidirectional transition counts from the adaptive store.
@@ -465,16 +487,17 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
             critics.append({
                 "category": "room_confusion",
                 "severity": severity,
-                "title": f"{room_a} \u2194 {room_b} frequently confused",
+                "title": f"{room_a} and {room_b} get mixed up",
                 "message": (
-                    f"{count} bidirectional transitions ({rate:.0%} of all). "
-                    "The system may be oscillating between these rooms."
+                    f"PadSpan keeps moving devices back and forth between {room_a} and {room_b}, "
+                    "so someone in one of them is often shown in the other."
                 ),
                 "action": (
-                    f"Add calibration points in both {room_a} and {room_b}, "
-                    "especially near the boundary. Consider adding a signal wall "
-                    "in the map editor if a wall separates them."
+                    f"Calibrate in both {room_a} and {room_b}, mostly near where they meet. "
+                    "If a wall separates them, draw it as a signal wall on the floor plan."
                 ),
+                "detail": f"{count} moves back and forth, {rate:.0%} of all room changes.",
+                "go": {"to": "calibrate"},
             })
 
     # ── 2. Per-Map Quality (LOO cross-validation) ─────────────────────────────
@@ -514,25 +537,34 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     critics.append({
                         "category": "map_quality",
                         "severity": severity,
-                        "title": f"Map \u201c{map_name}\u201d has high calibration error",
+                        "title": f"Positions on \u201c{map_name}\u201d are often off",
                         "message": (
-                            f"LOO mean error: {err_m:.2f} m. "
-                            f"Max error: {loo.get('max_error_m', 0):.2f} m. "
-                            f"Based on {point_count} calibration points."
+                            "When PadSpan checks this plan's calibration points against each other, "
+                            f"it places them about {err_m:.1f} m from where they were taken."
                         ),
                         "action": (
-                            f"Add more calibration points to \u201c{map_name}\u201d, "
-                            "especially in areas with poor coverage. Check that "
-                            "room boundaries match the physical layout."
+                            f"Calibrate more spots on \u201c{map_name}\u201d, mostly where there are few, "
+                            "and check that the rooms are drawn where the walls really are."
                         ),
+                        "detail": (
+                            f"Leave-one-out mean error {err_m:.2f} m, "
+                            f"worst {loo.get('max_error_m', 0):.2f} m, "
+                            f"from {point_count} calibration points."
+                        ),
+                        "go": {"to": "calibrate", "map_id": mid},
                     })
                 elif point_count < 5:
                     critics.append({
                         "category": "map_quality",
                         "severity": "info",
-                        "title": f"Map \u201c{map_name}\u201d has few calibration points",
-                        "message": f"Only {point_count} point(s). Need \u22655 for LOO validation.",
-                        "action": f"Run a calibration walk-around on \u201c{map_name}\u201d.",
+                        "title": f"\u201c{map_name}\u201d has few calibration points",
+                        "message": (
+                            f"It has {point_count} so far. From 5, PadSpan can check how "
+                            "accurate positions on this plan are."
+                        ),
+                        "action": f"Calibrate a few more spots on \u201c{map_name}\u201d.",
+                        "detail": "Leave-one-out validation needs at least 5 points.",
+                        "go": {"to": "calibrate", "map_id": mid},
                     })
         except Exception:
             _quiet_error("ws_diagnostics:critics_map_quality")
@@ -549,7 +581,9 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
         _ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
         _mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
         if _ms and _mdl:
-            for _f in _ft.map_geometry_faults(_ms.data.get("maps") or [], _mdl):
+            _maps_list = _ms.data.get("maps") or []
+            _maps_by_id = {str(m.get("id") or ""): m for m in _maps_list if isinstance(m, dict)}
+            for _f in _ft.map_geometry_faults(_maps_list, _mdl):
                 # The terms the GATE fired on, named by the gate. Re-deriving
                 # them from the numbers here was a second copy of the
                 # thresholds, and it was the copy left behind whenever the
@@ -564,59 +598,71 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 # alone, and the third is about the house.
                 _terms = _f.get("terms") or []
                 if "no_world_frame" in _terms:
+                    _first = next(iter(_maps_by_id), "")
                     critics.append({
                         "category": "map_geometry",
                         "severity": "critical",
-                        "title": "The house has no metre scale, so nothing can be drawn",
+                        "title": "No floor plan has a scale, so the map stays empty",
                         "message": (
-                            "Floor plans are placed in metres and drawn by dividing those "
-                            "metres by the house's scale — and this install has no scale, "
-                            "because no map has ever been measured against a known "
-                            "distance. Every view that draws a plan, a room or a scanner "
-                            "refuses rather than guessing a size, which is correct and "
-                            "completely silent: the screen is simply empty."
+                            "Rooms, receivers and plans are drawn in metres, and no plan "
+                            "has been measured yet, so PadSpan can't tell how big anything "
+                            "is. It shows nothing rather than guess a size."
                         ),
                         "action": (
-                            "Measure any one map (Mapping → Edit → Measure) by marking two "
-                            "points a known distance apart. One measurement gives the whole "
-                            "house its scale."
+                            "Measure one distance you know on any floor plan, such as a "
+                            "doorway or a wall. One measurement gives the whole house its scale."
                         ),
+                        "detail": (
+                            "Plans are placed, but none has a measurement against a known "
+                            "distance, so there is no metre scale for the house."
+                        ),
+                        "go": {"to": "measure", "map_id": _first},
                     })
                     continue
                 if "unreadable" in _terms:
                     critics.append({
                         "category": "map_geometry",
                         "severity": "critical",
-                        "title": f"Map “{_f['name']}” has an unreadable placement",
+                        "title": f"PadSpan can't read where “{_f['name']}” goes",
                         "message": (
-                            "This map's stored placement is not a placement: a scale is "
-                            "missing, empty, zero or not a number, or the two axes lie on "
-                            "one line, so nothing can work out where the map sits or how "
-                            "big it is. Saving a scale on a build before 0.37 could write "
-                            "one of these."
+                            "This plan's saved size or position is damaged, so PadSpan "
+                            "can't place it in the house or tell how big it is. Rooms drawn "
+                            "on it have no size until it is measured again."
                         ),
-                        "action": (
-                            "Re-measure this map (Mapping → Edit → Measure). "
-                            "Until then it cannot anchor metres and any room drawn on "
-                            "it has no size."
+                        "action": "Measure this plan again: mark two points a known distance apart.",
+                        "detail": (
+                            "The stored placement is not a placement: a scale is missing, "
+                            "empty, zero or not a number, or the two axes lie on one line. "
+                            "Saving a scale on a build before 0.37 could write one of these."
                         ),
+                        "go": {"to": "measure", "map_id": _f["map_id"]},
                     })
                     continue
                 if "unplaced" in _terms:
+                    # Nothing drawn on it yet: a plan just uploaded, whose next
+                    # step is its scale. Rooms or receivers on it that can't be
+                    # drawn are a real problem.
+                    _m = _maps_by_id.get(str(_f["map_id"])) or {}
+                    _used = bool(_m.get("room_bounds") or _m.get("receivers"))
                     critics.append({
                         "category": "map_geometry",
-                        "severity": "warning",
-                        "title": f"Map “{_f['name']}” is not placed anywhere",
+                        "severity": "warning" if _used else "info",
+                        "title": (f"“{_f['name']}” has rooms or receivers but no scale" if _used
+                                  else f"Next step: set the scale of “{_f['name']}”"),
                         "message": (
-                            "This map has no placement, so it has no position and no size "
-                            "in the house and nothing can draw it. That is the normal "
-                            "state for a plan that has just been uploaded."
+                            "Rooms or receivers are drawn on this plan, but it was never "
+                            "measured or lined up with another plan, so none of it can be "
+                            "shown in the house." if _used else
+                            "This plan isn't measured yet, so it has no size and can't be "
+                            "drawn. That is normal for a plan that has just been uploaded."
                         ),
                         "action": (
-                            "Measure it (Mapping → Edit → Measure), or place it "
-                            "over a plan that is already measured in Mapping → 3D "
-                            "Stack and press Save Alignment."
+                            "Measure one distance you know on it, such as a doorway, or line "
+                            "it up over a plan that is already measured (Mapping → 3D Stack, "
+                            "then Save Alignment)."
                         ),
+                        "detail": "No placement is stored for this plan.",
+                        "go": {"to": "measure", "map_id": _f["map_id"]},
                     })
     except Exception:
         _quiet_error("ws_diagnostics:critics_geometry")
@@ -635,26 +681,27 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 critics.append({
                     "category": "room_footprint",
                     "severity": "critical" if _oversized else "warning",
-                    "title": f"Floor ‘{_rf['floor_id']}’ rooms don’t match “{_rf['map_name']}”",
+                    "title": f"The rooms on {_floor_name(_rf['floor_id'])} don’t fit “{_rf['map_name']}”",
                     "message": (
+                        "The rooms on this floor cover more ground than the plan they were "
+                        "drawn on. The plan's scale most likely changed after the rooms were drawn."
+                        if _oversized else
+                        "The rooms on this floor are much smaller than the plan they were drawn "
+                        "on, as if they were drawn while the plan had a different scale that "
+                        "was corrected since."
+                    ),
+                    "action": (
+                        "Don't redraw the rooms by hand to make up for it. In Mapping → Layout, "
+                        "pick “Map placements” in its Layout row to see the rooms as the plan's "
+                        "scale places them; if that looks right, Save keeps it."
+                    ),
+                    "detail": (
                         f"Rooms span {_rf['room_w_m']}m × {_rf['room_h_m']}m; "
                         f"“{_rf['map_name']}” measures {_rf['map_w_m']}m × {_rf['map_h_m']}m "
                         f"({round(_rf['footprint_frac']*100)}% of the map on its worst axis). "
-                        + (
-                            "A room footprint can't exceed the photo it was traced on — "
-                            "this map's scale most likely changed after these rooms were built."
-                            if _oversized else
-                            "Consistent with these rooms being built while this map held a "
-                            "smaller, since-corrected placement."
-                        )
+                        "Saving replaces the committed room fabric for this floor."
                     ),
-                    "action": (
-                        "Don't redraw these rooms by hand to compensate — that discards real "
-                        "data to paper over a stale scale. In Mapping → Layout, pick “Map placements” "
-                        "in its Layout row to preview this floor's rooms as this map's "
-                        "current placement implies them; if that preview looks right, Save "
-                        "commits it over the current fabric."
-                    ),
+                    "go": {"to": "layout", "floor_id": _rf["floor_id"]},
                 })
     except Exception:
         _quiet_error("ws_diagnostics:critics_room_footprint")
@@ -675,24 +722,28 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 critics.append({
                     "category": "room_divergence",
                     "severity": "warning",
-                    "title": f"Map “{_dv['map_name']}” and its committed rooms disagree as a group",
+                    "title": f"The two copies of the rooms on “{_dv['map_name']}” disagree",
                     "message": (
-                        f"{len(_dv['rooms'])} rooms appear in both this map's trace and the "
-                        f"committed fabric, and every one differs by the same factor "
-                        f"(×{_dv['ratio_x']} across, ×{_dv['ratio_y']} down). One shared factor "
-                        "is not hand editing — it means one of the two records predates a "
-                        "change to the map: the committed rooms predate a placement fix, or "
-                        "the trace predates a trim/rotate that moved the picture under it."
+                        "The rooms traced on this plan and the rooms PadSpan saved for its floor "
+                        "all differ by the same amount, so one of the two is out of date: the "
+                        "plan was measured again, or its picture was trimmed or turned, after "
+                        "the other was saved."
                     ),
                     "action": (
                         "In Mapping → Layout, compare its Layout row's “Saved layout” and "
-                        "“Map placements” over the floor photo — whichever matches the "
-                        "picture is the good record. If “Map placements” matches, commit it. "
-                        "If “Saved layout” matches, the trace is stale: re-upload this "
-                        "map's original image (Mapping → Edit → Replace image), check the "
-                        "trace sits correctly on it, then redo the trim — from 0.38.10 the "
+                        "“Map placements” over the floor plan, and keep the one that matches "
+                        "the picture. If “Map placements” matches, save it. If “Saved layout” "
+                        "matches, the tracing is out of date: upload this plan's original "
+                        "picture again (Mapping → Edit → Replace image), check the tracing sits "
+                        "right on it, then trim it again."
+                    ),
+                    "detail": (
+                        f"{len(_dv['rooms'])} rooms are in both this map's trace and the "
+                        f"committed fabric, each differing by the same factor "
+                        f"(×{_dv['ratio_x']} across, ×{_dv['ratio_y']} down). From 0.38.10 the "
                         "trace follows every image edit."
                     ),
+                    "go": {"to": "layout", "floor_id": _dv["floor_id"]},
                 })
     except Exception:
         _quiet_error("ws_diagnostics:critics_room_divergence")
@@ -744,16 +795,22 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
             critics.append({
                 "category": "scanner",
                 "severity": severity,
-                "title": f"Scanner \u201c{name}\u201d disagrees with consensus",
+                "title": f"Receiver \u201c{name}\u201d often points to the wrong room",
                 "message": (
-                    f"Reliability {rel:.2f} ({agree_pct:.0f}% agreement over {polls} polls). "
-                    "This scanner frequently assigns objects to the wrong room."
+                    "It often disagrees with the other receivers about which room a device "
+                    "is in, so it can pull people and things into the wrong room."
                 ),
                 "action": (
-                    f"Check scanner \u201c{name}\u201d placement and antenna orientation. "
-                    "Ensure it is in the correct HA area. Consider adjusting its "
-                    "RSSI offset in Settings \u2192 Tracking \u2192 Receivers (or the Receivers page)."
+                    f"Check that \u201c{name}\u201d is in the right room in Home Assistant, and where "
+                    "and which way up it is mounted. If it hears devices louder or quieter than "
+                    "it should, change its signal adjustment on the Receivers page."
                 ),
+                "detail": (
+                    f"Reliability {rel:.2f}: {agree_pct:.0f}% agreement with the consensus "
+                    f"room over {polls} polls. The signal adjustment is its RSSI offset "
+                    "(also in Settings \u2192 Tracking \u2192 Receivers)."
+                ),
+                "go": {"to": "receivers", "source": src},
             })
 
     # ── 4. Calibration Staleness & Coverage Gaps ──────────────────────────────
@@ -773,28 +830,50 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                         critics.append({
                             "category": "calibration",
                             "severity": "warning",
-                            "title": "Calibration data is stale",
-                            "message": f"Last calibration was {stale_days} days ago.",
-                            "action": "Run a fresh calibration walk-around to account for any changes in furniture, hardware, or RF environment.",
+                            "title": "Calibration is out of date",
+                            "message": (
+                                f"The last calibration was {stale_days} days ago. Moved furniture "
+                                "and new devices change how signals travel, so rooms can drift."
+                            ),
+                            "action": "Walk the house and calibrate again.",
+                            "detail": f"Newest calibration point: {stale_days} days old (a warning after 90).",
+                            "go": {"to": "calibrate"},
                         })
                     elif stale_days > 60:
                         critics.append({
                             "category": "calibration",
                             "severity": "info",
-                            "title": "Calibration data is aging",
-                            "message": f"Last calibration was {stale_days} days ago. Consider refreshing soon.",
-                            "action": "Schedule a calibration session to keep accuracy optimal.",
+                            "title": "Calibration is getting old",
+                            "message": (
+                                f"The last calibration was {stale_days} days ago. Moved furniture "
+                                "and new devices change how signals travel."
+                            ),
+                            "action": "Calibrate again some time soon to keep rooms accurate.",
+                            "detail": f"Newest calibration point: {stale_days} days old (a note after 60).",
+                            "go": {"to": "calibrate"},
                         })
                 except Exception:
                     _quiet_error("ws_diagnostics:critics_calibration_age")
                     pass
         elif not points:
+            # Not a fault: a house that hasn't calibrated yet still gets its
+            # rooms from the nearest receiver. It is the next step, said as one
+            # (2026-11-21; it was "critical" on every new install).
             critics.append({
                 "category": "calibration",
-                "severity": "critical",
-                "title": "No calibration data",
-                "message": "The system has zero calibration points. Positioning relies solely on adaptive learning and default models.",
-                "action": "Start \U0001f9ed Guided calibration in Calibration to collect reference data.",
+                "severity": "info",
+                "title": "Next step: calibrate",
+                "message": (
+                    "Rooms come from the nearest receiver for now. Calibrating teaches PadSpan "
+                    "what each spot in your home sounds like, so it tells rooms next to each "
+                    "other apart better."
+                ),
+                "action": "Walk around the house with your phone in \U0001f9ed Guided calibration.",
+                "detail": (
+                    "No calibration points yet: positions come from adaptive learning "
+                    "and the default signal model only."
+                ),
+                "go": {"to": "calibrate"},
             })
 
     # ── 5. Adaptive Learning Health ───────────────────────────────────────────
@@ -816,18 +895,34 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 critics.append({
                     "category": "propagation",
                     "severity": "warning",
-                    "title": f"{room_name} fingerprint is unstable",
-                    "message": f"Average RSSI variance {avg_var:.1f} dBm\u00b2 (target <15). Signal environment is noisy or changing.",
-                    "action": f"Check for interference sources near {room_name} (microwaves, USB3, WiFi APs). Consider adding calibration points.",
+                    "title": f"Signals in {room_name} keep changing",
+                    "message": (
+                        f"What the receivers hear in {room_name} varies a lot, so {room_name} is "
+                        "harder to tell apart from the rooms around it."
+                    ),
+                    "action": (
+                        f"Look for things near {room_name} that interfere, such as Wi-Fi routers, "
+                        "microwaves and USB 3 devices, and calibrate a few more spots in it."
+                    ),
+                    "detail": (
+                        f"Room fingerprint unstable: average RSSI variance {avg_var:.1f} dBm\u00b2 "
+                        "(target under 15)."
+                    ),
+                    "go": {"to": "calibrate"},
                 })
 
         if not settings.get("adaptive_learning_enabled") and total_obs == 0:
             critics.append({
                 "category": "propagation",
                 "severity": "info",
-                "title": "Adaptive learning is disabled",
-                "message": "The system is not passively learning from confirmed room assignments.",
-                "action": "Enable adaptive learning in Settings \u2192 Tracking to improve accuracy over time.",
+                "title": "Learning from everyday use is off",
+                "message": (
+                    "PadSpan isn't learning from the rooms it is sure of, so it won't get "
+                    "better by itself over time."
+                ),
+                "action": "Turn on Adaptive Learning in Settings \u2192 Tracking.",
+                "detail": "Adaptive learning is disabled and has no observations.",
+                "go": {"to": "adaptive_learning"},
             })
 
     # ── Sort by severity ──────────────────────────────────────────────────────

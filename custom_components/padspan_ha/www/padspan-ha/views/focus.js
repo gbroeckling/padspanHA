@@ -42,6 +42,8 @@ export const PARTS = {
   atlasHome:   { view: "settings", tab: "atlas", part: "atlas_overview", title: "The Atlas as Overview" },
   atlasWeather: { view: "settings", tab: "atlas", part: "atlas_weather", title: "Outdoor weather on the Atlas" },
   aiTask:      { view: "settings", tab: "ai", part: "ai_task", title: "AI" },
+  // Health's "Learning from everyday use is off" (health.js goThere).
+  adaptiveLearning: { view: "settings", tab: "presence", part: "adaptive_learning", title: "Adaptive Learning", cardSaysTitle: true },
   roomOutline: { view: "maps", tab: "edit", part: "rooms", title: "Draw the room's outline" },
   receiverPlace: { view: "maps", tab: "edit", part: "receivers", title: "Place the receiver" },
   floorHeights: { view: "maps", tab: "stack", part: "floor_heights", title: "Floor heights" },

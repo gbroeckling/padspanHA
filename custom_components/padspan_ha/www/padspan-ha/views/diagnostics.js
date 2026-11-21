@@ -11,6 +11,8 @@
 // Monitor → Export for support's rules: whose devices are "mine", and phones'
 // identity keys (IRKs) left out of anything meant to be sent.
 const { _isMine, hideIrks } = await import(`./monitor.js${new URL(import.meta.url).search}`);
+// Where the report goes: hello@traks.ca, or a GitHub issue.
+const { SUPPORT_MAIL, ISSUES_NEW_URL } = await import(`./editions.js${new URL(import.meta.url).search}`);
 
 // Errors PadSpan handled quietly (quiet_errors.py), asked for at most every 30 s.
 let _quietCache = null;
@@ -130,13 +132,12 @@ export function render(ctx){
     ctx.toast("Downloaded diagnostic report.");
   });
 
-  const btnCopy = el("button",{class:"btn"}, "Copy");
-  btnCopy.addEventListener("click", async ()=>{
+  // The report onto the clipboard: true if it got there.
+  const copyReport = async ()=>{
     // Try modern clipboard first (works on https:// or localhost)
     try {
       await navigator.clipboard.writeText(text);
-      ctx.toast("Copied diagnostics.");
-      return;
+      return true;
     } catch (e) {}
 
     // Fallback: hidden textarea on document.body (bypasses HA shadow DOM)
@@ -150,16 +151,32 @@ export function render(ctx){
       tmp.select();
       const ok = document.execCommand && document.execCommand("copy");
       document.body.removeChild(tmp);
-      if (ok) {
-        ctx.toast("Copied diagnostics.");
-        return;
-      }
+      if (ok) return true;
     } catch (e2) {}
+    return false;
+  };
 
+  const btnCopy = el("button",{class:"btn"}, "Copy");
+  btnCopy.addEventListener("click", async ()=>{
+    if (await copyReport()) { ctx.toast("Copied diagnostics."); return; }
     // Last resort: select in the visible textarea
     selectAll();
     ctx.toast("Auto-copy blocked. Text selected — press Ctrl+C.", true);
   });
+
+  // "Email support" and "Open an issue" (2026-11-21): the same report, copied
+  // first, and the email or the new issue opened to paste it into. Links, so
+  // the browser opens them the way it opens any mail or web link.
+  const sendTo = (label, href, pasted, attr)=>{
+    const a = el("a",{class:"btn","data-diag-send":attr,href,target:"_blank",rel:"noopener noreferrer",style:"text-decoration:none"}, label);
+    a.addEventListener("click", async ()=>{
+      if (await copyReport()) ctx.toast(pasted);
+      else { selectAll(); ctx.toast("Auto-copy blocked. The report is selected: press Ctrl+C, then paste it.", true); }
+    });
+    return a;
+  };
+  const btnMail = sendTo("Email support", SUPPORT_MAIL, "Report copied: paste it into the email.", "mail");
+  const btnIssue = sendTo("Open an issue", ISSUES_NEW_URL, "Report copied: paste it into the issue, and remove personal details first: issues are public.", "issue");
 
   const sizeKb = Math.round(text.length / 1024);
   root.appendChild(el("div",{class:"grid grid-wide"},[
@@ -174,7 +191,7 @@ export function render(ctx){
           el("div",{class:"muted","data-diag-privacy":"",style:"margin-top:4px"},
             "It names your rooms, floor plans and devices, with their Bluetooth addresses, so look it over before you send it. Phones' identity keys (IRKs) are left out."),
         ]),
-        el("div",{style:"display:flex;gap:8px;align-items:center"},[ btnSelect, btnCopy, btnDownload ])
+        el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},[ btnSelect, btnCopy, btnDownload, btnMail, btnIssue ])
       ]),
       ta,
     ]),
