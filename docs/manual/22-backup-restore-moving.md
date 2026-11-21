@@ -122,8 +122,8 @@ Then check these, which depend on the machine rather than on the files:
 - **The new machine's own Bluetooth.** Receivers on the network (ESPHome proxies, Shelly devices,
   ESPresense, Tasmota) are the same receivers and carry on. If the old machine's own Bluetooth
   adapter was a receiver, the new one is a different receiver: the old one shows as not heard, and
-  the new one as new. Place the new one on the map, and use **Replace Scanner** (Settings → Scanner
-  Map) to move the old one's calibration to it.
+  the new one as new. Place the new one on the map, and use **Replace Scanner**
+  (Settings → Scanner Map) to move the old one's calibration to it.
 - **Its memory.** Next to a busy street PadSpan hears thousands of devices. See
   [Minimum requirements](../MINIMUM_REQUIREMENTS.md) before moving to a 2 GB machine.
 - **Your licence.** The restored copy carries the old machine's place among your licence's homes. The
