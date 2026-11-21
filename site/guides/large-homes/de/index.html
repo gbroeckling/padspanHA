@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wer ist wo? Alle Etagen eines großen Hauses live auf einem Wanddisplay | PadSpan HA</title>
+<meta name="description" content="In einem Haus mit fünf Etagen weiß niemand, wo die anderen gerade sind. PadSpan zeigt live auf einem Touchscreen an der Wand, wer auf jeder Etage in welchem Raum ist. Es läuft auf deinem eigenen Home Assistant, und eine Lizenz kann bis zu fünf Häuser abdecken.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/large-homes/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/large-homes/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/large-homes/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/large-homes/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Wo sind alle? Das ganze Haus live an einer Wand">
+<meta property="og:description" content="Jede Etage, jeder Raum und alle, die darin sind, live auf einem Touchscreen an der Wand. Lokal, privat, und eine Lizenz kann bis zu fünf Häuser abdecken.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/large-homes/de/">
+<meta property="og:image" content="https://padspan.traks.ca/images/overview-3d-multifloor.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/large-homes/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Wo sind alle? Das ganze Haus live an einer Wand</h1>
+<p class="lead">In einem Haus mit fünf Etagen weiß niemand, wo die anderen gerade sind. PadSpan bringt die Antwort an die Wand: jede Etage, jeden Raum und jedes Handy, jede Uhr und jeden Schlüsselbund mit Tracker, den du eingerichtet hast, live auf einem Touchscreen. Und gerade in großen Häusern kommt es an: Von den 58 Häusern, die zwischen dem 12. und 26. Oktober 2026 PadSpans freiwilligen Nutzungsbericht geschickt haben, haben 16 drei oder mehr Etagen, und eines hat fünf Etagen und 34 Räume.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/?hl=de">Das Demo-Haus im Browser ausprobieren</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan installieren</a>
+</div>
+
+<figure>
+  <img src="/images/wall-panel-in-situ.jpg" width="1400" height="1054" alt="PadSpans Atlas auf einem Wanddisplay neben einem Thermostat, einem Touchpanel und einem Lichttaster, mit den Räumen und Lichtern eines Hauses" loading="lazy">
+  <figcaption>PadSpans Atlas mit den Lichtern des Hauses auf einem Wanddisplay neben dem Thermostat, im täglichen Einsatz.</figcaption>
+</figure>
+
+<h2>Was an der Wand zu sehen ist</h2>
+<p>Sieh es dir selbst an: <a href="/demo/?page=atlas3d&amp;kiosk=1&amp;hl=de">das Demo-Haus als Wanddisplay</a>, in deinem Browser.</p>
+<figure>
+  <a href="/demo/media/estate-3d-three-floors-4k.jpg"><img src="/demo/media/estate-3d-three-floors.jpg" width="1920" height="1080" alt="Das Demo-Haus in PadSpans 3D-Ansicht: drei Etagen und ein Loft über der Garage, möbliert, mit Personen, Schlüsseln und dem Tracker eines Gastes in ihren Räumen" loading="lazy"></a>
+  <figcaption>Das Demo-Haus in Live Aboard, der 3D-Ansicht, die zu PadSpan Pro gehört: drei Etagen und ein Loft über der Garage, aufgebaut wie eines der rund 465 m² großen Testhäuser unserer Entwickler, mit erfundenen Namen. Zwei Personen, ihre Schlüssel und der Tracker eines Gastes stehen jeweils in dem Raum, in dem sie gerade sind (<a href="/guides/bluetooth-tags/de/">Tracker für Gäste</a> gibt es seit 0.38.178). Tipp auf das Bild für die 4K-Version.</figcaption>
+</figure>
+<ul>
+  <li><b>Jede Etage.</b> Alle Etagen von oben nach unten übereinander oder eine nach der anderen. Mit <b>Show each floor</b> wechselt die Wand alle 15 Sekunden bis 5 Minuten zur nächsten und wartet, solange jemand sie bedient.</li>
+  <li><b>Alle in ihrem Raum.</b> Mit <b>Show people</b> und <b>Show tags &amp; scanners</b> erscheint jede Person, jedes Handy, jede Uhr und jeder Tracker, dem PadSpan folgt, in seinem Raum, alle paar Sekunden aktualisiert.</li>
+  <li><b>Das Haus selbst.</b> Türen, Fenster, Rollos, Garagen- und Hoftore auf der Karte, sobald sie verknüpft sind. Mit <b>Alert pulse</b> umrandet eine Tür, die seit Stunden offen steht, oder ein Fenster, das bei Regen offen ist, ihren Raum bernsteinfarben; Wasser-, Rauch-, Gas- und CO-Melder umranden ihn immer rot.</li>
+  <li><b>Was gerade passiert ist.</b> Im 3D-Haus (Live Aboard) kann die Ansicht zu einer Türklingel fliegen, die läutet, zu einer Tür, die aufgeht, oder zu einem Alarm, der losgeht, eine Karte mit dem Schnappschuss einer Kamera zeigen, wenn du eine ausgewählt hast, und wieder zurückfliegen.</li>
+</ul>
+
+<h2>Lesbar quer durch den Raum</h2>
+<ul>
+  <li><b>Passend für den Raum, in dem es hängt.</b> Gib die Größe des Bildschirms an und wie weit weg die Leute stehen, dann bemisst PadSpan die Schrift danach, wie groß sie von dort aussieht, nach der Regel, die auch Leitwarten nutzen. Ein 55-Zoll-Bildschirm quer durch den Raum bekommt viel größere Schrift als ein 27-Zoll-Monitor auf dem Schreibtisch, auch wenn beide 4K haben.</li>
+  <li><b>Bereit für 4K.</b> Auf einem 4K-Bildschirm, quer wie hochkant, wird alles doppelt so groß gezeichnet wie bei 1080p, damit es quer durch den Raum lesbar ist.</li>
+  <li><b>Ruhig, wenn niemand hinschaut.</b> Die Bedienelemente über der Karte blenden sich 30 Sekunden nach der letzten Berührung aus, die Wand kann sich zwischen Sonnenuntergang und Sonnenaufgang dimmen, und ein optionaler Einbrennschutz verschiebt das Bild alle drei Minuten um zwei Pixel, für OLED- und Plasma-Bildschirme.</li>
+  <li><b>Jeder Bildschirm für sich.</b> Jede Wand kann ihre eigene Größe und ihren eigenen Link haben, und eine Wand lädt sich nach einem Update selbst neu, damit sie keinen alten Code weiterlaufen lässt. Mit einer Lizenz für Fully PLUS, eingeschalteter Option für Fully Kiosk und eingeschaltetem JavaScript Interface von Fully dreht die Nachtdimmung die Helligkeit des Tablets selbst herunter, und mit der Motion Detection von Fully (dafür braucht es eine Frontkamera) wacht es auf, wenn jemand davortritt.</li>
+</ul>
+<p>Der <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.166/docs/WALL_SCREEN_GUIDE.md">Wall Screen Guide</a> (englisch) hat jede Einstellung, und <a href="/guides/wall-screens/de/">Welcher Touchscreen für ein PadSpan-Wanddisplay?</a> geht auf die Bildschirme selbst ein.</p>
+
+<figure>
+  <img src="/images/overview-3d-multifloor.jpg" width="2422" height="1372" alt="Mehrere Etagen eines Hauses übereinander in PadSpans kostenloser 3D-Karte, mit Geräten in ihren Räumen" loading="lazy">
+  <figcaption>Übereinandergestapelte Etagen in der 3D-Karte der kostenlosen Overview.</figcaption>
+</figure>
+
+<h2>Scanner für ein großes Haus</h2>
+<ul>
+  <li><b>Ein Bluetooth-Proxy in jedem Raum, den du unterscheiden willst,</b> liefert dir Räume. Drei oder mehr auf einer Etage, auf einem vermessenen Plan platziert, lassen PadSpan ein Gerät auch zwischen ihnen verorten. Jede Etage zählt für sich. <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a></li>
+  <li><b>Manche stecken vielleicht schon in den Wänden.</b> Shelly-Relais ab Gen2 werden mit je einer Einstellung zu Bluetooth-Scannern, ein kostenloser Anfang: In einer Unterputzdose hören sie weniger als ein Proxy im Raum. <a href="/guides/shelly-bluetooth-proxy/de/">Deine Shellys können Bluetooth-Proxys sein</a>.</li>
+  <li><b>Noch keine Grundrisse?</b> Läuft auf deinem Saugroboter Valetudo oder hat er eine Kartenkamera mit Kalibrierpunkten, kann der experimentelle <b>Robot Vacuum Import</b> (<b>Settings → Features</b>) seine Karte zum Plan der Etage machen: <a href="/guides/robot-vacuum-floor-plan/de/">Dein Saugroboter hat deinen Grundriss schon gezeichnet</a>.</li>
+</ul>
+
+<h2>Privat, und bereit für die anderen Häuser</h2>
+<ul>
+  <li><b>Es läuft auf deinem eigenen Home Assistant.</b> Die Anwesenheit pro Raum, die Karten und der Bewegungsverlauf bleiben im Haus, und PadSpan funktioniert offline. Eine tägliche Update-Prüfung sendet die Version (sie lässt sich ausschalten); mit Lizenzschlüssel sendet eine tägliche Lizenzprüfung den Schlüssel, die Instanz-ID von Home Assistant und die Lizenzdaten dieses Hauses. Der Nutzungsbericht ist freiwillig, aber ein Schlüssel auf mehr als zwei Häusern braucht ihn.</li>
+  <li><b>Eine Lizenz, bis zu fünf Häuser.</b> Ein Schlüssel für PadSpan Pro deckt bis zu fünf Home-Assistant-Installationen ab: die ersten zwei immer, eine dritte bis fünfte, solange jedes Haus mit diesem Schlüssel PadSpans Nutzungsbericht eingeschaltet lässt.</li>
+  <li><b>Es arbeitet neben dem, was das Haus schon steuert.</b> PadSpan ist eine Integration für Home Assistant, also erscheinen die Lichter, Schlösser, Türen und Sensoren, die Home Assistant schon kennt, in ihren Räumen.</li>
+</ul>
+
+<h2>Kostenlos und Pro</h2>
+<p>Die Anwesenheit pro Raum, die Grundrisse, die Kalibrierung und die Sensoren in Home Assistant sind kostenlos und Open Source (GPL-3.0). Der Wandmodus, das 3D-Haus (Live Aboard, noch experimentell) und das genaue Platzieren von Lichtern und anderen Geräten auf der Karte gehören zu PadSpan Pro (die Hauptseite des PadSpan-Panels hat außerdem einen kostenlosen Link <code>?kiosk=1</code> für ein Tablet). Du kannst Pro unter <b>Settings → Features → PadSpan licence</b> 90 Tage lang komplett kostenlos testen, ohne Kreditkarte (ab 0.38.180 nur mit eingeschaltetem Nutzungsbericht). Mehr unter <a href="/de/#pro">Pro</a> auf der Hauptseite. PadSpans Menüs und Einstellungen sind auf Englisch, deshalb stehen ihre Namen hier so, wie du sie im Panel siehst.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/?hl=de">Das Demo-Haus im Browser ausprobieren</a>
+  <a class="btn ghost" href="/guides/">Alle Anleitungen</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited.</p>
+</div></footer>
+</body>
+</html>
