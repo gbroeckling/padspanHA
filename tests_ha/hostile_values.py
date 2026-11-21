@@ -65,6 +65,8 @@ def expects(validator: Any) -> set[str]:
     enum (one of fixed choices), object (a dict with its own schema)."""
     if isinstance(validator, vol.Schema):
         return expects(validator.schema)
+    if isinstance(getattr(validator, "padspan_expects", None), str):    # ws_common's limits: text, number
+        return {validator.padspan_expects}
     if validator is bool:
         return {"bool"}
     if validator is str:

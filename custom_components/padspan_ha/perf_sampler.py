@@ -90,6 +90,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_ESPRESENSE_MQTT, DATA_LOST_AND_FOUND, DATA_OBJECT_HISTORY, DOMAIN
 from .telemetry import enabled
 from .quiet_errors import note as _quiet_error
+from .safe_store import async_load_readable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -907,7 +908,8 @@ class RunLog:
         Assistant is starting, not PadSpan reloading) and an unclean end of
         the run before, which never wrote running: false."""
         try:
-            raw = await self.store.async_load()
+            # A file of the wrong kind is set aside and said, not written over below.
+            raw = await async_load_readable(self.store, lambda d: isinstance(d, dict))
         except Exception:
             _quiet_error("perf_sampler:begin")
             raw = None

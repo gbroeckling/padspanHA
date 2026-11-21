@@ -96,9 +96,9 @@ _GUEST_LIVE = ("live", "summary")
 
 # The one command whose field is an address it fetches, on purpose: the robot
 # vacuum's own address on the home network (Valetudo), from an administrator.
-# It takes http and https only and adds the map's path; what else it should
-# refuse is a judgement left to the owner (the hostile pass's report). Its
-# fetches are recorded in the report, not failed.
+# It may look a name up (a socket), but never fetches this machine itself nor
+# a link-local address (util.async_check_address): those fail here as for
+# every other command.
 FETCHES_A_CALLERS_URL = {"vacuum_import_preview": "url"}
 
 # Which kind of thing a field names, so the furnished house's base message
@@ -471,8 +471,8 @@ class Watch:
         if not self.canary.exists() or self.canary.stat().st_mtime_ns != canary:
             problems.append("the canary next to the config folder was touched")
         tried = urls + self.network[nnet:]
-        problems += [f"fetched an address from the message: {u}" for u in tried if not fetches
-                     and any(h in u for h in ("127.0.0.1:1/", "169.254.169.254", "server/share", "etc/passwd"))]
+        problems += [f"fetched an address from the message: {u}" for u in tried
+                     if any(h in u for h in ("127.0.0.1:1/", "169.254.169.254", "server/share", "etc/passwd"))]
         junk = [k for k in changed if code == "ok" and _JUNK.search(after[0][k])]
         record = {"command": self.command, "phase": phase, "field": field, "category": hostile.category,
                   "label": hostile.label, "message": _short(msg), "code": code, "took_s": round(took, 3),

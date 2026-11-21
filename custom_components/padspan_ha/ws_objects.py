@@ -24,7 +24,7 @@ from .const import (
 )
 from .device_detail import describe as _describe
 from .telemetry import bump as _bump
-from .ws_common import admin_if_enhanced_security, _DEFAULT_IBEACON_UUIDS, _invalidate_snapshot_cache
+from .ws_common import admin_if_enhanced_security, _DEFAULT_IBEACON_UUIDS, _invalidate_snapshot_cache, id_text, name_text
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,8 +33,8 @@ _LOGGER = logging.getLogger(__name__)
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/object_label_set",
-        "address": str,
-        "label": str,
+        "address": id_text,
+        "label": name_text,
     }
 )
 @websocket_api.async_response
@@ -481,7 +481,7 @@ async def ws_label_link_undo(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"current": root})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/label_link_hint_off", "key": str})
+@websocket_api.websocket_command({"type": "padspan_ha/label_link_hint_off", "key": id_text})
 @websocket_api.async_response
 @admin_if_enhanced_security
 async def ws_label_link_hint_off(hass: HomeAssistant, connection, msg) -> None:

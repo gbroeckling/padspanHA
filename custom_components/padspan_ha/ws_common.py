@@ -611,6 +611,70 @@ def finite_float(value: Any) -> float:
     return out
 
 
+# ── Limits on what a message may hold ───────────────────────────────────────
+# Far past anything a real home holds (measured on a furnished home: its
+# longest label 81 characters, its ids 74, its furthest position 59 m, its
+# largest room outline 13 points, its deepest record 5 levels), so a screen
+# never meets them; they keep a script from storing 100,000 characters, a
+# NUL, a position of 1e308 or a dict nested 200 deep, which every later save,
+# snapshot and backup would carry.
+NAME_MAX = 200          # a name, a label, a room, an id, an address, a key
+NOTE_MAX = 2000         # a note
+POSITION_MAX_M = 10_000.0   # metres from the house's origin
+DEPTH_MAX = 10          # levels of a dict or list taken whole
+ROOMS_MAX = 500         # rooms in one message
+PINS_MAX = 1000         # pins (receivers, beacons, lights) on one plan
+SETTINGS_LIST_MAX = 5000    # entries in a setting's list of ids, addresses or rules
+
+
+def _text_up_to(limit: int, what: str) -> Any:
+    def check(value: Any) -> str:
+        if not isinstance(value, str):
+            raise vol.Invalid(f"expected {what} as text")
+        if "\x00" in value:
+            raise vol.Invalid(f"{what} may not hold a NUL character")
+        if len(value) > limit:
+            raise vol.Invalid(f"{what} may be at most {limit:,} characters")
+        return value
+    check.padspan_expects = "text"    # what the real-HA hostile pass sends it (tests_ha/hostile_values.py)
+    return check
+
+
+name_text = _text_up_to(NAME_MAX, "a name")
+id_text = _text_up_to(NAME_MAX, "an id")
+note_text = _text_up_to(NOTE_MAX, "a note")
+
+
+def metres(value: Any) -> float:
+    """A position in metres: a real number within 10 km of the house's origin."""
+    out = finite_float(value)
+    if abs(out) > POSITION_MAX_M:
+        raise vol.Invalid(f"a position must be within {POSITION_MAX_M:,.0f} m of the house's origin")
+    return out
+
+
+metres.padspan_expects = "number"
+
+
+def depth_of(value: Any, limit: int = DEPTH_MAX + 1) -> int:
+    """How many levels of dicts and lists `value` holds, counted up to `limit`."""
+    level, layer = 0, [value]
+    while level < limit:
+        layer = [x for x in layer if isinstance(x, (dict, list))]
+        if not layer:
+            break
+        level += 1
+        layer = [v for x in layer for v in (x.values() if isinstance(x, dict) else x)]
+    return level
+
+
+def shallow(value: Any) -> Any:
+    """A dict or list taken whole holds at most DEPTH_MAX levels."""
+    if depth_of(value) > DEPTH_MAX:
+        raise vol.Invalid(f"nested more than {DEPTH_MAX} levels deep")
+    return value
+
+
 def radio_slug(value: Any) -> str:
     """Lowercase, with every run of non-alphanumerics collapsed to one '_'."""
     return _SLUG_RE.sub("_", str(value or "").lower()).strip("_")

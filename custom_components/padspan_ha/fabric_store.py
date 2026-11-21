@@ -183,6 +183,15 @@ def _norm_geometry(geo: Any) -> dict[str, Any] | None:
     return None
 
 
+# A wall's own keys (what the panel sends and reads, what positioning and
+# Live Aboard use), and the most points one wall line takes.
+_BARRIER_KEYS = frozenset({
+    "id", "name", "points_m", "floor_id", "material", "attenuation_dbm", "invert_state", "rail",
+    "linked_entity_id", "linked_opener_entity_id", "linked_lock_entity_id",
+})
+_BARRIER_POINTS_MAX = 1000
+
+
 class FabricStore:
     """Room-geometry ground truth, per floor, in real-world metres."""
 
@@ -602,9 +611,13 @@ class FabricStore:
             if not (math.isfinite(x) and math.isfinite(y)):
                 return None
             out_pts.append([x, y])
-        if len(out_pts) < 2:
+        if len(out_pts) < 2 or len(out_pts) > _BARRIER_POINTS_MAX:
             return None
-        out = dict(bar)
+        # What a wall is, and nothing else: the panel sends a stored wall back
+        # whole with one thing changed, and a key it never reads stays out.
+        out = {k: v for k, v in bar.items() if k in _BARRIER_KEYS}
+        if any(isinstance(v, str) and (len(v) > 200 or "\x00" in v) for v in out.values()):
+            return None
         out["points_m"] = out_pts
         out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
         out["id"] = str(out.get("id") or "").strip()[:40] or f"bar_{os.urandom(4).hex()}"

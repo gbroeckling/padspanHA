@@ -21,7 +21,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_DEVICE_REGISTRY, DOMAIN
 from .guest_tags import (RETENTION_CHOICES, async_get_store, enabled, fire, retention_days, session_out,
                          store_if_loaded, tag_state, valid_quiet)
-from .ws_common import admin_if_enhanced_security, finite_float
+from .ws_common import admin_if_enhanced_security, finite_float, name_text, ROOMS_MAX
 from .quiet_errors import note as _quiet_error
 
 OFF_CODE = "guest_tags_off"
@@ -147,10 +147,10 @@ async def ws_guest_tag_unmark(hass: HomeAssistant, connection, msg) -> None:
 
 
 _OPTS = {
-    vol.Optional("off_limits"): [str],
+    vol.Optional("off_limits"): vol.All([name_text], vol.Length(max=ROOMS_MAX)),
     vol.Optional("notify_arrive"): bool,
     vol.Optional("notify_leave"): bool,
-    vol.Optional("notify_target"): str,
+    vol.Optional("notify_target"): name_text,
     vol.Optional("quiet"): str,
     vol.Optional("counts_home"): bool,
 }
@@ -190,7 +190,7 @@ async def ws_guest_session_start(hass: HomeAssistant, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/guest_session_update", vol.Required("session"): str,
-                                  vol.Optional("name"): str, vol.Optional("end_at"): vol.Any(None, finite_float),
+                                  vol.Optional("name"): name_text, vol.Optional("end_at"): vol.Any(None, finite_float),
                                   **_OPTS})
 @websocket_api.require_admin
 @websocket_api.async_response

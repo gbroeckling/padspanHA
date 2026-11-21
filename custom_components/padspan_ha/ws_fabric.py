@@ -34,7 +34,8 @@ from .const import (
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
 from .model_store import KEEP_HEIGHT
 from .snapshot_builder import _live_snapshot
-from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least, finite_float
+from .ws_common import (admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least, finite_float,
+                        id_text, metres, name_text, shallow, POSITION_MAX_M)
 from .ws_backup import _auto_backup
 from .telemetry import OPEN_EDGE_ACTIONS, bump as _bump
 from .quiet_errors import note as _quiet_error
@@ -56,10 +57,16 @@ _PRO_REQUIRED_MSG = (
 _HEIGHT = vol.Any(None, vol.Coerce(float))
 _HEIGHT_MSG = "z_m must be a height in metres, or null to go back to the default"
 _HEIGHTS_MAX = 2000
+# Walls one save may set (a real home has a few dozen), and an angle in
+# radians: a few turns either way is any plan's turn or lean.
+BARRIERS_MAX = 1000
+ANGLE_MAX_RAD = 100.0
+_ANGLE = vol.All(vol.Coerce(float), finite_float, vol.Range(min=-ANGLE_MAX_RAD, max=ANGLE_MAX_RAD))
 
 
 def _height_ok(v: Any) -> bool:
-    return v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v))
+    return v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                         and abs(v) <= POSITION_MAX_M)
 
 
 def _heights_of(msg: dict, id_key: str) -> dict[str, Any] | str:
@@ -109,17 +116,17 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_light_position_set",
-        "entity_id": str,
-        vol.Required("x_m"): finite_float,
-        vol.Required("y_m"): finite_float,
-        vol.Optional("floor_id"): str,
-        vol.Optional("color"): str,
-        vol.Optional("shape"): str,
+        "entity_id": id_text,
+        vol.Required("x_m"): metres,
+        vol.Required("y_m"): metres,
+        vol.Optional("floor_id"): id_text,
+        vol.Optional("color"): name_text,
+        vol.Optional("shape"): name_text,
         vol.Optional("rotation"): finite_float,
         vol.Optional("width_cm"): finite_float,
         vol.Optional("height_cm"): finite_float,
         vol.Optional("margin_cm"): finite_float,
-        vol.Optional("label"): str,
+        vol.Optional("label"): name_text,
         # Its height above its floor, for Live Aboard: left out, the stored
         # height stays (a drag never wipes it); null clears it.
         vol.Optional("z_m"): _HEIGHT,
@@ -242,13 +249,13 @@ async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_beacon_position_set",
-        "key": str,
-        vol.Required("x_m"): vol.Coerce(float),
-        vol.Required("y_m"): vol.Coerce(float),
-        vol.Optional("floor_id"): str,
-        vol.Optional("room"): str,
-        vol.Optional("kind"): str,
-        vol.Optional("label"): str,
+        "key": id_text,
+        vol.Required("x_m"): metres,
+        vol.Required("y_m"): metres,
+        vol.Optional("floor_id"): id_text,
+        vol.Optional("room"): name_text,
+        vol.Optional("kind"): name_text,
+        vol.Optional("label"): name_text,
         # As a light's: left out, the stored height stays; null clears it.
         vol.Optional("z_m"): _HEIGHT,
     }
@@ -342,8 +349,8 @@ async def ws_fabric_beacon_remove(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_room_add",
-        "room": str,
-        vol.Optional("floor_id"): str,
+        "room": name_text,
+        vol.Optional("floor_id"): id_text,
     }
 )
 @websocket_api.async_response
@@ -457,14 +464,14 @@ async def ws_fabric_sync_mode_set(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_scanner_position_set",
-        "source": str,
+        "source": id_text,
         # Coerce, not float: the browser sends 2.0 back as the integer 2, and
         # a plain float check refused it — so a scanner at a whole-metre
         # height or position could never be saved again ("Saved N, failed 1").
-        vol.Required("x_m"): vol.Coerce(float),
-        vol.Required("y_m"): vol.Coerce(float),
-        vol.Optional("z_m"): vol.Coerce(float),
-        vol.Optional("floor_id"): str,
+        vol.Required("x_m"): metres,
+        vol.Required("y_m"): metres,
+        vol.Optional("z_m"): metres,
+        vol.Optional("floor_id"): id_text,
     }
 )
 @websocket_api.async_response
@@ -952,7 +959,7 @@ async def ws_fabric_rooms_reconcile(hass: HomeAssistant, connection, msg) -> Non
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_floor_finalize",
-        "floor_id": str,
+        "floor_id": id_text,
         "committed": bool,
     }
 )
@@ -973,7 +980,7 @@ async def ws_fabric_floor_finalize(hass: HomeAssistant, connection, msg) -> None
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_rf_barrier_set",
-        "barrier": dict,
+        "barrier": vol.All(dict, shallow),
     }
 )
 @websocket_api.async_response
@@ -995,7 +1002,7 @@ async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None
     barrier.setdefault("floor_id", DEFAULT_FLOOR_ID)
     stored = await mdl.async_set_rf_barrier_m(barrier)
     if stored is None:
-        connection.send_error(msg["id"], "invalid", "barrier needs a name and at least two points_m")
+        connection.send_error(msg["id"], "invalid", "A wall needs a name of at most 200 characters and 2 to 1,000 points")
         return
     _bump(hass, "wall_placed")
     connection.send_result(msg["id"], {"ok": True, "barrier": stored})
@@ -1053,7 +1060,7 @@ async def ws_fabric_rf_barrier_rails_stamp(hass: HomeAssistant, connection, msg)
     {
         "type": "padspan_ha/fabric_open_edges_apply",
         vol.Required("action"): vol.In(OPEN_EDGE_ACTIONS),
-        vol.Optional("set_barriers", default=list): [dict],
+        vol.Optional("set_barriers", default=list): vol.All([vol.All(dict, shallow)], vol.Length(max=BARRIERS_MAX)),
         vol.Optional("remove_barrier_ids", default=list): [str],
     }
 )
@@ -1071,7 +1078,7 @@ async def ws_fabric_open_edges_apply(hass: HomeAssistant, connection, msg) -> No
         return
     norm = [fab._norm_barrier(dict(b)) if b.get("name") else None for b in msg["set_barriers"]]
     if any(b is None for b in norm):
-        connection.send_error(msg["id"], "invalid", "each barrier needs a name and at least two points_m")
+        connection.send_error(msg["id"], "invalid", "Each wall needs a name of at most 200 characters and 2 to 1,000 points")
         return
     await fab.async_spatial_update(set_barriers=norm, remove_barrier_ids=msg["remove_barrier_ids"], op="open_edges")
     _bump(hass, f"open_edge:{msg['action']}")
@@ -1081,8 +1088,8 @@ async def ws_fabric_open_edges_apply(hass: HomeAssistant, connection, msg) -> No
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_map_transform_set",
-        "map_id": str,
-        "transform": dict,
+        "map_id": id_text,
+        "transform": vol.All(dict, shallow),
     }
 )
 @websocket_api.require_admin
@@ -1190,13 +1197,13 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_map_reanchor",
-        "map_id": str,
-        vol.Optional("origin_x_m"): vol.Coerce(float),
-        vol.Optional("origin_y_m"): vol.Coerce(float),
-        vol.Optional("rotation_rad"): vol.Coerce(float),
-        vol.Optional("scale_x_m"): vol.Coerce(float),
-        vol.Optional("scale_y_m"): vol.Coerce(float),
-        vol.Optional("shear_rad"): vol.Coerce(float),
+        "map_id": id_text,
+        vol.Optional("origin_x_m"): metres,
+        vol.Optional("origin_y_m"): metres,
+        vol.Optional("rotation_rad"): _ANGLE,
+        vol.Optional("scale_x_m"): metres,
+        vol.Optional("scale_y_m"): metres,
+        vol.Optional("shear_rad"): _ANGLE,
     }
 )
 @websocket_api.require_admin
