@@ -198,6 +198,11 @@ class Crawl:
             if first:
                 self.find("stuck", "page did not finish loading", str(e)[:300], [])
             return None
+        if self.job["page"] in ("atlas3d", "wall"):
+            # The 3D house comes up after the page (WebGL, the furniture): settled means it is there.
+            t3 = time.time()
+            while time.time() - t3 < 25 and not any(c["kind"] == "canvas" for c in self.look()["controls"]):
+                self.wait(400)
         looks = []
         t0 = time.time()
         need = 3 if first else 2              # the same controls this many looks running: settled
