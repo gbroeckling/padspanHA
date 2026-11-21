@@ -4306,7 +4306,10 @@ export function buildLightsMapCard(hostIn){
     _AB.liveLayer(abSlot).draw(snapshot !== undefined ? null : {
       stage: isoDiv, frame: _frame, frameKey: `${view.floorGap}|${view.horizGap}`, model: host.model,
       states: host.house3d.states || {}, file: abData,
-      people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true, hideNames: !codesShown || !!host.hideDeviceCodes,
+      people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true,
+      // Hiding the device codes hides the A01-style chips, never a person's or a tag's name; the
+      // scanners' squares, technical markers like the codes, go with them.
+      scanners: !host.hideDeviceCodes,
       carries: abSet.atlas_3d_carries || null,
       focused: (z) => fz === null || (Array.isArray(fz) ? fz.includes(z) : fz === z), outdoor: isOutdoorFloorId,
       home: () => { const rn = isoDiv.getRootNode ? isoDiv.getRootNode() : null; return rn && rn.host ? rn : document.body; } }, snapshot);
