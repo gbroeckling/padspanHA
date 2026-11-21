@@ -27,6 +27,8 @@ const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Optional: why Build from plans isn't offered, in the rooms helper's words (Settings → AI).
 const AIWO = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
 // Optional too: the tester sign-up must not take the Settings tab with it.
+// Copy that works on plain http too (Home Assistant often is): the voice card's sentences.
+const { copyText } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: tester_signup failed to load", err); return { testerSection: () => null }; });
 // Optional: a card that fails to load must not take the Settings tab with it.
@@ -3249,6 +3251,8 @@ function _settingsPresence(ctx, el){
     finally { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh Snapshot"; }
   });
 
+  put("integrations", _voiceQuestionsCard(ctx, el));
+
   put("integrations", el("div",{class:"card"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
       el("div",{class:"h2",style:"margin:0"},"Ignore Bermuda"),
@@ -3271,6 +3275,57 @@ function _settingsPresence(ctx, el){
 
   for (const sec of _presenceSections(ctx, el, bins)) wrap.appendChild(sec);
   return wrap;
+}
+
+// ── Voice: "Which room is Alice in?" (2026-11-21) ──────────────────────────
+// Assist answers it through PadSpan's PadSpanWhereIs intent (intents.py), but
+// only once the sentences are in config/custom_sentences, and they lived only
+// in docs/GETTING_STARTED.md. The same sentences here, word for word (held
+// equal by tests/test_plain_problems.py), with examples in the name of one of
+// this house's own devices, the answers, and a Copy button.
+export const VOICE_SENTENCES_PATH = "config/custom_sentences/en/padspan.yaml";
+export const VOICE_SENTENCES_YAML = [
+  'language: "en"',
+  "intents:",
+  "  PadSpanWhereIs:",
+  "    data:",
+  "      - sentences:",
+  '          - "which room is {padspan_person} in"',
+  '          - "what room is {padspan_person} in"',
+  '          - "where in the house is {padspan_person}"',
+  "lists:",
+  "  padspan_person:",
+  "    wildcard: true",
+].join("\n") + "\n";
+
+function _voiceQuestionsCard(ctx, el) {
+  // A name from this house, the way the answer finds it: a device's PadSpan name (its label).
+  const objs = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.objects && ctx.state.live.snapshot.objects.list) || [];
+  const named = objs.find(o => o && typeof o.user_label === "string" && o.user_label.trim());
+  const who = named ? named.user_label.trim() : "Alice";
+  const asks = [`Which room is ${who} in?`, `What room is ${who} in?`, `Where in the house is ${who}?`];
+  const answers = [`${who} is in the Kitchen.`, `${who} is probably in the Kitchen.`, `${who} is away.`];
+  const list = (items) => el("ul", { style: "margin:4px 0 8px 18px;padding:0;font-size:13px;color:#e2e8f0" },
+    items.map(t => el("li", {}, t)));
+  const yaml = el("pre", { class: "mono", "data-voice-yaml": "", style: "margin:6px 0;padding:8px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;font-size:11px;white-space:pre;overflow:auto" }, VOICE_SENTENCES_YAML);
+  const copy = el("button", { class: "btn inline", "data-voice-copy": "" }, "Copy the sentences");
+  copy.addEventListener("click", async () => {
+    ctx.toast(await copyText(VOICE_SENTENCES_YAML)
+      ? `Copied. Save them as ${VOICE_SENTENCES_PATH}, then restart Home Assistant.`
+      : "Copy was blocked: select the lines and copy them yourself.", false);
+  });
+  return el("div", { class: "card", "data-voice-questions": "" }, [
+    el("div", { class: "h2", style: "color:#52b788" }, "Ask Assist which room someone is in"),
+    el("div", { class: "muted", style: "font-size:12px" },
+      "Home Assistant's voice assistant, Assist, can tell you which room a person or thing is in. Ask with the name the device has in PadSpan, for example:"),
+    list(asks),
+    el("div", { class: "muted", style: "font-size:12px" }, "It answers like this:"),
+    list(answers),
+    el("div", { class: "muted", style: "font-size:12px" },
+      `Assist only knows these questions once you add them: save the lines below as ${VOICE_SENTENCES_PATH} and restart Home Assistant. The answers are in English. Nothing needs to be exposed, and asking never changes anything.`),
+    yaml,
+    copy,
+  ]);
 }
 
 // ── Features tab (experimental toggles) ──────────────────────────────────────

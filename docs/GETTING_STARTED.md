@@ -180,7 +180,7 @@ What Home Assistant's own Assist sentences already do (checked against the HA in
 
 To use either one, expose the entity: **Settings → Voice assistants → Expose**, add `sensor.<device>_area` (or the `person` with the PadSpan tracker attached under **Settings → People**). Give it an alias such as "Alice" if you like.
 
-For an answer that always names the room, PadSpan adds a `PadSpanWhereIs` intent. It does nothing until you add these sentences yourself. Save this as `config/custom_sentences/en/padspan.yaml` and restart Home Assistant (or reload it from the Assist debug page):
+For an answer that always names the room, PadSpan adds a `PadSpanWhereIs` intent. It does nothing until you add these sentences yourself. Save this as `config/custom_sentences/en/padspan.yaml` and restart Home Assistant (or reload it from the Assist debug page). The panel shows the same lines, with a Copy button and examples in your own devices' names, under **Settings → Tracking → Home Assistant and integrations → Ask Assist which room someone is in**:
 
 ```yaml
 language: "en"

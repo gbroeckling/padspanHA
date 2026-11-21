@@ -213,3 +213,34 @@ def test_the_overview_names_one_place_to_draw_rooms() -> None:
     btn = src[src.index("function _drawRoomsBtn(ctx) {"):][:400]
     assert 'ctx.actions.openSetupStep("rooms")' in btn and '_ovSurfaces(["setup"], ctx.state.settings)' in btn
     assert src.count("_drawRoomsBtn(ctx)") == 3, "the room list and the banner have the button (and its definition)"
+
+
+# ── Voice: the sentences Assist needs, in the panel ──────────────────────────
+
+def test_the_voice_sentences_in_the_panel_are_the_documented_ones() -> None:
+    """"Which room is Alice in?" needs sentences in config/custom_sentences that
+    only docs/GETTING_STARTED.md gave. Settings → Tracking → Home Assistant and
+    integrations shows them word for word, for the intent intents.py registers
+    and the slot it reads."""
+    from custom_components.padspan_ha import intents
+
+    src = (ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "settings.js").read_text(encoding="utf-8")
+    block = src[src.index("export const VOICE_SENTENCES_YAML = ["):]
+    block = block[:block.index("].join(")]
+    # Each line is a JS string literal, in single quotes when it holds double ones.
+    lines = [a or b for a, b in re.findall(r"'([^']*)'|\"([^\"]*)\"", block)]
+    docs = (ROOT / "docs" / "GETTING_STARTED.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    fence = docs[docs.index("```yaml\nlanguage: \"en\"\nintents:\n  PadSpanWhereIs:"):]
+    fence = fence[len("```yaml\n"):fence.index("\n```", 8)]
+    assert lines == fence.split("\n"), (lines, fence)
+    assert f"  {intents.INTENT_WHERE_IS}:" in lines and "{padspan_person}" in fence
+    assert 'export const VOICE_SENTENCES_PATH = "config/custom_sentences/en/padspan.yaml";' in src
+    assert "config/custom_sentences/en/padspan.yaml" in docs
+    card = src[src.index("function _voiceQuestionsCard(ctx, el) {"):]
+    card = card[:card.index("\n}\n")]
+    assert "copyText(VOICE_SENTENCES_YAML)" in card
+    # Whole sentences, each with the name in it, as the intent answers them (intents.where_is_answer).
+    for s in ("`Which room is ${who} in?`", "`${who} is in the Kitchen.`", "`${who} is probably in the Kitchen.`", "`${who} is away.`"):
+        assert s in card, s
+    assert intents.where_is_answer({"a": {"user_label": "Alice", "room": "Kitchen", "room_confidence": 0.9, "age_s": 1}},
+                                   "Alice", 600) == "Alice is in the Kitchen."
