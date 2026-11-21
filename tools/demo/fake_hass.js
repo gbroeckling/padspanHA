@@ -70,6 +70,16 @@ export async function startDemo(page){
     atlas_3d_carries: Object.fromEntries(WALKERS.filter(w => w.person).map(w => [w.person, [w.key]])),
     tier: "pro", edition: "full", pro_active: true, pro_has_key: false, offer_tester: false, offer_invite: false,
   });
+  // The flat Atlas opens calm: the rooms, who is where, and the lights. Its
+  // device codes start hidden (Mapping → Atlas builder's "Hide device codes")
+  // and so do the sensors' markers: motion, temperature, humidity and the lock
+  // (each row's Show in the Light Index under the map brings one back). The
+  // other pages are as they were: the Panel's Sample mode shows every feature
+  // set up. Every page says what it hides: an empty list is "nothing hidden",
+  // not this browser's copy from an Atlas visit before.
+  settings.lights_hidden = page !== "atlas" ? [] : Object.keys(model.light_positions_m || {})
+    .filter(eid => /^(sensor|lock)\./.test(eid) || (states[eid] && states[eid].attributes.device_class === "motion"));
+  if (page === "atlas") settings.lights_hide_device_codes = true;
   // ?look= and ?quality=: Live Aboard's look (atlas, own or studio) and quality (auto, low or high),
   // as Settings → UI Structure → 🏠 Live Aboard sets them.
   if (["atlas", "own", "studio"].includes(q.get("look"))) settings.atlas_3d_look = q.get("look");
