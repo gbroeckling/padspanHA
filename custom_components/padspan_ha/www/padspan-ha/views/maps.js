@@ -1900,27 +1900,29 @@ function _wizardFinish(ctx, map, w){
   const writeBlock = TSP ? TSP.tuneWriteBlock(ctx.state) : null;
   if (plan && (plan.rooms.length || plan.scanners.length)) {
     const box = el("div",{style:"padding:10px 12px;border:1px solid #2d6a4f;border-radius:8px;margin-bottom:14px","data-wizard-build":"1"});
-    const n = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
     if (writeBlock) {
       box.appendChild(el("div",{style:"font-size:13px"}, writeBlock));
     } else if (!plan.readable) {
       box.appendChild(el("div",{style:"font-size:13px"},
-        "Set this floor's scale first (step 2): PadSpan needs to know how big it is before it can put these rooms and receivers on the map of your house."));
+        t("Set this floor's scale first (step 2): PadSpan needs to know how big it is before it can put these rooms and receivers on the map of your house.")));
     } else {
-      const what = [plan.rooms.length ? n(plan.rooms.length, "room") : "", plan.scanners.length ? n(plan.scanners.length, "receiver") : ""].filter(Boolean).join(" and ");
+      const parts = [plan.rooms.length ? tn(plan.rooms.length, "{n} room", "{n} rooms") : "", plan.scanners.length ? tn(plan.scanners.length, "{n} receiver", "{n} receivers") : ""].filter(Boolean);
+      const what = parts.length > 1 ? t("{a} and {b}", { a: parts[0], b: parts[1] }) : parts[0];
       box.appendChild(el("div",{style:"font-size:13px;margin-bottom:8px;line-height:1.5"},
-        `${what} ${plan.rooms.length + plan.scanners.length === 1 ? "is" : "are"} on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.`));
+        tn(plan.rooms.length + plan.scanners.length,
+          "{what} is on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.",
+          "{what} are on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.", { what })));
       // Re-reading the model redraws this step mid-write: the flag keeps the
       // new button in progress, so a second click can't start a second build.
       const building = !!ctx.state._wizardBuilding;
-      const putBtn = el("button",{class:"btn primary"}, building ? "Putting it on the map…" : "Put it on the map");
+      const putBtn = el("button",{class:"btn primary"}, building ? t("Putting it on the map…") : t("Put it on the map"));
       putBtn.disabled = building;
       // One press for every "Put it on the map" (wizard_build.putOnMap): Tune's Save check at the click, as before.
       putBtn.addEventListener("click", () => putOnMap(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh(),
         writeBlock: () => TSP.tuneWriteBlock(ctx.state),
         // Basic has neither Layout nor Tune (review 2026-11-11, C5): its own words.
         where: ctx.state.complexity === "basic" ? "the Rooms page and Calibration's first step show them" : "Mapping → Layout and Calibration → Tune show them",
-        started: () => { putBtn.disabled = true; putBtn.textContent = "Putting it on the map…"; } }));
+        started: () => { putBtn.disabled = true; putBtn.textContent = t("Putting it on the map…"); } }));
       box.appendChild(putBtn);
     }
     wrap.appendChild(box);

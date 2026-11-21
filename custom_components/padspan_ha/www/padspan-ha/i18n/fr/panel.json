@@ -26,10 +26,10 @@
 "See someone on the map": "Voir quelqu’un sur la carte",
 "Follow → pick your phone or a tag": "« Follow » → choisissez votre téléphone ou une balise",
 "Switch the top bar to Live first": "Passez d’abord la barre du haut sur « En direct »",
-"Make it a map (optional) — {done}/{total}": "En faire une carte (facultatif) — {done}/{total}",
+"Make it a map (optional) — {done}/{total}": "Créer la carte (facultatif) — {done}/{total}",
 "Getting started — {done}/{total}": "Premiers pas — {done}/{total}",
-"Skip setup": "Passer la configuration",
-"Open Setup": "Ouvrir la configuration",
+"Skip setup": "Passer",
+"Open Setup": "Configurer",
 "Help": "Aide",
 "Who's where already works below. A floor plan adds the map, and with three or more receivers placed on it, positions between them.": "« Who's where » fonctionne déjà ci-dessous. Un plan ajoute la carte et, avec trois récepteurs ou plus placés dessus, les positions entre eux.",
 "Then: {step}": "Ensuite : {step}",
@@ -134,12 +134,15 @@
 "{name} is set up": "{name} est configuré",
 "This floor is set up": "Cet étage est configuré",
 "Every set-up step is done.": "Toutes les étapes de configuration sont faites.",
+"Set this floor's scale first (step 2): PadSpan needs to know how big it is before it can put these rooms and receivers on the map of your house.": "Réglez d’abord l’échelle de cet étage (étape 2) : PadSpan doit savoir quelle est sa taille avant de pouvoir placer ces pièces et ces récepteurs sur la carte de votre maison.",
+"Putting it on the map…": "Ajout à la carte…",
+"Put it on the map": "Mettre sur la carte",
 "+ Set up another floor": "+ Configurer un autre étage",
 "Done": "Terminé",
 "Set up a floor plan": "Configurer un plan",
 "Setting up: {name}": "Configuration : {name}",
 "Setting up: this floor plan": "Configuration : ce plan",
-"Exit setup": "Quitter la configuration",
+"Exit setup": "Quitter",
 "Floor heights are set. Next: place the receivers, each where it is mounted.": "Les hauteurs d’étage sont réglées. Ensuite : placer les récepteurs, chacun là où il est fixé.",
 "Floor heights are set. Next: calibrate, a few minutes walking round the house with your phone.": "Les hauteurs d’étage sont réglées. Ensuite : l’étalonnage, quelques minutes à faire le tour de la maison avec votre téléphone.",
 "Calibrate →": "Étalonner →",
@@ -166,6 +169,18 @@
 "{n} receivers placed.": {
 "one": "{n} récepteur placé.",
 "other": "{n} récepteurs placés."
+},
+"{n} rooms": {
+"one": "{n} pièce",
+"other": "{n} pièces"
+},
+"{n} receivers": {
+"one": "{n} récepteur",
+"other": "{n} récepteurs"
+},
+"{what} are on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.": {
+"one": "{what} est sur ce plan mais pas encore sur la carte de votre maison dont se servent « Overview », l’Atlas et le positionnement. Rien de ce qui s’y trouve déjà ne change.",
+"other": "{what} sont sur ce plan mais pas encore sur la carte de votre maison dont se servent « Overview », l’Atlas et le positionnement. Rien de ce qui s’y trouve déjà ne change."
 },
 "To enable phone tracking:": "Pour activer le suivi du téléphone :",
 "Open the HA Companion App on your phone": "Ouvrez l’application HA Companion sur votre téléphone",
@@ -262,7 +277,7 @@
 "To try again, use the line below; to draw them yourself, this step's own button.": "Pour réessayer, utilisez la ligne ci-dessous ; pour les dessiner vous-même, le bouton de cette étape.",
 "Cancel": "Annuler",
 "Next": "Suivante",
-"To do": "À faire",
+"To do": "À faire",
 "Skipped": "Passée",
 "One": "Une",
 "Two": "Deux",
@@ -280,7 +295,7 @@
 "Add a floor": "Ajouter un étage",
 "Change": "Modifier",
 "Continue →": "Continuer →",
-"Start →": "Commencer →",
+"Start →": "Lancer →",
 "Open": "Ouvrir",
 "{n} floor plans uploaded.": {
 "one": "{n} plan téléversé.",
