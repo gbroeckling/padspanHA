@@ -297,3 +297,69 @@ def test_the_command_checks_every_value_for_one_before_it_reads_any_key():
     body = src[src.index("async def ws_settings_set("):]
     assert "_unstorable_number(_vv)" in body
     assert body.index("_unstorable_number(_vv)") < body.index("payload: dict[str, Any] = {}")
+
+
+# ── E: a setting with a few fixed choices takes those only ────────────────────
+# An unknown word used to be stored as a fallback without a word: a live
+# house switched to the sample house, the learned model back to calibration
+# matching, a tier override cleared. Now refused in words; the panel's
+# style keeps its documented fallback (classic), so a bad value never leaves
+# anyone on a style that failed to load.
+
+_CHOICES = {
+    "data_mode": (("live", "sample"), "sample", "live"),
+    "positioning_algorithm": (("knn", "rf"), "rf", "knn"),
+    "auto_offset_mode": (("off", "partial", "full"), "off", "full"),
+    "license_tier_override": (("", "free", "bright", "pro"), "bright", "free"),
+}
+
+
+@pytest.mark.parametrize("key", sorted(_CHOICES))
+def test_each_choice_is_taken_whatever_its_capitals(key: str) -> None:
+    choices, start, _other = _CHOICES[key]
+    for choice in choices:
+        got = send({key: f" {choice.upper()} "}, start={key: start})
+        assert got["error"] is None and got["data"][key] == choice, (key, choice, got["error"])
+
+
+@pytest.mark.parametrize("key", sorted(_CHOICES))
+@pytest.mark.parametrize("typed", ["no such word", "zz_missing", "x" * 300, "live mode", "Pro!"])
+def test_an_unknown_choice_is_refused_in_words_and_the_old_one_stays(key: str, typed: str) -> None:
+    _choices, start, _other = _CHOICES[key]
+    got = send({key: typed}, start={key: start})
+    assert changed_nothing(got) and got["error"][0] == "invalid_format", got["error"]
+    assert '"' in got["error"][1] and "Python" not in got["error"][1]
+    assert got["data"][key] == start
+
+
+@pytest.mark.parametrize("key", ["data_mode", "positioning_algorithm", "auto_offset_mode"])
+def test_no_choice_at_all_is_refused_too(key: str) -> None:
+    _choices, start, _other = _CHOICES[key]
+    got = send({key: "  "}, start={key: start})
+    assert changed_nothing(got) and got["data"][key] == start
+
+
+def test_an_empty_tier_override_clears_it() -> None:
+    got = send({"license_tier_override": ""}, start={"license_tier_override": "free"})
+    assert got["error"] is None and got["data"]["license_tier_override"] == ""
+
+
+def test_an_unknown_style_falls_back_to_classic_as_documented() -> None:
+    for typed, stored in (("2025", "2025"), (" Classic ", "classic"), ("no such word", "classic"), ("", "classic")):
+        got = send({"ui_skin": typed}, start={"ui_skin": "2025"})
+        assert got["error"] is None and got["data"]["ui_skin"] == stored, typed
+
+
+def test_the_panel_sends_only_known_choices() -> None:
+    """settings.js (style, positioning, tier override), panel.js and manage.js
+    (back to Live): every value they send is one of the choices."""
+    from pathlib import Path
+    import re
+
+    www = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
+    js = "\n".join(p.read_text(encoding="utf-8") for p in www.rglob("*.js") if "vendor" not in p.parts)
+    assert set(re.findall(r'data_mode: "(\w*)"', js)) == {"live"}
+    assert set(re.findall(r'ui_skin: (?:"(\w*)"|val\b)', js)) <= {"", "2025", "classic"}
+    assert 'value: "knn"' in js and 'value: "rf"' in js
+    assert '[["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]' in js
+    assert not re.search(r"auto_offset_mode\s*:\s*[\"'\w]", js.replace("read auto_offset_mode: positioning", ""))

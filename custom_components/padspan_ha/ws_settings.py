@@ -842,9 +842,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         # that omit it (e.g. the lights panel hiding a light) must not flip
         # the integration back to "sample" mode as a side effect.
         if "data_mode" in msg:
-            mode = (msg.get("data_mode") or "sample").strip().lower()
+            # Only the two modes: an unknown word used to switch the house to
+            # the sample house without a word.
+            mode = str(msg.get("data_mode") or "").strip().lower()
             if mode not in ("sample", "live"):
-                mode = "sample"
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The data mode is "live" (your own house) or "sample" (the sample house)')
+                return
             payload["data_mode"] = mode
             # Someone chose: a new install's own switch to Live
             # (onboarding.py, live_first) never overrides that.
@@ -1164,7 +1168,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # "off" = manual offsets only, "partial" = auto-adjust weak scanners,
             # "full" = auto-adjust all scanners to minimize prediction error
             mode = str(msg["auto_offset_mode"]).strip().lower()
-            payload["auto_offset_mode"] = mode if mode in ("off", "partial", "full") else "partial"
+            if mode not in ("off", "partial", "full"):
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The automatic offset mode is "off", "partial" or "full"')
+                return
+            payload["auto_offset_mode"] = mode
         if "scanner_offsets" in msg:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
@@ -1467,7 +1475,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # (licence.effective_tier), so it is not a way past the licence.
             from .licence import TIERS  # noqa: PLC0415
             _ov = str(msg["license_tier_override"] or "").strip().lower()
-            payload["license_tier_override"] = _ov if _ov in TIERS else ""
+            if _ov and _ov not in TIERS:
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The tier to look at is "free", "bright" or "pro", or empty for no override')
+                return
+            payload["license_tier_override"] = _ov
         if "forensics_enabled" in msg:
             # Enabling requires an activated PadSpan Pro licence key (set via
             # padspan_ha/forensics_license_activate).  Disabling is always allowed.
@@ -1489,7 +1501,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["ble_reseed_interval_s"] = max(1, min(60, int(msg["ble_reseed_interval_s"])))
         if "positioning_algorithm" in msg:
             algo = str(msg["positioning_algorithm"]).strip().lower()
-            payload["positioning_algorithm"] = algo if algo in ("knn", "rf") else "knn"
+            if algo not in ("knn", "rf"):
+                connection.send_error(msg["id"], "invalid_format",
+                                      'The positioning method is "knn" (matched to calibration points) '
+                                      'or "rf" (the learned model)')
+                return
+            payload["positioning_algorithm"] = algo
         if "beacon_tune_disabled" in msg:
             payload["beacon_tune_disabled"] = _texts(msg["beacon_tune_disabled"])
         if "beacon_group_overrides" in msg:

@@ -52,6 +52,17 @@ FIXED_FIRST_RUN = [
         "an object with every field of the wrong kind"),
     Fixed({"type": "padspan_ha/calibration_save_point", "point": {"x_frac": "x", "scanner_readings": -1}}, True,
           "a point refused in Python's own words"),
+    # An address on this machine itself, or a cloud server's metadata address, fetched.
+    Fixed({"type": "padspan_ha/vacuum_import_preview", "url": "http://127.0.0.1:1/"}, True, "the vacuum at loopback"),
+    Fixed({"type": "padspan_ha/vacuum_import_preview", "url": "http://169.254.169.254/latest/meta-data/?"}, True,
+          "the vacuum at the metadata address"),
+    Fixed({"type": "padspan_ha/settings_set", "espresense_companion_url": "http://169.254.169.254"}, True,
+          "the Companion at the metadata address"),
+    # A fixed choice stored as a fallback for an unknown word.
+    Fixed({"type": "padspan_ha/settings_set", "data_mode": "zz_missing_data_mode"}, True, "an unknown data mode"),
+    Fixed({"type": "padspan_ha/settings_set", "positioning_algorithm": "zz"}, True, "an unknown positioning method"),
+    Fixed({"type": "padspan_ha/settings_set", "license_tier_override": "zz"}, True, "an unknown tier"),
+    Fixed({"type": "padspan_ha/settings_set", "auto_offset_mode": "zz"}, True, "an unknown offset mode"),
 ]
 # The last stable's house, every switch on.
 FIXED_FURNISHED = [
