@@ -4,33 +4,12 @@
     "step": {
       "user": {
         "title": "Konfigurer PadSpan HA",
-        "description": "Lokalt oppsett (ingen API nødvendig). Alt annet, også hvor ofte PadSpan oppdaterer, stilles inn i PadSpan-panelet i sidefeltet.",
-        "data": {
-          "scan_interval": "Oppdateringsintervall (sekunder)"
-        }
-      },
-      "reconfigure": {
-        "title": "Rekonfigurer PadSpan HA",
-        "description": "Endre oppdateringsintervall.",
-        "data": {
-          "scan_interval": "Oppdateringsintervall (sekunder)"
-        }
+        "description": "Lokalt oppsett (ingen API nødvendig). Alt annet, også hvor ofte PadSpan oppdaterer, stilles inn i PadSpan-panelet i sidefeltet."
       }
     },
     "abort": {
       "already_configured": "PadSpan HA er allerede konfigurert.",
-      "reconfigure_successful": "Lagret.",
       "unknown": "Det oppstod en uventet feil. Sjekk loggene i Home Assistant."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Alternativer for PadSpan HA",
-        "data": {
-          "scan_interval": "Oppdateringsintervall (sekunder)"
-        }
-      }
     }
   },
   "services": {

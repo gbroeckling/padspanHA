@@ -72,6 +72,24 @@ def test_languages_are_translated_not_english_copies():
             assert tr[key] != en[key], f"{p.name}:{key} is still English"
 
 
+def test_every_config_string_belongs_to_what_the_flow_shows():
+    """No leftover wording (2026-11-21). strings.json and every translation
+    kept a "Reconfigure PadSpan HA — Update scan interval." step, an options
+    form and the setup step's "Update interval" field long after the flow
+    lost all three (config_flow.py has one step, with no fields, and no
+    options flow). Only what the flow can show is translated: its steps, a
+    step's field labels only when its form has fields, its abort reasons."""
+    src = (_INTEG / "config_flow.py").read_text(encoding="utf-8")
+    s = _load(_INTEG / "strings.json")
+    steps = set(re.findall(r"async def async_step_([a-z_]+)\(", src))
+    assert set(s["config"]["step"]) == steps
+    assert set(s["config"]["abort"]) == set(re.findall(r'async_abort\(reason="([a-z_]+)"\)', src))
+    assert ("options" in s) == ("async_get_options_flow" in src)
+    for step, block in s["config"]["step"].items():
+        empty_form = f'step_id="{step}", data_schema=vol.Schema({{}})' in src
+        assert not (empty_form and "data" in block), f"{step} has no fields, yet its field labels are translated"
+
+
 def test_translated_services_exist_in_services_yaml():
     services = yaml.safe_load((_INTEG / "services.yaml").read_text(encoding="utf-8"))
     for name, block in _load(_INTEG / "strings.json").get("services", {}).items():

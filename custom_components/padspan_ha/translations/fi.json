@@ -4,33 +4,12 @@
     "step": {
       "user": {
         "title": "Määritä PadSpan HA",
-        "description": "Paikallinen määritys (API:a ei tarvita). Kaikki muu, myös se, kuinka usein PadSpan päivittyy, asetetaan sivupalkin PadSpan-paneelissa.",
-        "data": {
-          "scan_interval": "Päivitysväli (sekuntia)"
-        }
-      },
-      "reconfigure": {
-        "title": "Määritä PadSpan HA uudelleen",
-        "description": "Muuta päivitysväliä.",
-        "data": {
-          "scan_interval": "Päivitysväli (sekuntia)"
-        }
+        "description": "Paikallinen määritys (API:a ei tarvita). Kaikki muu, myös se, kuinka usein PadSpan päivittyy, asetetaan sivupalkin PadSpan-paneelissa."
       }
     },
     "abort": {
       "already_configured": "PadSpan HA on jo määritetty.",
-      "reconfigure_successful": "Tallennettu.",
       "unknown": "Tapahtui odottamaton virhe. Tarkista Home Assistantin lokit."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "PadSpan HA -asetukset",
-        "data": {
-          "scan_interval": "Päivitysväli (sekuntia)"
-        }
-      }
     }
   },
   "services": {

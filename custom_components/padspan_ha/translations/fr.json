@@ -4,33 +4,12 @@
     "step": {
       "user": {
         "title": "Configurer PadSpan HA",
-        "description": "Configuration locale (aucune API requise). Tout le reste, y compris la fréquence de mise à jour de PadSpan, se règle dans le panneau PadSpan de la barre latérale.",
-        "data": {
-          "scan_interval": "Intervalle de mise à jour (secondes)"
-        }
-      },
-      "reconfigure": {
-        "title": "Reconfigurer PadSpan HA",
-        "description": "Modifier l'intervalle de mise à jour.",
-        "data": {
-          "scan_interval": "Intervalle de mise à jour (secondes)"
-        }
+        "description": "Configuration locale (aucune API requise). Tout le reste, y compris la fréquence de mise à jour de PadSpan, se règle dans le panneau PadSpan de la barre latérale."
       }
     },
     "abort": {
       "already_configured": "PadSpan HA est déjà configuré.",
-      "reconfigure_successful": "Enregistré.",
       "unknown": "Une erreur inattendue s'est produite. Consultez les journaux de Home Assistant."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Options de PadSpan HA",
-        "data": {
-          "scan_interval": "Intervalle de mise à jour (secondes)"
-        }
-      }
     }
   },
   "services": {

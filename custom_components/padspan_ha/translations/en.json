@@ -4,33 +4,12 @@
     "step": {
       "user": {
         "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required). Everything else, including how often PadSpan updates, is set in the PadSpan panel in the sidebar.",
-        "data": {
-          "scan_interval": "Update interval (seconds)"
-        }
-      },
-      "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
-        "data": {
-          "scan_interval": "Update interval (seconds)"
-        }
+        "description": "Local-first setup (no API required). Everything else, including how often PadSpan updates, is set in the PadSpan panel in the sidebar."
       }
     },
     "abort": {
       "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
       "unknown": "An unexpected error occurred. Check Home Assistant logs."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "PadSpan HA options",
-        "data": {
-          "scan_interval": "Update interval (seconds)"
-        }
-      }
     }
   },
   "services": {

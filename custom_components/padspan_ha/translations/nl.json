@@ -4,33 +4,12 @@
     "step": {
       "user": {
         "title": "PadSpan HA instellen",
-        "description": "Lokale installatie (geen API nodig). Al het andere, ook hoe vaak PadSpan bijwerkt, stel je in via het PadSpan-paneel in de zijbalk.",
-        "data": {
-          "scan_interval": "Update-interval (seconden)"
-        }
-      },
-      "reconfigure": {
-        "title": "PadSpan HA opnieuw configureren",
-        "description": "Update-interval wijzigen.",
-        "data": {
-          "scan_interval": "Update-interval (seconden)"
-        }
+        "description": "Lokale installatie (geen API nodig). Al het andere, ook hoe vaak PadSpan bijwerkt, stel je in via het PadSpan-paneel in de zijbalk."
       }
     },
     "abort": {
       "already_configured": "PadSpan HA is al geconfigureerd.",
-      "reconfigure_successful": "Opgeslagen.",
       "unknown": "Er is een onverwachte fout opgetreden. Bekijk de logboeken van Home Assistant."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "PadSpan HA-opties",
-        "data": {
-          "scan_interval": "Update-interval (seconden)"
-        }
-      }
     }
   },
   "services": {
