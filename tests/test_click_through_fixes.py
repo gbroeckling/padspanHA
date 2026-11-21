@@ -10,6 +10,9 @@ el() under the DOM shim and gives it the answer that showed the fault:
 - Radio QA's propagation card said "Loading propagation analysis..." for good
   when the answer had no grade (Sample mode's sample house has none) or the
   call failed.
+- Settings → Tracking → Check Now said "undefined calibration points" in
+  Sample mode: the sample house did not answer the health check, and Sample
+  mode answers a read it does not hold with {}.
 """
 from __future__ import annotations
 
@@ -37,7 +40,7 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("qa propagation", 6)])
+@pytest.mark.parametrize("prefix,least", [("qa propagation", 6), ("sample health check", 5)])
 def test_fixed(run: dict, prefix: str, least: int) -> None:
     mine = {k: v for k, v in run.items() if k.startswith(prefix)}
     assert len(mine) >= least, sorted(run)

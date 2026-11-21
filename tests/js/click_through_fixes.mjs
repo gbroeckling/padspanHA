@@ -80,4 +80,23 @@ function makeCtx(over = {}, answer = async () => ({})) {
   }
 }
 
+// ── Settings → Tracking → Check Now in Sample mode ────────────────────────────
+// Sample mode answers a read the sample house does not hold with {}, and the
+// card printed "undefined calibration points · newest is unknown age old".
+// The sample house now answers it from its own points, as the server does.
+{
+  const { createSampleHouse } = await import(pathToFileURL(join(WWW, "sample_house.js")).href);
+  const house = createSampleHouse();
+  const r = house.route({ type: "padspan_ha/calibration_health_check" });
+  const pts = house.calibration.points.length;
+  check("sample health check: answered, not left to {}", r && typeof r === "object", r);
+  check("sample health check: the points the sample house holds", r && r.point_count === pts && pts > 0, { got: r && r.point_count, pts });
+  check("sample health check: walked about three weeks ago", r && Number.isFinite(r.stale_days) && r.stale_days >= 20 && r.stale_days <= 23, r && r.stale_days);
+  check("sample health check: each receiver with its points and mean signal",
+    r && r.scanner_summary.length > 0 && r.scanner_summary.every(s => s.source && Number.isFinite(s.point_count) && Number.isFinite(s.mean_rssi)),
+    r && r.scanner_summary.slice(0, 3));
+  check("sample health check: the keys the server sends", r && ["enabled", "point_count", "stale_days", "scanner_anomalies", "scanner_summary", "recommended_spots", "has_issues"]
+    .every(k => k in r), r && Object.keys(r));
+}
+
 process.stdout.write(JSON.stringify(results) + "\n", () => process.exit(0));
