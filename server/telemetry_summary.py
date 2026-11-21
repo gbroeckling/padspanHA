@@ -6,7 +6,8 @@
 Prints: installs by version / edition / tier / HA; environment distributions
 (scanners, floors, rooms, lights, IRKs, integrations); which features are on
 in how many installs; which tabs and tools are used and how much; how well
-the Apple Find My (AirTag) tools follow tags, where they run; load and
+the Apple Find My (AirTag) tools follow tags, where they run; power teams and
+every house's colour bulbs by brand (Hue and the rest); load and
 hardware (installs by board / CPUs / RAM, and per class how hard Home
 Assistant works and how many installs max out — Raspberry Pi classes
 first); health signals (crypto ok, callback alive, IRKs resolving anywhere,
@@ -739,6 +740,56 @@ def plans_section(latest: dict[str, dict]) -> list[str]:
     return out
 
 
+# Power teams (env.power_teams, 2026-11-21; telemetry.power_teams_report): smart bulbs fed by a wall dimmer or switch,
+# run as one light. From each install's latest report: the installs with a team and how their teams are set up, and,
+# team or not, the house's colour bulbs by brand and integration, which is who could use a team. Then the team card's
+# buttons over the window (telemetry.TEAM_CARD_EVENTS, held equal by tests/test_telemetry_power_teams.py).
+_TEAM_CARD = tuple(f"team_card:{w}" for w in ("opened", "power_cut", "power_on", "day", "sleep", "retry",
+                                              "wake_saved", "curve_saved", "off_mode_saved")) + ("team_tap",)
+_TEAM_COUNTS = (("with_power", "with a wall control"), ("adaptive", "follow the day"), ("curve_changed", "own curve"),
+                ("sun_shifted", "sun times moved"), ("wake_on", "wake-up on"))
+_TEAM_WORDS = (("power_domain", "wall control is a"), ("power_platform", "wall control run by"), ("off", "turned off by"),
+               ("team_size", "bulbs per team"), ("wake_fade", "wake-up fade (minutes)"), ("bulb_brand", "team bulbs by brand"),
+               ("bulb_platform", "team bulbs run by"), ("colour_bulbs_by_brand", "every colour bulb by brand"),
+               ("colour_bulbs_by_platform", "every colour bulb run by"))
+
+
+def power_teams_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+    told = {iid: (r.get("env") or {}).get("power_teams") for iid, r in latest.items()}
+    told = {iid: p for iid, p in told.items() if isinstance(p, dict) and p}
+    teams = {iid: p for iid, p in told.items() if (_num(p.get("n")) or 0) > 0}
+    out = ["Power teams and colour bulbs (env.power_teams, latest report per install)",
+           f"  installs with a team: {len(teams)} of {len(latest)}; teams {sum(int(_num(p.get('n')) or 0) for p in teams.values())},"
+           f" bulbs in them {sum(int(_num(p.get('bulbs')) or 0) for p in teams.values())}"]
+    if teams:
+        out.append("  teams that " + ", ".join(
+            f"{label} {sum(int(_num(p.get(k)) or 0) for p in teams.values())}" for k, label in _TEAM_COUNTS))
+    out.append(f"  installs with any colour bulb: {sum(1 for p in told.values() if isinstance(p.get('colour_bulbs_by_brand'), dict))}"
+               f" (with a Hue bulb: {sum(1 for p in told.values() if _num((p.get('colour_bulbs_by_brand') or {}).get('hue')))})")
+    for key, title in _TEAM_WORDS:
+        n: Counter = Counter()
+        who: Counter = Counter()
+        for p in told.values():
+            words = p.get(key)
+            for w, c in (words.items() if isinstance(words, dict) else ()):
+                if _num(c):
+                    n[str(w)] += int(_num(c))
+                    who[str(w)] += 1
+        if n:
+            out.append(f"  {title}: " + ", ".join(f"{w} {c} ({who[w]} installs)" for w, c in n.most_common()))
+    use: Counter = Counter()
+    users: dict[str, set] = defaultdict(set)
+    for r in reports:
+        for k, v in (r.get("usage") or {}).items():
+            if k in _TEAM_CARD and _num(v):
+                use[k] += int(_num(v))
+                users[k].add(r.get("install_id"))
+    out.append("  The team card and taps on the map (events over the window; installs)")
+    for k in _TEAM_CARD:
+        out.append(f"    {k:<36} {use[k]:>7}  {len(users[k]):>4} installs")
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
@@ -776,6 +827,9 @@ def main() -> int:
         print(line)
     print()
     for line in plans_section(latest):
+        print(line)
+    print()
+    for line in power_teams_section(latest, reports):
         print(line)
     print()
 

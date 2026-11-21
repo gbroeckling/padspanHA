@@ -504,6 +504,7 @@ telemetry:payload_perf
 telemetry:payload_pinned_movers
 telemetry:payload_plans
 telemetry:payload_plans_out_of_shape
+telemetry:payload_power_teams
 telemetry:payload_presence_cfg
 telemetry:payload_room_footprints
 telemetry:payload_room_walk
