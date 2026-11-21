@@ -76,6 +76,12 @@ function _fitWall(host, view, floors){
   view.floorGap = fit.floorGap; view.horizGap = fit.horizGap; view.fitted = true;
   return changed;
 }
+// A power team on the map (power_team_card.js): its wall dimmer, its bulbs and its own light are one thing — a tap
+// switches the team, a drag dims it, a hold opens the team's card. Optional: missing, each is the light it is.
+const TEAM = await import(`./power_team_card.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: power_team_card failed to load", err); return null; });
+const _teamOf = (states, eid) => (TEAM ? TEAM.teamOf(states, eid) : null);
+const _track = (hass, word) => { try { Promise.resolve(hass.callWS({ type: "padspan_ha/telemetry_event", event: word })).catch(() => {}); } catch (_) { /* no report */ } };
 // The scene row under the map and in Live Aboard (scene_row.js). Optional:
 // missing, the map is as it always was, with no row.
 const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
@@ -306,6 +312,9 @@ function _tellProblems(toast, problems){
 // A brightness from the Atlas (drag-dim, the card's slider): an exact device
 // comes on with its look at this brightness; anything else is HA's turn_on.
 export async function setLightBrightness(hass, eid, bri){
+  // A power team's wall dimmer or bulb: the team is dimmed (its bulbs), never the dimmer (they need its full wave).
+  const team = _teamOf(hass.states, eid);
+  if (team && team !== eid) eid = team;
   if (exactDeviceOf(eid)) return exactPower(hass, eid, true, { brightness: bri, source: "atlas" });
   await hass.callService("light", "turn_on", { entity_id: eid, brightness: bri });
   return [];
@@ -394,6 +403,28 @@ export function openMoreInfo(eid){
 
 export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   if (!hass) return;
+  // A power team's wall dimmer or bulb (power_team_card.js): the tap switches the TEAM, through its light — its bulbs
+  // over Zigbee when the team leaves the power on (2026-11-21: "when controlling the team with a single button press,
+  // use hue"). Every member shows the switch at once.
+  const team = _teamOf(hass.states, eid);
+  if (team) {
+    const members = TEAM.teamMembers(hass.states, team);
+    const on = effectiveState(eid, hass.states[team]?.state).state === "on";
+    for (const e of members) setOptimistic(e, on ? "off" : "on");
+    if (render) render();
+    try {
+      await hass.callService("light", on ? "turn_off" : "turn_on", { entity_id: team });
+      if (team !== eid) _track(hass, "team_tap");
+      setTimeout(() => { if (render) render(); }, 600);
+    } catch (e) {
+      for (const m of members) clearOptimistic(m);
+      if (render) render();
+      if (shake) shake(eid);
+      if (toast) toast("Could not switch " + (hass.states[team]?.attributes?.friendly_name || team), true);
+      return false;
+    }
+    return true;
+  }
   // Service domain is the entity's own: light.* -> light, fan.* -> fan.
   const domain = String(eid).split(".")[0];
   // A sensor has nothing to switch: it says what it reads (2026-11-13: "tap show readout"; before, only that
@@ -1296,7 +1327,7 @@ export function wireUseSurface(isoDiv, api){
       if (r && r.action === "drag") {
         e.preventDefault();
         if (dragBri === null) {
-          const st = api.hass && api.hass.states ? api.hass.states[eid] : null;
+          const st = api.hass && api.hass.states ? api.hass.states[_teamOf(api.hass.states, eid) || eid] : null;
           const ex = exactDeviceOf(eid);
           // An exact device starts from its own brightness, or its look's.
           dragBri = ex ? (_exactBrightness(api.hass && api.hass.states, ex) ?? ex.lookBri ?? 128)
@@ -2122,6 +2153,10 @@ export function controlApiFor(reg, eid, { tier, isAdmin } = {}){
 
 export function openControlCard(hass, eid, api){
   if (!hass) return;
+  // A power team's wall dimmer or bulb opens the team's card: the team's light, with the power and each bulb in it.
+  const team = _teamOf(hass.states, eid);
+  const placed = eid;                  // what was held: the pencil edits it, where it is on the map
+  if (team && team !== eid && hass.states[team]) eid = team;
   const st = hass.states[eid];
   if (!st) return;
   const el = _mkEl;
@@ -2137,13 +2172,15 @@ export function openControlCard(hass, eid, api){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
     + "display:flex;align-items:center;justify-content:center;"
     + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-  let release = () => {};
-  const close = () => { overlay.remove(); release(); };
+  let release = () => {}, teamStop = null;
+  const close = () => { overlay.remove(); release(); if (teamStop) { teamStop(); teamStop = null; } };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  const isTeam = !!team && team === eid;
 
   const box = el("div", { style:
     "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
     + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
+    + (isTeam ? "max-height:88vh;overflow:auto;box-sizing:border-box;" : "")
     + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
     + "box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 30px rgba(82,183,136,.08),inset 0 1px 0 rgba(255,255,255,.05)" });
 
@@ -2154,7 +2191,7 @@ export function openControlCard(hass, eid, api){
     // Admin only: the pencil jumps to Mapping → Lights with THIS light
     // selected — the build ↔ use loop closed from the use side.
     ...(api && api.onEdit ? [el("button", { title: "Edit this light in Mapping → Lights", style: smallBtn + ";margin-left:auto",
-      onclick: () => { close(); api.onEdit(eid); } }, "✎")] : []),
+      onclick: () => { close(); api.onEdit(placed); } }, "✎")] : []),
     el("button", { style: smallBtn + (api && api.onEdit ? "" : ";margin-left:auto"), onclick: close }, "✕"),
   ]));
 
@@ -2191,12 +2228,12 @@ export function openControlCard(hass, eid, api){
         return;
       }
       const data = { entity_id: eid };
-      if (!on && domain === "light") {
+      if (!on && domain === "light" && !isTeam) {
         const bri = lastBrightness(eid);
         if (bri !== null) data.brightness = bri;
       }
       const svc = isLockDomain ? (on ? "unlock" : "lock") : (on ? "turn_off" : "turn_on");
-      setOptimistic(eid, isLockDomain ? (on ? "unlocked" : "locked") : (on ? "off" : "on"));
+      for (const m of isTeam ? TEAM.teamMembers(hass.states, eid) : [eid]) setOptimistic(m, isLockDomain ? (on ? "unlocked" : "locked") : (on ? "off" : "on"));
       try { await hass.callService(domain, svc, data); } catch (e) { clearOptimistic(eid); }
       close();
       setTimeout(rerender, 400);
@@ -2370,7 +2407,7 @@ export function openControlCard(hass, eid, api){
     ]));
   }
 
-  if (effectList.length) {
+  if (effectList.length && !isTeam) {
     const effSel = document.createElement("select");
     effSel.style.cssText = "width:100%;background:rgba(15,26,18,.9);color:#8ee5b4;border:1px solid rgba(120,190,155,.26);"
       + "border-radius:8px;padding:7px;font-size:12px;cursor:pointer";
@@ -2492,6 +2529,11 @@ export function openControlCard(hass, eid, api){
     })();
   }
 
+  if (isTeam && TEAM) {
+    const sec = TEAM.teamSection(eid, { el, hass, toast, close, rerender, track: (w) => _track(hass, w) });
+    teamStop = sec.stop;
+    box.appendChild(sec.node);
+  }
   const det = details();
   if (det) box.appendChild(det);
   overlay.appendChild(box);
@@ -2764,7 +2806,16 @@ export async function setManyStates(hass, eids, turnOn, { toast, rerender } = {}
   if (!hass || !eids.length) return;
   const exactCmds = new Map();   // device/team -> the first of its lights asked for
   const plain = [];
+  const teams = new Set();
   for (const eid of eids) {
+    // A power team's wall dimmer or bulb: its team's light, once (power_team_card.js). "All lights on" on a dimmer
+    // already on, its bulbs told off, would otherwise change nothing.
+    const team = eid.startsWith("light.") ? _teamOf(hass.states, eid) : null;
+    if (team) {
+      for (const m of TEAM.teamMembers(hass.states, team)) setOptimistic(m, turnOn ? "on" : "off");
+      if (!teams.has(team)) { teams.add(team); plain.push(team); }
+      continue;
+    }
     const ex = eid.startsWith("light.") ? exactDeviceOf(eid) : null;
     if (!ex) { plain.push(eid); continue; }
     if (!exactCmds.has(ex.key)) exactCmds.set(ex.key, { eid, group: ex.group });
@@ -3267,6 +3318,8 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // The effect list is what makes a light WLED-class (W-series code,
       // purple border, effects dialog). Free tier: every light is a light.
       effect_list:   paid && Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
+      // A power team's own light (power_team.py): its effects are the day and sleep, not a strip's (isWledLight).
+      power_team:    !!states[eid].attributes?.padspan_power_team,
       // Which integration created the entity — "partition" is the P-series
       // signal (see isPartitionLight). Gated like effect_list: free tier
       // never sees a strip class at all.
@@ -3299,6 +3352,15 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
   for (const l of lights) {
     // An exact device's lights are drawn as the device is (see _exactReported).
     if (_exact.byEid.has(l.entity_id)) l.state = _exactReported(states, l.entity_id) ?? l.state;
+    // A power team's wall dimmer or bulb is drawn as its team is (power_team_card.js): lit while the team is (a dimmer
+    // left on with its bulbs told off is dark), in the team's brightness and colour.
+    const look = TEAM ? TEAM.teamLook(states, l.entity_id) : null;
+    if (look) {
+      l.team = look.team; l.state = look.state; l.dimmable = true;
+      if (look.rgb) l.rgb = look.rgb;
+      if (look.bri) l.bri = look.bri;
+      if (look.ct) l.ct = look.ct;
+    }
     // A pressed switch shows pressed until HA agrees or the claim times out.
     const eff = historical ? { state: l.state, optimistic: false } : effectiveState(l.entity_id, l.state);
     l.state = eff.state; l.optimistic = eff.optimistic;

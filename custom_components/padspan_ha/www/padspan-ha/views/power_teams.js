@@ -51,7 +51,7 @@ export function powerTeamsSection(ctx, el){
   function teamBox(t, i){
     const b = el("div", { "data-team": String(i), style: "border:1px solid #1e3a2a;border-radius:8px;padding:8px 10px;margin-top:8px" });
     const row = (label, node) => b.appendChild(el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:6px" },
-      [el("span", { style: "color:#cbd5e1;font-size:13px;min-width:130px" }, label), node]));
+      [el("span", { style: "color:#cbd5e1;font-size:13px;min-width:130px" }, label), node]));     // returns the row
     const name = el("input", { type: "text", class: "input", value: t.name || "", placeholder: "Bedroom lights", maxlength: "60" });
     name.addEventListener("input", () => { t.name = name.value; });
     row("Name", name);
@@ -60,8 +60,18 @@ export function powerTeamsSection(ctx, el){
     sel.appendChild(el("option", { value: "" }, "None: these lights always have power"));
     for (const [eid, words] of pick.power) sel.appendChild(el("option", { value: eid }, words));
     sel.value = t.power || "";
-    sel.addEventListener("change", () => { t.power = sel.value; });
+    // What off does (power_team.py `off`): turn the bulbs off and leave the power on (on again at once, in the day's
+    // colour), or cut the power. Only with a power source: lights that always have power are switched themselves.
+    const off = document.createElement("select");
+    off.className = "select"; off.setAttribute("data-off", "1");
+    off.appendChild(el("option", { value: "bulbs" }, "Turns the bulbs off, power stays on"));
+    off.appendChild(el("option", { value: "power" }, "Cuts the power"));
+    off.value = t.off === "bulbs" ? "bulbs" : "power";
+    off.addEventListener("change", () => { t.off = off.value; });
+    sel.addEventListener("change", () => { t.power = sel.value; offRow.hidden = !sel.value; });
     row("Power from", sel);
+    const offRow = row("Off", off);
+    offRow.hidden = !t.power;
     const list = el("div", { style: "max-height:150px;overflow:auto;border:1px solid #1e3a2a;border-radius:6px;padding:4px 8px;min-width:240px" });
     if (!pick.bulbs.length) list.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, "No colour lights found in Home Assistant yet."));
     for (const [eid, words] of pick.bulbs) {
@@ -102,7 +112,7 @@ export function powerTeamsSection(ctx, el){
     teams.forEach((t, i) => body.appendChild(teamBox(t, i)));
     if (!admin) { body.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px" }, "An administrator makes and changes teams.")); return; }
     const add = el("button", { type: "button", class: "btn inline", "data-add": "1", style: "margin-top:8px" }, "+ Add a team");
-    add.addEventListener("click", () => { teams.push({ name: "", power: "", bulbs: [], adaptive: true, curve: { ...defaults } }); draw(); });
+    add.addEventListener("click", () => { teams.push({ name: "", power: "", bulbs: [], off: "bulbs", adaptive: true, curve: { ...defaults } }); draw(); });
     const save = el("button", { type: "button", class: "btn", "data-save": "1", style: "margin:8px 0 0 8px" }, "Save");
     save.addEventListener("click", async () => {
       try {
