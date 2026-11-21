@@ -258,7 +258,6 @@
 "step {n} of {total}: {step}": "Schritt {n} von {total}: {step}",
 "← Back to Setup": "← Zurück zur Einrichtung",
 "{names} and {more} more": "{names} und {more} weitere",
-"no Home Assistant area: {names} (give it an area in Home Assistant, or place it by hand)": "kein Home-Assistant-Bereich: {names} (gib ihm in Home Assistant einen Bereich oder platziere ihn von Hand)",
 "its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: {names} (place it by hand)": "sein Raum ist auf Grundrissen mehrerer Etagen gezeichnet, und die Etage seines Home-Assistant-Bereichs sagt nicht, welche: {names} (platziere ihn von Hand)",
 "its room has no outline yet: {names}": "sein Raum hat noch keinen Umriss: {names}",
 "its room is drawn on a floor plan with no scale yet: {names}": "sein Raum ist auf einem Grundriss ohne Maßstab gezeichnet: {names}",
@@ -341,5 +340,14 @@
 "Next: let PadSpan know the phone or watch you carry.": "Als Nächstes: Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst.",
 "Track your phone or watch →": "Handy oder Uhr verfolgen →",
 "Floor heights are set. Next: let PadSpan know the phone or watch you carry.": "Die Etagenhöhen sind festgelegt. Als Nächstes: Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst.",
-"This plan has receivers. Next: let PadSpan know the phone or watch you carry.": "Dieser Grundriss hat Empfänger. Als Nächstes: Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst."
+"This plan has receivers. Next: let PadSpan know the phone or watch you carry.": "Dieser Grundriss hat Empfänger. Als Nächstes: Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst.",
+"Home Assistant has no areas yet. Add them there first: Settings → Areas, labels & zones.": "Home Assistant hat noch keine Bereiche. Leg sie zuerst dort an: Einstellungen → Bereiche, Labels & Zonen.",
+"Room set: {room}.": "Raum festgelegt: {room}.",
+"Room for {receiver}": "Raum für {receiver}",
+"Choose a room…": "Raum wählen…",
+"Set room": "Raum festlegen",
+"Chosen from its name; change it if it's wrong.": "Nach seinem Namen gewählt; ändere es, wenn es nicht stimmt.",
+"{receiver} is in {room} now.": "{receiver} ist jetzt in {room}.",
+"That didn't work. Try again in a moment.": "Das hat nicht geklappt. Versuch es gleich noch einmal.",
+"no Home Assistant area: {names} (pick its room below, or place it by hand)": "kein Home-Assistant-Bereich: {names} (wähl unten seinen Raum oder platziere ihn von Hand)"
 }

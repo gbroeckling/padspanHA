@@ -535,6 +535,45 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   S._resetReceivers();
 }
 
+// 2026-11-21: a receiver the server finds with no room (no Home Assistant area) gets its room picked right there, its
+// name's room chosen (views/receiver_room.js); set as its Home Assistant area, and the server asked again.
+{
+  const flush = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
+  const RR = await import(pathToFileURL(join(WWW, "views", "receiver_room.js")).href);
+  RR._resetRooms(); S._resetReceivers();
+  const st = house(4, { calibration: { points: [], model: {} }, live: { snapshot: { rooms_discovered: ["Kitchen", "Office", "Porch"],
+    ble: { radios: [{ source: "porch-proxy", name: "porch-proxy", device_id: "dev-porch" }] } } } });
+  st._viewVisit = 1;
+  const m = mkCtx(st), sent = [], areas = [];
+  let dry = 0;
+  m.ctx.actions.callWS = async (msg) => {
+    sent.push(msg);
+    if (msg.type === "padspan_ha/receivers_to_rooms" && msg.dry_run) { dry++; return { ok: true, ready: [], skipped: [{ source: "porch-proxy", why: "no_area" }], undo: 0 }; }
+    return {};
+  };
+  m.ctx.actions.radioAreaSet = async (p) => { areas.push(p); };
+  m.ctx.actions.refreshSnapshot = async () => {};
+  S.render(m.ctx);
+  await flush();
+  const root = S.render(m.ctx);
+  const row = root.querySelector('[data-setup="step-receivers"]');
+  const pick = row && row.querySelector('[data-receiver-room-pick="porch-proxy"]');
+  check("receivers: no room: its room to pick under the reason, its name's room chosen", pick && pick.value === "Porch"
+    && row.textContent.includes("no Home Assistant area: porch-proxy (pick its room below, or place it by hand)"), row && row.textContent);
+  row.querySelector('[data-receiver-room-set="porch-proxy"]').click();
+  await flush();
+  check("receivers: Set room sets its Home Assistant area and asks the server again", JSON.stringify(areas) === '[{"area_name":"Porch","device_id":"dev-porch"}]'
+    && S.render(m.ctx) && dry >= 1, [areas, dry]);
+  await flush();
+  S.render(m.ctx);
+  await flush();
+  check("receivers: asked again after the room is set", dry >= 2, dry);
+  const nonAdmin = mkCtx(house(4, { calibration: { points: [], model: {} } }));
+  nonAdmin.ctx.hass = { user: { is_admin: false } };
+  check("receivers: nothing for someone who isn't an administrator (the block's own rule)", !S.receiversBlock(nonAdmin.ctx));
+  RR._resetRooms(); S._resetReceivers();
+}
+
 // Review 2026-11-13, break 4: one rule for "placed" — receivers only on the map of the house (the button's) count, in Setup.
 {
   const st = house(4);

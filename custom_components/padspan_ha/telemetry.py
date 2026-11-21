@@ -532,6 +532,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_screen", "atlas_aboard",                 # the flat Atlas: the map alone, full screen; Live Aboard's on the map
     "map_text",                                     # the map as text for screen readers (Overview, the flat Atlas)
     "whos_where",                                   # Who's where now, before any room is drawn (Overview)
+    "receiver_room",                                # a receiver's room, picked where Who's where or Setup says it has none
     "wizard_build",                                 # the Setup Wizard's "Put it on the map" (Mapping)
     "focus",                                        # Basic's focused views: a link opens just its part
     "atlas_heatmap",                                # the flat Atlas: temperature / humidity / CO2 heatmap

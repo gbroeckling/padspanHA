@@ -23,6 +23,8 @@ const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}
 const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
 // Its words in the panel's language (views/i18n.js; English is the key).
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// A receiver's room, picked where the receivers step says it has none (2026-11-21).
+const RR = await import(`./receiver_room.js${new URL(import.meta.url).search}`).catch(() => null);
 
 // The steps, their names and their words are setup_status.js's: Getting started and the Setup Wizard read the same
 // (review 2026-11-13: one order, one vocabulary). setup_checks.SETUP_STEPS holds the same ids.
@@ -233,11 +235,25 @@ const _names = (xs) => xs.length > 4 ? t("{names} and {more} more", { names: xs.
 /** Why the server's one rule leaves receivers where they are, in words (placed_already is left unsaid). */
 function _whyWords(skipped) {
   const why = (w) => (skipped || []).filter(x => x.why === w).map(x => x.source), bits = [];
-  if (why("no_area").length) bits.push(t("no Home Assistant area: {names} (give it an area in Home Assistant, or place it by hand)", { names: _names(why("no_area")) }));
+  if (why("no_area").length) bits.push(t("no Home Assistant area: {names} (pick its room below, or place it by hand)", { names: _names(why("no_area")) }));
   if (why("two_plans").length) bits.push(t("its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: {names} (place it by hand)", { names: _names(why("two_plans")) }));
   if (why("no_outline").length) bits.push(t("its room has no outline yet: {names}", { names: _names(why("no_outline")) }));
   if (why("no_scale").length) bits.push(t("its room is drawn on a floor plan with no scale yet: {names}", { names: _names(why("no_scale")) }));
   return bits;
+}
+
+/** The receivers the server's one rule finds with no room (no Home Assistant area), each with its room to pick
+ *  (views/receiver_room.js), from the snapshot's radios. Once one is set the server is asked again, now and after the
+ *  next poll (the model reads the new area from the snapshot that poll builds). */
+function _roomPicks(ctx, skipped) {
+  const src = (skipped || []).filter(x => x.why === "no_area").map(x => x.source);
+  if (!RR || !src.length) return null;
+  const radios = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.ble && ctx.state.live.snapshot.ble.radios) || [];
+  const again = () => { _rcv.asked = null; ctx.actions.renderRooms(); };
+  return RR.roomPickers(ctx, src.map(s => radios.find(r => r && r.source === s) || { source: s, name: s }), () => {
+    again();
+    setTimeout(again, 6000);
+  });
 }
 
 /** A room drawn only on a plan with no scale: the one press that makes it count, that plan's scale (the server's
@@ -333,6 +349,8 @@ function _block(ctx, opts, p) {
     const later = el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length
       ? t("PadSpan can put a receiver in its room once it has an area that is one of your rooms with an outline. Not ready: {why}.", { why: not.join("; ") })
       : t("Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here."));
+    const picks = _roomPicks(ctx, p.skipped);
+    if (picks) later.appendChild(picks);
     const sc = _scaleFirst(ctx, p.skipped);
     if (sc) later.appendChild(el("div", {}, [sc]));
     return later;
@@ -353,6 +371,8 @@ function _block(ctx, opts, p) {
       (not.length ? " " + t("Not ready: {why}.", { why: not.join("; ") }) : "")));
     box.appendChild(b(t("Put my receivers in their rooms"), "receivers-place", () => _placeReceivers(ctx), true));
   }
+  const picks = _roomPicks(ctx, p.skipped);
+  if (picks) box.appendChild(picks);
   const sc = _scaleFirst(ctx, p.skipped);
   if (sc) box.appendChild(sc);
   return box;

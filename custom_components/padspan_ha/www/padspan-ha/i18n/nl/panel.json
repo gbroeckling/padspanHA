@@ -258,7 +258,6 @@
 "step {n} of {total}: {step}": "stap {n} van {total}: {step}",
 "← Back to Setup": "← Terug naar Instellen",
 "{names} and {more} more": "{names} en nog {more}",
-"no Home Assistant area: {names} (give it an area in Home Assistant, or place it by hand)": "geen Home Assistant-ruimte: {names} (geef hem een ruimte in Home Assistant, of plaats hem met de hand)",
 "its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: {names} (place it by hand)": "zijn kamer is getekend op plattegronden van meer dan één verdieping, en de verdieping van zijn Home Assistant-ruimte zegt niet welke: {names} (plaats hem met de hand)",
 "its room has no outline yet: {names}": "zijn kamer heeft nog geen omtrek: {names}",
 "its room is drawn on a floor plan with no scale yet: {names}": "zijn kamer is getekend op een plattegrond zonder schaal: {names}",
@@ -341,5 +340,14 @@
 "Next: let PadSpan know the phone or watch you carry.": "Volgende stap: PadSpan laten weten welke telefoon of welk horloge je bij je draagt.",
 "Track your phone or watch →": "Telefoon of horloge volgen →",
 "Floor heights are set. Next: let PadSpan know the phone or watch you carry.": "De verdiepingshoogtes zijn ingesteld. Volgende stap: PadSpan laten weten welke telefoon of welk horloge je bij je draagt.",
-"This plan has receivers. Next: let PadSpan know the phone or watch you carry.": "Deze plattegrond heeft ontvangers. Volgende stap: PadSpan laten weten welke telefoon of welk horloge je bij je draagt."
+"This plan has receivers. Next: let PadSpan know the phone or watch you carry.": "Deze plattegrond heeft ontvangers. Volgende stap: PadSpan laten weten welke telefoon of welk horloge je bij je draagt.",
+"Home Assistant has no areas yet. Add them there first: Settings → Areas, labels & zones.": "Home Assistant heeft nog geen ruimtes. Maak ze daar eerst aan: Instellingen → Ruimtes, labels & zones.",
+"Room set: {room}.": "Kamer ingesteld: {room}.",
+"Room for {receiver}": "Kamer voor {receiver}",
+"Choose a room…": "Kies een kamer…",
+"Set room": "Kamer instellen",
+"Chosen from its name; change it if it's wrong.": "Gekozen op basis van de naam; pas het aan als het niet klopt.",
+"{receiver} is in {room} now.": "{receiver} staat nu in {room}.",
+"That didn't work. Try again in a moment.": "Dat is niet gelukt. Probeer het zo nog eens.",
+"no Home Assistant area: {names} (pick its room below, or place it by hand)": "geen Home Assistant-ruimte: {names} (kies hieronder zijn kamer, of plaats hem met de hand)"
 }
