@@ -183,7 +183,8 @@ export function render(ctx){
       const q = qualityBySrc[src];
       const avg = q && q.count > 0 ? Math.round(q.rssiSum / q.count) : null;
       const { label: quality, color: qColor } = _qualityGrade(avg);
-      const tr = el("tr",{style:"cursor:pointer"});
+      // data-src: which receiver the row is (its numbers change every poll), so the focus finds it again (dialog_keys.js).
+      const tr = el("tr",{style:"cursor:pointer","data-src":src,"data-table":"now"});
       tr.addEventListener("mouseenter", ()=>{ tr.style.background = "rgba(255,255,255,0.04)"; });
       tr.addEventListener("mouseleave", ()=>{ tr.style.background = ""; });
       tr.addEventListener("click", ()=>{
@@ -494,7 +495,7 @@ function _insights(ctx, el, _sid){
       const { label: grade, color: gradeColor } = _qualityGrade(avg);
       const radio = radios.find(r=>r.source===src);
       const name = (radio && (radio.display_name || radio.name)) || src;
-      const tr = el("tr",{style:"cursor:pointer"});
+      const tr = el("tr",{style:"cursor:pointer","data-src":src,"data-table":"totals"});
       tr.addEventListener("mouseenter", ()=>{ tr.style.background = "rgba(255,255,255,0.04)"; });
       tr.addEventListener("mouseleave", ()=>{ tr.style.background = ""; });
       tr.addEventListener("click", ()=>{
