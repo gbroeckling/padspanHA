@@ -4495,6 +4495,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ):
                     svc_domain, _ = parts
                     try:
+                        # A power team's wall dimmer or bulb: switched as its team (power_team.py).
+                        from .power_team import team_light_of  # noqa: PLC0415
+                        _team = team_light_of(self.hass, entity_id)
+                        if _team != entity_id:
+                            entity_id, svc_domain = _team, "light"
                         # A WLED light PadSpan runs: its remembered look (wled_exact.py).
                         from .wled_exact import async_power, is_exact_entity  # noqa: PLC0415
                         if svc_domain == "light" and is_exact_entity(self.hass, entity_id):

@@ -117,6 +117,8 @@ class House:
         if service == "turn_on":
             self.states[eid] = SimpleNamespace(state="on", attributes={"brightness": data.get("brightness"), "color_temp_kelvin": data.get("color_temp_kelvin"),
                                                                     "hs_color": data.get("hs_color")})
+        else:
+            self.states[eid] = SimpleNamespace(state="off", attributes={})
 
     def wall(self, on: bool, level: int | None = 255) -> tuple[SimpleNamespace, SimpleNamespace]:
         """The wall button, seen by Home Assistant: (new, old) of the dimmer."""
@@ -485,3 +487,392 @@ def test_the_settings_card_makes_saves_and_removes_a_team() -> None:
     assert 'if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el));' in settings
     panel = (views.parent / "panel.js").read_text(encoding="utf-8")
     assert "wled_teams_get power_teams_get " in panel       # reading the teams is a read; saving them stays a write
+
+
+# ── 2026-11-21: "when controlling the team with a single button press, use hue, but when pressing to get the card,
+# give control4 power as an option" — an off that leaves the power on ─────────────────────────────────────────
+BCFG = {**CFG, "off": "bulbs"}
+
+
+def test_what_off_does_is_stored_per_team_and_lights_that_always_have_power_are_always_switched_themselves() -> None:
+    ok = P.sanitize_teams([{"name": "A", "power": "light.d", "bulbs": ["light.b"]},
+                           {"name": "B", "power": "light.e", "bulbs": ["light.c"], "off": "bulbs"},
+                           {"name": "C", "power": "", "bulbs": ["light.f"], "off": "power"},
+                           {"name": "D", "power": "light.g", "bulbs": ["light.h"], "off": "nonsense"}])
+    assert [t["off"] for t in ok] == ["power", "bulbs", "bulbs", "power"]   # a team saved before has no word: it cuts the power, as it did
+    assert P.sanitize_teams(ok) == ok
+
+
+def test_a_press_off_turns_the_bulbs_off_and_leaves_the_power_on_so_the_next_on_is_at_once() -> None:
+    h = House(boot=5.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())                                                       # the first on still starts the bulbs
+    assert t.phase == "ready" and t.is_on and h.states["light.dimmer"].state == "on"
+    h.calls.clear()
+    run(t.turn_off())
+    assert all(h.states[b].state == "off" for b in BCFG["bulbs"]) and h.to("light.dimmer") == []
+    assert not t.is_on and t.phase == "off" and h.states["light.dimmer"].state == "on"     # dark, the power still on
+    h.calls.clear()
+    t0 = h.t
+    run(t.turn_on())
+    assert h.to("light.dimmer") == [] and len(h.to("light.b1")) == 1 and h.t - t0 < P.BOOT_MIN_S   # at once: nothing to start
+    assert h.states["light.b1"].attributes == {"brightness": 200, "color_temp_kelvin": 4000, "hs_color": None} and t.is_on
+
+
+def test_with_the_power_left_on_the_wall_still_works_and_cutting_the_power_is_off() -> None:
+    h = House(boot=3.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    h.t += 60
+    new, old = h.wall(False)                                               # the card's "Cut power", or the wall
+    run(t.on_power(new, old))
+    assert t.phase == "off" and not t.is_on                                # a cut bulb still shows "on": no power, not on
+    h.t += 60
+    h.calls.clear()
+    new, old = h.wall(True)
+    run(t.on_power(new, old))                                              # the wall again: started and set, as ever
+    assert t.phase == "ready" and t.is_on and h.states["light.b2"].attributes["brightness"] == 200
+
+
+def test_with_the_power_left_on_one_bulb_switched_from_outside_takes_the_others_with_it() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    run(t.turn_off())
+    h.t += 60
+    old = h.states["light.b1"]
+    h.states["light.b1"] = SimpleNamespace(state="on", attributes={"brightness": 30, "color_temp_kelvin": 2700})   # a Hue remote, say
+    run(t.on_bulb("light.b1", h.states["light.b1"], old))
+    assert t.phase == "ready" and all(h.states[b].attributes.get("brightness") == 200 for b in BCFG["bulbs"])
+    h.t += 60
+    old = h.states["light.b2"]
+    h.states["light.b2"] = SimpleNamespace(state="off", attributes={})
+    run(t.on_bulb("light.b2", h.states["light.b2"], old))
+    assert t.phase == "off" and all(h.states[b].state == "off" for b in BCFG["bulbs"]) and h.states["light.dimmer"].state == "on"
+
+
+def test_a_team_that_cuts_the_power_still_does() -> None:
+    h = House(boot=1.0)
+    t = P.Team(dict(CFG), h.io)
+    run(t.turn_on())
+    h.calls.clear()
+    run(t.turn_off(transition=5))
+    assert h.calls == [(h.t, "light.dimmer", "turn_off", {})]
+
+
+# ── a fade of any length: the wake-up light ──────────────────────────────────
+def test_a_long_fade_is_sent_once_and_the_day_and_the_hand_watch_wait_for_it_to_run() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    run(t.turn_off())
+    h.calls.clear()
+    run(t.turn_on(transition=1800))
+    sends = h.to("light.b1")
+    assert len(sends) == 1 and sends[0][2]["transition"] == 1800 and t.phase == "ready" and t.missing == []
+    assert t.fading
+    # Partway: the bulb shows a level of its own on the way. Not someone's hand, and the day does not move it.
+    h.t += 600
+    old = h.states["light.b1"]
+    h.states["light.b1"] = SimpleNamespace(state="on", attributes={"brightness": 70, "color_temp_kelvin": 3100})
+    run(t.on_bulb("light.b1", h.states["light.b1"], old))
+    h.now_target = {"brightness": 150, "kelvin": 3500}
+    h.calls.clear()
+    run(t.tick())
+    assert h.calls == [] and not t.manual
+    h.t += 1300                                                           # done: the day leads again
+    run(t.tick())
+    assert {d.get("color_temp_kelvin") for _, _, d in h.to("light.b1")} == {3500} and not t.fading
+    assert P._fade(99999) == P.MAX_FADE_S and P._fade(0) is None and P._fade("x") is None
+
+
+def test_the_wake_up_comes_on_dim_and_warm_and_fades_to_its_light_and_leaves_a_lit_room_alone() -> None:
+    h = House(boot=0.0)
+    cfg = {**BCFG, "wake": {"on": True, "time": "06:30", "days": [0, 1, 2, 3, 4], "minutes": 20, "brightness": 80, "kelvin": 4200}}
+    t = P.Team(cfg, h.io)
+    run(t.turn_on())
+    run(t.turn_off())
+    h.calls.clear()
+    assert run(t.wake()) is True
+    sends = [d for _, s, d in h.to("light.b1") if s == "turn_on"]
+    assert sends[0] == {"brightness": P.WAKE_START, "color_temp_kelvin": 2000}               # the dimmest, the sleep colour
+    assert sends[-1] == {"brightness": 204, "color_temp_kelvin": 4200, "transition": 1200.0}
+    assert t.waking and t.manual and t.effect is None and t.is_on
+    h.calls.clear()
+    assert run(t.wake()) is False and h.calls == []                                           # someone is up: left alone
+    run(t.turn_off())
+    assert not t.waking
+
+
+def test_the_wake_up_is_due_on_its_days_its_minutes_before_its_time_once() -> None:
+    from datetime import datetime
+    w = {"on": True, "time": "06:30", "days": [0, 1, 2, 3, 4], "minutes": 30}
+    mon = datetime(2026, 11, 23, 6, 0)                                     # a Monday
+    assert P.wake_due(w, mon) == ("2026-11-23", 1800.0)
+    # Due until its full light, with what is left: Home Assistant restarted at 06:20 still wakes the room by 06:30.
+    assert P.wake_due(w, mon.replace(minute=20)) == ("2026-11-23", 600.0)
+    assert P.wake_due(w, mon.replace(minute=30)) is None and P.wake_due(w, mon.replace(hour=5, minute=59)) is None
+    assert P.wake_due(w, datetime(2026, 11, 22, 6, 0)) is None            # Sunday is not one of its days
+    assert P.wake_due({**w, "on": False}, mon) is None
+    late = {"on": True, "time": "00:10", "days": [1], "minutes": 30}      # Tuesday 00:10 starts Monday 23:40
+    assert P.wake_due(late, datetime(2026, 11, 23, 23, 40)) == ("2026-11-24", 1800.0)
+    c = P.clean_wake({"time": "25:00", "days": [1, 9, "x", True, 1], "minutes": 500, "brightness": 0, "kelvin": 99999})
+    assert c == {"on": False, "time": "06:30", "days": [1], "minutes": 90, "brightness": 1, "kelvin": 9000}
+    assert P.sanitize_teams([{"name": "A", "power": "light.d", "bulbs": ["light.b"]}])[0]["wake"] == P.WAKE_DEFAULT
+
+
+# ── the day moved or fixed (Adaptive Lighting's sunrise/sunset offset and time) ─────────────────────
+def test_a_lights_day_can_start_and_end_at_fixed_times_or_the_suns_moved_by_minutes() -> None:
+    at = lambda i, hhmm: (i - 1) * DAY + int(hhmm[:2]) * H + int(hhmm[3:]) * 60    # noqa: E731
+    assert C.shift_days(DAYS, None, at) == DAYS
+    moved = C.shift_days(DAYS, {"sunrise_offset": -30, "sunset_offset": 60}, at)
+    assert moved[1] == (DAYS[1][0] - 1800, DAYS[1][1] + 3600)
+    fixed = C.shift_days(DAYS, {"sunrise_time": "06:30", "sunset_offset": 600}, at)
+    assert fixed[1] == (6.5 * H, DAYS[1][1] + 3 * H)                       # the offset is held to its limit, 180 minutes
+    assert C.shift_days(DAYS, {"sunrise_time": "20:00", "sunset_time": "08:00"}, at) == DAYS   # a day ending before it starts: the sun's
+    c = C.clean({"sunrise_time": "6:30", "sunset_time": "18:45", "sunrise_offset": -999})
+    assert c["sunrise_time"] == "" and c["sunset_time"] == "18:45" and c["sunrise_offset"] == -180
+    # At 06:45, a day fixed to start at 06:30 is already day (brightest); the sun's own (07:00) is still night.
+    assert C.sun_position(6.75 * H, fixed) > 0 > C.sun_position(6.75 * H, DAYS)
+
+
+# ── what PadSpan switches by entity id goes through the team ────────────────
+def test_a_team_member_switched_by_padspan_is_switched_as_its_team() -> None:
+    """Vacation mode, presence automations and the emergency lighting test name the wall dimmer (it was placed first).
+    For a team that leaves the power on, the dimmer reads on while its bulbs are off: turning it on changed nothing."""
+    from custom_components.padspan_ha.const import DOMAIN
+    m = P.Manager(None)
+    m.teams = {"9466dc82": P.Team({**CFG, "id": "9466dc82"}, House().io)}
+    m.lights = {"9466dc82": "light.master_pots"}
+    hass = SimpleNamespace(data={DOMAIN: {"power_team_manager": m}})
+    assert P.team_light_of(SimpleNamespace(data={}), "light.dimmer") == "light.dimmer"     # no team made: nothing changes
+    assert P.team_light_of(hass, "light.dimmer") == "light.master_pots" and P.team_light_of(hass, "light.b2") == "light.master_pots"
+    assert P.team_light_of(hass, "light.master_pots") == "light.master_pots" and P.team_light_of(hass, "light.kitchen") == "light.kitchen"
+    assert P.team_light_of(hass, "scene.evening") == "scene.evening"
+    src = {f: (ROOT / "custom_components/padspan_ha" / f).read_text(encoding="utf-8") for f in ("vacation_mode.py", "emergency_test.py", "presence_coordinator.py")}
+    assert "target = team_light_of(hass, entity_id)" in src["vacation_mode.py"] and '{"entity_id": target}' in src["vacation_mode.py"]
+    assert "target = team_light_of(hass, eid)" in src["emergency_test.py"] and '{"entity_id": target}, blocking=True' in src["emergency_test.py"]
+    assert "_team = team_light_of(self.hass, entity_id)" in src["presence_coordinator.py"]
+
+
+# ── the review of 2026-11-21: what a real house does that the first tests did not ───────────────────
+def test_a_dimmer_heard_from_at_a_restart_or_back_from_out_of_reach_is_no_wall_press() -> None:
+    """A team that leaves the power on is off with its dimmer on. Home Assistant starting, or the Control4 link
+    dropping for a poll, reports the dimmer from nothing (or unavailable) to on: never the middle-of-the-night on."""
+    for old in (None, SimpleNamespace(state="unavailable", attributes={}), SimpleNamespace(state="unknown", attributes={})):
+        h = House(boot=0.0)
+        h.states["light.dimmer"] = SimpleNamespace(state="on", attributes={"supported_color_modes": ["brightness"], "brightness": 255})
+        for b in ("light.b1", "light.b2"):
+            h.states[b] = SimpleNamespace(state="off", attributes={})
+        h.powered_at = 0.0
+        t = P.Team(dict(BCFG), h.io)
+        h.t = 100.0
+        run(t.on_power(h.states["light.dimmer"], old))
+        assert h.calls == [] and t.phase == "off" and not t.is_on, old
+    # A team whose off cuts the power, its dimmer first heard from as on: lit (its power is its on), so its bulbs are
+    # sent the day's light, as ever.
+    h = House(boot=0.0)
+    h.states["light.dimmer"] = SimpleNamespace(state="unavailable", attributes={"supported_color_modes": ["brightness"]})
+    t = P.Team(dict(CFG), h.io)
+    h.states["light.dimmer"] = SimpleNamespace(state="on", attributes={"supported_color_modes": ["brightness"], "brightness": 255})
+    h.powered_at = 0.0
+    h.t = 100.0
+    run(t.on_power(h.states["light.dimmer"], SimpleNamespace(state="unavailable", attributes={})))
+    assert t.phase == "ready" and t.is_on and h.states["light.b1"].attributes["brightness"] == 200
+
+
+def test_off_with_the_power_already_cut_is_off_at_once_and_says_nothing_to_bulbs_that_cannot_hear() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    new, old = h.wall(False)                                                # cut at the wall; the bulbs still read "on"
+    run(t.on_power(new, old))
+    h.calls.clear()
+    t0 = h.t
+    run(t.turn_off())
+    assert h.calls == [] and h.t == t0 and t.phase == "off" and not t.is_on
+
+
+def test_a_late_echo_of_our_own_power_on_neither_restarts_the_bulbs_nor_stops_the_wake_up() -> None:
+    h = House(boot=2.0)
+    cfg = {**BCFG, "wake": {"on": True, "time": "06:30", "days": [0], "minutes": 20, "brightness": 80, "kelvin": 4200}}
+    t = P.Team(cfg, h.io)
+    real_sleep = h.io.sleep
+    echoed = []
+
+    async def sleep_and_echo(s: float) -> None:
+        await real_sleep(s)
+        if not echoed and h.t >= 10.0:                                      # Control4 reports its on, 10 s late
+            echoed.append(h.t)
+            await t.on_power(h.states["light.dimmer"], SimpleNamespace(state="off", attributes={"supported_color_modes": ["brightness"]}))
+    h.io.sleep = sleep_and_echo
+    assert run(t.wake()) is True and echoed
+    last = [d for _, s, d in h.to("light.b1") if s == "turn_on"][-1]
+    assert last == {"brightness": 204, "color_temp_kelvin": 4200, "transition": 1200.0} and t.waking
+    assert len(h.to("light.dimmer")) == 1                                   # one power-on: ours
+
+
+def test_the_wake_up_fades_over_what_is_left_and_runs_once_a_day() -> None:
+    h = House(boot=0.0)
+    cfg = {**BCFG, "wake": {"on": True, "time": "06:30", "days": [0], "minutes": 30}}
+    t = P.Team(cfg, h.io)
+    run(t.wake(600.0))
+    assert [d for _, s, d in h.to("light.b1") if s == "turn_on"][-1]["transition"] == 600.0
+    t2 = P.Team(cfg, House(boot=0.0).io)
+    assert run(t2.wake(5.0)) is True and t2.fading                          # never a jump: a minute at the least
+
+
+def test_the_end_of_a_long_fade_is_written_and_a_bulb_asked_again_meanwhile_fades_with_the_others() -> None:
+    h = House(boot=0.0, dead=("light.b2",))
+    h.states["light.b2"] = SimpleNamespace(state="off", attributes={})    # mid-fade, "on" is all a bulb shows: this one never does
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on(transition=1800))
+    assert t.missing == ["light.b2"] and t.fading
+    h.dead.clear()
+    h.t += 300
+    h.calls.clear()
+    run(t.tick())
+    d = h.to("light.b2")[0][2]
+    assert 1400 < d["transition"] < 1800 and d["brightness"] == 200        # what is left of the fade, not a jump
+    h.t += 2000
+    n = h.changes
+    run(t.tick())
+    assert not t.fading and h.changes > n                                   # the light says the fade is done
+
+
+def test_a_team_off_with_its_power_left_on_changed_to_cut_the_power_has_it_cut(monkeypatch) -> None:
+    import sys
+    import types
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ev.async_track_state_change_event = lambda *a, **k: (lambda: None)
+    ev.async_track_time_interval = lambda *a, **k: (lambda: None)
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    run(t.turn_off())
+    assert h.states["light.dimmer"].state == "on" and not t.is_on
+    tasks: list = []
+    m = P.Manager(SimpleNamespace(async_create_task=tasks.append))
+    m.teams = {CFG["id"]: t}
+    m.reload([{**BCFG, "off": "power"}])                                    # the same team, its off now cuts the power
+    assert m.teams[CFG["id"]] is t and len(tasks) == 1
+    run(tasks[0])
+    assert h.states["light.dimmer"].state == "off" and not t.is_on
+    tasks.clear()
+    m.reload([{**BCFG, "off": "power"}])                                    # saved again: nothing more to do
+    assert tasks == []
+
+
+
+def test_off_then_on_at_the_wall_soon_after_our_power_on_is_the_wall_both_times() -> None:
+    h = House(boot=1.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())                                                       # our power-on
+    h.t += 3
+    new, old = h.wall(False)
+    run(t.on_power(new, old))
+    assert t.phase == "off"
+    h.t += 4
+    h.calls.clear()
+    new, old = h.wall(True)                                                # within ECHO_S of ours: still a person
+    run(t.on_power(new, old))
+    assert t.phase == "ready" and h.states["light.b1"].attributes["brightness"] == 200 and h.to("light.b1")
+
+
+def test_a_level_held_at_the_wall_soon_after_our_power_on_is_a_hand() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    h.t = 20.0                                                             # inside ECHO_S, outside OWN_S
+    h.calls.clear()
+    new, old = h.wall(True, level=100)
+    run(t.on_power(new, old))
+    assert h.to("light.dimmer")[-1][2] == {"brightness": 255} and h.states["light.b1"].attributes["brightness"] == 100
+
+
+def test_a_wall_press_while_the_dimmer_was_out_of_reach_is_still_the_wall() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)                                           # the dimmer read off when the team was made
+    h.t = 100.0
+    h.states["light.dimmer"] = SimpleNamespace(state="on", attributes={"supported_color_modes": ["brightness"], "brightness": 255})
+    h.powered_at = 100.0
+    run(t.on_power(h.states["light.dimmer"], SimpleNamespace(state="unavailable", attributes={})))
+    assert t.phase == "ready" and h.states["light.b1"].attributes["brightness"] == 200
+    # Out of reach again and back on, having been on: nothing pressed, nothing sent.
+    h.calls.clear()
+    run(t.on_power(h.states["light.dimmer"], SimpleNamespace(state="unavailable", attributes={})))
+    assert h.calls == []
+
+
+def test_our_power_on_reported_late_after_the_start_is_still_ours() -> None:
+    h = House(boot=0.0)
+    h.states["light.dimmer"] = SimpleNamespace(state="off", attributes={"supported_color_modes": ["brightness"]})
+    t = P.Team(dict(BCFG), h.io)
+    real_call = h.io.call
+
+    async def lagging(domain: str, service: str, data: dict) -> None:   # Control4 takes its time to say so
+        await real_call(domain, service, data)
+        if data["entity_id"] == "light.dimmer":
+            h.states["light.dimmer"] = SimpleNamespace(state="off", attributes={"supported_color_modes": ["brightness"]})
+    h.io.call = lagging
+    run(t.turn_on())
+    assert t.phase == "ready"
+    h.t += 12                                                              # the start is over; Control4 reports its on now
+    h.calls.clear()
+    h.states["light.dimmer"] = SimpleNamespace(state="on", attributes={"supported_color_modes": ["brightness"], "brightness": 255})
+    run(t.on_power(h.states["light.dimmer"], SimpleNamespace(state="off", attributes={"supported_color_modes": ["brightness"]})))
+    assert h.calls == [] and t.phase == "ready"
+    # And an off asked for while it has still not said so is sent, not skipped as "no power".
+    h.states["light.dimmer"] = SimpleNamespace(state="off", attributes={"supported_color_modes": ["brightness"]})
+    t._power_cmd_at, t._power_cmd_on = h.t, True
+    run(t.turn_off())
+    assert any(s == "turn_off" for _, e, s, _ in h.calls if e == "light.b1")
+
+
+def test_the_wake_up_runs_once_a_day_across_a_restart(monkeypatch) -> None:
+    import sys
+    import types
+    from datetime import datetime
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ticks: list = []
+    ev.async_track_state_change_event = lambda *a, **k: (lambda: None)
+    ev.async_track_time_interval = lambda hass, fn, every: (ticks.append(fn), (lambda: None))[1]
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+
+    class St:
+        data: dict = {}
+
+        async def async_set(self, **kw):
+            self.data = {**self.data, **kw}
+            return self.data
+    st = St()
+    now = datetime(2026, 11, 23, 6, 10)
+    dtu = types.ModuleType("homeassistant.util.dt")
+    dtu.now = lambda: now
+    monkeypatch.setitem(sys.modules, "homeassistant.util.dt", dtu)
+    import homeassistant.util as hu
+    monkeypatch.setattr(hu, "dt", dtu, raising=False)
+    tasks: list = []
+    cfg = {**BCFG, "wake": {"on": True, "time": "06:30", "days": [0], "minutes": 30}}
+
+    def house_hass():
+        return SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st}}, async_create_task=tasks.append, states=SimpleNamespace(get=lambda e: None))
+    hass = house_hass()
+    m = P.Manager(hass)
+    m.reload([cfg])
+    m.teams[cfg["id"]].io = House(boot=0.0).io
+    run(ticks[-1](None))
+    woke = [c for c in tasks if getattr(c, "__name__", "") == "wake"]
+    assert len(woke) == 1                                                   # the wake-up runs...
+    for c in tasks:
+        run(c)
+    assert st.data["power_teams_woke"] == {cfg["id"]: "2026-11-23"}        # ...and its day is kept
+    tasks.clear()
+    m2 = P.Manager(house_hass())                                            # Home Assistant restarts at 06:15
+    m2.reload([cfg])
+    run(ticks[-1](None))
+    assert not [c for c in tasks if getattr(c, "__name__", "") == "wake"]
+    for c in tasks:
+        c.close()

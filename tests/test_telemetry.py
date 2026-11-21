@@ -129,8 +129,11 @@ def _hass():
     # not a real string, so nothing would ever match and everything would
     # silently fall into "other".
     _state_attrs = {_MOTION: {"device_class": "motion"}, _TEMP: {"device_class": "temperature"}}
+    # async_all as Home Assistant has it: this house's lights are not states
+    # here, so env.power_teams has no colour bulbs to count.
     h.states = SimpleNamespace(get=lambda eid, default=None:
-        SimpleNamespace(attributes=_state_attrs[eid]) if eid in _state_attrs else default)
+        SimpleNamespace(attributes=_state_attrs[eid]) if eid in _state_attrs else default,
+        async_all=lambda domain=None: [])
     return h
 
 

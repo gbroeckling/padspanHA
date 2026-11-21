@@ -1601,22 +1601,26 @@ async def _async_tick(hass: HomeAssistant) -> None:
         # ultimately a live service call.
         if not entity_id.startswith(VM_DOMAINS):
             continue
-        state = hass.states.get(entity_id)
+        # A power team's wall dimmer or bulb is switched as its team (power_team.py): a dimmer left on with its
+        # bulbs told off is dark, though it reads on.
+        from .power_team import team_light_of  # noqa: PLC0415
+        target = team_light_of(hass, entity_id)
+        state = hass.states.get(target)
         if not state or state.state == "unavailable":
             continue
         is_on = state.state == "on"
         if is_on == want_on:
             continue
-        domain = entity_id.split(".", 1)[0]
+        domain = target.split(".", 1)[0]
         service = "turn_on" if want_on else "turn_off"
         try:
             # A WLED light PadSpan runs goes on with its remembered look —
             # and its PadSpan team with it (wled_exact.py).
             from .wled_exact import async_power, is_exact_entity  # noqa: PLC0415
-            if is_exact_entity(hass, entity_id):
-                await async_power(hass, entity_id, want_on, source="vacation")
+            if is_exact_entity(hass, target):
+                await async_power(hass, target, want_on, source="vacation")
             else:
-                await hass.services.async_call(domain, service, {"entity_id": entity_id})
+                await hass.services.async_call(domain, service, {"entity_id": target})
         except Exception as err:
             _quiet_error("vacation_mode:tick_wled_power")
             _LOGGER.debug("Vacation mode: could not %s %s: %s", service, entity_id, err)
