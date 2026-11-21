@@ -519,6 +519,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_forest",                           # the same theme's trees in Live Aboard
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "power_teams",                                  # Settings → Atlas → Power teams (power_team.py)
+    "power_team_card",                              # a power team on the map: its card (the dimmer and its bulbs as one)
     "calibration_results",                          # Calibration's Results tab (the one it opens on)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
     "live_aboard_import",
