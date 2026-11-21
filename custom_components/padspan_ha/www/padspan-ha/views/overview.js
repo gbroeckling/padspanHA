@@ -305,14 +305,15 @@ export function renderClassic(ctx){
       el("span",{class:"badge"}, `${tagsCount} mapped entities`)
     ]));
 
-    body.appendChild(el("table",{class:"table"},[
+    // On a phone the table scrolls sideways in its own box (.table-scroll), not the whole sheet.
+    body.appendChild(el("div",{class:"table-scroll"}, el("table",{class:"table"},[
       el("thead",{}, el("tr",{},[
         el("th",{}, "Room"),
         el("th",{}, "Mapped entities"),
         el("th",{}, "Entity IDs")
       ])),
       el("tbody",{}, rows.length?rows:el("tr",{}, el("td",{colspan:3}, "No rooms in current map.")))
-    ]));
+    ])));
 
     ctx.actions.openModal("Rooms", body, "Current room→entity map");
   }
@@ -365,7 +366,8 @@ export function renderClassic(ctx){
       return tr;
     });
 
-    body.appendChild(el("table",{class:"table"},[
+    // On a phone the table scrolls sideways in its own box (.table-scroll), not the whole sheet.
+    body.appendChild(el("div",{class:"table-scroll"}, el("table",{class:"table"},[
       el("thead",{}, el("tr",{},[
         el("th",{}, "ID"),
         el("th",{}, "Name"),
@@ -377,7 +379,7 @@ export function renderClassic(ctx){
         el("th",{}, ""),
       ])),
       el("tbody",{}, rows.length?rows:el("tr",{}, el("td",{colspan:8}, "No radios found. (Switch to Live mode + ensure Bluetooth is enabled in HA.)")))
-    ]));
+    ])));
     ctx.actions.openModal("Bluetooth Radios", body, "ID = 3-letter label code · Areas read from HA device registry");
   }
 
@@ -782,7 +784,8 @@ export function renderClassic(ctx){
     apply();
 
     body.appendChild(controls);
-    body.appendChild(table);
+    // On a phone the table scrolls sideways in its own box (.table-scroll), not the whole sheet.
+    body.appendChild(el("div",{class:"table-scroll"}, table));
 
     ctx.actions.openModal(initialFilter === "unidentified" ? "Unidentified" : (_quietMode ? "Tracked objects" : "All objects"), body, "Filter");
   }
