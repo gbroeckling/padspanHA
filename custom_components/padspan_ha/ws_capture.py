@@ -199,7 +199,9 @@ async def ws_capture_list(hass: HomeAssistant, connection, msg) -> None:
     {
         "type": "padspan_ha/capture_get",
         vol.Required("session_id"): str,
-        vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
+        # A line of a session file: never past its size cap (25 MB), and a
+        # number past 64 bits could not be sent back in the answer.
+        vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=25 * 1024 * 1024)),
         vol.Optional("limit", default=2000): vol.All(vol.Coerce(int), vol.Range(min=1, max=5000)),
     }
 )

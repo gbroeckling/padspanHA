@@ -21,7 +21,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_DEVICE_REGISTRY, DOMAIN
 from .guest_tags import (RETENTION_CHOICES, async_get_store, enabled, fire, retention_days, session_out,
                          store_if_loaded, tag_state, valid_quiet)
-from .ws_common import admin_if_enhanced_security
+from .ws_common import admin_if_enhanced_security, finite_float
 from .quiet_errors import note as _quiet_error
 
 OFF_CODE = "guest_tags_off"
@@ -161,7 +161,7 @@ def _opts_of(msg: dict) -> dict:
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/guest_session_start", vol.Required("pid"): str,
-                                  vol.Required("name"): str, vol.Optional("end_at"): vol.Any(None, vol.Coerce(float)),
+                                  vol.Required("name"): str, vol.Optional("end_at"): vol.Any(None, finite_float),
                                   **_OPTS})
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -190,7 +190,7 @@ async def ws_guest_session_start(hass: HomeAssistant, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/guest_session_update", vol.Required("session"): str,
-                                  vol.Optional("name"): str, vol.Optional("end_at"): vol.Any(None, vol.Coerce(float)),
+                                  vol.Optional("name"): str, vol.Optional("end_at"): vol.Any(None, finite_float),
                                   **_OPTS})
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -204,12 +204,17 @@ async def ws_guest_session_update(hass: HomeAssistant, connection, msg) -> None:
     fields: dict[str, Any] = {}
     if "name" in msg:
         fields["name"] = msg["name"]
+    now = time.time()
     if "end_at" in msg:
+        # No further ahead than a stay can be started with (an end already
+        # past ends the stay, as it always has).
+        if msg["end_at"] and msg["end_at"] > now + 366 * 86400:
+            connection.send_error(msg["id"], "invalid_format", "The end must be in the next year.")
+            return
         fields["end_planned"] = msg["end_at"]
     opts = _opts_of(msg)
     if opts:
         fields["opts"] = opts
-    now = time.time()
     try:
         s = st.update(msg["session"], now, **fields)
     except ValueError as err:

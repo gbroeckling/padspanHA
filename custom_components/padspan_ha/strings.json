@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan could not confirm a save ({store})",
+      "description": "PadSpan saved its data ({store}), but the file on disk does not hold what was saved, or could not be read back. The latest changes may only be in memory, and would be lost when Home Assistant restarts. Check that the disk Home Assistant runs on is not full or read-only, and look for the error in the Home Assistant log. This notice goes away by itself the next time a save is confirmed."
+    }
   }
 }

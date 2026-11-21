@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "O PadSpan não conseguiu confirmar uma gravação ({store})",
+      "description": "O PadSpan guardou os seus dados ({store}), mas o ficheiro no disco não contém o que foi guardado, ou não pôde ser lido de novo. As últimas alterações podem estar apenas na memória e perder-se-iam quando o Home Assistant reiniciar. Verifique se o disco do Home Assistant não está cheio nem só de leitura e procure o erro no registo do Home Assistant. Este aviso desaparece sozinho na próxima vez que uma gravação for confirmada."
+    }
   }
 }

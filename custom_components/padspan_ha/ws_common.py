@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import functools
 import logging
+import math
 import re
 from typing import Any, NamedTuple
+
+import voluptuous as vol
 from homeassistant.core import HomeAssistant, callback
 from .const import (
     DOMAIN,
@@ -593,6 +596,19 @@ _MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 # Shorter than this is not a name, it is a coincidence. Same floor the entity
 # slug lookup in snapshot_builder already uses.
 _MIN_PARTIAL_LEN = 3
+
+
+def finite_float(value: Any) -> float:
+    """A websocket schema's number that is a real one. vol.Coerce(float)
+    alone takes "nan" and "inf", which then poison every sum they reach and
+    are written to storage as null."""
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        raise vol.Invalid("expected a number") from None
+    if not math.isfinite(out):
+        raise vol.Invalid("expected a finite number")
+    return out
 
 
 def radio_slug(value: Any) -> str:

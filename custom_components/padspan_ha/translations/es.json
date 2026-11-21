@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan no pudo confirmar un guardado ({store})",
+      "description": "PadSpan guardó sus datos ({store}), pero el archivo en el disco no contiene lo que se guardó, o no se pudo volver a leer. Puede que los últimos cambios solo estén en la memoria y se perderían cuando Home Assistant se reinicie. Comprueba que el disco de Home Assistant no esté lleno ni en modo de solo lectura, y busca el error en el registro de Home Assistant. Este aviso desaparece solo la próxima vez que se confirme un guardado."
+    }
   }
 }

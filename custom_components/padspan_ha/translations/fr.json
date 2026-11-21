@@ -58,5 +58,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "save_not_written": {
+      "title": "PadSpan n'a pas pu confirmer un enregistrement ({store})",
+      "description": "PadSpan a enregistré ses données ({store}), mais le fichier sur le disque ne contient pas ce qui a été enregistré, ou n'a pas pu être relu. Les dernières modifications ne sont peut-être qu'en mémoire et seraient perdues au redémarrage de Home Assistant. Vérifiez que le disque de Home Assistant n'est ni plein ni en lecture seule, et cherchez l'erreur dans le journal de Home Assistant. Cet avis disparaît de lui-même dès qu'un enregistrement est confirmé."
+    }
   }
 }

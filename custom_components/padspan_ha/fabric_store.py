@@ -591,11 +591,13 @@ class FabricStore:
         if not isinstance(bar, dict) or not str(bar.get("name") or "").strip():
             return None
         pts = bar.get("points_m") or []
+        if not isinstance(pts, list):
+            return None
         out_pts: list[list[float]] = []
         for p in pts:
             try:
                 x, y = float(p[0]), float(p[1])
-            except (TypeError, ValueError, IndexError):
+            except (TypeError, ValueError, IndexError, KeyError):
                 return None
             if not (math.isfinite(x) and math.isfinite(y)):
                 return None
