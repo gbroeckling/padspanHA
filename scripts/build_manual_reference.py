@@ -106,12 +106,12 @@ def _class_value(cls: ast.ClassDef, name: str):
 def _module_constants(module: str) -> dict[str, object]:
     out: dict[str, object] = {}
     for node in _tree(module).body:
-        if isinstance(node, ast.Assign):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
             try:
                 value = ast.literal_eval(node.value)
             except ValueError:
                 continue
-            for t in node.targets:
+            for t in (node.targets if isinstance(node, ast.Assign) else [node.target]):
                 if isinstance(t, ast.Name):
                     out[t.id] = value
                 elif isinstance(t, ast.Tuple) and isinstance(value, tuple):
@@ -716,14 +716,589 @@ def write() -> list[str]:
     return changed
 
 
-# ── settings (chapter 20) ───────────────────────────────────────────────────
-# Filled in below.
+# ── settings (chapter 20): what the code says ───────────────────────────────
 
-SETTINGS_ENTRIES: dict[str, tuple] = {}
+def default_settings() -> dict[str, object]:
+    for node in ast.walk(_tree("settings_store.py")):
+        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "") == "DEFAULT_SETTINGS":
+            return ast.literal_eval(node.value)
+    raise ReferenceError_("settings_store.py has no DEFAULT_SETTINGS")
+
+
+def _settings_set() -> ast.AsyncFunctionDef:
+    return _function("ws_settings.py", "ws_settings_set")
+
+
+def schema_keys() -> list[str]:
+    """The keys padspan_ha/settings_set accepts, in its schema's order."""
+    for d in _settings_set().decorator_list:
+        if isinstance(d, ast.Call) and d.args and isinstance(d.args[0], ast.Dict):
+            return [k.args[0].value for k in d.args[0].keys
+                    if isinstance(k, ast.Call) and k.args and isinstance(k.args[0], ast.Constant)]
+    raise ReferenceError_("ws_settings_set has no schema")
+
+
+def setting_keys() -> list[str]:
+    defaults = default_settings()
+    return list(defaults) + [k for k in schema_keys() if k not in defaults]
+
+
+def _names_in_reach() -> dict[str, object]:
+    """ws_settings.py's constants and what it imports by name, as values."""
+    out = dict(_module_constants("ws_settings.py"))
+    for node in ast.walk(_tree("ws_settings.py")):
+        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
+            other = _module_constants(node.module + ".py") if (PKG / (node.module + ".py")).exists() else {}
+            for a in node.names:
+                if a.name in other:
+                    out.setdefault(a.asname or a.name, other[a.name])
+    return out
+
+
+def _num(node, names) -> float | None:
+    try:
+        v = ast.literal_eval(node)
+    except ValueError:
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and isinstance(node.slice, ast.Constant):
+            seq = names.get(node.value.id)
+            return seq[node.slice.value] if isinstance(seq, (tuple, list)) else None
+        if isinstance(node, ast.Name):
+            v = names.get(node.id)
+        else:
+            return None
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _fmt(v) -> str:
+    if isinstance(v, float) and v.is_integer() and abs(v) < 1e6:
+        v = int(v)
+    return f"{v:,}".replace(",", " ") if isinstance(v, (int, float)) and abs(v) >= 10000 else str(v)
+
+
+def _choices(values) -> str:
+    return ", ".join(f"`{v}`" for v in values)
+
+
+def _describe(expr, names, block, depth: int = 0) -> str | None:
+    """What a payload[...] = <expr> keeps a value to, in words, or None."""
+    if depth > 4 or expr is None:
+        return None
+    if isinstance(expr, ast.Call):
+        fname = expr.func.id if isinstance(expr.func, ast.Name) else ""
+        if fname in ("int", "float", "round") and expr.args:
+            return _describe(expr.args[0], names, block, depth + 1)
+        if fname == "bool":
+            return "on or off"
+        if fname == "max" and len(expr.args) == 2 and isinstance(expr.args[1], ast.Call) \
+                and getattr(expr.args[1].func, "id", "") == "min" and len(expr.args[1].args) == 2:
+            lo, hi = _num(expr.args[0], names), _num(expr.args[1].args[0], names)
+            if lo is not None and hi is not None:
+                return f"{_fmt(lo)} to {_fmt(hi)}"
+        if fname == "_clamped" and len(expr.args) >= 3:
+            lo, hi = _num(expr.args[1], names), _num(expr.args[2], names)
+            zero = any(k.arg == "zero_ok" and getattr(k.value, "value", False) for k in expr.keywords)
+            if lo is not None and hi is not None:
+                return (f"0 (off), or {_fmt(lo)} to {_fmt(hi)}" if zero else f"{_fmt(lo)} to {_fmt(hi)}")
+        if fname in ("_texts",):
+            return "a list"
+        if fname in ("_text_map",):
+            return "a mapping"
+        if fname.startswith("_") and fname not in ("_clamped",):
+            try:
+                fn = _function("ws_settings.py", fname)
+            except ReferenceError_:
+                return None
+            for node in ast.walk(fn):
+                if isinstance(node, ast.Return):
+                    got = _describe(node.value, names, fn, depth + 1)
+                    if got:
+                        return got
+    def listed(node) -> str | None:
+        coll = node.comparators[0]
+        vals = ast.literal_eval(coll) if isinstance(coll, (ast.Tuple, ast.List, ast.Set)) else names.get(getattr(coll, "id", ""))
+        return _choices(vals) if isinstance(vals, (tuple, list, set, frozenset)) else None
+
+    if isinstance(expr, ast.IfExp):
+        for node in ast.walk(expr.test):
+            if isinstance(node, ast.Compare) and isinstance(node.ops[0], ast.In) and (got := listed(node)):
+                zero = isinstance(expr.orelse, ast.Constant) and expr.orelse.value == 0
+                return ("`0` (off), " + got) if zero and "`0`" not in got else got
+        for side in (expr.orelse, expr.body):
+            got = _describe(side, names, block, depth + 1)
+            if got and got != "on or off":
+                if isinstance(expr.body, ast.Constant) and expr.body.value is None:
+                    return got + ", or empty"
+                if isinstance(expr.body, ast.Constant) and expr.body.value == 0 and not got.startswith("0"):
+                    return "0 (off), or " + got
+                return got
+    if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Mod):
+        hi = _num(expr.right, names)
+        return f"0 to {_fmt(hi)}" if hi is not None else None
+    if isinstance(expr, (ast.Name, ast.Subscript)):
+        # Checked against a closed list in the same block, or set from something that says.
+        text = ast.unparse(expr)
+        for node in ast.walk(block):
+            if isinstance(node, ast.Compare) and ast.unparse(node.left) == text \
+                    and isinstance(node.ops[0], (ast.NotIn, ast.In)) and (got := listed(node)):
+                return got
+        if isinstance(expr, ast.Name):
+            for node in ast.walk(block):
+                if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == expr.id for t in node.targets) \
+                        and not isinstance(node.value, ast.Name):
+                    got = _describe(node.value, names, block, depth + 1)
+                    if got:
+                        return got
+    return None
+
+
+def setting_ranges() -> dict[str, str]:
+    """{key: the range or choices ws_settings_set keeps it to} for every key it says."""
+    fn = _settings_set()
+    names = _names_in_reach()
+    for node in ast.walk(fn):        # names imported inside the function
+        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module and (PKG / (node.module + ".py")).exists():
+            other = _module_constants(node.module + ".py")
+            for a in node.names:
+                if a.name in other:
+                    names[a.asname or a.name] = other[a.name]
+    out: dict[str, str] = {}
+
+    def payload_key(target) -> str | None:
+        if isinstance(target, ast.Subscript) and ast.unparse(target.value) == "payload" and isinstance(target.slice, ast.Constant):
+            return target.slice.value
+        return None
+
+    def guarded_key(test) -> str | None:
+        """`"key" in msg` (or the first such test of an `or`): the key the block is for."""
+        if isinstance(test, ast.Compare) and isinstance(test.left, ast.Constant) and isinstance(test.ops[0], ast.In) \
+                and ast.unparse(test.comparators[0]) == "msg":
+            return test.left.value
+        return None
+
+    # Each `if "key" in msg:` block, innermost first: what it keeps the key to.
+    blocks_by_key: list[tuple[str, ast.If]] = []
+    for node in ast.walk(fn):
+        if isinstance(node, ast.If) and (k := guarded_key(node.test)):
+            blocks_by_key.append((k, node))
+    for k, block in sorted(blocks_by_key, key=lambda kb: -kb[1].lineno):
+        if k in out:
+            continue
+        for node in ast.walk(block):
+            if isinstance(node, ast.Assign) and any(payload_key(t) == k for t in node.targets):
+                got = _describe(node.value, names, block)
+                if got:
+                    out[k] = got
+                    break
+    # for key in ("a", "b", ...): if key in msg: payload[key] = bool(msg[key])
+    for node in ast.walk(fn):
+        if isinstance(node, ast.For) and isinstance(node.target, ast.Name) and isinstance(node.iter, ast.Tuple):
+            keys = [e.value for e in node.iter.elts if isinstance(e, ast.Constant)]
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Assign) and any(isinstance(t, ast.Subscript) and ast.unparse(t.slice) == node.target.id
+                                                      for t in sub.targets):
+                    got = _describe(sub.value, names, node)
+                    for k in keys:
+                        if got:
+                            out.setdefault(k, got)
+    # The weather entity pickers: each takes an entity of its domains, or "".
+    weather = _module_constants("ws_settings.py").get("_WEATHER_ENTITY_DOMAINS") or {}
+    for k, doms in weather.items():
+        out[k] = "an entity: " + " or ".join(f"`{d}*`" for d in doms) + ", or empty"
+    return out
+
+
+_JS_DEFAULT = (r"settings\??\.{k}\s*!=\s*null\s*\?\s*Number\(settings\??\.{k}\)\s*:\s*(-?[0-9.]+)",
+               r"settings\??\.{k}\s*(?:\?\?|\|\|)\s*(-?[0-9.]+|\"[^\"]*\")")
+
+
+@lru_cache(maxsize=None)
+def _all_js() -> str:
+    return "\n".join(p.read_text(encoding="utf-8") for p in sorted(WWW.rglob("*.js")) if "vendor" not in p.parts)
+
+
+def setting_default(key: str) -> tuple[bool, object]:
+    """(known, value): DEFAULT_SETTINGS', else the one the panel or the backend falls back to."""
+    defaults = default_settings()
+    if key in defaults:
+        return True, defaults[key]
+    for pat in _JS_DEFAULT:
+        m = re.search(pat.format(k=re.escape(key)), _all_js())
+        if m:
+            return True, json.loads(m.group(1))
+    for path in sorted(PKG.glob("*.py")):
+        m = re.search(r'\.get\("' + re.escape(key) + r'",\s*(True|False|-?[0-9.]+|"[^"]*")\)', path.read_text(encoding="utf-8"))
+        if m:
+            return True, ast.literal_eval(m.group(1))
+    # A switch with no default anywhere: never set, the code reads it as off.
+    if setting_ranges().get(key) == "on or off":
+        return True, False
+    return False, None
+
+
+def _default_words(key: str) -> str:
+    known, v = setting_default(key)
+    if not known or v is None:
+        return "not set"
+    if v is True:
+        return "on"
+    if v is False:
+        return "off"
+    if v == "" or v == [] or v == {}:
+        return "empty"
+    if isinstance(v, (int, float)):
+        return _fmt(v)
+    return f"`{v}`"
+
+
+# The panel's text, for checking a label is really there.
+PLACE_FILES = {
+    "Settings": ("views/settings.js", "views/wall_card.js", "views/power_teams.js"),
+    "Manage": ("views/manage.js",),
+    "Mapping": ("views/maps.js", "views/lights_map.js", "views/iso_lights.js"),
+    "Atlas": ("lights_panel.js", "views/lights_map.js", "views/iso_lights.js"),
+    "Overview": ("views/overview.js", "panel.js"),
+    "Bluetooth": ("views/bluetooth.js",),
+    "Devices": ("views/devices.js",),
+    "Calibration": ("views/calibration.js",),
+    "Traceback": ("views/traceback.js",),
+    "Occupancy": ("views/occupancy.js",),
+    "Locate": ("views/locate.js",),
+    "Follow": ("views/follow.js", "panel.js"),
+    "Live Aboard": ("views/live_aboard.js", "views/live_aboard_furnish.js", "views/live_aboard_people.js", "views/lights_map.js"),
+}
+
+
+@lru_cache(maxsize=None)
+def _place_strings(place: str) -> str:
+    text = ""
+    for rel in PLACE_FILES[place]:
+        src = (WWW / rel).read_text(encoding="utf-8")
+        for s in re.findall(r'"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`', src):
+            raw = s[0] or s[1]
+            try:
+                text += json.loads('"' + raw.replace("\n", "\\n") + '"') + "\n"
+            except ValueError:
+                text += raw + "\n"
+    return text
+
+
+def label_on_screen(place: str, label: str) -> bool:
+    want = re.sub(r"^\W+", "", label).rstrip(" :→…")
+    return bool(want) and want in _place_strings(place)
+
+
+# ── settings (chapter 20): what the code can't say ──────────────────────────
+# key: (where, card, control, what). `where` is the panel's path to the card;
+# the card and the control are the panel's own words (checked: each must be a
+# string on that screen). A control the same as its card is given as "".
+# `where` None: not in the panel; `card` then says whose it is.
+
+T = "Settings → Tracking → "
+SETTINGS_ENTRIES: dict[str, tuple] = {
+    # Settings → Appearance
+    "ui_skin": ("Settings → Appearance", "Panel Style", "", "`2025` restyles the panel's frame (grouped menu with icons); `classic` is the original."),
+    "theme_palette": ("Settings → Appearance", "Theme", "", "The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (`contrast`). Graphite, Ocean and Dusk come with Pro."),
+    "light_theme": ("Settings → Appearance", "Theme", "Light (inverted)", "The panel's colours turned light (inverted)."),
+    "day_theme": ("Settings → Appearance", "Theme", "Day", "Day, PadSpan's designed light look (Pro). It wins over Light."),
+    "theme_follow_sun": ("Settings → Appearance", "Theme", "Follow the sun", "Day (Light without Pro) from sunrise to sunset, the theme you picked at night."),
+    "units_feet": ("Settings → Appearance", "Units", "Show lengths in feet and inches", "Mapping's measuring and the rooms helper show feet and inches. Lengths are kept in metres either way."),
+    "overview_2d_mode": ("Settings → Appearance", "2D Map Mode", "Replace 3D isometric view with flat 2D map", "Experimental: the Overview shows the floor plan flat, with zoom and pan."),
+    # Settings → Tracking
+    "room_change_delay_s": (T + "Rooms and timing", "Room Change Delay", "Room change delay", "Seconds a receiver must stay ahead before a device moves to its room. A clear move next door needs half."),
+    "hold_last_room_s": (T + "Rooms and timing", "Hold Room Through Short Gaps", "Hold last room", "Seconds a device's room stays shown through a signal gap. Display only: rooms are decided as before."),
+    "room_reason_attribute": (T + "Rooms and timing", "Why This Room (Sensor Attribute)", "Add a room_reason attribute to each area sensor", "Adds `room_reason` to each area sensor ([chapter 14](14-home-assistant-reference.md))."),
+    "away_timeout_m": (T + "Rooms and timing", "Home/Away Timeout", "Away timeout", "Minutes a device goes unheard before its tracker and area sensor read `not_home`."),
+    "thing_away_timeout_h": (T + "Rooms and timing", "Home/Away Timeout", "Things keep their room", "Hours a device nobody carries (keys, a tag on a bag) keeps its last room before it reads `not_home`."),
+    "guest_tags_enabled": (T + "Phones and guest tags", "Guest tags", "Use tags as guest tags", "Guest tags: the Guests screen, `binary_sensor.padspan_guest_home` and the guest notices."),
+    "guest_retention_days": (T + "Phones and guest tags", "Guest tags", "Keep a finished stay's report (name, times, rooms) for", "Days a finished stay's report is kept. 0: not kept."),
+    "irk_devices": (T + "Phones and guest tags", "Phone Tracking (Private BLE)", "", "The phones and watches whose key (IRK) you added in PadSpan."),
+    "quiet_mode": (T + "What the panel shows", "Quiet Mode", "", "Hides devices nobody has named from the panel's lists and counts. Switched by the Quiet tick at the top of the Overview."),
+    "object_history_days": (T + "What the panel shows", "Object History Retention", "Keep unlabelled for", "Days a device nobody named stays in PadSpan's history. Named devices are kept."),
+    "ble_max_age_s": (T + "What the panel shows", "BLE Advertisement Timeout", "Max age", "Seconds a device stays listed after its last advertisement."),
+    "positioning_algorithm": (T + "Positioning and calibration", "Positioning Algorithm", "", "`knn`: live signals matched to your calibration points. `rf`: the learned model (experimental)."),
+    "positioning_pick_better": (T + "Positioning and calibration", "Positioning Choices", "Pick the better method for this house", "Uses whichever placing method did better on calibration spots it had not seen."),
+    "positioning_unsure": (T + "Positioning and calibration", "Positioning Choices", "Mark a room as unsure when the signal is thin", "With fewer than 3 receivers, or no good calibration match, a device keeps its room and is marked unsure."),
+    "positioning_sensor_fusion": (T + "Positioning and calibration", "Positioning Choices", "Use motion sensors and usual moves to break ties", "Motion and occupancy sensors, and the moves PadSpan has learned, decide between two rooms that read almost the same."),
+    "calibration_room_walk": (T + "Positioning and calibration", "Walk a Room (Calibration)", 'Add a "Walk a room" tab to Calibration', "Adds Walk a room to Calibration."),
+    "ref_power": (T + "Positioning and calibration", "Distance Calibration", "Reference power", "Signal strength in dBm at 1 metre, for the distance sensors."),
+    "path_loss_exp": (T + "Positioning and calibration", "Distance Calibration", "Path-loss exponent", "How fast the signal falls with distance, for the distance sensors: about 2 in the open, 2.5 to 3.5 indoors."),
+    "kalman_q": (T + "Positioning and calibration", "Signal smoothing", "Process noise Q", "How fast the smoothed signal follows a change. Higher follows movement faster."),
+    "kalman_r": (T + "Positioning and calibration", "Signal smoothing", "Measurement noise R", "How little one reading is trusted. Higher smooths more and changes rooms more slowly."),
+    "assumed_device_height_m": (T + "Positioning and calibration", "3D Positioning — Device Height", "Device height (m)", "How high a carried device is above the floor, in metres, for 3D distances."),
+    "health_reminder_enabled": (T + "Positioning and calibration", "Calibration Accuracy Reminders", "Remind me to update calibration when needed for accuracy", "A check for gaps and stale readings in calibration, with spots to stand at."),
+    "adaptive_learning_enabled": (T + "Positioning and calibration", "Adaptive Learning", "Enable adaptive learning", "Experimental: learns each room's signal from devices PadSpan is sure of."),
+    "adaptive_floor_detection": (T + "Positioning and calibration", "Adaptive Learning", "Floor detection enhancement", "Experimental: learns how much each floor blocks the signal."),
+    "ble_reseed_interval_s": (T + "Receivers", "Bluetooth refresh interval", "Refresh interval", "Seconds between PadSpan's reads of every receiver's list."),
+    "aggressive_ble_reseed": (T + "Receivers", "Bluetooth refresh interval", "Refresh every 5 s for passive proxy scanners", "Reads every 5 seconds whatever the interval, for Shelly and other passive receivers."),
+    "scanner_offsets": (T + "Receivers", "Receiver signal adjustments", "", "A trim in dB for each receiver's readings."),
+    "presence_poll_interval_s": (T + "Performance", "Presence Poll Interval", "Poll interval", "Seconds between room updates. Lower is quicker and uses more CPU."),
+    "cpu_mode": (T + "Performance", "CPU Mode", "CPU mode", "Where the room work runs: with Home Assistant (`shared`), held to one core (`single`) or on a core of its own (`dedicated`)."),
+    "low_memory_mode": (T + "Performance", "Low-memory mode", "", "Holds less, for a machine with 2 GB of memory."),
+    "optimize_for_scale": (T + "Performance", "Optimize for scale", "", "For several wall screens: a lighter feed for the screens and no updates for a hidden page."),
+    "fabric_origin_lat": (T + "Home Assistant and integrations", "GPS Bridge", "Origin latitude", "With the longitude: where the layout's zero point is on Earth, so trackers report a latitude and longitude. Both empty: off."),
+    "fabric_origin_lon": (T + "Home Assistant and integrations", "GPS Bridge", "Origin longitude", "See Origin latitude."),
+    "fabric_bearing_deg": (T + "Home Assistant and integrations", "GPS Bridge", "Bearing (°)", "Which way the layout's up points, in degrees clockwise from true north. Live Aboard's North is the same setting."),
+    "padspan_automations": (T + "Home Assistant and integrations", "Automations", "", "Simple arrive and depart rules that turn a light, switch, scene or script on or off."),
+    "tags_room_events_enabled": (T + "Home Assistant and integrations", "HA Tags Integration", "Room-change tag events", "A tag scan and a `padspan_room_change` event each time a followed device changes room."),
+    "tags_nfc_identify_enabled": (T + "Home Assistant and integrations", "HA Tags Integration", "NFC tap-to-identify", "Scanning an NFC tag names the strongest unnamed Bluetooth signal in that phone's room."),
+    "tags_phone_autolink_enabled": (T + "Home Assistant and integrations", "HA Tags Integration", "Phone auto-link on NFC scan", "A phone that scans any NFC tag is followed by its BLE Transmitter."),
+    "bermuda_ignore": (T + "Home Assistant and integrations", "Ignore Bermuda", "Ignore all Bermuda integration data", "Experimental: PadSpan uses nothing from the Bermuda integration."),
+    "update_check_enabled": (T + "Privacy, updates and feedback", "Update Check", "Update check", "The daily check for a new version ([chapter 3](03-install-update-uninstall.md))."),
+    "enhanced_security": (T + "Privacy, updates and feedback", "Enhanced security", "", "Only an administrator can change PadSpan's shared setup. On for a new install; a home set up before November 2026 keeps what it had."),
+    "telemetry_enabled": (T + "Privacy, updates and feedback", "Help improve PadSpan", "", "The opt-in daily usage report. A free licence (trial, tester, free year) keeps it on until the licence ends."),
+    "telemetry_heard": (T + "Privacy, updates and feedback", "Help improve PadSpan", "Where you heard of PadSpan", "Your answer, one word from a fixed list, sent with the report. Empty: not said."),
+    # Settings → Features
+    "forensics_license_key": ("Settings → Features", "PadSpan licence", "", "Your licence key. Kept through a Factory Reset."),
+    "license_home_label": ("Settings → Features", "PadSpan licence", "", "The name you gave this home among your licence's homes."),
+    "walk_to_identify_enabled": ("Settings → Features", "Experimental Features", "Walk-to-Identify", "Finds which unknown device is yours by walking into a room."),
+    "radio_map_enabled": ("Settings → Features", "Experimental Features", "Radio Map", "A signal-strength overlay on the floor plans, from calibration."),
+    "distortion_map_enabled": ("Settings → Features", "Experimental Features", "Signal distortion map", "Shows where calibration and live readings disagree."),
+    "roomplan_import_enabled": ("Settings → Features", "Experimental Features", "RoomPlan Import", "Mapping → Layout can import an Apple RoomPlan scan."),
+    "vacuum_import_enabled": ("Settings → Features", "Experimental Features", "Robot Vacuum Import", "Mapping → Layout can import a robot vacuum's map as a floor plan."),
+    "phone_wizard_enabled": ("Settings → Features", "Experimental Features", "Phone Setup Wizard", "A guided phone setup in the IRK Manager."),
+    "iphone_irk_guide": ("Settings → Features", "Experimental Features", "iPhone Setup Path", "iPhones get the steps for their key (IRK). On for a new install."),
+    "mac_rotation_bridging": ("Settings → Features", "Experimental Features", "MAC Rotation Bridging", "Links a device's old and new address when its address changes."),
+    "apple_auto_classify": ("Settings → Features", "Experimental Features", "Apple Device Classification", "Says whether an Apple Find My signal is an AirTag, a Find My accessory or an Apple device. Display only."),
+    "rssi_capture_enabled": ("Settings → Features", "Experimental Features", "RSSI Vector Capture", "A Record button in Health for signal recordings to replay."),
+    "forensics_enabled": ("Settings → Features", "Forensics", "", "Pro: records when every Bluetooth device nearby comes and goes, to look back at later."),
+    "forensics_retention_days": ("Settings → Features", "Forensics", "Keep sessions for", "Days Forensics keeps what it recorded."),
+    # Settings → AI
+    "atlas_3d_ai_task_entity": ("Settings → AI", "Your AI", "AI Task", "The Home Assistant AI Task PadSpan asks to read a photo or a plan. Empty: none, and nothing is read."),
+    "atlas_3d_ai_task_backup_entity": ("Settings → AI", "Your AI", "Backup AI task", "Used when the main AI Task can't be reached."),
+    "ai_credit_month_usd": ("Settings → AI", "Your AI", "Your monthly credit, US$", "Your AI's monthly credit, for the use line. 0: none."),
+    "ai_credit_warn_pct": ("Settings → AI", "Your AI", "Warn me", "One notice a month once this share of the credit is used."),
+    "ai_plans_enabled": ("Settings → AI", "What it does for you", "AI map-building research (experimental)", "Shows the stair finder and the Plans tool."),
+    "ai_stairs_enabled": ("Settings → AI", "What it does for you", "Stairs from your floor plans", "Live Aboard's Furnish can have your AI read the stairs off the plans."),
+    "ai_photos_enabled": ("Settings → AI", "What it does for you", "Furniture from a photo", "Live Aboard's Furnish can fill in a piece from a photo."),
+    "ai_plan_build_enabled": ("Settings → AI", "What it does for you", "Build from plans: advanced plan alignment (Claude, experimental)", "Lines up plans and rooms with Claude Opus 5.5 or newer. Needs AI map-building research on."),
+    # Settings → Atlas
+    "lights_panel_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Show the Atlas in the Home Assistant sidebar", "The Atlas's own sidebar entry. Takes a Home Assistant restart."),
+    "atlas_emergency_button": ("Settings → Atlas", "Atlas — Mapped Light Control", "Show the Test emergency lighting button on the Atlas", "The Atlas's Test emergency lighting button."),
+    "atlas_live_colours": ("Settings → Atlas", "Atlas — Mapped Light Control", "Draw lit lights in their own colour on the Atlas", "Lit lights in the colour they report. Off: amber."),
+    "atlas_alert_pulse": ("Settings → Atlas", "Atlas — Mapped Light Control", "Alert pulse", "Rings an opening left open, or open in the rain, and names the worst alert."),
+    "atlas_heatmap_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Heatmap chip on the Atlas (temperature, humidity, CO₂)", "A Heatmap chip on the Atlas: rooms coloured by their own sensors."),
+    "power_teams": ("Settings → Atlas", "Power teams", "", "Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md))."),
+    "atlas_weather_enabled": ("Settings → Atlas", "Outdoor weather", "Show rain and snow on the Atlas", "Rain or snow around the house while it really rains or snows."),
+    "atlas_weather_rain_entity": ("Settings → Atlas", "Outdoor weather", "Rain sensor", "A rain sensor that says when it is wet. Empty: the weather entity decides."),
+    "atlas_weather_condition_entity": ("Settings → Atlas", "Outdoor weather", "Weather entity", "The weather entity, for rain or snow. Empty: the first one Home Assistant has."),
+    "atlas_weather_warning_entity": ("Settings → Atlas", "Outdoor weather", "Weather warnings", "A weather-warning sensor. Empty: found by itself."),
+    "atlas_weather_strength": ("Settings → Atlas", "Outdoor weather", "Strength", "How strongly the rain or snow is drawn."),
+    "atlas_3d_enabled": ("Settings → Atlas", "Live Aboard", "Show Live Aboard on the Atlas", "Pro: the 3D house. Off: no 3D, no Furnish, nothing written or read."),
+    "atlas_3d_quality": ("Settings → Atlas", "Live Aboard", "Quality", "How much the 3D house draws: picked for the screen, low or high."),
+    "atlas_3d_look": ("Settings → Atlas", "Live Aboard", "Look", "The same look as the Atlas, Live Aboard's own colours, or Studio."),
+    "atlas_3d_home_idle_s": ("Settings → Atlas", "Live Aboard", "Back to home view", "Seconds untouched before the sidebar's Live Aboard goes back to its home view. 0: never."),
+    "atlas_3d_people": ("Settings → Atlas", "Live Aboard", "Show people", "People in the 3D house."),
+    "atlas_3d_tags": ("Settings → Atlas", "Live Aboard", "Show tags & scanners", "Every placed tag and receiver in the 3D house."),
+    "atlas_3d_weather": ("Settings → Atlas", "Live Aboard", "Rain and snow", "Rain and snow in Live Aboard, while Outdoor weather is on too."),
+    "atlas_3d_director": ("Settings → Atlas", "Live Aboard", "Fly to when it goes off", "Doorbells, doors, sensors or alarms the view flies to when they go off."),
+    "atlas_3d_director_people": ("Settings → Atlas", "Live Aboard", "Fly to when they arrive", "People and tags the view flies to when they come into a room."),
+    "atlas_3d_library": ("Settings → Atlas", "Live Aboard", "Use the shared furniture library", "Swaps furniture with other PadSpan homes. Off unless an administrator turns it on."),
+    "wall_screen_in": ("Settings → Atlas", "Wall screens", "Screen size", "The wall screen's diagonal in inches. 0: sized from the screen's resolution."),
+    "wall_distance_m": ("Settings → Atlas", "Wall screens", "Viewing distance", "How far away people stand, in metres."),
+    "wall_text_arcmin": ("Settings → Atlas", "Wall screens", "Text size", "How big text looks from there (minutes of arc)."),
+    "wall_night_dim": ("Settings → Atlas", "Wall screens", "Dim at night", "How much darker after sunset (0 to 0.7)."),
+    "wall_pixel_shift": ("Settings → Atlas", "Wall screens", "Protect against burn-in", "Moves the picture a few pixels every few minutes (OLED screens)."),
+    "wall_floor_cycle_s": ("Settings → Atlas", "Wall screens", "Show each floor", "Seconds between floors while nobody touches the wall. 0: off."),
+    "wall_fully": ("Settings → Atlas", "Wall screens", "On Fully Kiosk tablets", "Dims by the tablet's own brightness, and its motion detection turns the screen on."),
+    "overview_atlas": ("Settings → Atlas", "Overview — the Atlas as your main map", "Show the Atlas as Overview", "Pro: the Overview shows the Atlas; the classic Overview is under Live Tracker."),
+    # Settings → UI Structure
+    "advanced_extra_tabs": ("Settings → UI Structure", "UI Structure", "", "Screens moved from More tools into the main list in Advanced and Development mode."),
+    "license_tier_override": ("Settings → UI Structure", "Edition & tier", "Look at this install as tier:", "Shows the panel as a lower tier would (`free`, `bright`); empty: as it is."),
+    "bright_reveal_presence": ("Settings → UI Structure", "Edition & tier", "Show the presence tabs too (Overview, Follow, Calibration, …)", "PadSpan Bright only: shows the presence screens."),
+    # Other screens
+    "data_mode": ("Overview", "Preview a finished house", "", "`live`: your own house. `sample`: the sample house (**Back to my house** returns). A new install switches to live as soon as a receiver is heard."),
+    "overview_show_walls": ("Overview", "Walls", "", "Draws the signal walls over the map."),
+    "overview_show_trails": ("Overview", "Trails", "", "A fading trail behind each device."),
+    "overview_persistent_pins": ("Overview", "Pins", "", "Keeps away devices at their last place on the map."),
+    "overview_show_outdoor": ("Overview", "Outdoor", "", "Draws sheds, driveways and other outdoor areas, fitted into the house's footprint."),
+    "heatmap_gain": ("Overview", "Heat", "Gain", "The Radio Map overlay's gain."),
+    "heatmap_contrast": ("Overview", "Heat", "Contrast", "The Radio Map overlay's contrast."),
+    "distortion_intensity": ("Overview", "Warp", "", "How strongly the signal distortion map is drawn."),
+    "heatmap_source": ("Overview", "Heat", "Source", "Which readings the Radio Map overlay draws from."),
+    "followed_addrs": ("Follow", "Follow", "", "The devices you follow. Following a device with no name gives it one."),
+    "locate_self_key": ("Locate", "Locate", "You", "Pro: which device is you, for directions."),
+    "excluded_scanners": ("Bluetooth", "Scanners", "Exclude", "Receivers left out of positioning. Nothing they recorded is deleted."),
+    "scanner_min_rssi": ("Bluetooth", "Scanners", "Min signal: off", "For each receiver, readings weaker than this are ignored."),
+    "beacon_auto_calibrate": ("Calibration", "Beacon Tune", "Auto-Cal", "Pinned beacons add calibration points by themselves."),
+    "door_opener_ids": ("Devices", "Door Openers", "", "Entities marked as door or window openers."),
+    "door_composites": ("Devices", "Door Openers", "", "What each opener built from relays made in Home Assistant, so Remove deletes exactly that."),
+    "traceback_house_focus": ("Traceback", "Full house activity", "", "The floor Full house activity opens on."),
+    "distance_stationary_devices": ("Traceback", "Mark as stationary reference (known-fixed device for accuracy monitoring)", "", "Devices that never move, used to watch accuracy."),
+    "occupancy_hybrid_enabled": ("Occupancy", "Hybrid counting", "", "Counts people from sensors as well as phones. Off: phones only."),
+    "occupancy_cluster_threshold": ("Occupancy", "Phone clustering", "", "How close phones must be to count as one person."),
+    "ha_entity_tracker_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "device_tracker.{label}", "A tracker for each named device."),
+    "ha_entity_area_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "sensor.{label}_area", "An area sensor for each named device."),
+    "ha_entity_distance_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "sensor.{label}_distance", "A distance sensor for each named device."),
+    "ha_entity_scanner_distance_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "sensor.{label}_distance_{scanner}", "A distance sensor for each named device and receiver."),
+    "ha_entity_occupancy_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "sensor.padspan_occupancy_occupancy", "The house's occupancy sensor. Takes a reload."),
+    "subzones_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "binary_sensor.padspan_{sub-zone}_occupied", "Sub-zones: the Sub-zones tool in Mapping → Edit, and two entities for each."),
+    "mqtt_publish_enabled": ("Manage → HA Entities", "MQTT Publishing", "Enable experimental MQTT publishing", "Publishes each named device to MQTT ([chapter 14](14-home-assistant-reference.md))."),
+    "espresense_mqtt_enabled": ("Manage → HA Entities", "ESPresense MQTT", "Enable ESPresense MQTT ingestion", "Reads ESPresense receivers over MQTT."),
+    "espresense_topic_prefix": ("Manage → HA Entities", "ESPresense MQTT", "Topic prefix:", "The MQTT topic ESPresense publishes under."),
+    "espresense_companion_url": ("Manage → HA Entities", "Import from ESPresense Companion", "Companion URL:", "ESPresense Companion's address, for importing from it."),
+    "tasmota_ble_enabled": ("Manage → HA Entities", "Tasmota BLE", "Read Tasmota BLE over MQTT", "Experimental: Tasmota devices as receivers, over MQTT."),
+    "beacon_profiling_enabled": ("Manage → Beacon Characteristics", "Beacon Signal Profiles", "Beacon profiles", "Shows or hides the beacon profiles report."),
+    "beacon_tune_disabled": ("Manage → Beacon Characteristics", "Beacon Signal Profiles", "", "Beacons left out of calibration tuning."),
+    "beacon_group_overrides": ("Manage → Beacon Characteristics", "Beacon Signal Profiles", "", "Beacons moved to another model group."),
+    "atlas_layout_v2": ("Mapping → Atlas builder", "Classic layout", "", "On: the Atlas's new layout (wall screens need it). Off: the classic layout."),
+    "lights_showcase": ("Mapping → Atlas builder", "Showcase", "", "Pro: the Atlas's presentation look."),
+    "lights_showcase_theme": ("Mapping → Atlas builder", "Showcase", "Theme", "Showcase's theme."),
+    "lights_fit_rooms": ("Mapping → Atlas builder", "Showcase", "Fit room", "Never draws a light bigger than its room."),
+    "lights_isolux": ("Mapping → Atlas builder", "Showcase", "Light spread", "Lines of equal light on the floor."),
+    "lights_hide_untouched": ("Mapping → Atlas builder", "Hide untouched", "", "Draws only lights that were set up (sized, turned, coloured or shaped)."),
+    "lights_hide_device_codes": ("Mapping → Atlas builder", "Hide device codes", "", "Hides each marker's A01-style code."),
+    "lights_show_beacons": ("Mapping → Atlas builder", "Show beacons", "", "Shows working, named beacons on the Atlas."),
+    "lights_automorph_enabled": ("Mapping → Atlas builder", "Automorph", "", "Pro: a glow from each light out into its room."),
+    "lights_automorph_room_pct": ("Mapping → Atlas builder", "Automorph", "", "How far each glow grows toward its room's shape."),
+    "lights_automorph_hardness": ("Mapping → Atlas builder", "Automorph", "Hardness", "Sharper (below 0) or smoother (above 0) glow edges."),
+    "lights_automorph_style": ("Mapping → Atlas builder", "Automorph", "Style", "The glow's style."),
+    "lights_automorph_subtlety": ("Mapping → Atlas builder", "Automorph", "Subtlety", "How faint the glow is."),
+    "lights_showcase_presets": ("Mapping → Atlas builder", "Presets", "", "Saved looks: theme, Automorph and display choices, by name."),
+    "whole_house_presets": ("Mapping → Atlas builder", "Whole house", "", "Saved states of every light and fan, by name."),
+    "vacation_mode_enabled": ("Mapping → Atlas builder", "Vacation Mode", "", "Switches lights as on an ordinary day, learned from Home Assistant's history."),
+    "vacation_mode_intensity": ("Mapping → Atlas builder", "Vacation Mode", "Intensity", "How much of the usual lighting it switches."),
+    "vacation_mode_source": ("Mapping → Atlas builder", "Vacation Mode", "", "Each day's routine: the same day last week, or that weekday's average over the last month."),
+    "vacation_mode_dark_only": ("Mapping → Atlas builder", "Vacation Mode", "Only after dark", "Lights only after sunset."),
+    "vacation_mode_dark_offset_min": ("Mapping → Atlas builder", "Vacation Mode", "Only after dark", "How long after sunset, in minutes."),
+    "vacation_mode_end_at": ("Mapping → Atlas builder", "Vacation Mode", "Ends", "When the trip ends and Vacation Mode turns itself off. 0: no end."),
+    "vacation_mode_pause_home": ("Mapping → Atlas builder", "Vacation Mode", "Pause while someone is home", "Switches nothing while anyone is home."),
+    "vacation_mode_bedtime": ("Mapping → Atlas builder", "Vacation Mode", "Bedtime", "Lights off from this time (HH:MM, 17:00 to 03:00)."),
+    "vacation_mode_max_on_min": ("Mapping → Atlas builder", "Vacation Mode", "Longest on", "Minutes a light it turned on stays on at most."),
+    "vacation_mode_max_lights": ("Mapping → Atlas builder", "Vacation Mode", "Most lights on at once", "Lights on at once, at most."),
+    "vacation_mode_anchors": ("Mapping → Atlas builder", "Vacation Mode", "Evening lights", "Up to 10 lights held on through the evenings they were really on."),
+    "light_shapes": ("Mapping → Atlas builder", "Atlas builder", "", "Each light's marker shape."),
+    "light_type_overrides": ("Mapping → Atlas builder", "Atlas builder", "", "Pro: a light forced to be drawn as WLED, a partition or plain."),
+    "lights_hidden": ("Mapping → Atlas builder", "Atlas builder", "", "Lights hidden from the Atlas."),
+    "overview_iso_floor_gap": ("Mapping → Atlas builder", "Save view", "", "Space between floors on the Overview and the Atlas."),
+    "overview_iso_horiz_gap": ("Mapping → Atlas builder", "Save view", "", "Sideways offset between floors."),
+    "overview_iso_focus": ("Mapping → Atlas builder", "Save view", "", "The one floor shown; empty: all floors."),
+    "overview_iso_zoom": ("Mapping → Atlas builder", "Save view", "", "The Atlas's zoom."),
+    "maps_iso_floor_gap": ("Mapping → 3D Stack", "3D Isometric Preview", "", "Space between floors in the preview."),
+    "maps_iso_horiz_gap": ("Mapping → 3D Stack", "3D Isometric Preview", "", "Sideways offset between floors in the preview."),
+    "maps_iso_focus": ("Mapping → 3D Stack", "3D Isometric Preview", "All floors", "The one floor shown; empty: all floors."),
+    "hidden_map_ids": ("Mapping → 3D Stack", "Floor Assignment & Ceiling Heights", "", "Floor plans hidden from the 3D stack."),
+    "atlas_3d_carries": ("Live Aboard → Furnish", "People & devices", "", "Who carries which phone or tag. Kept in this home only."),
+    # Not in the panel: changed by a service or command, or kept by PadSpan itself.
+    "room_tag_map": (None, "service", "", "The objects that belong in each room: set by `padspan_ha.set_room_tag_map`."),
+    "excluded_objects": (None, "command", "", "Devices dropped as they arrive, by their lasting key (never a MAC): no cost, no history."),
+    "ingest_rules": (None, "command", "", "Rules that drop or keep devices as they arrive, by key, UUID, maker or address."),
+    "espresense_room_map": (None, "command", "", "ESPresense room names matched to Home Assistant areas."),
+    "atlas_3d_showcase": (None, "command", "", "An older Live Aboard look switch, kept so old backups load; Look decides now."),
+    "emergency_entities": (None, "command", "", "The lights the Atlas's emergency lighting test switches. Empty: Home Assistant's emergency groups, or PadSpan's own rule."),
+    "auto_offset_mode": (None, "command", "", "Accepted but nothing reads it: only the manual receiver trims are applied."),
+    "signal_loss_linger_s": (None, "command", "", "Retired in 0.20.16: accepted, read by nothing."),
+    "rssi_capture_retention_days": (None, "command", "", "Days RSSI recordings are kept (RSSI Vector Capture)."),
+    "onboarding_completed": (None, "kept", "", "The first-run setup was finished."),
+    "setup_progress": (None, "kept", "", "Where Setup has got to."),
+    "accuracy_tips_hidden": (None, "kept", "", "The Improve accuracy tips you closed."),
+    "health_reminder_last_ts": (None, "kept", "", "When the calibration reminder last showed."),
+    "ai_map_wizard": (None, "kept", "", "Let Claude draw your rooms: whether it was started, put off or finished."),
+    "onboarding": (None, "kept", "", "A new install's first steps and how long they took."),
+    "telemetry_asked": (None, "kept", "", "The panel has asked about the usage report once."),
+    "telemetry_heard_ask": (None, "kept", "", "Whether the where-did-you-hear question is due, or done."),
+    "telemetry_install_id": (None, "kept", "", "The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it)."),
+    "telemetry_last_day": (None, "kept", "", "The day the last usage report was sent."),
+    "report_locked_key": (None, "kept", "", "Which free licence keeps the usage report on."),
+    "whatsnew_seen_version": (None, "kept", "", "The last version whose update card someone saw."),
+    "first_seen_ts": (None, "kept", "", "When PadSpan first ran here."),
+    "calibration_points_seen": (None, "kept", "", "Calibration points at the last report."),
+    "maps_seen": (None, "kept", "", "Floor plans at the last report."),
+    "trial_nudge_done": (None, "kept", "", "The trial card was answered."),
+    "tester_nudge_done": (None, "kept", "", "The tester card was shown."),
+    "launch_card_done": (None, "kept", "", "The launch-price card was shown."),
+    "tester_signup": (None, "kept", "", "Your tester sign-up, so you can update or withdraw it."),
+    "pro_invite": (None, "kept", "", "An invite to free Pro, and your answer."),
+    "server_offers": (None, "kept", "", "Which free-Pro offers the update check last said are on."),
+    "flood_latches": (None, "kept", "", "Leak alarms the Atlas keeps showing until cleared."),
+    "lights_showcase_seen": (None, "kept", "", "Showcase has been on here."),
+    "wled_teams": (None, "kept", "", "WLED devices that act as one light."),
+    "room_speed_v1_applied": (None, "kept", "", "The November 2026 room-speed defaults were applied once."),
+    "atlas_default_v1_applied": (None, "kept", "", "The Atlas's sidebar entry was switched on once, by default."),
+    "server_checked_at": (None, "kept", "", "When the update check and licence check last ran."),
+    "forensics_license_expires": (None, "kept", "", "When the licence ends, as the licence server last said."),
+    "license_is_trial": (None, "kept", "", "The key is a trial key."),
+    "license_home_token": (None, "kept", "", "This home's token from the licence server."),
+    "license_home_status": (None, "kept", "", "The licence server's last word on this home, when it refused it."),
+    "license_homes_used": (None, "kept", "", "How many homes the key is on."),
+    "license_homes_warning": (None, "kept", "", "A warning about a home whose usage report is off."),
+    "license_install_id": (None, "kept", "", "This install's own id, where Home Assistant's can't be read."),
+    "vacation_mode_pattern": (None, "kept", "", "Vacation Mode's learned routine."),
+    "vacation_mode_pattern_built_at": (None, "kept", "", "When the routine was learned."),
+    "vacation_mode_pattern_until": (None, "kept", "", "Where the history it learned from ends."),
+    "vacation_mode_enabled_at": (None, "kept", "", "When this vacation started."),
+    "vacation_mode_periods": (None, "kept", "", "Earlier vacations, left out of what it learns."),
+    "vacation_mode_tracked_since": (None, "kept", "", "Since when every vacation is recorded."),
+    "vacation_mode_pattern_prev": (None, "kept", "", "The last routine learned before this vacation."),
+    "vacation_mode_pattern_attempt": (None, "kept", "", "The last try at learning that found nothing."),
+    "vacation_mode_pattern_for": (None, "kept", "", "Which vacation a carried-over routine serves."),
+    "vacation_mode_last_off": (None, "kept", "", "Who turned Vacation Mode off last, and how."),
+    "vacation_mode_trip_source": (None, "kept", "", "The routine source this trip started with."),
+    "vacation_mode_pattern_source": (None, "kept", "", "The source the routine was learned from."),
+    "vacation_mode_pattern_prev_source": (None, "kept", "", "The source the last routine was learned from."),
+    "vacation_mode_pattern_end": (None, "kept", "", "Where a resumed trip's routine is learned again from."),
+}
+del T
+
+_NOT_IN_PANEL = {"service": "Changed by a service", "command": "Not shown in the panel",
+                 "kept": "Kept by PadSpan itself"}
+
+
+def _check_settings() -> None:
+    keys = setting_keys()
+    missing = [k for k in keys if k not in SETTINGS_ENTRIES]
+    gone = [k for k in SETTINGS_ENTRIES if k not in keys]
+    if missing or gone:
+        raise ReferenceError_(f"Settings in the code with no entry in SETTINGS_ENTRIES ({SCRIPT}): {missing}; "
+                              f"entries for settings the code no longer has: {gone}")
+    bad = []
+    for key, (where, card, control, _what) in SETTINGS_ENTRIES.items():
+        if where is None:
+            if card not in _NOT_IN_PANEL:
+                bad.append(f"{key}: {card!r} is not one of {sorted(_NOT_IN_PANEL)}")
+            continue
+        place = where.split(" → ")[0]
+        for words in (card, control):
+            if words and not label_on_screen(place, words):
+                bad.append(f"{key}: {words!r} is not on the {place} screen")
+    if bad:
+        raise ReferenceError_("These settings name words the panel does not show:\n  " + "\n  ".join(bad))
+
+
+def _setting_row(key: str, ranges: dict[str, str], with_where: bool) -> str:
+    where, card, control, what = SETTINGS_ENTRIES[key]
+    first = card if not control or control.lower() == card.lower() else f"{card}: {control}"
+    cells = ([where] if with_where else []) + [first, _default_words(key), ranges.get(key, ""), what, f"`{key}`"]
+    return "| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |"
 
 
 def _settings_blocks() -> dict[str, str]:
-    return {}
+    _check_settings()
+    ranges = setting_ranges()
+    order = list(SETTINGS_ENTRIES)
+    settings_lines: list[str] = []
+    elsewhere: list[str] = []
+    hidden: list[str] = []
+    head = "| Card: control | Default | Range or choices | What it does | Key |"
+    rule = "|---|---|---|---|---|"
+    groups: dict[str, list[str]] = {}
+    for key in order:
+        where = SETTINGS_ENTRIES[key][0]
+        if where and where.startswith("Settings"):
+            groups.setdefault(where, []).append(key)
+    for where, keys in groups.items():
+        settings_lines += [f"### {where}", "", head, rule] + [_setting_row(k, ranges, False) for k in keys] + [""]
+    other = [k for k in order if SETTINGS_ENTRIES[k][0] and not SETTINGS_ENTRIES[k][0].startswith("Settings")]
+    elsewhere += ["| Where | Card: control | Default | Range or choices | What it does | Key |", "|---|---|---|---|---|---|"]
+    elsewhere += [_setting_row(k, ranges, True) for k in other]
+    for kind, title in _NOT_IN_PANEL.items():
+        keys = [k for k in order if SETTINGS_ENTRIES[k][0] is None and SETTINGS_ENTRIES[k][1] == kind]
+        if keys:
+            hidden += [f"### {title}", "", "| Key | Default | Range or choices | What it is |", "|---|---|---|---|"]
+            hidden += [f"| `{k}` | {_default_words(k)} | {ranges.get(k, '')} | {SETTINGS_ENTRIES[k][3]} |" for k in keys]
+            hidden.append("")
+    return {"settings": "\n".join(settings_lines).rstrip() + "\n",
+            "elsewhere": "\n".join(elsewhere).rstrip() + "\n",
+            "not-in-panel": "\n".join(hidden).rstrip() + "\n"}
 
 
 def main(argv: list[str]) -> int:
