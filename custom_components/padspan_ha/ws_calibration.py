@@ -505,6 +505,9 @@ async def ws_calibration_compute_model(hass: HomeAssistant, connection, msg) -> 
     maps_store = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     maps_data = maps_store.list_maps() if maps_store else None
     try:
+        # Asked for: with the Random Forest setting, its accuracy is reported
+        # once the training under way has the latest points.
+        await cal.async_rf_settled()
         model = cal.compute_model(maps_data=maps_data)
         await cal.store.async_save(cal.data)
         connection.send_result(msg["id"], {"ok": True, "model": model})
@@ -585,8 +588,9 @@ async def ws_calibration_swap_radio(hass: HomeAssistant, connection, msg) -> Non
             sec[new_source] = sec.pop(old_source)
 
     await cal.store.async_save(cal.data)
-    # The forest's scanner columns are fixed at training time.
-    await cal._async_train_rf()
+    # The forest's scanner columns are fixed at training time: out of date
+    # now, and trained again in the background if the setting uses it.
+    cal.rf_points_changed()
     connection.send_result(msg["id"], {
         "ok": True,
         "old_source": old_source,
@@ -666,6 +670,9 @@ async def ws_calibration_relearn_radio(hass: HomeAssistant, connection, msg) -> 
 
     # Persist shifted data
     await cal.store.async_save(cal.data)
+    # The forest learnt the old readings (trained again in the background if
+    # the setting uses it); marked before the model below reports accuracy.
+    cal.rf_points_changed()
 
     # Rebuild the model with the adjusted readings
     try:
@@ -675,7 +682,6 @@ async def ws_calibration_relearn_radio(hass: HomeAssistant, connection, msg) -> 
             maps_data = ms.data if hasattr(ms, "data") else ms
         cal.compute_model(maps_data=maps_data)
         await cal.store.async_save(cal.data)
-        await cal._async_train_rf()
     except Exception as e:
         _LOGGER.warning("PadSpan HA relearn model recompute failed: %s", e)
 
