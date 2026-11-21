@@ -322,6 +322,18 @@ await tryCase("pressed", async () => {
   c.close();
   check("pressed", focused() === tile && tile.getAttribute("tabindex") === "-1" && /outline:none/.test(tile.style.cssText),
     { at: focused().localName + "." + focused().className, tab: tile.getAttribute("tabindex") });
+  // A row that makes itself clickable inside a clickable card: the row.
+  const room = mk("div", { class: "card" });
+  room.style.cursor = "pointer";
+  const row = mk("div", { "data-obj": "tv" });
+  row.style.cursor = "pointer";
+  const name = mk("span", {}, "TV (-62 dBm)");
+  row.appendChild(name); room.appendChild(row); document.body.appendChild(room);
+  active = document.body;
+  press(name);
+  const cz = card({ modal: true });
+  cz.close();
+  check("pressed", focused() === row, { at: focused().localName + " " + (focused().getAttribute && focused().getAttribute("data-obj")) });
   // A press inside the card is not what opened the next one.
   tile.removeAttribute("tabindex");
   active = document.body;

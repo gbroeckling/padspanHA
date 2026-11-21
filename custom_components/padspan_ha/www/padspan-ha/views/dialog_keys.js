@@ -84,6 +84,8 @@ function pressedControl(box){
   for (let p = n; p; p = up(p)) if (p.tabIndex >= 0 && !p.disabled) return p;
   const cursor = (x) => { try { return globalThis.getComputedStyle(x).cursor; } catch (_) { return ""; } };
   if (cursor(n) !== "pointer") return null;
+  // The innermost that makes itself clickable (a row in a clickable card), else where cursor: pointer starts.
+  for (let p = n; p && cursor(p) === "pointer"; p = up(p)) if (p.style && p.style.cursor === "pointer") return p;
   while (up(n) && cursor(up(n)) === "pointer") n = up(n);
   return n;
 }
