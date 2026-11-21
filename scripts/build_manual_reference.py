@@ -382,16 +382,21 @@ ENTITIES: list[dict] = [
         "module": "light.py", "cls": "PadSpanTeamLight", "platform": "light",
         "entity_id": "light.<power team>",
         "state": "`on` or `off`: the team's power. Turning it on switches the power on, then sends the bulbs "
-                 "their colour once they answer. Colour temperature 2000 to 6500 K, or a colour.",
+                 "their colour once they answer. Colour temperature 2000 to 6500 K, or a colour, and a fade "
+                 "(`transition`) of any length.",
         "exists": "For each power team (a wall dimmer or switch and the smart bulbs it feeds). Effects `Adaptive` "
                   "(follows the day) and `Sleep`, for a team set to follow the day.",
         "attributes": {
             "padspan_power_team": "Always `true`: this light is a PadSpan power team.",
+            "team_id": "PadSpan's id for the team.",
             "power": "The switch or dimmer that powers the bulbs, or empty for a team of bulbs only.",
             "bulbs": "The bulbs in the team.",
             "phase": "`off`, `starting` (the bulbs are waking), `ready` or `failed` (some never answered).",
             "missing": "The bulbs that did not answer.",
             "follows_the_day": "`true` while its effect is `Adaptive`.",
+            "turns_off": "`power` (off cuts the power) or `bulbs` (off turns the bulbs off and leaves the power on).",
+            "waking": "`true` while the light is the team's wake-up: its slow fade, then its brightness and colour.",
+            "fading": "`true` while a wake-up's slow fade is still running.",
         },
     },
 ]
@@ -1213,6 +1218,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "flood_latches": (None, "kept", "", "Leak alarms the Atlas keeps showing until cleared."),
     "lights_showcase_seen": (None, "kept", "", "Showcase has been on here."),
     "wled_teams": (None, "kept", "", "WLED devices that act as one light."),
+    "power_teams_woke": (None, "kept", "", "Each power team's last wake-up day, so a restart never wakes it twice."),
     "room_speed_v1_applied": (None, "kept", "", "The November 2026 room-speed defaults were applied once."),
     "atlas_default_v1_applied": (None, "kept", "", "The Atlas's sidebar entry was switched on once, by default."),
     "server_checked_at": (None, "kept", "", "When the update check and licence check last ran."),

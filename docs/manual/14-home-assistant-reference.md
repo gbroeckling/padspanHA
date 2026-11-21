@@ -224,17 +224,21 @@ read them.
 |---|---|
 | Platform | `light` |
 | Unique id | `padspan_power_team_<team id>` |
-| State | `on` or `off`: the team's power. Turning it on switches the power on, then sends the bulbs their colour once they answer. Colour temperature 2000 to 6500 K, or a colour. |
+| State | `on` or `off`: the team's power. Turning it on switches the power on, then sends the bulbs their colour once they answer. Colour temperature 2000 to 6500 K, or a colour, and a fade (`transition`) of any length. |
 | There | For each power team (a wall dimmer or switch and the smart bulbs it feeds). Effects `Adaptive` (follows the day) and `Sleep`, for a team set to follow the day. |
 
 | Attribute | What it is | In HA's history |
 |---|---|---|
 | `padspan_power_team` | Always `true`: this light is a PadSpan power team. | yes |
+| `team_id` | PadSpan's id for the team. | yes |
 | `power` | The switch or dimmer that powers the bulbs, or empty for a team of bulbs only. | yes |
 | `bulbs` | The bulbs in the team. | yes |
 | `phase` | `off`, `starting` (the bulbs are waking), `ready` or `failed` (some never answered). | yes |
 | `missing` | The bulbs that did not answer. | yes |
 | `follows_the_day` | `true` while its effect is `Adaptive`. | yes |
+| `turns_off` | `power` (off cuts the power) or `bulbs` (off turns the bulbs off and leaves the power on). | yes |
+| `waking` | `true` while the light is the team's wake-up: its slow fade, then its brightness and colour. | yes |
+| `fading` | `true` while a wake-up's slow fade is still running. | yes |
 <!-- /generated:entities -->
 
 ## Services
