@@ -193,3 +193,23 @@ def test_health_shows_each_problem_plainly_with_its_go_there(shown) -> None:
     bad = {k: v for k, v in shown.items() if not v["ok"]}
     assert not bad, json.dumps(bad, indent=2, ensure_ascii=False)[:3000]
     assert len(shown) >= 24
+
+
+# ── "No rooms yet": one next step on the Overview ────────────────────────────
+
+def test_the_overview_names_one_place_to_draw_rooms() -> None:
+    """It named three places for the same fix (Mapping → Layout in the 3D
+    house, Mapping → Edit under the room list, Mapping → Layout again in the
+    "not built yet" banner) and Basic a fourth. Now every one says Setup's
+    Draw the rooms step, the step Setup and Getting started name, and where
+    this build has Setup, a button opens that step."""
+    src = (ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "overview.js").read_text(encoding="utf-8")
+    assert 'const NO_ROOMS_NEXT = "Draw them in Setup\'s Draw the rooms step.";' in src
+    # Its three places: the 3D house's empty text, the room list, the "not built yet" banner.
+    assert src.count("No rooms yet. ${NO_ROOMS_NEXT}") == 1 and src.count(" + NO_ROOMS_NEXT + ") == 2
+    for gone in ("Go to Mapping → Edit to draw room boundaries", "Go to Mapping \\u2192 Layout and place scanners",
+                 '"Setup\'s Draw the rooms step" : "Mapping → Layout"'):
+        assert gone not in src, gone
+    btn = src[src.index("function _drawRoomsBtn(ctx) {"):][:400]
+    assert 'ctx.actions.openSetupStep("rooms")' in btn and '_ovSurfaces(["setup"], ctx.state.settings)' in btn
+    assert src.count("_drawRoomsBtn(ctx)") == 3, "the room list and the banner have the button (and its definition)"
