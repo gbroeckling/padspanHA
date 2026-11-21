@@ -21,6 +21,9 @@ const { deviceName, deviceWhat, listWhat, addressBadge, serviceWords, SERVICE_HO
 const { iphoneGuideOn, isApplePhone, renderIphonePath, renderCaptureSteps } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {}, renderCaptureSteps: () => {} }));
+// The panel's words in its language (views/i18n.js; English is the key). So far
+// the phone wizard ("Track your phone"), one of the first-run screens.
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // ── The shared display vocabulary ───────────────────────────────────────────
 // Four things this view says over and over — a chip, a signal reading, an age,
@@ -2694,9 +2697,9 @@ function renderIrkPanel(ctx, snap) {
   if (_wizSettings.phone_wizard_enabled || _iphoneOn) {
     const wizCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
     wizCard.appendChild(el("div", { class: "bt-panel-head" }, [
-      el("div", { class: "bt-panel-title" }, "Track your phone"),
-      el("div", { class: "bt-panel-sub" }, "Three ways in, depending on what you have."),
-      el("span", { class: "bt-chip ok" }, "wizard"),
+      el("div", { class: "bt-panel-title" }, t("Track your phone")),
+      el("div", { class: "bt-panel-sub" }, t("Three ways in, depending on what you have.")),
+      el("span", { class: "bt-chip ok" }, t("wizard")),
     ]));
 
     // One shape for the three paths, so they read as alternatives rather than
@@ -2711,27 +2714,27 @@ function renderIrkPanel(ctx, snap) {
     // Watch, save, remove the pairing, a new identity before the next device
     // (iphone_irk.js renderCaptureSteps). Saved through _addIrk, so the same
     // live check as Add & validate.
-    const pathA = _path("I have an IRK Capture ESP32", "info");
+    const pathA = _path(t("I have an IRK Capture ESP32"), "info");
     renderCaptureSteps(ctx, pathA, (name, irk, msgEl, after, via) => _addIrk(ctx, name, irk, msgEl, after, false, via));
     wizCard.appendChild(pathA);
 
     // Path B — Android
-    const pathB = _path("I have an Android phone", "good");
+    const pathB = _path(t("I have an Android phone"), "good");
     pathB.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55" },
-      "The easiest way to track an Android phone: Install the HA Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. " +
-      "Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed. " +
-      "In the same place, set Transmit power to High and Advertise mode to Low latency: out of the box it sends too weakly to be heard well."));
+      t("The easiest way to track an Android phone: Install the HA Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable.") + " " +
+      t("Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed.") + " " +
+      t("In the same place, set Transmit power to High and Advertise mode to Low latency: out of the box it sends too weakly to be heard well.")));
     wizCard.appendChild(pathB);
 
     // Path C — iPhone. With the iPhone setup path on: the IRK steps and a
     // check, and never the Android-only BLE Transmitter.
-    const pathC = _path("I have an iPhone", "ok");
+    const pathC = _path(t("I have an iPhone"), "ok");
     if (_iphoneOn) {
       renderIphonePath(ctx, pathC, mobileApps.filter(n => isApplePhone({ name: n })));
     } else {
       pathC.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55;margin-bottom:6px" },
-        "For iPhone tracking you need the IRK (Identity Resolving Key). The easiest method is the IRK Capture ESP32 tool. " +
-        "Alternative: if you have a Mac, extract the IRK from Keychain Access."));
+        t("For iPhone tracking you need the IRK (Identity Resolving Key). The easiest method is the IRK Capture ESP32 tool.") + " " +
+        t("Alternative: if you have a Mac, extract the IRK from Keychain Access.")));
       const irkLink = el("a", {
         href: "https://github.com/DerekSeaman/irk-capture",
         target: "_blank",

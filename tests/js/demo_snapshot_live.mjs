@@ -32,6 +32,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { panelT } from "./panel_t.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: demo_snapshot_live.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -117,7 +118,9 @@ const BADGE_HTML = initialText("dataModeToggle");
 const PILL_HTML = initialText("mobileDataPill");
 
 // eslint-disable-next-line no-new-func
-const Panel = new Function("SAMPLE_SNAPSHOT", "BADGE_HTML", "localStorage", `${SAMPLE_KIND_SRC}
+// t(): panel.js's own, the English (2026-11-21, panel translations).
+const { t } = panelT(src);
+const Panel = new Function("SAMPLE_SNAPSHOT", "BADGE_HTML", "localStorage", "t", `${SAMPLE_KIND_SRC}
 return class Panel {
   constructor(hass){
     localStorage.clear(); _dataModeMem = null;
@@ -153,7 +156,7 @@ return class Panel {
   _ensureSampleHouse(){ return Promise.resolve(null); }
   _telemetryEvent(){}
 ${bodies.join("\n\n")}
-}`)(SAMPLE_SNAPSHOT, BADGE_HTML, STORAGE);
+}`)(SAMPLE_SNAPSHOT, BADGE_HTML, STORAGE, t);
 
 // A live snapshot as snapshot_builder.py builds it (source:"live").
 const REAL = { source: "live", ble: { radios: [

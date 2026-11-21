@@ -12,10 +12,13 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
+import { panelT } from "./panel_t.mjs";
 
 const PANEL_PATH = process.argv[2];
 const VIEWS_DIR = process.argv[3];
 const SRC = readFileSync(PANEL_PATH, "utf8").replace(/\r\n/g, "\n");
+// t(): panel.js's own, the English (2026-11-21, panel translations).
+const { t } = panelT(SRC);
 const STATUS = await import(pathToFileURL(join(VIEWS_DIR, "setup_status.js")).href);
 // Setup's own list (views/setup.js deriveSetup), and the Setup Wizard's chips (views/maps.js), for "next" and the count.
 const { install, flush } = await import(pathToFileURL(join(VIEWS_DIR, "..", "..", "..", "..", "..", "tests", "js", "dom_shim.mjs")).href);
@@ -39,7 +42,8 @@ const b = SRC.indexOf("      // Setup is the map-building steps.");
 check("panel.js's card reads SETUP_STATUS", a > 0 && b > a);
 if (a > 0 && b > a) {
   const body = SRC.slice(a, b).replace(/this\.state/g, "state");
-  const card = new Function("state", "SETUP_STATUS", "SAMPLE_SNAPSHOT", body + "\nreturn { _steps, _setupRows, _completedCount, _nextStep };");
+  const card0 = new Function("state", "SETUP_STATUS", "SAMPLE_SNAPSHOT", "t", body + "\nreturn { _steps, _setupRows, _completedCount, _nextStep };");
+  const card = (st, ss, snap) => card0(st, ss, snap, t);
   const rows = (...a) => card(...a)._steps;
   const F1 = [{ id: "main", name: "Main" }];
   const F3 = [{ id: "g", name: "Ground" }, { id: "u", name: "Upstairs" }, { id: "a", name: "Attic" }];
@@ -94,8 +98,8 @@ if (a > 0 && b > a) {
   const run = (st, allDone, onboarded) => {
     const frag = document.createElement("div"), self = { state: st, _renderNav() {}, _scheduleRender() {} };
     // asButton: what the line's two clickable spans are given (role, tabindex, Enter and Space); this el writes attributes only.
-    new Function("el", "frag", "_setupKnown", "_ss", "_allDone", "_onboardingDone", "_completedCount", "_setupRows", "VIEWS", "_loadView", "asButton",
-      SRC.slice(i0, i1)).call(self, el, frag, true, STATUS, allDone, onboarded, 2, [1, 2, 3, 4, 5], { setup: {} }, async () => null, { role: "button", tabindex: "0" });
+    new Function("el", "frag", "_setupKnown", "_ss", "_allDone", "_onboardingDone", "_completedCount", "_setupRows", "VIEWS", "_loadView", "asButton", "t",
+      SRC.slice(i0, i1)).call(self, el, frag, true, STATUS, allDone, onboarded, 2, [1, 2, 3, 4, 5], { setup: {} }, async () => null, { role: "button", tabindex: "0" }, t);
     return frag.children[0] || null;
   };
   try { localStorage.removeItem("padspan_setup_line"); } catch (e) {}

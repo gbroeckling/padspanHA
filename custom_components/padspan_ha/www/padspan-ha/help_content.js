@@ -26,11 +26,12 @@ const { t, currentLanguage } =
   await import(`./views/i18n.js${new URL(import.meta.url).search}`)
     .catch(() => ({ t: (s) => s, currentLanguage: () => "en" }));
 
-/** The short note a translated help page opens with: the rest of the panel
- *  is still English, so its labels are quoted in English. "" in English. */
+/** The short note a translated help page opens with: much of the panel is
+ *  still English, so most labels are quoted in English (the first-run
+ *  screens' are quoted as the panel shows them). "" in English. */
 export function helpNote() {
   return currentLanguage() === "en" ? ""
-    : t("This help is translated, but the rest of the panel is still in English, so the names of its tabs, buttons and settings appear here in English, in quotes.");
+    : t("This help is translated, but much of the panel is still in English, so most names of its tabs, buttons and settings appear here in English, in quotes.");
 }
 
 /** Training's own note under it: not all of Training is translated yet. */
