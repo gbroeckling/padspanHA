@@ -663,7 +663,7 @@ const { keepSubscribed } =
 // if it fails to load, the help simply stays English.
 const _i18nPromise = import(`./views/i18n.js?b=${BUILD_ID}`)
   .catch(err => { console.warn("PadSpan: i18n module failed to load", err); return null; });
-// The panel's own words, t("English") / tn(n, one, other) as in the views:
+// The panel's own words through t() and tn(), as in the views:
 // views/i18n.js once it is in (i18n/<lang>/panel.json, _loadPanelLanguage),
 // and until then, or if it never loads, the English with {placeholders} filled.
 let _I18N = null;

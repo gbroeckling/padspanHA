@@ -85,6 +85,9 @@ const PM = await import(`./plan_measure.js${new URL(import.meta.url).search}`);
 const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
+// The panel's words in its language (views/i18n.js; English is the key). So far
+// the Setup Wizard's own frame: its steps, their words, Back / Skip / Next, Finish.
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -1604,7 +1607,7 @@ const WIZARD_STEPS = [
   { n: 2, id: "scale",    setup: "scale" },
   { n: 3, id: "rooms",    setup: "rooms" },
   { n: 4, id: "scanners", setup: "receivers" },
-  { n: 5, id: "finish",   label: "Finish" },
+  { n: 5, id: "finish",   get label() { return t("Finish"); } },
   // Owner's D5 (2026-11-13): floor heights after the rooms, for a house of two indoor floors or more only. Its `n` is
   // new (6) so every saved step and counter keeps its meaning; where it goes is _wizardOrder's.
   { n: 6, id: "floors",   setup: "floors" },
@@ -1683,20 +1686,20 @@ function _wizardFooter(ctx, w, opts){
   const bar = el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap"});
   const left = el("div",{});
   if (w.step > 1) {
-    const b = el("button",{class:"btn inline"}, "← Back");
+    const b = el("button",{class:"btn inline"}, t("← Back"));
     b.addEventListener("click", ()=>_wizardMove(ctx, w, -1));
     left.appendChild(b);
   }
   bar.appendChild(left);
   const right = el("div",{style:"display:flex;gap:8px"});
   if (opts.skip) {
-    const sk = el("button",{class:"btn inline", style:"color:#94a3b8"}, opts.skipLabel || "Skip for now");
+    const sk = el("button",{class:"btn inline", style:"color:#94a3b8"}, opts.skipLabel || t("Skip for now"));
     sk.addEventListener("click", ()=>_wizardMove(ctx, w, 1));
     right.appendChild(sk);
   }
   // opts.next === false: no Next yet, the step's own Save is the main action (Skip still moves on).
   if (opts.next !== false) {
-    const nx = el("button",{class:"btn primary"}, opts.nextLabel || "Next →");
+    const nx = el("button",{class:"btn primary"}, opts.nextLabel || t("Next →"));
     nx.addEventListener("click", ()=>{
       if (opts.onNext) opts.onNext();
       else _wizardMove(ctx, w, 1);
@@ -1720,7 +1723,7 @@ function _wizardUpload(ctx, isBasic){
   const { el, helpBtn } = ctx.helpers;
   const wrap = el("div",{});
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    "First: a photo or scan of this floor, or one of the other ways to a plan below if you have none. It doesn't need to be perfect — you'll set the real-world scale and trace rooms next."));
+    t("First: a photo or scan of this floor, or one of the other ways to a plan below if you have none. It doesn't need to be perfect — you'll set the real-world scale and trace rooms next.")));
   wrap.appendChild(_upload(ctx, helpBtn, isBasic));
   return wrap;
 }
@@ -1733,13 +1736,13 @@ function _wizardScale(ctx, map, maps, w){
   // This plan's first scale: the one-length screen (D1). One with a scale: Edit → Measure, to measure it again.
   const first = _firstScale(ctx, map);
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, first
-    ? "Measure one distance you know, a doorway or a wall, so the map is to scale. Rooms, receivers and the AI tools that read your plans need it."
+    ? t("Measure one distance you know, a doorway or a wall, so the map is to scale. Rooms, receivers and the AI tools that read your plans need it.")
     // Review 2026-11-11: say what is true (an Outside plan or Sample mode gets no one-length screen, scale or not).
     : _planHasScale(ctx.state, map && map.id)
-      ? "This plan has a scale. To measure it again, mark two lengths at different angles below; the two together check that the plan picture isn't stretched."
-      : "This plan has no scale yet. To set it, mark two lengths at different angles below; the two together check that the plan picture isn't stretched."));
+      ? t("This plan has a scale. To measure it again, mark two lengths at different angles below; the two together check that the plan picture isn't stretched.")
+      : t("This plan has no scale yet. To set it, mark two lengths at different angles below; the two together check that the plan picture isn't stretched.")));
   if (done && !first) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
-    "✓ Scale is set for this house."));
+    "✓ " + t("Scale is set for this house.")));
   if (AIW && AIW.stepSeen && !done) AIW.stepSeen(ctx, "scale");          // the rooms helper's pull trigger: met again, unfinished
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
   if (aiw) wrap.appendChild(aiw);
@@ -1747,7 +1750,7 @@ function _wizardScale(ctx, map, maps, w){
     ? NUDGE.render(ctx, map, { door: w.door || (ctx.state._setupReturn ? "setup" : "wizard"), later: false, onSaved: () => _goStep(ctx, map.id, "rooms", w, false) })
     : _edit(ctx, map, maps, _wizardTools(ctx, "measure")));
   // Before any scale, saving it is the step's main action, and Save goes on to the rooms (review 2026-11-11, C10): no Next.
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later", nextLabel: "Next: draw the rooms →", next: done }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: t("Skip — set this later"), nextLabel: t("Next: draw the rooms →"), next: done }));
   return wrap;
 }
 
@@ -1759,18 +1762,17 @@ function _wizardRooms(ctx, map, maps, w){
   const undrawn = _wizUndrawnAreas(ctx.state);
   const drawnCount = areaNames.length - undrawn.length;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    "Trace the outline of each room from your Home Assistant areas onto the floor plan. Press a room's name below, click each corner of it on the plan, " +
-    "and double-click the last corner to close it. Each room is saved as you finish it."));
+    t("Trace the outline of each room from your Home Assistant areas onto the floor plan. Press a room's name below, click each corner of it on the plan, and double-click the last corner to close it. Each room is saved as you finish it.")));
   // Just come from the scale (or a plan with a scale and no rooms yet): say so, and what this step is.
   if (map && _planHasScale(ctx.state, map.id) && !Object.keys(map.room_bounds || {}).length)
-    wrap.appendChild(el("div",{"data-next-line":"scale-set", style:_NEXT_BOX}, "✓ This plan's scale is set. This step: draw its rooms."));
+    wrap.appendChild(el("div",{"data-next-line":"scale-set", style:_NEXT_BOX}, "✓ " + t("This plan's scale is set. This step: draw its rooms.")));
   if (AIW && AIW.stepSeen && !drawnCount) AIW.stepSeen(ctx, "rooms");     // the rooms helper's pull trigger: met again, unfinished
   const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
   if (aiw) wrap.appendChild(aiw);
   if (areaNames.length) {
     const check = el("div",{style:"margin-bottom:10px;padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px"});
     check.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788;margin-bottom:6px"},
-      `${drawnCount} of ${areaNames.length} room${areaNames.length===1?"":"s"} drawn`));
+      tn(areaNames.length, "{drawn} of {n} room drawn", "{drawn} of {n} rooms drawn", { drawn: drawnCount })));
     if (undrawn.length) {
       const list = el("div",{style:"display:flex;flex-wrap:wrap;gap:6px"});
       // Each name starts that room (2026-11-15: the room list and Start drawing are under the plan, off the screen).
@@ -1786,16 +1788,16 @@ function _wizardRooms(ctx, map, maps, w){
         list.appendChild(b);
       }
       if (now) check.appendChild(el("div",{"data-wiz-room-now":"1", style:"font-size:12px;color:#a7f3d0;margin-bottom:6px"},
-        `Drawing ${now}: click each corner on the plan, then double-click the last one to close it.`));
+        t("Drawing {room}: click each corner on the plan, then double-click the last one to close it.", { room: now })));
       check.appendChild(list);
     } else {
-      check.appendChild(el("div",{style:"font-size:12px;color:#a7f3d0"}, "Every room from Home Assistant has a boundary here."));
+      check.appendChild(el("div",{style:"font-size:12px;color:#a7f3d0"}, t("Every room from Home Assistant has a boundary here.")));
     }
     wrap.appendChild(check);
   }
   wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "rooms")));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: "Skip — finish rooms later",
-    nextLabel: _nextSetupStep(ctx.state, "rooms") === "floors" ? "Next: floor heights →" : "Next: place the receivers →" }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: t("Skip — finish rooms later"),
+    nextLabel: _nextSetupStep(ctx.state, "rooms") === "floors" ? t("Next: floor heights →") : t("Next: place the receivers →") }));
   return wrap;
 }
 
@@ -1804,10 +1806,10 @@ function _wizardRooms(ctx, map, maps, w){
 function _wizardFloors(ctx, w){
   const { el } = ctx.helpers;
   const wrap = el("div",{"data-wizard-step":"floors"});
-  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, _STEP_ABOUT.floors +
-    " Until you set them, PadSpan uses an ordinary storey height."));
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"}, _STEP_ABOUT.floors + " " +
+    t("Until you set them, PadSpan uses an ordinary storey height.")));
   wrap.appendChild(el("div",{class:"card"},[_floorHeights(ctx, w)]));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: _stepDone(ctx.state, "floors") !== true, skipLabel: "Skip — set heights later", nextLabel: "Next: place the receivers →" }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: _stepDone(ctx.state, "floors") !== true, skipLabel: t("Skip — set heights later"), nextLabel: t("Next: place the receivers →") }));
   return wrap;
 }
 
@@ -1821,24 +1823,26 @@ function _wizardScanners(ctx, map, maps, w){
   const count = map ? _placedReceivers(ctx.state, fid).size : 0;
   const onHouse = map ? count - _placedReceivers({ maps: { list: (ctx.state.maps?.list || []).filter(m => (m.floor_id || "main") === fid) } }, fid).size : 0;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    "Place a marker for every Bluetooth receiver on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position. " +
-    "Or let PadSpan put each one in its room first (below, beside the receiver tools)."));
+    t("Place a marker for every Bluetooth receiver on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position.") + " " +
+    t("Or let PadSpan put each one in its room first (below, beside the receiver tools).")));
   wrap.appendChild(el("div",{"data-wizard-count":"receivers", style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
-    count ? `${count} receiver${count===1?"":"s"} placed on this floor.` + (onHouse > 0
-      ? ` ${onHouse} ${onHouse===1?"is":"are"} on the map of your house, not pinned on this plan: drag ${onHouse===1?"it":"them"} to where ${onHouse===1?"it is":"they are"} mounted in Calibration's first step, "Check receiver positions".` : "")
-    : "No receivers placed on this floor yet."));
+    count ? tn(count, "{n} receiver placed on this floor.", "{n} receivers placed on this floor.") + (onHouse > 0
+      ? " " + tn(onHouse, "{n} is on the map of your house, not pinned on this plan: drag it to where it is mounted in Calibration's first step, \"Check receiver positions\".",
+        "{n} are on the map of your house, not pinned on this plan: drag them to where they are mounted in Calibration's first step, \"Check receiver positions\".") : "")
+    : t("No receivers placed on this floor yet.")));
   wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "receivers")));
-  wrap.appendChild(_wizardFooter(ctx, w, { skip: count === 0, skipLabel: "Skip — place receivers later", nextLabel: "Finish →" }));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: count === 0, skipLabel: t("Skip — place receivers later"), nextLabel: t("Finish →") }));
   return wrap;
 }
 
 // What Finish says comes next: the one step list's first step not done (setup_status.firstOpenStep), with its button.
+// Each a whole sentence, so a translation can order it as its language does.
 const _FINISH_NEXT = {
-  scale: ["set the scale, so the map is to scale.", "Set the scale →"],
-  rooms: ["draw the rooms.", "Draw the rooms →"],
-  floors: ["say how tall each floor is, so PadSpan can tell the floors apart.", "Floor heights →"],
-  receivers: ["place the receivers, each where it is mounted.", "Place the receivers →"],
-  calibration: ["calibrate, so PadSpan learns what those receivers actually hear from each room — a few minutes walking around with your phone gets you most of the way.", "Go to Calibration →"],
+  get scale() { return [t("Next: set the scale, so the map is to scale."), t("Set the scale →")]; },
+  get rooms() { return [t("Next: draw the rooms."), t("Draw the rooms →")]; },
+  get floors() { return [t("Next: say how tall each floor is, so PadSpan can tell the floors apart."), t("Floor heights →")]; },
+  get receivers() { return [t("Next: place the receivers, each where it is mounted."), t("Place the receivers →")]; },
+  get calibration() { return [t("Next: calibrate, so PadSpan learns what those receivers actually hear from each room — a few minutes walking around with your phone gets you most of the way."), t("Go to Calibration →")]; },
 };
 function _wizardFinish(ctx, map, w){
   const { el } = ctx.helpers, st = ctx.state;
@@ -1852,10 +1856,10 @@ function _wizardFinish(ctx, map, w){
   const skipped = (st.settings && st.settings.setup_progress && st.settings.setup_progress.skipped) || [];
   const next = _firstOpenStep(st, Array.isArray(skipped) ? skipped : []), say = _FINISH_NEXT[next];
   wrap.appendChild(el("div",{style:"font-weight:700;font-size:16px;margin-bottom:8px"},
-    `${map ? (map.name || "This floor") : "This floor"} is set up`));
+    map && map.name ? t("{name} is set up", { name: map.name }) : t("This floor is set up")));
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;line-height:1.6", "data-wizard-finish":"summary"},
-    `${rooms} room${rooms===1?"":"s"} drawn, ${scanners} receiver${scanners===1?"":"s"} placed. ` +
-    (say ? "Next: " + say[0] : "Every set-up step is done.")));
+    tn(rooms, "{n} room drawn", "{n} rooms drawn") + ", " + tn(scanners, "{n} receiver placed.", "{n} receivers placed.") + " " +
+    (say ? say[0] : t("Every set-up step is done."))));
   // What's traced here but not yet on the house the Overview draws: one
   // explicit click puts it there (wizard_build.js), missing pieces only.
   // The plan is read HERE, in the editor; the module only sees the fabric.
@@ -1929,14 +1933,14 @@ function _wizardFinish(ctx, map, w){
     calBtn.addEventListener("click", ()=>_goStep(ctx, map && map.id, next, next === "calibration" ? null : w, false));
     row.appendChild(calBtn);
   }
-  const anotherBtn = el("button",{class:"btn inline"}, "+ Set up another floor");
+  const anotherBtn = el("button",{class:"btn inline"}, t("+ Set up another floor"));
   anotherBtn.addEventListener("click", ()=>{
     ctx.state.activeMapId = null;
     ctx.state._mapsWizard = { step: 1, mapId: null };
     ctx.actions.renderRooms();
   });
   row.appendChild(anotherBtn);
-  const doneBtn = el("button",{class:"btn inline"}, "Done");
+  const doneBtn = el("button",{class:"btn inline"}, t("Done"));
   doneBtn.addEventListener("click", ()=>{
     ctx.state._mapsWizard = null;
     ctx.state.mapsTab = "library";
@@ -1990,10 +1994,10 @@ function _wizard(ctx, maps, isBasic){
   const hrow = el("div",{style:"display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"});
   hrow.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
     el("div",{style:"font-weight:700;font-size:16px"},
-      map ? `Setting up: ${map.name || "this floor plan"}` : "Set up a floor plan"),
+      !map ? t("Set up a floor plan") : map.name ? t("Setting up: {name}", { name: map.name }) : t("Setting up: this floor plan")),
     ctx.helpers.helpBtn ? ctx.helpers.helpBtn("maps_wizard") : null,
   ]));
-  const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, "Exit setup");
+  const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, t("Exit setup"));
   closeBtn.addEventListener("click", ()=>{
     // Reaching Finish already counts as the step-5 funnel entry above —
     // this is only for someone who left before getting there.
@@ -2199,13 +2203,13 @@ function _floorsNext(ctx, w){
   const steps = _setupSteps(st).map(s => s.id), i = steps.indexOf("floors");
   const next = i < 0 ? null : steps.slice(i + 1).find(id => _stepDone(st, id) !== true);
   if (!next || _stepDone(st, next) === null) return null;   // not known yet (calibration's points not read): say nothing
-  const say = next === "receivers" ? ["place the receivers, each where it is mounted.", "Place the receivers →"]
-    : ["calibrate, a few minutes walking round the house with your phone.", "Calibrate →"];
+  const say = next === "receivers" ? [t("Floor heights are set. Next: place the receivers, each where it is mounted."), t("Place the receivers →")]
+    : [t("Floor heights are set. Next: calibrate, a few minutes walking round the house with your phone."), t("Calibrate →")];
   // Setup's own step (it leaves Basic's focused card, with the bar back to Setup), as _goStep opens floors and calibration.
   const go = () => (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], st.settings).length)
     ? ctx.actions.openSetupStep(next) : _goStep(ctx, st.activeMapId, next, null);
   return el("div",{"data-next-line":next, style:_NEXT_BOX},[
-    el("span",{style:"flex:1 1 220px"}, "✓ Floor heights are set. Next: " + say[0]),
+    el("span",{style:"flex:1 1 220px"}, "✓ " + say[0]),
     ...(w ? [] : [el("button",{class:"btn inline primary", style:"font-size:12px", "data-next":next, onclick:go}, say[1])])]);
 }
 
@@ -2220,17 +2224,17 @@ function _nextLine(ctx, map){
   if (!_planRoomed(st, map)) {
     const aiw = AIW && AIW.offerLine(ctx, "maps_wizard");
     return el("div",{"data-next-line":"rooms"},[
-      el("div",{style:_NEXT_BOX},[el("span",{style:"flex:1 1 220px"}, "✓ This plan's scale is set. Next: draw its rooms. Pick a room under the plan and click around its outline."),
-        go("Draw the rooms →", "rooms")]),
+      el("div",{style:_NEXT_BOX},[el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan's scale is set. Next: draw its rooms. Pick a room under the plan and click around its outline.")),
+        go(t("Draw the rooms →"), "rooms")]),
       ...(aiw ? [aiw] : [])]);
   }
   if (_nextSetupStep(st, "rooms") === "floors" && _stepDone(st, "floors") !== true) return el("div",{"data-next-line":"floors", style:_NEXT_BOX},[
-    el("span",{style:"flex:1 1 220px"}, "✓ This plan has rooms. Next: say how tall each floor is, so PadSpan can tell the floors apart."), go("Floor heights →", "floors")]);
+    el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan has rooms. Next: say how tall each floor is, so PadSpan can tell the floors apart.")), go(t("Floor heights →"), "floors")]);
   if (!_placedReceivers(st, map.floor_id || "main").size) return el("div",{"data-next-line":"receivers", style:_NEXT_BOX},[
-    el("span",{style:"flex:1 1 220px"}, "✓ This plan has rooms. Next: place the receivers, each where it is mounted."), go("Place the receivers →", "receivers")]);
+    el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan has rooms. Next: place the receivers, each where it is mounted.")), go(t("Place the receivers →"), "receivers")]);
   if (st.calibration && _wizHasCal(st)) return null;
   return el("div",{"data-next-line":"calibration", style:_NEXT_BOX},[
-    el("span",{style:"flex:1 1 220px"}, "✓ This plan has receivers. Next: calibrate, a few minutes walking round the house with your phone."), go("Calibrate →", "calibration")]);
+    el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan has receivers. Next: calibrate, a few minutes walking round the house with your phone.")), go(t("Calibrate →"), "calibration")]);
 }
 
 function _edit(ctx, map, allMaps, opts){
