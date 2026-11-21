@@ -158,6 +158,11 @@ try {
       && h.svc.length === 1 && h.svc[0][2].entity_id === "light.kitchen", { tap, kitchen: h.svc });
     check("drag: dimming the dimmer dims the team (the bulbs), never the dimmer",
       JSON.stringify(drag) === JSON.stringify([["light", "turn_on", { entity_id: TEAM, brightness: 120 }]]), drag);
+    const h3 = fakeHass(house({ [TEAM]: { state: "off" } }));
+    await LM.setManyStates(h3, [DIM, B[0], "light.kitchen"], true, {});
+    check("a room's All lights on: the team once (its light), the other lights as ever — never the dimmer, already on",
+      JSON.stringify(h3.svc) === JSON.stringify([["light", "turn_on", { entity_id: [TEAM, "light.kitchen"] }]]), h3.svc);
+    for (const e of [TEAM, DIM, ...B, "light.kitchen"]) LM.clearOptimistic(e);   // Home Assistant agreed: the claims are done
     const h2 = fakeHass(house({ [TEAM]: { state: "off" } }));
     await LM.toggleEntity(h2, B[0], {});
     check("tap on a bulb: the team comes on, in the day's light (no remembered brightness)",

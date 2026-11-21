@@ -2799,7 +2799,16 @@ export async function setManyStates(hass, eids, turnOn, { toast, rerender } = {}
   if (!hass || !eids.length) return;
   const exactCmds = new Map();   // device/team -> the first of its lights asked for
   const plain = [];
+  const teams = new Set();
   for (const eid of eids) {
+    // A power team's wall dimmer or bulb: its team's light, once (power_team_card.js). "All lights on" on a dimmer
+    // already on, its bulbs told off, would otherwise change nothing.
+    const team = eid.startsWith("light.") ? _teamOf(hass.states, eid) : null;
+    if (team) {
+      for (const m of TEAM.teamMembers(hass.states, team)) setOptimistic(m, turnOn ? "on" : "off");
+      if (!teams.has(team)) { teams.add(team); plain.push(team); }
+      continue;
+    }
     const ex = eid.startsWith("light.") ? exactDeviceOf(eid) : null;
     if (!ex) { plain.push(eid); continue; }
     if (!exactCmds.has(ex.key)) exactCmds.set(ex.key, { eid, group: ex.group });
