@@ -99,7 +99,16 @@ export function keyOf(n){
   const data = names.filter((k) => k.startsWith("data-")).map((k) => [k, n.getAttribute(k)]);
   if (data.length) return { tag, data };
   const text = words(n), label = n.getAttribute("aria-label") || n.getAttribute("title") || "";
-  return text || label ? { tag, text, label } : null;
+  if (!text && !label) return null;
+  // Words alone are often not enough (a Rename on every row): the nearest
+  // element round it that has an id or data-* attributes (the row) says which.
+  let anc = null;
+  for (let p = up(n), i = 0; p && i < 6 && !anc; p = up(p), i++) {
+    if (typeof p.getAttribute !== "function") break;
+    const pn = typeof p.getAttributeNames === "function" ? p.getAttributeNames() : [];
+    if (p.getAttribute("id") || pn.some((k) => k.startsWith("data-"))) anc = keyOf(p);
+  }
+  return { tag, text, label, anc };
 }
 const q = (v) => String(v).replace(/["\\]/g, "\\$&");
 /** The one element in root that key names (null: none, or more than one). */
@@ -109,6 +118,10 @@ export function findKey(root, key){
   let all;
   try { all = [...root.querySelectorAll(sel)]; } catch (_) { return null; }
   if (key.text !== undefined) all = all.filter((n) => words(n) === key.text && (n.getAttribute("aria-label") || n.getAttribute("title") || "") === key.label);
+  if (all.length !== 1 && key.anc) {
+    const row = findKey(root, key.anc);
+    return row ? findKey(row, { ...key, anc: null }) : null;
+  }
   return all.length === 1 ? all[0] : null;
 }
 /** Focus what had it (from), or its replacement; false when neither is there. */

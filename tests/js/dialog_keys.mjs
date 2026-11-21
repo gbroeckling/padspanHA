@@ -240,6 +240,15 @@ await tryCase("back", async () => {
   host.replaceChildren(mk("button", {}, "Details"), mk("button", {}, "Details"));
   c.close();
   check("back", focused() === document.body, focused().localName);
+  // A Rename on every row: the row (its data-* attributes) says which.
+  const rowOf = (dev) => { const r = mk("div", { class: "dev-tag", "data-search": dev }); r.appendChild(mk("span", {}, dev)); r.appendChild(mk("button", {}, "Rename")); return r; };
+  host.replaceChildren(rowOf("keys"), rowOf("alex phone"));
+  const rename = host.children[1].children[1];
+  rename.focus();
+  const cr = card();
+  host.replaceChildren(rowOf("keys"), rowOf("alex phone"));
+  cr.close();
+  check("back", focused() === host.children[1].children[1], { at: focused().localName, row: focused().parentNode && focused().parentNode.getAttribute && focused().parentNode.getAttribute("data-search") });
   // A press outside put the focus somewhere on purpose: it stays there.
   const o2 = mk("button", {}, "Open");
   const there = mk("button", {}, "There");
