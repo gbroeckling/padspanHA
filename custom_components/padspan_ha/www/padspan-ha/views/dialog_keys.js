@@ -118,6 +118,15 @@ export function findKey(root, key){
   let all;
   try { all = [...root.querySelectorAll(sel)]; } catch (_) { return null; }
   if (key.text !== undefined) all = all.filter((n) => words(n) === key.text && (n.getAttribute("aria-label") || n.getAttribute("title") || "") === key.label);
+  // Some data-* change from one drawing to the next (a row's age): one of the
+  // others alone that still names exactly one element.
+  if (all.length !== 1 && key.data && key.data.length > 1) {
+    for (const [k, v] of key.data) {
+      let one;
+      try { one = root.querySelectorAll(`${key.tag}[${k}="${q(v)}"]`); } catch (_) { continue; }
+      if (one.length === 1) return one[0];
+    }
+  }
   if (all.length !== 1 && key.anc) {
     const row = findKey(root, key.anc);
     return row ? findKey(row, { ...key, anc: null }) : null;

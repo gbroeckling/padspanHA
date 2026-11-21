@@ -249,6 +249,15 @@ await tryCase("back", async () => {
   host.replaceChildren(rowOf("keys"), rowOf("alex phone"));
   cr.close();
   check("back", focused() === host.children[1].children[1], { at: focused().localName, row: focused().parentNode && focused().parentNode.getAttribute && focused().parentNode.getAttribute("data-search") });
+  // A row whose age changed with the drawing: its other data-* still name it.
+  const tr = (age) => mk("tr", { "data-kind": "ble", "data-age": age, "data-search": "ble keys demo:keys" }, "Keys");
+  host.replaceChildren(tr("3"), mk("tr", { "data-kind": "ble", "data-age": "3", "data-search": "ble phone" }, "Phone"));
+  host.children[0].setAttribute("tabindex", "-1");
+  host.children[0].focus();
+  const ct = card();
+  host.replaceChildren(tr("8"), mk("tr", { "data-kind": "ble", "data-age": "8", "data-search": "ble phone" }, "Phone"));
+  ct.close();
+  check("back", focused() === host.children[0], { at: focused().localName, search: focused().getAttribute && focused().getAttribute("data-search") });
   // A press outside put the focus somewhere on purpose: it stays there.
   const o2 = mk("button", {}, "Open");
   const there = mk("button", {}, "There");
