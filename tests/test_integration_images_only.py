@@ -116,3 +116,18 @@ def test_the_two_images_are_in_the_folder():
     assert P.ICON_FILES == ("icon.png", "logo.png")
     for name in P.ICON_FILES:
         assert (_CC / name).is_file(), name
+
+
+@pytest.mark.parametrize("api", _APIS)
+async def test_a_second_set_up_registers_no_path_again(monkeypatch, api):
+    """The panel is set up again on every reload. A path registered a second
+    time was refused and fell through to Home Assistant's old call, which
+    logged "register_static_path is deprecated" (2024.8 to 2025.7). Each path
+    is registered once per run."""
+    hass = _set_up(monkeypatch, api)
+    await P.async_setup_panel(hass)
+    first = list(hass.http.paths)
+    await P.async_setup_panel(hass)
+    await P.async_setup_panel(hass)
+    assert hass.http.paths == first
+    assert len({url for url, _path in first}) == len(first)
