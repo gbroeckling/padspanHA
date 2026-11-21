@@ -26,6 +26,7 @@
 // effects it doesn't meaningfully have; absent means detect as always.
 export function isWledLight(l) {
   if (l.type_override) return l.type_override === "wled";
+  if (l.power_team) return false;          // a power team's light: its effects are the day and sleep (power_team.py)
   return Array.isArray(l.effect_list) && l.effect_list.length > 0;
 }
 

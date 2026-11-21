@@ -11,8 +11,9 @@
 # .color_temp_kelvin), Copyright Bas Nijholt and contributors, licensed under
 # the Apache License, Version 2.0. Changed here: plain functions over sunrise
 # and sunset timestamps (no astral, no Home Assistant), colour always fades to
-# the sleep colour through the night, brightness and colour only. See
-# THIRD_PARTY_NOTICES.md.
+# the sleep colour through the night, brightness and colour only. Its
+# sunrise_offset / sunset_offset and sunrise_time / sunset_time options are
+# here as the same four numbers (shift_days). See THIRD_PARTY_NOTICES.md.
 """Light that follows the day: how bright and how warm a light should be now.
 
 Pure arithmetic (no Home Assistant): power_team.py asks it for a team's
@@ -25,31 +26,61 @@ warming toward the sleep colour. Sleep is one fixed dim, warm setting.
 """
 from __future__ import annotations
 
-DEFAULTS: dict[str, int] = {
+import re
+from typing import Any, Callable
+
+DEFAULTS: dict[str, Any] = {
     "min_brightness": 25,      # % at solar midnight
     "max_brightness": 100,     # % all day
     "min_kelvin": 2200,        # at sunrise and sunset
     "max_kelvin": 5000,        # at solar noon
     "sleep_brightness": 5,     # % in sleep
     "sleep_kelvin": 2000,      # in sleep, and where the night's colour heads
+    # When the day starts and ends for this light (Adaptive Lighting's options of the same names): the sun's
+    # sunrise and sunset moved by minutes, or a fixed time instead ("HH:MM"; "" is the sun's own). A bedroom
+    # whose day starts at 06:30 all year, say.
+    "sunrise_offset": 0,       # minutes, + later
+    "sunset_offset": 0,
+    "sunrise_time": "",
+    "sunset_time": "",
 }
 LIMITS: dict[str, tuple[int, int]] = {
     "min_brightness": (1, 100), "max_brightness": (1, 100), "sleep_brightness": (1, 100),
     "min_kelvin": (1500, 9000), "max_kelvin": (1500, 9000), "sleep_kelvin": (1500, 9000),
+    "sunrise_offset": (-180, 180), "sunset_offset": (-180, 180),
 }
+TIMES = ("sunrise_time", "sunset_time")
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _HALF_DAY = 43200.0
 
 
-def clean(cfg: dict | None) -> dict[str, int]:
-    """The curve's numbers, each within its limits, the lows never over the highs."""
+def clean(cfg: dict | None) -> dict[str, Any]:
+    """The curve's numbers, each within its limits, the lows never over the highs; a time is "HH:MM" or ""."""
     out = dict(DEFAULTS)
     for k, (lo, hi) in LIMITS.items():
         v = (cfg or {}).get(k)
         if isinstance(v, (int, float)) and not isinstance(v, bool):
             out[k] = int(max(lo, min(hi, round(v))))
+    for k in TIMES:
+        v = (cfg or {}).get(k)
+        out[k] = v if isinstance(v, str) and _HHMM.match(v) else ""
     out["min_brightness"] = min(out["min_brightness"], out["max_brightness"])
     out["min_kelvin"] = min(out["min_kelvin"], out["max_kelvin"])
     out["sleep_kelvin"] = min(out["sleep_kelvin"], out["min_kelvin"])
+    return out
+
+
+def shift_days(days: list[tuple[float, float]], cfg: dict | None,
+               at: Callable[[int, str], float]) -> list[tuple[float, float]]:
+    """Each (sunrise, sunset) as this light's day has it: a fixed time where one is set (`at(i, "HH:MM")` is that
+    time on the i-th day, as a timestamp), else the sun's own moved by its offset. A day that would end before it
+    starts is left as the sun has it."""
+    c = clean(cfg)
+    out: list[tuple[float, float]] = []
+    for i, (rise, set_) in enumerate(days):
+        r = at(i, c["sunrise_time"]) if c["sunrise_time"] else rise + c["sunrise_offset"] * 60
+        s = at(i, c["sunset_time"]) if c["sunset_time"] else set_ + c["sunset_offset"] * 60
+        out.append((r, s) if r < s else (rise, set_))
     return out
 
 
