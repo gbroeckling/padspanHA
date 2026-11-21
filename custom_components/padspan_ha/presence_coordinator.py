@@ -4618,8 +4618,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         {"source": src, "rssi_samples": list(samples)}
                         for src, samples in ready.items()
                     ],
-                })
-                await cal_store.async_prune_auto_points(max_per_beacon=50)
+                }, auto_cap=50)      # the beacon's oldest [auto] points over 50 go in the same save
             except Exception:
                 _QUIET_COUNTS["presence:beacon_cal_add_point"] += 1
                 _LOGGER.debug("Beacon auto-cal injection failed for %s", key)
@@ -4686,8 +4685,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._beacon_autocal_last[key] = now
             self._beacon_autocal_buf[key] = {}
             try:
-                await cal_store.async_add_point(_pt)
-                await cal_store.async_prune_auto_points(max_per_beacon=50)
+                await cal_store.async_add_point(_pt, auto_cap=50)   # trimmed in the same save
                 injected += 1
             except Exception:
                 _quiet_error("presence:immediate_cal_add_point")

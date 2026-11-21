@@ -264,10 +264,18 @@ class CalibrationStore:
             return ""
         return next(iter(floors)) if len(floors) == 1 else ""
 
-    async def async_add_point(self, point: dict[str, Any]) -> dict[str, Any]:
-        """Validate, clean, and persist a calibration point."""
+    async def async_add_point(self, point: dict[str, Any], auto_cap: int | None = None) -> dict[str, Any]:
+        """Validate, clean, and persist a calibration point.
+
+        auto_cap: an automatic point (a pinned beacon's, presence_coordinator):
+        the [auto] points over that many per beacon go in the same save
+        (async_prune_auto_points' rule, the same points kept). Added and then
+        trimmed, each automatic point wrote the whole file twice: about 1,400
+        writes a day of a 4.5 MB file in one house."""
         clean = self._clean_point(point)
         self.data.setdefault("points", []).append(clean)
+        if auto_cap is not None:
+            self._trim_auto_points(auto_cap)
         await self.store.async_save(self.data)
         await self._async_train_rf()
         return clean
@@ -478,6 +486,14 @@ class CalibrationStore:
 
     async def async_prune_auto_points(self, max_per_beacon: int = 50) -> int:
         """Remove oldest [auto] calibration points when a beacon exceeds the cap."""
+        removed = self._trim_auto_points(max_per_beacon)
+        if removed:
+            await self.store.async_save(self.data)
+        return removed
+
+    def _trim_auto_points(self, max_per_beacon: int) -> int:
+        """The oldest [auto] points of each beacon over max_per_beacon, out of
+        self.data (not saved here); how many went."""
         points = self.data.get("points", [])
         # Group auto-points by device_id
         by_dev: dict[str, list[dict]] = {}
@@ -494,7 +510,6 @@ class CalibrationStore:
                     remove_ids.add(p.get("id", ""))
         if remove_ids:
             self.data["points"] = [p for p in points if p.get("id") not in remove_ids]
-            await self.store.async_save(self.data)
         return len(remove_ids)
 
     async def async_prune_one_scanner_auto_points(self) -> int:
