@@ -47,7 +47,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry
 
-from .ws_common import admin_if_enhanced_security, metres, shallow, ROOMS_MAX
+from .ws_common import admin_if_enhanced_security, shallow, ROOMS_MAX
 from .const import (
     DOMAIN,
     VERSION,
@@ -683,9 +683,9 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
         "type": "padspan_ha/room_height_set",
         vol.Required("room"): vol.All(str, vol.Length(min=1, max=120)),
         # Metres from the room's floor to the top of its space; null = its floor's.
-        vol.Optional("height_m"): vol.Any(None, metres),
+        vol.Optional("height_m"): vol.Any(None, vol.Coerce(float)),
         # Split level (0.38.190): how far its floor sits above its floor's; null = level.
-        vol.Optional("floor_raise_m"): vol.Any(None, metres),
+        vol.Optional("floor_raise_m"): vol.Any(None, vol.Coerce(float)),
         # An outdoor space's surface (model_store.ROOM_SURFACES); null = standard.
         vol.Optional("surface"): vol.Any(None, vol.In(ROOM_SURFACES)),
         # What kind of space (presence_rules.ROOM_SPACES); null = worked out.

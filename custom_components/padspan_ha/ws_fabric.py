@@ -61,6 +61,7 @@ _HEIGHTS_MAX = 2000
 # radians: a few turns either way is any plan's turn or lean.
 BARRIERS_MAX = 1000
 ANGLE_MAX_RAD = 100.0
+_ANGLE = vol.All(vol.Coerce(float), finite_float, vol.Range(min=-ANGLE_MAX_RAD, max=ANGLE_MAX_RAD))
 
 
 def _height_ok(v: Any) -> bool:
@@ -1199,10 +1200,10 @@ async def async_write_measured_transform(hass: HomeAssistant, map_id: str, trans
         "map_id": id_text,
         vol.Optional("origin_x_m"): metres,
         vol.Optional("origin_y_m"): metres,
-        vol.Optional("rotation_rad"): vol.All(finite_float, vol.Range(min=-ANGLE_MAX_RAD, max=ANGLE_MAX_RAD)),
+        vol.Optional("rotation_rad"): _ANGLE,
         vol.Optional("scale_x_m"): metres,
         vol.Optional("scale_y_m"): metres,
-        vol.Optional("shear_rad"): vol.All(finite_float, vol.Range(min=-ANGLE_MAX_RAD, max=ANGLE_MAX_RAD)),
+        vol.Optional("shear_rad"): _ANGLE,
     }
 )
 @websocket_api.require_admin

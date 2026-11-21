@@ -98,7 +98,6 @@ POSITIONS = [
     (ws_fabric.ws_fabric_scanner_position_set, "z_m"),
     (ws_fabric.ws_fabric_map_reanchor, "origin_x_m"), (ws_fabric.ws_fabric_map_reanchor, "origin_y_m"),
     (ws_fabric.ws_fabric_map_reanchor, "scale_x_m"), (ws_fabric.ws_fabric_map_reanchor, "scale_y_m"),
-    (W.ws_room_height_set, "height_m"), (W.ws_room_height_set, "floor_raise_m"),
 ]
 
 
