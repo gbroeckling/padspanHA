@@ -24,13 +24,12 @@ const { tierAtLeast: _ovTierAtLeast, surfacesForEdition: _ovSurfaces } =
 
 // "No rooms yet" names one next step everywhere on the Overview (2026-11-21): Setup's Draw the rooms step, the step
 // Setup and Getting started name, in every mode. It named three places for the same fix (Mapping → Layout, Mapping →
-// Edit, Setup's step).
-const NO_ROOMS_NEXT = "Draw them in Setup's Draw the rooms step.";
+// Edit, Setup's step). Each place says it in one whole sentence of its own (views/i18n.js t()).
 /** "Draw the rooms": Setup's own step (setup.js openStep), where this build has Setup; else nothing. */
 function _drawRoomsBtn(ctx) {
   if (!ctx.actions.openSetupStep || !_ovSurfaces(["setup"], ctx.state.settings).length) return null;
   return ctx.helpers.el("button", { class: "btn inline", "data-draw-rooms": "", style: "font-size:11px;padding:2px 10px",
-    onclick: () => ctx.actions.openSetupStep("rooms") }, "Draw the rooms");
+    onclick: () => ctx.actions.openSetupStep("rooms") }, t("Draw the rooms"));
 }
 // The iPhone setup path (#69): with iphone_irk_guide on, an iPhone is told
 // about its IRK, never the Android-only BLE Transmitter.
@@ -1273,8 +1272,8 @@ export function renderClassic(ctx){
       s += `</defs>`;
 
       if(!sortedIsoLevels.length){
-        // One next step for every mode: Setup's rooms step (NO_ROOMS_NEXT), which Basic has too.
-        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet. ${NO_ROOMS_NEXT}</text>`;
+        // One next step for every mode: Setup's rooms step, which Basic has too.
+        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">${esc(t("No rooms yet. Draw them in Setup's Draw the rooms step."))}</text>`;
         return _finishIso(s);
       }
 
@@ -2350,7 +2349,7 @@ export function renderClassic(ctx){
     } else {
       const msg = document.createElement("div");
       msg.className = "muted"; msg.style.cssText = "font-size:12px;padding:8px";
-      msg.textContent = "No rooms drawn yet. " + NO_ROOMS_NEXT + " ";
+      msg.textContent = t("No rooms drawn yet. Draw them in Setup's Draw the rooms step.") + " ";
       const draw = _drawRoomsBtn(ctx);
       if (draw) msg.appendChild(draw);
       roomListPanel.appendChild(msg);
@@ -3974,9 +3973,9 @@ export function renderClassic(ctx){
     const _hasFabric = Object.keys(ctx.state.model?.scanner_positions_m || {}).length > 0 || Object.keys(ctx.state.model?.room_geometry_m || {}).length > 0;
     if (_hasMaps && !_hasFabric) {
       section.appendChild(el("div",{style:"padding:10px 14px;border:2px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px"},[
-        el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 Room and receiver layout not built yet"),
+        el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 " + t("Room and receiver layout not built yet")),
         el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"},[
-          el("span",{},"Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. " + NO_ROOMS_NEXT + " The layout builds from that by itself: there is nothing separate to migrate."),
+          el("span",{},t("Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. Draw the rooms in Setup's Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.")),
           _drawRoomsBtn(ctx),
         ].filter(Boolean)),
       ]));

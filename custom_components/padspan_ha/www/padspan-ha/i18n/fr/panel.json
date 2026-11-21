@@ -332,5 +332,9 @@
 "How tall each floor is, so PadSpan can tell the floors apart.": "La hauteur de chaque étage, pour que PadSpan puisse distinguer les étages.",
 "Trace each Home Assistant room onto its floor plan.": "Tracez chaque pièce Home Assistant sur son plan.",
 "Put each Bluetooth receiver where it is mounted, and say how high.": "Placez chaque récepteur Bluetooth là où il est fixé, et indiquez à quelle hauteur.",
-"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Faites le tour de la maison avec votre téléphone pour que PadSpan apprenne la signature de chaque endroit."
+"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Faites le tour de la maison avec votre téléphone pour que PadSpan apprenne la signature de chaque endroit.",
+"No rooms yet. Draw them in Setup's Draw the rooms step.": "Pas encore de pièces. Dessinez-les dans la Configuration, à l’étape « Dessiner les pièces ».",
+"No rooms drawn yet. Draw them in Setup's Draw the rooms step.": "Aucune pièce dessinée pour l’instant. Dessinez-les dans la Configuration, à l’étape « Dessiner les pièces ».",
+"Room and receiver layout not built yet": "Disposition des pièces et des récepteurs pas encore créée",
+"Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. Draw the rooms in Setup's Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.": "Vos plans d’étage comportent des pièces ou des récepteurs, mais la disposition des pièces avec laquelle PadSpan travaille est encore vide. Dessinez les pièces dans la Configuration, à l’étape « Dessiner les pièces » : la disposition se construit d’elle-même à partir d’elles, il n’y a rien d’autre à migrer."
 }

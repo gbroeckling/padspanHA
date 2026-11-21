@@ -201,18 +201,26 @@ def test_the_overview_names_one_place_to_draw_rooms() -> None:
     """It named three places for the same fix (Mapping → Layout in the 3D
     house, Mapping → Edit under the room list, Mapping → Layout again in the
     "not built yet" banner) and Basic a fourth. Now every one says Setup's
-    Draw the rooms step, the step Setup and Getting started name, and where
-    this build has Setup, a button opens that step."""
+    Draw the rooms step, the step Setup and Getting started name, each in a
+    whole sentence of its own through t() (the Overview is translated), and
+    where this build has Setup, a button opens that step."""
     src = (ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "overview.js").read_text(encoding="utf-8")
-    assert 'const NO_ROOMS_NEXT = "Draw them in Setup\'s Draw the rooms step.";' in src
-    # Its three places: the 3D house's empty text, the room list, the "not built yet" banner.
-    assert src.count("No rooms yet. ${NO_ROOMS_NEXT}") == 1 and src.count(" + NO_ROOMS_NEXT + ") == 2
+    for said in ('t("No rooms yet. Draw them in Setup\'s Draw the rooms step.")',
+                 't("No rooms drawn yet. Draw them in Setup\'s Draw the rooms step.")',
+                 't("Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. '
+                 'Draw the rooms in Setup\'s Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.")'):
+        assert src.count(said) == 1, said
     for gone in ("Go to Mapping → Edit to draw room boundaries", "Go to Mapping \\u2192 Layout and place scanners",
                  '"Setup\'s Draw the rooms step" : "Mapping → Layout"'):
         assert gone not in src, gone
     btn = src[src.index("function _drawRoomsBtn(ctx) {"):][:400]
     assert 'ctx.actions.openSetupStep("rooms")' in btn and '_ovSurfaces(["setup"], ctx.state.settings)' in btn
+    assert 't("Draw the rooms")' in btn
     assert src.count("_drawRoomsBtn(ctx)") == 3, "the room list and the banner have the button (and its definition)"
+    for lang in ("de", "fr", "nl"):
+        data = json.loads((ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "i18n" / lang / "panel.json").read_text(encoding="utf-8"))
+        step = data["Draw the rooms"]
+        assert step in data["No rooms yet. Draw them in Setup's Draw the rooms step."], (lang, "names the step as Setup shows it")
 
 
 # ── Voice: the sentences Assist needs, in the panel ──────────────────────────
