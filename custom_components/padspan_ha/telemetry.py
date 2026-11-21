@@ -67,6 +67,13 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         screen untouched or in use, or is an ordinary window; whether a
         wall screen's reload after an update landed on the new build; and
         whether a ?view= link stayed on its view (SCREEN_EVENTS)
+    power teams (smart bulbs fed by a wall dimmer or switch, run as one
+        light): how many, whether they have a wall control and of which
+        kind and integration, how they turn off, whether they follow the day
+        or wake someone, their bulbs by brand and integration; and, team or
+        not, how many colour bulbs of each brand and integration the house
+        has — words from fixed lists, never a name or an entity id
+        (env.power_teams); and the team card's buttons used (TEAM_CARD_EVENTS)
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -1097,6 +1104,163 @@ def plan_sources(maps: Any, transforms: Any) -> dict[str, str]:
         out[src] = PLAN_STAGES[max(stages)]
         out[src + "_n"] = "1" if len(stages) == 1 else "2_3" if len(stages) <= 3 else "4_plus"
     return out
+
+
+# env.power_teams (2026-11-21, owner: "Add any opt in fields to watch use of the teaming, and hue adoption — or other
+# brands that work like this"). A power team (power_team.py) is smart colour bulbs fed by a wall dimmer or switch, run
+# as one light. What goes: how the house's teams are set up, and, team or not, how many colour bulbs of each brand the
+# house has, so the houses that could use a team can be counted as well as the ones that do. Counts and words from
+# the lists below only. Never a team's name, an entity id, a time of day, or a maker's own words: a maker becomes one
+# of BULB_BRANDS here, an integration one of TEAM_PLATFORMS, and anything not on those lists is "other".
+#
+# A brand, and the pieces of a device's maker (Home Assistant's device registry, in lower case) that mean it. The
+# first that matches wins: WiZ goes before Hue because Signify (Philips) makes both, so a maker that names both, such
+# as "Philips WiZ", is a WiZ bulb, not a Hue one.
+BULB_BRAND_MAKERS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("wiz", ("wiz",)),
+    ("hue", ("philips", "signify")),
+    ("ikea", ("ikea",)),
+    ("innr", ("innr",)),
+    ("lidl", ("lidl", "livarno")),
+    ("ledvance", ("ledvance", "osram", "sylvania")),
+    ("sengled", ("sengled",)),
+    ("gledopto", ("gledopto",)),
+    ("tuya", ("tuya", "_tz", "_ty")),             # Tuya's Zigbee bulbs often name their maker by a code: _TZ3000_…, _TYZB01_…
+    ("lifx", ("lifx",)),
+    ("nanoleaf", ("nanoleaf",)),
+    ("govee", ("govee",)),
+    ("yeelight", ("yeelight",)),
+    ("aqara", ("aqara", "lumi")),
+    ("wled", ("wled",)),
+    ("tplink", ("tp-link", "tplink", "kasa", "tapo")),
+    ("shelly", ("shelly", "allterco")),
+    ("cync", ("cync", "c by ge")),
+    ("feit", ("feit",)),
+    ("sonoff", ("sonoff", "itead")),
+)
+# "unknown": a light with no device, or a device that gives no maker.
+BULB_BRANDS: tuple[str, ...] = tuple(w for w, _ in BULB_BRAND_MAKERS) + ("other", "unknown")
+# The integrations that run a team's power or its bulbs, as Home Assistant names them (mqtt is mostly Zigbee2MQTT,
+# hue a Hue Bridge). Any other is "other", and so is a light or switch with no entry in the entity registry.
+TEAM_PLATFORMS: tuple[str, ...] = (
+    "control4", "lutron_caseta", "lutron", "zwave_js", "zha", "mqtt", "deconz", "hue", "matter", "homekit_controller",
+    "esphome", "shelly", "tplink", "insteon", "tuya", "wled", "wiz", "lifx", "yeelight", "nanoleaf", "govee_light_local",
+    "template", "group", "switch_as_x", "other")
+TEAM_SIZE_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "7_16")       # bulbs in one team (power_team.MAX_BULBS is 16)
+WAKE_FADE_BANDS: tuple[str, ...] = ("lt10", "10_20", "21_40", "gt40")    # a wake-up's fade, in minutes
+# env.power_teams' keys: these are counts ...
+POWER_TEAM_COUNTS: tuple[str, ...] = ("n", "with_power", "adaptive", "curve_changed", "sun_shifted", "wake_on", "bulbs")
+# ... and these are {word: count}, each word from its list.
+POWER_TEAM_WORDS: dict[str, tuple[str, ...]] = {
+    "power_domain": ("light", "switch"),
+    "power_platform": TEAM_PLATFORMS,
+    "off": ("power", "bulbs"),
+    "wake_fade": WAKE_FADE_BANDS,
+    "team_size": TEAM_SIZE_BANDS,
+    "bulb_brand": BULB_BRANDS,
+    "bulb_platform": TEAM_PLATFORMS,
+    "colour_bulbs_by_brand": BULB_BRANDS,
+    "colour_bulbs_by_platform": TEAM_PLATFORMS,
+}
+# The curve's own numbers (adaptive_curve.DEFAULTS): one changed from its default is a curve someone set.
+_CURVE_NUMBERS: tuple[str, ...] = ("min_brightness", "max_brightness", "min_kelvin", "max_kelvin",
+                                   "sleep_brightness", "sleep_kelvin")
+# A light that can show a colour or a colour temperature (Home Assistant's colour modes).
+_COLOUR_MODES = frozenset({"hs", "xy", "rgb", "rgbw", "rgbww", "color_temp"})
+
+
+def bulb_brand(maker: Any) -> str:
+    """One of BULB_BRANDS for a device's maker, as Home Assistant's device registry gives it."""
+    m = maker.strip().lower() if isinstance(maker, str) else ""
+    if not m:
+        return "unknown"
+    return next((word for word, pieces in BULB_BRAND_MAKERS if any(p in m for p in pieces)), "other")
+
+
+def team_platform(platform: Any) -> str:
+    """One of TEAM_PLATFORMS for an entity's integration."""
+    return platform if isinstance(platform, str) and platform in TEAM_PLATFORMS else "other"
+
+
+def power_teams_report(hass: HomeAssistant, teams: Any) -> dict[str, Any]:
+    """env.power_teams: the stored teams (settings power_teams) and the house's colour bulbs, as counts and words.
+    Zeros are left out, and with neither a team nor a colour bulb it is empty. Older stored teams lack `off`,
+    `wake` and the curve's sun settings: each reads as not set."""
+    from homeassistant.helpers import device_registry as _dr, entity_registry as _er  # noqa: PLC0415
+    from . import adaptive_curve as _curve  # noqa: PLC0415
+    from .util import ha_devices  # noqa: PLC0415
+    ents = _er.async_get(hass)
+    makers = {d.id: d.manufacturer for d in ha_devices(_dr.async_get(hass))}
+
+    def look(eid: str) -> tuple[str, str]:
+        """(its integration, its brand), as words."""
+        e = ents.async_get(eid)
+        return team_platform(getattr(e, "platform", None)), bulb_brand(makers.get(getattr(e, "device_id", None)))
+
+    out: dict[str, Any] = {}
+
+    def count(key: str, n: int = 1) -> None:
+        out[key] = out.get(key, 0) + n
+
+    def add(key: str, word: str) -> None:
+        out.setdefault(key, {})[word] = out.get(key, {}).get(word, 0) + 1
+
+    for t in teams if isinstance(teams, list) else []:
+        if not isinstance(t, dict):
+            continue
+        count("n")
+        power = t.get("power") if isinstance(t.get("power"), str) else ""
+        if power:
+            count("with_power")
+            add("power_domain", "switch" if power.startswith("switch.") else "light")
+            add("power_platform", look(power)[0])
+            # Only a team with a power source has a choice of how it turns off (one without is always its bulbs).
+            add("off", "bulbs" if t.get("off") == "bulbs" else "power")
+        # The curve matters only while the team follows the day.
+        if t.get("adaptive") is True:
+            count("adaptive")
+            curve = t.get("curve") if isinstance(t.get("curve"), dict) else {}
+            c = _curve.clean(curve)
+            if any(c[k] != _curve.DEFAULTS[k] for k in _CURVE_NUMBERS):
+                count("curve_changed")
+            if any(curve.get(k) not in (None, 0, "") for k in ("sunrise_offset", "sunset_offset", "sunrise_time", "sunset_time")):
+                count("sun_shifted")
+        wake = t.get("wake")
+        if isinstance(wake, dict) and wake.get("on") is True:
+            count("wake_on")
+            m = _num_or(wake.get("minutes"), 0)
+            add("wake_fade", "lt10" if m < 10 else "10_20" if m <= 20 else "21_40" if m <= 40 else "gt40")
+        bulbs = [b for b in (t.get("bulbs") or []) if isinstance(b, str)] if isinstance(t.get("bulbs"), list) else []
+        if bulbs:
+            count("bulbs", len(bulbs))
+            add("team_size", "1" if len(bulbs) == 1 else "2_3" if len(bulbs) <= 3 else "4_6" if len(bulbs) <= 6 else "7_16")
+        for b in bulbs:
+            platform, brand = look(b)
+            add("bulb_platform", platform)
+            add("bulb_brand", brand)
+    # Every colour bulb in the house, team or not. Not PadSpan's own team lights, and not a group of lights (Home
+    # Assistant's, a Hue Bridge's or deCONZ's), whose bulbs are counted themselves.
+    for st in hass.states.async_all("light"):
+        a = getattr(st, "attributes", None) or {}
+        if a.get("padspan_power_team") or a.get("entity_id") or a.get("is_hue_group") or a.get("is_deconz_group"):
+            continue
+        if not any(str(mode) in _COLOUR_MODES for mode in (a.get("supported_color_modes") or ())):
+            continue
+        platform, brand = look(st.entity_id)
+        if platform == "group":
+            continue
+        add("colour_bulbs_by_platform", platform)
+        add("colour_bulbs_by_brand", brand)
+    return out
+
+
+# A power team's card on the map (2026-11-21), counted each time from the panel through padspan_ha/telemetry_event:
+# the card opened; its power row cutting the power or putting it back; Day or Sleep chosen; Try again pressed after
+# bulbs did not answer; a wake-up, the day's curve or the way the team turns off saved. And team_tap: a tap on the map
+# that switched a team. Counts only, never which team.
+TEAM_CARD_WORDS: tuple[str, ...] = ("opened", "power_cut", "power_on", "day", "sleep", "retry",
+                                    "wake_saved", "curve_saved", "off_mode_saved")
+TEAM_CARD_EVENTS: frozenset[str] = frozenset({f"team_card:{w}" for w in TEAM_CARD_WORDS} | {"team_tap"})
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.
 WIZARD_DRAW_WORDS: tuple[str, ...] = ("name", "no_room", "kept")
@@ -1564,7 +1728,8 @@ def event_allowed(name: str) -> bool:
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
-            or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS)
+            or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
+            or name in TEAM_CARD_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -2608,6 +2773,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         _quiet_error("telemetry:payload_vacation")
         pass
+    # Power teams and the house's colour bulbs (power_teams_report), only from a house with either.
+    try:
+        _pt = power_teams_report(hass, settings.get("power_teams"))
+        if _pt:
+            env["power_teams"] = _pt
+    except Exception:
+        _quiet_error("telemetry:payload_power_teams")
+        pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
     features.update(_overview_features(settings))
     for k, word in _FEATURE_ON_ONLY.items():
@@ -3052,6 +3225,16 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         vac = env["vacation"]
         if not isinstance(vac, dict) or not all(k in _VW and v in _VW[k] for k, v in vac.items()):
             raise ValueError("env.vacation not in the vocabulary")
+    if isinstance(env, dict) and "power_teams" in env:
+        pt = env["power_teams"]
+
+        def _count(v: Any) -> bool:
+            return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+        if not isinstance(pt, dict) or not pt or not all(
+                (k in POWER_TEAM_COUNTS and _count(v))
+                or (k in POWER_TEAM_WORDS and isinstance(v, dict) and all(w in POWER_TEAM_WORDS[k] and _count(n) for w, n in v.items()))
+                for k, v in pt.items()):
+            raise ValueError("env.power_teams not in the vocabulary")
     if isinstance(env, dict) and "screens" in env:
         scr = env["screens"]
         if (not isinstance(scr, list) or len(scr) > SCREENS_LISTED
