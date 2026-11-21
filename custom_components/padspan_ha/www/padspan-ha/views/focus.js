@@ -13,9 +13,9 @@
 // of the expert screen, and the mode stays Basic.
 //
 // state._focus = { view, tab, part, item, title, back }
-//   view   "settings" | "maps"
+//   view   "settings" | "maps" | "bluetooth"
 //   tab    the tab the part is on (Settings: presence, atlas, ai;
-//          Mapping: edit, stack)
+//          Mapping: edit, stack; Bluetooth: irk_panel)
 //   part   Settings: the card's data-focus-part; Mapping → Edit: the one
 //          tool (rooms, receivers); Mapping → 3D Stack: floor_heights
 //   item   the room or receiver the link was about, where it has one
@@ -45,6 +45,8 @@ export const PARTS = {
   roomOutline: { view: "maps", tab: "edit", part: "rooms", title: "Draw the room's outline" },
   receiverPlace: { view: "maps", tab: "edit", part: "receivers", title: "Place the receiver" },
   floorHeights: { view: "maps", tab: "stack", part: "floor_heights", title: "Floor heights" },
+  // Setup's "Track your phone or watch": the phone wizard on Bluetooth → IRK Manager (views/bluetooth.js).
+  phoneWizard: { view: "bluetooth", tab: "irk_panel", part: "phone_wizard", title: "Track your phone", cardSaysTitle: true },
 };
 
 /** One of PARTS with what this link is about (the room, the receiver). */
@@ -71,6 +73,7 @@ export function openFocus(ctx, f) {
   const from = st.view;
   if (f.view === "settings") st._settingsTab = f.tab;
   if (f.view === "maps") { st._mapsWizard = null; st.mapsTab = f.tab; }
+  if (f.view === "bluetooth") st.btTab = f.tab;
   // The focus is set before the screen opens: showView (panel.js: highlights
   // the menu, loads the screen) may draw it at once, and a Basic Mapping
   // drawn without it would go back to Library and drop the link's room.

@@ -83,5 +83,6 @@ def test_a_new_install_on_the_demo_house_notices_the_switch() -> None:
 
 def test_the_phone_card_starts_open_while_who_is_where_shows() -> None:
     ov = _src(_WWW / "views" / "overview.js")
-    assert ov.count("if (whosWhere) _phoneHdr.click();") == 1      # Basic
-    assert ov.count("if (whosWhere) _aPhoneHdr.click();") == 1     # Advanced
+    # 2026-11-21: and when Setup's phone step sent them to it (an install without the phone wizard).
+    assert ov.count("if (whosWhere || ctx.state._trackPhoneOpen) _phoneHdr.click();") == 1      # Basic
+    assert ov.count("if (whosWhere || ctx.state._trackPhoneOpen) _aPhoneHdr.click();") == 1     # Advanced

@@ -51,7 +51,7 @@ def got() -> dict:
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("prefix", ["settings:", "edit:", "heights:", "expert:", "advanced:", "back:"])
+@pytest.mark.parametrize("prefix", ["settings:", "edit:", "heights:", "expert:", "advanced:", "back:", "phone:"])
 def test_each_part_is_covered_and_passes(got, prefix) -> None:
     mine = {k: v for k, v in got.items() if k.startswith(prefix)}
     assert mine, (prefix, sorted(got))

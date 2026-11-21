@@ -25,7 +25,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_FABRIC, DATA_HOUSE3D, DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
+from .const import DATA_FABRIC, DATA_HOUSE3D, DATA_MAPS, DATA_MODEL, DATA_OBJECTS, DATA_SETTINGS, DOMAIN
 from .presence_rules import is_outdoor_floor
 from .quiet_errors import note as _quiet_error
 
@@ -34,7 +34,8 @@ TIPS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale", "plan_sha
 # by tests/test_guided_setup.py): settings["setup_progress"] names only these,
 # and so do the report's setup_step:/setup_skip: counters.
 # Owner's D5 (2026-11-13): floor heights after the rooms (and shown only for two indoor floors or more).
-SETUP_STEPS: tuple[str, ...] = ("plan", "scale", "rooms", "floors", "receivers", "calibration")
+# 2026-11-21: "Track your phone or watch" after the receivers and before calibration, which is walked with it.
+SETUP_STEPS: tuple[str, ...] = ("plan", "scale", "rooms", "floors", "receivers", "phone", "calibration")
 
 
 def clean_setup_progress(raw: Any) -> dict[str, Any]:
@@ -268,4 +269,54 @@ async def ws_rooms_overlap(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"pairs": [list(p) for p in overlapping_pairs(geo)]})
 
 
-WS_COMMANDS = (ws_setup_tips, ws_rooms_overlap)
+def phones_tracked(irk_devices: Any, labels: Any, followed: Any, transmitters: Any) -> list[dict[str, str]]:
+    """The phones and watches PadSpan follows as someone's: Setup's "Track your phone or watch" step is done with one.
+
+    Two kinds, as the engine counts them (presence_coordinator.obj_is_identified: labelled, or a phone resolved
+    through its IRK): every device with an IRK registered (`irk_devices`, the resolver's [{name, canonical_id}]: a
+    phone's or watch's key from Private BLE Device, the Companion app, the IRK Manager or the phone wizard), and every
+    Companion-app phone tracked with Track Your Phone (ws_companion_follow labels and follows its iBeacon key): a key
+    labelled (`labels`, ObjectStore's {KEY: {label}}) or followed (`followed`, settings.followed_addrs) of the form
+    IBEACON:<uuid>:<major>:<minor> whose UUID one of the Companion app's BLE Transmitter sensors sends
+    (`transmitters`: each sensor's state and attributes as one text). An iBeacon tag's key is not a phone, so it does
+    not count. [{name, how: "key" | "app"}], one per name."""
+    out: dict[str, dict[str, str]] = {}
+    for d in irk_devices if isinstance(irk_devices, list) else []:
+        if isinstance(d, dict) and d.get("canonical_id"):
+            name = str(d.get("name") or d["canonical_id"])
+            out.setdefault(name.casefold(), {"name": name, "how": "key"})
+    sent = [str(t).lower().replace("-", "") for t in (transmitters or [])]
+    labels = labels if isinstance(labels, dict) else {}
+    keys = {str(k).upper() for k in labels} | {str(k).upper() for k in (followed if isinstance(followed, list) else [])}
+    for key in sorted(keys):
+        parts = key.split(":")
+        uuid = parts[1].replace("-", "").lower() if len(parts) == 4 and parts[0] == "IBEACON" else ""
+        if len(uuid) != 32 or not any(uuid in s for s in sent):
+            continue
+        entry = labels.get(key) or labels.get(key.lower()) or {}
+        name = str((entry.get("label") if isinstance(entry, dict) else "") or key)
+        out.setdefault(name.casefold(), {"name": name, "how": "app"})
+    return sorted(out.values(), key=lambda p: p["name"].casefold())
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/setup_phones"})
+@websocket_api.async_response
+async def ws_setup_phones(hass: HomeAssistant, connection, msg) -> None:
+    """Setup's "Track your phone or watch" step: the phones and watches PadSpan follows as someone's
+    (phones_tracked), {phones: [{name, how}]}. Reads and writes nothing else, so anyone may ask."""
+    dom = hass.data.get(DOMAIN, {})
+    devices: list = []
+    try:
+        from .private_ble_resolver import get_resolver  # noqa: PLC0415
+        devices = (await get_resolver(hass)).get_status().get("devices") or []
+    except Exception:  # noqa: BLE001 — no keys known is the answer a failed read can give
+        _quiet_error("setup_checks:setup_phones")
+    obj = dom.get(DATA_OBJECTS)
+    labels = obj.all() if obj is not None else {}
+    followed = (getattr(dom.get(DATA_SETTINGS), "data", None) or {}).get("followed_addrs") or []
+    sent = [" ".join([str(s.state)] + [str(v) for v in (s.attributes or {}).values()])
+            for s in hass.states.async_all("sensor") if "ble_transmitter" in (s.entity_id or "")]
+    connection.send_result(msg["id"], {"phones": phones_tracked(devices, labels, followed, sent)})
+
+
+WS_COMMANDS = (ws_setup_tips, ws_rooms_overlap, ws_setup_phones)

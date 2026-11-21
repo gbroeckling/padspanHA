@@ -332,5 +332,14 @@
 "How tall each floor is, so PadSpan can tell the floors apart.": "Wie hoch jede Etage ist, damit PadSpan die Etagen unterscheiden kann.",
 "Trace each Home Assistant room onto its floor plan.": "Zeichne jeden Home-Assistant-Raum auf seinem Grundriss nach.",
 "Put each Bluetooth receiver where it is mounted, and say how high.": "Setz jeden Bluetooth-Empfänger dorthin, wo er hängt, und gib an, wie hoch.",
-"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle klingt."
+"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle klingt.",
+"Track your phone or watch": "Dein Handy oder deine Uhr verfolgen",
+"Let PadSpan know the phone or watch you carry, so it can follow you and calibrate with it.": "Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst, damit es dir folgen und damit kalibrieren kann.",
+"Tracked: {names}.": "Verfolgt: {names}.",
+"Then press Track beside it on the Overview's Track Your Phone card, so PadSpan knows it is yours.": "Drück dann in „Overview“ auf der Karte „Dein Handy verfolgen“ daneben auf „Verfolgen“, damit PadSpan weiß, dass es deins ist.",
+"Track it on the Overview →": "In „Overview“ verfolgen →",
+"Next: let PadSpan know the phone or watch you carry.": "Als Nächstes: Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst.",
+"Track your phone or watch →": "Handy oder Uhr verfolgen →",
+"Floor heights are set. Next: let PadSpan know the phone or watch you carry.": "Die Etagenhöhen sind festgelegt. Als Nächstes: Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst.",
+"This plan has receivers. Next: let PadSpan know the phone or watch you carry.": "Dieser Grundriss hat Empfänger. Als Nächstes: Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst."
 }

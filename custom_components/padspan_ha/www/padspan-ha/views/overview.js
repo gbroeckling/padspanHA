@@ -3210,7 +3210,7 @@ export function renderClassic(ctx){
       });
       // Before any room is drawn (Who's where now above), it starts open:
       // tracking a phone is the next thing a new house does.
-      if (whosWhere) _phoneHdr.click();
+      if (whosWhere || ctx.state._trackPhoneOpen) _phoneHdr.click();   // _trackPhoneOpen: Setup's phone step sent them here
       const _bLoadMsg = el("div",{class:"muted",style:"font-size:12px"}, t("Discovering phones..."));
       _phoneBody.appendChild(_bLoadMsg);
       (async () => {
@@ -3637,7 +3637,7 @@ export function renderClassic(ctx){
     });
     // Before any room is drawn (Who's where now above), it starts open:
     // tracking a phone is the next thing a new house does.
-    if (whosWhere) _aPhoneHdr.click();
+    if (whosWhere || ctx.state._trackPhoneOpen) _aPhoneHdr.click();   // _trackPhoneOpen: Setup's phone step sent them here
     const _aLoadMsg = el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"}, t("Discovering phones..."));
     _aPhoneBody.appendChild(_aLoadMsg);
     (async () => {

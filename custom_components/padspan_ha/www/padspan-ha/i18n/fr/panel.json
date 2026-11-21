@@ -332,5 +332,14 @@
 "How tall each floor is, so PadSpan can tell the floors apart.": "La hauteur de chaque étage, pour que PadSpan puisse distinguer les étages.",
 "Trace each Home Assistant room onto its floor plan.": "Tracez chaque pièce Home Assistant sur son plan.",
 "Put each Bluetooth receiver where it is mounted, and say how high.": "Placez chaque récepteur Bluetooth là où il est fixé, et indiquez à quelle hauteur.",
-"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Faites le tour de la maison avec votre téléphone pour que PadSpan apprenne la signature de chaque endroit."
+"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Faites le tour de la maison avec votre téléphone pour que PadSpan apprenne la signature de chaque endroit.",
+"Track your phone or watch": "Suivre votre téléphone ou votre montre",
+"Let PadSpan know the phone or watch you carry, so it can follow you and calibrate with it.": "Indiquez à PadSpan le téléphone ou la montre que vous portez, pour qu’il vous suive et s’en serve pour l’étalonnage.",
+"Tracked: {names}.": "Suivi : {names}.",
+"Then press Track beside it on the Overview's Track Your Phone card, so PadSpan knows it is yours.": "Appuyez ensuite sur « Suivre » à côté de lui, sur la carte « Suivre votre téléphone » de « Overview », pour que PadSpan sache qu’il est à vous.",
+"Track it on the Overview →": "Le suivre dans « Overview » →",
+"Next: let PadSpan know the phone or watch you carry.": "Ensuite : indiquer à PadSpan le téléphone ou la montre que vous portez.",
+"Track your phone or watch →": "Suivre votre téléphone ou votre montre →",
+"Floor heights are set. Next: let PadSpan know the phone or watch you carry.": "Les hauteurs d’étage sont réglées. Ensuite : indiquer à PadSpan le téléphone ou la montre que vous portez.",
+"This plan has receivers. Next: let PadSpan know the phone or watch you carry.": "Ce plan a des récepteurs. Ensuite : indiquer à PadSpan le téléphone ou la montre que vous portez."
 }

@@ -5,9 +5,9 @@
 //
 // Setup: the house's setup as one ordered sequence (interface review item
 // 15) — plan, scale, floors and heights, rooms, receivers and their heights,
-// calibration. A list, not a seventh wizard: each step opens the tool that
+// your phone or watch, calibration. A list, not a seventh wizard: each step opens the tool that
 // already does it (the Mapping Setup Wizard at its step, Mapping → 3D Stack's
-// Floor Heights, the guided calibration), and a bar over that tool leads
+// Floor Heights, the phone wizard, the guided calibration), and a bar over that tool leads
 // back here. Whether a step is done is read off the house itself, by the
 // same rules as the Overview's checklist (setup_status.js) and the accuracy
 // tips (setup_checks.py); only where someone is, and what they skipped, is
@@ -58,6 +58,10 @@ function _detail(state, id, done) {
     const n = placedReceivers(state).size;
     if (n && !receiverHeightsOk(state)) return t("{n} placed, all at one height. Say how high each one is mounted.", { n });
     if (done) return t("{n} placed.", { n });
+  }
+  if (id === "phone") {
+    if (done === null) return t("Checking…");
+    if (done) return t("Tracked: {names}.", { names: _names(state.setupPhones.map(p => p.name)) });
   }
   if (id === "calibration") {
     if (done === null) return t("Checking…");
@@ -143,6 +147,9 @@ function _save(ctx, p) {
 // ── opening a step: the tool that already does it ───────────────────────────
 
 
+/** Whether the IRK Manager shows the phone wizard (views/bluetooth.js: "Phone Setup Wizard" or "iPhone Setup Path"). */
+export const phoneWizardShown = (s) => !!s && (s.phone_wizard_enabled === true || s.iphone_irk_guide === true);
+
 /** Open a step's own tool, with the bar back to Setup over it. `mapId`: on that plan (the rooms helper's Done opens
  *  receivers on the plan it just saved), else the plan open in Mapping, else the first. */
 export function openStep(ctx, id, mapId = null, door = null) {
@@ -153,6 +160,14 @@ export function openStep(ctx, id, mapId = null, door = null) {
   if (id === "calibration") {
     st._calibWizard = { step: 1 };
     ctx.actions.showView("calibration");
+    return;
+  }
+  if (id === "phone") {
+    // The phone wizard ("Track your phone", Bluetooth → IRK Manager), shown while either of its switches is on (a new
+    // install has the iPhone path on): in Basic only that card (views/focus.js), under the bar back to Setup; Advanced,
+    // the tab. An older install with both off has no wizard: the Overview, with its Track Your Phone card open.
+    if (phoneWizardShown(st.settings)) FOCUS.openFocus(ctx, FOCUS.part("phoneWizard", { title: t("Track your phone"), back: { view: "setup", label: t("Setup") } }));
+    else { st._trackPhoneOpen = true; ctx.actions.showView("overview"); }
     return;
   }
   if (id === "floors") {
@@ -177,6 +192,7 @@ export function openStep(ctx, id, mapId = null, door = null) {
  *  where it can't be told (the wizard's Finish): the bar names no step there. */
 export function stepNow(st) {
   if (st.view === "calibration") return "calibration";
+  if (st.view === "bluetooth") return "phone";
   const w = st._mapsWizard;
   if (w) return { 1: "plan", 2: "scale", 3: "rooms", 4: "receivers", 6: "floors" }[w.step] || null;
   const tab = st.mapsTab, mode = st.maps && st.maps._mode;
@@ -395,6 +411,15 @@ export function render(ctx) {
   st._setupReturn = null;
   const root = el("div", { id: "setup" });
 
+  st._trackPhoneOpen = false;   // the Overview's Track Your Phone card opened by the phone step: back here, as it was
+  // The phones and watches PadSpan follows (setup_checks.phones_tracked): asked again each visit, so one tracked in the
+  // phone wizard or on the Overview counts when someone comes back.
+  if (!_demo(st) && st._setupPhonesVisit !== (st._viewVisit || 0) && ctx.actions.callWS) {
+    st._setupPhonesVisit = st._viewVisit || 0;
+    ctx.actions.callWS({ type: "padspan_ha/setup_phones" })
+      .then(r => { if (r && Array.isArray(r.phones)) { st.setupPhones = r.phones; if (st.view === "setup") ctx.actions.renderRooms(); } })
+      .catch(() => {});
+  }
   // Calibration's points: asked once, as Calibration itself does.
   if (!st.calibration && !st._setupCalAsked && ctx.actions.calibrationGet) {
     st._setupCalAsked = true;

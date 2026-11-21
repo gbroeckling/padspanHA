@@ -78,7 +78,7 @@ const method = (n) => extractBlock(new RegExp(`^\\s{2}(?:async\\s+)?${n}\\s*\\(`
 
 const METHODS = ["_wsCount", "_logEvent", "_callWS", "_fetchSettings", "_loadSettings", "_applyDataMode", "_setDataMode",
   "_recomputeDerived", "_getRoomTags", "_getLiveSnapshot", "_refreshAll", "_getMapsList", "_getModel", "_getStatus",
-  "_getVersionInfo", "_runAutoDiag", "_loadAlertConfigs",
+  "_getVersionInfo", "_runAutoDiag", "_loadAlertConfigs", "_getSetupPhones",
   "_retryDataMode", "_sampleGateOn", "_modeUnknown", "_modeAnswered", "_ensureSampleHouse", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
   "_keepLiveFollow", "_restoreLiveFollow", "_telemetryEvent", "_telemetryFlush", "_sampleSettingsTick", "_updateEmergencyBanner"];
 let bodies = METHODS.map(method).join("\n\n");
@@ -325,11 +325,11 @@ await run("Calibration Results: the sample house's own walk, not the five sample
   expect(next && ["room_weak", "matrix"].includes(next.getAttribute("data-kind")), "next action: " + (next && next.getAttribute("data-kind")));
 });
 
-await run("Setup: a finished house, six of six", async () => {
+await run("Setup: a finished house, seven of seven", async () => {
   const { p } = S;
   const node = await renderView(p, "setup");
   expect(all(node, '[data-setup="all-done"]').length === 1, "Setup is not finished: " + text(all(node, '[data-setup="count"]')[0]));
-  expect(/6 of 6 done/.test(text(node)), "count: " + text(all(node, '[data-setup="count"]')[0]));
+  expect(/7 of 7 done/.test(text(node)), "count: " + text(all(node, '[data-setup="count"]')[0]));
 });
 
 await run("Mapping: the sample house's plans, read-only", async () => {

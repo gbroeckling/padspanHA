@@ -24,6 +24,8 @@ const { iphoneGuideOn, isApplePhone, renderIphonePath, renderCaptureSteps } =
 // The panel's words in its language (views/i18n.js; English is the key). So far
 // the phone wizard ("Track your phone"), one of the first-run screens.
 const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// Basic's focused views (views/focus.js): Setup's "Track your phone or watch" opens just the phone wizard.
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
 // ── The shared display vocabulary ───────────────────────────────────────────
 // Four things this view says over and over — a chip, a signal reading, an age,
@@ -183,6 +185,12 @@ export function render(ctx) {
 
   // ── Extract BLE data from the live snapshot ───────────────────────────────
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
+  // Basic, from Setup's phone step: only the phone wizard (the IRK Manager while it loads), under the bar back.
+  const _focus = FOCUS.focusFor(ctx.state, "bluetooth");
+  if (_focus) {
+    const panel = renderIrkPanel(ctx, snap);
+    return el("div", { id: "bluetooth" }, [FOCUS.focusBar(ctx, _focus), FOCUS.pickPart(panel, _focus.part) || panel]);
+  }
   const isLive = ctx.state.dataMode === "live";
   const ble = snap && snap.ble ? snap.ble : { radios: [], advertisements: [], diag: { ok: true, errors: [] } };
 
@@ -2695,7 +2703,7 @@ function renderIrkPanel(ctx, snap) {
   const _wizSettings = ctx.state.settings || {};
   const _iphoneOn = iphoneGuideOn(_wizSettings);
   if (_wizSettings.phone_wizard_enabled || _iphoneOn) {
-    const wizCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
+    const wizCard = el("div", { class: "bt-panel", style: "margin-bottom:12px", "data-focus-part": "phone_wizard" });
     wizCard.appendChild(el("div", { class: "bt-panel-head" }, [
       el("div", { class: "bt-panel-title" }, t("Track your phone")),
       el("div", { class: "bt-panel-sub" }, t("Three ways in, depending on what you have.")),
@@ -2724,6 +2732,16 @@ function renderIrkPanel(ctx, snap) {
       t("The easiest way to track an Android phone: Install the HA Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable.") + " " +
       t("Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed.") + " " +
       t("In the same place, set Transmit power to High and Advertise mode to Low latency: out of the box it sends too weakly to be heard well.")));
+    // Then the Overview's Track Your Phone card names and follows it, so PadSpan knows it is yours (and Setup's phone
+    // step is done): opened there, already unfolded.
+    const trackRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px" }, [
+      el("span", { class: "muted", style: "font-size:12px;line-height:1.55;flex:1 1 200px" },
+        t("Then press Track beside it on the Overview's Track Your Phone card, so PadSpan knows it is yours.")),
+    ]);
+    const trackBtn = el("button", { class: "btn inline", "data-phone-wizard": "track-android" }, t("Track it on the Overview →"));
+    trackBtn.addEventListener("click", () => { ctx.state._trackPhoneOpen = true; ctx.actions.showView("overview"); });
+    trackRow.appendChild(trackBtn);
+    pathB.appendChild(trackRow);
     wizCard.appendChild(pathB);
 
     // Path C — iPhone. With the iPhone setup path on: the IRK steps and a

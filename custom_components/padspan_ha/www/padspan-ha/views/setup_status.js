@@ -145,7 +145,9 @@ export function receiversDone(state) {
 // Owner's D5 (2026-11-13): "After rooms, 2+ floors only": floor heights come after the rooms, and only a house of two
 // indoor floors or more has the step (setupSteps). Nothing before it needs a height: rooms, the rooms helper, receivers'
 // heights (above their own floor) and the 3D house use the default storey height until one is set.
-export const SETUP_STEPS = ["plan", "scale", "rooms", "floors", "receivers", "calibration"];
+// 2026-11-21: "Track your phone or watch" after the receivers and before calibration, which is walked with it (it was
+// on the Overview's Track Your Phone card and the phone wizard only, never a step).
+export const SETUP_STEPS = ["plan", "scale", "rooms", "floors", "receivers", "phone", "calibration"];
 // Read when drawn, so each is in the panel's language at that moment.
 export const STEP_LABELS = {
   get plan() { return t("Upload a floor plan"); },
@@ -153,6 +155,7 @@ export const STEP_LABELS = {
   get floors() { return t("Floors and their heights"); },
   get rooms() { return t("Draw the rooms"); },
   get receivers() { return t("Place receivers and set their heights"); },
+  get phone() { return t("Track your phone or watch"); },
   get calibration() { return t("Calibrate"); },
 };
 export const STEP_ABOUT = {
@@ -161,6 +164,7 @@ export const STEP_ABOUT = {
   get floors() { return t("How tall each floor is, so PadSpan can tell the floors apart."); },
   get rooms() { return t("Trace each Home Assistant room onto its floor plan."); },
   get receivers() { return t("Put each Bluetooth receiver where it is mounted, and say how high."); },
+  get phone() { return t("Let PadSpan know the phone or watch you carry, so it can follow you and calibrate with it."); },
   get calibration() { return t("Walk around the house with your phone so PadSpan learns what each spot sounds like."); },
 };
 
@@ -178,6 +182,8 @@ const DONE = {
   floors: (s) => indoorFloors(s).length <= 1 || indoorFloors(s).some(floorHasHeight),
   rooms: (s) => hasRooms(s),
   receivers: (s) => receiversDone(s),
+  // A phone or watch PadSpan follows as someone's (setup_checks.phones_tracked); unknown until the server has said.
+  phone: (s) => (Array.isArray(s.setupPhones) ? s.setupPhones.length > 0 : null),
   // The Overview checklist's own rule: five points or a fitted model; unknown until Calibration's points are read.
   calibration: (s) => (s.calibration ? hasCalibration(s) : null),
 };
