@@ -66,7 +66,7 @@ HA_PAGES = (
     "Marketplace", "Devices & services", "Devices &amp; services", "Devices & Services", "Devices &amp; Services",
     "System", "Repairs", "Areas, labels & zones", "Areas, labels &amp; zones", "People", "Voice assistants",
     "Automations & scenes", "Automations &amp; scenes", "Tools", "Companion App", "Companion app", "Bluetooth",
-    "Tags",
+    "Tags", "About",
 )
 # The release note that announced the rename names the old tab on purpose.
 RENAME_NOTE = re.compile(r"Presence is (?:now )?Settings")
