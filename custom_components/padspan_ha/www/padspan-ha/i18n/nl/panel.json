@@ -336,5 +336,6 @@
 "No rooms yet. Draw them in Setup's Draw the rooms step.": "Nog geen kamers. Teken ze in Instellen, bij de stap “Kamers tekenen”.",
 "No rooms drawn yet. Draw them in Setup's Draw the rooms step.": "Nog geen kamers getekend. Teken ze in Instellen, bij de stap “Kamers tekenen”.",
 "Room and receiver layout not built yet": "Indeling van kamers en ontvangers nog niet gemaakt",
-"Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. Draw the rooms in Setup's Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.": "Je plattegronden hebben kamers of ontvangers, maar de kamerindeling waarmee PadSpan werkt is nog leeg. Teken de kamers in Instellen, bij de stap “Kamers tekenen”: de indeling ontstaat daar vanzelf uit, er hoeft niets apart te worden gemigreerd."
+"Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. Draw the rooms in Setup's Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.": "Je plattegronden hebben kamers of ontvangers, maar de kamerindeling waarmee PadSpan werkt is nog leeg. Teken de kamers in Instellen, bij de stap “Kamers tekenen”: de indeling ontstaat daar vanzelf uit, er hoeft niets apart te worden gemigreerd.",
+"Reliability": "Betrouwbaarheid"
 }

@@ -14,6 +14,8 @@
 
 // Basic's focused parts (views/focus.js): a setting a problem points to opens on its own there.
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// The panel's words in its language (views/i18n.js); so far only Scanner Health's Reliability here.
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // ── "Go there" (2026-11-21) ─────────────────────────────────────────────
 // A problem says where it is fixed (ws_diagnostics.py `go`, status_dot.js
@@ -196,7 +198,7 @@ export function render(ctx){
     ].filter(Boolean)));
     const tbl = el("div",{style:"display:grid;grid-template-columns:auto 1fr auto auto auto;gap:4px 10px;font-size:11px;align-items:center"});
     // Header
-    for(const h of ["","Scanner","Room","Agreement","Weight"]){
+    for(const h of ["","Scanner","Room","Agreement",t("Reliability")]){
       tbl.appendChild(el("div",{style:"font-weight:600;color:#94a3b8;font-size:10px;text-transform:uppercase"},h));
     }
     for(const [src, d] of entries){
@@ -225,7 +227,7 @@ export function render(ctx){
       const warn = el("div",{style:"margin-top:8px;padding:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:6px;font-size:11px;color:#fca5a5"});
       warn.innerHTML = `<b>\u26a0 ${bad.length === 1 ? "1 receiver often points to a different room than the others" : `${bad.length} receivers often point to a different room than the others`}</b><br>` +
         bad.map(([src,d]) => `${_escHtml(nameMap[src]||src)} (${_escHtml(d.agree_pct)}% agreement)`).join(", ") +
-        `<br><span style="color:#94a3b8;font-size:10px">Check that each is in the right room in Home Assistant and where it is mounted. If it hears devices louder or quieter than it should, change its signal adjustment on the Receivers page. (Each has a weight below 0.7.)</span>`;
+        `<br><span style="color:#94a3b8;font-size:10px">Check that each is in the right room in Home Assistant and where it is mounted. If it hears devices louder or quieter than it should, change its signal adjustment on the Receivers page. (Each has a reliability below 0.7.)</span>`;
       shCard.appendChild(warn);
     }
     root.appendChild(shCard);

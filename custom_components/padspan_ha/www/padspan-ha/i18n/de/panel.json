@@ -336,5 +336,6 @@
 "No rooms yet. Draw them in Setup's Draw the rooms step.": "Noch keine Räume. Zeichne sie in der Einrichtung im Schritt „Räume zeichnen“.",
 "No rooms drawn yet. Draw them in Setup's Draw the rooms step.": "Noch keine Räume gezeichnet. Zeichne sie in der Einrichtung im Schritt „Räume zeichnen“.",
 "Room and receiver layout not built yet": "Raum- und Empfänger-Layout noch nicht erstellt",
-"Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. Draw the rooms in Setup's Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.": "Deine Grundrisse haben Räume oder Empfänger, aber das Raum-Layout, mit dem PadSpan arbeitet, ist noch leer. Zeichne die Räume in der Einrichtung im Schritt „Räume zeichnen“: Das Layout entsteht daraus von selbst, es gibt nichts extra zu migrieren."
+"Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. Draw the rooms in Setup's Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.": "Deine Grundrisse haben Räume oder Empfänger, aber das Raum-Layout, mit dem PadSpan arbeitet, ist noch leer. Zeichne die Räume in der Einrichtung im Schritt „Räume zeichnen“: Das Layout entsteht daraus von selbst, es gibt nichts extra zu migrieren.",
+"Reliability": "Zuverlässigkeit"
 }

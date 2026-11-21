@@ -147,6 +147,16 @@ const CRITICS = {
   check("dot: nothing to say, no card", !all(HEALTH.render(quiet.ctx)).some(n => n.getAttribute && n.getAttribute("data-health-now")));
 }
 
+// ── Scanner Health: the column is reliability (1 / (1 + disagreement)), not a weight ──
+{
+  const sh = { AA: { reliability: 0.62, agree_pct: 40, polls: 20, room: "Hall" } };
+  const m = makeCtx({ dataMode: "scanner-health", live: { snapshot: { ble: { radios: [{ source: "AA", name: "Hall proxy" }] },
+    objects: { list: [], summary: {} }, scanner_health: sh } } });
+  const root = HEALTH.render(m.ctx), t = text(root), h = html(root);   // the warning is drawn as markup
+  check("scanner health: the column says Reliability", t.includes("Reliability") && !t.includes("Weight")
+    && h.includes("1 receiver often points to a different room than the others") && h.includes("reliability below 0.7"), [t.slice(0, 600), h.slice(0, 600)]);
+}
+
 // ── support: Diagnostics from Health ──
 {
   const m = makeCtx();
