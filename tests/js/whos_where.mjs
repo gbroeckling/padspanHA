@@ -22,6 +22,7 @@ if (!WWW) { console.error("usage: whos_where.mjs <www/padspan-ha dir>"); process
 install(globalThis);
 
 const WW = await import(pathToFileURL(join(WWW, "views", "whos_where.js")).href);
+const { errorText } = await import(pathToFileURL(join(WWW, "views", "ui_error.js")).href);
 
 const failures = [];
 const cases = {};
@@ -118,7 +119,7 @@ const calls = [];
 const followed = new Set();
 const toasts = [];
 const mkCtx = (mode, snap) => ({
-  helpers: { el, isAway: (o, t) => (o.age_s || 0) > t, awayTimeoutS: () => 300, isScanner: opts.isScanner },
+  helpers: { el, isAway: (o, t) => (o.age_s || 0) > t, awayTimeoutS: () => 300, isScanner: opts.isScanner, errorText },
   state: { dataMode: mode, live: { snapshot: snap }, settings: {}, maps: { list: [] } },
   actions: {
     followedHas: (a) => followed.has(String(a).toUpperCase()),

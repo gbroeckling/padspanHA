@@ -146,7 +146,7 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
   };
   ctx.write = async (body, what) => {
     try { await refresh(await post(body)); return true; }
-    catch (e) { toast(`Couldn't ${what || "apply that"}: ${(e && (e.message || e.code)) || e}`, true); return false; }
+    catch (e) { toast(`Couldn't ${what || "apply that"}: ${errText(e)}`, true); return false; }
   };
   // Local view changes (selection, filters) repaint in place.
   ctx.repaint = () => paint();

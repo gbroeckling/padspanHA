@@ -234,7 +234,7 @@ function _walkTab(ctx, el, cs, calData) {
   if (!_WALK) {
     import(`./calibration_walk.js${new URL(import.meta.url).search}`)
       .then(m => { _WALK = m; ctx.actions.renderRooms(); })
-      .catch(e => ctx.toast("Could not load Walk a room: " + (e && e.message || e), true));
+      .catch(e => ctx.toast("Could not load Walk a room: " + ctx.helpers.errorText(e), true));
     return el("div", { class: "muted" }, "Loading…");
   }
   return _WALK.renderWalk(ctx, el, cs, calData, {
@@ -1506,7 +1506,7 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
         // HA websocket errors are objects; String() gives "[object Object]"
         // and hides the one thing the user needs — e.g. that this map has no
         // metre scale yet and the point was refused for having no position.
-        ctx.toast("Save failed: " + (e && (e.message || e.code) || String(e)), true);
+        ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
       }
     });
     btnRow.appendChild(saveBtn);
@@ -1756,7 +1756,7 @@ function _modelTab(ctx, el, cs, calData) {
         ctx.toast("Model computed.");
         ctx.actions.renderRooms();
       } catch (e) {
-        ctx.toast("Compute failed: " + String(e), true);
+        ctx.toast("Compute failed: " + ctx.helpers.errorText(e), true);
         computeWrap.innerHTML = "";
         computeWrap.appendChild(makeComputeBtn());
       }
@@ -1877,7 +1877,7 @@ function _modelTab(ctx, el, cs, calData) {
             ctx.toast("All calibration data cleared.");
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Failed: " + String((e && e.message) || e), true);
+            ctx.toast("Failed: " + ctx.helpers.errorText(e), true);
             clearWrap.appendChild(makeClearBtn());
           }
         });
@@ -2126,7 +2126,7 @@ function _modelTab(ctx, el, cs, calData) {
             ctx.state.calibration = await ctx.actions.calibrationGet();
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Delete failed: " + String(e), true);
+            ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true);
             delWrap.appendChild(makeDelBtn());
           }
         });
@@ -2276,7 +2276,7 @@ function _matrixTab(ctx, el, cs, calData) {
         ctx.toast("Model recomputed.");
         ctx.actions.renderRooms();
       } catch (e) {
-        ctx.toast("Recompute failed: " + String(e), true);
+        ctx.toast("Recompute failed: " + ctx.helpers.errorText(e), true);
         recomputeWrap.innerHTML = "";
         recomputeWrap.appendChild(makeRecomputeBtn());
       }
@@ -3387,7 +3387,7 @@ function _tuneTab(ctx, el, cs, calData) {
         }
       } catch (e) { /* reconcile is best-effort; the save already landed */ }
     } catch (e) {
-      ctx.toast("Save failed: " + String(e), true);
+      ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
       statusLbl.textContent = "Error saving";
       saveBtn.disabled = false;
     } finally {
@@ -3616,7 +3616,7 @@ function _tuneTab(ctx, el, cs, calData) {
         await ctx.actions.mapsRefresh();
         if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
       } catch (e) {
-        ctx.toast("Remove failed: " + String(e), true);
+        ctx.toast("Remove failed: " + ctx.helpers.errorText(e), true);
       } finally {
         tuneRelease(ts);
       }
@@ -3826,7 +3826,7 @@ function _tuneTab(ctx, el, cs, calData) {
               await ctx.actions.mapsRefresh();
             } catch (e) {
               ts._confirming = false;
-              ctx.toast("Delete failed: " + String(e), true);
+              ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true);
               _refreshRadiosList();
             }
           });
@@ -4833,7 +4833,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       saveBtn.disabled = false;
       statusLbl.textContent = "";
     } catch (e) {
-      ctx.toast("Save failed: " + String(e), true);
+      ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
       statusLbl.textContent = "Error saving";
       saveBtn.disabled = false;
     }
@@ -6195,7 +6195,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         } catch (e) {
           purgeBtn.textContent = "Error";
           purgeBtn.disabled = false;
-          ctx.toast("Purge failed: " + String(e), true);
+          ctx.toast("Purge failed: " + ctx.helpers.errorText(e), true);
         }
       });
       actRow.appendChild(purgeBtn);

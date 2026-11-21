@@ -129,7 +129,7 @@ export async function putOnMap(ctx, traced, deps){
       ? `${done} now on the map${left ? `; ${left} couldn't be (${deps.where})` : ""}.`
       : `Nothing could be put on the map${left ? `: ${left} couldn't be (${deps.where})` : ""}.`, !done || !!left);
   } catch (e) {
-    ctx.toast("Couldn't put it on the map: " + (e?.message || e), true);
+    ctx.toast("Couldn't put it on the map: " + ctx.helpers.errorText(e), true);
   } finally {
     ctx.state._wizardBuilding = false;
     await deps.refresh();

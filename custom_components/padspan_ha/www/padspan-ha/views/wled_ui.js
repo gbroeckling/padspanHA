@@ -85,7 +85,10 @@ export const select = (options, value, onChange, width) => {
   return sel;
 };
 export const field = (label, node, title) => h("div", { title }, [h("div", { style: S.lbl }, label), node]);
-export const errText = (e) => String((e && (e.message || e.code)) || e);
+// A failed call in the words every other toast uses (ui_error.js errorText): the
+// server's refusal as it is, a plain line for Home Assistant's machinery or a bug.
+const { errorText } = await import(`./ui_error.js${new URL(import.meta.url).search}`);
+export const errText = (e) => errorText(e);
 
 /** After a config write: say it's saved, and name anything that changed
  * without being asked for (ws_wled.py 'unexpected' — round 5). */

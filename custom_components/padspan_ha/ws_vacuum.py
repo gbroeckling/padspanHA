@@ -28,7 +28,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN
+from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN, NOT_LOADED_MESSAGE
 from . import vacuum_import as vi
 from .quiet_errors import note as _quiet_error
 from .util import AddressRefused
@@ -154,7 +154,7 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "no_preview", "Preview a vacuum map first")
         return
     if not ms or not mdl:
-        connection.send_error(msg["id"], "not_ready", "Maps not loaded yet")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
     floor_id = (msg.get("floor_id") or DEFAULT_FLOOR_ID).strip() or DEFAULT_FLOOR_ID
     # Rooms and the robot link (its live spot, the walker's points) only on
@@ -276,7 +276,7 @@ async def ws_vacuum_cal_pending_accept(hass: HomeAssistant, connection, msg) -> 
     vs = await _store(hass)
     cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
     if not cal:
-        connection.send_error(msg["id"], "not_ready", "Calibration not loaded yet")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
     p = next((x for x in vs.pending_list() if x.get("id") == msg["point_id"]), None)
     if not p:

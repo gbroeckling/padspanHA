@@ -165,7 +165,7 @@ async function _loadOccupancy(ctx, el, container) {
         await ctx.actions.settingsSet({ occupancy_hybrid_enabled: hybridCb.checked });
         ctx.toast(hybridCb.checked ? "Hybrid counting enabled" : "Hybrid counting disabled — phones only");
         _loadOccupancy(ctx, el, container);
-      } catch (e) { ctx.toast("Failed: " + (e.message || e), true); }
+      } catch (e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
     });
     hybridRow.appendChild(hybridCb);
     hybridRow.appendChild(el("div", {}, [
@@ -197,7 +197,7 @@ async function _loadOccupancy(ctx, el, container) {
         ctx.toast(`Cluster threshold set to ${v} dBm`);
         _loadOccupancy(ctx, el, container);
       } catch (e) {
-        ctx.toast("Failed: " + (e.message || e), true);
+        ctx.toast("Failed: " + ctx.helpers.errorText(e), true);
         threshSaveBtn.disabled = false; threshSaveBtn.textContent = "Save & Refresh";
       }
     });
@@ -252,7 +252,7 @@ async function _loadOccupancy(ctx, el, container) {
         }
         _loadOccupancy(ctx, el, container);
       } catch (e) {
-        ctx.toast("Failed: " + (e.message || e), true);
+        ctx.toast("Failed: " + ctx.helpers.errorText(e), true);
         trainBtn.disabled = false; trainBtn.textContent = "Save";
       }
     });

@@ -74,6 +74,16 @@ DATA_HOUSE3D = "house3d"                     # house3d_store.House3dStore — Li
 DATA_SUBZONES = "subzones"                   # subzones.SubzoneStore — named areas inside rooms; loaded on first use
 DATA_PLAN_AI = "plan_ai"                     # plan_ai.PlanAiStore — the plan AI's suggestions and verdicts (experimental); loaded on first use
 
+# What a refusal says when one of the stores above isn't there (2026-11-21):
+# the integration is still loading it, or it failed to load at start (the log
+# says why). It said "ModelStore not loaded", "FabricStore not loaded" and so
+# on, in the panel's toasts. Each refusal keeps its own code (no_model,
+# no_fabric, ...); that is what code reads.
+NOT_LOADED_MESSAGE = (
+    "PadSpan hasn't finished loading. Try again in a minute; if this keeps "
+    "happening, restart Home Assistant and look for PadSpan in its log."
+)
+
 # ── HA Storage file keys (.storage/<key>) ─────────────────────────────────────
 SETTINGS_STORE_KEY = "padspan_ha.settings"
 MAPS_STORE_KEY = "padspan_ha.maps"

@@ -824,7 +824,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
             ctx.toast(`Radio reset${detail}`);
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Reset failed: " + String(e), true);
+            ctx.toast("Reset failed: " + ctx.helpers.errorText(e), true);
             makeResetBtn();
           }
         });
@@ -885,7 +885,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
             makeRelearnBtn();
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Relearn failed: " + String(e), true);
+            ctx.toast("Relearn failed: " + ctx.helpers.errorText(e), true);
             makeRelearnBtn();
           }
         });
@@ -1313,7 +1313,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
           try {
             await ctx.actions.wsCall("padspan_ha/findmy_unlink", { key: obj.key, address: selected });
             if (ctx.toast) ctx.toast(`Unlinked — this address is its own device again`);
-          } catch (e) { if (ctx.toast) ctx.toast("Couldn't unlink: " + ((e && (e.message || e.code)) || e), true); }
+          } catch (e) { if (ctx.toast) ctx.toast("Couldn't unlink: " + ctx.helpers.errorText(e), true); }
         },
       }, `Not ${hdrName}? Unlink`)]));
     }
@@ -2522,7 +2522,7 @@ function renderIrkPanel(ctx, snap) {
             await ctx.actions.wsCall("padspan_ha/irk_remove", { irk_hex: hex });
             ctx.state._irkPanelStatus = null;
             ctx.actions.renderRooms();
-          } catch(e) { ctx.toast(e.message || "Remove failed", true); }
+          } catch(e) { ctx.toast("Remove failed: " + ctx.helpers.errorText(e), true); }
         });
         tdAct.appendChild(rmBtn);
       } else if (d.source === "private_ble_device" && d.entry_id) {
@@ -2534,7 +2534,7 @@ function renderIrkPanel(ctx, snap) {
             await ctx.actions.wsCall("padspan_ha/private_ble_delete_irk", { entry_id: d.entry_id });
             ctx.state._irkPanelStatus = null;
             ctx.actions.renderRooms();
-          } catch(e) { ctx.toast(e.message || "Delete failed", true); }
+          } catch(e) { ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true); }
         });
         tdAct.appendChild(rmBtn);
       } else {

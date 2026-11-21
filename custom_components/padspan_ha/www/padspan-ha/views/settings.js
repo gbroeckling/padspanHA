@@ -590,7 +590,7 @@ function _scannerMap(ctx, el, haFloors){
                 ctx.state.calibration = null;
                 ctx.actions.renderRooms();
               } catch(e) {
-                ctx.toast("Clear failed: " + String((e && e.message) || e), true);
+                ctx.toast("Clear failed: " + ctx.helpers.errorText(e), true);
                 makeClearBtn();
               }
             }
@@ -708,7 +708,7 @@ function _scannerMap(ctx, el, haFloors){
           ctx.toast(`Swapped ${res.updated_readings} reading${res.updated_readings!==1?"s":""} from ${radioName(old_source)} → ${radioName(new_source)}.` + (res.dropped_readings ? ` ${res.dropped_readings} point(s) already had ${radioName(new_source)}'s own reading, kept instead.` : ""));
           ctx.actions.renderRooms();
         } catch(e){
-          ctx.toast("Swap failed: " + String(e), true);
+          ctx.toast("Swap failed: " + ctx.helpers.errorText(e), true);
           swapBtnWrap.innerHTML = "";
           swapBtnWrap.appendChild(makeSwapBtn());
         }
@@ -792,7 +792,7 @@ function _scannerMap(ctx, el, haFloors){
           ctx.toast(`Relearned ${radioName(source)}: ${gain > 0 ? "+" : ""}${gain} dB — ${res.updated_points} point${res.updated_points!==1?"s":""} updated.`);
           ctx.actions.renderRooms();
         } catch(e){
-          ctx.toast("Relearn failed: " + String(e), true);
+          ctx.toast("Relearn failed: " + ctx.helpers.errorText(e), true);
           rlBtnWrap.innerHTML = "";
           rlBtnWrap.appendChild(makeRlBtn());
         }
@@ -987,14 +987,14 @@ function _settingsPresence(ctx, el){
         await ctx.actions.settingsSet({ guest_tags_enabled: gToggle.checked });
         ctx.toast(gToggle.checked ? "Guest tags on — see the Guests tab" : "Guest tags off");
         ctx.actions.renderRooms();
-      } catch(e){ gToggle.checked = !gToggle.checked; ctx.toast("Failed to save: " + (e?.message || e), true); }
+      } catch(e){ gToggle.checked = !gToggle.checked; ctx.toast("Failed to save: " + ctx.helpers.errorText(e), true); }
     });
     const keep = el("select",{class:"select",style:"width:auto"});
     for (const [v, t] of [[0,"not kept"],[7,"7 days"],[30,"30 days"],[90,"90 days"]]) keep.appendChild(el("option",{value:String(v)}, t));
     keep.value = String(settings.guest_retention_days ?? 30);
     keep.addEventListener("change", async()=>{
       try { await ctx.actions.settingsSet({ guest_retention_days: parseInt(keep.value, 10) }); ctx.toast("Saved"); }
-      catch(e){ ctx.toast("Failed to save: " + (e?.message || e), true); }
+      catch(e){ ctx.toast("Failed to save: " + ctx.helpers.errorText(e), true); }
     });
     put("phones", el("div",{class:"card","data-focus-part":"guest_tags",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
@@ -1446,7 +1446,7 @@ function _settingsPresence(ctx, el){
       await ctx.actions.settingsSet({ enhanced_security: !secOn });
       ctx.toast(`Enhanced security ${!secOn ? "on" : "off"}`);
       ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting: " + String((e && e.message) || e), true); }
+    } catch(e) { ctx.toast("Failed to save setting: " + ctx.helpers.errorText(e), true); }
   });
   const secCovers = [
     "Devices: merging, deleting, renaming and labelling them",
@@ -1532,7 +1532,7 @@ function _settingsPresence(ctx, el){
         ? "Would be REFUSED before sending: " + r.problem
         : `${JSON.stringify(r.payload).length} bytes \u2192 ${r.url}`;
       telStatus.style.color = r.problem ? "#f87171" : "";
-    } catch(e) { ctx.toast("Preview failed: " + (e.message || e), true); }
+    } catch(e) { ctx.toast("Preview failed: " + ctx.helpers.errorText(e), true); }
     previewBtn.disabled = false;
   });
   const sendBtn = el("button", { class: "btn inline", disabled: telOn ? undefined : "disabled",
@@ -1542,7 +1542,7 @@ function _settingsPresence(ctx, el){
     try {
       const r = await ctx.actions.wsCall("padspan_ha/telemetry_send_now");
       ctx.toast(r.sent ? `Report sent (${r.bytes} bytes)` : "Not sent: " + (r.reason || "unknown"), !r.sent);
-    } catch(e) { ctx.toast("Send failed: " + (e.message || e), true); }
+    } catch(e) { ctx.toast("Send failed: " + ctx.helpers.errorText(e), true); }
     sendBtn.disabled = false;
   });
   const idBtn = el("button", { class: "btn inline", title: "Replace the anonymous install id with a new random one" }, "New anonymous ID");
@@ -1552,7 +1552,7 @@ function _settingsPresence(ctx, el){
       await ctx.actions.wsCall("padspan_ha/telemetry_reset_id");
       ctx.toast("New anonymous ID minted");
       await ctx.actions.settingsSet({});   // reloads settings into ctx.state
-    } catch(e) { ctx.toast("Failed: " + (e.message || e), true); }
+    } catch(e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
     idBtn.disabled = false;
     ctx.actions.renderRooms();
   });
@@ -1625,7 +1625,7 @@ function _settingsPresence(ctx, el){
       await ctx.actions.settingsSet({aggressive_ble_reseed: aggressiveChk.checked});
       ctx.toast(aggressiveChk.checked ? "Bluetooth refresh every 5 s on." : "Bluetooth refresh back to its interval.");
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed: "+String(e), true); aggressiveChk.checked = !aggressiveChk.checked; }
+    } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); aggressiveChk.checked = !aggressiveChk.checked; }
   });
   const aggressiveReseedRow = el("div", { "data-setting": "aggressive_ble_reseed", style: "margin-top:10px" }, [
     el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
@@ -2787,7 +2787,7 @@ function _settingsPresence(ctx, el){
       ctx.state._healthCheckResult = r;
       _renderHealthResults(r);
       await ctx.actions.settingsSet({ health_reminder_last_ts: Date.now()/1000 });
-    } catch(e){ ctx.toast("Health check failed: "+String(e), true); }
+    } catch(e){ ctx.toast("Health check failed: "+ctx.helpers.errorText(e), true); }
     finally{ checkNowBtn.disabled=false; checkNowBtn.textContent="Check Now"; }
   });
 
@@ -2903,7 +2903,7 @@ function _settingsPresence(ctx, el){
       await ctx.actions.wsCall("padspan_ha/adaptive_reset");
       ctx.toast("Adaptive learning data cleared");
       _renderAdaptiveStatus(null);
-    } catch(e){ ctx.toast("Reset failed: "+String(e), true); }
+    } catch(e){ ctx.toast("Reset failed: "+ctx.helpers.errorText(e), true); }
     finally{ resetAdaptiveBtn.disabled=false; resetAdaptiveBtn.textContent="Reset Learned Data"; }
   });
 
@@ -2963,7 +2963,7 @@ function _settingsPresence(ctx, el){
         await ctx.actions.settingsSet({ padspan_automations: newRules });
         ctx.state.settings = { ...ctx.state.settings, padspan_automations: newRules };
         ctx.toast("Automation saved");
-      } catch(e) { ctx.toast("Save failed: " + String(e), true); }
+      } catch(e) { ctx.toast("Save failed: " + ctx.helpers.errorText(e), true); }
     };
 
     const _deleteRule = (idx) => {
@@ -3097,7 +3097,7 @@ function _settingsPresence(ctx, el){
           if (r && r.ok === false) { ctx.toast("Not resumed: " + (r.error || "try again in a moment"), true); return; }
           ctx.toast("Normal pipeline resumed \u2014 smoothing state cleared for fresh start");
           await ctx.actions.refreshSnapshot();   // refreshLive never existed: the card kept offering the old state
-        } catch(e){ ctx.toast("Failed: "+String(e), true); }
+        } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
         finally{ cancelBtn.disabled=false; cancelBtn.textContent="Resume Normal Pipeline"; }
       });
       cardChildren.push(cancelBtn);
@@ -3112,7 +3112,7 @@ function _settingsPresence(ctx, el){
           if (r && r.ok === false) { ctx.toast("Not suspended: " + (r.error || "try again in a moment"), true); return; }
           ctx.toast("Databases suspended \u2014 raw radio mode for 60 minutes");
           await ctx.actions.refreshSnapshot();   // refreshLive never existed: the card kept offering the old state
-        } catch(e){ ctx.toast("Failed: "+String(e), true); }
+        } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
         finally{ suspendBtn.disabled=false; suspendBtn.textContent="Suspend All Databases (60 min)"; }
       });
       cardChildren.push(suspendBtn);
@@ -3247,7 +3247,7 @@ function _settingsPresence(ctx, el){
       bermudaStatusEl.textContent = "Snapshot refreshed";
       bermudaStatusEl.style.color = "#52b788";
       ctx.toast("Snapshot refreshed");
-    } catch(e){ ctx.toast("Refresh failed: "+String(e), true); }
+    } catch(e){ ctx.toast("Refresh failed: "+ctx.helpers.errorText(e), true); }
     finally { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh Snapshot"; }
   });
 
@@ -3672,7 +3672,7 @@ function _settingsLicence(ctx, el){
           ctx.toast((r && r.message) || "That key was not accepted", true);
         }
       } catch (e) {
-        ctx.toast("Licence check failed: " + String(e), true);
+        ctx.toast("Licence check failed: " + ctx.helpers.errorText(e), true);
       } finally { enterBtn.disabled = false; }
     } }, hasKey ? "Replace licence key" : "Enter licence key");
   row.appendChild(enterBtn);
@@ -3930,7 +3930,7 @@ function _settingsFeatures(ctx, el){
             }
           } catch(e){
             toggle.checked = false;
-            ctx.toast("Licence check failed: " + String(e), true);
+            ctx.toast("Licence check failed: " + ctx.helpers.errorText(e), true);
           } finally { toggle.disabled = false; }
           return;
         }
@@ -4033,7 +4033,7 @@ function _settingsFeatures(ctx, el){
         const r = await ctx.actions.wsCall("padspan_ha/forensics_clear");
         ctx.toast(`Deleted forensics data for ${r?.removed ?? 0} addresses`);
         statsDiv.textContent = "0 addresses · 0 sessions recorded";
-      } catch(e){ ctx.toast("Delete failed: " + String(e), true); }
+      } catch(e){ ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true); }
       finally { delBtn.disabled = false; delBtn.textContent = "Delete all recorded data"; }
     });
     card.appendChild(delBtn);
@@ -4065,7 +4065,7 @@ function _atlasWeatherSection(ctx, el, settings){
       note.textContent = "Saved — the Atlas shows it at its next refresh.";
     } catch (e) {
       if (undo) undo();
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
     }
   };
 
@@ -4263,7 +4263,7 @@ function _settingsAI(ctx, el){
       return true;
     } catch (e) {
       if (undo) undo();
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
       return false;
     }
   };
@@ -4409,7 +4409,7 @@ function _atlas3dSection(ctx, el, settings){
   wizBtn.addEventListener("click", ()=>{
     import(`./aboard_wizard.js${new URL(import.meta.url).search}`)
       .then(m => m.openLiveAboardWizard(ctx))
-      .catch(e => ctx.toast("Could not open the wizard: " + String((e && e.message) || e), true));
+      .catch(e => ctx.toast("Could not open the wizard: " + ctx.helpers.errorText(e), true));
   });
   box.appendChild(wizBtn);
   const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
@@ -4421,7 +4421,7 @@ function _atlas3dSection(ctx, el, settings){
       return true;
     } catch (e) {
       if (undo) undo();
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
       return false;
     }
   };
@@ -4651,7 +4651,7 @@ function _atlas3dSection(ctx, el, settings){
             // Every Live Aboard open in this page reads its file again.
             try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
           } catch (e) {
-            ctx.toast("Could not remove the furniture: " + String((e && e.message) || e), true);
+            ctx.toast("Could not remove the furniture: " + ctx.helpers.errorText(e), true);
           }
           rmBtn();
         }}, "Remove all"));
@@ -4907,7 +4907,7 @@ function _planAiLastRow(ctx, el){
             try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
             show(r && r.undo);
           } catch (e) {
-            ctx.toast("Could not undo: " + String((e && e.message) || e), true);
+            ctx.toast("Could not undo: " + ctx.helpers.errorText(e), true);
             ask();
           }
         }}, back ? "Put back" : "Undo"));
@@ -4959,7 +4959,7 @@ function _atlas3dLibraryRowsShown(ctx, el, settings, more, row, save){
       const n = Number(r && r.withdrawn) || 0, left = Number(r && r.left) || 0;
       ctx.toast(`${n === 1 ? "1 piece" : `${n} pieces`} taken out of the library.${left ? ` ${left} could not be reached yet: try again later.` : ""}`);
     } catch (e) {
-      ctx.toast("Could not withdraw: " + String((e && e.message) || e), true);
+      ctx.toast("Could not withdraw: " + ctx.helpers.errorText(e), true);
     }
     yes.disabled = false;
     ask.style.display = "none";
@@ -5156,7 +5156,7 @@ function _settingsAtlas(ctx, el){
         : "Saved \u2014 the button leaves the Atlas at its next refresh.";
     } catch (e) {
       emergCb.checked = !want;
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
     }
   });
   // Lights in their own colours on the working Atlas (Showcase always does).
@@ -5177,7 +5177,7 @@ function _settingsAtlas(ctx, el){
       colNote.textContent = "Saved \u2014 the Atlas changes at its next refresh.";
     } catch (e) {
       colCb.checked = !want;
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
     }
   });
   // Alert pulse, normally off: a door left open, or a window or cover open in
@@ -5202,7 +5202,7 @@ function _settingsAtlas(ctx, el){
         : "Saved — the Atlas stops showing alerts at its next refresh.";
     } catch (e) {
       pulseCb.checked = !want;
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
     }
   });
   // The ♨ Heatmap chip, normally off: with it on, the Atlas's layer bar offers
@@ -5227,7 +5227,7 @@ function _settingsAtlas(ctx, el){
       heatNote.textContent = "Saved \u2014 the Atlas changes at its next refresh.";
     } catch (e) {
       heatCb.checked = !want;
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
     }
   });
   }

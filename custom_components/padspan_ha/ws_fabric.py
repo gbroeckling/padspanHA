@@ -16,6 +16,7 @@ from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
     DATA_MAPS,
@@ -103,11 +104,11 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
     """Remove a scanner from the positioning fabric."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     source = (msg.get("source") or "").strip()
     if not source:
-        connection.send_error(msg["id"], "invalid", "source is required")
+        connection.send_error(msg["id"], "invalid", "Pick a receiver first.")
         return
     await mdl.async_remove_scanner(source)
     connection.send_result(msg["id"], {"ok": True})
@@ -146,7 +147,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     eid = (msg.get("entity_id") or "").strip()
     # Fans, motion sensors, temperature sensors and (gap #8, best-in-class
@@ -158,7 +159,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     # relevant, there is no sub-class to exclude.
     if not (eid.startswith("light.") or eid.startswith("fan.") or eid.startswith("binary_sensor.")
             or eid.startswith("sensor.") or eid.startswith("lock.")):
-        connection.send_error(msg["id"], "invalid", "a light, fan, motion-sensor, temperature/humidity/air-quality-sensor or lock entity_id is required")
+        connection.send_error(msg["id"], "invalid", "Pick a light, fan, motion sensor, temperature, humidity or air-quality sensor, or lock.")
         return
     if not _height_ok(msg.get("z_m")):
         connection.send_error(msg["id"], "invalid", _HEIGHT_MSG)
@@ -206,7 +207,7 @@ async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> No
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     missing = await mdl.async_set_light_heights(heights)
     if missing:
@@ -235,11 +236,11 @@ async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     eid = (msg.get("entity_id") or "").strip()
     if not eid:
-        connection.send_error(msg["id"], "invalid", "entity_id is required")
+        connection.send_error(msg["id"], "invalid", "Pick a Home Assistant entity first.")
         return
     await mdl.async_remove_light_position_m(eid)
     _bump(hass, "light_removed")
@@ -266,11 +267,11 @@ async def ws_fabric_beacon_position_set(hass: HomeAssistant, connection, msg) ->
     """Pin a beacon in real-world metres. No photo involved."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     key = (msg.get("key") or "").strip()
     if not key:
-        connection.send_error(msg["id"], "invalid", "key is required")
+        connection.send_error(msg["id"], "invalid", "Pick a beacon first.")
         return
     if not _height_ok(msg.get("z_m")):
         connection.send_error(msg["id"], "invalid", _HEIGHT_MSG)
@@ -306,7 +307,7 @@ async def ws_fabric_beacon_height_set(hass: HomeAssistant, connection, msg) -> N
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     missing = await mdl.async_set_beacon_heights(heights)
     if missing:
@@ -336,11 +337,11 @@ async def ws_fabric_beacon_remove(hass: HomeAssistant, connection, msg) -> None:
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     key = (msg.get("key") or "").strip()
     if not key:
-        connection.send_error(msg["id"], "invalid", "key is required")
+        connection.send_error(msg["id"], "invalid", "Pick a beacon first.")
         return
     await mdl.async_remove_beacon_position_m(key)
     connection.send_result(msg["id"], {"ok": True})
@@ -359,11 +360,11 @@ async def ws_fabric_room_add(hass: HomeAssistant, connection, msg) -> None:
     """Add a PadSpan-native room (no HA area needed)."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     room = (msg.get("room") or "").strip()
     if not room:
-        connection.send_error(msg["id"], "invalid", "room is required")
+        connection.send_error(msg["id"], "invalid", "Pick a room first.")
         return
     floor_id = (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID
     # Three separate writes, not one: async_ensure_rooms only guarantees the
@@ -410,11 +411,11 @@ async def ws_fabric_room_remove(hass: HomeAssistant, connection, msg) -> None:
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     room = (msg.get("room") or "").strip()
     if not room:
-        connection.send_error(msg["id"], "invalid", "room is required")
+        connection.send_error(msg["id"], "invalid", "Pick a room first.")
         return
     res = await mdl.async_remove_room(room)
     if not res.get("ok"):
@@ -438,11 +439,11 @@ async def ws_fabric_sync_mode_set(hass: HomeAssistant, connection, msg) -> None:
     """Switch fabric sync mode: 'auto' (sync from HA) or 'manual' (standalone)."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     mode = (msg.get("mode") or "").strip().lower()
     if mode not in ("auto", "manual"):
-        connection.send_error(msg["id"], "invalid", "mode must be 'auto' or 'manual'")
+        connection.send_error(msg["id"], "invalid", "The mode is “auto” or “manual”.")
         return
     await mdl.async_set_sync_mode(mode)
     # If switching to auto, trigger immediate HA sync
@@ -480,11 +481,11 @@ async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -
     """Set a scanner's real-world position in metres."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     source = (msg.get("source") or "").strip()
     if not source:
-        connection.send_error(msg["id"], "invalid", "source is required")
+        connection.send_error(msg["id"], "invalid", "Pick a receiver first.")
         return
     await mdl.async_set_scanner_position_m(
         source, float(msg["x_m"]), float(msg["y_m"]),
@@ -584,7 +585,7 @@ async def ws_receivers_to_rooms(hass: HomeAssistant, connection, msg) -> None:
     dom = hass.data.get(DOMAIN, {})
     mdl, fab, st = dom.get(DATA_MODEL), dom.get(DATA_FABRIC), dom.get(DATA_SETTINGS)
     if mdl is None or fab is None:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     now = mdl.scanner_positions_m()
     if msg.get("undo"):
@@ -647,11 +648,11 @@ async def ws_fabric_scanner_z_set(hass: HomeAssistant, connection, msg) -> None:
     """Set only a scanner's mounting height (z stays through map syncs)."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     ok = await mdl.async_set_scanner_z_m((msg.get("source") or "").strip(), float(msg["z_m"]))
     if not ok:
-        connection.send_error(msg["id"], "not_found", "Scanner has no fabric position yet")
+        connection.send_error(msg["id"], "not_found", "This receiver isn't placed on a floor plan yet, so it has no height to set.")
         return
     connection.send_result(msg["id"], {"ok": True})
 
@@ -673,7 +674,7 @@ async def ws_fabric_floor_elevations_set(hass: HomeAssistant, connection, msg) -
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     floors = await mdl.async_set_floor_elevations(msg.get("floors") or [])
     connection.send_result(msg["id"], {
@@ -709,12 +710,12 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
     """
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     if not fab:
-        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        connection.send_error(msg["id"], "no_fabric", NOT_LOADED_MESSAGE)
         return
     room = (msg.get("room") or "").strip()
     geo = msg.get("geometry")
     if not room or not isinstance(geo, dict):
-        connection.send_error(msg["id"], "invalid", "room and geometry dict are required")
+        connection.send_error(msg["id"], "invalid", "Pick a room and give its shape.")
         return
     source_map_id = (msg.get("source_map_id") or "").strip() or None
     source_transform = None
@@ -763,7 +764,7 @@ async def ws_fabric_rooms_merge(hass: HomeAssistant, connection, msg) -> None:
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not fab or not mdl:
-        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        connection.send_error(msg["id"], "no_fabric", NOT_LOADED_MESSAGE)
         return
     floor_id = (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID
     keep = (msg.get("keep") or "").strip()
@@ -842,7 +843,7 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not fab or not mdl or not ms:
-        connection.send_error(msg["id"], "no_stores", "Fabric/Model/Maps store not loaded")
+        connection.send_error(msg["id"], "no_stores", NOT_LOADED_MESSAGE)
         return
     fl = str(msg.get("floor_id") or DEFAULT_FLOOR_ID)
     all_maps = ms.data.get("maps") or []
@@ -923,7 +924,7 @@ async def ws_fabric_rooms_reconcile(hass: HomeAssistant, connection, msg) -> Non
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not fab or not mdl or not ms:
-        connection.send_error(msg["id"], "no_stores", "Fabric/Model/Maps store not loaded")
+        connection.send_error(msg["id"], "no_stores", NOT_LOADED_MESSAGE)
         return
     fl = str(msg.get("floor_id") or DEFAULT_FLOOR_ID)
     all_maps = ms.data.get("maps") or []
@@ -969,7 +970,7 @@ async def ws_fabric_floor_finalize(hass: HomeAssistant, connection, msg) -> None
     """Finalize (lock) or unlock a floor's fabric. Flips only the flag."""
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     if not fab:
-        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        connection.send_error(msg["id"], "no_fabric", NOT_LOADED_MESSAGE)
         return
     res = await fab.async_set_floor_committed(
         msg.get("floor_id") or DEFAULT_FLOOR_ID, bool(msg.get("committed"))
@@ -993,11 +994,11 @@ async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     barrier = msg.get("barrier")
     if not isinstance(barrier, dict) or not barrier.get("name"):
-        connection.send_error(msg["id"], "invalid", "barrier dict with name is required")
+        connection.send_error(msg["id"], "invalid", "A signal wall needs a name.")
         return
     barrier.setdefault("floor_id", DEFAULT_FLOOR_ID)
     stored = await mdl.async_set_rf_barrier_m(barrier)
@@ -1020,11 +1021,11 @@ async def ws_fabric_rf_barrier_remove(hass: HomeAssistant, connection, msg) -> N
     """Remove an RF barrier by id."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     bid = (msg.get("barrier_id") or "").strip()
     if not bid:
-        connection.send_error(msg["id"], "invalid", "barrier_id is required")
+        connection.send_error(msg["id"], "invalid", "Pick a signal wall first.")
         return
     await mdl.async_remove_rf_barrier_m(bid)
     _bump(hass, "wall_removed")
@@ -1047,7 +1048,7 @@ async def ws_fabric_rf_barrier_rails_stamp(hass: HomeAssistant, connection, msg)
     """
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     if not fab:
-        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        connection.send_error(msg["id"], "no_fabric", NOT_LOADED_MESSAGE)
         return
     counts = await fab.async_stamp_barrier_rails(msg["rails"])
     for word, n in counts.items():
@@ -1074,7 +1075,7 @@ async def ws_fabric_open_edges_apply(hass: HomeAssistant, connection, msg) -> No
     """
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     if not fab:
-        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        connection.send_error(msg["id"], "no_fabric", NOT_LOADED_MESSAGE)
         return
     norm = [fab._norm_barrier(dict(b)) if b.get("name") else None for b in msg["set_barriers"]]
     if any(b is None for b in norm):
@@ -1105,12 +1106,12 @@ async def ws_fabric_map_transform_set(hass: HomeAssistant, connection, msg) -> N
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     map_id = (msg.get("map_id") or "").strip()
     transform = msg.get("transform")
     if not map_id or not isinstance(transform, dict):
-        connection.send_error(msg["id"], "invalid", "map_id and transform dict are required")
+        connection.send_error(msg["id"], "invalid", "Pick a floor plan and its placement.")
         return
     _stored = await async_write_measured_transform(hass, map_id, transform)
     connection.send_result(msg["id"], {
@@ -1222,10 +1223,10 @@ async def ws_fabric_map_reanchor(hass: HomeAssistant, connection, msg) -> None:
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     if not ms:
-        connection.send_error(msg["id"], "no_maps", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps", NOT_LOADED_MESSAGE)
         return
     map_id = (msg.get("map_id") or "").strip()
     m = ms.get_map(map_id)
@@ -1815,7 +1816,7 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
     stats = await mdl.async_resync_clean()
     # Prune to radios only (using presence coordinator's last known radios)
@@ -1883,7 +1884,7 @@ async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
     # untouched — they are the rollback/import source, never live data.
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     if not fab:
-        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        connection.send_error(msg["id"], "no_fabric", NOT_LOADED_MESSAGE)
         return
     scanners = list(fab.scanner_positions_m())
     beacons = list(fab.beacon_positions_m())

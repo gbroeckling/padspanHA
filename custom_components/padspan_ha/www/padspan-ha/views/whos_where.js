@@ -154,7 +154,7 @@ export function whosWhereCard(ctx){
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "Track";
-      ctx.toast(`Couldn't track ${p.name}: ${e?.message || e}`, true);
+      ctx.toast(`Couldn't track ${p.name}: ${ctx.helpers.errorText(e)}`, true);
     }
   };
   const trackBtn = (p) => {

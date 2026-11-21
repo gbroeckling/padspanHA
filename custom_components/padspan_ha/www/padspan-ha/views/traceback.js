@@ -2677,7 +2677,7 @@ export function render(ctx) {
                 }
                 await ctx.actions.settingsSet({ distance_stationary_devices: updated });
                 _loadDist();
-              } catch(e) { ctx.toast("Failed: " + (e.message||e), true); }
+              } catch(e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
             });
             actDiv.appendChild(statBtn);
             tbl.appendChild(actDiv);

@@ -86,7 +86,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     if msg["confirm"] != "FACTORY RESET":
         connection.send_error(
             msg["id"], "confirmation_failed",
-            'You must pass confirm="FACTORY RESET" to proceed.'
+            "Confirm by typing FACTORY RESET."
         )
         return
 

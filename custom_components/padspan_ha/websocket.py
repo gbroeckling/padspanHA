@@ -49,6 +49,7 @@ from homeassistant.helpers import area_registry
 
 from .ws_common import admin_if_enhanced_security, shallow, ROOMS_MAX
 from .const import (
+    NOT_LOADED_MESSAGE,
     DOMAIN,
     VERSION,
     DATA_SETTINGS,
@@ -672,7 +673,7 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
     """Update room_meta (color, floor assignment). Floors are read-only from HA floor registry."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model_store", "Model store not initialized")
+        connection.send_error(msg["id"], "no_model_store", NOT_LOADED_MESSAGE)
         return
     updated = await mdl.async_update(room_meta=msg.get("room_meta"))
     connection.send_result(msg["id"], updated)
@@ -701,10 +702,10 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
     Drawing only: positioning reads the floors' heights, never this."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model_store", "Model store not initialized")
+        connection.send_error(msg["id"], "no_model_store", NOT_LOADED_MESSAGE)
         return
     if not any(k in msg for k in ("height_m", "floor_raise_m", "surface", "space")):
-        connection.send_error(msg["id"], "invalid", "Send height_m, floor_raise_m, surface or space")
+        connection.send_error(msg["id"], "invalid", "Nothing to change: give a height, a floor raise, a surface or a space.")
         return
     if msg.get("space") is not None:
         # A room on an Outside floor is outside ground: no kind to choose.
@@ -717,7 +718,8 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
     for key in ("height_m", "floor_raise_m"):
         v = msg.get(key)
         if v is not None and not math.isfinite(v):
-            connection.send_error(msg["id"], "invalid", f"{key} must be metres, or null")
+            connection.send_error(msg["id"], "invalid", ("The height must be a number of metres, or empty." if key == "height_m"
+                                  else "The floor raise must be a number of metres, or empty."))
             return
     if "height_m" in msg:
         ok, out["height_m"] = await mdl.async_set_room_height(msg["room"], msg["height_m"])

@@ -477,7 +477,7 @@ export function render(ctx){
         copyBtn.textContent = "Copied!";
         setTimeout(()=>{ copyBtn.textContent = "Copy snapshot JSON"; }, 2000);
       } catch(e){
-        ctx.toast("Copy failed: " + String(e), true);
+        ctx.toast("Copy failed: " + ctx.helpers.errorText(e), true);
       }
     });
     explorerCard.appendChild(copyBtn);

@@ -651,7 +651,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
               map_id: _mig.targetMapId,
               receivers: newRx, beacons: newBk, room_bounds: newBounds,
             });
-          } catch(e){ ctx.toast("Revert failed: "+String(e), true); return; }
+          } catch(e){ ctx.toast("Revert failed: "+ctx.helpers.errorText(e), true); return; }
           // Revert canvas extension if it was applied
           if(_mig.canvasExtended){
             try {
@@ -1638,7 +1638,7 @@ function _wizKeep(ctx){
       await _saveLayout(ctx, map);
       if(ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_draw:kept");
       ctx.toast("Saved \u2714");
-    }catch(err){ ctx.toast("Not saved: " + String((err && err.message) || err) + ". Press Save Layout under the plan.", true); }
+    }catch(err){ ctx.toast("Not saved: " + ctx.helpers.errorText(err) + ". Press Save Layout under the plan.", true); }
     ctx.actions.renderRooms();
   });
 }
@@ -2475,13 +2475,13 @@ function _edit(ctx, map, allMaps, opts){
         name, material, attenuation_dbm: atten, floor_id: _wallFloor(), points_m, ...(material === "open" ? { rail: "none" } : {}) } });
       await ctx.actions.modelRefresh();
       return r && r.barrier ? r.barrier.id : null;
-    } catch (e) { ctx.toast("Could not place wall: " + (e.message || e), true); return null; }
+    } catch (e) { ctx.toast("Could not place wall: " + ctx.helpers.errorText(e), true); return null; }
   };
   const _removeWall = async (id) => {
     try {
       await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_remove", barrier_id: id });
       await ctx.actions.modelRefresh();
-    } catch (e) { ctx.toast("Could not remove wall: " + (e.message || e), true); }
+    } catch (e) { ctx.toast("Could not remove wall: " + ctx.helpers.errorText(e), true); }
   };
 
   // ── Open edges: a room edge with no wall on it (a loft, an open plan) ──────
@@ -2513,7 +2513,7 @@ function _edit(ctx, map, allMaps, opts){
       const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_open_edges_apply", action, set_barriers, remove_barrier_ids });
       await ctx.actions.modelRefresh();
       return r && r.ok ? r : null;
-    } catch (e) { ctx.toast("Could not change the open edges: " + (e.message || e), true); return null; }
+    } catch (e) { ctx.toast("Could not change the open edges: " + ctx.helpers.errorText(e), true); return null; }
   };
   // One write at a time: a double tap writes once, and no second confirm opens.
   const _oneOpenEdgeWrite = async (work) => {
@@ -2639,11 +2639,11 @@ function _edit(ctx, map, allMaps, opts){
       _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_add",
         zone: { name, floor_id: _wallFloor(), type: "poly", points_m } }));
       ctx.toast(`Sub-zone "${name}" added`);
-    } catch (e) { ctx.toast("Could not add sub-zone: " + (e.message || e), true); }
+    } catch (e) { ctx.toast("Could not add sub-zone: " + ctx.helpers.errorText(e), true); }
   };
   const _szRemove = async (id) => {
     try { _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_remove", zone_id: id })); }
-    catch (e) { ctx.toast("Could not remove sub-zone: " + (e.message || e), true); }
+    catch (e) { ctx.toast("Could not remove sub-zone: " + ctx.helpers.errorText(e), true); }
   };
 
   // ── Door/window barrier project, step 3: mark a door/window on a wall ──────
@@ -2703,7 +2703,7 @@ function _edit(ctx, map, allMaps, opts){
       if (doorId) ctx.state.maps._selectedBarrierId = doorId;
       ctx.toast(`Door/window marked on "${bar.name || "wall"}".`);
     } catch (e) {
-      ctx.toast("Could not mark the door: " + (e.message || e), true);
+      ctx.toast("Could not mark the door: " + ctx.helpers.errorText(e), true);
     }
     renderAll(); renderTools();
   };
@@ -2756,7 +2756,7 @@ function _edit(ctx, map, allMaps, opts){
           ctx.toast("Layout saved \u2714");
         }
         if(_saved) _paintNext(_saved);
-      }catch(err){ ctx.toast("Save failed: "+String(err), true); }
+      }catch(err){ ctx.toast("Save failed: "+ctx.helpers.errorText(err), true); }
       btn.disabled = false; btn.textContent = "\ud83d\udcbe Save Layout"; btn.classList.remove("save-pulse");
   }});
   _saveBtn.textContent = _dirty ? "\ud83d\udcbe Save Layout" : "Save Layout";
@@ -3451,7 +3451,7 @@ function _edit(ctx, map, allMaps, opts){
                   barrier: { ...raw, rail: railNow === "glass" ? "none" : "glass" } });
                 await ctx.actions.modelRefresh();
                 renderAll(); renderTools();
-              } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
+              } catch (e) { ctx.toast("Could not update: " + ctx.helpers.errorText(e), true); }
             });
             row.appendChild(railBtn);
           }
@@ -3486,7 +3486,7 @@ function _edit(ctx, map, allMaps, opts){
                   barrier: { ...raw, invert_state: !raw.invert_state } });
                 await ctx.actions.modelRefresh();
                 renderAll(); renderTools();
-              } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
+              } catch (e) { ctx.toast("Could not update: " + ctx.helpers.errorText(e), true); }
             });
             row.appendChild(invertBtn);
           }
@@ -3909,7 +3909,7 @@ function _edit(ctx, map, allMaps, opts){
             // (review 2026-11-11, item 12: it kept the old size until a reload).
             if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
           } catch(e) {
-            ctx.toast("Save failed: " + (e.message || e));
+            ctx.toast("Save failed: " + ctx.helpers.errorText(e));
             applyBtn.disabled = false; applyBtn.textContent = "Apply Scale";
           }
         });
@@ -5835,7 +5835,7 @@ function _floorHeights(ctx, w = null){
       }))});
       ctx.toast("Floor heights saved");
       await ctx.actions.modelRefresh();
-    }catch(e){ ctx.toast("Save failed: "+String(e), true); }
+    }catch(e){ ctx.toast("Save failed: "+ctx.helpers.errorText(e), true); }
   }},"Save Floor Heights")));
   return wrap;
 }
@@ -6928,7 +6928,7 @@ function _stack(ctx, maps, helpBtn){
           _showPreview(rDx, rDy, rScale, rRotation, rStretch, resPct, pairs, perPoint, rawM, arHW);
         } catch (err) {
           console.error("[PtAlign] Compute error:", err);
-          ctx.toast("Compute error: " + String(err), true);
+          ctx.toast("Compute error: " + ctx.helpers.errorText(err), true);
           computeBtn.disabled = false;
           computeBtn.textContent = "Compute (" + pairs + " pairs)";
         }
@@ -7188,7 +7188,7 @@ function _stack(ctx, maps, helpBtn){
                     ctx.toast("Baked (" + pairs + " pairs, residual " + resText + ")");
                   }
                 })
-                .catch(e => ctx.toast("Bake upload failed: " + (e?.message || e?.code || String(e)), true));
+                .catch(e => ctx.toast("Bake upload failed: " + ctx.helpers.errorText(e), true));
             } catch (de) { ctx.toast("Bake draw failed: " + de, true); }
           };
           bakeImg.onerror = () => ctx.toast("Bake failed — image load error", true);
@@ -7613,7 +7613,7 @@ function _stack(ctx, maps, helpBtn){
           ? `Alignment saved ✔${label}\n↳ Downstream maps may need re-checking: ${downstreamNames.join(", ")}`
           : `Alignment saved ✔${label}`);
       }
-      catch(e){ ctx.toast("Save failed: "+(e?.message||String(e)), true); }
+      catch(e){ ctx.toast("Save failed: "+ctx.helpers.errorText(e), true); }
       finally { try{ btn.disabled=false; btn.textContent="Save Alignment"; }catch(_){} }
     };
 
@@ -7687,7 +7687,7 @@ function _stack(ctx, maps, helpBtn){
         await ctx.actions.mapsUpdateQuiet({ map_id: tM.id, stack: newStk });
         ctx.toast("Tie-in added ✔");
         renderTieIns();
-      } catch(e){ ctx.toast("Failed: "+String(e), true); }
+      } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
     }},"+ Tie-in");
   ctrlRow.appendChild(addTieInBtn);
 
@@ -7751,7 +7751,7 @@ function _stack(ctx, maps, helpBtn){
           renderTieIns();
           ctx.toast(`Recovery complete ✔ — removed ${totalRemoved} outlier tie-in${totalRemoved>1?"s":""}`);
         } catch(e){
-          ctx.toast("Recovery failed: "+String(e), true);
+          ctx.toast("Recovery failed: "+ctx.helpers.errorText(e), true);
           try{ confBtn.disabled=false; confBtn.textContent="Confirm Recovery"; }catch(_){}
         }
       };
@@ -8820,7 +8820,7 @@ export async function _commitDoorCircle(ctx, mapState) {
           match = bestCircleWall(refreshed, circle.x_m, circle.y_m, circle.r_m);
         }
       } catch (e) {
-        ctx.toast("Could not create a wall from the room edge: " + (e.message || e), true);
+        ctx.toast("Could not create a wall from the room edge: " + ctx.helpers.errorText(e), true);
         return;
       }
     }
@@ -8899,7 +8899,7 @@ export async function _commitDoorCircle(ctx, mapState) {
     await ctx.actions.modelRefresh();
     ctx.toast(`Linked — "${bar.name || "wall"}" now shows open/closed on the map.`);
   } catch (e) {
-    ctx.toast("Could not link the door: " + (e.message || e), true);
+    ctx.toast("Could not link the door: " + ctx.helpers.errorText(e), true);
   }
   _cancelDoorCircle(mapState);
   ctx.actions.renderRooms();
@@ -10200,7 +10200,7 @@ function _lightsTab(ctx, maps, active) {
           back.addEventListener("click", () => {
             import(`./aboard_wizard.js${new URL(import.meta.url).search}`)
               .then(m => m.openLiveAboardWizard(ctx, away))
-              .catch(e => ctx.toast("Could not open the wizard: " + String((e && e.message) || e), true));
+              .catch(e => ctx.toast("Could not open the wizard: " + ctx.helpers.errorText(e), true));
           });
           return back;
         }
@@ -10209,7 +10209,7 @@ function _lightsTab(ctx, maps, active) {
         b.addEventListener("click", () => {
           import(`./aboard_wizard.js${new URL(import.meta.url).search}`)
             .then(m => m.openLiveAboardWizard(ctx))
-            .catch(e => ctx.toast("Could not open the wizard: " + String((e && e.message) || e), true));
+            .catch(e => ctx.toast("Could not open the wizard: " + ctx.helpers.errorText(e), true));
         });
         return b;
       })() : null,
@@ -10317,7 +10317,7 @@ function _lightsTab(ctx, maps, active) {
     onFloodReset: (eid) => {
       ctx.actions.wsCall("padspan_ha/flood_reset", { entity_id: eid })
         .then(() => ctx.actions.renderRooms())
-        .catch((e) => ctx.toast("Could not reset: " + String(e), true));
+        .catch((e) => ctx.toast("Could not reset: " + ctx.helpers.errorText(e), true));
     },
   };
   // The room sheet stays live: each render hands it this render's api and lights.
@@ -10761,7 +10761,7 @@ function _lightsTab(ctx, maps, active) {
     layoutV2: proTier && !!ctx.state.settings?.atlas_layout_v2,
     onLayoutV2: proTier ? async (on) => {
       try { await ctx.actions.settingsSet({ atlas_layout_v2: on }); }
-      catch (e) { ctx.toast("Could not change the Atlas layout: " + String(e), true); }
+      catch (e) { ctx.toast("Could not change the Atlas layout: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
     // settingsSet re-renders the whole maps view, which detaches the shared
@@ -10777,7 +10777,7 @@ function _lightsTab(ctx, maps, active) {
         });
         ctx.toast("Map view saved ✔");
       } catch (e) {
-        ctx.toast("Could not save the map view: " + String(e), true);
+        ctx.toast("Could not save the map view: " + ctx.helpers.errorText(e), true);
         throw e;
       }
     },
@@ -10840,7 +10840,7 @@ function _lightsTab(ctx, maps, active) {
           barrier: { ...bar, linked_opener_entity_id: openerEid || null } });
         await ctx.actions.modelRefresh();
         ctx.toast(openerEid ? "Opener linked." : "Opener unlinked.");
-      } catch (e) { ctx.toast("Could not link the opener: " + (e.message || e), true); }
+      } catch (e) { ctx.toast("Could not link the opener: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
     onLinkDoorLock: paid && !preview ? async (l, lockEid) => {
@@ -10851,7 +10851,7 @@ function _lightsTab(ctx, maps, active) {
           barrier: { ...bar, linked_lock_entity_id: lockEid || null } });
         await ctx.actions.modelRefresh();
         ctx.toast(lockEid ? "Lock linked." : "Lock unlinked.");
-      } catch (e) { ctx.toast("Could not link the lock: " + (e.message || e), true); }
+      } catch (e) { ctx.toast("Could not link the lock: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
     // 2026-09-22, after the relay wizard shipped to Devices -> Door
@@ -10907,7 +10907,7 @@ function _lightsTab(ctx, maps, active) {
           barrier: { ...bar, linked_entity_id: null } });
         await ctx.actions.modelRefresh();
         ctx.toast(`Unlinked — "${l.friendly_name || l.entity_id}" can be placed again.`);
-      } catch (e) { ctx.toast("Could not unlink: " + (e.message || e), true); }
+      } catch (e) { ctx.toast("Could not unlink: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
     // "Just add the ability to make the door/window steel or not" (the owner,
@@ -10925,7 +10925,7 @@ function _lightsTab(ctx, maps, active) {
           barrier: { ...bar, material: toSteel ? "metal" : "custom", attenuation_dbm: toSteel ? 12 : 6 } });
         await ctx.actions.modelRefresh();
         ctx.toast(toSteel ? "Set to steel (12 dB)." : "No longer steel (6 dB).");
-      } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
+      } catch (e) { ctx.toast("Could not update: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
     // 2026-09-22: "you need an invert option for the door sensors,
@@ -10944,7 +10944,7 @@ function _lightsTab(ctx, maps, active) {
           barrier: { ...bar, invert_state: inverted } });
         await ctx.actions.modelRefresh();
         ctx.toast(inverted ? "Reading inverted." : "Reading no longer inverted.");
-      } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
+      } catch (e) { ctx.toast("Could not update: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
     // Map → index: the row of the light just selected on the map scrolls
@@ -10997,21 +10997,21 @@ function _lightsTab(ctx, maps, active) {
     onHideUntouched: async (v) => {
       mapState._lightsHideUntouched = v;
       try { await ctx.actions.settingsSet({ lights_hide_untouched: v }); }
-      catch (e) { ctx.toast("Could not save the filter: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the filter: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     hideDeviceCodes,
     onHideDeviceCodes: async (v) => {
       mapState._lightsHideDeviceCodes = v;
       try { await ctx.actions.settingsSet({ lights_hide_device_codes: v }); }
-      catch (e) { ctx.toast("Could not save the setting: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the setting: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     showBeacons,
     onShowBeacons: async (v) => {
       mapState._lightsShowBeacons = v;
       try { await ctx.actions.settingsSet({ lights_show_beacons: v }); }
-      catch (e) { ctx.toast("Could not save the setting: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the setting: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Showcase is a rendering mode, not an edit mode: it is remembered like the
@@ -11026,13 +11026,13 @@ function _lightsTab(ctx, maps, active) {
     onFitRooms: async (v) => {
       mapState._lightsFitRooms = v;
       try { await ctx.actions.settingsSet({ lights_fit_rooms: v }); }
-      catch (e) { ctx.toast("Could not save the room fit: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the room fit: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     onShowcase: async (v) => {
       mapState._lightsShowcase = v;
       try { await ctx.actions.settingsSet({ lights_showcase: v }); }
-      catch (e) { ctx.toast("Could not save Showcase: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save Showcase: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Which of Showcase's palettes paints the same fixtures/rooms/floor
@@ -11044,7 +11044,7 @@ function _lightsTab(ctx, maps, active) {
     onShowcaseTheme: async (v) => {
       mapState._lightsShowcaseTheme = v;
       try { await ctx.actions.settingsSet({ lights_showcase_theme: v }); }
-      catch (e) { ctx.toast("Could not save the Showcase theme: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the Showcase theme: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Day lifts the ground and mutes the pools; from the sun HA tracks.
@@ -11149,7 +11149,7 @@ function _lightsTab(ctx, maps, active) {
     onIsolux: async (v) => {
       mapState._lightsIsolux = v;
       try { await ctx.actions.settingsSet({ lights_isolux: v }); }
-      catch (e) { ctx.toast("Could not save Light spread: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save Light spread: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Automorph (2026-09-07): same remembered-rendering-mode pattern
@@ -11160,7 +11160,7 @@ function _lightsTab(ctx, maps, active) {
     onAutomorph: async (v) => {
       mapState._lightsAutomorph = v;
       try { await ctx.actions.settingsSet({ lights_automorph_enabled: v }); }
-      catch (e) { ctx.toast("Could not save Automorph: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save Automorph: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     automorphRoomPct: mapState._lightsAutomorphPct === undefined
@@ -11169,7 +11169,7 @@ function _lightsTab(ctx, maps, active) {
     onAutomorphRoomPct: async (v) => {
       mapState._lightsAutomorphPct = v;
       try { await ctx.actions.settingsSet({ lights_automorph_room_pct: v }); }
-      catch (e) { ctx.toast("Could not save the Automorph amount: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the Automorph amount: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Slider 2 — centered at 0, same rest-position contract as room_pct's
@@ -11180,7 +11180,7 @@ function _lightsTab(ctx, maps, active) {
     onAutomorphHardness: async (v) => {
       mapState._lightsAutomorphHardness = v;
       try { await ctx.actions.settingsSet({ lights_automorph_hardness: v }); }
-      catch (e) { ctx.toast("Could not save the Automorph hardness: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the Automorph hardness: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Which of several distinct visual treatments paints the same morphed
@@ -11191,7 +11191,7 @@ function _lightsTab(ctx, maps, active) {
     onAutomorphStyle: async (v) => {
       mapState._lightsAutomorphStyle = v;
       try { await ctx.actions.settingsSet({ lights_automorph_style: v }); }
-      catch (e) { ctx.toast("Could not save the Automorph style: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the Automorph style: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // 0 = today's opacity/line-weight, 100 = thinned + faded near-invisible.
@@ -11201,7 +11201,7 @@ function _lightsTab(ctx, maps, active) {
     onAutomorphSubtlety: async (v) => {
       mapState._lightsAutomorphSubtlety = v;
       try { await ctx.actions.settingsSet({ lights_automorph_subtlety: v }); }
-      catch (e) { ctx.toast("Could not save the Automorph subtlety: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the Automorph subtlety: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Presets — a saved snapshot of the whole Showcase "look" bundle. The owner,
@@ -11225,19 +11225,19 @@ function _lightsTab(ctx, maps, active) {
       const rest = (ctx.state.settings?.whole_house_presets || []).filter((p) => p.name !== name);
       const preset = { name, created_at: Date.now() / 1000, entities: cap.entities };
       try { await ctx.actions.settingsSet({ whole_house_presets: [...rest, preset] }); }
-      catch (e) { ctx.toast("Could not set the whole house preset: " + String(e), true); return null; }
+      catch (e) { ctx.toast("Could not set the whole house preset: " + ctx.helpers.errorText(e), true); return null; }
       ctx.actions.renderRooms();
       return cap;
     },
     onWholeHouseApply: async (preset) => {
       if (!ctx.hass) return null;
       try { return await applyWholeHouse(ctx.hass, preset); }
-      catch (e) { ctx.toast("Could not apply the whole house preset: " + String(e), true); return null; }
+      catch (e) { ctx.toast("Could not apply the whole house preset: " + ctx.helpers.errorText(e), true); return null; }
     },
     onWholeHouseDelete: async (name) => {
       const rest = (ctx.state.settings?.whole_house_presets || []).filter((p) => p.name !== name);
       try { await ctx.actions.settingsSet({ whole_house_presets: rest }); ctx.toast(`Deleted "${name}"`); }
-      catch (e) { ctx.toast("Could not delete the whole house preset: " + String(e), true); }
+      catch (e) { ctx.toast("Could not delete the whole house preset: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Vacation Mode (2026-09-21) — the "permanent option" in the
@@ -11251,7 +11251,7 @@ function _lightsTab(ctx, maps, active) {
     // screens").
     onVacationModeEnable: async () => {
       try { await ctx.actions.settingsSet({ vacation_mode_enabled: true }); }
-      catch (e) { ctx.toast("Could not turn on Vacation Mode: " + String(e), true); return false; }
+      catch (e) { ctx.toast("Could not turn on Vacation Mode: " + ctx.helpers.errorText(e), true); return false; }
       ctx.actions.renderRooms();
       return true;
     },
@@ -11264,24 +11264,24 @@ function _lightsTab(ctx, maps, active) {
     },
     onVacationPreview: async () => {
       try { return await ctx.actions.callWS({ type: "padspan_ha/vacation_preview" }); }
-      catch (e) { ctx.toast("Could not make the Vacation Mode preview: " + String(e), true); return null; }
+      catch (e) { ctx.toast("Could not make the Vacation Mode preview: " + ctx.helpers.errorText(e), true); return null; }
     },
     vacationModeEnds: vacationEndsText(ctx.state.settings),
     onVacationOptions: async (patch) => {
       try { await ctx.actions.settingsSet(patch); return true; }
-      catch (e) { ctx.toast("Could not save the Vacation Mode option: " + String(e), true); return false; }
+      catch (e) { ctx.toast("Could not save the Vacation Mode option: " + ctx.helpers.errorText(e), true); return false; }
     },
     vacationModeIntensity: Number.isFinite(Number(ctx.state.settings?.vacation_mode_intensity))
       ? Number(ctx.state.settings.vacation_mode_intensity) : 100,
     onVacationModeDisable: async () => {
       try { await ctx.actions.settingsSet({ vacation_mode_enabled: false }); }
-      catch (e) { ctx.toast("Could not disable Vacation Mode: " + String(e), true); return false; }
+      catch (e) { ctx.toast("Could not disable Vacation Mode: " + ctx.helpers.errorText(e), true); return false; }
       ctx.actions.renderRooms();
       return true;
     },
     onVacationModeIntensity: async (pct) => {
       try { await ctx.actions.settingsSet({ vacation_mode_intensity: pct }); }
-      catch (e) { ctx.toast("Could not change the intensity: " + String(e), true); }
+      catch (e) { ctx.toast("Could not change the intensity: " + ctx.helpers.errorText(e), true); }
     },
     onApplyPreset: async (values) => {
       mapState._lightsShowcase = values.lights_showcase;
@@ -11306,7 +11306,7 @@ function _lightsTab(ctx, maps, active) {
       if (values.overview_iso_focus !== undefined) view.focusIdx = values.overview_iso_focus ?? 0;
       if (values.overview_iso_zoom !== undefined) view.zoom = values.overview_iso_zoom;
       try { await ctx.actions.settingsSet(values); }
-      catch (e) { ctx.toast("Could not apply the preset: " + String(e), true); }
+      catch (e) { ctx.toast("Could not apply the preset: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     onSavePreset: async (name) => {
@@ -11342,7 +11342,7 @@ function _lightsTab(ctx, maps, active) {
       try {
         await ctx.actions.settingsSet({ lights_showcase_presets: [...rest, { name, values }] });
         ctx.toast(`Saved "${name}"`);
-      } catch (e) { ctx.toast("Could not save the preset: " + String(e), true); }
+      } catch (e) { ctx.toast("Could not save the preset: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     onDeletePreset: async (name) => {
@@ -11350,7 +11350,7 @@ function _lightsTab(ctx, maps, active) {
       try {
         await ctx.actions.settingsSet({ lights_showcase_presets: rest });
         ctx.toast(`Deleted "${name}"`);
-      } catch (e) { ctx.toast("Could not delete the preset: " + String(e), true); }
+      } catch (e) { ctx.toast("Could not delete the preset: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Scene preview state is a view mode, deliberately NOT a setting: a
@@ -11430,7 +11430,7 @@ function _lightsTab(ctx, maps, active) {
       const next = new Set(hiddenEids);
       if (next.has(eid)) next.delete(eid); else next.add(eid);
       try { await ctx.actions.settingsSet({ lights_hidden: [...next] }); }
-      catch (e) { ctx.toast("Could not save hidden lights: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save hidden lights: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
     // Pro only: force a light's class when detection got it wrong. Absent
@@ -11439,7 +11439,7 @@ function _lightsTab(ctx, maps, active) {
       const next = { ...typeOverrides };
       if (!kind || kind === "auto") delete next[eid]; else next[eid] = kind;
       try { await ctx.actions.settingsSet({ light_type_overrides: next }); }
-      catch (e) { ctx.toast("Could not save the type override: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save the type override: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
     // "Revert to untouched" (2026-09-06) — clears exactly what
@@ -11464,7 +11464,7 @@ function _lightsTab(ctx, maps, active) {
         const next = { ...typeOverrides };
         delete next[eid];
         try { await ctx.actions.settingsSet({ light_type_overrides: next }); }
-        catch (e) { ctx.toast("Could not clear the type override: " + String(e), true); }
+        catch (e) { ctx.toast("Could not clear the type override: " + ctx.helpers.errorText(e), true); }
       }
       ctx.actions.renderRooms();
     },
@@ -11486,7 +11486,7 @@ function _lightsTab(ctx, maps, active) {
     onFloodReset: (eid) => {
       ctx.actions.wsCall("padspan_ha/flood_reset", { entity_id: eid })
         .then(() => ctx.actions.renderRooms())
-        .catch((e) => ctx.toast("Could not reset: " + String(e), true));
+        .catch((e) => ctx.toast("Could not reset: " + ctx.helpers.errorText(e), true));
     },
   };
   const mapCardEl = buildLightsMapCard(host);
@@ -11504,7 +11504,7 @@ function _lightsTab(ctx, maps, active) {
       try {
         mapState._plansList = await la3dPlansList(plansBox, { floors: ctx.state.model?.floors || [], toast: (t, bad) => ctx.toast(t, bad), openAtlasRoom, go: plansGo,
           callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } });
-      } catch (e) { ctx.toast(String((e && e.message) || e), true); }
+      } catch (e) { ctx.toast(ctx.helpers.errorText(e), true); }
     } }, "Add data via plans (experimental)") : null;
     return el("div", {}, [
       el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5" }, [
@@ -11631,7 +11631,7 @@ function _lightsTab(ctx, maps, active) {
         else next[l.entity_id] = shapeSel.value;
         shapeSel.disabled = true;
         try { await ctx.actions.settingsSet({ light_shapes: next }); }
-        catch (e) { ctx.toast("Could not save shape: " + String(e), true); }
+        catch (e) { ctx.toast("Could not save shape: " + ctx.helpers.errorText(e), true); }
         ctx.actions.renderRooms();
       });
       shapeLbl.appendChild(shapeSel);
@@ -11728,7 +11728,7 @@ function _lightsTab(ctx, maps, active) {
             await ctx.actions.wsCall("padspan_ha/fabric_light_remove", { entity_id: sel.eid });
             await ctx.actions.modelRefresh();
             if (zWords) ctx.toast(`Back to auto position; ${zWords} was cleared too`);
-          } catch (err) { ctx.toast("Failed: " + (err.message || err), true); }
+          } catch (err) { ctx.toast("Failed: " + ctx.helpers.errorText(err), true); }
           mapState._selLight = { eid: sel.eid, mapId: null };
           ctx.actions.renderRooms();
         },
@@ -12161,7 +12161,7 @@ function _roomsTab(ctx, maps) {
           }
           ctx.actions.renderRooms();
         } catch (err) {
-          ctx.toast("Add failed: " + (err.message || err), true);
+          ctx.toast("Add failed: " + ctx.helpers.errorText(err), true);
           btn.disabled = false;
         }
       },
@@ -12219,7 +12219,7 @@ function _roomsTab(ctx, maps) {
         ctx.actions.renderRooms();
       } catch (err) {
         importStatus.textContent = "";
-        ctx.toast("Import failed: " + (err.message || err), true);
+        ctx.toast("Import failed: " + ctx.helpers.errorText(err), true);
       }
     });
     importRow.appendChild(importBtn);
@@ -12585,7 +12585,7 @@ function _roomsTab(ctx, maps) {
               ? `Updated ${(res.fixed || []).length}, failed ${failed}: ${res.failed.map(f => f.room).join(", ")}`
               : `✔ ${(res.fixed || []).length} room(s) updated from their map`, !!failed);
           } catch (err) {
-            ctx.toast("Update failed: " + (err.message || err), true);
+            ctx.toast("Update failed: " + ctx.helpers.errorText(err), true);
           }
           mapState._roomsDraftFloorId = null;
           mapState._roomsTruthCache = null;
@@ -13068,7 +13068,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
             await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_remove", { barrier_id: bar.id });
             mapState._roomsBarrierDraft = null;
             await ctx.actions.modelRefresh();
-          } catch (err) { ctx.toast("Delete failed: " + (err.message || err), true); }
+          } catch (err) { ctx.toast("Delete failed: " + ctx.helpers.errorText(err), true); }
         },
       }, "✕");
       pinLayer.appendChild(del);
@@ -13254,7 +13254,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
             mapState._roomsTruthCache = null;
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
-          } catch (err) { ctx.toast("Merge failed: " + (err.message || err), true); btn.disabled = false; }
+          } catch (err) { ctx.toast("Merge failed: " + ctx.helpers.errorText(err), true); btn.disabled = false; }
         } }, "Merge into one");
         if (!m.ok) mb.style.opacity = ".5";
         tools.appendChild(mb);
@@ -13282,7 +13282,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               : `"${only}" rises to ${v} m`);
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
-          } catch (err) { ctx.toast("Height not saved: " + (err.message || err), true); }
+          } catch (err) { ctx.toast("Height not saved: " + ctx.helpers.errorText(err), true); }
         } }, "Set height"));
         // A split level (Live Aboard, 0.38.190): this room's floor higher than
         // its floor's, for a house whose upstairs is not one level (or lower:
@@ -13301,7 +13301,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
             ctx.toast(off ? `"${only}" sits ${Math.abs(v)} m ${v > 0 ? "above" : "below"} the rest of its floor` : `"${only}" is level with its floor`);
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
-          } catch (err) { ctx.toast("Not saved: " + (err.message || err), true); }
+          } catch (err) { ctx.toast("Not saved: " + ctx.helpers.errorText(err), true); }
         } }, "Set");
         const rRow = el("label", { style: `display:${curR ? "flex" : "none"};gap:6px;align-items:center;color:#94a3b8` }, ["Floor up (+) or down (−), m", rIn, rSet]);
         const rLink = el("button", { class: "btn inline", title: "Only for a split-level house: this room's floor higher or lower than the rest of its floor",
@@ -13323,7 +13323,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               mapState._roomsTruthCache = null;
               await ctx.actions.modelRefresh();
               ctx.actions.renderRooms();
-            } catch (err) { ctx.toast("Delete failed: " + (err.message || err), true); }
+            } catch (err) { ctx.toast("Delete failed: " + ctx.helpers.errorText(err), true); }
           },
         }, `Delete "${only}"`));
       }
@@ -13519,7 +13519,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
             await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: true });
             ctx.toast(`🔒 Floor "${floorLabel}" finalized`);
             await refreshAfter();
-          } catch (err) { ctx.toast("Finalize failed: " + (err.message || err), true); }
+          } catch (err) { ctx.toast("Finalize failed: " + ctx.helpers.errorText(err), true); }
         },
       }, "🔒 Finalize floor"));
     }
@@ -13535,7 +13535,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: false });
           ctx.toast(`Floor "${floorLabel}" unlocked`);
           await refreshAfter();
-        } catch (err) { ctx.toast("Unlock failed: " + (err.message || err), true); }
+        } catch (err) { ctx.toast("Unlock failed: " + ctx.helpers.errorText(err), true); }
       },
     }, "Unlock…"));
   }

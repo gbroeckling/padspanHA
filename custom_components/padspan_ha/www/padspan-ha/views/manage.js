@@ -168,7 +168,7 @@ export function render(ctx){
                 await ctx.actions.mapsRefresh();
                 ctx.toast(`Deleted orphan "${room}" from ${map.name||map.id}`);
                 ctx.actions.renderRooms();
-              } catch(e){ bw.innerHTML = ""; bw.appendChild(makeBtn()); ctx.toast("Failed: "+String(e), true); }
+              } catch(e){ bw.innerHTML = ""; bw.appendChild(makeBtn()); ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
             });
             no.addEventListener("click", ()=>{ bw.innerHTML = ""; bw.appendChild(makeBtn()); });
             bw.appendChild(yes); bw.appendChild(no);
@@ -207,7 +207,7 @@ export function render(ctx){
               // failed fetch says so and puts the button back (it sat at
               // "Cleaning up…" for good).
               try { await ctx.actions.mapsRefreshQuiet(); }
-              catch(e){ ctx.toast("Couldn't load the maps: " + String(e), true); delAllWrap.innerHTML = ""; delAllWrap.appendChild(makeDelAll()); return; }
+              catch(e){ ctx.toast("Couldn't load the maps: " + ctx.helpers.errorText(e), true); delAllWrap.innerHTML = ""; delAllWrap.appendChild(makeDelAll()); return; }
               const freshList = ctx.state.maps?.list || [];
               // Group by map so we do one update per map
               const byMap = new Map();
@@ -290,7 +290,7 @@ export function render(ctx){
               ctx.toast("Label removed.");
               await ctx.actions.refreshSnapshot();
               ctx.actions.renderRooms();
-            } catch(e){ ctx.toast("Failed: "+String(e), true); untagBtnWrap.appendChild(makeUntagBtn()); }
+            } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); untagBtnWrap.appendChild(makeUntagBtn()); }
           });
           no.addEventListener("click", ()=>{ untagBtnWrap.innerHTML = ""; untagBtnWrap.appendChild(makeUntagBtn()); });
           untagBtnWrap.appendChild(yes); untagBtnWrap.appendChild(no);
@@ -385,7 +385,7 @@ export function render(ctx){
             ctx.toast(`Cleared ${result?.removed ?? phantomObjs.length} phantom entr${(result?.removed??0)===1?"y":"ies"} from room map.`);
             ctx.actions.renderRooms();
           } catch(e){
-            ctx.toast("Failed: "+String(e), true);
+            ctx.toast("Failed: "+ctx.helpers.errorText(e), true);
             purgeWrap.innerHTML = ""; purgeWrap.appendChild(makePurgeBtn());
           }
         });
@@ -531,7 +531,7 @@ export function render(ctx){
             await ctx.actions.modelRefresh();
             ctx.toast(`Area "${area.name}" deleted.`);
             ctx.actions.renderRooms();
-          } catch(e){ areaBtnWrap.innerHTML = ""; areaBtnWrap.appendChild(makeAreaDelBtn()); ctx.toast("Failed: "+String(e), true); }
+          } catch(e){ areaBtnWrap.innerHTML = ""; areaBtnWrap.appendChild(makeAreaDelBtn()); ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
         });
         return b;
       };
@@ -583,7 +583,7 @@ export function render(ctx){
           yes.addEventListener("click", async()=>{
             mapBtnWrap.innerHTML = "";
             try { await ctx.actions.mapsDelete(m.id); ctx.toast(`Map "${m.name}" deleted.`); }
-            catch(e){ mapBtnWrap.appendChild(makeMapDelBtn()); ctx.toast("Failed: "+String(e), true); }
+            catch(e){ mapBtnWrap.appendChild(makeMapDelBtn()); ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
           });
           no.addEventListener("click", ()=>{ mapBtnWrap.innerHTML = ""; mapBtnWrap.appendChild(makeMapDelBtn()); });
           mapBtnWrap.appendChild(yes); mapBtnWrap.appendChild(no);
@@ -759,7 +759,7 @@ export function render(ctx){
                   ctx.toast(`Restored ${r.restored} store(s)` + (r.images_restored ? ` + ${r.images_restored} map image(s)` : "") + ". Reload integration for full effect.");
                   restoreWrap.innerHTML = ""; restoreWrap.appendChild(makeRestoreBtn());
                 } catch(e){
-                  ctx.toast("Restore failed: "+String(e), true);
+                  ctx.toast("Restore failed: "+ctx.helpers.errorText(e), true);
                   restoreWrap.innerHTML = ""; restoreWrap.appendChild(makeRestoreBtn());
                 }
               });
@@ -790,7 +790,7 @@ export function render(ctx){
                   await ctx.actions.wsCall("padspan_ha/store_backup_delete", {backup_id: bk.id});
                   ctx.toast("Backup deleted.");
                   _renderBkList();
-                } catch(e){ ctx.toast("Delete failed: "+String(e), true); delWrap.innerHTML=""; delWrap.appendChild(makeDelBtn()); }
+                } catch(e){ ctx.toast("Delete failed: "+ctx.helpers.errorText(e), true); delWrap.innerHTML=""; delWrap.appendChild(makeDelBtn()); }
               });
               no.addEventListener("click", ()=>{ delWrap.innerHTML=""; delWrap.appendChild(makeDelBtn()); });
               delWrap.appendChild(yes); delWrap.appendChild(no);
@@ -819,7 +819,7 @@ export function render(ctx){
           const r = await ctx.actions.wsCall("padspan_ha/store_backup_create", {note: "Manual backup"});
           ctx.toast(`Backup created (${r.store_count} stores).`);
           _renderBkList();
-        } catch(e){ ctx.toast("Backup failed: "+String(e), true); }
+        } catch(e){ ctx.toast("Backup failed: "+ctx.helpers.errorText(e), true); }
         createWrap.innerHTML = ""; createWrap.appendChild(makeCreateBtn());
       });
       return btn;
@@ -852,7 +852,7 @@ export function render(ctx){
         reloadWrap.innerHTML = "";
         reloadWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},"Reloading…"));
         try { const res = await ctx.actions.integrationReload(); ctx.toast(`Integration reloaded (${res?.reloaded??0} entries).`); reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); }
-        catch(e){ ctx.toast("Reload failed: "+String(e), true); reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); }
+        catch(e){ ctx.toast("Reload failed: "+ctx.helpers.errorText(e), true); reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); }
       });
       no.addEventListener("click", ()=>{ reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); });
       reloadWrap.appendChild(yes); reloadWrap.appendChild(no);
@@ -876,7 +876,7 @@ export function render(ctx){
       yes.addEventListener("click", async()=>{
         resetColorsWrap.innerHTML = ""; resetColorsWrap.appendChild(makeResetColorsBtn());
         try { await ctx.actions.modelUpdate({room_meta:{}}); ctx.toast("Room color settings cleared."); ctx.actions.renderRooms(); }
-        catch(e){ ctx.toast("Failed: "+String(e), true); }
+        catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
       });
       no.addEventListener("click", ()=>{ resetColorsWrap.innerHTML = ""; resetColorsWrap.appendChild(makeResetColorsBtn()); });
       resetColorsWrap.appendChild(yes); resetColorsWrap.appendChild(no);
@@ -1009,7 +1009,7 @@ function _haEntityControls(ctx, el, settings){
       try {
         await ctx.actions.settingsSet({[t.key]: chk.checked});
         ctx.toast(chk.checked ? `${t.label} enabled — reload integration for new devices.` : `${t.label} disabled. Existing entities disabled in HA registry.`);
-      } catch(e){ ctx.toast("Failed: "+String(e), true); chk.checked = !chk.checked; }
+      } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); chk.checked = !chk.checked; }
     });
     row.appendChild(chk);
     row.appendChild(el("div",{style:"flex:1"},[
@@ -1642,7 +1642,7 @@ function _haMqttSection(ctx, el, settings){
       await ctx.actions.settingsSet({mqtt_publish_enabled: chk.checked});
       ctx.toast(chk.checked ? "MQTT publishing enabled." : "MQTT publishing disabled.");
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed: "+String(e), true); chk.checked = !chk.checked; }
+    } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); chk.checked = !chk.checked; }
   });
   card.appendChild(el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;margin-bottom:10px"},[
     chk, el("span",{},"Enable experimental MQTT publishing"),
@@ -1695,7 +1695,7 @@ function _haTasmotaSection(ctx, el, settings){
       await ctx.actions.settingsSet({tasmota_ble_enabled: chk.checked});
       ctx.toast(chk.checked ? "Tasmota BLE enabled — each device appears as a scanner when it next reports." : "Tasmota BLE disabled.");
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed: "+String(e), true); chk.checked = !chk.checked; }
+    } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); chk.checked = !chk.checked; }
   });
   card.appendChild(el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
     chk, el("span",{},"Read Tasmota BLE over MQTT"),
@@ -1738,7 +1738,7 @@ function _haEspresenseSection(ctx, el, settings){
       await ctx.actions.settingsSet({espresense_mqtt_enabled: chk.checked});
       ctx.toast(chk.checked ? "ESPresense MQTT enabled — scanners should appear within 10 seconds." : "ESPresense MQTT disabled.");
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed: "+String(e), true); chk.checked = !chk.checked; }
+    } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); chk.checked = !chk.checked; }
   });
   card.appendChild(el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;margin-bottom:10px"},[
     chk, el("span",{},"Enable ESPresense MQTT ingestion"),
@@ -1765,7 +1765,7 @@ function _haEspresenseSection(ctx, el, settings){
         ctx.toast("Topic prefix saved. Restart HA or toggle ESPresense off/on to apply.");
         prefixSave.textContent = "Saved \u2714";
         setTimeout(()=>{ prefixSave.textContent = "Save"; prefixSave.disabled = false; }, 2000);
-      } catch(e){ ctx.toast("Failed: "+String(e), true); prefixSave.disabled = false; }
+      } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); prefixSave.disabled = false; }
     });
     prefixRow.appendChild(prefixInput);
     prefixRow.appendChild(prefixSave);
@@ -1803,7 +1803,7 @@ function _haEspresenseSection(ctx, el, settings){
       ctx.toast(v ? "Companion URL saved." : "Companion URL cleared.");
       urlSave.textContent = "Saved \u2714";
       setTimeout(()=>{ urlSave.textContent = "Save URL"; urlSave.disabled = false; }, 2000);
-    } catch(e){ ctx.toast("Failed: "+String((e && e.message) || e), true); urlSave.disabled = false; }
+    } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); urlSave.disabled = false; }
   });
   urlRow.appendChild(urlInput);
   urlRow.appendChild(urlSave);
@@ -1829,7 +1829,7 @@ function _haEspresenseSection(ctx, el, settings){
     } catch(e){
       importStatus.style.color = "#f87171";
       importStatus.textContent = "\u2718 " + (e.message||String(e));
-      ctx.toast("Import failed: " + (e.message||e), true);
+      ctx.toast("Import failed: " + ctx.helpers.errorText(e), true);
     }
     importBtn.disabled = false; importBtn.textContent = "\u2B07 Import Now";
   });
@@ -2038,7 +2038,7 @@ function _buildNotifications(ctx, el){
           ctx.actions.renderRooms();
         } catch(e){
           delBtn.disabled = false; delBtn.textContent = "Delete";
-          ctx.toast("Delete failed: " + (e?.message || String(e)), true);
+          ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true);
         }
       });
 

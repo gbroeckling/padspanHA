@@ -14,7 +14,7 @@ import voluptuous as vol
 from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN, DATA_SETTINGS
+from .const import DOMAIN, DATA_SETTINGS, NOT_LOADED_MESSAGE
 from .bluetooth_live import get_bluetooth_live
 from .private_ble_resolver import get_resolver as _get_ble_resolver
 from .telemetry import bump as _bump
@@ -158,10 +158,10 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     name = str(msg["name"]).strip()
     irk_raw = str(msg["irk_hex"]).strip()
     if not name:
-        connection.send_error(msg["id"], "invalid", "name is required")
+        connection.send_error(msg["id"], "invalid", "Give the phone a name.")
         return
     if not irk_raw:
-        connection.send_error(msg["id"], "invalid", "irk_hex is required")
+        connection.send_error(msg["id"], "invalid", "Enter the phone's IRK.")
         return
 
     # Use _parse_irk for consistent handling (same path as resolver + validation)
@@ -190,7 +190,7 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     # Store in settings
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
 
     irk_list = list(st.data.get("irk_devices") or [])
@@ -519,7 +519,7 @@ async def ws_irk_remove(hass: HomeAssistant, connection, msg) -> None:
     irk_raw = str(msg["irk_hex"]).strip().lower().replace(":", "").replace("-", "").replace(" ", "")
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
 
     irk_list = list(st.data.get("irk_devices") or [])
@@ -742,11 +742,11 @@ async def ws_private_ble_delete_irk(hass: HomeAssistant, connection, msg) -> Non
     """Delete a Private BLE Device config entry by entry_id."""
     entry_id = str(msg.get("entry_id", "")).strip()
     if not entry_id:
-        connection.send_error(msg["id"], "invalid_entry", "entry_id is required")
+        connection.send_error(msg["id"], "invalid_entry", "Pick a phone first.")
         return
     entry = hass.config_entries.async_get_entry(entry_id)
     if not entry or entry.domain != "private_ble_device":
-        connection.send_error(msg["id"], "not_found", "Config entry not found")
+        connection.send_error(msg["id"], "not_found", "That phone isn't in Private BLE Device any more.")
         return
     try:
         await hass.config_entries.async_remove(entry_id)

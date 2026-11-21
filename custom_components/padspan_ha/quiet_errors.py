@@ -602,6 +602,7 @@ ws_companion:mobile_app_notify_service
 ws_companion:phone_ids_labels
 ws_companion:phone_ids_resolver
 ws_companion:unfollow
+ws_devices:espresense_config_read
 ws_devices:espresense_import_room
 ws_devices:espresense_import_z
 ws_diagnostics:audit_automations

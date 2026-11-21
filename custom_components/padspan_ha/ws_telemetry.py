@@ -22,7 +22,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_SETTINGS, DOMAIN
+from .const import DATA_SETTINGS, DOMAIN, NOT_LOADED_MESSAGE
 from .telemetry import (
     STATS_URL, TELEMETRY_URL, assert_shareable, build_payload, bump, enabled, ensure_hw, ensure_plan_ai, ensure_snapshot, send_now,
 )
@@ -153,7 +153,7 @@ async def ws_install_base(hass: HomeAssistant, connection, msg) -> None:
 async def ws_telemetry_reset_id(hass: HomeAssistant, connection, msg) -> None:
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
     new = str(uuid.uuid4())
     await st.async_set(telemetry_install_id=new)

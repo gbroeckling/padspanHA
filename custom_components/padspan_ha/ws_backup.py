@@ -425,12 +425,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
         if _pair & _sel and _missing:
             connection.send_error(
                 msg["id"], "restore_incomplete",
-                "Maps and Model have to be restored together: a map's picture and "
-                "stack are in Maps, and where that map sits in metres is in Model, "
-                "keyed by map id. Restoring one without the other leaves every map "
-                "placed by a record that belongs to a different set of maps. "
-                f"Add {', '.join(sorted(_missing))} to the selection, or leave both out. "
-                "Nothing was changed.")
+                "“Maps Config” and “Model” have to be restored together: a floor "
+                "plan's picture is in one and where it sits in the house is in the "
+                "other, so one without the other would put every plan in the wrong "
+                "place. Tick both, or neither. Nothing was changed.")
             return
 
     # ── Pre-fabric backups (issue: hybrid restore) ───────────────────────
@@ -464,9 +462,9 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
             _LOGGER.error("Could not clear the fabric for a pre-fabric restore: %s", _pf_err)
             connection.send_error(
                 msg["id"], "restore_unsafe",
-                "This backup predates the room-fabric storage and the current fabric could "
-                "not be cleared, so restoring it would leave the map in a mixed state. "
-                "Nothing was changed.")
+                "This backup is from before PadSpan kept rooms the way it does now, "
+                "and the rooms saved now couldn't be cleared, so restoring it would "
+                "leave a mix of old and new rooms. Nothing was changed.")
             return
     for store_key, data in stores_data.items():
         if data is None:

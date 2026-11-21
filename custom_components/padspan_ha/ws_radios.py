@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry
 from homeassistant.util import dt as dt_util
 from .const import (
+    NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
     DATA_MAPS,
@@ -43,7 +44,7 @@ async def ws_scanner_offset_set(hass: HomeAssistant, connection, msg) -> None:
     """Set (or clear) the RSSI calibration offset for a single Bluetooth scanner."""
     source = str(msg.get("source", "")).strip()
     if not source:
-        connection.send_error(msg["id"], "invalid_source", "source required")
+        connection.send_error(msg["id"], "invalid_source", "Pick a receiver first.")
         return
     offset = max(-50.0, min(50.0, float(msg.get("offset_db", 0.0))))
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
@@ -100,7 +101,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
                 + "). Rename them so none is contained in another, then try again.",
             )
             return
-        connection.send_error(msg["id"], "device_not_found", "Could not find HA device for this radio source")
+        connection.send_error(msg["id"], "device_not_found", "Home Assistant has no device for this receiver, so its room can't be set here: set its area in Home Assistant.")
         return
 
     # Resolve area_id from area_name (blank → clear area assignment)
@@ -116,7 +117,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
             _quiet_error("ws_radios:area_set_areas")
             pass
         if not area_id:
-            connection.send_error(msg["id"], "area_not_found", f"Area '{area_name}' not found in HA area registry")
+            connection.send_error(msg["id"], "area_not_found", f"There's no area called {area_name} in Home Assistant.")
             return
 
     try:
@@ -142,11 +143,11 @@ async def ws_radio_lost_set(hass: HomeAssistant, connection, msg) -> None:
     source = str(msg.get("source") or "").strip()
     lost = bool(msg.get("lost", True))
     if not source:
-        connection.send_error(msg["id"], "invalid_source", "source is required")
+        connection.send_error(msg["id"], "invalid_source", "Pick a receiver first.")
         return
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "no_settings", "Settings store not initialized")
+        connection.send_error(msg["id"], "no_settings", NOT_LOADED_MESSAGE)
         return
     lost_radios = dict(st.data.get("lost_radios", {}))
     if lost:
@@ -171,11 +172,11 @@ async def ws_radio_disabled_set(hass: HomeAssistant, connection, msg) -> None:
     source = str(msg.get("source") or "").strip()
     disabled = bool(msg.get("disabled", True))
     if not source:
-        connection.send_error(msg["id"], "invalid_source", "source is required")
+        connection.send_error(msg["id"], "invalid_source", "Pick a receiver first.")
         return
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "no_settings", "Settings store not initialized")
+        connection.send_error(msg["id"], "no_settings", NOT_LOADED_MESSAGE)
         return
     disabled_radios = dict(st.data.get("disabled_radios", {}))
     if disabled:
@@ -207,7 +208,7 @@ async def ws_radio_reset(hass: HomeAssistant, connection, msg) -> None:
     """
     source = str(msg.get("source") or "").strip()
     if not source:
-        connection.send_error(msg["id"], "invalid_source", "source is required")
+        connection.send_error(msg["id"], "invalid_source", "Pick a receiver first.")
         return
 
     summary: dict = {}

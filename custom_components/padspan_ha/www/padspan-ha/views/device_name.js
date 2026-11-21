@@ -82,7 +82,8 @@ const LINK_HOW = "On screen only: its calibration, learning, alerts and Home Ass
 
 /** What the name links say about a device (label_follow.py): where its name has
  *  gone, one question, and the pointer to its IRK. Quiet lines, never a window.
- *  act: { wsCall, toast, after, showHelp }. null when there is nothing to say. */
+ *  act: { wsCall, toast, errorText (the words for a failure, ui_error.js), after, showHelp }.
+ *  null when there is nothing to say. */
 export function labelLines(el, o, act){
   if(!o) return null;
   const out = [];
@@ -93,7 +94,7 @@ export function labelLines(el, o, act){
     e.stopPropagation();
     if(busy) return;
     busy = true;
-    try { await run(); } catch(err) { act.toast("That didn't work: " + ((err && (err.message || err.code)) || err), true); }
+    try { await run(); } catch(err) { act.toast("That didn't work: " + act.errorText(err), true); }
     try { if(act.after) await act.after(); } finally { busy = false; }
   } }, text);
   const key = o.key;

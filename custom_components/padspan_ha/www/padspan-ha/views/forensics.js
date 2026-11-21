@@ -133,7 +133,7 @@ export function render(ctx){
       ctx.state._forensicsResults = r || {recorded:[], possible:[]};
       ctx.actions.renderRooms();
     } catch(e){
-      ctx.toast("Search failed: " + String(e), true);
+      ctx.toast("Search failed: " + ctx.helpers.errorText(e), true);
       searchBtn.disabled = false; searchBtn.textContent = "Search window";
     }
   });

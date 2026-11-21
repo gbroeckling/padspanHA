@@ -14,6 +14,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
     DATA_OBJECTS,
@@ -252,7 +253,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         return
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
     try:
         from .licence_homes import call, home_params, homes_warning  # noqa: PLC0415
@@ -353,7 +354,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
         return
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
     # Every free offer needs the opt-in usage report on (2026-10-27).
     # The trial card asks for it in the same step (views/trial_offer.js).

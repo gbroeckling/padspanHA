@@ -521,7 +521,7 @@ async function _loadRegistryAsync(ctx, el, container) {
         await ctx.actions.callWS({ type: "padspan_ha/device_registry_merge", keep_id: ids[0], absorb_id: ids[1] });
         ctx.toast(`Merged: ${n1} \u2192 ${n0}`);
         _loadRegistryAsync(ctx, el, container);
-      } catch (e) { ctx.toast("Merge failed: " + (e.message || e), true); mergeBtn.disabled = false; mergeBtn.textContent = "Merge Selected"; }
+      } catch (e) { ctx.toast("Merge failed: " + ctx.helpers.errorText(e), true); mergeBtn.disabled = false; mergeBtn.textContent = "Merge Selected"; }
     });
 
     // Device rows
@@ -548,7 +548,7 @@ async function _loadRegistryAsync(ctx, el, container) {
         try {
           await ctx.actions.callWS({ type: "padspan_ha/device_registry_label_set", padspan_id: pid, label: newLabel });
           ctx.toast(`Label set: ${newLabel}`);
-        } catch (err) { ctx.toast("Failed: " + (err.message || err), true); }
+        } catch (err) { ctx.toast("Failed: " + ctx.helpers.errorText(err), true); }
       });
       hdr.appendChild(lblInput);
       hdr.appendChild(el("span", { style: "font-size:10px;color:#64748b;margin-left:auto" }, d.created_at ? d.created_at.substring(0, 10) : ""));
@@ -562,7 +562,7 @@ async function _loadRegistryAsync(ctx, el, container) {
           await ctx.actions.callWS({ type: "padspan_ha/device_registry_delete", padspan_id: pid });
           ctx.toast("Deleted " + (d.label || pid));
           _loadRegistryAsync(ctx, el, container);
-        } catch (e) { ctx.toast("Delete failed: " + (e.message || e), true); }
+        } catch (e) { ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true); }
       });
       hdr.appendChild(delBtn);
       row.appendChild(hdr);
@@ -593,7 +593,7 @@ async function _loadRegistryAsync(ctx, el, container) {
         try {
           await ctx.actions.callWS({ type: "padspan_ha/device_registry_add_identity", padspan_id: pid, kind: addKind.value, value: v });
           ctx.toast("Identity added"); addVal.value = ""; _loadRegistryAsync(ctx, el, container);
-        } catch (e) { ctx.toast("Failed: " + (e.message || e), true); }
+        } catch (e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
       });
       addRow.appendChild(addKind); addRow.appendChild(addVal); addRow.appendChild(addGo);
 
@@ -703,7 +703,7 @@ function _renderDoorOpeners(ctx) {
     try {
       await ctx.actions.settingsSet({ door_opener_ids: [...next] });
       ctx.toast(checked ? "Marked as an opener." : "No longer an opener.");
-    } catch (e) { ctx.toast("Could not save: " + (e.message || e), true); }
+    } catch (e) { ctx.toast("Could not save: " + ctx.helpers.errorText(e), true); }
   };
 
   if (!candidates.length) {
@@ -1170,7 +1170,7 @@ function _renderRelayWizard(ctx) {
           try {
             await ctx.actions.settingsSet({ door_composites: next, door_opener_ids: [...nextOpeners] });
             ctx.toast(failures.length ? `Removed, but couldn't delete: ${failures.join(", ")}` : "Removed.", !!failures.length);
-          } catch (e) { ctx.toast("Could not save: " + (e.message || e), true); }
+          } catch (e) { ctx.toast("Could not save: " + ctx.helpers.errorText(e), true); }
           ctx.actions.renderRooms();
         },
       }, "Remove");

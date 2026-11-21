@@ -80,7 +80,7 @@ export function wallCard(ctx, el, settings){
       note.textContent = "Saved. Wall screens follow within half a minute.";
     } catch (e) {
       if (undo) undo();
-      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
     }
   };
 

@@ -286,6 +286,8 @@ export function tally(states){
 }
 // Rooms from plans' outline list, shared with the rooms helper (ai_wizard.js).
 const { roomShapes } = await import(`./plan_room_shapes.js${new URL(import.meta.url).search}`);
+// A failed save in the words every other toast uses.
+const { errorText } = await import(`./ui_error.js${new URL(import.meta.url).search}`);
 
 export const inPolygon = (x, y, pts) => {
   let c = false;
@@ -3297,7 +3299,7 @@ export async function openPlansList(box, host){
         if (kept) { draft.adopt("pieces", kept.pieces, kept.renamed); if (kept.lights) draft.adopt("lights", kept.lights); draft.rebase(DRAFT.ownedOf(kept.data)); toast(kept.said); }
       } catch (e) {
         if (e && e.planRefusal) await tool.refused(e);
-        toast(String((e && (e.message || e.code)) || e), true);
+        toast(errorText(e), true);
       }
       saving = false; redraw();
     } });

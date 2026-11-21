@@ -37,7 +37,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_SETTINGS, DOMAIN
+from .const import DATA_SETTINGS, DOMAIN, NOT_LOADED_MESSAGE
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -139,7 +139,7 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         return
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
     if not public_state(st.data)["pro_invite_open"]:
         connection.send_result(msg["id"], {"ok": False, "message": "This invite has ended."})

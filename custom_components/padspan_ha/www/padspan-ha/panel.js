@@ -1719,7 +1719,7 @@ class PadSpanHaApp extends HTMLElement {
         const r = await this._callWS({ type: "padspan_ha/telemetry_preview" });
         out.textContent = JSON.stringify(r.payload, null, 2);
         out.style.display = "block";
-      } catch(e) { this._toast("Preview failed: " + (e.message || e), true); }
+      } catch(e) { this._toast("Preview failed: " + this._errorText(e), true); }
       prev.disabled = false;
     });
     const no = el("button", { class: "btn inline", "data-ask": "no", style: "color:#94a3b8" }, "No thanks");
@@ -4421,6 +4421,7 @@ class PadSpanHaApp extends HTMLElement {
     return DEVICE_NAME.labelLines(el, obj, {
       wsCall: (type, data) => this._callWS({ type, ...data }),
       toast: (msg, bad) => this._toast(msg, bad),
+      errorText: (e) => this._errorText(e),
       showHelp: (key) => this._showHelp(key),
       after: async () => { if(after) after(); await this._getLiveSnapshot(); this._scheduleRender(); },
     });

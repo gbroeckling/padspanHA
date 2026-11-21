@@ -15,6 +15,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
     DATA_OBJECTS,
@@ -56,7 +57,7 @@ async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
     """
     obj_store = hass.data.get(DOMAIN, {}).get(DATA_OBJECTS)
     if not obj_store:
-        connection.send_error(msg["id"], "no_object_store", "Object store not initialized")
+        connection.send_error(msg["id"], "no_object_store", NOT_LOADED_MESSAGE)
         return
     addr = str(msg.get("address") or "").strip()
     # Only uppercase plain MAC addresses; leave ibeacon/irk keys as-is
@@ -249,7 +250,7 @@ async def ws_object_label_delete(hass: HomeAssistant, connection, msg) -> None:
     """Remove the user label for a BLE MAC address."""
     obj_store = hass.data.get(DOMAIN, {}).get(DATA_OBJECTS)
     if not obj_store:
-        connection.send_error(msg["id"], "no_object_store", "Object store not initialized")
+        connection.send_error(msg["id"], "no_object_store", NOT_LOADED_MESSAGE)
         return
     addr = str(msg.get("address") or "").strip()
     # Only uppercase plain MAC addresses; leave ibeacon/irk keys as-is

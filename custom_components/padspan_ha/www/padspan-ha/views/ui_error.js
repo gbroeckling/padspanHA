@@ -124,6 +124,7 @@ export function uiErrorModule(ev) {
 // from a bug on this page gets a plain line that says what to do.
 export const ERROR_WORDS = Object.freeze({
   connection: "The connection to Home Assistant was lost. Wait a moment and try again.",
+  network: "PadSpan couldn't be reached over the network. Check the connection and try again.",
   restart: "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.",
   sent: "PadSpan couldn't use what this page sent. Refresh the page and try again.",
   server: "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.",
@@ -150,6 +151,8 @@ export function errorText(e) {
     if (code === "unknown_error" || _PYTHON.test(msg)) return ERROR_WORDS.server;
     if (_SCHEMA.test(msg)) return ERROR_WORDS.sent;
     if (msg === "Unauthorized") return ERROR_WORDS.admin;
+    // fetch() that never reached anyone throws a TypeError of its own words: the network, not a bug.
+    if (e.name === "TypeError" && /failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return ERROR_WORDS.network;
     if (_BUG.has(String(e.name || ""))) return ERROR_WORDS.page;
     return msg || ERROR_WORDS.other;
   } catch (_e) {

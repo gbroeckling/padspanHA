@@ -92,7 +92,7 @@ async def ws_follow_alert_save(hass: HomeAssistant, connection, msg) -> None:
     addr = str(msg.get("addr") or "").strip()
     config = msg.get("config") or {}
     if len(str(config)) > 50000:
-        connection.send_error(msg["id"], "config_too_large", "Alert config exceeds size limit")
+        connection.send_error(msg["id"], "config_too_large", "These alert settings are too large to save.")
         return
     # Persist to AlertStore (disk-backed) — resolve padspan_id for stable identity
     from .const import DATA_ALERTS, DATA_DEVICE_REGISTRY
@@ -129,7 +129,7 @@ async def ws_follow_alert_delete(hass: HomeAssistant, connection, msg) -> None:
     """Delete a follow-alert configuration for a tracked object."""
     addr = str(msg.get("addr") or "").strip()
     if not addr:
-        connection.send_error(msg["id"], "missing_addr", "addr is required")
+        connection.send_error(msg["id"], "missing_addr", "Pick a device first.")
         return
     from .const import DATA_ALERTS
     alert_store = hass.data.get(DOMAIN, {}).get(DATA_ALERTS)
@@ -157,7 +157,7 @@ async def ws_area_delete(hass: HomeAssistant, connection, msg) -> None:
     """Delete an HA area and clean up PadSpan room_meta."""
     area_id = (msg.get("area_id") or "").strip()
     if not area_id:
-        connection.send_error(msg["id"], "invalid_area_id", "area_id required")
+        connection.send_error(msg["id"], "invalid_area_id", "Pick an area first.")
         return
     ar = area_registry.async_get(hass)
     area = ar.async_get_area(area_id)
@@ -194,12 +194,12 @@ async def ws_entity_delete(hass: HomeAssistant, connection, msg) -> None:
     """Remove an entity from the HA entity registry."""
     entity_id = (msg.get("entity_id") or "").strip()
     if not entity_id:
-        connection.send_error(msg["id"], "invalid_entity_id", "entity_id required")
+        connection.send_error(msg["id"], "invalid_entity_id", "Pick a Home Assistant entity first.")
         return
     er = entity_registry.async_get(hass)
     entry = er.async_get(entity_id)
     if not entry:
-        connection.send_error(msg["id"], "not_found", f"Entity '{entity_id}' not found in registry")
+        connection.send_error(msg["id"], "not_found", f"{entity_id} isn't in Home Assistant any more.")
         return
     er.async_remove(entity_id)
     connection.send_result(msg["id"], {"deleted": entity_id})

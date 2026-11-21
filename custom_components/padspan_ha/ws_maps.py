@@ -16,6 +16,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .ws_common import admin_if_enhanced_security, finite_float, id_text, note_text, shallow, PINS_MAX, ROOMS_MAX
 from .const import (
+    NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
     DATA_MAPS,
@@ -113,7 +114,7 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
     """
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
     floor_id = msg.get("floor_id") or DEFAULT_FLOOR_ID
     # Enforce single Outside map
@@ -234,7 +235,7 @@ async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
     from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
     floor_id = msg.get("floor_id") or DEFAULT_FLOOR_ID
     feet = C.feet_on(hass)
@@ -296,7 +297,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
     """
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
     map_id = msg.get("map_id")
 
@@ -442,7 +443,7 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
     """Replace the stored PNG for an existing map and renormalize coordinates."""
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
 
     _map_id = msg.get("map_id") or ""
@@ -526,7 +527,7 @@ async def ws_maps_delete(hass: HomeAssistant, connection, msg) -> None:
     """
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
     map_id = msg.get("map_id") or ""
     # Clean up calibration data for the deleted map
@@ -612,7 +613,7 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
     """
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
 
     src_id = str(msg.get("map_id") or "").strip()
@@ -898,7 +899,7 @@ async def ws_maps_revert_extend(hass: HomeAssistant, connection, msg) -> None:
     """Revert a canvas extension on a map (undo the image padding + coord shift)."""
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
     result = await ms.async_revert_extend(
         msg.get("map_id") or "",
@@ -978,7 +979,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     from .ws_house3d_import import scan_furniture  # noqa: PLC0415
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
-        connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
+        connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
         return
     floor_id = msg.get("floor_id") or DEFAULT_FLOOR_ID
 

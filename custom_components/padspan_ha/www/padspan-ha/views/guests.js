@@ -81,7 +81,7 @@ async function _call(ctx, msg, okText) {
     await _load(ctx);
     return r;
   } catch (e) {
-    ctx.toast(e?.message || e?.code || String(e), true);
+    ctx.toast(ctx.helpers.errorText(e), true);
     return null;
   }
 }

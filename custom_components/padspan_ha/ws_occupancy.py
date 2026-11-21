@@ -44,7 +44,7 @@ from homeassistant.core import HomeAssistant
 
 from .ble_enrichment import decode_apple_subtype, lookup_service_uuid
 from .bluetooth_live import get_bluetooth_live
-from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
+from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN, NOT_LOADED_MESSAGE
 from .presence_rules import (
     away_timeout_s, below_floor, device_is_theirs, home_context, is_away, is_outdoor_floor, person_home,
     person_identity,
@@ -660,7 +660,7 @@ async def ws_occupancy_train(hass: HomeAssistant, connection, msg) -> None:
     """Record an actual headcount beside what the estimator said at the time."""
     _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not _st:
-        connection.send_error(msg["id"], "no_settings", "Settings not loaded")
+        connection.send_error(msg["id"], "no_settings", NOT_LOADED_MESSAGE)
         return
 
     est = await compute_occupancy_estimate(hass)

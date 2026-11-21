@@ -57,7 +57,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import DOMAIN, NOT_LOADED_MESSAGE
 from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
 from .quiet_errors import note as _quiet_error
@@ -771,7 +771,7 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
             return
         bid = msg.get("backup_id")
         if not bid:
-            connection.send_error(msg["id"], "bad_request", "backup_id is required")
+            connection.send_error(msg["id"], "bad_request", "Pick a backup first.")
             return
 
         def _read() -> dict[str, Any]:
@@ -1225,7 +1225,7 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
         return
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
-        connection.send_error(msg["id"], "no_settings", "Settings not loaded")
+        connection.send_error(msg["id"], "no_settings", NOT_LOADED_MESSAGE)
         return
     await st.async_set(wled_teams=teams)
     connection.send_result(msg["id"], {"teams": teams, "hash": cfg_hash(teams)})

@@ -15,7 +15,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN, DATA_MODEL
+from .const import DOMAIN, DATA_MODEL, NOT_LOADED_MESSAGE
 from .ws_common import _get_settings
 from .telemetry import bump as _bump
 
@@ -46,7 +46,7 @@ async def ws_capture_start(hass: HomeAssistant, connection, msg) -> None:
 
     cap = _capture_store(hass)
     if not cap:
-        connection.send_error(msg["id"], "no_capture", "CaptureStore not loaded")
+        connection.send_error(msg["id"], "no_capture", NOT_LOADED_MESSAGE)
         return
     if _get_settings(hass).get("rssi_capture_enabled") is not True:
         connection.send_error(msg["id"], "not_enabled",
@@ -59,7 +59,7 @@ async def ws_capture_start(hass: HomeAssistant, connection, msg) -> None:
     # its own literal key. Everything else that needs it reads it this way too.
     coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
     if not coord:
-        connection.send_error(msg["id"], "no_coordinator", "Presence coordinator not ready")
+        connection.send_error(msg["id"], "no_coordinator", NOT_LOADED_MESSAGE)
         return
     if cap.recording:
         connection.send_error(msg["id"], "already_recording",

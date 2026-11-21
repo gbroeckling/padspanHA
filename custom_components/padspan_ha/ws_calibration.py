@@ -396,7 +396,7 @@ async def ws_calibration_delete_point(hass: HomeAssistant, connection, msg) -> N
     cal = await _get_cal_store(hass)
     point_id = (msg.get("point_id") or "").strip()
     if not point_id:
-        connection.send_error(msg["id"], "invalid_id", "point_id required")
+        connection.send_error(msg["id"], "invalid_id", "Pick a calibration point first.")
         return
     deleted = await cal.async_delete_point(point_id)
     connection.send_result(msg["id"], {"ok": deleted, "point_id": point_id})
@@ -451,7 +451,7 @@ async def ws_calibration_clear_map(hass: HomeAssistant, connection, msg) -> None
     """Delete all calibration points collected on a specific map."""
     map_id = str(msg.get("map_id") or "").strip()
     if not map_id:
-        connection.send_error(msg["id"], "invalid_map_id", "map_id is required")
+        connection.send_error(msg["id"], "invalid_map_id", "Pick a floor plan first.")
         return
     cal = await _get_cal_store(hass)
     # The automatic safety backup first, as ws_calibration_clear does; a map
@@ -483,7 +483,7 @@ async def ws_object_evict(hass: HomeAssistant, connection, msg) -> None:
     """
     key = str(msg.get("key") or "").strip()
     if not key:
-        connection.send_error(msg["id"], "invalid_key", "key is required")
+        connection.send_error(msg["id"], "invalid_key", "Pick a device first.")
         return
     _coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")   # clear_object_state lives there
     if _coord:
@@ -556,10 +556,10 @@ async def ws_calibration_swap_radio(hass: HomeAssistant, connection, msg) -> Non
     new_source = str(msg.get("new_source") or "").strip()
 
     if not old_source or not new_source:
-        connection.send_error(msg["id"], "invalid", "old_source and new_source are required")
+        connection.send_error(msg["id"], "invalid", "Pick the old receiver and the new one.")
         return
     if old_source == new_source:
-        connection.send_error(msg["id"], "invalid", "old_source and new_source must be different")
+        connection.send_error(msg["id"], "invalid", "The old receiver and the new one must be different.")
         return
 
     cal = await _get_cal_store(hass)
@@ -623,13 +623,13 @@ async def ws_calibration_relearn_radio(hass: HomeAssistant, connection, msg) -> 
     gain_db = float(msg.get("gain_db", 0.0))
 
     if not source:
-        connection.send_error(msg["id"], "invalid_source", "source is required")
+        connection.send_error(msg["id"], "invalid_source", "Pick a receiver first.")
         return
     if gain_db == 0.0:
-        connection.send_error(msg["id"], "invalid_gain", "gain_db must be non-zero")
+        connection.send_error(msg["id"], "invalid_gain", "Enter how much the antenna change gained or lost, in dB (not 0).")
         return
     if not -30.0 <= gain_db <= 30.0:
-        connection.send_error(msg["id"], "invalid_gain", "gain_db must be between -30 and +30")
+        connection.send_error(msg["id"], "invalid_gain", "The change must be between -30 and +30 dB.")
         return
 
     cal = await _get_cal_store(hass)

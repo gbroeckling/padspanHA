@@ -661,7 +661,7 @@ export function render(ctx){
           ctx.toast(`Cleared ${res.removed} object${res.removed!==1?"s":""}, kept ${res.kept} tagged/followed`);
           // A fresh snapshot: re-rendering the old one kept the cleared devices on screen.
           await ctx.actions.refreshSnapshot();
-        } catch(e){ ctx.toast("Failed: " + (e.message||e), true); clearUnidentBtn.textContent = "Clear unidentified"; }
+        } catch(e){ ctx.toast("Failed: " + ctx.helpers.errorText(e), true); clearUnidentBtn.textContent = "Clear unidentified"; }
         clearUnidentBtn.disabled = false;
       });
 
@@ -889,7 +889,7 @@ export function render(ctx){
             await ctx.actions.refreshSnapshot();
           } catch(e) {
             clrBtn.textContent = "Error";
-            ctx.toast("Failed: " + (e.message||e), true);
+            ctx.toast("Failed: " + ctx.helpers.errorText(e), true);
           }
           clrBtn.disabled = false; clrBtn.textContent = "Clear unidentified";
         });

@@ -20,6 +20,7 @@ const { install } = await import(pathToFileURL(ROOT + "/tests/js/dom_shim.mjs").
 install(globalThis);
 const V = ROOT + "/custom_components/padspan_ha/www/padspan-ha/";
 const MAPS = await import(pathToFileURL(V + "views/maps.js").href);
+const { errorText } = await import(pathToFileURL(V + "views/ui_error.js").href);
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = { ok: !!ok, detail: ok ? undefined : detail }; };
@@ -100,7 +101,7 @@ const actions = {
   openModal() {}, closeModal() {}, telemetryEvent() {}, canOpen: () => true, followedHas: () => false,
 };
 const helpers = new Proxy({ el, esc: (x) => String(x ?? ""), helpBtn: () => el("button", {}, "?"), radioShortId: (x) => String(x || ""),
-  isScanner: () => false, roomColor: () => "#fff", pill: (t) => el("span", {}, String(t ?? "")), HELP: {}, mapImageUrl: () => "/x.png" },
+  isScanner: () => false, roomColor: () => "#fff", pill: (t) => el("span", {}, String(t ?? "")), HELP: {}, mapImageUrl: () => "/x.png", errorText },
   { get: (t, k) => (k in t ? t[k] : quiet()) });
 const ctx = new Proxy({ hass: { states: {}, user: { is_admin: true }, connection: { sendMessagePromise: async () => ({}) } },
   state, helpers, actions: new Proxy(actions, { get: (t, k) => (k in t ? t[k] : quiet()) }),

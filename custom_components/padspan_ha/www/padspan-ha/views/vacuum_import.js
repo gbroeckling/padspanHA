@@ -57,7 +57,7 @@ export function vacuumImportBlock(ctx, floorId){
       st.preview = await ctx.actions.wsCall("padspan_ha/vacuum_import_preview", args);
     } catch (err) {
       st.preview = null;
-      ctx.toast("Robot map: " + (err.message || err), true);
+      ctx.toast("Robot map: " + ctx.helpers.errorText(err), true);
     }
     st.busy = false; ctx.actions.renderRooms();
   };
@@ -109,7 +109,7 @@ export function vacuumImportBlock(ctx, floorId){
         await ctx.actions.mapsRefresh();
         await ctx.actions.modelRefresh();
         await refresh(ctx);
-      } catch (err) { ctx.toast("Import failed: " + (err.message || err), true); ctx.actions.renderRooms(); }
+      } catch (err) { ctx.toast("Import failed: " + ctx.helpers.errorText(err), true); ctx.actions.renderRooms(); }
     } }, `Add as a new map on "${floorId}"`));
     info.appendChild(el("span", { class: "muted", style: "font-size:11px" },
       "It is placed at the house's origin — line it up with your other plans in 3D Stack if you have them."));
@@ -123,7 +123,7 @@ export function vacuumImportBlock(ctx, floorId){
   if (lk) {
     const set = async (args) => {
       try { st.status = await ctx.actions.wsCall("padspan_ha/vacuum_link_set", args); }
-      catch (err) { ctx.toast(String(err.message || err), true); }
+      catch (err) { ctx.toast(ctx.helpers.errorText(err), true); }
       refresh(ctx);
     };
     const live = el("input", { type: "checkbox", onchange: (e) => set({ enabled: e.currentTarget.checked }) });
@@ -149,7 +149,7 @@ export function vacuumImportBlock(ctx, floorId){
           el("span", {}, `${pt.x_m.toFixed(2)}, ${pt.y_m.toFixed(2)} m · ${pt.floor_id} · ${(pt.scanner_readings || []).length} scanners · ${String(pt.collected_at || "").slice(0, 16).replace("T", " ")}`),
           el("button", { class: "btn inline", onclick: async () => {
             try { await ctx.actions.wsCall("padspan_ha/vacuum_cal_pending_accept", { point_id: pt.id }); ctx.toast("Added to calibration"); }
-            catch (err) { ctx.toast("Not added: " + (err.message || err), true); }
+            catch (err) { ctx.toast("Not added: " + ctx.helpers.errorText(err), true); }
             refresh(ctx);
           } }, "Accept"),
           el("button", { class: "btn inline", onclick: async () => {

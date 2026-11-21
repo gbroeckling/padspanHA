@@ -89,7 +89,7 @@ async def ws_subzone_update(hass: HomeAssistant, connection, msg) -> None:
     store = await async_get_store(hass)
     old = store.zones().get(msg["zone_id"])
     if old is None:
-        connection.send_error(msg["id"], "not_found", "no such sub-zone")
+        connection.send_error(msg["id"], "not_found", "That sub-zone isn't there any more.")
         return
     new = {**old, **msg["zone"]}
     if "points_m" in msg["zone"] or "r_m" in msg["zone"] or "type" in msg["zone"]:
@@ -110,7 +110,7 @@ async def ws_subzone_remove(hass: HomeAssistant, connection, msg) -> None:
     store = await async_get_store(hass)
     zid = msg["zone_id"]
     if not await store.async_remove(zid):
-        connection.send_error(msg["id"], "not_found", "no such sub-zone")
+        connection.send_error(msg["id"], "not_found", "That sub-zone isn't there any more.")
         return
     from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
     reg = er.async_get(hass)
@@ -138,7 +138,7 @@ async def ws_subzone_from_piece(hass: HomeAssistant, connection, msg) -> None:
         except ReadFailed:
             piece = None
     if not isinstance(piece, dict):
-        connection.send_error(msg["id"], "not_found", "no such furniture piece")
+        connection.send_error(msg["id"], "not_found", "That piece of furniture isn't there any more.")
         return
     name = msg.get("name") or piece.get("label") or str((piece.get("recipe") or {}).get("kind") or "Sub-zone")
     await _write(hass, connection, msg, None, {

@@ -35,7 +35,7 @@ function el(tag, attrs = {}, children = []) {
 function acts(failWith) {
   const log = [];
   return { log, wsCall: async (type, data) => { log.push([type, data]); if (failWith) throw new Error(failWith); return {}; },
-    toast: (m, bad) => log.push(["toast", m, bad]), showHelp: (k) => log.push(["help", k]),
+    toast: (m, bad) => log.push(["toast", m, bad]), errorText: (e) => String((e && e.message) || e), showHelp: (k) => log.push(["help", k]),
     after: async () => log.push(["after"]) };
 }
 const walk = (n, f) => { f(n); for (const c of n.childNodes || []) walk(c, f); };

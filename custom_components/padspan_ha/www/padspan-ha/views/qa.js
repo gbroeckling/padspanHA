@@ -428,7 +428,7 @@ export function render(ctx){
         if(typed !== "RESET") return;
         resetCalBtn.disabled=true;
         try { await ctx.actions.wsCall("padspan_ha/calibration_clear"); ctx.toast("All calibration data cleared"); ctx.actions.renderRooms(); }
-        catch(e){ ctx.toast("Reset failed: " + String((e && e.message) || e), true); }
+        catch(e){ ctx.toast("Reset failed: " + ctx.helpers.errorText(e), true); }
         finally{ resetCalBtn.disabled=false; }
       });
       resetRow.appendChild(resetCalBtn);
@@ -469,7 +469,7 @@ export function render(ctx){
       noteInp.value = "";
       ctx.toast("Backup created");
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Backup failed: "+String(e),true); }
+    } catch(e){ ctx.toast("Backup failed: "+ctx.helpers.errorText(e),true); }
     finally{ createBkBtn.disabled=false; createBkBtn.textContent="Create Backup"; }
   });
   backupCard.appendChild(el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"},[noteInp, createBkBtn]));

@@ -14,6 +14,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
     DATA_MODEL,
@@ -36,7 +37,7 @@ async def ws_device_registry_list(hass: HomeAssistant, connection, msg) -> None:
     from .const import DATA_DEVICE_REGISTRY
     dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
     if not dev_reg:
-        connection.send_error(msg["id"], "no_device_registry", "Device Registry not initialized")
+        connection.send_error(msg["id"], "no_device_registry", NOT_LOADED_MESSAGE)
         return
     devices = dev_reg.all_devices()
     connection.send_result(msg["id"], {
@@ -55,10 +56,10 @@ async def ws_device_registry_migrate(hass: HomeAssistant, connection, msg) -> No
     dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
     obj_store = hass.data.get(DOMAIN, {}).get(DATA_OBJECTS)
     if not dev_reg:
-        connection.send_error(msg["id"], "no_device_registry", "Device Registry not initialized")
+        connection.send_error(msg["id"], "no_device_registry", NOT_LOADED_MESSAGE)
         return
     if not obj_store:
-        connection.send_error(msg["id"], "no_object_store", "Object store not initialized")
+        connection.send_error(msg["id"], "no_object_store", NOT_LOADED_MESSAGE)
         return
     stats = await dev_reg.async_migrate_from_object_store(obj_store)
     connection.send_result(msg["id"], {
@@ -82,12 +83,12 @@ async def ws_device_registry_merge(hass: HomeAssistant, connection, msg) -> None
     from .const import DATA_DEVICE_REGISTRY
     dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
     if not dev_reg:
-        connection.send_error(msg["id"], "no_device_registry", "Device Registry not initialized")
+        connection.send_error(msg["id"], "no_device_registry", NOT_LOADED_MESSAGE)
         return
     keep_id = str(msg["keep_id"]).strip()
     absorb_id = str(msg["absorb_id"]).strip()
     if not keep_id or not absorb_id:
-        connection.send_error(msg["id"], "invalid_ids", "Both keep_id and absorb_id are required")
+        connection.send_error(msg["id"], "invalid_ids", "Pick both devices to merge.")
         return
     ok = await dev_reg.async_merge(keep_id, absorb_id)
     if not ok:
@@ -113,7 +114,7 @@ async def ws_device_registry_label_set(hass: HomeAssistant, connection, msg) -> 
     from .const import DATA_DEVICE_REGISTRY
     dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
     if not dev_reg:
-        connection.send_error(msg["id"], "no_device_registry", "Device Registry not initialized")
+        connection.send_error(msg["id"], "no_device_registry", NOT_LOADED_MESSAGE)
         return
     pid = str(msg["padspan_id"]).strip()
     label = str(msg["label"]).strip()[:48]
@@ -148,7 +149,7 @@ async def ws_device_registry_add_identity(hass: HomeAssistant, connection, msg) 
     from .const import DATA_DEVICE_REGISTRY
     dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
     if not dev_reg:
-        connection.send_error(msg["id"], "no_device_registry", "Device Registry not initialized")
+        connection.send_error(msg["id"], "no_device_registry", NOT_LOADED_MESSAGE)
         return
     pid = str(msg["padspan_id"]).strip()
     kind = str(msg["kind"]).strip()
@@ -172,11 +173,11 @@ async def ws_device_registry_delete(hass: HomeAssistant, connection, msg) -> Non
     from .const import DATA_DEVICE_REGISTRY
     dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
     if not dev_reg:
-        connection.send_error(msg["id"], "no_device_registry", "Device Registry not initialized")
+        connection.send_error(msg["id"], "no_device_registry", NOT_LOADED_MESSAGE)
         return
     pid = str(msg["padspan_id"]).strip()
     if not dev_reg.get(pid):
-        connection.send_error(msg["id"], "not_found", f"Device {pid} not found")
+        connection.send_error(msg["id"], "not_found", "That device isn't known to PadSpan any more.")
         return
     await dev_reg.async_delete(pid)
     connection.send_result(msg["id"], {"ok": True, "padspan_id": pid})
@@ -197,7 +198,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
 
     _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not _st:
-        connection.send_error(msg["id"], "no_settings", "Settings not loaded")
+        connection.send_error(msg["id"], "no_settings", NOT_LOADED_MESSAGE)
         return
 
     url = (_st.data.get("espresense_companion_url") or "").strip().rstrip("/")
@@ -233,8 +234,9 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
         connection.send_error(msg["id"], "connect_failed",
                               f"Cannot reach ESPresense Companion at {api_url}: {e}")
         return
-    except Exception as e:
-        connection.send_error(msg["id"], "fetch_error", f"Failed to fetch config: {e}")
+    except Exception:
+        _quiet_error("ws_devices:espresense_config_read")
+        connection.send_error(msg["id"], "fetch_error", "ESPresense Companion answered, but PadSpan couldn't read its settings.")
         return
 
     if not isinstance(data, dict):
@@ -244,7 +246,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
     # ── Parse and import ─────────────────────────────────────────────────
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        connection.send_error(msg["id"], "no_model", NOT_LOADED_MESSAGE)
         return
 
     stats = {"floors": 0, "rooms": 0, "scanners": 0, "skipped": 0}

@@ -1202,7 +1202,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     _offsets = None
                 if _offsets is None or not all(math.isfinite(v) for v in _offsets.values()):
                     connection.send_error(msg["id"], "invalid",
-                                          "scanner_offsets must give each receiver a finite number of dB")
+                                          "Each receiver's signal adjustment must be a number of dB.")
                     return
                 payload["scanner_offsets"] = _offsets
         if "excluded_objects" in msg:
@@ -1271,7 +1271,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 return
             from .vacation_mode import SOURCES as _VSRC  # noqa: PLC0415
             if msg["vacation_mode_source"] not in _VSRC:
-                connection.send_error(msg["id"], "invalid_format", "Choose last_week or month")
+                connection.send_error(msg["id"], "invalid_format", "Choose the last week or the last month.")
                 return
             payload["vacation_mode_source"] = msg["vacation_mode_source"]
             # Someone chose. A routine from before the choice existed gets its
@@ -1455,7 +1455,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "advanced_extra_tabs" in msg:
             valid = {"devices","bluetooth","presence","monitor","qa","sandbox"}
             if not all(isinstance(t, str) for t in msg["advanced_extra_tabs"]):
-                connection.send_error(msg["id"], "invalid_format", "advanced_extra_tabs must be a list of tab names")
+                connection.send_error(msg["id"], "invalid_format", "The tabs to add must be a list of tab names.")
                 return
             payload["advanced_extra_tabs"] = [t for t in msg["advanced_extra_tabs"] if t in valid]
         if "ui_skin" in msg:

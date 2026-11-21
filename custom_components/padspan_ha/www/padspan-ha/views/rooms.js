@@ -260,7 +260,7 @@ async function _setColor(ctx, row, hex) {
     // merges per room and keeps a height it is not sent.
     await ctx.actions.modelUpdate({ room_meta: { [row.name]: { floor_id: row.metaFloorId, color: hex } } });
     await _saved(ctx, `"${row.name}" colour saved`);
-  } catch (err) { ctx.toast("Colour not saved: " + (err.message || err), true); }
+  } catch (err) { ctx.toast("Colour not saved: " + ctx.helpers.errorText(err), true); }
 }
 
 /** A room drawn on a plan only, onto the map of the house: the Setup Wizard's "Put it on the map" for this one room
@@ -277,7 +277,7 @@ async function _setRoom(ctx, row, msg, ok) {
     await ctx.actions.wsCall("padspan_ha/room_height_set", { room: row.name, ...msg });
     await _saved(ctx, ok);
     await ctx.actions.modelRefresh();
-  } catch (err) { ctx.toast("Not saved: " + (err.message || err), true); }
+  } catch (err) { ctx.toast("Not saved: " + ctx.helpers.errorText(err), true); }
 }
 
 // ── The page ────────────────────────────────────────────────────────────────

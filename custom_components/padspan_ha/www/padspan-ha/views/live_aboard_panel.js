@@ -40,6 +40,9 @@
 // The view (live_aboard.js) hands in what this needs of it (createPanel's v);
 // nothing here imports three.js or reads the house itself.
 
+// The words a failed save is shown with (ui_error.js errorText, as every other toast).
+const { errorText } = await import(`./ui_error.js${new URL(import.meta.url).search}`);
+
 /** The choices for going back to the home view (s; 0: never). */
 export const IDLE_CHOICES = [0, 30, 60, 300];
 export const IDLE_DEFAULT_S = 60;
@@ -396,7 +399,7 @@ export function createPanel(v){
       const on = s[key] === true;
       out.push({ text: `${words}: ${on ? "On" : "Off"}`, on, disabled: !may,
                  title: may ? `Turn ${words.toLowerCase()} ${on ? "off" : "on"} (Settings \u2192 Atlas shows it; this is its switch while Live Aboard is on)` : "Only an administrator can change this",
-                 act: () => { if (may) Promise.resolve().then(() => h.saveSetting(key, !on)).catch(e => v.toast(`Could not save: ${String((e && e.message) || e)}`)); } });
+                 act: () => { if (may) Promise.resolve().then(() => h.saveSetting(key, !on)).catch(e => v.toast(`Could not save: ${errorText(e)}`)); } });
     }
     return out;
   }

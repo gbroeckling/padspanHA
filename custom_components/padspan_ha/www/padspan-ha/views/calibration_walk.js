@@ -141,7 +141,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
           ctx.toast(`Walk saved: ${r.added} points for ${w.room}.`);
           _awaitAfter(ctx, cs._walk);
         } catch (e) {
-          ctx.toast("Save failed: " + (e && (e.message || e.code) || String(e)), true);
+          ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
           save.disabled = false;
           save.textContent = "Save this walk?";
           return;
@@ -209,7 +209,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
         const r = await ctx.actions.wsCall("padspan_ha/calibration_room_walk_remove", { room: w.room });
         ctx.state.calibration = await ctx.actions.calibrationGet();
         ctx.toast(`Removed ${r.removed} walk points from ${w.room}.`);
-      } catch (e) { ctx.toast("Remove failed: " + (e && (e.message || e.code) || String(e)), true); }
+      } catch (e) { ctx.toast("Remove failed: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     });
     card.appendChild(rm);
@@ -269,7 +269,7 @@ function _start(ctx, cs, h) {
       w.summary = await ctx.actions.wsCall("padspan_ha/calibration_room_walk_preview", { room: w.room, polls: w.polls });
       w.phase = "summary";
     } catch (e) {
-      ctx.toast("Could not read the walk: " + (e && (e.message || e.code) || String(e)), true);
+      ctx.toast("Could not read the walk: " + ctx.helpers.errorText(e), true);
       w.phase = "idle";
     }
     ctx.actions.renderRooms();

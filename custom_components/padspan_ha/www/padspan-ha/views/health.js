@@ -523,7 +523,7 @@ function _renderFabric(ctx, container, data) {
           const r = await ctx.actions.callWS({type:"padspan_ha/calibration_retrain_rf"});
           ctx.toast(`Learned model retrained: ${r.use_metres ? "metres" : "fractions"}, ${r.point_count} pts`);
           _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
-        } catch(e) { ctx.toast(`Failed: ${e.message||e}`); rfBtn.disabled = false; rfBtn.textContent = "Retrain learned model"; }
+        } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`); rfBtn.disabled = false; rfBtn.textContent = "Retrain learned model"; }
       });
       actCard.appendChild(rfBtn);
     }
@@ -537,7 +537,7 @@ function _renderFabric(ctx, container, data) {
         const r = await ctx.actions.callWS({type:"padspan_ha/fabric_resync"});
         ctx.toast(`Resync: removed ${r.removed}, added ${r.added}, pruned ${r.pruned} \u2192 ${r.final_count} scanners`);
         _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
-      } catch(e) { ctx.toast(`Failed: ${e.message||e}`); resyncBtn.disabled = false; resyncBtn.textContent = "Resync Scanners"; }
+      } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`); resyncBtn.disabled = false; resyncBtn.textContent = "Resync Scanners"; }
     });
     actCard.appendChild(resyncBtn);
 
@@ -553,7 +553,7 @@ function _renderFabric(ctx, container, data) {
           ? `Reset: ${r.removed} scanner/beacon positions and barriers cleared (backup taken first)`
           : "Nothing to reset: no scanner/beacon positions or barriers");
         _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
-      } catch(e) { ctx.toast(`Failed: ${e.message||e}`); resetBtn.disabled = false; resetBtn.textContent = "Reset Spatial Model"; }
+      } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`); resetBtn.disabled = false; resetBtn.textContent = "Reset Spatial Model"; }
     });
     actCard.appendChild(resetBtn);
 
@@ -568,7 +568,7 @@ function _renderFabric(ctx, container, data) {
           const r = await ctx.actions.callWS({type:"padspan_ha/device_registry_migrate"});
           ctx.toast(`Identity: ${r.migrated} devices migrated, ${r.merged} merged \u2192 ${r.total_devices} total`);
           _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
-        } catch(e) { ctx.toast(`Failed: ${e.message||e}`); idBtn.disabled=false; idBtn.textContent="\ud83d\udd11 Migrate Device Identity"; idBtn.classList.add("save-pulse"); }
+        } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`); idBtn.disabled=false; idBtn.textContent="\ud83d\udd11 Migrate Device Identity"; idBtn.classList.add("save-pulse"); }
       });
       actCard.appendChild(idBtn);
     }
@@ -760,7 +760,7 @@ async function _fetchAndRenderCritics(ctx, container) {
   } catch (err) {
     container.innerHTML = "";
     container.appendChild(el("div",{class:"card",style:"color:#fca5a5"},
-      `Could not check for problems: ${ctx.helpers.errorText ? ctx.helpers.errorText(err) : (err.message || err)}`
+      `Could not check for problems: ${ctx.helpers.errorText(err)}`
     ));
   }
 }
@@ -1020,7 +1020,7 @@ function _renderCapture(ctx, container) {
         const r = await ctx.actions.callWS({type:"padspan_ha/capture_start", minutes:mins, label});
         ctx.toast(`Recording ${r.session_id} — ${r.minutes} min, ${r.sources} scanners`);
       }
-    } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+    } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`, true); }
     await refresh();
   });
 
@@ -1031,7 +1031,7 @@ function _renderCapture(ctx, container) {
       if (isFinite(x) && isFinite(y)) { msg.x_m = x; msg.y_m = y; }
       const r = await ctx.actions.callWS(msg);
       ctx.toast(r.ok ? `Marked ${r.room}` + (msg.x_m != null ? ` @ (${x}, ${y})` : "") : r.error);
-    } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+    } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`, true); }
     await refresh();
   });
 
@@ -1075,7 +1075,7 @@ async function _capList(ctx, host) {
         a.href = url; a.download = `padspan-capture-${s.id}.jsonl`; a.click();
         URL.revokeObjectURL(url);
         ctx.toast(`Exported ${out.length} lines.`);
-      } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+      } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`, true); }
       dl.disabled = false; dl.textContent = "Export .jsonl";
     });
     rowEl.appendChild(dl);
@@ -1096,7 +1096,7 @@ async function _capList(ctx, host) {
       try {
         await ctx.actions.callWS({type:"padspan_ha/capture_delete", session_id:s.id});
         await _capList(ctx, host);
-      } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+      } catch(e) { ctx.toast(`Failed: ${ctx.helpers.errorText(e)}`, true); }
     });
     rowEl.appendChild(del);
 

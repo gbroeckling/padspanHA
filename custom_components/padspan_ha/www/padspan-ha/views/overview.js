@@ -3021,7 +3021,7 @@ export function renderClassic(ctx){
         const r = await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
         if (r && r.ok === false) { ctx.toast("Not resumed: " + (r.error || "try again in a moment"), true); }
         else ctx.toast("Normal pipeline resumed");
-      } catch(e) { ctx.toast("Failed: " + String(e), true); }
+      } catch(e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
       finally {
         // Left disabled after a failure, the only way back was a reload.
         cancelBtn.disabled = false; cancelBtn.textContent = "Resume Normal";
@@ -3536,7 +3536,7 @@ export function renderClassic(ctx){
             const r = await ctx.actions.wsCall("padspan_ha/objects_clear_history",{});
             ctx.toast(`Cleared ${r.removed} object${r.removed!==1?"s":""}, kept ${r.kept} tagged/followed`);
             await ctx.actions.refreshSnapshot();
-          } catch(e){ ctx.toast("Failed: " + (e.message||e), true); }
+          } catch(e){ ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
           this.disabled = false; this.textContent = "Clear unidentified";
         }}, "Clear unidentified"),
       ]) : null,
@@ -4139,7 +4139,7 @@ export function renderClassic(ctx){
             ctx.toast(`Saved: actual ${v}, estimate said ${tr.observation.estimated} (${tr.total_observations} observations)`);
             trainBtn.textContent = "✔ Saved";
           } catch(e) {
-            ctx.toast("Save failed: "+(e.message||e));
+            ctx.toast("Save failed: "+ctx.helpers.errorText(e));
             trainBtn.disabled=false; trainBtn.textContent="Save"; trainBtn.classList.add("save-pulse");
           }
         });
@@ -4148,7 +4148,7 @@ export function renderClassic(ctx){
 
         ctx.actions.openModal("People in building", body, res.hybrid_enabled === false ? "Phones only — hybrid counting is off" : "People, not devices");
       } catch(e) {
-        ctx.toast("Failed to load occupancy: "+(e.message||e));
+        ctx.toast("Failed to load occupancy: "+ctx.helpers.errorText(e));
       }
     });
   }

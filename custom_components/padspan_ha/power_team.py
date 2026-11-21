@@ -40,7 +40,7 @@ import uuid
 from typing import Any, Callable
 
 from . import adaptive_curve as CURVE
-from .const import DOMAIN
+from .const import DOMAIN, NOT_LOADED_MESSAGE
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -552,7 +552,7 @@ def _ws_commands() -> list:
             return
         st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
         if not st:
-            connection.send_error(msg["id"], "no_settings", "Settings not loaded")
+            connection.send_error(msg["id"], "no_settings", NOT_LOADED_MESSAGE)
             return
         await st.async_set(power_teams=teams)
         async_setup_power_teams(hass)
