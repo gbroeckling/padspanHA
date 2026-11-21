@@ -24,5 +24,6 @@ def test_the_atlas_hands_over_the_chips_setter_and_word() -> None:
     assert 'onClassFilter: typeof host.onClassFilter === "function" ? host.onClassFilter : null,' in lm
     assert "classLabel: (LIGHT_CLASSES.find(([c]) => c === host.classFilter) || [])[1] || null," in lm
     tools = _ROOT / "tools" / "live_aboard_harness"
-    assert (tools / "pw_dimmed.py").is_file()
-    assert '("dimmed", ["pw_dimmed.py"])' in (tools / "run_all.py").read_text(encoding="utf-8")
+    if tools.is_dir():                 # the Bright derivation carries no tools/
+        assert (tools / "pw_dimmed.py").is_file()
+        assert '("dimmed", ["pw_dimmed.py"])' in (tools / "run_all.py").read_text(encoding="utf-8")
