@@ -39,7 +39,23 @@ ICON_FILES = ("icon.png", "logo.png")
 WEB_COMPONENT        = "padspan-ha-app"
 LIGHTS_WEB_COMPONENT = "padspan-lights-app"
 
+# The static paths registered in this run of Home Assistant. A path cannot be
+# taken back, and the files behind it do not change while it runs, so each is
+# registered once: the panel is set up again on every reload, and the second
+# registration of a path was refused, fell through to the old call and logged
+# Home Assistant's "register_static_path is deprecated" (2024.8 to 2025.7).
+_STATIC_REGISTERED = "padspan_ha_static_paths"
+
+
 async def _register_static(hass: HomeAssistant, static_dir: Path, url: str = STATIC_URL) -> None:
+    done = hass.data.setdefault(_STATIC_REGISTERED, set())
+    if url in done:
+        return
+    if await _register_static_once(hass, static_dir, url):
+        done.add(url)
+
+
+async def _register_static_once(hass: HomeAssistant, static_dir: Path, url: str) -> bool:
     # Three fallbacks, newest API first: HA has changed how integrations
     # register a static path more than once (StaticPathConfig is the current
     # signature; async_register_static_path and the synchronous
@@ -53,23 +69,25 @@ async def _register_static(hass: HomeAssistant, static_dir: Path, url: str = STA
         await hass.http.async_register_static_paths(
             [StaticPathConfig(url, str(static_dir), False)]
         )
-        return
+        return True
     except Exception:
         _quiet_error("panel:static_path_config")
         pass
 
     try:
         await hass.http.async_register_static_path(url, str(static_dir), False)
-        return
+        return True
     except Exception:
         _quiet_error("panel:static_path_async")
         pass
 
     try:
         hass.http.register_static_path(url, str(static_dir), False)
+        return True
     except Exception:
         _quiet_error("panel:static_path_legacy")
         _LOGGER.debug("Static register fallback failed (url=%s)", url)
+    return False
 
 def _remove_panels(hass: HomeAssistant) -> None:
     """Remove the panels Home Assistant has registered, so they can be refreshed.

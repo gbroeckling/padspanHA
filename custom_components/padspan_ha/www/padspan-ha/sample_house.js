@@ -372,6 +372,19 @@ export function createSampleHouse(q = new URLSearchParams(), { now = Date.now } 
       case "padspan_ha/occupancy_estimate": return occupancyOf(snapshot().objects.list, fx.WALKERS, states, fx.MOTION);
       case "padspan_ha/room_tags": { const s = snapshot(); return { room_tag_map: s.room_tag_map }; }
       case "padspan_ha/calibration_get": return clone(calibration);
+      // Settings → Tracking → Check Now, as ws_calibration.py answers it from these points: walked three weeks ago, nothing amiss.
+      case "padspan_ha/calibration_health_check": {
+        const sum = {}, cnt = {}, names = {};
+        for (const p of calibration.points) for (const r of p.scanner_readings) {
+          sum[r.source] = (sum[r.source] || 0) + r.mean_rssi; cnt[r.source] = (cnt[r.source] || 0) + 1; names[r.source] = r.name || "";
+        }
+        const newest = Math.max(...calibration.points.map(p => Date.parse(p.collected_at)));
+        return { enabled: false, point_count: calibration.points.length,
+                 stale_days: calibration.points.length ? Math.round((now() - newest) / 86400000) : null,
+                 scanner_anomalies: [], recommended_spots: [], has_issues: false,
+                 scanner_summary: Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])
+                   .map(s => ({ source: s, name: names[s], point_count: cnt[s], mean_rssi: Math.round((sum[s] / cnt[s]) * 10) / 10 })) };
+      }
       // Read-only here: Live Aboard offers no edits (writable: false).
       case "padspan_ha/house3d_get": return { enabled: true, data: clone(house3d), writable: false, sample: true, counts: {} };
       case "padspan_ha/object_label_list": return { labels: {}, registry_labels: {} };
