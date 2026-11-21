@@ -24,6 +24,7 @@ from .const import (
 )
 from .ws_common import admin_if_enhanced_security, _point_in_polygon
 from .quiet_errors import note as _quiet_error
+from .util import AddressRefused, address_url, async_check_address
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -206,10 +207,23 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
         return
 
     # ── Fetch config from Companion REST API ─────────────────────────────
-    api_url = f"{url}/api/state/config"
+    # Never this machine itself nor a link-local address, judged on what the
+    # name resolves to; a query in the stored address cannot take the path;
+    # a redirect is not followed (it could lead to either).
+    api_url = address_url(url, "/api/state/config")
+    try:
+        await async_check_address(hass, api_url, "ESPresense Companion")
+    except AddressRefused as exc:
+        connection.send_error(msg["id"], "address_refused", str(exc))
+        return
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=15), allow_redirects=False) as resp:
+                if 300 <= resp.status < 400:
+                    connection.send_error(msg["id"], "http_error",
+                                          f"ESPresense Companion's address sent PadSpan on to another address "
+                                          f"(HTTP {resp.status}). Give the Companion's own address instead.")
+                    return
                 if resp.status != 200:
                     connection.send_error(msg["id"], "http_error",
                                           f"Companion returned HTTP {resp.status} from {api_url}")

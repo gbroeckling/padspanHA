@@ -31,6 +31,7 @@ from .const import (
 from .bluetooth_live import get_bluetooth_live
 from .ws_common import require_admin_if_enhanced, _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache, _padspan_pro_active
 from .quiet_errors import note as _quiet_error
+from .util import address_refusal
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1519,6 +1520,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if _url is None:
                 connection.send_error(msg["id"], "invalid_format",
                                       "The ESPresense Companion URL must start with http:// or https://")
+                return
+            # This machine itself or a link-local address, said now; the
+            # import judges again on what the name resolves to.
+            _why = address_refusal(urlsplit(_url).hostname or "") if _url else None
+            if _why:
+                connection.send_error(msg["id"], "address_refused",
+                                      f"PadSpan does not fetch from that address: it is {_why}. Give ESPresense "
+                                      "Companion's own address on your home network, for example http://192.168.1.50:8267.")
                 return
             payload["espresense_companion_url"] = _url
         if "espresense_topic_prefix" in msg:
