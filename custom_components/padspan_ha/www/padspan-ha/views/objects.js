@@ -393,6 +393,9 @@ export function render(ctx){
     const displayAddr = isIbeacon ? (o.ibeacon_uuid ? `${o.ibeacon_uuid.slice(0,8)}…` : addr) : addr;
 
     const tr = el("tr",{
+      // Which object the row is (its other data-* change as it moves): the
+      // focus finds the row again after a redraw (dialog_keys.js).
+      "data-obj": o.canonical_id || o.key || addr || o.entity_id || "",
       "data-kind": kind,
       "data-identified": identified ? "1" : "0",
       "data-age": String(o.age_s != null ? Math.round(o.age_s) : 0),

@@ -121,7 +121,8 @@ export function findKey(root, key){
   // Some data-* change from one drawing to the next (a row's age): one of the
   // others alone that still names exactly one element.
   if (all.length !== 1 && key.data && key.data.length > 1) {
-    for (const [k, v] of key.data) {
+    // The most particular first (a short value, like an age, can name another one).
+    for (const [k, v] of [...key.data].sort((a, b) => String(b[1]).length - String(a[1]).length)) {
       let one;
       try { one = root.querySelectorAll(`${key.tag}[${k}="${q(v)}"]`); } catch (_) { continue; }
       if (one.length === 1) return one[0];
