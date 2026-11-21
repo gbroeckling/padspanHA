@@ -132,11 +132,13 @@ export function powerState(states, powerEid){
 }
 
 // ── the section ──────────────────────────────────────────────────────────────
-/** The team's part of the control card. o: {el, hass, toast, close, rerender, track(word)}. Live while the card is
+/** The team's part of the control card. o: {el, hass, toast, errorText, close, rerender, track(word)}. Live while the card is
  *  open (Home Assistant's state_changed for the team's own entities). Returns {node, stop}. */
 export function teamSection(teamEid, o){
   const { el, hass } = o;
   const toast = o.toast || (() => {});
+  // The words a failure shows (ui_error.js errorText, handed in by the Atlas).
+  const errorText = o.errorText || ((e) => String((e && (e.message || e.code)) || e));
   const track = o.track || (() => {});
   const states = { ...(hass.states || {}) };
   const members = new Set(teamMembers(states, teamEid));
@@ -151,7 +153,7 @@ export function teamSection(teamEid, o){
                : "background:rgba(255,255,255,.04);color:#cbd5e1;border:1px solid rgba(120,190,155,.22)");
   const call = async (domain, service, data, ok) => {
     try { await hass.callService(domain, service, data); if (ok) toast(ok); return true; }
-    catch (e) { toast(`Home Assistant refused: ${String((e && (e.message || e.code)) || e)}`, true); return false; }
+    catch (e) { toast(`That didn't work: ${errorText(e)}`, true); return false; }
   };
 
   function drawLive(){

@@ -2530,7 +2530,7 @@ export function openControlCard(hass, eid, api){
   }
 
   if (isTeam && TEAM) {
-    const sec = TEAM.teamSection(eid, { el, hass, toast, close, rerender, track: (w) => _track(hass, w) });
+    const sec = TEAM.teamSection(eid, { el, hass, toast, errorText, close, rerender, track: (w) => _track(hass, w) });
     teamStop = sec.stop;
     box.appendChild(sec.node);
   }
