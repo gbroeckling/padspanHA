@@ -1422,7 +1422,7 @@ function _upload(ctx, helpBtn, isBasic){
 
   card.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:10px"},[
     el("div",{},[ el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"},"Floor (from HA)"), floorSel ]),
-    el("div",{class:"muted",style:"font-size:12px;align-self:flex-end;padding-bottom:4px"}, "Manage floors in HA Settings \u2192 Areas & Zones"),
+    el("div",{class:"muted",style:"font-size:12px;align-self:flex-end;padding-bottom:4px"}, "Manage floors in HA Settings \u2192 Areas, labels & zones"),
   ]));
 
   card.appendChild(name);
@@ -5257,7 +5257,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "",
         "steps": [
           "Open the Upload tab.",
-          "Pick the floor this plan belongs to from the Floor dropdown — it lists whatever's set up in Home Assistant's Areas & Zones. Choose \"Outside (Experimental)\" for a yard or deck; only one outside plan is allowed at a time.",
+          "Pick the floor this plan belongs to from the Floor dropdown — it lists whatever's set up in Home Assistant's Areas, labels & zones. Choose \"Outside (Experimental)\" for a yard or deck; only one outside plan is allowed at a time.",
           "Choose an image file. PNG, JPG, GIF, BMP, WebP and SVG all work — whatever you pick is converted to PNG automatically.",
           "Type a name in the Map name field, or leave it blank — it fills in from the file name.",
           "Drag on the preview if you want to crop it first; click Reset Crop to start over.",

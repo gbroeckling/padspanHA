@@ -408,7 +408,7 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
 
   if (!rooms.length) {
     return el("div", { class: "card", style: "margin-bottom:10px" }, [
-      el("div", { class: "muted" }, "No rooms configured. Add areas in HA Settings → Areas & Zones."),
+      el("div", { class: "muted" }, "No rooms configured. Add areas in HA Settings → Areas, labels & zones."),
     ]);
   }
 
