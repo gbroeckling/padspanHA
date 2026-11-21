@@ -420,7 +420,8 @@ class Crawl:
         lk = self.look()
         old = {b["text"] for b in before["busy"]}
         t0 = time.time()
-        while [b for b in lk["busy"] if b["text"] not in old] and time.time() - t0 < 10:
+        # A view's placeholder (its module still on its way) counts as loading too: blank only if it stays.
+        while ([b for b in lk["busy"] if b["text"] not in old] or (lk["blank"] and not before["blank"])) and time.time() - t0 < 10:
             self.wait(700)
             lk = self.look()
         left = [b for b in lk["busy"] if b["text"] not in old]
