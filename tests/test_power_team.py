@@ -632,3 +632,22 @@ def test_a_lights_day_can_start_and_end_at_fixed_times_or_the_suns_moved_by_minu
     assert c["sunrise_time"] == "" and c["sunset_time"] == "18:45" and c["sunrise_offset"] == -180
     # At 06:45, a day fixed to start at 06:30 is already day (brightest); the sun's own (07:00) is still night.
     assert C.sun_position(6.75 * H, fixed) > 0 > C.sun_position(6.75 * H, DAYS)
+
+
+# ── what PadSpan switches by entity id goes through the team ────────────────
+def test_a_team_member_switched_by_padspan_is_switched_as_its_team() -> None:
+    """Vacation mode, presence automations and the emergency lighting test name the wall dimmer (it was placed first).
+    For a team that leaves the power on, the dimmer reads on while its bulbs are off: turning it on changed nothing."""
+    from custom_components.padspan_ha.const import DOMAIN
+    m = P.Manager(None)
+    m.teams = {"9466dc82": P.Team({**CFG, "id": "9466dc82"}, House().io)}
+    m.lights = {"9466dc82": "light.master_pots"}
+    hass = SimpleNamespace(data={DOMAIN: {"power_team_manager": m}})
+    assert P.team_light_of(SimpleNamespace(data={}), "light.dimmer") == "light.dimmer"     # no team made: nothing changes
+    assert P.team_light_of(hass, "light.dimmer") == "light.master_pots" and P.team_light_of(hass, "light.b2") == "light.master_pots"
+    assert P.team_light_of(hass, "light.master_pots") == "light.master_pots" and P.team_light_of(hass, "light.kitchen") == "light.kitchen"
+    assert P.team_light_of(hass, "scene.evening") == "scene.evening"
+    src = {f: (ROOT / "custom_components/padspan_ha" / f).read_text(encoding="utf-8") for f in ("vacation_mode.py", "emergency_test.py", "presence_coordinator.py")}
+    assert "target = team_light_of(hass, entity_id)" in src["vacation_mode.py"] and '{"entity_id": target}' in src["vacation_mode.py"]
+    assert "target = team_light_of(hass, eid)" in src["emergency_test.py"] and '{"entity_id": target}, blocking=True' in src["emergency_test.py"]
+    assert "_team = team_light_of(self.hass, entity_id)" in src["presence_coordinator.py"]

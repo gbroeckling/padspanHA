@@ -67,11 +67,13 @@ class PadSpanTeamLight(LightEntity):
         m = manager(self.hass)
         if m:
             m.listeners[self.tid] = self.async_refresh
+            m.lights[self.tid] = self.entity_id         # what PadSpan switches a member as (team_light_of)
 
     async def async_will_remove_from_hass(self) -> None:
         m = manager(self.hass)
         if m:
             m.listeners.pop(self.tid, None)
+            m.lights.pop(self.tid, None)
 
     @callback
     def async_refresh(self) -> None:

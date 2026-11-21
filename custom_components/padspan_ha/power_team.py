@@ -530,6 +530,7 @@ class Manager:
         self.hass = hass
         self.teams: dict[str, Team] = {}
         self.listeners: dict[str, Callable[[], None]] = {}     # team id -> its light's write
+        self.lights: dict[str, str] = {}                       # team id -> its light's entity id
         self._unsub: list[Callable[[], None]] = []
         self._sun: tuple[str, list[tuple[float, float]]] | None = None
 
@@ -635,6 +636,20 @@ class Manager:
         for u in self._unsub:
             u()
         self._unsub = []
+
+
+def team_light_of(hass: Any, eid: str) -> str:
+    """The light of the power team `eid` belongs to (its power source or one of its bulbs), else `eid` itself.
+    Whatever PadSpan switches by entity id (vacation mode, presence automations, the emergency lighting test, and on
+    the map power_team_card.js) switches a team member through its team: a dimmer already on with its bulbs told off
+    reads as on, and turning it on would change nothing."""
+    m = manager(hass)
+    if m is None or not isinstance(eid, str):
+        return eid
+    for tid, t in m.teams.items():
+        if eid == t.cfg.get("power") or eid in t.cfg.get("bulbs", ()):
+            return m.lights.get(tid) or eid             # its light not in Home Assistant yet: as it is
+    return eid
 
 
 def manager(hass: Any) -> Manager | None:

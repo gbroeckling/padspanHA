@@ -221,12 +221,15 @@ async def async_get_store(hass: HomeAssistant) -> EmergencyTestStore:
 
 
 async def _switch(hass: HomeAssistant, eid: str, on: bool, context: Context | None = None) -> dict[str, Any]:
-    st = hass.states.get(eid)
+    # A power team's wall dimmer or bulb is switched as its team (power_team.py): its bulbs on, not a dimmer already on.
+    from .power_team import team_light_of  # noqa: PLC0415
+    target = team_light_of(hass, eid)
+    st = hass.states.get(target)
     if st is None:
         return {"entity_id": eid, "ok": False, "skipped": "missing"}
     if st.state == "unavailable":
         return {"entity_id": eid, "ok": False, "skipped": "unavailable"}
-    domain = eid.split(".", 1)[0]
+    domain = target.split(".", 1)[0]
     if domain not in _SWITCHABLE:
         return {"entity_id": eid, "ok": False, "skipped": "not a light or switch"}
     try:
@@ -234,7 +237,7 @@ async def _switch(hass: HomeAssistant, eid: str, on: bool, context: Context | No
         # with it every other emergency action) indefinitely.
         async with asyncio.timeout(SERVICE_TIMEOUT_S):
             await hass.services.async_call(domain, "turn_on" if on else "turn_off",
-                                           {"entity_id": eid}, blocking=True, context=context)
+                                           {"entity_id": target}, blocking=True, context=context)
     except TimeoutError:
         _LOGGER.warning("Emergency lighting test: %s %s timed out", "on" if on else "off", eid)
         return {"entity_id": eid, "ok": False, "error": f"no answer within {SERVICE_TIMEOUT_S:g} s"}
