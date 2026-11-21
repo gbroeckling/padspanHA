@@ -107,11 +107,12 @@ def test_zeros_are_left_out(monkeypatch):
     assert "power_teams" not in T.build_payload(_house(monkeypatch, [], {}))["env"]
 
 
-def test_a_house_the_section_cannot_read_still_reports():
-    h = _hass()                                   # its stand-in states have no async_all
+def test_a_house_the_section_cannot_read_still_reports(monkeypatch):
+    h = _house(monkeypatch)
+    h.states = SimpleNamespace(get=lambda eid, default=None: default)     # no async_all: the house-wide count fails
     p = T.build_payload(h)
     T.assert_shareable(p)
-    assert "power_teams" not in p["env"]
+    assert "power_teams" not in p["env"] and "telemetry:payload_power_teams" in p["health"]["quiet_errors"]
 
 
 @pytest.mark.parametrize("maker, brand", [
