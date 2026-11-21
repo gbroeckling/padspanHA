@@ -26,10 +26,23 @@ const { tierAtLeast: _ovTierAtLeast } =
 // If it can't load, the Overview goes on as it always was (the guide reads as off).
 // transmitterAdvice: an Android phone's row says when its BLE Transmitter is
 // set too weak to be heard well.
-const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TEXT, HELP_NOTE_TEXT, transmitterAdvice } =
+const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, iphoneMeta, noPhonesText, helpNoteText, transmitterAdvice } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, iphoneSetupAlert: () => "",
-                    IPHONE_META: "", NO_PHONES_TEXT: "", HELP_NOTE_TEXT: "", transmitterAdvice: () => "" }));
+                    iphoneMeta: () => "", noPhonesText: () => "", helpNoteText: () => "", transmitterAdvice: () => "" }));
+// The panel's words in its language (views/i18n.js; English is the key). So far
+// the first-run parts: the sample house's banner and Track Your Phone.
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// An Android phone's Setup button (both Track Your Phone cards): the Companion app's steps.
+function androidSetupAlert(){
+  return t("To enable phone tracking:") + "\n\n" + [
+    t("Open the HA Companion App on your phone"),
+    t("Go to Settings > Companion App > Manage Sensors"),
+    t("Find 'BLE Transmitter' and enable it"),
+    t("Turn on 'Transmit enabled'"),
+    t("Restart Home Assistant"),
+  ].map((s, i) => `${i + 1}. ${s}`).join("\n") + "\n\n" + t("The BLE Transmitter sensor must be registered with HA before PadSpan can track the phone.");
+}
 
 // "Who's where now" (whos_where.js): a house with no rooms drawn yet sees who
 // is in which room from its scanners' Home Assistant areas. If it can't
@@ -225,9 +238,9 @@ export function renderClassic(ctx){
   // The demo house says so, with the way back, where it can't be missed.
   const sampleBanner = (modeKnown && dataMode === "sample")
     ? el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid #92400e;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px","data-sample-banner":"1"},[
-        el("span",{style:"font-size:13px;color:#fde68a;flex:1;min-width:12em"}, "You're looking at a sample house, with every feature set up."),
+        el("span",{style:"font-size:13px;color:#fde68a;flex:1;min-width:12em"}, t("You're looking at a sample house, with every feature set up.")),
         (() => {
-          const b = el("button",{class:"btn inline",style:"font-size:12px;font-weight:700"}, "Back to my house");
+          const b = el("button",{class:"btn inline",style:"font-size:12px;font-weight:700"}, t("Back to my house"));
           b.addEventListener("click", () => ctx.actions.setDataMode("live"));
           return b;
         })(),
@@ -3183,8 +3196,8 @@ export function renderClassic(ctx){
       const _phoneHdr = el("div",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
       const _phoneArrow = el("span",{style:"font-size:11px;color:#60a5fa;transition:transform .2s"}, "\u25B6");
       _phoneHdr.appendChild(_phoneArrow);
-      _phoneHdr.appendChild(el("span",{style:"font-weight:600;font-size:13px;color:#60a5fa"}, "Track Your Phone"));
-      _phoneHdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"}, "Tap to expand"));
+      _phoneHdr.appendChild(el("span",{style:"font-weight:600;font-size:13px;color:#60a5fa"}, t("Track Your Phone")));
+      _phoneHdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"}, t("Tap to expand")));
       _phoneHdr.appendChild(helpBtn("phone_tracking"));
       basicCompanionCard.appendChild(_phoneHdr);
       const _phoneBody = el("div",{style:"display:none;margin-top:8px"});
@@ -3193,25 +3206,25 @@ export function renderClassic(ctx){
         const open = _phoneBody.style.display !== "none";
         _phoneBody.style.display = open ? "none" : "block";
         _phoneArrow.style.transform = open ? "" : "rotate(90deg)";
-        _phoneHdr.querySelector(".muted").textContent = open ? "Tap to expand" : "";
+        _phoneHdr.querySelector(".muted").textContent = open ? t("Tap to expand") : "";
       });
       // Before any room is drawn (Who's where now above), it starts open:
       // tracking a phone is the next thing a new house does.
       if (whosWhere) _phoneHdr.click();
-      const _bLoadMsg = el("div",{class:"muted",style:"font-size:12px"}, "Discovering phones...");
+      const _bLoadMsg = el("div",{class:"muted",style:"font-size:12px"}, t("Discovering phones..."));
       _phoneBody.appendChild(_bLoadMsg);
       (async () => {
         try {
           const res = await ctx.actions.wsCall("padspan_ha/companion_discover", {});
           const phones = res.phones || [];
           if (!phones.length) {
-            _bLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? NO_PHONES_TEXT
-              : "No phones detected. Enable the HA Companion App with BLE Transmitter.";
+            _bLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? noPhonesText()
+              : t("No phones detected. Enable the HA Companion App with BLE Transmitter.");
             _bLoadMsg.style.color = "#64748b";
             return;
           }
 
-          _bLoadMsg.textContent = "Phones with the HA Companion App. Track or unfollow below.";
+          _bLoadMsg.textContent = t("Phones with the HA Companion App. Track or unfollow below.");
 
           for (const phone of phones) {
             const row = document.createElement("div");
@@ -3222,18 +3235,18 @@ export function renderClassic(ctx){
             info.style.cssText = "flex:1;min-width:0";
             const nameEl = document.createElement("div");
             nameEl.style.cssText = "font-weight:600;font-size:13px;color:#e2e8f0";
-            nameEl.textContent = phone.device_name || "Phone";
+            nameEl.textContent = phone.device_name || t("Phone");
             info.appendChild(nameEl);
             const meta = document.createElement("div");
             meta.style.cssText = "font-size:11px;color:#64748b;margin-top:2px";
             const parts = [];
-            if (phone.is_disabled) parts.push("Entity disabled");
-            else if (phone.is_transmitting) parts.push("BLE active");
-            else parts.push(`BLE: ${phone.state || "off"}`);
-            if (!phone.is_disabled) parts.push(phone.is_visible ? "visible" : "not seen");
-            if (phone.is_followed) parts.push("tracked");
+            if (phone.is_disabled) parts.push(t("Entity disabled"));
+            else if (phone.is_transmitting) parts.push(t("BLE active"));
+            else parts.push(t("BLE: {state}", { state: phone.state || t("off") }));
+            if (!phone.is_disabled) parts.push(phone.is_visible ? t("visible") : t("not seen"));
+            if (phone.is_followed) parts.push(t("tracked"));
             if (phone.existing_label) parts.push(phone.existing_label);
-            parts.push(phone.has_irk ? "IRK \u2713" : "no IRK");
+            parts.push(phone.has_irk ? "IRK \u2713" : t("no IRK"));
             meta.textContent = parts.join(" · ");
             info.appendChild(meta);
             // The Companion app's own transmitter settings, when they are too weak.
@@ -3247,23 +3260,23 @@ export function renderClassic(ctx){
 
               const irkHint = document.createElement("span");
               irkHint.style.cssText = "font-size:10px;color:#f59e0b";
-              irkHint.textContent = "No IRK \u2014 ";
+              irkHint.textContent = t("No IRK") + " \u2014 ";
               irkRow.appendChild(irkHint);
 
               const addIrkBtn = document.createElement("button");
               addIrkBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #2563eb;background:#1e3a5f;color:#93c5fd";
-              addIrkBtn.textContent = "Add IRK";
+              addIrkBtn.textContent = t("Add IRK");
 
               const irkInput = document.createElement("input");
               irkInput.type = "text";
-              irkInput.placeholder = "Paste IRK (hex or base64)";
+              irkInput.placeholder = t("Paste IRK (hex or base64)");
               // "Save unverified" is for the key it was offered for: an edited key is checked again.
-              irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = "Save"; irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
+              irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = t("Save"); irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
               irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;box-sizing:content-box;display:none;font-family:monospace";
 
               const irkSaveBtn = document.createElement("button");
               irkSaveBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #16a34a;background:#052e16;color:#4ade80;display:none";
-              irkSaveBtn.textContent = "Save";
+              irkSaveBtn.textContent = t("Save");
 
               addIrkBtn.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -3277,7 +3290,7 @@ export function renderClassic(ctx){
                 e.stopPropagation();
                 const irk = irkInput.value.trim();
                 if (!irk) return;
-                irkSaveBtn.textContent = "Saving...";
+                irkSaveBtn.textContent = t("Saving...");
                 irkSaveBtn.disabled = true;
                 try {
                   await ctx.actions.wsCall("padspan_ha/irk_add", {
@@ -3288,7 +3301,7 @@ export function renderClassic(ctx){
                   irkRow.innerHTML = "";
                   const ok = document.createElement("span");
                   ok.style.cssText = "font-size:10px;color:#4ade80";
-                  ok.textContent = "\u2713 IRK saved — tracking will activate within 60 seconds";
+                  ok.textContent = "\u2713 " + t("IRK saved — tracking will activate within 60 seconds");
                   irkRow.appendChild(ok);
                 } catch (err) {
                   irkSaveBtn.textContent = "Error";
@@ -3314,7 +3327,7 @@ export function renderClassic(ctx){
               // Help text
               const helpText = document.createElement("div");
               helpText.style.cssText = "font-size:10px;color:#64748b;width:100%;margin-top:2px;display:none";
-              helpText.textContent = "IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings \u2192 Phone Tracking for extraction methods.";
+              helpText.textContent = t("IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings \u2192 Phone Tracking for extraction methods.");
               irkRow.appendChild(helpText);
               addIrkBtn.addEventListener("click", () => { helpText.style.display = "block"; });
 
@@ -3329,13 +3342,13 @@ export function renderClassic(ctx){
 
             // Helper to wire button as Track or Unfollow (allows toggling)
             const _setTrack = () => {
-              btn.textContent = "Track";
+              btn.textContent = t("Track");
               btn.style.color = "#60a5fa";
               btn.style.borderColor = "#2563eb";
               btn.disabled = false;
               btn.onclick = async () => {
                 btn.disabled = true;
-                btn.textContent = "Setting up...";
+                btn.textContent = t("Setting up...");
                 try {
                   const r = await ctx.actions.wsCall("padspan_ha/companion_follow", {
                     ibeacon_key: phone.ibeacon_key,
@@ -3348,7 +3361,7 @@ export function renderClassic(ctx){
                   }
                   if (r.verified_label && r.verified_followed) {
                     phone.is_followed = true;
-                    meta.textContent = meta.textContent.replace("not tracked","tracked");
+                    meta.textContent = meta.textContent.replace(t("not tracked"), t("tracked"));
                     _setUnfollow();
                   } else {
                     btn.textContent = "Error — retry";
@@ -3363,14 +3376,14 @@ export function renderClassic(ctx){
               };
             };
             const _setUnfollow = () => {
-              btn.textContent = "Unfollow";
+              btn.textContent = t("Unfollow");
               btn.style.color = "#f87171";
               btn.style.borderColor = "#7f1d1d";
               btn.disabled = false;
               btn.onclick = async () => {
-                if (!confirm(`Stop tracking ${phone.device_name || "this phone"} and remove its label?`)) return;
+                if (!confirm(phone.device_name ? t("Stop tracking {name} and remove its label?", { name: phone.device_name }) : t("Stop tracking this phone and remove its label?"))) return;
                 btn.disabled = true;
-                btn.textContent = "Removing...";
+                btn.textContent = t("Removing...");
                 try {
                   await ctx.actions.wsCall("padspan_ha/companion_unfollow", {
                     ibeacon_key: phone.ibeacon_key,
@@ -3380,7 +3393,7 @@ export function renderClassic(ctx){
                   ctx.state.followedAddrs.delete(phone.ibeacon_key.toUpperCase());
                   try { localStorage.setItem("padspan_followed", JSON.stringify([...ctx.state.followedAddrs])); } catch(e){}
                   phone.is_followed = false;
-                  meta.textContent = meta.textContent.replace("tracked","not tracked");
+                  meta.textContent = meta.textContent.replace(t("tracked"), t("not tracked"));
                   _setTrack();
                 } catch (e) {
                   btn.textContent = "Error";
@@ -3392,35 +3405,27 @@ export function renderClassic(ctx){
 
             if (phone.state === "sensor_not_registered" && iphoneGuideOn(ctx.state.settings) && isApplePhone(phone)) {
               // An iPhone: no BLE Transmitter exists for it, so the IRK steps.
-              meta.textContent = (phone.model ? phone.model + " · " : "") + IPHONE_META;
-              btn.textContent = "Setup";
+              meta.textContent = (phone.model ? phone.model + " · " : "") + iphoneMeta();
+              btn.textContent = t("Setup");
               btn.style.color = "#f59e0b";
               btn.style.borderColor = "#92400e";
               btn.addEventListener("click", () => alert(iphoneSetupAlert()));
             } else if (phone.state === "sensor_not_registered") {
               // Phone is registered with HA but BLE Transmitter sensor isn't enabled
-              meta.textContent = (phone.model ? phone.model + " · " : "") + "BLE Transmitter sensor not enabled";
-              btn.textContent = "Setup";
+              meta.textContent = (phone.model ? phone.model + " · " : "") + t("BLE Transmitter sensor not enabled");
+              btn.textContent = t("Setup");
               btn.style.color = "#f59e0b";
               btn.style.borderColor = "#92400e";
               btn.addEventListener("click", () => {
-                alert(
-                  "To enable phone tracking:\n\n" +
-                  "1. Open the HA Companion App on your phone\n" +
-                  "2. Go to Settings > Companion App > Manage Sensors\n" +
-                  "3. Find 'BLE Transmitter' and enable it\n" +
-                  "4. Turn on 'Transmit enabled'\n" +
-                  "5. Restart Home Assistant\n\n" +
-                  "The BLE Transmitter sensor must be registered with HA before PadSpan can track the phone."
-                );
+                alert(androidSetupAlert());
               });
             } else if (phone.is_disabled) {
-              btn.textContent = "Enable & Track";
+              btn.textContent = t("Enable & Track");
               btn.style.color = "#f59e0b";
               btn.style.borderColor = "#92400e";
               btn.addEventListener("click", async () => {
                 btn.disabled = true;
-                btn.textContent = "Enabling...";
+                btn.textContent = t("Enabling...");
                 try {
                   await ctx.actions.wsCall("config/entity_registry/update", {
                     entity_id: phone.entity_id,
@@ -3434,12 +3439,12 @@ export function renderClassic(ctx){
                       entity_id: phone.entity_id,
                     });
                   }
-                  btn.textContent = "Enabled — restart HA";
+                  btn.textContent = t("Enabled — restart HA");
                   btn.style.color = "#4ade80"; btn.style.borderColor = "#065f46";
                   // A disabled phone is found with no iBeacon key, so the command is
                   // only sent when there is one: say which happened.
-                  meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent. Restart HA to complete."
-                    : "Entity enabled. Restart HA, then turn on the BLE Transmitter in the Companion app (or follow the phone here).";
+                  meta.textContent = phone.ibeacon_key ? t("Entity enabled & BLE command sent. Restart HA to complete.")
+                    : t("Entity enabled. Restart HA, then turn on the BLE Transmitter in the Companion app (or follow the phone here).");
                 } catch (e) {
                   btn.textContent = "Enable manually in HA";
                   btn.style.color = "#f59e0b";
@@ -3618,8 +3623,8 @@ export function renderClassic(ctx){
     const _aPhoneHdr = el("div",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
     const _aPhoneArrow = el("span",{style:"font-size:11px;color:#60a5fa;transition:transform .2s"}, "\u25B6");
     _aPhoneHdr.appendChild(_aPhoneArrow);
-    _aPhoneHdr.appendChild(el("span",{style:"font-weight:700;font-size:14px;color:#60a5fa"}, "Track Your Phone"));
-    _aPhoneHdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"}, "Tap to expand"));
+    _aPhoneHdr.appendChild(el("span",{style:"font-weight:700;font-size:14px;color:#60a5fa"}, t("Track Your Phone")));
+    _aPhoneHdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"}, t("Tap to expand")));
     _aPhoneHdr.appendChild(helpBtn("phone_tracking"));
     companionCard.appendChild(_aPhoneHdr);
     const _aPhoneBody = el("div",{style:"display:none;margin-top:8px"});
@@ -3628,26 +3633,26 @@ export function renderClassic(ctx){
       const open = _aPhoneBody.style.display !== "none";
       _aPhoneBody.style.display = open ? "none" : "block";
       _aPhoneArrow.style.transform = open ? "" : "rotate(90deg)";
-      _aPhoneHdr.querySelector(".muted").textContent = open ? "Tap to expand" : "";
+      _aPhoneHdr.querySelector(".muted").textContent = open ? t("Tap to expand") : "";
     });
     // Before any room is drawn (Who's where now above), it starts open:
     // tracking a phone is the next thing a new house does.
     if (whosWhere) _aPhoneHdr.click();
-    const _aLoadMsg = el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"}, "Discovering phones...");
+    const _aLoadMsg = el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"}, t("Discovering phones..."));
     _aPhoneBody.appendChild(_aLoadMsg);
     (async () => {
       try {
         const res = await ctx.actions.wsCall("padspan_ha/companion_discover", {});
         const phones = res.phones || [];
         if (!phones.length) {
-          _aLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? NO_PHONES_TEXT
-            : "No phones detected. Enable the HA Companion App with BLE Transmitter.";
+          _aLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? noPhonesText()
+            : t("No phones detected. Enable the HA Companion App with BLE Transmitter.");
           _aLoadMsg.style.color = "#64748b";
           return;
         }
 
-        _aLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? "Phones running the HA Companion App. Click to track; an iPhone shows Setup."
-          : "Phones running the HA Companion App with BLE Transmitter. Click to track.";
+        _aLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? t("Phones running the HA Companion App. Click to track; an iPhone shows Setup.")
+          : t("Phones running the HA Companion App with BLE Transmitter. Click to track.");
 
         for (const phone of phones) {
           const row = document.createElement("div");
@@ -3658,21 +3663,21 @@ export function renderClassic(ctx){
           info.style.cssText = "flex:1;min-width:0";
           const nameEl = document.createElement("div");
           nameEl.style.cssText = "font-weight:600;font-size:14px;color:#e2e8f0";
-          nameEl.textContent = phone.device_name || "Phone";
+          nameEl.textContent = phone.device_name || t("Phone");
           info.appendChild(nameEl);
 
           const meta = document.createElement("div");
           meta.style.cssText = "font-size:11px;color:#64748b;margin-top:2px";
           const statusParts = [];
-          if (phone.is_disabled) statusParts.push("Entity disabled in HA");
-          else if (phone.is_transmitting) statusParts.push("BLE active");
-          else statusParts.push("BLE off");
+          if (phone.is_disabled) statusParts.push(t("Entity disabled in HA"));
+          else if (phone.is_transmitting) statusParts.push(t("BLE active"));
+          else statusParts.push(t("BLE off"));
           if (!phone.is_disabled) {
-            if (phone.is_visible) statusParts.push("visible to receivers");
-            else statusParts.push("not seen yet");
+            if (phone.is_visible) statusParts.push(t("visible to receivers"));
+            else statusParts.push(t("not seen yet"));
           }
-          if (phone.existing_label) statusParts.push(`labelled: ${phone.existing_label}`);
-          statusParts.push(phone.has_irk ? "IRK \u2713" : "no IRK");
+          if (phone.existing_label) statusParts.push(t("labelled: {label}", { label: phone.existing_label }));
+          statusParts.push(phone.has_irk ? "IRK \u2713" : t("no IRK"));
           meta.textContent = statusParts.join(" · ");
           info.appendChild(meta);
           // The Companion app's own transmitter settings, when they are too weak.
@@ -3685,20 +3690,20 @@ export function renderClassic(ctx){
             irkRow.style.cssText = "margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap";
             const irkHint = document.createElement("span");
             irkHint.style.cssText = "font-size:10px;color:#f59e0b";
-            irkHint.textContent = "No IRK \u2014 ";
+            irkHint.textContent = t("No IRK") + " \u2014 ";
             irkRow.appendChild(irkHint);
             const addIrkBtn = document.createElement("button");
             addIrkBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #2563eb;background:#1e3a5f;color:#93c5fd";
-            addIrkBtn.textContent = "Add IRK";
+            addIrkBtn.textContent = t("Add IRK");
             const irkInput = document.createElement("input");
             irkInput.type = "text";
-            irkInput.placeholder = "Paste IRK (hex or base64)";
+            irkInput.placeholder = t("Paste IRK (hex or base64)");
             // "Save unverified" is for the key it was offered for: an edited key is checked again.
-            irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = "Save"; irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
+            irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = t("Save"); irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
             irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;box-sizing:content-box;display:none;font-family:monospace";
             const irkSaveBtn = document.createElement("button");
             irkSaveBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #16a34a;background:#052e16;color:#4ade80;display:none";
-            irkSaveBtn.textContent = "Save";
+            irkSaveBtn.textContent = t("Save");
             addIrkBtn.addEventListener("click", (e) => {
               e.stopPropagation();
               addIrkBtn.style.display = "none";
@@ -3711,7 +3716,7 @@ export function renderClassic(ctx){
               e.stopPropagation();
               const irk = irkInput.value.trim();
               if (!irk) return;
-              irkSaveBtn.textContent = "Saving...";
+              irkSaveBtn.textContent = t("Saving...");
               irkSaveBtn.disabled = true;
               try {
                 await ctx.actions.wsCall("padspan_ha/irk_add", {
@@ -3722,7 +3727,7 @@ export function renderClassic(ctx){
                 irkRow.innerHTML = "";
                 const ok = document.createElement("span");
                 ok.style.cssText = "font-size:10px;color:#4ade80";
-                ok.textContent = "\u2713 IRK saved — tracking will activate within 60 seconds";
+                ok.textContent = "\u2713 " + t("IRK saved — tracking will activate within 60 seconds");
                 irkRow.appendChild(ok);
               } catch (err) {
                 irkSaveBtn.textContent = "Error";
@@ -3744,7 +3749,7 @@ export function renderClassic(ctx){
             irkRow.appendChild(irkSaveBtn);
             const irkHelp = document.createElement("div");
             irkHelp.style.cssText = "font-size:10px;color:#64748b;width:100%;margin-top:2px;display:none";
-            irkHelp.textContent = "IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings \u2192 Phone Tracking for extraction methods.";
+            irkHelp.textContent = t("IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings \u2192 Phone Tracking for extraction methods.");
             irkRow.appendChild(irkHelp);
             info.appendChild(irkRow);
           }
@@ -3754,22 +3759,14 @@ export function renderClassic(ctx){
           if (phone.state === "sensor_not_registered") {
             // An iPhone (with the iPhone setup path on) gets the IRK steps instead.
             const _iphone = iphoneGuideOn(ctx.state.settings) && isApplePhone(phone);
-            meta.textContent = (phone.model ? phone.model + " · " : "") + (_iphone ? IPHONE_META : "BLE Transmitter sensor not enabled in Companion App");
+            meta.textContent = (phone.model ? phone.model + " · " : "") + (_iphone ? iphoneMeta() : t("BLE Transmitter sensor not enabled in Companion App"));
             const setupBtn = document.createElement("button");
             setupBtn.className = "btn inline";
             setupBtn.style.cssText = "font-size:12px;padding:4px 14px;color:#f59e0b;border-color:#92400e;font-weight:600;white-space:nowrap";
-            setupBtn.textContent = "Setup";
+            setupBtn.textContent = t("Setup");
             setupBtn.addEventListener("click", () => {
               if (_iphone) { alert(iphoneSetupAlert()); return; }
-              alert(
-                "To enable phone tracking:\n\n" +
-                "1. Open the HA Companion App on your phone\n" +
-                "2. Go to Settings > Companion App > Manage Sensors\n" +
-                "3. Find 'BLE Transmitter' and enable it\n" +
-                "4. Turn on 'Transmit enabled'\n" +
-                "5. Restart Home Assistant\n\n" +
-                "The BLE Transmitter sensor must be registered with HA before PadSpan can track the phone."
-              );
+              alert(androidSetupAlert());
             });
             row.appendChild(setupBtn);
             _aPhoneBody.appendChild(row);
@@ -3781,10 +3778,10 @@ export function renderClassic(ctx){
             const enableBtn = document.createElement("button");
             enableBtn.className = "btn inline";
             enableBtn.style.cssText = "font-size:12px;padding:4px 14px;color:#f59e0b;border-color:#92400e;font-weight:600;white-space:nowrap";
-            enableBtn.textContent = "Enable & Track";
+            enableBtn.textContent = t("Enable & Track");
             enableBtn.addEventListener("click", async () => {
               enableBtn.disabled = true;
-              enableBtn.textContent = "Enabling...";
+              enableBtn.textContent = t("Enabling...");
               try {
                 // Enable the entity via HA entity registry
                 await ctx.actions.wsCall("config/entity_registry/update", {
@@ -3799,11 +3796,11 @@ export function renderClassic(ctx){
                     entity_id: phone.entity_id,
                   });
                 }
-                enableBtn.textContent = "Enabled — restart HA";
+                enableBtn.textContent = t("Enabled — restart HA");
                 enableBtn.style.color = "#4ade80";
                 enableBtn.style.borderColor = "#065f46";
-                meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent. Restart Home Assistant to complete setup."
-                  : "Entity enabled. Restart Home Assistant, then turn on the BLE Transmitter in the Companion app (or follow the phone here).";
+                meta.textContent = phone.ibeacon_key ? t("Entity enabled & BLE command sent. Restart Home Assistant to complete setup.")
+                  : t("Entity enabled. Restart Home Assistant, then turn on the BLE Transmitter in the Companion app (or follow the phone here).");
               } catch (e) {
                 enableBtn.textContent = "Enable manually";
                 enableBtn.disabled = false;
@@ -3822,23 +3819,23 @@ export function renderClassic(ctx){
             const badge = document.createElement("span");
             if (phone.is_visible) {
               badge.style.cssText = "font-size:11px;color:#4ade80;font-weight:600;padding:3px 8px;border:1px solid #065f46;border-radius:4px";
-              badge.textContent = "Tracked";
+              badge.textContent = t("Tracked");
             } else if (phone.is_transmitting) {
               badge.style.cssText = "font-size:11px;color:#fbbf24;font-weight:600;padding:3px 8px;border:1px solid #92400e;border-radius:4px";
-              badge.textContent = "Waiting for signal";
+              badge.textContent = t("Waiting for signal");
             } else {
               badge.style.cssText = "font-size:11px;color:#f87171;font-weight:600;padding:3px 8px;border:1px solid #7f1d1d;border-radius:4px";
-              badge.textContent = "BLE off";
+              badge.textContent = t("BLE off");
             }
             btnWrap.appendChild(badge);
             const unBtn = document.createElement("button");
             unBtn.className = "btn inline";
             unBtn.style.cssText = "font-size:11px;padding:3px 10px;color:#f87171;border-color:#7f1d1d";
-            unBtn.textContent = "Untrack";
+            unBtn.textContent = t("Untrack");
             unBtn.addEventListener("click", async () => {
-              if (!confirm(`Stop tracking ${phone.device_name || "this phone"} and remove its label?`)) return;
+              if (!confirm(phone.device_name ? t("Stop tracking {name} and remove its label?", { name: phone.device_name }) : t("Stop tracking this phone and remove its label?"))) return;
               unBtn.disabled = true;
-              unBtn.textContent = "Removing...";
+              unBtn.textContent = t("Removing...");
               try {
                 await ctx.actions.wsCall("padspan_ha/companion_unfollow", {
                   ibeacon_key: phone.ibeacon_key,
@@ -3847,7 +3844,7 @@ export function renderClassic(ctx){
                 const fk = phone.ibeacon_key.toUpperCase();
                 ctx.state.followedAddrs.delete(fk);
                 try { localStorage.setItem("padspan_followed", JSON.stringify([...ctx.state.followedAddrs])); } catch(e){}
-                badge.textContent = "Removed";
+                badge.textContent = t("Removed");
                 badge.style.color = "#64748b";
                 badge.style.borderColor = "#2d4a38";
                 unBtn.style.display = "none";
@@ -3864,10 +3861,10 @@ export function renderClassic(ctx){
             const btn = document.createElement("button");
             btn.className = "btn inline";
             btn.style.cssText = "font-size:12px;padding:4px 14px;color:#60a5fa;border-color:#2563eb;font-weight:600";
-            btn.textContent = "Track this phone";
+            btn.textContent = t("Track this phone");
             btn.addEventListener("click", async () => {
               btn.disabled = true;
-              btn.textContent = "Setting up...";
+              btn.textContent = t("Setting up...");
               try {
                 const r = await ctx.actions.wsCall("padspan_ha/companion_follow", {
                   ibeacon_key: phone.ibeacon_key,
@@ -3882,17 +3879,17 @@ export function renderClassic(ctx){
                 // Show status based on actual phone state
                 if (r.verified_label && r.verified_followed) {
                   if (phone.is_visible) {
-                    btn.textContent = "Tracked!";
+                    btn.textContent = t("Tracked!");
                     btn.style.cssText = "font-size:12px;padding:4px 14px;color:#4ade80;border-color:#065f46;font-weight:600";
-                    meta.textContent = `Tagged as "${r.verified_label}" · visible to receivers`;
+                    meta.textContent = t("Tagged as \"{label}\" · visible to receivers", { label: r.verified_label });
                   } else if (phone.is_transmitting || r.transmitter_enabled) {
-                    btn.textContent = "Registered — waiting for signal";
+                    btn.textContent = t("Registered — waiting for signal");
                     btn.style.cssText = "font-size:12px;padding:4px 14px;color:#fbbf24;border-color:#92400e;font-weight:600";
-                    meta.textContent = `Tagged as "${r.verified_label}" · BLE active but not yet seen by receivers. Walk near a receiver.`;
+                    meta.textContent = t("Tagged as \"{label}\" · BLE active but not yet seen by receivers. Walk near a receiver.", { label: r.verified_label });
                   } else {
-                    btn.textContent = "Registered — enable BLE";
+                    btn.textContent = t("Registered — enable BLE");
                     btn.style.cssText = "font-size:12px;padding:4px 14px;color:#f59e0b;border-color:#92400e;font-weight:600";
-                    meta.textContent = `Tagged as "${r.verified_label}" · BLE transmitter is OFF. Enable it in Companion App → Settings → Manage Sensors → BLE Transmitter.`;
+                    meta.textContent = t("Tagged as \"{label}\" · BLE transmitter is OFF. Enable it in Companion App → Settings → Manage Sensors → BLE Transmitter.", { label: r.verified_label });
                   }
                 } else {
                   btn.textContent = "Error saving — retry";
@@ -3915,8 +3912,8 @@ export function renderClassic(ctx){
 
         // Help note
         const helpNote = el("div",{style:"font-size:11px;color:#64748b;margin-top:8px"},
-          iphoneGuideOn(ctx.state.settings) ? HELP_NOTE_TEXT :
-          "Not seeing your phone? Open Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. The phone will appear here once the transmitter is active.");
+          iphoneGuideOn(ctx.state.settings) ? helpNoteText() :
+          t("Not seeing your phone? Open Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. The phone will appear here once the transmitter is active."));
         _aPhoneBody.appendChild(helpNote);
       } catch (e) {
         _aLoadMsg.textContent = "Phone discovery error: " + (e.message||e);

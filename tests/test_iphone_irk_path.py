@@ -51,9 +51,11 @@ def test_overview_falls_back_to_todays_text_when_off():
     # Every new branch asks the setting first; the old text is still there.
     assert js.count("iphoneGuideOn(ctx.state.settings)") == 6
     assert js.count('"No phones detected. Enable the HA Companion App with BLE Transmitter."') == 2
-    assert js.count("3. Find 'BLE Transmitter' and enable it") == 2
+    # 2026-11-21 (panel translations): both cards' Android Setup steps are one function, each step a t() string.
+    assert js.count("alert(androidSetupAlert());") == 2 and js.count("function androidSetupAlert(){") == 1
+    assert "t(\"Find 'BLE Transmitter' and enable it\")," in js
     assert '"BLE Transmitter sensor not enabled in Companion App"' in js
-    assert '+ "BLE Transmitter sensor not enabled";' in js
+    assert '+ t("BLE Transmitter sensor not enabled");' in js
     assert '"Phones running the HA Companion App with BLE Transmitter. Click to track."' in js
     assert "Not seeing your phone? Open Companion App" in js
     assert 'phone.state === "sensor_not_registered" && iphoneGuideOn(ctx.state.settings) && isApplePhone(phone)' in js

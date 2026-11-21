@@ -286,3 +286,85 @@ def test_the_training_manual_opens_with_the_note_only_when_translated() -> None:
     assert lines, res.stderr[-3000:]
     out = json.loads(lines[-1])
     assert not out["failures"] and len(out["cases"]) == 7, out["failures"]
+
+
+# ── The panel's own words: group "panel", i18n/<lang>/panel.json (2026-11-21) ──
+# Every file but the help that imports the helper asks for its words through
+# t()/tn(); phase 1 is the first-run screens (the sample-house banner and the
+# Data switch, Getting started, Setup, Track your phone, the accuracy tips).
+# scripts/i18n_coverage.py prints how many keys each language has.
+
+def _coverage():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("i18n_coverage", _ROOT / "scripts" / "i18n_coverage.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_every_t_call_names_its_english() -> None:
+    """A key the extractor can't read is a key no translation can reach: every
+    t( and tn( call in a file that imports the helper starts with the English
+    as a plain string literal (not a variable, a template or a ternary)."""
+    cov = _coverage()
+    call = re.compile(r"(?<![\w.$])(tn?)\(")
+    bad: list[str] = []
+    for files in cov.group_files().values():
+        for p in files:
+            src = p.read_text(encoding="utf-8")
+            ok = {m.start() for m in _T_RE.finditer(src)} | {m.start() for m in _TN_RE.finditer(src)}
+            for m in call.finditer(src):
+                before = src[max(0, m.start() - 9):m.start()]
+                line_start = src[src.rfind("\n", 0, m.start()) + 1:m.start()]
+                comment = "//" in line_start or line_start.lstrip().startswith(("*", "/*"))
+                if before.endswith("function ") or comment or m.start() in ok:
+                    continue
+                line = src.count("\n", 0, m.start()) + 1
+                bad.append(f"{p.relative_to(_WWW)}:{line}: {src[m.start():m.start() + 60]!r}")
+    assert not bad, "\n".join(bad[:20])
+
+
+def test_the_panel_group_is_the_panels_words_and_fully_translated() -> None:
+    """i18n/<lang>/panel.json holds exactly the panel's keys (none the code
+    no longer asks for, none of the help's), each language has every one
+    (as the help does), and no value is the English copied."""
+    cov = _coverage()
+    panel = cov.keys_in(cov.group_files()["panel"])
+    assert len(panel) >= 200, len(panel)
+    figures = cov.coverage()["panel"]
+    assert set(figures) == set(_SHIPPED)
+    for lang in _SHIPPED:
+        data = json.loads((_LANG_DIR / lang / "panel.json").read_text(encoding="utf-8"))
+        extra = sorted(set(data) - set(panel))
+        assert not extra, (lang, "not asked for by the panel's code", extra[:5])
+        assert not figures[lang]["missing"], (lang, "still English: add it to i18n/%s/panel.json" % lang, figures[lang]["missing"][:5])
+        assert figures[lang]["translated"] == figures[lang]["keys"] == len(panel)
+        # Product and edition names as the English writes them; a word that is
+        # the same in both languages ("Live", "Setup", "OK") is fine, a sentence copied is not.
+        copies = [k for k, v in data.items() if isinstance(v, str) and v == k and len(k.split()) > 3]
+        assert not copies, (lang, copies[:3])
+        for k, v in data.items():
+            for s in (v.values() if isinstance(v, dict) else [v]):
+                assert _names(s) == _names(k) and "{product}" not in s, (lang, k)
+
+
+def test_the_panel_loads_its_words_at_startup_and_on_a_language_change() -> None:
+    src = (_WWW / "panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    # One module instance with the views' (?b=BUILD_ID), English until it is in.
+    assert "_i18nPromise.then(m => { _I18N = m; });" in src
+    assert "function t(text, vars){ return _I18N ? _I18N.t(text, vars) : _enFill(text, vars); }" in src
+    # Set-hass asks once per HA language, outside the lines help_lazy.mjs lifts (the help stays lazy).
+    hass_lines = src[src.index("    const langSeen = hass ?"):src.index("\n    if(this.state?.settings?.theme_follow_sun")]
+    assert "_loadPanelLanguage" not in hass_lines
+    assert "if(hass && langSeen !== this._panelLangSeen){ this._panelLangSeen = langSeen; this._loadPanelLanguage(); }" in src
+    assert 'm.useLanguage(this._hass, ["panel"])' in src
+    # The help's failed-load retry asks about help.json itself, not "any group".
+    assert 'if(got !== "en" && I18N && I18N.loaded && !I18N.loaded("help")) got = "en";' in src
+
+
+def test_the_coverage_script_counts_both_groups() -> None:
+    cov = _coverage().coverage()
+    assert set(cov) == {"help", "panel"}
+    for group in cov.values():
+        for c in group.values():
+            assert c["keys"] > 0 and 0 <= c["translated"] <= c["keys"] and len(c["missing"]) == c["keys"] - c["translated"]

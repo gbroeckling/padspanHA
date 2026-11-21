@@ -68,7 +68,7 @@ def test_the_helper_is_handed_to_the_views() -> None:
 
 def test_every_clickable_span_in_the_panel_itself_has_it() -> None:
     panel = _src("panel.js")
-    for marker in ('"data-accuracy-tips": "off", ...asButton', '"aria-label": "Hide this tip", ...asButton',
+    for marker in ('"data-accuracy-tips": "off", ...asButton', '"aria-label": t("Hide this tip"), ...asButton',
                    '"data-getting-started":"dismiss",...asButton', '"data-getting-started":"setup",...asButton',
                    '"data-setup-line":"open",...asButton', '"data-setup-line":"hide",...asButton'):
         assert panel.count(marker) == 1, marker
