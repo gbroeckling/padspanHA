@@ -91,6 +91,40 @@ def test_it_refuses_words_for_what_the_code_no_longer_has(monkeypatch) -> None:
         B.blocks()
 
 
+def test_every_setting_has_words_and_a_place() -> None:
+    """Each key in DEFAULT_SETTINGS and the settings_set schema is in the settings table, once."""
+    keys = B.setting_keys()
+    assert set(keys) == set(B.SETTINGS_ENTRIES)
+    assert {"away_timeout_m", "room_change_delay_s", "kalman_q", "lights_panel_enabled"} <= set(keys)
+    text = (MANUAL / "20-settings-reference.md").read_text(encoding="utf-8")
+    for key in keys:
+        assert text.count(f"`{key}`") >= 1, key
+
+
+def test_defaults_and_ranges_come_from_the_code() -> None:
+    """The figures the docs audit found wrong in the help (Q 0.125, up to 1.0) are read, not typed."""
+    ranges = B.setting_ranges()
+    assert B.default_settings()["kalman_q"] == 3.0 and ranges["kalman_q"] == "0.01 to 10"
+    assert ranges["away_timeout_m"] == "1 to 1440" and B.setting_default("away_timeout_m") == (True, 5)
+    assert ranges["object_history_days"] == "`1`, `2`, `7`, `14`"
+
+
+@pytest.mark.parametrize("what", ["missing", "gone", "label"])
+def test_it_refuses_a_setting_it_cannot_place(monkeypatch, what) -> None:
+    """A setting with no entry, an entry for a setting gone, or words the screen does not show, stop it."""
+    entries = dict(B.SETTINGS_ENTRIES)
+    if what == "missing":
+        del entries["away_timeout_m"]
+    elif what == "gone":
+        entries["presence_mode"] = ("Settings → Tracking → Rooms and timing", "Presence", "", "A setting that is gone.")
+    else:
+        where, card, _control, text = entries["away_timeout_m"]
+        entries["away_timeout_m"] = (where, card, "Away time-out (minutes)", text)
+    monkeypatch.setattr(B, "SETTINGS_ENTRIES", entries)
+    with pytest.raises(B.ReferenceError_):
+        B.blocks()
+
+
 def test_the_tables_name_what_people_automate_with() -> None:
     """The reference parts the docs audit found documented nowhere (2026-11-21)."""
     text = (MANUAL / "14-home-assistant-reference.md").read_text(encoding="utf-8")

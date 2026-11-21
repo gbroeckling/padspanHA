@@ -851,6 +851,7 @@ def _describe(expr, names, block, depth: int = 0) -> str | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def setting_ranges() -> dict[str, str]:
     """{key: the range or choices ws_settings_set keeps it to} for every key it says."""
     fn = _settings_set()
