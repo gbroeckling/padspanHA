@@ -4,31 +4,31 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // The panel's translations. English is the source text AND the key:
-// t("Restore") returns "Restore" until a shipped language is loaded, so
-// English never fetches a file and never changes. Other languages come lazily
-// from ../i18n/<lang>/<group>.json, a flat {"English": "Translation"} map; a
-// string missing there stays English. Plurals: tn(n, "1 device", "{n} devices")
-// with the entry {"one": ..., "other": ...} keyed by the English "other".
-// Everything returned is plain text: callers put it in textContent or esc() it.
-// Nothing here runs on import. tests/test_panel_i18n.py holds the files to it.
+// t("Restore") is "Restore" until a shipped language loads, so English never
+// fetches a file. Others come lazily from ../i18n/<lang>/<group>.json, a flat
+// {"English": "Translation"} map; a string missing there stays English.
+// Plurals: tn(n, "1 device", "{n} devices"), the entry {"one", "other"} keyed
+// by the English "other". Plain text out: callers use textContent or esc().
+// Nothing runs on import. tests/test_panel_i18n.py holds the files to it.
 
 // Filled into {product}. The Bright build's rename rewrites this one literal,
 // so no translation names "PadSpan HA" itself; PadSpan, PadSpan™ and
 // PadSpan Pro stay exactly as the English writes them.
 export const PRODUCT = "PadSpan HA";
 
-// Languages with a translation shipped, used only when the HA profile (or
-// the per-browser choice) is one of them. Everyone else sees English.
+// Shipped languages, used when the HA profile (or the per-browser choice) is
+// one of them. Everyone else sees English.
 export const LANGUAGES = Object.freeze(["nl", "de", "fr"]);
 
 const _PH = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
 let _lang = "en";
-let _cat = null;           // the loaded language's strings; null = English
+let _cat = null;           // the loaded language's strings, null = English
 let _groups = new Set();
+const _want = new Set();   // every group asked for: each call loads them all
 let _req = 0;              // the latest useLanguage() call
 
-/** Base language for this browser: the per-browser choice (localStorage
- *  padspan_lang), then the HA profile, then HA's own. de-AT -> de. */
+/** This browser's base language: its own choice (localStorage padspan_lang),
+ *  the HA profile, then HA's own. de-AT -> de. */
 export function langOf(hass) {
   let pick = "";
   try { pick = localStorage.getItem("padspan_lang") || ""; } catch (_) { /* no storage */ }
@@ -38,16 +38,20 @@ export function langOf(hass) {
 
 export function currentLanguage() { return _lang; }
 
-/** Load `groups` for hass's language. English, or a language not shipped,
- *  loads nothing. A group that fails to load stays English; if none loads,
- *  so does all of it. A call overtaken by a newer one changes nothing. */
+/** Group g loaded for the language now in use. */
+export const loaded = (g) => _groups.has(g);
+
+/** Load `groups` and every group asked for before in hass's language. English
+ *  or one not shipped loads nothing; a group that fails stays English (none
+ *  loaded: all of it). An overtaken call changes nothing. */
 export async function useLanguage(hass, groups = ["core"], shipped = LANGUAGES) {
+  groups.forEach(g => _want.add(g));
   const lang = langOf(hass), req = ++_req;
   if (lang === "en" || !shipped.includes(lang)) { _lang = "en"; _cat = null; _groups = new Set(); return "en"; }
   const same = lang === _lang && _cat;
   const cat = same ? _cat : Object.create(null), got = same ? _groups : new Set();
   const q = new URL(import.meta.url).search;
-  await Promise.all(groups.filter(g => !got.has(g)).map(async g => {
+  await Promise.all([..._want].filter(g => !got.has(g)).map(async g => {
     try {
       const r = await fetch(new URL(`../i18n/${lang}/${g}.json${q}`, import.meta.url));
       if (r.ok) { Object.assign(cat, await r.json()); got.add(g); }

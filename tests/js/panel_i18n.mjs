@@ -85,9 +85,13 @@ check("missing_stays_english", I.t("Cancel") === "Cancel");
 check("plural_nl", I.tn(1, "{n} device", "{n} devices") === "1 apparaat" && I.tn(4, "{n} device", "{n} devices") === "4 apparaten");
 check("product_in_translation", I.t("About {product}") === "Over " + I.PRODUCT);
 check("help_not_loaded_yet", I.t("Help") === "Help");
+check("loaded_names_the_groups_in", I.loaded("core") && !I.loaded("missing") && !I.loaded("help"));
 const before = fetched.length;
 await I.useLanguage({ language: "nl" }, ["core", "help"], ["nl"]);
-check("groups_load_once", fetched.length === before + 1 && I.t("Help") === "Hulp" && I.t("Restore") === "Herstellen", fetched.slice(before));
+// core is in already; help is new; missing (asked before, never in) is tried again.
+const again = fetched.slice(before).map(p => p.split("/i18n/")[1].split("?")[0]).sort();
+check("groups_load_once", again.join() === "nl/help.json,nl/missing.json" && I.t("Help") === "Hulp" && I.t("Restore") === "Herstellen"
+  && I.loaded("help"), fetched.slice(before));
 check("proto_key_harmless", I.t("__proto__") === "__proto__" && I.t("constructor") === "constructor");
 await I.useLanguage({ language: "en" }, ["core"], ["nl"]);
 check("back_to_english", I.t("Restore") === "Restore" && I.currentLanguage() === "en");
@@ -115,5 +119,25 @@ open(); gate = null;
 const [r9, r10] = await Promise.all([nlSlow, deSlow]);
 check("newest_language_wins", r10 === "de" && I.currentLanguage() === "de" && I.t("Restore") === "Wiederherstellen", { r9, r10 });
 await I.useLanguage({ language: "en" }, ["core"], ["nl"]);
+check("english_unloads_every_group", !I.loaded("core") && !I.loaded("help") && I.t("Help") === "Help");
+
+// Every group asked for once is loaded by each later call, whichever group
+// that call names: the panel's own words and the help never drop each other,
+// across a language change or a call overtaken by another (a fresh instance).
+FILES["de/help.json"] = { "Help": "Hilfe" };
+const J = await import(pathToFileURL(join(WWW, "views", "i18n.js")).href + "?b=GROUPS");
+await J.useLanguage({ language: "nl" }, ["core"], ["nl", "de"]);
+await J.useLanguage({ language: "nl" }, ["help"], ["nl", "de"]);
+await J.useLanguage({ language: "de" }, ["core"], ["nl", "de"]);
+check("a_new_language_loads_every_group_asked_before", J.currentLanguage() === "de" && J.loaded("core") && J.loaded("help")
+  && J.t("Restore") === "Wiederherstellen" && J.t("Help") === "Hilfe");
+const K = await import(pathToFileURL(join(WWW, "views", "i18n.js")).href + "?b=OVERTAKEN");
+gate = new Promise(r => { open = r; });
+const helpFirst = K.useLanguage({ language: "nl" }, ["help"], ["nl"]);
+const coreAfter = K.useLanguage({ language: "nl" }, ["core"], ["nl"]);
+open(); gate = null;
+await Promise.all([helpFirst, coreAfter]);
+check("an_overtaking_call_keeps_the_overtaken_groups", K.loaded("help") && K.loaded("core")
+  && K.t("Help") === "Hulp" && K.t("Restore") === "Herstellen");
 
 console.log(JSON.stringify({ cases, failures }));
