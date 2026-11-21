@@ -70,7 +70,7 @@ thermostat and light switches.
 - **Follow mode** — animated room map + movement timeline for any tracked device
 - Multi-device simultaneous tracking with per-device email alerts (60 s rate limit)
 - Kalman-filtered RSSI smoothing (replaces simple moving averages)
-- Home/away detection with HA binary sensor entities
+- Home/away detection: each named device's `device_tracker` is `home` (its state is the room) or `not_home`
 - **Phone & watch tracking** — guided setup wizard with [irk-capture](https://github.com/DerekSeaman/irk-capture) integration, HA Companion App iBeacon for Android, and IRK resolution for Apple devices
 - Private BLE address resolution (iBeacon UUID + IRK support)
 - **Occupancy estimation** — people in the building, never devices: HA person entities (one per phone), unclaimed phones and watches recognised on the air by their rotating addresses and clustered by RSSI co-location, and occupancy/motion sensors by room; tagged things are listed, not counted
@@ -82,14 +82,14 @@ thermostat and light switches.
 - Interactive device registry: merge duplicates, add identities, relabel, delete
 
 ### Floor Plans & Maps
-- Upload architectural floor plans (PNG/JPG) with auto-scaling
+- Upload a floor plan picture (PNG, JPG, GIF, BMP, WebP or SVG; a photo of a sketch works), or start from a phone's room scan or a blank floor
 - **Two-point measure tool** for precise real-world scale calibration with aspect ratio validation
 - Draw room boundary polygons directly over blueprints
 - Multi-floor **3D isometric visualization** with live object positions
 - **2D flat map mode** with zoom/pan and toggle filters (scanners, tagged, unknown, rooms)
 - Drag-and-place scanner markers with 3-digit radio IDs
 - Auto-detect stale or missing radios on your map
-- Master map alignment for multi-floor coordinate consistency
+- Line up floors in 3D Stack: each plan keeps its own place in metres (there is no master map)
 
 ### Calibration
 - Walk-around fingerprint collection with a **standalone phone-friendly panel**
@@ -133,8 +133,8 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 
 ### Alerts & Automation
 - Email alerts on room change (per device, 60-second rate limit)
-- HA entities: **area sensors**, **distance sensors**, **device trackers**, **binary sensors**
-- Full WebSocket API for custom dashboards and automation
+- HA entities: **device trackers** (the state is the room, or `not_home`), **area sensors**, **distance sensors**, and binary sensors for Vacation Mode, guests at home and sub-zones
+- Home Assistant events when a named device arrives or leaves (`padspan_device_arrived`, `padspan_device_departed`) and when a followed one changes room (`padspan_room_change`), for your own automations
 
 ### Analytics
 - **Insights** (a Traceback mode) — per-object time-in-room and entry-count tables, plus peak concurrent occupancy, with CSV/JSON export
@@ -170,10 +170,11 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 - **Apple Device Classification** — shows what sent an Apple Find My signal (AirTag, a Find My accessory, which can be another brand's tag or AirPods, or an Apple device such as an iPhone, iPad or Mac) instead of just "Find My", in Devices, Bluetooth → Advertisements and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says which. Display-only — does not affect tracking or identity.
 - **Radio Map** — RSSI heatmap overlay using inverse distance weighting
 - **Signal distortion map** — where positions matched to calibration points (k-NN) disagree with reality
-- **Trackability Rating** — per-device Easy/Medium/Hard scoring
 - **Walk-to-Identify** — discover unknown devices by correlating walking motion
-- **Compass Ring Calibration** — structured 360° RSSI collection
-- **Replay Timeline** — enhanced playback with scoring explainability
+- **RoomPlan Import** — import an Apple RoomPlan scan (JSON) in Mapping → Layout, as rooms to review before anything is saved
+- **Robot Vacuum Import** — import a robot vacuum's map (Valetudo, Dreame or Xiaomi) in Mapping → Layout as a floor plan with its rooms
+- **iPhone Setup Path** — walks an iPhone through getting its IRK, adding it and checking it resolves (on by default for a new install)
+- **RSSI Vector Capture** — record what every scanner heard, poll by poll, to replay a walk offline against changed settings
 
 ---
 
@@ -244,8 +245,6 @@ The button opens PadSpan in the Marketplace on Home Assistant 2026.11 and newer,
 3. **Restart Home Assistant completely** (Settings → System → Restart)
 4. Add the integration: Settings → Devices & Services → Add Integration → PadSpan HA
 
-Setting up HACS for the first time? A GitHub change can make HACS's sign-in step fail for now, see [the note in Getting Started](./docs/GETTING_STARTED.md#via-hacs-recommended).
-
 ### Manual
 
 1. Download the [latest release](https://github.com/gbroeckling/padspanHA/releases/latest)
@@ -259,7 +258,7 @@ Setting up HACS for the first time? A GitHub change can make HACS's sign-in step
 
 - Home Assistant **2024.8** or newer
 - A machine with **more than 2 GB of RAM** is recommended (a Raspberry Pi 4 or 5 with 4 GB or more, or similar). Near a busy street PadSpan hears thousands of passing devices, and on a 2 GB Pi Home Assistant can run out of memory within hours. See [Minimum requirements](./docs/MINIMUM_REQUIREMENTS.md)
-- At least one BLE scanner: an HA Bluetooth proxy, a Bermuda proxy, or ESPresense nodes (ESPresense also needs HA's MQTT integration, and the ingestion switched on in Manage)
+- At least one BLE scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner, your Home Assistant machine's own Bluetooth, ESPresense nodes (they also need HA's MQTT integration, and the ingestion switched on in Manage → HA Entities), or Tasmota devices (experimental, over MQTT)
 - The Marketplace (built into Home Assistant from 2026.11) or HACS, for easy installation and updates
 
 ---
@@ -289,9 +288,8 @@ Every step, with pictures: [From the Marketplace to your first room](https://pad
 | [Furnish Guide](./docs/FURNISH_GUIDE.md) | Furniture, devices and people in the 3D house: builders, from a photo, the shared library, Sweet Home 3D import |
 | [Wall Screen Guide](./docs/WALL_SCREEN_GUIDE.md) | PadSpan on a tablet or wall screen: kiosk links, full screen, going back home by itself |
 | [PadSpan Pro](./docs/PADSPAN_PRO.md) | The 90-day trial, entering a key, getting Pro free as a tester, and invites |
-| [Troubleshooting](./docs/90_TROUBLESHOOTING.md) | Common issues and fixes |
+| [Troubleshooting](./docs/GETTING_STARTED.md#troubleshooting) | Common issues and fixes; [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) for wrong rooms |
 | [Architecture](./docs/00_REPO_LOGIC_OVERVIEW.md) | High-level codebase architecture |
-| [WebSocket API](./docs/02_WEBSOCKET_API.md) | API reference for custom integrations |
 | [Changelog](./CHANGELOG.md) | Full version history |
 
 The **Training Hub** inside PadSpan has 16 animated walkthroughs covering every feature — from BLE basics to Private BLE/IRK setup.
@@ -329,7 +327,7 @@ Names from devices, scanners and rooms are always shown as plain text in the pan
 
 ## Updates & Privacy
 
-Once a day, PadSpan asks `padspan.traks.ca` whether a newer version is available and shows a Home Assistant notification when one is. The request contains **only your installed version number** (e.g. `?v=0.21.10`). Like any web request, the server sees your IP address; nothing else is sent, no identifiers are stored on your system, and no usage data is collected. The aggregate ping count is the only signal the project gets about how many installs exist.
+Once a day, PadSpan asks `padspan.traks.ca` whether a newer version is available and shows a Home Assistant notification when one is. The request contains **only your installed version number** (e.g. `?v=0.21.10`). Like any web request, the server sees your IP address; nothing else is sent, no identifiers are stored on your system, and no usage data is collected. On its own, this check gives the project only a count of requests, not of installs: installs are counted only by the opt-in usage report's random install ID and, for a licence key, by the licence check (both below).
 
 The answer can also switch PadSpan's free-Pro offers (becoming a tester, and invites) off or back on, so an offer that has ended disappears from the panel without an update. It only ever carries those two on/off switches; it cannot add anything to the panel. While the tester offer is on and no licence key is entered, the update notification has one line about it.
 
@@ -381,7 +379,7 @@ When you opt in, at most once a day PadSpan POSTs a small JSON report (a few KB,
 
 **Never**: MAC addresses (in any notation), IRKs or licence keys, device / room / floor / entity names or ids, IP addresses, coordinates, or timestamps finer than the day. The report carries a random install ID so installs can be counted rather than pings — replace it any time with **New anonymous ID**. **Preview what would be sent** shows the report exactly as it stands (same fields and values a send made that second would carry), before or after opting in. Before every send the code walks every value and refuses the whole report if it finds a MAC / UUID / 32-hex / licence-key / IP / email / entity-id shape or any string over 64 characters, or any key or word in `hw` / `perf` / `runs` / `quiet_errors` that is not on their fixed lists; `tests/test_telemetry.py` builds a report from a house full of names, MACs, UUIDs, keys and coordinates and proves none of them are in it. Opting in is an administrator action; the usage and error windows start at the moment you opt in, so nothing from before it goes.
 
-**Invites.** Now and then the developer invites some installs that send the report to try something, such as a free year of PadSpan Pro. The developer picks them by their anonymous install ID, and the invite comes back in the reply to that install's next report: a random one-use token and a last day, kept in Home Assistant where an administrator's panel sees only that an invite is open (never the token). It shows as a card on Overview and in **Settings → PadSpan licence**. Nothing is sent unless you press a button: **Claim** sends the token and the email you type to the licence server at traks.ca, which emails you the key; your email goes to the developer, as a purchase's does, and is never shared. **No thanks** sends the token alone, so the invite is never sent again. The invite list keeps only whether an invite was claimed or declined, never the email.
+**Invites.** Now and then the developer invites some installs that send the report to try something, such as a free year of PadSpan Pro. The developer picks them by their anonymous install ID, and the invite comes back in the reply to that install's next report: a random one-use token and a last day, kept in Home Assistant where an administrator's panel sees only that an invite is open (never the token). It shows as a card on Overview and in **Settings → Features → PadSpan licence**. Nothing is sent unless you press a button: **Claim** sends the token and the email you type to the licence server at traks.ca, which emails you the key; your email goes to the developer, as a purchase's does, and is never shared. **No thanks** sends the token alone, so the invite is never sent again. The invite list keeps only whether an invite was claimed or declined, never the email.
 
 #### Become a tester (separate from the usage report)
 

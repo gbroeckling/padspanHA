@@ -4,6 +4,8 @@ What PadSpan HA needs from the machine running Home Assistant and from the scree
 
 ## The Home Assistant machine
 
+PadSpan HA needs **Home Assistant 2024.8 or newer**.
+
 | | |
 |---|---|
 | **Recommended** | **More than 2 GB of RAM.** A Raspberry Pi 4 or 5 with 4 GB or more, a Home Assistant Green, or any mini PC or VM with 4 GB or more. |
@@ -64,7 +66,7 @@ How smoothly each kind of screen runs the Atlas and Live Aboard is being measure
 
 ## Bluetooth scanners
 
-At least one: a Home Assistant Bluetooth proxy (ESPHome), a Bermuda proxy, or ESPresense nodes. ESPresense also needs Home Assistant's MQTT integration, with ingestion switched on in Manage.
+At least one: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner, the Home Assistant machine's own Bluetooth, ESPresense nodes, or Tasmota devices (experimental). ESPresense and Tasmota also need Home Assistant's MQTT integration, with their ingestion switched on in Manage → HA Entities.
 
 ## How these numbers are gathered
 

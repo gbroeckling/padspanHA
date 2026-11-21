@@ -9,8 +9,8 @@ This guide walks you through your first 30 minutes with PadSpan — from install
 ## Prerequisites
 
 - Home Assistant **2024.8** or newer
-- At least **one BLE scanner** (ESP32 Bluetooth Proxy, ESPresense, or built-in HA Bluetooth)
-- HACS installed (recommended)
+- At least **one BLE scanner**: an ESPHome Bluetooth proxy (an ESP32 board), a Shelly Gen2 or newer set as a Bluetooth scanner, your Home Assistant machine's own Bluetooth, an ESPresense node, or a Tasmota device (experimental, see below)
+- The Marketplace (built into Home Assistant from 2026.11) or HACS (older versions), for installing and updating
 
 > **What you need for room-level tracking**
 > - **Scanners:** one in each room you want told apart. One scanner alone gives home/away, not rooms. A room with no scanner of its own (a closet, a hall) can only be picked out with calibration, and less reliably. An open-plan kitchen and living room count as one room unless each end has its own.
@@ -40,7 +40,7 @@ I started with about a dozen old ESP32 boards from a project three years ago and
 Tasmota devices with BLE (for example an ESP32 running Tasmota) can be scanners too, over MQTT:
 
 1. Make sure Home Assistant's **MQTT** integration is set up and the Tasmota devices talk to it.
-2. In PadSpan, **Manage → Tasmota BLE → Read Tasmota BLE over MQTT**.
+2. In PadSpan, **Manage → HA Entities → Tasmota BLE → Read Tasmota BLE over MQTT**.
 3. In each Tasmota's console, run `TelePeriod 10`, `BLEMaxAge 30` and `BLEAddrFilter 1`. Without
    `BLEAddrFilter 1`, phones and tags with random addresses are never reported.
 4. Each device shows up as a scanner the next time it reports. Place it in its room in Mapping like
@@ -59,19 +59,23 @@ Home/away just needs to see *any* signal from *any* scanner — easy. Room-level
 
 ## Step 1: Install
 
-### Via HACS (recommended)
+[![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration)
+
+The button opens PadSpan in the Marketplace on Home Assistant 2026.11 and newer, and in HACS on older versions.
+
+### From the Marketplace (Home Assistant 2026.11 and newer)
+
+1. Open **Settings → Marketplace** and search for **PadSpan**
+2. Open **PadSpan HA** and choose **Install**. The first time, the Marketplace asks you to confirm that what it lists isn't reviewed by the Home Assistant project
+3. The setup dialog opens right away, with no restart. Choose **Submit**
+
+### Via HACS (Home Assistant 2026.10 and older)
 
 PadSpan is in the HACS default list, so there's no custom repository to add.
-
-[![Open PadSpan in HACS in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration)
-
-Or by hand:
 
 1. Open HACS in your Home Assistant instance
 2. Search for and install **PadSpan HA**
 3. **Restart Home Assistant completely** (Settings → System → Restart)
-
-> **Setting up HACS for the first time? (temporary note)** Since 2026-10-23 GitHub sends a very large header that Home Assistant's web library rejects. Until HACS releases its fix, a first-time HACS setup can fail at the GitHub sign-in step with `could_not_register` (HACS issues [#5643](https://github.com/hacs/integration/issues/5643) and [#5646](https://github.com/hacs/integration/issues/5646), fix in progress in [PR #5644](https://github.com/hacs/integration/pull/5644)). If HACS is already set up, nothing changes: it keeps installing and updating PadSpan normally. HACS may log a "Failed to download zipball" error and then fetch the files one by one, which is fine. In the meantime you can use the manual install below. This note will be removed once HACS ships the fix.
 
 ### Manual
 1. Download the [latest release ZIP](https://github.com/gbroeckling/padspanHA/releases/latest)
@@ -80,65 +84,52 @@ Or by hand:
 
 ## Step 2: Add the Integration
 
+From the Marketplace, the setup dialog has already opened: choose **Submit** and you're done. After HACS or a manual install:
+
 1. Go to Settings → Devices & Services → **Add Integration**
 2. Search for **PadSpan HA**
-3. Follow the config flow (defaults are fine for most setups)
+3. Choose **Submit**: there is nothing to fill in
 
-## Step 3: Onboarding Wizard
+## Step 3: Open PadSpan
 
-When you first open PadSpan, the **onboarding wizard** appears with 5 steps:
+Open **PadSpan HA** in the sidebar. (The other new sidebar entry, **Atlas**, is the map of your lights and devices; leave it for later.)
 
-1. **Upload a map** — Upload a floor plan image
-2. **Set scale** — Use the two-point measure tool to calibrate real-world distances
-3. **Draw rooms** — Draw room boundary polygons over your floor plan
-4. **Place scanners** — Drag scanner markers to their physical locations
-5. **Calibrate** — Walk-around fingerprint collection for room-level accuracy
+A new install shows a made-up sample house until Home Assistant reports its first Bluetooth scanner, then switches to your own house by itself. The first screen is the **Overview**, with **Who's where now**: each room, the named devices in it, and a count of everything else its scanner hears. A device belongs to the room whose scanner hears it best. No floor plan needed.
 
-Each step auto-detects when it's complete. Click any step to jump to the relevant view.
+The line at the top of the card says what your scanners give you so far: no scanner found yet, scanners with no Home Assistant area (home or away only), one room, or several rooms.
 
-## Step 4: Explore with Sample Mode
+## Step 4: Give every scanner its room
 
-Before touching real data, flip to **Sample mode** (toggle in the top-right corner of the panel). This loads a complete demo house with:
-- 3 BLE scanners across 5 rooms
-- 11 objects (phones, AirTags, Tile trackers, unidentified devices)
-- Floor plan with room boundaries
-- Follow mode with movement tracking
+A scanner's room is the Home Assistant area of its device. A scanner with no area gives no room, however well it hears you, so this comes first. Set the area on the device in Home Assistant (**Settings → Devices & services → Devices**), or in PadSpan: on the **Overview**, in the **Bluetooth radios** card, select **View radios list**, then **Assign** beside the scanner.
 
-Explore every view to understand what PadSpan can do.
+## Step 5: Name your phone and tags
 
-## Step 5: Switch to Live Mode
+A device you haven't named gets no entities. Naming one gives Home Assistant a device for it with a tracker (`device_tracker.<name>`, whose state is the room), an area sensor (`sensor.<name>_area`) and distance sensors.
 
-Toggle back to **Live mode**. Your BLE scanners are auto-discovered. You should immediately see:
-- **Radios** — Your BLE scanners listed in the Bluetooth view
-- **Objects** — Every Bluetooth device your scanners detect (phones, AirTags, smart home gadgets, and plenty of unknown devices)
+- **Android phone:** switch on **BLE Transmitter** in the Companion app (Manage sensors), then on the **Overview**, under **Track Your Phone**, select **Track this phone**.
+- **iPhone or Apple Watch:** get its IRK into Home Assistant (Step 9), then select **Track** beside its name in **Who's where now**.
+- **A beacon or key tag:** on the **Overview**, in the **Objects** card, open **All objects**, select **Tag** on its row, type a name and select **Save label**. **Devices → By Room** (Devices is under More tools) has the same **Tag** button.
 
-## Step 6: Tag Your Devices
+Each named device gets a **stable padspan_id** that survives MAC rotation and firmware updates, *provided the device has a stable identifier* (an iBeacon UUID for the Companion App and many key finders, an IRK for phones).
 
-Go to the **Objects** tab. You'll see a mix of named and unnamed Bluetooth devices. Click **Tag** next to any device you recognize:
-- Your phone → "Alice's Phone"
-- Your Tile → "Backpack"
-- Your HA Companion-App iBeacon → "Alice's Phone (BLE)"
+**About AirTags / Samsung SmartTags:** these change their address and everything else they send (an AirTag every 15 minutes near its owner's iPhone, once a day away from it), with no stable identifier. For Find My tags, turn on **Settings → Features → MAC Rotation Bridging**: a tag you've named or followed carries on to its next address when it's clear which one it is. It won't guess between two tags lying together, and a tag that was out of range when it changed comes back nameless. **Apple Device Classification** only adds a label.
 
-Once tagged, PadSpan creates HA entities for that device (device_tracker, area sensor, distance sensor). Each tagged device gets a **stable padspan_id** that survives MAC rotation and firmware updates — *provided the underlying device has a stable identifier* (iBeacon UUID for Tiles / Companion App, IRK for phones).
+## Step 6: Preview a finished house
 
-**About AirTags / Samsung SmartTags:** these rotate both their MAC address and their advertised Find My key every ~15 minutes and broadcast no stable identifier. The padspan_id chain breaks at each rotation. Enable **Settings → Features → MAC Rotation Bridging + Apple Device Classification** for probabilistic tracking that follows the AirTag while it stays in continuous range. Tagging works in that window; expect the chain to reset when the tag leaves and re-enters BLE range.
+**Preview a finished house**, on the **Who's where now** card, shows the sample house: three floors with every feature set up, and made-up names. A yellow banner says you're looking at it; **Back to my house** returns to yours.
 
-## Step 7: Upload a Floor Plan
+## Step 7: Make it a map (optional)
 
-Go to **Maps** → **Upload** tab:
-1. Upload a PNG/JPG of your floor plan (or draw one — even a rough sketch works)
-2. Use the **measure tool** — click two points of known distance to set the scale
-3. Draw room boundary polygons by clicking the map
-4. Place scanner markers where your BLE scanners are physically located
+A floor plan turns the list of rooms into your house, drawn on the Overview. Calibration needs it, and with three or more scanners placed on it, PadSpan can also place devices between them. Select **Make it a map** on **Who's where now**. It opens **Setup**: upload a floor plan, set its scale, draw the rooms, set floor heights (two floors or more), place your scanners, then **Put it on the map** and calibrate.
 
-See [Floor Plan Setup](FLOOR_PLAN_SETUP.md) for detailed instructions.
+See [Floor Plan Setup](FLOOR_PLAN_SETUP.md) for each step.
 
 ## Step 8: Start Following
 
-Go to the **Follow** tab:
-1. Select a tagged device from the dropdown
-2. Watch it move between rooms in real time on the animated map
-3. Optionally configure **email alerts** for room-change notifications
+Open **Follow**:
+1. Pick a device under **Choose a tag to follow**
+2. Watch which room it is in, live; Advanced mode also lists its recent room changes
+3. Optionally set up **Movement Alerts**: on your phone (pick it under Notify service), by email, or both. **Send Test** checks where they go, and nothing is active until you press **Save**
 
 ## Step 9: Tracking Apple Devices (iPhone, Apple Watch)
 
@@ -146,15 +137,15 @@ Apple devices use rotating MAC addresses for privacy. To track them:
 
 1. Set up the **Private BLE Device** integration in HA (registers the device's IRK)
 2. PadSpan auto-detects registered Private BLE devices
-3. Tag them on the Devices screen — they appear with their friendly name (e.g., "Adam's iPhone")
+3. Select **Track** beside the phone in **Who's where now** (or **Tag** it in Devices → By Room): it appears with its friendly name (e.g., "Adam's iPhone")
 4. The IRK lets PadSpan follow the device through MAC rotations
 
 The Training Hub has a dedicated walkthrough: **Private BLE (Apple Devices)**.
 
 **There is no "BLE Transmitter" on an iPhone.** That sensor is in the Android Companion App only, so an iPhone is followed by its IRK instead:
 
-1. **Get the IRK.** Pair the iPhone with an ESP32 running [irk-capture](https://github.com/DerekSeaman/irk-capture), then press **Auto-detect IRKs** in Bluetooth → IRK Manager. Or, on a Mac signed into the same iCloud account, run `sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist` and copy the IRK under the iPhone's name. Settings → Phone Tracking → **Detailed Setup Guide** has these and the Keychain way, step by step.
-2. **Add it** in HA: Settings → Devices & services → Add integration → **Private BLE Device**, and paste the IRK. PadSpan picks it up within a minute.
+1. **Get the IRK.** Pair the iPhone with an ESP32 running [irk-capture](https://github.com/DerekSeaman/irk-capture), then press **Auto-detect IRKs** in Bluetooth → IRK Manager (Bluetooth is under More tools). Or, on a Mac signed into the same iCloud account, run `sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist` and copy the IRK under the iPhone's name. **Settings → Tracking → Phones and guest tags → Phone Tracking (Private BLE) → Detailed Setup Guide** has these and the Keychain way, step by step.
+2. **Add it** in HA: Settings → Devices & services → Add integration → **Private BLE Device**, and paste the IRK. PadSpan reads Private BLE Device's keys every 5 minutes, so it can take up to five minutes to pick it up. A key added through PadSpan itself (the Phone Tracking (Private BLE) card, or Bluetooth → IRK Manager) is used straight away.
 3. **Check it resolves.** With the iPhone awake near a scanner it appears under **Registered IRK devices** in the IRK Manager, and the Resolved count goes up. **Test only** there checks a key without saving it.
 
 Turn on **iPhone Setup Path** in Settings → Features and PadSpan walks you through these steps itself: an iPhone in Overview's phone list gets them behind its Setup button, and the IRK Manager's phone wizard gets an "I have an iPhone" path with a Check button. It is off by default; Android phones see the same BLE Transmitter steps either way.
@@ -237,17 +228,23 @@ Household members can still view everything, use the lights and the emergency li
 
 ## What's Next?
 
-- **Atlas** — Place lights, fans, sensors, locks and doors on the same map (Pro feature) — see the [Atlas Guide](ATLAS_GUIDE.md)
-- **Calibration** — Run the calibration walkthrough (Training Hub → Calibration) for sub-room accuracy
-- **Basic vs Advanced** — Toggle between simplified and full views (top-right toggle)
+- **Atlas** — Lights, fans, sensors, locks and doors on the same map: free installs get a tap-to-toggle marker per light, and placing devices where they really are is PadSpan Pro — see the [Atlas Guide](ATLAS_GUIDE.md)
+- **Calibration** — Open **Calibration** in the menu and select **Guided calibration** for better room accuracy; the Training Hub's **Calibrate for Accuracy** walkthrough shows how
+- **Basic vs Advanced** — The mode button in the top bar switches between Basic, Advanced and Development
 - **Training Hub** — 16 animated walkthroughs covering every feature
 - **Settings** — Customize appearance, scanner offsets, presence thresholds, experimental features
 - **History & Traceback** — Review movement history with NVR-style playback on the 3D map
 
 ## Troubleshooting
 
-- **No scanners visible?** Confirm your ESP32 or Bluetooth proxy is connected and showing in HA → Settings → Devices & Services → Bluetooth
-- **No objects?** Wait 30 seconds — the first BLE scan takes a moment. Check the Diagnostics view for errors.
+- **No scanners visible?** Confirm your ESP32 or Bluetooth proxy is connected and showing in HA → Settings → Devices & Services → Bluetooth. The **Receivers** page lists every scanner PadSpan hears, with its status.
+- **"Bluetooth feed unavailable" right after installing?** Restart Home Assistant fully (Settings → System → Restart); reloading the integration isn't enough after a first install.
+- **No devices?** Wait 30 seconds — the first BLE scan takes a moment. A device must be in range of at least one scanner and sending Bluetooth.
+- **The status dot in the top bar is amber or red?** Click it: it opens **Health**, which says what is wrong.
+- **A device is in the wrong room, or jumps between rooms?** Check each scanner has the right Home Assistant area (Step 4), then see [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/). **Settings → Tracking → Rooms and timing → Room Change Delay** (20–60 seconds) steadies a device on a room boundary.
+- **A device shows not_home too soon?** Raise the away timeout in **Settings → Tracking → Rooms and timing → Home/Away Timeout** (5 minutes unless changed).
+- **A phone won't show up?** [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) has the steps for Android, iPhone and Apple Watch, and what to check.
+- **Mapping has only Library and Upload, or Settings has no tabs?** The mode button in the top bar has switched the panel to **Basic**. Every screen is still in the menu (the ones not in Basic's short list are under **More tools**). Select the button again for **Advanced**.
+- **Uploading a plan, saving the scale or starting the trial is refused?** Those need a Home Assistant administrator.
 - **UI not updating?** Hard refresh your browser (Ctrl+F5) to clear cached JavaScript
-- **Private BLE devices show MAC instead of name?** Update to v0.17.3+ — friendly names now display by default
-- **Maps not saving?** Update to v0.17.2+ — a scale save bug was fixed
+- **Asking for help?** Open **Diagnostics** (QA → Go to Diagnostics; QA is under More tools) or **Monitor → Export for support**, and email the report to hello@traks.ca or attach it to a [GitHub issue](https://github.com/gbroeckling/padspanHA/issues) (issues are public: remove personal details first).

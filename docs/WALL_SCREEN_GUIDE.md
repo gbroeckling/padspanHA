@@ -23,7 +23,7 @@ Add these to the PadSpan HA page's address to open it ready for a screen:
 |---|---|
 | `/padspan-ha?kiosk=1` | Hides PadSpan's own menu and chrome, and never shows trial or invite offers |
 | `/padspan-ha?view=follow` | Opens on one view (any view's id: `overview`, `follow`, `traceback`, `maps`, …), whatever the browser last used |
-| `/padspan-ha?view=maps&tab=lights&light=light.kitchen` | Opens Mapping → Atlas with one light picked |
+| `/padspan-ha?view=maps&tab=lights&light=light.kitchen` | Opens Mapping → Atlas builder with one light picked |
 
 You can combine them: `/padspan-ha?view=follow&kiosk=1`. To hide Home Assistant's own header and
 sidebar as well, use a kiosk add-on for Home Assistant (for example kiosk-mode from HACS) or the
@@ -46,7 +46,7 @@ shown on a wall, since nobody is there to tap it. Home Assistant's own sidebar i
 browser only, so the map has the whole screen; **Show HA** on the Atlas page (without `?kiosk=1`)
 brings it back.
 
-Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Mapping → Atlas →
+Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Mapping → Atlas builder →
 ▦ New layout**). With the classic layout, `?kiosk=1` only drops the header.
 
 ### Sizing a wall for its room
@@ -121,7 +121,7 @@ A screen hung tall works as well as a wide one, and the text and controls are si
 
 Every screen showing the Overview, or the Atlas's 3D view with people, asks Home Assistant for the whole live picture every 5 seconds. In a busy house that is every passing Bluetooth device: about 2 MB a screen, so four screens move about 14 Mbit/s between Home Assistant and the screens, all day. The flat Atlas wall (`?kiosk=1`) doesn't ask for it at all.
 
-**Settings → Optimize for scale** (off by default) cuts that down:
+**Settings → Tracking → Performance → Optimize for scale** (off by default) cuts that down:
 
 - **A slim update:** the Overview and the 3D people ask only for what they draw (people, tags, labelled and followed devices, anything placed in a room) plus the counts. In a real house that was about 50 KB instead of 2.2 MB.
 - **One build for every screen:** screens polling within 4.5 seconds of each other share one build, so Home Assistant does about the same work for four screens as for one.
@@ -131,7 +131,7 @@ Every other view (Monitor, Devices, Bluetooth and the rest) still gets everythin
 
 ## Tips
 
-- On an old or slow tablet, turn **Low-memory mode** on in Settings → Presence if Home Assistant
+- On an old or slow tablet, turn **Low-memory mode** on in Settings → Tracking → Performance if Home Assistant
   itself runs on a small machine, and leave Live Aboard on **Low** quality if the screen struggles.
   See [Minimum Requirements](MINIMUM_REQUIREMENTS.md).
 - The **Test emergency lighting** button sits top right on the Atlas. If the screen is somewhere
