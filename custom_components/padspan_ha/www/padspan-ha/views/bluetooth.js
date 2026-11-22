@@ -2729,7 +2729,7 @@ function renderIrkPanel(ctx, snap) {
     // Path B — Android
     const pathB = _path(t("I have an Android phone"), "good");
     pathB.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55" },
-      t("The easiest way to track an Android phone: Install the HA Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable.") + " " +
+      t("The easiest way to track an Android phone: Install the HA Companion App \u2192 Settings \u2192 Companion app \u2192 Manage sensors \u2192 BLE Transmitter \u2192 Enable.") + " " +
       t("Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed.") + " " +
       t("In the same place, set Transmit power to High and Advertise mode to Low latency: out of the box it sends too weakly to be heard well.")));
     // Then the Overview's Track Your Phone card names and follows it, so PadSpan knows it is yours (and Setup's phone

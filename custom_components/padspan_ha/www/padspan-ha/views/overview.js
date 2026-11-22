@@ -3901,7 +3901,7 @@ export function renderClassic(ctx){
                   } else {
                     btn.textContent = t("Registered — enable BLE");
                     btn.style.cssText = "font-size:12px;padding:4px 14px;color:#f59e0b;border-color:#92400e;font-weight:600";
-                    meta.textContent = t("Tagged as \"{label}\" · BLE transmitter is OFF. Enable it in Companion App → Settings → Manage Sensors → BLE Transmitter.", { label: r.verified_label });
+                    meta.textContent = t("Tagged as \"{label}\" · BLE transmitter is OFF. Enable it in Companion App → Settings → Companion app → Manage sensors → BLE Transmitter.", { label: r.verified_label });
                   }
                 } else {
                   btn.textContent = "Error saving — retry";
