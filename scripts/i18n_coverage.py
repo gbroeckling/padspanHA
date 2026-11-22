@@ -9,7 +9,7 @@ i18n/<lang>/<group>.json:
 
   help     help_content.js, the ? pages
   panel    panel.js (the shell) and every file that imports i18n and is not in GROUPS
-  setup, mapping, stack, plans, calibration, beacon, screens, health, devices
+  setup, mapping, stack, plans, calibration, beacon, screens, health, devices, bluetooth
            the files GROUPS lists for each (a file's words go with its screen;
            a big file's named part with its own group, see Part)
   server   the sentences the backend sends that the panel shows as they are:
@@ -58,10 +58,10 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "calibration": ("views/calibration.js", "views/calibration_results.js", "views/calibration_walk.js"),
     "beacon": ("views/calibration.js#beacon",),
     "screens": ("views/overview.js", "views/whos_where.js", "views/receiver_room.js", "views/map_text.js",
-                "views/follow.js", "views/locate.js", "views/occupancy.js"),
+                "views/follow.js", "views/locate.js", "views/occupancy.js", "views/plan_viewer.js"),
     "health": ("views/health.js", "views/diagnostics.js"),
-    "devices": ("views/bluetooth.js", "views/receivers.js", "views/devices.js", "views/objects.js",
-                "views/device_name.js"),
+    "devices": ("views/receivers.js", "views/devices.js", "views/objects.js", "views/device_name.js"),
+    "bluetooth": ("views/bluetooth.js",),
 }
 SERVER = "server"
 

@@ -9,8 +9,10 @@
  * Data source: snapshot tags + roomTagMap; live index built per-render for friendly names.
  */
 
-const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, groupHead, groupRows, groupTitle, firstFew, serviceWords, SERVICE_HOW } =
+const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, groupHead, groupRows, groupTitle, firstFew, serviceWords, serviceHow } =
   await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 export function renderTags(ctx, tagsList) {
   const { el } = ctx.helpers;
   const { mode, tagFilter } = ctx.state;
@@ -75,10 +77,10 @@ export function renderTags(ctx, tagsList) {
     list.appendChild(
       el("div", { class: "muted", style: "padding:8px 4px" },
         missingTotal
-          ? `No tags found. (${missingTotal} configured tags are missing in Home Assistant.)`
+          ? t("No tags found. ({n} configured tags are missing in Home Assistant.)", { n: missingTotal })
           : isLive
-            ? "No tags found. Confirm your BLE integration creates entities whose state equals a room/area (e.g., *area_last_seen)."
-            : "No tags mapped for the selected room(s)."
+            ? t("No tags found. Confirm your BLE integration creates entities whose state equals a room/area (e.g., *area_last_seen).")
+            : t("No tags mapped for the selected room(s).")
       )
     );
   }
@@ -104,7 +106,7 @@ export function renderTags(ctx, tagsList) {
     item.appendChild(textWrap);
 
     // "open in HA" button
-    const openBtn = el("button", { class: "btn tiny" }, "Open");
+    const openBtn = el("button", { class: "btn tiny" }, t("Open"));
     openBtn.addEventListener("click", () => {
       const url = `/developer-tools/state?entity_id=${encodeURIComponent(eid)}`;
       window.open(url, "_blank");
@@ -118,7 +120,7 @@ export function renderTags(ctx, tagsList) {
   const missingForSelected = [];
   for (const r of selectedRooms) for (const eid of (missingByRoom[r] || [])) missingForSelected.push({ room: r, eid });
   if (isLive && missingForSelected.length) {
-    list.appendChild(el("div", { class: "muted", style: "padding:10px 4px 4px" }, "Configured (missing in Home Assistant):"));
+    list.appendChild(el("div", { class: "muted", style: "padding:10px 4px 4px" }, t("Configured (missing in Home Assistant):")));
     for (const x of missingForSelected.slice(0, 200)) {
       const item = el("div", { class: "item" });
       const tw = el("div", { style: "display:flex;flex-direction:column;gap:2px;flex:1" });
@@ -190,7 +192,7 @@ export function render(ctx){
     const rec = key && _lostAndFound[key];
     if (!rec || !rec.room) return null;
     const ageS = Date.now() / 1000 - (rec.ts || 0);
-    return `📍 ${rec.room} · ${fmtAgo(ageS)} ago`;
+    return t("📍 {room} · {ago} ago", { room: rec.room, ago: fmtAgo(ageS) });
   };
 
   // --- Inline objects list (BLE scanner detections + entities) ---
@@ -211,7 +213,7 @@ export function render(ctx){
     : _rawObjects;
   // Quiet mode on: a muted "N hidden (quiet mode)" beside the heading, so a missing device is explained.
   const _quietHiddenNote = _quietMode && _rawObjects.length > allObjects.length
-    ? el("span",{class:"muted",style:"font-size:11px;color:#64748b;white-space:nowrap"}, `${_rawObjects.length - allObjects.length} hidden (quiet mode)`)
+    ? el("span",{class:"muted",style:"font-size:11px;color:#64748b;white-space:nowrap"}, t("{n} hidden (quiet mode)", { n: _rawObjects.length - allObjects.length }))
     : null;
   const summary = objModel && objModel.summary ? objModel.summary : null;
 
@@ -250,14 +252,14 @@ export function render(ctx){
   const _ageIdx = _ageSteps.indexOf(ctx.state.objAgeMax);
   const _curIdx = _ageIdx >= 0 ? _ageIdx : _ageSteps.length - 1;
 
-  const objSearchInput = el("input",{type:"text", placeholder:"Search address, name, label…", value: ctx.state.objSearch});
+  const objSearchInput = el("input",{type:"text", placeholder:t("Search address, name, label…"), value: ctx.state.objSearch});
   const objKindSel = el("select",{class:"btn"});
-  [{v:"all",t:"All"},{v:"ble",t:"BLE (all)"},{v:"ble_only",t:"BLE only"},{v:"ibeacon",t:"iBeacon"},{v:"private_ble",t:"Private BLE"},{v:"entity",t:"HA entities"}]
+  [{v:"all",t:t("All")},{v:"ble",t:t("BLE (all)")},{v:"ble_only",t:t("BLE only")},{v:"ibeacon",t:"iBeacon"},{v:"private_ble",t:"Private BLE"},{v:"entity",t:t("HA entities")}]
     .forEach(o=>objKindSel.appendChild(el("option",{value:o.v},o.t)));
   objKindSel.value = ctx.state.objKind;
 
   const objStatusSel = el("select",{class:"btn"});
-  [{v:"all",t:"All statuses"},{v:"unidentified",t:"Unidentified"},{v:"identified",t:"Identified"},{v:"away",t:"Away"}]
+  [{v:"all",t:t("All statuses")},{v:"unidentified",t:t("Unidentified")},{v:"identified",t:t("Identified")},{v:"away",t:t("Away")}]
     .forEach(o=>objStatusSel.appendChild(el("option",{value:o.v},o.t)));
   objStatusSel.value = ctx.state.objStatus;
 
@@ -278,13 +280,13 @@ export function render(ctx){
   const objTbody = el("tbody",{});
   const objTable = el("table",{class:"table"},[
     el("thead",{}, el("tr",{},[
-      el("th",{},"Kind"),
-      el("th",{},"Name / Address"),
-      el("th",{},"Signal"),
-      el("th",{},"Last seen"),
-      el("th",{},"Scanner"),
-      el("th",{},"Follow"),
-      el("th",{},"Tag"),
+      el("th",{},t("Kind")),
+      el("th",{},t("Name / Address")),
+      el("th",{},t("Signal")),
+      el("th",{},t("Last seen")),
+      el("th",{},t("Scanner")),
+      el("th",{},t("Follow")),
+      el("th",{},t("Tag")),
     ])),
     objTbody,
   ]);
@@ -366,12 +368,12 @@ export function render(ctx){
       const btn = el("button",{
         class:"btn tiny",
         style: isF ? "background:#1a3a2a;border-color:#52b788;color:#52b788" : "",
-      }, isF ? "✓ Following" : "Follow");
+      }, isF ? t("✓ Following") : t("Follow"));
       btn.addEventListener("click",(e)=>{
         e.stopPropagation();
         ctx.actions.followedToggle(followKey);
         const nowF = ctx.actions.followedHas(followKey);
-        btn.textContent = nowF ? "✓ Following" : "Follow";
+        btn.textContent = nowF ? t("✓ Following") : t("Follow");
         btn.style.cssText = nowF ? "background:#1a3a2a;border-color:#52b788;color:#52b788" : "";
       });
       return el("td",{}, btn);
@@ -383,7 +385,7 @@ export function render(ctx){
                     : kind === "ibeacon"     ? (o.key || "")
                     : addr;
       if ((kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") || !tagAddr) return el("td",{}, "");
-      const btn = el("button",{class:"btn tiny"}, userLabel ? "Relabel" : "Tag");
+      const btn = el("button",{class:"btn tiny"}, userLabel ? t("Relabel") : t("Tag"));
       const _isWtiCand = !!(_wtiRoomAdv && _wtiScoresAdv && (_wtiScoresAdv[(addr || "").toUpperCase()] || 0) > Math.max(0, _wtiMaxScoreAdv * 0.4));
       btn.addEventListener("click",(e)=>{ e.stopPropagation(); if (_isWtiCand && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr, userLabel); });
       return el("td",{}, btn);
@@ -418,13 +420,13 @@ export function render(ctx){
     },[
       el("td",{}, [
         isPrivateBle
-          ? el("span",{class:"badge"+(identified?"":" warn"),style:identified?"background:#1a3a5a;color:#7dd3fc;border-color:#3b82f6":""}, identified?"Private BLE":"Private BLE?")
+          ? el("span",{class:"badge"+(identified?"":" warn"),style:identified?"background:#1a3a5a;color:#7dd3fc;border-color:#3b82f6":""}, identified?"Private BLE":t("Private BLE?"))
           : isIbeacon
             ? el("span",{class:"badge"+(identified?"":" warn"),style:identified?"background:#3a2a0a;color:#fbbf24;border-color:#d97706":""},
                 (Array.isArray(o.merged_protocols) && o.merged_protocols.length > 1)
                   ? (identified ? o.merged_protocols.join("+") : o.merged_protocols.join("+")+"?")
                   : (identified?"iBeacon":"iBeacon?"))
-            : el("span",{class:"badge"+(identified?"":" warn")}, kind==="ble" ? (identified?"BLE":"BLE?") : "Entity"),
+            : el("span",{class:"badge"+(identified?"":" warn")}, kind==="ble" ? (identified?"BLE":"BLE?") : t("Entity")),
       ]),
       el("td",{}, [
         el("div",{style:"font-weight:600"}, displayName),
@@ -435,7 +437,7 @@ export function render(ctx){
         (isIbeacon && o.ibeacon_uuid
           ? el("div",{class:"muted",style:"font-size:11px"}, `UUID: ${o.ibeacon_uuid.slice(0,8)}\u2026 \u00B7 M${o.ibeacon_major}.${o.ibeacon_minor}`) : null),
         (Array.isArray(o.all_addresses) && o.all_addresses.length > 1
-          ? el("div",{class:"muted",style:"font-size:10px;color:#a78bfa"}, `${o.all_addresses.length} MACs merged`)
+          ? el("div",{class:"muted",style:"font-size:10px;color:#a78bfa"}, t("{n} MACs merged", { n: o.all_addresses.length }))
           : null),
         ctx.actions.labelLines ? ctx.actions.labelLines(o) : null,
         // WTI score badge (dev mode)
@@ -445,8 +447,8 @@ export function render(ctx){
           if (sc > thr && sc > 0) {
             const pct = Math.min(100, Math.round(sc / _wtiMaxScoreAdv * 100));
             return el("div",{style:"display:flex;align-items:center;gap:4px;margin-top:2px"}, [
-              el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, `Likely in ${_wtiRoomAdv}`),
-              el("span",{style:"font-size:10px;color:#94a3b8"}, `${pct}% match`),
+              el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, t("Likely in {room}", { room: _wtiRoomAdv })),
+              el("span",{style:"font-size:10px;color:#94a3b8"}, t("{pct}% match", { pct })),
             ]);
           }
           return null;
@@ -456,8 +458,8 @@ export function render(ctx){
           ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
               addressBadge(el, o),
               o.company_name ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name)
-                : o.service_owner ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#94a3b8;border-color:#334155",title:SERVICE_HOW}, serviceWords(o))
-                : o.maker_guess ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, `Probably ${o.maker_guess}`) : null,
+                : o.service_owner ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#94a3b8;border-color:#334155",title:serviceHow()}, serviceWords(o))
+                : o.maker_guess ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, t("Probably {maker}", { maker: o.maker_guess })) : null,
               listWhat(o) ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, listWhat(o)) : null,
               ...(o.service_names || []).slice(0,2).map(sn =>
                 el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
@@ -466,13 +468,13 @@ export function render(ctx){
           : null),
       ].filter(Boolean)),
       el("td",{}, o._ghost
-        ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, "No signal")
+        ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, t("No signal"))
         : (rssi && !isAway ? el("span",{class:"badge"}, rssi) : "—")),
       el("td",{}, o._ghost
-        ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, "Waiting")
+        ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, t("Waiting"))
         : (isAway
           ? [
-              el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away"),
+              el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, t("Away")),
               age ? el("div",{class:"muted",style:"font-size:10px;margin-top:2px"}, age) : null,
               // Persistent lost-and-found (gap #10) — survives an HA
               // restart, unlike `age`/o.last_room above which are session-only.
@@ -482,13 +484,13 @@ export function render(ctx){
           : (age || "—"))),
       el("td",{class:"muted obj-scanner",style:"font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis",title:scanner},
         o.knn_confidence > 0
-          ? [scannerShort || "—", el("div",{style:"font-size:10px;color:#52b788;margin-top:1px"}, `Calibrated ${Math.round(o.knn_confidence*100)}%`)]
+          ? [scannerShort || "—", el("div",{style:"font-size:10px;color:#52b788;margin-top:1px"}, t("Calibrated {pct}%", { pct: Math.round(o.knn_confidence*100) }))]
           : (scannerShort || "—")),
       followCell,
       tagCell,
     ]);
     tr.style.cursor = "pointer";
-    tr.title = "Click for details";
+    tr.title = t("Click for details");
     tr.addEventListener("click", (ev)=>{
       if(ev.target.tagName==="BUTTON") return;
       ctx.actions.showObjectDetail(o);
@@ -541,7 +543,7 @@ export function render(ctx){
     }
     _objGroups.refresh(!!q);
     const _dedupN = (summary && summary.dedup_absorbed) || 0;
-    objStats.textContent = `${shown} of ${objRowEls.length}` + (_dedupN ? ` (${_dedupN} merged)` : "");
+    objStats.textContent = t("{shown} of {n}", { shown, n: objRowEls.length }) + (_dedupN ? " " + t("({n} merged)", { n: _dedupN }) : "");
   }
 
   objSearchInput.addEventListener("input",  ()=>{ ctx.state.objSearch = objSearchInput.value; applyObjFilter(); });
@@ -568,10 +570,10 @@ export function render(ctx){
       ctx.actions.renderRooms();
     });
     const headerRow = el("div",{class:"card-head",style:"flex-wrap:wrap;gap:8px"},[
-      el("div",{class:"h2",style:"flex:1"}, "Tracked Objects"),
+      el("div",{class:"h2",style:"flex:1"}, t("Tracked Objects")),
       _quietHiddenNote,
       el("div",{style:"display:flex;align-items:center;gap:6px"},
-        [el("span",{class:"muted",style:"font-size:12px"}, "History:"), basicAgeSlider, basicAgeLabel]),
+        [el("span",{class:"muted",style:"font-size:12px"}, t("History:")), basicAgeSlider, basicAgeLabel]),
       helpBtn("objects"),
     ]);
 
@@ -582,13 +584,13 @@ export function render(ctx){
       ? (Array.isArray(o.all_addresses) && o.all_addresses.length === 1 ? o.all_addresses[0] : "") : (o.address || "");
     const mkCard = (o) => {
       const addr = o.address || o.entity_id || "";
-      const name = deviceName(o, "Unknown");
+      const name = deviceName(o, t("Unknown"));
       const room = o.room || "—";
       const rssi = o.rssi != null ? `${o.rssi} dBm` : null;
-      const kind = o.kind === "entity" ? "HA Entity"
+      const kind = o.kind === "entity" ? t("HA Entity")
         : o.kind === "private_ble" ? "Private BLE"
         : o.kind === "ibeacon" ? "iBeacon"
-        : (o.identified ? "Tagged BLE" : "Unknown BLE");
+        : (o.identified ? t("Tagged BLE") : t("Unknown BLE"));
       const isObjAway = _isAway(o);
 
       const actions = el("div",{class:"basic-obj-actions"});
@@ -599,11 +601,11 @@ export function render(ctx){
         const fBtn = el("button",{
           class:"btn tiny",
           style: isF ? "background:#1a3a2a;border-color:#52b788;color:#52b788" : "",
-        }, isF ? "✓ Following" : "Follow");
+        }, isF ? t("✓ Following") : t("Follow"));
         fBtn.addEventListener("click", ()=>{
           ctx.actions.followedToggle(followKey);
           const nowF = ctx.actions.followedHas(followKey);
-          fBtn.textContent = nowF ? "✓ Following" : "Follow";
+          fBtn.textContent = nowF ? t("✓ Following") : t("Follow");
           fBtn.style.cssText = nowF ? "background:#1a3a2a;border-color:#52b788;color:#52b788" : "";
         });
         actions.appendChild(fBtn);
@@ -612,11 +614,11 @@ export function render(ctx){
                      : o.kind === "ibeacon"     ? (o.key || "")
                      : addr;
       if((o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon") && tagAddr2){
-        const btn = el("button",{class:"btn tiny"}, o.user_label ? "Relabel" : "Tag");
+        const btn = el("button",{class:"btn tiny"}, o.user_label ? t("Relabel") : t("Tag"));
         btn.addEventListener("click", ()=> { if (_wtiCandAddrs.has(o) && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr2, o.user_label || ""); });
         actions.appendChild(btn);
       }
-      const detailsBtn = el("button",{class:"btn tiny", onclick:()=> ctx.actions.showObjectDetail(o)}, "Details");
+      const detailsBtn = el("button",{class:"btn tiny", onclick:()=> ctx.actions.showObjectDetail(o)}, t("Details"));
       actions.appendChild(detailsBtn);
 
       return el("div",{class:"basic-obj-card"},[
@@ -624,15 +626,15 @@ export function render(ctx){
           el("div",{class:"basic-obj-name",style:"display:flex;align-items:center;gap:6px;flex-wrap:wrap"},[
             el("span",{}, name),
             addressBadge(el, o),
-            o._ghost ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, "Waiting for signal") : null,
-            isObjAway && !o._ghost ? el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away") : null,
+            o._ghost ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, t("Waiting for signal")) : null,
+            isObjAway && !o._ghost ? el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, t("Away")) : null,
           ].filter(Boolean)),
           el("div",{class:"basic-obj-room"}, o._ghost
-            ? "Enable BLE Transmitter in Companion App"
+            ? t("Enable BLE Transmitter in Companion App")
             : (isObjAway
-              ? (_lastKnownText(o.key || o.address || o.entity_id || "") || (o.last_room ? `Last: ${o.last_room}` : "—"))
+              ? (_lastKnownText(o.key || o.address || o.entity_id || "") || (o.last_room ? t("Last: {room}", { room: o.last_room }) : "—"))
               : room)),
-          el("div",{class:"basic-obj-sub"}, [kind, o.company_name || serviceWords(o) || (o.maker_guess ? `Probably ${o.maker_guess}` : null), deviceWhat(o) === kind ? null : listWhat(o), isObjAway ? null : rssi].filter(Boolean).join(" · ")),
+          el("div",{class:"basic-obj-sub"}, [kind, o.company_name || serviceWords(o) || (o.maker_guess ? t("Probably {maker}", { maker: o.maker_guess }) : null), deviceWhat(o) === kind ? null : listWhat(o), isObjAway ? null : rssi].filter(Boolean).join(" · ")),
           _macOf(o) && _macOf(o) !== name ? el("div",{class:"basic-obj-sub",style:"font-family:monospace;font-size:11px"}, _macOf(o)) : null,
         ].filter(Boolean)),
         actions,
@@ -646,22 +648,22 @@ export function render(ctx){
     identified.forEach(o => identCard.appendChild(mkCard(o)));
     if(!identified.length){
       identCard.appendChild(el("div",{class:"muted",style:"margin-top:8px"},
-        isLive ? "No identified objects detected yet." : "Switch to Live mode to see your real devices."));
+        isLive ? t("No identified objects detected yet.") : t("Switch to Live mode to see your real devices.")));
     }
     root.appendChild(identCard);
 
     if(unidentified.length){
-      const clearUnidentBtn = el("button",{class:"btn inline",style:"font-size:11px;color:#f87171;border-color:#7f1d1d"}, "Clear unidentified");
-      clearUnidentBtn.title = "Remove all unidentified objects. Tagged and followed devices are kept.";
+      const clearUnidentBtn = el("button",{class:"btn inline",style:"font-size:11px;color:#f87171;border-color:#7f1d1d"}, t("Clear unidentified"));
+      clearUnidentBtn.title = t("Remove all unidentified objects. Tagged and followed devices are kept.");
       clearUnidentBtn.addEventListener("click", async()=>{
-        if(!confirm("Clear all unidentified objects?\n\nTagged and followed devices will be kept.")) return;
-        clearUnidentBtn.disabled = true; clearUnidentBtn.textContent = "Clearing...";
+        if(!confirm(t("Clear all unidentified objects?") + "\n\n" + t("Tagged and followed devices will be kept."))) return;
+        clearUnidentBtn.disabled = true; clearUnidentBtn.textContent = t("Clearing...");
         try {
           const res = await ctx.actions.wsCall("padspan_ha/objects_clear_history", {});
-          ctx.toast(`Cleared ${res.removed} object${res.removed!==1?"s":""}, kept ${res.kept} tagged/followed`);
+          ctx.toast(tn(res.removed, "Cleared 1 object, kept {kept} tagged/followed", "Cleared {n} objects, kept {kept} tagged/followed", { kept: res.kept }));
           // A fresh snapshot: re-rendering the old one kept the cleared devices on screen.
           await ctx.actions.refreshSnapshot();
-        } catch(e){ ctx.toast("Failed: " + ctx.helpers.errorText(e), true); clearUnidentBtn.textContent = "Clear unidentified"; }
+        } catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); clearUnidentBtn.textContent = t("Clear unidentified"); }
         clearUnidentBtn.disabled = false;
       });
 
@@ -729,21 +731,21 @@ export function render(ctx){
       if (_wtiEnabled && isLive) {
         const rooms = (liveSnap && liveSnap.rooms_discovered) || Object.keys(ctx.state.roomTagMap || {});
         const roomSel = el("select", {style:"font-size:11px;padding:2px 6px;background:#0a1a12;color:#e2e8f0;border:1px solid #2d6a4f;border-radius:6px"});
-        roomSel.appendChild(el("option",{value:""}, "— select room —"));
+        roomSel.appendChild(el("option",{value:""}, t("— select room —")));
         for (const r of rooms) roomSel.appendChild(el("option",{value:r}, r));
         if (_wtiRoom) roomSel.value = _wtiRoom;
 
-        const wtiBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;background:#1a0a2e;border-color:#a855f7;color:#d8b4fe;font-weight:600"}, "Who's here?");
+        const wtiBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;background:#1a0a2e;border-color:#a855f7;color:#d8b4fe;font-weight:600"}, t("Who's here?"));
         wtiBtn.addEventListener("click", () => {
           const room = roomSel.value;
-          if (!room) { ctx.toast("Select a room first", true); return; }
+          if (!room) { ctx.toast(t("Select a room first"), true); return; }
           ctx.state._wtiRoom = room;
           if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_who"); 
           _wtiRoom = room;
           _wtiScores = _computeWtiScores(room);
           ctx.actions.renderRooms();
         });
-        const wtiClear = _wtiRoom ? el("button",{class:"btn inline",style:"font-size:10px;color:#94a3b8"}, "Clear") : null;
+        const wtiClear = _wtiRoom ? el("button",{class:"btn inline",style:"font-size:10px;color:#94a3b8"}, t("Clear")) : null;
         if (wtiClear) wtiClear.addEventListener("click", () => {
           ctx.state._wtiRoom = null;
           _wtiRoom = null;
@@ -756,7 +758,7 @@ export function render(ctx){
           roomSel,
           wtiBtn,
           wtiClear,
-          _wtiRoom ? el("span",{style:"font-size:11px;color:#d8b4fe;font-weight:600"}, `Showing devices likely in: ${_wtiRoom}`) : null,
+          _wtiRoom ? el("span",{style:"font-size:11px;color:#d8b4fe;font-weight:600"}, t("Showing devices likely in: {room}", { room: _wtiRoom })) : null,
           helpBtn("walk_to_identify"),
         ].filter(Boolean));
 
@@ -766,12 +768,12 @@ export function render(ctx){
 
       const unCard = el("div",{class:"card"},[
         el("div",{class:"card-head"},[
-          el("div",{class:"h2"}, `Unidentified (${unidentified.length})`),
+          el("div",{class:"h2"}, t("Unidentified ({n})", { n: unidentified.length })),
           clearUnidentBtn,
           helpBtn("objects_tag"),
         ]),
         el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-          "These Bluetooth devices haven't been named yet. Click Tag to give one a friendly name."),
+          t("These Bluetooth devices haven't been named yet. Click Tag to give one a friendly name.")),
       ]);
       if (wtiBar) unCard.appendChild(wtiBar);
 
@@ -825,8 +827,8 @@ export function render(ctx){
             _wtiCandAddrs.add(o);
             const scorePct = Math.min(100, Math.round(score / _wtiMaxScore * 100));
             card.appendChild(el("div",{style:"display:flex;align-items:center;gap:4px;margin-top:4px"}, [
-              el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, `Likely in ${_wtiRoom}`),
-              el("span",{style:"font-size:10px;color:#94a3b8"}, `${scorePct}% match`),
+              el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, t("Likely in {room}", { room: _wtiRoom })),
+              el("span",{style:"font-size:10px;color:#94a3b8"}, t("{pct}% match", { pct: scorePct })),
             ]));
           }
         }
@@ -845,7 +847,7 @@ export function render(ctx){
       ...ctx.helpers.asButton,
       class: "badge" + (isWarn ? " warn" : ""),
       style: (extraStyle || "") + ";cursor:pointer",
-      title: "Click to filter",
+      title: t("Click to filter"),
     }, text);
     badge.addEventListener("click", () => {
       ctx.state.objKind = kindVal;
@@ -859,65 +861,65 @@ export function render(ctx){
 
   const inventorySection = el("div",{class:"card"},[
     el("div",{class:"row",style:"margin-bottom:8px"},[
-      el("div",{class:"h2",style:"flex:1"}, _quietMode ? "Tracked Objects" : "BLE Scanner Detections"),
+      el("div",{class:"h2",style:"flex:1"}, _quietMode ? t("Tracked Objects") : t("BLE Scanner Detections")),
       helpBtn("objects"),
       _quietMode
-        ? el("span",{class:"badge",style:"background:#0a2a1a;color:#52b788;border-color:#166534;font-weight:700"}, "Quiet Mode")
+        ? el("span",{class:"badge",style:"background:#0a2a1a;color:#52b788;border-color:#166534;font-weight:700"}, t("Quiet Mode"))
         : null,
       _quietHiddenNote,
       _quietMode ? null : (summary ? _mkFilterBadge(`${summary.ble||0} BLE`, "", "ble", "all") : null),
       _quietMode ? null : (summary && summary.ibeacon ? _mkFilterBadge(`${summary.ibeacon} iBeacon`, "background:#2a1a00;color:#fbbf24;border-color:#92400e", "ibeacon", "all") : null),
       _quietMode ? null : (summary && summary.private_ble ? _mkFilterBadge(`${summary.private_ble} Private BLE`, "background:#0a1a3a;color:#93c5fd;border-color:#1e4976", "private_ble", "all") : null),
-      _quietMode ? null : (summary ? _mkFilterBadge(`${summary.unidentified||0} unidentified`, "", "all", "unidentified", true) : null),
-      summary ? _mkFilterBadge(`${summary.entities||0} entities`, "", "entity", "all") : null,
-      awayCount ? _mkFilterBadge(`${awayCount} away`, "background:#3a0a0a;color:#f87171;border-color:#7f1d1d", "all", "away") : null,
+      _quietMode ? null : (summary ? _mkFilterBadge(t("{n} unidentified", { n: summary.unidentified||0 }), "", "all", "unidentified", true) : null),
+      summary ? _mkFilterBadge(t("{n} entities", { n: summary.entities||0 }), "", "entity", "all") : null,
+      awayCount ? _mkFilterBadge(t("{n} away", { n: awayCount }), "background:#3a0a0a;color:#f87171;border-color:#7f1d1d", "all", "away") : null,
     ].filter(Boolean)),
     el("div",{class:"toolbar"},[objSearchInput, objKindSel, objStatusSel,
       el("div",{style:"display:flex;align-items:center;gap:6px"},
-        [el("span",{class:"muted",style:"font-size:12px;white-space:nowrap"}, "History:"), objAgeSlider, objAgeLabel]),
+        [el("span",{class:"muted",style:"font-size:12px;white-space:nowrap"}, t("History:")), objAgeSlider, objAgeLabel]),
       objStats,
       (() => {
-        const clrBtn = el("button",{class:"btn inline",style:"font-size:11px;color:#f87171;border-color:#7f1d1d;margin-left:auto;white-space:nowrap"}, "Clear unidentified");
-        clrBtn.title = "Remove all unidentified objects. Tagged and followed devices are kept.";
+        const clrBtn = el("button",{class:"btn inline",style:"font-size:11px;color:#f87171;border-color:#7f1d1d;margin-left:auto;white-space:nowrap"}, t("Clear unidentified"));
+        clrBtn.title = t("Remove all unidentified objects. Tagged and followed devices are kept.");
         clrBtn.addEventListener("click", async () => {
-          if (!confirm("Clear all unidentified objects?\n\nTagged and followed devices will be kept.")) return;
+          if (!confirm(t("Clear all unidentified objects?") + "\n\n" + t("Tagged and followed devices will be kept."))) return;
           clrBtn.disabled = true;
-          clrBtn.textContent = "Clearing...";
+          clrBtn.textContent = t("Clearing...");
           try {
             const res = await ctx.actions.wsCall("padspan_ha/objects_clear_history", {});
-            ctx.toast(`Cleared ${res.removed} object${res.removed!==1?"s":""}, kept ${res.kept} tagged/followed`);
+            ctx.toast(tn(res.removed, "Cleared 1 object, kept {kept} tagged/followed", "Cleared {n} objects, kept {kept} tagged/followed", { kept: res.kept }));
             await ctx.actions.refreshSnapshot();
           } catch(e) {
-            clrBtn.textContent = "Error";
-            ctx.toast("Failed: " + ctx.helpers.errorText(e), true);
+            clrBtn.textContent = t("Error");
+            ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true);
           }
-          clrBtn.disabled = false; clrBtn.textContent = "Clear unidentified";
+          clrBtn.disabled = false; clrBtn.textContent = t("Clear unidentified");
         });
         return clrBtn;
       })()]),
     allObjects.length
       ? el("div",{class:"table-scroll"}, objTable)
-      : el("div",{class:"muted"}, isLive ? "Waiting for scanner data…" : "Switch to Live mode to see real BLE detections."),
+      : el("div",{class:"muted"}, isLive ? t("Waiting for scanner data…") : t("Switch to Live mode to see real BLE detections.")),
   ]);
 
   // ── Walk-to-Identify bar (advanced/dev mode) ─────────────────────────────
   if (_wtiEnabledAdv && isLive) {
     const _wtiRooms = (liveSnap && liveSnap.rooms_discovered) || Object.keys(ctx.state.roomTagMap || {});
     const roomSel = el("select", {style:"font-size:11px;padding:2px 6px;background:#0a1a12;color:#e2e8f0;border:1px solid #2d6a4f;border-radius:6px"});
-    roomSel.appendChild(el("option",{value:""}, "— select room —"));
+    roomSel.appendChild(el("option",{value:""}, t("— select room —")));
     for (const r of _wtiRooms) roomSel.appendChild(el("option",{value:r}, r));
     if (_wtiRoomAdv) roomSel.value = _wtiRoomAdv;
 
-    const wtiBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;background:#1a0a2e;border-color:#a855f7;color:#d8b4fe;font-weight:600"}, "Who's here?");
+    const wtiBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;background:#1a0a2e;border-color:#a855f7;color:#d8b4fe;font-weight:600"}, t("Who's here?"));
     wtiBtn.addEventListener("click", () => {
       const room = roomSel.value;
-      if (!room) { ctx.toast("Select a room first", true); return; }
+      if (!room) { ctx.toast(t("Select a room first"), true); return; }
       ctx.state._wtiRoom = room;
       if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_who"); 
       ctx.state.objStatus = "unidentified";
       ctx.actions.renderRooms();
     });
-    const wtiClear = _wtiRoomAdv ? el("button",{class:"btn inline",style:"font-size:10px;color:#94a3b8"}, "Clear") : null;
+    const wtiClear = _wtiRoomAdv ? el("button",{class:"btn inline",style:"font-size:10px;color:#94a3b8"}, t("Clear")) : null;
     if (wtiClear) wtiClear.addEventListener("click", () => {
       ctx.state._wtiRoom = null;
       ctx.actions.renderRooms();
@@ -928,7 +930,7 @@ export function render(ctx){
       const threshold = _wtiMaxScoreAdv * 0.4;
       const topCount = Object.values(_wtiScoresAdv).filter(s => s >= threshold).length;
       wtiResults = el("span",{style:"font-size:11px;color:#d8b4fe;font-weight:600"},
-        `${topCount} candidate${topCount !== 1 ? "s" : ""} likely in ${_wtiRoomAdv}`);
+        tn(topCount, "1 candidate likely in {room}", "{n} candidates likely in {room}", { room: _wtiRoomAdv }));
     }
 
     const wtiBar = el("div",{style:"display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:8px 12px;background:#0f0a1e;border:1px solid rgba(168,85,247,.3);border-radius:8px"},[
@@ -954,7 +956,7 @@ export function render(ctx){
   // Ensure at least one room selected so tags list has context.
   if (selectedRooms.size === 0 && rooms.length) { selectedRooms.add(rooms[0]); ctx.state.selectedRooms = Array.from(selectedRooms); }
   if(!rooms.length){
-    roomsList.appendChild(el("div",{class:"item"},"No room data yet."));
+    roomsList.appendChild(el("div",{class:"item"},t("No room data yet.")));
   } else {
     for(const room of rooms){
       const count = (roomTagMap[room]||[]).length;
@@ -971,33 +973,33 @@ export function render(ctx){
   }
 
   const toolbarLeft = el("div",{class:"toolbar"},[
-    el("button",{class:"btn", onclick:()=>{ rooms.forEach(r=>selectedRooms.add(r)); ctx.state.selectedRooms = Array.from(selectedRooms); ctx.state._roomsInit = true; ctx.actions.renderRooms(); ctx.actions.renderTags(); }},"All Rooms"),
-    el("button",{class:"btn", onclick:()=>{ selectedRooms.clear(); ctx.state.selectedRooms = []; ctx.state._roomsInit = true; ctx.actions.renderRooms(); ctx.actions.renderTags(); }},"Clear"),
+    el("button",{class:"btn", onclick:()=>{ rooms.forEach(r=>selectedRooms.add(r)); ctx.state.selectedRooms = Array.from(selectedRooms); ctx.state._roomsInit = true; ctx.actions.renderRooms(); ctx.actions.renderTags(); }},t("All Rooms")),
+    el("button",{class:"btn", onclick:()=>{ selectedRooms.clear(); ctx.state.selectedRooms = []; ctx.state._roomsInit = true; ctx.actions.renderRooms(); ctx.actions.renderTags(); }},t("Clear")),
   ]);
 
   const modeSel = el("select",{class:"btn", id:"modeSel"});
   modeSel.style.maxWidth="420px";
-  const optAll = el("option",{value:"all"},"Show tags in ALL selected rooms (intersection)");
-  const optAny = el("option",{value:"any"},"Show tags in ANY selected room (union)");
+  const optAll = el("option",{value:"all"},t("Show tags in ALL selected rooms (intersection)"));
+  const optAny = el("option",{value:"any"},t("Show tags in ANY selected room (union)"));
   modeSel.appendChild(optAll); modeSel.appendChild(optAny);
   modeSel.value = mode === "all" ? "all" : "any";
   modeSel.addEventListener("change", ()=>{ ctx.state.mode = modeSel.value; ctx.actions.renderTags(); });
 
-  const filter = el("input",{type:"text", id:"tagFilter", placeholder:"Filter tags… (e.g., keys)"});
+  const filter = el("input",{type:"text", id:"tagFilter", placeholder:t("Filter tags… (e.g., keys)")});
   filter.value = tagFilter;
   filter.addEventListener("input", ()=>{ ctx.state.tagFilter = filter.value; ctx.actions.renderTags(); });
 
   const toolbarRight = el("div",{class:"toolbar"},[modeSel, filter]);
 
   const leftCard = el("div",{class:"card"},[
-    el("div",{class:"h2"},"Room Presence Mapping"),
-    el("div",{class:"muted",style:"margin-bottom:6px"},"Select rooms to see which trackers are assigned to them."),
+    el("div",{class:"h2"},t("Room Presence Mapping")),
+    el("div",{class:"muted",style:"margin-bottom:6px"},t("Select rooms to see which trackers are assigned to them.")),
     toolbarLeft,
     roomsList,
   ]);
 
   const rightCard = el("div",{class:"card"},[
-    el("div",{class:"muted"},"Trackers in selected rooms"),
+    el("div",{class:"muted"},t("Trackers in selected rooms")),
     toolbarRight,
     tagsList,
   ]);

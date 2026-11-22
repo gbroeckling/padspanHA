@@ -16,7 +16,7 @@
 // The iPhone setup path (#69), behind iphone_irk_guide; query inherited from
 // our own module URL so the ?b= cache-buster propagates.
 // If it can't load, the page goes on as it always was (the guide reads as off).
-const { deviceName, deviceWhat, listWhat, addressBadge, serviceWords, SERVICE_HOW, fillHowKnown } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+const { deviceName, deviceWhat, listWhat, addressBadge, serviceWords, serviceHow, fillHowKnown } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 // renderCaptureSteps: the IRK Capture ESP32's steps in the phone wizard.
 const { iphoneGuideOn, isApplePhone, renderIphonePath, renderCaptureSteps } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
@@ -53,7 +53,7 @@ function sigEl(el, rssi, opts) {
   const bars = el("span", { class: "bt-bars", "data-level": String(lvl) },
     [el("i", {}), el("i", {}), el("i", {}), el("i", {})]);
   const txt = isFinite(v) ? `${v} dBm` : "— dBm";
-  const wrap = el("span", { class: `bt-sig s-${lvl}`, title: (opts && opts.title) || `Signal ${txt}` },
+  const wrap = el("span", { class: `bt-sig s-${lvl}`, title: (opts && opts.title) || t("Signal {level}", { level: txt }) },
     [bars, el("span", { class: "bt-dbm" }, txt)]);
   return wrap;
 }
@@ -101,7 +101,7 @@ export function holdNearRank(base, ads, mode = "louder") {
 export function btAgo(sec) {
   const v = Number(sec);
   if (!isFinite(v)) return "\u2014";
-  if (v < 1) return "just now";
+  if (v < 1) return t("just now");
   if (v < 60) return `${Math.round(v)}s`;
   const m = Math.floor(v / 60);
   if (m < 60) return `${m}m ${Math.round(v - m * 60)}s`;
@@ -113,12 +113,13 @@ export function btAgo(sec) {
 
 // A chip. tone ∈ good | ok | bad | info | violet | accent | mono | sid | quiet
 // How a device's maker is known (ble_enrichment.enrich_object, apply_address_maker).
-const MAKER_HOW = {
-  company_id: "From the company number in its broadcast",
-  espresense: "From ESPresense's id for this device",
-  address: "From the built-in list of address makers. A receiver confirmed this address is fixed",
-};
-const MAKER_GUESS_HOW = "From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance";
+// The words in the panel's language: functions, read when drawn.
+const MAKER_HOW = () => ({
+  company_id: t("From the company number in its broadcast"),
+  espresense: t("From ESPresense's id for this device"),
+  address: t("From the built-in list of address makers. A receiver confirmed this address is fixed"),
+});
+const MAKER_GUESS_HOW = () => t("From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance");
 
 function chip(el, text, tone, title) {
   return el("span", { class: "bt-chip" + (tone ? " " + tone : ""), ...(title ? { title } : {}) }, String(text));
@@ -130,7 +131,7 @@ function chip(el, text, tone, title) {
 // so a device missing from the list is explained. null when off or none hidden.
 export function quietHiddenNote(el, quietOn, hidden) {
   if (!quietOn || !(hidden > 0)) return null;
-  return el("span", { class: "muted", style: "font-size:11px;color:#64748b;white-space:nowrap" }, `${hidden} hidden (quiet mode)`);
+  return el("span", { class: "muted", style: "font-size:11px;color:#64748b;white-space:nowrap" }, t("{n} hidden (quiet mode)", { n: hidden }));
 }
 
 function emptyState(el, mark, title, hint) {
@@ -152,14 +153,14 @@ function emptyState(el, mark, title, hint) {
 //             key, so the usage report counts those apart)
 async function _addIrk(ctx, name, irk, msgEl, after, force = false, via = "") {
   const { el } = ctx.helpers;
-  msgEl.textContent = force ? "Saving unverified\u2026" : "Checking against live traffic\u2026";
+  msgEl.textContent = force ? t("Saving unverified…") : t("Checking against live traffic…");
   msgEl.style.color = "var(--bt-dim)";
   try {
     const r = await ctx.actions.wsCall("padspan_ha/irk_add", { name, irk_hex: irk, force, ...(via ? { via } : {}) });
     msgEl.style.color = "var(--bt-good)";
     msgEl.textContent = r.verified
-      ? `\u2713 Saved \u201c${name}\u201d \u2014 it resolves ${r.matched_count} rotating address${r.matched_count !== 1 ? "es" : ""} right now.`
-      : `\u2713 Saved \u201c${name}\u201d unverified \u2014 it will resolve when the phone is here and awake.`;
+      ? tn(r.matched_count, "✓ Saved “{name}” — it resolves 1 rotating address right now.", "✓ Saved “{name}” — it resolves {n} rotating addresses right now.", { name })
+      : t("✓ Saved “{name}” unverified — it will resolve when the phone is here and awake.", { name });
     after && after(r);
     return true;
   } catch (e) {
@@ -167,8 +168,8 @@ async function _addIrk(ctx, name, irk, msgEl, after, force = false, via = "") {
     msgEl.textContent = "";
     if (code === "unverified") {
       msgEl.style.color = "var(--bt-ok)";
-      msgEl.appendChild(document.createTextNode((e.message || "No live match.") + " "));
-      const btn = el("button", { class: "btn tiny bt-btn-accent", style: "margin-left:6px" }, "Save unverified");
+      msgEl.appendChild(document.createTextNode((e.message || t("No live match.")) + " "));
+      const btn = el("button", { class: "btn tiny bt-btn-accent", style: "margin-left:6px" }, t("Save unverified"));
       btn.addEventListener("click", (ev) => { ev.stopPropagation(); btn.disabled = true; _addIrk(ctx, name, irk, msgEl, after, true, via); });
       msgEl.appendChild(btn);
     } else {
@@ -288,28 +289,27 @@ export function render(ctx) {
   const header = el("div", { class: "bt-head" }, [
     el("div", { style: "min-width:220px;flex:1" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-        el("div", { class: "h1" }, "Bluetooth"),
+        el("div", { class: "h1" }, t("Bluetooth")),
         ctx.helpers.helpBtn("bluetooth_overview"),
       ]),
       el("div", { class: "bt-head-sub" },
-        "Every scanner this install can see, and every advertisement they have heard recently."),
+        t("Every scanner this install can see, and every advertisement they have heard recently.")),
     ]),
     el("div", { class: "bt-kpis" }, [
-      stat(radios.length, "Scanners", { title: "BLE scanners reporting to this install" }),
+      stat(radios.length, t("Scanners"), { title: t("BLE scanners reporting to this install") }),
       // Active vs passive. ACTIVE transmits — it sends SCAN_REQ and reads the
       // SCAN_RSP that comes back; PASSIVE only listens. Read from `scan_mode`,
       // which bleak-esphome sets from the proxy's own firmware state report.
       // "auto" is shown separately rather than folded in: HA promotes an auto
       // scanner to active in short windows, so it is neither one nor the other.
-      stat(_scanModeLabel(radios), "Active / passive",
-        { title: "Active radios transmit scan requests and read the replies; passive radios only listen. "
-               + "Set per device in Settings → Devices & Services → ESPHome → Configure → Bluetooth scanning mode." }),
-      stat(adsAll.length, "Recent ads", { title: "Advertisements in the current window" }),
-      stat(diag.unique_cached || 0, "Unique MACs", { title: "Distinct addresses cached" }),
-      stat(_res.irk_devices || 0, "Private BLE IRKs",
-        { link: "irk_panel", title: "Open the IRK Manager" }),
-      stat(_res.resolved || 0, "RPAs resolved",
-        { title: "Rotating addresses matched to a registered IRK" }),
+      stat(_scanModeLabel(radios), t("Active / passive"),
+        { title: t("Active radios transmit scan requests and read the replies; passive radios only listen. Set per device in Settings → Devices & Services → ESPHome → Configure → Bluetooth scanning mode.") }),
+      stat(adsAll.length, t("Recent ads"), { title: t("Advertisements in the current window") }),
+      stat(diag.unique_cached || 0, t("Unique MACs"), { title: t("Distinct addresses cached") }),
+      stat(_res.irk_devices || 0, t("Private BLE IRKs"),
+        { link: "irk_panel", title: t("Open the IRK Manager") }),
+      stat(_res.resolved || 0, t("RPAs resolved"),
+        { title: t("Rotating addresses matched to a registered IRK") }),
       stat((snap?.objects?.summary?.ibeacon) || 0, "iBeacons"),
     ]),
   ]);
@@ -341,26 +341,27 @@ export function render(ctx) {
   // Summary line (always shown)
   let _summaryText;
   if (_irkCount > 0) {
-    _summaryText = `Private BLE: ${_irkCount} IRK${_irkCount !== 1 ? "s" : ""} loaded \u2022 ${_resolvedCount} address${_resolvedCount !== 1 ? "es" : ""} resolved \u2022 ${_privateBleCount} device${_privateBleCount !== 1 ? "s" : ""} tracked`;
+    _summaryText = "Private BLE: " + tn(_irkCount, "1 IRK loaded", "{n} IRKs loaded") + " • " + tn(_resolvedCount, "1 address resolved", "{n} addresses resolved") + " • " + tn(_privateBleCount, "1 device tracked", "{n} devices tracked");
   } else if (_rpaCount > 0) {
-    _summaryText = `${_rpaCount} rotating-MAC device${_rpaCount !== 1 ? "s" : ""} detected but unresolvable \u2014 no IRKs configured`;
+    _summaryText = tn(_rpaCount, "1 rotating-MAC device detected but unresolvable — no IRKs configured", "{n} rotating-MAC devices detected but unresolvable — no IRKs configured");
   } else {
-    _summaryText = `Private BLE: no rotating-MAC devices detected yet`;
+    _summaryText = t("Private BLE: no rotating-MAC devices detected yet");
   }
 
   // A status dot, not an emoji: the state is the colour, and the colour is the
   // same three tones the whole view uses.
   privateBleCard = el("div", { class: "bt-notice" + (_tone ? " " + _tone : ""), style: "cursor:pointer" });
 
+  const _unmatched = _rpaCount - _resolvedCount;
   const _pbleHdr = el("div", { style: "display:flex;align-items:flex-start;gap:10px;width:100%" }, [
     el("span", { class: "bt-notice-mark" }, ""),
     el("div", { class: "bt-notice-body" }, [
       el("div", { class: "bt-notice-title" }, _summaryText),
       _rpaCount > _resolvedCount && _irkCount > 0
-        ? el("div", { class: "bt-notice-sub" }, `${_rpaCount - _resolvedCount} further RPA${_rpaCount - _resolvedCount !== 1 ? "s" : ""} seen that match no registered IRK`)
+        ? el("div", { class: "bt-notice-sub" }, tn(_unmatched, "1 further RPA seen that matches no registered IRK", "{n} further RPAs seen that match no registered IRK"))
         : null,
     ].filter(Boolean)),
-    el("span", { class: "bt-notice-more" }, ctx.state._pbleExpanded ? "\u25BE details" : "\u25B8 details"),
+    el("span", { class: "bt-notice-more" }, ctx.state._pbleExpanded ? "▾ " + t("details") : "▸ " + t("details")),
   ]);
   privateBleCard.appendChild(_pbleHdr);
 
@@ -382,23 +383,23 @@ export function render(ctx) {
 
     const st = ctx.state._pbleStatus;
     if (!st) {
-      detail.appendChild(el("div", { class: "muted" }, "Loading status\u2026"));
+      detail.appendChild(el("div", { class: "muted" }, t("Loading status\u2026")));
     } else {
       // ── Integration status ──
       const intRow = el("div", { class: "bt-chips", style: "margin-bottom:10px;gap:5px" }, [
         chip(el, st.has_private_ble_integration
-              ? "Private BLE Device integration installed"
-              : "Private BLE Device integration not installed",
+              ? t("Private BLE Device integration installed")
+              : t("Private BLE Device integration not installed"),
              st.has_private_ble_integration ? "good" : "bad"),
-        chip(el, `${st.total_ble_addresses || 0} BLE addresses seen`, "quiet"),
-        chip(el, `${st.rpa_count || 0} rotating (RPA)`, st.rpa_count ? "info" : "quiet"),
+        chip(el, t("{n} BLE addresses seen", { n: st.total_ble_addresses || 0 }), "quiet"),
+        chip(el, t("{n} rotating (RPA)", { n: st.rpa_count || 0 }), st.rpa_count ? "info" : "quiet"),
       ]);
       detail.appendChild(intRow);
 
       // ── Mobile apps ──
       if (st.mobile_apps && st.mobile_apps.length > 0) {
         const maRow = el("div", { style: "font-size:12px;margin-bottom:10px" });
-        maRow.appendChild(el("span", { class: "bt-mini-lbl" }, "Companion apps "));
+        maRow.appendChild(el("span", { class: "bt-mini-lbl" }, t("Companion apps ")));
         maRow.appendChild(el("span", { class: "muted" }, st.mobile_apps.join(", ")));
         detail.appendChild(maRow);
       }
@@ -406,10 +407,10 @@ export function render(ctx) {
       // ── Registered devices table ──
       if (st.devices && st.devices.length > 0) {
         detail.appendChild(el("div", { class: "bt-kv-title", style: "margin-top:0" },
-          `Registered IRK devices (${st.devices.length})`));
+          t("Registered IRK devices ({n})", { n: st.devices.length })));
         const tbl = el("table", { class: "table" });
         const thead = el("tr", {});
-        for (const h of ["Name", "Canonical ID", "Source"]) thead.appendChild(el("th", {}, h));
+        for (const h of [t("Name"), t("Canonical ID"), t("Source")]) thead.appendChild(el("th", {}, h));
         tbl.appendChild(el("thead", {}, thead));
         const tb = el("tbody");
         for (const d of st.devices) {
@@ -423,26 +424,26 @@ export function render(ctx) {
         detail.appendChild(tbl);
       } else {
         detail.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px" },
-          "No IRK registered. Phones and watches change their address every ~15 minutes; without the key, each change looks like a new device."));
+          t("No IRK registered. Phones and watches change their address every ~15 minutes; without the key, each change looks like a new device.")));
       }
 
       // ── Add IRK form (always available) ──
       const irkForm = el("div", { style: "background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;padding:12px;margin-top:10px" });
-      irkForm.appendChild(el("div", { class: "bt-kv-title", style: "margin-top:0" }, "Add an IRK"));
+      irkForm.appendChild(el("div", { class: "bt-kv-title", style: "margin-top:0" }, t("Add an IRK")));
       irkForm.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:9px;line-height:1.55" },
-        "Paste the key of an iPhone or Apple Watch. Accepts hex (32 chars), base64, or colon-separated format. "
-        + "Android phones need no key: the Companion app's BLE Transmitter tells PadSpan which phone it is."));
+        t("Paste the key of an iPhone or Apple Watch. Accepts hex (32 chars), base64, or colon-separated format.") + " "
+        + t("Android phones need no key: the Companion app's BLE Transmitter tells PadSpan which phone it is.")));
 
       const irkInputRow = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap" });
       const irkNameInput = el("input", {
-        class: "input", type: "text", placeholder: "Device name — e.g. Alice's Pixel",
+        class: "input", type: "text", placeholder: t("Device name — e.g. Alice's Pixel"),
         style: "width:190px;box-sizing:content-box",
       });
       const irkValueInput = el("input", {
-        class: "input", type: "text", placeholder: "IRK (hex or base64)",
+        class: "input", type: "text", placeholder: t("IRK (hex or base64)"),
         style: "width:270px;box-sizing:content-box;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
       });
-      const irkAddBtn = el("button", { class: "btn inline" }, "Add");
+      const irkAddBtn = el("button", { class: "btn inline" }, t("Add"));
       const irkMsg = el("div", { style: "font-size:12px;margin-top:5px;min-height:16px;width:100%" });
 
       // Submit IRK to backend — accepts hex (32 chars), base64, or colon-separated
@@ -450,8 +451,8 @@ export function render(ctx) {
         e.stopPropagation();
         const name = irkNameInput.value.trim();
         const irk = irkValueInput.value.trim();
-        if (!name || !irk) { irkMsg.textContent = "Enter both a name and an IRK"; irkMsg.style.color = "var(--bt-ok)"; return; }
-        irkAddBtn.disabled = true; irkAddBtn.textContent = "Adding\u2026";
+        if (!name || !irk) { irkMsg.textContent = t("Enter both a name and an IRK"); irkMsg.style.color = "var(--bt-ok)"; return; }
+        irkAddBtn.disabled = true; irkAddBtn.textContent = t("Adding\u2026");
         await _addIrk(ctx, name, irk, irkMsg, () => {
           irkNameInput.value = ""; irkValueInput.value = "";
           // Refresh status after a short delay to let the backend register the new IRK
@@ -463,7 +464,7 @@ export function render(ctx) {
             });
           }, 1000);
         });
-        irkAddBtn.disabled = false; irkAddBtn.textContent = "Add";
+        irkAddBtn.disabled = false; irkAddBtn.textContent = t("Add");
       });
 
       irkInputRow.appendChild(irkNameInput);
@@ -477,15 +478,15 @@ export function render(ctx) {
         const padspanDevs = st.devices.filter(d => d.source === "padspan");
         if (padspanDevs.length > 0) {
           const rmDiv = el("div", { style: "margin-top:10px" });
-          rmDiv.appendChild(el("div", { class: "bt-mini-lbl", style: "display:block;margin-bottom:5px" }, "PadSpan-managed IRKs"));
+          rmDiv.appendChild(el("div", { class: "bt-mini-lbl", style: "display:block;margin-bottom:5px" }, t("PadSpan-managed IRKs")));
           for (const d of padspanDevs) {
             const rmRow = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:3px" });
             rmRow.appendChild(el("span", { style: "font-size:12px;font-weight:600" }, d.name));
             rmRow.appendChild(el("span", { class: "bt-adv-sub" }, (d.canonical_id || "").substring(0, 20) + "\u2026"));
-            const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, "Remove");
+            const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, t("Remove"));
             rmBtn.addEventListener("click", async (ev) => {
               ev.stopPropagation();
-              if (!confirm(`Remove IRK for ${d.name}?`)) return;
+              if (!confirm(t("Remove IRK for {name}?", { name: d.name }))) return;
               const hex = (d.canonical_id || "").replace("irk:", "");
               await ctx.actions.wsCall("padspan_ha/irk_remove", { irk_hex: hex });
               ctx.state._pbleStatus = null;
@@ -502,21 +503,21 @@ export function render(ctx) {
 
       // ── How to find IRK ──
       detail.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:10px;line-height:1.6" }, [
-        el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, "Where to find the IRK"),
-        el("div", {}, "Android: no key needed. Switch on the Companion app's BLE Transmitter (Settings \u2192 Companion App \u2192 Manage Sensors) and track the phone from Overview \u2192 Track Your Phone."),
+        el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, t("Where to find the IRK")),
+        el("div", {}, t("Android: no key needed. Switch on the Companion app's BLE Transmitter (Settings \u2192 Companion App \u2192 Manage Sensors) and track the phone from Overview \u2192 Track Your Phone.")),
         el("div", {}, [
-          el("span", {}, "Apple: IRK is shared via Bluetooth pairing. "),
-          el("a", { href: "https://community.home-assistant.io/t/private-ble-device-apple-devices/546810", target: "_blank", rel: "noopener", class: "bt-link" }, "Apple IRK guide"),
+          el("span", {}, t("Apple: IRK is shared via Bluetooth pairing. ")),
+          el("a", { href: "https://community.home-assistant.io/t/private-ble-device-apple-devices/546810", target: "_blank", rel: "noopener", class: "bt-link" }, t("Apple IRK guide")),
         ]),
       ]));
 
       // ── Resolver errors ──
       if (st.error) {
-        detail.appendChild(el("div", { class: "bt-note bad", style: "margin-top:8px;font-size:12px" }, `Error: ${st.error}`));
+        detail.appendChild(el("div", { class: "bt-note bad", style: "margin-top:8px;font-size:12px" }, t("Error: {why}", { why: st.error })));
       }
 
       // ── Refresh button ──
-      const refreshBtn = el("button", { class: "btn inline", style: "margin-top:10px" }, "Refresh status");
+      const refreshBtn = el("button", { class: "btn inline", style: "margin-top:10px" }, t("Refresh status"));
       refreshBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         ctx.state._pbleStatus = null;
@@ -539,9 +540,9 @@ export function render(ctx) {
       ? el("div", { class: "bt-notice bad", style: "flex-wrap:wrap" }, [
           el("span", { class: "bt-notice-mark" }, ""),
           el("div", { class: "bt-notice-body" }, [
-            el("div", { class: "bt-notice-title" }, "The Bluetooth feed looks unhealthy"),
+            el("div", { class: "bt-notice-title" }, t("The Bluetooth feed looks unhealthy")),
             el("div", { class: "bt-notice-sub" },
-              "Usually the HA Bluetooth integration is not enabled, or the scanner API callback failed. The page still renders; the data may be empty."),
+              t("Usually the HA Bluetooth integration is not enabled, or the scanner API callback failed. The page still renders; the data may be empty.")),
           ]),
           el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, JSON.stringify(diag, null, 2)),
         ])
@@ -553,11 +554,11 @@ export function render(ctx) {
         el("span", { class: "bt-notice-mark" }, ""),
         el("div", { class: "bt-notice-body" }, [
           !_callbackOk ? el("div", {}, [
-            el("div", { class: "bt-notice-title" }, "BLE callback not active"),
-            el("div", { class: "bt-notice-sub" }, "No live advertisements are arriving — only what HA already discovered. bluetooth.async_register_callback() failed; the HA log will say why."),
+            el("div", { class: "bt-notice-title" }, t("BLE callback not active")),
+            el("div", { class: "bt-notice-sub" }, t("No live advertisements are arriving — only what HA already discovered. bluetooth.async_register_callback() failed; the HA log will say why.")),
           ]) : null,
           _resolverErrors.length ? el("div", { style: _callbackOk ? "" : "margin-top:8px" }, [
-            el("div", { class: "bt-notice-title" }, "Private BLE resolver errors"),
+            el("div", { class: "bt-notice-title" }, t("Private BLE resolver errors")),
           ]) : null,
         ].filter(Boolean)),
         _resolverErrors.length ? el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, _resolverErrors.join("\n")) : null,
@@ -577,10 +578,10 @@ export function render(ctx) {
   // Shared filter bar used by all sub-tabs except ESPHome Configs.
   const controls = el("div", { class: "bt-controls" }, [
     el("div", { class: "field", style: "flex:2;min-width:160px" }, [
-      el("div", { class: "label" }, "Search"),
+      el("div", { class: "label" }, t("Search")),
       el("input", {
         class: "input",
-        placeholder: "Name, address or scanner…",
+        placeholder: t("Name, address or scanner…"),
         value: ctx.state.btFilter,
         oninput: e => {
           ctx.state.btFilter = e.target.value;
@@ -589,7 +590,7 @@ export function render(ctx) {
       }),
     ]),
     el("div", { class: "field", style: "flex:1;min-width:140px" }, [
-      el("div", { class: "label" }, "Source"),
+      el("div", { class: "label" }, t("Source")),
       el(
         "select",
         {
@@ -599,11 +600,11 @@ export function render(ctx) {
             ctx.actions.renderRooms();
           },
         },
-        sources.map(s => el("option", { value: s, ...(s === sourceSel ? { selected: "selected" } : {}) }, s === "all" ? "All scanners" : s))
+        sources.map(s => el("option", { value: s, ...(s === sourceSel ? { selected: "selected" } : {}) }, s === "all" ? t("All scanners") : s))
       ),
     ]),
     el("div", { class: "field", style: "flex:0 0 90px" }, [
-      el("div", { class: "label" }, "Max rows"),
+      el("div", { class: "label" }, t("Max rows")),
       el("input", {
         class: "input",
         type: "number",
@@ -675,8 +676,8 @@ function renderScanners(ctx, radios, sources, adsAll) {
     Array.isArray(ctx.state.settings?.excluded_scanners) ? ctx.state.settings.excluded_scanners : []);
 
   if (!radios.length) {
-    return emptyState(el, "\u25CC", "No scanners reported",
-      "If you expected scanners, check that Settings \u2192 Devices & services \u2192 Bluetooth is enabled in Home Assistant, and that your ESPHome proxies are online.");
+    return emptyState(el, "\u25CC", t("No scanners reported"),
+      t("If you expected scanners, check that Settings \u2192 Devices & services \u2192 Bluetooth is enabled in Home Assistant, and that your ESPHome proxies are online."));
   }
 
   const row = r => {
@@ -690,12 +691,12 @@ function renderScanners(ctx, radios, sources, adsAll) {
 
     const nameRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0" }, [
       sid ? chip(el, sid, "sid", (name ? name + " \u00b7 " : "") + src) : null,
-      el("div", { class: "bt-scanner-name" }, name || src || "Scanner"),
-      r.lost     ? chip(el, "lost", "ok", "Not heard from recently") : null,
-      r.disabled ? chip(el, "disabled", "violet") : null,
+      el("div", { class: "bt-scanner-name" }, name || src || t("Scanner")),
+      r.lost     ? chip(el, t("lost"), "ok", t("Not heard from recently")) : null,
+      r.disabled ? chip(el, t("disabled"), "violet") : null,
       excludedSrcs.has(src)
-        ? chip(el, "excluded", "quiet",
-               "Masked out of positioning — its readings are ignored, but nothing it recorded has been deleted")
+        ? chip(el, t("excluded"), "quiet",
+               t("Masked out of positioning — its readings are ignored, but nothing it recorded has been deleted"))
         : null,
     ].filter(Boolean));
 
@@ -710,25 +711,25 @@ function renderScanners(ctx, radios, sources, adsAll) {
     const offsetInput = el("input", {
       type: "number", min: "-20", max: "20", step: "1",
       value: String(currentOffset),
-      title: "RSSI offset in dBm — positive = scanner reads weaker than reality; negative = reads stronger",
-      "aria-label": "RSSI offset in dBm",
+      title: t("RSSI offset in dBm — positive = scanner reads weaker than reality; negative = reads stronger"),
+      "aria-label": t("RSSI offset in dBm"),
     });
-    const offsetSaveBtn = el("button", { class: "btn tiny" }, "Set");
+    const offsetSaveBtn = el("button", { class: "btn tiny" }, t("Set"));
     offsetSaveBtn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
       const typed = parseFloat(offsetInput.value) || 0;
       const v = typed === currentOffset ? typed : Math.max(-20, Math.min(20, typed));
       try {
         await ctx.actions.scannerOffsetSet(src, v);
-        ctx.toast(`Offset for ${name || src}: ${v > 0 ? "+" : ""}${v} dBm`);
-      } catch(e) { ctx.toast("Failed to save offset", true); }
+        ctx.toast(t("Offset for {name}: {db} dBm", { name: name || src, db: `${v > 0 ? "+" : ""}${v}` }));
+      } catch(e) { ctx.toast(t("Failed to save offset"), true); }
     });
     const offsetRow = el("div", { style: "display:flex;align-items:center;gap:4px;margin-top:3px" }, [
-      el("span", { class: "muted", style: "font-size:10px" }, "RSSI offset:"),
+      el("span", { class: "muted", style: "font-size:10px" }, t("RSSI offset:")),
       offsetInput,
       el("span", { class: "muted", style: "font-size:10px" }, "dBm"),
       offsetSaveBtn,
-      currentOffset !== 0 ? el("span", { class: "badge", style: "font-size:10px;background:#1a3a2a;color:#52b788" }, `${currentOffset > 0 ? "+" : ""}${currentOffset} dBm active`) : null,
+      currentOffset !== 0 ? el("span", { class: "badge", style: "font-size:10px;background:#1a3a2a;color:#52b788" }, t("{db} dBm active", { db: `${currentOffset > 0 ? "+" : ""}${currentOffset}` })) : null,
     ].filter(Boolean));
 
     // ── Exclude from positioning (issue #59) ────────────────────────────────
@@ -740,9 +741,9 @@ function renderScanners(ctx, radios, sources, adsAll) {
     const exclBtn = el("button", {
       class: "btn tiny" + (isExcluded ? " bt-btn-accent" : ""),
       title: isExcluded
-        ? "Let this receiver influence positioning again"
-        : "Ignore this receiver everywhere: no room votes, no RSSI influence, no new calibration readings, and the model retrains without it. Nothing stored is deleted.",
-    }, isExcluded ? "Include" : "Exclude");
+        ? t("Let this receiver influence positioning again")
+        : t("Ignore this receiver everywhere: no room votes, no RSSI influence, no new calibration readings, and the model retrains without it. Nothing stored is deleted."),
+    }, isExcluded ? t("Include") : t("Exclude"));
     exclBtn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
       exclBtn.disabled = true;
@@ -751,16 +752,16 @@ function renderScanners(ctx, radios, sources, adsAll) {
       try {
         await ctx.actions.settingsSet({ excluded_scanners: [...next] });
         ctx.toast(isExcluded
-          ? `${name || src} is back in positioning`
-          : `${name || src} excluded — stored data kept, model retraining`);
+          ? t("{name} is back in positioning", { name: name || src })
+          : t("{name} excluded — stored data kept, model retraining", { name: name || src }));
       } catch(e) {
-        ctx.toast("Could not change exclusion", true);
+        ctx.toast(t("Could not change exclusion"), true);
         exclBtn.disabled = false;
       }
     });
     const exclRow = el("div", { style: "display:flex;align-items:center;gap:6px" }, [
       exclBtn,
-      isExcluded ? el("span", { class: "bt-mini-lbl" }, "ignored \u00b7 data kept") : null,
+      isExcluded ? el("span", { class: "bt-mini-lbl" }, t("ignored \u00b7 data kept")) : null,
     ].filter(Boolean));
 
     // ── Minimum signal (opt-in; presence_rules.scanner_floors) ────────────
@@ -770,15 +771,14 @@ function renderScanners(ctx, radios, sources, adsAll) {
     const floors = (ctx.state.settings && ctx.state.settings.scanner_min_rssi) || {};
     const curFloor = typeof floors[src] === "number" ? floors[src] : null;
     const floorSel = el("select", { class: "select", style: "font-size:11px;padding:1px 4px;max-width:120px",
-      title: "Ignore anything this receiver hears weaker than this, for positioning and the occupancy count only. For a receiver on an outside wall or floor that hears the street or the neighbours. Off: everything counts." });
-    for (const [v, label] of [["", "Min signal: off"], ["-95", "Ignore < -95"], ["-90", "Ignore < -90"], ["-85", "Ignore < -85"],
-                              ["-80", "Ignore < -80"], ["-75", "Ignore < -75"], ["-70", "Ignore < -70"]]) {
+      title: t("Ignore anything this receiver hears weaker than this, for positioning and the occupancy count only. For a receiver on an outside wall or floor that hears the street or the neighbours. Off: everything counts.") });
+    for (const [v, label] of [["", t("Min signal: off")], ...["-95", "-90", "-85", "-80", "-75", "-70"].map(n => [n, t("Ignore < {n}", { n })])]) {
       const o = el("option", { value: v }, label);
       if ((curFloor === null && v === "") || String(curFloor) === v) o.selected = true;
       floorSel.appendChild(o);
     }
     if (curFloor !== null && ![-95, -90, -85, -80, -75, -70].includes(curFloor)) {
-      const o = el("option", { value: String(curFloor) }, `Ignore < ${curFloor}`); o.selected = true; floorSel.appendChild(o);
+      const o = el("option", { value: String(curFloor) }, t("Ignore < {n}", { n: curFloor })); o.selected = true; floorSel.appendChild(o);
     }
     floorSel.addEventListener("click", (ev) => ev.stopPropagation());
     floorSel.addEventListener("change", async (ev) => {
@@ -787,9 +787,9 @@ function renderScanners(ctx, radios, sources, adsAll) {
       if (floorSel.value === "") delete next[src]; else next[src] = Number(floorSel.value);
       try {
         await ctx.actions.settingsSet({ scanner_min_rssi: next });
-        ctx.toast(floorSel.value === "" ? `${name || src}: every reading counts again`
-          : `${name || src}: readings weaker than ${floorSel.value} dBm are ignored for positioning`);
-      } catch (e) { ctx.toast("Could not save the minimum signal", true); }
+        ctx.toast(floorSel.value === "" ? t("{name}: every reading counts again", { name: name || src })
+          : t("{name}: readings weaker than {db} dBm are ignored for positioning", { name: name || src, db: floorSel.value }));
+      } catch (e) { ctx.toast(t("Could not save the minimum signal"), true); }
     });
 
     // Reset radio button — two-step confirmation to prevent accidental data loss.
@@ -801,41 +801,40 @@ function renderScanners(ctx, radios, sources, adsAll) {
       resetWrap.innerHTML = "";
       const rb = document.createElement("button");
       rb.className = "btn tiny bt-btn-danger";
-      rb.textContent = "Reset";
-      rb.title = "Clear all stored data for this radio (calibration, placement, offsets, fingerprints)";
+      rb.textContent = t("Reset");
+      rb.title = t("Clear all stored data for this radio (calibration, placement, offsets, fingerprints)");
       rb.addEventListener("click", (ev) => {
         ev.stopPropagation();
         resetWrap.innerHTML = "";
         const lbl2 = document.createElement("span");
         lbl2.className = "bt-mini-lbl";
         lbl2.style.color = "var(--bt-bad)";
-        lbl2.textContent = "Erase all data?";
+        lbl2.textContent = t("Erase all data?");
         const yesBtn = document.createElement("button");
         yesBtn.className = "btn tiny bt-btn-danger";
-        yesBtn.textContent = "Yes, reset";
+        yesBtn.textContent = t("Yes, reset");
         const noBtn = document.createElement("button");
         noBtn.className = "btn tiny";
-        noBtn.textContent = "No";
+        noBtn.textContent = t("No");
         yesBtn.addEventListener("click", async (ev2) => {
           ev2.stopPropagation();
           resetWrap.innerHTML = "";
           const spin = document.createElement("span");
           spin.className = "bt-mini-lbl";
-          spin.textContent = "Resetting…";
+          spin.textContent = t("Resetting…");
           resetWrap.appendChild(spin);
           try {
             const res = await ctx.actions.radioReset(src);
             const sm = res?.summary || {};
             const parts = [];
-            if (sm.maps?.receivers_removed) parts.push(`${sm.maps.receivers_removed} placement(s)`);
-            if (sm.calibration?.readings_removed) parts.push(`${sm.calibration.readings_removed} cal reading(s)`);
-            if (sm.adaptive?.room_pairs_removed) parts.push(`${sm.adaptive.room_pairs_removed} fingerprint(s)`);
-            if (sm.settings?.offset_cleared) parts.push("offset cleared");
-            const detail = parts.length ? ": " + parts.join(", ") : "";
-            ctx.toast(`Radio reset${detail}`);
+            if (sm.maps?.receivers_removed) parts.push(t("{n} placement(s)", { n: sm.maps.receivers_removed }));
+            if (sm.calibration?.readings_removed) parts.push(t("{n} cal reading(s)", { n: sm.calibration.readings_removed }));
+            if (sm.adaptive?.room_pairs_removed) parts.push(t("{n} fingerprint(s)", { n: sm.adaptive.room_pairs_removed }));
+            if (sm.settings?.offset_cleared) parts.push(t("offset cleared"));
+            ctx.toast(parts.length ? t("Radio reset: {what}", { what: parts.join(", ") }) : t("Radio reset"));
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Reset failed: " + ctx.helpers.errorText(e), true);
+            ctx.toast(t("Reset failed: {why}", { why: ctx.helpers.errorText(e) }), true);
             makeResetBtn();
           }
         });
@@ -859,44 +858,44 @@ function renderScanners(ctx, radios, sources, adsAll) {
       relearnWrap.innerHTML = "";
       const rb = document.createElement("button");
       rb.className = "btn tiny bt-btn-info";
-      rb.textContent = "Relearn";
-      rb.title = "Adjust calibration data after antenna upgrade/downgrade — shifts stored RSSI by a dB gain";
+      rb.textContent = t("Relearn");
+      rb.title = t("Adjust calibration data after antenna upgrade/downgrade — shifts stored RSSI by a dB gain");
       rb.addEventListener("click", (ev) => {
         ev.stopPropagation();
         relearnWrap.innerHTML = "";
         const lbl = document.createElement("span");
         lbl.className = "bt-mini-lbl";
         lbl.style.color = "#7dd3fc";
-        lbl.textContent = "dB gain";
+        lbl.textContent = t("dB gain");
         const inp = document.createElement("input");
         inp.type = "number"; inp.min = "-30"; inp.max = "30"; inp.step = "1"; inp.value = "3";
-        inp.setAttribute("aria-label", "dB gain");
-        inp.title = "Positive = antenna upgrade (stronger signal); Negative = downgrade (weaker)";
+        inp.setAttribute("aria-label", t("dB gain"));
+        inp.title = t("Positive = antenna upgrade (stronger signal); Negative = downgrade (weaker)");
         const helpTxt = document.createElement("span");
         helpTxt.className = "bt-mini-lbl";
-        helpTxt.textContent = "+ upgrade / − downgrade";
+        helpTxt.textContent = t("+ upgrade / − downgrade");
         const applyBtn = document.createElement("button");
         applyBtn.className = "btn tiny bt-btn-info";
-        applyBtn.textContent = "Apply";
+        applyBtn.textContent = t("Apply");
         const cancelBtn = document.createElement("button");
         cancelBtn.className = "btn tiny";
-        cancelBtn.textContent = "Cancel";
+        cancelBtn.textContent = t("Cancel");
         applyBtn.addEventListener("click", async (ev2) => {
           ev2.stopPropagation();
           const gain = Math.max(-30, Math.min(30, parseFloat(inp.value) || 0));
-          if (gain === 0) { ctx.toast("Gain must be non-zero", true); return; }
+          if (gain === 0) { ctx.toast(t("Gain must be non-zero"), true); return; }
           relearnWrap.innerHTML = "";
           const spin = document.createElement("span");
           spin.className = "bt-mini-lbl";
-          spin.textContent = "Relearning…";
+          spin.textContent = t("Relearning…");
           relearnWrap.appendChild(spin);
           try {
             const res = await ctx.actions.calibrationRelearnRadio(src, gain);
-            ctx.toast(`Relearned ${name || src}: ${gain > 0 ? "+" : ""}${gain} dB — ${res.updated_points} point(s) updated`);
+            ctx.toast(t("Relearned {name}: {db} dB — {n} point(s) updated", { name: name || src, db: `${gain > 0 ? "+" : ""}${gain}`, n: res.updated_points }));
             makeRelearnBtn();
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Relearn failed: " + ctx.helpers.errorText(e), true);
+            ctx.toast(t("Relearn failed: {why}", { why: ctx.helpers.errorText(e) }), true);
             makeRelearnBtn();
           }
         });
@@ -921,35 +920,35 @@ function renderScanners(ctx, radios, sources, adsAll) {
       const rel = _sh.reliability;
       const pct = _sh.agree_pct;
       const hColor = rel >= 0.9 ? "var(--bt-good)" : rel >= 0.7 ? "var(--bt-ok)" : "var(--bt-bad)";
-      const hLabel = rel >= 0.9 ? "Reliable" : rel >= 0.7 ? "Fair" : "Unreliable";
+      const hLabel = rel >= 0.9 ? t("Reliable") : rel >= 0.7 ? t("Fair") : t("Unreliable");
       // Agreement is a proportion, so it is drawn as one: a filled track says
       // "how much" at a glance, and the numbers stay for the people who want them.
       healthBadge = el("div", { class: "bt-health", title:
-        "How often this scanner agrees with the consensus room. Low agreement means placement, antenna or offset needs attention." }, [
+        t("How often this scanner agrees with the consensus room. Low agreement means placement, antenna or offset needs attention.") }, [
         el("span", { class: "bt-health-dot", style: `background:${hColor}` }, ""),
         el("span", { style: `color:${hColor};font-weight:700` }, hLabel),
         el("span", { class: "bt-health-track" },
           el("span", { class: "bt-health-fill", style: `width:${Math.max(0, Math.min(100, pct))}%;background:${hColor}` }, "")),
         el("span", { class: "muted", style: "font-variant-numeric:tabular-nums" },
-          `${pct}% agreement \u00b7 weight ${rel} \u00b7 ${_sh.polls} polls`),
+          t("{pct}% agreement · weight {w} · {n} polls", { pct, w: rel, n: _sh.polls })),
       ]);
     }
 
     const subParts = [
       r.area_name ? chip(el, r.area_name, "accent") : null,
-      r.ip ? chip(el, r.ip, "mono quiet", "IP address") : null,
-      r.ssid ? chip(el, r.ssid, "quiet", "WiFi network") : null,
-      r.wifi_signal != null ? chip(el, `${r.wifi_signal} dBm`, "quiet", "WiFi signal") : null,
+      r.ip ? chip(el, r.ip, "mono quiet", t("IP address")) : null,
+      r.ssid ? chip(el, r.ssid, "quiet", t("WiFi network")) : null,
+      r.wifi_signal != null ? chip(el, `${r.wifi_signal} dBm`, "quiet", t("WiFi signal")) : null,
     ].filter(Boolean);
 
     // Compact controls row: offset + relearn + reset on ONE line
     const ctrlRow = el("div", { class: "bt-mini" }, [
       // Offset inline
-      el("span", { class: "bt-mini-lbl" }, "Offset"),
+      el("span", { class: "bt-mini-lbl" }, t("Offset")),
       offsetInput,
       offsetSaveBtn,
       currentOffset !== 0
-        ? chip(el, `${currentOffset > 0 ? "+" : ""}${currentOffset} dBm`, "accent", "Offset in effect")
+        ? chip(el, `${currentOffset > 0 ? "+" : ""}${currentOffset} dBm`, "accent", t("Offset in effect"))
         : null,
       // Relearn + Reset as compact buttons on same line
       relearnWrap,
@@ -979,7 +978,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
       ].filter(Boolean)),
     ]);
     div.style.cursor = "pointer";
-    div.title = "Click to see devices heard by this scanner";
+    div.title = t("Click to see devices heard by this scanner");
     return div;
   };
 
@@ -1076,7 +1075,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
   detailCard.appendChild(el("div", { class: "bt-panel-head" }, [
     _sid ? chip(el, _sid, "sid", selSrc) : null,
     el("div", { class: "bt-panel-title", style: "font-size:14px" }, selName),
-    el("div", { class: "bt-panel-sub" }, "Everything this scanner can hear, strongest first."),
+    el("div", { class: "bt-panel-sub" }, t("Everything this scanner can hear, strongest first.")),
     chip(el, `${_filteredAds.length} ${_quietMode ? "tracked" : "devices"}`, "quiet"),
     quietHiddenNote(el, _quietMode, uniqueAds.length - _filteredAds.length),
   ].filter(Boolean)));
@@ -1086,22 +1085,22 @@ function renderScanners(ctx, radios, sources, adsAll) {
     const modeBtn = (m, label) => el("button", { class: "btn tiny" + (holdMode === m ? " bt-btn-accent" : ""), "aria-pressed": String(holdMode === m),
       onclick: () => { ctx.state._holdMode = m; ctx.actions.renderRooms(); } }, label);
     holdBox.appendChild(el("div", {}, [
-      el("b", {}, "Find the one in your hand. "),
+      el("b", {}, t("Find the one in your hand. ")),
       holdMode === "louder"
-        ? "Hold the device a few metres from this receiver and press Start. Then hold it right against the receiver for about 20 seconds (press a button on it if it has one). Whatever got louder comes up here, ready to tag."
-        : "Keep the device near this receiver and press Start. Then hide it in a metal bin or a saucepan with a lid for about 20 seconds. Whatever went quiet comes up here, ready to tag. Good for checking a guess too.",
+        ? t("Hold the device a few metres from this receiver and press Start. Then hold it right against the receiver for about 20 seconds (press a button on it if it has one). Whatever got louder comes up here, ready to tag.")
+        : t("Keep the device near this receiver and press Start. Then hide it in a metal bin or a saucepan with a lid for about 20 seconds. Whatever went quiet comes up here, ready to tag. Good for checking a guess too."),
     ]));
     holdBox.appendChild(el("div", { style: "margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap" }, [
-      el("span", { style: "color:#94a3b8" }, "Find what got:"), modeBtn("louder", "Louder"), modeBtn("quieter", "Quieter"),
-      el("button", { class: "btn tiny", onclick: startHold, style: "margin-left:6px" }, "Start"),
+      el("span", { style: "color:#94a3b8" }, t("Find what got:")), modeBtn("louder", t("Louder")), modeBtn("quieter", t("Quieter")),
+      el("button", { class: "btn tiny", onclick: startHold, style: "margin-left:6px" }, t("Start")),
     ]));
   } else {
     const secs = Math.round((Date.now() - hold.at) / 1000);
     holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
-      el("b", {}, holdRows.length ? (hold.mode === "quieter" ? "Went quiet since Start:" : "Got louder since Start:")
-        : (secs < 20 ? `Listening… ${secs} s` : (hold.mode === "quieter" ? "Nothing went quiet yet" : "Nothing got louder yet"))),
-      el("button", { class: "btn tiny", onclick: startHold }, "Start again"),
-      el("button", { class: "btn tiny", onclick: stopHold }, "Done"),
+      el("b", {}, holdRows.length ? (hold.mode === "quieter" ? t("Went quiet since Start:") : t("Got louder since Start:"))
+        : (secs < 20 ? t("Listening… {s} s", { s: secs }) : (hold.mode === "quieter" ? t("Nothing went quiet yet") : t("Nothing got louder yet")))),
+      el("button", { class: "btn tiny", onclick: startHold }, t("Start again")),
+      el("button", { class: "btn tiny", onclick: stopHold }, t("Done")),
     ]));
     for (const r of holdRows) {
       const addr = String(r.ad.address || "").toUpperCase();
@@ -1109,28 +1108,28 @@ function renderScanners(ctx, radios, sources, adsAll) {
       const label = obj ? deviceName(obj, addr) : deviceName(r.ad, addr);
       holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:4px" }, [
         el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, label),
-        el("span", { style: "color:#52b788;white-space:nowrap" }, r.gone ? "gone quiet" : r.fresh ? "new" : `${r.jump > 0 ? "+" : ""}${Math.round(r.jump)} dB`),
+        el("span", { style: "color:#52b788;white-space:nowrap" }, r.gone ? t("gone quiet") : r.fresh ? t("new") : `${r.jump > 0 ? "+" : ""}${Math.round(r.jump)} dB`),
         r.ad.rssi != null ? sigEl(el, r.ad.rssi) : null,
         el("button", { class: "btn tiny", onclick: () => {
           if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("hold_near_tagged");
           ctx.actions.tagObjectPrompt(tagAddrOf(obj, addr), obj && obj.user_label || "");
         } },
-          obj && obj.user_label ? "Relabel" : "Tag"),
+          obj && obj.user_label ? t("Relabel") : t("Tag")),
       ]));
     }
     if (!holdRows.length && secs >= 20) {
       holdBox.appendChild(el("div", { style: "margin-top:4px;color:#94a3b8" },
-        "Readings here are smoothed over about 15 seconds, so give it a little longer. Most TV and air-conditioner remotes are infrared and send no Bluetooth at all, so they never show up."));
+        t("Readings here are smoothed over about 15 seconds, so give it a little longer. Most TV and air-conditioner remotes are infrared and send no Bluetooth at all, so they never show up.")));
     }
   }
   detailCard.appendChild(holdBox);
 
   if (!_filteredAds.length) {
     detailCard.appendChild(emptyState(el, "\u25CC",
-      _quietMode ? "No tracked devices here" : "Nothing heard yet",
+      _quietMode ? t("No tracked devices here") : t("Nothing heard yet"),
       _quietMode
-        ? "Quiet mode only shows devices you have labelled, identified or followed."
-        : "This scanner has not reported an advertisement in the current window."));
+        ? t("Quiet mode only shows devices you have labelled, identified or followed.")
+        : t("This scanner has not reported an advertisement in the current window.")));
   } else {
     const tbody = el("tbody");
     for (const a of _filteredAds) {
@@ -1160,7 +1159,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
       tbody.appendChild(tr);
     }
     detailCard.appendChild(el("table", { class: "table" }, [
-      el("thead", {}, el("tr", {}, [el("th",{},"Device"), el("th",{},"Kind"), el("th",{},"Signal"), el("th",{},"Age")])),
+      el("thead", {}, el("tr", {}, [el("th",{},t("Device")), el("th",{},t("Kind")), el("th",{},t("Signal")), el("th",{},t("Age"))])),
       tbody,
     ]));
   }
@@ -1168,10 +1167,10 @@ function renderScanners(ctx, radios, sources, adsAll) {
   return el("div", { class: "grid-2" }, [
     el("div", { class: "bt-panel" }, [
       el("div", { class: "bt-panel-head" }, [
-        el("div", { class: "bt-panel-title" }, "Scanners"),
-        el("div", { class: "bt-panel-sub" }, "Pick one to see what it hears. Each row carries that scanner's own controls."),
+        el("div", { class: "bt-panel-title" }, t("Scanners")),
+        el("div", { class: "bt-panel-sub" }, t("Pick one to see what it hears. Each row carries that scanner's own controls.")),
         chip(el, `${radios.length}`, "quiet"),
-        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button", { class: "btn tiny", "data-all-receivers": "bluetooth", onclick: () => ctx.actions.openReceivers() }, "All receivers") : null,
+        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button", { class: "btn tiny", "data-all-receivers": "bluetooth", onclick: () => ctx.actions.openReceivers() }, t("All receivers")) : null,
       ].filter(Boolean)),
       scannerListEl,
     ]),
@@ -1193,8 +1192,8 @@ function renderMonitor(ctx, ads, radios, objIndex) {
   const selected = ctx.state.btSelectedAddr || null;
 
   if (!ads.length) {
-    return emptyState(el, "\u25CC", "No advertisements in this window",
-      "Widen Max rows, clear the filters, or give the scanners a moment — BLE devices advertise every few seconds.");
+    return emptyState(el, "\u25CC", t("No advertisements in this window"),
+      t("Widen Max rows, clear the filters, or give the scanners a moment — BLE devices advertise every few seconds."));
   }
 
   // ── Display helpers ────────────────────────────────────────────────────────
@@ -1206,7 +1205,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
   // Object kind — one tone each, from the chip palette.
   const kindBadge = kind => {
     if (kind === "findmy")      return chip(el, "Find My", "info");
-    if (kind === "entity")      return chip(el, "entity", "good");
+    if (kind === "entity")      return chip(el, t("entity"), "good");
     if (kind === "private_ble") return chip(el, "private BLE", "info");
     if (kind === "ibeacon")     return chip(el, "iBeacon", "ok");
     if (kind === "ble")         return chip(el, "BLE", "violet");
@@ -1224,18 +1223,18 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const xr = a._xref || {};  // Backend cross-reference: label, kind, room, canonical_id, etc.
     const obj = addr ? objIndex.get(String(addr).toUpperCase()) : null;
     const userLabel = xr.user_label || (obj && obj.user_label) || "";
-    const displayName = deviceName(obj || a, addr || "Unknown");
+    const displayName = deviceName(obj || a, addr || t("Unknown"));
     const sid = _rsid(src);  // Short scanner ID (e.g. "S1") for compact display
 
     // Enrichment badges (inline, compact)
     const badges = [];
     if (xr.kind)          badges.push(kindBadge(xr.findmy ? "findmy" : xr.kind));
-    if (a.company_name)   badges.push(chip(el, a.company_name, "info", MAKER_HOW[(obj || a).maker_source] || MAKER_HOW.company_id));
-    else if (a.service_owner) badges.push(chip(el, serviceWords(a), "quiet", SERVICE_HOW));
-    else if (a.maker_guess) badges.push(chip(el, `Probably ${a.maker_guess}`, "quiet", MAKER_GUESS_HOW));
+    if (a.company_name)   badges.push(chip(el, a.company_name, "info", MAKER_HOW()[(obj || a).maker_source] || MAKER_HOW().company_id));
+    else if (a.service_owner) badges.push(chip(el, serviceWords(a), "quiet", serviceHow()));
+    else if (a.maker_guess) badges.push(chip(el, t("Probably {maker}", { maker: a.maker_guess }), "quiet", MAKER_GUESS_HOW()));
     if (listWhat(obj || a)) badges.push(chip(el, listWhat(obj || a), "violet"));
     badges.push(addressBadge(el, obj || a));
-    if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
+    if (a.connectable)    badges.push(chip(el, t("connectable"), "good", t("This device accepts connections")));
 
     // Service names (max 3, then a count)
     const svcNames = a.service_names || (obj && obj.service_names) || [];
@@ -1251,7 +1250,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const subParts = [];
     if (addr) subParts.push(addr);
     if (xr.room) subParts.push(xr.room);
-    if (xr.canonical_id) subParts.push(xr.findmy ? "Find My tag, carried across address changes" : "IRK-resolved");
+    if (xr.canonical_id) subParts.push(xr.findmy ? t("Find My tag, carried across address changes") : t("IRK-resolved"));
     if (xr.ibeacon_uuid) subParts.push("iBeacon");
 
     // Use stable identifier for tagging — private BLE uses canonical_id (IRK-derived),
@@ -1259,12 +1258,12 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const tagAddr = xr.kind === "private_ble" ? (xr.canonical_id || addr)
                   : xr.kind === "ibeacon"     ? (xr.key || addr)
                   : addr;
-    const tagBtn = el("button", { class: "btn tiny" }, userLabel ? "Relabel" : "Tag");
+    const tagBtn = el("button", { class: "btn tiny" }, userLabel ? t("Relabel") : t("Tag"));
     tagBtn.addEventListener("click", e => { e.stopPropagation(); ctx.actions.tagObjectPrompt(tagAddr, userLabel); });
 
     const mainDiv = el("div", { class: "bt-adv-main", style: "min-width:0;flex:1" }, [
       el("div", { style: "display:flex;align-items:center;gap:6px;min-width:0" }, [
-        sid ? chip(el, sid, "sid", `Heard by ${src}`) : null,
+        sid ? chip(el, sid, "sid", t("Heard by {scanner}", { scanner: src })) : null,
         el("div", { class: "bt-adv-name" }, displayName),
       ].filter(Boolean)),
       el("div", { class: "bt-adv-sub" }, subParts.join(" \u00b7 ")),
@@ -1281,7 +1280,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       mainDiv,
       el("div", { class: "bt-adv-right" }, [
         sigEl(el, a.rssi),
-        el("span", { class: "bt-age", title: "Last heard" }, ageText(a.age_s)),
+        el("span", { class: "bt-age", title: t("Last heard") }, ageText(a.age_s)),
         tagBtn,
       ]),
     ]);
@@ -1318,15 +1317,15 @@ function renderMonitor(ctx, ads, radios, objIndex) {
         && ctx.actions && ctx.actions.wsCall) {
       card.appendChild(el("div", { style: "margin:6px 0 2px" }, [el("button", {
         class: "btn inline", style: "font-size:12px",
-        title: "PadSpan linked this address to the tag when its last one stopped. If this is a different tag, undo it.",
+        title: t("PadSpan linked this address to the tag when its last one stopped. If this is a different tag, undo it."),
         onclick: async () => {
-          if (typeof confirm === "function" && !confirm(`Is this not ${hdrName}? PadSpan will stop treating this address as ${hdrName} and won't link it to it again.`)) return;
+          if (typeof confirm === "function" && !confirm(t("Is this not {name}? PadSpan will stop treating this address as {name} and won't link it to it again.", { name: hdrName }))) return;
           try {
             await ctx.actions.wsCall("padspan_ha/findmy_unlink", { key: obj.key, address: selected });
-            if (ctx.toast) ctx.toast(`Unlinked — this address is its own device again`);
-          } catch (e) { if (ctx.toast) ctx.toast("Couldn't unlink: " + ctx.helpers.errorText(e), true); }
+            if (ctx.toast) ctx.toast(t("Unlinked — this address is its own device again"));
+          } catch (e) { if (ctx.toast) ctx.toast(t("Couldn't unlink: {why}", { why: ctx.helpers.errorText(e) }), true); }
         },
-      }, `Not ${hdrName}? Unlink`)]));
+      }, t("Not {name}? Unlink", { name: hdrName }))]));
     }
 
     // Section helper — a titled definition list, empty values skipped.
@@ -1336,10 +1335,10 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       const s = el("div", {});
       s.appendChild(el("div", { class: "bt-kv-title" }, title));
       const dl = el("dl", { class: "bt-kv" });
-      for (const [k, v] of rows) {
+      for (const [k, v, mono] of rows) {
         if (v === null || v === undefined || v === "") continue;
         dl.appendChild(el("dt", {}, k));
-        dl.appendChild(el("dd", { class: _MONO.test(k) ? "mono-val" : "" }, v.nodeType ? v : String(v)));
+        dl.appendChild(el("dd", { class: (mono || _MONO.test(k)) ? "mono-val" : "" }, v.nodeType ? v : String(v)));
       }
       s.appendChild(dl);
       return s;
@@ -1347,28 +1346,28 @@ function renderMonitor(ctx, ads, radios, objIndex) {
 
     // Identity
     const idRows = [
-      ["Address", a.address],
-      ["Broadcast name", (a.name && a.name !== a.address && a.name) || "\u2014"],
-      ["User Label", xr.user_label || (obj?.user_label) || "\u2014"],
-      ["Object Kind", xr.kind || "untracked"],
+      [t("Address"), a.address],
+      [t("Broadcast name"), (a.name && a.name !== a.address && a.name) || "\u2014"],
+      [t("User Label"), xr.user_label || (obj?.user_label) || "\u2014"],
+      [t("Object Kind"), xr.kind || t("untracked")],
     ];
-    if (xr.canonical_id) idRows.push(["Canonical ID", xr.canonical_id]);
-    if (xr.entity_id)    idRows.push(["HA Entity", xr.entity_id]);
+    if (xr.canonical_id) idRows.push([t("Canonical ID"), xr.canonical_id, true]);
+    if (xr.entity_id)    idRows.push([t("HA Entity"), xr.entity_id]);
     if (xr.all_addresses && xr.all_addresses.length > 1) {
-      idRows.push(["All Addresses", xr.all_addresses.join(", ")]);
+      idRows.push([t("All Addresses"), xr.all_addresses.join(", ")]);
     }
-    if (xr.room) idRows.push(["Room", xr.room]);
-    card.appendChild(section("Identity", idRows));
+    if (xr.room) idRows.push([t("Room"), xr.room]);
+    card.appendChild(section(t("Identity"), idRows));
 
     // Signal
     const sigRows = [
       ["RSSI", a.rssi != null ? `${a.rssi} dBm` : "\u2014"],
-      ["TX Power", a.tx_power != null ? `${a.tx_power} dBm` : "\u2014"],
-      ["Age", ageText(a.age_s)],
-      ["Scanner", (_rsid(a.source) ? _rsid(a.source) + " " : "") + (a.source || "\u2014")],
-      ["Connectable", a.connectable === true ? "Yes" : a.connectable === false ? "No" : "Unknown"],
+      [t("TX Power"), a.tx_power != null ? `${a.tx_power} dBm` : "\u2014"],
+      [t("Age"), ageText(a.age_s)],
+      [t("Scanner"), (_rsid(a.source) ? _rsid(a.source) + " " : "") + (a.source || "\u2014")],
+      [t("Connectable"), a.connectable === true ? t("Yes") : a.connectable === false ? t("No") : t("Unknown")],
     ];
-    card.appendChild(section("Signal", sigRows));
+    card.appendChild(section(t("Signal"), sigRows));
 
     // Manufacturer
     const md = a.manufacturer_data || {};
@@ -1377,23 +1376,23 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       const howEl = el("span", {}, "\u2014");
       if ((obj || a).how_known || (obj || a).best_name) fillHowKnown(howEl, obj || a, ctx.actions.wsCall);
       const mfRows = [
-        ["Company", a.company_name || (a.maker_guess ? `Probably ${a.maker_guess}` : "\u2014")],
-        ["Service", serviceWords(a) || "\u2014"],
-        ["What it is", deviceWhat(obj || a) || "\u2014"],
-        ["How we know", howEl],
+        [t("Company"), a.company_name || (a.maker_guess ? t("Probably {maker}", { maker: a.maker_guess }) : "\u2014")],
+        [t("Service"), serviceWords(a) || "\u2014"],
+        [t("What it is"), deviceWhat(obj || a) || "\u2014"],
+        [t("How we know"), howEl],
       ];
       for (const cid of mdKeys) {
-        mfRows.push(["Manuf ID " + cid, md[cid]]);
+        mfRows.push([t("Manuf ID {id}", { id: cid }), md[cid]]);
       }
-      card.appendChild(section("Manufacturer", mfRows));
+      card.appendChild(section(t("Manufacturer"), mfRows));
     }
 
     // Services
     const svcUuids = a.service_uuids || [];
     const svcMap = a.service_uuid_map || {};
     if (svcUuids.length) {
-      const svcRows = svcUuids.map(u => [u, svcMap[u] || "Unknown service"]);
-      card.appendChild(section("Services (" + svcUuids.length + ")", svcRows));
+      const svcRows = svcUuids.map(u => [u, svcMap[u] || t("Unknown service")]);
+      card.appendChild(section(t("Services ({n})", { n: svcUuids.length }), svcRows));
     }
 
     // Service data
@@ -1401,7 +1400,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const sdKeys = Object.keys(sd);
     if (sdKeys.length) {
       const sdRows = sdKeys.map(k => [svcMap[k] || k, sd[k]]);
-      card.appendChild(section("Service Data", sdRows));
+      card.appendChild(section(t("Service Data"), sdRows));
     }
 
     // iBeacon
@@ -1414,12 +1413,12 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     }
 
     // Raw JSON (collapsible)
-    const rawToggle = el("button", { class: "btn tiny", style: "margin-top:12px" }, "Show raw JSON");
+    const rawToggle = el("button", { class: "btn tiny", style: "margin-top:12px" }, t("Show raw JSON"));
     const rawPre = el("pre", { class: "pre", style: "display:none;margin-top:6px" }, JSON.stringify(a, null, 2));
     rawToggle.addEventListener("click", () => {
       const vis = rawPre.style.display !== "none";
       rawPre.style.display = vis ? "none" : "block";
-      rawToggle.textContent = vis ? "Show raw JSON" : "Hide raw JSON";
+      rawToggle.textContent = vis ? t("Show raw JSON") : t("Hide raw JSON");
     });
     card.appendChild(rawToggle);
     card.appendChild(rawPre);
@@ -1432,7 +1431,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     if (matchedObj) {
       card.appendChild(el("button", { class: "btn inline", style: "margin-top:8px",
         onclick: () => ctx.actions.showObjectDetail(matchedObj)
-      }, "Full object details"));
+      }, t("Full object details")));
     }
 
     return card;
@@ -1454,23 +1453,23 @@ function renderMonitor(ctx, ads, radios, objIndex) {
   return el("div", { class: "grid-2" }, [
     el("div", { class: "bt-panel" }, [
       el("div", { class: "bt-panel-head" }, [
-        el("div", { class: "bt-panel-title" }, "Advertisements"),
+        el("div", { class: "bt-panel-title" }, t("Advertisements")),
         el("div", { class: "bt-panel-sub" }, _qm
-          ? "Tracked devices only — quiet mode is on. Click a row to inspect it."
-          : "Click a row to inspect it: decoded manufacturer, services and any tracked object it belongs to."),
-        el("span", { class: "bt-chip quiet" }, `${_monitorAds.length} shown`),
+          ? t("Tracked devices only — quiet mode is on. Click a row to inspect it.")
+          : t("Click a row to inspect it: decoded manufacturer, services and any tracked object it belongs to.")),
+        el("span", { class: "bt-chip quiet" }, t("{n} shown", { n: _monitorAds.length })),
         quietHiddenNote(el, _qm, ads.length - _monitorAds.length),
       ]),
       _monitorAds.length
         ? el("div", { class: "bt-list bt-adv-list list-scroll" }, _monitorAds.map(row))
-        : emptyState(el, "\u25CC", "Nothing matches",
-            _qm ? "Quiet mode hides everything untracked. Turn it off in the top bar to see the rest."
-                : "No advertisement matches the current search and scanner filter."),
+        : emptyState(el, "\u25CC", t("Nothing matches"),
+            _qm ? t("Quiet mode hides everything untracked. Turn it off in the top bar to see the rest.")
+                : t("No advertisement matches the current search and scanner filter.")),
     ]),
     details || el("div", { class: "bt-panel" }, [
-      el("div", { class: "bt-panel-head" }, [el("div", { class: "bt-panel-title" }, "Details")]),
-      emptyState(el, "\u2190", "Nothing selected",
-        "Pick an advertisement on the left to see its identity, signal, manufacturer data and services."),
+      el("div", { class: "bt-panel-head" }, [el("div", { class: "bt-panel-title" }, t("Details"))]),
+      emptyState(el, "\u2190", t("Nothing selected"),
+        t("Pick an advertisement on the left to see its identity, signal, manufacturer data and services.")),
     ]),
   ]);
 }
@@ -1520,8 +1519,8 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   const { el } = ctx.helpers;
 
   if (!radios.length && !ads.length) {
-    return emptyState(el, "\u25CC", "Nothing to draw yet",
-      "Waiting for the scanner list and the first advertisements. If this stays empty, the Health tab will say why.");
+    return emptyState(el, "\u25CC", t("Nothing to draw yet"),
+      t("Waiting for the scanner list and the first advertisements. If this stays empty, the Health tab will say why."));
   }
 
   // ── SVG coordinate system ─────────────────────────────────────────────────
@@ -1819,8 +1818,8 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     }
 
     // Column titles at the top of the SVG
-    s += `<text x="${sx - S_GAP}" y="${pad}" class="bt-viz-title" text-anchor="end" dominant-baseline="middle">Scanners</text>`;
-    s += `<text x="${dx + D_GAP}" y="${pad}" class="bt-viz-title" text-anchor="start" dominant-baseline="middle">Devices</text>`;
+    s += `<text x="${sx - S_GAP}" y="${pad}" class="bt-viz-title" text-anchor="end" dominant-baseline="middle">${_escSvg(t("Scanners"))}</text>`;
+    s += `<text x="${dx + D_GAP}" y="${pad}" class="bt-viz-title" text-anchor="start" dominant-baseline="middle">${_escSvg(t("Devices"))}</text>`;
 
     return s + `</svg>`;
   };
@@ -1894,14 +1893,14 @@ function renderVisualization(ctx, radios, ads, objIndex) {
 
   return el("div", { class: "bt-panel" }, [
     el("div", { class: "bt-panel-head" }, [
-      el("div", { class: "bt-panel-title" }, "Who hears what"),
+      el("div", { class: "bt-panel-title" }, t("Who hears what")),
       el("div", { class: "bt-panel-sub" },
-        "Each line is one scanner hearing one device; its colour is how strongly. Click either end for details."),
+        t("Each line is one scanner hearing one device; its colour is how strongly. Click either end for details.")),
       el("span", { class: "bt-chip quiet" }, `${scannerNodes.length} \u00d7 ${deviceNodes.length}`),
     ]),
     svgWrap,
     el("div", { class: "muted", style: "margin-top:10px;font-size:12px" },
-      "Narrow it with the scanner and search filters above."),
+      t("Narrow it with the scanner and search filters above.")),
   ]);
 }
 
@@ -1916,15 +1915,17 @@ const ESPHOME_CONFIGS = [
     id: "s3_ethernet",
     chip: "ESP32-S3",
     connection: "Ethernet",
-    badge: "Maximum performance",
+    get badge() { return t("Maximum performance"); },
     badgeColor: "#06b6d4",
-    description: "Dual-core S3 with wired Ethernet. No WiFi means the radio is 100% available for BLE. Highest possible scan duty at 93.75%. Best for dedicated scanner deployments.",
-    notes: [
-      "Scan duty 93.75% (300 ms window / 320 ms interval) — the maximum",
-      "No WiFi contention — the BLE radio has the full RF budget",
-      "Ethernet: rock-solid connection, no WiFi dropouts",
-      "Adjust the ethernet: section for your board (W5500, LAN8720, etc.)",
-    ],
+    get description() { return t("Dual-core S3 with wired Ethernet. No WiFi means the radio is 100% available for BLE. Highest possible scan duty at 93.75%. Best for dedicated scanner deployments."); },
+    get notes() {
+      return [
+        t("Scan duty 93.75% (300 ms window / 320 ms interval) — the maximum"),
+        t("No WiFi contention — the BLE radio has the full RF budget"),
+        t("Ethernet: rock-solid connection, no WiFi dropouts"),
+        t("Adjust the ethernet: section for your board (W5500, LAN8720, etc.)"),
+      ];
+    },
     yaml: `# PadSpan — ESP32-S3 Ethernet Scanner (maximum performance)
 # Scan duty 93.75%. No WiFi = BLE radio has full RF budget.
 # Adjust ethernet platform/pins for your board (W5500 SPI shown below).
@@ -2008,12 +2009,14 @@ text_sensor:
     connection: "WiFi 6",
     badge: "BLE 5.3 + Wi-Fi 6",
     badgeColor: "#8b5cf6",
-    description: "Single-core RISC-V with BLE 5.3 and Wi-Fi 6 (802.11ax). Better coexistence than C3 but still single-core — same scan duty limits apply.",
-    notes: [
-      "Scan duty ~31% (100 ms window / 320 ms interval)",
-      "Wi-Fi 6 improves coexistence vs C3, but single-core still limits duty",
-      "BLE 5.3 hardware — ESPHome does not yet expose Coded PHY scanning",
-    ],
+    get description() { return t("Single-core RISC-V with BLE 5.3 and Wi-Fi 6 (802.11ax). Better coexistence than C3 but still single-core — same scan duty limits apply."); },
+    get notes() {
+      return [
+        t("Scan duty ~31% (100 ms window / 320 ms interval)"),
+        t("Wi-Fi 6 improves coexistence vs C3, but single-core still limits duty"),
+        t("BLE 5.3 hardware — ESPHome does not yet expose Coded PHY scanning"),
+      ];
+    },
     yaml: `# PadSpan — ESP32-C6 WiFi 6 Scanner (optimised)
 # Scan duty ~31%. Wi-Fi 6 + BLE 5.3 hardware, single-core RISC-V.
 
@@ -2120,15 +2123,17 @@ text_sensor:
     id: "s3_wifi",
     chip: "ESP32-S3",
     connection: "WiFi",
-    badge: "Dual-core — best WiFi",
+    get badge() { return t("Dual-core — best WiFi"); },
     badgeColor: "#10b981",
-    description: "Dual-core Xtensa with PSRAM. BLE runs on core 1 while WiFi runs on core 0, so continuous scanning is safe. Best general-purpose WiFi scanner.",
-    notes: [
-      "Scan duty ~31% (100 ms window / 320 ms interval) — WiFi still needs airtime",
-      "Dual-core: BLE and WiFi run on separate cores — no watchdog risk",
-      "continuous: true is safe on S3 (not on C3/C6)",
-      "PSRAM available — handles large advertisement caches",
-    ],
+    get description() { return t("Dual-core Xtensa with PSRAM. BLE runs on core 1 while WiFi runs on core 0, so continuous scanning is safe. Best general-purpose WiFi scanner."); },
+    get notes() {
+      return [
+        t("Scan duty ~31% (100 ms window / 320 ms interval) — WiFi still needs airtime"),
+        t("Dual-core: BLE and WiFi run on separate cores — no watchdog risk"),
+        t("continuous: true is safe on S3 (not on C3/C6)"),
+        t("PSRAM available — handles large advertisement caches"),
+      ];
+    },
     yaml: `# PadSpan — ESP32-S3 WiFi Scanner (optimised)
 # Dual-core: BLE on core 1, WiFi on core 0. Best WiFi scanner.
 
@@ -2222,16 +2227,18 @@ text_sensor:
   },
   {
     id: "passive_minimal",
-    chip: "Any ESP32",
+    get chip() { return t("Any ESP32"); },
     connection: "WiFi",
-    badge: "Minimal / passive",
+    get badge() { return t("Minimal / passive"); },
     badgeColor: "#94a3b8",
-    description: "A stripped-down passive-only scanner that works on any ESP32 variant. Good starting point if you are unsure which board you have.",
-    notes: [
-      "Works on C3, C6, S3, and original ESP32",
-      "Passive scanning only — less accurate name resolution but lower power",
-      "Conservative 31% duty cycle — safe for any chip",
-    ],
+    get description() { return t("A stripped-down passive-only scanner that works on any ESP32 variant. Good starting point if you are unsure which board you have."); },
+    get notes() {
+      return [
+        t("Works on C3, C6, S3, and original ESP32"),
+        t("Passive scanning only — less accurate name resolution but lower power"),
+        t("Conservative 31% duty cycle — safe for any chip"),
+      ];
+    },
     yaml: `# PadSpan — Minimal Passive Scanner (any ESP32)
 # Conservative settings that work on every ESP32 variant.
 
@@ -2312,15 +2319,17 @@ text_sensor:
     id: "c3_wifi",
     chip: "ESP32-C3",
     connection: "WiFi",
-    badge: "Budget — with an external antenna",
+    get badge() { return t("Budget — with an external antenna"); },
     badgeColor: "#f59e0b",
-    description: "Single-core RISC-V. BLE and WiFi share the same core and radio, so scan duty is lower than on an S3. With a full-size external antenna it still did room-level tracking well in testing (the third of the three boards that worked, see Training). The cheapest good choice; an S3 or C6 is better where you can.",
-    notes: [
-      "Scan duty ~31% nominal, but WiFi interruptions drop real duty to ~20-25%",
-      "Single-core — BLE scanning blocks WiFi, causing missed advertisements",
-      "Watchdog reset risk under heavy WiFi traffic — requires API-gated workaround",
-      "Put C3 boards in low-priority rooms (hallways, garage) where missed readings matter less",
-    ],
+    get description() { return t("Single-core RISC-V. BLE and WiFi share the same core and radio, so scan duty is lower than on an S3. With a full-size external antenna it still did room-level tracking well in testing (the third of the three boards that worked, see Training). The cheapest good choice; an S3 or C6 is better where you can."); },
+    get notes() {
+      return [
+        t("Scan duty ~31% nominal, but WiFi interruptions drop real duty to ~20-25%"),
+        t("Single-core — BLE scanning blocks WiFi, causing missed advertisements"),
+        t("Watchdog reset risk under heavy WiFi traffic — requires API-gated workaround"),
+        t("Put C3 boards in low-priority rooms (hallways, garage) where missed readings matter less"),
+      ];
+    },
     yaml: `# PadSpan — ESP32-C3 WiFi Scanner
 # NOT RECOMMENDED for new purchases. Use S3 or C6 instead.
 # Single-core: BLE and WiFi compete for the same core and radio.
@@ -2533,7 +2542,7 @@ function renderIrkPanel(ctx, snap) {
             await ctx.actions.wsCall("padspan_ha/irk_remove", { irk_hex: hex });
             ctx.state._irkPanelStatus = null;
             ctx.actions.renderRooms();
-          } catch(e) { ctx.toast("Remove failed: " + ctx.helpers.errorText(e), true); }
+          } catch(e) { ctx.toast(t("Remove failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
         });
         tdAct.appendChild(rmBtn);
       } else if (d.source === "private_ble_device" && d.entry_id) {
@@ -2545,7 +2554,7 @@ function renderIrkPanel(ctx, snap) {
             await ctx.actions.wsCall("padspan_ha/private_ble_delete_irk", { entry_id: d.entry_id });
             ctx.state._irkPanelStatus = null;
             ctx.actions.renderRooms();
-          } catch(e) { ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true); }
+          } catch(e) { ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
         });
         tdAct.appendChild(rmBtn);
       } else {
@@ -2671,7 +2680,7 @@ function renderIrkPanel(ctx, snap) {
           }
         }
         if (bonds.some(f => f.verified)) {
-          addMsg.textContent += " Verified IRKs saved automatically.";
+          addMsg.textContent += " " + t("Verified IRKs saved automatically.");
           ctx.state._irkPanelStatus = null;
           setTimeout(() => ctx.actions.renderRooms(), 500);
         }
@@ -2857,7 +2866,7 @@ function renderEsphomeConfigs(ctx) {
   // Placed top-right of the code container. Shows a checkmark for 1.5s after successful copy.
   function _makeCodeCopyIcon(text) {
     const btn = document.createElement("button");
-    btn.title = "Copy to clipboard";
+    btn.title = t("Copy to clipboard");
     btn.style.cssText = "position:absolute;top:8px;right:8px;background:rgba(255,255,255,.055);border:1px solid rgba(120,190,155,.28);border-radius:8px;padding:5px 6px;cursor:pointer;opacity:0.55;transition:opacity .15s ease,border-color .15s ease;display:flex;align-items:center;justify-content:center;z-index:1";
     btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(226,240,232,.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     btn.addEventListener("mouseenter", () => { btn.style.opacity = "1"; });
@@ -2883,28 +2892,22 @@ function renderEsphomeConfigs(ctx) {
   // Intro card
   const intro = el("div", { class: "bt-panel" }, [
     el("div", { class: "bt-panel-head" }, [
-      el("div", { class: "bt-panel-title" }, "ESPHome config library"),
+      el("div", { class: "bt-panel-title" }, t("ESPHome config library")),
     ]),
     el("div", { class: "muted", style: "line-height:1.6;font-size:12px" },
-      "Optimised ESPHome YAML for every ESP32 variant PadSpan supports. " +
-      "Each config includes the diagnostic sensors PadSpan reads automatically (IP address, WiFi signal, SSID, temperature, uptime). " +
-      "Copy the YAML into your ESPHome device configuration, adjust wifi/api secrets, and flash."
+      t("Optimised ESPHome YAML for every ESP32 variant PadSpan supports. Each config includes the diagnostic sensors PadSpan reads automatically (IP address, WiFi signal, SSID, temperature, uptime). Copy the YAML into your ESPHome device configuration, adjust wifi/api secrets, and flash.")
     ),
     el("div", { style: "margin-top:10px;display:flex;gap:12px;flex-wrap:wrap" }, [
       el("div", { style: "flex:1;min-width:200px;background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;padding:11px 13px" }, [
-        el("div", { class: "bt-kv-title", style: "margin:0 0 5px;border:none;padding:0" }, "Scan parameters"),
+        el("div", { class: "bt-kv-title", style: "margin:0 0 5px;border:none;padding:0" }, t("Scan parameters")),
         el("div", { class: "muted", style: "font-size:11px;line-height:1.5" },
-          "interval and window must be multiples of 0.625 ms (one BLE time slot). " +
-          "320 ms interval is the standard. WiFi scanners: window = 100 ms (31% duty). " +
-          "Ethernet scanners: window = 300 ms (93.75% duty)."
+          t("interval and window must be multiples of 0.625 ms (one BLE time slot). 320 ms interval is the standard. WiFi scanners: window = 100 ms (31% duty). Ethernet scanners: window = 300 ms (93.75% duty).")
         ),
       ]),
       el("div", { style: "flex:1;min-width:200px;background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;padding:11px 13px" }, [
-        el("div", { class: "bt-kv-title", style: "margin:0 0 5px;border:none;padding:0" }, "Why passive scanning"),
+        el("div", { class: "bt-kv-title", style: "margin:0 0 5px;border:none;padding:0" }, t("Why passive scanning")),
         el("div", { class: "muted", style: "font-size:11px;line-height:1.5" },
-          "active: false means the scanner only listens — it never sends scan requests. " +
-          "This reduces RF contention, saves power, and is all PadSpan needs for RSSI-based presence. " +
-          "Active scanning is only needed if you want to connect to BLE devices."
+          t("active: false means the scanner only listens — it never sends scan requests. This reduces RF contention, saves power, and is all PadSpan needs for RSSI-based presence. Active scanning is only needed if you want to connect to BLE devices.")
         ),
       ]),
     ]),
@@ -3091,19 +3094,16 @@ button:
   // ── IRK Capture Tool card ──────────────────────────────────────────────────
   const irkCaptureCard = el("div", { class: "bt-panel", style: "border-color:rgba(196,181,253,.3);background:rgba(196,181,253,.045)" }, [
     el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px" }, [
-      el("span", { style: "font-weight:800;font-size:14px;color:var(--bt-violet)" }, "IRK Capture tool"),
-      el("span", { class: "bt-chip violet" }, "community project"),
+      el("span", { style: "font-weight:800;font-size:14px;color:var(--bt-violet)" }, t("IRK Capture tool")),
+      el("span", { class: "bt-chip violet" }, t("community project")),
     ]),
     el("div", { class: "muted", style: "font-size:12px;line-height:1.6;max-width:700px;margin-bottom:8px" },
-      "Phones and watches rotate their BLE MAC address every ~15 minutes, making them hard to track. " +
-      "An IRK (Identity Resolving Key) lets PadSpan see through the rotation and track each device by name. " +
-      "This ESPHome package captures IRKs by briefly pairing with an iPhone or Apple Watch \u2014 flash a spare ESP32, add it to Home Assistant, pair, " +
-      "and save the key in Bluetooth \u2192 IRK Manager."
+      t("Phones and watches rotate their BLE MAC address every ~15 minutes, making them hard to track. An IRK (Identity Resolving Key) lets PadSpan see through the rotation and track each device by name. This ESPHome package captures IRKs by briefly pairing with an iPhone or Apple Watch \u2014 flash a spare ESP32, add it to Home Assistant, pair, and save the key in Bluetooth \u2192 IRK Manager.")
     ),
     el("div", { class: "bt-notes" }, [
-      el("div", { class: "bt-note" }, "For iPhones and Apple Watches. Not for Android phones: they don't keep sending this key in the background; track them with the Companion app's BLE Transmitter"),
-      el("div", { class: "bt-note" }, "Flash any spare ESP32 \u2014 only needed once per device, then reflash back to scanner duty"),
-      el("div", { class: "bt-note ok" }, "Third-party community project \u2014 not maintained by PadSpan"),
+      el("div", { class: "bt-note" }, t("For iPhones and Apple Watches. Not for Android phones: they don't keep sending this key in the background; track them with the Companion app's BLE Transmitter")),
+      el("div", { class: "bt-note" }, t("Flash any spare ESP32 \u2014 only needed once per device, then reflash back to scanner duty")),
+      el("div", { class: "bt-note ok" }, t("Third-party community project \u2014 not maintained by PadSpan")),
     ]),
     (() => {
       const linkBtn = document.createElement("a");
@@ -3112,7 +3112,7 @@ button:
       linkBtn.rel = "noopener noreferrer";
       linkBtn.className = "btn tiny";
       linkBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:10px;color:var(--bt-violet);border-color:rgba(196,181,253,.4);background:rgba(196,181,253,.1)";
-      linkBtn.textContent = "View on GitHub \u2192";
+      linkBtn.textContent = t("View on GitHub \u2192");
       return linkBtn;
     })(),
   ]);
@@ -3122,8 +3122,8 @@ button:
   const _chipExpiry = new Date("2028-03-10T00:00:00Z").getTime();
   const chipTable = Date.now() < _chipExpiry ? el("div", { class: "bt-panel" }, [
     el("div", { class: "bt-panel-head" }, [
-      el("div", { class: "bt-panel-title" }, "Which chip"),
-      el("div", { class: "bt-panel-sub" }, "Scan duty is what decides how much a scanner actually hears."),
+      el("div", { class: "bt-panel-title" }, t("Which chip")),
+      el("div", { class: "bt-panel-sub" }, t("Scan duty is what decides how much a scanner actually hears.")),
     ]),
     (() => {
       const wrap = document.createElement("div");
@@ -3134,13 +3134,13 @@ button:
             _b = "color:var(--bt-bad)", _v = "color:var(--bt-violet)";
       wrap.innerHTML = `<table class="table">
         <thead><tr>
-          <th>Chip</th><th>Cores</th><th>BLE</th><th>WiFi</th><th>Max scan duty</th><th>Best for</th>
+          <th>${_escSvg(t("Chip"))}</th><th>${_escSvg(t("Cores"))}</th><th>BLE</th><th>WiFi</th><th>${_escSvg(t("Max scan duty"))}</th><th>${_escSvg(t("Best for"))}</th>
         </tr></thead>
         <tbody>
-          <tr><td style="font-weight:700;${_g}">ESP32-S3</td><td style="${_g}">2 (Xtensa)</td><td>5.0</td><td>4 (b/g/n)</td><td style="${_g}">~31% WiFi / 93.75% Eth</td><td style="${_g};font-weight:700">Best overall</td></tr>
-          <tr><td style="font-weight:700">ESP32-C6</td><td>1 (RISC-V)</td><td style="${_v}">5.3</td><td style="${_v}">6 (ax)</td><td style="${_o}">~31%</td><td>Future-proof, Wi-Fi 6</td></tr>
-          <tr><td style="font-weight:700">ESP32 (original)</td><td>2 (Xtensa)</td><td>4.2</td><td>4 (b/g/n)</td><td style="${_o}">~31%</td><td>Legacy installs</td></tr>
-          <tr><td style="font-weight:700;${_b}">ESP32-C3</td><td>1 (RISC-V)</td><td>5.0</td><td>4 (b/g/n)</td><td style="${_b}">~20-25%</td><td style="${_b}">Not recommended \u2014 existing installs only</td></tr>
+          <tr><td style="font-weight:700;${_g}">ESP32-S3</td><td style="${_g}">2 (Xtensa)</td><td>5.0</td><td>4 (b/g/n)</td><td style="${_g}">~31% WiFi / 93.75% Eth</td><td style="${_g};font-weight:700">${_escSvg(t("Best overall"))}</td></tr>
+          <tr><td style="font-weight:700">ESP32-C6</td><td>1 (RISC-V)</td><td style="${_v}">5.3</td><td style="${_v}">6 (ax)</td><td style="${_o}">~31%</td><td>${_escSvg(t("Future-proof, Wi-Fi 6"))}</td></tr>
+          <tr><td style="font-weight:700">${_escSvg(t("ESP32 (original)"))}</td><td>2 (Xtensa)</td><td>4.2</td><td>4 (b/g/n)</td><td style="${_o}">~31%</td><td>${_escSvg(t("Legacy installs"))}</td></tr>
+          <tr><td style="font-weight:700;${_b}">ESP32-C3</td><td>1 (RISC-V)</td><td>5.0</td><td>4 (b/g/n)</td><td style="${_b}">~20-25%</td><td style="${_b}">${_escSvg(t("Not recommended \u2014 existing installs only"))}</td></tr>
         </tbody>
       </table>`;
       return wrap;
@@ -3154,11 +3154,11 @@ button:
     const expandedFull = ctx.state[`_cfgExpand_${cfg.id}`] || false;
     const expandedMin  = ctx.state[`_cfgMinimal_${cfg.id}`] || false;
 
-    const toggleBtn = el("button", { class: "btn tiny", style: "font-size:11px" }, expandedFull ? "Hide YAML" : "Full YAML");
+    const toggleBtn = el("button", { class: "btn tiny", style: "font-size:11px" }, expandedFull ? t("Hide YAML") : t("Full YAML"));
     const minimalBtn = cfg.minimal
-      ? el("button", { class: "btn tiny bt-btn-accent" }, expandedMin ? "Hide Minimal" : "Add to Existing")
+      ? el("button", { class: "btn tiny bt-btn-accent" }, expandedMin ? t("Hide Minimal") : t("Add to Existing"))
       : null;
-    const copyBtn = el("button", { class: "btn tiny", style: "font-size:11px" }, "Copy");
+    const copyBtn = el("button", { class: "btn tiny", style: "font-size:11px" }, t("Copy"));
 
     const headerRow = el("div", { style: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap" }, [
       el("div", {}, [
@@ -3209,8 +3209,8 @@ button:
       ctx.state[`_cfgMinimal_${cfg.id}`] = false;
       yamlWrap.style.display = show ? "block" : "none";
       if (minWrap) minWrap.style.display = "none";
-      toggleBtn.textContent = show ? "Hide YAML" : "Full YAML";
-      if (minimalBtn) minimalBtn.textContent = "Add to Existing";
+      toggleBtn.textContent = show ? t("Hide YAML") : t("Full YAML");
+      if (minimalBtn) minimalBtn.textContent = t("Add to Existing");
     });
 
     if (minimalBtn) {
@@ -3220,8 +3220,8 @@ button:
         ctx.state[`_cfgExpand_${cfg.id}`] = false;
         if (minWrap) minWrap.style.display = show ? "block" : "none";
         yamlWrap.style.display = "none";
-        minimalBtn.textContent = show ? "Hide Minimal" : "Add to Existing";
-        toggleBtn.textContent = "Full YAML";
+        minimalBtn.textContent = show ? t("Hide Minimal") : t("Add to Existing");
+        toggleBtn.textContent = t("Full YAML");
       });
     }
 
@@ -3230,8 +3230,8 @@ button:
     copyBtn.addEventListener("click", () => {
       const text = ctx.state[`_cfgMinimal_${cfg.id}`] ? cfg.minimal : cfg.yaml;
       navigator.clipboard.writeText(text).then(() => {
-        copyBtn.textContent = "Copied!";
-        setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+        copyBtn.textContent = t("Copied!");
+        setTimeout(() => { copyBtn.textContent = t("Copy"); }, 1500);
       }).catch(() => {
         const target = ctx.state[`_cfgMinimal_${cfg.id}`] ? (minWrap || yamlWrap) : yamlWrap;
         target.style.display = "block";
@@ -3241,8 +3241,8 @@ button:
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
-        copyBtn.textContent = "Select failed — copy manually";
-        setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+        copyBtn.textContent = t("Select failed — copy manually");
+        setTimeout(() => { copyBtn.textContent = t("Copy"); }, 2000);
       });
     });
 
@@ -3251,14 +3251,14 @@ button:
 
   // Tips card at the bottom
   const tips = el("div", { class: "bt-panel" }, [
-    el("div", { style: "font-weight:700;margin-bottom:6px" }, "Tips for Best Results"),
+    el("div", { style: "font-weight:700;margin-bottom:6px" }, t("Tips for Best Results")),
     el("div", { class: "muted", style: "display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.55" }, [
-      el("div", {}, "1. Use Ethernet S3 boards for dedicated rooms — 3x the scan coverage of WiFi scanners."),
-      el("div", {}, "2. Place scanners at chest height (1.2 m) for best RSSI consistency with carried devices."),
-      el("div", {}, "3. After flashing, check Bluetooth → Scanners tab — PadSpan shows IP, WiFi signal, and SSID automatically from these configs."),
-      el("div", {}, "4. The diagnostic sensors (IP, signal, temp) appear in HA as entities and PadSpan reads them with zero extra setup."),
-      el("div", {}, "5. For Ethernet boards: adjust the ethernet: section pins to match your specific board (W5500, LAN8720, etc)."),
-      el("div", {}, "6. All configs use active: false (passive scanning). PadSpan only needs RSSI — active scanning adds no benefit and wastes airtime."),
+      el("div", {}, t("1. Use Ethernet S3 boards for dedicated rooms — 3x the scan coverage of WiFi scanners.")),
+      el("div", {}, t("2. Place scanners at chest height (1.2 m) for best RSSI consistency with carried devices.")),
+      el("div", {}, t("3. After flashing, check Bluetooth → Scanners tab — PadSpan shows IP, WiFi signal, and SSID automatically from these configs.")),
+      el("div", {}, t("4. The diagnostic sensors (IP, signal, temp) appear in HA as entities and PadSpan reads them with zero extra setup.")),
+      el("div", {}, t("5. For Ethernet boards: adjust the ethernet: section pins to match your specific board (W5500, LAN8720, etc).")),
+      el("div", {}, t("6. All configs use active: false (passive scanning). PadSpan only needs RSSI — active scanning adds no benefit and wastes airtime.")),
     ]),
   ]);
 

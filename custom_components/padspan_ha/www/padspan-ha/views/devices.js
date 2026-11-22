@@ -439,7 +439,7 @@ function _renderByRoom(ctx) {
   }).catch(e => console.warn("[Devices] objects.js load failed:", e));
 
   return el("div", { class: "card", style: "padding:20px;text-align:center" }, [
-    el("div", { class: "muted" }, "Loading objects view\u2026"),
+    el("div", { class: "muted" }, t("Loading objects view\u2026")),
   ]);
 }
 
@@ -457,12 +457,12 @@ function _renderRegistry(ctx) {
 
   const regCard = el("div", { class: "card" });
   regCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
-    el("div", { style: "font-weight:700;font-size:14px;color:#52b788" }, "Device Identity Registry"),
+    el("div", { style: "font-weight:700;font-size:14px;color:#52b788" }, t("Device Identity Registry")),
     el("div", { class: "pill", style: "background:#52b78822;color:#52b788;font-size:10px;padding:2px 8px" },
-      `${_pidCount} with stable ID`),
+      t("{n} with stable ID", { n: _pidCount })),
   ]));
   regCard.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "Each device gets an immutable padspan_id that survives MAC rotation, iBeacon changes, and firmware updates. Use this tab to manage identities, merge duplicates, and add manual identity links."));
+    t("Each device gets an immutable padspan_id that survives MAC rotation, iBeacon changes, and firmware updates. Use this tab to manage identities, merge duplicates, and add manual identity links.")));
 
   // Auto-load registry on tab open
   const container = el("div", {});
@@ -474,7 +474,7 @@ function _renderRegistry(ctx) {
 
 async function _loadRegistryAsync(ctx, el, container) {
   container.innerHTML = "";
-  container.appendChild(el("div", { style: "text-align:center;color:#94a3b8;padding:12px" }, "Loading registry\u2026"));
+  container.appendChild(el("div", { style: "text-align:center;color:#94a3b8;padding:12px" }, t("Loading registry\u2026")));
 
   const _selected = new Set();
 
@@ -489,18 +489,18 @@ async function _loadRegistryAsync(ctx, el, container) {
     container.innerHTML = "";
 
     if (!entries.length) {
-      container.appendChild(el("div", { style: "font-size:11px;color:#64748b;padding:8px 0" }, "No devices in registry yet."));
+      container.appendChild(el("div", { style: "font-size:11px;color:#64748b;padding:8px 0" }, t("No devices in registry yet.")));
       return;
     }
 
     // Summary
     container.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:10px" },
-      `${entries.length} device${entries.length !== 1 ? "s" : ""} registered \u00b7 ${entries.filter(d => d.label).length} labeled`));
+      tn(entries.length, "1 device registered", "{n} devices registered") + " · " + t("{n} labeled", { n: entries.filter(d => d.label).length })));
 
     // Merge bar (hidden until 2 selected)
     const mergeBar = el("div", { style: "display:none;padding:6px 10px;background:#1a2a0a;border:1px solid #52b78844;border-radius:6px;margin-bottom:8px;font-size:11px;color:#a7f3d0" });
-    const mergeBtn = el("button", { class: "btn", style: "font-size:11px;padding:2px 10px;margin-left:8px" }, "Merge Selected");
-    mergeBar.appendChild(document.createTextNode("Select exactly 2 devices to merge "));
+    const mergeBtn = el("button", { class: "btn", style: "font-size:11px;padding:2px 10px;margin-left:8px" }, t("Merge Selected"));
+    mergeBar.appendChild(document.createTextNode(t("Select exactly 2 devices to merge") + " "));
     mergeBar.appendChild(mergeBtn);
     container.appendChild(mergeBar);
 
@@ -518,13 +518,13 @@ async function _loadRegistryAsync(ctx, el, container) {
       if (ids.length !== 2) return;
       const d0 = devs[ids[0]], d1 = devs[ids[1]];
       const n0 = d0?.label || ids[0], n1 = d1?.label || ids[1];
-      if (!confirm(`Merge "${n1}" into "${n0}"?\n\nAll identities from "${n1}" will move to "${n0}". "${n1}" will be deleted.`)) return;
-      mergeBtn.disabled = true; mergeBtn.textContent = "Merging\u2026";
+      if (!confirm(t("Merge \"{a}\" into \"{b}\"?", { a: n1, b: n0 }) + "\n\n" + t("All identities from \"{a}\" will move to \"{b}\". \"{a}\" will be deleted.", { a: n1, b: n0 }))) return;
+      mergeBtn.disabled = true; mergeBtn.textContent = t("Merging\u2026");
       try {
         await ctx.actions.callWS({ type: "padspan_ha/device_registry_merge", keep_id: ids[0], absorb_id: ids[1] });
         ctx.toast(`Merged: ${n1} \u2192 ${n0}`);
         _loadRegistryAsync(ctx, el, container);
-      } catch (e) { ctx.toast("Merge failed: " + ctx.helpers.errorText(e), true); mergeBtn.disabled = false; mergeBtn.textContent = "Merge Selected"; }
+      } catch (e) { ctx.toast(t("Merge failed: {why}", { why: ctx.helpers.errorText(e) }), true); mergeBtn.disabled = false; mergeBtn.textContent = t("Merge Selected"); }
     });
 
     // Device rows
@@ -550,22 +550,22 @@ async function _loadRegistryAsync(ctx, el, container) {
         if (!newLabel) return;
         try {
           await ctx.actions.callWS({ type: "padspan_ha/device_registry_label_set", padspan_id: pid, label: newLabel });
-          ctx.toast(`Label set: ${newLabel}`);
-        } catch (err) { ctx.toast("Failed: " + ctx.helpers.errorText(err), true); }
+          ctx.toast(t("Label set: {label}", { label: newLabel }));
+        } catch (err) { ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(err) }), true); }
       });
       hdr.appendChild(lblInput);
       hdr.appendChild(el("span", { style: "font-size:10px;color:#64748b;margin-left:auto" }, d.created_at ? d.created_at.substring(0, 10) : ""));
 
       // Delete button
       const delBtn = el("button", { class: "btn tiny", style: "font-size:10px;padding:1px 6px;color:#f87171;border-color:#7f1d1d" }, "\u2716");
-      delBtn.title = "Delete device from registry";
+      delBtn.title = t("Delete device from registry");
       delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete device ${d.label || pid}? This removes it from the identity registry.`)) return;
+        if (!confirm(t("Delete device {name}? This removes it from the identity registry.", { name: d.label || pid }))) return;
         try {
           await ctx.actions.callWS({ type: "padspan_ha/device_registry_delete", padspan_id: pid });
-          ctx.toast("Deleted " + (d.label || pid));
+          ctx.toast(t("Deleted {name}", { name: d.label || pid }));
           _loadRegistryAsync(ctx, el, container);
-        } catch (e) { ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true); }
+        } catch (e) { ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
       });
       hdr.appendChild(delBtn);
       row.appendChild(hdr);
@@ -588,33 +588,33 @@ async function _loadRegistryAsync(ctx, el, container) {
       addKind.style.cssText = "padding:2px;border:1px solid #2d4a38;border-radius:3px;background:#1b3526;color:#e2e8f0;font-size:10px";
       for (const k of ["mac","ibeacon","irk","entity"]) { const o = document.createElement("option"); o.value = k; o.textContent = k; addKind.appendChild(o); }
       const addVal = document.createElement("input");
-      addVal.type = "text"; addVal.placeholder = "address or key";
+      addVal.type = "text"; addVal.placeholder = t("address or key");
       addVal.style.cssText = "flex:1;padding:2px 4px;border:1px solid #2d4a38;border-radius:3px;background:#1b3526;color:#e2e8f0;font-size:10px;min-width:120px";
-      const addGo = el("button", { class: "btn tiny", style: "font-size:10px;padding:1px 6px" }, "Add");
+      const addGo = el("button", { class: "btn tiny", style: "font-size:10px;padding:1px 6px" }, t("Add"));
       addGo.addEventListener("click", async () => {
         const v = addVal.value.trim(); if (!v) return;
         try {
           await ctx.actions.callWS({ type: "padspan_ha/device_registry_add_identity", padspan_id: pid, kind: addKind.value, value: v });
-          ctx.toast("Identity added"); addVal.value = ""; _loadRegistryAsync(ctx, el, container);
-        } catch (e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
+          ctx.toast(t("Identity added")); addVal.value = ""; _loadRegistryAsync(ctx, el, container);
+        } catch (e) { ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
       });
       addRow.appendChild(addKind); addRow.appendChild(addVal); addRow.appendChild(addGo);
 
-      const addLink = el("span", { ...ctx.helpers.asButton, style: "font-size:10px;color:#52b788;cursor:pointer;margin-top:4px;display:inline-block" }, "+ Add Identity");
+      const addLink = el("span", { ...ctx.helpers.asButton, style: "font-size:10px;color:#52b788;cursor:pointer;margin-top:4px;display:inline-block" }, t("+ Add Identity"));
       addLink.addEventListener("click", () => { addRow.style.display = addRow.style.display === "none" ? "flex" : "none"; });
       row.appendChild(addLink);
       row.appendChild(addRow);
 
       // Merged from
       if (d.merged_from && d.merged_from.length) {
-        row.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-top:2px" }, `Merged from: ${d.merged_from.join(", ")}`));
+        row.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-top:2px" }, t("Merged from: {list}", { list: d.merged_from.join(", ") })));
       }
 
       container.appendChild(row);
     }
   } catch (e) {
     container.innerHTML = "";
-    container.appendChild(el("div", { style: "color:#f87171;font-size:11px" }, "Failed: " + (e.message || e)));
+    container.appendChild(el("div", { style: "color:#f87171;font-size:11px" }, t("Failed: {why}", { why: ctx.helpers.errorText ? ctx.helpers.errorText(e) : (e.message || e) })));
   }
 }
 
@@ -672,13 +672,13 @@ function _isDoorOpenersPaidTier(ctx) {
 function _renderDoorOpeners(ctx) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
-  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Door / Window Openers"));
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, t("Door / Window Openers")));
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock."));
+    t("Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock.")));
 
   if (!_isDoorOpenersPaidTier(ctx)) {
     card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;background:#2a220a;border:1px solid #78350f;border-radius:8px;padding:10px" },
-      "Door Openers is a Bright / Pro feature."));
+      t("Door Openers is a Bright / Pro feature.")));
     return card;
   }
 
@@ -705,14 +705,14 @@ function _renderDoorOpeners(ctx) {
     if (checked) next.add(eid); else next.delete(eid);
     try {
       await ctx.actions.settingsSet({ door_opener_ids: [...next] });
-      ctx.toast(checked ? "Marked as an opener." : "No longer an opener.");
-    } catch (e) { ctx.toast("Could not save: " + ctx.helpers.errorText(e), true); }
+      ctx.toast(checked ? t("Marked as an opener.") : t("No longer an opener."));
+    } catch (e) { ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true); }
   };
 
   if (!candidates.length) {
     card.appendChild(el("div", { style: "font-size:12px;color:#64748b;padding:8px 0" },
-      "No cover, switch, button, or script entities with “door”, “gate”, “garage”, or “opener” in their name were found. " +
-      "Nothing on this install looks like a door/window opener by name — if one exists under a different name, it can still be added from the picker on its wall opening's row in Mapping → Atlas builder."));
+      t("No cover, switch, button, or script entities with “door”, “gate”, “garage”, or “opener” in their name were found.") + " " +
+      t("Nothing on this install looks like a door/window opener by name — if one exists under a different name, it can still be added from the picker on its wall opening's row in Mapping → Atlas builder.")));
   } else {
     for (const eid of candidates) {
       const st = states[eid];
@@ -789,10 +789,10 @@ function _renderDoorOpeners(ctx) {
 
 const _RELAY_DOMAINS = ["switch.", "light."];
 const _RELAY_KINDS = [
-  { id: "momentary_opener", label: "Momentary opener (garage door, gate)" },
-  { id: "two_direction_opener", label: "Two-direction opener (motorized window, blind, awning)" },
-  { id: "momentary_lock", label: "Momentary-strike lock (electric door strike)" },
-  { id: "relay_light", label: "Plain light (a relay-switched light — e.g. a PoE port, a bare on/off fixture)" },
+  { id: "momentary_opener", get label() { return t("Momentary opener (garage door, gate)"); } },
+  { id: "two_direction_opener", get label() { return t("Two-direction opener (motorized window, blind, awning)"); } },
+  { id: "momentary_lock", get label() { return t("Momentary-strike lock (electric door strike)"); } },
+  { id: "relay_light", get label() { return t("Plain light (a relay-switched light — e.g. a PoE port, a bare on/off fixture)"); } },
 ];
 const _COVER_DEVICE_CLASSES = ["window", "door", "garage", "gate", "blind", "shade", "shutter", "awning", "curtain", "damper"];
 
@@ -1146,13 +1146,13 @@ function _relaySelect(candidates, placeholder) {
 function _renderRelayWizard(ctx) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
-  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Build an Opener, Lock, or Light from Relays"));
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, t("Build an Opener, Lock, or Light from Relays")));
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "For a door, window, or light with no ready-made entity — just a bare relay (a ProDino channel, a Pakedge PoE port, anything switch./light.*). Builds the script, automation, and template entity it needs, then offers the result the same way any other opener, lock, or light is offered."));
+    t("For a door, window, or light with no ready-made entity — just a bare relay (a ProDino channel, a Pakedge PoE port, anything switch./light.*). Builds the script, automation, and template entity it needs, then offers the result the same way any other opener, lock, or light is offered.")));
 
   const composites = (ctx.state.settings && ctx.state.settings.door_composites) || [];
   if (composites.length) {
-    card.appendChild(el("div", { style: "font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px" }, "Built from relays"));
+    card.appendChild(el("div", { style: "font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px" }, t("Built from relays")));
     for (const c of composites) {
       const st = ctx.hass && ctx.hass.states && ctx.hass.states[c.entity_id];
       const row = el("div", {
@@ -1160,23 +1160,23 @@ function _renderRelayWizard(ctx) {
       });
       row.appendChild(el("div", { style: "flex:1;min-width:0" }, [
         el("div", { style: "font-weight:600;font-size:13px" }, c.name || c.entity_id),
-        el("div", { style: "font-size:10px;color:#64748b" }, `${c.entity_id} · ${st ? st.state : "unknown"} · ${(_RELAY_KINDS.find(k => k.id === c.kind) || {}).label || c.kind}`),
+        el("div", { style: "font-size:10px;color:#64748b" }, `${c.entity_id} · ${st ? st.state : t("unknown")} · ${(_RELAY_KINDS.find(k => k.id === c.kind) || {}).label || c.kind}`),
       ]));
       const removeBtn = el("button", {
         style: "background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35);border-radius:8px;color:#fca5a5;font-size:12px;cursor:pointer;padding:5px 10px",
         onclick: async () => {
-          removeBtn.disabled = true; removeBtn.textContent = "Removing…";
+          removeBtn.disabled = true; removeBtn.textContent = t("Removing…");
           const failures = await _teardownComposite(ctx, c.generated || {});
           const next = composites.filter(x => x.id !== c.id);
           const nextOpeners = new Set((ctx.state.settings && ctx.state.settings.door_opener_ids) || []);
           nextOpeners.delete(c.entity_id);
           try {
             await ctx.actions.settingsSet({ door_composites: next, door_opener_ids: [...nextOpeners] });
-            ctx.toast(failures.length ? `Removed, but couldn't delete: ${failures.join(", ")}` : "Removed.", !!failures.length);
-          } catch (e) { ctx.toast("Could not save: " + ctx.helpers.errorText(e), true); }
+            ctx.toast(failures.length ? t("Removed, but couldn't delete: {list}", { list: failures.join(", ") }) : t("Removed."), !!failures.length);
+          } catch (e) { ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true); }
           ctx.actions.renderRooms();
         },
-      }, "Remove");
+      }, t("Remove"));
       row.appendChild(removeBtn);
       card.appendChild(row);
     }
@@ -1186,7 +1186,7 @@ function _renderRelayWizard(ctx) {
     card.appendChild(el("button", {
       class: "btn inline", style: "font-size:12px;margin-top:4px",
       onclick: () => { ctx.state._relayWizardOpen = true; ctx.actions.renderRooms(); },
-    }, "+ Build an opener, lock, or light from relays"));
+    }, t("+ Build an opener, lock, or light from relays")));
     return card;
   }
 
@@ -1210,20 +1210,20 @@ function _renderRelayWizard(ctx) {
   form.appendChild(kindSel);
 
   const nameInput = document.createElement("input");
-  nameInput.type = "text"; nameInput.placeholder = "Name (e.g. \"Back Door Strike\", \"Bedroom2 Window\")";
+  nameInput.type = "text"; nameInput.placeholder = t("Name (e.g. \"Back Door Strike\", \"Bedroom2 Window\")");
   nameInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
   form.appendChild(nameInput);
 
-  const relaySel1 = _relaySelect(relayCandidates, kind === "two_direction_opener" ? "— open relay —" : "— relay —");
+  const relaySel1 = _relaySelect(relayCandidates, kind === "two_direction_opener" ? t("— open relay —") : t("— relay —"));
   form.appendChild(relaySel1);
   let relaySel2 = null;
   if (kind === "two_direction_opener") {
-    relaySel2 = _relaySelect(relayCandidates, "— close relay —");
+    relaySel2 = _relaySelect(relayCandidates, t("— close relay —"));
     form.appendChild(relaySel2);
   }
   if (relayCandidates.some(c => usedRelays.has(c.entity_id))) {
     form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:8px" },
-      "A relay already used by another built opener/lock still shows here — nothing stops reusing it, but it's rarely intended."));
+      t("A relay already used by another built opener/lock still shows here — nothing stops reusing it, but it's rarely intended.")));
   }
 
   let classSel = null;
@@ -1243,8 +1243,8 @@ function _renderRelayWizard(ctx) {
     secondsInput = document.createElement("input");
     secondsInput.type = "number"; secondsInput.min = "1";
     secondsInput.value = kind === "two_direction_opener" ? "30" : kind === "momentary_lock" ? "3" : "1";
-    const secondsLabel = kind === "two_direction_opener" ? "Travel time, seconds (full open or close)"
-      : kind === "momentary_lock" ? "Unlock pulse, seconds" : "Pulse, seconds";
+    const secondsLabel = kind === "two_direction_opener" ? t("Travel time, seconds (full open or close)")
+      : kind === "momentary_lock" ? t("Unlock pulse, seconds") : t("Pulse, seconds");
     form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:2px" }, secondsLabel));
     secondsInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
     form.appendChild(secondsInput);
@@ -1254,22 +1254,22 @@ function _renderRelayWizard(ctx) {
   if (kind === "momentary_lock") {
     relockInput = document.createElement("input");
     relockInput.type = "number"; relockInput.min = "1"; relockInput.value = "5";
-    form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:2px" }, "Auto re-lock after, seconds"));
+    form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:2px" }, t("Auto re-lock after, seconds")));
     relockInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
     form.appendChild(relockInput);
   }
 
   let sensorSel = null, invertCb = null;
   if (kind === "two_direction_opener") {
-    sensorSel = _relaySelect(sensorCandidates, "— optional: link a sensor for ground truth —");
+    sensorSel = _relaySelect(sensorCandidates, t("— optional: link a sensor for ground truth —"));
     form.appendChild(sensorSel);
     const invertRow = el("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:#94a3b8" });
     invertCb = document.createElement("input"); invertCb.type = "checkbox";
     invertRow.appendChild(invertCb);
-    invertRow.appendChild(el("span", {}, "Invert the sensor (it reads backwards)"));
+    invertRow.appendChild(el("span", {}, t("Invert the sensor (it reads backwards)")));
     form.appendChild(invertRow);
     form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:8px" },
-      "Without a sensor, position is remembered from the open/close commands alone — accurate as long as nothing moves it outside HA."));
+      t("Without a sensor, position is remembered from the open/close commands alone — accurate as long as nothing moves it outside HA.")));
   }
 
   const errorMsg = el("div", { style: "font-size:11px;color:#f87171;margin-bottom:8px;display:none" });
@@ -1284,15 +1284,15 @@ function _renderRelayWizard(ctx) {
       const relay1 = relaySel1.value;
       const relay2 = relaySel2 ? relaySel2.value : null;
       const seconds = secondsInput ? parseInt(secondsInput.value, 10) : null;
-      if (!name) { errorMsg.textContent = "Name is required."; errorMsg.style.display = "block"; return; }
+      if (!name) { errorMsg.textContent = t("Name is required."); errorMsg.style.display = "block"; return; }
       if (!relay1 || (kind === "two_direction_opener" && !relay2)) {
-        errorMsg.textContent = "Pick every relay this kind needs."; errorMsg.style.display = "block"; return;
+        errorMsg.textContent = t("Pick every relay this kind needs."); errorMsg.style.display = "block"; return;
       }
       if (kind === "two_direction_opener" && relay1 === relay2) {
-        errorMsg.textContent = "The open and close relays must be different."; errorMsg.style.display = "block"; return;
+        errorMsg.textContent = t("The open and close relays must be different."); errorMsg.style.display = "block"; return;
       }
       if (secondsInput && (!Number.isFinite(seconds) || seconds < 1)) {
-        errorMsg.textContent = "Enter a valid number of seconds."; errorMsg.style.display = "block"; return;
+        errorMsg.textContent = t("Enter a valid number of seconds."); errorMsg.style.display = "block"; return;
       }
 
       const slug = relaySlug(name);
@@ -1308,7 +1308,7 @@ function _renderRelayWizard(ctx) {
         relays = [relay1, relay2];
       } else if (kind === "momentary_lock") {
         const relock = parseInt(relockInput.value, 10);
-        if (!Number.isFinite(relock) || relock < 1) { errorMsg.textContent = "Enter a valid re-lock time."; errorMsg.style.display = "block"; return; }
+        if (!Number.isFinite(relock) || relock < 1) { errorMsg.textContent = t("Enter a valid re-lock time."); errorMsg.style.display = "block"; return; }
         build = buildMomentaryLock({ slug, name, relayEid: relay1, pulseSeconds: seconds, relockSeconds: relock });
         relays = [relay1];
       } else {
@@ -1316,10 +1316,10 @@ function _renderRelayWizard(ctx) {
         relays = [relay1];
       }
 
-      buildBtn.disabled = true; buildBtn.textContent = "Building…";
+      buildBtn.disabled = true; buildBtn.textContent = t("Building…");
       try {
         const { entityId, generated } = await _runBuildPlan(ctx, build);
-        if (!entityId) throw new Error("Built, but couldn't find the resulting entity.");
+        if (!entityId) throw new Error(t("Built, but couldn't find the resulting entity."));
         const composite = { id: slug, kind, name, entity_id: entityId, relays, generated };
         const nextComposites = [...composites, composite];
         const settingsPatch = { door_composites: nextComposites };
@@ -1329,22 +1329,22 @@ function _renderRelayWizard(ctx) {
           settingsPatch.door_opener_ids = [...nextOpeners];
         }
         await ctx.actions.settingsSet(settingsPatch);
-        ctx.toast(`Built ${entityId}.`);
+        ctx.toast(t("Built {entity}.", { entity: entityId }));
         ctx.state._relayWizardOpen = false;
         ctx.actions.renderRooms();
       } catch (e) {
-        buildBtn.disabled = false; buildBtn.textContent = "Build";
-        errorMsg.textContent = "Could not build: " + (e.message || e);
+        buildBtn.disabled = false; buildBtn.textContent = t("Build");
+        errorMsg.textContent = t("Could not build: {why}", { why: (e && e.message) || e });
         errorMsg.style.display = "block";
       }
     },
-  }, "Build");
+  }, t("Build"));
   form.appendChild(buildBtn);
 
   form.appendChild(el("button", {
     class: "btn inline", style: "font-size:12px",
     onclick: () => { ctx.state._relayWizardOpen = false; ctx.actions.renderRooms(); },
-  }, "Cancel"));
+  }, t("Cancel")));
 
   card.appendChild(form);
   return card;

@@ -20,6 +20,8 @@
 // metric fabric and never a photograph. See tests/test_photo_divorce.py.
 
 const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const { mapXform, fabricWorldRooms, worldGauge } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
@@ -433,12 +435,12 @@ const { mapXform, fabricWorldRooms, worldGauge } =
     const viewTo3d = document.createElement("button");
     viewTo3d.className = "btn inline";
     viewTo3d.style.cssText = "font-size:11px;padding:2px 8px;color:#94a3b8;border-color:#334155";
-    viewTo3d.textContent = "◈ 3D view";
-    viewTo3d.title = "Switch to the 3D stacked-floor view";
+    viewTo3d.textContent = "◈ " + t("3D view");
+    viewTo3d.title = t("Switch to the 3D stacked-floor view");
     viewTo3d.addEventListener("click", async () => {
       viewTo3d.disabled = true;
       try { await ctx.actions.settingsSet({ overview_2d_mode: false }); }
-      catch(e){ viewTo3d.disabled = false; if(ctx.toast) ctx.toast("Failed to switch view", true); }
+      catch(e){ viewTo3d.disabled = false; if(ctx.toast) ctx.toast(t("Failed to switch view"), true); }
     });
     filterBar.appendChild(viewTo3d);
     const sepView = document.createElement("span");
@@ -446,23 +448,23 @@ const { mapXform, fabricWorldRooms, worldGauge } =
     filterBar.appendChild(sepView);
 
     // Layer toggles (map image off by default — setup tool only) + room lines
-    filterBar.appendChild(makeFilterBtn("mapImg", "Map", "#a78bfa"));
-    filterBar.appendChild(makeFilterBtn("rooms", "Rooms", "#60a5fa"));
+    filterBar.appendChild(makeFilterBtn("mapImg", t("Map"), "#a78bfa"));
+    filterBar.appendChild(makeFilterBtn("rooms", t("Rooms"), "#60a5fa"));
     // Separator
     const sep2d = document.createElement("span");
     sep2d.style.cssText = "width:1px;height:16px;background:#334155;margin:0 2px";
     filterBar.appendChild(sep2d);
-    filterBar.appendChild(makeFilterBtn("scanners", "Scanners", "#52b788"));
-    filterBar.appendChild(makeFilterBtn("tagged", "Tagged", "#5eead4"));
-    filterBar.appendChild(makeFilterBtn("unknown", "Unknown", "#f59e0b"));
+    filterBar.appendChild(makeFilterBtn("scanners", t("Scanners"), "#52b788"));
+    filterBar.appendChild(makeFilterBtn("tagged", t("Tagged"), "#5eead4"));
+    filterBar.appendChild(makeFilterBtn("unknown", t("Unknown"), "#f59e0b"));
 
     // ── Radio Map & Distortion Map toggles (experimental, gated behind settings) ──
     if (_radioMapOn || _distortionOn) {
       const sep2d2 = document.createElement("span");
       sep2d2.style.cssText = "width:1px;height:16px;background:#334155;margin:0 2px";
       filterBar.appendChild(sep2d2);
-      if (_radioMapOn) filterBar.appendChild(makeFilterBtn("radioMap", "Radio Map", "#e879f9"));
-      if (_distortionOn) filterBar.appendChild(makeFilterBtn("distortion", "Signal distortion", "#fb923c"));
+      if (_radioMapOn) filterBar.appendChild(makeFilterBtn("radioMap", t("Radio Map"), "#e879f9"));
+      if (_distortionOn) filterBar.appendChild(makeFilterBtn("distortion", t("Signal distortion"), "#fb923c"));
     }
     filterBar.appendChild(helpBtn("overview_2d_controls"));
     outer.appendChild(filterBar);
@@ -477,7 +479,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
         scannerBar.innerHTML = "";
         const lbl = document.createElement("span");
         lbl.style.cssText = "font-size:11px;color:#94a3b8";
-        lbl.textContent = "Scanner:";
+        lbl.textContent = t("Scanner:");
         scannerBar.appendChild(lbl);
         // "Combined" button
         const combBtn = document.createElement("button");
@@ -485,7 +487,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
         combBtn.style.cssText = !_radioMapScanner
           ? "font-size:10px;padding:2px 8px;background:#0a2a1a;border-color:#e879f9;color:#e879f9;font-weight:700"
           : "font-size:10px;padding:2px 8px;color:#64748b";
-        combBtn.textContent = "Combined";
+        combBtn.textContent = t("Combined");
         combBtn.addEventListener("click", () => {
           _radioMapScanner = null;
           ctx.state._2dRadioMapScanner = null;
@@ -530,7 +532,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
       gainSlider.style.cssText = "width:100px;accent-color:#e879f9";
       const gainLbl = document.createElement("span");
       gainLbl.style.cssText = "font-size:10px;color:#d8b4fe;min-width:55px";
-      gainLbl.textContent = `Gain: ${_hGain > 0 ? "+" : ""}${_hGain} dB`;
+      gainLbl.textContent = t("Gain: {v} dB", { v: (_hGain > 0 ? "+" : "") + _hGain });
 
       const contrastSlider = document.createElement("input");
       contrastSlider.type = "range"; contrastSlider.min = "-15"; contrastSlider.max = "15"; contrastSlider.step = "1";
@@ -538,27 +540,27 @@ const { mapXform, fabricWorldRooms, worldGauge } =
       contrastSlider.style.cssText = "width:100px;accent-color:#e879f9";
       const contrastLbl = document.createElement("span");
       contrastLbl.style.cssText = "font-size:10px;color:#d8b4fe;min-width:75px";
-      contrastLbl.textContent = `Contrast: ${_hContrast > 0 ? "+" : ""}${_hContrast}`;
+      contrastLbl.textContent = t("Contrast: {v}", { v: (_hContrast > 0 ? "+" : "") + _hContrast });
 
       const saveBtn = document.createElement("button");
       saveBtn.className = "btn inline";
       saveBtn.style.cssText = "font-size:10px;padding:2px 8px;color:#52b788;border-color:#2d6a4f";
-      saveBtn.textContent = "Save";
+      saveBtn.textContent = t("Save");
       saveBtn.addEventListener("click", async () => {
         try {
           await ctx.actions.settingsSet({
             heatmap_gain: parseInt(gainSlider.value, 10),
             heatmap_contrast: parseInt(contrastSlider.value, 10),
           });
-          ctx.toast("Heatmap settings saved");
-        } catch(e) { ctx.toast("Failed to save", true); }
+          ctx.toast(t("Heatmap settings saved"));
+        } catch(e) { ctx.toast(t("Failed to save"), true); }
       });
 
       const _updateHeat = () => {
         const g = parseInt(gainSlider.value, 10);
         const c = parseInt(contrastSlider.value, 10);
-        gainLbl.textContent = `Gain: ${g > 0 ? "+" : ""}${g} dB`;
-        contrastLbl.textContent = `Contrast: ${c > 0 ? "+" : ""}${c}`;
+        gainLbl.textContent = t("Gain: {v} dB", { v: (g > 0 ? "+" : "") + g });
+        contrastLbl.textContent = t("Contrast: {v}", { v: (c > 0 ? "+" : "") + c });
         // Apply gain/contrast to the heatmap module
         if (_radioMapMod && _radioMapMod.setHatchRange) {
           // Store in state for buildSVG to use
@@ -604,7 +606,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
         const m = visible[mi];
         const floorId = m.stack?.floor_id || m.floor_id || "";
         const haFlr = haFloors.find(f => String(f.id) === String(floorId));
-        const flLbl = haFlr ? (haFlr.name || haFlr.id) : (m.name || m.id || `Map ${mi+1}`);
+        const flLbl = haFlr ? (haFlr.name || haFlr.id) : (m.name || m.id || t("Map {n}", { n: mi + 1 }));
         if(!floorGroups.has(flLbl)) floorGroups.set(flLbl, []);
         floorGroups.get(flLbl).push(mi);
       }
@@ -613,7 +615,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
       const useFloors = floorGroups.size > 1 || (floorGroups.size === 1 && [...floorGroups.values()][0].length > 1);
       const lbl = document.createElement("span");
       lbl.style.cssText = "font-size:12px;color:#94a3b8";
-      lbl.textContent = useFloors ? "Floor:" : "Map:";
+      lbl.textContent = useFloors ? t("Floor:") : t("Map:");
       mapBar.appendChild(lbl);
 
       if(useFloors){
@@ -665,7 +667,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
           mbtn.style.cssText = mi === focusIdx
             ? "font-size:11px;padding:2px 10px;background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
             : "font-size:11px;padding:2px 10px;color:#94a3b8";
-          mbtn.textContent = m.name || m.id || `Map ${mi+1}`;
+          mbtn.textContent = m.name || m.id || t("Map {n}", { n: mi + 1 });
           const idx = mi;
           mbtn.addEventListener("click", () => {
             ctx.state._2dFocusIdx = idx;
@@ -753,7 +755,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
     const resetBtn = document.createElement("button");
     resetBtn.className = "btn inline";
     resetBtn.style.cssText = "position:absolute;top:6px;right:6px;z-index:2;font-size:11px;padding:2px 8px;background:#071008cc;color:#94a3b8";
-    resetBtn.textContent = "Reset zoom";
+    resetBtn.textContent = t("Reset zoom");
     resetBtn.addEventListener("click", () => {
       zoom = 1.0; panX = 0; panY = 0;
       ctx.state._2dZoom = 1; ctx.state._2dPanX = 0; ctx.state._2dPanY = 0;

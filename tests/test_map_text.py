@@ -70,7 +70,7 @@ def test_the_panel_keeps_one_box_and_fills_it_only_on_the_overview() -> None:
     body = panel[panel.index("  _updateMapText(){"):panel.index("  _scheduleRender(fromPoll = false) {")]
     assert 'MAP_TEXT.createMapText("psMapText", t("Who is in which room"))' in body   # the English source, through t()
     assert 'this.state.view !== "overview" || atlasHome' in body and "mt.clear(); return;" in body
-    assert "isAway(o, t)" in body and "isScanner" in body and "followedAddrs" in body
+    assert "isAway(o, awayS)" in body and "isScanner" in body and "followedAddrs" in body
 
 
 def test_the_maps_are_figures_described_by_it() -> None:

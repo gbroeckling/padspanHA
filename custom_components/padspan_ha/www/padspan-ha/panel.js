@@ -2058,9 +2058,9 @@ class PadSpanHaApp extends HTMLElement {
     const list = this.state.live?.snapshot?.objects?.list;
     const atlasHome = !!(VIEWS.overview && VIEWS.overview.atlasHomeOn && VIEWS.overview.atlasHomeOn({ state: this.state }));
     if (this.state.view !== "overview" || atlasHome || !Array.isArray(list)) { mt.clear(); return; }
-    const t = awayTimeoutS(this.state.settings), fa = this.state.followedAddrs, isScanner = this._ctx().helpers.isScanner;
+    const awayS = awayTimeoutS(this.state.settings), fa = this.state.followedAddrs, isScanner = this._ctx().helpers.isScanner;
     const followed = (o) => !!fa && [o.address, o.entity_id, o.key].some(a => !!a && fa.has(String(a).toUpperCase()));
-    mt.update(MAP_TEXT.roomLines(MAP_TEXT.overviewEntries(list, { followed, away: (o) => isAway(o, t), isScanner }),
+    mt.update(MAP_TEXT.roomLines(MAP_TEXT.overviewEntries(list, { followed, away: (o) => isAway(o, awayS), isScanner }),
       MAP_TEXT.mapRooms(this.state.model)));
   }
 
@@ -3931,7 +3931,7 @@ class PadSpanHaApp extends HTMLElement {
    *  are drawn again in it. A string not translated stays English. */
   _loadPanelLanguage(){
     const req = this._panelLangReq = (this._panelLangReq || 0) + 1;
-    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "server"]) : "en").then(got => {
+    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "server"]) : "en").then(got => {
       if(req !== this._panelLangReq || got === (this._panelLangShown || "en")) return;
       this._panelLangShown = got;
       if(this.$){ this._paintShellWords(); this._paintDataModeLabel(); }
@@ -4552,7 +4552,7 @@ class PadSpanHaApp extends HTMLElement {
         ] : []),
         ...(obj.service_owner ? [
           el("span", {class:"muted"}, t("Service")),
-          el("span", {title: DEVICE_NAME ? DEVICE_NAME.SERVICE_HOW : ""}, t("Uses a service from {company}", { company: obj.service_owner })),
+          el("span", {title: DEVICE_NAME ? (DEVICE_NAME.serviceHow ? DEVICE_NAME.serviceHow() : DEVICE_NAME.SERVICE_HOW) : ""}, t("Uses a service from {company}", { company: obj.service_owner })),
         ] : []),
         ...(what ? [el("span", {class:"muted"}, t("What it is")), el("span", {}, what)] : []),
         ...(howEl ? [el("span", {class:"muted"}, t("How we know")), howEl] : []),

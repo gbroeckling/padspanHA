@@ -10,6 +10,9 @@
  */
 
 export const UNNAMED = "Unnamed device";
+// Its lines and badges in the panel's language (views/i18n.js; English is the key). A device's name stays as the
+// server made it ("Apple device", "Unnamed device"): the code compares those.
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 /** The device's one name. */
 export function deviceName(o, fallback = UNNAMED){
@@ -68,8 +71,10 @@ export function deviceWhat(o){
 }
 
 /** "Uses a service from Google", and why that isn't a maker. */
-export const serviceWords = (o) => o && o.service_owner ? `Uses a service from ${o.service_owner}` : "";
+export const serviceWords = (o) => o && o.service_owner ? t("Uses a service from {company}", { company: o.service_owner }) : "";
 export const SERVICE_HOW = "It broadcasts a service number Bluetooth assigned to this company. Other makers' devices can use it too, so this doesn't say who made the device.";
+/** SERVICE_HOW in the panel's language. */
+export const serviceHow = () => t("It broadcasts a service number Bluetooth assigned to this company. Other makers' devices can use it too, so this doesn't say who made the device.");
 
 /** What it is, for a list whose kind badge may already have said so. */
 export function listWhat(o){
@@ -78,7 +83,7 @@ export function listWhat(o){
   return what === "iBeacon" && o && o.kind === "ibeacon" ? null : what;
 }
 
-const LINK_HOW = "On screen only: its calibration, learning, alerts and Home Assistant stay on the address you named it by. Undo puts the name back there.";
+const LINK_HOW = () => t("On screen only: its calibration, learning, alerts and Home Assistant stay on the address you named it by. Undo puts the name back there.");
 
 /** What the name links say about a device (label_follow.py): where its name has
  *  gone, one question, and the pointer to its IRK. Quiet lines, never a window.
@@ -94,42 +99,43 @@ export function labelLines(el, o, act){
     e.stopPropagation();
     if(busy) return;
     busy = true;
-    try { await run(); } catch(err) { act.toast("That didn't work: " + act.errorText(err), true); }
+    try { await run(); } catch(err) { act.toast(t("That didn't work: {why}", { why: act.errorText(err) }), true); }
     try { if(act.after) await act.after(); } finally { busy = false; }
   } }, text);
   const key = o.key;
   if(o.label_link){
-    out.push(line(`Now on ${o.label_link.address}. ${o.label_link.by === "you" ? "You said it's the same device." : "It looks like the same device."}`,
-      [button("Undo", () => act.wsCall("padspan_ha/label_link_undo", { key }))], LINK_HOW));
+    out.push(line(t("Now on {address}.", { address: o.label_link.address }) + " " + (o.label_link.by === "you" ? t("You said it's the same device.") : t("It looks like the same device.")),
+      [button(t("Undo"), () => act.wsCall("padspan_ha/label_link_undo", { key }))], LINK_HOW()));
   }
   if(o.label_ask){
     const answer = (same) => act.wsCall("padspan_ha/label_link_answer", { key: o.label_ask.key, address: o.label_ask.address, same });
-    out.push(line(`This looks like ${o.label_ask.label}: same device?`,
-      [button("Yes", () => answer(true)), button("No", () => answer(false))], LINK_HOW));
+    out.push(line(t("This looks like {name}: same device?", { name: o.label_ask.label }),
+      [button(t("Yes"), () => answer(true)), button(t("No"), () => answer(false))], LINK_HOW()));
   }
   // The same question on the named device's own row: a stranger's row can be far
   // down a list of thousands, and Basic has no such list at all.
   if(o.label_asking){
     const answer = (same) => act.wsCall("padspan_ha/label_link_answer", { key, address: o.label_asking.address, same });
-    out.push(line(`A new address, ${o.label_asking.address}, looks like this device: same device?`,
-      [button("Yes", () => answer(true)), button("No", () => answer(false))], LINK_HOW));
+    out.push(line(t("A new address, {address}, looks like this device: same device?", { address: o.label_asking.address }),
+      [button(t("Yes"), () => answer(true)), button(t("No"), () => answer(false))], LINK_HOW()));
   }
   if(o.irk_hint){
-    out.push(line("This device keeps changing its address. Adding its key (IRK) makes it certain.",
-      [button("How", () => act.showHelp("private_ble")),
-       button("Dismiss", () => act.wsCall("padspan_ha/label_link_hint_off", { key }))]));
+    out.push(line(t("This device keeps changing its address. Adding its key (IRK) makes it certain."),
+      [button(t("How"), () => act.showHelp("private_ble")),
+       button(t("Dismiss"), () => act.wsCall("padspan_ha/label_link_hint_off", { key }))]));
   }
   return out.length ? el("div", {}, out) : null;
 }
 
-const ADDRESS_WORDS = {
-  fixed: ["Fixed", "This device keeps one address, so it reads as one device."],
-  rotating: ["Rotating", "This device changes its address every so often, as phones and trackers do, so one device can leave many rows."],
-};
+// The badges' words in the panel's language: a function, read when drawn.
+const ADDRESS_WORDS = () => ({
+  fixed: [t("Fixed"), t("This device keeps one address, so it reads as one device.")],
+  rotating: [t("Rotating"), t("This device changes its address every so often, as phones and trackers do, so one device can leave many rows.")],
+});
 
 /** A small Fixed or Rotating badge, or null when no receiver has said. */
 export function addressBadge(el, o){
-  const word = o && ADDRESS_WORDS[o.address_kind];
+  const word = o && ADDRESS_WORDS()[o.address_kind];
   if(!word) return null;
   return el("span", {
     class: "badge",
@@ -184,19 +190,19 @@ export function groupDevices(entries, objOf, isKept){
 }
 
 /** "45 s ago" / "12 min ago" / "3 h ago" / "56 days ago": how long since a device was heard. */
-export const ago = (s) => s == null ? "" : s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago`
-  : s < 172800 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
+export const ago = (s) => s == null ? "" : s < 90 ? t("{n} s ago", { n: Math.round(s) }) : s < 5400 ? t("{n} min ago", { n: Math.round(s / 60) })
+  : s < 172800 ? t("{n} h ago", { n: Math.round(s / 3600) }) : t("{n} days ago", { n: Math.round(s / 86400) });
 
 /** "169 Windows PC addresses", or "3 of 169 ..." while a search narrows them. */
 export function groupTitle(group, shown = group.entries.length){
-  const n = group.entries.length, count = shown < n ? `${shown} of ${n}` : String(n);
-  return `${count} ${group.word} ${n === 1 ? "address" : "addresses"}`;
+  const n = group.entries.length, count = shown < n ? t("{shown} of {n}", { shown, n }) : String(n);
+  return tn(n, "{count} {word} address", "{count} {word} addresses", { count, word: group.word });
 }
 
 /** A group's clickable head. makeShell(content) puts it in a row of the list's own kind. */
 export function groupHead(el, group, open, onToggle, makeShell){
   const title = el("span", { style: "font-weight:600" }, "");
-  const when = el("span", { class: "muted", style: "font-size:11px" }, group.newest == null ? "" : `newest ${ago(group.newest)}`);
+  const when = el("span", { class: "muted", style: "font-size:11px" }, group.newest == null ? "" : t("newest {ago}", { ago: ago(group.newest) }));
   const arrow = el("span", { "aria-hidden": "true", style: "display:inline-block;width:14px;font-size:15px;color:#52b788" }, open ? "▾" : "▸");
   const button = el("button", {
     type: "button",
@@ -255,7 +261,7 @@ export function groupRows(el, rows, parent, { openKeys, isKept, makeShell, reapp
 /** Which receivers heard it, short enough for a list: a device heard by all 18
  *  would otherwise be the tallest thing on the screen. The full list is the title. */
 export function firstFew(names, n = 3){
-  return names.length <= n ? names.join(", ") : `${names.slice(0, n).join(", ")} +${names.length - n} more`;
+  return names.length <= n ? names.join(", ") : `${names.slice(0, n).join(", ")} ` + t("+{n} more", { n: names.length - n });
 }
 
 // A phone's IRK (its identity key: whoever has it can follow the phone through

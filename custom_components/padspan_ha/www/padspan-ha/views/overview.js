@@ -8,7 +8,7 @@
 // The metric frame the lights map draws with. Metres in, screen out, no photo
 // anywhere in it — the 3D map below uses THIS, and the stack_transform import
 // above survives only for the experimental 2D map, which is swept next.
-const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupRows, firstFew, serviceWords, SERVICE_HOW } =
+const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupRows, firstFew, serviceWords, serviceHow } =
   await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { fabricFrame, barrierNoReading } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
@@ -508,7 +508,7 @@ export function renderClassic(ctx){
   function makerCell(o, kind, addr){
     if(kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") return el("span",{class:"badge"}, t("n/a"));
     if(o.company_name) return el("span",{class:"badge", title: MAKER_HOW[o.maker_source] || ""}, o.company_name);
-    if(o.service_owner) return el("span",{class:"badge", title: SERVICE_HOW}, serviceWords(o));
+    if(o.service_owner) return el("span",{class:"badge", title: serviceHow()}, serviceWords(o));
     if(o.maker_guess) return el("span",{class:"badge", title:t("From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance")}, t("Probably {maker}", { maker: o.maker_guess }));
     if(kind === "private_ble" || o.address_type === "random" || (kind === "ble" && isRandomAddress(addr))) return el("span",{class:"badge warn"}, t("random address"));
     return el("span",{class:"badge"}, t("maker unknown"));
@@ -716,7 +716,7 @@ export function renderClassic(ctx){
             ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
                 addressBadge(el, o),
                 o.company_name ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#7dd3fc;border:1px solid #1e4976"}, o.company_name)
-                  : o.service_owner ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#94a3b8;border:1px solid #334155",title:SERVICE_HOW}, serviceWords(o)) : null,
+                  : o.service_owner ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#94a3b8;border:1px solid #334155",title:serviceHow()}, serviceWords(o)) : null,
                 listWhat(o) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, listWhat(o)) : null,
                 ...(o.service_names || []).slice(0,3).map(sn =>
                   el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#a7f3d0;border:1px solid #166534"}, sn)
