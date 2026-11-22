@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5. Empfänger: welche, wie viele, wo | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Ein Empfänger ist alles, was Bluetooth hört und das Gehörte an Home Assistant weitergibt: ein ESP32-Board mit ESPHome, ein Shelly, das eigene Bluetooth des…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/receivers/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/receivers/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/receivers/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/receivers/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="5. Empfänger: welche, wie viele, wo">
+<meta property="og:description" content="Ein Empfänger ist alles, was Bluetooth hört und das Gehörte an Home Assistant weitergibt: ein ESP32-Board mit ESPHome, ein Shelly, das eigene Bluetooth des…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/receivers/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/receivers/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="5-empfänger-welche-wie-viele-wo">5. Empfänger: welche, wie viele, wo</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Ein Empfänger ist alles, was Bluetooth hört und das Gehörte an Home Assistant weitergibt: ein
+ESP32-Board mit ESPHome, ein Shelly, das eigene Bluetooth des Home-Assistant-Rechners, ein
+ESPresense-Knoten oder ein Tasmota-Gerät. Andere Software nennt sie Bluetooth-Proxys oder Scanner.
+PadSpan liest sie alle über Home Assistant, ein Empfänger, den du schon hast, funktioniert also,
+ohne dass du etwas hinzufügen musst.</p>
+<h2 id="wie-viele">Wie viele</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Empfänger</th><th>Was du bekommst</th></tr>
+  <tr><td>Einer im Haus</td><td>Zu Hause oder weg, keine Räume. Alles, was er hört, zählt als in seinem Raum.</td></tr>
+  <tr><td>Einer in jedem Raum, den du unterscheiden willst</td><td>Räume. Jedes Gerät kommt in den Raum, dessen Empfänger es am besten hört. Eine offene Küche mit Wohnzimmer zählt als ein Raum, außer jedes Ende hat seinen eigenen Empfänger.</td></tr>
+  <tr><td>Drei oder mehr, auf einem Grundriss platziert</td><td>Dazu Positionen zwischen den Empfängern, sodass ein Gerät in einen Raum ohne eigenen Empfänger kommen kann, etwa eine Abstellkammer oder einen Flur.</td></tr>
+</table>
+</div>
+<p>Du musst sie nicht alle zuerst kaufen. Fang mit dem an, was Home Assistant schon hört. PadSpan
+zeigt ein Beispielhaus, bis es den ersten Empfänger hört. Dann füg Empfänger dort hinzu, wo die
+Werte in der <a href="/manual/calibration/de/">Kalibrierung</a> es dir sagen (siehe
+<a href="#die-räume-finden-die-einen-brauchen">Die Räume finden, die einen brauchen</a>).</p>
+<h2 id="welche-art">Welche Art</h2>
+<p>Du kannst sie mischen. Verschiedene Funkgeräte hören dasselbe Handy unterschiedlich stark, in einem
+gemischten Haus ist die Kalibrierung also wichtiger: Mit ihr kann PadSpan jeden Empfänger für sich
+berücksichtigen.</p>
+<h3 id="esphome-bluetooth-proxy-ein-esp32-board">ESPHome-Bluetooth-Proxy (ein ESP32-Board)</h3>
+<p>Die übliche Wahl. Home Assistant findet einen ESPHome-Bluetooth-Proxy von selbst, und PadSpan nutzt
+ihn, sobald Home Assistant es tut.</p>
+<ul>
+<li><b>Nimm ein Board mit externer Antenne</b>: einen ESP32-S3 mit einem kleinen IPEX-Anschluss (u.FL)
+und einer 2,4-GHz-Antenne. Die Antenne zählt mehr als der Chip. Boards, deren Antenne nur auf die
+Platine gedruckt ist, liefern zu verrauschte Werte, um Räume auseinanderzuhalten: Zwei Räume können
+nur wenige dB auseinanderliegen, und eine verrauschte Antenne kippt diese Entscheidung zufällig.</li>
+<li><b>WLAN reicht.</b> Ethernet verortet Geräte nicht merklich besser, passt aber zu einem Empfänger, der
+nie bewegt wird.</li>
+<li>Ältere ESP32-Boards ohne externe Antenne reichen für zu Hause oder weg, nicht für Räume.</li>
+</ul>
+<h3 id="shelly-gen2-oder-neuer">Shelly, Gen2 oder neuer</h3>
+<p>Shelly Plus, Pro, Gen3 und Gen4 mit Netzstrom können Empfänger sein. Shellys mit Batterie und Gen1
+nicht. Shelly-BLU-Tasten und -Sensoren sind Dinge, die ein Empfänger hört, keine Empfänger.</p>
+<ol>
+<li>Öffne in Home Assistant <b>Einstellungen → Geräte &amp; Dienste → Shelly</b>.</li>
+<li>Wähl das Zahnrad am Eintrag des Shelly.</li>
+<li>Stell <b>Bluetooth-Scannermodus</b> auf <b>Auto</b> (Aktiv und Passiv gehen auch) und wähl
+<b>Absenden</b>.</li>
+<li>Home Assistant führt den Scanner des Shelly als eigenes Gerät, unter
+<b>Einstellungen → Geräte &amp; Dienste → Bluetooth</b>. Der Bereich dieses Geräts ist der Raum des
+Empfängers. Ein Scanner ohne eigenen Bereich übernimmt den seines Shelly.</li>
+</ol>
+<p>Die meisten Shellys sitzen in einer Unterputzdose oder im Sicherungskasten, mit einer kleinen
+eingebauten Antenne, deshalb hören sie weniger, und weniger gleichmäßig, als ein Empfänger frei im
+Raum. Sieh sie als kostenlosen Anfang: Einer reicht für zu Hause oder weg, und ob sie für Räume gut
+genug sind, hängt vom Haus ab. Shellys können keine Bluetooth-Verbindung halten, aber die braucht
+die Raumerkennung auch nicht.</p>
+<h3 id="das-eigene-bluetooth-von-home-assistant">Das eigene Bluetooth von Home Assistant</h3>
+<p>Das eingebaute Bluetooth des Home-Assistant-Rechners oder ein USB-Bluetooth-Adapter ist ein
+Empfänger, sobald die Bluetooth-Integration von Home Assistant ihn hat. Es zählt als ein Empfänger
+in dem Raum, in dem der Rechner steht. Ein Rechner in einem Schrank oder im Keller hört diese Ecke
+des Hauses.</p>
+<h3 id="espresense">ESPresense</h3>
+<p>ESPresense-Knoten melden über MQTT statt über das Bluetooth von Home Assistant.</p>
+<ol>
+<li>Richte die MQTT-Integration von Home Assistant ein.</li>
+<li>Öffne in PadSpan <b>Verwalten → HA Entities → ESPresense MQTT</b> und hak
+<b>Enable ESPresense MQTT ingestion</b> an. Deine Knoten erscheinen innerhalb von etwa zehn Sekunden
+als Empfänger.</li>
+<li>Veröffentlichen deine Knoten unter einem anderen Topic als <code>espresense</code>, gib es bei
+<b>Topic prefix:</b> ein und wähl <b>Save</b>.</li>
+</ol>
+<p>Die Karte ist mit <b>Experimental</b> markiert.</p>
+<h3 id="tasmota-experimentell">Tasmota (experimentell)</h3>
+<p>Ein ESP32 mit Tasmota und Bluetooth meldet ebenfalls über MQTT.</p>
+<ol>
+<li>Richte die MQTT-Integration von Home Assistant ein.</li>
+<li>Öffne in PadSpan <b>Verwalten → HA Entities → Tasmota BLE</b> und hak
+<b>Read Tasmota BLE over MQTT</b> an.</li>
+<li>Gib auf jedem Tasmota diese Befehle in seine Konsole ein:
+<ul>
+<li><code>TelePeriod 10</code></li>
+<li><code>BLEMaxAge 30</code></li>
+<li><code>BLEAddrFilter 1</code></li>
+</ul></li>
+</ol>
+<p>Die eigenen Einstellungen von Tasmota sind für eine gelegentliche Liste von Geräten gemacht. Ohne
+diese Befehle meldet es zu langsam für Räume (ein Messwert, der älter als etwa 15 Sekunden ist,
+zählt nicht), behält ein Gerät, das gegangen ist, auf seiner Liste und meldet nie Handys und Tags,
+die ihre Adresse wechseln. PadSpan liest die Topics <code>tele/+/BLE</code> und <code>stat/+/BLE</code>.</p>
+<h3 id="passive-empfänger-und-home-assistant-20264">Passive Empfänger und Home Assistant 2026.4</h3>
+<p>Seit Home Assistant 2026.4 können wiederholte Messwerte von passiven Empfängern (Shellys und andere,
+die nur zuhören) zurückgehalten werden. PadSpan holt sie per Timer erneut ab:
+<b>Einstellungen → Ortung → Empfänger → Bluetooth-Aktualisierungsintervall</b>, 5 Sekunden bei einer
+neuen Installation. Hört ein Shelly Geräte, zeigt aber bei der Kalibrierung kein Signal, prüf, ob
+das Intervall 5 Sekunden ist, oder hak <b>Alle 5 s für passive Proxy-Scanner aktualisieren</b> auf
+derselben Karte an; das hält es bei 5 Sekunden, auch wenn das Intervall länger ist. Es braucht etwas
+mehr Rechenzeit.</p>
+<h2 id="wo-du-sie-hinstellst">Wo du sie hinstellst</h2>
+<ul>
+<li>In die Räume, die du unterscheiden willst, nicht in Flure.</li>
+<li>Näher an die Mitte eines Raums als in eine Ecke. Nicht hinter große Dinge aus Metall, nicht in
+einen Schrank und nicht an eine Außenwand.</li>
+<li>Nah genug, dass sich benachbarte Empfänger ein wenig überschneiden.</li>
+<li>In einem großen Raum ist ein Empfänger das Mindeste; zwei sind merklich besser.</li>
+<li>Etwa auf Kopfhöhe oder höher. Dann trag die echte Höhe ein (unten).</li>
+</ul>
+<h2 id="raum-platz-und-höhe-eines-empfängers">Raum, Platz und Höhe eines Empfängers</h2>
+<p><b>Raum.</b> Der Raum eines Empfängers ist der Home-Assistant-Bereich seines Geräts. Ein Empfänger ohne
+Bereich ergibt keinen Raum, egal wie gut er dich hört: Ein Handy direkt daneben landet im Raum des
+nächsten Empfängers. Die Karte <b>Wer ist wo</b> in der Übersicht listet jeden Empfänger ohne Bereich
+und lässt dich ihn dort festlegen: <a href="/manual/first-room/de/#2-gib-jedem-empfänger-seinen-raum">Kapitel 4</a>.
+Räume und Bereiche erklärt <a href="/manual/rooms-and-floors/">Kapitel 8</a> (englisch). Stellst du einen Empfänger in einen
+anderen Raum, ändere auch seinen Bereich.</p>
+<p><b>Platz.</b> Für Positionen zwischen Empfängern braucht ein Empfänger auch eine Stelle auf deinem
+Grundriss:
+<a href="/manual/setup-the-map/de/#schritt-5-empfänger-platzieren-und-ihre-höhen-festlegen">Kapitel 9, Schritt 5</a>.
+Platzier ihn dort, wo er wirklich ist.</p>
+<p><b>Höhe.</b> Trag seine Höhe über seiner eigenen Etage in <b>Kalibrierung → Feinabgleich</b> ein
+(<b>Höhe über dem Boden (m):</b>, das bei 2,4 m beginnt), im Empfänger-Schritt von Karten oder in der
+Spalte <b>Höhe</b> des Bildschirms <b>Empfänger</b>. Alle drei sind derselbe Wert. Eine Höhe lässt sich
+erst festlegen, wenn der Empfänger einen Platz auf einem Grundriss hat.</p>
+<p><b>Signalanpassung.</b> Manche Empfänger messen bei gleichem Abstand schwächer als andere.
+<b>Einstellungen → Ortung → Empfänger → Signalanpassung der Empfänger</b> listet jeden Empfänger mit
+einem Feld von −20 bis +20 dB, das zu jedem Messwert von ihm addiert wird (positiv, wenn er
+schwächer misst, als er sollte). Die Zahl neben jedem Feld ist nur ein Vorschlag: Sie gilt erst,
+wenn du sie eintippst und <b>Speichern</b> wählst. Die meisten Haushalte lassen diese Werte auf 0 und
+kalibrieren stattdessen.</p>
+<h2 id="wie-es-deinen-empfängern-geht">Wie es deinen Empfängern geht</h2>
+<ul>
+<li><b>Empfänger</b> (im Menü): jeder Empfänger in einer Tabelle, mit <b>Raum</b>, <b>Etage</b>,
+<b>Auf einem Grundriss</b>, <b>Höhe</b>, <b>Signalanpassung</b>, <b>Status</b>, <b>Geräte jetzt</b> und
+<b>Zuletzt gehört</b>. <b>Nur Probleme</b> zeigt nur die, um die du dich kümmern musst. <b>Platzieren</b>
+öffnet Karten mit dem Empfänger ausgewählt.</li>
+<li><b>Der Statuspunkt</b> in der oberen Leiste: Ein Empfänger zeigt <b>Seit … Min. still</b>, wenn seit
+über 10 Minuten nichts von ihm gekommen ist.</li>
+<li><b>Zustand → Hört weniger als sonst</b>: erscheint nur, wenn ein Empfänger seit über 10 Minuten weit
+weniger Bluetooth-Nachrichten gehört hat als normal, während die anderen normal laufen. Räume in
+seiner Nähe können falsch sein. Ein Neustart hilft oft.</li>
+<li><b>Zustand → Zustand der Scanner</b>: für jeden Empfänger, wie oft er mit dem Raum übereinstimmt, auf
+den die anderen zeigen. Die Zahl <b>Zuverlässigkeit</b> wird nur angezeigt: Eine niedrige lässt diesen
+Empfänger nicht weniger zählen.</li>
+<li><b>Zustand → Scanner → Raum</b>: jeder Empfänger mit seiner Bluetooth-Adresse und seinem Raum.</li>
+</ul>
+<p>Ein Empfänger, der still ist: <a href="/manual/troubleshooting/de/#ein-empfänger-ist-still">Kapitel 26</a>.</p>
+<h2 id="die-räume-finden-die-einen-brauchen">Die Räume finden, die einen brauchen</h2>
+<ul>
+<li><b>Kalibrierung → Modell</b> zeigt, wie oft PadSpan an Stellen, an denen nicht kalibriert wurde, den
+richtigen Raum wählt. Ein Raum, der immer wieder schlecht abschneidet, ist die erste Stelle, an der
+du einen Empfänger hinzufügst oder versetzt.</li>
+<li><b>Kalibrierung → Genauigkeit je Stelle</b> zeigt, welche Stellen danebenliegen, und in welchen Raum
+sie geraten.</li>
+<li><b>Kalibrierung → Umhergehen</b> zeigt, wo du bisher kalibriert hast und wo du dich als Nächstes
+hinstellen sollst.</li>
+<li><b>Raum abgehen</b>, wenn es an ist, zeigt den Wert eines Raums vor und nach einem Rundgang von 90
+Sekunden.</li>
+</ul>
+<p>Alle davon stehen in <a href="/manual/calibration/de/">Kapitel 11</a>.</p>
+<h2 id="neben-bermuda">Neben Bermuda</h2>
+<p>Du nutzt schon Bermuda? Behalt es. PadSpan liest dieselben Bluetooth-Daten von Home Assistant wie
+Bermuda, deine ESPHome-Proxys und Shelly-Scanner dienen also beiden zugleich.</p>
+<ul>
+<li><b>Bermuda bleibt, wie es ist.</b> PadSpan zu installieren, neu zu laden oder zu entfernen ändert
+nichts an Bermudas Geräten, Entitäten oder Einstellungen, und ein Test in PadSpans Code schlägt
+fehl, wenn neuer Code das versucht.</li>
+<li><b>Deine Bermuda-Geräte erscheinen</b> in PadSpan als eigene Geräte. Soll PadSpan lieber nur seine
+eigenen Messwerte nutzen, hak <b>Bermuda ignorieren</b> (<b>Alle Daten der Bermuda-Integration
+ignorieren</b>) unter <b>Einstellungen → Ortung → Home Assistant und Integrationen</b> an.</li>
+<li><b>Handys, die du für Bermuda eingerichtet hast, funktionieren weiter.</b> Ein iPhone oder eine Apple
+Watch in Private BLE Device von Home Assistant wird am selben Schlüssel erkannt und so benannt, wie
+du es dort benannt hast: <a href="/manual/phones-and-watches/de/">Kapitel 6</a>.</li>
+<li><b>Mit einem Empfänger pro Raum</b> wählt PadSpan Räume danach, welcher Empfänger ein Gerät am besten
+hört, wie Bermuda: Rechne mit etwa gleich guten Räumen und mit einem Kalibrier-Rundgang, der manche
+Entscheidungen korrigiert. Mit drei oder mehr Empfängern auf einem Grundriss mit Maßstab kann es
+ein Gerät auch zwischen ihnen platzieren.</li>
+</ul>
+<p>Deine Automationen können bei Bermudas Sensoren bleiben, bis du dich entscheidest, sie zu ändern.
+PadSpans eigene Sensoren stehen in <a href="/manual/home-assistant-reference/">Kapitel 14</a> (englisch).</p>
+<div class="pager"><span><a href="/manual/first-room/de/">← 4. Dein erster Raum in 15 Minuten</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/phones-and-watches/de/">6. Handys und Uhren →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

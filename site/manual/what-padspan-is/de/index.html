@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1. Was PadSpan ist | PadSpan-HA-Handbuch</title>
+<meta name="description" content="PadSpan HA ist eine Home-Assistant-Integration für die Anwesenheit pro Raum über Bluetooth. Es hört auf die Bluetooth-Empfänger, die dein Home Assistant…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/what-padspan-is/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/what-padspan-is/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/what-padspan-is/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/what-padspan-is/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="1. Was PadSpan ist">
+<meta property="og:description" content="PadSpan HA ist eine Home-Assistant-Integration für die Anwesenheit pro Raum über Bluetooth. Es hört auf die Bluetooth-Empfänger, die dein Home Assistant…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/what-padspan-is/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/what-padspan-is/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="1-was-padspan-ist">1. Was PadSpan ist</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>PadSpan HA ist eine Home-Assistant-Integration für die Anwesenheit pro Raum über Bluetooth. Es hört
+auf die Bluetooth-Empfänger, die dein Home Assistant schon hat (ESPHome-Bluetooth-Proxys, Shellys,
+das eigene Bluetooth des Rechners, ESPresense oder Tasmota), ermittelt alle 5 Sekunden, in welchem
+Raum jedes Handy, jede Uhr, jeder Tag und jeder Beacon ist, und gibt deinen Automationen für jedes
+Gerät, das du benennst, einen Raum, eine Entfernung und zu Hause oder weg. Es läuft auf deinem Home
+Assistant: Die Ortung braucht keine Cloud.</p>
+<p>PadSpan hat eine eigene Seite in der Seitenleiste von Home Assistant. Dort siehst du, wer wo ist,
+folgst einem Gerät, spielst ab, wo es war, und zeichnest, wenn du willst, dein Haus auf einen
+Grundriss, damit du alles auf einer Karte siehst.</p>
+<p>Du kannst es vor der Installation ausprobieren: <a href="/demo/">padspan.traks.ca/demo</a>
+ist das echte Panel an einem Beispielhaus, in deinem Browser.</p>
+<h2 id="was-du-kostenlos-bekommst">Was du kostenlos bekommst</h2>
+<p>PadSpan HA ist kostenlos und Open Source (GPL v3). Ohne Schlüssel bekommst du:</p>
+<ul>
+<li><b>Räume ohne Grundriss.</b> Der Raum jedes Empfängers ist sein Home-Assistant-Bereich. Ein Gerät
+kommt in den Raum, dessen Empfänger es am besten hört. Die Karte <b>Wer ist wo</b> in der Übersicht
+listet jeden Raum und wer darin ist.</li>
+<li><b>Entitäten für deine Automationen.</b> Jedes Gerät, das du benennst, bekommt einen Device Tracker
+(sein Zustand ist der Raum oder <code>not_home</code>), einen Bereichssensor und Entfernungssensoren.
+Ereignisse werden ausgelöst, wenn ein benanntes Gerät ankommt, geht oder den Raum wechselt. Siehe
+<a href="/manual/home-assistant-reference/">Kapitel 14</a> (englisch).</li>
+<li><b>Eine Karte deines Hauses.</b> Lade einen Grundriss hoch (oder fang ohne an), leg seinen Maßstab
+fest, zeichne deine Räume und platziere deine Empfänger. Mit drei oder mehr Empfängern auf einem
+Grundriss mit Maßstab verortet PadSpan Geräte auch zwischen ihnen, sogar in einem Raum ohne
+eigenen Empfänger.</li>
+<li><b>Kalibrierung.</b> Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle wirklich
+klingt.</li>
+<li><b>Folgen</b>, mit Alarmen aufs Handy oder per E-Mail, wenn ein Gerät den Raum wechselt, ankommt oder
+geht.</li>
+<li><b>Traceback</b>, eine Wiedergabe, wohin Geräte gegangen sind, mit <b>Insights</b> (Zeit in jedem Raum).</li>
+<li><b>Belegung</b>, eine Schätzung, wie viele Leute im Gebäude sind.</li>
+<li><b>Der Atlas</b>, die Lichtkarte deines Hauses: jedes Licht auf seiner Etage und in seinem Raum, und
+ein Tippen schaltet es.</li>
+</ul>
+<h2 id="was-padspan-pro-dazu-bringt">Was PadSpan Pro dazu bringt</h2>
+<p>Ein Lizenzschlüssel schaltet die kostenpflichtigen Teile auf derselben Installation frei. Nichts
+neu installieren, nichts neu einrichten.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Edition</th><th style="text-align:center">Schlüssel</th><th>Was es ist</th></tr>
+  <tr><td><b>PadSpan HA</b></td><td style="text-align:center">keiner</td><td>Anwesenheit pro Raum, Grundrisse, Kalibrierung, Bewegungsverlauf und die Sensoren für deine Automationen. Kostenlos.</td></tr>
+  <tr><td><b>PadSpan Pro</b></td><td style="text-align:center"><code>pro</code></td><td>Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Furnish, der Wandbildschirm, Whole house presets und Vacation Mode, Forensik, Busy Times, Finden und die Designs Graphit, Ozean, Dämmerung und Tag.</td></tr>
+  <tr><td><a href="https://github.com/gbroeckling/padspanBright"><b>PadSpan Bright</b></a></td><td style="text-align:center">keiner</td><td>Ein eigener, leichterer Download aus demselben Code: nur der Atlas, für ein Haus, das seine Lichter auf einer Karte will und keine Anwesenheitserkennung.</td></tr>
+  <tr><td><b>PadSpan Bright Pro</b></td><td style="text-align:center"><code>bright</code></td><td>Brights volle Atlas-Werkzeuge (Platzieren, Formen, WLED, Automorph, Showcase), auf einer Bright-Installation.</td></tr>
+</table>
+</div>
+<p>Ein PadSpan-Pro-Schlüssel schaltet auch Brights Werkzeuge frei, wenn du stattdessen Bright
+installierst.</p>
+<p>Wenn ein Schlüssel abläuft, wird nichts gelöscht, was du eingerichtet hast. Die Platzierung der
+Lichter ist dann schreibgeschützt, Forensik hört auf aufzuzeichnen (was es aufgezeichnet hat, bleibt
+für seine Aufbewahrungszeit), und das 3D-Haus, der Wandbildschirm, Finden und Busy Times schalten
+sich ab. Wenn du verlängerst, kommt alles so zurück, wie du es verlassen hast.</p>
+<h3 id="der-kostenlose-testzeitraum">Der kostenlose Testzeitraum</h3>
+<p>Ist kein Schlüssel auf der Installation, hat <b>Einstellungen → Funktionen → PadSpan licence</b> den
+Knopf <b>Start 90-day free trial</b>: ganz Pro für 90 Tage, ohne Kreditkarte, ein Testzeitraum pro
+Zuhause. Ein Administrator startet ihn. Dafür muss der Nutzungsbericht an sein, und er bleibt an, bis
+der Testzeitraum endet. Schlüssel und Preise stehen auf <a href="https://padspan.traks.ca">padspan.traks.ca</a>.
+Testzeitraum, Schlüssel, Zuhause und Tester erklärt <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/PADSPAN_PRO.md">PadSpan Pro</a>.</p>
+<h2 id="passt-es-zu-mir">Passt es zu mir?</h2>
+<p>PadSpan passt gut, wenn:</p>
+<ul>
+<li><b>du wissen willst, in welchem Raum jemand ist</b>, nicht nur, ob er zu Hause ist. Dafür braucht es
+einen Empfänger in jedem Raum, den du unterscheiden willst. Ein Empfänger unterscheidet zu Hause
+von weg und mehr nicht.</li>
+<li><b>du schon Bluetooth-Proxys hast</b>, oder Shellys (Gen2 oder neuer), oder in ein paar Räume ein
+ESP32-Board stellen kannst. PadSpan nutzt, was Home Assistant schon hört. Es braucht keine eigene
+Firmware.</li>
+<li><b>die Leute, denen du folgen willst, ein Handy, eine Uhr oder einen Tag tragen.</b> Ein
+Android-Handy mit der Home Assistant Companion App funktioniert nach einem Schalter in der App. Ein
+iPhone oder eine Apple Watch braucht einmal seinen Schlüssel (den IRK). Ein Beacon oder
+Schlüsselanhänger mit fester Adresse funktioniert, sobald du ihn benennst.</li>
+<li><b>du es gern siehst.</b> PadSpan zeigt auf einer Karte deines Hauses, wer wo ist, und lässt dich es
+abspielen.</li>
+</ul>
+<p>Überleg es dir noch einmal, oder fang klein an, wenn:</p>
+<ul>
+<li><b>du genau wissen musst, wo jemand steht.</b> Bluetooth liefert einen Raum und mit genug Empfängern
+eine ungefähre Stelle darin. Wände, Körper und Möbel verändern das Signal, deshalb kann ein Gerät
+nahe einer Tür im Nebenraum erscheinen.</li>
+<li><b>deine Geräte ihre Bluetooth-Adresse wechseln und keinen Schlüssel haben, an den du kommst.</b> Ein
+AirTag, ein Samsung SmartTag oder ein Handy ohne die Companion App oder seinen IRK ist zu hören,
+lässt sich aber nicht lange auseinanderhalten. PadSpan hat einen experimentellen Schalter für
+AirTags (MAC Rotation Bridging), kann sie aber nicht versprechen.</li>
+<li><b>dein Home Assistant auf einem Rechner mit 2 GB an einer belebten Straße läuft.</b> PadSpan hört
+jedes vorbeikommende Gerät. Mehr als 2 GB Speicher werden empfohlen. Siehe
+<a href="/manual/requirements/de/">Kapitel 2</a>.</li>
+<li><b>du es draußen willst, über einen großen Garten oder einen Bauernhof.</b> Räume kommen von
+Empfängern; draußen braucht jeder Bereich, den du unterscheiden willst, seinen eigenen.</li>
+</ul>
+<p>Zum Anfangen brauchst du keinen Grundriss. Installier es, gib jedem Empfänger seinen Bereich, und
+<b>Wer ist wo</b> zeigt noch am selben Tag Räume. <a href="/manual/first-room/de/">Kapitel 4</a> führt dich durch.</p>
+<h2 id="im-vergleich">Im Vergleich</h2>
+<p><a href="https://github.com/agittins/bermuda">Bermuda</a> und <a href="https://espresense.com/">ESPresense</a> sind beide
+gut, und viele nutzen sie. Hier steht, was jedes kann, nach ihren eigenen Dokumenten, Stand Oktober
+2026. Ist hier etwas veraltet, <a href="https://github.com/gbroeckling/padspanHA/issues">eröffne ein Issue</a>.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>PadSpan HA</th><th>Bermuda</th><th>ESPresense (+ Companion)</th></tr>
+  <tr><td>Anwesenheit pro Raum</td><td>Ja</td><td>Ja</td><td>Ja</td></tr>
+  <tr><td>Hardware</td><td>ESPHome-Bluetooth-Proxys, Shelly Gen2+, das eigene Bluetooth von HA oder ein USB-Adapter, oder ESPresense über MQTT, sobald eingeschaltet</td><td>ESPHome-Bluetooth-Proxys, Shelly Gen2+, USB-Adapter</td><td>Eigene Firmware auf ESP32-Knoten</td></tr>
+  <tr><td>Grundriss nötig?</td><td>Nein: Räume kommen aus dem HA-Bereich jedes Empfängers; die Karte ist optional</td><td>Nein</td><td>Für Räume nicht; die Karte von Companion braucht deine Räume als Koordinaten</td></tr>
+  <tr><td>Karte deines Zuhauses</td><td>Ja, Räume auf deinen Grundriss gezeichnet</td><td>Nein</td><td>Ja, in Companion</td></tr>
+  <tr><td>3D-Ansicht über mehrere Etagen</td><td>Ja (das volle 3D-Haus, Live Aboard, ist Pro)</td><td>Nein (es hat einen Etagensensor)</td><td>Ja, in Companion</td></tr>
+  <tr><td>Position zwischen Empfängern</td><td>Ja, mit 3 oder mehr Empfängern auf einem Grundriss mit Maßstab</td><td>Nein</td><td>Ja, in Companion</td></tr>
+  <tr><td>Kalibrierung</td><td>Fingerabdrücke beim Rundgang und eine Signalanpassung pro Empfänger</td><td>Geführt: global, pro Proxy und pro Gerät</td><td>Von Hand an jedem Knoten; automatisch in Companion</td></tr>
+  <tr><td>iPhones und Apple Watches (IRK)</td><td>Ja, über Private BLE Device oder irk-capture, mit einer Einrichtungsanleitung</td><td>Ja, über Private BLE Device</td><td>Ja, auf der Webseite des Knotens eingetragen</td></tr>
+  <tr><td>Tags, die ihre Adresse wechseln (AirTag, SmartTag)</td><td>Experimentell</td><td>Nein</td><td>Nein (AirTags lassen sich nur zählen)</td></tr>
+  <tr><td>Entitäten für Raum, Entfernung und Tracker</td><td>Ja</td><td>Ja</td><td>Ein Raumsensor mit Entfernung; ein Tracker von Companion</td></tr>
+  <tr><td>Bewegungsverlauf</td><td>Wiedergabe (Traceback)</td><td>Der eigene Verlauf von HA</td><td>Pfadansicht in Companion</td></tr>
+  <tr><td>Alarme, wenn ein Gerät den Raum wechselt</td><td>Eingebaut (Folgen)</td><td>Mit deinen eigenen Automationen</td><td>Mit deinen eigenen Automationen</td></tr>
+  <tr><td>Wo du es einrichtest</td><td>Eine PadSpan-Seite in der HA-Seitenleiste</td><td>Die Einrichtungsdialoge von Home Assistant</td><td>Die Webseite des Knotens und die Companion-App</td></tr>
+</table>
+</div>
+<p><b>Du nutzt schon Bermuda?</b> Behalte es. PadSpan läuft daneben auf denselben Proxys und lässt es, wie
+es ist: <a href="/guides/bermuda/de/">Bermuda und PadSpan zusammen</a>.</p>
+<h2 id="was-padspan-nie-anfasst">Was PadSpan nie anfasst</h2>
+<p>PadSpan liest deine anderen Integrationen und lässt sie, wie sie sind. Wenn du es installierst,
+deaktivierst oder entfernst, ändert das nichts an den Geräten, Entitäten oder Einstellungen einer
+anderen Integration. Die einzigen Ausnahmen sind Knöpfe, die du selbst drückst, einen nach dem
+anderen: den Schlüssel eines iPhones zu Private BLE Device hinzufügen, einem Empfänger seinen Bereich
+geben, den Sensor BLE Transmitter eines Handys einschalten und die Löschknöpfe in Verwalten. Die
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/README.md#what-padspan-never-touches">README</a> hat die vollständige Liste, und was das Haus
+verlässt, steht unter <a href="https://github.com/gbroeckling/padspanHA/blob/main/README.md#updates--privacy">Updates &amp; Privacy</a>.</p>
+<div class="pager"><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/requirements/de/">2. Voraussetzungen →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>
