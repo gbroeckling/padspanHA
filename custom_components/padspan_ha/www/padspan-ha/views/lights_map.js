@@ -728,12 +728,12 @@ export function floodIsAlarming(l, floodLatches){
   return floodLatchActive(latch && latch.triggered_at, Date.now());
 }
 
-// ── Alert pulse (Settings → UI Structure → Atlas, off by default) ───────────
+// ── Alert pulse (Settings → Atlas → Atlas — Mapped Light Control, off by default) ──
 // What needs someone now, worst first: a smoke, gas or CO alarm, a leak (both
 // live or still latched, floodIsAlarming — the Atlas already rings their
 // rooms), a window or cover open while it rains or snows (the Atlas's own
-// weather decision, atlas_weather.js), then a door left open for hours (the
-// health check's "left open", healthOf). Each {eid, kind, what, where}: the
+// weather decision, atlas_weather.js), then any door, window, gate or cover
+// left open over 6 hours (the health check's "left open", healthOf). Each {eid, kind, what, where}: the
 // banner's words ("Leak · Laundry") and, for an opening, its amber ring.
 export const ALERT_KINDS = ["smoke", "gas", "co", "water", "rain_open", "left_open"];
 const ALERT_WHAT = { smoke: "Smoke", gas: "Gas", co: "CO", water: "Leak" };
@@ -3839,7 +3839,7 @@ export function buildLightsMapCard(hostIn){
   const WALL = DISPLAY && !!host.wall;
   if (WALL) mapCard.classList.add("lv-wall");
 
-  // Alert pulse (host.alertPulse: Settings → UI Structure → Atlas, off by
+  // Alert pulse (host.alertPulse: Settings → Atlas → Atlas — Mapped Light Control, off by
   // default; safetyAlerts above). Off, nothing here is read or drawn. On, a
   // flagged opening's room rings amber (rebuildISO's alertOpenings) and a
   // wall screen names the worst alert across its top until it clears. Rain

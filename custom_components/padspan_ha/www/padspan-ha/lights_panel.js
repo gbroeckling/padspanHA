@@ -428,7 +428,7 @@ class PadSpanLightsApp extends HTMLElement {
       if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = s.atlas_emergency_button === false;
       if (s.atlas_live_colours !== undefined) this.state._liveColours = s.atlas_live_colours === true;
       if (s.atlas_heatmap_enabled !== undefined) this.state._heatmapOn = s.atlas_heatmap_enabled === true;
-      // Settings → UI Structure → Atlas → Alert pulse, normally off.
+      // Settings → Atlas → Atlas — Mapped Light Control → Alert pulse, normally off.
       this.state._alertPulse = s.atlas_alert_pulse === true;
       // Outdoor weather (Settings → UI Structure → Atlas), field by field. A
       // failed fetch keeps the last answer; before any answer, no weather.
@@ -1831,7 +1831,7 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   // What a wall set up on the window and the host, undone.
-  // The heatmap chip: PadSpan Pro, and turned on in Settings → UI Structure → Atlas.
+  // The heatmap chip: PadSpan Pro, and turned on in Settings → Atlas → Atlas — Mapped Light Control.
   _heatmapPro(){
     return String(this.state._tier || "").toLowerCase() === "pro" && !!this.state._heatmapOn;
   }
