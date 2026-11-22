@@ -262,7 +262,7 @@
 "Bluetooth feed unavailable": "Flux Bluetooth indisponible",
 "PadSpan™ can't see BLE scanners. This usually means Home Assistant needs a full restart (Settings → System → Restart) — a reload isn't enough after first install.": "PadSpan™ ne voit aucun scanner BLE. En général, Home Assistant a besoin d’un redémarrage complet (Paramètres → Système → Redémarrer) — un rechargement ne suffit pas après la première installation.",
 "See someone on the map": "Voir quelqu’un sur la carte",
-"Follow → pick your phone or a tag": "« Follow » → choisissez votre téléphone ou une balise",
+"Follow → pick your phone or a tag": "« Suivre » → choisissez votre téléphone ou une balise",
 "Switch the top bar to Live first": "Passez d’abord la barre du haut sur « En direct »",
 "Make it a map (optional) — {done}/{total}": "Créer la carte (facultatif) — {done}/{total}",
 "Getting started — {done}/{total}": "Premiers pas — {done}/{total}",

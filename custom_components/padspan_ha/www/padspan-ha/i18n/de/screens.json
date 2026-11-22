@@ -423,7 +423,7 @@
 "IRK saved — tracking will activate within 60 seconds": "IRK gespeichert — das Verfolgen startet innerhalb von 60 Sekunden",
 "Save unverified": "Ungeprüft speichern",
 "Retry": "Noch einmal",
-"IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings → Phone Tracking for extraction methods.": "Der IRK ist optional — dein Handy wird schon über iBeacon verfolgt. Wie du den IRK (für besseres Verfolgen) ausliest, steht unter „Settings → Phone Tracking“.",
+"IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings → Phone Tracking for extraction methods.": "Der IRK ist optional — dein Handy wird schon über iBeacon verfolgt. Wie du den IRK (für besseres Verfolgen) ausliest, steht unter „Einstellungen → Phone Tracking“.",
 "Track": "Verfolgen",
 "Setting up...": "Wird eingerichtet...",
 "not tracked": "nicht verfolgt",

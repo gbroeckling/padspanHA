@@ -1,11 +1,11 @@
 {
-"Get the iPhone's IRK (Identity Resolving Key). Either pair the iPhone with an ESP32 running DerekSeaman's irk-capture (github.com/DerekSeaman/irk-capture): Bluetooth → IRK Manager → “I have an IRK Capture ESP32” takes you through it and saves the key; or, on a Mac signed into the same iCloud account, run {command} and copy the IRK under the iPhone's name (Settings → Phone Tracking → Detailed Setup Guide has the Keychain way too).": "Hol den IRK (Identity Resolving Key) des iPhones. Entweder koppelst du das iPhone mit einem ESP32, auf dem irk-capture von DerekSeaman läuft (github.com/DerekSeaman/irk-capture): „Bluetooth → IRK Manager“ → „Ich habe einen IRK-Capture-ESP32“ führt dich durch und speichert den Schlüssel; oder du führst auf einem Mac mit demselben iCloud-Konto {command} aus und kopierst den IRK unter dem Namen des iPhones („Settings → Phone Tracking → Detailed Setup Guide“ beschreibt auch den Weg über den Schlüsselbund).",
+"Get the iPhone's IRK (Identity Resolving Key). Either pair the iPhone with an ESP32 running DerekSeaman's irk-capture (github.com/DerekSeaman/irk-capture): Bluetooth → IRK Manager → “I have an IRK Capture ESP32” takes you through it and saves the key; or, on a Mac signed into the same iCloud account, run {command} and copy the IRK under the iPhone's name (Settings → Phone Tracking → Detailed Setup Guide has the Keychain way too).": "Hol den IRK (Identity Resolving Key) des iPhones. Entweder koppelst du das iPhone mit einem ESP32, auf dem irk-capture von DerekSeaman läuft (github.com/DerekSeaman/irk-capture): „Bluetooth → IRK-Verwaltung“ → „Ich habe einen IRK-Capture-ESP32“ führt dich durch und speichert den Schlüssel; oder du führst auf einem Mac mit demselben iCloud-Konto {command} aus und kopierst den IRK unter dem Namen des iPhones („Einstellungen → Phone Tracking → Detailed Setup Guide“ beschreibt auch den Weg über den Schlüsselbund).",
 "Add it in Home Assistant: Settings → Devices & services → Add integration → Private BLE Device, and paste the IRK. PadSpan picks it up from there within a minute.": "Füg ihn in Home Assistant hinzu: Einstellungen → Geräte & Dienste → Integration hinzufügen → Private BLE Device, und füge den IRK ein. PadSpan übernimmt ihn von dort innerhalb einer Minute.",
-"Check it resolves: with the iPhone awake near a scanner, it shows in Bluetooth → IRK Manager → Registered IRK devices and the Resolved count goes up. “Test only” there checks a key without saving it.": "Prüfe, ob er passt: Ist das iPhone wach und in der Nähe eines Scanners, erscheint es unter „Bluetooth → IRK Manager → Registered IRK devices“ und die Zahl bei „Resolved“ steigt. „Test only“ prüft dort einen Schlüssel, ohne ihn zu speichern.",
+"Check it resolves: with the iPhone awake near a scanner, it shows in Bluetooth → IRK Manager → Registered IRK devices and the Resolved count goes up. “Test only” there checks a key without saving it.": "Prüfe, ob er passt: Ist das iPhone wach und in der Nähe eines Scanners, erscheint es unter „Bluetooth → IRK-Verwaltung → Registered IRK devices“ und die Zahl bei „Resolved“ steigt. „Test only“ prüft dort einen Schlüssel, ohne ihn zu speichern.",
 "To track this iPhone:": "So verfolgst du dieses iPhone:",
 "iPhone · tracked by its IRK, press Setup": "iPhone · wird über seinen IRK verfolgt, drück „Einrichtung“",
-"No phones detected. Android: enable the HA Companion App with BLE Transmitter. iPhone: add its IRK instead (Bluetooth → IRK Manager).": "Keine Handys gefunden. Android: Aktiviere in der HA Companion App den BLE Transmitter. iPhone: Füg stattdessen seinen IRK hinzu („Bluetooth → IRK Manager“).",
-"Not seeing your phone? Android: open Companion App → Settings → Companion App → Manage Sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).": "Siehst du dein Handy nicht? Android: Öffne Companion App → Einstellungen → Companion App → Sensoren verwalten → BLE Transmitter → Aktivieren. iPhone: Diese Einstellung gibt es dort nicht; füg seinen IRK hinzu („Bluetooth → IRK Manager“).",
+"No phones detected. Android: enable the HA Companion App with BLE Transmitter. iPhone: add its IRK instead (Bluetooth → IRK Manager).": "Keine Handys gefunden. Android: Aktiviere in der HA Companion App den BLE Transmitter. iPhone: Füg stattdessen seinen IRK hinzu („Bluetooth → IRK-Verwaltung“).",
+"Not seeing your phone? Android: open Companion App → Settings → Companion App → Manage Sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).": "Siehst du dein Handy nicht? Android: Öffne Companion App → Einstellungen → Companion App → Sensoren verwalten → BLE Transmitter → Aktivieren. iPhone: Diese Einstellung gibt es dort nicht; füg seinen IRK hinzu („Bluetooth → IRK-Verwaltung“).",
 "Transmit power to High": "„Transmit power“ auf „High“",
 "Advertise mode to Low latency": "„Advertise mode“ auf „Low latency“",
 "Sends too weakly for receivers to hear it well. In the Companion app, open Settings → Companion app → Manage sensors → BLE Transmitter and set {what}.": "Sendet zu schwach, als dass die Empfänger es gut hören. Öffne in der Companion App Einstellungen → Companion App → Sensoren verwalten → BLE Transmitter und stell {what}.",
@@ -135,8 +135,8 @@
 "other": "{n} Empfänger"
 },
 "{what} are on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.": {
-"one": "{what} ist auf diesem Grundriss, aber noch nicht auf der Karte deines Hauses, aus der „Overview“, Atlas und Positionsbestimmung zeichnen. Was schon darauf ist, bleibt, wie es ist.",
-"other": "{what} sind auf diesem Grundriss, aber noch nicht auf der Karte deines Hauses, aus der „Overview“, Atlas und Positionsbestimmung zeichnen. Was schon darauf ist, bleibt, wie es ist."
+"one": "{what} ist auf diesem Grundriss, aber noch nicht auf der Karte deines Hauses, aus der „Übersicht“, Atlas und Positionsbestimmung zeichnen. Was schon darauf ist, bleibt, wie es ist.",
+"other": "{what} sind auf diesem Grundriss, aber noch nicht auf der Karte deines Hauses, aus der „Übersicht“, Atlas und Positionsbestimmung zeichnen. Was schon darauf ist, bleibt, wie es ist."
 },
 "The scale is set.": "Der Maßstab ist festgelegt.",
 "One floor: nothing to set here.": "Eine Etage: Hier gibt es nichts einzustellen.",
@@ -171,7 +171,7 @@
 "To try again, use the line below; to draw them yourself, this step's own button.": "Um es noch einmal zu versuchen, nimm die Zeile unten; um sie selbst zu zeichnen, den Knopf dieses Schritts.",
 "Cancel": "Abbrechen",
 "Quickest: walk each room for 90 seconds with your phone (Walk a room). Point by point is the other way.": "Am schnellsten: Geh mit deinem Handy 90 Sekunden durch jeden Raum („Walk a room“). Punkt für Punkt ist der andere Weg.",
-"Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).": "Schneller: Geh stattdessen 90 Sekunden durch jeden Raum („Walk a room“). Das ist hier ausgeschaltet; schalte es unter „Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)“ ein.",
+"Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).": "Schneller: Geh stattdessen 90 Sekunden durch jeden Raum („Walk a room“). Das ist hier ausgeschaltet; schalte es unter „Einstellungen → Tracking → Positioning and calibration → Walk a Room (Calibration)“ ein.",
 "Open that setting": "Diese Einstellung öffnen",
 "Next": "Nächster",
 "To do": "Offen",
@@ -205,8 +205,8 @@
 "other": "{n} Kalibrierpunkte."
 },
 "Placed {n} receivers inside their rooms ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.": {
-"one": "{n} Empfänger in seinen Raum gesetzt ({list}), auf der Karte deines Hauses. Zieh jeden dorthin, wo er hängt, und stell seine Höhe ein, im ersten Schritt der Kalibrierung, „Check receiver positions“; die Seite „Receivers“ stellt Höhen auch ein.",
-"other": "{n} Empfänger in ihre Räume gesetzt ({list}), auf der Karte deines Hauses. Zieh jeden dorthin, wo er hängt, und stell seine Höhe ein, im ersten Schritt der Kalibrierung, „Check receiver positions“; die Seite „Receivers“ stellt Höhen auch ein."
+"one": "{n} Empfänger in seinen Raum gesetzt ({list}), auf der Karte deines Hauses. Zieh jeden dorthin, wo er hängt, und stell seine Höhe ein, im ersten Schritt der Kalibrierung, „Check receiver positions“; die Seite „Empfänger“ stellt Höhen auch ein.",
+"other": "{n} Empfänger in ihre Räume gesetzt ({list}), auf der Karte deines Hauses. Zieh jeden dorthin, wo er hängt, und stell seine Höhe ein, im ersten Schritt der Kalibrierung, „Check receiver positions“; die Seite „Empfänger“ stellt Höhen auch ein."
 },
 "{n} already on the map, left where they are.": {
 "one": "{n} schon auf der Karte, bleibt, wo er ist.",

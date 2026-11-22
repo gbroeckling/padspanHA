@@ -1,11 +1,11 @@
 {
-"Get the iPhone's IRK (Identity Resolving Key). Either pair the iPhone with an ESP32 running DerekSeaman's irk-capture (github.com/DerekSeaman/irk-capture): Bluetooth → IRK Manager → “I have an IRK Capture ESP32” takes you through it and saves the key; or, on a Mac signed into the same iCloud account, run {command} and copy the IRK under the iPhone's name (Settings → Phone Tracking → Detailed Setup Guide has the Keychain way too).": "Haal de IRK (Identity Resolving Key) van de iPhone op. Koppel de iPhone met een ESP32 waarop irk-capture van DerekSeaman draait (github.com/DerekSeaman/irk-capture): “Bluetooth → IRK Manager” → “Ik heb een IRK Capture ESP32” leidt je erdoor en bewaart de sleutel; of voer op een Mac met hetzelfde iCloud-account {command} uit en kopieer de IRK onder de naam van de iPhone (“Settings → Phone Tracking → Detailed Setup Guide” beschrijft ook de manier via de sleutelhanger).",
+"Get the iPhone's IRK (Identity Resolving Key). Either pair the iPhone with an ESP32 running DerekSeaman's irk-capture (github.com/DerekSeaman/irk-capture): Bluetooth → IRK Manager → “I have an IRK Capture ESP32” takes you through it and saves the key; or, on a Mac signed into the same iCloud account, run {command} and copy the IRK under the iPhone's name (Settings → Phone Tracking → Detailed Setup Guide has the Keychain way too).": "Haal de IRK (Identity Resolving Key) van de iPhone op. Koppel de iPhone met een ESP32 waarop irk-capture van DerekSeaman draait (github.com/DerekSeaman/irk-capture): “Bluetooth → IRK-beheer” → “Ik heb een IRK Capture ESP32” leidt je erdoor en bewaart de sleutel; of voer op een Mac met hetzelfde iCloud-account {command} uit en kopieer de IRK onder de naam van de iPhone (“Instellingen → Phone Tracking → Detailed Setup Guide” beschrijft ook de manier via de sleutelhanger).",
 "Add it in Home Assistant: Settings → Devices & services → Add integration → Private BLE Device, and paste the IRK. PadSpan picks it up from there within a minute.": "Voeg hem toe in Home Assistant: Instellingen → Apparaten en diensten → Integratie toevoegen → Private BLE Device, en plak de IRK. PadSpan pikt hem daar binnen een minuut op.",
-"Check it resolves: with the iPhone awake near a scanner, it shows in Bluetooth → IRK Manager → Registered IRK devices and the Resolved count goes up. “Test only” there checks a key without saving it.": "Controleer of hij werkt: met de iPhone wakker bij een scanner verschijnt hij onder “Bluetooth → IRK Manager → Registered IRK devices” en loopt de teller “Resolved” op. “Test only” controleert daar een sleutel zonder hem op te slaan.",
+"Check it resolves: with the iPhone awake near a scanner, it shows in Bluetooth → IRK Manager → Registered IRK devices and the Resolved count goes up. “Test only” there checks a key without saving it.": "Controleer of hij werkt: met de iPhone wakker bij een scanner verschijnt hij onder “Bluetooth → IRK-beheer → Registered IRK devices” en loopt de teller “Resolved” op. “Test only” controleert daar een sleutel zonder hem op te slaan.",
 "To track this iPhone:": "Zo volg je deze iPhone:",
 "iPhone · tracked by its IRK, press Setup": "iPhone · gevolgd via zijn IRK, druk op “Instellen”",
-"No phones detected. Android: enable the HA Companion App with BLE Transmitter. iPhone: add its IRK instead (Bluetooth → IRK Manager).": "Geen telefoons gevonden. Android: zet in de HA Companion App de BLE Transmitter aan. iPhone: voeg in plaats daarvan zijn IRK toe (“Bluetooth → IRK Manager”).",
-"Not seeing your phone? Android: open Companion App → Settings → Companion App → Manage Sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).": "Zie je je telefoon niet? Android: open Companion App → Instellingen → Companion App → Sensoren beheren → BLE Transmitter → Inschakelen. iPhone: die instelling bestaat niet; voeg zijn IRK toe (“Bluetooth → IRK Manager”).",
+"No phones detected. Android: enable the HA Companion App with BLE Transmitter. iPhone: add its IRK instead (Bluetooth → IRK Manager).": "Geen telefoons gevonden. Android: zet in de HA Companion App de BLE Transmitter aan. iPhone: voeg in plaats daarvan zijn IRK toe (“Bluetooth → IRK-beheer”).",
+"Not seeing your phone? Android: open Companion App → Settings → Companion App → Manage Sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).": "Zie je je telefoon niet? Android: open Companion App → Instellingen → Companion App → Sensoren beheren → BLE Transmitter → Inschakelen. iPhone: die instelling bestaat niet; voeg zijn IRK toe (“Bluetooth → IRK-beheer”).",
 "Transmit power to High": "“Transmit power” op “High”",
 "Advertise mode to Low latency": "“Advertise mode” op “Low latency”",
 "Sends too weakly for receivers to hear it well. In the Companion app, open Settings → Companion app → Manage sensors → BLE Transmitter and set {what}.": "Zendt te zwak om goed door de ontvangers gehoord te worden. Open in de Companion App Instellingen → Companion App → Sensoren beheren → BLE Transmitter en zet {what}.",
@@ -135,8 +135,8 @@
 "other": "{n} ontvangers"
 },
 "{what} are on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.": {
-"one": "{what} staat op deze plattegrond, maar nog niet op de kaart van je huis waaruit “Overview”, de Atlas en de plaatsbepaling tekenen. Wat er al op staat, verandert niet.",
-"other": "{what} staan op deze plattegrond, maar nog niet op de kaart van je huis waaruit “Overview”, de Atlas en de plaatsbepaling tekenen. Wat er al op staat, verandert niet."
+"one": "{what} staat op deze plattegrond, maar nog niet op de kaart van je huis waaruit “Overzicht”, de Atlas en de plaatsbepaling tekenen. Wat er al op staat, verandert niet.",
+"other": "{what} staan op deze plattegrond, maar nog niet op de kaart van je huis waaruit “Overzicht”, de Atlas en de plaatsbepaling tekenen. Wat er al op staat, verandert niet."
 },
 "The scale is set.": "De schaal is ingesteld.",
 "One floor: nothing to set here.": "Eén verdieping: hier valt niets in te stellen.",
@@ -171,7 +171,7 @@
 "To try again, use the line below; to draw them yourself, this step's own button.": "Om het opnieuw te proberen, gebruik je de regel hieronder; om ze zelf te tekenen, de knop van deze stap.",
 "Cancel": "Annuleren",
 "Quickest: walk each room for 90 seconds with your phone (Walk a room). Point by point is the other way.": "Het snelst: loop met je telefoon 90 seconden door elke kamer (“Walk a room”). Punt voor punt is de andere manier.",
-"Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).": "Sneller: loop in plaats daarvan 90 seconden door elke kamer (“Walk a room”). Dat staat hier uit; zet het aan in “Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)”.",
+"Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).": "Sneller: loop in plaats daarvan 90 seconden door elke kamer (“Walk a room”). Dat staat hier uit; zet het aan in “Instellingen → Tracking → Positioning and calibration → Walk a Room (Calibration)”.",
 "Open that setting": "Die instelling openen",
 "Next": "Volgende",
 "To do": "Te doen",
@@ -205,8 +205,8 @@
 "other": "{n} kalibratiepunten."
 },
 "Placed {n} receivers inside their rooms ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.": {
-"one": "{n} ontvanger in zijn kamer gezet ({list}), op de kaart van je huis. Sleep elke ontvanger naar waar hij hangt en stel zijn hoogte in, in de eerste stap van de kalibratie, “Check receiver positions”; de pagina “Receivers” stelt ook hoogtes in.",
-"other": "{n} ontvangers in hun kamers gezet ({list}), op de kaart van je huis. Sleep elke ontvanger naar waar hij hangt en stel zijn hoogte in, in de eerste stap van de kalibratie, “Check receiver positions”; de pagina “Receivers” stelt ook hoogtes in."
+"one": "{n} ontvanger in zijn kamer gezet ({list}), op de kaart van je huis. Sleep elke ontvanger naar waar hij hangt en stel zijn hoogte in, in de eerste stap van de kalibratie, “Check receiver positions”; de pagina “Ontvangers” stelt ook hoogtes in.",
+"other": "{n} ontvangers in hun kamers gezet ({list}), op de kaart van je huis. Sleep elke ontvanger naar waar hij hangt en stel zijn hoogte in, in de eerste stap van de kalibratie, “Check receiver positions”; de pagina “Ontvangers” stelt ook hoogtes in."
 },
 "{n} already on the map, left where they are.": {
 "one": "{n} al op de kaart, blijft waar hij is.",

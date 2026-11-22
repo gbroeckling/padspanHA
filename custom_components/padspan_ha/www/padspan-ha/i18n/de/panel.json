@@ -262,7 +262,7 @@
 "Bluetooth feed unavailable": "Bluetooth-Daten nicht verfügbar",
 "PadSpan™ can't see BLE scanners. This usually means Home Assistant needs a full restart (Settings → System → Restart) — a reload isn't enough after first install.": "PadSpan™ sieht keine BLE-Scanner. Meist braucht Home Assistant dann einen vollständigen Neustart (Einstellungen → System → Neu starten) — nach der ersten Installation reicht Neuladen nicht.",
 "See someone on the map": "Jemanden auf der Karte sehen",
-"Follow → pick your phone or a tag": "„Follow“ → wähle dein Handy oder einen Tag",
+"Follow → pick your phone or a tag": "„Folgen“ → wähle dein Handy oder einen Tag",
 "Switch the top bar to Live first": "Stell oben zuerst auf „Live“",
 "Make it a map (optional) — {done}/{total}": "Karte anlegen (optional) — {done}/{total}",
 "Getting started — {done}/{total}": "Erste Schritte — {done}/{total}",
