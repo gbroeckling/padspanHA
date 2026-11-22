@@ -425,8 +425,12 @@ export function tuneBeaconInBounds(x, y) {
 //              Find My or bridged tag carried across address changes;
 //   "followed" followed by its key or its bare address (follows hold the
 //              address or entity id, an iBeacon's its key; panel.js).
-// Anything else (ble, ibeacon, entity) is pinned where it is placed. A beacon
-// that already has a fabric pin is never asked: moving it moves its pin.
+// Anything else (ble, ibeacon, entity) is pinned only when its row is ticked
+// "Pin here: it never moves" (row._pin): placing or dragging a beacon never pins
+// it by itself (2026-11-22: it did, and a house that pins only its TV found a
+// car, tags, a purse and test tags pinned, each locking its room and adding
+// calibration points at a spot it had left). A beacon that already has a fabric
+// pin is never asked: moving it moves its pin.
 export function tuneBeaconHeld(row, obj, followedHas) {
   if (row._tracked) return "tracked";
   if (row.kind === "private_ble" || (obj && obj.kind === "private_ble")) return "phone";
@@ -446,7 +450,9 @@ const _HELD_WHY = {
   followed: "moves with someone (followed)",
 };
 export function tuneBeaconHeldText(held, capture) {
-  return (held || []).map(h => `${h.label || h.key} ${_HELD_WHY[h.reason] || _HELD_WHY.phone} - not pinned` +
+  return (held || []).map(h => (h.reason === "unpinned"
+    ? `${h.label || h.key} is placed, not pinned (tick "Pin here: it never moves" on its row only if it never moves)`
+    : `${h.label || h.key} ${_HELD_WHY[h.reason] || _HELD_WHY.phone} - not pinned`) +
     (capture === false ? "" : "; its 60 s calibration still runs")).join(". ");
 }
 
@@ -455,8 +461,10 @@ export function tuneBeaconHeldText(held, capture) {
 // fractions, for the baseline. No z_m: the backend keeps a stored height when
 // it is left out. `guard` (the view's): { pinned: the fabric's beacon pins
 // (model.beacon_positions_m), objs: Map key -> live object, followedHas }.
-// A moved row whose key has a fabric pin is always written; one without is
-// held back when tuneBeaconHeld gives a reason, and reported in `held`.
+// A moved row whose key has a fabric pin is always written. One without is
+// written only when it is ticked (row._pin) and tuneBeaconHeld gives no reason;
+// otherwise it is held back ("unpinned", or the reason) and reported in `held`.
+// A ticked row is written even where it stands, if it was held there before.
 export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap, guard) {
   const tf = transforms ? transforms[mapObj.id] : null;
   const writes = [];
@@ -474,9 +482,10 @@ export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap, gua
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const was = base[key];
-    if (was && was.x === b.x && was.y === b.y) continue;
+    const newPin = !pinned[key] && b._pin === true;
+    if (was && was.x === b.x && was.y === b.y && !newPin) continue;
     if (!pinned[key]) {
-      const reason = tuneBeaconHeld(b, g.objs ? g.objs.get(key) : null, g.followedHas);
+      const reason = tuneBeaconHeld(b, g.objs ? g.objs.get(key) : null, g.followedHas) || (b._pin === true ? "" : "unpinned");
       if (reason) { held.push({ key, label: b.label || "", reason, x: b.x, y: b.y }); continue; }
     }
     changed.push(b);
