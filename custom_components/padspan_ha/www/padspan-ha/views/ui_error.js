@@ -123,8 +123,9 @@ export function uiErrorModule(ev) {
 // those are shown as they are; what comes from Home Assistant's machinery or
 // from a bug on this page gets a plain line that says what to do.
 // Both in the panel's language (views/i18n.js): these lines through t(), and
-// PadSpan's own sentences from the server by their exact English
-// (serverText, i18n/<lang>/server.json). If i18n.js can't load, English.
+// PadSpan's own sentences from the server by their exact English or by the
+// template a refusal sent beside it (serverText, i18n/<lang>/server.json).
+// If i18n.js can't load, English.
 const I18N = await import(`./i18n.js${new URL(import.meta.url).search}`).catch(() => null);
 const t = (s) => (I18N ? I18N.t(s) : s);
 export const ERROR_WORDS = Object.freeze({
@@ -139,11 +140,21 @@ export const ERROR_WORDS = Object.freeze({
 });
 
 /** A sentence the server sent (a refusal, a System Critics line), in the
- *  panel's language when it is one of the backend's whole sentences
- *  (scripts/i18n_coverage.py server_sentences); anything else as it came. */
-export function serverText(s) {
+ *  panel's language: by its template when it came with one (key, and args the
+ *  values it put in: names and numbers, never translated; a number is written
+ *  the language's way), else when it is one of the backend's whole sentences
+ *  by its exact English (scripts/i18n_coverage.py server_sentences); anything
+ *  else as it came. */
+export function serverText(s, key, args) {
   const text = String(s == null ? "" : s);
   if (!I18N || !text || I18N.currentLanguage() === "en") return text;
+  if (typeof key === "string" && key && I18N.t(key) !== key) {
+    const vals = {};
+    for (const [k, v] of Object.entries(args && typeof args === "object" ? args : {})) {
+      vals[k] = typeof v === "number" ? v.toLocaleString(I18N.currentLanguage()) : v;
+    }
+    return I18N.t(key, vals);
+  }
   const tr = I18N.t(text);
   return tr || text;
 }
@@ -169,7 +180,7 @@ export function errorText(e) {
     // fetch() that never reached anyone throws a TypeError of its own words: the network, not a bug.
     if (e.name === "TypeError" && /failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return ERROR_WORDS.network;
     if (_BUG.has(String(e.name || ""))) return ERROR_WORDS.page;
-    return serverText(msg) || ERROR_WORDS.other;
+    return serverText(msg, e.translation_key, e.translation_placeholders) || ERROR_WORDS.other;
   } catch (_e) {
     return ERROR_WORDS.other;
   }

@@ -383,15 +383,23 @@ def test_the_server_group_is_the_backends_sentences() -> None:
     assert "Only an admin can change this while Enhanced security is on" in keys
     assert any(k.startswith("PadSpan hasn't finished loading.") for k in keys)   # NOT_LOADED_MESSAGE, by name
     _check_group(cov, "server", keys)
-    # One mechanism: errorText and Health's System Critics both look them up through serverText.
+    # One mechanism: errorText and Health's System Critics both look them up through serverText,
+    # by the template a sentence with a name in it came with (a refusal's translation_key, a critic's
+    # title_key / message_key / action_key), else by its exact English.
     ui = (_WWW / "views" / "ui_error.js").read_text(encoding="utf-8")
-    assert "return serverText(msg) || ERROR_WORDS.other;" in ui and "export function serverText(s)" in ui
+    assert "return serverText(msg, e.translation_key, e.translation_placeholders) || ERROR_WORDS.other;" in ui
+    assert "export function serverText(s, key, args)" in ui
     health = (_WWW / "views" / "health.js").read_text(encoding="utf-8")
     for field in ("title", "message", "action"):
-        assert f"_escHtml(serverText(critic.{field}))" in health, field
+        assert f"_escHtml(serverText(critic.{field}, critic.{field}_key, critic.args))" in health, field
+    templates = {k for k in keys if _PH_RE.search(k)}
+    assert len(templates) >= 20, len(templates)
     for lang in _SHIPPED:
         data = json.loads((_LANG_DIR / lang / "server.json").read_text(encoding="utf-8"))
-        assert not _problems(f"{lang}/server.json", data, {k: set() for k in keys})
+        assert not _problems(f"{lang}/server.json", data, {k: set(_PH_RE.findall(k)) for k in keys})
+        # A template's translation puts in every value the English does: a name left out is a name lost.
+        lost = [k for k in templates if k in data and set(_PH_RE.findall(data[k])) != set(_PH_RE.findall(k))]
+        assert not lost, (lang, lost[:5])
 
 
 def test_the_panel_loads_its_words_at_startup_and_on_a_language_change() -> None:

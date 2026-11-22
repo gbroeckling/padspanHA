@@ -36,6 +36,18 @@ from .quiet_errors import listing as _quiet_listing, note as _quiet_error
 _LOGGER = logging.getLogger(__name__)
 
 
+def _filled(fields: dict[str, str], args: dict[str, Any]) -> dict[str, Any]:
+    """A critic's title / message / action that put values into their sentence (2026-11-21), each given as its
+    template: the English filled in, as before, and beside it the template (`title_key`, `message_key`,
+    `action_key`) with the values (`args`), so the panel can say it in its own language (views/health.js;
+    scripts/i18n_coverage.py collects the templates into i18n/<lang>/server.json). The values are names (rooms,
+    receivers, plans, floors) and numbers, never translated."""
+    out: dict[str, Any] = {k: v.format(**args) for k, v in fields.items()}
+    out.update({f"{k}_key": v for k, v in fields.items()})
+    out["args"] = args
+    return out
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/auto_diagnostics"})
 @websocket_api.async_response
 async def ws_auto_diagnostics(hass: HomeAssistant, connection, msg) -> None:
@@ -487,15 +499,17 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
             critics.append({
                 "category": "room_confusion",
                 "severity": severity,
-                "title": f"{room_a} and {room_b} get mixed up",
-                "message": (
-                    f"PadSpan keeps moving devices back and forth between {room_a} and {room_b}, "
-                    "so someone in one of them is often shown in the other."
-                ),
-                "action": (
-                    f"Calibrate in both {room_a} and {room_b}, mostly near where they meet. "
-                    "If a wall separates them, draw it as a signal wall on the floor plan."
-                ),
+                **_filled({
+                    "title": "{room_a} and {room_b} get mixed up",
+                    "message": (
+                        "PadSpan keeps moving devices back and forth between {room_a} and {room_b}, "
+                        "so someone in one of them is often shown in the other."
+                    ),
+                    "action": (
+                        "Calibrate in both {room_a} and {room_b}, mostly near where they meet. "
+                        "If a wall separates them, draw it as a signal wall on the floor plan."
+                    ),
+                }, {"room_a": room_a, "room_b": room_b}),
                 "detail": f"{count} moves back and forth, {rate:.0%} of all room changes.",
                 "go": {"to": "calibrate"},
             })
@@ -537,15 +551,17 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     critics.append({
                         "category": "map_quality",
                         "severity": severity,
-                        "title": f"Positions on \u201c{map_name}\u201d are often off",
-                        "message": (
-                            "When PadSpan checks this plan's calibration points against each other, "
-                            f"it places them about {err_m:.1f} m from where they were taken."
-                        ),
-                        "action": (
-                            f"Calibrate more spots on \u201c{map_name}\u201d, mostly where there are few, "
-                            "and check that the rooms are drawn where the walls really are."
-                        ),
+                        **_filled({
+                            "title": "Positions on \u201c{plan}\u201d are often off",
+                            "message": (
+                                "When PadSpan checks this plan's calibration points against each other, "
+                                "it places them about {metres} m from where they were taken."
+                            ),
+                            "action": (
+                                "Calibrate more spots on \u201c{plan}\u201d, mostly where there are few, "
+                                "and check that the rooms are drawn where the walls really are."
+                            ),
+                        }, {"plan": map_name, "metres": round(float(err_m), 1)}),
                         "detail": (
                             f"Leave-one-out mean error {err_m:.2f} m, "
                             f"worst {loo.get('max_error_m', 0):.2f} m, "
@@ -557,12 +573,14 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     critics.append({
                         "category": "map_quality",
                         "severity": "info",
-                        "title": f"\u201c{map_name}\u201d has few calibration points",
-                        "message": (
-                            f"It has {point_count} so far. From 5, PadSpan can check how "
-                            "accurate positions on this plan are."
-                        ),
-                        "action": f"Calibrate a few more spots on \u201c{map_name}\u201d.",
+                        **_filled({
+                            "title": "\u201c{plan}\u201d has few calibration points",
+                            "message": (
+                                "It has {points} so far. From 5, PadSpan can check how "
+                                "accurate positions on this plan are."
+                            ),
+                            "action": "Calibrate a few more spots on \u201c{plan}\u201d.",
+                        }, {"plan": map_name, "points": point_count}),
                         "detail": "Leave-one-out validation needs at least 5 points.",
                         "go": {"to": "calibrate", "map_id": mid},
                     })
@@ -623,7 +641,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     critics.append({
                         "category": "map_geometry",
                         "severity": "critical",
-                        "title": f"PadSpan can't read where “{_f['name']}” goes",
+                        **_filled({"title": "PadSpan can't read where “{plan}” goes"}, {"plan": _f["name"]}),
                         "message": (
                             "This plan's saved size or position is damaged, so PadSpan "
                             "can't place it in the house or tell how big it is. Rooms drawn "
@@ -647,8 +665,8 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     critics.append({
                         "category": "map_geometry",
                         "severity": "warning" if _used else "info",
-                        "title": (f"“{_f['name']}” has rooms or receivers but no scale" if _used
-                                  else f"Next step: set the scale of “{_f['name']}”"),
+                        **_filled({"title": ("“{plan}” has rooms or receivers but no scale" if _used
+                                             else "Next step: set the scale of “{plan}”")}, {"plan": _f["name"]}),
                         "message": (
                             "Rooms or receivers are drawn on this plan, but it was never "
                             "measured or lined up with another plan, so none of it can be "
@@ -681,7 +699,8 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 critics.append({
                     "category": "room_footprint",
                     "severity": "critical" if _oversized else "warning",
-                    "title": f"The rooms on {_floor_name(_rf['floor_id'])} don’t fit “{_rf['map_name']}”",
+                    **_filled({"title": "The rooms on {floor} don’t fit “{plan}”"},
+                              {"floor": _floor_name(_rf["floor_id"]), "plan": _rf["map_name"]}),
                     "message": (
                         "The rooms on this floor cover more ground than the plan they were "
                         "drawn on. The plan's scale most likely changed after the rooms were drawn."
@@ -722,7 +741,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 critics.append({
                     "category": "room_divergence",
                     "severity": "warning",
-                    "title": f"The two copies of the rooms on “{_dv['map_name']}” disagree",
+                    **_filled({"title": "The two copies of the rooms on “{plan}” disagree"}, {"plan": _dv["map_name"]}),
                     "message": (
                         "The rooms traced on this plan and the rooms PadSpan saved for its floor "
                         "all differ by the same amount, so one of the two is out of date: the "
@@ -795,16 +814,18 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
             critics.append({
                 "category": "scanner",
                 "severity": severity,
-                "title": f"Receiver \u201c{name}\u201d often points to the wrong room",
                 "message": (
                     "It often disagrees with the other receivers about which room a device "
                     "is in, so it can pull people and things into the wrong room."
                 ),
-                "action": (
-                    f"Check that \u201c{name}\u201d is in the right room in Home Assistant, and where "
-                    "and which way up it is mounted. If it hears devices louder or quieter than "
-                    "it should, change its signal adjustment on the Receivers page."
-                ),
+                **_filled({
+                    "title": "Receiver \u201c{receiver}\u201d often points to the wrong room",
+                    "action": (
+                        "Check that \u201c{receiver}\u201d is in the right room in Home Assistant, and where "
+                        "and which way up it is mounted. If it hears devices louder or quieter than "
+                        "it should, change its signal adjustment on the Receivers page."
+                    ),
+                }, {"receiver": name}),
                 "detail": (
                     f"Reliability {rel:.2f}: {agree_pct:.0f}% agreement with the consensus "
                     f"room over {polls} polls. The signal adjustment is its RSSI offset "
@@ -831,10 +852,10 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                             "category": "calibration",
                             "severity": "warning",
                             "title": "Calibration is out of date",
-                            "message": (
-                                f"The last calibration was {stale_days} days ago. Moved furniture "
+                            **_filled({"message": (
+                                "The last calibration was {days} days ago. Moved furniture "
                                 "and new devices change how signals travel, so rooms can drift."
-                            ),
+                            )}, {"days": stale_days}),
                             "action": "Walk the house and calibrate again.",
                             "detail": f"Newest calibration point: {stale_days} days old (a warning after 90).",
                             "go": {"to": "calibrate"},
@@ -844,10 +865,10 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                             "category": "calibration",
                             "severity": "info",
                             "title": "Calibration is getting old",
-                            "message": (
-                                f"The last calibration was {stale_days} days ago. Moved furniture "
+                            **_filled({"message": (
+                                "The last calibration was {days} days ago. Moved furniture "
                                 "and new devices change how signals travel."
-                            ),
+                            )}, {"days": stale_days}),
                             "action": "Calibrate again some time soon to keep rooms accurate.",
                             "detail": f"Newest calibration point: {stale_days} days old (a note after 60).",
                             "go": {"to": "calibrate"},
@@ -895,15 +916,17 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 critics.append({
                     "category": "propagation",
                     "severity": "warning",
-                    "title": f"Signals in {room_name} keep changing",
-                    "message": (
-                        f"What the receivers hear in {room_name} varies a lot, so {room_name} is "
-                        "harder to tell apart from the rooms around it."
-                    ),
-                    "action": (
-                        f"Look for things near {room_name} that interfere, such as Wi-Fi routers, "
-                        "microwaves and USB 3 devices, and calibrate a few more spots in it."
-                    ),
+                    **_filled({
+                        "title": "Signals in {room} keep changing",
+                        "message": (
+                            "What the receivers hear in {room} varies a lot, so {room} is "
+                            "harder to tell apart from the rooms around it."
+                        ),
+                        "action": (
+                            "Look for things near {room} that interfere, such as Wi-Fi routers, "
+                            "microwaves and USB 3 devices, and calibrate a few more spots in it."
+                        ),
+                    }, {"room": room_name}),
                     "detail": (
                         f"Room fingerprint unstable: average RSSI variance {avg_var:.1f} dBm\u00b2 "
                         "(target under 15)."
