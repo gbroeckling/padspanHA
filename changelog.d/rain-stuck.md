@@ -1,0 +1,5 @@
+# It no longer rains on the Atlas because of a rain sensor stuck on wet
+
+### Fixed
+- **A rain sensor stuck on wet no longer makes it rain.** A rain sensor can stay wet long after the rain has stopped, dirty or with water caught on it, while still reporting as normal. If an on/off rain sensor has said wet for more than 3 hours and your weather entity says it isn't raining or snowing, PadSpan now ignores it until it dries. A shower your forecast missed still shows for its first 3 hours, and once the weather entity says it's raining the sensor is believed again. PadSpan counts the hours itself and keeps them across Home Assistant restarts, because a Zigbee2MQTT sensor looks freshly changed after every restart. A rain gauge, a rain-rate sensor, or an on/off sensor a helper makes from one works as before.
+- **Settings tells you.** Under the rain sensor it now says "The rain sensor has said wet for over 3 hours while the forecast says dry, so it is ignored until it dries. It may need cleaning." The opt-in usage report counts it (`weather_note:sensor_stuck`): a name only, never which sensor.

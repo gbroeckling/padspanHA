@@ -719,6 +719,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _quiet_error("setup:entry_flood_latch")
         _LOGGER.debug("Flood latch setup failed: %s", err)
 
+    # When the Atlas's rain sensor really turned wet, kept across restarts, so
+    # one stuck on wet can be ignored (rain_wet.py, views/atlas_weather.js).
+    try:
+        from .rain_wet import async_setup_rain_wet
+        async_setup_rain_wet(hass)
+    except Exception as err:
+        _quiet_error("setup:entry_rain_wet")
+        _LOGGER.debug("Rain sensor listener setup failed: %s", err)
+
     # Emergency lighting test: a member unreachable when a test ended is
     # switched off when it comes back (emergency_test.py pending_off).
     try:
@@ -901,6 +910,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _quiet_error("setup:unload_flood_latch")
         _LOGGER.debug("Flood latch teardown error: %s", err)
+    try:
+        from .rain_wet import async_stop_rain_wet
+        async_stop_rain_wet(hass)
+    except Exception as err:
+        _quiet_error("setup:unload_rain_wet")
+        _LOGGER.debug("Rain sensor listener teardown error: %s", err)
     try:
         from .emergency_test import async_stop_emergency_test
         async_stop_emergency_test(hass)

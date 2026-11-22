@@ -206,6 +206,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_weather_condition_entity": "", # weather.* for the fallback trigger and rain vs snow; "" = the first weather.*
     "atlas_weather_warning_entity": "",   # a weather-warning sensor; "" = detect (env_canada, meteoalarm, dwd, nina, meteo_france, weatheralerts, nws_alerts)
     "atlas_weather_strength": 1.0,        # 0.5-1.5 x opacity
+    "atlas_weather_rain_wet_since": 0,    # backend-only: epoch s the rain sensor turned wet, 0 = dry or not known (rain_wet.py); a stuck one is ignored
     # Wall screens (the sidebar Atlas on ?kiosk=1, lights_panel.js _wallOn): how
     # big to draw for the room. wall_screen_in 0 = size from the screen's
     # resolution; otherwise its diagonal (inches) and how far people stand

@@ -369,6 +369,7 @@ setup:entry_first_fetch
 setup:entry_flood_latch
 setup:entry_forensics
 setup:entry_house3d_people
+setup:entry_rain_wet
 setup:entry_update_check
 setup:entry_vacation
 setup:entry_wled_exact
@@ -391,6 +392,7 @@ setup:unload_object_history
 setup:unload_panel
 setup:unload_power_teams
 setup:unload_presence
+setup:unload_rain_wet
 setup:unload_tags
 setup:unload_tasmota
 setup:unload_traceback

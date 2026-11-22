@@ -8,7 +8,8 @@
 //              fallbacks, warning auto-detect for every listed integration,
 //              the alert-text words, the temperature rule, numeric sensors,
 //              unavailable = no signal, a wet rain sensor under a clear sky
-//              (dew), a rain sensor that has stopped reporting, a leak detector
+//              (dew), a rain sensor that has stopped reporting, one stuck on
+//              wet for hours under a dry forecast, a leak detector
 //              chosen as the warning, and inputs that must never crash
 //   mask       from a real buildIsoSVG drawing: the plates it drew, an ALPHA
 //              mask that is transparent exactly over them, outdoor plates left
@@ -220,6 +221,92 @@ tryCase("stale: the date Settings names", () => {
     && WX.rainSensorStaleSince(RAIN, { [RAIN]: S("on"), ...seen(FRESH) }, DEV, NOW) === null
     && WX.rainSensorStaleSince("", st, DEV, NOW) === null && WX.rainSensorStaleSince(RAIN, st, DEV) === null
     && WX.rainSensorStaleSince(RAIN, st, null, NOW) === null && WX.rainSensorStaleSince(RAIN, null, DEV, NOW) === null);
+});
+// A real house, 2026-11-21: the solar rain sensor "on" for 30 hours, still
+// reporting every minute (its last seen fresh), the weather entity cloudy:
+// rain on the wall screen. The backend keeps when it turned wet
+// (rain_wet.py, atlas_weather_rain_wet_since, epoch seconds).
+const H = 60 * 60 * 1000;
+const wetFor = (ms, o = {}) => cfg({ atlas_weather_rain_entity: RAIN, atlas_weather_rain_wet_since: (NOW - ms) / 1000, ...o });
+const decideWet = (ms, states, entities = DEV, o = {}) => WX.decideAtlasWeather(wetFor(ms, o), { ...seen(FRESH), ...states }, entities, NOW);
+const believed = (d) => is(d, "rain", false) && d.source === "rain_sensor" && d.why === "wet" && !d.notes.length;
+tryCase("stuck: wet for 2 hours under a cloudy sky is rain (a shower the forecast missed)", () => {
+  const d = decideWet(2 * H, { [RAIN]: S("on"), ...wx("cloudy") });
+  check("stuck: wet for 2 hours under a cloudy sky is rain (a shower the forecast missed)", believed(d), d);
+});
+tryCase("stuck: wet for 4 hours under a cloudy sky is off, and says why", () => {
+  const got = {};
+  for (const c of ["cloudy", "fog", "windy", "windy-variant", "exceptional"]) got[c] = decideWet(4 * H, { [RAIN]: S("on"), ...wx(c) });
+  // The house's own: 30 hours on.
+  got.house = decideWet(30 * H, { [RAIN]: S("on"), ...wx("cloudy") });
+  const bad = Object.keys(got).filter(c => !(got[c].kind === "off" && got[c].why === "stuck" && got[c].source === "condition"
+    && JSON.stringify(got[c].notes) === '["sensor_stuck"]' && !got[c].missing.length));
+  check("stuck: wet for 4 hours under a cloudy sky is off, and says why", !bad.length, { bad, got });
+});
+tryCase("stuck: wet for 4 hours while the weather entity says wet is believed", () => {
+  const rainy = decideWet(4 * H, { [RAIN]: S("on"), ...wx("rainy") });
+  const pouring = decideWet(30 * H, { [RAIN]: S("on"), ...wx("pouring") });
+  const snowy = decideWet(4 * H, { [RAIN]: S("on"), ...wx("snowy", -2) });
+  check("stuck: wet for 4 hours while the weather entity says wet is believed",
+    believed(rainy) && is(pouring, "rain", true) && pouring.source === "rain_sensor" && !pouring.notes.length
+    && is(snowy, "snow", false) && snowy.source === "rain_sensor" && !snowy.notes.length, { rainy, pouring, snowy });
+});
+tryCase("stuck: a gauge and a helper's on/off sensor keep their rules", () => {
+  const gauge = WX.decideAtlasWeather(cfg({ atlas_weather_rain_entity: GAUGE, atlas_weather_rain_wet_since: (NOW - 30 * H) / 1000 }),
+    { [GAUGE]: S("0.4", { unit_of_measurement: "mm/h" }), ...wx("cloudy"), ...seen(FRESH) }, DEV, NOW);
+  const made = ["template", "threshold", "bayesian"].map(platform =>
+    decideWet(30 * H, { [RAIN]: S("on"), ...wx("cloudy") }, { [RAIN]: { platform } }));
+  // A YAML template is in no loaded registry: as made by a helper.
+  const yaml = decideWet(30 * H, { [RAIN]: S("on"), ...wx("cloudy") }, { "sensor.other": { platform: "met" } });
+  check("stuck: a gauge and a helper's on/off sensor keep their rules",
+    is(gauge, "rain", false) && gauge.source === "rain_sensor" && !gauge.notes.length && made.every(believed) && believed(yaml), { gauge, made, yaml });
+});
+tryCase("stuck: with no weather entity, or none reading, the sensor is believed as before", () => {
+  const none = decideWet(30 * H, { [RAIN]: S("on") });
+  const unavailable = decideWet(30 * H, { [RAIN]: S("on"), [WEA]: S("unavailable") });
+  const chosenGone = decideWet(30 * H, { [RAIN]: S("on"), ...wx("cloudy") }, DEV, { atlas_weather_condition_entity: "weather.gone" });
+  check("stuck: with no weather entity, or none reading, the sensor is believed as before",
+    believed(none) && believed(unavailable) && is(chosenGone, "rain", false) && chosenGone.source === "rain_sensor"
+    && !chosenGone.notes.length, { none, unavailable, chosenGone });
+});
+tryCase("stuck: no time from the backend is never stuck", () => {
+  const st = { [RAIN]: S("on"), ...wx("cloudy"), ...seen(FRESH) };
+  const at = (v) => WX.decideAtlasWeather(cfg({ atlas_weather_rain_entity: RAIN, atlas_weather_rain_wet_since: v }), st, DEV, NOW);
+  const got = { zero: at(0), missing: WX.decideAtlasWeather(cfg({ atlas_weather_rain_entity: RAIN }), st, DEV, NOW),
+    negative: at(-5), text: at(String((NOW - 30 * H) / 1000)), nan: at(NaN), inf: at(Infinity), null: at(null),
+    noClock: WX.decideAtlasWeather(wetFor(30 * H), st, DEV) };
+  const bad = Object.keys(got).filter(k => !believed(got[k]));
+  check("stuck: no time from the backend is never stuck", !bad.length && wetFor(2 * H).rainWetSinceMs === NOW - 2 * H
+    && cfg({}).rainWetSinceMs === null, { bad, got });
+});
+tryCase("stuck: right on 3 hours it still rains; a moment past it does not", () => {
+  const st = { [RAIN]: S("on"), ...wx("cloudy") };
+  const atLine = WX.decideAtlasWeather(cfg({ atlas_weather_rain_entity: RAIN, atlas_weather_rain_wet_since: (NOW - WX.RAIN_STUCK_MS) / 1000 }), { ...st, ...seen(FRESH) }, DEV, NOW);
+  const past = WX.decideAtlasWeather(cfg({ atlas_weather_rain_entity: RAIN, atlas_weather_rain_wet_since: (NOW - WX.RAIN_STUCK_MS) / 1000 }), { ...st, ...seen(FRESH) }, DEV, NOW + 1);
+  check("stuck: right on 3 hours it still rains; a moment past it does not",
+    WX.STUCK_H === 3 && WX.RAIN_STUCK_MS === 3 * H && believed(atLine) && past.why === "stuck", { atLine, past });
+});
+tryCase("stuck: a clear sky is still dew, a dry sensor still dry, a stale one still stale", () => {
+  const clear = decideWet(30 * H, { [RAIN]: S("on"), ...wx("partlycloudy") });
+  const dry = decideWet(30 * H, { [RAIN]: S("off"), ...wx("cloudy") });
+  // Stopped reporting comes first: no reading, the weather entity decides.
+  const stale = WX.decideAtlasWeather(wetFor(30 * H), { [RAIN]: S("on"), ...wx("cloudy"), ...seen(OLD) }, DEV, NOW);
+  check("stuck: a clear sky is still dew, a dry sensor still dry, a stale one still stale",
+    clear.why === "overruled" && JSON.stringify(clear.notes) === '["sensor_overruled"]'
+    && dry.kind === "off" && dry.why === "dry" && dry.source === "rain_sensor" && !dry.notes.length
+    && stale.why === "dry" && JSON.stringify(stale.notes) === '["sensor_stale"]', { clear, dry, stale });
+});
+tryCase("stuck: the time Settings names", () => {
+  const st = { [RAIN]: S("on"), ...wx("cloudy"), ...seen(FRESH) };
+  const since = NOW - 30 * H;
+  check("stuck: the time Settings names", WX.rainSensorStuckSince(wetFor(30 * H), st, DEV, NOW) === since
+    && WX.rainSensorStuckSince(wetFor(2 * H), st, DEV, NOW) === null
+    && WX.rainSensorStuckSince(wetFor(30 * H), { ...st, ...wx("rainy") }, DEV, NOW) === null
+    && WX.rainSensorStuckSince(wetFor(30 * H), { ...st, ...wx("sunny") }, DEV, NOW) === null
+    && WX.rainSensorStuckSince(wetFor(30 * H), { ...st, [RAIN]: S("off") }, DEV, NOW) === null
+    && WX.rainSensorStuckSince(wetFor(30 * H, { atlas_weather_rain_entity: "" }), st, DEV, NOW) === null
+    && WX.rainSensorStuckSince(wetFor(30 * H), st, DEV) === null
+    && WX.rainSensorStuckSince(null, null, null, NOW) === null);
 });
 tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
   // A real house, 2026-10-06: the solar rain sensor on all morning at 3029 mV
@@ -1047,6 +1134,23 @@ tryCase("telemetry: a rain sensor that stopped reporting is counted, once, and n
   check("telemetry: a rain sensor that stopped reporting is counted, once, and no rain drawn",
     drew.every(d => d === false) && clear && shownNone && JSON.stringify(notes) === '["weather_note:sensor_stale"]'
     && sent.includes("weather_source:condition")
+    && back === true && !!overlayIn(stage) && slot.shown.kind === "rain", { sent, drew, back });
+  slot.detach();
+});
+
+tryCase("telemetry: a rain sensor stuck on wet is counted, once, and no rain drawn", () => {
+  WX._resetWeatherSlotsForTests(); WX._resetWeatherCountsForTests(); sent.length = 0;
+  const slot = WX.atlasWeatherSlot("stuck");
+  const stage = document.createElement("div");
+  const p = { settings: wetFor(30 * H), states: { [RAIN]: S("on"), ...wx("cloudy"), ...seen(FRESH) }, entities: DEV,
+    svg: svgStr, animate: true, colour: "#fff", zoom: 1, telemetry, nowMs: NOW };
+  const drew = [slot.attach(stage, p), slot.attach(stage, p), slot.attach(stage, p)];
+  const notes = sent.filter(n => n.startsWith("weather_note:")), shownNone = !sent.some(n => n.startsWith("weather_shown:")), clear = !overlayIn(stage);
+  // The weather entity says rain: the sensor is believed again.
+  const back = slot.attach(stage, { ...p, states: { ...p.states, ...wx("rainy") } });
+  check("telemetry: a rain sensor stuck on wet is counted, once, and no rain drawn",
+    drew.every(d => d === false) && clear && shownNone && JSON.stringify(notes) === '["weather_note:sensor_stuck"]'
+    && sent.includes("weather_source:condition") && WX.WEATHER_EVENTS.includes("weather_note:sensor_stuck")
     && back === true && !!overlayIn(stage) && slot.shown.kind === "rain", { sent, drew, back });
   slot.detach();
 });

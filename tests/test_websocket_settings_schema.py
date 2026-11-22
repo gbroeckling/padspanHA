@@ -39,6 +39,7 @@ _BACKEND_ONLY = {
     "server_offers",               # update_check._keep_offers, from the update check's answer — never settings_set
     "pro_invite",                  # the report's reply + padspan_ha/pro_invite_claim / _decline (pro_invite.py) — never settings_set
     "flood_latches",               # flood_latch.py's state-change listener + padspan_ha/flood_reset
+    "atlas_weather_rain_wet_since",  # rain_wet.py's state-change listener; settings_set restarts it when the rain sensor changes
     "vacation_mode_pattern",           # vacation_mode.py — built from HA's own recorder history
     "vacation_mode_pattern_built_at",  # ditto — stamped alongside the pattern
     "vacation_mode_pattern_until",     # ditto — the pattern's history window end

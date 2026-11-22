@@ -439,6 +439,8 @@ class PadSpanLightsApp extends HTMLElement {
           atlas_weather_condition_entity: s.atlas_weather_condition_entity,
           atlas_weather_warning_entity: s.atlas_weather_warning_entity,
           atlas_weather_strength: s.atlas_weather_strength,
+          // When the rain sensor turned wet (rain_wet.py): one wet for hours is stuck.
+          atlas_weather_rain_wet_since: s.atlas_weather_rain_wet_since,
         };
       }
       // The 3D house (Settings → Atlas → Atlas — Mapped Light Control → Live Aboard), normally
