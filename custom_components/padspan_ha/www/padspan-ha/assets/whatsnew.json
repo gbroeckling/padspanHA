@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.279",
+  "title": "A Zigbee device in ZHA and Zigbee2MQTT counts once",
+  "date": "2026-11-22",
+  "body_markdown": "### New\n- **The same Zigbee device in Home Assistant twice is used once.** A device paired through Zigbee2MQTT and still in ZHA (or deCONZ) has the same Zigbee address in both; PadSpan now treats the two as one unit and uses the Zigbee2MQTT one. The other copy is left out of the Atlas, the light index, the room counts, Traceback's replay, Live Aboard's room lists and every list where you pick a device (Settings → Atlas's rain sensor and weather lists, door and lock links, door openers, power teams, Evening lights, Live Aboard's Follows and \"This is a device…\"), with a quiet \"1 duplicate hidden (same unit on Zigbee2MQTT)\" where a list is shown. Vacation Mode switches only the Zigbee2MQTT one. The coordinator sticks are never counted as duplicates.\n- **A copy you already picked or placed says so.** It stays where it is, with a line naming the Zigbee2MQTT one and a button, Use the Zigbee2MQTT one. Pressed, everything PadSpan keeps for the copy moves to the Zigbee2MQTT one: its place on the map with its looks, label and height, its wall link and invert, its shape and type, hidden from the map, the settings that name it, its power teams, Vacation Mode's lights and Live Aboard's links. Nothing changes until you press it.\n- **Told when it happens.** The first time this version runs, one Home Assistant notification lists the devices already in two integrations; after that, a new copy is named as it appears, once for each pair. PadSpan notices it from Home Assistant's own device list (no polling) and never changes Home Assistant itself."
+ },
+ {
   "version": "0.38.278",
   "title": "Beacon Tune pins a beacon only when you say so; Power teams: brightness and colour apart, bedtime, a night light, and more for the wake-up; It no longer rains on the Atlas because of a rain sensor stuck on wet",
   "date": "2026-11-22",
@@ -76,11 +82,5 @@
   "title": "A wall draws the house as large as its screen allows",
   "date": "2026-11-19",
   "body_markdown": "### New\n- **A wall checks, after every drawing, that the house is as large as the screen allows.** If it ever opens far back (under 85% of that size), it moves in on the house by itself, and with the usage report on it says so once a page (`wall_fill:ok`, `low` or `closer`). `tools/wall_fill_check.py` runs the same check on the demo house or a real Home Assistant at any screen size.\n\n### Changed\n- **A wall screen arranges the floors for its own shape, so the house fills the screen.** The flat Atlas on a wall (`?kiosk=1`) used the Spacing and L/R saved under Layout & view, one pair of numbers for every screen and for the Overview tab's map too. A spacing that suits a narrow map stacks the floors into a tall, thin tower on a wide wall, which then shrinks to fit its height: a small house with space either side. A wall now works out the arrangement itself each time it draws: on a wide screen the floors step sideways, on a tall one they stay a stack, and every room stays in sight. On a three-floor house on a 1080p wall that is about 40% larger than the saved spacing gave. The saved Spacing and L/R still set every other screen; moving either slider on the wall itself takes over there until Reset view.\n- **A wall has no scroll bars.** Zoomed in, the map is dragged or pinched as before.\n\n### Fixed\n- **Floors set far apart sideways draw properly.** A floor's plate is 18 units thick straight down (its sides used to slide sideways with the L/R spacing), and each floor's number badge stays at its own floor's corner (past the old 760-unit canvas they were pulled into a column over other floors' rooms)."
- },
- {
-  "version": "0.38.265",
-  "title": "The launch-price card for a year's key",
-  "date": "2026-11-19",
-  "body_markdown": "### Changed\n- **The \"launch price ends November 30\" card now also shows to anyone with PadSpan Pro or Bright Pro for a year**, once, until the end of November 30, with one more line: pay with the email your key was sent to and that key becomes Pro for life. A key that is already for life never sees it."
  }
 ]

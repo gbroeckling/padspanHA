@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.279 — A Zigbee device in ZHA and Zigbee2MQTT counts once (2026-11-22)
+
+### New
+- **The same Zigbee device in Home Assistant twice is used once.** A device paired through Zigbee2MQTT and still in ZHA (or deCONZ) has the same Zigbee address in both; PadSpan now treats the two as one unit and uses the Zigbee2MQTT one. The other copy is left out of the Atlas, the light index, the room counts, Traceback's replay, Live Aboard's room lists and every list where you pick a device (Settings → Atlas's rain sensor and weather lists, door and lock links, door openers, power teams, Evening lights, Live Aboard's Follows and "This is a device…"), with a quiet "1 duplicate hidden (same unit on Zigbee2MQTT)" where a list is shown. Vacation Mode switches only the Zigbee2MQTT one. The coordinator sticks are never counted as duplicates.
+- **A copy you already picked or placed says so.** It stays where it is, with a line naming the Zigbee2MQTT one and a button, Use the Zigbee2MQTT one. Pressed, everything PadSpan keeps for the copy moves to the Zigbee2MQTT one: its place on the map with its looks, label and height, its wall link and invert, its shape and type, hidden from the map, the settings that name it, its power teams, Vacation Mode's lights and Live Aboard's links. Nothing changes until you press it.
+- **Told when it happens.** The first time this version runs, one Home Assistant notification lists the devices already in two integrations; after that, a new copy is named as it appears, once for each pair. PadSpan notices it from Home Assistant's own device list (no polling) and never changes Home Assistant itself.
+
+---
+
 ## 0.38.278 — Beacon Tune pins a beacon only when you say so; Power teams: brightness and colour apart, bedtime, a night light, and more for the wake-up; It no longer rains on the Atlas because of a rain sensor stuck on wet (2026-11-22)
 
 ### New
