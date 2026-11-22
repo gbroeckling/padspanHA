@@ -26,7 +26,7 @@ when the profile has none; any other language shows English.
 8. Rooms and floors come from Home Assistant. Coming. Today: [Getting Started, step 4](../GETTING_STARTED.md#step-4-give-every-scanner-its-room)
 9. [Setup: plan, scale, rooms, receivers, your phone, Put it on the map, a house with no floor plan, lining up floors](09-setup-the-map.md)
 10. Walls and signal loss. Coming. Today: the [Walls guide](../WALLS_GUIDE.md)
-11. Calibration. Coming. Today: the **?** help on PadSpan's Calibration screen
+11. [Calibration](11-calibration.md)
 
 ## Part IV: Every day
 
