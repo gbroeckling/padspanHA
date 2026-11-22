@@ -3362,10 +3362,12 @@ function _edit(ctx, map, allMaps, opts){
           // disagree about which entities qualify (round 7: a garage_door /
           // opening sensor was offered there, not here).
           const states = (ctx.hass && ctx.hass.states) || {};
-          const twinsOut = _noTwins(Object.keys(states)
-            .filter(eid => isDoorSensor({ entity_id: eid, device_class: states[eid].attributes?.device_class })), ctx, [ctx.state.maps._doorMarkEntity]);
-          const candidates = twinsOut.ids
+          const candidates = Object.keys(states)
+            .filter(eid => isDoorSensor({ entity_id: eid, device_class: states[eid].attributes?.device_class }))
             .sort((a,b) => (states[a].attributes?.friendly_name||a).localeCompare(states[b].attributes?.friendly_name||b));
+          // A Zigbee device's duplicate copy is left out, unless it is the one picked (zigbee_twins.js).
+          const twinsOut = _noTwins(candidates, ctx, [ctx.state.maps._doorMarkEntity]);
+          candidates.splice(0, candidates.length, ...twinsOut.ids);
           const entSel = document.createElement("select");
           entSel.className = "select";
           if(!candidates.length){
@@ -10171,10 +10173,10 @@ function _lightsTab(ctx, maps, active) {
     ? ctx.state.settings.light_type_overrides : {};
   const linkedNow = new Set((ctx.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
   const placedNow = { ...((ctx.state.model || {}).light_positions_m || {}), ...(mapState._lightsDraftM || {}) };
+  const gathered = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
+    undefined, false, ctx.state._motionReconnects, linkedNow);
   // The same Zigbee device twice: its duplicate copy is left out unless it is placed or linked (lights_map.js).
-  const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier,
-    reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, ctx.state._motionReconnects, linkedNow),
-    ctx.state.settings, (eid) => !!placedNow[eid] || linkedNow.has(eid));
+  const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gathered, ctx.state.settings, (eid) => !!placedNow[eid] || linkedNow.has(eid));
 
   // Preview-as-panel: the exact sidebar interaction model, in place, on the
   // same camera — so "what will the household see" is one toggle away

@@ -983,10 +983,10 @@ class PadSpanLightsApp extends HTMLElement {
     ensureExactDevices(this._hass, ()=>this._render());
     const linkedNow = new Set((this.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
     const placedNow = this.state.model?.light_positions_m || {};
+    const gathered = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects,
+      linkedNow);
     // A Zigbee device's duplicate copy stays off the map unless it is placed or linked (lights_map.js).
-    const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier,
-      reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects, linkedNow),
-      { zigbee_twins: this.state._zigbeeTwins }, (eid) => !!placedNow[eid] || linkedNow.has(eid));
+    const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gathered, { zigbee_twins: this.state._zigbeeTwins }, (eid) => !!placedNow[eid] || linkedNow.has(eid));
 
     if(!lights.length){
       parts.push(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
