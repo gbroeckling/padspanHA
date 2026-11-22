@@ -137,7 +137,7 @@ def test_calibration_tabs_keep_their_ids():
 
 def test_manage_entities_tips_heading():
     src = _src("manage.js")
-    assert '"font-weight:600;font-size:12px;margin-bottom:2px"},"Tips")' in src
+    assert '"font-weight:600;font-size:12px;margin-bottom:2px"},t("Tips"))' in src
 
 
 def test_technical_word_stays_in_hover_help():
