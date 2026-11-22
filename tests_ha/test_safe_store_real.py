@@ -127,10 +127,19 @@ async def test_data_changed_while_it_is_written_is_judged_by_what_was_written(ha
     cal = await _store(hass)
     s = cal.store
     live = _points(2)
-    save = hass.async_create_task(s.async_save(live))
-    await asyncio.sleep(0)
-    live["points"].append({"id": "cp_late", "x_m": 9.0, "y_m": 9.0})
-    assert await save is True
+    real_write = WRITER.write_utf8_file
+
+    def _write_then_change(*args, **kwargs):
+        # The data changes the moment its text has gone to disk, before the save is judged. Not one event-loop tick
+        # after the save starts: Home Assistant 2024.8 turns the data into text later, in the executor, so a tick
+        # could land before that and the file would hold the change (a red run on the v0.38.275 tag).
+        real_write(*args, **kwargs)
+        if not any(p["id"] == "cp_late" for p in live["points"]):
+            live["points"].append({"id": "cp_late", "x_m": 9.0, "y_m": 9.0})
+
+    with patch.object(WRITER, "write_utf8_file", _write_then_change):
+        assert await s.async_save(live) is True
+    assert len(live["points"]) == 3, "the data did change while it was written"
     assert [p["id"] for p in _on_disk(cal)["points"]] == ["cp_0", "cp_1"]
     assert await s.async_save(live) is True
     assert len(_on_disk(cal)["points"]) == 3 and s.failed_saves == 0
