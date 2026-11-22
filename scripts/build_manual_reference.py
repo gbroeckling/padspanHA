@@ -815,6 +815,50 @@ def _command_schema(fn) -> ast.Dict | None:
     return None
 
 
+# Appendix D's "What it does" for the commands whose handler's first sentence
+# reads as a note to a developer (a date, a design reference, "owner"), or is
+# missing. Every other command keeps its first sentence. A line here for a
+# command that no longer exists stops the build.
+WS_WHAT: dict[str, str] = {
+    "padspan_ha/ai_wizard_check_claude": "Checks that PadSpan's AI Task can answer (an account with credit) before an AI map-building run starts.",
+    "padspan_ha/area_add": "Creates a Home Assistant area of this name, on this floor, for a room drawn in Mapping → Edit.",
+    "padspan_ha/bright_import_status": "Whether a PadSpan Bright house is on this Home Assistant, whether it was imported, and whether it can be.",
+    "padspan_ha/capture_replay": "Replays a finished recording through the room smoothing and scores the rooms it gives.",
+    "padspan_ha/fabric_health": "Runs the checks on the house layout (floors, rooms, receivers, calibration).",
+    "padspan_ha/fabric_reset_spatial": "Clears receiver and beacon positions and walls, after an automatic backup; rooms are kept.",
+    "padspan_ha/fabric_rf_barrier_rails_stamp": "Gives older open wall edges the railing they were drawn with.",
+    "padspan_ha/fabric_rooms_merge": "Merges rooms into one: the kept room's outline goes round the others, which are then deleted.",
+    "padspan_ha/plan_build_rooms_read_again": "Reads the plans once more for a room the reads disagreed on; two reads out of three decide it.",
+    "padspan_ha/plan_build_scale_undo": "Takes back the helper's scale, while nothing measured in metres has been added since.",
+    "padspan_ha/radio_reset": "Clears everything PadSpan holds about one receiver, for a receiver replaced or moved.",
+    "padspan_ha/rooms_overlap": "Which rooms are drawn over each other, for Mapping's Edit and Layout.",
+    "padspan_ha/system_critics": "Health's list of problems, most serious first, with how often rooms are mistaken for each other.",
+    "padspan_ha/tester_preview": "What a tester sign-up would send, shown before it is sent.",
+    "padspan_ha/trial_start": "Starts the one-time PadSpan Pro trial.",
+    "padspan_ha/vacation_log_get": "What Vacation Mode switched between two times, and when it was on.",
+    # Handlers with no docstring at all, where the command's name and code say what it does.
+    "padspan_ha/emergency_force_off": "Turns every emergency light off.",
+    "padspan_ha/emergency_member": "Switches one emergency light by hand, from the test button's card.",
+    "padspan_ha/emergency_status": "The emergency lighting test: whether it is on, and its lights.",
+    "padspan_ha/emergency_test": "Starts (`on`) or ends the Atlas's emergency lighting test.",
+    "padspan_ha/flood_reset": "Resets one leak, smoke, gas or CO alarm (the banner's Reset).",
+    "padspan_ha/guest_session_update": "Changes a guest stay: its name, its end, its options.",
+    "padspan_ha/power_teams_get": "The power teams.",
+    "padspan_ha/power_teams_set": "Saves the power teams.",
+    "padspan_ha/settings_get": "PadSpan's settings, as the panel reads them.",
+    "padspan_ha/subzone_add": "Adds a sub-zone.",
+    "padspan_ha/subzone_remove": "Removes a sub-zone.",
+    "padspan_ha/subzones_list": "Every sub-zone.",
+    "padspan_ha/telemetry_reset_id": "Gives the usage report a new install id.",
+    "padspan_ha/telemetry_send_now": "Sends the usage report now.",
+    "padspan_ha/tester_signup": "Signs up as a tester, or changes the sign-up.",
+    "padspan_ha/tester_status": "The tester sign-up, if there is one.",
+    "padspan_ha/tester_withdraw": "Withdraws the tester sign-up.",
+    "padspan_ha/wled_teams_get": "The WLED teams (devices that act as one light).",
+    "padspan_ha/wled_teams_set": "Saves the WLED teams.",
+}
+
+
 def _first_sentence(doc: str | None) -> str:
     text = " ".join((doc or "").split("\n\n")[0].split())
     m = re.match(r"(.+?[.!?])(\s|$)", text)
@@ -862,19 +906,22 @@ def ws_commands_in_code() -> list[dict]:
                      "with Enhanced security" if "admin_if_enhanced_security" in decs or "require_admin_if_enhanced" in calls
                      else "")
             out.append({"type": ctype, "fields": fields, "admin": admin, "module": module,
-                        "what": _first_sentence(ast.get_docstring(fn))})
+                        "what": WS_WHAT.get(ctype) or _first_sentence(ast.get_docstring(fn))})
     seen: dict[str, str] = {}
     for c in out:
         if c["type"] in seen:
             raise ReferenceError_(f"{c['type']} is declared twice ({seen[c['type']]}, {c['module']})")
         seen[c["type"]] = c["module"]
+    gone = sorted(set(WS_WHAT) - set(seen))
+    if gone:
+        raise ReferenceError_(f"WS_WHAT has words for commands that no longer exist: {', '.join(gone)}")
     return sorted(out, key=lambda c: c["type"])
 
 
 def _ws_block() -> str:
     cmds = ws_commands_in_code()
     lines = [f"{len(cmds)} commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.", "",
-             "| Command | Fields | Administrator | Module | What it does (its handler's first sentence) |",
+             "| Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |",
              "|---|---|---|---|---|"]
     for c in cmds:
         lines.append(f"| `{c['type']}` | {', '.join(c['fields']) or '–'} | {c['admin'] or '–'} | `{c['module']}` | {c['what']} |")

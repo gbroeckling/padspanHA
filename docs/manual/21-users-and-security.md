@@ -16,16 +16,30 @@ Atlas shows, Basic or Advanced).
 
 Whatever the settings, only an administrator can:
 
-- make, restore and delete backups, and factory reset;
+- list, make, restore and delete backups, and factory reset;
 - add, remove, test or look for IRKs (phone keys);
-- upload or delete floor plans;
-- turn the usage report on or off, and sign up as a tester;
-- turn on the Live Aboard switches that let data leave the house (the shared furniture library), and
-  pick the AI Task;
+- add, replace, measure or delete floor plans (an uploaded picture, a blank plan or a scan), and
+  import a Sweet Home 3D or RoomPlan file, a robot vacuum's map or a PadSpan Bright house;
+- the house layout's bigger steps: locking or unlocking a floor, re-anchoring or moving a plan,
+  moving what was placed on a plan along with it, resetting the receiver and beacon positions, filing
+  receivers into rooms, adding or deleting a Home Assistant area, and deleting an entity;
+- clear all calibration (or one plan's), make PadSpan work out a moved device's position afresh, and
+  reset a receiver;
+- add, change or remove sub-zones, and clear Live Aboard's furniture or withdraw it from the
+  shared library;
+- the AI features: every AI map-building and plan-reading step, its usage figures, and the Live
+  Aboard switches that let data leave the house (the shared furniture library), the AI Task and the
+  AI spending limits;
+- make, list, replay and delete recordings, and use Forensics (look at, clear);
+- the PadSpan Pro licence: enter or show the key, start the trial, the homes on the key, and answer
+  a free-Pro invite;
+- turn the usage report on or off, send it now or reset its id, and sign up as a tester;
 - turn guest tags on, lend a tag and end a stay;
 - make and change power teams;
-- turn Vacation Mode on or off;
-- change who runs a WLED light;
+- turn Vacation Mode on or off, and change its options;
+- WLED: change a light's own settings, its matrix, who runs it, teams, and remembered looks;
+- set the ESPresense Companion address and import from it;
+- reload PadSpan, and read its quiet-error counts;
 - turn Enhanced security on or off.
 
 Someone who isn't an administrator is told so when they try.

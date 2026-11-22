@@ -127,20 +127,20 @@ between versions. For automations, use the entities, services and events in
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
 266 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
-| Command | Fields | Administrator | Module | What it does (its handler's first sentence) |
+| Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |
 |---|---|---|---|---|
 | `padspan_ha/adaptive_fingerprints_get` | – | – | `ws_adaptive.py` | Return raw adaptive learning fingerprints for heatmap visualization. |
 | `padspan_ha/adaptive_reset` | – | with Enhanced security | `ws_adaptive.py` | Clear all adaptive learning data. |
 | `padspan_ha/adaptive_status_get` | – | – | `ws_adaptive.py` | Return adaptive learning summary stats. |
 | `padspan_ha/ai_usage_get` | – | always | `ai_usage.py` | Settings → AI's line: this month's reads, estimate and stops (summary). |
-| `padspan_ha/ai_wizard_check_claude` | – | always | `ai_wizard.py` | Before anything is measured or read (owner, 2026-11-12: catch an Anthropic account with no credit before the person has spent effort): one… |
+| `padspan_ha/ai_wizard_check_claude` | – | always | `ai_wizard.py` | Checks that PadSpan's AI Task can answer (an account with credit) before an AI map-building run starts. |
 | `padspan_ha/ai_wizard_info` | `surface` (optional), `kiosk` (optional), `live` (optional) | always | `ai_wizard.py` | {reason, offer, wizard, tier, trial_offerable}: the rule's answer for this screen, and where this house is with the helper (settings.ai_map… |
 | `padspan_ha/ai_wizard_mark` | `what`, `surface` (optional), `step` (optional), `setup_step` (optional), `page` (optional), `map_id` (optional), `floor_id` (optional), `scale_session` (optional), `rooms_session` (optional) | always | `ai_wizard.py` | One thing the person did with the helper: shown and opened (by where), a step reached (where it reopens), Not now, Don't ask again, came ba… |
-| `padspan_ha/area_add` | `name`, `floor_id` (optional) | always | `ai_wizard.py` | Mapping → Edit's Rooms tool with no Home Assistant area to choose (review 2026-11-11): one area of this name, on this floor where Home Assi… |
+| `padspan_ha/area_add` | `name`, `floor_id` (optional) | always | `ai_wizard.py` | Creates a Home Assistant area of this name, on this floor, for a room drawn in Mapping → Edit. |
 | `padspan_ha/area_delete` | `area_id` | always | `ws_follow.py` | Delete an HA area and clean up PadSpan room_meta. |
 | `padspan_ha/auto_diagnostics` | – | – | `ws_diagnostics.py` | Run quick health checks and return pass/fail with recommendations. |
 | `padspan_ha/bright_import` | – | always | `ws_bright_import.py` | Back up, refuse a non-empty target, copy the house, reload. |
-| `padspan_ha/bright_import_status` | – | – | `ws_bright_import.py` | Is there a Bright house on this HA, was it imported, would we refuse it. |
+| `padspan_ha/bright_import_status` | – | – | `ws_bright_import.py` | Whether a PadSpan Bright house is on this Home Assistant, whether it was imported, and whether it can be. |
 | `padspan_ha/calibration_beacon_profiles` | – | – | `ws_calibration.py` | Compute per-beacon signal profiles grouped by model. |
 | `padspan_ha/calibration_clear` | – | always | `ws_calibration.py` | Delete all calibration points and reset the model. |
 | `padspan_ha/calibration_clear_map` | `map_id` | always | `ws_calibration.py` | Delete all calibration points collected on a specific map. |
@@ -159,7 +159,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/capture_get` | `session_id`, `offset` (optional), `limit` (optional) | always | `ws_capture.py` | One page of a session file — the export transport. |
 | `padspan_ha/capture_list` | – | always | `ws_capture.py` | Recorded sessions, newest first. |
 | `padspan_ha/capture_mark` | `room`, `keys` (optional), `x_m` (optional), `y_m` (optional) | always | `ws_capture.py` | Stamp ground truth: the operator asserting where a device really is. |
-| `padspan_ha/capture_replay` | `session_id`, `settings` (optional) | always | `ws_capture.py` | Replay a finished capture through the room-smoothing pipeline and score it (gap #13, best-in-class roadmap: "ground-truth capture walks wit… |
+| `padspan_ha/capture_replay` | `session_id`, `settings` (optional) | always | `ws_capture.py` | Replays a finished recording through the room smoothing and scores the rooms it gives. |
 | `padspan_ha/capture_start` | `minutes` (optional), `label` (optional), `keys` (optional), `ground_truth` (optional), `include_calibration` (optional) | always | `ws_capture.py` | Open a recording session against the live coordinator state. |
 | `padspan_ha/capture_status` | – | always | `ws_capture.py` | Live session state; polled by the Health tab while recording. |
 | `padspan_ha/capture_stop` | – | always | `ws_capture.py` | Close the running session. |
@@ -173,10 +173,10 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/device_registry_list` | – | – | `ws_devices.py` | Return all devices in the Device Registry. |
 | `padspan_ha/device_registry_merge` | `keep_id`, `absorb_id` | with Enhanced security | `ws_devices.py` | Merge two devices in the Device Registry. |
 | `padspan_ha/device_registry_migrate` | – | with Enhanced security | `ws_devices.py` | Trigger migration from ObjectStore to DeviceRegistry. |
-| `padspan_ha/emergency_force_off` | – | – | `emergency_test.py` |  |
-| `padspan_ha/emergency_member` | `entity_id`, `on` (optional) | – | `emergency_test.py` |  |
-| `padspan_ha/emergency_status` | – | – | `emergency_test.py` |  |
-| `padspan_ha/emergency_test` | `on` | – | `emergency_test.py` |  |
+| `padspan_ha/emergency_force_off` | – | – | `emergency_test.py` | Turns every emergency light off. |
+| `padspan_ha/emergency_member` | `entity_id`, `on` (optional) | – | `emergency_test.py` | Switches one emergency light by hand, from the test button's card. |
+| `padspan_ha/emergency_status` | – | – | `emergency_test.py` | The emergency lighting test: whether it is on, and its lights. |
+| `padspan_ha/emergency_test` | `on` | – | `emergency_test.py` | Starts (`on`) or ends the Atlas's emergency lighting test. |
 | `padspan_ha/entity_delete` | `entity_id` | always | `ws_follow.py` | Remove an entity from the HA entity registry. |
 | `padspan_ha/espresense_companion_import` | – | always | `ws_devices.py` | Import floors, rooms, and scanner positions from ESPresense Companion. |
 | `padspan_ha/fabric_beacon_height_set` | `key` (optional), `z_m` (optional), `heights` (optional) | with Enhanced security | `ws_fabric.py` | fabric_light_height_set for a fixed beacon (by its key), on the same gate as pinning one: only its height; x, y and room stay. |
@@ -185,21 +185,21 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/fabric_correct_room` | `floor_id`, `room`, `geometry`, `source_map_id` (optional) | with Enhanced security | `ws_fabric.py` | Directly correct one room's real-world shape in the FabricStore. |
 | `padspan_ha/fabric_floor_elevations_set` | `floors` | with Enhanced security | `ws_fabric.py` | Upsert per-floor elevation data (floor-to-floor height / base elevation). |
 | `padspan_ha/fabric_floor_finalize` | `floor_id`, `committed` | always | `ws_fabric.py` | Finalize (lock) or unlock a floor's fabric. |
-| `padspan_ha/fabric_health` | – | – | `ws_fabric.py` | Run diagnostic checks on the positioning fabric (Phase 1-3). |
+| `padspan_ha/fabric_health` | – | – | `ws_fabric.py` | Runs the checks on the house layout (floors, rooms, receivers, calibration). |
 | `padspan_ha/fabric_light_height_set` | `entity_id` (optional), `z_m` (optional), `heights` (optional) | with Enhanced security | `ws_fabric.py` | Set only the height of a placed device (any placement record: a light, a fan, a sensor, a lock), x/y untouched: {entity_id, z_m} or {height… |
 | `padspan_ha/fabric_light_position_set` | `entity_id`, `x_m`, `y_m`, `floor_id` (optional), `color` (optional), `shape` (optional), `rotation` (optional), `width_cm` (optional), `height_cm` (optional), `margin_cm` (optional), `label` (optional), `z_m` (optional) | with Enhanced security | `ws_fabric.py` | Place a light in real-world metres. |
 | `padspan_ha/fabric_light_remove` | `entity_id` | with Enhanced security | `ws_fabric.py` | Un-place a light (it returns to automatic room clustering). |
 | `padspan_ha/fabric_map_reanchor` | `map_id`, `origin_x_m` (optional), `origin_y_m` (optional), `rotation_rad` (optional), `scale_x_m` (optional), `scale_y_m` (optional), `shear_rad` (optional) | always | `ws_fabric.py` | Explicitly redefine a map's placement. |
 | `padspan_ha/fabric_map_transform_set` | `map_id`, `transform` | always | `ws_fabric.py` | Set the affine transform for a map (frac ↔ metres). |
 | `padspan_ha/fabric_open_edges_apply` | `action`, `set_barriers` (optional), `remove_barrier_ids` (optional) | with Enhanced security | `ws_fabric.py` | The Open edges tool's one write (Mapping → Edit → Signal walls): the open edges, what is left of a wall one replaces and the walls it remov… |
-| `padspan_ha/fabric_reset_spatial` | – | always | `ws_fabric.py` | Reset the spatial model (Phase 2+3). |
+| `padspan_ha/fabric_reset_spatial` | – | always | `ws_fabric.py` | Clears receiver and beacon positions and walls, after an automatic backup; rooms are kept. |
 | `padspan_ha/fabric_resync` | – | with Enhanced security | `ws_fabric.py` | Wipe all ha_sync scanner entries and rebuild clean from HA + snapshot. |
-| `padspan_ha/fabric_rf_barrier_rails_stamp` | `rails` | with Enhanced security | `ws_fabric.py` | Open edges from before 2026-11-02 get the railing they showed as their own word (live_aboard.js stampEdgeRails, after a Save of the person'… |
+| `padspan_ha/fabric_rf_barrier_rails_stamp` | `rails` | with Enhanced security | `ws_fabric.py` | Gives older open wall edges the railing they were drawn with. |
 | `padspan_ha/fabric_rf_barrier_remove` | `barrier_id` | with Enhanced security | `ws_fabric.py` | Remove an RF barrier by id. |
 | `padspan_ha/fabric_rf_barrier_set` | `barrier` | with Enhanced security | `ws_fabric.py` | Add or update an RF barrier in real-world metres, by id. |
 | `padspan_ha/fabric_room_add` | `room`, `floor_id` (optional) | with Enhanced security | `ws_fabric.py` | Add a PadSpan-native room (no HA area needed). |
 | `padspan_ha/fabric_room_remove` | `room` | with Enhanced security | `ws_fabric.py` | Remove a room from the fabric: geometry, metadata, adjacency, scanners. |
-| `padspan_ha/fabric_rooms_merge` | `floor_id`, `keep`, `rooms` | with Enhanced security | `ws_fabric.py` | Merge rooms into one (the Rooms tab, 2026-11-10): `keep`'s outline becomes one clean polygon round it and `rooms` (plan_geom.merge_outline,… |
+| `padspan_ha/fabric_rooms_merge` | `floor_id`, `keep`, `rooms` | with Enhanced security | `ws_fabric.py` | Merges rooms into one: the kept room's outline goes round the others, which are then deleted. |
 | `padspan_ha/fabric_rooms_reconcile` | `floor_id` | with Enhanced security | `ws_fabric.py` | Re-derive this floor's provenance-clean rooms from their maps' current placements. |
 | `padspan_ha/fabric_scanner_position_set` | `source`, `x_m`, `y_m`, `z_m` (optional), `floor_id` (optional) | with Enhanced security | `ws_fabric.py` | Set a scanner's real-world position in metres. |
 | `padspan_ha/fabric_scanner_remove` | `source` | with Enhanced security | `ws_fabric.py` | Remove a scanner from the positioning fabric. |
@@ -208,7 +208,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/fabric_truth_candidates` | `floor_id` | – | `ws_fabric.py` | Read-only preview of every form of truth a floor's layout can come from, so the user can compare and pick the most accurate one BEFORE anyt… |
 | `padspan_ha/factory_reset` | `confirm` | always | `ws_factory_reset.py` | Erase every PadSpan HA persistent store and reset to factory defaults. |
 | `padspan_ha/findmy_unlink` | `key`, `address` (optional) | with Enhanced security | `ws_objects.py` | "Not this tag": undo a Find My tag's last address link (findmy.py FindMyBridge.unlink). |
-| `padspan_ha/flood_reset` | `entity_id` | – | `websocket.py` |  |
+| `padspan_ha/flood_reset` | `entity_id` | – | `websocket.py` | Resets one leak, smoke, gas or CO alarm (the banner's Reset). |
 | `padspan_ha/floorplan_import_roomplan` | `roomplan_base64` | always | `ws_floorplan_import.py` | Parse an Apple RoomPlan JSON export into levels + room polygons. |
 | `padspan_ha/floorplan_import_sh3d` | `sh3d_base64` | always | `ws_floorplan_import.py` | Parse a Sweet Home 3D (.sh3d) file into levels + room polygons. |
 | `padspan_ha/follow_alert_delete` | `addr` | with Enhanced security | `ws_follow.py` | Delete a follow-alert configuration for a tracked object. |
@@ -222,7 +222,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/guest_session_end` | `session` | always | `ws_guests.py` | The tag is back: the stay ends, its report is kept. |
 | `padspan_ha/guest_session_forget` | `session` | always | `ws_guests.py` | Delete a finished stay now, name and report. |
 | `padspan_ha/guest_session_start` | `pid`, `name`, `end_at` (optional) | always | `ws_guests.py` | Lend a guest tag: who, until when, and how the stay is watched. |
-| `padspan_ha/guest_session_update` | `session`, `name` (optional), `end_at` (optional) | always | `ws_guests.py` |  |
+| `padspan_ha/guest_session_update` | `session`, `name` (optional), `end_at` (optional) | always | `ws_guests.py` | Changes a guest stay: its name, its end, its options. |
 | `padspan_ha/guest_tag_mark` | `key` | always | `ws_guests.py` | Make a labelled device a guest tag. |
 | `padspan_ha/guest_tag_unmark` | `pid` | always | `ws_guests.py` |  |
 | `padspan_ha/guests_get` | – | with Enhanced security | `ws_guests.py` | The guest tags, the stays (running and kept), and the labelled devices that could become a guest tag. |
@@ -300,7 +300,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/plan_build_rooms_check` | `session`, `items` | always | `ws_plan_ai.py` | The rooms gate for these ticks, before Save (design 5): the room score on this floor's calibration spots, now and with them. |
 | `padspan_ha/plan_build_rooms_commit` | `session`, `rev`, `items`, `finals` (optional), `via` (optional), `ha_areas` (optional) | always | `ws_plan_ai.py` | Accept all for this floor: the ticked items in ONE save (design 5). |
 | `padspan_ha/plan_build_rooms_edit` | `session`, `rev`, `op`, `parts` (optional), `merge` (optional), `space` (optional), `name` (optional), `room` (optional), `read` (optional), `ticked` (optional), `ha` (optional), `draft` (optional), `via` (optional) | always | `ws_plan_ai.py` | The person's edit of the proposal (design 5): merge rooms and spaces into one, separate a merge, name a space as a new room (or leave it ou… |
-| `padspan_ha/plan_build_rooms_read_again` | `session`, `rev`, `room`, `via` (optional) | always | `ws_plan_ai.py` | Read again (design 5): a third whole read of the plans a flagged room was read on; two reads out of three decide it. |
+| `padspan_ha/plan_build_rooms_read_again` | `session`, `rev`, `room`, `via` (optional) | always | `ws_plan_ai.py` | Reads the plans once more for a room the reads disagreed on; two reads out of three decide it. |
 | `padspan_ha/plan_build_rooms_resume` | `session`, `via` (optional) | always | `ws_plan_ai.py` | A rooms session that stopped short reads the rest. |
 | `padspan_ha/plan_build_rooms_start` | `floor_id`, `map_ids` (optional), `via` (optional) | always | `ws_plan_ai.py` | One floor's rooms read (design 5): only its lined-up plans, two reads each. |
 | `padspan_ha/plan_build_rooms_status` | `session` (optional), `via` (optional), `reproject` (optional), `map_id` (optional) | always | `ws_plan_ai.py` | A rooms session (by id, or the newest) with its proposal, and the names a new room may take. |
@@ -309,7 +309,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/plan_build_scale_save` | `map_id`, `sig`, `floor_id` (optional), `measures`, `source` (optional), `session` (optional), `replace` (optional), `via` (optional) | always | `ws_plan_ai.py` | The plan's first scale from the person's measurement (design E.3). |
 | `padspan_ha/plan_build_scale_start` | `map_id`, `again` (optional), `held_only` (optional), `recheck` (optional), `via` (optional) | always | `ws_plan_ai.py` | Claude reads a printed dimension off a plan with no scale (piece 4; design E.1): Read A, then one dimension an axis. |
 | `padspan_ha/plan_build_scale_status` | `session` (optional), `via` (optional) | always | `ws_plan_ai.py` | A scale read (by id, or the newest): where it is and what it found. |
-| `padspan_ha/plan_build_scale_undo` | `map_id` (optional), `via` (optional) | always | `ws_plan_ai.py` | Take the helper's scale back, only while nothing in metres was added since (design E.5). |
+| `padspan_ha/plan_build_scale_undo` | `map_id` (optional), `via` (optional) | always | `ws_plan_ai.py` | Takes back the helper's scale, while nothing measured in metres has been added since. |
 | `padspan_ha/plan_build_start` | `floor_id`, `map_ids` (optional) | always | `ws_plan_ai.py` | One floor's line-up (design 3.1's preconditions; one AI job per house, one a minute, ten a day). |
 | `padspan_ha/plan_build_status` | `session` (optional) | always | `ws_plan_ai.py` | A line-up (by id, or the newest), its plans' and items' signatures checked: an item whose plan moved or changed since is stale. |
 | `padspan_ha/plan_build_undo` | `session` | always | `ws_plan_ai.py` | Undo a whole line-up session (design 3.8). |
@@ -318,8 +318,8 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/plan_carry_dismiss` | `map_id` | always | `plan_carry.py` | They are right where they are: the plan is no longer listed, and nothing is moved. |
 | `padspan_ha/plan_carry_list` | – | always | `plan_carry.py` |  |
 | `padspan_ha/positioning_diag` | – | – | `ws_diagnostics.py` | Return detailed positioning diagnostics for all labelled devices. |
-| `padspan_ha/power_teams_get` | – | – | `power_team.py` |  |
-| `padspan_ha/power_teams_set` | `teams` | always | `power_team.py` |  |
+| `padspan_ha/power_teams_get` | – | – | `power_team.py` | The power teams. |
+| `padspan_ha/power_teams_set` | `teams` | always | `power_team.py` | Saves the power teams. |
 | `padspan_ha/private_ble_add_irk` | `irk`, `name` (optional) | always | `ws_irk.py` | Add a Private BLE Device IRK via PadSpan UI (creates HA config entry). |
 | `padspan_ha/private_ble_delete_irk` | `entry_id` | always | `ws_irk.py` | Delete a Private BLE Device config entry by entry_id. |
 | `padspan_ha/private_ble_status` | – | – | `ws_irk.py` | Return Private BLE Device resolver status for the UI setup wizard. |
@@ -331,14 +331,14 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/radio_audit` | – | – | `ws_radios.py` | Cross-reference BLE radios with ESPHome devices and fabric scanners. |
 | `padspan_ha/radio_disabled_set` | `source`, `disabled` | with Enhanced security | `ws_radios.py` | Mark or unmark a BLE radio as 'disabled' (intentionally excluded from location math). |
 | `padspan_ha/radio_lost_set` | `source`, `lost` | with Enhanced security | `ws_radios.py` | Mark or unmark a BLE radio as 'lost' (excluded from location math). |
-| `padspan_ha/radio_reset` | `source` | always | `ws_radios.py` | Nuclear reset for a single BLE scanner — clears ALL associated data. |
+| `padspan_ha/radio_reset` | `source` | always | `ws_radios.py` | Clears everything PadSpan holds about one receiver, for a receiver replaced or moved. |
 | `padspan_ha/receivers_to_rooms` | `undo` (optional), `dry_run` (optional) | always | `ws_fabric.py` | Every live receiver with a room that has an outline, and no position yet, put inside its room: one backup of the fabric, then one write thr… |
 | `padspan_ha/room_height_set` | `room`, `height_m` (optional), `floor_raise_m` (optional), `surface` (optional), `space` (optional) | with Enhanced security | `websocket.py` | Set one room's own height (room_meta[room].height_m) for Live Aboard: a double-height living room, a hall under a mezzanine, on a floor tha… |
 | `padspan_ha/room_tag_purge_missing` | – | with Enhanced security | `ws_follow.py` | Remove entity_ids from room_tag_map that have no current HA state (phantom/sample entities). |
 | `padspan_ha/room_tags` | – | – | `ws_follow.py` | Return the room→object map used by the UI. |
-| `padspan_ha/rooms_overlap` | `rooms` | – | `setup_checks.py` | Which rooms are drawn over each other, for Mapping's Edit and Layout (2026-11-18: the report counted them and nobody was told). |
+| `padspan_ha/rooms_overlap` | `rooms` | – | `setup_checks.py` | Which rooms are drawn over each other, for Mapping's Edit and Layout. |
 | `padspan_ha/scanner_offset_set` | `source`, `offset_db` (optional) | with Enhanced security | `ws_radios.py` | Set (or clear) the RSSI calibration offset for a single Bluetooth scanner. |
-| `padspan_ha/settings_get` | – | – | `ws_settings.py` |  |
+| `padspan_ha/settings_get` | – | – | `ws_settings.py` | PadSpan's settings, as the panel reads them. |
 | `padspan_ha/settings_set` | `data_mode` (optional), `cpu_mode` (optional), `update_check_enabled` (optional), `telemetry_enabled` (optional), `telemetry_asked` (optional), `telemetry_heard` (optional), `telemetry_heard_ask` (optional), `trial_nudge_done` (optional), `tester_nudge_done` (optional), `launch_card_done` (optional), `whatsnew_seen_version` (optional), `room_change_delay_s` (optional), `away_timeout_m` (optional), `thing_away_timeout_h` (optional), `ref_power` (optional), `path_loss_exp` (optional), `kalman_q` (optional), `kalman_r` (optional), `hold_last_room_s` (optional), `room_reason_attribute` (optional), `positioning_pick_better` (optional), `positioning_unsure` (optional), `positioning_sensor_fusion` (optional), `calibration_room_walk` (optional), `assumed_device_height_m` (optional), `fabric_origin_lat` (optional), `fabric_origin_lon` (optional), `fabric_bearing_deg` (optional), `hidden_map_ids` (optional), `locate_self_key` (optional), `followed_addrs` (optional), `health_reminder_enabled` (optional), `health_reminder_last_ts` (optional), `maps_iso_floor_gap` (optional), `maps_iso_horiz_gap` (optional), `maps_iso_focus` (optional), `overview_iso_floor_gap` (optional), `overview_iso_horiz_gap` (optional), `overview_iso_focus` (optional), `overview_iso_zoom` (optional), `lights_hidden` (optional), `atlas_emergency_button` (optional), `atlas_live_colours` (optional), `overview_atlas` (optional), `emergency_entities` (optional), `atlas_alert_pulse` (optional), `emergency_notify` (optional), `atlas_heatmap_enabled` (optional), `atlas_weather_enabled` (optional), `atlas_weather_rain_entity` (optional), `atlas_weather_condition_entity` (optional), `atlas_weather_warning_entity` (optional), `atlas_weather_strength` (optional), `wall_screen_in` (optional), `wall_distance_m` (optional), `wall_text_arcmin` (optional), `wall_night_dim` (optional), `wall_pixel_shift` (optional), `wall_floor_cycle_s` (optional), `wall_fully` (optional), `atlas_3d_enabled` (optional), `atlas_3d_quality` (optional), `atlas_3d_people` (optional), `atlas_3d_tags` (optional), `atlas_3d_ai_task_entity` (optional), `atlas_3d_ai_task_backup_entity` (optional), `ai_photos_enabled` (optional), `ai_credit_month_usd` (optional), `ai_credit_warn_pct` (optional), `ai_stairs_enabled` (optional), `ai_plans_enabled` (optional), `ai_plan_build_enabled` (optional), `ai_map_wizard` (optional), `atlas_3d_library` (optional), `atlas_3d_weather` (optional), `atlas_3d_showcase` (optional), `atlas_3d_look` (optional), `atlas_3d_home_idle_s` (optional), `atlas_3d_carries` (optional), `atlas_3d_director` (optional), `atlas_3d_director_people` (optional), `lights_showcase` (optional), `lights_hide_untouched` (optional), `lights_hide_device_codes` (optional), `lights_show_beacons` (optional), `lights_fit_rooms` (optional), `lights_isolux` (optional), `lights_automorph_enabled` (optional), `lights_automorph_room_pct` (optional), `lights_automorph_hardness` (optional), `lights_automorph_style` (optional), `lights_automorph_subtlety` (optional), `lights_showcase_theme` (optional), `lights_showcase_presets` (optional), `whole_house_presets` (optional), `atlas_layout_v2` (optional), `traceback_house_focus` (optional), `vacation_mode_enabled` (optional), `vacation_mode_intensity` (optional), `vacation_mode_dark_only` (optional), `vacation_mode_dark_offset_min` (optional), `vacation_mode_end_at` (optional), `vacation_mode_pause_home` (optional), `vacation_mode_bedtime` (optional), `vacation_mode_max_on_min` (optional), `vacation_mode_max_lights` (optional), `vacation_mode_anchors` (optional), `vacation_mode_source` (optional), `adaptive_learning_enabled` (optional), `adaptive_floor_detection` (optional), `advanced_extra_tabs` (optional), `ha_entity_tracker_enabled` (optional), `ha_entity_area_enabled` (optional), `ha_entity_distance_enabled` (optional), `ha_entity_scanner_distance_enabled` (optional), `ha_entity_occupancy_enabled` (optional), `subzones_enabled` (optional), `mqtt_publish_enabled` (optional), `espresense_mqtt_enabled` (optional), `espresense_topic_prefix` (optional), `tasmota_ble_enabled` (optional), `espresense_room_map` (optional), `espresense_companion_url` (optional), `aggressive_ble_reseed` (optional), `presence_poll_interval_s` (optional), `ble_reseed_interval_s` (optional), `lights_panel_enabled` (optional), `bermuda_ignore` (optional), `tags_room_events_enabled` (optional), `tags_nfc_identify_enabled` (optional), `tags_phone_autolink_enabled` (optional), `quiet_mode` (optional), `units_feet` (optional), `light_theme` (optional), `day_theme` (optional), `theme_palette` (optional), `theme_follow_sun` (optional), `ui_skin` (optional), `light_shapes` (optional), `light_type_overrides` (optional), `door_opener_ids` (optional), `door_composites` (optional), `beacon_auto_calibrate` (optional), `overview_persistent_pins` (optional), `overview_show_walls` (optional), `overview_show_outdoor` (optional), `overview_show_trails` (optional), `object_history_days` (optional), `scanner_offsets` (optional), `excluded_scanners` (optional), `scanner_min_rssi` (optional), `excluded_objects` (optional), `ingest_rules` (optional), `overview_2d_mode` (optional), `positioning_algorithm` (optional), `beacon_profiling_enabled` (optional), `beacon_tune_disabled` (optional), `beacon_group_overrides` (optional), `walk_to_identify_enabled` (optional), `radio_map_enabled` (optional), `distortion_map_enabled` (optional), `roomplan_import_enabled` (optional), `vacuum_import_enabled` (optional), `phone_wizard_enabled` (optional), `iphone_irk_guide` (optional), `mac_rotation_bridging` (optional), `apple_auto_classify` (optional), `low_memory_mode` (optional), `optimize_for_scale` (optional), `guest_tags_enabled` (optional), `guest_retention_days` (optional), `enhanced_security` (optional), `forensics_enabled` (optional), `license_tier_override` (optional), `bright_reveal_presence` (optional), `forensics_retention_days` (optional), `rssi_capture_enabled` (optional), `rssi_capture_retention_days` (optional), `ble_max_age_s` (optional), `occupancy_hybrid_enabled` (optional), `occupancy_cluster_threshold` (optional), `occupancy_multiplier` (optional), `occupancy_dwell_min` (optional), `distance_stationary_devices` (optional), `onboarding_completed` (optional), `accuracy_tips_hidden` (optional), `setup_progress` (optional), `heatmap_gain` (optional), `heatmap_contrast` (optional), `distortion_intensity` (optional), `heatmap_source` (optional), `padspan_automations` (optional) | with Enhanced security | `ws_settings.py` | Persist one or more settings changes. |
 | `padspan_ha/setup_phones` | – | – | `setup_checks.py` | Setup's "Track your phone or watch" step: the phones and watches PadSpan follows as someone's (phones_tracked), {phones: [{name, how}]}. |
 | `padspan_ha/setup_tips` | – | – | `setup_checks.py` | The accuracy tips for the Overview: {tips: [ids that apply and are not hidden]}. |
@@ -347,28 +347,28 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/store_backup_delete` | `backup_id` | always | `ws_backup.py` | Delete a specific backup. |
 | `padspan_ha/store_backup_list` | – | always | `ws_backup.py` | List all available backups. |
 | `padspan_ha/store_backup_restore` | `backup_id`, `store_keys` (optional), `restore_map_images` (optional) | always | `ws_backup.py` | Restore selected stores from a backup snapshot. |
-| `padspan_ha/subzone_add` | `zone` | always | `ws_subzones.py` |  |
+| `padspan_ha/subzone_add` | `zone` | always | `ws_subzones.py` | Adds a sub-zone. |
 | `padspan_ha/subzone_from_piece` | `piece_id`, `name` (optional) | always | `ws_subzones.py` |  |
-| `padspan_ha/subzone_remove` | `zone_id` | always | `ws_subzones.py` |  |
+| `padspan_ha/subzone_remove` | `zone_id` | always | `ws_subzones.py` | Removes a sub-zone. |
 | `padspan_ha/subzone_update` | `zone_id`, `zone` | always | `ws_subzones.py` | The whole sub-zone, changed fields merged over what is stored. |
-| `padspan_ha/subzones_list` | – | – | `ws_subzones.py` |  |
+| `padspan_ha/subzones_list` | – | – | `ws_subzones.py` | Every sub-zone. |
 | `padspan_ha/suspend_databases` | `minutes` (optional) | with Enhanced security | `websocket.py` | Suspend all learned databases — raw radio + spatial centroid only. |
-| `padspan_ha/system_critics` | – | – | `ws_diagnostics.py` | Phase 4: unified system self-diagnosis. |
+| `padspan_ha/system_critics` | – | – | `ws_diagnostics.py` | Health's list of problems, most serious first, with how often rooms are mistaken for each other. |
 | `padspan_ha/tags_status` | – | – | `websocket.py` | Return HA Tags integration status and followed object tag mappings. |
 | `padspan_ha/telemetry_event` | `event`, `screen` (optional) | – | `ws_telemetry.py` |  |
 | `padspan_ha/telemetry_preview` | – | – | `ws_telemetry.py` | The report as it stands right now — same fields, same values as a send made this second would carry — shown before anyone opts in. |
-| `padspan_ha/telemetry_reset_id` | – | always | `ws_telemetry.py` |  |
-| `padspan_ha/telemetry_send_now` | – | always | `ws_telemetry.py` |  |
-| `padspan_ha/tester_preview` | – | always | `ws_tester.py` |  |
-| `padspan_ha/tester_signup` | – | always | `ws_tester.py` |  |
-| `padspan_ha/tester_status` | – | always | `ws_tester.py` |  |
-| `padspan_ha/tester_withdraw` | – | always | `ws_tester.py` |  |
+| `padspan_ha/telemetry_reset_id` | – | always | `ws_telemetry.py` | Gives the usage report a new install id. |
+| `padspan_ha/telemetry_send_now` | – | always | `ws_telemetry.py` | Sends the usage report now. |
+| `padspan_ha/tester_preview` | – | always | `ws_tester.py` | What a tester sign-up would send, shown before it is sent. |
+| `padspan_ha/tester_signup` | – | always | `ws_tester.py` | Signs up as a tester, or changes the sign-up. |
+| `padspan_ha/tester_status` | – | always | `ws_tester.py` | The tester sign-up, if there is one. |
+| `padspan_ha/tester_withdraw` | – | always | `ws_tester.py` | Withdraws the tester sign-up. |
 | `padspan_ha/traceback_get` | `start_ts` (optional), `end_ts` (optional), `obj_key` (optional), `max_frames` (optional) | – | `websocket.py` | Return traceback position frames for playback. |
 | `padspan_ha/traceback_objects` | – | – | `websocket.py` | Return all object keys seen in traceback history. |
-| `padspan_ha/trial_start` | `email` | always | `ws_forensics.py` | Start the one-time 3-month PadSpan Pro trial (full Pro since 2026-10-27; it was Bright Pro before). |
+| `padspan_ha/trial_start` | `email` | always | `ws_forensics.py` | Starts the one-time PadSpan Pro trial. |
 | `padspan_ha/unsuspend_databases` | – | with Enhanced security | `websocket.py` | End database suspension early — resume full pipeline. |
 | `padspan_ha/vacation_lights` | – | – | `websocket.py` | The lights an evening (anchor) light can be — the ones Vacation Mode switches, by name (vacation_mode.eligible_lights). |
-| `padspan_ha/vacation_log_get` | `start_ts`, `end_ts` | – | `websocket.py` | What Vacation Mode switched in [start_ts, end_ts], and the spans it was on — so the house history can tell its switching from a person's (v… |
+| `padspan_ha/vacation_log_get` | `start_ts`, `end_ts` | – | `websocket.py` | What Vacation Mode switched between two times, and when it was on. |
 | `padspan_ha/vacation_preview` | – | – | `websocket.py` | What Vacation Mode would switch over the next 24 hours — a read; it switches nothing and stores nothing (vacation_mode.async_preview). |
 | `padspan_ha/vacuum_cal_pending_accept` | `point_id` | always | `ws_vacuum.py` | The user accepted one pending point: THE one road into calibration. |
 | `padspan_ha/vacuum_cal_pending_list` | – | always | `ws_vacuum.py` |  |
@@ -393,6 +393,6 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/wled_power` | `entity_id`, `on`, `brightness` (optional), `transition` (optional), `source` (optional) | – | `wled_exact.py` | On (with the look) / off / a brightness, for an exact light — open to any user, as HA's own light control is. |
 | `padspan_ha/wled_state` | `body` | – | `ws_wled.py` | POST /json/state — live changes; persisting keys need an admin. |
 | `padspan_ha/wled_team_mode` | `team_id`, `mode` | always | `wled_exact.py` | Run this team by WLED sync or by PadSpan. |
-| `padspan_ha/wled_teams_get` | – | – | `ws_wled.py` |  |
-| `padspan_ha/wled_teams_set` | `teams`, `base_hash` (optional) | always | `ws_wled.py` |  |
+| `padspan_ha/wled_teams_get` | – | – | `ws_wled.py` | The WLED teams (devices that act as one light). |
+| `padspan_ha/wled_teams_set` | `teams`, `base_hash` (optional) | always | `ws_wled.py` | Saves the WLED teams. |
 <!-- /generated:websocket -->
