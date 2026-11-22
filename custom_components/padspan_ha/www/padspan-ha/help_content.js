@@ -111,7 +111,7 @@ export function helpTexts() { return {
       t("The line at the top says what your receivers give you so far: none found yet, receivers with no area (home or away only), one room, or several rooms. Give each receiver the area it is in, in Home Assistant."),
       t("Each row is a room and who is in it: named and followed devices by name, then a count of the other devices heard there. \"Heard, no room yet\" collects devices heard only by a receiver with no area."),
       t("Phones Home Assistant already knows through its Private BLE Device integration have a \"Track\" button: one click names and follows the phone, which gives it room and home/away sensors in Home Assistant. \"Not heard right now\" lists the ones out of range. With Enhanced security on, only an administrator can track them."),
-      t("\"Make it a map\" opens the guided Setup (floor plan, scale, floors, rooms, receivers, calibration). \"Preview a finished house\" shows the sample house; \"Back to my house\" returns."),
+      t("\"Make it a map\" opens the guided Setup (floor plan, scale, rooms, floors, receivers, your phone or watch, calibration). \"Preview a finished house\" shows the sample house; \"Back to my house\" returns."),
     ],
   },
   getting_started: {

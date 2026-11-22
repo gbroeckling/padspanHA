@@ -272,8 +272,9 @@ export function whosWhereCard(ctx){
 
   const foot = el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" });
   const mapBtn = el("button", { class: "btn inline", style: "font-size:12px", title: t("Upload a floor plan (or a photo of one) and trace your rooms") }, t("Make it a map"));
-  // The guided Setup (views/setup.js): plan, scale, floors, rooms, receivers,
-  // calibration, in order, each opening its own tool.
+  // The guided Setup (views/setup.js): plan, scale, rooms, floors (two indoor
+  // floors or more), receivers, phone, calibration, in order (setup_status.js
+  // SETUP_STEPS), each opening its own tool.
   mapBtn.addEventListener("click", () => ctx.actions.showView("setup"));
   const demoBtn = el("button", { class: "btn inline", style: "font-size:12px", title: t("A sample house with every feature set up. Your own house is one click away.") }, t("Preview a finished house"));
   demoBtn.addEventListener("click", () => ctx.actions.setDataMode("sample"));
