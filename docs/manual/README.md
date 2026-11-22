@@ -31,7 +31,7 @@ when the profile has none; any other language shows English.
 ## Part IV: Every day
 
 12. [The screens, Basic and Advanced, the menu map, the sample house](12-the-screens.md)
-13. Alerts and notifications. Coming. Today: the **?** help on Follow, and the [Atlas guide](../ATLAS_GUIDE.md)
+13. [Alerts and notifications](13-alerts.md)
 14. [Home Assistant: entities, services, events, Assist](14-home-assistant-reference.md)
 
 ## Part V: Lights and the 3D house
