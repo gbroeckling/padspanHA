@@ -9,15 +9,30 @@ VIEWS = CC / "www" / "padspan-ha" / "views"
 
 
 def test_room_change_delay_zero_is_zero():
-    assert room_change_delay_s({}) == 20.0
-    assert room_change_delay_s({"room_change_delay_s": None}) == 20.0
+    assert room_change_delay_s({}) == 40.0
+    assert room_change_delay_s({"room_change_delay_s": None}) == 40.0
     assert room_change_delay_s({"room_change_delay_s": 0}) == 0.0
     assert room_change_delay_s({"room_change_delay_s": 0.0}) == 0.0
     assert room_change_delay_s({"room_change_delay_s": 45}) == 45.0
     assert room_change_delay_s({"room_change_delay_s": 999}) == 300.0
-    assert room_change_delay_s({"room_change_delay_s": "x"}) == 20.0
+    assert room_change_delay_s({"room_change_delay_s": "x"}) == 40.0
     for f in ("presence_coordinator.py", "ws_capture.py"):
         assert 'get("room_change_delay_s") or 20' not in (CC / f).read_text(encoding="utf-8"), f
+
+
+def test_room_change_delay_default_40_and_a_saved_20_stays():
+    """November 2026: the default went from 20 s to 40 s. The key stays out of
+    DEFAULT_SETTINGS, so loading never writes the default into an install's
+    file: an install that never saved a delay takes 40 s, one that saved 20 s
+    keeps 20 s, and the panel shows the same number the vote uses."""
+    from custom_components.padspan_ha.presence_rules import ROOM_CHANGE_DELAY_DEFAULT_S
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+    assert ROOM_CHANGE_DELAY_DEFAULT_S == 40.0
+    assert "room_change_delay_s" not in DEFAULT_SETTINGS
+    assert room_change_delay_s({**DEFAULT_SETTINGS}) == 40.0
+    assert room_change_delay_s({**DEFAULT_SETTINGS, "room_change_delay_s": 20}) == 20.0
+    js = (VIEWS / "settings.js").read_text(encoding="utf-8")
+    assert "Number(settings.room_change_delay_s) : 40)" in js
 
 
 def test_outdoor_rules_read_registry_floors():

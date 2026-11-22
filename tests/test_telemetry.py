@@ -2039,7 +2039,10 @@ def test_presence_cfg_only_off_the_defaults():
     poll at 10 s) and which have a Home Assistant floor the outdoor rules now
     count as outside. Nothing is sent from an install on the defaults."""
     assert T.presence_cfg_words({"presence_poll_interval_s": 5}) == {}
-    assert T.presence_cfg_words({"presence_poll_interval_s": 5, "room_change_delay_s": 20}) == {}
+    assert T.presence_cfg_words({"presence_poll_interval_s": 5, "room_change_delay_s": 40}) == {}
+    # The old default, kept by a person who saved it (November 2026: 20 s -> 40 s).
+    assert T.presence_cfg_words({"room_change_delay_s": 20}) == {"delay": "20"}
+    assert T.presence_cfg_words({"room_change_delay_s": 30}) == {"delay": "21_60"}
     assert T.presence_cfg_words({"presence_poll_interval_s": 10, "room_change_delay_s": 0}) == {"poll": "10", "delay": "0"}
     assert T.presence_cfg_words({"presence_poll_interval_s": 3, "room_change_delay_s": 90}) == {"poll": "1_4", "delay": "gt60"}
     assert T.presence_cfg_words({}, ["ground", "__outside__"]) == {}

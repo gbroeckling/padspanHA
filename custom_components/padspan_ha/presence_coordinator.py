@@ -51,8 +51,8 @@ Three-stage pipeline applied each poll cycle:
   Stage 2 — Majority-vote window
     At each poll, the candidate room (from Stage 1.5 or k-NN) is added to a
     rolling window sized from Room Change Delay (room_change_delay_s, default
-    20 s) over the poll interval (presence_poll_interval_s, default 5 s): 20 s
-    at 5 s is a window of 4, and a room needs a simple majority (3) to win.
+    40 s) over the poll interval (presence_poll_interval_s, default 5 s): 40 s
+    at 5 s is a window of 8, and a room needs a simple majority (5) to win.
     A delay of 0 is a window of 1 — the first poll that agrees switches.
     _VOTE_WINDOW (5) / _VOTE_THRESHOLD (3) are only the fallback if that
     sizing fails. Stricter gates (indoor↔outdoor, distant rooms, a short
@@ -3493,7 +3493,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._clear_run[key] = (candidate, _clear_n)
         else:
             self._clear_run.pop(key, None)
-        # Half of Room Change Delay, in polls (two at the default 20 s).
+        # Half of Room Change Delay, in polls (four at the default 40 s).
         _fast_n = min(vote_threshold, max(2, round(vote_window / 2)))
 
         # Count votes per room and check if any room meets the threshold

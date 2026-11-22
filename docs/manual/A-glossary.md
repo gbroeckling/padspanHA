@@ -167,7 +167,7 @@ told apart.
 **Room.** A Home Assistant area (see Area), drawn on the map of the house. A receiver's area decides
 which room it stands in.
 
-**Room Change Delay.** How long a new room must keep winning before a device moves there (20 seconds
+**Room Change Delay.** How long a new room must keep winning before a device moves there (40 seconds
 unless you change it).
 
 **Rotating address, random address.** A Bluetooth address a phone, watch or Find My tag changes every

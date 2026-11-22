@@ -50,8 +50,8 @@
       "_away_miss": 0,
       "_kalman_addr_key": "C0:FF:EE:00:00:01",
       "_room_votes": {
-       "__deque__": ["Garden", "Garden", "Garden", "Garden"],
-       "maxlen": 4
+       "__deque__": ["Garden", "Garden", "Garden", "Garden", "Garden", "Garden", "Garden", "Garden"],
+       "maxlen": 8
       },
       "_confirmed_room": "Garden",
       "_room_confidence": 1.0,
@@ -82,9 +82,9 @@
         ["Lounge", -83.109422]
        ]
       },
-      "_last_room_change_mono": 10467.5,
-      "_room_dwell_start": 10467.5,
-      "_floor_dwell_start": 10467.5,
+      "_last_room_change_mono": 10477.5,
+      "_room_dwell_start": 10477.5,
+      "_floor_dwell_start": 10477.5,
       "_device_floor": "__outside__",
       "_ema_rssi": {
        "AA:00:00:00:00:03": -87.5966808,
@@ -173,8 +173,8 @@
       "_away_miss": 0,
       "_kalman_addr_key": "C0:FF:EE:00:00:02",
       "_room_votes": {
-       "__deque__": ["Study", "Study", "Study", "Study"],
-       "maxlen": 4
+       "__deque__": ["Study", "Study", "Study", "Study", "Study", "Study", "Study", "Study"],
+       "maxlen": 8
       },
       "_confirmed_room": "Study",
       "_room_confidence": 1.0,
@@ -218,8 +218,8 @@
         ["Landing", -87.888333]
        ]
       },
-      "_last_room_change_mono": 10012.5,
-      "_room_dwell_start": 10012.5,
+      "_last_room_change_mono": 10022.5,
+      "_room_dwell_start": 10022.5,
       "_device_floor": "upper",
       "_ema_rssi": {
        "AA:00:00:00:00:05": -91.7190083,
@@ -274,7 +274,7 @@
       "all_addresses": ["C0:FF:EE:00:00:03", "C0:FF:EE:00:00:13"],
       "room": "Lounge",
       "_smoothed": true,
-      "room_confidence": 1.0,
+      "room_confidence": 0.88,
       "rssi_margin_confidence": 1.0,
       "knn_confidence": 1.0,
       "x_m": 3.281,
@@ -309,11 +309,11 @@
       "_last_seen": 10602.5,
       "_away_miss": 0,
       "_room_votes": {
-       "__deque__": ["Lounge", "Lounge", "Lounge", "Lounge"],
-       "maxlen": 4
+       "__deque__": ["Hall", "Lounge", "Lounge", "Lounge", "Lounge", "Lounge", "Lounge", "Lounge"],
+       "maxlen": 8
       },
       "_confirmed_room": "Lounge",
-      "_room_confidence": 1.0,
+      "_room_confidence": 0.88,
       "_rssi_margin_confidence": 1.0,
       "_knn_position": {
        "x_m": 2.406,
@@ -357,8 +357,8 @@
         ["Bath", -85.5664351]
        ]
       },
-      "_last_room_change_mono": 10287.5,
-      "_room_dwell_start": 10287.5,
+      "_last_room_change_mono": 10077.5,
+      "_room_dwell_start": 10077.5,
       "_device_floor": "main",
       "_ema_rssi": {
        "AA:00:00:00:00:01": -83.2307885,
@@ -415,7 +415,7 @@
       "user_label": "Bath beacon",
       "room": "Bath",
       "_smoothed": true,
-      "room_confidence": 0.5,
+      "room_confidence": 0.75,
       "rssi_margin_confidence": 1.0,
       "knn_confidence": 1.0,
       "x_m": 8.071,
@@ -457,11 +457,11 @@
       "_away_miss": 0,
       "_kalman_addr_key": "C0:FF:EE:00:00:04",
       "_room_votes": {
-       "__deque__": ["Bedroom", "Bedroom", "Bath", "Bath"],
-       "maxlen": 4
+       "__deque__": ["Bath", "Bath", "Bath", "Bath", "Bedroom", "Bedroom", "Bath", "Bath"],
+       "maxlen": 8
       },
       "_confirmed_room": "Bath",
-      "_room_confidence": 0.5,
+      "_room_confidence": 0.75,
       "_rssi_margin_confidence": 1.0,
       "_knn_position": {
        "x_m": 6.44,
@@ -617,8 +617,8 @@
       "_away_miss": 0,
       "_kalman_addr_key": "C0:FF:EE:00:00:05",
       "_room_votes": {
-       "__deque__": ["Loft", "Loft", "Loft", "Loft"],
-       "maxlen": 4
+       "__deque__": ["Loft", "Loft", "Loft", "Loft", "Loft", "Loft", "Loft", "Loft"],
+       "maxlen": 8
       },
       "_confirmed_room": "Loft",
       "_room_confidence": 1.0,
@@ -675,8 +675,8 @@
        "AA:00:00:00:00:06": [-97.0, -92.0],
        "AA:00:00:00:00:04": [-92.0, -93.0, -96.0, -91.0, -91.0, -90.0, -93.0, -94.0, -96.0, -90.0]
       },
-      "_last_room_change_mono": 10012.5,
-      "_room_dwell_start": 10012.5,
+      "_last_room_change_mono": 10022.5,
+      "_room_dwell_start": 10022.5,
       "_device_floor": "upper",
       "_ema_rssi": {
        "AA:00:00:00:00:01": -90.4397028,
@@ -726,7 +726,7 @@
       "canonical_id": "irk:5ca1ab1e",
       "room": "Bath",
       "_smoothed": true,
-      "room_confidence": 0.75,
+      "room_confidence": 0.88,
       "rssi_margin_confidence": 0.96,
       "knn_confidence": 0.96,
       "x_m": 7.429,
@@ -762,11 +762,11 @@
       "_away_miss": 0,
       "_kalman_addr_key": "IRK:5CA1AB1E",
       "_room_votes": {
-       "__deque__": ["Bath", "Bedroom", "Bath", "Bath"],
-       "maxlen": 4
+       "__deque__": ["Bath", "Bath", "Bath", "Bath", "Bath", "Bedroom", "Bath", "Bath"],
+       "maxlen": 8
       },
       "_confirmed_room": "Bath",
-      "_room_confidence": 0.75,
+      "_room_confidence": 0.88,
       "_rssi_margin_confidence": 0.96,
       "_knn_position": {
        "x_m": 7.386,
@@ -811,8 +811,8 @@
         ["Hall", -79.6885093]
        ]
       },
-      "_last_room_change_mono": 10387.5,
-      "_room_dwell_start": 10387.5,
+      "_last_room_change_mono": 10417.5,
+      "_room_dwell_start": 10417.5,
       "_device_floor": "main",
       "_ema_rssi": {
        "AA:00:00:00:00:03": -79.6885093,
@@ -887,8 +887,8 @@
       "_away_miss": 0,
       "_kalman_addr_key": "C0:FF:EE:00:00:08",
       "_room_votes": {
-       "__deque__": ["Kitchen", "Kitchen", "Kitchen", "Kitchen"],
-       "maxlen": 4
+       "__deque__": ["Kitchen", "Kitchen", "Kitchen", "Kitchen", "Kitchen", "Kitchen", "Kitchen", "Kitchen"],
+       "maxlen": 8
       },
       "_confirmed_room": "Kitchen",
       "_room_confidence": 1.0,
@@ -905,8 +905,8 @@
        "rssi_best": null,
        "rssi_top3": []
       },
-      "_last_room_change_mono": 10192.5,
-      "_room_dwell_start": 10192.5,
+      "_last_room_change_mono": 10147.5,
+      "_room_dwell_start": 10147.5,
       "_device_floor": "main",
       "_ema_rssi": {},
       "_kalman_p": {},
@@ -937,8 +937,8 @@
       "_away_miss": 0,
       "_kalman_addr_key": "C0:FF:EE:00:00:09",
       "_room_votes": {
-       "__deque__": ["Office", "Bedroom", "Garden", "Garden"],
-       "maxlen": 4
+       "__deque__": ["Office", "Office", "Hall", "Office", "Office", "Bedroom", "Garden", "Garden"],
+       "maxlen": 8
       },
       "_confirmed_room": "Office",
       "_room_confidence": 0.5,
@@ -955,9 +955,8 @@
        "rssi_best": null,
        "rssi_top3": []
       },
-      "_last_room_change_mono": 10032.5,
-      "_room_dwell_start": 10032.5,
-      "_floor_dwell_start": 10032.5,
+      "_last_room_change_mono": 10052.5,
+      "_room_dwell_start": 10052.5,
       "_device_floor": "main",
       "_ema_rssi": {},
       "_kalman_p": {},
@@ -971,7 +970,7 @@
     "AA:00:00:00:00:01": {
      "reliability": 1.0,
      "agree_pct": 100.0,
-     "polls": 30,
+     "polls": 27,
      "room": "Kitchen"
     },
     "AA:00:00:00:01:03": {
@@ -980,29 +979,17 @@
      "polls": 30,
      "room": "Study"
     },
-    "AA:00:00:00:00:05": {
-     "reliability": 0.857,
-     "agree_pct": 83.0,
-     "polls": 30,
-     "room": "Bedroom"
-    },
     "AA:00:00:00:01:01": {
      "reliability": 1.0,
      "agree_pct": 100.0,
      "polls": 30,
      "room": "Loft"
     },
-    "AA:00:00:00:00:06": {
-     "reliability": 1.0,
-     "agree_pct": 100.0,
+    "AA:00:00:00:00:05": {
+     "reliability": 0.968,
+     "agree_pct": 97.0,
      "polls": 30,
-     "room": "Bath"
-    },
-    "AA:00:00:00:00:04": {
-     "reliability": 1.0,
-     "agree_pct": 100.0,
-     "polls": 3,
-     "room": "Office"
+     "room": "Bedroom"
     },
     "AA:00:00:00:00:02": {
      "reliability": 1.0,
@@ -1010,16 +997,16 @@
      "polls": 30,
      "room": "Lounge"
     },
-    "AA:00:00:00:00:03": {
-     "reliability": 1.0,
-     "agree_pct": 33.0,
-     "polls": 3,
-     "room": "Hall"
+    "AA:00:00:00:00:06": {
+     "reliability": 0.968,
+     "agree_pct": 97.0,
+     "polls": 30,
+     "room": "Bath"
     },
     "AA:00:00:00:02:01": {
      "reliability": 1.0,
      "agree_pct": 100.0,
-     "polls": 27,
+     "polls": 23,
      "room": "Garden"
     }
    },
@@ -1086,51 +1073,41 @@
     "_floor_cache": {},
     "_scanner_agree": {
      "AA:00:00:00:00:01": {
-      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
      "AA:00:00:00:01:03": {
       "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
-     "AA:00:00:00:00:05": {
-      "__deque__": [true, true, true, true, true, true, true, true, false, true, true, true, true, true, true, true, true, true, true, true, true, true, false, true, false, true, false, true, false, true],
-      "maxlen": 30
-     },
      "AA:00:00:00:01:01": {
       "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
-     "AA:00:00:00:00:06": {
-      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-      "maxlen": 30
-     },
-     "AA:00:00:00:00:04": {
-      "__deque__": [true, true, true],
+     "AA:00:00:00:00:05": {
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
      "AA:00:00:00:00:02": {
       "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
-     "AA:00:00:00:00:03": {
-      "__deque__": [false, true, false],
+     "AA:00:00:00:00:06": {
+      "__deque__": [false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
      "AA:00:00:00:02:01": {
-      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+      "__deque__": [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      }
     },
     "_scanner_reliability": {
      "AA:00:00:00:00:01": 1.0,
      "AA:00:00:00:01:03": 1.0,
-     "AA:00:00:00:00:05": 0.857,
      "AA:00:00:00:01:01": 1.0,
-     "AA:00:00:00:00:06": 1.0,
-     "AA:00:00:00:00:04": 1.0,
+     "AA:00:00:00:00:05": 0.968,
      "AA:00:00:00:00:02": 1.0,
-     "AA:00:00:00:00:03": 1.0,
+     "AA:00:00:00:00:06": 0.968,
      "AA:00:00:00:02:01": 1.0
     },
     "_co_visible": {},

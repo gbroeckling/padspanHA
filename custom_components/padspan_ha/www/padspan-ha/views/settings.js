@@ -1046,7 +1046,7 @@ function _settingsPresence(ctx, el){
   }
 
   // ── Room change delay ──────────────────────────────────────────────────────
-  const currentDelay = (settings.room_change_delay_s != null ? Number(settings.room_change_delay_s) : 20);
+  const currentDelay = (settings.room_change_delay_s != null ? Number(settings.room_change_delay_s) : 40);
   const _pollInt = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 5);
   const polls = Math.max(1, Math.round(currentDelay / _pollInt));
   const delayInp = el("input", {
