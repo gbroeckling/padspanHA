@@ -299,7 +299,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       const locked = PRO_LOOKS.includes(val) && !proOk;
       if (locked && hideLocked) return null;
       const b = el("button",{class:"btn inline"+(now===val?" on":""), ...(locked ? { disabled:"", style:"opacity:.45;cursor:default",
-        title:"PadSpan Pro: " + LICENCE_PATH } : {})}, label);
+        title:"PadSpan Pro: " + t(LICENCE_PATH) } : {})}, label);
       b.addEventListener("click", async()=>{
         if (now === val || locked) return;
         try {
@@ -328,7 +328,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night",t("Night")), mkTheme("graphite",t("Graphite")), mkTheme("ocean",t("Ocean")),
         mkTheme("dusk",t("Dusk")), mkTheme("contrast",t("High contrast")), mkTheme("light",t("Light (inverted)")), mkTheme("day",t("Day")) ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
-        t("Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.", { path: LICENCE_PATH }))]),
+        t("Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.", { path: t(LICENCE_PATH) }))]),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:12px"},[
         sunToggle,
         el("label",{for:"themeFollowSunToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, t("Follow the sun")),
