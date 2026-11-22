@@ -127,3 +127,12 @@ def test_overlays_over_the_3d_house_take_taps_only_on_their_controls() -> None:
     assert ".lv-mapcard > .lv-vacation:not([role]):not(.lv-vacation-opts) :is(button,input){pointer-events:auto}" in la
     assert "style.textContent = CSS + (FPS ? FPS.FPS_CSS : \"\");\n    root.appendChild(style);" in la   # in the view's root: gone with it
     assert "pointer-events" not in (_WWW / "styles.css").read_text(encoding="utf-8").split(".lv-vacation{", 1)[1].split("}", 1)[0]
+
+
+def test_the_harness_clock_moves_only_when_a_case_moves_it() -> None:
+    """The frames' times are the harness's own, never the machine's: on the
+    real clock a machine busy with the whole suite put its own delay between
+    frames, and the view read a slow screen (as tests/test_live_aboard_view.py holds)."""
+    src = (Path(__file__).parent / "js" / "live_aboard_controls.mjs").read_text(encoding="utf-8")
+    assert "performance.now = () => clockAt + clockOff;" in src
+    assert "realNow" not in src
