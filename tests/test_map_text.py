@@ -68,7 +68,7 @@ def test_the_panel_keeps_one_box_and_fills_it_only_on_the_overview() -> None:
             '    try { this._updateMapText(); } catch (e) { console.debug("PadSpan: map text skipped", e); }\n'
             ) in panel
     body = panel[panel.index("  _updateMapText(){"):panel.index("  _scheduleRender(fromPoll = false) {")]
-    assert 'MAP_TEXT.createMapText("psMapText", "Who is in which room")' in body
+    assert 'MAP_TEXT.createMapText("psMapText", t("Who is in which room"))' in body   # the English source, through t()
     assert 'this.state.view !== "overview" || atlasHome' in body and "mt.clear(); return;" in body
     assert "isAway(o, t)" in body and "isScanner" in body and "followedAddrs" in body
 

@@ -150,6 +150,8 @@ def test_language_files_fit_the_budget_and_the_code() -> None:
         budget = _HELP_BUDGET if p.name == "help.json" else _GROUP_BUDGET
         if p.stat().st_size > budget:
             problems.append(f"{rel}: {p.stat().st_size} bytes, over {budget}")
+        if p.name == "server.json":
+            continue   # the backend's sentences: test_the_server_group_is_the_backends_sentences
         problems += _problems(rel, json.loads(p.read_text(encoding="utf-8")), catalog)
     assert not problems, "\n".join(problems[:30])
 
@@ -331,28 +333,57 @@ def test_every_t_call_names_its_english() -> None:
     assert not bad, "\n".join(bad[:20])
 
 
-def test_the_panel_group_is_the_panels_words_and_fully_translated() -> None:
-    """i18n/<lang>/panel.json holds exactly the panel's keys (none the code
-    no longer asks for, none of the help's), each language has every one
-    (as the help does), and no value is the English copied."""
-    cov = _coverage()
-    panel = cov.keys_in(cov.group_files()["panel"])
-    assert len(panel) >= 200, len(panel)
-    figures = cov.coverage()["panel"]
+_PANEL_GROUPS = ("panel", "setup", "screens", "health", "devices", "server")
+
+
+def _check_group(cov, group: str, keys: dict) -> None:
+    """i18n/<lang>/<group>.json holds exactly the group's keys (none the code
+    no longer asks for), each language has every one (as the help does), and
+    no value is the English copied."""
+    figures = cov.coverage()[group]
     assert set(figures) == set(_SHIPPED)
     for lang in _SHIPPED:
-        data = json.loads((_LANG_DIR / lang / "panel.json").read_text(encoding="utf-8"))
-        extra = sorted(set(data) - set(panel))
-        assert not extra, (lang, "not asked for by the panel's code", extra[:5])
-        assert not figures[lang]["missing"], (lang, "still English: add it to i18n/%s/panel.json" % lang, figures[lang]["missing"][:5])
-        assert figures[lang]["translated"] == figures[lang]["keys"] == len(panel)
+        data = json.loads((_LANG_DIR / lang / f"{group}.json").read_text(encoding="utf-8"))
+        extra = sorted(set(data) - set(keys))
+        assert not extra, (lang, group, "not asked for", extra[:5])
+        assert not figures[lang]["missing"], (lang, "still English: add it to i18n/%s/%s.json" % (lang, group), figures[lang]["missing"][:5])
+        assert figures[lang]["translated"] == figures[lang]["keys"] == len(keys)
         # Product and edition names as the English writes them; a word that is
         # the same in both languages ("Live", "Setup", "OK") is fine, a sentence copied is not.
         copies = [k for k, v in data.items() if isinstance(v, str) and v == k and len(k.split()) > 3]
-        assert not copies, (lang, copies[:3])
+        assert not copies, (lang, group, copies[:3])
         for k, v in data.items():
             for s in (v.values() if isinstance(v, dict) else [v]):
                 assert _names(s) == _names(k) and "{product}" not in s, (lang, k)
+
+
+def test_each_panel_group_is_its_screens_words_and_fully_translated() -> None:
+    """Every group but the help and server: the t()/tn() keys of its files
+    (scripts/i18n_coverage.py GROUPS; panel is panel.js and the rest)."""
+    cov = _coverage()
+    files = cov.group_files()
+    assert set(files) == {"help"} | set(_PANEL_GROUPS) - {"server"}
+    assert len(cov.keys_in(files["panel"])) >= 30 and len(cov.keys_in(files["setup"])) >= 150
+    for group in _PANEL_GROUPS:
+        if group != "server":
+            _check_group(cov, group, cov.keys_in(files[group]))
+
+
+def test_the_server_group_is_the_backends_sentences() -> None:
+    """i18n/<lang>/server.json: the sentences the backend sends whole (every
+    send_error message and System Critics' words that are one literal), so
+    the panel can show them in its language by their exact English
+    (views/ui_error.js serverText). A sentence the backend no longer sends is
+    an orphan; one it sends now is translated in each language."""
+    cov = _coverage()
+    keys = cov.server_sentences()
+    assert len(keys) >= 150, len(keys)
+    assert "Only an admin can change this while Enhanced security is on" in keys
+    assert any(k.startswith("PadSpan hasn't finished loading.") for k in keys)   # NOT_LOADED_MESSAGE, by name
+    _check_group(cov, "server", keys)
+    for lang in _SHIPPED:
+        data = json.loads((_LANG_DIR / lang / "server.json").read_text(encoding="utf-8"))
+        assert not _problems(f"{lang}/server.json", data, {k: set() for k in keys})
 
 
 def test_the_panel_loads_its_words_at_startup_and_on_a_language_change() -> None:
@@ -364,14 +395,18 @@ def test_the_panel_loads_its_words_at_startup_and_on_a_language_change() -> None
     hass_lines = src[src.index("    const langSeen = hass ?"):src.index("\n    if(this.state?.settings?.theme_follow_sun")]
     assert "_loadPanelLanguage" not in hass_lines
     assert "if(hass && langSeen !== this._panelLangSeen){ this._panelLangSeen = langSeen; this._loadPanelLanguage(); }" in src
-    assert 'm.useLanguage(this._hass, ["panel"])' in src
+    # Every group but the help, at once: no screen waits for its words.
+    asked = "m.useLanguage(this._hass, [" + ", ".join(f'"{g}"' for g in _PANEL_GROUPS) + "])"
+    assert asked in src
+    if (_ROOT / "scripts" / "i18n_coverage.py").is_file():
+        assert set(_coverage().group_keys()) == {"help"} | set(_PANEL_GROUPS)
     # The help's failed-load retry asks about help.json itself, not "any group".
     assert 'if(got !== "en" && I18N && I18N.loaded && !I18N.loaded("help")) got = "en";' in src
 
 
-def test_the_coverage_script_counts_both_groups() -> None:
+def test_the_coverage_script_counts_every_group() -> None:
     cov = _coverage().coverage()
-    assert set(cov) == {"help", "panel"}
+    assert set(cov) == {"help"} | set(_PANEL_GROUPS)
     for group in cov.values():
         for c in group.values():
             assert c["keys"] > 0 and 0 <= c["translated"] <= c["keys"] and len(c["missing"]) == c["keys"] - c["translated"]

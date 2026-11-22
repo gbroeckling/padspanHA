@@ -311,7 +311,7 @@ const _viewsPromise = _criticalPromise;
 //             sent to Home Assistant.
 //   "write" - anything else: refused with SAMPLE_READONLY_MSG. Something new
 //             is a write until it is listed, so it can only ever be refused.
-const SAMPLE_READONLY_MSG = "Sample mode shows a sample house, so nothing can be changed. Switch to Live mode to change your own.";
+const SAMPLE_READONLY_MSG = () => t("Sample mode shows a sample house, so nothing can be changed. Switch to Live mode to change your own.");
 // This browser's Sample / Live choice (_applyDataMode), and the real follow
 // choices kept aside while Sample mode shows (_keepLiveFollow).
 const _DATA_MODE_KEY = "padspan_data_mode";
@@ -483,6 +483,23 @@ const MENU_GROUPS = [
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];
+
+// The menu's words in the panel's language (views/i18n.js; English is the
+// key): MENU's names, the titles above, the 2025 skin's headings. MENU and
+// the rest stay English, as tests and the editions map read them.
+function menuWord(english){
+  const w = {
+    Overview: t("Overview"), "Live Tracker": t("Live Tracker"), Follow: t("Follow"), Devices: t("Devices"),
+    Bluetooth: t("Bluetooth"), Presence: t("Presence"), Monitor: t("Monitor"), Setup: t("Setup"), Mapping: t("Mapping"),
+    Rooms: t("Rooms"), Receivers: t("Receivers"), Settings: t("Settings"), Manage: t("Manage"), Training: t("Training"),
+    Calibration: t("Calibration"), Traceback: t("Traceback"), Forensics: t("Forensics"), Occupancy: t("Occupancy"),
+    Guests: t("Guests"), Health: t("Health"), QA: t("QA"), Sandbox: t("Sandbox"), "Install Base": t("Install Base"),
+    History: t("History"), Events: t("Events"), Debug: t("Debug"), Diagnostics: t("Diagnostics"),
+    "Claude draws rooms": t("Claude draws rooms"),
+    Live: t("Live"), Build: t("Build"), Diagnose: t("Diagnose"), Internals: t("Internals"), More: t("More"),
+  };
+  return w[english] || english;
+}
 
 
 // ── DOM Utility Functions ────────────────────────────────────────────────────
@@ -898,10 +915,10 @@ class PadSpanHaApp extends HTMLElement {
           </div>
 
           <div class="toolbar" style="margin-top:10px">
-            <button class="btn inline" id="refresh">Refresh</button>
-            <button class="btn inline" id="autodiag">Auto Diagnostics</button>
-            <button class="btn inline" id="toggleSide">Toggle</button>
-            <button class="btn inline" id="haSide" title="Hide or show Home Assistant's sidebar, on this browser only">Hide HA</button>
+            <button class="btn inline" id="refresh">${esc(t("Refresh"))}</button>
+            <button class="btn inline" id="autodiag">${esc(t("Auto Diagnostics"))}</button>
+            <button class="btn inline" id="toggleSide">${esc(t("Toggle"))}</button>
+            <button class="btn inline" id="haSide" title="${esc(t("Hide or show Home Assistant's sidebar, on this browser only"))}">${esc(t("Hide HA"))}</button>
           </div>
 
           <!-- Flood alarm latches (flood_latch.py) — always visible off to
@@ -909,38 +926,38 @@ class PadSpanHaApp extends HTMLElement {
                Hidden entirely when nothing is latched. -->
           <div id="emergencyBanner" class="emergency-banner hidden">
             <div class="emergency-banner-head" id="emergencyBannerHead">
-              <span>🚨</span><span id="emergencyBannerCount">0 active</span>
+              <span>🚨</span><span id="emergencyBannerCount">${esc(tn(0, "{n} active", "{n} active"))}</span>
             </div>
             <div id="emergencyBannerList"></div>
           </div>
 
-          <div style="margin-top:12px;margin-bottom:8px" class="muted" id="navLabel">Menu</div>
+          <div style="margin-top:12px;margin-bottom:8px" class="muted" id="navLabel">${esc(t("Menu"))}</div>
           <div class="nav" id="nav"></div>
           <div id="navTrial" style="margin-top:10px"></div>
         </aside>
 
         <main class="main">
           <div class="mobile-topbar" id="mobileTopbar">
-            <button class="mobile-topbar-btn" id="mobileBackBtn" title="Back to Home Assistant" style="font-size:18px;padding:4px 6px">&#x2190;</button>
+            <button class="mobile-topbar-btn" id="mobileBackBtn" title="${esc(t("Back to Home Assistant"))}" style="font-size:18px;padding:4px 6px">&#x2190;</button>
             <button class="mobile-topbar-btn" id="mobileMenuBtn">&#9776;</button>
-            <span class="mobile-topbar-title" id="mobileTitle">Overview</span>
+            <span class="mobile-topbar-title" id="mobileTitle">${esc(t("Overview"))}</span>
             <button class="status-dot hidden" type="button" data-status-dot="mobile"></button>
             <button class="mobile-topbar-pill" id="mobileDataPill">…</button>
-            <button class="mobile-topbar-pill" id="mobileModePill">Advanced</button>
+            <button class="mobile-topbar-pill" id="mobileModePill">${esc(t("Advanced"))}</button>
             <button class="mobile-topbar-pill hidden" id="mobileEmergencyPill" style="background:#7f1d1d;border-color:#dc2626;color:#fecaca">🚨 0</button>
           </div>
           <div class="row desktop-topbar" style="margin-bottom:10px;align-items:center">
-            <span class="pill" id="cloudBadge">Cloud disabled</span>
-            <span class="pill" id="scanBadge">Scan: …</span>
-            <span class="pill" id="statusBadge">Status: …</span>
+            <span class="pill" id="cloudBadge">${esc(t("Cloud disabled"))}</span>
+            <span class="pill" id="scanBadge">${esc(t("Scan: {s}", { s: "…" }))}</span>
+            <span class="pill" id="statusBadge">${esc(t("Status: {status}", { status: "…" }))}</span>
             <button class="status-dot hidden" type="button" data-status-dot="desktop"></button>
 
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
               <span class="muted" style="font-size:12px" id="dataModeWord">${esc(t("Data"))}</span>
               <button class="btn inline" id="dataModeToggle" title="${esc(t("Toggle sample vs live data"))}">…</button>
               <button class="btn-help" id="dataModeHelp" title="${esc(t("Help: Live and Sample"))}">?</button>
-              <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
-              <button class="btn-help" id="complexityHelp" title="Help: Basic, Advanced and Development">?</button>
+              <button class="btn inline" id="complexityToggle" title="${esc(t("Cycle between Basic, Advanced, and Development modes"))}">${esc(t("Advanced"))}</button>
+              <button class="btn-help" id="complexityHelp" title="${esc(t("Help: Basic, Advanced and Development"))}">?</button>
             </span>
           </div>
           <!-- ?kiosk=1 hides both top bars: there, red only, in the bottom corner (the top right is the Overview's Quiet tick). -->
@@ -1163,13 +1180,13 @@ class PadSpanHaApp extends HTMLElement {
         lo.style.cssText = "padding:40px;text-align:center;font-family:system-ui,sans-serif";
         lo.innerHTML = `<div style="margin-bottom:16px"><svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#1b3526" stroke-width="4"/><circle cx="24" cy="24" r="20" fill="none" stroke="#52b788" stroke-width="4" stroke-linecap="round" stroke-dasharray="80 45"><animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="1s" repeatCount="indefinite"/></circle></svg></div>`
           + `<div style="color:#52b788;font-size:16px;font-weight:700;margin-bottom:6px">PadSpan HA v${APP_VERSION}</div>`
-          + `<div style="color:#64748b;font-size:12px" id="padspan-load-status">Loading modules\u2026</div>`;
+          + `<div style="color:#64748b;font-size:12px" id="padspan-load-status">${esc(t("Loading modules\u2026"))}</div>`;
         this.$content.appendChild(lo);
       }
       _criticalPromise.then(() => {
         _startDeferredLoads();
         const statusEl = this.$content?.querySelector("#padspan-load-status");
-        if(statusEl) statusEl.textContent = "Connecting\u2026";
+        if(statusEl) statusEl.textContent = t("Connecting\u2026");
         this._renderNav();       // rebuild nav after complexity may have been restored
         this._scheduleRender();
         this._startPolling();
@@ -1215,12 +1232,12 @@ class PadSpanHaApp extends HTMLElement {
 
     const card = el("div", { style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
     card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" },
-      `PadSpan HA updated to v${APP_VERSION}`));
+      t("PadSpan HA updated to v{version}", { version: APP_VERSION })));
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
       // `seen` is the last version somebody here opened or dismissed this card
       // for, not necessarily the one installed before (issue #94): an update
       // nobody looked at leaves it behind. The notes cover everything since.
-      `The last update anyone here looked at was v${seen}. The release notes cover everything since then, and why, in plain terms.`));
+      t("The last update anyone here looked at was v{seen}. The release notes cover everything since then, and why, in plain terms.", { seen })));
 
     // The paid half, once per version, and only to someone it could be news to.
     // The rule lives in editions.js next to the tier vocabulary and is pure, so
@@ -1287,10 +1304,10 @@ class PadSpanHaApp extends HTMLElement {
     // only) has no way to close one: the screen was stuck on the website.
     const notes = el("button", { class: "btn inline", "data-whatsnew-notes": "open",
       style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" },
-      "See what changed");
+      t("See what changed"));
     notes.addEventListener("click", () => { remember(null); this._openReleaseNotes(); });
-    const dismiss = el("button", { class: "btn inline", style: "color:#94a3b8" }, "Dismiss");
-    dismiss.addEventListener("click", () => remember(`Hidden until the next update.`));
+    const dismiss = el("button", { class: "btn inline", style: "color:#94a3b8" }, t("Dismiss"));
+    dismiss.addEventListener("click", () => remember(t("Hidden until the next update.")));
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [notes, dismiss]));
     return card;
   }
@@ -1312,7 +1329,7 @@ class PadSpanHaApp extends HTMLElement {
       }))
       .catch(err => {
         console.warn("PadSpan: release notes failed to open", err);
-        this._toast("The release notes couldn't be opened. Refresh the page and try again.", true);
+        this._toast(t("The release notes couldn't be opened. Refresh the page and try again."), true);
       });
   }
 
@@ -1677,23 +1694,23 @@ class PadSpanHaApp extends HTMLElement {
           const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" },
             word ? { telemetry_heard: word } : { telemetry_heard_ask: "done" }));
           this.state.settings = res?.settings || this.state.settings;
-          if (word) this._toast("Thank you.");
-        } catch(e) { this._toast("Failed to save setting", true); }
+          if (word) this._toast(t("Thank you."));
+        } catch(e) { this._toast(t("Failed to save setting"), true); }
         this._scheduleRender();
       };
       const q = el("div", { "data-heard-ask": "1", style: cardStyle });
-      q.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, "Thank you. One optional question"));
+      q.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, t("Thank you. One optional question")));
       q.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
-        "Where did you hear about PadSpan? One tap, and it goes with the report as one word. Skip it if you'd rather not say."));
+        t("Where did you hear about PadSpan? One tap, and it goes with the report as one word. Skip it if you'd rather not say.")));
       const row = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap" });
-      for (const [word, label] of [["reddit", "Reddit"], ["youtube", "YouTube"], ["ha_forum", "Home Assistant forum"], ["forum", "Another forum"],
-                                   ["marketplace", "Marketplace or HACS"], ["github", "GitHub"], ["discord", "Discord"], ["search", "A web search"],
-                                   ["friend", "A friend"], ["other", "Somewhere else"]]) {
+      for (const [word, label] of [["reddit", "Reddit"], ["youtube", "YouTube"], ["ha_forum", t("Home Assistant forum")], ["forum", t("Another forum")],
+                                   ["marketplace", t("Marketplace or HACS")], ["github", "GitHub"], ["discord", "Discord"], ["search", t("A web search")],
+                                   ["friend", t("A friend")], ["other", t("Somewhere else")]]) {
         const b = el("button", { class: "btn inline", "data-heard": word }, label);
         b.addEventListener("click", () => done(word));
         row.appendChild(b);
       }
-      const skip = el("button", { class: "btn inline", "data-heard-skip": "1", style: "color:#94a3b8" }, "Skip");
+      const skip = el("button", { class: "btn inline", "data-heard-skip": "1", style: "color:#94a3b8" }, t("Skip"));
       skip.addEventListener("click", () => done(""));
       row.appendChild(skip);
       q.appendChild(row);
@@ -1710,32 +1727,32 @@ class PadSpanHaApp extends HTMLElement {
         const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" },
           on ? { telemetry_enabled: true, telemetry_asked: true } : { telemetry_asked: true }));
         this.state.settings = res?.settings || this.state.settings;
-        this._toast(on ? "Thank you — usage report on. Settings → Tracking shows exactly what goes." : "Okay — it stays off. Settings → Tracking if you change your mind.");
-      } catch(e) { this._toast("Failed to save setting", true); }
+        this._toast(on ? t("Thank you — usage report on. Settings → Tracking shows exactly what goes.") : t("Okay — it stays off. Settings → Tracking if you change your mind."));
+      } catch(e) { this._toast(t("Failed to save setting"), true); }
       this._scheduleRender();
     };
     const card = el("div", { style: cardStyle });
-    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, "Help improve PadSpan"));
+    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, t("Help improve PadSpan")));
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
-      "PadSpan is bleeding edge. Metre-level BLE positioning in an ordinary house is not a solved problem, and this one is developed against exactly one house. " +
-      "It needs all the help it can find, and the biggest help is being able to see what other houses look like. " +
-      "Opt in and once a day it sends counts only: scanners, floors, rooms, calibration points, which features are on, whether positioning and identity resolution are actually working, how hard the machine works and what class of machine it is, and how many warnings each part logged. " +
-      "Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Tracking turns it off again any time. " +
-      "Now and then the developer invites houses that report to try something, like a free year of Pro. You can say no."));
+      [t("PadSpan is bleeding edge. Metre-level BLE positioning in an ordinary house is not a solved problem, and this one is developed against exactly one house."),
+       t("It needs all the help it can find, and the biggest help is being able to see what other houses look like."),
+       t("Opt in and once a day it sends counts only: scanners, floors, rooms, calibration points, which features are on, whether positioning and identity resolution are actually working, how hard the machine works and what class of machine it is, and how many warnings each part logged."),
+       t("Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Tracking turns it off again any time."),
+       t("Now and then the developer invites houses that report to try something, like a free year of Pro. You can say no.")].join(" ")));
     const out = el("pre", { class: "pre", style: "display:none;margin:0 0 8px;max-height:260px;overflow:auto;font-size:11px" });
-    const yes = el("button", { class: "btn inline", "data-ask": "yes", style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, "Share usage report");
+    const yes = el("button", { class: "btn inline", "data-ask": "yes", style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, t("Share usage report"));
     yes.addEventListener("click", () => decide(true));
-    const prev = el("button", { class: "btn inline" }, "Preview what would be sent");
+    const prev = el("button", { class: "btn inline" }, t("Preview what would be sent"));
     prev.addEventListener("click", async () => {
       prev.disabled = true;
       try {
         const r = await this._callWS({ type: "padspan_ha/telemetry_preview" });
         out.textContent = JSON.stringify(r.payload, null, 2);
         out.style.display = "block";
-      } catch(e) { this._toast("Preview failed: " + this._errorText(e), true); }
+      } catch(e) { this._toast(t("Preview failed: {why}", { why: this._errorText(e) }), true); }
       prev.disabled = false;
     });
-    const no = el("button", { class: "btn inline", "data-ask": "no", style: "color:#94a3b8" }, "No thanks");
+    const no = el("button", { class: "btn inline", "data-ask": "no", style: "color:#94a3b8" }, t("No thanks"));
     no.addEventListener("click", () => decide(false));
     card.appendChild(out);
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [yes, prev, no]));
@@ -2035,7 +2052,7 @@ class PadSpanHaApp extends HTMLElement {
   _updateMapText(){
     const main = MAP_TEXT && this.shadowRoot ? this.shadowRoot.querySelector("main.main") : null;
     if (!main) return;
-    if (!this._mapTextBox) this._mapTextBox = MAP_TEXT.createMapText("psMapText", "Who is in which room");
+    if (!this._mapTextBox) this._mapTextBox = MAP_TEXT.createMapText("psMapText", t("Who is in which room"));
     const mt = this._mapTextBox;
     if (mt.el.parentNode !== main) main.appendChild(mt.el);
     const list = this.state.live?.snapshot?.objects?.list;
@@ -2314,7 +2331,7 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   async _callWS(payload){
-    if(!this._hass) throw new Error("Home Assistant isn't connected yet. Wait a moment and try again.");
+    if(!this._hass) throw new Error(t("Home Assistant isn't connected yet. Wait a moment and try again."));
     this._wsCount(payload.type);
     this._logEvent("ws_call", payload.type);
     try {
@@ -2324,7 +2341,7 @@ class PadSpanHaApp extends HTMLElement {
       // (ws_common.require_admin_if_enhanced): say so plainly, and keep that
       // message up over the view's own "failed" toast that follows it.
       if (err && err.code === "admin_only") {
-        this._toast(err.message || "Only an admin can change this while Enhanced security is on");
+        this._toast(this._serverText(err.message || "Only an admin can change this while Enhanced security is on"));
         this._adminOnlyToastUntil = Date.now() + 4500;
       }
       throw err;
@@ -2391,10 +2408,10 @@ class PadSpanHaApp extends HTMLElement {
    *  the caller gets. */
   _sampleBlocked(){
     const now = Date.now();
-    if (!(this._sampleToastAt && now - this._sampleToastAt < 3000)) this._toast(SAMPLE_READONLY_MSG);
+    if (!(this._sampleToastAt && now - this._sampleToastAt < 3000)) this._toast(SAMPLE_READONLY_MSG());
     this._sampleToastAt = now;
     this._adminOnlyToastUntil = now + 4500;
-    const err = new Error(SAMPLE_READONLY_MSG);
+    const err = new Error(SAMPLE_READONLY_MSG());
     err.code = "sample_mode";
     return err;
   }
@@ -2416,7 +2433,7 @@ class PadSpanHaApp extends HTMLElement {
       gate.promise = new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           this._modeGate = null;
-          reject(new Error("Home Assistant hasn't answered yet, so nothing was changed. Try again in a moment."));
+          reject(new Error(t("Home Assistant hasn't answered yet, so nothing was changed. Try again in a moment.")));
         }, 20000);
         gate.release = () => { clearTimeout(timer); this._modeGate = null; resolve(); };
       });
@@ -2869,7 +2886,7 @@ class PadSpanHaApp extends HTMLElement {
       this._countViewLink();
     } catch (e) {
       // Non-fatal
-      this._toast("Settings load failed (will retry on refresh).", true);
+      this._toast(t("Settings load failed (will retry on refresh)."), true);
     }
   }
 
@@ -3037,8 +3054,8 @@ class PadSpanHaApp extends HTMLElement {
         catch(err){
           this._adminOnlyToastUntil = 0;
           this._toast(err && err.code === "admin_only"
-            ? "Only an admin can switch the house back to live data while Enhanced security is on. Ask an admin to press \"Back to my house\"; this screen stays on the sample house."
-            : "Couldn't switch back to live data: Home Assistant didn't answer. This screen stays on the sample house; try again in a moment.", true);
+            ? t("Only an admin can switch the house back to live data while Enhanced security is on. Ask an admin to press \"{back}\"; this screen stays on the sample house.", { back: t("Back to my house") })
+            : t("Couldn't switch back to live data: Home Assistant didn't answer. This screen stays on the sample house; try again in a moment."), true);
           return;
         }
         if(res && res.settings){ this.state.settings = res.settings; server = res.settings.data_mode; }
@@ -3052,7 +3069,7 @@ class PadSpanHaApp extends HTMLElement {
       this._applyDataMode(server);
       // ... and left, counted once Live again.
       if(mode === "live" && was === "sample" && this.state.dataMode === "live") this._telemetryEvent("preview_back");
-      this._toast(`Data mode: ${this.state.dataMode.toUpperCase()}`);
+      this._toast(t("Data mode: {mode}", { mode: (this.state.dataMode === "live" ? t("Live") : t("Sample")).toUpperCase() }));
       // When switching to sample, explicitly assign sample snapshot: the
       // small demo house's, only when the sample house (whose own comes
       // with the refresh below) could not load.
@@ -3064,7 +3081,7 @@ class PadSpanHaApp extends HTMLElement {
       if(this.state.dataMode === "live") this._startPolling();
       else this._stopPolling();
     } catch (e) {
-      this._toast("Failed to switch data mode. The browser console has the details.", true);
+      this._toast(t("Failed to switch data mode. The browser console has the details."), true);
       console.error(e);
     }
   }
@@ -3114,11 +3131,11 @@ class PadSpanHaApp extends HTMLElement {
     if(!act){ bar.classList.add("hidden"); return; }
     const theirs = (vi && vi.version) || "?";
     bar.appendChild(document.createTextNode(act.newer
-      ? `PadSpan was updated to v${theirs}. This page is still running v${APP_VERSION}.`
-      : `This page is v${APP_VERSION}, but Home Assistant is running PadSpan v${theirs}. If you just updated, restart Home Assistant.`));
+      ? t("PadSpan was updated to v{theirs}. This page is still running v{mine}.", { theirs, mine: APP_VERSION })
+      : t("This page is v{mine}, but Home Assistant is running PadSpan v{theirs}. If you just updated, restart Home Assistant.", { theirs, mine: APP_VERSION })));
     const btn = document.createElement("button");
     btn.className = "btn inline";
-    btn.textContent = "Reload";
+    btn.textContent = t("Reload");
     btn.addEventListener("click", () => location.reload());
     bar.appendChild(btn);
     bar.classList.remove("hidden");
@@ -3350,16 +3367,16 @@ class PadSpanHaApp extends HTMLElement {
       const res = await this._callWS({ type: "padspan_ha/auto_diagnostics" });
       this.state.diag = res;
       this.state.timing.lastDiagMs = Math.round(performance.now() - t0);
-      if(userAction) this._toast("Auto diagnostics complete.");
+      if(userAction) this._toast(t("Auto diagnostics complete."));
     } catch (e) {
       this.state.diag = {
         version: APP_VERSION,
         error: String(e),
         summary: { ok:false, total:1, passed:0, failed:1 },
         checks: [{ name:"ws_auto_diagnostics", ok:false, detail:String(e) }],
-        recommendations: ["Check Home Assistant logs for padspan_ha errors."],
+        recommendations: [t("Check Home Assistant logs for padspan_ha errors.")],
       };
-      if(userAction) this._toast("Auto diagnostics failed. See Monitor → Export for support.", true);
+      if(userAction) this._toast(t("Auto diagnostics failed. See Monitor → Export for support."), true);
     }
   }
 
@@ -3375,7 +3392,7 @@ class PadSpanHaApp extends HTMLElement {
   async _refreshAll(userAction=false){
     if(!this._hass) return;
     const t0 = performance.now();
-    if(userAction) this._toast("Refreshing…");
+    if(userAction) this._toast(t("Refreshing…"));
     await Promise.allSettled([this._fetchSettings()]);
     // Sample mode: the sample house answers everything below (_sampleCall).
     if(this._sampleGateOn()) await this._ensureSampleHouse();
@@ -3440,9 +3457,9 @@ class PadSpanHaApp extends HTMLElement {
     const waiting = this.state.timing.lastRefreshMs === null && !Object.keys(this.state.status || {}).length;
     const scan = this.state.status?.scan_interval ?? "—";
     const st = this.state.status?.status ?? "—";
-    this.$("#scanBadge").textContent = waiting ? "Scan: …" : `Scan: ${scan}s`;
-    this.$("#statusBadge").textContent = waiting ? "Status: …" : `Status: ${st}`;
-    this.$("#cloudBadge").textContent = "Cloud disabled";
+    this.$("#scanBadge").textContent = t("Scan: {s}", { s: waiting ? "…" : `${scan}s` });
+    this.$("#statusBadge").textContent = t("Status: {status}", { status: waiting ? "…" : st });
+    this.$("#cloudBadge").textContent = t("Cloud disabled");
     this._updateEmergencyBanner();
     this._paintStatusDot();
 
@@ -3450,7 +3467,7 @@ class PadSpanHaApp extends HTMLElement {
     const cb = this.$("#complexityToggle");
     if(cb){
       const mode = this.state.complexity;
-      cb.textContent = mode === "basic" ? "Basic" : mode === "advanced" ? "Advanced" : "Dev";
+      cb.textContent = mode === "basic" ? t("Basic") : mode === "advanced" ? t("Advanced") : t("Dev");
       cb.style.outline = mode === "basic" ? "2px solid rgba(94,234,212,.6)"
                        : mode === "development" ? "2px solid rgba(239,83,80,.5)" : "";
     }
@@ -3509,7 +3526,7 @@ class PadSpanHaApp extends HTMLElement {
       b.textContent = "";
       b.appendChild(el("span", { class: "status-dot-mark", "aria-hidden": "true" }, "!"));
       b.appendChild(el("span", { class: "status-dot-n", "aria-hidden": "true" },
-        wallHost ? (view.count === 1 ? "1 problem" : view.count + " problems") : String(view.count)));
+        wallHost ? tn(view.count, "1 problem", "{n} problems") : String(view.count)));
       // The wall's role="status" box is read out by its text, not a label:
       // the words, there for a screen reader only.
       if (wallHost) b.appendChild(el("span", { class: "status-dot-sr" }, view.label));
@@ -3554,7 +3571,7 @@ class PadSpanHaApp extends HTMLElement {
       return;
     }
     banner.classList.remove("hidden");
-    countEl.textContent = `${active.length} active`;
+    countEl.textContent = tn(active.length, "{n} active", "{n} active");
     if(mobilePill){ mobilePill.classList.remove("hidden"); mobilePill.textContent = `🚨 ${active.length}`; }
 
     listEl.className = "emergency-banner-list";
@@ -3581,15 +3598,15 @@ class PadSpanHaApp extends HTMLElement {
       // real alarm.
       const makeResetBtn = () => {
         const b = document.createElement("button");
-        b.className = "btn tiny"; b.textContent = "Reset";
+        b.className = "btn tiny"; b.textContent = t("Reset");
         b.addEventListener("click", (e) => {
           e.stopPropagation();
           wrap.innerHTML = "";
           const yes = document.createElement("button");
           yes.className = "btn tiny"; yes.style.cssText = "background:#7f1d1d;border-color:#dc2626;color:#fecaca";
-          yes.textContent = "Yes";
+          yes.textContent = t("Yes");
           const no = document.createElement("button");
-          no.className = "btn tiny"; no.textContent = "No";
+          no.className = "btn tiny"; no.textContent = t("No");
           yes.addEventListener("click", async (e2) => {
             e2.stopPropagation();
             wrap.innerHTML = "";
@@ -3605,7 +3622,7 @@ class PadSpanHaApp extends HTMLElement {
       // Sample mode: the alarm is the real house's, and so is its Reset: the way there.
       if (sample) {
         const back = document.createElement("button");
-        back.className = "btn tiny"; back.textContent = "Back to my house";
+        back.className = "btn tiny"; back.textContent = t("Back to my house");
         back.addEventListener("click", (e) => { e.stopPropagation(); this._setDataMode("live"); });
         wrap.appendChild(back);
       } else wrap.appendChild(makeResetBtn());
@@ -3725,9 +3742,10 @@ class PadSpanHaApp extends HTMLElement {
     this.$nav.innerHTML = "";
     this.$nav.className = isBasic ? "nav basic-nav" : "nav";
     const navLabel = this.shadowRoot.querySelector("#navLabel");
-    if(navLabel) navLabel.textContent = isBasic ? "Basic Menu" : this.state.complexity === "development" ? "Dev Menu" : "Menu";
+    if(navLabel) navLabel.textContent = isBasic ? t("Basic Menu") : this.state.complexity === "development" ? t("Dev Menu") : t("Menu");
 
-    const items = MENU.filter(x => visible.has(x[0]));
+    // The names in the panel's language (menuWord); x[0] is the id everything else reads.
+    const items = MENU.filter(x => visible.has(x[0])).map(x => [x[0], menuWord(x[1]), x[2]]);
     // A view this build does not show cannot stay current: a Bright install
     // starts on Overview by default and Overview is a presence surface, so it
     // lands on the first surface it does show (Mapping). A ?view= link is
@@ -3748,13 +3766,13 @@ class PadSpanHaApp extends HTMLElement {
     // open now if that is one of them, so the menu always says where you are.
     const _moreTools = (button) => {
       if (!moreItems.length) return;
-      const t = el("button", {
-        class: "navbtn navmore", title: "More tools", "aria-expanded": moreOpen ? "true" : "false",
+      const more = el("button", {
+        class: "navbtn navmore", title: t("More tools"), "aria-expanded": moreOpen ? "true" : "false",
         onclick: () => this._toggleMoreTools()
       });
-      t.innerHTML = '<svg class="navicon navchev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
-      t.appendChild(el("span", { class: "navlabel" }, "More tools"));
-      this.$nav.appendChild(t);
+      more.innerHTML = '<svg class="navicon navchev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+      more.appendChild(el("span", { class: "navlabel" }, t("More tools")));
+      this.$nav.appendChild(more);
       for (const [id, label] of moreItems) {
         if (moreOpen || id === this.state.view) this.$nav.appendChild(button(id, label));
       }
@@ -3817,7 +3835,7 @@ class PadSpanHaApp extends HTMLElement {
       const _heading = (text) => {
         // Basic mode shows six tabs; headings would outnumber the content.
         if (isBasic) return;
-        this.$nav.appendChild(el("div", { class: "navgrp" + (firstHeading ? " first" : "") }, text));
+        this.$nav.appendChild(el("div", { class: "navgrp" + (firstHeading ? " first" : "") }, menuWord(text)));
         firstHeading = false;
       };
       for (const [heading, ids] of MENU_GROUPS) {
@@ -3862,7 +3880,7 @@ class PadSpanHaApp extends HTMLElement {
         const btn = document.createElement("button");
         btn.className = "mobile-bottom-nav-btn" + (isActive ? " active" : "");
         btn.style.cssText = `--navcolor:${color}`;
-        btn.innerHTML = `<span class="bn-dot" style="background:${color}"></span><span>${esc(mi[1])}</span>`;
+        btn.innerHTML = `<span class="bn-dot" style="background:${color}"></span><span>${esc(menuWord(mi[1]))}</span>`;
         btn.addEventListener("click", () => _switchView(pid));
         bottomNav.appendChild(btn);
       }
@@ -3875,7 +3893,7 @@ class PadSpanHaApp extends HTMLElement {
         moreBtn.classList.add("active");
         moreBtn.style.cssText = `--navcolor:${MENU_COLORS[this.state.view] || "#78909c"}`;
       }
-      moreBtn.innerHTML = `<span class="bn-dot" style="background:#78909c"></span><span>More</span>`;
+      moreBtn.innerHTML = `<span class="bn-dot" style="background:#78909c"></span><span>${esc(menuWord("More"))}</span>`;
       moreBtn.addEventListener("click", () => {
         if (this.$("#app").classList.contains("mobile-open")) {
           if (this._closeDrawer) this._closeDrawer();
@@ -3893,25 +3911,27 @@ class PadSpanHaApp extends HTMLElement {
     const mobileTitle = this.shadowRoot.querySelector("#mobileTitle");
     if (mobileTitle) {
       const mi = MENU.find(x => x[0] === this.state.view);
-      mobileTitle.textContent = mi ? mi[1] : this.state.view === "setup" ? "Setup" : UNLISTED_VIEW_TITLES[this.state.view] || "PadSpan";
+      mobileTitle.textContent = menuWord(mi ? mi[1] : this.state.view === "setup" ? "Setup" : UNLISTED_VIEW_TITLES[this.state.view] || "PadSpan");
     }
     this._paintDataModeLabel();
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");
     if (mobileModePill) {
-      mobileModePill.textContent = isBasic ? "Basic" : this.state.complexity === "development" ? "Dev" : "Adv";
+      mobileModePill.textContent = isBasic ? t("Basic") : this.state.complexity === "development" ? t("Dev") : t("Adv");
       mobileModePill.className = "mobile-topbar-pill" + (isBasic ? " basic" : "");
     }
     this._renderSidebarTrial();
   }
 
   /** The panel's own words (t() here and in the views) in hass's language:
-   *  a shipped one fetches i18n/<lang>/panel.json at startup and again when
-   *  the profile's language changes; English fetches nothing. Once it is in
-   *  (or the language goes back to English), the top bar's words and the
-   *  open view are drawn again in it. A string not translated stays English. */
+   *  a shipped one fetches every group but the help, i18n/<lang>/<group>.json
+   *  (scripts/i18n_coverage.py says which screens' words each holds; server
+   *  is the backend's sentences), at startup and again when the profile's
+   *  language changes; English fetches nothing. Once it is in (or the
+   *  language goes back to English), the top bar's words and the open view
+   *  are drawn again in it. A string not translated stays English. */
   _loadPanelLanguage(){
     const req = this._panelLangReq = (this._panelLangReq || 0) + 1;
-    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel"]) : "en").then(got => {
+    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "screens", "health", "devices", "server"]) : "en").then(got => {
       if(req !== this._panelLangReq || got === (this._panelLangShown || "en")) return;
       this._panelLangShown = got;
       if(this.$){ this._paintShellWords(); this._paintDataModeLabel(); }
@@ -3919,13 +3939,24 @@ class PadSpanHaApp extends HTMLElement {
     }).catch(err => console.warn("PadSpan: panel translation failed to load", err));
   }
 
-  /** The top bar's fixed words, in the panel's language (connectedCallback
-   *  writes them first; _loadPanelLanguage again once the language is in). */
+  /** The shell's fixed words, in the panel's language (connectedCallback
+   *  writes them first; _loadPanelLanguage again once the language is in),
+   *  and the menu, badges and top bar that other paints keep. */
   _paintShellWords(){
     const set = (q, text, title) => { const n = this.$(q); if(!n) return; if(text != null) n.textContent = text; if(title != null) n.title = title; };
     set("#dataModeWord", t("Data"), null);
     set("#dataModeToggle", null, t("Toggle sample vs live data"));
     set("#dataModeHelp", null, t("Help: Live and Sample"));
+    set("#refresh", t("Refresh"), null);
+    set("#autodiag", t("Auto Diagnostics"), null);
+    set("#toggleSide", t("Toggle"), null);
+    set("#haSide", null, t("Hide or show Home Assistant's sidebar, on this browser only"));
+    set("#mobileBackBtn", null, t("Back to Home Assistant"));
+    set("#complexityToggle", null, t("Cycle between Basic, Advanced, and Development modes"));
+    set("#complexityHelp", null, t("Help: Basic, Advanced and Development"));
+    this._paintHaSide();
+    this._emergencyListSig = "";   // its Reset / Back to my house again
+    try { if(this.$nav) this._renderNav(); this._updateBadges(); } catch(e){ /* the next paint has them */ }
   }
 
   /** HELP in hass's language, loaded on first need (the first "?" or the
@@ -3962,7 +3993,7 @@ class PadSpanHaApp extends HTMLElement {
   _showHelp(key){
     this._loadHelpLanguage();
     if(this._helpLoad.done || (HELP_MOD && !HELP[key])) return this._openHelp(key);
-    this._openModal("", '<div style="color:#94a3b8;font-size:14px">Loading help…</div>');
+    this._openModal("", `<div style="color:#94a3b8;font-size:14px">${esc(t("Loading help…"))}</div>`);
     const top = () => this.$modal && this.$modal.firstChild;
     let shown = top();   // our modal, until it is closed or another replaces it
     // No such help (help_content.js never loaded): close the loading line, toast.
@@ -3977,7 +4008,7 @@ class PadSpanHaApp extends HTMLElement {
   /** The help modal itself (content from help_content.js). */
   _openHelp(key){
     const h = HELP[key];
-    if(!h){ this._toast("No help entry for: " + key, false); return; }
+    if(!h){ this._toast(t("No help entry for: {key}", { key }), false); return; }
     const body = document.createElement("div");
     body.style.cssText = "line-height:1.75;font-size:14px";
     // A translated page opens with a note: the rest of the panel is English.
@@ -4338,7 +4369,7 @@ class PadSpanHaApp extends HTMLElement {
     const overlay = el("div",{class:"overlay"});
     const panel = el("div",{class:"panel"});
 
-    const closeBtn = el("button",{class:"btn inline close"}, "Close");
+    const closeBtn = el("button",{class:"btn inline close"}, t("Close"));
     closeBtn.addEventListener("click", ()=>this._closeModal());
 
     const head = el("div",{class:"head"},[
@@ -5233,7 +5264,7 @@ class PadSpanHaApp extends HTMLElement {
           if(_bEl) {
             const _r = this.state.live?.snapshot?.suspend_remaining_s ?? 0;
             const _m = Math.floor(_r / 60), _s = _r % 60;
-            _bEl.textContent = "Raw radio only \u00b7 " + (_r > 0 ? `${_m}:${String(_s).padStart(2,"0")} remaining` : "ending soon");
+            _bEl.textContent = _r > 0 ? t("Raw radio only · {time} remaining", { time: `${_m}:${String(_s).padStart(2,"0")}` }) : t("Raw radio only · ending soon");
           }
         }
         if (typeof this.state._isoUpdateObjects === "function") {
@@ -5329,13 +5360,13 @@ class PadSpanHaApp extends HTMLElement {
         banner.style.cssText = "background:#1a0a0a;border:1px solid #7f1d1d;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:flex-start;gap:10px";
         const msg = document.createElement("div");
         msg.style.cssText = "flex:1;font-size:12px;color:#fca5a5;line-height:1.5";
-        msg.innerHTML = "<b style='font-size:13px'>Bluetooth feed unavailable</b><br>"
-          + "PadSpan™ can't see BLE scanners. This usually means Home Assistant needs a <b>full restart</b> "
-          + "(Settings → System → Restart) — a reload isn't enough after first install.";
+        // Plain text through t() (no markup in a translation): the heading, then the sentence.
+        msg.appendChild(el("b", { style: "font-size:13px;display:block" }, t("Bluetooth feed unavailable")));
+        msg.appendChild(document.createTextNode(t("PadSpan™ can't see BLE scanners. This usually means Home Assistant needs a full restart (Settings → System → Restart) — a reload isn't enough after first install.")));
         const dismissBtn = document.createElement("button");
         dismissBtn.className = "btn inline";
         dismissBtn.style.cssText = "padding:2px 8px;font-size:11px;color:#fca5a5;border-color:#7f1d1d;flex-shrink:0";
-        dismissBtn.textContent = "Dismiss";
+        dismissBtn.textContent = t("Dismiss");
         dismissBtn.addEventListener("click", ()=>{ this.state._bleBannerDismissed = true; banner.remove(); });
         banner.appendChild(msg);
         banner.appendChild(dismissBtn);
@@ -5670,10 +5701,10 @@ class PadSpanHaApp extends HTMLElement {
         errDiv.style.cssText = "background:#1a0a0a;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin:16px 0;color:#fca5a5";
         const h = document.createElement("div");
         h.style.cssText = "font-weight:700;font-size:15px;margin-bottom:8px";
-        h.textContent = "UI render error — view: " + this.state.view;
+        h.textContent = t("UI render error — view: {view}", { view: this.state.view });
         const sub = document.createElement("div");
         sub.style.cssText = "font-size:12px;margin-bottom:8px;color:#fca5a5";
-        sub.textContent = "A JavaScript error prevented this view from rendering. Open browser console (F12) for details.";
+        sub.textContent = t("A JavaScript error prevented this view from rendering. Open browser console (F12) for details.");
         const pre = document.createElement("pre");
         pre.style.cssText = "font-size:11px;white-space:pre-wrap;word-break:break-all;background:#0a0000;padding:10px;border-radius:4px;overflow:auto;max-height:300px;color:#f87171";
         pre.textContent = String(e?.stack || e);
@@ -5696,7 +5727,12 @@ class PadSpanHaApp extends HTMLElement {
   /** views/ui_error.js errorText, or the error's own text until that module has loaded. */
   _errorText(e){
     if (UI_ERROR && UI_ERROR.errorText) return UI_ERROR.errorText(e);
-    return (e && typeof e.message === "string" && e.message) || (typeof e === "string" && e) || "Something went wrong. Try again.";
+    return (e && typeof e.message === "string" && e.message) || (typeof e === "string" && e) || t("Something went wrong. Try again.");
+  }
+
+  /** A sentence the backend sent, in the panel's language (views/ui_error.js serverText), or as it came. */
+  _serverText(s){
+    return UI_ERROR && UI_ERROR.serverText ? UI_ERROR.serverText(s) : s;
   }
 
   _toast(msg, isErr=false){

@@ -1898,7 +1898,7 @@ def test_the_heard_question_is_wired_the_same_everywhere():
     panel = (www / "panel.js").read_text(encoding="utf-8")
     settings = (www / "views" / "settings.js").read_text(encoding="utf-8")
     ask = panel[panel.index('if (st && st.telemetry_enabled && st.telemetry_heard_ask === "due" && !st.telemetry_heard) {'):panel.index("// Settings not loaded yet ({} at start)")]
-    assert tuple(re.findall(r'\["([a-z_]+)", "[^"]+"\]', ask)) == T.HEARD_WORDS
+    assert tuple(re.findall(r'\["([a-z_]+)", (?:"[^"]+"|t\("[^"]+"\))\]', ask)) == T.HEARD_WORDS   # labels through t()
     sel = settings[settings.index('const heardSel = el("select"'):settings.index("heardSel.value = ")]
     assert tuple(re.findall(r'\["([a-z_]+)", "[^"]+"\]', sel)) == T.HEARD_WORDS
     assert '["", "Not said"]' in sel

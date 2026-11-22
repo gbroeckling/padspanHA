@@ -21,13 +21,16 @@
  * tests/js/release_notes.mjs drives it.
  */
 
-export const NOTES_TITLE = "What's new in PadSpan HA";
-export const NOTES_CLOSE = "Close";
-export const NOTES_LOADING = "Loading the release notes…";
-export const NOTES_FAILED = "The release notes couldn't be loaded. Refresh the page and try again.";
-export const NOTES_HISTORY = "Full history on padspan.traks.ca";
-export const NOTES_IDEA = "💡 Suggest an idea";
-// GitHub Discussions → Ideas; the same as editions.js IDEAS_NEW_URL (this file imports nothing).
+// The frame's words in the panel's language (views/i18n.js; English is the
+// key). The notes themselves are the CHANGELOG's, in English.
+const { t, currentLanguage } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+export const NOTES_TITLE = () => t("What's new in PadSpan HA");
+export const NOTES_CLOSE = () => t("Close");
+export const NOTES_LOADING = () => t("Loading the release notes…");
+export const NOTES_FAILED = () => t("The release notes couldn't be loaded. Refresh the page and try again.");
+export const NOTES_HISTORY = () => t("Full history on padspan.traks.ca");
+export const NOTES_IDEA = () => t("💡 Suggest an idea");
+// GitHub Discussions → Ideas; the same as editions.js IDEAS_NEW_URL (this file imports only the words).
 export const IDEAS_NEW_URL = "https://github.com/gbroeckling/padspanHA/discussions/new?category=ideas";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
@@ -44,6 +47,14 @@ function node(tag, cls, text) {
 export function formatNoteDate(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
   if (!m || !MONTHS[+m[2] - 1]) return String(iso || "");
+  // Another language: its own way of writing the date, read in UTC (the same day).
+  const lang = currentLanguage();
+  if (lang !== "en") {
+    try {
+      return new Intl.DateTimeFormat(lang, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+        .format(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])));
+    } catch (_) { /* the English below */ }
+  }
   return `${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}`;
 }
 
@@ -141,32 +152,32 @@ export function openReleaseNotes(host, { url, history = null, keys = null } = {}
   const panel = overlay.appendChild(node("div", "panel notes-panel"));
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-modal", "true");
-  panel.setAttribute("aria-label", NOTES_TITLE);
+  panel.setAttribute("aria-label", NOTES_TITLE());
 
   const head = panel.appendChild(node("div", "head notes-head"));
-  head.appendChild(node("div", "title notes-title", NOTES_TITLE));
+  head.appendChild(node("div", "title notes-title", NOTES_TITLE()));
   const x = head.appendChild(node("button", "notes-x", "✕"));
-  x.setAttribute("aria-label", NOTES_CLOSE);
+  x.setAttribute("aria-label", NOTES_CLOSE());
   x.setAttribute("data-notes-close", "x");
 
   const body = panel.appendChild(node("div", "body notes-body"));
-  body.appendChild(node("div", "notes-status", NOTES_LOADING));
+  body.appendChild(node("div", "notes-status", NOTES_LOADING()));
 
   const foot = panel.appendChild(node("div", "notes-foot"));
   if (history) {
-    const a = foot.appendChild(node("a", "notes-history", NOTES_HISTORY));
+    const a = foot.appendChild(node("a", "notes-history", NOTES_HISTORY()));
     a.setAttribute("href", history);
     a.setAttribute("target", "_blank");
     a.setAttribute("rel", "noopener");
     // Suggest an idea, with the history link (never on a wall screen: no links there).
-    const idea = foot.appendChild(node("a", "notes-idea", NOTES_IDEA));
+    const idea = foot.appendChild(node("a", "notes-idea", NOTES_IDEA()));
     idea.setAttribute("href", IDEAS_NEW_URL);
     idea.setAttribute("target", "_blank");
     idea.setAttribute("rel", "noopener");
     idea.setAttribute("style", "margin-left:12px");
-    idea.setAttribute("title", "Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca");
+    idea.setAttribute("title", t("Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca"));
   }
-  const closeBtn = foot.appendChild(node("button", "btn notes-close", NOTES_CLOSE));
+  const closeBtn = foot.appendChild(node("button", "btn notes-close", NOTES_CLOSE()));
   closeBtn.setAttribute("data-notes-close", "button");
 
   let open = true, release = null;
@@ -203,7 +214,7 @@ export function openReleaseNotes(host, { url, history = null, keys = null } = {}
     })
     .catch(err => {
       console.warn("PadSpan: release notes failed to load", err);
-      body.replaceChildren(node("div", "notes-status", NOTES_FAILED));
+      body.replaceChildren(node("div", "notes-status", NOTES_FAILED()));
     });
   return { close, loaded };
 }

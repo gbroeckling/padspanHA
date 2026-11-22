@@ -96,4 +96,4 @@ def test_the_card_names_the_version_for_what_it_is():
     src = _PANEL.read_text(encoding="utf-8")
     card = src[src.index("_whatsNewCard(){"):src.index("_whatsNewCard(){") + 3000]
     assert "This install was on" not in card
-    assert "The last update anyone here looked at was v${seen}" in card
+    assert 't("The last update anyone here looked at was v{seen}. ' in card and "{ seen }" in card   # through t(), the English source

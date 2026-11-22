@@ -218,7 +218,8 @@ def test_the_overview_names_one_place_to_draw_rooms() -> None:
     assert 't("Draw the rooms")' in btn
     assert src.count("_drawRoomsBtn(ctx)") == 3, "the room list and the banner have the button (and its definition)"
     for lang in ("de", "fr", "nl"):
-        data = json.loads((ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "i18n" / lang / "panel.json").read_text(encoding="utf-8"))
+        # The Overview's words are its group's, screens (scripts/i18n_coverage.py GROUPS).
+        data = json.loads((ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "i18n" / lang / "screens.json").read_text(encoding="utf-8"))
         step = data["Draw the rooms"]
         assert step in data["No rooms yet. Draw them in Setup's Draw the rooms step."], (lang, "names the step as Setup shows it")
 

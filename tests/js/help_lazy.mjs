@@ -16,6 +16,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { panelT } from "./panel_t.mjs";
 
 const WWW = process.argv[2];
 const failures = [];
@@ -40,6 +41,9 @@ const src = readFileSync(join(WWW, "panel.js"), "utf-8").replace(/\r\n/g, "\n");
 const cut = (a, b) => { const i = src.indexOf(a); return i < 0 ? "" : src.slice(i, src.indexOf(b, i)); };
 const hassLines = cut("    const langSeen = hass ?", "\n    if(this.state?.settings?.theme_follow_sun");
 const methods = cut("  _loadHelpLanguage(){", "\n  /** The help modal itself");
+// panel.js's esc() and its own t() (tests/js/panel_t.mjs): the loading line is built through them.
+const escSrc = cut("function esc(s){", "\n}\n") + "\n}\n";
+const { t } = panelT(src);
 const trainingLine = 'if(this.state.view === "training" && !this._helpLoad) this._loadHelpLanguage();';
 check("lifted", hassLines && methods.includes("_showHelp(key){") && src.includes(trainingLine));
 
@@ -53,15 +57,16 @@ async function panel(language, view = "overview", { crit = Promise.resolve(), la
   const q = `?b=L${n++}`;
   const I18N = await import(pathToFileURL(join(WWW, "views", "i18n.js")).href + q);
   const HELP_MOD = await import(pathToFileURL(join(WWW, "help_content.js")).href + q);
-  const make = new Function("_i18nPromise", "_criticalPromise", "MOD", "late",
-    `let HELP = late ? {} : MOD.HELP, HELP_MOD = late ? null : MOD;
+  const make = new Function("_i18nPromise", "_criticalPromise", "MOD", "late", "t",
+    `${escSrc}
+     let HELP = late ? {} : MOD.HELP, HELP_MOD = late ? null : MOD;
      if(late === "loads") _criticalPromise = _criticalPromise.then(() => { HELP = MOD.HELP; HELP_MOD = MOD; });
      return { help: () => HELP, cls: class {
        setHass(hass){ this._hass = hass; ${hassLines} }
        renderView(){ ${trainingLine} }
        ${methods}
      } };`);
-  const { help, cls } = make(Promise.resolve(I18N), crit, HELP_MOD, late);
+  const { help, cls } = make(Promise.resolve(I18N), crit, HELP_MOD, late, t);
   const p = new cls();
   p.state = { view };
   p.renders = 0;

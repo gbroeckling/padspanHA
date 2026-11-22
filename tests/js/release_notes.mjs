@@ -138,11 +138,11 @@ await t("open: shown at once over the panel, with ✕ and Close, then the notes"
   const { h, r, overlay } = await open({ history: "https://padspan.traks.ca/?hl=en#whatsnew" });
   assert(!h.classList.contains("hidden"), "host still hidden");
   assert(h.children.length === 1 && overlay.classList.contains("overlay"), "no overlay");
-  assert(q(h, ".notes-title").textContent === N.NOTES_TITLE, "title");
+  assert(q(h, ".notes-title").textContent === N.NOTES_TITLE(), "title");
   const x = q(h, '[data-notes-close="x"]');
   assert(x && x.textContent === "✕" && x.getAttribute("aria-label") === "Close", "✕");
-  assert(q(h, '[data-notes-close="button"]').textContent === N.NOTES_CLOSE, "Close button");
-  assert(q(h, ".notes-status").textContent === N.NOTES_LOADING, "no loading line");
+  assert(q(h, '[data-notes-close="button"]').textContent === N.NOTES_CLOSE(), "Close button");
+  assert(q(h, ".notes-status").textContent === N.NOTES_LOADING(), "no loading line");
   assert(q(h, '[role="dialog"]'), "no dialog role");
   await r.loaded;
   assert(fetched.length === 1 && fetched[0] === "/static/whatsnew.json?v=9.9.9&b=X", "fetched " + JSON.stringify(fetched));
@@ -158,7 +158,7 @@ await t("open: shown at once over the panel, with ✕ and Close, then the notes"
 await t("history link: shown when given, opens the website; left out when not", async () => {
   const a = await open({ history: "https://padspan.traks.ca/?hl=en#whatsnew" });
   const link = q(a.h, "a");
-  assert(link && link.textContent === N.NOTES_HISTORY, "no history link");
+  assert(link && link.textContent === N.NOTES_HISTORY(), "no history link");
   assert(link.getAttribute("href") === "https://padspan.traks.ca/?hl=en#whatsnew" && link.getAttribute("target") === "_blank", "link target");
   a.r.close();
   const b = await open({ history: null });
@@ -216,7 +216,7 @@ for (const [label, res] of [
   await t(`failure: ${label} — says so, still closes`, async () => {
     const o = await open({}, res);
     await o.r.loaded;
-    assert(q(o.h, ".notes-status").textContent === N.NOTES_FAILED, "no failure line: " + o.h.textContent);
+    assert(q(o.h, ".notes-status").textContent === N.NOTES_FAILED(), "no failure line: " + o.h.textContent);
     q(o.h, '[data-notes-close="button"]').click();
     assert(o.h.classList.contains("hidden"), "could not close after a failure");
   });

@@ -29,6 +29,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { install } from "./dom_shim.mjs";
+import { panelT } from "./panel_t.mjs";
 
 const PANEL = process.argv[2];
 if (!PANEL) { console.error("usage: whats_new_card.mjs <panel.js>"); process.exit(2); }
@@ -76,14 +77,16 @@ const milestoneSrc = extract("_trialMilestoneCard", "method");
 const sidebarSrc = extract("_renderSidebarTrial", "method");
 const askSrc = extract("_telemetryAskCard", "method");
 const launchSrc = extract("_launchPriceCard", "method");
+// panel.js's own t() and tn() (tests/js/panel_t.mjs): part of the scope panel.js hands them.
+const { t: panelTr, tn: panelTn } = panelT(readFileSync(PANEL, "utf-8"));
 const TRIAL_REAL = await import(pathToFileURL(join(dirname(PANEL), "views", "trial_offer.js")).href);
 
 function buildAll(EDITIONS, TRIAL = null) {
   // eslint-disable-next-line no-new-func
-  return new Function("APP_VERSION", "EDITIONS", "TRIAL", "_trialPromise", `
+  return new Function("APP_VERSION", "EDITIONS", "TRIAL", "_trialPromise", "t", "tn", `
     ${elSrc}
     return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc}, ${launchSrc} };
-  `)(APP_VERSION, EDITIONS, TRIAL, Promise.resolve());
+  `)(APP_VERSION, EDITIONS, TRIAL, Promise.resolve(), panelTr, panelTn);
 }
 function build(EDITIONS, TRIAL = null) { return buildAll(EDITIONS, TRIAL)._whatsNewCard; }
 

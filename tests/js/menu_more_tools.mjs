@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import * as shim from "./dom_shim.mjs";
+import { panelT } from "./panel_t.mjs";
 
 const WWW = process.argv[2];
 shim.install(globalThis);
@@ -42,13 +43,15 @@ const methods = ["_getVisibleTabs", "_setupInMenu", "_getMainTabs", "_moreToolsO
 // The constructor's ?view= block, as a method.
 const deepLink = cut("      const q = new URLSearchParams(window.location.search);", "\n    } catch(e) { /* ignore */ }");
 
-const make = new Function("EDITIONS", "VIEWS", "_loadView", "SETUP_STATUS",
+// panel.js's own t() (tests/js/panel_t.mjs): the menu's words in English, as the source writes them.
+const { t } = panelT(src);
+const make = new Function("EDITIONS", "VIEWS", "_loadView", "SETUP_STATUS", "t",
   consts + "\nclass P {\n" + methods + "\n_deepLink(){\n" + deepLink + "\n}\n}\n"
   + "return { P, MENU, BASIC_TABS, ADVANCED_DEFAULT, DEV_ONLY_TABS, MENU_GROUPS, _VIEW_PATHS };");
 
 const EDITIONS = { surfacesForEdition: (ids) => ids.slice() };
 const SETUP_STATUS = await import(pathToFileURL(join(WWW, "views", "setup_status.js")).href);
-const { P, MENU, BASIC_TABS, ADVANCED_DEFAULT, DEV_ONLY_TABS, MENU_GROUPS, _VIEW_PATHS } = make(EDITIONS, {}, async () => null, SETUP_STATUS);
+const { P, MENU, BASIC_TABS, ADVANCED_DEFAULT, DEV_ONLY_TABS, MENU_GROUPS, _VIEW_PATHS } = make(EDITIONS, {}, async () => null, SETUP_STATUS, t);
 
 const failures = [];
 const cases = {};

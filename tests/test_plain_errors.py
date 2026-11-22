@@ -115,7 +115,8 @@ def test_the_panels_toasts_show_errors_through_error_text() -> None:
     panel = (WWW / "panel.js").read_text(encoding="utf-8")
     assert "errorText: (e) => self._errorText(e)," in panel
     assert "if (UI_ERROR && UI_ERROR.errorText) return UI_ERROR.errorText(e);" in panel
-    assert 'throw new Error("Home Assistant isn\'t connected yet. Wait a moment and try again.");' in panel
+    # In the panel's language (views/i18n.js t(); English is the key).
+    assert 'throw new Error(t("Home Assistant isn\'t connected yet. Wait a moment and try again."));' in panel
 
 
 @pytest.fixture(scope="module")

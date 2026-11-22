@@ -27,7 +27,7 @@ def test_one_ideas_link_everywhere():
         == "https://github.com/gbroeckling/padspanHA/discussions/new?category=ideas"
     assert _const(ed, "IDEAS_URL").endswith("/discussions/categories/ideas")
     assert _const(ed, "IDEAS_MAIL").startswith("mailto:hello@traks.ca")
-    assert 'node("a", "notes-idea", NOTES_IDEA)' in rn
+    assert 'node("a", "notes-idea", NOTES_IDEA())' in rn   # its words through t() (views/i18n.js)
 
 
 def test_settings_has_the_card_with_all_three_ways():

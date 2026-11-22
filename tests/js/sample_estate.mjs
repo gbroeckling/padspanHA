@@ -27,6 +27,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { install, flush as flushQueued } from "./dom_shim.mjs";
+import { panelT } from "./panel_t.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: sample_estate.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -111,7 +112,9 @@ const __importHouse = () => { houseImports++; return failImport ? Promise.reject
 // storage are its own. The views below share the shim's localStorage, so the
 // main browser is given that one.
 // eslint-disable-next-line no-new-func
-const browser = (store) => new Function("SAMPLE_SNAPSHOT", "__importHouse", "localStorage", `
+// panel.js's own t() and tn() (tests/js/panel_t.mjs): the English source.
+const { t: _t, tn: _tn } = panelT(src);
+const browser = (store) => new Function("SAMPLE_SNAPSHOT", "__importHouse", "localStorage", "t", "tn", `
 const BUILD_ID = "t", APP_VERSION = "0.0.0";
 let _mapImageUrls = {};
 ${KIND}
@@ -130,10 +133,11 @@ return class Panel {
   get mapImageUrls(){ return _mapImageUrls; }
   $(){ return null; }
   _toast(m){ this.toasts.push(String(m)); }
+  _serverText(s){ return s; }   // views/ui_error.js serverText in English: the sentence as sent
   _updateBadges(){} _checkBuild(){} _scheduleRender(){} _applyTheme(){} _applySkin(){} _renderNav(){}
   _countViewLink(){} _startPolling(){} _stopPolling(){} _startDataPoll(){}
 ${bodies}
-}`)(SAMPLE_SNAPSHOT, __importHouse, store);
+}`)(SAMPLE_SNAPSHOT, __importHouse, store, _t, _tn);
 const Panel = browser(globalThis.localStorage);
 
 // ── a real Home Assistant (fake), and its own small house ────────────────────

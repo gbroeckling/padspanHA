@@ -52,8 +52,9 @@ def test_the_skin_before_settings_and_the_waiting_badges_run() -> None:
 def test_the_badges_start_out_waiting_too() -> None:
     # What is in the page before _updateBadges first runs.
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
-    assert '<span class="pill" id="scanBadge">Scan: …</span>' in panel
-    assert '<span class="pill" id="statusBadge">Status: …</span>' in panel
+    # Through t() (views/i18n.js), the English source: "…", no dash.
+    assert '<span class="pill" id="scanBadge">${esc(t("Scan: {s}", { s: "…" }))}</span>' in panel
+    assert '<span class="pill" id="statusBadge">${esc(t("Status: {status}", { status: "…" }))}</span>' in panel
 
 
 def test_the_2025_skin_colours_both_phone_bars_and_classic_keeps_its_own() -> None:

@@ -9,6 +9,8 @@
 // what it was (docked or auto); showing puts that back.
 
 const BEFORE = "padspan_ha_dock_before";
+// The button's words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./views/i18n.js${new URL(import.meta.url).search}`);
 
 /** "docked" | "auto" | "always_hidden", as Home Assistant has it now. */
 export const haDock = (hass) => (hass && hass.dockedSidebar) || "docked";
@@ -17,7 +19,7 @@ export const haDock = (hass) => (hass && hass.dockedSidebar) || "docked";
 export const haHidden = (hass) => haDock(hass) === "always_hidden";
 
 /** The button's word for what it would do. */
-export const haLabel = (hass) => (haHidden(hass) ? "Show HA" : "Hide HA");
+export const haLabel = (hass) => (haHidden(hass) ? t("Show HA") : t("Hide HA"));
 
 /** Hide or show it, from `el` (any element inside the panel); returns the
  *  opt-in report's word for what was done. */

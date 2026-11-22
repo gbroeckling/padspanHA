@@ -11,6 +11,7 @@
 // prints one JSON line: { cases: {name: ok}, failures: [...] }
 
 import { readFileSync } from "node:fs";
+import { panelT } from "./panel_t.mjs";
 
 const PANEL = process.argv[2];
 if (!PANEL) { console.error("usage: polish_shell.mjs <panel.js>"); process.exit(2); }
@@ -32,7 +33,9 @@ function extractMethod(name) {
   }
   throw new Error(`unbalanced braces reading ${name}()`);
 }
-const lift = (name) => new Function("localStorage", "APP_VERSION", "BUILD_ID", `const o = { ${extractMethod(name)} }; return o.${name};`);
+// panel.js's own t() and tn() (tests/js/panel_t.mjs): the English source.
+const { t, tn } = panelT(src);
+const lift = (name) => new Function("localStorage", "APP_VERSION", "BUILD_ID", "t", "tn", `const o = { ${extractMethod(name)} }; return o.${name};`);
 
 // ── The skin ────────────────────────────────────────────────────────────────
 function store(initial = {}) {
@@ -47,7 +50,7 @@ function page(settings) {
 {
   // A first visit: nothing kept, no settings yet. Classic, as it always was.
   const ls = store();
-  const applySkin = lift("_applySkin")(ls, "1.2.3", "b1");
+  const applySkin = lift("_applySkin")(ls, "1.2.3", "b1", t, tn);
   const first = page({});
   applySkin.call(first);
   check("skin: nothing remembered and no settings yet is classic", first._skin === "classic" && first.link.href === null && !("padspan_ui_skin" in ls.kept),
@@ -76,7 +79,7 @@ function page(settings) {
 {
   // No storage at all (blocked, private window): as before, never a throw.
   const broken = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } };
-  const applySkin = lift("_applySkin")(broken, "1", "b");
+  const applySkin = lift("_applySkin")(broken, "1", "b", t, tn);
   const p = page({});
   let threw = null;
   try { applySkin.call(p); p.state.settings = { ui_skin: "2025" }; applySkin.call(p); } catch (e) { threw = String(e); }
@@ -85,7 +88,7 @@ function page(settings) {
 
 // ── The top bar's Scan and Status badges ────────────────────────────────────
 {
-  const updateBadges = lift("_updateBadges")(store(), "1", "b");
+  const updateBadges = lift("_updateBadges")(store(), "1", "b", t, tn);
   const badges = (state) => {
     const els = {};
     const self = new Proxy({ state: { complexity: "advanced", ...state },
