@@ -108,6 +108,23 @@ def _tester_line(hass: HomeAssistant) -> str:
             "Sign up under Help improve PadSpan in PadSpan's Settings.")
 
 
+# How to update, by the store that keeps this copy up to date. It said
+# "Update via HACS" on Marketplace installs too. The store is the usage
+# report's env.store (report_context.install_store), read from Home Assistant
+# itself, so it needs no network; when it can't be read, words that fit both.
+_UPDATE_HOW = {
+    "marketplace": "Update via the Marketplace.",
+    "hacs": "Update via HACS.",
+    "manual": "This copy was installed by hand: update it with padspan_ha.zip from the release.",
+}
+_UPDATE_HOW_EITHER = "Update via the Marketplace or HACS."
+
+
+def _update_how(hass: HomeAssistant) -> str:
+    from .report_context import install_store  # noqa: PLC0415
+    return _UPDATE_HOW.get(install_store(hass), _UPDATE_HOW_EITHER)
+
+
 async def _check(hass: HomeAssistant) -> None:
     if not _enabled(hass):
         return
@@ -146,7 +163,7 @@ async def _check(hass: HomeAssistant) -> None:
         async_create(
             hass,
             f"PadSpan HA {latest_str} is available (you run {VERSION}). "
-            f"Update via HACS. [Release notes]({notes})" + _tester_line(hass),
+            f"{_update_how(hass)} [Release notes]({notes})" + _tester_line(hass),
             title="PadSpan HA update available",
             notification_id="padspan_ha_update_available",
         )
