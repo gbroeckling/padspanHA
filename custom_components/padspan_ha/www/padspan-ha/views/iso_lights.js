@@ -2094,17 +2094,31 @@ export function labelSpots(poly, hw, hh, at, cover, max=1, also=[]){
   if(!Array.isArray(poly) || poly.length<3 || !(hw>0) || !(hh>0)) return [];
   let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
   for(const [x,y] of poly){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
-  const sx=Math.max(1, hw/3), sy=Math.max(1, hh/2), inn=(x,y)=>pointInPolygon(poly,x,y);
-  const mid=[], edge=[];
-  const score=(x,y)=>{
-    if(!inn(x,y)) return;
-    const c=cover(x,y);
-    const out=(inn(x-hw,y)?0:40)+(inn(x+hw,y)?0:40)+(inn(x-hw*2/3,y)?0:20)+(inn(x+hw*2/3,y)?0:20)
-      +(inn(x,y-hh)?0:10)+(inn(x,y+hh)?0:10)+(inn(x-hw,y-hh)?0:8)+(inn(x+hw,y-hh)?0:8)+(inn(x-hw,y+hh)?0:8)+(inn(x+hw,y+hh)?0:8);
-    (inn(x-hw/3,y) && inn(x+hw/3,y) ? mid : edge).push([x, y, c, c+out+Math.hypot(x-at[0], y-at[1])*0.5]);
+  // Inside or not, by a row's crossings (the even-odd rule pointInPolygon uses), each row worked out once.
+  const row=(y)=>{
+    const xs=[];
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const [xi,yi]=poly[i], [xj,yj]=poly[j];
+      if((yi>y)!==(yj>y)) xs.push((xj-xi)*(y-yi)/((yj-yi)||1e-9)+xi);
+    }
+    return xs;
   };
-  for(const [x,y] of also) score(x,y);
-  for(let y=y0+sy/2; y<y1; y+=sy) for(let x=x0+sx/2; x<x1; x+=sx) score(x,y);
+  const inn=(xs,x)=>{ let k=0; for(let i=0;i<xs.length;i++) if(x<xs[i]) k++; return (k&1)===1; };
+  const mid=[], edge=[];
+  const score=(x,y,R,T,B)=>{
+    if(!inn(R,x)) return;
+    const c=cover(x,y);
+    const out=(inn(R,x-hw)?0:40)+(inn(R,x+hw)?0:40)+(inn(R,x-hw*2/3)?0:20)+(inn(R,x+hw*2/3)?0:20)
+      +(inn(T,x)?0:10)+(inn(B,x)?0:10)+(inn(T,x-hw)?0:8)+(inn(T,x+hw)?0:8)+(inn(B,x-hw)?0:8)+(inn(B,x+hw)?0:8);
+    (inn(R,x-hw/3) && inn(R,x+hw/3) ? mid : edge).push([x, y, c, c+out+Math.hypot(x-at[0], y-at[1])*0.5]);
+  };
+  for(const [x,y] of also) score(x, y, row(y), row(y-hh), row(y+hh));
+  const sx=Math.max(1, hw/2), sy=Math.max(1, hh);
+  for(let y=y0+sy/2; y<y1; y+=sy){
+    const R=row(y), T=row(y-hh), B=row(y+hh);
+    if(!R.length) continue;
+    for(let x=x0+sx/2; x<x1; x+=sx) score(x, y, R, T, B);
+  }
   const best=[];
   for(const p of (mid.length ? mid : edge).sort((a,b)=>a[3]-b[3])){
     if(best.length>=max) break;
@@ -5726,15 +5740,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // "LARDER" under a strip light, "LAUNDRY" cut by another): each marker at
     // its real size and turn (a 3 m strip is long, not a dot), its code or live
     // reading, a room's pile of unplaced devices or its chip, and the floor
-    // badge. Circles [x, y, r, w, id] and boxes [x0, y0, x1, y1, w] in the
-    // drawing's units, w how badly each covers a name (labelSpots: LABEL_TEXT,
-    // LABEL_LIT, LABEL_DIM); a strip's run of circles shares one id and covers
-    // a name once. A dimmed marker (the class chips) is a ghost and covers
-    // nothing. A name the plain dodge below leaves under one of them moves to
-    // the best spot in its room (labelSpots).
+    // badge. Capsules [ax, ay, bx, by, r, w] (a segment and how far around
+    // it: a strip is one, a round marker or the badge one with a=b) and boxes
+    // [x0, y0, x1, y1, w] in the drawing's units, w how badly each covers a
+    // name (labelSpots: LABEL_TEXT, LABEL_LIT, LABEL_DIM). A dimmed marker
+    // (the class chips) is a ghost and covers nothing. A name the plain dodge
+    // below leaves under one of them moves to the best spot in its room
+    // (labelSpots).
     const avoidC=[], avoidB=[];
     {
-      let ids=0;
       const box=(x,y,hw,hh)=>avoidB.push([x-hw,y-hh,x+hw,y+hh,LABEL_TEXT]);
       // shapeSvg's half heights (of r); the rest are as tall as they are wide.
       const HALF_H={bar:0.55, line:0.36, sconce:0.65, pendant:1};
@@ -5743,13 +5757,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const rot=l.shape==="perimeter" ? 0 : (Number(entry&&entry.rotation)||0);
         const {wCm,hCm}=l.shape==="perimeter" ? {wCm:0,hCm:0} : fitCm(l,entry);
         const {sx,sy}=markerScale(wCm,hCm,frame.scale,HEX_R);
-        // The body (a perimeter light shows only its trace and code): circles along its long axis.
+        // The body (a perimeter light shows only its trace and code): a capsule along its long axis.
         if(l.shape!=="perimeter"){
           const lit=castsLight(l) && l.state==="on";
           const a=HEX_R*0.866*sx+1.5, b=HEX_R*(HALF_H[l.shape]||0.866)*sy+1.5, r=Math.min(a,b), len=Math.max(a,b)-r;
-          const th=rot*Math.PI/180, ux=a>=b?Math.cos(th):-Math.sin(th), uy=a>=b?Math.sin(th):Math.cos(th);
-          const k=len>0.5 ? Math.ceil(len/(r*0.75)) : 0, id=++ids;
-          for(let i=-k;i<=k;i++){ const t=k?len*i/k:0; avoidC.push([hx+ux*t, hy+uy*t, r, lit?LABEL_LIT:LABEL_DIM, id]); }
+          const th=rot*Math.PI/180, ux=(a>=b?Math.cos(th):-Math.sin(th))*len, uy=(a>=b?Math.sin(th):Math.cos(th))*len;
+          avoidC.push([hx-ux, hy-uy, hx+ux, hy+uy, r, lit?LABEL_LIT:LABEL_DIM]);
         }
         // A live reading (markerSvg's tempLive/humidityLive) is digits on the marker, codes or not.
         const v=l.isTemp ? l.temperature : l.isHumidity ? l.humidity : NaN;
@@ -5791,18 +5804,34 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           box(mx, my+rr+HEX_R+3+pfs*0.9, `${ul.length} unplaced`.length*pfs*0.3, pfs*0.55);
         }
       }
-      avoidC.push([badgeX, badgeY, (SHOW?19:15)+1, LABEL_TEXT, ++ids]);
+      avoidC.push([badgeX, badgeY, badgeX, badgeY, (SHOW?19:15)+1, LABEL_TEXT]);
     }
     // How badly a name centred at (x, y), hw by hh either side, is covered by
-    // the circles C and boxes B (this floor's, or those near one room): the
-    // sum of what it is under, each thing once (a thing's circles run together).
+    // the capsules C and boxes B (this floor's, or those near one room): the
+    // sum of what it is under. A capsule meets the name when its segment
+    // crosses the name's box grown by its radius (a clipped segment).
+    const segMeets=(ax,ay,bx,by,x0,y0,x1,y1)=>{
+      let t0=0, t1=1;
+      const dx=bx-ax, dy=by-ay;
+      const clip=(p,q)=>{
+        if(p===0) return q>=0;
+        const t=q/p;
+        if(p<0){ if(t>t1) return false; if(t>t0) t0=t; }
+        else { if(t<t0) return false; if(t<t1) t1=t; }
+        return true;
+      };
+      return clip(-dx, ax-x0) && clip(dx, x1-ax) && clip(-dy, ay-y0) && clip(dy, y1-ay);
+    };
     const coverOf=(x,y,hw,hh,C=avoidC,B=avoidB)=>{
-      let c=0, last=0;
-      for(const [cx,cy,r,w,id] of C){
-        const dx=Math.max(Math.abs(cx-x)-hw,0), dy=Math.max(Math.abs(cy-y)-hh,0);
-        if(dx*dx+dy*dy<r*r && id!==last){ c+=w; last=id; }
+      let c=0;
+      for(let i=0;i<C.length;i++){
+        const o=C[i], r=o[4];
+        if(segMeets(o[0],o[1],o[2],o[3], x-hw-r, y-hh-r, x+hw+r, y+hh+r)) c+=o[5];
       }
-      for(const [a,b,c2,d,w] of B) if(a<x+hw && c2>x-hw && b<y+hh && d>y-hh) c+=w;
+      for(let i=0;i<B.length;i++){
+        const o=B[i];
+        if(o[0]<x+hw && o[2]>x-hw && o[1]<y+hh && o[3]>y-hh) c+=o[4];
+      }
       return c;
     };
     // Everything from a room's own NAME onward (label, provisional pile,
@@ -5938,7 +5967,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // Only what can reach a name somewhere in this room is looked at, for each spot tried.
         const rx0=Math.min(...ipts.map(q=>q[0]))-nhw, rx1=Math.max(...ipts.map(q=>q[0]))+nhw;
         const ry0=Math.min(...ipts.map(q=>q[1]))-nhh, ry1=Math.max(...ipts.map(q=>q[1]))+nhh;
-        const nearC=avoidC.filter(([x,y,r0])=>x+r0>rx0 && x-r0<rx1 && y+r0>ry0 && y-r0<ry1);
+        const nearC=avoidC.filter(([ax,ay,bx,by,r0])=>Math.max(ax,bx)+r0>rx0 && Math.min(ax,bx)-r0<rx1 && Math.max(ay,by)+r0>ry0 && Math.min(ay,by)-r0<ry1);
         const nearB=avoidB.filter(([a,b,c2,d])=>c2>rx0 && a<rx1 && d>ry0 && b<ry1);
         const cover=(x,y)=>coverOf(x,y,nhw,nhh,nearC,nearB)+(placedLabels.some(p=>Math.abs(p.x-x)<(p.w+rw)/2 && Math.abs(p.y-y)<(p.h+rh)/2)?LABEL_TEXT:0);
         nameCover=cover(lix,liy);
