@@ -285,6 +285,7 @@ const CSS = `
 .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
 @media (max-width:900px){.lv-mapcard.lv-display .la3d{height:calc(100vh - 130px)}}
 @media (max-width:600px){.lv-mapcard.lv-display .la3d{height:calc(100vh - 175px)}}
+@media (max-width:600px){.lv-mapcard.lv-display:not(.lv-wall) > .lv-rail:not(.hidden) ~ .la3d{width:100%;margin-left:0;height:calc(100vh - 219px)}}
 .la3d canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
 .la3d-bar{position:absolute;left:10px;right:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:8px;
   justify-content:space-between;align-items:flex-end;pointer-events:none}
@@ -434,7 +435,8 @@ const CSS_SHOWING = `.lv-legend{display:none}.psc-atlas{display:none}`;
 const COVER_TOP_Z = COVER_Z + 1;
 // With the dial in the corner, ☰ (bring the bars back) sits under it, never
 // beneath it: a tap meant for ☰ must not open, or start, the emergency test.
-const DIAL_CLEAR = 14 + 72 + 12;
+// A clear gap below the dial (12 px crowded it, 2026-11-21), ☰ centred under it.
+const DIAL_CLEAR = 14 + 72 + 20, DIAL_UNDER = 14 + (72 - 40) / 2;
 // A list or menu open over the cover: the banner stays over the map, but not
 // over the list (the list is in the cover's own layer, so the banner can't be
 // put between them): where they overlap, the list's box is cut out of it,
@@ -443,7 +445,7 @@ const coverCss = (c, dial, cut) => `.lv-vacation{z-index:${COVER_TOP_Z}}
 :host([data-la3d-menu]) .lv-mapcard > .lv-vacation.lv-vacation{z-index:${COVER_TOP_Z}${cut ? `;clip-path:${cut}` : ""}}
 .lv-emerg{position:fixed;z-index:${COVER_TOP_Z};top:${Math.round(c.top + 14)}px;right:${Math.round(Math.max(0, (window.innerWidth || 0) - c.left - c.width) + 14)}px}${
   dial ? `
-.la3d .la3d-solo{top:${DIAL_CLEAR}px}` : ""}`;
+.la3d .la3d-solo{top:${DIAL_CLEAR}px;right:${DIAL_UNDER}px}` : ""}`;
 const CSS_PANEL = `.lv-hero > .lv-hint{display:none}
 @media (max-width:600px){.lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
   .lv-emerg-label.on .lv-emerg-label-tx{display:none}.lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}}`;
@@ -721,6 +723,7 @@ function createSlot(slotKey){
   // ☰ brought the bars back (zooming further in hides them again).
   let keepOff = null;                                       // full screen: the page's cards kept in sight
   let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
+  let dialOn = false;                                     // the emergency dial is in the panel (coverCss puts it in the cover's corner)
   // The view about to show afresh (made, or back after Map): on the sidebar
   // (not a wall, not Furnish) its first frame steps the bars aside (openBare).
   let freshShow = true;
@@ -1051,7 +1054,8 @@ function createSlot(slotKey){
     Object.assign(root.style, { left: `${c.left}px`, top: `${c.top}px`, width: `${c.width}px`, height: `${c.height}px` });
     const rn = root.getRootNode ? root.getRootNode() : null, scope = rn && rn.querySelector ? rn : document;
     const vac = menuOpen() ? scope.querySelector(".lv-mapcard > .lv-vacation") : null;
-    if (coverStyle) coverStyle.textContent = coverCss(c, !!scope.querySelector(".lv-emerg"), vac ? cutOut(vac, root.querySelectorAll(".la3d-show, .la3d-menu")) : null);
+    dialOn = !!scope.querySelector(".lv-emerg");
+    if (coverStyle) coverStyle.textContent = coverCss(c, dialOn, vac ? cutOut(vac, root.querySelectorAll(".la3d-show, .la3d-menu")) : null);
   }
   /** `el`'s clip-path with each of `over`'s boxes cut out of it (even-odd), or null when none overlaps it. */
   function cutOut(el, over){
@@ -1728,6 +1732,7 @@ function createSlot(slotKey){
     codes = MARKS ? MARKS.createCodeLayer({ THREE, behind: hidden }) : null;
     motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: hidden,
       dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22, floorAbove,
+      bare: (F, room) => { const i = F.rooms.indexOf(room); return F.bare && i >= 0 ? F.bare[i] : 0; },
       built: () => { if (raisedL) raisedL.forget(); },
       floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles).concat(storeyL ? storeyL.roofs() : []) }) : null;
     storeyL = STOREY ? STOREY.createStoreyLayer({ THREE, lit: (g, spec, c, r) => lit(g, spec, c, r), slabT: HOUSE.SLAB_T,
@@ -1980,6 +1985,17 @@ function createSlot(slotKey){
     o.userData.spec = spec; o.castShadow = cast; o.receiveShadow = recv;
     return o;
   }
+  /** A room's floor tile, on top: the room's colour calmed by k (0: as it is,
+   *  1: a grey as light as it, HOUSE.floorCalm), with the look's floor mixed in
+   *  (the Atlas's look: the floor's own colour with the room's, faintly; the
+   *  Showcase look's mix, Classic 0.38, a deck more); paved, the pavers' grey. */
+  function tileTop(r, paved, k){
+    if (paved) return atlas ? new THREE.Color(atlas.floor).lerp(new THREE.Color(SURF.PAVER_GREY), 0.5) : new THREE.Color(SURF.PAVER_GREY);
+    const c = colorOf(r.color), lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, tm = theme3d ? theme3d.tile : 0.38;
+    c.lerp(new THREE.Color(lum, lum, lum), k);
+    return atlas ? new THREE.Color(atlas.floor).lerp(c, r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
+      : c.lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
+  }
   function buildShell(h){
     clearShell();
     shellGen++; work.shells++;
@@ -2003,30 +2019,32 @@ function createSlot(slotKey){
       floorsUi.push(F);
       // Floor tiles: each room extruded down by its slab — the room's colour
       // on top, the Atlas's beige on the sides — merged into one per floor.
-      const geos = [], paving = [], spans = [];
+      const geos = [], paving = [], spans = [], caps = [];
+      // How much furniture covers each room: a bare floor is calmer (calmFloors).
+      const covers = HOUSE.roomCovers(per.rooms, fl.id, piecesNow(viewData().pieces), h.canonAt, STOREY && STOREY.isStairs);
+      F.bare = covers.map(c => HOUSE.bareness(c));            // and its motion glow fainter (live_aboard_motion.js)
+      F.calmKey = covers.map(c => HOUSE.floorCalm(c).toFixed(2)).join();
       per.rooms.forEach((r, i) => {
         const holes = cuts && cuts.get(fl.id);
         const shapes = (holes ? STOREY.minusAll(r.pts, holes) : [r.pts]).map(P => new THREE.Shape(P.map(p => new THREE.Vector2(p[0], p[1]))));
         const g = new THREE.ExtrudeGeometry(shapes, { depth: HOUSE.SLAB_T, bevelEnabled: false });
         g.rotateX(Math.PI / 2);                              // plan (x, y) -> world (x, ·, y); the extrusion goes down
         g.translate(0, (i % 8) * 0.0005, 0);                 // overlapping hand-drawn rooms must not z-fight
-        const tm = theme3d ? theme3d.tile : 0.38;            // the Showcase look's mix (Classic: 0.38, a deck 0.5)
         // Paved (outdoor_space.js): the tiles' grey (the Atlas's look: half its floor's),
         // and their joints laid over it from the room's own corner (pavingGeometry).
         const paved = !!SURF && SURF.paved(r.outdoor, r.surface);
         if (paved) paving.push(pavingGeometry(shapes, SURF.paverFrame(r.pts)).translate(0, (i % 8) * 0.0005 + 0.002, 0));
-        // The Atlas's look: the floor's own colour with the room's mixed in, faintly.
-        const top = paved ? (atlas ? new THREE.Color(atlas.floor).lerp(new THREE.Color(SURF.PAVER_GREY), 0.5) : new THREE.Color(SURF.PAVER_GREY))
-          : atlas ? new THREE.Color(atlas.floor).lerp(colorOf(r.color), r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
-          : colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
+        const top = tileTop(r, paved, HOUSE.floorCalm(covers[i]));
         const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : atlas ? atlas.side : SLAB_SIDE);
         if (!r.outdoor) { tileSum.r += top.r; tileSum.g += top.g; tileSum.b += top.b; tileSum.n++; }
-        const n = g.attributes.position.count, col = new Float32Array(n * 3);
+        const n = g.attributes.position.count, col = new Float32Array(n * 3), mine = [];
         // Each shape's caps (group 0) the room's colour, its sides the slab's edge (stairs may cut a room in pieces).
         for (const gr of g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }]) {
           const cc = gr.materialIndex === 0 ? top : side;
+          if (gr.materialIndex === 0) mine.push([gr.start, Math.min(n, gr.start + gr.count)]);
           for (let v = gr.start; v < Math.min(n, gr.start + gr.count); v++) { col[v * 3] = cc.r; col[v * 3 + 1] = cc.g; col[v * 3 + 2] = cc.b; }
         }
+        caps.push(paved ? null : mine);
         g.setAttribute("color", new THREE.BufferAttribute(col, 3));
         g.clearGroups();
         geos.push(g);
@@ -2050,6 +2068,7 @@ function createSlot(slotKey){
         if (!merged.index && merged.attributes.position.count === spans.reduce((a, n) => a + n, 0)) {
           let at = 0;
           F.tileSpans = spans.map(n => { const sp = [at, n]; at += n; return sp; });
+          F.caps = caps;                                     // each room's tops in its run (calmFloors)
         }
         // Readable night: an unlit copy of the tiles over them, as clear as
         // the dark is deep (paintNight), so each room keeps its colour.
@@ -3795,6 +3814,31 @@ function createSlot(slotKey){
       F.fadeOf = want;
     }
   }
+  /** Each room's floor as calm as it is bare (HOUSE.floorCalm): the tops of a
+   *  floor's tiles painted again only when what stands in its rooms changed
+   *  (Furnish, the ⋯ list), under a room open's fade. */
+  function calmFloors(pieces){
+    let changed = false;
+    for (const F of floorsUi) {
+      if (!F.tiles) continue;
+      const covers = HOUSE.roomCovers(F.rooms, F.fl.id, pieces, house && house.canonAt, STOREY && STOREY.isStairs);
+      const ks = covers.map(c => HOUSE.floorCalm(c)), key = ks.map(k => k.toFixed(2)).join();
+      if (key === F.calmKey) continue;
+      F.calmKey = key;
+      F.bare = covers.map(c => HOUSE.bareness(c));             // motion's glow reads it on its next sync
+      changed = true;
+      if (!F.caps || !F.tileSpans) continue;
+      const a = F.tiles.geometry.attributes.color, arr = F.tileCols || a.array;
+      F.rooms.forEach((r, i) => {
+        if (!F.caps[i]) return;
+        const c = tileTop(r, false, ks[i]), s0 = F.tileSpans[i][0];
+        for (const [b, e] of F.caps[i]) for (let v = s0 + b; v < s0 + e; v++) { arr[v * 3] = c.r; arr[v * 3 + 1] = c.g; arr[v * 3 + 2] = c.b; }
+      });
+      if (F.tileCols) F.fadeOf = "calm";                     // fadeRooms lays its copy down again, faded as it was
+      a.needsUpdate = true;
+    }
+    if (changed) { fadeRooms(); requestRender(); }
+  }
   /** A floor's tag: its name, and what is on, open and who is there. */
   function tagWords(F, byId){
     const mine = (G) => !!G && (G === F || G.fl.parent === F.fl.id);
@@ -3874,9 +3918,13 @@ function createSlot(slotKey){
     }
     placed.sort((a, b) => b.elev - a.elev);
     const top = bare ? 12 : 66;
+    // Over the map alone the corner is ☰'s and, over it, the emergency dial's (coverCss): a tag there goes below them.
+    const dialHere = cover && dialOn, cornerW = dialHere ? 14 + 72 : bare ? 12 + 40 : 0;
+    const cornerH = Math.max(bare ? (dialHere ? DIAL_CLEAR : 12) + 40 : 0, dialHere ? 14 + 72 : 0);
     for (let i = 0; i < placed.length; i++) {
       const p = placed[i], above = placed[i - 1];
       p.y = Math.max(p.y, top + p.T.h / 2);
+      if (cornerW && p.x + p.T.w > W - cornerW - 6) p.y = Math.max(p.y, cornerH + 6 + p.T.h / 2);
       if (above) p.y = Math.max(p.y, above.y + (above.T.h + p.T.h) / 2 + 6);
       const at = `translate(${Math.round(p.x)}px, ${Math.round(p.y - p.T.h / 2)}px)`;
       if (at !== p.T.at) { p.T.at = at; p.T.el.style.transform = at; }
@@ -6277,6 +6325,7 @@ function createSlot(slotKey){
     }
     // Furniture (P2): each piece on its floor, from the draft while editing.
     if (layer && layer.sync(piecesNow(vd.pieces), rebuilt)) requestRender();
+    calmFloors(piecesNow(vd.pieces));
     syncDevices(p, vd);
     if (motionL && motionL.show && motionL.show(motionShow())) requestRender();
     syncTracked(p, vd, rebuilt);
@@ -6466,6 +6515,12 @@ function createSlot(slotKey){
                                                                        covered: !!l.userData.covered, px: l.userData.px,
                                                                        onTop: !l.material.depthTest && l.renderOrder >= 30, upright: !!l.isSprite,
                                                                        ext: l.userData.ext, aspect: l.userData.aspect }))),
+               // Each room's floor as built (before a room open's fade): its top's colour, how calm (calmFloors).
+               floorTops: floorsUi.flatMap(F => (F.caps && F.tileSpans ? F.rooms.map((r, i) => {
+                 const c = F.caps[i], a = F.tileCols || F.tiles.geometry.attributes.color.array, v = c && c[0] ? (F.tileSpans[i][0] + c[0][0]) * 3 : -1;
+                 return { room: r.name, floor: F.fl.id, top: v < 0 ? null : "#" + _c.setRGB(a[v], a[v + 1], a[v + 2]).getHexString(),
+                          calm: Number((F.calmKey || "").split(",")[i]) };
+               }) : [])),
                chips: chips.map(C => ({ room: C.room ? C.room.name : null, text: C.text, eids: C.sensors.map(S => S.eid),
                                         shown: C.F.group.visible && C.sprite.visible, opacity: C.sprite.material.opacity })),
                // Labels by zoom level: the level, the room open, the floors' tags, the floors' tiles faded or not, Explode.

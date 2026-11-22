@@ -2076,6 +2076,57 @@ export function pointInPolygon(pts, x, y){
   return inside;
 }
 
+// Where a room's name reads best (the owner, 2026-11-21: "LARDER" under a
+// strip light, "WALK-IN CLOSET" under a person's badge). poly is the room as
+// drawn, hw and hh the name's half width and half height, at its own spot,
+// cover(x, y) how badly a name centred there would be covered: 0 not at all,
+// LABEL_DIM for each unlit fixture over it, LABEL_LIT for each lit one,
+// LABEL_TEXT for text (a code, the floor badge, another name), which no name
+// can be read through. The spots tried are a grid over the room and `also`,
+// and the middle third of the name is always inside the room (only a room
+// too small for that takes a spot whose middle is inside). Each is scored by
+// its cover, then how much of the name hangs past the room's edge, then how
+// far it is from `at`. The best `max`, each a half name or more from the others, best first,
+// each [x, y, its cover]: the first is where the name goes, the rest where
+// it can go when someone walks over it.
+export const LABEL_TEXT=1000, LABEL_LIT=150, LABEL_DIM=30;
+export function labelSpots(poly, hw, hh, at, cover, max=1, also=[]){
+  if(!Array.isArray(poly) || poly.length<3 || !(hw>0) || !(hh>0)) return [];
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  for(const [x,y] of poly){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  // Inside or not, by a row's crossings (the even-odd rule pointInPolygon uses), each row worked out once.
+  const row=(y)=>{
+    const xs=[];
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const [xi,yi]=poly[i], [xj,yj]=poly[j];
+      if((yi>y)!==(yj>y)) xs.push((xj-xi)*(y-yi)/((yj-yi)||1e-9)+xi);
+    }
+    return xs;
+  };
+  const inn=(xs,x)=>{ let k=0; for(let i=0;i<xs.length;i++) if(x<xs[i]) k++; return (k&1)===1; };
+  const mid=[], edge=[];
+  const score=(x,y,R,T,B)=>{
+    if(!inn(R,x)) return;
+    const c=cover(x,y);
+    const out=(inn(R,x-hw)?0:40)+(inn(R,x+hw)?0:40)+(inn(R,x-hw*2/3)?0:20)+(inn(R,x+hw*2/3)?0:20)
+      +(inn(T,x)?0:10)+(inn(B,x)?0:10)+(inn(T,x-hw)?0:8)+(inn(T,x+hw)?0:8)+(inn(B,x-hw)?0:8)+(inn(B,x+hw)?0:8);
+    (inn(R,x-hw/3) && inn(R,x+hw/3) ? mid : edge).push([x, y, c, c+out+Math.hypot(x-at[0], y-at[1])*0.5]);
+  };
+  for(const [x,y] of also) score(x, y, row(y), row(y-hh), row(y+hh));
+  const sx=Math.max(1, hw/2), sy=Math.max(1, hh);
+  for(let y=y0+sy/2; y<y1; y+=sy){
+    const R=row(y), T=row(y-hh), B=row(y+hh);
+    if(!R.length) continue;
+    for(let x=x0+sx/2; x<x1; x+=sx) score(x, y, R, T, B);
+  }
+  const best=[];
+  for(const p of (mid.length ? mid : edge).sort((a,b)=>a[3]-b[3])){
+    if(best.length>=max) break;
+    if(best.every(q=>Math.abs(q[0]-p[0])>=hw || Math.abs(q[1]-p[1])>=hh)) best.push([+p[0].toFixed(1), +p[1].toFixed(1), p[2]]);
+  }
+  return best;
+}
+
 // Which interaction class a device belongs to on the map. Four classes, not
 // four domains: a strip (WLED or partition) is a light with more to offer,
 // and the layer chips, the halo and the tap semantics all key off this.
@@ -2739,6 +2790,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // for all devices"). Opt-in so the household surface's markup is unchanged.
   const BARRIER_HIT = !!opts.barrierHit;
   const COLLAPSE  = !!opts.collapseUnplaced;
+  // labelSpots: a Map this drawing fills, `${z}|${room}` -> {spots, ink}: the
+  //   spots each room name can step to (its own first) and its letters' half
+  //   size, for the people layer (atlas_aboard.js clearNames) to move a name a
+  //   person's badge or a tag's name lands on. The markup is the same either way.
+  const NAME_SPOTS = opts.labelSpots instanceof Map ? opts.labelSpots : null;
   // Automorph (2026-09-07): 0 disables it outright — see
   // automorphAuraSvg/automorphRing below, near perimeterSvg.
   const AUTOMORPH_PCT = opts.automorph ? Math.max(0, Math.min(100, Number(opts.automorphRoomPct) || 0)) : 0;
@@ -3809,6 +3865,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
     const TR_b=slabDown(TR), BR_b=slabDown(BR), BL_b=slabDown(BL);
+    // Where this floor's badge stands (drawn after the markers, below).
+    const badgeX=opts.hugX ? Math.max(viewX0+18, Math.min(viewX1-18, Math.round(BL[0]))) : Math.max(18, Math.min(W-18, Math.round(BL[0])));
+    const badgeY=Math.round(BL[1]);
 
     // One gloss ramp per FLOOR for the Automorph aura's gloss FILL (the
     // rim is per-shape by design — see psglossrim in the aura defs):
@@ -5677,6 +5736,104 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const jobs=[];
     // Collapsed piles of unplaced devices (use-mode), flushed with the markers.
     const stacks=[];
+    // What this floor paints OVER its room names (the owner, 2026-11-21:
+    // "LARDER" under a strip light, "LAUNDRY" cut by another): each marker at
+    // its real size and turn (a 3 m strip is long, not a dot), its code or live
+    // reading, a room's pile of unplaced devices or its chip, and the floor
+    // badge. Capsules [ax, ay, bx, by, r, w] (a segment and how far around
+    // it: a strip is one, a round marker or the badge one with a=b) and boxes
+    // [x0, y0, x1, y1, w] in the drawing's units, w how badly each covers a
+    // name (labelSpots: LABEL_TEXT, LABEL_LIT, LABEL_DIM). A dimmed marker
+    // (the class chips) is a ghost and covers nothing. A name the plain dodge
+    // below leaves under one of them moves to the best spot in its room
+    // (labelSpots).
+    const avoidC=[], avoidB=[];
+    {
+      const box=(x,y,hw,hh)=>avoidB.push([x-hw,y-hh,x+hw,y+hh,LABEL_TEXT]);
+      // shapeSvg's half heights (of r); the rest are as tall as they are wide.
+      const HALF_H={bar:0.55, line:0.36, sconce:0.65, pendant:1};
+      const marker=(l,hx,hy,entry)=>{
+        if(!l || dimmed(l)) return;
+        const rot=l.shape==="perimeter" ? 0 : (Number(entry&&entry.rotation)||0);
+        const {wCm,hCm}=l.shape==="perimeter" ? {wCm:0,hCm:0} : fitCm(l,entry);
+        const {sx,sy}=markerScale(wCm,hCm,frame.scale,HEX_R);
+        // The body (a perimeter light shows only its trace and code): a capsule along its long axis.
+        if(l.shape!=="perimeter"){
+          const lit=castsLight(l) && l.state==="on";
+          const a=HEX_R*0.866*sx+1.5, b=HEX_R*(HALF_H[l.shape]||0.866)*sy+1.5, r=Math.min(a,b), len=Math.max(a,b)-r;
+          const th=rot*Math.PI/180, ux=(a>=b?Math.cos(th):-Math.sin(th))*len, uy=(a>=b?Math.sin(th):Math.cos(th))*len;
+          avoidC.push([hx-ux, hy-uy, hx+ux, hy+uy, r, lit?LABEL_LIT:LABEL_DIM]);
+        }
+        // A live reading (markerSvg's tempLive/humidityLive) is digits on the marker, codes or not.
+        const v=l.isTemp ? l.temperature : l.isHumidity ? l.humidity : NaN;
+        const age=(l.isTemp||l.isHumidity) && l.last_changed ? NOW_MS-Date.parse(l.last_changed) : NaN;
+        if(entry && Number.isFinite(v) && age>=0 && age<TEMP_FRESH_MS){
+          box(hx, hy, String(l.isTemp ? v : `${v}%`).length*TEMP_DIGIT_PX*0.32+1, TEMP_DIGIT_PX*0.45);
+          return;
+        }
+        if(HIDECODES || !l.code) return;
+        const n=String(l.code).length;
+        if(CODECHIP){
+          // The chip under the glyph, between HEX_R and its drawn height below it (markerSvg's chipGap).
+          const fs=CODE_PX*0.92, w=n*fs*0.64+fs*0.9, h=fs*1.5;
+          const th=rot*Math.PI/180, tall=Math.max(1, Math.abs(sx*Math.sin(th))+Math.abs(sy*Math.cos(th)));
+          const lo=l.shape==="perimeter" ? 0 : HEX_R, hi=l.shape==="perimeter" ? 0 : Math.max(HEX_R, HEX_R*tall*1.15);
+          avoidB.push([hx-w/2, hy+lo+fs*0.45-h/2, hx+w/2, hy+hi+fs*0.45+h/2, LABEL_TEXT]);
+        } else if(SHOW && l.shape!=="perimeter"){
+          const fs=CODE_PX*0.92;
+          box(hx, hy+HEX_R*1.55+CODE_PX*0.45, n*fs*0.33+1, fs*0.55);
+        } else box(hx, hy, n*CODE_PX*0.31+1, CODE_PX*0.55);
+      };
+      for(const pl of hereLights) if(!hiddenEids.has(pl.eid)){ const [hx,hy]=iso(pl.x,pl.y,z); marker(lightsByEid[pl.eid], hx, hy, pl.lp); }
+      // A room's unplaced devices, at its middle (the name's job below draws them).
+      if(!lightsLoading) for(const r of hereRooms){
+        const ul=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id] && !l.isDoor);
+        if(!ul.length) continue;
+        const [mx,my]=iso(r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length, r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length, z);
+        if(COLLAPSE){
+          const fs=Math.max(5.5, CODE_PX*1.05);
+          box(mx, my, (`${ul.length} unplaced`.length*fs*0.58+fs*2.4)/2, fs*1.05);
+          continue;
+        }
+        const off=hexCluster(ul.length, HEX_R);
+        ul.forEach((l,i)=>marker(l, mx+off[i][0], my+off[i][1], null));
+        if(!SHOW && !HIDECODES){
+          let rr=0;
+          for(const [dx,dy] of off) rr=Math.max(rr, Math.hypot(dx,dy));
+          const pfs=Math.max(4.5, CODE_PX*0.85);
+          box(mx, my+rr+HEX_R+3+pfs*0.9, `${ul.length} unplaced`.length*pfs*0.3, pfs*0.55);
+        }
+      }
+      avoidC.push([badgeX, badgeY, badgeX, badgeY, (SHOW?19:15)+1, LABEL_TEXT]);
+    }
+    // How badly a name centred at (x, y), hw by hh either side, is covered by
+    // the capsules C and boxes B (this floor's, or those near one room): the
+    // sum of what it is under. A capsule meets the name when its segment
+    // crosses the name's box grown by its radius (a clipped segment).
+    const segMeets=(ax,ay,bx,by,x0,y0,x1,y1)=>{
+      let t0=0, t1=1;
+      const dx=bx-ax, dy=by-ay;
+      const clip=(p,q)=>{
+        if(p===0) return q>=0;
+        const t=q/p;
+        if(p<0){ if(t>t1) return false; if(t>t0) t0=t; }
+        else { if(t<t0) return false; if(t<t1) t1=t; }
+        return true;
+      };
+      return clip(-dx, ax-x0) && clip(dx, x1-ax) && clip(-dy, ay-y0) && clip(dy, y1-ay);
+    };
+    const coverOf=(x,y,hw,hh,C=avoidC,B=avoidB)=>{
+      let c=0;
+      for(let i=0;i<C.length;i++){
+        const o=C[i], r=o[4];
+        if(segMeets(o[0],o[1],o[2],o[3], x-hw-r, y-hh-r, x+hw+r, y+hh+r)) c+=o[5];
+      }
+      for(let i=0;i<B.length;i++){
+        const o=B[i];
+        if(o[0]<x+hw && o[2]>x-hw && o[1]<y+hh && o[3]>y-hh) c+=o[4];
+      }
+      return c;
+    };
     // Everything from a room's own NAME onward (label, provisional pile,
     // unplaced count) is deferred the same way, into its own pass run only
     // after every room's polygon on this floor is drawn (2026-09-07:
@@ -5687,6 +5844,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // boundary line on the floor, always, the same way markers already paint
     // over every room.
     const labelJobs=[];
+    // Room names drawn over this floor's markers (see the name's job).
+    const namesOver=[];
     // Every room name already placed on this floor (centre + footprint), so
     // the next one can step out of ITS way too — see the collision check
     // in the room loop below.
@@ -5744,6 +5903,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         ? Math.max(MIN_RFS, rfsBase*(roomIsoW*FIT_MARGIN)/naturalW)
         : rfsBase;
       const rw=rtxt.length*rfs*(SHOW?0.78:0.6)+10, rh=rfs*1.9;
+      // How badly the name's own spot is covered (see below).
+      let nameCover=0;
       // ...and if a fixture happens to sit on that spot anyway, the name steps
       // up out of the way rather than being drawn through. The halo keeps it
       // readable once it crosses the room's own edge.
@@ -5796,6 +5957,31 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           lix=ccx+(topIx[0]-ccx)*blendFrac;
           liy=ccy+(topIx[1]-ccy)*blendFrac;
         }
+        // ...then out from under what that dodge cannot see (avoidC/avoidB
+        // above: a long strip, a code, the floor badge) or another name:
+        // still covered, the name goes to the best spot in its room
+        // (labelSpots), its own spot among them. Its ink, not its tap box:
+        // the letters as wide as this theme sets them.
+        const ls=SHOW ? (parseFloat(THEME.roomLabelLetterSpacing)||0) : 0;
+        const nhw=String(r.room).length*rfs*((SHOW&&THEME.roomLabelUppercase?0.68:0.56)+ls)/2+1, nhh=rfs*0.55;
+        // Only what can reach a name somewhere in this room is looked at, for each spot tried.
+        const rx0=Math.min(...ipts.map(q=>q[0]))-nhw, rx1=Math.max(...ipts.map(q=>q[0]))+nhw;
+        const ry0=Math.min(...ipts.map(q=>q[1]))-nhh, ry1=Math.max(...ipts.map(q=>q[1]))+nhh;
+        const nearC=avoidC.filter(([ax,ay,bx,by,r0])=>Math.max(ax,bx)+r0>rx0 && Math.min(ax,bx)-r0<rx1 && Math.max(ay,by)+r0>ry0 && Math.min(ay,by)-r0<ry1);
+        const nearB=avoidB.filter(([a,b,c2,d])=>c2>rx0 && a<rx1 && d>ry0 && b<ry1);
+        const cover=(x,y)=>coverOf(x,y,nhw,nhh,nearC,nearB)+(placedLabels.some(p=>Math.abs(p.x-x)<(p.w+rw)/2 && Math.abs(p.y-y)<(p.h+rh)/2)?LABEL_TEXT:0);
+        nameCover=cover(lix,liy);
+        if(nameCover>0 || NAME_SPOTS){
+          const best=labelSpots(ipts, nhw, nhh, [ccx+(topIx[0]-ccx)*TOP_BLEND, ccy+(topIx[1]-ccy)*TOP_BLEND], cover, NAME_SPOTS?11:1, [[lix,liy]]);
+          if(nameCover>0 && best.length) [lix,liy,nameCover]=best[0];
+          // Where the people layer may move it: its spot first, then the others it reads at (drawn over the
+          // markers, below, a name reads anywhere but under text; under them, nowhere under a lit fixture).
+          if(NAME_SPOTS){
+            const reads=nameCover>0 ? LABEL_TEXT : LABEL_LIT;
+            NAME_SPOTS.set(`${z}|${r.room}`, { ink:[nhw, nhh], spots:[[+lix.toFixed(1), +liy.toFixed(1)],
+              ...best.filter(([x,y,c])=>c<reads && (Math.abs(x-lix)>=nhw || Math.abs(y-liy)>=nhh)).map(([x,y])=>[x,y])].slice(0,10) });
+          }
+        }
         placedLabels.push({x:lix, y:liy, w:rw, h:rh});
       }
       // A paved room is filled with its tiles (paveIds), half strength on the dark
@@ -5837,12 +6023,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // much space" and needs to stay "somewhat transparent" over whatever
         // it crosses) — a thinner halo and a lower opacity so a marker or
         // boundary line underneath still reads through it.
-        s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
+        const nameTxt=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
           `fill="${color}" font-size="${rfs.toFixed(2)}" font-family="system-ui,sans-serif" font-weight="600" `+
           (SHOW?`letter-spacing="${THEME.roomLabelLetterSpacing}" `:``)+
           `paint-order="stroke" stroke="#071008" stroke-width="1.8" stroke-linejoin="round" `+
           `opacity="${SHOW?THEME.roomLabelOpacity:"0.78"}" pointer-events="none">`+
-          `${escSVG(SHOW?(THEME.roomLabelUppercase?String(r.room).toUpperCase():String(r.room)):r.room)}</text></g>`;
+          `${escSVG(SHOW?(THEME.roomLabelUppercase?String(r.room).toUpperCase():String(r.room)):r.room)}</text>`;
+        // A room so full that no spot in it is clear (a small larder between
+        // two strips, a closet its own strip runs the length of): its name is
+        // drawn over the markers instead (namesOver), its halo keeping it
+        // readable. Only the letters: the tap box stays here, under the
+        // markers, so each still takes its tap.
+        if(nameCover>0){
+          s+=`</g>`;
+          namesOver.push(`<g class="lroom-name" data-room="${escSVG(r.room)}" data-z="${z}" pointer-events="none">${nameTxt}</g>`);
+        } else s+=nameTxt+`</g>`;
         // Room assignment isn't known yet (registry still loading) — show a
         // single pulsing placeholder instead of blocking the whole map on
         // a multi-MB registry fetch; real hexes replace it once it lands.
@@ -6597,6 +6792,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // chip's matching clamp inside markerSvg.
     jobs.forEach((j,i)=>{ s+=markerSvg(j[0], j[1], j[2], j[3], j[4], !!j[7], nearestDist[i], j[8]); });
     for(const st of stacks) s+=stackChipSvg(...st);
+    for(const t of namesOver) s+=t;
     if(!isFocused) s+=`</g>`+overGhost;
 
     // Floor level badge
@@ -6606,9 +6802,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // It is a TAP TARGET too (data-role="floor"): the sidebar's floor sheet —
     // everything on this storey, all off — hangs off it.
     // On a wall (opts.hugX) the box is the house's own, and the badge stands at its floor's corner inside it. Elsewhere
-    // it keeps to the old 760 canvas, as it always has.
-    const badgeX=opts.hugX ? Math.max(viewX0+18, Math.min(viewX1-18, Math.round(BL[0]))) : Math.max(18, Math.min(W-18, Math.round(BL[0])));
-    const badgeY=Math.round(BL[1]);
+    // it keeps to the old 760 canvas, as it always has. (badgeX/badgeY: worked out with the slab, above, so the room
+    // names can keep clear of it.)
     // pointer-events="all" here is belt-and-suspenders, not the fix itself
     // (the floorslab group this used to sit inside, above, is what actually
     // made it inert) — every real hit-target primitive in this file sets

@@ -120,6 +120,9 @@ export async function startDemo(page){
   const figures = Object.fromEntries(WALKERS.filter(w => w.figure).map(w => [w.person, { params: clone(w.figure), origin: "build" }]));
   // The estate comes furnished, with its stairs (Furnish's own pieces).
   let house3d = { schema: 1, pieces: clone((house.HOUSE3D && house.HOUSE3D.pieces) || {}), lights: {}, openings: {}, devices: {}, figures, library: {} };
+  // ?bare=1: the same house with its furniture taken out (the stairs stay), as
+  // most houses are before Furnish: how its bare rooms look.
+  if (q.get("bare") === "1") for (const [k, v] of Object.entries(house3d.pieces)) if (!(v.recipe && v.recipe.kind === "stairs")) delete house3d.pieces[k];
 
   // ?at=: start everyone that many seconds along their walk (a picture of a given moment).
   const t0 = Date.now() - 1000 * Math.max(0, Number(q.get("at")) || 0);
@@ -178,8 +181,15 @@ export async function startDemo(page){
   // the snapshot places, the tag seen and not counted, motion where they are.
   const occupancy = () => occupancyOf(snapshot().objects.list, WALKERS, states, MOTION);
 
+  // ?emergency=1: the Atlas's Test emergency lighting button (emergency_test.py's
+  // status), a few of the house's lights as the emergency lights, no test running.
+  const EMERGENCY = q.get("emergency") === "1" ? Object.keys(states).filter(e => e.startsWith("light.")).slice(0, 3) : [];
   const route = async (m) => {
     switch (m.type) {
+      case "padspan_ha/emergency_status":
+        return { available: EMERGENCY.length > 0, source: "settings", groups: [], pending_off: [], emergency_ran: [],
+                 members: EMERGENCY.map(e => ({ entity_id: e, name: states[e].attributes.friendly_name || e, state: states[e].state })),
+                 test: { active: false, started_at: null, kept_on: [], manual: [] } };
       case "padspan_ha/settings_get": return { settings: clone(settings), cpu_pinning_supported: false };
       case "padspan_ha/settings_set": { const { type, id, ...rest } = m; Object.assign(settings, rest); return { settings: clone(settings) }; }
       case "padspan_ha/version": return built.version;

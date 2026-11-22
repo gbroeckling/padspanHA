@@ -591,6 +591,38 @@ export function roomAt(rooms, x, y){
   for (const r of rooms) if (inPoly(x, y, r.pts)) return r;
   return null;
 }
+// A room's floor takes its colour (which room it is) toward a grey as light
+// as itself: a little under furniture, most where nothing stands (most rooms
+// of a house before Furnish): a bare floor of flat colour reads as a carpet
+// and outshouts the light's glow and motion's drawn over it. How much the
+// room's pieces cover, their footprints over its area, sets how bare it is
+// (covered: this much or more is furnished).
+export const FLOOR_CALM = Object.freeze({ bare: 0.7, furnished: 0.3, covered: 0.25 });
+/** How bare a room is (1: nothing stands in it, 0: furnished) for how much of it furniture covers (0..1). */
+export function bareness(cover){
+  return 1 - clamp((num(cover) ?? 0) / FLOOR_CALM.covered, 0, 1);
+}
+/** How calm its floor is (0: its room's colour, 1: grey) for how much of it furniture covers (0..1). */
+export function floorCalm(cover){
+  return FLOOR_CALM.furnished + (FLOOR_CALM.bare - FLOOR_CALM.furnished) * bareness(cover);
+}
+/** How much of each room furniture covers (0..1), in the rooms' order. pieces:
+ *  the 3D file's {id: piece} as drawn; a piece is in a room of floor `fid`
+ *  when it stands there (at(floor_id, x, y): the floor it is drawn on, a split
+ *  level's own); stairs (isStairs) are not furniture. */
+export function roomCovers(rooms, fid, pieces, at, isStairs){
+  const list = rooms || [], sum = list.map(() => 0);
+  for (const p of Object.values(pieces || {})) {
+    if (!p || (isStairs && isStairs(p))) continue;
+    const x = num(p.x_m), y = num(p.y_m), r = p.recipe || {};
+    if (x === null || y === null) continue;
+    const f = String(p.floor_id || "main");
+    if (String(at ? at(f, x, y) : f) !== String(fid)) continue;
+    const i = list.indexOf(roomAt(list, x, y));
+    if (i >= 0) sum[i] += clamp(num(r.width_m) ?? 0.5, 0, 8) * clamp(num(r.depth_m) ?? 0.5, 0, 8);
+  }
+  return list.map((rm, i) => { const a = Math.abs(signedArea(rm.pts || [])); return a > 0 ? clamp(sum[i] / a, 0, 1) : 0; });
+}
 /** How high the space is over (x, y) on `floor`, in metres above it: the
  *  indoor room there's own height (a tall room's ceiling), else the floor's.
  *  Without room heights this is always the floor's, so nothing moves. */

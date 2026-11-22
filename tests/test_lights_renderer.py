@@ -6057,7 +6057,12 @@ def test_room_labels_step_out_of_each_others_way(tmp_path):
     rooms whose names land on the same row, each checked against fixtures
     only, never against the other's name. Two tiny rooms staggered along
     the isometric u-axis (same top-edge y, ~40px apart) beside a big room
-    that sets the scale: the second name must step up off the first."""
+    that sets the scale. Their names' own spots collide; the second one
+    placed must end up clear of the first, without leaving its own room
+    (2026-09-12 audit, live: a full step on a small room like this put the
+    name back outside it). Since 2026-11-21 a name still covered after the
+    small step up goes to the best spot in its room (iso_lights.js
+    labelSpots), which may be beside the first name rather than above it."""
     model = {
         "room_geometry_m": {
             "Big":          {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [30, 0], [30, 20], [0, 20]]},
@@ -6068,18 +6073,20 @@ def test_room_labels_step_out_of_each_others_way(tmp_path):
     }
     a = _room_label_y(tmp_path, model, {}, "Bedroom Bath")
     b = _room_label_y(tmp_path, model, {}, "Powder Room")
-    # Their boxes genuinely collide on the same row (the bug's precondition)...
-    assert abs((a["x"] + a["w"] / 2) - (b["x"] + b["w"] / 2)) < (a["w"] + b["w"]) / 2, (a, b)
-    # ...so the second one placed must have stepped up off the first — but
-    # "Powder Room" here is tiny (1.5m x 1m), too small to clear a full 13px
-    # step without leaving its own room entirely, so the step is capped
-    # short of 13px rather than skipped outright (2026-09-12 audit, live: a
-    # full step on a small room like this put the name back outside it,
-    # right after the base-position fix had just put it inside).
-    assert 0 < a["y"] - b["y"] < 13, (
-        f"the second name must step up, but capped before a full 13px step "
-        f"would carry it outside its own tiny room: a={a} b={b}"
-    )
+    # Clear of each other now: their tap boxes no longer overlap.
+    apart_x = abs((a["x"] + a["w"] / 2) - (b["x"] + b["w"] / 2)) >= (a["w"] + b["w"]) / 2
+    apart_y = abs((a["y"] + a["h"] / 2) - (b["y"] + b["h"] / 2)) >= (a["h"] + b["h"]) / 2
+    assert apart_x or apart_y, f"the second name must end up clear of the first: a={a} b={b}"
+    # ...and still in its own tiny room: its middle inside the room as drawn.
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        "const frame=M.fabricFrame(MODEL, FLOORS, 150, 0);\n"
+        f"const [mx,my]=frame.isoInv({b['x'] + b['w'] / 2},{b['y'] + b['h'] / 2},frame.levelOf('main'));\n"
+        "console.log(JSON.stringify({inside: M.pointInPolygon(MODEL.room_geometry_m['Powder Room'].points_m, mx, my), mx, my}));\n"
+    ))
+    assert out["inside"], f"the second name must stay in its own room: {out} b={b}"
 
 
 def test_room_label_always_lands_inside_its_own_room_polygon(tmp_path):

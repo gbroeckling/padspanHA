@@ -348,9 +348,11 @@ await tryCase("alone: rain keeps matching the drawing on a narrow screen; ☰ go
   const css = c._all().filter(n => n.localName === "style").map(n => n.textContent).join("\n");
   const has = c.classList.contains("lv-has-emerg");
   SCREEN.dropFlatScreen("t-narrow");
+  // ☰ (40 px) under the dial (styles.css .lv-emerg: 14 px in from the corner, 72 px): a clear gap below it, centred under it.
+  const solo = /\.lv-mapcard\.lv-alone\.lv-has-emerg > \.lv-alone-anchor > \.lv-alone-solo\{top:(\d+)px;right:(\d+)px\}/.exec(css);
   check("alone: rain keeps matching the drawing on a narrow screen; ☰ goes under the dial without :has()",
     /\.lv-mapcard\.lv-alone > \.lv-stage > \.lv-wx\{--wxcap:100000%\}/.test(css)
-    && /\.lv-mapcard\.lv-alone\.lv-has-emerg > \.lv-alone-anchor > \.lv-alone-solo\{top:98px\}/.test(css) && has, { has });
+    && solo && Number(solo[1]) >= 14 + 72 + 16 && Math.abs(Number(solo[2]) + 20 - (14 + 36)) <= 2 && has, { has, solo: solo && solo[0] });
 });
 await tryCase("alone: the emergency dial, the Vacation banner, ☰ and ⛶ stay above the covering map", async () => {
   const c = el("div", { class: "card lv-mapcard" }), s = el("div", { class: "lv-stage" });
