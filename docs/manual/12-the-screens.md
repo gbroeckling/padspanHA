@@ -3,8 +3,8 @@
 [Contents](README.md)
 
 What each of PadSpan's screens is for, where it is in the menu, and the everyday ones in more
-detail: Overview, Live Tracker, Follow, Occupancy, Traceback, Forensics and Health. Every screen has
-its own **?** help beside its heading, in English, German, French and Dutch.
+detail: Overview, Live Tracker, Follow, Occupancy, Traceback, Forensics and Health. Most screens and
+cards have their own **?** help beside the heading, in English, German, French and Dutch.
 
 ## Finding your way
 
