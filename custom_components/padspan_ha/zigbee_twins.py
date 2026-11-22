@@ -462,6 +462,12 @@ async def async_use_twin(hass: HomeAssistant, old: str, new: str) -> dict[str, i
                 changed.pop("power_teams")
             else:
                 changed["power_teams"] = teams
+        if "atlas_weather_rain_entity" in changed:  # as settings_set: another rain sensor's wet time starts again (rain_wet.py)
+            try:
+                from .rain_wet import KEY as _RAIN_WET, wet_since_for  # noqa: PLC0415
+                changed[_RAIN_WET] = wet_since_for(hass, changed["atlas_weather_rain_entity"])
+            except Exception:  # noqa: BLE001 — its time then starts at its next reading
+                _quiet_error("zigbee_twins:rain_wet")
         if changed:
             await st.async_set(**changed)
         if "power_teams" in changed:                # as padspan_ha/power_teams_set: the teams run with it at once

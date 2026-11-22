@@ -648,6 +648,15 @@ def test_live_aboards_links_heights_and_runs_arrive(stores):
     assert DUP not in json.dumps(f) and DOOR_DUP not in json.dumps(f)
 
 
+def test_a_chosen_rain_sensor_moves_and_its_wet_time_starts_again(stores, monkeypatch):
+    from custom_components.padspan_ha import rain_wet
+    stores.st.data.update({"atlas_weather_rain_entity": "binary_sensor.rain_2", rain_wet.KEY: 1000.0})
+    monkeypatch.setattr(rain_wet, "wet_since_for", lambda hass, eid: 0 if eid == "binary_sensor.rain" else -1)
+    stores.run(Z.async_use_twin(stores.h, "binary_sensor.rain_2", "binary_sensor.rain"))
+    assert stores.st.data["atlas_weather_rain_entity"] == "binary_sensor.rain"
+    assert stores.st.data[rain_wet.KEY] == 0, "as settings_set: the old sensor's wet time says nothing about this one"
+
+
 def test_what_the_twin_already_has_of_its_own_stays(stores):
     stores.st.data["light_shapes"][TWIN] = "spot"
     stores.run(stores.mdl.fabric.async_spatial_update(set_lights={TWIN: {"x_m": 9.0, "y_m": 9.0, "floor_id": "main"}}))

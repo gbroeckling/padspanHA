@@ -730,6 +730,7 @@ ws_wled:run_ended
 zigbee_twins:notify
 zigbee_twins:notify_existing
 zigbee_twins:power_teams
+zigbee_twins:rain_wet
 zigbee_twins:read
 zigbee_twins:registry_id
 """.split())
