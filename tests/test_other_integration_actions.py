@@ -121,7 +121,7 @@ async def test_track_a_phone_refuses_any_other_entity(monkeypatch, eid, platform
                                               "device_name": "Pixel", "entity_id": eid})
     reg.async_update_entity.assert_not_called()
     conn.send_result.assert_not_called()
-    code, text = conn.send_error.call_args.args[1:3]
+    code, text = conn.send_error.call_args.args[1], conn.send_error.call_args.kwargs["message"]
     assert code == "not_ble_transmitter" and eid in text
 
 

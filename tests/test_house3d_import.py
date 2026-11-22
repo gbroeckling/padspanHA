@@ -57,7 +57,7 @@ def _preview(h, conn, b64: str = _FILE):
     _run(WI.ws_house3d_import_preview(h, conn, {"id": 9, "type": "padspan_ha/house3d_import_preview",
                                                 "sh3d_base64": b64}))
     if conn.send_error.called:
-        return {"error": conn.send_error.call_args[0][1], "message": conn.send_error.call_args[0][2]}
+        return {"error": conn.send_error.call_args[0][1], "message": conn.send_error.call_args.kwargs.get("message") or conn.send_error.call_args[0][2]}
     return conn.send_result.call_args[0][1]
 
 

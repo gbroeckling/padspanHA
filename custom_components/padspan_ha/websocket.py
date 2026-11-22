@@ -49,6 +49,7 @@ from homeassistant.helpers import area_registry
 
 from .ws_common import admin_if_enhanced_security, shallow, ROOMS_MAX
 from .const import (
+    refusal,
     NOT_LOADED_MESSAGE,
     DOMAIN,
     VERSION,
@@ -712,7 +713,7 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
         geo = (mdl.room_geometry_m() or {}).get(msg["room"]) or {}
         floor = geo.get("floor_id") or (mdl.room_meta().get(msg["room"]) or {}).get("floor_id")
         if outdoor_kind(msg["room"], floor) == "ground":
-            connection.send_error(msg["id"], "invalid", f"{msg['room']} is on an outdoor floor: it is outside ground.")
+            connection.send_error(msg["id"], "invalid", **refusal("{room} is on an outdoor floor: it is outside ground.", room=msg["room"]))
             return
     out: dict[str, Any] = {"ok": True, "room": msg["room"]}
     for key in ("height_m", "floor_raise_m"):
@@ -724,22 +725,22 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
     if "height_m" in msg:
         ok, out["height_m"] = await mdl.async_set_room_height(msg["room"], msg["height_m"])
         if not ok:
-            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            connection.send_error(msg["id"], "not_found", **refusal("{room} is not a room on the map.", room=msg["room"]))
             return
     if "floor_raise_m" in msg:
         ok, out["floor_raise_m"] = await mdl.async_set_room_raise(msg["room"], msg["floor_raise_m"])
         if not ok:
-            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            connection.send_error(msg["id"], "not_found", **refusal("{room} is not a room on the map.", room=msg["room"]))
             return
     if "surface" in msg:
         ok, out["surface"] = await mdl.async_set_room_surface(msg["room"], msg["surface"])
         if not ok:
-            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            connection.send_error(msg["id"], "not_found", **refusal("{room} is not a room on the map.", room=msg["room"]))
             return
     if "space" in msg:
         ok, out["space"] = await mdl.async_set_room_space(msg["room"], msg["space"])
         if not ok:
-            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            connection.send_error(msg["id"], "not_found", **refusal("{room} is not a room on the map.", room=msg["room"]))
             return
     connection.send_result(msg["id"], out)
 

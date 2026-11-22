@@ -68,5 +68,12 @@ check("de: a sentence the backend doesn't send whole stays as it came",
 check("de: the plain lines are German", M.errorText(3), panel[ERROR_WORDS_EN_CONNECTION]);
 check("de: a thrown string the backend sends whole", M.errorText(ADMIN), server[ADMIN]);
 check("de: nothing at all", M.errorText(undefined), panel["Something went wrong. Try again."]);
+// A refusal with a name in it comes with its template (Home Assistant's translation fields, const.refusal).
+const ROOM = "{room} is not a room on the map.";
+check("de: a refusal with a name in it, by its template; the name as it is",
+  M.errorText({ code: "not_found", message: "Kitchen is not a room on the map.", translation_key: ROOM, translation_domain: "padspan_ha",
+    translation_placeholders: { room: "Kitchen" } }), server[ROOM].replace("{room}", "Kitchen"));
+check("de: a template it has no words for: the English as sent",
+  M.errorText({ code: "x", message: "Kitchen is new.", translation_key: "{room} is new.", translation_placeholders: { room: "Kitchen" } }), "Kitchen is new.");
 
 console.log(JSON.stringify(results));

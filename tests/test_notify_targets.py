@@ -113,7 +113,7 @@ async def test_the_test_button_fails_for_a_saved_phone_that_is_gone():
     assert calls == []
     conn.send_result.assert_not_called()
     assert conn.send_error.call_args.args[1] == "not_found"
-    assert "notify.mobile_app_old_phone" in conn.send_error.call_args.args[2]
+    assert "notify.mobile_app_old_phone" in conn.send_error.call_args.kwargs["message"]
 
 
 def _telegram(hass, notify=None):

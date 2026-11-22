@@ -57,7 +57,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from . import wled_look as L
 from . import ws_wled as W
-from .const import DATA_SETTINGS, DATA_WLED_LOOKS, DOMAIN, WLED_LOOKS_STORE_KEY
+from .const import DATA_SETTINGS, DATA_WLED_LOOKS, DOMAIN, WLED_LOOKS_STORE_KEY, refusal
 from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
 from .quiet_errors import note as _quiet_error
@@ -1510,8 +1510,8 @@ async def _gate(hass: HomeAssistant, connection: Any, msg: dict, *, tier: bool =
 
 
 def _offline(connection: Any, msg: dict, ident: dict) -> None:
-    connection.send_error(msg["id"], "wled_offline",
-                          f"Home Assistant can't reach {ident['name']} — check it's powered on and on the network")
+    connection.send_error(msg["id"], "wled_offline", **refusal(
+        "Home Assistant can't reach {light} — check it's powered on and on the network", light=ident["name"]))
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/wled_exact_list"})
@@ -1607,7 +1607,7 @@ async def ws_wled_look_remember(hass: HomeAssistant, connection, msg) -> None:
     if msg.get("team"):
         team = team_of(hass, ident["device_id"])
         if team is None:
-            connection.send_error(msg["id"], "no_team", f"{ident['name']} isn't in a team")
+            connection.send_error(msg["id"], "no_team", **refusal("{light} isn't in a team", light=ident["name"]))
             return
         idents = [_identify(hass, device_id=d) for d in _members(team)]
         if any(i is None for i in idents):
@@ -1617,7 +1617,8 @@ async def ws_wled_look_remember(hass: HomeAssistant, connection, msg) -> None:
     looks = await asyncio.gather(*(_capture(hass, i, by) for i in idents), return_exceptions=True)
     failed = [i["name"] for i, lk in zip(idents, looks) if isinstance(lk, BaseException)]
     if failed:
-        connection.send_error(msg["id"], "unreachable", f"Couldn't read {', '.join(failed)} — nothing was remembered")
+        connection.send_error(msg["id"], "unreachable", **refusal("Couldn't read {lights} — nothing was remembered",
+                                                                   lights=", ".join(failed)))
         return
     team_warn = L.team_warnings(list(looks)) if msg.get("team") else []
     if not msg.get("preview"):
@@ -1679,14 +1680,14 @@ async def ws_wled_exact_set(hass: HomeAssistant, connection, msg) -> None:
     if "exact" in msg and bool(msg["exact"]) != bool(rec.get("exact")):
         team = team_of(hass, ident["device_id"])
         if team and team.get("mode") == "padspan":
-            connection.send_error(msg["id"], "in_team",
-                                  f"{ident['name']} is in a team run by PadSpan — switch the team back to WLED sync first")
+            connection.send_error(msg["id"], "in_team", **refusal(
+                "{light} is in a team run by PadSpan — switch the team back to WLED sync first", light=ident["name"]))
             return
         if team and msg["exact"]:
             # On its own it would leave the team's group (or stop its leader
             # sending) with the team unchanged: a team goes over as one.
-            connection.send_error(msg["id"], "in_team",
-                                  f"{ident['name']} is in a WLED sync team — run the team by PadSpan on the Team card instead")
+            connection.send_error(msg["id"], "in_team", **refusal(
+                "{light} is in a WLED sync team — run the team by PadSpan on the Team card instead", light=ident["name"]))
             return
         if msg["exact"] and not rec.get("look"):
             connection.send_error(msg["id"], "no_look", "Remember the look first — PadSpan needs it to turn this light on")
@@ -1743,11 +1744,13 @@ async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
     if msg["mode"] == "padspan":
         missing = [i["name"] for i in idents if not (st.get(i["mac"]) or {}).get("look")]
         if missing:
-            connection.send_error(msg["id"], "no_look", f"Remember the team look first ({', '.join(missing)})")
+            connection.send_error(msg["id"], "no_look", **refusal("Remember the team look first ({lights})",
+                                                               lights=", ".join(missing)))
             return
         offline = [i["name"] for i in idents if i["tgt"] is None]
         if offline:
-            connection.send_error(msg["id"], "wled_offline", f"{', '.join(offline)} can't be reached — nothing was changed")
+            connection.send_error(msg["id"], "wled_offline", **refusal("{lights} can't be reached — nothing was changed",
+                                                                    lights=", ".join(offline)))
             return
         done: list[tuple[dict, dict, dict]] = []
         for i in idents:
@@ -1792,7 +1795,8 @@ async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
         if failed:
             await st.async_save()
             _refresh_listener(hass)
-            connection.send_error(msg["id"], "failed", f"Couldn't switch back: {', '.join(failed)} — the team is still run by PadSpan")
+            connection.send_error(msg["id"], "failed", **refusal("Couldn't switch back: {lights} — the team is still run by PadSpan",
+                                                              lights=", ".join(failed)))
             return
     for i in idents:
         rec = st.get(i["mac"])

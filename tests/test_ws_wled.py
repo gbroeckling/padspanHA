@@ -108,8 +108,8 @@ class _Conn:
     def send_result(self, mid, data):
         self.results.append(data)
 
-    def send_error(self, mid, code, message):
-        self.errors.append((code, message))
+    def send_error(self, mid, code, message=None, **kw):   # a refusal(...) sends message= and the translation fields
+        self.errors.append((code, kw.get("message", message)))
 
 
 def _hass(tmp_path, wled=True):

@@ -486,7 +486,7 @@ def _house(start: dict[str, Any], admin: bool, effects: list[str]) -> tuple[Any,
     conn = SimpleNamespace(
         user=SimpleNamespace(is_admin=admin, name="Test admin" if admin else "Test user", id="user-1"),
         refresh_token_id="token-1",
-        send_error=lambda _id, code, text: sent.update(error=[code, text]),
+        send_error=lambda _id, code, text=None, **kw: sent.update(error=[code, kw.get("message", text)]),
         send_result=lambda _id, _payload: sent.update(answered=True),
     )
     return hass, conn, st, (written, sent)

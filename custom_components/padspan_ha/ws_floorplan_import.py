@@ -23,7 +23,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_SETTINGS, DOMAIN
+from .const import DATA_SETTINGS, DOMAIN, refusal
 from .roomplan_import import RoomPlanParseError, parse_roomplan
 from .sh3d_import import Sh3dParseError, parse_sh3d
 from .quiet_errors import note as _quiet_error
@@ -56,7 +56,7 @@ async def ws_floorplan_import_sh3d(hass: HomeAssistant, connection, msg) -> None
     if len(b64) > max_b64_len:
         connection.send_error(
             msg["id"], "upload_too_large",
-            f"File exceeds the {MAX_SH3D_BYTES // (1024 * 1024)} MB limit",
+            **refusal("File exceeds the {mb} MB limit", mb=MAX_SH3D_BYTES // (1024 * 1024)),
         )
         return
     try:
@@ -100,7 +100,7 @@ async def ws_floorplan_import_roomplan(hass: HomeAssistant, connection, msg) -> 
     if len(b64) > max_b64_len:
         connection.send_error(
             msg["id"], "upload_too_large",
-            f"File exceeds the {MAX_SH3D_BYTES // (1024 * 1024)} MB limit",
+            **refusal("File exceeds the {mb} MB limit", mb=MAX_SH3D_BYTES // (1024 * 1024)),
         )
         return
     try:

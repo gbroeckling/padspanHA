@@ -14,7 +14,7 @@ import voluptuous as vol
 from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN, DATA_SETTINGS, NOT_LOADED_MESSAGE
+from .const import DOMAIN, DATA_SETTINGS, NOT_LOADED_MESSAGE, refusal
 from .bluetooth_live import get_bluetooth_live
 from .private_ble_resolver import get_resolver as _get_ble_resolver
 from .telemetry import bump as _bump
@@ -182,9 +182,9 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     # Does it resolve anything, right now?
     matched, rpa_count = _live_matches(hass, irk_bytes)
     if not matched and not msg.get("force"):
-        connection.send_error(msg["id"], "unverified",
-            f"No rotating address on the air resolves with this key ({rpa_count} tested). "
-            "If the phone is here and awake, the key is wrong. If it is away, save it unverified.")
+        connection.send_error(msg["id"], "unverified", **refusal(
+            "No rotating address on the air resolves with this key ({count} tested). "
+            "If the phone is here and awake, the key is wrong. If it is away, save it unverified.", count=rpa_count))
         return
 
     # Store in settings
@@ -197,7 +197,7 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     # Check for duplicates
     for existing in irk_list:
         if (existing.get("irk_hex") or "").lower().replace(":", "").replace("-", "").replace(" ", "") == irk_clean:
-            connection.send_error(msg["id"], "duplicate", f"IRK already registered for '{existing.get('name')}'")
+            connection.send_error(msg["id"], "duplicate", **refusal("IRK already registered for '{name}'", name=existing.get("name")))
             return
 
     rec = {"name": name, "irk_hex": irk_clean}

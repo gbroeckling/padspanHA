@@ -57,7 +57,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, NOT_LOADED_MESSAGE
+from .const import DOMAIN, NOT_LOADED_MESSAGE, refusal
 from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
 from .quiet_errors import note as _quiet_error
@@ -497,9 +497,9 @@ async def _gate(hass: HomeAssistant, connection, msg) -> dict[str, Any] | None:
     if tgt is None:
         host = unreachable_host(hass, entity_id=msg.get("entity_id"), device_id=msg.get("device_id"))
         if host:
-            connection.send_error(msg["id"], "wled_offline",
-                                  f"Home Assistant can't reach this WLED at {host} — check it's powered on and on "
-                                  "the network (if its address changed, Home Assistant's WLED integration needs the new one)")
+            connection.send_error(msg["id"], "wled_offline", **refusal(
+                "Home Assistant can't reach this WLED at {address} — check it's powered on and on "
+                "the network (if its address changed, Home Assistant's WLED integration needs the new one)", address=host))
         else:
             connection.send_error(msg["id"], "not_wled",
                                   "That light isn't a WLED device in Home Assistant's WLED integration")

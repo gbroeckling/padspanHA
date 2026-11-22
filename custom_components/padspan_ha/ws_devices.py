@@ -14,6 +14,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    refusal,
     NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
@@ -221,9 +222,9 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
         async with aiohttp.ClientSession() as session:
             async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=15), allow_redirects=False) as resp:
                 if 300 <= resp.status < 400:
-                    connection.send_error(msg["id"], "http_error",
-                                          f"ESPresense Companion's address sent PadSpan on to another address "
-                                          f"(HTTP {resp.status}). Give the Companion's own address instead.")
+                    connection.send_error(msg["id"], "http_error", **refusal(
+                        "ESPresense Companion's address sent PadSpan on to another address "
+                        "(HTTP {status}). Give the Companion's own address instead.", status=resp.status))
                     return
                 if resp.status != 200:
                     connection.send_error(msg["id"], "http_error",
@@ -232,7 +233,8 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
                 data = await resp.json()
     except TimeoutError:            # the 15 s limit (aiohttp's own timeouts are TimeoutErrors too)
         connection.send_error(msg["id"], "connect_failed",
-                              f"ESPresense Companion at {api_url} didn't answer within 15 seconds.")
+                              **refusal("ESPresense Companion at {address} didn't answer within 15 seconds.",
+                                        address=api_url))
         return
     except aiohttp.ClientError as e:
         connection.send_error(msg["id"], "connect_failed",
