@@ -1,7 +1,6 @@
 # Das PadSpan-HA-Handbuch
 
-Ein Handbuch für PadSpan HA, ein Kapitel pro Seite. Kapitel, die noch nicht übersetzt sind, führen
-zur englischen Fassung.
+Ein Handbuch für PadSpan HA, ein Kapitel pro Seite.
 
 Die Hilfe in PadSpan (das **?** neben einer Überschrift) gibt es auf Englisch, Deutsch, Französisch
 und Niederländisch. PadSpan nimmt die Sprache aus deinem Home-Assistant-Benutzerprofil, oder die
