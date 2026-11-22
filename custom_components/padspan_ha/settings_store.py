@@ -192,6 +192,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "traceback_house_focus": 0,          # Traceback's Full house activity: the Atlas floor index it opens on (its own key — overview_iso_focus indexes photo floors)
     "wled_teams": [],                     # backend-only (padspan_ha/wled_teams_set): WLED devices that act as one light — see ws_wled.py
     "power_teams": [],                    # backend-only (padspan_ha/power_teams_set): a wall dimmer or switch and the smart bulbs it feeds, as one light — see power_team.py
+    "power_teams_slept": {},              # backend-only: {team id: "YYYY-MM-DD"} each team's last bedtime, so a restart never runs it twice
     "power_teams_woke": {},               # backend-only: {team id: "YYYY-MM-DD"} each team's last wake-up, so a restart never wakes it twice
     "overview_atlas": False,              # Pro: Overview shows the Atlas; Pure Live gets a switch to the classic Overview (Settings → Atlas → Overview — the Atlas as your main map)
     "atlas_live_colours": False,          # the working Atlas draws a lit light in the colour it reports (Settings → Atlas → Atlas — Mapped Light Control); off: amber, as ever
