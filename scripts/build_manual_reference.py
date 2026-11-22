@@ -889,7 +889,7 @@ def _views_src(name: str) -> str:
 
 def _tabs_settings() -> list[str]:
     block = _js_block(_views_src("settings.js"), "const _tabDefs = [")
-    return re.findall(r'^\s*\["[a-z]+",\s*"([^"]+)",', block, re.M)
+    return re.findall(r'^\s*\["[a-z]+",\s*(?:t\()?"([^"]+)"\)?,', block, re.M)   # the name in t() or not
 
 
 def _tabs_mapping() -> list[str]:
@@ -935,7 +935,7 @@ def _screens_block() -> str:
     for sid, name in code["menu"]:
         cell = ", ".join(f"**{t}**" for t in tabs.get(sid, [])) or "–"
         if sid == "settings":
-            cell += ". **Tracking** is in sections: " + ", ".join(re.findall(r'\["[a-z]+",\s*"([^"]+)"\]', sections))
+            cell += ". **Tracking** is in sections: " + ", ".join(re.findall(r'\["[a-z]+",\s*(?:\(\) => t\()?"([^"]+)"\)?\]', sections))
         lines.append(f"| **{name}** | {SCREENS[sid]} | {cell} |")
     return "\n".join(lines) + "\n"
 
