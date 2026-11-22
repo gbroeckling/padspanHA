@@ -193,11 +193,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "wled_teams": [],                     # backend-only (padspan_ha/wled_teams_set): WLED devices that act as one light — see ws_wled.py
     "power_teams": [],                    # backend-only (padspan_ha/power_teams_set): a wall dimmer or switch and the smart bulbs it feeds, as one light — see power_team.py
     "power_teams_woke": {},               # backend-only: {team id: "YYYY-MM-DD"} each team's last wake-up, so a restart never wakes it twice
-    "overview_atlas": False,              # Pro: Overview shows the Atlas; Pure Live gets a switch to the classic Overview (Settings → UI Structure)
-    "atlas_live_colours": False,          # the working Atlas draws a lit light in the colour it reports (Settings → UI Structure → Atlas); off: amber, as ever
-    "atlas_emergency_button": True,       # show the Atlas "Test emergency lighting" button (Settings → UI Structure → Atlas)
-    "atlas_heatmap_enabled": False,       # Atlas: offer the ♨ Heatmap chip (temperature / humidity / CO2); off: no chip, the Atlas as ever (Settings → UI Structure → Atlas)
-    "atlas_alert_pulse": False,           # Atlas: ring a room's flagged opening (left open, open in the rain); a wall names the worst alert (Settings → UI Structure → Atlas)
+    "overview_atlas": False,              # Pro: Overview shows the Atlas; Pure Live gets a switch to the classic Overview (Settings → Atlas → Overview — the Atlas as your main map)
+    "atlas_live_colours": False,          # the working Atlas draws a lit light in the colour it reports (Settings → Atlas → Atlas — Mapped Light Control); off: amber, as ever
+    "atlas_emergency_button": True,       # show the Atlas "Test emergency lighting" button (Settings → Atlas → Atlas — Mapped Light Control)
+    "atlas_heatmap_enabled": False,       # Atlas: offer the ♨ Heatmap chip (temperature / humidity / CO2); off: no chip, the Atlas as ever (Settings → Atlas → Atlas — Mapped Light Control)
+    "atlas_alert_pulse": False,           # Atlas: ring a room's flagged opening (a door, window, gate or cover left open over 6 h, a window or cover open in the rain or snow); a wall names the worst alert (Settings → Atlas → Atlas — Mapped Light Control)
     # Atlas outdoor weather (docs/IDEA_ATLAS_WEATHER.md, views/atlas_weather.js) — rain or snow outside the floor
     # plates while it is actually raining or snowing. On by default in both editions (Pro animates, free is still).
     "atlas_weather_enabled": True,        # master on/off; off = nothing drawn at all
