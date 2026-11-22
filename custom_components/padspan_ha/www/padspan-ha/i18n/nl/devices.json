@@ -232,7 +232,7 @@
 "Save failed: height not stored": "Opslaan mislukt: hoogte niet bewaard",
 "{name}: height set to {m} m": "{name}: hoogte ingesteld op {m} m",
 "Signal adjustment (dB) for {name}": "Signaalaanpassing (dB) voor {name}",
-"Added to every reading from this receiver: positive if it reads weaker than it should. Same value as Settings → Tracking → Receivers.": "Opgeteld bij elke meting van deze ontvanger: positief als hij zwakker meet dan zou moeten. Dezelfde waarde als in Instellingen → Tracking → Receivers.",
+"Added to every reading from this receiver: positive if it reads weaker than it should. Same value as Settings → Tracking → Receivers.": "Opgeteld bij elke meting van deze ontvanger: positief als hij zwakker meet dan zou moeten. Dezelfde waarde als in Instellingen → Tracking → Ontvangers.",
 "{name}: manual offset set to {db} dB": "{name}: handmatige aanpassing op {db} dB",
 "Failed to save offset": "Aanpassing niet opgeslagen",
 "Room": "Kamer",

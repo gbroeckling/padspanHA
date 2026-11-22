@@ -232,7 +232,7 @@
 "Save failed: height not stored": "Speichern fehlgeschlagen: Höhe nicht gespeichert",
 "{name}: height set to {m} m": "{name}: Höhe auf {m} m gesetzt",
 "Signal adjustment (dB) for {name}": "Signalanpassung (dB) für {name}",
-"Added to every reading from this receiver: positive if it reads weaker than it should. Same value as Settings → Tracking → Receivers.": "Wird zu jedem Messwert dieses Empfängers addiert: positiv, wenn er schwächer misst, als er sollte. Derselbe Wert wie in Einstellungen → Tracking → Receivers.",
+"Added to every reading from this receiver: positive if it reads weaker than it should. Same value as Settings → Tracking → Receivers.": "Wird zu jedem Messwert dieses Empfängers addiert: positiv, wenn er schwächer misst, als er sollte. Derselbe Wert wie in Einstellungen → Ortung → Empfänger.",
 "{name}: manual offset set to {db} dB": "{name}: Anpassung auf {db} dB gesetzt",
 "Failed to save offset": "Anpassung nicht gespeichert",
 "Room": "Raum",

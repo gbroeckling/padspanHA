@@ -77,7 +77,7 @@
 "Find:": "Finden:",
 "No tracked objects currently have a room — nothing to locate yet.": "Gerade hat kein verfolgtes Objekt einen Raum — noch nichts zu finden.",
 "Pick which device is yours": "Wähle, welches Gerät deins ist",
-"Locate needs to know where you are, the same way it knows where everything else is — from a tracked BLE device, not GPS or a compass. If your own phone isn't tracked yet, set it up from Settings → Features → Phone Setup Wizard, then pick it above.": "Finden muss wissen, wo du bist — genauso wie es weiß, wo alles andere ist: über ein verfolgtes BLE-Gerät, nicht über GPS oder einen Kompass. Wird dein Handy noch nicht verfolgt, richte es unter Einstellungen → Features → Phone Setup Wizard ein und wähle es dann oben.",
+"Locate needs to know where you are, the same way it knows where everything else is — from a tracked BLE device, not GPS or a compass. If your own phone isn't tracked yet, set it up from Settings → Features → Phone Setup Wizard, then pick it above.": "Finden muss wissen, wo du bist — genauso wie es weiß, wo alles andere ist: über ein verfolgtes BLE-Gerät, nicht über GPS oder einen Kompass. Wird dein Handy noch nicht verfolgt, richte es unter Einstellungen → Funktionen → Phone Setup Wizard ein und wähle es dann oben.",
 "Pick a device or person to find, above.": "Wähle oben ein Gerät oder eine Person, die du finden willst.",
 "You're following your own device. Follow another tag to locate it.": "Du folgst deinem eigenen Gerät. Folge einem anderen Tag, um ihn zu finden.",
 "The device set as \"you\" isn't currently reporting a room — it may be out of range.": "Das Gerät, das als „du“ eingestellt ist, meldet gerade keinen Raum — vielleicht außer Reichweite.",
@@ -98,7 +98,7 @@
 "Head to: {room}": "Geh nach: {room}",
 "{feature} is a PadSpan Pro feature": "{feature} ist eine Funktion von PadSpan Pro",
 "Unlock it, and everything else gated, with a PadSpan Pro key.": "Schalte es und alles andere Gesperrte mit einem Schlüssel für PadSpan Pro frei.",
-"Settings → Features → PadSpan licence": "Einstellungen → Features → PadSpan licence",
+"Settings → Features → PadSpan licence": "Einstellungen → Funktionen → PadSpan licence",
 "{n} rooms to go": {
 "one": "noch {n} Raum",
 "other": "noch {n} Räume"
