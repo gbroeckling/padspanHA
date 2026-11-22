@@ -10867,15 +10867,10 @@ function _lightsTab(ctx, maps, active) {
     // The same Zigbee device twice (lights_map.js withoutZigbeeDuplicates): how many copies the index leaves out,
     // and the line on a copy still placed or linked, whose button moves it to the one PadSpan uses.
     zigbeeTwins,
-    onUseTwin: paid && !preview ? async (l, twin) => {
-      const pos = (ctx.state.model && ctx.state.model.light_positions_m) || {}, rec = pos[l.entity_id];
-      const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
+    onUseTwin: paid && !preview && TW ? async (l, twin) => {
       try {
-        if (bar) await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier: { ...bar, linked_entity_id: twin } });
-        if (rec) {
-          if (!pos[twin]) await ctx.actions.wsCall("padspan_ha/fabric_light_position_set", { ...rec, entity_id: twin });
-          await ctx.actions.wsCall("padspan_ha/fabric_light_remove", { entity_id: l.entity_id });
-        }
+        const r = await TW.useTwin(ctx.actions.wsCall, l.entity_id, twin);
+        if (r && r.settings) ctx.state.settings = r.settings;
         if (mapState._lightsDraftM) delete mapState._lightsDraftM[l.entity_id];
         await ctx.actions.modelRefresh();
         ctx.toast(TW ? TW.usedNow(ctx.hass?.states?.[twin]?.attributes?.friendly_name || twin) : twin);

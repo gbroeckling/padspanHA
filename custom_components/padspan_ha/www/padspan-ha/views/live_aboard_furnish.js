@@ -1046,7 +1046,11 @@ export function createFurnish(ctx){
                seg(btn("Unlink", "It is just furniture again", () => { edit((q) => { q.entity_id = null; q.entity_reg_id = null; }); ctx.hint("Unlinked."); sheet(); })));
       box.appendChild(r);
       // A Zigbee device's duplicate copy (host.twins, zigbee_twins.js): said, with the kept one a tap away.
-      const twin = host.twins && host.twins.duplicateWarningEl(p.entity_id, host.settings, host.states, (use) => link(use));
+      const was = p.entity_id, send = typeof host.callWS === "function" ? (type, data) => host.callWS({ type, ...data }) : null;
+      const twin = host.twins && host.twins.duplicateWarningEl(p.entity_id, host.settings, host.states, (use) => {
+        link(use);
+        if (send) host.twins.useTwin(send, was, use).catch(() => {});     // and everywhere else PadSpan keeps it
+      });
       if (twin) box.appendChild(twin);
       return box;
     }

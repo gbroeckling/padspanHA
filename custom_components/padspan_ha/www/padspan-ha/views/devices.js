@@ -740,9 +740,11 @@ function _renderDoorOpeners(ctx) {
       // Marked, and a Zigbee device's duplicate copy: said, with the kept one a tap away (never switched by itself).
       const twin = marked.has(eid) && TW && TW.duplicateWarningEl(eid, ctx.state.settings, states, async (use) => {
         try {
-          await ctx.actions.settingsSet({ door_opener_ids: [...new Set([...marked].map(x => (x === eid ? use : x)))] });
+          const r = await TW.useTwin(ctx.actions.wsCall, eid, use);
+          if (r && r.settings) ctx.state.settings = r.settings;
           ctx.toast(TW.usedNow((states[use] && states[use].attributes || {}).friendly_name || use));
-        } catch (e) { ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true); }
+        } catch (e) { ctx.toast(TW.useFailed(ctx.helpers.errorText(e)), true); }
+        ctx.actions.renderRooms();
       });
       if (twin) card.appendChild(twin);
     }

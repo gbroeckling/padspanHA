@@ -24,7 +24,7 @@
 const _q = new URL(import.meta.url).search;
 const { buildIsoSVG, fabricFrame, floorNameAtLevel, pointInPolygon } = await import(`./iso_lights.js${_q}`);
 const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts,
-        sunElevationDeg, ambientFromElevation, sunAmbient } = await import(`./lights_map.js${_q}`);
+        sunElevationDeg, ambientFromElevation, sunAmbient, withoutZigbeeDuplicates } = await import(`./lights_map.js${_q}`);
 const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEntity, readingNeedsPlacement } =
   await import(`./light_codes.js${_q}`);
 // A room's middle, inside it even in an L-shaped room (room_spot.js, the
@@ -368,8 +368,11 @@ export function refreshHouseDevices(ctx, hs, onRegistry) {
   const typeOverrides = (settings.light_type_overrides && typeof settings.light_type_overrides === "object") ? settings.light_type_overrides : {};
   // The Atlas entity set comes from the live house; history fills its states.
   // Side-effect free: this is a replay, not the house now.
-  const liveLights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap,
+  const gathered = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap,
     typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, true, null, _linkedCovers(ctx));
+  // A Zigbee device's duplicate copy is replayed once, as the Atlas shows it (lights_map.js withoutZigbeeDuplicates).
+  const placed = model.light_positions_m || {}, linked = _linkedCovers(ctx);
+  const liveLights = withoutZigbeeDuplicates(gathered, settings, (eid) => !!placed[eid] || !!(linked && linked.has(eid))).lights;
   hs.eids = liveLights.map(l => l.entity_id);
   hs.regLoading = !!reg.loading;
   // null while unknown: an EMPTY set once known is a set like any other — it

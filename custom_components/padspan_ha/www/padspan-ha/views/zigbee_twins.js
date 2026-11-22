@@ -91,8 +91,16 @@ export function duplicateWarningEl(eid, settings, states, onUse, nameOf) {
   return box;
 }
 
-/** The toast once the button has moved a placement to the kept copy, and the
- *  one when that failed (why: errorText of the error). */
+/** "Use the Zigbee2MQTT one" pressed: the kept copy's entity takes the
+ *  duplicate's place everywhere PadSpan keeps it (padspan_ha/zigbee_twin_use:
+ *  every setting naming it, its place with its looks, label and height, the
+ *  walls linked to it, Live Aboard's links), and the duplicate's entries go.
+ *  wsCall(type, data): the page's own; the reply is {ok, moved, settings}. */
+export function useTwin(wsCall, eid, twin) {
+  return Promise.resolve(wsCall("padspan_ha/zigbee_twin_use", { entity_id: eid, twin }));
+}
+
+/** The words once it is done, and when it failed (why: errorText of the error). */
 export const usedNow = (name) => t("{name} is used now.", { name });
 export const useFailed = (why) => t("Could not switch to it: {why}", { why });
 

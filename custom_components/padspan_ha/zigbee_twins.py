@@ -42,21 +42,36 @@ When a new device turns out to be the same unit as one already in another
 integration (device_registry_updated, create, or an update that changes what
 identifies it), the administrator is told once, in a Home Assistant
 notification naming both copies; settings[TOLD_KEY] remembers each pair told.
+The pairs already there when this version first runs are told once, together
+(async_tell_existing, at setup: one read, no poll), and remembered the same way.
+
+"Use the Zigbee2MQTT one" (padspan_ha/zigbee_twin_use, async_use_twin): the
+kept copy's entity takes the duplicate's place everywhere PadSpan keeps an
+entity: every setting naming it (its shape, type, hidden from the map, a
+chosen sensor, power teams, door openers, Vacation Mode's lights...), its
+place on the map with its looks, label and height, the walls linked to it
+(with their invert), and Live Aboard's links, heights and runs. What the kept
+entity already has of its own stays; the duplicate's entries go. Only when
+the person presses it, and nothing in Home Assistant changes.
 """
 
 from __future__ import annotations
 
 import asyncio
+import copy
 import functools
 import logging
 import re
 from typing import Any, Iterable
 
+import voluptuous as vol
+from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback as ha_callback
 
-from .const import DATA_SETTINGS, DOMAIN
+from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .quiet_errors import note as _quiet_error
 from .util import ha_devices
+from .ws_common import admin_if_enhanced_security
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,6 +91,8 @@ _IDENTIFYING = frozenset({"identifiers", "connections", "disabled_by", "config_e
 
 TOLD_KEY = "zigbee_twins_told"      # settings: the pairs the administrator was told about
 TOLD_MAX = 500                      # kept at most (the oldest go first)
+EXISTING = "existing"               # in TOLD_KEY: the pairs already there at first run were told
+SUMMARY_MAX = 10                    # pairs the first run's notice names; the rest are counted
 
 _DATA_CACHE = "_zigbee_twins"
 _DATA_UNSUB = "_zigbee_twins_unsub"
@@ -294,6 +311,212 @@ async def async_tell(hass: HomeAssistant, device_id: str) -> bool:
         return True
 
 
+def existing_notice(pairs: list[dict[str, Any]], devices: dict[str, Any]) -> tuple[str, str]:
+    """(title, message) for the pairs already there when this version first
+    runs: how many, which copy is used, at most SUMMARY_MAX by name, then how
+    many more."""
+    rows = sorted(((devices[p["copies"][0]], p) for p in pairs), key=lambda r: r[0]["twin_name"].casefold())
+    kept = sorted({d["twin_via"] for d, _p in rows})
+    n = len(rows)
+    lines = [f"- **{d['twin_name']}** ({d['twin_via']}), also in "
+             + " and ".join(f"{devices[c]['via']} as **{devices[c]['name']}**" for c in p["copies"])
+             for d, p in rows[:SUMMARY_MAX]]
+    if n > SUMMARY_MAX:
+        lines.append(f"- and {n - SUMMARY_MAX} more")
+    used = f"the {kept[0]} copy" if len(kept) == 1 else "the Zigbee2MQTT copy where there is one (else ZHA, then deCONZ)"
+    head = "A Zigbee device is in Home Assistant twice" if n == 1 else f"{n} Zigbee devices are in Home Assistant twice"
+    title = "PadSpan: a Zigbee device is in Home Assistant twice" if n == 1 else f"PadSpan: {head}"
+    return (title,
+            f"{head}, with the same Zigbee address in two integrations. PadSpan uses {used} and leaves the other "
+            "out of its lists, so nothing is counted twice:\n\n" + "\n".join(lines) + "\n\n"
+            "Where PadSpan already uses a copy it leaves out, it says so, with a button to use the other one. "
+            "Home Assistant itself is unchanged.")
+
+
+async def async_tell_existing(hass: HomeAssistant) -> bool:
+    """Once ever: the pairs already in Home Assistant when this version first
+    runs, in one notification (nothing when there are none), each then
+    remembered as told. True when told now."""
+    dom = hass.data.get(DOMAIN)
+    st = dom.get(DATA_SETTINGS) if isinstance(dom, dict) else None
+    if st is None:
+        return False
+    lock = dom.setdefault(_DATA_LOCK, asyncio.Lock())
+    async with lock:
+        told = [k for k in (st.data.get(TOLD_KEY) or []) if isinstance(k, str)]
+        if EXISTING in told:
+            return False
+        t = twins(hass)
+        fresh = [p for p in t["pairs"] if p["key"] not in told]
+        if fresh:
+            title, message = existing_notice(fresh, t["devices"])
+            try:
+                from homeassistant.components.persistent_notification import async_create  # noqa: PLC0415
+                async_create(hass, message, title=title, notification_id="padspan_ha_zigbee_twins_existing")
+            except Exception:  # noqa: BLE001 — not told: try again at the next start
+                _quiet_error("zigbee_twins:notify_existing")
+                return False
+        keys = [k for k in told if k != EXISTING] + [p["key"] for p in fresh]
+        await st.async_set(**{TOLD_KEY: [EXISTING] + keys[-(TOLD_MAX - 1):]})
+        return bool(fresh)
+
+
+# ── "Use the Zigbee2MQTT one" ───────────────────────────────────────────────
+
+def rekey(value: Any, old: str, new: str) -> tuple[Any, int]:
+    """`value` with the entity id `old` made `new` wherever it is a value or a
+    key, and how many places that was. A key `new` already has keeps its own
+    entry (the duplicate's goes); a list names `new` once. Unchanged, the
+    value itself comes back."""
+    if isinstance(value, str):
+        return (new, 1) if value == old else (value, 0)
+    if isinstance(value, list):
+        out, n, seen = [], 0, False
+        for x in value:
+            y, m = rekey(x, old, new)
+            n += m
+            if isinstance(y, str) and y == new:
+                if seen:
+                    continue
+                seen = True
+            out.append(y)
+        return (out, n) if n else (value, 0)
+    if isinstance(value, dict):
+        d, n = {}, 0
+        for k, x in value.items():
+            if k == old:
+                n += 1
+                if new in value:
+                    continue
+                k = new
+            y, m = rekey(x, old, new)
+            n += m
+            d[k] = y
+        return (d, n) if n else (value, 0)
+    return value, 0
+
+
+async def _async_house3d_use(hass: HomeAssistant, old: str, new: str) -> int:
+    """Live Aboard's file: `old`'s height, run and look (lights, devices), the
+    openings that follow it and the pieces linked to it, now `new`'s. One
+    write under the file's lock, only with something to change; a file that
+    is not there, cannot be read or is a newer PadSpan's is left alone."""
+    from .house3d_store import ReadFailed, async_file_exists, async_get_store, writable  # noqa: PLC0415
+    if not await async_file_exists(hass):
+        return 0
+    try:
+        store = await async_get_store(hass)
+    except ReadFailed:
+        return 0
+    reg_id = None
+    try:
+        from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+        entry = er.async_get(hass).async_get(new)
+        reg_id = getattr(entry, "id", None) if entry else None
+    except Exception:  # noqa: BLE001 — the link follows a rename only with it
+        _quiet_error("zigbee_twins:registry_id")
+    async with store.lock:
+        if not writable(store.data):
+            return 0
+        data, n = copy.deepcopy(store.data), 0
+        for section in ("lights", "devices"):
+            sec = data.get(section)
+            if isinstance(sec, dict) and old in sec:
+                e = sec.pop(old)
+                n += 1
+                sec.setdefault(new, e)
+        for o in (data.get("openings") or {}).values():
+            if isinstance(o, dict) and o.get("link") == old:
+                o["link"] = new
+                n += 1
+        for p in (data.get("pieces") or {}).values():
+            if isinstance(p, dict) and p.get("entity_id") == old:
+                p["entity_id"] = new
+                p["entity_reg_id"] = reg_id if isinstance(reg_id, str) else None
+                n += 1
+        if n and not await store.async_write(data):
+            _LOGGER.error("PadSpan: Live Aboard's links to %s could not be moved to %s (the file was not written)", old, new)
+            return 0
+        return n
+
+
+async def async_use_twin(hass: HomeAssistant, old: str, new: str) -> dict[str, int]:
+    """Make `new` (the kept copy's entity) what PadSpan uses wherever it used
+    `old` (a duplicate copy's), and take `old`'s entries out: {settings,
+    placement, walls, live_aboard} counted."""
+    dom = hass.data.get(DOMAIN) or {}
+    moved = {"settings": 0, "placement": 0, "walls": 0, "live_aboard": 0}
+    st = dom.get(DATA_SETTINGS)
+    if st is not None:
+        changed: dict[str, Any] = {}
+        for key, value in st.data.items():
+            if key == TOLD_KEY:
+                continue
+            v, n = rekey(value, old, new)
+            if n:
+                changed[key], moved["settings"] = v, moved["settings"] + n
+        if "power_teams" in changed:
+            from .power_team import sanitize_teams  # noqa: PLC0415
+            teams = sanitize_teams(changed["power_teams"])
+            if isinstance(teams, str):
+                changed.pop("power_teams")
+            else:
+                changed["power_teams"] = teams
+        if changed:
+            await st.async_set(**changed)
+        if "power_teams" in changed:                # as padspan_ha/power_teams_set: the teams run with it at once
+            try:
+                from .power_team import SIGNAL_TEAMS, async_setup_power_teams  # noqa: PLC0415
+                async_setup_power_teams(hass)
+                from homeassistant.helpers.dispatcher import async_dispatcher_send  # noqa: PLC0415
+                async_dispatcher_send(hass, SIGNAL_TEAMS)
+            except Exception:  # noqa: BLE001 — saved; the teams take it at the next start
+                _quiet_error("zigbee_twins:power_teams")
+    mdl = dom.get(DATA_MODEL)
+    fab = getattr(mdl, "fabric", None)
+    if fab is not None:
+        placed = mdl.light_positions_m()            # each record with its height
+        set_lights = {new: dict(placed[old])} if old in placed and new not in placed else {}
+        bars = []
+        for b in fab.rf_barriers_m():
+            nb, n = rekey(b, old, new)
+            if n:
+                bars.append(nb)
+        if old in placed or bars:
+            await fab.async_spatial_update(set_lights=set_lights or None, remove_lights=[old] if old in placed else None,
+                                           set_barriers=bars or None, op="zigbee_twin_use")
+            moved["placement"], moved["walls"] = int(old in placed), len(bars)
+    moved["live_aboard"] = await _async_house3d_use(hass, old, new)
+    _LOGGER.info("PadSpan: %s is used in place of %s (its Zigbee duplicate): %s", new, old, moved)
+    return moved
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/zigbee_twin_use",
+    vol.Required("entity_id"): str,
+    vol.Required("twin"): str,
+})
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_zigbee_twin_use(hass: HomeAssistant, connection, msg) -> None:
+    """Use the Zigbee2MQTT copy's entity wherever PadSpan uses its duplicate's (async_use_twin): {ok, moved, settings}.
+
+    Only for a duplicate copy and the one twin find_twins gives it, so a stale
+    page can move nothing it should not."""
+    old, new = str(msg["entity_id"]).strip(), str(msg["twin"]).strip()
+    entry = twins(hass)["entities"].get(old)
+    if not entry or not entry.get("twin") or entry["twin"] != new:
+        connection.send_error(msg["id"], "not_a_duplicate",
+                              "That is no longer a duplicate of that device. Refresh the page and try again.")
+        return
+    moved = await async_use_twin(hass, old, new)
+    from .ws_common import _get_settings  # noqa: PLC0415
+    connection.send_result(msg["id"], {"ok": True, "moved": moved, "settings": _get_settings(hass, connection)})
+
+
+WS_COMMANDS = (ws_zigbee_twin_use,)
+
+
 @ha_callback
 def _on_device_registry_updated(hass: HomeAssistant, event: Any) -> None:
     dom = hass.data.get(DOMAIN)
@@ -326,6 +549,7 @@ def async_setup_zigbee_twins(hass: HomeAssistant) -> None:
         hass.bus.async_listen("device_registry_updated", functools.partial(_on_device_registry_updated, hass)),
         hass.bus.async_listen("entity_registry_updated", functools.partial(_on_entity_registry_updated, hass)),
     )
+    hass.async_create_task(async_tell_existing(hass))     # once ever: the pairs already there
 
 
 def async_stop_zigbee_twins(hass: HomeAssistant) -> None:

@@ -935,7 +935,12 @@ export function createEditor(ctx){
     fsel.addEventListener("change", guard(() => set({ link: fsel.value || null })));
     fl.append(d("span", null, "Follows"), fsel);
     sheet.appendChild(fl);
-    const twin = cur.link && tw && tw.duplicateWarningEl(cur.link, host.settings3d, states, guard((use) => set({ link: use })));
+    // Pressed: the kept sensor is what PadSpan uses everywhere (host.twinUse), and this draft follows it.
+    const was = cur.link;
+    const twin = cur.link && tw && tw.duplicateWarningEl(cur.link, host.settings3d, states, guard((use) => {
+      set({ link: use });
+      if (typeof host.twinUse === "function") Promise.resolve(host.twinUse(was, use)).then(() => { if (typeof ctx.reload === "function") ctx.reload(); }, () => {});
+    }));
     if (twin) sheet.appendChild(twin);
     if (cur.link) sheet.appendChild(d("p", "la3d-sub", cur.link.startsWith("cover.")
       ? "It follows where the door is. A tap shows its card; hold for its controls. It never moves on a tap."

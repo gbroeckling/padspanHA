@@ -87,7 +87,8 @@ try {
         settings: { lights_panel_enabled: true, atlas_emergency_button: true, advanced_extra_tabs: [], tier: "pro", atlas_weather_enabled: true,
                     atlas_weather_rain_entity: rain, zigbee_twins: TWINS } },
       helpers: new Proxy({ el, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: noop, errorText: (e) => String(e) }, { get: (t, k) => (k in t ? t[k] : noop) }),
-      actions: new Proxy({ renderRooms() {}, renderNav() {}, wsCall: async (type, data) => { sent.push({ type, ...data }); return {}; } },
+      actions: new Proxy({ renderRooms() {}, renderNav() {}, wsCall: async (type, data) => { sent.push({ type, ...data });
+        return type === "padspan_ha/zigbee_twin_use" ? { ok: true, settings: { atlas_weather_rain_entity: data.twin } } : {}; } },
                          { get: (t, k) => (k in t ? t[k] : () => {}) }),
       toast() {},
     };
@@ -117,8 +118,9 @@ try {
   const use = warn && warn._all().find(n => n.tagName === "BUTTON");
   check("its button says what it does", !!use && use.textContent === "Use the Zigbee2MQTT one", use && use.textContent);
   use && use.click();
-  await Promise.resolve();
-  check("pressed, it saves the Zigbee2MQTT one", sent.length === 1 && sent[0].type === "padspan_ha/settings_set" && sent[0].atlas_weather_rain_entity === Z2M, sent);
+  await new Promise(r => setImmediate(r));
+  check("pressed, it uses the Zigbee2MQTT one everywhere PadSpan keeps it", sent.length === 1 && sent[0].type === "padspan_ha/zigbee_twin_use"
+        && sent[0].entity_id === ZHA && sent[0].twin === Z2M, sent);
   check("and the list shows it chosen, the warning gone", sel.value === Z2M && !chosen._all().some(n => n.getAttribute && n.getAttribute("data-zigbee-twin")), sel.value);
 
   // ── the Atlas: the map, the light index (views/lights_map.js) ───────────
@@ -169,10 +171,13 @@ try {
                 "switch.wall": ST("on", { friendly_name: "Wall" }) };
   const PSET = { zigbee_twins: { devices: { h_lamp: { name: "Lamp", via: "ZHA", twin: "z_lamp", twin_name: "Lamp", twin_via: "Zigbee2MQTT" } },
                                  entities: { "light.lamp_2": { twin: "light.lamp", device: "h_lamp" } } } };
-  const teamsSent = [];
+  const teamsSent = [], teamMoves = [];
+  let bulbsNow = ["light.lamp_2"];
   const pctx = { hass: { user: { is_admin: true }, states: PST }, state: { settings: PSET },
-                 actions: { wsCall: async (type, data) => { if (type === "padspan_ha/power_teams_get") return { teams: [{ id: "t1", name: "Den", power: "switch.wall", bulbs: ["light.lamp_2"], off: "power" }] };
-                                                            teamsSent.push(data); return { teams: data.teams }; } } };
+                 actions: { wsCall: async (type, data) => {
+                   if (type === "padspan_ha/power_teams_get") return { teams: [{ id: "t1", name: "Den", power: "switch.wall", bulbs: bulbsNow, off: "power" }] };
+                   if (type === "padspan_ha/zigbee_twin_use") { teamMoves.push(data); bulbsNow = [data.twin]; return { ok: true, settings: {} }; }
+                   teamsSent.push(data); return { teams: data.teams }; } } };
   const pbox = PT.powerTeamsSection(pctx, el);
   pbox._all().find(n => n.getAttribute && n.getAttribute("data-open")).click();
   await new Promise(r => setImmediate(r));
@@ -181,8 +186,21 @@ try {
   const pw = pbox._all().find(n => n.getAttribute && n.getAttribute("data-zigbee-twin") === "light.lamp_2");
   check("and said so", !!pw && pw.textContent.includes("is the ZHA copy of a device that is also in Zigbee2MQTT, as Lamp."), pw && pw.textContent);
   pw && pw._all().find(n => n.tagName === "BUTTON").click();
+  await new Promise(r => setImmediate(r));
   const ticked = pbox._all().filter(n => n.getAttribute && n.getAttribute("data-bulb") && n.checked).map(n => n.getAttribute("data-bulb"));
-  check("its button ticks the Zigbee2MQTT one instead, saved only with Save", JSON.stringify(ticked) === JSON.stringify(["light.lamp"]) && teamsSent.length === 0, { ticked, teamsSent });
+  check("its button moves the team to the Zigbee2MQTT one, read back", JSON.stringify(teamMoves) === JSON.stringify([{ entity_id: "light.lamp_2", twin: "light.lamp" }])
+        && JSON.stringify(ticked) === JSON.stringify(["light.lamp"]) && teamsSent.length === 0, { teamMoves, ticked, teamsSent });
+
+  // ── Live Aboard's "More devices of the area" (views/live_aboard_rooms.js) ──
+  const LR = await import(q("live_aboard_rooms.js"));
+  const RH = { areas: { a1: { name: "Hall" } }, devices: { z_hall: { area_id: "a1" }, h_hall: { area_id: "a1" } },
+               entities: { "light.hall": { device_id: "z_hall" }, "light.hall_2": { device_id: "h_hall" }, "sensor.hall_battery_2": { device_id: "h_hall" } },
+               states: { "light.hall": ST("on", { friendly_name: "Hall light" }), "light.hall_2": ST("on", { friendly_name: "Hall light (ZHA)" }),
+                         "sensor.hall_battery_2": ST("90", { friendly_name: "Hall battery (ZHA)", unit_of_measurement: "%" }) } };
+  const RSET = { zigbee_twins: { devices: LSET.zigbee_twins.devices, entities: { ...LSET.zigbee_twins.entities, "sensor.hall_battery_2": { twin: "", device: "h_hall" } } } };
+  const extras = LR.areaExtras(RH, "Hall", ["light.hall"], RSET).map(x => x.eid);
+  check("Live Aboard's room list leaves the duplicate copy out", extras.length === 0, extras);
+  check("and without the map lists it as before", LR.areaExtras(RH, "Hall", ["light.hall"]).length === 2);
 } catch (e) {
   failures.push({ name: "harness", detail: String((e && e.stack) || e).slice(0, 900) });
 }

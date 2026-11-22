@@ -551,6 +551,7 @@ vacation_mode:announce
 vacation_mode:count_rule_once_a_day
 vacation_mode:eligible_platform
 vacation_mode:eligible_states
+vacation_mode:eligible_twins
 vacation_mode:end_trip
 vacation_mode:history_instance
 vacation_mode:history_recorder
@@ -727,5 +728,8 @@ ws_vacuum:import_preview
 ws_wled:run
 ws_wled:run_ended
 zigbee_twins:notify
+zigbee_twins:notify_existing
+zigbee_twins:power_teams
 zigbee_twins:read
+zigbee_twins:registry_id
 """.split())

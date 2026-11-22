@@ -79,9 +79,7 @@ export function powerTeamsSection(ctx, el){
     row("Power from", sel);
     const hidPower = TW && TW.hiddenNoteEl(pick.power.length - power.length);
     if (hidPower) b.appendChild(hidPower);
-    const powerTwin = TW && TW.duplicateWarningEl(t.power || "", ctx.state && ctx.state.settings, st, (use) => {
-      t.power = use; sel.value = use; powerTwin.remove(); say("Changed here. Press Save to keep it.");
-    });
+    const powerTwin = TW && TW.duplicateWarningEl(t.power || "", ctx.state && ctx.state.settings, st, (use) => useKept(t.power, use));
     if (powerTwin) b.appendChild(powerTwin);
     const offRow = row("Off", off);
     offRow.hidden = !t.power;
@@ -98,11 +96,7 @@ export function powerTeamsSection(ctx, el){
     const hidBulbs = TW && TW.hiddenNoteEl(pick.bulbs.length - bulbs.length);
     if (hidBulbs) b.appendChild(hidBulbs);
     for (const eid of (t.bulbs || [])) {
-      const w = TW && TW.duplicateWarningEl(eid, ctx.state && ctx.state.settings, st, (use) => {
-        t.bulbs = [...new Set((t.bulbs || []).map(x => (x === eid ? use : x)))];
-        for (const cb of list.querySelectorAll("input[data-bulb]")) cb.checked = t.bulbs.includes(cb.getAttribute("data-bulb"));
-        w.remove(); say("Changed here. Press Save to keep it.");
-      });
+      const w = TW && TW.duplicateWarningEl(eid, ctx.state && ctx.state.settings, st, (use) => useKept(eid, use));
       if (w) b.appendChild(w);
     }
     const day = el("input", { type: "checkbox", "data-adaptive": "1" });
@@ -130,6 +124,14 @@ export function powerTeamsSection(ctx, el){
     return b;
   }
 
+  // "Use the Zigbee2MQTT one": the kept bulb or switch takes the duplicate's place in every team, and everywhere
+  // else PadSpan keeps it (zigbee_twins.js useTwin), saved at once; the teams are read again.
+  function useKept(eid, use){
+    TW.useTwin(ctx.actions.wsCall, eid, use)
+      .then((r) => { if (r && r.settings && ctx.state) ctx.state.settings = r.settings; return ctx.actions.wsCall("padspan_ha/power_teams_get", {}); })
+      .then((r) => { take(r); say(TW.usedNow(((((ctx.hass && ctx.hass.states) || {})[use] || {}).attributes || {}).friendly_name || use)); },
+            (e) => say(TW.useFailed(ctx.helpers && ctx.helpers.errorText ? ctx.helpers.errorText(e) : String((e && e.message) || e)), true));
+  }
   function draw(){
     while (body.firstChild) body.removeChild(body.firstChild);
     if (!teams.length) body.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, "No team yet."));

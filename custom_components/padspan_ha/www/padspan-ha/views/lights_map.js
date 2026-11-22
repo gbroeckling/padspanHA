@@ -4272,8 +4272,10 @@ export function buildLightsMapCard(hostIn){
           // Show people / Show tags & scanners from inside the view (admins).
           settings3d: h3.settings, admin: h3.admin === true, saveSetting: typeof h3.saveSetting === "function" ? h3.saveSetting : null,
           // The same Zigbee device twice (zigbee_twins.js, handed in: the 3D modules import nothing): Edit's
-          // Follows and Furnish's "This is a device…" leave the duplicate copy out.
+          // Follows and Furnish's "This is a device…" leave the duplicate copy out, and twinUse is the host's
+          // "Use the Zigbee2MQTT one" (zigbee_twins.js useTwin).
           twins: TW,
+          twinUse: TW && typeof h3.callWS === "function" ? (eid, twin) => TW.useTwin((type, data) => h3.callWS({ type, ...data }), eid, twin) : null,
           // The ⋯ list's links and "Set it up" (live_aboard_show.js LINK_WORDS):
           // the host's way to that part of Settings or Mapping, or none.
           goTo: typeof h3.goTo === "function" ? h3.goTo : null, kiosk: h3.kiosk === true,

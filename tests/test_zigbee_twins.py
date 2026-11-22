@@ -268,7 +268,7 @@ class _Bus:
             fn(SimpleNamespace(data=data))
 
 
-def _live(registries, monkeypatch, told=()):
+def _live(registries, monkeypatch, told=(Z.EXISTING,)):
     shown = []
     pn = types.ModuleType("homeassistant.components.persistent_notification")
     pn.async_create = lambda hass, message, **kw: shown.append({"message": message, **kw})
@@ -282,6 +282,7 @@ def _live(registries, monkeypatch, told=()):
     def run():
         while tasks:
             asyncio.run(tasks.pop(0))
+    run()                                   # setup's own task: the pairs already there
     return h, shown, run
 
 
@@ -306,12 +307,12 @@ def test_a_new_copy_is_told_once_naming_both_and_the_one_used(registries, monkey
     h.bus.fire("device_registry_updated", {"action": "create", "device_id": "z_porch"})
     run()
     assert len(shown) == 1
-    assert h.data[DOMAIN][DATA_SETTINGS].data[Z.TOLD_KEY] == [f"{PORCH}:zha+zigbee2mqtt"]
+    assert h.data[DOMAIN][DATA_SETTINGS].data[Z.TOLD_KEY] == [Z.EXISTING, f"{PORCH}:zha+zigbee2mqtt"]
 
 
 def test_remembered_across_a_restart(registries, monkeypatch):
     registries["devices"], registries["entities"] = house()
-    _h, shown, run = _live(registries, monkeypatch, told=[f"{PORCH}:zha+zigbee2mqtt"])
+    _h, shown, run = _live(registries, monkeypatch, told=[Z.EXISTING, f"{PORCH}:zha+zigbee2mqtt"])
     _h.bus.fire("device_registry_updated", {"action": "create", "device_id": "h_porch"})
     run()
     assert shown == []
@@ -384,7 +385,7 @@ def test_every_panel_case_passes(harness) -> None:
     "and says so, quietly, under it",
     "and is said so, naming the Zigbee2MQTT one",
     "nothing is switched by itself",
-    "pressed, it saves the Zigbee2MQTT one",
+    "pressed, it uses the Zigbee2MQTT one everywhere PadSpan keeps it",
 ])
 def test_the_rain_sensor_list(harness, case) -> None:
     assert harness["cases"].get(case) is True, case
@@ -398,7 +399,8 @@ def test_the_rain_sensor_list(harness, case) -> None:
     "nothing moved by itself",
     "the row's button moves it to the Zigbee2MQTT one when pressed",
     "a team's duplicate bulb is still listed, ticked",
-    "its button ticks the Zigbee2MQTT one instead, saved only with Save",
+    "its button moves the team to the Zigbee2MQTT one, read back",
+    "Live Aboard's room list leaves the duplicate copy out",
 ])
 def test_the_atlas_and_power_teams(harness, case) -> None:
     assert harness["cases"].get(case) is True, case
@@ -419,8 +421,278 @@ def test_every_list_that_offers_a_device_leaves_the_duplicate_out() -> None:
         "views/live_aboard_edit.js": ["tw.duplicateOf(eid, host.settings3d)", "tw.duplicateWarningEl(cur.link"],
         "views/live_aboard_furnish.js": ["host.twins.duplicateOf(eid, host.settings)", "host.twins.duplicateWarningEl(p.entity_id"],
         "views/aboard_wizard.js": ["settings.zigbee_twins.entities"],
+        "views/house_activity.js": ["withoutZigbeeDuplicates(gathered, settings,"],
+        "views/live_aboard_rooms.js": ["twins[eid]"],
+        "views/live_aboard.js": ["lastP && lastP.settings3d));"],
     }
     for rel, wants in wired.items():
         src = (www / rel).read_text(encoding="utf-8")
         for want in wants:
             assert want in src, (rel, want)
+
+
+# ── the pairs already there when this version first runs ─────────────────────
+
+def _many(n):
+    """n devices in both Zigbee2MQTT and ZHA (made-up addresses, names Device 01...)."""
+    devices, entities = [BRIDGE, COORD], []
+    for i in range(n):
+        addr = f"a4c13800000001{i:02x}"
+        devices += [z2m(f"z{i}", addr, f"Device {i + 1:02d}"), zha(f"h{i}", addr, f"Device {i + 1:02d} (old)")]
+        entities += [ent(f"light.d{i}", f"z{i}"), ent(f"light.d{i}_2", f"h{i}")]
+    return devices, entities
+
+
+def test_the_pairs_already_there_are_told_once_together(registries, monkeypatch):
+    registries["devices"], registries["entities"] = _many(12)
+    h, shown, run = _live(registries, monkeypatch, told=())
+    run()
+    assert len(shown) == 1, shown
+    n = shown[0]
+    assert n["title"] == "PadSpan: 12 Zigbee devices are in Home Assistant twice"
+    assert n["notification_id"] == "padspan_ha_zigbee_twins_existing"
+    m = n["message"]
+    assert m.startswith("12 Zigbee devices are in Home Assistant twice, with the same Zigbee address in two integrations.")
+    assert "PadSpan uses the Zigbee2MQTT copy and leaves the other out of its lists" in m
+    named = [ln for ln in m.splitlines() if ln.startswith("- **")]
+    assert len(named) == 10 and named[0] == "- **Device 01** (Zigbee2MQTT), also in ZHA as **Device 01 (old)**"
+    assert "- and 2 more" in m and "Home Assistant itself is unchanged." in m
+    told = h.data[DOMAIN][DATA_SETTINGS].data[Z.TOLD_KEY]
+    assert told[0] == Z.EXISTING and len(told) == 13
+    # Every one of them is remembered: one of them changing later says nothing.
+    h.bus.fire("device_registry_updated", {"action": "create", "device_id": "h3"})
+    run()
+    assert len(shown) == 1
+
+
+def test_once_ever_even_after_a_restart(registries, monkeypatch):
+    registries["devices"], registries["entities"] = _many(2)
+    h, shown, run = _live(registries, monkeypatch, told=())
+    run()
+    told = list(h.data[DOMAIN][DATA_SETTINGS].data[Z.TOLD_KEY])
+    _h2, shown2, run2 = _live(registries, monkeypatch, told=told)          # Home Assistant again
+    run2()
+    assert len(shown) == 1 and shown2 == []
+
+
+def test_one_pair_reads_as_one(registries, monkeypatch):
+    registries["devices"], registries["entities"] = _many(1)
+    _h, shown, run = _live(registries, monkeypatch, told=())
+    run()
+    assert shown[0]["title"] == "PadSpan: a Zigbee device is in Home Assistant twice"
+    assert shown[0]["message"].startswith("A Zigbee device is in Home Assistant twice,") and "more" not in shown[0]["message"]
+
+
+def test_none_there_says_nothing_and_a_later_one_is_told_on_its_own(registries, monkeypatch):
+    devices, entities = house()
+    registries["devices"], registries["entities"] = [d for d in devices if d.id != "h_porch"], entities
+    h, shown, run = _live(registries, monkeypatch, told=())
+    run()
+    assert shown == [] and h.data[DOMAIN][DATA_SETTINGS].data[Z.TOLD_KEY] == [Z.EXISTING]
+    registries["devices"] = devices
+    h.bus.fire("device_registry_updated", {"action": "create", "device_id": "h_porch"})
+    run()
+    assert len(shown) == 1 and "ZHA just added **Porch motion**" in shown[0]["message"]
+
+
+def test_a_pair_told_on_its_own_is_not_told_again_in_the_first_runs_notice(registries, monkeypatch):
+    registries["devices"], registries["entities"] = _many(3)
+    first = Z.find_twins(*_many(3))["pairs"][0]["key"]
+    _h, shown, run = _live(registries, monkeypatch, told=[first])
+    run()
+    assert len(shown) == 1 and shown[0]["title"] == "PadSpan: 2 Zigbee devices are in Home Assistant twice"
+    assert "Device 01" not in shown[0]["message"]
+
+
+# ── "Use the Zigbee2MQTT one": everything the copy had ───────────────────────
+
+def test_rekey_moves_values_and_keys_and_keeps_the_twins_own():
+    old, new = "light.a_2", "light.a"
+    v, n = Z.rekey({"shapes": {old: "bar", "light.b": "spot"}, "hidden": [old, "light.b", new], "one": old,
+                    "teams": [{"power": old, "bulbs": [old, "light.c"]}], "n": 3}, old, new)
+    assert v == {"shapes": {new: "bar", "light.b": "spot"}, "hidden": [new, "light.b"], "one": new,
+                 "teams": [{"power": new, "bulbs": [new, "light.c"]}], "n": 3}
+    assert n == 5
+    kept, n2 = Z.rekey({old: "bar", new: "spot"}, old, new)
+    assert kept == {new: "spot"} and n2 == 1, "the twin's own entry stays; the copy's goes"
+    same = {"x": ["light.b"]}
+    assert Z.rekey(same, old, new) == (same, 0) and Z.rekey(same, old, new)[0] is same
+    assert Z.rekey("light.a_23", old, new) == ("light.a_23", 0), "only the whole id"
+
+
+DUP, TWIN = "light.porch_2", "light.porch"                 # a bulb: ZHA's copy, Zigbee2MQTT's
+DOOR_DUP, DOOR = "binary_sensor.back_door_2", "binary_sensor.back_door"
+
+
+def _settings_for_move():
+    return {
+        "light_shapes": {DUP: "bar", "light.other": "spot"},
+        "light_type_overrides": {DUP: "wled"},
+        "lights_hidden": [DUP, "light.other"],
+        "atlas_weather_rain_entity": "binary_sensor.rain",
+        "power_teams": [{"id": "t1", "name": "Porch", "power": "switch.wall", "bulbs": [DUP], "off": "power", "adaptive": True}],
+        "vacation_mode_anchors": [DUP],
+        "vacation_mode_pattern": {DUP: {"0:1900": 0.8}},
+        "emergency_entities": [DUP],
+        "whole_house_presets": [{"name": "Evening", "entities": {DUP: {"state": "on"}}}],
+        "padspan_automations": [{"device": "KEYS", "action": "turn_on", "entity_id": DUP}],
+        "atlas_3d_director": [{"entity": DOOR_DUP, "camera": ""}],
+        "flood_latches": {},
+        "door_opener_ids": [],
+        Z.TOLD_KEY: [Z.EXISTING],
+    }
+
+
+_LA_FILE = {
+    "schema": 1,
+    "lights": {DUP: {"z_m": 2.1, "kind": "pendant"}},
+    "devices": {DOOR_DUP: {"z_m": 1.1}},
+    "openings": {"bar_back": {"type": "hinged", "link": DOOR_DUP}},
+    "pieces": {"p1": {"recipe": {"kind": "lamp", "params": {}, "colors": []}, "floor_id": "main", "x_m": 1.0, "y_m": 1.0,
+                      "rotation": 0, "entity_id": DUP, "entity_reg_id": "reg-old", "label": "Porch lamp"}},
+    "figures": {}, "library": {},
+}
+_FAB = {"floors": {}, "history": [], "scanner_positions_m": {}, "beacon_positions_m": {},
+        "rf_barriers_m": [{"id": "bar_back", "name": "Back door", "material": "wood", "floor_id": "main",
+                           "points_m": [[1, 0], [1.9, 0]], "linked_entity_id": DOOR_DUP, "invert_state": True,
+                           "linked_lock_entity_id": "lock.back"}],
+        "light_positions_m": {DUP: {"x_m": 3.0, "y_m": 1.5, "floor_id": "main", "color": "#fbbf24", "shape": "pendant",
+                                    "rotation": 30.0, "width_cm": 40, "label": "Porch"}},
+        "light_heights_m": {DUP: 2.2}}
+
+
+@pytest.fixture
+def stores(monkeypatch, tmp_path):
+    """Settings, a real fabric and Live Aboard's real file, on disk."""
+    import copy as _copy
+
+    from custom_components.padspan_ha import fabric_store as FS
+    from custom_components.padspan_ha.const import DATA_FABRIC, DATA_HOUSE3D, DATA_MODEL, FABRIC_STORE_KEY
+    from custom_components.padspan_ha.model_store import ModelStore
+    from tests.test_house3d_edit import _DiskStore, _seed
+    from tests.test_house3d_store import _house, _run
+    import homeassistant.helpers.storage as _hs
+    _DiskStore.root, _DiskStore.writes, _DiskStore.fail, _DiskStore.slow = tmp_path, [], [], False
+    monkeypatch.setattr(_hs, "Store", _DiskStore)
+    monkeypatch.setattr(FS, "Store", _DiskStore)
+    _seed(tmp_path, _copy.deepcopy(_LA_FILE))
+    _seed(tmp_path, _copy.deepcopy(_FAB), FABRIC_STORE_KEY)
+    h = _house(tmp_path, on=True)
+    st = h.data[DOMAIN][DATA_SETTINGS]
+    st.data.update(_copy.deepcopy(_settings_for_move()))
+    fab = FS.FabricStore(h)
+    _run(fab.async_setup())
+    mdl = ModelStore.__new__(ModelStore)
+    mdl.data, mdl.fabric = {}, fab
+    h.data[DOMAIN][DATA_MODEL] = mdl
+    h.data[DOMAIN][DATA_FABRIC] = fab
+    h.data[DOMAIN].pop(DATA_HOUSE3D, None)
+    from homeassistant.helpers import entity_registry as er
+    monkeypatch.setattr(er, "async_get", lambda hass: SimpleNamespace(
+        async_get=lambda eid: SimpleNamespace(id="reg-twin") if eid == TWIN else None), raising=False)
+    told = []
+    monkeypatch.setattr("custom_components.padspan_ha.power_team.async_setup_power_teams", lambda hass: told.append("teams"))
+    return SimpleNamespace(h=h, st=st, mdl=mdl, run=_run, tmp=tmp_path, teams=told)
+
+
+def _la_disk(tmp_path):
+    from tests.test_house3d_edit import _file
+    return json.loads(_file(tmp_path).read_text(encoding="utf-8"))["data"]
+
+
+def test_every_setting_naming_the_copy_now_names_the_twin(stores):
+    moved = stores.run(Z.async_use_twin(stores.h, DUP, TWIN))
+    d = stores.st.data
+    assert d["light_shapes"] == {TWIN: "bar", "light.other": "spot"}, "its shape"
+    assert d["light_type_overrides"] == {TWIN: "wled"}, "its type"
+    assert d["lights_hidden"] == [TWIN, "light.other"], "hidden from the map"
+    assert d["power_teams"][0]["bulbs"] == [TWIN] and d["power_teams"][0]["power"] == "switch.wall", "its power team"
+    assert stores.teams == ["teams"], "the teams run with it at once"
+    assert d["vacation_mode_anchors"] == [TWIN] and d["vacation_mode_pattern"] == {TWIN: {"0:1900": 0.8}}, "Vacation Mode"
+    assert d["emergency_entities"] == [TWIN], "the emergency lighting test"
+    assert d["whole_house_presets"][0]["entities"] == {TWIN: {"state": "on"}}, "Whole house presets"
+    assert d["padspan_automations"][0]["entity_id"] == TWIN, "PadSpan's automations"
+    assert d["atlas_3d_director"] == [{"entity": DOOR_DUP, "camera": ""}], "another entity's entries are left alone"
+    assert d[Z.TOLD_KEY] == [Z.EXISTING] and moved["settings"] == 9
+    assert DUP not in json.dumps({k: v for k, v in d.items()}), "nothing names the copy any more"
+
+
+def test_its_place_looks_label_and_height_arrive_and_the_copys_go(stores):
+    moved = stores.run(Z.async_use_twin(stores.h, DUP, TWIN))
+    placed = stores.mdl.light_positions_m()
+    assert DUP not in placed
+    assert placed[TWIN] == {"x_m": 3.0, "y_m": 1.5, "floor_id": "main", "color": "#fbbf24", "shape": "pendant",
+                            "rotation": 30.0, "width_cm": 40, "label": "Porch", "z_m": 2.2}
+    assert DUP not in stores.mdl.fabric.light_heights_m()
+    assert moved["placement"] == 1 and stores.mdl.fabric.data["history"][-1]["op"] == "zigbee_twin_use"
+
+
+def test_a_wall_link_moves_with_its_invert_and_lock(stores):
+    moved = stores.run(Z.async_use_twin(stores.h, DOOR_DUP, DOOR))
+    bar = stores.mdl.fabric.rf_barriers_m()[0]
+    assert bar["linked_entity_id"] == DOOR and bar["invert_state"] is True and bar["linked_lock_entity_id"] == "lock.back"
+    assert bar["material"] == "wood" and bar["points_m"] == [[1, 0], [1.9, 0]] and bar["id"] == "bar_back"
+    assert moved["walls"] == 1
+    assert stores.st.data["atlas_3d_director"] == [{"entity": DOOR, "camera": ""}], "Live Aboard's director"
+
+
+def test_live_aboards_links_heights_and_runs_arrive(stores):
+    stores.run(Z.async_use_twin(stores.h, DUP, TWIN))
+    stores.run(Z.async_use_twin(stores.h, DOOR_DUP, DOOR))
+    f = _la_disk(stores.tmp)
+    assert f["lights"] == {TWIN: {"z_m": 2.1, "kind": "pendant"}}, "its 3D height and kind"
+    assert f["devices"] == {DOOR: {"z_m": 1.1}}, "a sensor's 3D height"
+    assert f["openings"]["bar_back"]["link"] == DOOR, "the door that follows it"
+    assert f["pieces"]["p1"]["entity_id"] == TWIN and f["pieces"]["p1"]["entity_reg_id"] == "reg-twin", "the furniture linked to it"
+    assert f["pieces"]["p1"]["label"] == "Porch lamp"
+    assert DUP not in json.dumps(f) and DOOR_DUP not in json.dumps(f)
+
+
+def test_what_the_twin_already_has_of_its_own_stays(stores):
+    stores.st.data["light_shapes"][TWIN] = "spot"
+    stores.run(stores.mdl.fabric.async_spatial_update(set_lights={TWIN: {"x_m": 9.0, "y_m": 9.0, "floor_id": "main"}}))
+    stores.run(Z.async_use_twin(stores.h, DUP, TWIN))
+    assert stores.st.data["light_shapes"] == {TWIN: "spot", "light.other": "spot"}
+    placed = stores.mdl.light_positions_m()
+    assert placed[TWIN]["x_m"] == 9.0 and DUP not in placed, "its own place stays; the copy's goes"
+
+
+def _ws(h, eid, twin, monkeypatch, entities):
+    monkeypatch.setattr(Z, "twins", lambda hass: {"devices": {}, "entities": entities, "pairs": []})
+    conn = MagicMock()
+    conn.user = SimpleNamespace(is_admin=True)
+    asyncio.new_event_loop().run_until_complete(Z.ws_zigbee_twin_use(h, conn, {"id": 1, "entity_id": eid, "twin": twin}))
+    return conn
+
+
+def test_the_command_moves_only_a_copy_to_its_own_twin(stores, monkeypatch):
+    conn = _ws(stores.h, DUP, "light.somewhere_else", monkeypatch, {DUP: {"twin": TWIN, "device": "h"}})
+    assert conn.send_error.call_args.args[1] == "not_a_duplicate" and stores.st.data["light_shapes"].get(DUP) == "bar"
+    conn = _ws(stores.h, "light.other", TWIN, monkeypatch, {DUP: {"twin": TWIN, "device": "h"}})
+    assert conn.send_error.called and "light.other" in stores.st.data["light_shapes"]
+    conn = _ws(stores.h, DUP, TWIN, monkeypatch, {DUP: {"twin": "", "device": "h"}})
+    assert conn.send_error.called, "no single twin: nothing to move to"
+    conn = _ws(stores.h, DUP, TWIN, monkeypatch, {DUP: {"twin": TWIN, "device": "h"}})
+    res = conn.send_result.call_args.args[1]
+    assert res["ok"] is True and res["moved"]["placement"] == 1 and res["settings"]["light_shapes"] == {TWIN: "bar", "light.other": "spot"}
+
+
+def test_the_command_is_registered_and_an_administrators_with_enhanced_security():
+    src = (_CC / "websocket.py").read_text(encoding="utf-8")
+    assert "from .zigbee_twins import WS_COMMANDS as _twin_commands" in src
+    tree = ast.parse((_CC / "zigbee_twins.py").read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "ws_zigbee_twin_use")
+    assert "admin_if_enhanced_security" in {getattr(d, "id", None) for d in fn.decorator_list}
+
+
+# ── Vacation Mode never drives a duplicate copy ──────────────────────────────
+
+def test_vacation_mode_switches_the_kept_copy_only(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    states = {"light.porch": SimpleNamespace(state="off", attributes={}),
+              "light.porch_2": SimpleNamespace(state="off", attributes={}),
+              "light.hall": SimpleNamespace(state="off", attributes={})}
+    hass = SimpleNamespace(data={}, states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    monkeypatch.setattr(Z, "twins", lambda h: {"devices": {}, "entities": {"light.porch_2": {"twin": "light.porch", "device": "h"}}, "pairs": []})
+    assert vm._eligible_entity_ids(hass) == ["light.porch", "light.hall"]
+    assert [r[0] for r in vm.eligible_lights(hass)] == ["light.hall", "light.porch"]

@@ -3942,8 +3942,11 @@ function _atlasWeatherSection(ctx, el, settings){
     const hid = TW && TW.hiddenNoteEl(hidden, via);
     if (hid) box.appendChild(hid);
     const twin = TW && TW.duplicateWarningEl(cur, settings, states, (use) => {
-      if (!list.includes(use)) sel.appendChild(el("option",{value:use}, nameOf(use)));
-      sel.value = use; twin.remove(); save(key, use, ()=>{ sel.value = cur; });
+      TW.useTwin(ctx.actions.wsCall, cur, use).then((r) => {
+        if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+        if (!list.includes(use)) sel.appendChild(el("option",{value:use}, nameOf(use)));
+        sel.value = use; twin.remove(); note.textContent = TW.usedNow(nameOf(use));
+      }, (e) => ctx.toast(TW.useFailed(ctx.helpers.errorText(e)), true));
     }, nameOf);
     if (twin) box.appendChild(twin);
   };
