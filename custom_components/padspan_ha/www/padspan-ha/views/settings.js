@@ -2551,13 +2551,16 @@ function _settingsPresence(ctx, el){
     const rows = [];
     if(r.point_count === 0){
       rows.push(el("div",{class:"muted",style:"font-size:12px"},
-        "No calibration data collected yet. Use Calibration → Pin & Listen to get started."));
+        t("No calibration data collected yet. Use Calibration → Pin & Listen to get started.")));
     } else {
-      const age = r.stale_days != null ? `${r.stale_days} day${r.stale_days!==1?"s":""}` : "unknown age";
+      const ptsLine = r.stale_days != null
+        ? tn(r.point_count, "{n} calibration point · newest is {age} old", "{n} calibration points · newest is {age} old",
+          { age: tn(r.stale_days, "{n} day", "{n} days") })
+        : tn(r.point_count, "{n} calibration point · newest is unknown age old", "{n} calibration points · newest is unknown age old");
       const ageColor = (r.stale_days||0) > 60 ? "#fbbf24" : "#52b788";
       rows.push(el("div",{style:"font-size:12px;margin-bottom:6px"},[
         el("span",{style:`color:${ageColor};font-weight:600`}, (r.stale_days||0)>60?"⚠ ":"✓ "),
-        el("span",{class:"muted"},`${r.point_count} calibration point${r.point_count!==1?"s":""} · newest is ${age} old`),
+        el("span",{class:"muted"},ptsLine),
       ]));
     }
 
@@ -2565,7 +2568,7 @@ function _settingsPresence(ctx, el){
     const scanners = r.scanner_summary || [];
     if(scanners.length){
       rows.push(el("div",{style:"font-size:11px;font-weight:600;color:#e2e8f0;margin:8px 0 4px"},
-        `Scanners in calibration data (${scanners.length}):`));
+        t("Scanners in calibration data ({count}):", { count: scanners.length })));
       const tbl = el("div",{style:"display:flex;flex-direction:column;gap:2px;margin-bottom:8px"});
       for(const sc of scanners){
         const sid = _sid(sc.source);
@@ -2582,7 +2585,9 @@ function _settingsPresence(ctx, el){
         ]);
         if(anomaly){
           const tipDiv = el("div",{style:"grid-column:1/-1;font-size:10px;color:#fbbf24;padding:2px 0 0 34px"},
-            `⚠ ${Math.abs(anomaly.deviation_db)} dBm ${anomaly.deviation_db > 0 ? "above" : "below"} fleet avg — consider RSSI offset or re-calibration`);
+            anomaly.deviation_db > 0
+              ? t("⚠ {db} dBm above fleet avg — consider RSSI offset or re-calibration", { db: Math.abs(anomaly.deviation_db) })
+              : t("⚠ {db} dBm below fleet avg — consider RSSI offset or re-calibration", { db: Math.abs(anomaly.deviation_db) }));
           row.appendChild(tipDiv);
         }
         tbl.appendChild(row);
@@ -2599,14 +2604,14 @@ function _settingsPresence(ctx, el){
         spotsByMap.get(key).spots.push(spot);
       }
       rows.push(el("div",{style:"font-size:11px;font-weight:600;color:#e2e8f0;margin:8px 0 4px"},
-        `Coverage gaps (${spotsByMap.size} map${spotsByMap.size!==1?"s":""})`));
+        tn(spotsByMap.size, "Coverage gaps ({n} map)", "Coverage gaps ({n} maps)")));
       const spotsWrap = el("div",{style:"display:flex;flex-direction:column;gap:6px;margin-bottom:6px"});
       for(const [, mapGroup] of spotsByMap){
         const mapDiv = el("div",{style:"background:#0a150e;border-radius:4px;padding:6px 8px;border-left:2px solid #f59e0b"});
         mapDiv.appendChild(el("div",{style:"font-size:11px;font-weight:600;color:#e2e8f0;margin-bottom:3px"}, mapGroup.name));
         for(const spot of mapGroup.spots){
           const pct = x=>Math.round(x*100);
-          const scoreLabel = spot.coverage_score<0.2 ? "uncovered" : spot.coverage_score<0.5 ? "sparse" : "partial";
+          const scoreLabel = spot.coverage_score<0.2 ? t("uncovered") : spot.coverage_score<0.5 ? t("sparse") : t("partial");
           const scoreColor = spot.coverage_score<0.2 ? "#f87171" : spot.coverage_score<0.5 ? "#fbbf24" : "#94a3b8";
           mapDiv.appendChild(el("div",{style:"font-size:10px;color:#94a3b8;margin-bottom:1px;display:flex;gap:6px"},[
             el("span",{}, `(${pct(spot.x_frac)}%, ${pct(spot.y_frac)}%)`),
@@ -2617,49 +2622,48 @@ function _settingsPresence(ctx, el){
       }
       rows.push(spotsWrap);
       rows.push(el("div",{class:"muted",style:"font-size:10px"},
-        "Stand at each position with your beacon for 60 s. Open Calibration → Pin & Listen to collect."));
+        t("Stand at each position with your beacon for 60 s. Open Calibration → Pin & Listen to collect.")));
     }
     if(!r.has_issues && r.point_count > 0){
-      rows.push(el("div",{style:"font-size:12px;color:#52b788"},"✓ Calibration data looks good — no issues detected."));
+      rows.push(el("div",{style:"font-size:12px;color:#52b788"},t("✓ Calibration data looks good — no issues detected.")));
     }
     for(const row of rows) reminderResultDiv.appendChild(row);
   };
 
   _renderHealthResults(ctx.state._healthCheckResult || null);
 
-  const checkNowBtn = el("button",{class:"btn",style:"margin-top:8px"},"Check Now");
+  const checkNowBtn = el("button",{class:"btn",style:"margin-top:8px"},t("Check Now"));
   checkNowBtn.addEventListener("click", async()=>{
-    checkNowBtn.disabled=true; checkNowBtn.textContent="Checking…";
+    checkNowBtn.disabled=true; checkNowBtn.textContent=t("Checking…");
     try {
       const r = await ctx.actions.calibrationHealthCheck();
       ctx.state._healthCheckResult = r;
       _renderHealthResults(r);
       await ctx.actions.settingsSet({ health_reminder_last_ts: Date.now()/1000 });
-    } catch(e){ ctx.toast("Health check failed: "+ctx.helpers.errorText(e), true); }
-    finally{ checkNowBtn.disabled=false; checkNowBtn.textContent="Check Now"; }
+    } catch(e){ ctx.toast(t("Health check failed: {error}", { error: ctx.helpers.errorText(e) }), true); }
+    finally{ checkNowBtn.disabled=false; checkNowBtn.textContent=t("Check Now"); }
   });
 
   reminderToggle.addEventListener("change", async()=>{
     try {
       await ctx.actions.settingsSet({ health_reminder_enabled: reminderToggle.checked });
-      ctx.toast(reminderToggle.checked ? "Calibration reminders enabled" : "Calibration reminders disabled");
-    } catch(e){ ctx.toast("Failed to save setting", true); }
+      ctx.toast(reminderToggle.checked ? t("Calibration reminders enabled") : t("Calibration reminders disabled"));
+    } catch(e){ ctx.toast(t("Failed to save setting"), true); }
   });
 
   const lastCheckedTxt = reminderLastTs
-    ? `Last checked: ${new Date(reminderLastTs*1000).toLocaleDateString()}`
-    : "Never checked";
+    ? t("Last checked: {date}", { date: new Date(reminderLastTs*1000).toLocaleDateString() })
+    : t("Never checked");
 
   put("positioning", el("div",{class:"card"},[
-    el("div",{class:"h2"},"Calibration Accuracy Reminders"),
+    el("div",{class:"h2"},t("Calibration Accuracy Reminders")),
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
       reminderToggle,
       el("label",{for:"healthReminderToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer"},
-        "Remind me to update calibration when needed for accuracy"),
+        t("Remind me to update calibration when needed for accuracy")),
     ]),
     el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-      "Checks whether calibration data has gaps, stale readings, or scanner anomalies. " +
-      "When issues are found, suggests a few specific spots to stand with your beacon for 60 s each. Off by default."),
+      t("Checks whether calibration data has gaps, stale readings, or scanner anomalies. When issues are found, suggests a few specific spots to stand with your beacon for 60 s each. Off by default.")),
     el("div",{style:"display:flex;align-items:center;gap:12px;flex-wrap:wrap"},[
       checkNowBtn,
       el("span",{class:"muted",style:"font-size:12px"}, lastCheckedTxt),
@@ -2683,27 +2687,27 @@ function _settingsPresence(ctx, el){
     while(adaptiveStatusDiv.firstChild) adaptiveStatusDiv.removeChild(adaptiveStatusDiv.firstChild);
     if(!s || !s.total_observations){
       adaptiveStatusDiv.appendChild(el("div",{class:"muted",style:"font-size:12px"},
-        adaptiveEnabled ? "Learning... waiting for high-confidence room assignments." : "Enable to start learning from device movements."));
+        adaptiveEnabled ? t("Learning... waiting for high-confidence room assignments.") : t("Enable to start learning from device movements.")));
       return;
     }
     const matPct = s.maturity_pct || 0;
     const barColor = matPct < 25 ? "#fbbf24" : matPct < 75 ? "#38bdf8" : "#52b788";
     const rows = [
       el("div",{style:"font-size:12px;margin-bottom:6px"},[
-        el("span",{style:"font-weight:600;color:#e2e8f0"},"Maturity: "),
+        el("span",{style:"font-weight:600;color:#e2e8f0"},t("Maturity:") + " "),
         el("span",{style:`color:${barColor};font-weight:600`}, `${matPct}%`),
-        el("span",{class:"muted"}, ` — ${matPct < 25 ? "collecting baseline" : matPct < 75 ? "building model" : "model active"}`),
+        el("span",{class:"muted"}, ` — ${matPct < 25 ? t("collecting baseline") : matPct < 75 ? t("building model") : t("model active")}`),
       ]),
       el("div",{style:"background:#1b3526;border-radius:4px;height:6px;margin-bottom:8px;overflow:hidden"},[
         el("div",{style:`width:${Math.min(100,matPct)}%;height:100%;background:${barColor};border-radius:4px;transition:width 0.3s`}),
       ]),
       el("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px"},[
-        el("span",{class:"muted"},`Observations: ${(s.total_observations||0).toLocaleString()}`),
-        el("span",{class:"muted"},`Days active: ${s.days_active||0}`),
-        el("span",{class:"muted"},`Rooms learned: ${s.rooms_learned||0}`),
-        el("span",{class:"muted"},`Scanners: ${s.scanners_learned||0}`),
-        el("span",{class:"muted"},`Transitions: ${(s.transitions_total||0).toLocaleString()}`),
-        el("span",{class:"muted"},`Floor pairs: ${s.floor_pairs_learned||0}`),
+        el("span",{class:"muted"},t("Observations: {count}", { count: (s.total_observations||0).toLocaleString() })),
+        el("span",{class:"muted"},t("Days active: {count}", { count: s.days_active||0 })),
+        el("span",{class:"muted"},t("Rooms learned: {count}", { count: s.rooms_learned||0 })),
+        el("span",{class:"muted"},t("Scanners: {count}", { count: s.scanners_learned||0 })),
+        el("span",{class:"muted"},t("Transitions: {count}", { count: (s.transitions_total||0).toLocaleString() })),
+        el("span",{class:"muted"},t("Floor pairs: {count}", { count: s.floor_pairs_learned||0 })),
       ]),
     ];
     for(const r of rows) adaptiveStatusDiv.appendChild(r);
@@ -2723,7 +2727,7 @@ function _settingsPresence(ctx, el){
   adaptiveToggle.addEventListener("change", async()=>{
     try {
       await ctx.actions.settingsSet({ adaptive_learning_enabled: adaptiveToggle.checked });
-      ctx.toast(adaptiveToggle.checked ? "Adaptive learning enabled" : "Adaptive learning disabled");
+      ctx.toast(adaptiveToggle.checked ? t("Adaptive learning enabled") : t("Adaptive learning disabled"));
       if(!adaptiveToggle.checked){
         floorToggle.checked = false;
         floorToggle.disabled = true;
@@ -2731,53 +2735,49 @@ function _settingsPresence(ctx, el){
         floorToggle.disabled = false;
       }
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed to save setting", true); }
+    } catch(e){ ctx.toast(t("Failed to save setting"), true); }
   });
 
   floorToggle.addEventListener("change", async()=>{
     try {
       await ctx.actions.settingsSet({ adaptive_floor_detection: floorToggle.checked });
-      ctx.toast(floorToggle.checked ? "Floor detection enhancement enabled" : "Floor detection enhancement disabled");
-    } catch(e){ ctx.toast("Failed to save setting", true); }
+      ctx.toast(floorToggle.checked ? t("Floor detection enhancement enabled") : t("Floor detection enhancement disabled"));
+    } catch(e){ ctx.toast(t("Failed to save setting"), true); }
   });
 
   if(!adaptiveEnabled) floorToggle.disabled = true;
 
-  const resetAdaptiveBtn = el("button",{class:"btn",style:"margin-top:8px;background:#991b1b;border-color:#991b1b"},"Reset Learned Data");
+  const resetAdaptiveBtn = el("button",{class:"btn",style:"margin-top:8px;background:#991b1b;border-color:#991b1b"},t("Reset Learned Data"));
   resetAdaptiveBtn.addEventListener("click", async()=>{
-    if(!confirm("Clear all adaptive learning data? This cannot be undone.")) return;
-    resetAdaptiveBtn.disabled=true; resetAdaptiveBtn.textContent="Resetting…";
+    if(!confirm(t("Clear all adaptive learning data? This cannot be undone."))) return;
+    resetAdaptiveBtn.disabled=true; resetAdaptiveBtn.textContent=t("Resetting…");
     try {
       await ctx.actions.wsCall("padspan_ha/adaptive_reset");
-      ctx.toast("Adaptive learning data cleared");
+      ctx.toast(t("Adaptive learning data cleared"));
       _renderAdaptiveStatus(null);
-    } catch(e){ ctx.toast("Reset failed: "+ctx.helpers.errorText(e), true); }
-    finally{ resetAdaptiveBtn.disabled=false; resetAdaptiveBtn.textContent="Reset Learned Data"; }
+    } catch(e){ ctx.toast(t("Reset failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+    finally{ resetAdaptiveBtn.disabled=false; resetAdaptiveBtn.textContent=t("Reset Learned Data"); }
   });
 
   put("positioning", el("div",{class:"card","data-focus-part":"adaptive_learning"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
-      el("div",{class:"h2",style:"margin:0"},"Adaptive Learning"),
-      el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},"EXPERIMENTAL"),
+      el("div",{class:"h2",style:"margin:0"},t("Adaptive Learning")),
+      el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},t("EXPERIMENTAL")),
     ]),
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
       adaptiveToggle,
       el("label",{for:"adaptiveLearningToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer"},
-        "Enable adaptive learning"),
+        t("Enable adaptive learning")),
     ]),
     el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-      "When enabled, PadSpan passively learns room RSSI fingerprints from high-confidence room " +
-      "assignments. Over days, this tightens radio propagation models for more accurate room detection " +
-      "without manual calibration walks. The system also learns room transition patterns to reduce false " +
-      "room changes."),
+      t("When enabled, PadSpan passively learns room RSSI fingerprints from high-confidence room assignments. Over days, this tightens radio propagation models for more accurate room detection without manual calibration walks. The system also learns room transition patterns to reduce false room changes.")),
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
       floorToggle,
       el("label",{for:"adaptiveFloorToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer"},
-        "Enhance floor-to-floor detection"),
+        t("Enhance floor-to-floor detection")),
     ]),
     el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-      "Learns cross-floor signal attenuation patterns to better distinguish between rooms on different " +
-      "floors. Requires scanners assigned to rooms on multiple floors in Home Assistant."),
+      t("Learns cross-floor signal attenuation patterns to better distinguish between rooms on different floors. Requires scanners assigned to rooms on multiple floors in Home Assistant.")),
     adaptiveStatusDiv,
     resetAdaptiveBtn,
   ]));
