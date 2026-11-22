@@ -98,7 +98,13 @@ def test_the_dialog_and_the_help_say_what_happens_to_guide_points() -> None:
     assert "Calibration Guide points stay too" in key and "0.38.209 to 0.38.217" in key and "by hand on the Model tab" in key
     for lang in ("de", "fr", "nl"):
         value = json.loads((www / "i18n" / lang / "help.json").read_text(encoding="utf-8"))[key]
-        assert "Calibration Guide" in value and "0.38.209" in value and "0.38.217" in value and "Model" in value, lang
+        # It names the Calibration Guide as the panel shows it in that language (its group files; English if none).
+        words = {}
+        for f in (www / "i18n" / lang).glob("*.json"):
+            if f.name != "help.json":
+                words.update(json.loads(f.read_text(encoding="utf-8")))
+        guide = words.get("Calibration Guide", "Calibration Guide")
+        assert guide in value and "0.38.209" in value and "0.38.217" in value and "Model" in value, lang
 
 
 def test_the_store_keeps_the_beacon_tune_mark_and_nothing_else() -> None:
