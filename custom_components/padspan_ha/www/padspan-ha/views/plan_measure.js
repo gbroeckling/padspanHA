@@ -60,7 +60,7 @@ export const row = (ctx, kids, style = "") => ctx.helpers.el("div", { style: "di
 /** What to do, said once above the picture. */
 export const measureHow = (tap) => (tap === "Tap" ? t("Tap both ends of something you know the length of (the longest wall you can, or the whole house), then type its length.")
   : t("Click both ends of something you know the length of (the longest wall you can, or the whole house), then type its length.")) + " " +
-  t("The longer the thing you measure, the more exact your map: a doorway is too short to trust.") + (tap === "Tap" ? " " + t("Pinch with two fingers, or use + below the plan, to look closer.") : "");
+  t("The longer the thing you measure, the more exact your map: a doorway works, but a long wall is better.") + (tap === "Tap" ? " " + t("Pinch with two fingers, or use + below the plan, to look closer.") : "");
 /** The line under the picture: which end is next, or how to move one. */
 export const endHint = (sc, tap) => (sc.pts.length < 2
   ? (tap === "Tap" ? (sc.pts.length ? t("Tap the other end on the plan.") : t("Tap the first end on the plan."))

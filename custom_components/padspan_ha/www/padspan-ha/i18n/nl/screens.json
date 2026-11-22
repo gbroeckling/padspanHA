@@ -48,7 +48,7 @@
 "Movement Alerts": "Bewegingsmeldingen",
 "Active": "Actief",
 "Alerts to your phone or by email when this tag moves rooms, arrives home or leaves. Sent through Home Assistant's notify service.": "Meldingen naar je telefoon of per e-mail als deze tag van kamer wisselt, thuiskomt of vertrekt. Verstuurd via de meldingsdienst van Home Assistant.",
-"No notify services found — add SMTP or another notification integration in HA Settings → Integrations": "Geen meldingsdiensten gevonden — voeg SMTP of een andere meldingsintegratie toe in HA onder Instellingen → Integraties",
+"No notify services found — add SMTP or another notification integration in HA Settings → Devices & services": "Geen meldingsdiensten gevonden — voeg SMTP of een andere meldingsintegratie toe in HA onder Instellingen → Apparaten en diensten",
 "Auto-detect": "Automatisch",
 "(not found)": "(niet gevonden)",
 "Save": "Opslaan",

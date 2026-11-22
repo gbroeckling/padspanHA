@@ -111,7 +111,7 @@ export function helpTexts() { return {
       t("The line at the top says what your receivers give you so far: none found yet, receivers with no area (home or away only), one room, or several rooms. Give each receiver the area it is in, in Home Assistant."),
       t("Each row is a room and who is in it: named and followed devices by name, then a count of the other devices heard there. \"Heard, no room yet\" collects devices heard only by a receiver with no area."),
       t("Phones Home Assistant already knows through its Private BLE Device integration have a \"Track\" button: one click names and follows the phone, which gives it room and home/away sensors in Home Assistant. \"Not heard right now\" lists the ones out of range. With Enhanced security on, only an administrator can track them."),
-      t("\"Make it a map\" opens the guided Setup (floor plan, scale, floors, rooms, receivers, calibration). \"Preview a finished house\" shows the sample house; \"Back to my house\" returns."),
+      t("\"Make it a map\" opens the guided Setup (floor plan, scale, rooms, floors, receivers, your phone or watch, calibration). \"Preview a finished house\" shows the sample house; \"Back to my house\" returns."),
     ],
   },
   getting_started: {
@@ -190,7 +190,7 @@ export function helpTexts() { return {
     body: [
       t("Mapping is where you give PadSpan a picture of each floor, its real size, the rooms on it and where your receivers (the Bluetooth listeners) hang. Positioning, the 3D views and the Atlas are all built from it."),
       t("In Basic mode Mapping has two tabs, Library and Upload, and Open on a plan starts the Setup Wizard. Advanced and Development add Edit, 3D Stack, Layout, Atlas builder, Export and Help, plus Furnish while Live Aboard is on. Only an administrator gets Upload or can change a plan."),
-      t("New to it? Click Setup at the top (or Start Setup Wizard in an empty Library). It takes you through the plan, its scale, the rooms, floor heights (two indoor floors or more), receivers and calibration, one step at a time."),
+      t("New to it? Click Setup at the top (or Start Setup Wizard in an empty Library). It takes you through the plan, its scale, the rooms, floor heights (two indoor floors or more), receivers, your phone or watch and calibration, one step at a time."),
       t("Floors and rooms come from Home Assistant: create or rename them in Home Assistant's Settings → Areas, labels & zones. A floor can have more than one plan (a wing drawn on its own, say); only Outside is limited to one."),
       t("Each tab has its own ? with the details."),
     ],
@@ -224,9 +224,9 @@ export function helpTexts() { return {
     title: t("Setup Wizard — one floor plan, step by step"),
     body: [
       t("The Setup Wizard takes one floor plan from picture to working map, with Setup's names and numbers: 1. Upload a floor plan, 2. Set the scale, 3. Draw the rooms, then Floors and their heights (two indoor floors or more), Place receivers and set their heights, and Finish. Once the plan exists, click any step's chip to jump to it."),
-      t("It starts from Start Setup Wizard or + Add a floor in the Library, and in Basic mode from Open on a plan. The guided Setup (Setup at the top of Mapping) sends you through the same steps, with calibration added."),
+      t("It starts from Start Setup Wizard or + Add a floor in the Library, and in Basic mode from Open on a plan. The guided Setup (Setup at the top of Mapping) sends you through the same steps, with your phone or watch and calibration added."),
       t("Set the scale: a plan with no scale shows \"Set this plan's scale now\": click both ends of something you know, type its length and click Save the scale (a second length is optional); Draw the rooms follows. A plan with a scale is measured again here with two lengths at different angles (Add 1st Measurement, Add 2nd Measurement, Save Scale), which show if the picture is stretched."),
-      t("Draw the rooms: pick a room in Choose room…, click its corners on the plan, then double-click or click Finish outline (3 points or more). Click Save Layout to keep the rooms. The box above the map counts the rooms still to draw."),
+      t("Draw the rooms: pick a room in Choose room…, click its corners on the plan, then double-click or click Finish outline (3 points or more). Each room saves itself as you finish it. The box above the map counts the rooms still to draw."),
       t("Place receivers and set their heights: in Live BLE Receivers click Add next to a receiver, drag it to where it really is, pick its Room, then Save Layout. Its height (Height above floor, Save height) saves on its own. \"Put my receivers in their rooms\" puts each one whose room has an outline in that room's middle, to drag into place in Calibration's first step, \"Check receiver positions\"."),
       t("Every step after the upload can be skipped and done later. Finish offers Put it on the map (adds the rooms and receivers your house layout doesn't have yet), Go to Calibration →, + Set up another floor and Done. Exit setup leaves at any time."),
       t("In Basic mode each step shows only its own tool; Advanced keeps all of Edit's tools."),

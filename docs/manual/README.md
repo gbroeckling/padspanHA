@@ -10,10 +10,10 @@ when the profile has none; any other language shows English.
 
 ## Part I: Start
 
-1. What PadSpan is: free and Pro, editions, how it compares. Coming. Today: the [README](../../README.md#editions) (Editions, How It Compares)
-2. Requirements. Coming. Today: [Minimum requirements](../MINIMUM_REQUIREMENTS.md)
+1. [What PadSpan is: free and Pro, editions, is it for me, how it compares](01-what-padspan-is.md)
+2. [Requirements](02-requirements.md)
 3. [Install, update, uninstall](03-install-update-uninstall.md)
-4. Your first room in 15 minutes. Coming. Today: [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/) and [Getting Started](../GETTING_STARTED.md)
+4. [Your first room in 15 minutes](04-first-room.md)
 
 ## Part II: Receivers, phones, tags
 
@@ -24,14 +24,14 @@ when the profile has none; any other language shows English.
 ## Part III: Your house on a map
 
 8. Rooms and floors come from Home Assistant. Coming. Today: [Getting Started, step 4](../GETTING_STARTED.md#step-4-give-every-scanner-its-room)
-9. Setup: plan, scale, rooms, receivers, Put it on the map, and a house with no floor plan. Coming. Today: [Floor Plan Setup](../FLOOR_PLAN_SETUP.md), [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) and [Connect Claude for PadSpan's room helper](https://padspan.traks.ca/guides/claude-ai-task/)
+9. [Setup: plan, scale, rooms, receivers, your phone, Put it on the map, a house with no floor plan, lining up floors](09-setup-the-map.md)
 10. Walls and signal loss. Coming. Today: the [Walls guide](../WALLS_GUIDE.md)
-11. Calibration. Coming. Today: the **?** help on PadSpan's Calibration screen
+11. [Calibration](11-calibration.md)
 
 ## Part IV: Every day
 
-12. The screens. Coming. Today: the **?** help on each screen
-13. Alerts and notifications. Coming. Today: the **?** help on Follow, and the [Atlas guide](../ATLAS_GUIDE.md)
+12. [The screens, Basic and Advanced, the menu map, the sample house](12-the-screens.md)
+13. [Alerts and notifications](13-alerts.md)
 14. [Home Assistant: entities, services, events, Assist](14-home-assistant-reference.md)
 
 ## Part V: Lights and the 3D house

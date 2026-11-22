@@ -267,10 +267,10 @@ The button opens PadSpan in the Marketplace on Home Assistant 2026.11 and newer,
 
 1. Install from the Marketplace (or with HACS, then restart HA)
 2. Add the PadSpan HA integration
-3. Open the **PadSpan HA** panel in the sidebar. **Who's where now** puts each device in the room of the scanner that hears it best, from each scanner's Home Assistant area. No floor plan needed
+3. Open the **PadSpan HA** panel in the sidebar. **Who's where now** puts each device in the room of the scanner that hears it best, from each scanner's Home Assistant area. No floor plan needed. From 0.38.276, a scanner with no area gets a room to choose right on that card, guessed from its name when it can be: pick it and choose **Set room**
 4. Name your phones and tags: [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) shows how for iPhone, Apple Watch and Android
 5. **Preview a finished house** shows a sample house with every feature set up. **Back to my house** returns to yours
-6. Want the map? **Make it a map** walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, then **Put it on the map** and calibrate
+6. Want the map? **Make it a map** walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, then **Put it on the map**, track your phone or watch (a step of its own from 0.38.276) and calibrate
 
 Every step, with pictures: [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/).
 

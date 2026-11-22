@@ -4,8 +4,9 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // Setup: the house's setup as one ordered sequence (interface review item
-// 15) — plan, scale, floors and heights, rooms, receivers and their heights,
-// your phone or watch, calibration. A list, not a seventh wizard: each step opens the tool that
+// 15) — plan, scale, rooms, floors and heights (two indoor floors or more),
+// receivers and their heights, your phone or watch, calibration
+// (setup_status.js SETUP_STEPS). A list, not a seventh wizard: each step opens the tool that
 // already does it (the Mapping Setup Wizard at its step, Mapping → 3D Stack's
 // Floor Heights, the phone wizard, the guided calibration), and a bar over that tool leads
 // back here. Whether a step is done is read off the house itself, by the

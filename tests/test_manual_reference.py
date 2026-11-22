@@ -4,12 +4,13 @@
 """The manual's reference tables are the code's.
 
 docs/manual/14-home-assistant-reference.md (entities, attributes, services,
-events, Assist, MQTT) and docs/manual/20-settings-reference.md (every setting,
-its default and range) carry blocks made by scripts/build_manual_reference.py.
-They fail here when they no longer match what the code makes, and the script
-itself refuses an entity, attribute, event field or setting the code has and
-the script gives no words for, or words for one the code no longer has. When
-this fails, run
+events, Assist, MQTT), docs/manual/20-settings-reference.md (every setting,
+its default and range) and docs/manual/12-the-screens.md (the menu map, from
+panel.js MENU) carry blocks made by scripts/build_manual_reference.py. They
+fail here when they no longer match what the code makes, and the script
+itself refuses an entity, attribute, event field, setting or screen the code
+has and the script gives no words for, or words for one the code no longer
+has. When this fails, run
 
     python scripts/build_manual_reference.py
 
@@ -121,6 +122,38 @@ def test_it_refuses_a_setting_it_cannot_place(monkeypatch, what) -> None:
         where, card, _control, text = entries["away_timeout_m"]
         entries["away_timeout_m"] = (where, card, "Away time-out (minutes)", text)
     monkeypatch.setattr(B, "SETTINGS_ENTRIES", entries)
+    with pytest.raises(B.ReferenceError_):
+        B.blocks()
+
+
+def test_the_menu_map_is_the_panels_menu() -> None:
+    """Chapter 12's menu map is read from panel.js: every screen, once, in its place in each mode."""
+    code = B.menu_in_code()
+    ids = [i for i, _ in code["menu"]]
+    assert set(ids) == set(B.SCREENS) and len(ids) == len(set(ids))
+    assert set(code["gated"]) == set(B.SHOWN_WHEN) == {"forensics", "guests", "setup"}
+    assert {"follow", "overview", "calibration"} <= set(code["basic"]) and "purelive" not in code["basic"]
+    assert {"purelive", "traceback", "health"} <= set(code["advanced"]) and "devices" not in code["advanced"]
+    assert {"forensics", "guests"} <= set(code["every_mode"])
+    assert [g for g, _ in code["groups"]] == ["Live", "Build", "Diagnose", "Internals"]
+    text = (MANUAL / "12-the-screens.md").read_text(encoding="utf-8")
+    block = B.committed_block(text, "menu")
+    for _i, name in code["menu"]:
+        assert f"| **{name}** |" in block, name
+
+
+@pytest.mark.parametrize("what", ["screen", "gone", "gate"])
+def test_it_refuses_a_screen_it_has_no_words_for(monkeypatch, what) -> None:
+    """A screen added to MENU with no words, words for a screen gone, or a gate nobody described, stop the build."""
+    screens, shown = dict(B.SCREENS), dict(B.SHOWN_WHEN)
+    if what == "screen":
+        del screens["occupancy"]
+    elif what == "gone":
+        screens["zones"] = "A screen the menu no longer has."
+    else:
+        del shown["guests"]
+    monkeypatch.setattr(B, "SCREENS", screens)
+    monkeypatch.setattr(B, "SHOWN_WHEN", shown)
     with pytest.raises(B.ReferenceError_):
         B.blocks()
 

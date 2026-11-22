@@ -13,7 +13,8 @@
 // The ways of getting the key are the ones PadSpan already documents: the
 // IRK Capture ESP32 (its steps, renderCaptureSteps, are the phone wizard's
 // first path) and a Mac (the Terminal command, and the Keychain way in
-// Settings → Phone Tracking → Detailed Setup Guide). The iPhone path writes
+// Settings → Tracking → Phones and guest tags → Phone Tracking (Private BLE)
+// → Detailed Setup Guide, settings.js). The iPhone path writes
 // nothing: its check is padspan_ha/irk_validate, which only tests the key
 // against the air. The capture steps save the key the person chose to save.
 //
@@ -43,7 +44,7 @@ export const MAC_IRK_COMMAND =
 
 export function iphoneIrkSteps() {
   return [
-    t("Get the iPhone's IRK (Identity Resolving Key). Either pair the iPhone with an ESP32 running DerekSeaman's irk-capture (github.com/DerekSeaman/irk-capture): Bluetooth → IRK Manager → “I have an IRK Capture ESP32” takes you through it and saves the key; or, on a Mac signed into the same iCloud account, run {command} and copy the IRK under the iPhone's name (Settings → Phone Tracking → Detailed Setup Guide has the Keychain way too).",
+    t("Get the iPhone's IRK (Identity Resolving Key). Either pair the iPhone with an ESP32 running DerekSeaman's irk-capture (github.com/DerekSeaman/irk-capture): Bluetooth → IRK Manager → “I have an IRK Capture ESP32” takes you through it and saves the key; or, on a Mac signed into the same iCloud account, run {command} and copy the IRK under the iPhone's name (Settings → Tracking → Phones and guest tags → Phone Tracking (Private BLE) → Detailed Setup Guide has the Keychain way too).",
       { command: MAC_IRK_COMMAND }),
     t("Add it in Home Assistant: Settings → Devices & services → Add integration → Private BLE Device, and paste the IRK. PadSpan picks it up from there within a minute."),
     t("Check it resolves: with the iPhone awake near a scanner, it shows in Bluetooth → IRK Manager → Registered IRK devices and the Resolved count goes up. “Test only” there checks a key without saving it."),

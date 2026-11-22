@@ -251,7 +251,7 @@ export function render(ctx){
         // over the Library's "No floor plans yet", whose button opens it.
         ...(_setupShown && !_noPlansYet
           ? [el("button",{class:"btn inline", style:"white-space:nowrap", "data-setup-link":"maps",
-              title:t("Plan, scale, floors, rooms, receivers and calibration, one step at a time"),
+              title:t("Plan, scale, rooms, floors, receivers, your phone or watch and calibration, one step at a time"),
               onclick:()=>ctx.actions.showView("setup")}, t("Setup"))] : []),
       ])
     ]),
@@ -1823,7 +1823,7 @@ function _wizardScanners(ctx, map, maps, w){
   const count = map ? _placedReceivers(ctx.state, fid).size : 0;
   const onHouse = map ? count - _placedReceivers({ maps: { list: (ctx.state.maps?.list || []).filter(m => (m.floor_id || "main") === fid) } }, fid).size : 0;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
-    t("Place a marker for every Bluetooth receiver on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position.") + " " +
+    t("Place a marker for every Bluetooth receiver on this floor, where it's actually mounted: press Add beside it in Live BLE Receivers, then drag it into position.") + " " +
     t("Or let PadSpan put each one in its room first (below, beside the receiver tools).")));
   wrap.appendChild(el("div",{"data-wizard-count":"receivers", style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     count ? tn(count, "{n} receiver placed on this floor.", "{n} receivers placed on this floor.") + (onHouse > 0

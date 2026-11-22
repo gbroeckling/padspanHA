@@ -26,10 +26,14 @@ What comes from the code, read each time:
   * MQTT: the topics and the state payload's keys;
   * settings: every key in settings_store.DEFAULT_SETTINGS and the
     padspan_ha/settings_set schema, its default, and the range or choices
-    ws_settings.py keeps it to.
+    ws_settings.py keeps it to;
+  * the menu (chapter 12): every screen in panel.js MENU, whether it is in the
+    main list or under More tools in each mode, its heading, the screens shown
+    only while something holds, and the phone's bottom bar.
 
 What is written here by hand, because the code cannot say it: what each entity,
-attribute, event field and setting means, and where a setting is in the panel.
+attribute, event field, setting and screen means, where a setting is in the
+panel, and when a screen that is not always in the menu is there.
 Each of those is checked against the code: a hand-written line for something the
 code no longer has, or code with no line here, stops the build with a message
 saying what to add (tests/test_manual_reference.py runs it).
@@ -51,6 +55,7 @@ WWW = PKG / "www" / "padspan-ha"
 MANUAL = ROOT / "docs" / "manual"
 HA_REFERENCE = MANUAL / "14-home-assistant-reference.md"
 SETTINGS_REFERENCE = MANUAL / "20-settings-reference.md"
+SCREENS_CHAPTER = MANUAL / "12-the-screens.md"
 SCRIPT = "scripts/build_manual_reference.py"
 
 
@@ -665,6 +670,129 @@ def _mqtt_block() -> str:
     return "\n".join(lines) + "\n"
 
 
+# ── the menu (chapter 12): what panel.js says ───────────────────────────────
+# MENU (every screen and its English name), BASIC_TABS and ADVANCED_DEFAULT
+# (the main list in each mode; the rest are under More tools), MENU_GROUPS (the
+# headings of the 2025 style), the screens _getVisibleTabs leaves out until a
+# condition holds, the ones _getMainTabs puts in every mode's main list, the
+# phone's bottom bar, and the screens Settings → UI Structure can move into
+# Advanced's main list (settings.js _DEV_ONLY_TABS). Written here by hand: what
+# each screen is, and when a gated one is in the menu.
+
+def _js_block(src: str, start: str) -> str:
+    """The text from `start` to the end of its statement: the first `];` or `]);` after it."""
+    if start not in src:
+        raise ReferenceError_(f"panel.js no longer has {start!r}")
+    rest = src[src.index(start) + len(start):]
+    return rest[:re.search(r"\]\)?;", rest).end()]
+
+
+def _js_method(src: str, name: str) -> str:
+    """A class method's body, from `name(){` to the next line holding only `}` at its indent."""
+    m = re.search(r"^( *)" + re.escape(name) + r"\(\)\s*\{\n", src, re.M)
+    if not m:
+        raise ReferenceError_(f"panel.js no longer has {name}()")
+    end = src.index("\n" + m.group(1) + "}\n", m.end())
+    return src[m.end():end]
+
+
+def menu_in_code() -> dict:
+    src = (WWW / "panel.js").read_text(encoding="utf-8")
+    menu = re.findall(r'\["(\w+)","([^"]+)","mdi:[^"]+"\]', _js_block(src, "const MENU = ["))
+    ids = lambda block: re.findall(r'"(\w+)"', block)  # noqa: E731
+    groups = [(g, ids(members)) for g, members in
+              re.findall(r'\["(\w+)",\s*\[([^\]]*)\]\]', _js_block(src, "const MENU_GROUPS = ["))]
+    visible = _js_method(src, "_getVisibleTabs")
+    gated = dict((tab, cond) for cond, tab in re.findall(r'if \((.+?)\) out\.delete\("(\w+)"\)', visible))
+    pinned = re.search(r"const pinned = isBasic\s*\?\s*\[([^\]]*)\]\s*:\s*\[([^\]]*)\]", src)
+    settings_src = (WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    tickable = re.search(r"const _DEV_ONLY_TABS = \[([^\]]*)\]", settings_src)
+    if not (menu and groups and gated and pinned and tickable):
+        raise ReferenceError_("panel.js's menu has changed shape: the menu map can't be read from it")
+    return {
+        "menu": menu,
+        "basic": ids(_js_block(src, "const BASIC_TABS = new Set([")),
+        "advanced": ids(_js_block(src, "const ADVANCED_DEFAULT = new Set([")),
+        "groups": groups,
+        "gated": gated,
+        "every_mode": re.findall(r'out\.add\("(\w+)"\)', _js_method(src, "_getMainTabs")),
+        "pinned_basic": ids(pinned.group(1)),
+        "pinned_other": ids(pinned.group(2)),
+        "tickable": ids(tickable.group(1)),
+    }
+
+
+# What each screen is, in a line. Every screen in MENU has one, and nothing else.
+SCREENS = {
+    "overview": "Where everyone and everything is now, on a drawing of your house; before any room is drawn, Who's where now.",
+    "purelive": "The live map on its own, full screen, for a wall tablet or a second screen.",
+    "follow": "One person or thing: its room now, its movements, Locate (Pro) and alerts when it moves.",
+    "occupancy": "How many people are in the building, and how the number was reached.",
+    "guests": "Guest tags: who is staying now, the tags you lend, and past stays.",
+    "setup": "The steps from a floor plan to a calibrated map, in order.",
+    "maps": "Floor plans, their scale, rooms, receivers, floors, and the Atlas builder.",
+    "rooms": "Every room's settings in one place: colour, outline, ceiling height, receivers, who is in it.",
+    "receivers": "Every receiver in one table: room, floor, height, signal adjustment, status.",
+    "calibration": "Teach PadSpan what each spot sounds like, and see how accurate it is.",
+    "training": "Animated walkthroughs and the Full Manual, inside the panel.",
+    "manage": "Data clean-ups, backups, Home Assistant entities, alerts by email or phone, logs, Factory Reset.",
+    "settings": "Every setting, in tabs.",
+    "traceback": "Replay where devices went, with Insights (time in each room) and Busy Times (Pro).",
+    "health": "Is PadSpan working? Its own checks, receivers' health, and Problems found.",
+    "forensics": "Pro: which Bluetooth devices were near your receivers between two times.",
+    "monitor": "What PadSpan hears, in numbers, and Export for support.",
+    "devices": "Every device PadSpan tracks or hears, in four lists, and the device registry.",
+    "bluetooth": "What each receiver hears, and the IRK Manager for phones and watches.",
+    "presence": "For experts: which rooms each device has been seen in, and what each receiver hears.",
+    "qa": "Checks on your setup, backups, and each receiver ranked.",
+    "sandbox": "A look under the hood at the live data; changes nothing.",
+    "installbase": "The developer's screen for the opt-in usage reports; asks for a PIN.",
+}
+
+# When a screen the menu leaves out until something holds is there (_getVisibleTabs).
+SHOWN_WHEN = {
+    "forensics": "While Forensics is on (Settings → Features → Forensics)",
+    "guests": "While guest tags are on (Settings → Tracking → Phones and guest tags)",
+    "setup": "Until every step is done, or setup is skipped",
+}
+
+
+def _menu_block() -> str:
+    code = menu_in_code()
+    menu_ids = [i for i, _ in code["menu"]]
+    if set(menu_ids) != set(SCREENS):
+        raise ReferenceError_(f"Screens in panel.js MENU with no words in SCREENS ({SCRIPT}): "
+                              f"{sorted(set(menu_ids) - set(SCREENS))}; words for screens MENU no longer has: "
+                              f"{sorted(set(SCREENS) - set(menu_ids))}")
+    if set(code["gated"]) != set(SHOWN_WHEN):
+        raise ReferenceError_(f"Screens panel.js shows only when something holds: {sorted(code['gated'])}; "
+                              f"described in SHOWN_WHEN ({SCRIPT}): {sorted(SHOWN_WHEN)}")
+    names = dict(code["menu"])
+    heading = {i: g for g, members in code["groups"] for i in members}
+    order = [i for _g, members in code["groups"] for i in members if i in names]
+    order += [i for i in menu_ids if i not in order]
+    every = set(code["every_mode"])
+
+    def place(i: str, main: list[str], tick: bool) -> str:
+        if i in main or i in every:
+            return "Main list"
+        return "More tools (Settings → UI Structure can move it to the main list)" if tick and i in code["tickable"] \
+            else "More tools"
+
+    lines = ["| Screen | What it is | In the menu | Basic | Advanced and Development | Heading |",
+             "|---|---|---|---|---|---|"]
+    for i in order:
+        lines.append(f"| **{names[i]}** | {SCREENS[i]} | {SHOWN_WHEN.get(i, 'Always')} | "
+                     f"{place(i, code['basic'], False)} | {place(i, code['advanced'], True)} | {heading.get(i, 'More')} |")
+    def bar(tabs: list[str]) -> str:
+        words = [names[i] for i in tabs]
+        return ", ".join(words[:-1]) + " and " + words[-1] if len(words) > 1 else "".join(words)
+
+    lines += ["", f"On a phone, the bar along the bottom has {bar(code['pinned_basic'])} in Basic, and "
+                  f"{bar(code['pinned_other'])} in Advanced and Development, then More, which opens the whole menu."]
+    return "\n".join(lines) + "\n"
+
+
 # ── the blocks, and writing them ────────────────────────────────────────────
 
 def blocks() -> dict[Path, dict[str, str]]:
@@ -674,6 +802,7 @@ def blocks() -> dict[Path, dict[str, str]]:
                           "assist": _assist_block(), "mqtt": _mqtt_block()}}
     if from_settings:
         out[SETTINGS_REFERENCE] = from_settings
+    out[SCREENS_CHAPTER] = {"menu": _menu_block()}
     return out
 
 

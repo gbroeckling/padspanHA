@@ -65,6 +65,7 @@ async def test_arrive_alert_fires_when_configured_and_labelled():
     assert call.args[0] == "notify"
     assert "arrived" in call.args[2]["message"]
     assert "Alex's Phone" in call.args[2]["message"]
+    assert call.args[2]["title"] == "PadSpan: Alex's Phone arrived"
 
 
 @pytest.mark.asyncio
@@ -82,6 +83,8 @@ async def test_depart_alert_fires_when_configured():
     await coord._run_automations(set(), {"ble:AA:BB:CC:DD:EE:FF"}, result, now=1000.0)
     coord.hass.services.async_call.assert_awaited()
     assert "left" in coord.hass.services.async_call.call_args.args[2]["message"]
+    # Not "departd" (the title was f"{event}d", which only works for "arrive").
+    assert coord.hass.services.async_call.call_args.args[2]["title"] == "PadSpan: Alex's Phone left"
 
 
 @pytest.mark.asyncio
