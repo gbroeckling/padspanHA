@@ -9,6 +9,8 @@
 // Locate lives here as an option (2026-09-23): it works on where the
 // followed object is right now, the same live poll Follow already runs.
 const { deviceName, pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const locateView =
   await import(`./locate.js${new URL(import.meta.url).search}`);
 
@@ -89,17 +91,17 @@ export function render(ctx) {
   const header = el("div", { class: "row", style: "margin-bottom:14px" }, [
     el("div", { class: "grow" }, [
       el("div", { class: "row", style: "align-items:center;gap:8px" }, [
-        el("div", { class: "h1" }, "Follow"),
+        el("div", { class: "h1" }, t("Follow")),
         helpBtn("follow"),
       ]),
       el("div", { class: "muted" }, isBasic
-        ? "Track exactly where a person or object is right now."
-        : "Track a tag's real-time location. Position updates every ~5 s in Live mode."),
+        ? t("Track exactly where a person or object is right now.")
+        : t("Track a tag's real-time location. Position updates every ~5 s in Live mode.")),
     ]),
     !ctx.state._dataModeKnown ? null
       : dataMode !== "live"
-      ? el("span", { class: "badge warn" }, "Sample mode — switch to Live for real data")
-      : el("span", { class: "badge" }, "Live · auto-refresh 5 s"),
+      ? el("span", { class: "badge warn" }, t("Sample mode — switch to Live for real data"))
+      : el("span", { class: "badge" }, t("Live · auto-refresh 5 s")),
   ]);
 
   // ── Tag selector ─────────────────────────────────────────────────────────────
@@ -110,11 +112,11 @@ export function render(ctx) {
     return el("div", { id: "follow" }, [header, selectorCard,
       el("div", { class: "card" }, [
         isBasic
-          ? el("div", { style: "font-size:16px;font-weight:700;margin-bottom:8px" }, "Choose a tag above to start tracking it")
-          : el("div", { style: "font-weight:700" }, "No tag selected"),
+          ? el("div", { style: "font-size:16px;font-weight:700;margin-bottom:8px" }, t("Choose a tag above to start tracking it"))
+          : el("div", { style: "font-weight:700" }, t("No tag selected")),
         el("div", { class: "muted", style: "margin-top:6px" }, ctx.state._followLocateOn
-          ? "Use the selector above to choose a tag — 📍 Locate will then guide you to it."
-          : "Use the selector above to choose a tag to follow."),
+          ? t("Use the selector above to choose a tag — 📍 Locate will then guide you to it.")
+          : t("Use the selector above to choose a tag to follow.")),
       ]),
     ]);
   }
@@ -126,7 +128,7 @@ export function render(ctx) {
   const locateKey = chosen.key || chosen.address || chosen.entity_id || "";
   const locateBtn = el("button", { class: "btn inline", style: ctx.state._followLocateOn
     ? "font-weight:700;background:#818cf822;color:#818cf8;border-color:#818cf8" : "" },
-    ctx.state._followLocateOn ? "📍 Locate: on" : "📍 Locate");
+    "📍 " + (ctx.state._followLocateOn ? t("Locate: on") : t("Locate")));
   locateBtn.addEventListener("click", () => {
     ctx.state._followLocateOn = !ctx.state._followLocateOn;
     ctx.actions.renderRooms();
@@ -155,7 +157,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
   const card = el("div", { class: "card", style: "margin-bottom:10px" });
 
   card.appendChild(el("div", { class: "card-head" }, [
-    el("div", { class: isBasic ? "h2" : "muted", style: isBasic ? "" : "font-size:12px" }, "Choose a tag to follow"),
+    el("div", { class: isBasic ? "h2" : "muted", style: isBasic ? "" : "font-size:12px" }, t("Choose a tag to follow")),
     helpBtn("follow_selector"),
   ]));
 
@@ -182,7 +184,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
     const name = pickName(o, id);
     const room = o.room ? ` · ${o.room}` : "";
     const rssiStr = o.rssi != null ? ` (${o.rssi} dBm)` : "";
-    const kind = o.kind === "entity" ? "[Entity]" : (o.identified ? "[Tagged]" : "[Unidentified]");
+    const kind = "[" + (o.kind === "entity" ? t("Entity") : (o.identified ? t("Tagged") : t("Unidentified"))) + "]";
     items.push({ id, label: `${kind} ${name}${room}${rssiStr}`, search: `${name} ${o.room || ""} ${id}`.toLowerCase() });
   }
 
@@ -195,7 +197,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
 
   const input = document.createElement("input");
   input.type = "text";
-  input.placeholder = currentItem ? currentItem.label : "Search tags...";
+  input.placeholder = currentItem ? currentItem.label : t("Search tags...");
   input.className = "select";
   input.style.cssText = "width:100%;box-sizing:border-box;cursor:text";
   input.value = "";
@@ -235,7 +237,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
     if (!filtered.length) {
       const empty = document.createElement("div");
       empty.style.cssText = "padding:10px 12px;color:#64748b;font-size:12px";
-      empty.textContent = q ? "No matches" : "No tags available";
+      empty.textContent = q ? t("No matches") : t("No tags available");
       list.appendChild(empty);
       return;
     }
@@ -277,7 +279,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
   const _sid = (source) => _rsid(source || "");
   const obj    = chosen;
   const userLabel = obj.user_label || "";
-  const name   = deviceName(obj, "Unknown");
+  const name   = deviceName(obj, t("Unknown"));
   const room   = obj.room || "—";
   const addr   = obj.address || "";
   // Resolve canonical address for tag/rename (same logic as _showObjectDetail)
@@ -318,28 +320,28 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
     const s = seenBy[0].age_s;
     if (s == null) return null;
     const v = Math.max(0, Math.round(Number(s)));
-    if (v < 60) return `${v}s ago`;
-    return `${Math.round(v / 60)}m ago`;
+    if (v < 60) return t("{n}s ago", { n: v });
+    return t("{n}m ago", { n: Math.round(v / 60) });
   })();
 
   const statusBadge = obj.identified
-    ? el("span", { class: "badge" }, "identified")
-    : el("span", { class: "badge warn" }, "unidentified");
+    ? el("span", { class: "badge" }, t("identified"))
+    : el("span", { class: "badge warn" }, t("unidentified"));
   const knnBadge = obj.knn_confidence > 0
     ? el("span", { class: "badge", style: "background:#1a3a2a;color:#52b788;border:1px solid #2d6a4f" },
-        `Calibrated ${Math.round(obj.knn_confidence * 100)}%`)
+        t("Calibrated {pct}%", { pct: Math.round(obj.knn_confidence * 100) }))
     : null;
 
   // Rename button (inline — uses same tagObjectPrompt as Details modal)
   const renameBtn = canRename ? el("button", {class:"btn inline", style:"font-size:11px;padding:2px 8px",
     onclick:()=> ctx.actions.tagObjectPrompt(tagAddr, userLabel)
-  }, userLabel ? "Rename" : "Name this tag") : null;
+  }, userLabel ? t("Rename") : t("Name this tag")) : null;
 
   if (isBasic) {
     // Basic mode: large room name + floor, simple last-seen
     const detailsBtnBasic = el("button", {class:"btn inline", style:"margin-left:auto",
       onclick:()=> ctx.actions.showObjectDetail(obj)
-    }, "Details →");
+    }, t("Details →"));
     return el("div", { class: "card", style: "margin-bottom:10px" }, [
       el("div", { class: "card-head" }, [
         el("div", { class: "h2" }, name),
@@ -349,10 +351,10 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
         detailsBtnBasic,
       ].filter(Boolean)),
       el("div", { style: "margin-top:8px" }, [
-        el("div", { class: "muted", style: "font-size:12px" }, "Currently in"),
+        el("div", { class: "muted", style: "font-size:12px" }, t("Currently in")),
         el("div", { style: "font-size:28px;font-weight:800;color:#52b788;margin-top:2px" }, room),
-        floor !== "—" ? el("div", { class: "muted", style: "margin-top:4px" }, `Floor: ${floor}`) : null,
-        lastSeen ? el("div", { class: "muted", style: "margin-top:8px" }, `Last seen: ${lastSeen}`) : null,
+        floor !== "—" ? el("div", { class: "muted", style: "margin-top:4px" }, t("Floor: {floor}", { floor })) : null,
+        lastSeen ? el("div", { class: "muted", style: "margin-top:8px" }, t("Last seen: {ago}", { ago: lastSeen })) : null,
         ctx.actions.labelLines ? ctx.actions.labelLines(obj, "own") : null,
       ].filter(Boolean)),
     ]);
@@ -364,7 +366,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
           `${_sid(a.source||"")}${_sid(a.source||"")?" ":""}${ctx.helpers.radioName(a.source||"")||(a.source||"?")} ${a.rssi != null ? a.rssi + " dBm" : ""}`
         ))
       )
-    : el("div", { class: "muted", style: "margin-top:4px;font-size:12px" }, "No active detections");
+    : el("div", { class: "muted", style: "margin-top:4px;font-size:12px" }, t("No active detections"));
 
   return el("div", { class: "card", style: "margin-bottom:10px" }, [
     el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px" }, [
@@ -374,21 +376,21 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
       knnBadge,
       el("button", {class:"btn inline", style:"margin-left:auto",
         onclick:()=> ctx.actions.showObjectDetail(obj)
-      }, "Details →"),
+      }, t("Details →")),
     ].filter(Boolean)),
     el("div", { class: "grid-2" }, [
       el("div", {}, [
-        el("div", { class: "muted", style: "font-size:11px" }, "Current room"),
+        el("div", { class: "muted", style: "font-size:11px" }, t("Current room")),
         el("div", { style: "font-size:20px;font-weight:700;color:#52b788;margin-top:2px" }, room),
-        el("div", { class: "muted", style: "font-size:11px;margin-top:2px" }, `Floor: ${floor}`),
+        el("div", { class: "muted", style: "font-size:11px;margin-top:2px" }, t("Floor: {floor}", { floor })),
       ]),
       el("div", {}, [
-        el("div", { class: "muted", style: "font-size:11px" }, "Detected by"),
+        el("div", { class: "muted", style: "font-size:11px" }, t("Detected by")),
         radiosEl,
-        lastSeen ? el("div", { class: "muted", style: "font-size:11px;margin-top:4px" }, `Last seen: ${lastSeen}`) : null,
+        lastSeen ? el("div", { class: "muted", style: "font-size:11px;margin-top:4px" }, t("Last seen: {ago}", { ago: lastSeen })) : null,
       ].filter(Boolean)),
     ]),
-    addr ? el("div", { class: "muted", style: "font-size:11px;margin-top:8px" }, `Address: ${addr}`) : null,
+    addr ? el("div", { class: "muted", style: "font-size:11px;margin-top:8px" }, t("Address: {address}", { address: addr })) : null,
     ctx.actions.labelLines ? ctx.actions.labelLines(obj, "own") : null,
   ].filter(Boolean));
 }
@@ -408,7 +410,7 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
 
   if (!rooms.length) {
     return el("div", { class: "card", style: "margin-bottom:10px" }, [
-      el("div", { class: "muted" }, "No rooms configured. Add areas in HA Settings → Areas, labels & zones."),
+      el("div", { class: "muted" }, t("No rooms configured. Add areas in HA Settings → Areas, labels & zones.")),
     ]);
   }
 
@@ -469,7 +471,7 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
       s += `<circle cx="${tx}" cy="${ty}" r="13" fill="#5eead4" opacity="0.2"/>`;
       s += `<circle cx="${tx}" cy="${ty}" r="9"  fill="#5eead4" opacity="0.95"/>`;
       s += `<circle cx="${tx}" cy="${ty}" r="4.5" fill="#071008"/>`;
-      const lbl = deviceName(chosen, "Tag").substring(0, 14);
+      const lbl = deviceName(chosen, t("Tag")).substring(0, 14);
       s += `<text x="${tx}" y="${ty + 26}" text-anchor="middle" fill="#5eead4" font-size="11" font-weight="600">${_esc(lbl)}</text>`;
     }
   });
@@ -481,13 +483,13 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
 
   return el("div", { class: "card", style: "margin-bottom:10px" }, [
     el("div", { class: "card-head" }, [
-      el("div", { class: "h2" }, "Location map"),
+      el("div", { class: "h2" }, t("Location map")),
       helpBtn("follow_map"),
     ]),
     el("div", { class: "muted", style: "margin-bottom:10px;font-size:12px" },
       chosenRoom
-        ? `Showing: ${deviceName(chosen, "Tag")} is in ${chosenRoom}`
-        : "Tag has no room assignment yet."),
+        ? t("Showing: {name} is in {room}", { name: deviceName(chosen, t("Tag")), room: chosenRoom })
+        : t("Tag has no room assignment yet.")),
     wrap,
   ]);
 }
@@ -495,14 +497,14 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
 // ── Movement log ───────────────────────────────────────────────────────────────
 function _buildLog(el, history) {
   const card = el("div", { class: "card", style: "margin-bottom:10px" });
-  card.appendChild(el("div", { class: "h2" }, "Movement log"));
+  card.appendChild(el("div", { class: "h2" }, t("Movement log")));
 
   if (history === null) {
-    card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, "Loading…"));
+    card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, t("Loading…")));
     return card;
   }
   if (!history.length) {
-    card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, "No movement recorded yet for this tag."));
+    card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, t("No movement recorded yet for this tag.")));
     return card;
   }
 
@@ -518,8 +520,8 @@ function _buildLog(el, history) {
   const rows = [...history].reverse().slice(0, 30);
   const table = el("table", { class: "table", style: "margin-top:8px" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Time"),
-      el("th", {}, "Room"),
+      el("th", {}, t("Time")),
+      el("th", {}, t("Room")),
       el("th", {}, ""),
     ])),
     el("tbody", {}, rows.map((entry) => {
@@ -528,7 +530,7 @@ function _buildLog(el, history) {
       // Movement tab now makes, so the two views agree on what this means.
       const firstSeen = !entry.from;
       const detail = firstSeen
-        ? el("td", { style: "font-size:11px;color:#a78bfa;font-weight:600" }, "✨ First seen")
+        ? el("td", { style: "font-size:11px;color:#a78bfa;font-weight:600" }, "✨ " + t("First seen"))
         : el("td", { class: "muted", style: "font-size:11px" }, `← ${entry.from}`);
       return el("tr", {}, [
         el("td", { class: "mono", style: "font-size:11px;color:#94a3b8" }, fmtTs(entry.ts)),
@@ -544,19 +546,19 @@ function _buildLog(el, history) {
 // ── Alert configuration (per-device, inline in Follow) ────────────────────────
 function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic) {
   const cfg = ctx.state.followAlertConfig[addr] || {};
-  const name = deviceName(chosen, addr || "tag");
+  const name = deviceName(chosen, addr || t("tag"));
   // An email, or a picked notify target (a phone needs no email).
   const saved = !!((cfg.email || cfg.notify_service) && (cfg.on_room_change || cfg.on_arrive || cfg.on_depart));
 
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { class: "card-head" }, [
-    el("div", { class: "h2" }, "Movement Alerts"),
-    saved ? el("span",{class:"badge",style:"border-color:#52b788;color:#52b788;font-size:10px;margin-left:8px"},"Active") : null,
+    el("div", { class: "h2" }, t("Movement Alerts")),
+    saved ? el("span",{class:"badge",style:"border-color:#52b788;color:#52b788;font-size:10px;margin-left:8px"},t("Active")) : null,
     helpBtn("follow_alerts"),
   ].filter(Boolean)));
 
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:12px" },
-    "Alerts to your phone or by email when this tag moves rooms, arrives home or leaves. Sent through Home Assistant's notify service."
+    t("Alerts to your phone or by email when this tag moves rooms, arrives home or leaves. Sent through Home Assistant's notify service.")
   ));
 
   // Email input
@@ -572,15 +574,15 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
   // Notify service selector (loads once, cached in state)
   const serviceSelect = el("select", { class: "input", style: "max-width:200px" });
   const _noSvcHint = el("div", { style: "font-size:10px;color:#f59e0b;margin-top:2px;display:none" },
-    "No notify services found — add SMTP or another notification integration in HA Settings → Integrations");
-  serviceSelect.appendChild(el("option", { value: "" }, "Auto-detect"));
+    t("No notify services found — add SMTP or another notification integration in HA Settings → Integrations"));
+  serviceSelect.appendChild(el("option", { value: "" }, t("Auto-detect")));
   // A saved target that is gone (phone renamed or removed) is not in the
   // list: shown and selected anyway, so the picker says what alerts use and
   // choosing anything else, Auto-detect included, is a change.
   const _showSavedTarget = () => {
     const s = cfg.notify_service, list = ctx.state._notifyServices || [];
     if (!s || list.includes(s)) return;
-    const opt = el("option", { value: s }, list.length ? s + " (not found)" : s);
+    const opt = el("option", { value: s }, list.length ? s + " " + t("(not found)") : s);
     opt.selected = true;
     serviceSelect.appendChild(opt);
   };
@@ -643,39 +645,39 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
   });
 
   const saveStatus = el("span", { class: "muted", style: "font-size:11px" });
-  const saveBtn = el("button", { class: "btn", style: "margin-top:10px" }, "Save");
+  const saveBtn = el("button", { class: "btn", style: "margin-top:10px" }, t("Save"));
   saveBtn.addEventListener("click", async () => {
-    if (dataMode !== "live") { saveStatus.textContent = "Switch to Live mode first."; return; }
-    if (cfg.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cfg.email)) { saveStatus.textContent = "Invalid email."; return; }
-    saveStatus.textContent = "Saving…";
+    if (dataMode !== "live") { saveStatus.textContent = t("Switch to Live mode first."); return; }
+    if (cfg.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cfg.email)) { saveStatus.textContent = t("Invalid email."); return; }
+    saveStatus.textContent = t("Saving…");
     try {
       await ctx.actions.followAlertSave({ addr, config: cfg });
-      saveStatus.textContent = "Saved";
+      saveStatus.textContent = t("Saved");
       saveStatus.style.color = "#52b788";
     } catch (e) {
-      saveStatus.textContent = "Save failed";
+      saveStatus.textContent = t("Save failed");
       saveStatus.style.color = "#f87171";
     }
   });
 
-  const testBtn = el("button", { class: "btn", style: "margin-top:10px" }, "Send Test");
+  const testBtn = el("button", { class: "btn", style: "margin-top:10px" }, t("Send Test"));
   testBtn.addEventListener("click", async () => {
     const email = (emailInput.value || "").trim();
     // The target alerts use (cfg), even before the picker's list arrives.
     const chosenSvc = cfg.notify_service || "";
     // A picked notify target (a phone) needs no email; an email typed must be valid.
     if ((!email && !chosenSvc) || (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
-      saveStatus.textContent = "Enter a valid email or pick where to send."; saveStatus.style.color = "#f87171"; return;
+      saveStatus.textContent = t("Enter a valid email or pick where to send."); saveStatus.style.color = "#f87171"; return;
     }
-    if (dataMode !== "live") { saveStatus.textContent = "Switch to Live mode first."; return; }
-    saveStatus.textContent = "Sending test…"; saveStatus.style.color = "";
+    if (dataMode !== "live") { saveStatus.textContent = t("Switch to Live mode first."); return; }
+    saveStatus.textContent = t("Sending test…"); saveStatus.style.color = "";
     testBtn.disabled = true;
     try {
       await ctx.actions.wsCall("padspan_ha/notify_test", { email: email || undefined, service: chosenSvc || undefined });
-      saveStatus.textContent = email ? "Test sent — check your inbox." : "Test sent — check your phone."; saveStatus.style.color = "#52b788";
+      saveStatus.textContent = email ? t("Test sent — check your inbox.") : t("Test sent — check your phone."); saveStatus.style.color = "#52b788";
     } catch (e) {
       // Whole: cut at 60 it lost the advice ("pick where to send again").
-      saveStatus.textContent = "Test failed: " + (e?.message || String(e));
+      saveStatus.textContent = t("Test failed: {why}", { why: ctx.helpers.errorText(e) });
       saveStatus.style.color = "#f87171";
     } finally { testBtn.disabled = false; }
   });
@@ -684,23 +686,23 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
     card.appendChild(el("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
       el("div",{style:"display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"}, [
         el("div", {}, [
-          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, "Email address"),
+          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, t("Email address")),
           emailInput,
         ]),
         el("div", {}, [
-          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, "Notify service"),
+          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, t("Notify service")),
           serviceSelect,
           _noSvcHint,
         ]),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
-        chkChange, el("span", {}, `Alert me when ${name} moves`),
+        chkChange, el("span", {}, t("Alert me when {name} moves", { name })),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
-        chkArrive, el("span", {}, `Alert me when ${name} arrives home`),
+        chkArrive, el("span", {}, t("Alert me when {name} arrives home", { name })),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
-        chkDepart, el("span", {}, `Alert me when ${name} leaves`),
+        chkDepart, el("span", {}, t("Alert me when {name} leaves", { name })),
       ]),
     ]));
   } else {
@@ -722,29 +724,29 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
     card.appendChild(el("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
       el("div",{style:"display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"}, [
         el("div", {}, [
-          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, "Email address"),
+          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, t("Email address")),
           emailInput,
         ]),
         el("div", {}, [
-          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, "Notify service"),
+          el("div", { class: "muted", style: "font-size:11px;margin-bottom:3px" }, t("Notify service")),
           serviceSelect,
           _noSvcHint,
         ]),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
         chkChange,
-        el("span", {}, `Alert on every room change for "${name}"`),
+        el("span", {}, t("Alert on every room change for \"{name}\"", { name })),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
         chkArrive,
-        el("span", {}, `Alert when "${name}" arrives home`),
+        el("span", {}, t("Alert when \"{name}\" arrives home", { name })),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
         chkDepart,
-        el("span", {}, `Alert when "${name}" leaves`),
+        el("span", {}, t("Alert when \"{name}\" leaves", { name })),
       ]),
       checkboxes.length ? el("div", {}, [
-        el("div", { class: "muted", style: "font-size:11px;margin-bottom:4px" }, "Only alert for these rooms (unchecked = all):"),
+        el("div", { class: "muted", style: "font-size:11px;margin-bottom:4px" }, t("Only alert for these rooms (unchecked = all):")),
         el("div", { style: "display:flex;flex-wrap:wrap;gap:8px" }, checkboxes),
       ]) : null,
     ].filter(Boolean)));

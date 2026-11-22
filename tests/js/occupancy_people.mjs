@@ -55,7 +55,8 @@ function makeCtx(answer, settings = {}) {
   const ctx = {
     hass: { states: {} },
     state: { settings, live: {}, maps: { list: [] }, model: {} },
-    helpers: { el, esc: s => String(s ?? ""), roomColor: () => "#52b788" },
+    // errorText as the panel hands it (views/ui_error.js): a failure in plain words.
+    helpers: { el, esc: s => String(s ?? ""), roomColor: () => "#52b788", errorText: (e) => String((e && e.message) || e) },
     actions: {
       callWS: async (msg) => (typeof answer === "function" ? answer(msg) : answer),
       openModal: (title, body, subtitle) => modals.push({ title, body, subtitle }),
@@ -76,12 +77,14 @@ const start = overviewSrc.indexOf("  // ── People in building (clickable)");
 const end = overviewSrc.indexOf("  // Put occupancy + companion on the same row");
 if (start < 0 || end < 0) { console.error("card markers not found in overview.js — moved? update this harness"); process.exit(2); }
 const cardBlock = overviewSrc.slice(start, end);
-const buildCard = new Function("el", "ctx", "section", "document", cardBlock + "\n  return occCard;");
+// overview.js's words come through views/i18n.js t()/tn(): the module itself, in English.
+const { t: I18N_T, tn: I18N_TN } = await import(pathToFileURL(join(VIEWS_DIR, "i18n.js")).href);
+const buildCard = new Function("el", "ctx", "section", "document", "t", "tn", cardBlock + "\n  return occCard;");
 
 async function card(answer) {
   const { ctx, modals, toasts } = makeCtx(answer);
   const section = el("div");
-  const node = buildCard(el, ctx, section, document);
+  const node = buildCard(el, ctx, section, document, I18N_T, I18N_TN);
   await settle();
   return { node, section, modals, toasts, txt: text(node) };
 }

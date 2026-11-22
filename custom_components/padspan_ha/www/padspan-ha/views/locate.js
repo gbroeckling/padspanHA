@@ -40,6 +40,8 @@
  */
 
 const { pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const { tierAtLeast, currentTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
@@ -64,9 +66,9 @@ export function render(ctx, { targetKey } = {}) {
   if (targetKey) _targetKey = targetKey;
 
   root.appendChild(el("div", { class: "row", style: "align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap" }, [
-    el("div", { style: "font-weight:700;font-size:14px" }, "📍 Locate"),
+    el("div", { style: "font-weight:700;font-size:14px" }, "📍 " + t("Locate")),
     helpBtn("locate"),
-    el("span", { class: "muted", style: "font-size:11px" }, "which way to walk, room by room — no compass, no camera"),
+    el("span", { class: "muted", style: "font-size:11px" }, t("which way to walk, room by room — no compass, no camera")),
   ]));
 
   // Every root this returns answers _refresh (Follow calls it each poll).
@@ -105,52 +107,52 @@ export function render(ctx, { targetKey } = {}) {
 
     // With Follow choosing the target, "you" may be any device — including
     // the one being followed, which is said below rather than hidden here.
-    pickerCard.appendChild(_buildPicker(ctx, "You are carrying:", selfKey, candidates.filter(c => targetKey || c.key !== _targetKey), (val) => {
+    pickerCard.appendChild(_buildPicker(ctx, t("You are carrying:"), selfKey, candidates.filter(c => targetKey || c.key !== _targetKey), (val) => {
       if (ctx.state.settings) ctx.state.settings.locate_self_key = val;
       ctx.actions.wsCall("padspan_ha/settings_set", { locate_self_key: val }).catch(() => {});
       renderBody();
     }));
-    if (!targetKey) pickerCard.appendChild(_buildPicker(ctx, "Find:", _targetKey, candidates.filter(c => c.key !== selfKey), (val) => {
+    if (!targetKey) pickerCard.appendChild(_buildPicker(ctx, t("Find:"), _targetKey, candidates.filter(c => c.key !== selfKey), (val) => {
       _targetKey = val;
       renderBody();
     }));
 
     if (!candidates.length) {
       body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" },
-        "No tracked objects currently have a room — nothing to locate yet.")));
+        t("No tracked objects currently have a room — nothing to locate yet."))));
       return;
     }
     if (!selfKey) {
       body.appendChild(el("div", { class: "card" }, [
-        el("div", { style: "font-weight:700;margin-bottom:6px" }, "Pick which device is yours"),
+        el("div", { style: "font-weight:700;margin-bottom:6px" }, t("Pick which device is yours")),
         el("div", { class: "muted", style: "font-size:12px" },
-          "Locate needs to know where you are, the same way it knows where everything else is — from a tracked BLE device, not GPS or a compass. If your own phone isn't tracked yet, set it up from Settings → Features → Phone Setup Wizard, then pick it above."),
+          t("Locate needs to know where you are, the same way it knows where everything else is — from a tracked BLE device, not GPS or a compass. If your own phone isn't tracked yet, set it up from Settings → Features → Phone Setup Wizard, then pick it above.")),
       ]));
       return;
     }
     if (!_targetKey) {
-      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, "Pick a device or person to find, above.")));
+      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, t("Pick a device or person to find, above."))));
       return;
     }
 
     if (selfKey === _targetKey) {
       body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" },
-        "You're following your own device. Follow another tag to locate it.")));
+        t("You're following your own device. Follow another tag to locate it."))));
       return;
     }
     const self = candidates.find(c => c.key === selfKey);
     const target = candidates.find(c => c.key === _targetKey);
     if (!self) {
       body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" },
-        "The device set as \"you\" isn't currently reporting a room — it may be out of range.")));
+        t("The device set as \"you\" isn't currently reporting a room — it may be out of range."))));
       return;
     }
     if (!target) {
       const rawT = raw.find(o => (o.key || o.address || o.entity_id) === _targetKey);
       const last = rawT && rawT.last_room;
       body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" },
-        "That tag isn't reporting a room right now — it may be out of range."
-        + (last ? ` It was last seen in ${last}.` : ""))));
+        t("That tag isn't reporting a room right now — it may be out of range.")
+        + (last ? " " + t("It was last seen in {room}.", { room: last }) : ""))));
       return;
     }
 
@@ -174,7 +176,7 @@ function _buildPicker(ctx, label, value, options, onChange) {
   const wrap = el("div", { style: "margin-bottom:10px" });
   wrap.appendChild(el("label", { style: "display:block;font-size:11px;color:#94a3b8;margin-bottom:4px" }, label));
   const sel = el("select", { class: "input" });
-  sel.appendChild(el("option", { value: "" }, "— choose —"));
+  sel.appendChild(el("option", { value: "" }, t("— choose —")));
   for (const o of options) {
     const opt = el("option", { value: o.key }, `${o.label} · ${o.room}`);
     if (o.key === value) opt.selected = true;
@@ -198,10 +200,10 @@ function _floorDelta(ctx, fromFloorId, toFloorId) {
   const b = floors.find(f => f.id === toFloorId);
   const toName = _floorLabel(ctx, toFloorId);
   if (a && b && typeof a.level === "number" && typeof b.level === "number") {
-    if (b.level > a.level) return `Go up to ${toName}`;
-    if (b.level < a.level) return `Go down to ${toName}`;
+    if (b.level > a.level) return t("Go up to {floor}", { floor: toName });
+    if (b.level < a.level) return t("Go down to {floor}", { floor: toName });
   }
-  return `Go to ${toName}`;
+  return t("Go to {floor}", { floor: toName });
 }
 
 // Breadth-first search over the room_adjacency graph — unweighted, every
@@ -233,7 +235,7 @@ function _buildGuidance(ctx, self, target) {
 
   if (self.room === target.room) {
     card.appendChild(el("div", { style: "font-weight:700;font-size:16px;color:#52b788;margin-bottom:8px" },
-      `Same room — ${target.room}`));
+      t("Same room — {room}", { room: target.room })));
     if (self.floor_id === target.floor_id && typeof self.x_m === "number" && typeof target.x_m === "number") {
       const dist = Math.hypot(target.x_m - self.x_m, target.y_m - self.y_m);
       const pairKey = self.key + ">" + target.key;
@@ -244,7 +246,7 @@ function _buildGuidance(ctx, self, target) {
       } else {
         if (_lastDistanceKey === pairKey && _lastDistance != null) {
           const diff = dist - _lastDistance;
-          if (Math.abs(diff) > 0.3) delta = diff < 0 ? " — getting closer" : " — getting further";
+          if (Math.abs(diff) > 0.3) delta = " — " + (diff < 0 ? t("getting closer") : t("getting further"));
         }
         _lastDistance = dist;
         _lastDistanceKey = pairKey;
@@ -253,10 +255,10 @@ function _buildGuidance(ctx, self, target) {
       }
       card.appendChild(el("div", { style: "font-size:28px;font-weight:700" }, `${dist.toFixed(1)} m${delta}`));
       card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:4px" },
-        "Straight-line distance from your tracked position — look around, you're close."));
+        t("Straight-line distance from your tracked position — look around, you're close.")));
     } else {
       card.appendChild(el("div", { class: "muted", style: "font-size:12px" },
-        "You're both in this room right now — look around."));
+        t("You're both in this room right now — look around.")));
     }
     return card;
   }
@@ -271,18 +273,20 @@ function _buildGuidance(ctx, self, target) {
 
   if (!path) {
     card.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:6px" },
-      `Head toward ${target.room}${floorNote ? "" : ""}`));
+      t("Head toward {room}", { room: target.room })));
     card.appendChild(el("div", { class: "muted", style: "font-size:12px" },
       // Basic has no Mapping → Layout (review 2026-11-11, C5): say it is in Advanced mode.
-      `No mapped route between ${self.room} and ${target.room} yet — draw room adjacency in Mapping → Layout${ctx.state.complexity === "basic" ? " (in Advanced mode)" : ""} to get turn-by-turn steps here.`));
+      ctx.state.complexity === "basic"
+        ? t("No mapped route between {from} and {to} yet — draw room adjacency in Mapping → Layout (in Advanced mode) to get turn-by-turn steps here.", { from: self.room, to: target.room })
+        : t("No mapped route between {from} and {to} yet — draw room adjacency in Mapping → Layout to get turn-by-turn steps here.", { from: self.room, to: target.room })));
     return card;
   }
 
   const next = path[1];
   card.appendChild(el("div", { style: "font-weight:700;font-size:20px;color:#52b788;margin-bottom:6px" },
-    `Head to: ${next}`));
+    t("Head to: {room}", { room: next })));
   card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-bottom:10px" },
-    `${path.length - 1} room${path.length - 1 === 1 ? "" : "s"} to go`));
+    tn(path.length - 1, "{n} room to go", "{n} rooms to go")));
 
   const trail = el("div", { style: "display:flex;align-items:center;flex-wrap:wrap;gap:6px" });
   path.forEach((room, i) => {
@@ -305,10 +309,10 @@ function _buildProGateCard(ctx, featureName) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:6px" },
-    `${featureName} is a PadSpan Pro feature`));
+    t("{feature} is a PadSpan Pro feature", { feature: featureName === "Locate" ? t("Locate") : featureName })));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Unlock it, and everything else gated, with a PadSpan Pro key."));
-  card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, "Settings → Features → PadSpan licence"));
+    t("Unlock it, and everything else gated, with a PadSpan Pro key.")));
+  card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, t("Settings → Features → PadSpan licence")));
   // The trial is all of PadSpan Pro (since 2026-10-27), so the card says it
   // unlocks Locate too. Null once there is any key.
   const trial = trialOfferFromCtx(ctx, "locate", { feature: featureName });

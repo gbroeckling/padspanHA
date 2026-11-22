@@ -385,11 +385,13 @@ await check("Locate and Busy Times gates carry the trial card with their own sur
   }
 });
 
+const { t: I18N_T, tn: I18N_TN } = await import(pathToFileURL(join(VIEWS, "i18n.js")).href);
 // ── Locate's "no mapped route" (review 2026-11-11, C5): Basic has no Mapping → Layout, so it says Advanced mode ──
 await check("Locate's no-route line names Mapping → Layout as Advanced mode's in Basic", () => {
   const LS = readFileSync(join(VIEWS, "locate.js"), "utf8").replace(/\r\n/g, "\n");
   const fn = (head) => { const a = LS.indexOf(head); assert(a >= 0, head); return LS.slice(a, LS.indexOf("\n}\n", a) + 3); };
-  const guide = new Function(["_buildGuidance", "_shortestRoomPath", "_floorDelta"].map(n => fn(`function ${n}(`)).join("\n") + "\nreturn _buildGuidance;")();
+  // locate.js's words come through views/i18n.js t()/tn(): the module itself, in English.
+  const guide = new Function("t", "tn", ["_buildGuidance", "_shortestRoomPath", "_floorDelta"].map(n => fn(`function ${n}(`)).join("\n") + "\nreturn _buildGuidance;")(I18N_T, I18N_TN);
   const say = (complexity) => guide({ helpers: { el }, state: { complexity, model: { floors: [], room_adjacency: {} } } },
     { room: "Kitchen", floor_id: "main" }, { room: "Office", floor_id: "main" }).textContent;
   assert(/Mapping → Layout \(in Advanced mode\) to get/.test(say("basic")), say("basic"));
