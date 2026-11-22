@@ -234,5 +234,8 @@
 "{n} samples": {
 "one": "1 meting",
 "other": "{n} metingen"
-}
+},
+"Pinned: it never moves": "Vastgezet: beweegt nooit",
+"Pin here: it never moves": "Hier vastzetten: beweegt nooit",
+"A pinned beacon keeps this room and adds calibration points here. Pin only a beacon that never moves.": "Een vastgezet beacon houdt deze kamer en voegt hier kalibratiepunten toe. Zet alleen een beacon vast dat nooit beweegt."
 }

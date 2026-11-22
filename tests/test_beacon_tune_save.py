@@ -39,18 +39,20 @@ const map = { id: 'm', floor_id: 'up' };
 const rows = [
   { key: 'ibeacon:fixed', label: 'Hall', kind: 'ibeacon', x: 0.5, y: 0.5 },   // untouched
   { key: 'ble:MOVED', label: 'Desk', kind: 'ble', x: 0.25, y: 0.4 },         // dragged
-  { key: 'ble:NEW', label: 'Shelf', kind: 'ble', x: 0.1, y: 0.2 },           // placed now
+  { key: 'ble:NEW', label: 'Shelf', kind: 'ble', x: 0.1, y: 0.2, _pin: true }, // placed now, ticked "Pin here"
   { key: 'ble:PHONE', label: 'Phone', kind: 'private_ble', x: 0.7, y: 0.7 }, // auto-pinned for display
   { key: '', x: 0.3, y: 0.3 },                                                // no key
 ];
 const base = tuneBeaconBaseline([rows[0], { key: 'ble:MOVED', x: 0.2, y: 0.4 }, rows[3]]);
 const out = {};
 out.base = base;
-out.plan = tuneBeaconWrites(map, rows, { m: tf }, base);
+// ibeacon:fixed and ble:MOVED are pins already (moving a pin moves it).
+const pinsNow = { pinned: { 'ibeacon:fixed': {}, 'ble:MOVED': {} }, objs: new Map(), followedHas: () => false };
+out.plan = tuneBeaconWrites(map, rows, { m: tf }, base, pinsNow);
 out.untouchedOnly = tuneBeaconWrites(map, [rows[0]], { m: tf }, base);
 out.unplaced = tuneBeaconWrites(map, rows, { m: {} }, base);
 out.noTransform = tuneBeaconWrites(map, rows, {}, base);
-out.invalid = tuneBeaconWrites(map, [{ key: 'ble:BAD', x: 'nope', y: 0.1 }], { m: tf }, {});
+out.invalid = tuneBeaconWrites(map, [{ key: 'ble:BAD', x: 'nope', y: 0.1, _pin: true }], { m: tf }, {});
 out.dup = tuneBeaconWrites(map, [rows[2], { ...rows[2], x: 0.9 }], { m: tf }, {});
 // A tracked phone shown for display, then dragged: still never a fixed beacon.
 out.draggedPhone = tuneBeaconWrites(map, [{ ...rows[3], x: 0.1, y: 0.1, _tracked: true }], { m: tf }, base);
@@ -86,13 +88,21 @@ out.followedByKey = tuneBeaconWrites(map, [{ key: 'ibeacon:app', label: 'Phone a
 out.placedPhone = tuneBeaconWrites(map, [{ key: 'ble:IRK2', label: 'Watch', kind: 'private_ble', x: 0.3, y: 0.3 }], { m: tf }, {}, guard());
 out.livePhone = tuneBeaconWrites(map, [{ key: 'ble:IRK3', label: 'iPad', kind: 'ble', x: 0.3, y: 0.3 }],
   { m: tf }, {}, guard({}, [['ble:IRK3', { key: 'ble:IRK3', kind: 'private_ble' }]]));
-// (d) placed from the list, nobody follows it, not tracked: pinned.
-out.placedBeacons = tuneBeaconWrites(map, [
+// (d) placed from the list, nobody follows it, not tracked: pinned only when
+// ticked "Pin here: it never moves" (_pin); unticked, held back ("unpinned").
+const placedRows = [
   { key: 'ble:AA:BB:CC:DD:EE:03', label: 'Tile', kind: 'ble', x: 0.3, y: 0.3 },
   { key: 'ibeacon:door', label: 'Door', kind: 'ibeacon', x: 0.4, y: 0.3 },
   { key: 'entity:device_tracker.fob', label: 'Fob', kind: 'entity', x: 0.5, y: 0.3 },
-], { m: tf }, {}, guard({}, [['entity:device_tracker.fob', { key: 'entity:device_tracker.fob', kind: 'entity',
-  address: 'AA:BB:CC:DD:EE:04', entity_id: 'device_tracker.fob' }]]));
+];
+const fobGuard = () => guard({}, [['entity:device_tracker.fob', { key: 'entity:device_tracker.fob', kind: 'entity',
+  address: 'AA:BB:CC:DD:EE:04', entity_id: 'device_tracker.fob' }]]);
+out.placedBeacons = tuneBeaconWrites(map, placedRows.map(r => ({ ...r, _pin: true })), { m: tf }, {}, fobGuard());
+out.placedUnticked = tuneBeaconWrites(map, placedRows, { m: tf }, {}, fobGuard());
+out.placedUntickedText = tuneBeaconHeldText(out.placedUnticked.held.slice(0, 1), false);
+// Held unticked where it stands, then ticked without moving: written there.
+const base3 = {}; for (const h of out.placedUnticked.held) base3[h.key] = { x: h.x, y: h.y };
+out.tickedInPlace = tuneBeaconWrites(map, [{ ...placedRows[0], _pin: true }], { m: tf }, base3, fobGuard());
 // (e) what was held back is reported, by name and why.
 out.heldText = tuneBeaconHeldText([...out.followedNotLive.held, ...out.placedPhone.held, ...out.trackedAppPhone.held]);
 out.heldTextNoCapture = tuneBeaconHeldText(out.followedNotLive.held, false);
@@ -192,8 +202,16 @@ class TestBeaconTuneWrites:
         for k in ("followedNotLive", "followedByKey", "placedPhone", "livePhone"):
             assert out[k]["writes"] == [], k
 
-    def test_a_beacon_nobody_follows_placed_from_the_list_is_pinned(self):
-        out = _run()["placedBeacons"]
+    def test_a_beacon_placed_from_the_list_is_pinned_only_when_ticked(self):
+        """2026-11-22: placing or dragging a beacon pinned it by itself; a house
+        that pins only its TV found a car, tags, a purse and test tags pinned."""
+        r = _run()
+        assert r["placedUnticked"]["writes"] == []
+        assert [h["reason"] for h in r["placedUnticked"]["held"]] == ["unpinned"] * 3
+        assert r["placedUntickedText"] == ('Tile is placed, not pinned (tick "Pin here: it never moves" on its row '
+                                          'only if it never moves)')
+        assert [w["key"] for w in r["tickedInPlace"]["writes"]] == ["ble:AA:BB:CC:DD:EE:03"]
+        out = r["placedBeacons"]
         assert [w["key"] for w in out["writes"]] == ["ble:AA:BB:CC:DD:EE:03", "ibeacon:door", "entity:device_tracker.fob"]
         assert out["held"] == []
 
@@ -221,15 +239,19 @@ def _flows() -> dict:
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
 class TestBeaconTuneFlows:
-    def test_on_a_fabric_only_install_only_fixed_beacons_placed_from_the_list_are_pinned(self):
+    def test_on_a_fabric_only_install_only_fixed_beacons_ticked_are_pinned(self):
         """No room polygon, so nothing was auto-pinned and every labelled
-        phone or tag placed from the Available list became a fixed pin."""
-        out = _flows()["fabricOnly"]
+        phone or tag placed from the Available list became a fixed pin. Since
+        2026-11-22 placing pins nothing; only a ticked fixed beacon is pinned."""
+        flows = _flows()
+        out = flows["fabricOnly"]
         assert out["autoPinned"] == 0
-        assert out["calls"] == ["ibeacon:door", "entity:device_tracker.fob"]
-        assert [t.split(" moves with someone")[0] for t in out["toasts"]] == ["Alex's Phone", "Pixel app", "Car Keys"]
+        assert out["calls"] == []
+        assert [t.split(" moves with someone")[0] for t in out["toasts"][:3]] == ["Alex's Phone", "Pixel app", "Car Keys"]
+        assert [t.split(" is placed, not pinned")[0] for t in out["toasts"][3:]] == ["Door beacon", "Fob"]
         # every placement still runs its 60 s capture
         assert len(out["captures"]) == 5
+        assert flows["fabricOnlyTicked"]["calls"] == ["ibeacon:door", "entity:device_tracker.fob"]
 
     def test_a_tracked_phone_or_find_my_tag_dragged_or_relocated_is_not_pinned(self):
         out = _flows()["autoPinned"]
