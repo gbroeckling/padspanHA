@@ -30,6 +30,8 @@ const SD = await import(`./status_dot.js${new URL(import.meta.url).search}`);
 const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // "Devices heard now": distinct addresses this receiver heard in the last minute.
 export const HEARD_NOW_S = 60;
@@ -55,10 +57,10 @@ function _placement(maps, radio) {
 /** "12 s ago" / "4 min ago" / "3 h ago"; null when never heard. */
 export function agoText(s) {
   if (typeof s !== "number" || !Number.isFinite(s)) return null;
-  if (s < 60) return `${Math.max(0, Math.round(s))} s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-  if (s < 172800) return `${Math.floor(s / 3600)} h ago`;
-  return `${Math.floor(s / 86400)} d ago`;
+  if (s < 60) return t("{n} s ago", { n: Math.max(0, Math.round(s)) });
+  if (s < 3600) return t("{n} min ago", { n: Math.floor(s / 60) });
+  if (s < 172800) return t("{n} h ago", { n: Math.floor(s / 3600) });
+  return t("{n} d ago", { n: Math.floor(s / 86400) });
 }
 
 /** One row per live receiver, from what the panel already holds (the live
@@ -98,7 +100,7 @@ export function receiverRows(state) {
     const devices = (heard.get(source) || new Set()).size;
     return {
       source,
-      name: String(r.display_name || r.name || source || "Receiver"),
+      name: String(r.display_name || r.name || source || t("Receiver")),
       room,
       areaName: r.area_name || "",
       floorId,
@@ -154,7 +156,7 @@ function _openPlacement(ctx, row) {
   ctx.state.maps._openRadios = { rxId: (row.placed && row.placed.rxId) || null };
   const name = row.name || "";
   FOCUS.openFocus(ctx, FOCUS.part("receiverPlace", { item: (row.placed && row.placed.rxId) || null,
-    title: (row.placed ? "Move: " : "Place: ") + name }));
+    title: row.placed ? t("Move: {name}", { name }) : t("Place: {name}", { name }) }));
 }
 
 const INPUT = "width:68px;background:#071008;border:1px solid #2d4a38;color:#e2e8f0;padding:5px 7px;border-radius:8px;font-size:12px";
@@ -163,22 +165,22 @@ const INPUT = "width:68px;background:#071008;border:1px solid #2d4a38;color:#e2e
 // acknowledged-value publish as Calibration → Tune and Edit → Radios.
 function _heightCell(ctx, el, row, editable) {
   if (row.height == null) {
-    return el("span", { class: "muted", title: "A height can be set once this receiver has a position: place it on a floor plan, then Calibration → Tune → Save." }, "No position yet");
+    return el("span", { class: "muted", title: t("A height can be set once this receiver has a position: place it on a floor plan, then Calibration → Tune → Save.") }, t("No position yet"));
   }
   if (!editable) return el("span", { class: "rx-num" }, `${row.height} m`);
-  const zInp = el("input", { type: "number", min: "0", max: "100", step: "0.1", style: INPUT, "aria-label": `Height above floor (m) for ${row.name}` });
+  const zInp = el("input", { type: "number", min: "0", max: "100", step: "0.1", style: INPUT, "aria-label": t("Height above floor (m) for {name}", { name: row.name }) });
   zInp.value = String(row.height);
-  const zBtn = el("button", { class: "btn inline rx-save", title: "Mounting height above this receiver's own floor. Same value as Calibration → Tune and Mapping's receivers step." }, "Save");
+  const zBtn = el("button", { class: "btn inline rx-save", title: t("Mounting height above this receiver's own floor. Same value as Calibration → Tune and Mapping's receivers step.") }, t("Save"));
   zBtn.addEventListener("click", async () => {
     const src = row.source;
     const v = parseFloat(zInp.value);
     if (!Number.isFinite(v) || v < 0 || v > 100) {
-      ctx.toast("Height must be 0–100 m", true);
+      ctx.toast(t("Height must be 0–100 m"), true);
       return;
     }
     const ts = (TSP && ctx.state._calibTune) || null;
     if (ts && !TSP.tuneTryAcquire(ts)) {
-      ctx.toast("A save is in progress — try again in a moment", true);
+      ctx.toast(t("A save is in progress — try again in a moment"), true);
       return;
     }
     zBtn.disabled = true;
@@ -188,7 +190,7 @@ function _heightCell(ctx, el, row, editable) {
         source: src, z_m: v,
       });
       if (res && res.ok === false) {
-        ctx.toast("Save failed: height not stored", true);
+        ctx.toast(t("Save failed: height not stored"), true);
         return;
       }
       try {
@@ -198,12 +200,12 @@ function _heightCell(ctx, el, row, editable) {
         spm[src] = { ...(prev && typeof prev === "object" ? prev : {}),
           z_m: Math.round(Math.max(0, Math.min(100, v)) * 100) / 100 };
       } catch (_e) { /* best-effort */ }
-      ctx.toast(`${row.name}: height set to ${v} m`);
+      ctx.toast(t("{name}: height set to {m} m", { name: row.name, m: v }));
       if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("receivers_page_edit");
       if (ts) ts._tuneRev = (ts._tuneRev || 0) + 1;
       if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
     } catch (e) {
-      ctx.toast("Save failed: height not stored", true);
+      ctx.toast(t("Save failed: height not stored"), true);
     } finally {
       if (ts) TSP.tuneRelease(ts);
       zBtn.disabled = false;
@@ -220,19 +222,19 @@ function _heightCell(ctx, el, row, editable) {
 function _offsetCell(ctx, el, row, editable) {
   const txt = `${row.offset > 0 ? "+" : ""}${row.offset} dB`;
   if (!editable) return el("span", { class: "rx-num" }, txt);
-  const inp = el("input", { type: "number", min: String(OFFSET_MIN), max: String(OFFSET_MAX), step: "0.5", style: INPUT, "aria-label": `Signal adjustment (dB) for ${row.name}` });
+  const inp = el("input", { type: "number", min: String(OFFSET_MIN), max: String(OFFSET_MAX), step: "0.5", style: INPUT, "aria-label": t("Signal adjustment (dB) for {name}", { name: row.name }) });
   inp.value = String(row.offset);
-  const btn = el("button", { class: "btn inline rx-save", title: "Added to every reading from this receiver: positive if it reads weaker than it should. Same value as Settings → Tracking → Receivers." }, "Save");
+  const btn = el("button", { class: "btn inline rx-save", title: t("Added to every reading from this receiver: positive if it reads weaker than it should. Same value as Settings → Tracking → Receivers.") }, t("Save"));
   btn.addEventListener("click", async () => {
     const typed = parseFloat(inp.value) || 0;
     const v = typed === row.offset ? typed : Math.max(OFFSET_MIN, Math.min(OFFSET_MAX, typed));
     btn.disabled = true;
     try {
       await ctx.actions.scannerOffsetSet(row.source, v);
-      ctx.toast(`${row.name}: manual offset set to ${v > 0 ? "+" : ""}${v} dB`);
+      ctx.toast(t("{name}: manual offset set to {db} dB", { name: row.name, db: `${v > 0 ? "+" : ""}${v}` }));
       if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("receivers_page_edit");
     } catch (e) {
-      ctx.toast("Failed to save offset", true);
+      ctx.toast(t("Failed to save offset"), true);
     } finally {
       btn.disabled = false;
     }
@@ -241,10 +243,12 @@ function _offsetCell(ctx, el, row, editable) {
   return el("span", { class: "rx-edit" }, [inp, el("span", { class: "muted" }, "dB"), btn]);
 }
 
-const COLS = [
-  ["name", "Receiver"], ["room", "Room"], ["floor", "Floor"], ["placed", "On a floor plan"],
-  ["height", "Height"], ["offset", "Signal adjustment"], ["status", "Status"],
-  ["devices", "Devices now"], ["heard", "Last heard"],
+// The columns' names in the panel's language (they are also each cell's
+// data-label, the label a phone shows beside the value).
+const COLS = () => [
+  ["name", t("Receiver")], ["room", t("Room")], ["floor", t("Floor")], ["placed", t("On a floor plan")],
+  ["height", t("Height")], ["offset", t("Signal adjustment")], ["status", t("Status")],
+  ["devices", t("Devices now")], ["heard", t("Last heard")],
 ];
 
 export function render(ctx) {
@@ -256,30 +260,28 @@ export function render(ctx) {
 
   root.appendChild(el("div", { class: "card" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-      el("div", { class: "h2", style: "margin:0" }, "Receivers"),
+      el("div", { class: "h2", style: "margin:0" }, t("Receivers")),
       ctx.helpers.helpBtn ? ctx.helpers.helpBtn("receivers") : null,
     ].filter(Boolean)),
     el("div", { class: "muted", style: "font-size:12px;margin-top:4px;line-height:1.5" },
-      "Every Bluetooth receiver PadSpan hears from, with its room, floor, height and signal adjustment in one place. " +
-      "Height and signal adjustment save here and show everywhere else they appear. To move one on a floor plan, use Place."),
+      t("Every Bluetooth receiver PadSpan hears from, with its room, floor, height and signal adjustment in one place. Height and signal adjustment save here and show everywhere else they appear. To move one on a floor plan, use Place.")),
   ]));
 
   if (phase === "sample") {
     root.appendChild(el("div", { class: "card rx-note", "data-rx-note": "sample" },
-      "Sample mode: these are the demo house's receivers, shown read-only. Switch to Live mode to see and edit yours."));
+      t("Sample mode: these are the demo house's receivers, shown read-only. Switch to Live mode to see and edit yours.")));
   } else if (phase === "waiting") {
     root.appendChild(el("div", { class: "card rx-note", "data-rx-note": "waiting" },
-      "Waiting for live data from Home Assistant. Editing is available once it arrives."));
+      t("Waiting for live data from Home Assistant. Editing is available once it arrives.")));
   }
 
   const rows = receiverRows(ctx.state);
   if (!rows.length) {
     root.appendChild(el("div", { class: "card", "data-rx-empty": "1" }, [
-      el("div", { style: "font-weight:700;margin-bottom:4px" }, "No receivers yet"),
+      el("div", { style: "font-weight:700;margin-bottom:4px" }, t("No receivers yet")),
       el("div", { class: "muted", style: "font-size:12px;line-height:1.5" },
-        phase === "waiting" ? "Receivers show here once the first live data arrives."
-          : "PadSpan isn't hearing from any Bluetooth receiver. Add an ESPHome Bluetooth proxy (or another receiver) in Home Assistant, " +
-            "and check that Home Assistant's Bluetooth integration is set up. They show here as soon as they report."),
+        phase === "waiting" ? t("Receivers show here once the first live data arrives.")
+          : t("PadSpan isn't hearing from any Bluetooth receiver. Add an ESPHome Bluetooth proxy (or another receiver) in Home Assistant, and check that Home Assistant's Bluetooth integration is set up. They show here as soon as they report.")),
     ]));
     return root;
   }
@@ -290,15 +292,16 @@ export function render(ctx) {
   filt.checked = !!st.problems;
   filt.addEventListener("change", () => { st.problems = filt.checked; ctx.actions.renderRooms(); });
   const bar = el("div", { class: "rx-bar" }, [
-    el("span", { class: "muted" }, `${rows.length} receiver${rows.length === 1 ? "" : "s"}` +
-      (problemsN ? ` · ${problemsN} need${problemsN === 1 ? "s" : ""} attention` : " · all reporting normally")),
-    el("label", { for: "rxProblems", class: "rx-filter" }, [filt, el("span", {}, "Problems only")]),
+    el("span", { class: "muted" }, tn(rows.length, "{n} receiver", "{n} receivers") + " · " +
+      (problemsN ? tn(problemsN, "{n} needs attention", "{n} need attention") : t("all reporting normally"))),
+    el("label", { for: "rxProblems", class: "rx-filter" }, [filt, el("span", {}, t("Problems only"))]),
   ]);
 
-  const head = el("tr", {}, COLS.map(([key, label]) => {
+  const cols = COLS(), col = Object.fromEntries(cols);
+  const head = el("tr", {}, cols.map(([key, label]) => {
     const on = st.sort === key;
     const b = el("button", { class: "rx-sort" + (on ? " on" : ""), "data-sort": key,
-      "aria-label": `Sort by ${label}`, title: `Sort by ${label}` }, label + (on ? (st.dir > 0 ? " ▴" : " ▾") : ""));
+      "aria-label": t("Sort by {column}", { column: label }), title: t("Sort by {column}", { column: label }) }, label + (on ? (st.dir > 0 ? " ▴" : " ▾") : ""));
     b.addEventListener("click", () => {
       if (st.sort === key) st.dir = -st.dir; else { st.sort = key; st.dir = 1; }
       ctx.actions.renderRooms();
@@ -309,29 +312,29 @@ export function render(ctx) {
   const body = el("tbody", {});
   for (const r of shown) {
     const place = el("button", { class: "btn inline rx-place", "data-place": r.source,
-      title: r.placed ? `On ${r.placed.mapName || "a floor plan"}. Opens Mapping with this receiver selected.` : "Opens Mapping to put this receiver on a floor plan." },
-      r.placed ? "Move" : "Place");
+      title: r.placed ? t("On {plan}. Opens Mapping with this receiver selected.", { plan: r.placed.mapName || t("a floor plan") }) : t("Opens Mapping to put this receiver on a floor plan.") },
+      r.placed ? t("Move") : t("Place"));
     place.addEventListener("click", () => _openPlacement(ctx, r));
     const status = el("span", { class: "rx-status " + (r.status.level === "ok" ? "ok" : "warn"), title: r.status.title, "data-status": r.status.id }, [
       el("span", { class: "rx-dot", "aria-hidden": "true" }), r.status.label,
     ]);
     const ago = agoText(r.lastHeardS);
     const tr = el("tr", { "data-rx": r.source, class: r.status.level === "ok" ? "" : "rx-problem" }, [
-      el("td", { "data-label": "Receiver" }, [
+      el("td", { "data-label": col.name }, [
         el("div", { class: "rx-name" }, r.name),
         r.name !== r.source ? el("div", { class: "rx-src" }, r.source) : null,
       ].filter(Boolean)),
-      el("td", { "data-label": "Room", title: r.areaName && r.areaName !== r.room ? `Home Assistant area: ${r.areaName}` : "" }, r.room || el("span", { class: "muted" }, "—")),
-      el("td", { "data-label": "Floor" }, r.floor || el("span", { class: "muted" }, "—")),
-      el("td", { "data-label": "On a floor plan" }, el("span", { class: "rx-edit" }, [
-        el("span", { class: r.placed ? "" : "muted" }, r.placed ? "Yes" : "No"),
+      el("td", { "data-label": col.room, title: r.areaName && r.areaName !== r.room ? t("Home Assistant area: {area}", { area: r.areaName }) : "" }, r.room || el("span", { class: "muted" }, "—")),
+      el("td", { "data-label": col.floor }, r.floor || el("span", { class: "muted" }, "—")),
+      el("td", { "data-label": col.placed }, el("span", { class: "rx-edit" }, [
+        el("span", { class: r.placed ? "" : "muted" }, r.placed ? t("Yes") : t("No")),
         editable ? place : null,
       ].filter(Boolean))),
-      el("td", { "data-label": "Height" }, _heightCell(ctx, el, r, editable)),
-      el("td", { "data-label": "Signal adjustment" }, _offsetCell(ctx, el, r, editable)),
-      el("td", { "data-label": "Status" }, status),
-      el("td", { "data-label": "Devices now", class: "rx-num", title: `Different devices heard in the last ${HEARD_NOW_S} seconds` }, String(r.devices)),
-      el("td", { "data-label": "Last heard" }, ago || el("span", { class: "muted" }, r.devices ? "—" : "Not yet")),
+      el("td", { "data-label": col.height }, _heightCell(ctx, el, r, editable)),
+      el("td", { "data-label": col.offset }, _offsetCell(ctx, el, r, editable)),
+      el("td", { "data-label": col.status }, status),
+      el("td", { "data-label": col.devices, class: "rx-num", title: t("Different devices heard in the last {n} seconds", { n: HEARD_NOW_S }) }, String(r.devices)),
+      el("td", { "data-label": col.heard }, ago || el("span", { class: "muted" }, r.devices ? "—" : t("Not yet"))),
     ]);
     body.appendChild(tr);
   }
@@ -339,7 +342,7 @@ export function render(ctx) {
   const card = el("div", { class: "card" }, [bar]);
   if (!shown.length) {
     card.appendChild(el("div", { class: "muted", style: "font-size:12px;padding:10px 2px", "data-rx-none": "1" },
-      "No problems: every receiver is reporting normally."));
+      t("No problems: every receiver is reporting normally.")));
   } else {
     card.appendChild(el("div", { class: "table-wrap rx-wrap" },
       el("table", { class: "table rx-table" }, [el("thead", {}, head), body])));

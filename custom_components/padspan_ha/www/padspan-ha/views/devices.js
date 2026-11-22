@@ -13,11 +13,13 @@
 // ── Sub-tab state ────────────────────────────────────────────────────────────
 const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, groupHead, groupTitle, ago } =
   await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const TABS = [
-  { id: "all",      label: "All Devices" },
-  { id: "by_room",  label: "By Room" },
-  { id: "registry", label: "Registry" },
-  { id: "openers",  label: "Door Openers" },
+  { id: "all",      get label() { return t("All Devices"); } },
+  { id: "by_room",  get label() { return t("By Room"); } },
+  { id: "registry", get label() { return t("Registry"); } },
+  { id: "openers",  get label() { return t("Door Openers"); } },
 ];
 
 export function render(ctx) {
@@ -29,14 +31,14 @@ export function render(ctx) {
 
   // ── Sub-tab bar ──────────────────────────────────────────────────────────
   const tabBar = el("div", { style: "display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid #1b3526;padding-bottom:8px" });
-  for (const t of TABS) {
-    const active = ctx.state._devicesTab === t.id;
+  for (const tab of TABS) {
+    const active = ctx.state._devicesTab === tab.id;
     const btn = el("button", {
       class: "btn inline" + (active ? " on" : ""),
       style: `font-size:12px;padding:4px 14px;border-radius:8px 8px 0 0;${active ? "border-bottom:2px solid #52b788" : ""}`,
-    }, t.label);
+    }, tab.label);
     btn.addEventListener("click", () => {
-      ctx.state._devicesTab = t.id;
+      ctx.state._devicesTab = tab.id;
       ctx.actions.renderRooms();
     });
     tabBar.appendChild(btn);
@@ -71,23 +73,23 @@ function _renderAll(ctx) {
 
   if (!snap) {
     return el("div", { class: "card" }, [
-      el("div", { style: "font-weight:700" }, "No snapshot data"),
-      el("div", { class: "muted" }, "Switch to Sample or Live mode to see device data."),
+      el("div", { style: "font-weight:700" }, t("No snapshot data")),
+      el("div", { class: "muted" }, t("Switch to Sample or Live mode to see device data.")),
     ]);
   }
 
   // ── Gather all devices from multiple sources ──────────────────────────────
 
   // 1) Entity-based trackers from snap.tags
-  const tagsRaw = (Array.isArray(snap.tags) ? snap.tags : []).map(t => ({
-    id: t.entity_id || "",
+  const tagsRaw = (Array.isArray(snap.tags) ? snap.tags : []).map(tg => ({
+    id: tg.entity_id || "",
     type: "entity",
-    name: t.name || t.entity_id || "Unknown",
-    room: normalizeRoom(t.state),
-    stateRaw: t.state || "",
-    missing: !!t.missing,
-    lastChanged: t.last_changed || t.last_updated || "",
-    extra: t,
+    name: tg.name || tg.entity_id || t("Unknown"),
+    room: normalizeRoom(tg.state),
+    stateRaw: tg.state || "",
+    missing: !!tg.missing,
+    lastChanged: tg.last_changed || tg.last_updated || "",
+    extra: tg,
   }));
 
   // 2) BLE objects from objects.list (tagged, ibeacon, private_ble)
@@ -108,7 +110,7 @@ function _renderAll(ctx) {
         type: o.kind,
         name: deviceName(o),
         room: o.room || "",
-        stateRaw: o.room || (o.age_s != null ? `seen ${Math.round(o.age_s)}s ago` : ""),
+        stateRaw: o.room || (o.age_s != null ? t("seen {n}s ago", { n: Math.round(o.age_s) }) : ""),
         missing: false,
         lastChanged: o.last_seen || "",
         tagged: !!(o.user_label || o.identified),
@@ -126,8 +128,8 @@ function _renderAll(ctx) {
   // Merge: entity trackers + BLE objects, dedup by id
   const seen = new Set();
   const allDevices = [];
-  for (const t of tagsRaw) {
-    if (t.id && !seen.has(t.id)) { seen.add(t.id); allDevices.push(t); }
+  for (const tg of tagsRaw) {
+    if (tg.id && !seen.has(tg.id)) { seen.add(tg.id); allDevices.push(tg); }
   }
   for (const b of bleDevices) {
     if (b.id && !seen.has(b.id)) {
@@ -185,7 +187,7 @@ function _renderAll(ctx) {
     const kpi = el("div", {
       class: "kpi",
       style: `cursor:pointer;${isActive ? "border:1px solid #52b788;border-radius:8px;background:#0a2a1a" : ""}`,
-      title: `Click to filter: ${label}`,
+      title: t("Click to filter: {label}", { label }),
     }, [
       el("div", { class: "kpi-num" }, num),
       el("div", { class: "kpi-lbl" }, label),
@@ -200,15 +202,15 @@ function _renderAll(ctx) {
   // ── Header ────────────────────────────────────────────────────────────────
   const header = el("div", { class: "row", style: "margin-bottom:14px" }, [
     el("div", { class: "grow" }, [
-      el("div", { class: "h2" }, "All Devices"),
-      el("div", { class: "muted" }, "HA entities + tagged BLE objects, deduped into a single list."),
+      el("div", { class: "h2" }, t("All Devices")),
+      el("div", { class: "muted" }, t("HA entities + tagged BLE objects, deduped into a single list.")),
     ]),
     el("div", { class: "bt-kpis" }, [
-      _mkDevKpi(String(allDevices.length), "Total", "all"),
-      _mkDevKpi(String(entityCount), "Entities", "entity"),
-      _mkDevKpi(String(taggedCount), "Tagged", "tagged"),
-      _mkDevKpi(String(untaggedCount), "Untagged", "untagged"),
-      missingCount ? _mkDevKpi(String(missingCount), "Missing", "missing") : null,
+      _mkDevKpi(String(allDevices.length), t("Total"), "all"),
+      _mkDevKpi(String(entityCount), t("Entities"), "entity"),
+      _mkDevKpi(String(taggedCount), t("Tagged"), "tagged"),
+      _mkDevKpi(String(untaggedCount), t("Untagged"), "untagged"),
+      missingCount ? _mkDevKpi(String(missingCount), t("Missing"), "missing") : null,
     ].filter(Boolean)),
   ]);
 
@@ -222,30 +224,30 @@ function _renderAll(ctx) {
   const controls = el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px" }, [
     el("input", {
       class: "input", style: "flex:1;min-width:180px;max-width:300px",
-      placeholder: "Search name, address, room\u2026",
+      placeholder: t("Search name, address, room…"),
       value: ctx.state.devSearch,
       oninput: e => { ctx.state.devSearch = e.target.value; applyDevSearch(); },
     }),
-    filterBtn("all", "All", allDevices.length),
-    filterBtn("tagged", "Named", entityCount + taggedCount),
-    filterBtn("untagged", "Untagged", untaggedCount),
-    missingCount > 0 ? filterBtn("missing", "Missing", missingCount) : null,
+    filterBtn("all", t("All"), allDevices.length),
+    filterBtn("tagged", t("Named"), entityCount + taggedCount),
+    filterBtn("untagged", t("Untagged"), untaggedCount),
+    missingCount > 0 ? filterBtn("missing", t("Missing"), missingCount) : null,
   ].filter(Boolean));
 
   // ── Device rows ───────────────────────────────────────────────────────────
   const _devHay = (d) => `${d.name} ${d.id} ${d.room} ${d.stateRaw} ${d.type} ${deviceWhat(d.obj) || ""} ${(d.obj && d.obj.company_name) || ""} ${(d.obj && d.obj.label_link && d.obj.label_link.address) || ""}`.toLowerCase();
   const _devRow = (d, grouped) => {
-    const kindBadge = d.type === "entity"      ? el("span", { class: "badge", style: "font-size:10px" }, "Entity")
+    const kindBadge = d.type === "entity"      ? el("span", { class: "badge", style: "font-size:10px" }, t("Entity"))
                     : d.type === "private_ble"  ? el("span", { class: "badge", style: "font-size:10px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976" }, "Private BLE")
                     : d.type === "ibeacon"      ? el("span", { class: "badge", style: "font-size:10px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6" }, "iBeacon")
-                    : d.tagged                  ? el("span", { class: "badge", style: "font-size:10px" }, "Tagged")
-                    : el("span", { class: "badge warn", style: "font-size:10px" }, "Untagged");
+                    : d.tagged                  ? el("span", { class: "badge", style: "font-size:10px" }, t("Tagged"))
+                    : el("span", { class: "badge warn", style: "font-size:10px" }, t("Untagged"));
 
     const statusBadge = d.missing
-      ? el("span", { class: "pill bad" }, "MISSING")
+      ? el("span", { class: "pill bad" }, t("MISSING"))
       : d.room
         ? el("span", { class: "pill good" }, d.room)
-        : el("span", { class: "pill", style: "color:#94a3b8" }, "No room");
+        : el("span", { class: "pill", style: "color:#94a3b8" }, t("No room"));
 
     const sub = [d.id];
     const what = listWhat(d.obj);
@@ -253,8 +255,9 @@ function _renderAll(ctx) {
     if (d.padspan_id) sub.push(d.padspan_id);
     if (d.rssi != null) sub.push(`RSSI ${d.rssi}`);
     if (d.age_s != null) sub.push(ago(d.age_s));
-    if (d.sources && d.sources.length) sub.push(`${d.sources.length} radio${d.sources.length > 1 ? "s" : ""}`);
-    if (d.type === "entity" && d.stateRaw) sub.push(`state: ${d.stateRaw}`);
+    const nSrc = d.sources ? d.sources.length : 0;
+    if (nSrc) sub.push(tn(nSrc, "{n} radio", "{n} radios"));
+    if (d.type === "entity" && d.stateRaw) sub.push(t("state: {state}", { state: d.stateRaw }));
 
     // Buttons
     const btns = [];
@@ -273,26 +276,26 @@ function _renderAll(ctx) {
           ...d.extra,
         });
       }
-    }}, "Details"));
+    }}, t("Details")));
 
     // Tag/Rename button (BLE objects only)
     if (d.type === "ble" || d.type === "private_ble" || d.type === "ibeacon") {
       const label = d.obj?.user_label || "";
       btns.push(el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 6px", onclick: () => {
         ctx.actions.tagObjectPrompt(d.id, label);
-      }}, label ? "Rename" : "Tag"));
+      }}, label ? t("Rename") : t("Tag")));
     }
 
     // Delete/Untag button
     if (d.tagged && d.type !== "entity") {
       btns.push(el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 6px;color:#f87171;border-color:#7f1d1d", onclick: async () => {
-        if (!confirm(`Remove tag "${d.name}" (${d.id})?`)) return;
+        if (!confirm(t("Remove tag \"{name}\" ({id})?", { name: d.name, id: d.id }))) return;
         try {
           await ctx.actions.objectLabelDelete(d.id);
-          ctx.toast("Tag removed.");
+          ctx.toast(t("Tag removed."));
           await ctx.actions.refreshSnapshot();
-        } catch(e) { ctx.toast("Failed to remove tag.", true); }
-      }}, "Untag"));
+        } catch(e) { ctx.toast(t("Failed to remove tag."), true); }
+      }}, t("Untag")));
     }
 
     const hay = _devHay(d);
@@ -352,7 +355,7 @@ function _renderAll(ctx) {
   }
 
   const countEl = el("div", { class: "h2", style: "flex:1" }, "");
-  const emptyMsg = el("div", { class: "muted", style: "padding:12px 0" }, "No devices match the current filters.");
+  const emptyMsg = el("div", { class: "muted", style: "padding:12px 0" }, t("No devices match the current filters."));
   const listEl = el("div", { class: "dev-tag-list list-scroll" }, listKids);
 
   // In-place text search: toggle row visibility against the live search term
@@ -387,10 +390,10 @@ function _renderAll(ctx) {
       button.firstChild.textContent = open_ ? "\u25BE" : "\u25B8";
       const left = q ? hits.length - h.found.length : open ? rest.length : 0;
       more.style.display = left ? "" : "none";
-      more.textContent = left ? `${left} more here${q ? "" : ": search to find one"}` : "";
+      more.textContent = left ? (q ? t("{n} more here", { n: left }) : t("{n} more here: search to find one", { n: left })) : "";
       shown += q ? hits.length : rest.length;
     }
-    countEl.textContent = `Showing ${shown} of ${allDevices.length}`;
+    countEl.textContent = t("Showing {shown} of {total}", { shown, total: allDevices.length });
     emptyMsg.style.display = shown === 0 ? "" : "none";
     listEl.style.display = shown === 0 ? "none" : "";
   };

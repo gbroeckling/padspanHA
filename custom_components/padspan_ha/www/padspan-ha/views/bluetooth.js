@@ -23,7 +23,7 @@ const { iphoneGuideOn, isApplePhone, renderIphonePath, renderCaptureSteps } =
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {}, renderCaptureSteps: () => {} }));
 // The panel's words in its language (views/i18n.js; English is the key). So far
 // the phone wizard ("Track your phone"), one of the first-run screens.
-const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // Basic's focused views (views/focus.js): Setup's "Track your phone or watch" opens just the phone wizard.
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
@@ -566,11 +566,11 @@ export function render(ctx) {
 
   // A segmented control rather than five loose pills: they are one choice.
   const tabs = el("div", { class: "bt-seg", role: "tablist" }, [
-    tabButton("visualization", "Visualisation"),
-    tabButton("monitor", "Advertisements"),
-    tabButton("scanners", "Scanners"),
-    tabButton("irk_panel", "IRK Manager"),
-    tabButton("esphome_configs", "ESPHome Configs"),
+    tabButton("visualization", t("Visualisation")),
+    tabButton("monitor", t("Advertisements")),
+    tabButton("scanners", t("Scanners")),
+    tabButton("irk_panel", t("IRK Manager")),
+    tabButton("esphome_configs", t("ESPHome Configs")),
   ]);
 
   // ── Search / source / max-rows controls ────────────────────────────────────
@@ -2452,7 +2452,7 @@ function renderIrkPanel(ctx, snap) {
   }
 
   if (ctx.state._irkPanelLoading) {
-    wrap.appendChild(el("div", { class: "muted", style: "padding:20px" }, "Loading IRK status\u2026"));
+    wrap.appendChild(el("div", { class: "muted", style: "padding:20px" }, t("Loading IRK status\u2026")));
     return wrap;
   }
 
@@ -2476,11 +2476,11 @@ function renderIrkPanel(ctx, snap) {
   const _resolverSummary = (snap?.objects?.summary?.resolver) || {};
   const _actualResolved = _resolverSummary.resolved || 0;
   const _unresolved = Math.max(0, rpaCount - _actualResolved);
-  kpiRow.appendChild(kpi(devices.length, "IRKs registered", devices.length ? "good" : "ok"));
-  kpiRow.appendChild(kpi(rpaCount, "Rotating MACs", rpaCount ? "info" : ""));
-  kpiRow.appendChild(kpi(_actualResolved, "Resolved", _actualResolved ? "good" : "ok"));
-  kpiRow.appendChild(kpi(_unresolved, "Unresolved RPAs", _unresolved ? "ok" : ""));
-  kpiRow.appendChild(kpi(totalBle, "Total BLE MACs"));
+  kpiRow.appendChild(kpi(devices.length, t("IRKs registered"), devices.length ? "good" : "ok"));
+  kpiRow.appendChild(kpi(rpaCount, t("Rotating MACs"), rpaCount ? "info" : ""));
+  kpiRow.appendChild(kpi(_actualResolved, t("Resolved"), _actualResolved ? "good" : "ok"));
+  kpiRow.appendChild(kpi(_unresolved, t("Unresolved RPAs"), _unresolved ? "ok" : ""));
+  kpiRow.appendChild(kpi(totalBle, t("Total BLE MACs")));
   wrap.appendChild(kpiRow);
 
   // ── Integration status ──
@@ -2488,10 +2488,10 @@ function renderIrkPanel(ctx, snap) {
     el("span", { class: "bt-notice-mark" }, ""),
     el("div", { class: "bt-notice-body" }, [
       el("div", { class: "bt-notice-title" }, hasIntegration
-        ? "Private BLE Device integration installed"
-        : "Private BLE Device integration not installed"),
+        ? t("Private BLE Device integration installed")
+        : t("Private BLE Device integration not installed")),
       mobileApps.length
-        ? el("div", { class: "bt-notice-sub" }, `Companion apps: ${mobileApps.join(", ")}`)
+        ? el("div", { class: "bt-notice-sub" }, t("Companion apps: {list}", { list: mobileApps.join(", ") }))
         : null,
     ].filter(Boolean)),
   ]);
@@ -2500,8 +2500,8 @@ function renderIrkPanel(ctx, snap) {
   // ── Registered Devices Table ──
   const devCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
   devCard.appendChild(el("div", { class: "bt-panel-head" }, [
-    el("div", { class: "bt-panel-title" }, "Registered IRK devices"),
-    el("div", { class: "bt-panel-sub" }, "Each key here lets PadSpan follow one device through its rotating addresses."),
+    el("div", { class: "bt-panel-title" }, t("Registered IRK devices")),
+    el("div", { class: "bt-panel-sub" }, t("Each key here lets PadSpan follow one device through its rotating addresses.")),
     el("span", { class: "bt-chip quiet" }, String(devices.length)),
   ]));
 
@@ -2512,22 +2512,22 @@ function renderIrkPanel(ctx, snap) {
                       bluetooth_bond: "ok" };
     const tbl = el("table", { class: "table" });
     const thead = el("tr", {});
-    for (const h of ["Name", "Source", "Canonical ID", ""]) thead.appendChild(el("th", {}, h));
+    for (const h of [t("Name"), t("Source"), t("Canonical ID"), ""]) thead.appendChild(el("th", {}, h));
     tbl.appendChild(el("thead", {}, thead));
     const tb = el("tbody");
 
     for (const d of devices) {
       const tr = el("tr", {});
-      tr.appendChild(el("td", { style: "font-weight:700" }, d.name || "Unknown"));
+      tr.appendChild(el("td", { style: "font-weight:700" }, d.name || t("Unknown")));
       tr.appendChild(el("td", {}, chip(el, d.source || "unknown", srcTone[d.source] || "quiet")));
       tr.appendChild(el("td", { class: "bt-adv-sub", style: "white-space:normal;word-break:break-all" }, d.canonical_id || ""));
 
       // Delete button — different behavior based on source
       const tdAct = el("td", { style: "white-space:nowrap;text-align:right" });
       if (d.source === "padspan") {
-        const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, "Remove");
+        const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, t("Remove"));
         rmBtn.addEventListener("click", async () => {
-          if (!confirm(`Remove IRK for "${d.name}"?`)) return;
+          if (!confirm(t("Remove IRK for \"{name}\"?", { name: d.name }))) return;
           const hex = (d.canonical_id || "").replace("irk:", "");
           try {
             await ctx.actions.wsCall("padspan_ha/irk_remove", { irk_hex: hex });
@@ -2537,10 +2537,10 @@ function renderIrkPanel(ctx, snap) {
         });
         tdAct.appendChild(rmBtn);
       } else if (d.source === "private_ble_device" && d.entry_id) {
-        const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, "Delete");
+        const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, t("Delete"));
         rmBtn.addEventListener("click", async () => {
-          if (!confirm(`Delete "${d.name}" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.`)) return;
-          if (!confirm(`Are you sure? "${d.name}" will be deleted from Home Assistant. You would need its IRK to re-add it.`)) return;
+          if (!confirm(t("Delete \"{name}\" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.", { name: d.name }))) return;
+          if (!confirm(t("Are you sure? \"{name}\" will be deleted from Home Assistant. You would need its IRK to re-add it.", { name: d.name }))) return;
           try {
             await ctx.actions.wsCall("padspan_ha/private_ble_delete_irk", { entry_id: d.entry_id });
             ctx.state._irkPanelStatus = null;
@@ -2549,7 +2549,7 @@ function renderIrkPanel(ctx, snap) {
         });
         tdAct.appendChild(rmBtn);
       } else {
-        tdAct.appendChild(el("span", { class: "bt-mini-lbl" }, d.source === "bluetooth_bond" ? "System" : "HA-managed"));
+        tdAct.appendChild(el("span", { class: "bt-mini-lbl" }, d.source === "bluetooth_bond" ? t("System") : t("HA-managed")));
       }
       tr.appendChild(tdAct);
       tb.appendChild(tr);
@@ -2557,28 +2557,27 @@ function renderIrkPanel(ctx, snap) {
     tbl.appendChild(tb);
     devCard.appendChild(tbl);
   } else {
-    devCard.appendChild(emptyState(el, "\u25CC", "No IRKs registered",
-      "Without one, a phone that rotates its address looks like a new device every fifteen minutes. Add a key below."));
+    devCard.appendChild(emptyState(el, "\u25CC", t("No IRKs registered"),
+      t("Without one, a phone that rotates its address looks like a new device every fifteen minutes. Add a key below.")));
   }
   wrap.appendChild(devCard);
 
   // ── Add IRK Form ──
   const addCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
   addCard.appendChild(el("div", { class: "bt-panel-head" }, [
-    el("div", { class: "bt-panel-title" }, "Add an IRK"),
+    el("div", { class: "bt-panel-title" }, t("Add an IRK")),
     el("div", { class: "bt-panel-sub" },
-      "Paste the key of an iPhone or Apple Watch — hex, base64, colon-separated or irk:-prefixed all work. "
-      + "PadSpan checks it against live traffic before saving it. Android phones need no key."),
+      t("Paste the key of an iPhone or Apple Watch — hex, base64, colon-separated or irk:-prefixed all work. PadSpan checks it against live traffic before saving it. Android phones need no key.")),
   ]));
   addCard.appendChild(el("div", { class: "bt-note", style: "margin-bottom:10px" },
-    "Capturing an IRK from a phone or watch needs the ESPHome IRK Capture tool \u2014 github.com/DerekSeaman/irk-capture"));
+    t("Capturing an IRK from a phone or watch needs the ESPHome IRK Capture tool — github.com/DerekSeaman/irk-capture")));
 
   const nameInp = el("input", {
-    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Alice's Pixel",
+    class: "input", type: "text", placeholder: t("Device name \u2014 e.g. Alice's Pixel"),
     style: "width:100%;box-sizing:border-box",
   });
   const irkInp = el("input", {
-    class: "input", type: "text", placeholder: "IRK (hex, base64 or colon-separated)",
+    class: "input", type: "text", placeholder: t("IRK (hex, base64 or colon-separated)"),
     style: "width:100%;box-sizing:border-box;margin-top:6px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
   });
   const addMsg = el("div", { style: "font-size:12px;margin-top:7px;min-height:16px" });
@@ -2586,9 +2585,9 @@ function renderIrkPanel(ctx, snap) {
   const btnRow = el("div", { style: "display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center" });
   // "Add & Validate" was full width because .btn is; it is one action among
   // three, so it sizes like one.
-  const addBtn = el("button", { class: "btn inline" }, "Add & validate");
-  const validateBtn = el("button", { class: "btn inline" }, "Test only");
-  const autoDetectBtn = el("button", { class: "btn inline bt-btn-info", style: "margin-left:auto" }, "Auto-detect IRKs");
+  const addBtn = el("button", { class: "btn inline" }, t("Add & validate"));
+  const validateBtn = el("button", { class: "btn inline" }, t("Test only"));
+  const autoDetectBtn = el("button", { class: "btn inline bt-btn-info", style: "margin-left:auto" }, t("Auto-detect IRKs"));
   // The keys Auto-detect found on irk-capture ESP32s. One of them added from
   // the box as it is (not edited to another key) is saved as one, so the
   // usage report counts it with the phone wizard's.
@@ -2600,45 +2599,45 @@ function renderIrkPanel(ctx, snap) {
   addBtn.addEventListener("click", async () => {
     const irk = irkInp.value.trim();
     const name = nameInp.value.trim() || "PadSpan Device";
-    if (!irk) { addMsg.textContent = "Paste an IRK first"; addMsg.style.color = "var(--bt-bad)"; return; }
-    addBtn.disabled = true; addBtn.textContent = "Checking\u2026";
+    if (!irk) { addMsg.textContent = t("Paste an IRK first"); addMsg.style.color = "var(--bt-bad)"; return; }
+    addBtn.disabled = true; addBtn.textContent = t("Checking\u2026");
     await _addIrk(ctx, name, irk, addMsg, () => {
       nameInp.value = ""; irkInp.value = "";
       ctx.state._irkPanelStatus = null;
       setTimeout(() => ctx.actions.renderRooms(), 500);
     }, false, captureKeys.has(irk.toLowerCase()) ? "irk_capture" : "");
-    addBtn.disabled = false; addBtn.textContent = "Add & validate";
+    addBtn.disabled = false; addBtn.textContent = t("Add & validate");
   });
 
   // Test Only handler
   validateBtn.addEventListener("click", async () => {
     const irk = irkInp.value.trim();
-    if (!irk) { addMsg.textContent = "Paste an IRK first"; addMsg.style.color = "var(--bt-bad)"; return; }
-    validateBtn.disabled = true; validateBtn.textContent = "Testing…";
+    if (!irk) { addMsg.textContent = t("Paste an IRK first"); addMsg.style.color = "var(--bt-bad)"; return; }
+    validateBtn.disabled = true; validateBtn.textContent = t("Testing…");
     addMsg.textContent = ""; addMsg.style.color = "var(--bt-dim)";
     try {
       const vRes = await ctx.actions.wsCall("padspan_ha/irk_validate", { irk_hex: irk });
       if (vRes && vRes.matched_count > 0) {
         addMsg.style.color = "var(--bt-good)";
         const fmt = vRes.matched_format ? ` (format: ${vRes.matched_format})` : "";
-        addMsg.textContent = `✓ Valid! Matched ${vRes.matched_count} rotating address${vRes.matched_count !== 1 ? "es" : ""}${fmt}. Addresses: ${(vRes.matched_addresses || []).slice(0, 5).join(", ")}`;
+        addMsg.textContent = "✓ " + tn(vRes.matched_count, "Valid! Matched {n} rotating address{fmt}. Addresses: {list}", "Valid! Matched {n} rotating addresses{fmt}. Addresses: {list}", { fmt, list: (vRes.matched_addresses || []).slice(0, 5).join(", ") });
       } else if (vRes && vRes.not_an_irk) {
         addMsg.style.color = "var(--bt-bad)";
         addMsg.textContent = vRes.not_an_irk;
       } else {
         addMsg.style.color = "var(--bt-ok)";
-        addMsg.textContent = `No match found. ${vRes.rpa_count || 0} RPAs tested. ${vRes.candidates_tried || 0} format variants tried. Device may be off/out of range.`;
+        addMsg.textContent = t("No match found. {rpas} RPAs tested. {tries} format variants tried. Device may be off/out of range.", { rpas: vRes.rpa_count || 0, tries: vRes.candidates_tried || 0 });
       }
     } catch(e) {
       addMsg.style.color = "var(--bt-bad)";
-      addMsg.textContent = e.message || "Invalid IRK format";
+      addMsg.textContent = e && e.message ? ctx.helpers.errorText(e) : t("Invalid IRK format");
     }
-    validateBtn.disabled = false; validateBtn.textContent = "Test Only";
+    validateBtn.disabled = false; validateBtn.textContent = t("Test Only");
   });
 
   // Auto-Detect handler
   autoDetectBtn.addEventListener("click", async () => {
-    autoDetectBtn.disabled = true; autoDetectBtn.textContent = "Scanning…";
+    autoDetectBtn.disabled = true; autoDetectBtn.textContent = t("Scanning…");
     addMsg.textContent = ""; addMsg.style.color = "var(--bt-dim)";
     try {
       const res = await ctx.actions.wsCall("padspan_ha/irk_auto_detect", {});
@@ -2646,13 +2645,13 @@ function renderIrkPanel(ctx, snap) {
       captureKeys = new Set(found.filter(f => f.source === "irk_capture").map(f => String(f.irk_hex || "").toLowerCase()));
       if (found.length === 0) {
         addMsg.style.color = "var(--bt-ok)";
-        addMsg.textContent = `No system Bluetooth bonds found (${res.system_bond_count || 0} bonds scanned, ${res.rpa_count || 0} RPAs tested).`;
+        addMsg.textContent = t("No system Bluetooth bonds found ({bonds} bonds scanned, {rpas} RPAs tested).", { bonds: res.system_bond_count || 0, rpas: res.rpa_count || 0 });
       } else {
         // Show found IRKs
         addMsg.style.color = "var(--bt-good)";
         const newOnes = found.filter(f => !f.already_registered);
         const verified = found.filter(f => f.verified);
-        addMsg.textContent = `Found ${found.length} IRK${found.length !== 1 ? "s" : ""}: ${newOnes.length} new, ${verified.length} verified against live RPAs.`;
+        addMsg.textContent = tn(found.length, "Found {n} IRK: {fresh} new, {ok} verified against live RPAs.", "Found {n} IRKs: {fresh} new, {ok} verified against live RPAs.", { fresh: newOnes.length, ok: verified.length });
 
         // Auto-add verified new ones — silently, no confirmation prompt. Safe
         // because "verified" already means the backend matched it against a
@@ -2679,14 +2678,14 @@ function renderIrkPanel(ctx, snap) {
         const captured = newOnes.find(f => f.source === "irk_capture");
         if (captured) {
           if (!irkInp.value.trim()) irkInp.value = captured.irk_hex;
-          addMsg.textContent += ` The key from “${captured.name}” is in the box above: type the name of the iPhone or watch it came from, then press Add & validate.`;
+          addMsg.textContent += " " + t("The key from “{name}” is in the box above: type the name of the iPhone or watch it came from, then press {add}.", { name: captured.name, add: t("Add & validate") });
         }
       }
     } catch(e) {
       addMsg.style.color = "var(--bt-bad)";
-      addMsg.textContent = e.message || "Auto-detect failed";
+      addMsg.textContent = e && e.message ? ctx.helpers.errorText(e) : t("Auto-detect failed");
     }
-    autoDetectBtn.disabled = false; autoDetectBtn.textContent = "Auto-Detect IRKs";
+    autoDetectBtn.disabled = false; autoDetectBtn.textContent = t("Auto-Detect IRKs");
   });
 
   btnRow.appendChild(addBtn);
@@ -2771,21 +2770,20 @@ function renderIrkPanel(ctx, snap) {
   if (mobileApps.length || devices.some(d => d.source === "mobile_app")) {
     const compCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
     compCard.appendChild(el("div", { class: "bt-panel-head" }, [
-      el("div", { class: "bt-panel-title" }, "Companion apps"),
+      el("div", { class: "bt-panel-title" }, t("Companion apps")),
     ]));
 
     const appDevices = devices.filter(d => d.source === "mobile_app");
     if (appDevices.length) {
       compCard.appendChild(el("div", { class: "bt-note good" },
-        `${appDevices.length} companion app${appDevices.length !== 1 ? "s" : ""} with an IRK: ${appDevices.map(d => d.name).join(", ")}`));
+        tn(appDevices.length, "{n} companion app with an IRK: {list}", "{n} companion apps with an IRK: {list}", { list: appDevices.map(d => d.name).join(", ") })));
     }
     const appsWithoutIrk = mobileApps.filter(name => !appDevices.some(d => d.name === name));
     if (appsWithoutIrk.length) {
       compCard.appendChild(el("div", { class: "bt-note ok" },
-        `${appsWithoutIrk.length} companion app${appsWithoutIrk.length !== 1 ? "s" : ""} without one: ${appsWithoutIrk.join(", ")}`));
+        tn(appsWithoutIrk.length, "{n} companion app without one: {list}", "{n} companion apps without one: {list}", { list: appsWithoutIrk.join(", ") })));
       compCard.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.6;margin-top:8px" },
-        "Android phones don't need one: the Companion app's BLE Transmitter sends a fixed ID instead (track the phone from Overview → Track Your Phone). " +
-        "The iPhone app doesn't show its key: get it once from a Mac or an irk-capture ESP32."));
+        t("Android phones don't need one: the Companion app's BLE Transmitter sends a fixed ID instead (track the phone from Overview → Track Your Phone). The iPhone app doesn't show its key: get it once from a Mac or an irk-capture ESP32.")));
     }
     wrap.appendChild(compCard);
   }
@@ -2793,20 +2791,20 @@ function renderIrkPanel(ctx, snap) {
   // ── Troubleshooting Card ──
   const troubleCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
   troubleCard.appendChild(el("div", { class: "bt-panel-head" }, [
-    el("div", { class: "bt-panel-title" }, "How this install is doing"),
+    el("div", { class: "bt-panel-title" }, t("How this install is doing")),
   ]));
   const issues = [];
   if (devices.length === 0 && rpaCount > 0) {
-    issues.push({ tone: "ok", text: `${rpaCount} rotating addresses are being heard and no IRK is registered. Those are phones and watches, and without their key they cannot be told apart.` });
+    issues.push({ tone: "ok", text: t("{n} rotating addresses are being heard and no IRK is registered. Those are phones and watches, and without their key they cannot be told apart.", { n: rpaCount }) });
   }
   if (!hasIntegration) {
-    issues.push({ tone: "", text: "The Private BLE Device integration is not installed. PadSpan resolves IRKs on its own regardless; installing it adds HA device entities you can automate on." });
+    issues.push({ tone: "", text: t("The Private BLE Device integration is not installed. PadSpan resolves IRKs on its own regardless; installing it adds HA device entities you can automate on.") });
   }
   if (devices.length > 0 && rpaCount === 0) {
-    issues.push({ tone: "ok", text: "IRKs are registered but nothing rotating is being heard. Check that the scanners are online and the devices are in range." });
+    issues.push({ tone: "ok", text: t("IRKs are registered but nothing rotating is being heard. Check that the scanners are online and the devices are in range.") });
   }
   if (issues.length === 0) {
-    issues.push({ tone: "good", text: "Everything is working: the keys are loaded and rotating addresses are resolving." });
+    issues.push({ tone: "good", text: t("Everything is working: the keys are loaded and rotating addresses are resolving.") });
   }
   const issueList = el("div", { class: "bt-notes" });
   for (const iss of issues) {
@@ -2816,22 +2814,22 @@ function renderIrkPanel(ctx, snap) {
 
   // Quick reference
   troubleCard.appendChild(el("div", { style: "margin-top:12px;padding-top:9px;border-top:1px solid var(--bt-line)" }, [
-    el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, "Where to find an IRK"),
+    el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, t("Where to find an IRK")),
     el("dl", { class: "bt-kv" }, [
-      el("dt", {}, "Android"),
-      el("dd", {}, "None needed: the Companion app's BLE Transmitter (Overview \u2192 Track Your Phone)"),
-      el("dt", {}, "iPhone / iPad"),
-      el("dd", {}, "On a Mac: sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist"),
-      el("dt", {}, "Linux bonds"),
-      el("dd", {}, "Found for you by Auto-detect, above"),
-      el("dt", {}, "Anything else"),
-      el("dd", {}, "Pair with an ESP32 running BLE pairing firmware; the key is printed on the serial output"),
+      el("dt", {}, t("Android")),
+      el("dd", {}, t("None needed: the Companion app's BLE Transmitter (Overview \u2192 Track Your Phone)")),
+      el("dt", {}, t("iPhone / iPad")),
+      el("dd", {}, t("On a Mac: sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist")),
+      el("dt", {}, t("Linux bonds")),
+      el("dd", {}, t("Found for you by Auto-detect, above")),
+      el("dt", {}, t("Anything else")),
+      el("dd", {}, t("Pair with an ESP32 running BLE pairing firmware; the key is printed on the serial output")),
     ]),
   ]));
   wrap.appendChild(troubleCard);
 
   // ── Refresh button ──
-  const refreshBtn = el("button", { class: "btn inline", style: "margin-bottom:12px" }, "Refresh status");
+  const refreshBtn = el("button", { class: "btn inline", style: "margin-bottom:12px" }, t("Refresh status"));
   refreshBtn.addEventListener("click", () => {
     ctx.state._irkPanelStatus = null;
     ctx.state._irkPanelLoading = false;

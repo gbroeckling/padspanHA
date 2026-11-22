@@ -650,18 +650,18 @@ function radioShortId(source){
  */
 function scannerStatus(radio, ads){
   if(radio.scanning === true)
-    return { label:"scanning", cls:"badge", title:"Actively requesting BLE advertisements from nearby devices" };
+    return { label:t("scanning"), cls:"badge", title:t("Actively requesting BLE advertisements from nearby devices") };
   // Use last_heard_s (seconds since last ad received, independent of age filter) if available
   const lh = radio.last_heard_s;
   if(typeof lh === "number" && lh < 120)
-    return { label:"listening", cls:"badge", style:"background:rgba(56,189,248,.14);color:#38bdf8", title:`Last heard ${Math.round(lh)}s ago — online and receiving BLE broadcasts` };
+    return { label:t("listening"), cls:"badge", style:"background:rgba(56,189,248,.14);color:#38bdf8", title:t("Last heard {n}s ago — online and receiving BLE broadcasts", { n: Math.round(lh) }) };
   const src = radio.source || "";
   const hasAds = Array.isArray(ads) && ads.some(a => a.source === src);
   if(hasAds)
-    return { label:"listening", cls:"badge", style:"background:rgba(56,189,248,.14);color:#38bdf8", title:"Online and receiving BLE broadcasts (passive mode)" };
+    return { label:t("listening"), cls:"badge", style:"background:rgba(56,189,248,.14);color:#38bdf8", title:t("Online and receiving BLE broadcasts (passive mode)") };
   if(typeof lh === "number" && lh < 600)
-    return { label:`heard ${Math.round(lh)}s ago`, cls:"badge warn", title:`Last advertisement received ${Math.round(lh)}s ago — may be in a quiet area` };
-  return { label:"idle", cls:"badge warn", title:"No recent BLE data — may be offline, rebooting, or in a quiet area" };
+    return { label:t("heard {n}s ago", { n: Math.round(lh) }), cls:"badge warn", title:t("Last advertisement received {n}s ago — may be in a quiet area", { n: Math.round(lh) }) };
+  return { label:t("idle"), cls:"badge warn", title:t("No recent BLE data — may be offline, rebooting, or in a quiet area") };
 }
 
 // Room colour lives in views/room_color.js — ONE implementation, shared with
@@ -4419,31 +4419,31 @@ class PadSpanHaApp extends HTMLElement {
   // on a BLE device. Labels are stored server-side via object_label_set and
   // appear throughout the UI wherever the device's address would normally show.
   _tagObjectPrompt(addr, currentLabel){
-    const input = el("input",{type:"text", placeholder:"Enter a label…", maxLength:48});
+    const input = el("input",{type:"text", placeholder:t("Enter a label…"), maxLength:48});
     input.value = currentLabel || "";
     input.style.minWidth = "min(240px, 100%)";
 
     const status = el("div",{class:"muted", style:"min-height:20px;margin-top:6px"});
 
-    const saveBtn = el("button",{class:"btn"}, currentLabel ? "Update label" : "Save label");
-    const clearBtn = el("button",{class:"btn"}, "Untag");
+    const saveBtn = el("button",{class:"btn"}, currentLabel ? t("Update label") : t("Save label"));
+    const clearBtn = el("button",{class:"btn"}, t("Untag"));
     clearBtn.disabled = !currentLabel;
-    clearBtn.title = currentLabel ? `Remove label "${currentLabel}"` : "No label to remove";
-    const cancelBtn = el("button",{class:"btn inline"}, "Cancel");
+    clearBtn.title = currentLabel ? t("Remove label \"{label}\"", { label: currentLabel }) : t("No label to remove");
+    const cancelBtn = el("button",{class:"btn inline"}, t("Cancel"));
     cancelBtn.addEventListener("click", ()=>this._closeModal());
 
     saveBtn.addEventListener("click", async ()=>{
       const label = input.value.trim();
-      if(!label){ status.textContent = "Label cannot be empty."; return; }
+      if(!label){ status.textContent = t("Label cannot be empty."); return; }
       try {
         await this._callWS({ type:"padspan_ha/object_label_set", address: addr, label });
         this._logEvent("tag", `${addr} → ${label}`);
         this._closeModal();
-        this._toast(`Tagged: ${label}`);
+        this._toast(t("Tagged: {label}", { label }));
         await this._getLiveSnapshot();
         this._scheduleRender();
       } catch(e) {
-        status.textContent = "Failed to save label. Check HA logs.";
+        status.textContent = t("Failed to save label. Check HA logs.");
       }
     });
 
@@ -4452,11 +4452,11 @@ class PadSpanHaApp extends HTMLElement {
         await this._callWS({ type:"padspan_ha/object_label_delete", address: addr });
         this._logEvent("tag", `${addr} untagged`);
         this._closeModal();
-        this._toast("Label removed.");
+        this._toast(t("Label removed."));
         await this._getLiveSnapshot();
         this._scheduleRender();
       } catch(e) {
-        status.textContent = "Failed to remove label. Check HA logs.";
+        status.textContent = t("Failed to remove label. Check HA logs.");
       }
     });
 
@@ -4464,11 +4464,11 @@ class PadSpanHaApp extends HTMLElement {
     input.addEventListener("keydown",(e)=>{ if(e.key==="Enter") saveBtn.click(); });
 
     const body = el("div",{}, [
-      el("div",{class:"muted", style:"margin-bottom:8px"}, `BLE address: ${addr}`),
+      el("div",{class:"muted", style:"margin-bottom:8px"}, t("BLE address: {address}", { address: addr })),
       el("div",{class:"row", style:"gap:8px;flex-wrap:wrap"}, [input, saveBtn, clearBtn, cancelBtn]),
       status,
     ]);
-    this._openModal("Tag BLE Object", body, "Assign a human-readable label to identify this device");
+    this._openModal(t("Tag BLE Object"), body, t("Assign a human-readable label to identify this device"));
     // Focus input after modal renders
     requestAnimationFrame(()=>{ try{ input.focus(); }catch(e){} });
   }
@@ -4510,7 +4510,7 @@ class PadSpanHaApp extends HTMLElement {
   _showObjectDetail(obj){
     const addr = obj.address || "";
     const userLabel = obj.user_label || "";
-    const name = DEVICE_NAME ? DEVICE_NAME.deviceName(obj, "Unknown") : (obj.best_name || userLabel || obj.name || obj.entity_id || addr || "Unknown");
+    const name = DEVICE_NAME ? DEVICE_NAME.deviceName(obj, t("Unknown")) : (obj.best_name || userLabel || obj.name || obj.entity_id || addr || t("Unknown"));
     const kind = obj.kind || "";
     const identified = !!obj.identified;
     const what = DEVICE_NAME ? DEVICE_NAME.deviceWhat(obj) : (obj.what_it_is || obj.auto_class || null);
@@ -4536,9 +4536,9 @@ class PadSpanHaApp extends HTMLElement {
         el("span", {class:"badge"+(identified?"":" warn"), style:
           kind==="private_ble" ? (identified?"background:#1a3a5a;color:#7dd3fc;border-color:#3b82f6":"") :
           kind==="ibeacon" ? (identified?"background:#3a2a0a;color:#fbbf24;border-color:#d97706":"") : ""},
-          kind==="private_ble" ? (identified?"Private BLE · Identified":"Private BLE · Unidentified") :
-          kind==="ibeacon" ? (identified?"iBeacon · Identified":"iBeacon · Unidentified") :
-          kind==="ble" ? (identified?"BLE · Identified":"BLE · Unidentified") : "HA Entity"),
+          kind==="private_ble" ? "Private BLE · " + (identified ? t("Identified") : t("Unidentified")) :
+          kind==="ibeacon" ? "iBeacon · " + (identified ? t("Identified") : t("Unidentified")) :
+          kind==="ble" ? "BLE · " + (identified ? t("Identified") : t("Unidentified")) : t("HA Entity")),
       ]),
       addr ? el("div", {class:"muted", style:"font-family:monospace;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"}, [
         addr,
@@ -4547,26 +4547,26 @@ class PadSpanHaApp extends HTMLElement {
       // What it is, who made it, and how we know
       (kind !== "entity" && (obj.how_known || obj.best_name || what)) ? el("div", {style:"margin-top:8px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px"}, [
         ...(obj.company_name || obj.maker_guess ? [
-          el("span", {class:"muted"}, "Maker"),
-          el("span", {}, obj.company_name || `Probably ${obj.maker_guess}`),
+          el("span", {class:"muted"}, t("Maker")),
+          el("span", {}, obj.company_name || t("Probably {maker}", { maker: obj.maker_guess })),
         ] : []),
         ...(obj.service_owner ? [
-          el("span", {class:"muted"}, "Service"),
-          el("span", {title: DEVICE_NAME ? DEVICE_NAME.SERVICE_HOW : ""}, `Uses a service from ${obj.service_owner}`),
+          el("span", {class:"muted"}, t("Service")),
+          el("span", {title: DEVICE_NAME ? DEVICE_NAME.SERVICE_HOW : ""}, t("Uses a service from {company}", { company: obj.service_owner })),
         ] : []),
-        ...(what ? [el("span", {class:"muted"}, "What it is"), el("span", {}, what)] : []),
-        ...(howEl ? [el("span", {class:"muted"}, "How we know"), howEl] : []),
+        ...(what ? [el("span", {class:"muted"}, t("What it is")), el("span", {}, what)] : []),
+        ...(howEl ? [el("span", {class:"muted"}, t("How we know")), howEl] : []),
       ]) : null,
       this._labelLines(obj, "own", () => this._closeModal()),
       obj.canonical_id ? el("div", {class:"muted", style:"font-size:11px"}, `Canonical: ${obj.canonical_id}`) : null,
       (Array.isArray(obj.all_addresses) && obj.all_addresses.length > 1)
-        ? el("div", {class:"muted", style:"font-size:11px"}, `Addresses (${obj.all_addresses.length}): ${obj.all_addresses.slice(0,5).join(", ")}${obj.all_addresses.length>5?" + "+(obj.all_addresses.length-5)+" more":""}`)
+        ? el("div", {class:"muted", style:"font-size:11px"}, t("Addresses ({n}): {list}", { n: obj.all_addresses.length, list: obj.all_addresses.slice(0,5).join(", ") + (obj.all_addresses.length>5 ? " + " + t("{n} more", { n: obj.all_addresses.length-5 }) : "") }))
         : null,
-      obj._dedup_reason ? el("div", {class:"muted", style:"font-size:10px;color:#a78bfa"}, `Merged: ${obj._dedup_reason}`) : null,
-      obj.entity_id ? el("div", {class:"muted", style:"font-size:12px"}, `Entity: ${obj.entity_id}`) : null,
-      obj.ibeacon_key ? el("div", {class:"muted", style:"font-size:11px;color:#fbbf24"}, `Linked iBeacon: ${obj.ibeacon_key}`) : null,
+      obj._dedup_reason ? el("div", {class:"muted", style:"font-size:10px;color:#a78bfa"}, t("Merged: {why}", { why: obj._dedup_reason })) : null,
+      obj.entity_id ? el("div", {class:"muted", style:"font-size:12px"}, t("Entity: {id}", { id: obj.entity_id })) : null,
+      obj.ibeacon_key ? el("div", {class:"muted", style:"font-size:11px;color:#fbbf24"}, t("Linked iBeacon: {key}", { key: obj.ibeacon_key })) : null,
       (Array.isArray(obj.linked_entities) && obj.linked_entities.length)
-        ? el("div", {class:"muted", style:"font-size:11px;color:#60a5fa"}, `Linked entities: ${obj.linked_entities.join(", ")}`)
+        ? el("div", {class:"muted", style:"font-size:11px;color:#60a5fa"}, t("Linked entities: {list}", { list: obj.linked_entities.join(", ") }))
         : null,
       // Enrichment badges
       ((obj.service_names && obj.service_names.length) || obj.connectable != null)
@@ -4574,8 +4574,8 @@ class PadSpanHaApp extends HTMLElement {
             ...(obj.service_names || []).map(sn =>
               el("span",{class:"badge",style:"background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
             ),
-            obj.connectable === true  ? el("span",{class:"badge",style:"font-size:10px"}, "Connectable") : null,
-            obj.connectable === false ? el("span",{class:"badge",style:"font-size:10px;background:#2a1a0a;color:#fbbf24;border-color:#92400e"}, "Non-connectable") : null,
+            obj.connectable === true  ? el("span",{class:"badge",style:"font-size:10px"}, t("Connectable")) : null,
+            obj.connectable === false ? el("span",{class:"badge",style:"font-size:10px;background:#2a1a0a;color:#fbbf24;border-color:#92400e"}, t("Non-connectable")) : null,
           ].filter(Boolean))
         : null,
     ].filter(Boolean)));
@@ -4588,23 +4588,23 @@ class PadSpanHaApp extends HTMLElement {
         const ageStr = fmtAgo(obj.age_s);
         const objIsAway = isAway(obj, awayTimeoutS(this.state.settings));
         statusItems.push(el("div", {style:"display:flex;align-items:center;gap:8px"}, [
-          el("span", {style:"font-weight:600"}, "Last seen:"),
-          el("span", {}, ageStr + " ago"),
-          objIsAway ? el("span", {class:"badge", style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away") : null,
+          el("span", {style:"font-weight:600"}, t("Last seen:")),
+          el("span", {}, t("{age} ago", { age: ageStr })),
+          objIsAway ? el("span", {class:"badge", style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, t("Away")) : null,
         ].filter(Boolean)));
       }
       // Last seen timestamp
       if (obj.last_seen) {
         try {
           const d = new Date(obj.last_seen);
-          statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, `Last seen: ${d.toLocaleString()}`));
+          statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, t("Last seen: {ago}", { ago: d.toLocaleString() })));
         } catch(e){}
       }
       // First seen timestamp
       if (obj.first_seen) {
         try {
           const d = new Date(obj.first_seen);
-          statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, `First seen: ${d.toLocaleString()}`));
+          statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, t("First seen: {when}", { when: d.toLocaleString() })));
         } catch(e){}
       }
       // RSSI summary
@@ -4612,7 +4612,7 @@ class PadSpanHaApp extends HTMLElement {
         const pct = rssiToPercent(obj.rssi);
         const bar = el("div", {style:`width:${pct.toFixed(0)}%;height:6px;background:#52b788;border-radius:3px;min-width:2px`});
         statusItems.push(el("div", {style:"display:flex;align-items:center;gap:8px;margin-top:2px"}, [
-          el("span", {style:"font-weight:600"}, "Signal:"),
+          el("span", {style:"font-weight:600"}, t("Signal:")),
           el("span", {}, `${obj.rssi} dBm`),
           el("div", {style:"width:80px;background:#1a2e1e;border-radius:3px"}, bar),
         ]));
@@ -4621,7 +4621,7 @@ class PadSpanHaApp extends HTMLElement {
       if (kind === "ibeacon") {
         if (obj.ibeacon_uuid) statusItems.push(el("div", {class:"muted", style:"font-size:11px;font-family:monospace"}, `UUID: ${obj.ibeacon_uuid}`));
         if (obj.ibeacon_major != null) statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, `Major: ${obj.ibeacon_major} · Minor: ${obj.ibeacon_minor}`));
-        if (obj.tx_power != null) statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, `TX Power: ${obj.tx_power} dBm (factory calibrated at 1m)`));
+        if (obj.tx_power != null) statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, t("TX Power: {db} dBm (factory calibrated at 1m)", { db: obj.tx_power })));
         // Merged protocols badge (iBeacon + Eddystone, etc.)
         if (Array.isArray(obj.merged_protocols) && obj.merged_protocols.length > 1) {
           statusItems.push(el("div", {style:"display:flex;gap:4px;flex-wrap:wrap;margin-top:2px"},
@@ -4640,25 +4640,25 @@ class PadSpanHaApp extends HTMLElement {
       }
       // Private BLE details
       if (kind === "private_ble") {
-        if (obj.private_ble_name) statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, `Identity: ${obj.private_ble_name}`));
+        if (obj.private_ble_name) statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, t("Identity: {name}", { name: obj.private_ble_name })));
         if (Array.isArray(obj.all_addresses) && obj.all_addresses.length > 1)
-          statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, `Active rotating MACs: ${obj.all_addresses.length}`));
+          statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, t("Active rotating MACs: {n}", { n: obj.all_addresses.length })));
       }
       // Unsure (positioning_unsure, off by default): the room is kept on thin evidence
       if (obj.room_unsure) {
         statusItems.push(el("div", {class:"muted", style:"font-size:11px"},
-          obj.room_unsure === "few_scanners" ? "Room unsure: fewer than 3 scanners hear it" : "Room unsure: no calibration point matches it well"));
+          obj.room_unsure === "few_scanners" ? t("Room unsure: fewer than 3 scanners hear it") : t("Room unsure: no calibration point matches it well")));
       }
       // KNN calibration confidence
       if (obj.knn_confidence > 0) {
         statusItems.push(el("div", {style:"display:flex;align-items:center;gap:8px;margin-top:2px"}, [
-          el("span", {style:"font-weight:600"}, "Calibrated:"),
-          el("span", {style:"color:#52b788"}, `${Math.round(obj.knn_confidence * 100)}% confidence`),
+          el("span", {style:"font-weight:600"}, t("Calibrated:")),
+          el("span", {style:"color:#52b788"}, t("{pct}% confidence", { pct: Math.round(obj.knn_confidence * 100) })),
         ]));
       }
       if (statusItems.length) {
         body.appendChild(el("div", {}, [
-          el("div", {style:"font-weight:600;margin-bottom:4px"}, "Status"),
+          el("div", {style:"font-weight:600;margin-bottom:4px"}, t("Status")),
           ...statusItems,
         ]));
       }
@@ -4673,13 +4673,13 @@ class PadSpanHaApp extends HTMLElement {
     const floorName = haArea ? this._floorName(haArea.floor_id) : "—";
     const rc = roomColor(objRoom, this.state.model);
     body.appendChild(el("div", {}, [
-      el("div", {style:"font-weight:600;margin-bottom:4px"}, _objAway ? "Last location" : "Location"),
+      el("div", {style:"font-weight:600;margin-bottom:4px"}, _objAway ? t("Last location") : t("Location")),
       el("div", {style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"}, [
         el("span", {class:"dot", style:`background:${rc}`}),
         el("span", {}, objRoom),
         el("span", {class:"muted"}, `· ${floorName}`),
       ]),
-      obj.nearest_receiver ? el("div", {class:"muted", style:"font-size:12px;margin-top:4px"}, `Nearest: ${obj.nearest_receiver}`) : null,
+      obj.nearest_receiver ? el("div", {class:"muted", style:"font-size:12px;margin-top:4px"}, t("Nearest: {receiver}", { receiver: obj.nearest_receiver })) : null,
     ].filter(Boolean)));
 
     // Detection sources table
@@ -4715,9 +4715,9 @@ class PadSpanHaApp extends HTMLElement {
         tbody.appendChild(makeSourceRow(obj.source || "unknown", obj.rssi, obj.age_s));
       }
       const srcSection = el("div", {}, [
-        el("div", {style:"font-weight:600;margin-bottom:6px"}, "Detection sources"),
+        el("div", {style:"font-weight:600;margin-bottom:6px"}, t("Detection sources")),
         el("table", {class:"table"}, [
-          el("thead", {}, el("tr", {}, [el("th",{},"Source"),el("th",{},"Signal"),el("th",{},"dBm"),el("th",{},"Age")])),
+          el("thead", {}, el("tr", {}, [el("th",{},t("Source")),el("th",{},t("Signal")),el("th",{},"dBm"),el("th",{},t("Age"))])),
           tbody,
         ]),
       ]);
@@ -4731,7 +4731,7 @@ class PadSpanHaApp extends HTMLElement {
     const roomBars = roomScoreBars(obj.room_scores);
     if (roomBars.length > 1) {
       body.appendChild(el("div", {style:"margin-top:2px"}, [
-        el("div", {style:"font-weight:600;margin-bottom:6px"}, "Why this room?"),
+        el("div", {style:"font-weight:600;margin-bottom:6px"}, t("Why this room?")),
         ...roomBars.map(({room, pct}) => el("div", {style:"display:flex;align-items:center;gap:8px;margin-bottom:3px"}, [
           el("span", {style:"width:90px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"}, room),
           el("div", {style:"flex:1;background:#1a2e1e;border-radius:3px"},
@@ -4755,7 +4755,7 @@ class PadSpanHaApp extends HTMLElement {
       const diagWrap = el("div", {});
       diagWrap.innerHTML = evidenceSvg;
       body.appendChild(el("div", {}, [
-        el("div", {style:"font-weight:600;margin-bottom:6px"}, "Evidence — distance from each scanner"),
+        el("div", {style:"font-weight:600;margin-bottom:6px"}, t("Evidence — distance from each scanner")),
         diagWrap,
       ]));
     }
@@ -4764,7 +4764,7 @@ class PadSpanHaApp extends HTMLElement {
     if(obj.device && (obj.device.manufacturer || obj.device.model || obj.device.name)){
       const dev = obj.device;
       body.appendChild(el("div", {}, [
-        el("div", {style:"font-weight:600;margin-bottom:4px"}, "Device"),
+        el("div", {style:"font-weight:600;margin-bottom:4px"}, t("Device")),
         el("div", {class:"muted", style:"font-size:12px"}, [dev.manufacturer, dev.model].filter(Boolean).join(" · ") || dev.name || ""),
       ]));
     }
@@ -4779,21 +4779,21 @@ class PadSpanHaApp extends HTMLElement {
       det.style.cssText = "margin-top:4px";
       const sum = document.createElement("summary");
       sum.style.cssText = "cursor:pointer;font-weight:600;font-size:13px;color:#52b788";
-      sum.textContent = "Raw BLE data";
+      sum.textContent = t("Raw BLE data");
       det.appendChild(sum);
       if(DEVICE_NAME){
         const copyBtn = el("button", {class:"btn tiny", onclick: async () => {
           const ok = await DEVICE_NAME.copyText(DEVICE_NAME.rawBroadcast(obj));
-          copyBtn.textContent = ok ? "Copied" : "Couldn't copy here: see Raw BLE data below";
+          copyBtn.textContent = ok ? t("Copied") : t("Couldn't copy here: see Raw BLE data below");
           if(!ok) det.open = true;
-          setTimeout(() => { copyBtn.textContent = "Copy raw broadcast"; }, 2500);
-        }}, "Copy raw broadcast");
+          setTimeout(() => { copyBtn.textContent = t("Copy raw broadcast"); }, 2500);
+        }}, t("Copy raw broadcast"));
         body.appendChild(el("div", {}, copyBtn));
       }
       if(Object.keys(manufData).length){
-        det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, "Manufacturer data:"));
+        det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, t("Manufacturer data:")));
         det.appendChild(el("table", {class:"table", style:"margin-top:4px"}, [
-          el("thead", {}, el("tr", {}, [el("th",{},"Company ID"),el("th",{},"Company"),el("th",{},"Payload (hex)")])),
+          el("thead", {}, el("tr", {}, [el("th",{},t("Company ID")),el("th",{},t("Company")),el("th",{},t("Payload (hex)"))])),
           el("tbody", {}, Object.entries(manufData).map(([k,v]) =>
             el("tr", {}, [
               el("td",{},String(k)),
@@ -4804,9 +4804,9 @@ class PadSpanHaApp extends HTMLElement {
         ]));
       }
       if(Object.keys(svcData).length){
-        det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, "Service data:"));
+        det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, t("Service data:")));
         det.appendChild(el("table", {class:"table", style:"margin-top:4px"}, [
-          el("thead", {}, el("tr", {}, [el("th",{},"Service UUID"),el("th",{},"Name"),el("th",{},"Payload (hex)")])),
+          el("thead", {}, el("tr", {}, [el("th",{},t("Service UUID")),el("th",{},t("Name")),el("th",{},t("Payload (hex)"))])),
           el("tbody", {}, Object.entries(svcData).map(([k,v]) => {
             const uKey = String(k).toLowerCase();
             const sName = svcUuidMap[uKey] || svcUuidMap[k] || (uKey.includes("feaa") ? "Eddystone" : "—");
@@ -4819,7 +4819,7 @@ class PadSpanHaApp extends HTMLElement {
         ]));
       }
       if(svcUUIDs.length){
-        det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, "Service UUIDs:"));
+        det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, t("Service UUIDs:")));
         det.appendChild(el("div", {style:"margin-top:4px;display:flex;flex-wrap:wrap;gap:6px"},
           svcUUIDs.map(u => {
             const uStr = String(u);
@@ -4836,45 +4836,45 @@ class PadSpanHaApp extends HTMLElement {
     const linked = obj.linked_entities || [];
     if(linked.length){
       body.appendChild(el("div", {}, [
-        el("div", {style:"font-weight:600;margin-bottom:4px"}, "Linked entities"),
+        el("div", {style:"font-weight:600;margin-bottom:4px"}, t("Linked entities")),
         el("div", {style:"display:flex;flex-wrap:wrap;gap:6px"}, linked.map(eid => el("span", {class:"pill"}, eid))),
       ]));
     }
 
     // Inline rename section (BLE / private_ble / ibeacon)
     if(canRename){
-      const renameInput = el("input",{type:"text",placeholder:"Enter a label…",style:"flex:1;min-width:160px"});
+      const renameInput = el("input",{type:"text",placeholder:t("Enter a label…"),style:"flex:1;min-width:160px"});
       renameInput.value = userLabel;
       const renameStatus = el("div",{class:"muted",style:"min-height:16px;font-size:12px;margin-top:4px"});
-      const saveRenameBtn = el("button",{class:"btn"}, userLabel ? "Update" : "Tag");
+      const saveRenameBtn = el("button",{class:"btn"}, userLabel ? t("Update") : t("Tag"));
       saveRenameBtn.addEventListener("click", async()=>{
         const label = renameInput.value.trim();
-        if(!label){ renameStatus.textContent = "Label cannot be empty."; return; }
+        if(!label){ renameStatus.textContent = t("Label cannot be empty."); return; }
         try {
           await this._callWS({ type:"padspan_ha/object_label_set", address: tagAddr, label });
           this._closeModal();
-          this._toast(`Renamed: ${label}`);
+          this._toast(t("Renamed: {label}", { label }));
           await this._getLiveSnapshot();
           this._scheduleRender();
-        } catch(e){ renameStatus.textContent = "Failed to save. Check HA logs."; }
+        } catch(e){ renameStatus.textContent = t("Failed to save. Check HA logs."); }
       });
       renameInput.addEventListener("keydown",(e)=>{ if(e.key==="Enter") saveRenameBtn.click(); });
       const renameRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[renameInput, saveRenameBtn]);
       if(userLabel){
-        const untagBtn = el("button",{class:"btn"}, "Untag");
+        const untagBtn = el("button",{class:"btn"}, t("Untag"));
         untagBtn.addEventListener("click", async()=>{
           try {
             await this._callWS({ type:"padspan_ha/object_label_delete", address: tagAddr });
             this._closeModal();
-            this._toast("Label removed.");
+            this._toast(t("Label removed."));
             await this._getLiveSnapshot();
             this._scheduleRender();
-          } catch(e){ renameStatus.textContent = "Failed to remove label."; }
+          } catch(e){ renameStatus.textContent = t("Failed to remove label."); }
         });
         renameRow.appendChild(untagBtn);
       }
       body.appendChild(el("div",{style:"padding-top:12px;border-top:1px solid #1b3526;margin-top:4px"},[
-        el("div",{style:"font-weight:600;margin-bottom:6px"}, "Rename"),
+        el("div",{style:"font-weight:600;margin-bottom:6px"}, t("Rename")),
         renameRow,
         renameStatus,
       ]));
@@ -4890,7 +4890,7 @@ class PadSpanHaApp extends HTMLElement {
       const followBtn = el("button",{
         class:"btn inline",
         style: _isFollowed ? "background:#1a3a2a;border-color:#52b788;color:#52b788" : "",
-      }, _isFollowed ? "Following" : "Follow");
+      }, _isFollowed ? t("Following") : t("Follow"));
       followBtn.addEventListener("click", ()=>{
         const wasFollowed = this.state.followedAddrs.has(_followKey);
         if(wasFollowed) this.state.followedAddrs.delete(_followKey);
@@ -4902,7 +4902,7 @@ class PadSpanHaApp extends HTMLElement {
         }).catch(()=>{});
         try { localStorage.setItem("padspan_followed", JSON.stringify([...this.state.followedAddrs])); } catch(e){}
         const nowFollowed = this.state.followedAddrs.has(_followKey);
-        followBtn.textContent = nowFollowed ? "Following" : "Follow";
+        followBtn.textContent = nowFollowed ? t("Following") : t("Follow");
         followBtn.style.cssText = nowFollowed
           ? "width:auto;margin-top:0;background:#1a3a2a;border-color:#52b788;color:#52b788" : "width:auto;margin-top:0";
       });
@@ -4916,7 +4916,7 @@ class PadSpanHaApp extends HTMLElement {
     {
       const _locateKey = obj.key || addr || obj.entity_id || "";
       if (_locateKey) {
-        const locateBtn = el("button", { class: "btn inline" }, "📍 Locate");
+        const locateBtn = el("button", { class: "btn inline" }, "📍 " + t("Locate"));
         locateBtn.addEventListener("click", () => {
           this.state._overviewLocateKey = _locateKey;
           this.state.view = "overview";
@@ -4937,7 +4937,7 @@ class PadSpanHaApp extends HTMLElement {
       const deleteBtn = el("button",{
         class:"btn inline",
         style:"background:#3b1219;border-color:#f87171;color:#f87171",
-      }, "Delete");
+      }, t("Delete"));
       deleteBtn.addEventListener("click", async()=>{
         // Unfollow
         if(_followKey && this.state.followedAddrs.has(_followKey)){
@@ -4953,16 +4953,16 @@ class PadSpanHaApp extends HTMLElement {
           try { await this._callWS({ type:"padspan_ha/object_label_delete", address: tagAddr }); } catch(e){}
         }
         this._closeModal();
-        this._toast("Deleted: " + (userLabel || name));
+        this._toast(t("Deleted: {name}", { name: userLabel || name }));
         await this._getLiveSnapshot();
         this._scheduleRender();
       });
       actionsRow.appendChild(deleteBtn);
     }
-    actionsRow.appendChild(el("button",{class:"btn inline",onclick:()=>this._closeModal()}, "Close"));
+    actionsRow.appendChild(el("button",{class:"btn inline",onclick:()=>this._closeModal()}, t("Close")));
     body.appendChild(actionsRow);
 
-    this._openModal(name, body, kind==="ble" ? `BLE object · ${identified?"identified":"unidentified"}` : "HA entity");
+    this._openModal(name, body, kind==="ble" ? t("BLE object · {state}", { state: identified ? t("identified") : t("unidentified") }) : t("HA entity"));
   }
 
   /** Show a detail modal for a room: objects currently in it, assigned scanners, HA entities. */
@@ -5068,18 +5068,18 @@ class PadSpanHaApp extends HTMLElement {
       };
     }).sort((a,b) => (b.srcRssi ?? -999) - (a.srcRssi ?? -999));
 
-    const name = scanner.display_name || scanner.name || scanner.source || "Scanner";
+    const name = scanner.display_name || scanner.name || scanner.source || t("Scanner");
     const sid  = radioShortId(scanner.source || "");
     const body = el("div", {style:"display:flex;flex-direction:column;gap:14px"});
 
     // Status badges (include short ID and lost status)
     const statusRow = el("div", {style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"});
     statusRow.appendChild(el("span", {class:"pill", style:"font-family:monospace;font-weight:700;font-size:13px;letter-spacing:.04em", title: name + " \u00b7 " + (scanner.source||"")}, sid));
-    if(scanner.lost)     statusRow.appendChild(el("span", {class:"badge warn", style:"background:rgba(245,158,11,.18)"}, "⚠ Lost"));
-    if(scanner.disabled) statusRow.appendChild(el("span", {class:"badge warn", style:"background:rgba(148,100,220,.18);color:#c084fc"}, "⊘ Disabled"));
+    if(scanner.lost)     statusRow.appendChild(el("span", {class:"badge warn", style:"background:rgba(245,158,11,.18)"}, "⚠ " + t("Lost")));
+    if(scanner.disabled) statusRow.appendChild(el("span", {class:"badge warn", style:"background:rgba(148,100,220,.18);color:#c084fc"}, "⊘ " + t("Disabled")));
     { const ss = scannerStatus(scanner, snap?.ble?.advertisements); const b = el("span",{class:ss.cls,title:ss.title},ss.label); if(ss.style) b.style.cssText+=ss.style; statusRow.appendChild(b); }
-    if(scanner.connectable != null) statusRow.appendChild(el("span", {class:"badge"}, scanner.connectable?"connectable":"not connectable"));
-    if(scanner.adapter) statusRow.appendChild(el("span", {class:"muted", style:"font-family:monospace;font-size:12px"}, `adapter: ${scanner.adapter}`));
+    if(scanner.connectable != null) statusRow.appendChild(el("span", {class:"badge"}, scanner.connectable?t("connectable"):t("not connectable")));
+    if(scanner.adapter) statusRow.appendChild(el("span", {class:"muted", style:"font-family:monospace;font-size:12px"}, t("adapter: {name}", { name: scanner.adapter })));
     body.appendChild(statusRow);
 
     // Network info (IP, SSID, WiFi signal)
@@ -5088,73 +5088,73 @@ class PadSpanHaApp extends HTMLElement {
       if(scanner.ip) netRow.appendChild(el("span", {class:"badge", style:"font-family:monospace;font-size:11px"}, scanner.ip));
       if(scanner.ssid) netRow.appendChild(el("span", {class:"badge", style:"font-size:11px"}, scanner.ssid));
       else if(scanner.connection_type) netRow.appendChild(el("span", {class:"badge", style:"font-size:11px"}, scanner.connection_type));
-      if(scanner.wifi_signal != null) netRow.appendChild(el("span", {class:"muted", style:"font-size:11px"}, `WiFi ${scanner.wifi_signal} dBm`));
+      if(scanner.wifi_signal != null) netRow.appendChild(el("span", {class:"muted", style:"font-size:11px"}, t("WiFi {db} dBm", { db: scanner.wifi_signal })));
       body.appendChild(netRow);
     }
 
     // Area + Lost toggle
     const areaSection = el("div", {});
-    areaSection.appendChild(el("div", {style:"font-weight:600;margin-bottom:6px"}, "Area assignment"));
+    areaSection.appendChild(el("div", {style:"font-weight:600;margin-bottom:6px"}, t("Area assignment")));
     const areaRow = el("div", {style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"});
     areaRow.appendChild(
       scanner.area_name
         ? el("span", {class:"badge"}, scanner.area_name)
-        : el("span", {class:"muted"}, "Not assigned to an area")
+        : el("span", {class:"muted"}, t("Not assigned to an area"))
     );
     // Lost toggle button
     const lostBtn = el("button", {class:"btn tiny"+(scanner.lost?" primary":""),
       style: scanner.lost ? "border-color:#f59e0b;color:#f59e0b" : "border-color:#7d5c2b"
-    }, scanner.lost ? "Restore Radio" : "Mark as Lost");
+    }, scanner.lost ? t("Restore Radio") : t("Mark as Lost"));
     lostBtn.addEventListener("click", async ()=>{
       lostBtn.disabled = true;
       try {
         await this._callWS({ type:"padspan_ha/radio_lost_set", source: scanner.source||"", lost: !scanner.lost });
         this._closeModal();
-        this._toast(scanner.lost ? "Radio restored." : "Radio marked as Lost.");
+        this._toast(scanner.lost ? t("Radio restored.") : t("Radio marked as Lost."));
         await this._getLiveSnapshot();
         this._scheduleRender();
       } catch(e) {
         lostBtn.disabled = false;
-        this._toast("Failed to update lost status.", true);
+        this._toast(t("Failed to update lost status."), true);
       }
     });
     areaRow.appendChild(lostBtn);
     // Disabled toggle button
     const disabledBtn = el("button", {class:"btn tiny"+(scanner.disabled?" primary":""),
       style: scanner.disabled ? "border-color:#c084fc;color:#c084fc" : "border-color:#5b3b7a"
-    }, scanner.disabled ? "Re-enable Radio" : "Mark as Disabled");
+    }, scanner.disabled ? t("Re-enable Radio") : t("Mark as Disabled"));
     disabledBtn.addEventListener("click", async ()=>{
       disabledBtn.disabled = true;
       try {
         await this._callWS({ type:"padspan_ha/radio_disabled_set", source: scanner.source||"", disabled: !scanner.disabled });
         this._closeModal();
-        this._toast(scanner.disabled ? "Radio re-enabled." : "Radio marked as Disabled.");
+        this._toast(scanner.disabled ? t("Radio re-enabled.") : t("Radio marked as Disabled."));
         await this._getLiveSnapshot();
         this._scheduleRender();
       } catch(e) {
         disabledBtn.disabled = false;
-        this._toast("Failed to update disabled status.", true);
+        this._toast(t("Failed to update disabled status."), true);
       }
     });
     areaRow.appendChild(disabledBtn);
     areaSection.appendChild(areaRow);
     if(scanner.lost && scanner.lost_since){
       areaSection.appendChild(el("div", {class:"muted", style:"font-size:11px;margin-top:4px"},
-        `Marked lost: ${new Date(scanner.lost_since).toLocaleString()}`));
+        t("Marked lost: {when}", { when: new Date(scanner.lost_since).toLocaleString() })));
     }
     if(scanner.disabled && scanner.disabled_since){
       areaSection.appendChild(el("div", {class:"muted", style:"font-size:11px;margin-top:4px"},
-        `Disabled since: ${new Date(scanner.disabled_since).toLocaleString()}`));
+        t("Disabled since: {when}", { when: new Date(scanner.disabled_since).toLocaleString() })));
     }
     body.appendChild(areaSection);
 
     // Visible devices
     const devSection = el("div", {}, [
-      el("div", {style:"font-weight:600;margin-bottom:6px"}, `Devices visible (${devices.length})`),
+      el("div", {style:"font-weight:600;margin-bottom:6px"}, t("Devices visible ({n})", { n: devices.length })),
     ]);
     if(devices.length){
       for(const d of devices){
-        const dName = DEVICE_NAME ? DEVICE_NAME.deviceName(d, "Unknown") : (d.best_name || d.user_label || d.name || d.address || "Unknown");
+        const dName = DEVICE_NAME ? DEVICE_NAME.deviceName(d, t("Unknown")) : (d.best_name || d.user_label || d.name || d.address || t("Unknown"));
         const rssi = d.srcRssi;
         const pct = rssiToPercent(rssi);
         const bar = el("div", {style:`width:${pct.toFixed(0)}%;height:5px;background:#52b788;border-radius:2px`});
@@ -5168,23 +5168,23 @@ class PadSpanHaApp extends HTMLElement {
           barWrap,
           rssi != null ? el("span", {class:"muted", style:"font-size:11px"}, `${rssi}dBm`) : null,
           ageTxt ? el("span", {class:"muted", style:"font-size:11px"}, ageTxt) : null,
-          d.identified ? el("span", {class:"badge"}, "identified") : el("span", {class:"badge warn"}, "unknown"),
-          el("button", {class:"btn tiny", onclick:()=>{ this._closeModal(); this._showObjectDetail(d); }}, "Details"),
+          d.identified ? el("span", {class:"badge"}, t("identified")) : el("span", {class:"badge warn"}, t("unknown")),
+          el("button", {class:"btn tiny", onclick:()=>{ this._closeModal(); this._showObjectDetail(d); }}, t("Details")),
         ].filter(Boolean));
         devSection.appendChild(dRow);
       }
     } else {
-      devSection.appendChild(el("div", {class:"muted", style:"font-size:12px"}, "No objects currently visible from this scanner."));
+      devSection.appendChild(el("div", {class:"muted", style:"font-size:12px"}, t("No objects currently visible from this scanner.")));
     }
     body.appendChild(devSection);
 
     // Source ID
     body.appendChild(el("div", {style:"margin-top:4px"}, [
-      el("span", {class:"muted", style:"font-size:11px"}, "Source ID: "),
+      el("span", {class:"muted", style:"font-size:11px"}, t("Source ID:") + " "),
       el("span", {style:"font-family:monospace;font-size:11px;color:#94a3b8"}, scanner.source || "—"),
     ]));
 
-    this._openModal(name, body, `Bluetooth scanner · ${scanner.area_name || "unassigned"}`);
+    this._openModal(name, body, t("Bluetooth scanner · {area}", { area: scanner.area_name || t("unassigned") }));
   }
 
   // ── View Rendering & Re-render Guards ────────────────────────────────────────

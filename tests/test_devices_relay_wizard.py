@@ -35,9 +35,10 @@ pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 
 
 def _run_js(tmp_path: Path, script: str) -> dict:
-    # devices.js imports only device_name.js — copy both verbatim, no specifier rewriting needed.
+    # devices.js imports device_name.js and i18n.js (its words) — copy them verbatim, no specifier rewriting needed.
     shutil.copy(_VIEWS / "devices.js", tmp_path / "devices.mjs")
     shutil.copy(_VIEWS / "device_name.js", tmp_path / "device_name.js")
+    shutil.copy(_VIEWS / "i18n.js", tmp_path / "i18n.js")
     (tmp_path / "run.mjs").write_text(script, encoding="utf-8")
     res = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True,
                           text=True, encoding="utf-8", timeout=60)
