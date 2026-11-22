@@ -4424,13 +4424,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         continue
                     if (now - self._alert_last_sent.get(f"{key}:{suffix}", 0.0)) < 60:
                         continue
+                    word = "arrived" if event == "arrive" else "left"
                     if event == "arrive":
                         room = (result.get(key) or {}).get("room", "")
-                        message = f"{label} arrived" + (f" ({room})" if room else "")
+                        message = f"{label} {word}" + (f" ({room})" if room else "")
                     else:
-                        message = f"{label} left"
+                        message = f"{label} {word}"
                     sent = await self._send_follow_notify(
-                        key, cfg, f"PadSpan: {label} {event}d", message, now, suffix,
+                        key, cfg, f"PadSpan: {label} {word}", message, now, suffix,
                     )
                     if sent:
                         _LOGGER.info("Follow %s alert sent for %s", event, label)
