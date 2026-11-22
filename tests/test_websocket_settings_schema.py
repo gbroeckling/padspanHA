@@ -62,7 +62,8 @@ _BACKEND_ONLY = {
     "onboarding",                      # settings_store.py + onboarding.py — a new install's first steps, stamped by the backend
     "wled_teams",                      # padspan_ha/wled_teams_set (ws_wled.py), validated there
     "power_teams",                     # padspan_ha/power_teams_set (power_team.py), validated there
-    "power_teams_woke",                # power_team.py — each team's last wake-up day, stamped by the minute tick
+    "power_teams_woke",
+    "power_teams_slept",               # power_team.py — each team's last bedtime day, stamped by the minute tick                # power_team.py — each team's last wake-up day, stamped by the minute tick
     "license_home_token",              # licence_homes.py — the licence server's rolling token, never set by hand
     "license_home_label",              # padspan_ha/licence_homes op=label (ws_forensics.py)
     "license_home_status",             # update_check.py — the licence server's last refusal of this home
