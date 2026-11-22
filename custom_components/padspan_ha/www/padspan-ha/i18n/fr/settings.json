@@ -104,6 +104,16 @@
 "Relearning…": "Réapprentissage…",
 "Relearn failed: {error}": "Échec du réapprentissage : {error}",
 "Reload calibration data": "Recharger les données d’étalonnage",
+"Copy the sentences": "Copier les phrases",
+"Copied. Save them as {path}, then restart Home Assistant.": "Copié. Enregistrez-les sous {path}, puis redémarrez Home Assistant.",
+"Copy was blocked: select the lines and copy them yourself.": "La copie a été bloquée : sélectionnez les lignes et copiez-les vous-même.",
+"Ask Assist which room someone is in": "Demandez à Assist dans quelle pièce se trouve quelqu’un",
+"Home Assistant's voice assistant, Assist, can tell you which room a person or thing is in. Ask with the name the device has in PadSpan, for example:": "L’assistant vocal de Home Assistant, Assist, peut vous dire dans quelle pièce se trouve une personne ou un objet. Demandez-le en anglais, avec le nom que l’appareil porte dans PadSpan, par exemple :",
+"It answers like this:": "Assist répond ainsi :",
+"Assist only knows these questions once you add them: save the lines below as {path} and restart Home Assistant. The answers are in English. Nothing needs to be exposed, and asking never changes anything.": "Assist ne connaît ces questions qu’une fois que vous les ajoutez : enregistrez les lignes ci-dessous sous {path} et redémarrez Home Assistant. Les questions et les réponses sont en anglais. Rien n’a besoin d’être exposé, et une question ne change jamais rien.",
+"This key is used on {count} homes. With more than 2, every home must keep the report on.": "Cette clé est utilisée dans {count} maisons. Au-delà de 2, chaque maison doit garder le rapport activé.",
+"If you turn it off here, the homes beyond your first two stop using Pro on {date} unless it's back on.": "Si vous le désactivez ici, les maisons au-delà de vos deux premières cessent d’utiliser Pro le {date}, sauf s’il est réactivé.",
+"If you turn it off here, the homes beyond your first two stop using Pro within 14 days unless it's back on.": "Si vous le désactivez ici, les maisons au-delà de vos deux premières cessent d’utiliser Pro sous 14 jours, sauf s’il est réactivé.",
 "{n} scanners": {
 "one": "{n} scanner",
 "other": "{n} scanners"

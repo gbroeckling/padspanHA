@@ -104,6 +104,16 @@
 "Relearning…": "Opnieuw leren…",
 "Relearn failed: {error}": "Opnieuw leren mislukt: {error}",
 "Reload calibration data": "Kalibratiegegevens opnieuw laden",
+"Copy the sentences": "Zinnen kopiëren",
+"Copied. Save them as {path}, then restart Home Assistant.": "Gekopieerd. Sla ze op als {path} en start Home Assistant daarna opnieuw.",
+"Copy was blocked: select the lines and copy them yourself.": "Kopiëren werd geblokkeerd: selecteer de regels en kopieer ze zelf.",
+"Ask Assist which room someone is in": "Vraag Assist in welke kamer iemand is",
+"Home Assistant's voice assistant, Assist, can tell you which room a person or thing is in. Ask with the name the device has in PadSpan, for example:": "De spraakassistent van Home Assistant, Assist, kan je vertellen in welke kamer een persoon of ding is. Vraag het in het Engels, met de naam die het apparaat in PadSpan heeft, bijvoorbeeld:",
+"It answers like this:": "Assist antwoordt zo:",
+"Assist only knows these questions once you add them: save the lines below as {path} and restart Home Assistant. The answers are in English. Nothing needs to be exposed, and asking never changes anything.": "Assist kent deze vragen pas als je ze toevoegt: sla de regels hieronder op als {path} en start Home Assistant opnieuw. De vragen en antwoorden zijn in het Engels. Er hoeft niets blootgesteld te worden, en een vraag verandert nooit iets.",
+"This key is used on {count} homes. With more than 2, every home must keep the report on.": "Deze sleutel wordt in {count} huizen gebruikt. Bij meer dan 2 moet elk huis het rapport aan laten staan.",
+"If you turn it off here, the homes beyond your first two stop using Pro on {date} unless it's back on.": "Zet je het hier uit, dan stoppen de huizen na je eerste twee op {date} met Pro, tenzij het weer aan staat.",
+"If you turn it off here, the homes beyond your first two stop using Pro within 14 days unless it's back on.": "Zet je het hier uit, dan stoppen de huizen na je eerste twee binnen 14 dagen met Pro, tenzij het weer aan staat.",
 "{n} scanners": {
 "one": "{n} scanner",
 "other": "{n} scanners"

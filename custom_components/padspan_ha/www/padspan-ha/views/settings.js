@@ -3145,23 +3145,23 @@ function _voiceQuestionsCard(ctx, el) {
   const asks = [`Which room is ${who} in?`, `What room is ${who} in?`, `Where in the house is ${who}?`];
   const answers = [`${who} is in the Kitchen.`, `${who} is probably in the Kitchen.`, `${who} is away.`];
   const list = (items) => el("ul", { style: "margin:4px 0 8px 18px;padding:0;font-size:13px;color:#e2e8f0" },
-    items.map(t => el("li", {}, t)));
+    items.map(x => el("li", {}, x)));
   const yaml = el("pre", { class: "mono", "data-voice-yaml": "", style: "margin:6px 0;padding:8px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;font-size:11px;white-space:pre;overflow:auto" }, VOICE_SENTENCES_YAML);
-  const copy = el("button", { class: "btn inline", "data-voice-copy": "" }, "Copy the sentences");
+  const copy = el("button", { class: "btn inline", "data-voice-copy": "" }, t("Copy the sentences"));
   copy.addEventListener("click", async () => {
     ctx.toast(await copyText(VOICE_SENTENCES_YAML)
-      ? `Copied. Save them as ${VOICE_SENTENCES_PATH}, then restart Home Assistant.`
-      : "Copy was blocked: select the lines and copy them yourself.", false);
+      ? t("Copied. Save them as {path}, then restart Home Assistant.", { path: VOICE_SENTENCES_PATH })
+      : t("Copy was blocked: select the lines and copy them yourself."), false);
   });
   return el("div", { class: "card", "data-voice-questions": "" }, [
-    el("div", { class: "h2", style: "color:#52b788" }, "Ask Assist which room someone is in"),
+    el("div", { class: "h2", style: "color:#52b788" }, t("Ask Assist which room someone is in")),
     el("div", { class: "muted", style: "font-size:12px" },
-      "Home Assistant's voice assistant, Assist, can tell you which room a person or thing is in. Ask with the name the device has in PadSpan, for example:"),
+      t("Home Assistant's voice assistant, Assist, can tell you which room a person or thing is in. Ask with the name the device has in PadSpan, for example:")),
     list(asks),
-    el("div", { class: "muted", style: "font-size:12px" }, "It answers like this:"),
+    el("div", { class: "muted", style: "font-size:12px" }, t("It answers like this:")),
     list(answers),
     el("div", { class: "muted", style: "font-size:12px" },
-      `Assist only knows these questions once you add them: save the lines below as ${VOICE_SENTENCES_PATH} and restart Home Assistant. The answers are in English. Nothing needs to be exposed, and asking never changes anything.`),
+      t("Assist only knows these questions once you add them: save the lines below as {path} and restart Home Assistant. The answers are in English. Nothing needs to be exposed, and asking never changes anything.", { path: VOICE_SENTENCES_PATH })),
     yaml,
     copy,
   ]);
@@ -3374,9 +3374,10 @@ export function reportOffConfirmText(s){
   if (!s || !s.pro_has_key || !(n > 2)) return "";
   // A grace already running (a report off on another home) has its own date.
   const w = s.license_homes_warning || {};
-  const when = w.warning === "reports_off" && w.grace_until ? "on " + _homesDate(w.grace_until) : "within 14 days";
-  return `This key is used on ${n} homes. With more than 2, every home must keep the report on. ` +
-    `If you turn it off here, the homes beyond your first two stop using Pro ${when} unless it's back on.`;
+  const lead = t("This key is used on {count} homes. With more than 2, every home must keep the report on.", { count: n });
+  return lead + " " + (w.warning === "reports_off" && w.grace_until
+    ? t("If you turn it off here, the homes beyond your first two stop using Pro on {date} unless it's back on.", { date: _homesDate(w.grace_until) })
+    : t("If you turn it off here, the homes beyond your first two stop using Pro within 14 days unless it's back on."));
 }
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
