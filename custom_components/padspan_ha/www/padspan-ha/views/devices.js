@@ -15,6 +15,10 @@ const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, g
   await import(`./device_name.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key).
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.js): the Openers lists leave the
+// duplicate copy out. Optional: missing, every copy is offered.
+const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`).catch(() => null);
+const _dup = (ctx, eid) => !!(TW && TW.duplicateOf(eid, ctx.state && ctx.state.settings));
 const TABS = [
   { id: "all",      get label() { return t("All Devices"); } },
   { id: "by_room",  get label() { return t("By Room"); } },
@@ -685,9 +689,10 @@ function _renderDoorOpeners(ctx) {
   const states = (ctx.hass && ctx.hass.states) || {};
   const marked = new Set((ctx.state.settings && ctx.state.settings.door_opener_ids) || []);
 
-  const candidates = Object.keys(states)
+  const named = Object.keys(states)
     .filter(eid => _OPENER_DOMAINS.some(d => eid.startsWith(d)))
-    .filter(eid => marked.has(eid) || _OPENER_NAME_HINT.test(eid) || _OPENER_NAME_HINT.test((states[eid].attributes || {}).friendly_name || ""))
+    .filter(eid => marked.has(eid) || _OPENER_NAME_HINT.test(eid) || _OPENER_NAME_HINT.test((states[eid].attributes || {}).friendly_name || ""));
+  const candidates = named.filter(eid => marked.has(eid) || !_dup(ctx, eid))
     .sort((a, b) => {
       // Marked first, then name-matched-but-unmarked, then alphabetical —
       // so a real find (the two garage relays) doesn't get lost in a long
@@ -709,6 +714,8 @@ function _renderDoorOpeners(ctx) {
     } catch (e) { ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true); }
   };
 
+  const hid = TW && TW.hiddenNoteEl(named.length - candidates.length);
+  if (hid) card.appendChild(hid);
   if (!candidates.length) {
     card.appendChild(el("div", { style: "font-size:12px;color:#64748b;padding:8px 0" },
       t("No cover, switch, button, or script entities with “door”, “gate”, “garage”, or “opener” in their name were found.") + " " +
@@ -730,6 +737,14 @@ function _renderDoorOpeners(ctx) {
         el("div", { style: "font-size:10px;color:#64748b" }, `${eid} · ${st.state}`),
       ]));
       card.appendChild(row);
+      // Marked, and a Zigbee device's duplicate copy: said, with the kept one a tap away (never switched by itself).
+      const twin = marked.has(eid) && TW && TW.duplicateWarningEl(eid, ctx.state.settings, states, async (use) => {
+        try {
+          await ctx.actions.settingsSet({ door_opener_ids: [...new Set([...marked].map(x => (x === eid ? use : x)))] });
+          ctx.toast(TW.usedNow((states[use] && states[use].attributes || {}).friendly_name || use));
+        } catch (e) { ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true); }
+      });
+      if (twin) card.appendChild(twin);
     }
   }
 
@@ -1194,8 +1209,9 @@ function _renderRelayWizard(ctx) {
   if (!ctx.state._relayWizardKind) ctx.state._relayWizardKind = _RELAY_KINDS[0].id;
   const kind = ctx.state._relayWizardKind;
   const states = (ctx.hass && ctx.hass.states) || {};
-  const relayCandidates = _relayCandidates(states);
-  const sensorCandidates = _sensorCandidates(states);
+  // A Zigbee device's duplicate copy is left out of both lists (zigbee_twins.js).
+  const relayCandidates = _relayCandidates(states).filter(c => !_dup(ctx, c.entity_id));
+  const sensorCandidates = _sensorCandidates(states).filter(c => !_dup(ctx, c.entity_id));
   const usedRelays = new Set(composites.flatMap(c => c.relays || []));
 
   const form = el("div", { style: "border:1px solid #2d4a36;border-radius:10px;padding:12px;margin-top:8px;background:#0d1f14" });

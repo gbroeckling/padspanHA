@@ -65,9 +65,12 @@ function _roomLights(ctx) {
     : { loading: true };
   if (reg.loading) return null;
   const obj = (v) => (v && typeof v === "object" ? v : {});
-  const lights = _LM.gatherLights((ctx.hass && ctx.hass.states) || {}, reg.areaMap, obj(s.light_shapes), s.tier,
-    reg.platformMap, obj(s.light_type_overrides), reg.pairMap, reg.manufacturerMap, undefined, false, st._motionReconnects,
-    new Set(((st.model && st.model.rf_barriers_m) || []).map(b => b.linked_entity_id).filter(Boolean)));
+  const linked = new Set(((st.model && st.model.rf_barriers_m) || []).map(b => b.linked_entity_id).filter(Boolean));
+  const placed = (st.model && st.model.light_positions_m) || {};
+  // A Zigbee device's duplicate copy is counted once, as on the Atlas (lights_map.js withoutZigbeeDuplicates).
+  const { lights } = _LM.withoutZigbeeDuplicates(_LM.gatherLights((ctx.hass && ctx.hass.states) || {}, reg.areaMap, obj(s.light_shapes), s.tier,
+    reg.platformMap, obj(s.light_type_overrides), reg.pairMap, reg.manufacturerMap, undefined, false, st._motionReconnects, linked),
+    s, (eid) => !!placed[eid] || linked.has(eid));
   const hidden = new Set(Array.isArray(s.lights_hidden) ? s.lights_hidden : []);
   const shown = lights.filter(l => !hidden.has(l.entity_id));
   return { of: (room) => { const a = _LM.roomAggregate(shown, room); return { total: a.lightsTotal, on: a.lightsOn }; } };

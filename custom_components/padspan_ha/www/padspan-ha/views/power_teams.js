@@ -7,7 +7,11 @@
 // the smart bulbs it feeds, run as one light. Here a team is made, changed
 // and removed; the whole list is saved at once (padspan_ha/power_teams_set,
 // an administrator's). Nothing is saved until Save is pressed. Imports
-// nothing: settings.js hands in its ctx and el.
+// nothing but zigbee_twins.js: settings.js hands in its ctx and el.
+
+// The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.js): the lists leave the
+// duplicate copy out, unless a team has it. Optional: missing, every copy is offered.
+const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`).catch(() => null);
 
 const COLOUR = new Set(["color_temp", "hs", "xy", "rgb", "rgbw", "rgbww"]);
 /** The numbers of the day's light, in the order shown: [key, words, unit]. */
@@ -58,7 +62,10 @@ export function powerTeamsSection(ctx, el){
     const sel = document.createElement("select");
     sel.className = "select"; sel.style.maxWidth = "100%";
     sel.appendChild(el("option", { value: "" }, "None: these lights always have power"));
-    for (const [eid, words] of pick.power) sel.appendChild(el("option", { value: eid }, words));
+    // A Zigbee device's duplicate copy is left out, unless this team has it: then it is said, with the kept one a tap away.
+    const st = (ctx.hass && ctx.hass.states) || {}, dup = (eid) => !!(TW && TW.duplicateOf(eid, ctx.state && ctx.state.settings));
+    const power = pick.power.filter(([eid]) => eid === t.power || !dup(eid));
+    for (const [eid, words] of power) sel.appendChild(el("option", { value: eid }, words));
     sel.value = t.power || "";
     // What off does (power_team.py `off`): turn the bulbs off and leave the power on (on again at once, in the day's
     // colour), or cut the power. Only with a power source: lights that always have power are switched themselves.
@@ -70,17 +77,34 @@ export function powerTeamsSection(ctx, el){
     off.addEventListener("change", () => { t.off = off.value; });
     sel.addEventListener("change", () => { t.power = sel.value; offRow.hidden = !sel.value; });
     row("Power from", sel);
+    const hidPower = TW && TW.hiddenNoteEl(pick.power.length - power.length);
+    if (hidPower) b.appendChild(hidPower);
+    const powerTwin = TW && TW.duplicateWarningEl(t.power || "", ctx.state && ctx.state.settings, st, (use) => {
+      t.power = use; sel.value = use; powerTwin.remove(); say("Changed here. Press Save to keep it.");
+    });
+    if (powerTwin) b.appendChild(powerTwin);
     const offRow = row("Off", off);
     offRow.hidden = !t.power;
     const list = el("div", { style: "max-height:150px;overflow:auto;border:1px solid #1e3a2a;border-radius:6px;padding:4px 8px;min-width:240px" });
     if (!pick.bulbs.length) list.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, "No colour lights found in Home Assistant yet."));
-    for (const [eid, words] of pick.bulbs) {
+    const bulbs = pick.bulbs.filter(([eid]) => (t.bulbs || []).includes(eid) || !dup(eid));
+    for (const [eid, words] of bulbs) {
       const cb = el("input", { type: "checkbox", "data-bulb": eid });
       cb.checked = (t.bulbs || []).includes(eid);
       cb.addEventListener("change", () => { t.bulbs = cb.checked ? [...(t.bulbs || []), eid] : (t.bulbs || []).filter(x => x !== eid); });
       list.appendChild(el("label", { style: "display:flex;align-items:center;gap:6px;font-size:12px;color:#e2e8f0;cursor:pointer" }, [cb, el("span", {}, words)]));
     }
     row("Its bulbs", list);
+    const hidBulbs = TW && TW.hiddenNoteEl(pick.bulbs.length - bulbs.length);
+    if (hidBulbs) b.appendChild(hidBulbs);
+    for (const eid of (t.bulbs || [])) {
+      const w = TW && TW.duplicateWarningEl(eid, ctx.state && ctx.state.settings, st, (use) => {
+        t.bulbs = [...new Set((t.bulbs || []).map(x => (x === eid ? use : x)))];
+        for (const cb of list.querySelectorAll("input[data-bulb]")) cb.checked = t.bulbs.includes(cb.getAttribute("data-bulb"));
+        w.remove(); say("Changed here. Press Save to keep it.");
+      });
+      if (w) b.appendChild(w);
+    }
     const day = el("input", { type: "checkbox", "data-adaptive": "1" });
     day.checked = t.adaptive !== false;
     const curve = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 14px;margin-top:6px" });

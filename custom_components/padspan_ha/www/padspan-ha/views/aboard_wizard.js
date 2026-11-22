@@ -53,7 +53,9 @@ export function survey({ settings = {}, model = {}, states = {}, house = null, w
   const placedIds = Object.keys(placed);
   const st = (id) => states[id] || null;
   const dc = (id) => (st(id) && st(id).attributes && st(id).attributes.device_class) || null;
-  const all = Object.keys(states);
+  // A Zigbee device's duplicate copy (settings.zigbee_twins, zigbee_twins.py) is not counted twice, unless it is placed.
+  const twins = (settings.zigbee_twins && settings.zigbee_twins.entities) || {};
+  const all = Object.keys(states).filter(e => !twins[e] || placed[e]);
   const lights = all.filter(e => e.startsWith("light."));
   const doorSensors = all.filter(e => e.startsWith("binary_sensor.") && DOOR_CLASSES.includes(dc(e)));
   const h = (house && house.data) || house || {};

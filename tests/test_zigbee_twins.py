@@ -16,6 +16,8 @@ from __future__ import annotations
 import ast
 import asyncio
 import json
+import shutil
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -29,6 +31,8 @@ from custom_components.padspan_ha import zigbee_twins as Z
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 
 _CC = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+_VIEWS = _CC / "www" / "padspan-ha" / "views"
+_NODE = shutil.which("node")
 
 PORCH = "a4c1380000000001"          # made-up addresses
 HALL = "00158d0000000002"
@@ -356,3 +360,67 @@ def test_it_listens_and_never_polls():
     tree = ast.parse((_CC / "__init__.py").read_text(encoding="utf-8"))
     called = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
     assert {"async_setup_zigbee_twins", "async_stop_zigbee_twins"} <= called
+
+
+# ── the panel (tests/js/zigbee_twins.mjs runs it) ────────────────────────────
+
+@pytest.fixture(scope="module")
+def harness() -> dict:
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "zigbee_twins.mjs"), str(_VIEWS)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=180)
+    lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
+    assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
+    return json.loads(lines[-1])
+
+
+def test_every_panel_case_passes(harness) -> None:
+    assert not harness["failures"], json.dumps(harness["failures"][:6], indent=2, ensure_ascii=False)
+
+
+@pytest.mark.parametrize("case", [
+    "the rain list leaves the ZHA copy out",
+    "and says so, quietly, under it",
+    "and is said so, naming the Zigbee2MQTT one",
+    "nothing is switched by itself",
+    "pressed, it saves the Zigbee2MQTT one",
+])
+def test_the_rain_sensor_list(harness, case) -> None:
+    assert harness["cases"].get(case) is True, case
+
+
+@pytest.mark.parametrize("case", [
+    "the Atlas leaves an unplaced duplicate copy out",
+    "and keeps one that is placed",
+    "the light index says so, quietly, in its header",
+    "a placed duplicate's row names the Zigbee2MQTT one",
+    "nothing moved by itself",
+    "the row's button moves it to the Zigbee2MQTT one when pressed",
+    "a team's duplicate bulb is still listed, ticked",
+    "its button ticks the Zigbee2MQTT one instead, saved only with Save",
+])
+def test_the_atlas_and_power_teams(harness, case) -> None:
+    assert harness["cases"].get(case) is True, case
+
+
+def test_every_list_that_offers_a_device_leaves_the_duplicate_out() -> None:
+    """Each place PadSpan offers Home Assistant devices to pick or place reads the one map (views/zigbee_twins.js)."""
+    www = _CC / "www" / "padspan-ha"
+    wired = {
+        "views/settings.js": ["TW.dropDuplicates(offered, settings, [cur])", "TW.duplicateWarningEl(cur, settings, states,",
+                              "TW.duplicateOf(e, ctx.state.settings)", "TW.duplicateOf(e, settings)"],
+        "views/lights_map.js": ["export function withoutZigbeeDuplicates(", "TW.duplicateOf(eid, o)", "twins: TW"],
+        "views/maps.js": ["withoutZigbeeDuplicates(gatherLights(", "zigbeeTwins,", "onUseTwin:", "_noTwins(Object.keys(states)"],
+        "lights_panel.js": ["withoutZigbeeDuplicates(gatherLights(", "zigbeeTwins,"],
+        "views/rooms.js": ["_LM.withoutZigbeeDuplicates(_LM.gatherLights("],
+        "views/power_teams.js": ["TW.duplicateOf(eid", "TW.duplicateWarningEl(t.power"],
+        "views/devices.js": ["_dup(ctx, c.entity_id)", "TW.duplicateWarningEl(eid, ctx.state.settings, states"],
+        "views/live_aboard_edit.js": ["tw.duplicateOf(eid, host.settings3d)", "tw.duplicateWarningEl(cur.link"],
+        "views/live_aboard_furnish.js": ["host.twins.duplicateOf(eid, host.settings)", "host.twins.duplicateWarningEl(p.entity_id"],
+        "views/aboard_wizard.js": ["settings.zigbee_twins.entities"],
+    }
+    for rel, wants in wired.items():
+        src = (www / rel).read_text(encoding="utf-8")
+        for want in wants:
+            assert want in src, (rel, want)

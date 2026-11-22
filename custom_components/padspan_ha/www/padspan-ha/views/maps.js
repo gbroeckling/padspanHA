@@ -35,8 +35,13 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
-        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList, la3dCarryOpenings, peopleShownOn } =
+        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList, la3dCarryOpenings, peopleShownOn,
+        withoutZigbeeDuplicates } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
+// The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.js): the sensor and lock
+// pickers here leave the duplicate copy out. Optional: missing, every copy is offered.
+const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`).catch(() => null);
+const _noTwins = (ids, ctx, keep) => (TW ? TW.dropDuplicates(ids, ctx.state.settings, keep) : { ids, hidden: 0, via: "" });
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
@@ -3357,8 +3362,9 @@ function _edit(ctx, map, allMaps, opts){
           // disagree about which entities qualify (round 7: a garage_door /
           // opening sensor was offered there, not here).
           const states = (ctx.hass && ctx.hass.states) || {};
-          const candidates = Object.keys(states)
-            .filter(eid => isDoorSensor({ entity_id: eid, device_class: states[eid].attributes?.device_class }))
+          const twinsOut = _noTwins(Object.keys(states)
+            .filter(eid => isDoorSensor({ entity_id: eid, device_class: states[eid].attributes?.device_class })), ctx, [ctx.state.maps._doorMarkEntity]);
+          const candidates = twinsOut.ids
             .sort((a,b) => (states[a].attributes?.friendly_name||a).localeCompare(states[b].attributes?.friendly_name||b));
           const entSel = document.createElement("select");
           entSel.className = "select";
@@ -3380,6 +3386,7 @@ function _edit(ctx, map, allMaps, opts){
           panel.appendChild(el("div",{style:"margin-top:8px"},[
             el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, t("Linked sensor")),
             entSel,
+            TW && TW.hiddenNoteEl(twinsOut.hidden, twinsOut.via),
           ]));
 
           const dmMatSel = document.createElement("select");
@@ -10162,9 +10169,12 @@ function _lightsTab(ctx, maps, active) {
   const proTier = String(tier || "").toLowerCase() === "pro";
   const typeOverrides = (ctx.state.settings?.light_type_overrides && typeof ctx.state.settings.light_type_overrides === "object")
     ? ctx.state.settings.light_type_overrides : {};
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
-    undefined, false, ctx.state._motionReconnects,
-    new Set((ctx.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean)));
+  const linkedNow = new Set((ctx.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
+  const placedNow = { ...((ctx.state.model || {}).light_positions_m || {}), ...(mapState._lightsDraftM || {}) };
+  // The same Zigbee device twice: its duplicate copy is left out unless it is placed or linked (lights_map.js).
+  const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier,
+    reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, ctx.state._motionReconnects, linkedNow),
+    ctx.state.settings, (eid) => !!placedNow[eid] || linkedNow.has(eid));
 
   // Preview-as-panel: the exact sidebar interaction model, in place, on the
   // same camera — so "what will the household see" is one toggle away
@@ -10846,12 +10856,30 @@ function _lightsTab(ctx, maps, active) {
     // tell a garage-door relay from any other switch), locks are just every
     // lock.* entity in the house, no allowlist needed (lock.* already means
     // exactly one thing).
-    doorOpenerCandidates: ((ctx.state.settings && ctx.state.settings.door_opener_ids) || [])
-      .filter(eid => ctx.hass?.states?.[eid])
+    doorOpenerCandidates: _noTwins(((ctx.state.settings && ctx.state.settings.door_opener_ids) || [])
+      .filter(eid => ctx.hass?.states?.[eid]), ctx).ids
       .map(eid => ({ entity_id: eid, friendly_name: ctx.hass.states[eid].attributes?.friendly_name || eid })),
-    lockCandidates: Object.keys(ctx.hass?.states || {})
-      .filter(eid => eid.startsWith("lock."))
+    lockCandidates: _noTwins(Object.keys(ctx.hass?.states || {})
+      .filter(eid => eid.startsWith("lock.")), ctx).ids
       .map(eid => ({ entity_id: eid, friendly_name: ctx.hass.states[eid].attributes?.friendly_name || eid })),
+    // The same Zigbee device twice (lights_map.js withoutZigbeeDuplicates): how many copies the index leaves out,
+    // and the line on a copy still placed or linked, whose button moves it to the one PadSpan uses.
+    zigbeeTwins,
+    onUseTwin: paid && !preview ? async (l, twin) => {
+      const pos = (ctx.state.model && ctx.state.model.light_positions_m) || {}, rec = pos[l.entity_id];
+      const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
+      try {
+        if (bar) await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier: { ...bar, linked_entity_id: twin } });
+        if (rec) {
+          if (!pos[twin]) await ctx.actions.wsCall("padspan_ha/fabric_light_position_set", { ...rec, entity_id: twin });
+          await ctx.actions.wsCall("padspan_ha/fabric_light_remove", { entity_id: l.entity_id });
+        }
+        if (mapState._lightsDraftM) delete mapState._lightsDraftM[l.entity_id];
+        await ctx.actions.modelRefresh();
+        ctx.toast(TW ? TW.usedNow(ctx.hass?.states?.[twin]?.attributes?.friendly_name || twin) : twin);
+      } catch (e) { ctx.toast(TW ? TW.useFailed(ctx.helpers.errorText(e)) : ctx.helpers.errorText(e), true); }
+      ctx.actions.renderRooms();
+    } : null,
     onLinkDoorOpener: paid && !preview ? async (l, openerEid) => {
       const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
       if (!bar) { ctx.toast("That link no longer exists.", true); return; }
