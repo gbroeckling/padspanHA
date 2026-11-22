@@ -280,6 +280,7 @@ Every step, with pictures: [From the Marketplace to your first room](https://pad
 
 | Guide | Description |
 |-------|-------------|
+| [The PadSpan HA Manual](./docs/manual/README.md) | One manual, a chapter per page: install and update, the Home Assistant entities and services, every setting, backups and moving house, troubleshooting |
 | [Getting Started](./docs/GETTING_STARTED.md) | First 30 minutes: install, explore, track |
 | [Floor Plan Setup](./docs/FLOOR_PLAN_SETUP.md) | Upload, draw rooms, place scanners, set scale |
 | [Atlas Guide](./docs/ATLAS_GUIDE.md) | The device map: placing fixtures, doors/locks/sensors, heights, room scenes, Automorph, Showcase, the emergency lighting test, WLED Advanced and Exact look, and openers/locks/lights from relays |
@@ -288,7 +289,7 @@ Every step, with pictures: [From the Marketplace to your first room](https://pad
 | [Furnish Guide](./docs/FURNISH_GUIDE.md) | Furniture, devices and people in the 3D house: builders, from a photo, the shared library, Sweet Home 3D import |
 | [Wall Screen Guide](./docs/WALL_SCREEN_GUIDE.md) | PadSpan on a tablet or wall screen: kiosk links, full screen, going back home by itself |
 | [PadSpan Pro](./docs/PADSPAN_PRO.md) | The 90-day trial, entering a key, getting Pro free as a tester, and invites |
-| [Troubleshooting](./docs/GETTING_STARTED.md#troubleshooting) | Common issues and fixes; [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) for wrong rooms |
+| [Troubleshooting](./docs/manual/26-troubleshooting.md) | Common issues and fixes; [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) for wrong rooms |
 | [Architecture](./docs/00_REPO_LOGIC_OVERVIEW.md) | High-level codebase architecture |
 | [Changelog](./CHANGELOG.md) | Full version history |
 

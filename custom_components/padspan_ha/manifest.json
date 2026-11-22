@@ -17,7 +17,7 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/gbroeckling/padspanHA",
+  "documentation": "https://github.com/gbroeckling/padspanHA/blob/main/docs/manual/README.md",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/gbroeckling/padspanHA/issues",
   "requirements": [],
