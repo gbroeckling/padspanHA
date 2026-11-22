@@ -6,7 +6,8 @@
 docs/manual/14-home-assistant-reference.md (entities, attributes, services,
 events, Assist, MQTT), docs/manual/20-settings-reference.md (every setting,
 its default and range), docs/manual/12-the-screens.md (the menu map, from
-panel.js MENU) and docs/manual/D-for-developers.md (every websocket command)
+panel.js MENU), docs/manual/D-for-developers.md (every websocket command) and
+docs/manual/B-every-screen-and-tab.md (every screen and its tabs)
 carry blocks made by scripts/build_manual_reference.py. They
 fail here when they no longer match what the code makes, and the script
 itself refuses an entity, attribute, event field, setting or screen the code
@@ -165,6 +166,19 @@ def test_the_tables_name_what_people_automate_with() -> None:
     for needed in ("`last_room`", "`room_reason`", "`padspan_ha.set_room_tag_map`", "`padspan_ha.wled_on`",
                    "`padspan_ha.wled_off`", "`padspan_device_departed`", "`PadSpanWhereIs`"):
         assert needed in text, needed
+
+
+def test_every_screen_and_its_tabs_are_read_from_the_panel() -> None:
+    """Appendix B: each menu screen once, and the tabs of the screens that have them, as the panel labels them."""
+    tabs = B.screen_tabs_in_code()
+    assert "Atlas builder" in tabs["maps"] and "Tracking" in tabs["settings"] and "Model" in tabs["calibration"]
+    assert "Factory Reset" in tabs["manage"] and "IRK Manager" in tabs["bluetooth"]
+    block = B.committed_block((MANUAL / "B-every-screen-and-tab.md").read_text(encoding="utf-8"), "screens")
+    for _i, name in B.menu_in_code()["menu"]:
+        assert block.count(f"| **{name}** |") == 1, name
+    for labels in tabs.values():
+        for label in labels:
+            assert f"**{label}**" in block, label
 
 
 def test_the_websocket_table_is_every_registered_command() -> None:

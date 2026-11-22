@@ -57,6 +57,7 @@ HA_REFERENCE = MANUAL / "14-home-assistant-reference.md"
 SETTINGS_REFERENCE = MANUAL / "20-settings-reference.md"
 SCREENS_CHAPTER = MANUAL / "12-the-screens.md"
 DEVELOPERS_APPENDIX = MANUAL / "D-for-developers.md"
+SCREENS_APPENDIX = MANUAL / "B-every-screen-and-tab.md"
 SCRIPT = "scripts/build_manual_reference.py"
 
 
@@ -880,6 +881,65 @@ def _ws_block() -> str:
     return "\n".join(lines) + "\n"
 
 
+# ── every screen and its tabs (appendix B) ──────────────────────────────────
+
+def _views_src(name: str) -> str:
+    return (WWW / "views" / name).read_text(encoding="utf-8")
+
+
+def _tabs_settings() -> list[str]:
+    block = _js_block(_views_src("settings.js"), "const _tabDefs = [")
+    return re.findall(r'^\s*\["[a-z]+",\s*"([^"]+)",', block, re.M)
+
+
+def _tabs_mapping() -> list[str]:
+    line = next(ln for ln in _views_src("maps.js").splitlines() if ln.strip().startswith(': [["library",t("Library")]'))
+    return re.findall(r'\["[a-z0-9]+",t\("([^"]+)"\)\]', line) + ["Furnish (with Live Aboard on)"]
+
+
+def _tabs_calibration() -> list[str]:
+    line = next(ln for ln in _views_src("calibration.js").splitlines() if "const TABS = [" in ln)
+    return re.findall(r'\["[a-z]+",t\("([^"]+)"\)\]', line)
+
+
+def _tabs_manage() -> list[str]:
+    return re.findall(r'^\s*\["[a-z_]+","([^"]+)"\],?$', _js_block(_views_src("manage.js"), "const TABS = ["), re.M)
+
+
+def _tabs_bluetooth() -> list[str]:
+    return re.findall(r'tabButton\("[a-z_]+", t\("([^"]+)"\)\)', _views_src("bluetooth.js"))
+
+
+# Screen id (panel.js MENU) → where its tabs are read from.
+TAB_SOURCES = {"settings": _tabs_settings, "maps": _tabs_mapping, "calibration": _tabs_calibration,
+               "manage": _tabs_manage, "bluetooth": _tabs_bluetooth}
+
+
+def screen_tabs_in_code() -> dict[str, list[str]]:
+    out = {}
+    for sid, read in TAB_SOURCES.items():
+        try:
+            tabs = read()
+        except (StopIteration, ValueError) as err:
+            raise ReferenceError_(f"the {sid} screen's tabs can't be read any more: {err}") from err
+        if len(tabs) < 3:
+            raise ReferenceError_(f"the {sid} screen's tabs can't be read any more (found {tabs})")
+        out[sid] = tabs
+    return out
+
+
+def _screens_block() -> str:
+    code, tabs = menu_in_code(), screen_tabs_in_code()
+    sections = _js_block(_views_src("settings.js"), "export const PRESENCE_SECTIONS = [")
+    lines = ["| Screen | What it is | Its tabs |", "|---|---|---|"]
+    for sid, name in code["menu"]:
+        cell = ", ".join(f"**{t}**" for t in tabs.get(sid, [])) or "–"
+        if sid == "settings":
+            cell += ". **Tracking** is in sections: " + ", ".join(re.findall(r'\["[a-z]+",\s*"([^"]+)"\]', sections))
+        lines.append(f"| **{name}** | {SCREENS[sid]} | {cell} |")
+    return "\n".join(lines) + "\n"
+
+
 # ── the blocks, and writing them ────────────────────────────────────────────
 
 def blocks() -> dict[Path, dict[str, str]]:
@@ -891,6 +951,7 @@ def blocks() -> dict[Path, dict[str, str]]:
         out[SETTINGS_REFERENCE] = from_settings
     out[SCREENS_CHAPTER] = {"menu": _menu_block()}
     out[DEVELOPERS_APPENDIX] = {"websocket": _ws_block()}
+    out[SCREENS_APPENDIX] = {"screens": _screens_block()}
     return out
 
 
