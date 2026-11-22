@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. Dein erster Raum in 15 Minuten | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Von einer frischen Installation bis „Alex&#x27; Handy ist in der Küche“, ganz ohne Grundriss. Danach, wenn du willst, dein Haus auf einer Karte. Alles auf dieser…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/first-room/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/first-room/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/first-room/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/first-room/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="4. Dein erster Raum in 15 Minuten">
+<meta property="og:description" content="Von einer frischen Installation bis „Alex&#x27; Handy ist in der Küche“, ganz ohne Grundriss. Danach, wenn du willst, dein Haus auf einer Karte. Alles auf dieser…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/first-room/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/first-room/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="4-dein-erster-raum-in-15-minuten">4. Dein erster Raum in 15 Minuten</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Von einer frischen Installation bis „Alex' Handy ist in der Küche“, ganz ohne Grundriss. Danach,
+wenn du willst, dein Haus auf einer Karte. Alles auf dieser Seite ist kostenlos.</p>
+<p>Bevor du anfängst, brauchst du Home Assistant 2024.8 oder neuer, mindestens einen
+Bluetooth-Empfänger und in Home Assistant einen Bereich für jeden Raum
+(<b>Einstellungen → Bereiche, Labels &amp; Zonen</b>). Siehe <a href="/manual/requirements/">Kapitel 2</a> (englisch).</p>
+<h2 id="1-padspan-installieren">1. PadSpan installieren</h2>
+<p>Ab Home Assistant 2026.11:</p>
+<ol>
+<li>Öffne <b>Einstellungen → Marketplace</b> und suche nach <b>PadSpan</b>.</li>
+<li>Öffne <b>PadSpan HA</b> und wähle <b>Installieren</b>.</li>
+<li>Der Einrichtungsdialog öffnet sich sofort, ohne dass du etwas ausfüllen musst. Wähle <b>Absenden</b>.</li>
+<li>Öffne <b>PadSpan HA</b> in der Seitenleiste.</li>
+</ol>
+<p>Bei älteren Versionen installierst du es mit HACS und startest Home Assistant zuerst neu. Beide Wege
+stehen in <a href="/manual/install-update-uninstall/">Kapitel 3</a> (englisch). Der andere neue Eintrag in der Seitenleiste,
+<b>Atlas</b>, ist die Karte deiner Lichter; den lässt du erst einmal liegen.</p>
+<h3 id="das-beispielhaus">Das Beispielhaus</h3>
+<p>Bis PadSpan seinen ersten Empfänger hört, zeigt es ein Beispielhaus, in dem alle Funktionen
+eingerichtet sind, und ein gelbes Banner sagt das. Eine neue Installation wechselt von selbst zu
+deinem eigenen Haus, sobald sie einen Empfänger hört. Siehst du das Beispielhaus und willst dein
+eigenes, wähle <b>Zu meinem Haus</b>.</p>
+<h2 id="2-gib-jedem-empfänger-seinen-raum">2. Gib jedem Empfänger seinen Raum</h2>
+<p>PadSpan steckt jedes Gerät in den Raum, dessen Empfänger es am besten hört, und der Raum eines
+Empfängers ist der Home-Assistant-Bereich seines Geräts. Ein Empfänger ohne Bereich ergibt keinen
+Raum, egal wie gut er dich hört: Ein Handy direkt daneben landet im Raum des nächsten Empfängers.
+Deshalb kommt das zuerst.</p>
+<p>Am schnellsten geht es auf der Karte <b>Wer ist wo</b> in der Übersicht. Jeder Empfänger ohne Bereich
+hat dort seine eigene Zeile mit einer Liste deiner Räume:</p>
+<ol>
+<li>Prüf den Raum in der Liste. Verrät der Name des Empfängers einen Raum („esp32-kitchen“), ist
+dieser Raum schon gewählt, und die Zeile sagt <b>Nach seinem Namen gewählt; ändere es, wenn es nicht stimmt.</b></li>
+<li>Wähle <b>Raum festlegen</b>. Die Zeile sagt <b>Raum festgelegt: Küche.</b></li>
+</ol>
+<p>Damit bekommt das Gerät des Empfängers diesen Bereich in Home Assistant, genau wie wenn du ihn dort
+setzt. Du kannst auch:</p>
+<ul>
+<li>den Bereich am Gerät in Home Assistant setzen: <b>Einstellungen → Geräte &amp; Dienste → Geräte</b>, den
+Empfänger öffnen, seinen Bereich bearbeiten;</li>
+<li>in PadSpan auf der Karte <b>Bluetooth-Funkempfänger</b> der Übersicht (Modus Erweitert)
+<b>Empfängerliste ansehen</b> wählen, dann <b>Zuweisen</b> neben dem Empfänger (oder <b>Ändern</b>, wenn
+er schon einen Bereich hat).</li>
+</ul>
+<p>Der Bluetooth-Scanner eines Shelly ist in Home Assistant ein eigenes Gerät: Gib diesem Gerät den
+Bereich. <a href="/guides/shelly-bluetooth-proxy/de/">Deine Shellys können Bluetooth-Proxys sein</a>
+zeigt, wie es geht.</p>
+<p>Hat Home Assistant noch keine Bereiche, sagt die Karte das: Leg sie zuerst an, unter
+<b>Einstellungen → Bereiche, Labels &amp; Zonen</b>.</p>
+<h2 id="3-sieh-wer-wo-ist">3. Sieh, wer wo ist</h2>
+<p>Dafür brauchst du keinen Grundriss. In der Übersicht listet <b>Wer ist wo</b> jeden Raum, den deine
+Empfänger abdecken, die benannten Geräte darin und wie viele andere Bluetooth-Geräte dort zu hören
+sind. Die Karte hält sich selbst aktuell.</p>
+<p>Die Zeile oben sagt dir, wo du stehst:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Was sie sagt</th><th>Was es heißt</th></tr>
+  <tr><td>„Noch keine Bluetooth-Empfänger gefunden. Füge einen ESPHome Bluetooth-Proxy hinzu …“</td><td>PadSpan hört keinen Empfänger. Füg einen hinzu oder nutze das Bluetooth deines Home-Assistant-Rechners. Er erscheint innerhalb einer Minute.</td></tr>
+  <tr><td>„… hat noch keinen Home-Assistant-Bereich, daher kann PadSpan zu Hause und weg unterscheiden, aber keine Räume.“</td><td>Kein Empfänger hat einen Bereich. Gib jedem den Bereich, in dem er steht (Schritt 2).</td></tr>
+  <tr><td>„… decken einen Raum ab, du bekommst also zu Hause oder weg.“</td><td>Alle deine Empfänger sind in einem Bereich. Stell einen in einen anderen Raum.</td></tr>
+  <tr><td>„One receiver has no Home Assistant area yet, so it gives no room: …“</td><td>Die anderen funktionieren. Gib diesem einen seinen Bereich.</td></tr>
+  <tr><td>„Deine 3 Empfänger decken 3 Räume ab. …“</td><td>Es funktioniert. Jedes Gerät kommt in den Raum, dessen Empfänger es am besten hört.</td></tr>
+</table>
+</div>
+<p>Eine Zeile namens <b>Gehört, noch kein Raum</b> enthält benannte Geräte, die nur ein Empfänger ohne
+Bereich hört. Gib diesem Empfänger seinen Bereich.</p>
+<h2 id="4-benenne-dein-handy">4. Benenne dein Handy</h2>
+<p>Ein Gerät, das du nicht benannt hast, bekommt von PadSpan keine Entitäten. Benennst du es, bekommt
+es einen Device Tracker, dessen Zustand der Raum ist, einen Bereichssensor und Entfernungssensoren,
+und PadSpan folgt ihm.</p>
+<p><b>Android-Handy</b></p>
+<ol>
+<li>Öffne in der Home Assistant Companion App
+<b>Einstellungen → Companion App → Sensoren verwalten → BLE Transmitter</b> und schalte ihn ein.
+Stell an derselben Stelle <b>Transmit power</b> auf <b>High</b> und <b>Advertise mode</b> auf
+<b>Low latency</b>: Ab Werk sendet er zu schwach, um gut gehört zu werden.</li>
+<li>Öffne in PadSpans Übersicht die Karte <b>Dein Handy verfolgen</b> und wähle daneben
+<b>Dieses Handy verfolgen</b> (im Modus Einfach heißt der Knopf <b>Verfolgen</b>).</li>
+</ol>
+<p>PadSpan benennt das Handy, folgt ihm und bittet die App, mit dem Senden anzufangen. Zeigt der Knopf
+<b>Einrichtung</b>, ist der Sensor in der App noch nicht an; zeigt er <b>Aktivieren &amp; verfolgen</b>, ist er
+in Home Assistant ausgeschaltet, und dieser Knopf schaltet ihn ein (starte Home Assistant danach neu).
+Im Modus Erweitert sagt er dann, wie es gelaufen ist: <b>Wird verfolgt!</b>,
+<b>Registriert — warte auf Signal</b> (geh in die Nähe eines Empfängers) oder
+<b>Registriert — BLE aktivieren</b>.</p>
+<p><b>iPhone oder Apple Watch</b></p>
+<p>Ein iPhone wechselt alle paar Minuten seine Bluetooth-Adresse, deshalb braucht PadSpan einmal seinen
+Schlüssel, den IRK.</p>
+<ol>
+<li>Hol dir den Schlüssel und trag ihn in Home Assistants Integration <b>Private BLE Device</b> ein.
+Die Schritte, mit einem irk-capture-ESP32 oder einem Mac, stehen in
+<a href="/guides/phone-room-presence/de/">In welchem Raum ist mein Handy?</a> und im
+Handy-Assistenten von PadSpan selbst (unten).</li>
+<li>Sobald Home Assistant ihn hat, erscheint das Handy in <b>Wer ist wo</b> mit einem Knopf
+<b>Verfolgen</b> neben seinem Namen. Wähle <b>Verfolgen</b>. Beim ersten Mal kann es ein paar Minuten
+dauern, bis es auftaucht.</li>
+</ol>
+<p>Ist die erweiterte Sicherheit an, sieht nur ein Administrator <b>Verfolgen</b>.</p>
+<p><b>Ein Beacon oder Schlüsselanhänger</b></p>
+<p>Wähle ihn auf <b>Folgen</b> unter <b>Tag zum Folgen wählen</b> und dann <b>Diesen Tag benennen</b>. Oder öffne
+auf der Karte <b>Objekte</b> der Übersicht (Modus Erweitert) <b>Alle Objekte</b>, wähle <b>Benennen</b> in
+seiner Zeile, gib einen Namen ein und wähle <b>Namen speichern</b>. In der Nähe einer belebten Straße
+ist diese Liste lang: Stell <b>Alle Zustände</b> auf <b>Erkannt</b> oder such nach dem Namen.
+<a href="/guides/bluetooth-tags/de/">Welcher Bluetooth-Tracker funktioniert mit Home Assistant?</a>
+sagt, was du kaufen kannst.</p>
+<p>Sobald ein Handy oder Tag einen Namen hat, steht es mit Namen in <b>Wer ist wo</b>, und deine
+Automationen können seinen Raum nutzen: <a href="/manual/home-assistant-reference/">Kapitel 14</a> (englisch).</p>
+<p><b>Das ist dein erster Raum.</b> Der Rest dieser Seite ist freiwillig.</p>
+<h2 id="5-mach-eine-karte-daraus">5. Mach eine Karte daraus</h2>
+<p>Eine Karte macht aus der Liste der Räume dein Haus, gezeichnet in der Übersicht. Die Kalibrierung
+braucht sie. Mit drei oder mehr Empfängern darauf kann PadSpan Geräte auch zwischen ihnen verorten,
+sogar in einem Raum ohne eigenen Empfänger.</p>
+<p>Wähle <b>Eine Karte daraus machen</b> auf der Karte <b>Wer ist wo</b>. Das öffnet die <b>Einrichtung</b>, die
+Schritte der Reihe nach:</p>
+<ol>
+<li><b>Grundriss hochladen</b>: irgendein Bild der Etage, sogar ein Foto einer Skizze. Kein Bild?
+<b>Kein Grundriss? So bekommst du einen</b> bietet den Raumscan eines Handys, deine eigene Skizze
+oder eine leere Etage.</li>
+<li><b>Maßstab festlegen</b>: Klick beide Enden einer Wand an, deren Länge du kennst, gib die Länge ein
+und wähle <b>Maßstab speichern</b>. Lass das nicht aus: Ohne Maßstab kommt nichts auf die Karte.</li>
+<li><b>Räume zeichnen</b>: Drück über dem Grundriss auf den Namen eines Raums, klick jede Ecke an und
+doppelklicke die letzte. Jeder Raum wird gespeichert, sobald du ihn fertig hast.</li>
+<li><b>Etagen und ihre Höhen</b>: nur in einem Haus mit zwei oder mehr Etagen innen.</li>
+<li><b>Empfänger platzieren und ihre Höhen festlegen</b>: Wähle in <b>Live-BLE-Empfänger</b> neben dem
+Grundriss <b>Hinzufügen</b> neben jedem Empfänger und zieh ihn dahin, wo er hängt. Oder wähle
+<b>Meine Empfänger in ihre Räume setzen</b>: Jeder kommt in die Mitte seines Raums, und du ziehst
+ihn später an seinen Platz.</li>
+<li><b>Dein Handy oder deine Uhr verfolgen</b>: schon erledigt, wenn du dein Handy oben in Schritt 4
+benannt hast.</li>
+<li><b>Kalibrieren</b>: Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle klingt.</li>
+</ol>
+<p>Der Knopf jedes Schritts öffnet das Werkzeug dafür, mit einer Leiste oben, die sagt, bei welchem
+Schritt du bist, und <b>← Zurück zur Einrichtung</b>. <b>Vorerst überspringen</b> geht weiter; die
+Einrichtung merkt sich, wo du warst.</p>
+<p><b>Einen Schritt übersieht man leicht.</b> Die Schritte zum Grundriss laufen im <b>Setup Wizard</b> unter
+Karten, und der endet mit <b>Abschluss</b>. Bis du dort <b>Auf die Karte setzen</b> wählst, sind deine
+Räume und Empfänger nur auf dem Bild. Sobald der erste Raum auf der Karte ist, nimmt dein Haus in
+der Übersicht den Platz von <b>Wer ist wo</b> ein. Zeichne also jeden Raum, den deine Empfänger
+abdecken: Ein Gerät in einem Raum, den du nicht gezeichnet hast, wird vielleicht nicht angezeigt.</p>
+<p>Jeder Schritt ist in <a href="/manual/setup-the-map/">Kapitel 9</a> (englisch) erklärt.</p>
+<h2 id="6-kalibrieren">6. Kalibrieren</h2>
+<p>Der stärkste Empfänger ist eine gute erste Antwort. Die Kalibrierung macht sie besser: Sie zeichnet
+auf, was jeder Empfänger an bekannten Stellen in deinem Haus hört. Sie braucht einen Grundriss mit
+Maßstab.</p>
+<p>Der Schritt <b>Kalibrieren</b> der Einrichtung öffnet sich auf eine von zwei Arten:</p>
+<ul>
+<li><b>Raum abgehen</b>, wo das eingeschaltet ist: Geh mit deinem Handy jeden Raum 90 Sekunden lang ab.
+Bei einer neuen Installation ist es aus. Schalte es ein unter
+<b>Einstellungen → Ortung → Positionierung und Kalibrierung → Raum abgehen (Kalibrierung)</b>; die
+Einrichtung hat dafür einen Knopf <b>Diese Einstellung öffnen</b>.</li>
+<li><b>Geführte Kalibrierung</b>, Punkt für Punkt: Wähle dein Handy und die Etage, stell dich an eine
+Stelle, markier sie auf dem Grundriss und lass PadSpan zuhören. Nimm dir 10 bis 20 Stellen pro
+Etage vor, gut verteilt.</li>
+</ul>
+<p>Der Schritt gilt ab fünf Kalibrierpunkten als erledigt. Alles über die Kalibrierung steht in
+<a href="/manual/calibration/">Kapitel 11</a> (englisch).</p>
+<h2 id="wenn-es-nicht-klappt">Wenn es nicht klappt</h2>
+<ul>
+<li><b>„Bluetooth-Daten nicht verfügbar“</b>: Starte Home Assistant ganz neu, unter
+<b>Einstellungen → System → Neu starten</b>. Nach einer Erstinstallation reicht ein Neuladen nicht.</li>
+<li><b>Grundriss hochladen, Maßstab speichern oder den Testzeitraum starten wird abgelehnt</b>: Das
+braucht einen Administrator von Home Assistant.</li>
+<li><b>Karten hat nur Bibliothek und Hochladen, oder die Einstellungen haben keine Reiter</b>: Der
+Modus-Knopf oben rechts hat das Panel auf Einfach gestellt. Jeder Bildschirm ist trotzdem im Menü,
+die, die Einfach weglässt, unter <b>Weitere Werkzeuge</b>. Wähl den Modus-Knopf noch einmal für
+Erweitert.</li>
+<li><b>Ein Handy springt zwischen Räumen</b>: siehe <a href="/manual/troubleshooting/">Kapitel 26</a> (englisch) und
+<a href="/guides/room-flapping/de/">Warum springt mein Handy zwischen den Räumen?</a></li>
+<li><b>Etwas anderes</b>: <a href="/manual/getting-help/">Kapitel 27</a> (englisch).</li>
+</ul>
+<div class="pager"><span><a href="/manual/install-update-uninstall/">← 3. Install, update, uninstall</a> (englisch)</span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/receivers/">5. Receivers: which, how many, where →</a> (englisch)</span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>
