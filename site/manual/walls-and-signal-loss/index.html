@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10. Walls and signal loss | PadSpan HA Manual</title>
+<meta name="description" content="A wall eats some of the Bluetooth signal on its way from a phone or tag to a receiver. Walls you draw on the map tell PadSpan how much. That is what keeps a…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/walls-and-signal-loss/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/walls-and-signal-loss/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/walls-and-signal-loss/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/walls-and-signal-loss/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="10. Walls and signal loss">
+<meta property="og:description" content="A wall eats some of the Bluetooth signal on its way from a phone or tag to a receiver. Walls you draw on the map tell PadSpan how much. That is what keeps a…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/walls-and-signal-loss/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/walls-and-signal-loss/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="10-walls-and-signal-loss">10. Walls and signal loss</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>A wall eats some of the Bluetooth signal on its way from a phone or tag to a receiver. Walls you
+draw on the map tell PadSpan how much. That is what keeps a phone in the kitchen from being counted
+in the room behind the kitchen wall, and the neighbours' phones out of your living room.</p>
+<p>You don't need every wall. Draw the ones between rooms that get mixed up, and the outside walls if
+neighbours' phones show up inside. Walls need a map with a scale (<a href="/manual/setup-the-map/">chapter 9</a>),
+because they are stored in metres.</p>
+<h2 id="drawing-a-wall">Drawing a wall</h2>
+<ol>
+<li>Open <b>Mapping → Edit</b> and pick the <b>Signal walls</b> tool.</li>
+<li>Pick the <b>Material</b> (below). Name the next wall if you like.</li>
+<li>Click on the map to start the wall, click at each corner, and finish it. It is saved the moment
+you finish. <b>Undo point</b> takes back the last click; <b>Cancel drawing</b> drops it.</li>
+</ol>
+<p>Every wall you draw gets the material that is picked, until you change it. The list starts on
+<b>Metal</b>, the strongest, so pick the material first.</p>
+<p><b>Enclose (3dB walls)</b> draws thin 3 dB walls round the picked room in one go: good for ordinary
+interior walls.</p>
+<h2 id="the-materials">The materials</h2>
+<p>Each material is one number, in dB: more dB, more signal lost going through it.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Material</th><th>Loss</th><th>What it's for</th></tr>
+  <tr><td><b>Open (Loft) — no wall</b></td><td>0 dB</td><td>No wall: an opening to the floor above or below, or a room edge with no wall on it.</td></tr>
+  <tr><td><b>Brick</b></td><td>4 dB</td><td>A single brick or block wall.</td></tr>
+  <tr><td><b>Custom</b></td><td>6 dB, or what you set</td><td>Anything else. A wall with no material counts as Custom 6 dB.</td></tr>
+  <tr><td><b>Concrete</b></td><td>8 dB</td><td>Poured concrete, foundation walls.</td></tr>
+  <tr><td><b>Metal</b></td><td>12 dB</td><td>Steel doors, metal studs, foil-backed insulation, plaster on wire mesh.</td></tr>
+</table>
+</div>
+<p>Pick <b>Custom</b> and a <b>Loss through it</b> box appears (0 to 30 dB). Set it before you draw.</p>
+<p>These are round starting numbers, not measurements of your house. They are on the gentle side on
+purpose: Bluetooth gets round a lot of walls through doorways, gaps and ceilings, so the loss
+PadSpan sees is usually less than the wall alone would cost.</p>
+<p><b>Floors are different.</b> Each floor between two places starts at 10 dB, and PadSpan learns the
+real figure for each pair of floors from your own data once it has enough. Walls aren't learned:
+it is the number you pick.</p>
+<h2 id="is-my-house-anywhere-near-that">Is my house anywhere near that?</h2>
+<p>Figures often quoted for Wi-Fi planning at 2.4 GHz, the band Bluetooth uses, give a feel for it. They
+vary a lot with thickness, damp and what's inside the wall.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Real wall</th><th>Roughly</th></tr>
+  <tr><td>Drywall or plasterboard on wood studs</td><td>2–4 dB</td></tr>
+  <tr><td>Wooden door, ordinary window</td><td>2–4 dB</td></tr>
+  <tr><td>Brick, single course</td><td>6–10 dB</td></tr>
+  <tr><td>Concrete block</td><td>6–12 dB</td></tr>
+  <tr><td>Poured concrete, stone</td><td>10–20 dB or more</td></tr>
+  <tr><td>Old plaster on wire (metal) lath</td><td>10–20 dB, sometimes much more</td></tr>
+  <tr><td>Low-E or coated window glass</td><td>10–30 dB</td></tr>
+  <tr><td>Metal: steel doors, foil insulation, a fridge, ductwork</td><td>15–30 dB or more</td></tr>
+</table>
+</div>
+<p>Old houses catch people out twice:</p>
+<ul>
+<li><b>Plaster on lath.</b> Wooden lath does little. Expanded metal lath (common from the 1920s on, and
+in repairs) acts like a screen. If a wall like that sits between two rooms that keep swapping
+devices, draw it as <b>Metal</b>, or <b>Custom</b> at 12 to 20 dB.</li>
+<li><b>Thick masonry.</b> A solid stone or double-brick wall is nearer <b>Concrete</b> or Custom 10 to 15 than
+Brick.</li>
+</ul>
+<h2 id="open-edges-rooms-with-no-wall-between-them">Open edges: rooms with no wall between them</h2>
+<p>A loft, or a kitchen and living room that are one open space: signal already passes where no wall
+is drawn, but marking the edge open records it on the map, and the 3D house leaves the wall out
+there.</p>
+<ul>
+<li><b>Open edge: tap a room edge</b>: tap a room's edge on the map. Only the stretch it shares with the
+room next door opens; an edge with no neighbour opens whole.</li>
+<li><b>Open all edges</b> gives every edge of the picked room an Open (0 dB) wall. It asks first.</li>
+<li><b>Remove open edges</b> takes back the open edges this tool marked along the room.</li>
+</ul>
+<p>A room's edges can be marked once its outline is saved. In Live Aboard, an open edge can have a
+glass railing or none: the <b>Railing</b> button on its row (<a href="/manual/live-aboard/">chapter 16</a>).</p>
+<h2 id="doors-and-windows-that-open">Doors and windows that open</h2>
+<p>A steel door blocks signal when it is shut and none when it is open. PadSpan can follow that with
+the door's own sensor.</p>
+<ol>
+<li>On a wall's row, choose <b>Door</b> (<b>Mark a door/window on this wall</b>).</li>
+<li>Click the two ends of the door on the wall. <b>Pick again</b> starts over.</li>
+<li>Choose its <b>Linked sensor</b>, a Home Assistant door or window sensor, and its
+<b>Door/window material</b> (it starts as the wall's own).</li>
+<li>Choose <b>Create door/window</b>.</li>
+</ol>
+<p>A <b>Metal</b> door or window loses its 12 dB while its sensor says open, and gets it back when shut.
+PadSpan waits for two readings in a row before it changes, so a flickering sensor can't make rooms
+jump. A door of any other material is shown open or shut on the maps and changes nothing for the
+signal: ordinary doors and glass hardly block Bluetooth either way.</p>
+<h2 id="a-receiver-that-hears-the-neighbours">A receiver that hears the neighbours</h2>
+<p>Walls help only when they are between the phone and the receiver. A receiver on an outside wall, or
+on a floor above a shop or a flat, also hears the street and the people downstairs. For that one
+receiver, <b>Bluetooth → Scanners → Min signal</b> (<b>Min signal: off</b> unless you set it) ignores
+anything it hears weaker than the level you pick, say <b>Ignore &lt; -90</b> on an outside wall or
+<b>Ignore &lt; -80</b> by a front door.</p>
+<ul>
+<li>Positioning and Occupancy's phone count stop using those faint readings from that receiver.</li>
+<li>Everything else still sees them: the receiver and advert lists, Forensics, Traceback and
+calibration.</li>
+<li>A phone in the room reads far stronger than that at its nearest receiver, so it isn't lost.</li>
+</ul>
+<h2 id="how-to-tell-a-wall-is-wrong">How to tell a wall is wrong</h2>
+<ul>
+<li><b>A phone or tag sticks to the room on the other side of a wall</b>: the wall is weaker on the map
+than in real life. Go one step up (Brick, then Concrete, then Metal), or Custom with a bigger
+number.</li>
+<li><b>A device in a room can't seem to hear the receiver right beside it</b>: there may be a wall drawn
+between them that shouldn't be there, or one much too strong.</li>
+<li><b>Calibration helps either way.</b> It fits how fast signal fades in your house, which soaks up a lot
+of what the walls don't get right: <a href="/manual/calibration/">chapter 11</a>.</li>
+</ul>
+<div class="pager"><span><a href="/manual/setup-the-map/">← 9. Setup: your house on a map</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/calibration/">11. Calibration →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

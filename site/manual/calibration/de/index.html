@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11. Kalibrierung | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Die Kalibrierung bringt PadSpan bei, wie dein Haus klingt. Du trägst dein Handy oder einen Tag an Stellen im ganzen Haus, und an jeder Stelle zeichnet…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/calibration/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/calibration/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/calibration/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/calibration/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="11. Kalibrierung">
+<meta property="og:description" content="Die Kalibrierung bringt PadSpan bei, wie dein Haus klingt. Du trägst dein Handy oder einen Tag an Stellen im ganzen Haus, und an jeder Stelle zeichnet…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/calibration/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/calibration/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="11-kalibrierung">11. Kalibrierung</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Die Kalibrierung bringt PadSpan bei, wie dein Haus klingt. Du trägst dein Handy oder einen Tag an
+Stellen im ganzen Haus, und an jeder Stelle zeichnet PadSpan auf, wie stark jeder Empfänger es hört.
+Mit diesen <b>Kalibrierpunkten</b> vergleicht es später die Live-Signale, um Leute in den richtigen
+Raum zu setzen.</p>
+<p>Ohne Kalibrierung verortet PadSpan jedes Gerät allein über die Empfänger: der Raum des Empfängers,
+der es am besten hört, oder, mit einer Karte, eine Position, die aus den Plätzen der Empfänger
+berechnet wird. Das ist eine gute erste Antwort. Die Kalibrierung macht sie besser, vor allem in
+Türöffnungen und an den Wänden zwischen Räumen, wo zwei Räume am schwersten auseinanderzuhalten
+sind.</p>
+<p>Die Kalibrierung ist kostenlos und in jedem Modus im Hauptmenü, mit denselben Reitern in Einfach und
+Erweitert.</p>
+<h2 id="bevor-du-anfängst">Bevor du anfängst</h2>
+<ul>
+<li><b>Ein Grundriss mit Maßstab.</b> Ein Kalibrierpunkt ist eine in Metern gemessene Stelle, also lässt
+er sich auf einer Etage ohne Maßstab nicht speichern. Die Kalibrierung sagt dann <b>Diese Etage
+muss zuerst vermessen werden</b>, mit <b>Diese Etage vermessen →</b>.</li>
+<li><b>Räume und Empfänger auf der Karte deines Hauses.</b> Zeichne die Räume, platziere die Empfänger und
+wähle dann <b>Auf die Karte setzen</b> (<a href="/manual/setup-the-map/de/">Kapitel 9</a>). Raum abgehen nutzt die
+Räume auf der Karte deines Hauses, nie die, die nur auf dem Bild gezeichnet sind.</li>
+<li><b>Empfänger da, wo sie wirklich sind, in ihrer echten Höhe.</b> Die Kalibrierung zeichnet auf, was
+jeder Empfänger hört; ein Empfänger, der an der falschen Stelle eingezeichnet ist, macht jeden
+Punkt in seiner Nähe irreführend. Die Geführte Kalibrierung beginnt mit dieser Prüfung.</li>
+<li><b>Das Handy oder der Tag, den du tragen wirst.</b> Es muss eins sein, das PadSpan schon hört und
+kennt: ein Handy, das du verfolgst, oder ein benannter Tag (<a href="/manual/first-room/de/">Kapitel 4</a>).</li>
+<li><b>Ein zweiter Bildschirm hilft.</b> Trag das Handy so, wie du es meistens tust, in der Tasche,
+Bildschirm aus, und drück die Knöpfe auf einem anderen Handy, Tablet oder Computer. Ein Handy in der
+Hand mit eingeschaltetem Bildschirm wird anders gehört als dasselbe Handy in der Tasche.</li>
+</ul>
+<h2 id="wann-du-kalibrierst">Wann du kalibrierst</h2>
+<ul>
+<li><b>Sobald die Karte steht.</b> Der letzte Schritt der Einrichtung, <b>Kalibrieren</b>, ist ab fünf
+Kalibrierpunkten oder einem berechneten Modell erledigt.</li>
+<li><b>Nachdem du einen Empfänger versetzt hast.</b> Kalibriere die Räume daneben noch einmal: Sie hören
+jetzt anders, und ihre alten Punkte wissen das nicht.</li>
+<li><b>Wenn ein Raum immer wieder falsch herauskommt.</b> <b>Ergebnisse</b> in der Kalibrierung nennt den
+Raum, den PadSpan am häufigsten falsch hat, und wie viele Punkte er noch braucht.</li>
+<li><b>Alle paar Monate.</b> Möbel wandern, Empfänger auch. Ist der neueste Punkt älter als 90 Tage,
+schlägt Ergebnisse vor, noch einmal durchs Haus zu gehen.</li>
+</ul>
+<h2 id="wie-viele-stellen">Wie viele Stellen</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><td><b>Jede Etage</b></td><td>10 bis 20 Stellen, über die Etage verteilt. Mehr ist besser.</td></tr>
+  <tr><td><b>Jeder Raum</b></td><td>Mindestens 3. Ein Raum mit weniger steht zuerst in der Liste, als Raum, der Arbeit braucht.</td></tr>
+  <tr><td><b>Wo</b></td><td>In der Mitte jedes Raums, und mehr in Türöffnungen und nahe an den Wänden zwischen Räumen.</td></tr>
+  <tr><td><b>Wie lange an jeder Stelle</b></td><td><b>Dauer der Aufnahme</b>: 15, 30, 60 oder 90 Sekunden. Sie beginnt bei 15; empfohlen sind 60, etwa ein Messwert pro Sekunde von jedem Empfänger.</td></tr>
+  <tr><td><b>Bevor sich die Genauigkeit berechnen lässt</b></td><td>4 Punkte oder mehr.</td></tr>
+</table>
+</div>
+<p>Raum abgehen braucht keine Stellen: Ein Rundgang von 90 Sekunden deckt einen ganzen Raum ab.</p>
+<h2 id="zwei-wege-zu-kalibrieren">Zwei Wege zu kalibrieren</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>Raum abgehen</th><th>Geführte Kalibrierung</th></tr>
+  <tr><td><b>Was du tust</b></td><td>90 Sekunden langsam durch jeden Raum gehen</td><td>An einer Stelle stillstehen, aufnehmen, zur nächsten gehen</td></tr>
+  <tr><td><b>Zeit</b></td><td>Etwa 2 Minuten pro Raum</td><td>Etwa eine Minute pro Stelle bei den empfohlenen 60 s</td></tr>
+  <tr><td><b>Bei einer neuen Installation</b></td><td>Aus: zuerst einschalten</td><td>An</td></tr>
+  <tr><td><b>Aus der Einrichtung</b></td><td><b>Start →</b>, wo es an ist</td><td><b>Punkt für Punkt</b>, oder <b>Start →</b>, wo Raum abgehen aus ist</td></tr>
+</table>
+</div>
+<p>Beide speisen dieselbe Kalibrierung, und du kannst beide nutzen: Geh die Räume ab und füg dann von
+Hand Stellen hinzu, wo ein Raum noch seltsam misst.</p>
+<h2 id="raum-abgehen">Raum abgehen</h2>
+<p>Raum abgehen kalibriert einen ganzen Raum mit einem Rundgang von 90 Sekunden.</p>
+<p><b>Schalte es ein.</b> Ab Werk ist es aus. Öffne im Modus Erweitert
+<b>Einstellungen → Ortung → Positionierung und Kalibrierung → Raum abgehen (Kalibrierung)</b> und hak
+<b>Den Reiter „Raum abgehen“ zur Kalibrierung hinzufügen</b> an. Vom Schritt Kalibrieren der
+Einrichtung bringt dich <b>Diese Einstellung öffnen</b> in beiden Modi dorthin. In der Kalibrierung
+erscheint dann ein Reiter <b>Raum abgehen</b>. Er braucht den Live-Modus.</p>
+<p><b>Einen Raum abgehen:</b></p>
+<ol>
+<li>Wähle im Reiter <b>Beacon und Etage</b> das Handy oder den Tag, den du trägst (<b>Beacon-Gerät</b>),
+und die <b>Etage</b>. Bis dahin sagt Raum abgehen <b>Einrichtung nötig</b>.</li>
+<li>Wähle in <b>Raum abgehen</b> den Raum unter <b>Raum wählen…</b> und wähle <b>Gehen starten</b>.</li>
+<li>Geh 90 Sekunden langsam: an den Wänden entlang, in jede Ecke, dann durch die Mitte. Bleib im
+Raum, bis der Ring voll ist. <b>Abbrechen und verwerfen</b> hört früher auf.</li>
+<li>PadSpan zeigt, was es gehört hat, und wie anders der Raum klingt als der nächste andere Raum:
+<ul>
+<li><b>Hebt sich von … ab</b>: gut.</li>
+<li><b>Etwas ähnlich wie …</b>: in Ordnung, aber ein zweiter Rundgang kann helfen.</li>
+<li><b>Misst sich sehr ähnlich wie …</b>: Die beiden sind vielleicht schwer auseinanderzuhalten; geh
+näher an den Wänden und in den Ecken.</li>
+</ul></li>
+<li>Wähle <b>Diesen Rundgang speichern?</b>, um ihn zu behalten, oder <b>Verwerfen</b>. Nichts wird
+gespeichert, bis du wählst.</li>
+<li>PadSpan testet sich noch einmal und zeigt das Ergebnis vorher und nachher: <b>Die Fingerabdrücke
+haben mehr Räume richtig erkannt</b>, <b>Ungefähr wie vorher</b> oder <b>Die Fingerabdrücke haben
+weniger Räume richtig erkannt</b> (geh den Raum noch einmal ab oder entferne den Rundgang).</li>
+<li><b>Einen weiteren Raum abgehen</b>.</li>
+</ol>
+<p>Jeder Raum behält einen Rundgang: Ein neuer Rundgang eines Raums ersetzt nur den früheren Rundgang
+dieses Raums. <b>Den Rundgang von … entfernen</b> nimmt nur die Rundgang-Punkte dieses Raums heraus;
+deine anderen Kalibrierpunkte werden nie angerührt. Schaltest du die Einstellung aus, verschwindet
+der Reiter, und gespeicherte Rundgänge bleiben in Gebrauch.</p>
+<h2 id="geführte-kalibrierung">Geführte Kalibrierung</h2>
+<p><b>🧭 Geführte Kalibrierung</b> führt dich der Reihe nach durch die Schritte. Öffne sie aus
+<b>Ergebnisse</b>, über den Knopf oben in jedem anderen Reiter der Kalibrierung oder aus dem Schritt
+Kalibrieren der Einrichtung.</p>
+<ol>
+<li><b>Positionen der Empfänger prüfen.</b> Freiwillig, aber einen Blick wert: Zieh jede
+Empfänger-Markierung, die nicht dort ist, wo der echte Empfänger hängt. Klick eine Markierung an,
+um ihre <b>Höhe über dem Boden (m)</b> festzulegen, und wähle <b>Höhe speichern</b>. Hier wird nichts
+aufgenommen. <b>Überspringen — die Positionen sehen gut aus</b> geht weiter.</li>
+<li><b>Dein Gerät wählen.</b> Wähle das Handy oder den Tag, den du trägst (<b>Beacon-Gerät</b>), die
+<b>Etage</b>, die du kalibrierst, und die <b>Dauer der Aufnahme</b>. Die späteren Schritte bleiben
+gesperrt, bis ein Gerät und eine Etage mit Maßstab gewählt sind.</li>
+<li><b>Durchs Haus gehen.</b> Ein blaues Fadenkreuz auf dem Grundriss markiert das <b>Nächste Ziel</b>. Geh
+dorthin, bleib stehen und wähle <b>Ich bin da — aufnehmen</b>. Bleib die ganze Zeit still stehen.
+Die Abdeckungskarte füllt sich, während du gehst (abgedeckt, teilweise abgedeckt, noch nicht
+abgedeckt), und wählt die nächste Stelle. <b>Überspringen — ich sammle die Punkte später</b> geht
+weiter.</li>
+<li><b>Dein Modell berechnen.</b> Wähle <b>Modell berechnen</b>. <b>Geschätzte Genauigkeit</b> ist, wie weit
+PadSpans Schätzung im Test im Durchschnitt danebenlag.</li>
+<li><b>Abschluss.</b> Wie viele Punkte diese Etage und das ganze Haus haben. <b>+ Eine weitere Etage
+kalibrieren</b> geht zurück zu Schritt 2 für die nächste Etage; <b>Fertig</b> schließt die Anleitung.</li>
+</ol>
+<p><b>✕ Anleitung beenden → alle Reiter</b> verlässt sie jederzeit und behält jeden Punkt, den du
+gespeichert hast.</p>
+<h3 id="die-stellen-selbst-wählen-pinnen--hören">Die Stellen selbst wählen: Pinnen &amp; Hören</h3>
+<p>Tipp im Reiter <b>Pinnen &amp; Hören</b> auf den Grundriss, wo du stehst, wähle <b>Aufnahme starten</b> und
+bleib still stehen, bis die Zeit um ist. Dann behält <b>Punkt speichern</b> ihn, oder <b>Verwerfen</b>.
+<b>Stoppen und verwerfen</b> bricht eine Aufnahme ab. <b>Umhergehen</b> ist dasselbe Aufnehmen, nur wählt
+PadSpan die Stelle, wie in Schritt 3 der Anleitung.</p>
+<p>Sagt der Bildschirm <b>Beacon wird gerade von keinem Empfänger erkannt</b>, wird das Handy oder der Tag
+nicht gehört: Prüf, dass sein Bluetooth an ist und es in der Nähe eines Empfängers ist.</p>
+<h2 id="beacon-abgleich">Beacon-Abgleich</h2>
+<p><b>Beacon-Abgleich</b> (experimentell) ist für Bluetooth-Beacons, die an einem Ort bleiben: ein Tag auf
+einem Regal, ein Schlüsselfinder an der Tür, ein fest angebrachter iBeacon. Du markierst, wo jeder
+wirklich ist, und PadSpan lernt weiter von ihm, solange er dort liegt.</p>
+<ol>
+<li>Wähle die Etage, wähle den Beacon unter <b>Beacon zum Hinzufügen wählen</b> (Geräte, die du benannt
+hast oder denen du folgst) und wähle <b>Zur Karte hinzufügen</b>.</li>
+<li>Zieh ihn dahin, wo der Beacon wirklich ist, und wähle <b>Speichern</b>.</li>
+<li>Lass den Beacon, wo er ist, während der folgenden Aufnahme von 60 Sekunden. Sie wird als
+Kalibrierpunkt gespeichert.</li>
+</ol>
+<p>Ein Beacon, den du platzierst, ist nur gepinnt, wenn du in seiner Zeile <b>Hier pinnen: bewegt sich
+nie</b> anhakst. Ein gepinnter Beacon wird in seinem gepinnten Raum angezeigt, statt dass sein Raum
+berechnet wird, also pinne nur einen, der sich nie bewegt. Ein Gerät, von dem PadSpan weiß, dass es
+sich bewegt (ein Handy mit seinem Schlüssel, ein Tag, dem du folgst), wird nie gepinnt, auch
+angehakt nicht. Jeder Beacon, den du platzierst, bekommt die eine Aufnahme und geht dann zurück zur
+Live-Ortung.</p>
+<p>Mit <b>Auto-Kal.: AN</b> (der Standard) fügt ein gepinnter Beacon, der still liegt, ab und zu einen
+frischen Kalibrierpunkt hinzu, höchstens einmal alle 10 Minuten und 50 Punkte pro Beacon; sie sind
+im Reiter Modell mit [auto] markiert.</p>
+<p>Versetzt du einen Beacon, beginnt eine neue Aufnahme. Versetzt du denselben Beacon dreimal in
+wenigen Minuten, fragt PadSpan nach einer „harten Verlegung“: <b>OK</b> löscht die früheren Punkte
+dieses Beacons aus dem Beacon-Abgleich. Wähle OK nur, wenn die alten Stellen falsch waren.</p>
+<h2 id="ergebnisse-lesen">Ergebnisse lesen</h2>
+<p>Die Kalibrierung öffnet mit <b>Ergebnisse</b>. Dieser Reiter liest nur deine Kalibrierung; jeder Knopf
+bringt dich zu dem Reiter, der die Arbeit macht.</p>
+<p><b>Wie genau es jetzt ist</b></p>
+<ul>
+<li><b>Räume richtig</b>: der Anteil der Teststellen, die PadSpan in den richtigen Raum gesetzt hat.</li>
+<li><b>typische Abweichung</b>: wie weit es meist danebenlag, in Metern (grün unter 2 m).</li>
+</ul>
+<p>Beides kommt aus einem strengen Test an Stellen, die es nicht gesehen hat: PadSpan versteckt eine
+Stelle und jeden Punkt im Umkreis von 1,5 m und prüft dann, wohin es jemanden gesetzt hätte, der
+dort steht. Die Zeile darunter gibt den Test für beide Arten an, wie PadSpan jemanden verorten kann
+(aus deinen Kalibrierpunkten und aus den Plätzen der Empfänger), und sagt, welche besser war. Bevor
+dieser Test gelaufen ist, siehst du stattdessen <b>geschätzte Abweichung</b>, die besser aussieht als
+die Wirklichkeit. Mit weniger als 4 Punkten gibt es noch nichts zu berechnen.</p>
+<p><b>Was du als Nächstes am besten tust</b> ist ein Vorschlag, der erste, der zutrifft:</p>
+<ol>
+<li><b>Miss eine Strecke auf einem Grundriss</b>: ein Grundriss ohne Maßstab.</li>
+<li><b>Das Haus kalibrieren</b>: noch keine Punkte.</li>
+<li><b>Gib an, wie hoch jeder Empfänger hängt</b>: Sie hängen alle auf einer Höhe.</li>
+<li><b>Gib deinen Etagen ihre echten Höhen</b>: Jede Etage hat die Standardhöhe.</li>
+<li><b>Die Genauigkeit neu ermitteln</b>: Es gibt Punkte, die in den Zahlen noch fehlen (<b>Modell
+öffnen →</b>, dann <b>Modell berechnen</b>).</li>
+<li><b>Kalibrierpunkte in … hinzufügen</b>: ein gezeichneter Raum ohne Punkte.</li>
+<li><b>Ein paar Punkte in … hinzufügen</b>: der Raum, den PadSpan am häufigsten verwechselt („meist mit
+…“), oder einer mit nur wenigen Punkten.</li>
+<li><b>Noch einmal durchs Haus gehen</b>: Der neueste Punkt ist älter als 90 Tage.</li>
+<li><b>Nichts Dringendes</b>: Schau in Genauigkeit je Stelle, wenn sich ein Raum noch falsch anfühlt.</li>
+</ol>
+<p><b>Raum für Raum</b> listet zuerst die Räume, die Arbeit brauchen: noch keine Punkte, weniger als 3 oder
+unter 70 % richtig, jeweils mit dem Raum, mit dem er am häufigsten verwechselt wird (<b>verwechselt
+mit …</b>). Räume, die gut aussehen, klappen sich unter einer Zeile zusammen.</p>
+<p>Ein Raum kann einen höheren Prozentwert zeigen als die Hauptzahl. Die Zahl jedes Raums kommt aus
+einer älteren, gnädigeren Wertung, die nahe Punkte drin lässt, wenn sie eine Stelle testet. Vertrau
+der Hauptzahl.</p>
+<h2 id="der-reiter-modell">Der Reiter Modell</h2>
+<ul>
+<li><b>Modell berechnen</b> ermittelt die Genauigkeit aus deinen Punkten neu (4 oder mehr). Mach das,
+nachdem du Punkte hinzugefügt hast.</li>
+<li>Der Abschnitt Übersicht zeigt deine Punkte, Empfänger und Etagen und die <b>Geschätzte
+Genauigkeit</b> (grün unter 2 m). Sie ist eine Entfernung, kein Prozentwert, und sie sieht besser
+aus als die Wirklichkeit.</li>
+<li><b>Genauigkeit je Raum</b>, jeweils mit dem Raum, mit dem er am häufigsten verwechselt wird
+(<b>Verwechselt mit</b>).</li>
+<li><b>Abdeckung je Empfänger</b>: wie stark jeder Empfänger deine Punkte hört.</li>
+<li>Jeder Kalibrierpunkt, jeder mit seinem eigenen Löschen.</li>
+<li><b>JSON exportieren</b> speichert alle deine Punkte in eine Datei. <b>Importieren</b> liest eine wieder
+ein und überspringt Punkte, die du schon hast. <b>Alles löschen</b> löscht nach einer weiteren
+Bestätigung jeden Punkt im Haus. Das lässt sich nicht rückgängig machen: Exportier vorher.</li>
+</ul>
+<h2 id="genauigkeit-je-stelle">Genauigkeit je Stelle</h2>
+<p><b>Genauigkeit je Stelle</b> ist eine Tabelle: eine Zeile pro Kalibrierpunkt, eine Spalte pro
+Empfänger. Jede Zelle vergleicht, wie weit der Punkt wirklich von diesem Empfänger entfernt ist, mit
+der Entfernung, die das Signal des Empfängers angibt. Fahr mit der Maus über eine Zelle, um die
+Zahlen zu sehen.</p>
+<ul>
+<li><b>Grün</b>: Sie stimmen überein.</li>
+<li><b>Blau</b>: Das Signal lässt den Punkt weiter weg erscheinen, als er ist. <b>Rot</b>: näher.</li>
+<li><b>Grau</b>: Dieser Empfänger hat den Punkt nie gehört.</li>
+</ul>
+<p>Eine Spalte, die ganz nach unten blau oder rot ist, heißt meist, dass Position oder Höhe dieses
+Empfängers nicht stimmt: Korrigier sie im Reiter <b>Feinabgleich</b>. Eine Zeile, die überall
+danebenliegt, ist meist ein Punkt, der an der falschen Stelle gespeichert wurde: Lösch ihn im Reiter
+Modell und nimm ihn neu auf. <b>Neu lernen (Modell neu berechnen)</b> berechnet das Modell neu, genau
+wie Modell berechnen; es löscht nichts.</p>
+<p>Dafür braucht es die Signalkurve jedes Empfängers, also nimm erst ein paar Punkte auf und wähle
+<b>Modell berechnen</b>. Räume, die in der Live-Ortung immer wieder wechseln, sind etwas anderes: siehe
+<b>Zustand → Verwechselte Räume</b> (<a href="/manual/the-screens/de/">Kapitel 12</a>).</p>
+<h2 id="die-signale-sagen-dieser-empfänger-ist-in-einem-anderen-raum">Die Signale sagen, dieser Empfänger ist in einem anderen Raum</h2>
+<p>Jeder Kalibrierpunkt enthält den Raum, in dem du ihn aufgenommen hast, und was jeder Empfänger dort
+gehört hat. Ein Empfänger hört die Stellen am besten, die ihm am nächsten sind. Wenn also die
+meisten Stellen, die ein Empfänger am besten hört, in ein und demselben anderen Raum liegen, ist sein
+Home-Assistant-Bereich wahrscheinlich falsch.</p>
+<p>Sobald du Kalibrierpunkte hast, sagt das der Schritt <b>Empfänger platzieren und ihre Höhen
+festlegen</b> der Einrichtung:</p>
+<blockquote>
+<p>Die Signale sagen: Küchen-Proxy gehört zu Esszimmer, nicht zu Küche. 4 der 5 Kalibrierpunkte, die
+er am besten hört, liegen dort.</p>
+</blockquote>
+<ul>
+<li><b>Esszimmer übernehmen</b> gibt dem Gerät des Empfängers diesen Bereich in Home Assistant, genau wie
+<b>Empfängerliste ansehen → Zuweisen</b> in der Übersicht.</li>
+<li><b>Küche behalten</b> lässt ihn, und der Vorschlag erscheint erst wieder, wenn die Seite neu geladen
+wird.</li>
+</ul>
+<p>PadSpan schlägt das nur vor, wenn es ziemlich sicher ist: Der Empfänger hat mindestens 3 Punkte
+gehört, mindestens 60 % der 5, die er am besten hört (von allen, die er gehört hat, wenn es weniger
+sind), liegen in diesem einen anderen Raum, dieser Raum ist einer deiner Home-Assistant-Bereiche,
+und der eigene Raum des Empfängers hat mindestens 2 eigene Punkte. Ein Empfänger, der als verloren
+oder deaktiviert markiert ist, bleibt außen vor. Einen Empfänger in einem Raum, den niemand
+kalibriert hat, kann PadSpan nicht vom Nachbarraum unterscheiden, also kalibriere zuerst jeden Raum.</p>
+<h2 id="tipps">Tipps</h2>
+<ul>
+<li>Trag das Handy so, wie du es immer tust. Ein Handy in der Tasche und dasselbe Handy in der Hand
+klingen verschieden.</li>
+<li>Einen Empfänger versetzt? Kalibriere die Räume daneben noch einmal.</li>
+<li>Bleib während der ganzen Aufnahme still stehen.</li>
+<li>Mehr Punkte in Türöffnungen und nahe an den Wänden zwischen Räumen.</li>
+<li>Ein Handy, das nach dem Kalibrieren immer noch zwischen Räumen springt: siehe
+<a href="/manual/troubleshooting/de/">Kapitel 26</a> und
+<a href="/guides/room-flapping/de/">Warum springt mein Handy zwischen den Räumen?</a></li>
+</ul>
+<p><b>Für Experten:</b> <b>Einstellungen → Ortung → Positionierung und Kalibrierung</b> hat das
+<b>Positionierungsverfahren</b> („An Kalibrierpunkten abgeglichen“, der Standard, oder „Gelerntes
+Modell (experimentell)“), <b>Adaptives Lernen</b>, das aus Räumen lernt, bei denen PadSpan schon sicher
+ist, und <b>Erinnerungen zur Kalibriergenauigkeit</b>. Jede Einstellung dort steht in
+<a href="/manual/settings-reference/de/">Kapitel 20</a>.</p>
+<div class="pager"><span><a href="/manual/walls-and-signal-loss/de/">← 10. Wände und Signalverlust</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/the-screens/de/">12. Die Bildschirme →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

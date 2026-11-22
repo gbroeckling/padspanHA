@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>26. Troubleshooting by symptom | PadSpan HA Manual</title>
+<meta name="description" content="Find the symptom, look where it says first, then work down the causes. The screens are named as the panel names them; some are under More tools at the…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/troubleshooting/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/troubleshooting/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/troubleshooting/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/troubleshooting/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="26. Troubleshooting by symptom">
+<meta property="og:description" content="Find the symptom, look where it says first, then work down the causes. The screens are named as the panel names them; some are under More tools at the…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/troubleshooting/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/troubleshooting/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="26-troubleshooting-by-symptom">26. Troubleshooting by symptom</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>Find the symptom, look where it says first, then work down the causes. The screens are named as the
+panel names them; some are under <b>More tools</b> at the bottom of the menu (in Basic mode, most of
+them are).</p>
+<p>Two places help with almost everything:</p>
+<ul>
+<li><b>The status dot</b> in the top bar shows only when something is wrong: amber needs a look, red is
+broken. Hovering over it names the problems; clicking it opens <b>Health</b>.</li>
+<li><b>Health → Problems found</b> checks the whole setup for what puts devices in the wrong room, and
+each card ends with an "Action:" line saying what to do.</li>
+</ul>
+<p>If none of this helps, <a href="/manual/getting-help/">chapter 27</a> says what to send.</p>
+<h2 id="a-device-shows-the-wrong-room-or-jumps-between-rooms">A device shows the wrong room, or jumps between rooms</h2>
+<p><b>Look first:</b> the <b>Receivers</b> page (is every receiver heard, and in the right room?), then
+<b>Health → Problems found</b> (ROOM CONFUSION names the two rooms it keeps moving between).</p>
+<p>Likely causes, most common first:</p>
+<ol>
+<li><b>A receiver is silent or hearing less.</b> Rooms near it go wrong until it recovers. See
+<a href="#a-receiver-is-silent">A receiver is silent</a> below.</li>
+<li><b>A receiver is in the wrong room.</b> PadSpan places a device in the room of the receiver that hears
+it best, so a receiver given the wrong room sends devices there. Fix it in Overview → <b>View radios
+list</b> (Assign or Change), or in Mapping → Edit → Receivers.</li>
+<li><b>Two rooms' receivers hear the device almost the same.</b> Near a doorway, two receivers can be only
+a few dB apart. Put each receiver well inside its room, nearer the middle than a corner, not in a
+cabinet, behind metal or against an outside wall. A room with no receiver of its own can only be
+told apart with calibration, and less reliably.</li>
+<li><b>No calibration yet, or old calibration.</b> Calibration corrects the nearest-receiver room. Start
+<b>🧭 Guided calibration</b> in Calibration; add points in both rooms near where they meet.
+<b>Calibration → Model</b> shows how often PadSpan picks the right room on spots it was not
+calibrated on.</li>
+<li><b>A receiver that reads stronger or weaker than the rest.</b> Give it a trim in Settings → Tracking →
+Receivers → Receiver signal adjustments (or on the Receivers page).</li>
+</ol>
+<p>Then, if it still flickers on a boundary:</p>
+<ul>
+<li>Raise <b>Room Change Delay</b> (Settings → Tracking → Rooms and timing; 20 seconds unless you changed
+it). 20 to 60 seconds steadies most boundaries; a longer delay is steadier and slower.</li>
+<li>Turn on <b>Why This Room (Sensor Attribute)</b> in the same section. The area sensor then says, in its
+<code>room_reason</code> attribute, how many polls voted for the room and why a move was held or kept
+(<a href="/manual/home-assistant-reference/">chapter 14</a>).</li>
+<li>Draw a signal wall between the two rooms in Mapping → Edit if there is a real wall there.</li>
+</ul>
+<p>A device that has gone quiet keeps the room it was last in (since 0.38.271): it no longer drifts to
+another room, or another floor, on old readings. A pinned beacon reports its room once, and a room
+change is never sent twice running. More on how PadSpan keeps rooms steady:
+<a href="/guides/room-flapping/">Why does my phone jump between rooms?</a></p>
+<h2 id="a-device-goes-away-too-soon-or-stays-too-long">A device goes away too soon, or stays too long</h2>
+<p><b>Look first:</b> Settings → Tracking → Rooms and timing → <b>Home/Away Timeout</b>.</p>
+<ul>
+<li><b><code>not_home</code> too soon:</b> a device unheard for the away timeout (5 minutes unless you changed it)
+reads <code>not_home</code>. For a device that is briefly out of range in a thick-walled room, raise it to 10
+to 30 minutes. For keys and tags nobody carries, <b>Things keep their room</b> lets them stay in their
+last room for hours instead.</li>
+<li><b><code>not_home</code> too late:</b> lower the timeout. The shortest is 1 minute.</li>
+<li><b>The room it was left in:</b> every tracker and area sensor has <code>last_room</code>, which stays after it
+reads <code>not_home</code>.</li>
+</ul>
+<h2 id="a-device-doesnt-show-up">A device doesn't show up</h2>
+<p><b>Look first:</b> the <b>Receivers</b> page (is any receiver reporting?), then Bluetooth → <b>Scanners</b>
+(what each one hears).</p>
+<ol>
+<li><b>No receiver is reporting.</b> The status dot is red. See the next sections.</li>
+<li><b>The device isn't sending, or is out of range.</b> It has to be within range of at least one
+receiver and advertising over Bluetooth. Wake it, bring it next to a receiver, and look again.</li>
+<li><b>It is there but hidden.</b> <b>Quiet Mode</b> (the Quiet tick at the top of the Overview) hides every
+device nobody has named. Near a street, Overview's All objects is full of strangers' devices:
+change <b>All statuses</b> to <b>Identified</b>, or search by name.</li>
+<li><b>It changed its address.</b> Phones, watches and Find My tags change their Bluetooth address, so an
+unnamed one shows as a new device each time. A phone needs its key (next section). For a named
+AirTag or other Find My tag, turn on <b>MAC Rotation Bridging</b> in Settings → Features.</li>
+<li><b>An iBeacon splits into several devices.</b> Your receivers must pass on the whole advertisement
+(company 0x004C with an iBeacon payload). A tracker that changes its own UUID can't be followed
+by it.</li>
+<li><b>No Home Assistant entity for it.</b> PadSpan makes entities only for devices you named, and only
+the kinds ticked in Manage → HA Entities → Entity Publishing Controls.</li>
+</ol>
+<h2 id="a-phone-isnt-recognised-or-shows-as-many-devices">A phone isn't recognised, or shows as many devices</h2>
+<p><b>Look first:</b> Bluetooth → <b>IRK Manager</b>.</p>
+<ul>
+<li><b>An iPhone or Apple Watch shows as many unknown devices.</b> Without its identity key (IRK), every
+address change looks like a new device. Add the key in Bluetooth → IRK Manager → <b>Add an IRK</b>;
+<b>Test</b> checks a key without saving it. A key added in PadSpan works at once. One added in Home
+Assistant's Private BLE Device is picked up within five minutes.</li>
+<li><b>"The provided IRK does not match any BLE devices that Home Assistant can see."</b> Wake the phone,
+bring it near a receiver, and try again.</li>
+<li><b>"The key does not look like a valid IRK."</b> Copy the whole key: 32 hex characters, or the base64
+text that ends in "=".</li>
+<li><b>An Android phone says "Waiting for signal".</b> Its Companion app's BLE Transmitter is off. In the
+Home Assistant app on the phone, open Settings → Companion app → Manage sensors → BLE Transmitter
+and switch it on. Make sure the phone's Bluetooth is on, then walk near a receiver.</li>
+<li><b>An Android phone says "BLE off".</b> The command to switch the transmitter on didn't reach the app.
+Switch it on by hand as above; the phone must be connected to your Home Assistant for the command
+to work.</li>
+<li><b>An Android phone is heard only right next to a receiver, or disappears after a while.</b> Its
+transmitter is on its weakest settings, or battery saving has stopped the Companion app. The phone
+guide has the steps: <a href="/guides/phone-room-presence/">iPhone, Apple Watch and Android room
+presence</a>.</li>
+</ul>
+<h2 id="a-receiver-is-silent">A receiver is silent</h2>
+<p><b>Look first:</b> the <b>Receivers</b> page's Status column, and Health. A receiver shows <b>Silent</b> after
+10 minutes unheard, or <b>Hearing less</b> when it hears far fewer devices than usual while the others
+are fine.</p>
+<ol>
+<li><b>Restart it.</b> On ESPHome, also check its version and its Wi-Fi.</li>
+<li><b>Check it is still a receiver in Home Assistant</b>: Settings → Devices &amp; services → its integration
+(ESPHome, Shelly and so on). A proxy that lost its Bluetooth setting stops reporting.</li>
+<li><b>A passive receiver (Shelly, an ESPHome proxy set to passive) heard only now and then</b>: turn on
+<b>Refresh every 5 s for passive proxy scanners</b> in Settings → Tracking → Receivers.</li>
+<li><b>A receiver you took away for good</b>: choose <b>Mark as Lost</b> in its details, or <b>Exclude</b> it in
+Bluetooth → Scanners, so it stops counting as silent. Either keeps what it recorded, and <b>Restore
+Radio</b> or <b>Include</b> brings it back.</li>
+</ol>
+<p>A receiver you marked lost, disabled or excluded never lights the status dot.</p>
+<h2 id="room-and-receiver-layout-not-built-yet">"Room and receiver layout not built yet"</h2>
+<p>The Overview says this when your floor plans have rooms or receivers on them but PadSpan's map of the
+house (in metres) has none: devices are placed by nearest receiver only, and nothing is drawn on the
+house.</p>
+<ul>
+<li>Press <b>Put it on the map</b> (the last step of Setup, and on each room in Rooms), or in
+Mapping → Layout, <b>Commit this layout</b>.</li>
+<li><b>Health → Problems found → MAP GEOMETRY</b> says when no plan has its scale set yet: a plan needs its
+scale before anything can be placed in metres.</li>
+</ul>
+<h2 id="the-panel-isnt-updating">The panel isn't updating</h2>
+<p><b>Look first:</b> the bar at the top of the panel, and the status dot.</p>
+<ul>
+<li><b>"PadSpan was updated to v…. This page is still running v…"</b>: press <b>Reload</b>.</li>
+<li><b>"This page is v…, but Home Assistant is running PadSpan v…. If you just updated, restart Home
+Assistant."</b>: restart Home Assistant (Settings → System → Restart), then reload.</li>
+<li><b>"Bluetooth feed unavailable"</b> after a first install: restart Home Assistant fully. Reloading the
+integration isn't enough the first time.</li>
+<li><b>A red status dot</b>: PadSpan isn't answering, positioning stopped, or no receiver is reporting.
+Hover over it to see which; Health has the detail.</li>
+<li><b>Changes you made don't show</b>: hard refresh the page (Ctrl+F5, or Cmd+Shift+R on a Mac). Health →
+System shows the panel's version and build, and Diagnostics → Install Verification compares it with
+Home Assistant's. If they differ, Home Assistant is serving an older copy: look for two copies of
+PadSpan in <code>custom_components</code>, remove one, and restart.</li>
+<li><b>Mapping has only Library and Upload, or Settings has no tabs</b>: the panel is in Basic mode. The
+mode button at the top right switches back to Advanced.</li>
+<li><b>A button is refused</b>: uploading a plan, setting the scale, backups and anything that sends data
+out need a Home Assistant administrator, and with Enhanced security on, so does any change to the
+shared setup.</li>
+</ul>
+<h2 id="alerts-arent-sending">Alerts aren't sending</h2>
+<p><b>Look first:</b> <b>Follow</b>, the alert settings for that device, and <b>Send Test</b>.</p>
+<ol>
+<li><b>Nothing was saved.</b> Tick what you want to hear about, then <b>Save</b>: nothing is active until it
+is saved.</li>
+<li><b>No way to send.</b> Alerts go out through Home Assistant's notify services. For a phone, the
+Companion app must be set up; for email, a mail integration such as SMTP
+(Settings → Devices &amp; services). <b>Send Test</b> says plainly if it couldn't reach your phone or mail
+service.</li>
+<li><b>Too close together.</b> A device's room alerts are at least 60 seconds apart; a change inside that
+time is not sent on its own.</li>
+<li><b>Arrive and leave alerts come late or early</b>: they follow the away timeout, as <code>not_home</code> does
+(above).</li>
+<li><b>Your own automation never fires</b>: PadSpan's events fire only for named devices, and
+<code>padspan_room_change</code> only for followed devices with Room-change tag events on (Settings →
+Tracking → Home Assistant and integrations → HA Tags Integration). See
+<a href="/manual/home-assistant-reference/">chapter 14</a>.</li>
+</ol>
+<h2 id="the-3d-house-wont-start">The 3D house won't start</h2>
+<p><b>Look first:</b> the Atlas. When Live Aboard can't run, the Atlas shows the flat map instead, and the
+<b>🏠</b> button says why; tap it to try again.</p>
+<ul>
+<li><b>No WebGL, too slow, or the graphics restarted</b>: the browser or the device can't run the 3D view.
+Try <b>Quality</b> low (Settings → Atlas → Live Aboard), another browser, or another device. A wall
+tablet may manage only the flat Atlas.</li>
+<li><b>No 3D switch at all</b>: Live Aboard is a Pro feature, and it is off unless <b>Show Live Aboard on the
+Atlas</b> is ticked in Settings → Atlas.</li>
+<li><b>A device floats in the wrong place</b>: set its height in Live Aboard's Edit → Heights, or move it on
+the map.</li>
+<li><b>A room's temperature shows "–°"</b>: its sensor hasn't reported for over an hour.</li>
+</ul>
+<h2 id="home-assistant-runs-out-of-memory-or-is-slow">Home Assistant runs out of memory, or is slow</h2>
+<p><b>Look first:</b> how much memory the machine has. Next to a busy street or in a block of flats,
+PadSpan hears thousands of passing devices, and on a 2 GB machine Home Assistant has run out of
+memory within hours.</p>
+<ol>
+<li><b>On a 2 GB machine</b>, turn on <b>Low-memory mode</b> (Settings → Tracking → Performance). It keeps
+fewer passing devices nobody named. Your named, tagged and followed devices are never dropped.</li>
+<li><b>Keep unnamed devices for less time</b>: Settings → Tracking → What the panel shows → Object History
+Retention, 1 day (the default).</li>
+<li><b>Several wall screens</b>: turn on <b>Optimize for scale</b> (Settings → Tracking → Performance).</li>
+<li><b>The room work slows Home Assistant</b>: <b>CPU Mode</b> (same section) can hold it to one core.</li>
+<li><b>Move to a machine with more memory</b>: <a href="/manual/backup-restore-moving/">chapter 22</a> says how, and
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/MINIMUM_REQUIREMENTS.md">Minimum requirements</a> has the figures.</li>
+</ol>
+<div class="pager"><span><a href="/manual/padspan-pro/">← 25. PadSpan Pro: trial, keys, homes, testers, invites</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/getting-help/">27. Getting help →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

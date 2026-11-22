@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2. Requirements | PadSpan HA Manual</title>
+<meta name="description" content="What PadSpan HA needs before you install it: a Home Assistant, a machine with enough memory, at least one Bluetooth receiver, and something for each person…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/requirements/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/requirements/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/requirements/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/requirements/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="2. Requirements">
+<meta property="og:description" content="What PadSpan HA needs before you install it: a Home Assistant, a machine with enough memory, at least one Bluetooth receiver, and something for each person…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/requirements/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/requirements/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="2-requirements">2. Requirements</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>What PadSpan HA needs before you install it: a Home Assistant, a machine with enough memory, at
+least one Bluetooth receiver, and something for each person to carry.</p>
+<h2 id="home-assistant">Home Assistant</h2>
+<p>PadSpan HA needs <b>Home Assistant 2024.8 or newer</b>.</p>
+<ul>
+<li>On Home Assistant 2026.11 and newer, install it from <b>Settings → Marketplace</b>.</li>
+<li>On older versions, install it with HACS.</li>
+</ul>
+<p>See <a href="/manual/install-update-uninstall/">chapter 3</a> for both.</p>
+<p>Your rooms are Home Assistant's <b>areas</b>, and your floors are its <b>floors</b>. Set them up in
+<b>Settings → Areas, labels &amp; zones</b> before you start; PadSpan reads them from there. A house with
+one floor needs no floors at all.</p>
+<p>Uploading a floor plan, setting its scale, starting the trial, backups and anything that sends data
+out of the house need a Home Assistant <b>administrator</b>. A new install also has <b>Enhanced
+security</b> on: every change to PadSpan's shared setup then needs an administrator, while the rest of
+the household can still look and use it.</p>
+<h2 id="the-machine-home-assistant-runs-on">The machine Home Assistant runs on</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><td><b>Recommended</b></td><td><b>More than 2 GB of memory.</b> A Raspberry Pi 4 or 5 with 4 GB or more, a Home Assistant Green, or any mini PC or virtual machine with 4 GB or more.</td></tr>
+  <tr><td><b>2 GB machines</b></td><td>Not recommended for now. If you have one, turn on <b>Low-memory mode</b> (below). Near a busy street or in an apartment block, PadSpan hears thousands of passing Bluetooth devices, and a 2 GB Raspberry Pi has run out of memory within a few hours.</td></tr>
+  <tr><td><b>Storage</b></td><td><b>An SSD or eMMC rather than an SD card.</b> PadSpan saves its device history to disk up to every 15 seconds.</td></tr>
+</table>
+</div>
+<p>PadSpan keeps every device it hears for a while, not only the ones you follow. In a quiet house that
+is a few hundred. Next to a busy street it can be tens of thousands, and that is what costs memory.</p>
+<h3 id="low-memory-mode">Low-memory mode</h3>
+<p><b>Settings → Tracking → Performance → Low-memory mode</b>, off by default. It holds fewer passing
+devices, and for less time:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>Normally</th><th>With Low-memory mode</th></tr>
+  <tr><td>How long PadSpan remembers an address it heard</td><td>The BLE Advertisement Timeout (4 hours unless you change it)</td><td>15 minutes at most</td></tr>
+  <tr><td>Addresses remembered</td><td>No limit</td><td>2,000</td></tr>
+  <tr><td>Unnamed devices in the device history</td><td>10,000, for 1 to 14 days</td><td>2,000, for 1 day</td></tr>
+  <tr><td>Bluetooth adverts sent to the panel</td><td>5,000</td><td>2,000</td></tr>
+</table>
+</div>
+<p>It changes nothing else. Your named, labelled and followed devices are never dropped, and rooms,
+positions, the Atlas and Live Aboard work as before. Passing strangers just drop out of the lists
+sooner. The card asks before it turns on.</p>
+<p>The measured memory figures, device by device, are in <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/MINIMUM_REQUIREMENTS.md">Minimum requirements</a>.</p>
+<h2 id="bluetooth-receivers">Bluetooth receivers</h2>
+<p>PadSpan listens through Bluetooth receivers (also called Bluetooth proxies or scanners). You need at
+least one:</p>
+<ul>
+<li><b>One receiver</b> tells home from away.</li>
+<li><b>One in each room you want told apart</b> gives you rooms. A room with no receiver of its own can
+still be told apart once you have a map with three or more receivers placed on it.</li>
+</ul>
+<p>Each receiver needs a Home Assistant <b>area</b>: that is its room. A receiver with no area gives no
+room, however well it hears you. <a href="/manual/first-room/">Chapter 4</a> shows where to set it.</p>
+<p>PadSpan uses these kinds. You can mix them.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Receiver</th><th>What you do</th></tr>
+  <tr><td><b>ESPHome Bluetooth proxy</b> (an ESP32 board)</td><td>Nothing more: Home Assistant's Bluetooth hands PadSpan what it hears. A board with an external antenna is better than one with a chip antenna.</td></tr>
+  <tr><td><b>Shelly, Gen2 or newer</b></td><td>Set it as a Bluetooth scanner, in the Shelly's own settings: <a href="/guides/shelly-bluetooth-proxy/">Shelly as a Bluetooth proxy</a>. Home Assistant then passes it to PadSpan like an ESPHome proxy.</td></tr>
+  <tr><td><b>The Home Assistant machine's own Bluetooth</b>, or a USB Bluetooth adapter</td><td>Nothing more, once Home Assistant's Bluetooth integration has it.</td></tr>
+  <tr><td><b>ESPresense</b> nodes</td><td>They come in over MQTT. They need Home Assistant's MQTT integration, and PadSpan's <b>Manage → HA Entities → ESPresense MQTT → Enable ESPresense MQTT ingestion</b> switched on.</td></tr>
+  <tr><td><b>Tasmota</b> on an ESP32 (experimental)</td><td>Over MQTT too: Home Assistant's MQTT integration, and <b>Manage → HA Entities → Tasmota BLE → Read Tasmota BLE over MQTT</b>. In each Tasmota's console, type <code>TelePeriod 10</code>, <code>BLEMaxAge 30</code> and <code>BLEAddrFilter 1</code>. Without them, Tasmota reports too slowly for rooms, and never reports phones and tags that change address.</td></tr>
+</table>
+</div>
+<p><b>Shellys and other passive receivers on Home Assistant 2026.4 or newer:</b> if they show no signal
+during calibration, switch on <b>Refresh every 5 s for passive proxy scanners</b>, in
+<b>Settings → Tracking → Receivers → Bluetooth refresh interval</b>.</p>
+<p><b>Already running Bermuda?</b> Keep it. PadSpan uses the same proxies and leaves Bermuda as it is:
+<a href="/guides/bermuda/">Bermuda and PadSpan together</a>.</p>
+<p>How many you need, and where to put them: <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></p>
+<h2 id="something-to-carry">Something to carry</h2>
+<p>PadSpan follows what each person carries. Each kind needs one thing done once:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>What</th><th>What it needs</th></tr>
+  <tr><td><b>Android phone</b></td><td>The Home Assistant Companion app, with its <b>BLE Transmitter</b> sensor on. PadSpan can switch it on for you.</td></tr>
+  <tr><td><b>iPhone, iPad or Apple Watch</b></td><td>Its key, the IRK, in Home Assistant's Private BLE Device integration, once. A spare ESP32 running irk-capture is one way to get it.</td></tr>
+  <tr><td><b>A beacon or key tag with a fixed address</b></td><td>Nothing: name it in PadSpan and the name sticks.</td></tr>
+  <tr><td><b>AirTag, Samsung SmartTag</b></td><td>These change address with no key to read. AirTags work only in part, with the experimental <b>MAC Rotation Bridging</b> (Settings → Features); SmartTags not reliably.</td></tr>
+</table>
+</div>
+<p><a href="/guides/phone-room-presence/">Which room is my phone in?</a> has the phone
+steps, and <a href="/guides/bluetooth-tags/">Which Bluetooth tag works?</a> the tags.</p>
+<h2 id="a-screen-to-look-at-it-on">A screen to look at it on</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><td><b>The panel</b></td><td>Any current browser: Chrome, Edge, Safari or Firefox, on a computer, tablet or phone, or the Home Assistant app.</td></tr>
+  <tr><td><b>The Atlas</b></td><td>The same. A wall tablet that runs Home Assistant's dashboards smoothly runs the Atlas.</td></tr>
+  <tr><td><b>Live Aboard</b> (the 3D house, Pro)</td><td>A browser with <b>WebGL 2</b>. Without it, or on a graphics chip too slow for it, PadSpan shows the flat Atlas instead, and says so.</td></tr>
+</table>
+</div>
+<h2 id="a-floor-plan-optional">A floor plan (optional)</h2>
+<p>You don't need one to start: rooms come from your receivers' areas. A plan adds the map, and lets
+PadSpan place devices between receivers. Any picture of a floor works, even a photo of a sketch. No
+picture at all? A blank floor of the size you type, a phone's room scan or a robot vacuum's map also
+work. See <a href="/manual/setup-the-map/">chapter 9</a>.</p>
+<h2 id="the-internet">The internet</h2>
+<p>The tracking needs none. PadSpan goes online only for: its daily update check (it can be turned
+off), a licence key's daily check, the AI features you switch on, and the usage report if you opt
+in. See <a href="https://github.com/gbroeckling/padspanHA/blob/main/README.md#updates--privacy">Updates &amp; Privacy</a>.</p>
+<div class="pager"><span><a href="/manual/what-padspan-is/">← 1. What PadSpan is</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/install-update-uninstall/">3. Install, update, uninstall →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

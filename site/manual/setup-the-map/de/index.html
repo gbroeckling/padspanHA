@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. Einrichtung: dein Haus auf einer Karte | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Die Einrichtung bringt dein Haus Schritt für Schritt von einer Liste der Räume auf eine Karte: der Grundriss, sein Maßstab, die Räume, die Höhen der Etagen…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/setup-the-map/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/setup-the-map/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/setup-the-map/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/setup-the-map/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="9. Einrichtung: dein Haus auf einer Karte">
+<meta property="og:description" content="Die Einrichtung bringt dein Haus Schritt für Schritt von einer Liste der Räume auf eine Karte: der Grundriss, sein Maßstab, die Räume, die Höhen der Etagen…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/setup-the-map/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/setup-the-map/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="9-einrichtung-dein-haus-auf-einer-karte">9. Einrichtung: dein Haus auf einer Karte</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Die <b>Einrichtung</b> bringt dein Haus Schritt für Schritt von einer Liste der Räume auf eine Karte:
+der Grundriss, sein Maßstab, die Räume, die Höhen der Etagen, die Empfänger, dein Handy und die
+Kalibrierung. Dieses Kapitel geht jeden Schritt durch, dann die Wege zu einem Grundriss, wenn du
+keinen hast, und das Ausrichten von zwei oder mehr Etagen.</p>
+<p>Für Räume brauchst du keine Karte: <b>Wer ist wo</b> funktioniert ohne (<a href="/manual/first-room/de/">Kapitel 4</a>).
+Eine Karte bringt die Zeichnung deines Hauses, die Kalibrierung und, mit drei oder mehr darauf
+platzierten Empfängern, Positionen zwischen den Empfängern.</p>
+<h2 id="bevor-du-anfängst">Bevor du anfängst</h2>
+<ul>
+<li><b>Räume und Etagen kommen aus Home Assistant.</b> Jeder Raum ist ein Bereich und jede Etage eine
+Etage, unter <b>Einstellungen → Bereiche, Labels &amp; Zonen</b>. Leg sie zuerst dort an: PadSpan kann
+sie nicht umbenennen. Ein Haus mit einer Etage braucht in Home Assistant keine Etagen.</li>
+<li><b>Du musst Administrator sein</b>, um einen Grundriss hochzuladen oder zu ändern. Die Einrichtung
+sagt es, wenn du keiner bist.</li>
+<li><b>Arbeite an deinem eigenen Haus.</b> Solange das Beispielhaus angezeigt wird, lassen sich die
+Knöpfe der Einrichtung nicht benutzen: Wähle zuerst <b>Zu meinem Haus</b>.</li>
+<li><b>Einfach oder Erweitert.</b> Die Einrichtung ist in beiden gleich. Im Modus Einfach zeigt jeder
+Schritt nur das Werkzeug, das er braucht. Im Modus Erweitert öffnen sich dieselben Schritte mit den
+anderen Werkzeugen von Karten daneben.</li>
+</ul>
+<h2 id="die-einrichtung-öffnen">Die Einrichtung öffnen</h2>
+<ul>
+<li><b>Einrichtung</b> im Menü, direkt über Karten, bis jeder Schritt erledigt ist oder du die
+Einrichtung überspringst.</li>
+<li><b>Eine Karte daraus machen</b> auf der Karte <b>Wer ist wo</b> der Übersicht.</li>
+<li><b>Einrichten</b> auf der Karte <b>Erste Schritte</b> der Übersicht.</li>
+<li>Der Knopf <b>Einrichtung</b> oben in Karten, oder <b>Start Setup Wizard</b> in einer leeren Bibliothek
+von Karten.</li>
+</ul>
+<h2 id="die-seite-einrichtung">Die Seite Einrichtung</h2>
+<p>Die Einrichtung listet die Schritte der Reihe nach, mit einem Zähler („2 von 6 erledigt“) und einer
+Leiste aus Punkten. Jeder Schritt ist als <b>Fertig</b>, <b>Nächster</b>, <b>Offen</b> oder <b>Übersprungen</b>
+markiert. Ob er fertig ist, liest PadSpan an deinem Haus selbst ab, also zählt auch ein Schritt, den
+du woanders erledigt hast.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Knopf</th><th>Was er tut</th></tr>
+  <tr><td><b>Start →</b></td><td>Öffnet das Werkzeug des Schritts.</td></tr>
+  <tr><td><b>Weiter →</b></td><td>Dasselbe, beim Schritt, an dem du zuletzt gearbeitet hast.</td></tr>
+  <tr><td><b>Öffnen</b></td><td>Öffnet einen Schritt, der nicht der nächste ist.</td></tr>
+  <tr><td><b>Ändern</b></td><td>Öffnet einen erledigten Schritt (<b>Etage hinzufügen</b> beim Schritt zum Grundriss).</td></tr>
+  <tr><td><b>Vorerst überspringen</b></td><td>Markiert den Schritt als Übersprungen und geht weiter. Du kannst ihn jederzeit wieder öffnen.</td></tr>
+</table>
+</div>
+<p>Den Schritt zum Grundriss kannst du nicht überspringen: Jeder spätere Schritt braucht einen
+Grundriss.</p>
+<p>Während du im Werkzeug eines Schritts arbeitest, sagt eine Leiste oben, welcher Schritt es ist
+(„Einrichtung · Schritt 3 von 6: Räume zeichnen“), mit <b>← Zurück zur Einrichtung</b>. Die
+Einrichtung merkt sich, wo du warst.</p>
+<p>Die Schritte zum Grundriss (Hochladen, Maßstab, Räume, Etagenhöhen, Empfänger) laufen im <b>Setup
+Wizard</b> von Karten, ein Grundriss nach dem anderen. Seine Chips oben tragen die Nummern und Namen
+der Einrichtung; sobald der Grundriss existiert, klick einen Chip an, um dorthin zu springen.
+<b>Beenden</b> verlässt ihn und behält, was du gezeichnet hast. Der Wizard endet mit <b>Abschluss</b>, und
+dort ist der eine Knopf, den du nicht übersehen darfst: <b>Auf die Karte setzen</b>.</p>
+<h2 id="schritt-1-grundriss-hochladen">Schritt 1. Grundriss hochladen</h2>
+<p>Ein Bild einer Etage. Es muss nicht perfekt sein: Ein Foto eines Papierplans oder deiner eigenen
+Skizze reicht.</p>
+<ol>
+<li><b>Etage (aus HA)</b>: die Home-Assistant-Etage, zu der dieser Grundriss gehört. <b>Außen
+(experimentell)</b> ist für einen Garten oder Hof; ein Haus kann einen Außen-Grundriss haben.</li>
+<li><b>Kartenname</b>: freiwillig. Bleibt er leer, nimmt er den Namen der Datei.</li>
+<li><b>Maximale Größe</b>: die längste Seite in Pixeln nach der Umwandlung, 1600, solange du es nicht
+änderst.</li>
+<li>Wähle das Bild: PNG, JPG, GIF, BMP, WebP oder SVG. Zieh auf der Vorschau, um es zuzuschneiden,
+wenn du willst; <b>Zuschnitt zurücksetzen</b> fängt von vorn an.</li>
+<li>Ist das Bild deine eigene Zeichnung, hak <b>Das ist meine eigene Skizze, nicht maßstabsgetreu</b>
+an. PadSpan fragt dann nach einer Länge in jeder Richtung.</li>
+<li>Wähle <b>Hochladen und umwandeln</b>. PadSpan bewahrt den Grundriss in Home Assistant auf, wo ihn nur
+angemeldete Personen sehen können.</li>
+</ol>
+<p>Lade deinen genauesten, maßstabsgetreuen Grundriss zuerst hoch. Die anderen werden später an ihm
+ausgerichtet.</p>
+<p>Eine Etage kann mehr als einen Grundriss haben, etwa einen Flügel, der für sich gezeichnet ist. Für
+die nächste Etage nimmst du <b>+ Weitere Etage einrichten</b> am Ende des Wizards oder <b>Etage
+hinzufügen</b> beim ersten Schritt der Einrichtung.</p>
+<p>Gar kein Bild der Etage? Siehe <a href="#kein-grundriss">Kein Grundriss?</a> unten.</p>
+<h2 id="schritt-2-maßstab-festlegen">Schritt 2. Maßstab festlegen</h2>
+<p>PadSpan braucht die echte Größe des Grundrisses, bevor Räume, Empfänger oder irgendetwas in Metern
+daraufkommen können. Ohne Maßstab kommt nichts auf die Karte, und die Kalibrierung kann nicht
+beginnen.</p>
+<p>Direkt nach dem Hochladen öffnet sich <b>Den Maßstab dieses Grundrisses jetzt festlegen</b>:</p>
+<ol>
+<li>Klick (oder tipp) beide Enden von etwas an, dessen Länge du kennst. Je länger, desto besser: die
+längste Wand, die du findest, oder das ganze Haus. Eine Türöffnung geht, aber ein kleiner
+Ausrutscher auf einer kurzen Länge macht den ganzen Grundriss ungenauer.</li>
+<li>Gib die Länge unter <b>Seine Länge:</b> ein. Längen sind in Metern. Mit
+<b>Einstellungen → Darstellung → Einheiten: Längen in Fuß und Zoll zeigen</b> an erscheinen sie in
+Fuß und Zoll, und du kannst sie auch so eingeben.</li>
+<li>Freiwillig: <b>Eine Länge in der anderen Richtung hinzufügen</b>. Eine zweite Länge, quer zur
+ersten, prüft, dass das Bild nicht verzerrt ist. Passen die beiden nicht zusammen, sagt der
+Bildschirm das. Prüf zuerst beide Enden; ist das Bild wirklich verzerrt (deine eigene Skizze oder
+ein gestauchter Scan), wähle <b>Dieses Bild ist nicht maßstabsgetreu</b>, und jede Richtung bekommt
+ihren eigenen Maßstab.</li>
+<li>Wähle <b>Maßstab speichern</b>. Der Wizard geht weiter zu den Räumen.</li>
+</ol>
+<p>Ein Grundriss, den du übersprungen hast, zeigt <b>Noch kein Maßstab</b> mit einem Knopf <b>Messen</b>, in
+der Einrichtung und in der Bibliothek von Karten. Um einen Grundriss später noch einmal zu vermessen,
+nimm im Modus Erweitert <b>Karten → Bearbeiten → 📏 Messen</b> oder im Modus Einfach den Schritt
+Maßstab festlegen der Einrichtung.</p>
+<h2 id="schritt-3-räume-zeichnen">Schritt 3. Räume zeichnen</h2>
+<p>Zeichne jeden Home-Assistant-Raum auf dem Grundriss seiner Etage nach.</p>
+<ol>
+<li>Über dem Grundriss zählt ein Kasten die gezeichneten Räume („2 von 7 Räumen gezeichnet“) und
+listet die, die noch fehlen. Drück auf den Namen eines Raums.</li>
+<li>Klick jede Ecke des Raums auf dem Grundriss an.</li>
+<li>Doppelklicke die letzte Ecke oder wähle <b>Umriss abschließen</b> (ab drei Ecken).</li>
+</ol>
+<p>Im Setup Wizard wird jeder Raum gespeichert, sobald du ihn fertig hast. Eine Ecke nahe an der Ecke
+oder Kante eines anderen Raums rastet dort ein; halte Alt gedrückt, um sie genau dahin zu setzen, wo
+du willst.</p>
+<ul>
+<li><b>Ein Raum fehlt in der Liste?</b> Prüf unter <b>Einstellungen → Bereiche, Labels &amp; Zonen</b>, dass
+sein Bereich auf dieser Etage ist.</li>
+<li><b>Zeichne jeden Raum, den deine Empfänger abdecken.</b> Sobald Räume auf der Karte sind, wird ein
+Gerät in einem Raum, den du nicht gezeichnet hast, vielleicht nicht angezeigt.</li>
+<li><b>Ein Raum, der schon auf einem anderen Grundriss gezeichnet ist</b>, ist mit ⚠ und dem Namen dieses
+Grundrisses markiert: Zeichnest du ihn noch einmal, entsteht eine zweite Kopie.</li>
+</ul>
+<p><b>Lass Claude deine Räume zeichnen (experimentell).</b> Wo ein Grundriss noch keine Räume hat, bieten
+die Einrichtung und der Wizard <b>Oder lass Claude die Räume aus deinem Grundriss zeichnen
+(experimentell) →</b> an. Claude liest den Grundriss zweimal, findet seine Räume und ihre Namen und
+zeichnet sie, damit du sie prüfst. Nichts wird gespeichert, bis du <b>Speichern</b> wählst, und es
+lässt sich rückgängig machen. Dafür braucht es die Anthropic-Integration von Home Assistant mit einem
+AI Task, der Claude nutzt, und Anthropic berechnet deinem Konto jedes Lesen; sein erster Bildschirm
+sagt, was gesendet wird und wie viele Lesevorgänge es braucht.
+<a href="/guides/claude-ai-task/de/">Claude mit Home Assistant verbinden, für PadSpans Raum-Helfer</a>
+zeigt die Einrichtung.</p>
+<h2 id="schritt-4-etagen-und-ihre-höhen">Schritt 4. Etagen und ihre Höhen</h2>
+<p>Nur in einem Haus mit zwei oder mehr Etagen innen (Außen zählt nicht). Der Schritt sagt PadSpan, wie
+hoch jede Etage ist, damit es die Etagen auseinanderhalten kann. Bis du sie festlegst, nimmt es eine
+übliche Geschosshöhe, 2,8 m.</p>
+<p>Der Schritt öffnet die Karte <b>Etagenhöhen</b> (im Modus Erweitert unter <b>Karten → 3D-Stapel</b>):</p>
+<ul>
+<li><b>Etage↕ (m)</b>: von einem fertigen Fußboden bis zum nächsten, Raumhöhe und Geschossdecke
+zusammen. Leer heißt 2,8 m.</li>
+<li><b>Grundhöhe (m)</b>: wie hoch die Etage beginnt. Lass sie leer, außer die Stapelung stimmt nicht,
+etwa bei einem Split-Level oder einem Zwischengeschoss.</li>
+</ul>
+<p>Wähle <b>Etagenhöhen speichern</b>. Ein einzelner hoher Raum, etwa ein Wohnzimmer über zwei Etagen,
+behält hier die normale Höhe der Etage: Gib diesem Raum seine eigene Höhe auf der Seite <b>Räume</b>
+(<b>Ceiling height</b>).</p>
+<h2 id="schritt-5-empfänger-platzieren-und-ihre-höhen-festlegen">Schritt 5. Empfänger platzieren und ihre Höhen festlegen</h2>
+<p>Setz jeden Bluetooth-Empfänger dahin, wo er wirklich hängt.</p>
+<p><b>Von Hand.</b> Neben dem Grundriss listet <b>Live-BLE-Empfänger</b> die Empfänger, die Home Assistant
+hört:</p>
+<ol>
+<li>Wähle <b>Hinzufügen</b> neben einem Empfänger. Er landet in der Mitte des Grundrisses, schon in
+seinem Home-Assistant-Raum.</li>
+<li>Zieh ihn dahin, wo er hängt.</li>
+<li>Mach dasselbe für jeden Empfänger auf dieser Etage. Ein platzierter zeigt <b>✓ platziert</b>, mit
+<b>Bearbeiten</b>.</li>
+</ol>
+<p>Nimm <b>Hinzufügen</b> in dieser Liste. Der Text des Schritts selbst sagt, du kannst auf die Karte
+doppelklicken, und <b>Empfänger hinzufügen</b> tut dasselbe, aber beides macht einen leeren
+„Receiver N“, der an keinen echten Empfänger gebunden ist, und <b>Auf die Karte setzen</b> lässt ihn
+weg.</p>
+<p><b>Oder lass PadSpan es machen.</b> <b>Meine Empfänger in ihre Räume setzen</b> setzt jeden Empfänger,
+dessen Raum einen Umriss hat, in die Mitte dieses Raums, auf der Karte deines Hauses. Es sagt, was
+es platziert hat, was nicht und warum. <b>Die zuletzt platzierten … rückgängig machen</b> nimmt sie
+zurück. Zieh jeden später dahin, wo er hängt, im ersten Schritt der Kalibrierung, <b>Positionen der
+Empfänger prüfen</b>.</p>
+<p><b>Ein Empfänger ohne Raum.</b> Hat ein Empfänger keinen Home-Assistant-Bereich, listet dieser Schritt
+ihn mit einer Liste der Räume und <b>Raum festlegen</b>; der Raum, auf den sein Name deutet, ist schon
+gewählt. Damit bekommt das Gerät des Empfängers den Bereich in Home Assistant, genau wie mit
+<b>Empfängerliste ansehen → Zuweisen</b> in der Übersicht.</p>
+<p><b>Ein Empfänger im falschen Raum.</b> Sobald du Kalibrierpunkte hast, kann dieser Schritt sagen:
+<b>Die Signale sagen: Küchen-Proxy gehört zu Esszimmer, nicht zu Küche. 4 der 5 Kalibrierpunkte, die
+er am besten hört, liegen dort.</b> Wähle <b>Esszimmer übernehmen</b>, um seinen Bereich zu ändern, oder
+<b>Küche behalten</b>, um ihn zu lassen. Siehe
+<a href="/manual/calibration/de/#die-signale-sagen-dieser-empfänger-ist-in-einem-anderen-raum">Kapitel 11</a>.</p>
+<p><b>Höhen.</b> Die Höhe eines Empfängers zählt, sobald er auf der Karte deines Hauses ist (nach <b>Auf
+die Karte setzen</b> oder <b>Meine Empfänger in ihre Räume setzen</b>). Leg sie in <b>Positionen der
+Empfänger prüfen</b> der Kalibrierung fest (die Markierung anklicken, <b>Höhe über dem Boden (m)</b>,
+<b>Höhe speichern</b>), auf der Seite <b>Empfänger</b> oder im Modus Erweitert unter <b>Karten →
+Bearbeiten</b>. Es ist überall derselbe Wert. Er beginnt bei 2,4 m. In einem Haus mit zwei oder mehr
+Etagen ist der Schritt nicht erledigt, solange alle Empfänger auf derselben Höhe sind: Gib an, wie
+hoch jeder wirklich hängt.</p>
+<h2 id="abschluss-auf-die-karte-setzen">Abschluss: Auf die Karte setzen</h2>
+<p>Der letzte Bildschirm des Wizards fasst den Grundriss zusammen („4 Räume gezeichnet, 3 Empfänger
+platziert“) und sagt, was als Nächstes kommt.</p>
+<p><b>Bis du Auf die Karte setzen wählst, sind deine Räume und Empfänger nur auf dem Bild.</b> Die
+Übersicht, der Atlas und die Ortung arbeiten alle mit der Karte deines Hauses, nicht mit dem Bild.
+Wähle <b>Auf die Karte setzen</b>: Es fügt die Räume und Empfänger hinzu, die die Karte noch nicht hat.
+Was schon darauf ist, ändert sich nicht. <b>Fertig</b> allein tut das nicht.</p>
+<p>Sobald der erste Raum auf der Karte ist, nimmt dein Haus in der Übersicht den Platz von <b>Wer ist
+wo</b> ein.</p>
+<p>Danach:</p>
+<ul>
+<li>geht der Knopf zum nächsten Schritt (<b>Handy oder Uhr verfolgen →</b>, <b>Zur Kalibrierung →</b> und so
+weiter) weiter;</li>
+<li>startet <b>+ Weitere Etage einrichten</b> den Wizard noch einmal für den nächsten Grundriss;</li>
+<li>geht <b>Fertig</b> zurück zur Bibliothek von Karten.</li>
+</ul>
+<p><b>Schon fertig, und die Übersicht sagt „Raum- und Empfänger-Layout noch nicht erstellt“?</b> Du musst
+nicht von vorn anfangen. Öffne den Setup Wizard für diesen Grundriss, geh zu Abschluss und wähle
+<b>Auf die Karte setzen</b>. Auf der Seite <b>Räume</b> hat ein Raum, der auf einem Grundriss, aber nicht
+auf der Karte gezeichnet ist, sein eigenes <b>Auf die Karte setzen</b>. Im Modus Erweitert hat
+<b>Karten → Aufteilung</b>, mit <b>Anordnung</b> auf <b>Kartenlagen</b> gestellt, <b>Diese Anordnung
+übernehmen</b>.</p>
+<h2 id="schritt-6-dein-handy-oder-deine-uhr-verfolgen">Schritt 6. Dein Handy oder deine Uhr verfolgen</h2>
+<p>PadSpan lernt das Handy oder die Uhr kennen, die du bei dir trägst, damit es dir folgen und damit
+kalibrieren kann. Der Schritt ist erledigt, sobald PadSpan einem Handy oder einer Uhr als Gerät einer
+Person folgt: einem mit registriertem Schlüssel (IRK) oder einem Handy mit Companion App, für das du
+Verfolgen gedrückt hast.</p>
+<p>Der Schritt öffnet den Handy-Assistenten, <b>Dein Handy verfolgen</b> (im Modus Erweitert unter
+<b>Bluetooth → IRK-Verwaltung</b>), mit drei Wegen hinein:</p>
+<ul>
+<li><b>Ich habe ein Android-Handy</b>: Öffne in der Companion App
+<b>Einstellungen → Companion App → Sensoren verwalten → BLE Transmitter</b>, schalte ihn ein, stell <b>Transmit power</b> auf <b>High</b> und <b>Advertise mode</b> auf
+<b>Low latency</b>. Dann öffnet <b>In „Übersicht“ verfolgen →</b> die Karte <b>Dein Handy verfolgen</b>:
+Wähle <b>Dieses Handy verfolgen</b> (im Modus Einfach <b>Verfolgen</b>).</li>
+<li><b>Ich habe ein iPhone</b>: die Schritte, um seinen IRK zu bekommen, ihn in Home Assistants Private
+BLE Device einzutragen und ihn zu prüfen: Füg ihn ein und wähle <b>Prüfen</b>, und PadSpan sagt, wie
+viele der wechselnden Adressen, die es gerade hört, dieses iPhone sind.</li>
+<li><b>Ich habe einen IRK-Capture-ESP32</b>: Gib den Namen des Geräts ein und wem es gehört, kopple das
+iPhone oder die Apple Watch mit dem ESP32 und speichere den Schlüssel, den PadSpan findet. Entferne
+dann die Kopplung vor dem nächsten Gerät.</li>
+</ul>
+<p>Bei einer älteren Installation, bei der beide Handy-Schalter aus sind (<b>Phone Setup Wizard</b> und
+<b>iPhone Setup Path</b>, unter <b>Einstellungen → Funktionen</b>), öffnet der Schritt stattdessen die
+Karte <b>Dein Handy verfolgen</b> der Übersicht.
+<a href="/guides/phone-room-presence/de/">In welchem Raum ist mein Handy?</a> hat jeden
+Schritt, mit Bildern.</p>
+<h2 id="schritt-7-kalibrieren">Schritt 7. Kalibrieren</h2>
+<p>Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle klingt. Der Schritt ist ab
+fünf Kalibrierpunkten oder einem berechneten Modell erledigt.</p>
+<ul>
+<li>Wo <b>Raum abgehen</b> an ist, startet <b>Start →</b> das Abgehen, 90 Sekunden pro Raum, und <b>Punkt für
+Punkt</b> daneben öffnet die Geführte Kalibrierung.</li>
+<li>Wo es aus ist, öffnet <b>Start →</b> die Geführte Kalibrierung, und eine Zeile sagt, wie du Raum
+abgehen einschaltest, mit <b>Diese Einstellung öffnen</b>.</li>
+</ul>
+<p><a href="/manual/calibration/de/">Kapitel 11</a> erklärt beides.</p>
+<p>Wenn jeder Schritt erledigt ist, sagt die Einrichtung <b>Dein Haus ist eingerichtet.</b> und
+verschwindet aus dem Menü. Über den Knopf Einrichtung in Karten und über die Übersicht ist sie
+weiter da, wenn du einen Schritt ändern willst.</p>
+<h2 id="kein-grundriss">Kein Grundriss?</h2>
+<p>Beim Schritt zum Hochladen listet <b>Kein Grundriss? So bekommst du einen</b> fünf Wege, den besten
+zuerst. Je weiter unten in der Liste, desto grober der Grundriss.</p>
+<ol>
+<li><b>Nach einer vorhandenen Zeichnung suchen.</b> Die Zeichnungen des Bauträgers oder Architekten, das
+Verkaufsexposé, die Bauakte der Gemeinde, ein Versicherungsgutachten, der Fluchtwegplan an einer
+Wand. Ein Foto, gerade über die Seite gehalten, reicht.</li>
+<li><b>Die Etage mit einem iPhone oder iPad scannen.</b> Dafür brauchst du ein Pro-Modell mit LiDAR
+(iPhone 12 Pro oder ein neueres Pro, iPad Pro 2020 oder neuer). Jede Raumscan-App, die Apples
+RoomPlan nutzt, kann den Scan als USDZ-Datei teilen (manche bieten auch RoomPlan-JSON). Scanne
+die ganze Etage in einem Durchgang, Türen offen und Licht an. Wähle ihre Etage, wähle die Datei,
+und PadSpan zeichnet den Grundriss maßstabsgetreu, ohne dass du etwas messen musst. Wo jeder Raum
+ist, sagst du trotzdem selbst. <b>Schritt für Schritt führen</b> zeigt dieselben Schritte einen
+Bildschirm nach dem anderen, fürs Handy gemacht, und gibt dir eine Adresse, die du dem schicken
+kannst, der den Scan macht.</li>
+<li><b>Die Karte deines Saugroboters nutzen.</b> Ein Valetudo-, Dreame- oder Xiaomi-Roboter, den Home
+Assistant sieht. Schalte <b>Einstellungen → Funktionen → Experimental Features → Robot Vacuum
+Import</b> ein, nimm dann <b>Karten → Aufteilung → 🤖 Import from a robot vacuum</b> und <b>Add as a
+new map</b>. Daraus wird ein Grundriss mit seinen Räumen; Räume, die du schon hast, bleiben
+erhalten.</li>
+<li><b>Selbst zeichnen und fotografieren.</b> Auf weißem Papier, zuerst die Außenwände, dann die Wände
+zwischen den Räumen, mit einer Lücke für jede Tür. Schreib die Länge einer langen Wand quer und
+einer längs dazu. Fotografier es von direkt oben. <b>Ich habe meine Skizze: hochladen</b> hakt im
+Formular „meine eigene Skizze“ für dich an, und der Schritt zum Maßstab nimmt eine Länge in jede
+Richtung.</li>
+<li><b>Mit einer leeren Etage beginnen.</b> Gib Breite und Tiefe der Etage ein (grob reicht), wähle ihre
+Etage und <b>Leere Etage anlegen</b>. PadSpan legt eine leere Etage dieser Größe an, mit einer Linie
+pro Meter; zeichne jeden Raum an seinen Ecken darauf und zähl dabei die Linien.</li>
+</ol>
+<p>Zwei weitere Wege, im Modus Erweitert, unter <b>Karten → Aufteilung</b>:</p>
+<ul>
+<li><b>Räume in Metern, ohne Bild.</b> Gib den genauen Namen des Bereichs in <b>Name des neuen Raums</b> ein,
+wähle <b>+ Raum hinzufügen</b>, zieh ihn in Form und wähle <b>Korrekturen speichern</b>. Die Kalibrierung
+braucht trotzdem einen Grundriss mit Maßstab.</li>
+<li><b>Sweet Home 3D.</b> <b>📐 Grundriss importieren (.sh3d)</b> liest die Räume aus einer
+Sweet-Home-3D-Datei, als Vorschlag für diese Etage, den du prüfst und bearbeitest, bevor du ihn
+übernimmst. Mit <b>RoomPlan Import</b> an, unter Einstellungen → Funktionen, liest derselbe Knopf
+einen Raumscan.</li>
+</ul>
+<p><a href="/guides/floor-plans/de/">Welcher Grundriss für Home Assistant?</a> und
+<a href="/guides/robot-vacuum-floor-plan/de/">Dein Saugroboter hat deinen Grundriss schon gezeichnet</a>
+gehen weiter.</p>
+<h2 id="mehr-als-eine-etage-sie-ausrichten">Mehr als eine Etage: sie ausrichten</h2>
+<p>Jeder Grundriss behält seinen eigenen Platz in Metern. Mit zwei oder mehr Etagen richtest du sie so
+aus, dass ein Treppenhaus auf der einen über dem Treppenhaus auf der anderen liegt. Das geht unter
+<b>Karten → 3D-Stapel</b> (Erweitert):</p>
+<ol>
+<li><b>Etagenhöhen</b>: wie in Schritt 4.</li>
+<li><b>Etagen-Zuordnung und Deckenhöhen</b>: eine Zeile pro Grundriss, mit seiner <b>HA-Etage</b> und
+<b>Stapelebene</b>. <b>Speichern</b> in einer Zeile behält sie. Nimm den Haken bei <b>Zeigen</b> weg, um
+einen Grundriss auszublenden.</li>
+<li><b>Ausrichtung überlagern</b>: Wähle eine <b>Referenz</b> (fest und vermessen) und ein <b>Ziel</b> (den
+Grundriss, den du bewegst). Zieh das Ziel, bis Treppenhäuser und Außenwände übereinanderliegen.
+<b>Maßstab +</b> und <b>Maßstab −</b> ändern seine Größe, <b>−15°</b>, <b>﹢15°</b> und <b>0°</b> drehen es, und
+<b>Deckkraft</b> hilft dir, beide zu sehen. Nichts wird behalten, bis du <b>Ausrichtung speichern</b>
+wählst.</li>
+<li>Für eine genauere Passung <b>Punkte ausrichten</b>: Klick denselben echten Punkt auf beiden
+Grundrissen an (eine Ecke des Treppenhauses), drei Paare oder mehr, dann <b>Berechnen</b>. Es
+bewertet die Passung als Sehr gut, Mittel oder Schwach, in Metern. <b>Anwenden</b> verschiebt das
+Ziel auf dem Bildschirm; dann <b>Ausrichtung speichern</b>.</li>
+</ol>
+<p>PadSpan lehnt eine Ausrichtung ab, die mehr als die Hälfte der Kalibrierpunkte eines Grundrisses von
+der Karte schieben würde. <b>Compare Maps</b> in der Bibliothek bewertet, wie gut deine Etagen
+übereinanderliegen, wenn du fertig bist.</p>
+<p>Der Modus Einfach hat keinen Reiter 3D-Stapel: Stell den Modus-Knopf auf Erweitert, um Etagen
+auszurichten.</p>
+<h2 id="später-ändern">Später ändern</h2>
+<ul>
+<li><b>Der Umriss eines Raums</b>: die Seite <b>Räume</b>, <b>Edit outline</b>; im Modus Erweitert <b>Karten →
+Bearbeiten</b>, das Werkzeug Räume, oder <b>Karten → Aufteilung</b> für die Räume in Metern.</li>
+<li><b>Platz oder Höhe eines Empfängers</b>: Kalibrierung → <b>Feinabgleich</b> oder die Seite <b>Empfänger</b>
+(<b>Platzieren</b> oder <b>Verschieben</b>).</li>
+<li><b>Der Maßstab</b>: Karten → Bearbeiten → 📏 Messen (Erweitert) oder der Schritt Maßstab festlegen
+der Einrichtung.</li>
+<li><b>Ein Grundriss, den du nicht mehr willst</b>: Karten → Bibliothek, <b>Löschen</b>. Sein Bild und was
+darauf gezeichnet war, verschwinden; die Räume in Metern und Kalibrierpunkte mit einer Position in
+Metern bleiben.</li>
+</ul>
+<div class="pager"><span><a href="/manual/rooms-and-floors/de/">← 8. Räume und Etagen kommen aus Home Assistant</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/walls-and-signal-loss/de/">10. Wände und Signalverlust →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

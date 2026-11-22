@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6. Handys und Uhren | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Deine Empfänger hören dein Handy sofort. Was sie allein nicht erkennen: wessen Handy es ist. Ein Schritt pro Handy löst das, und dann steckt PadSpan es mit…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/phones-and-watches/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/phones-and-watches/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/phones-and-watches/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/phones-and-watches/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="6. Handys und Uhren">
+<meta property="og:description" content="Deine Empfänger hören dein Handy sofort. Was sie allein nicht erkennen: wessen Handy es ist. Ein Schritt pro Handy löst das, und dann steckt PadSpan es mit…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/phones-and-watches/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/phones-and-watches/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="6-handys-und-uhren">6. Handys und Uhren</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Deine Empfänger hören dein Handy sofort. Was sie allein nicht erkennen: wessen Handy es ist. Ein
+Schritt pro Handy löst das, und dann steckt PadSpan es mit Namen in einen Raum.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>Was es braucht</th><th>Dann in PadSpan</th></tr>
+  <tr><td>Android-Handy</td><td>Den <b>BLE Transmitter</b> der Companion App, eingeschaltet</td><td><b>Dein Handy verfolgen → Dieses Handy verfolgen</b></td></tr>
+  <tr><td>iPhone</td><td>Seinen Schlüssel (den IRK) in <b>Private BLE Device</b> von Home Assistant. Den Schlüssel holst du einmal, von einem Mac oder einem irk-capture-ESP32</td><td><b>Verfolgen</b> in <b>Wer ist wo</b>, oder ein Name in <b>Alle Objekte</b></td></tr>
+  <tr><td>Apple Watch</td><td>Einen eigenen Schlüssel, genauso wie beim iPhone</td><td>Genauso</td></tr>
+</table>
+</div>
+<h2 id="warum-ein-handy-einen-schritt-braucht">Warum ein Handy einen Schritt braucht</h2>
+<p>Ein Beacon oder ein einfacher Schlüssel-Tag behält seine Bluetooth-Adresse, also erkennt ein
+Empfänger ihn jedes Mal wieder. Handys nicht. Sie senden von einer zufälligen Adresse und wechseln
+sie alle paar Minuten, damit ihnen niemand durch einen Laden folgen kann. Für Home Assistant sieht
+dein Handy aus wie eine Reihe neuer Geräte. Es gibt zwei Wege drumherum:</p>
+<ul>
+<li><b>Das Handy sagt, wer es ist.</b> Die Android-Companion-App kann einen Beacon mit einer ID senden,
+die sich nie ändert.</li>
+<li><b>Du hast seinen Schlüssel.</b> Jedes iPhone und jede Apple Watch hat einen Identity Resolving Key
+(IRK), der die wechselnden Adressen wieder zu einem Gerät macht.</li>
+</ul>
+<h2 id="android">Android</h2>
+<ol>
+<li>Installier die Home Assistant Companion App und melde dich an.</li>
+<li>Öffne in der App <b>Einstellungen → Companion App → Sensoren verwalten → BLE Transmitter</b> und
+schalte ihn ein. Die meisten Sensoren der App sind anfangs aus.</li>
+<li>Stell an derselben Stelle <b>Transmit power</b> auf <b>High</b> und <b>Advertise mode</b> auf
+<b>Low latency</b>. Die App startet mit ihren schwächsten Einstellungen, und Empfänger hören sie
+kaum. High kostet etwas Akku; die App kann auch nur in deinem WLAN zu Hause senden.</li>
+<li>Fällt das Handy nach einer Weile weg, nimm die Companion App aus der Akku-Optimierung von Android
+heraus, sonst beendet Android sie.</li>
+<li>Öffne in PadSpans Übersicht <b>Dein Handy verfolgen</b>. Deine Handys mit der Companion App stehen
+dort. Wähl <b>Dieses Handy verfolgen</b> (im Modus Einfach <b>Verfolgen</b>).</li>
+</ol>
+<p>PadSpan nimmt den Namen des Home-Assistant-Geräts des Handys, folgt ihm und bittet die App, mit dem
+Senden anzufangen. Was der Knopf sagt:</p>
+<ul>
+<li><b>Einrichtung</b>: Der Transmitter ist in der App noch nicht an.</li>
+<li><b>Aktivieren &amp; verfolgen</b>: Der Sensor ist in Home Assistant ausgeschaltet. Der Knopf schaltet ihn
+dort ein; starte dann Home Assistant neu und schalte den Transmitter in der App ein.</li>
+</ul>
+<p>Solange der Transmitter des Handys noch auf einer schwachen Einstellung steht, sagt seine Zeile das:
+„Sendet zu schwach, als dass die Empfänger es gut hören“, mit dem, was du ändern sollst. Das Handy
+erscheint in seinem Raum, Sekunden nachdem ein Empfänger es hört.</p>
+<h2 id="iphone">iPhone</h2>
+<p>Die iPhone-App hat keinen BLE Transmitter, deshalb wird ein iPhone an seinem Schlüssel erkannt. Den
+Schlüssel holst du einmal, auf einem von zwei Wegen.</p>
+<p><b>Auf einem Mac</b>, der beim selben iCloud-Konto angemeldet ist: Öffne die Schlüsselbundverwaltung,
+such den Bluetooth-Eintrag des iPhones und kopier seinen Remote IRK. Die Seite zu Private BLE Device
+bei Home Assistant hat die Schritte, und wie du erkennst, welcher Eintrag das iPhone ist.</p>
+<p><b>Mit einem irk-capture-ESP32</b>: irk-capture ist ein ESPHome-Paket für einen freien ESP32. Öffne in
+PadSpan <b>Bluetooth → IRK-Verwaltung</b> und wähl <b>Ich habe einen IRK-Capture-ESP32</b>. Es führt dich
+Gerät für Gerät hindurch: Gib seinen Namen ein und wem es gehört, kopple das iPhone unter
+<b>Einstellungen → Bluetooth</b> des iPhones mit dem ESP32, dann <b>Schlüssel suchen</b> und
+<b>Speichern</b>. Entferne danach die Kopplung vom iPhone, und gib dem ESP32 vor dem nächsten Gerät
+eine neue Bluetooth-Identität (sein Knopf <b>Refresh BLE Identity</b> in Home Assistant), damit sich
+das letzte Gerät nicht wieder mit ihm verbindet. Dieser ESP32 kann nicht gleichzeitig ein Empfänger
+sein.</p>
+<p>Dann gib den Schlüssel an Home Assistant, an einer von zwei Stellen:</p>
+<ul>
+<li><b>In Home Assistant</b>: <b>Einstellungen → Geräte &amp; Dienste → Integration hinzufügen → Private BLE
+Device</b>, und füg ihn ein.</li>
+<li><b>In PadSpan</b>: <b>Einstellungen → Ortung → Handys und Gast-Tags → Handy-Ortung (Private BLE)</b>.
+Gib einen Namen ein, füg den Schlüssel ein und wähl <b>IRK hinzufügen</b>. PadSpan hört bis zu 30
+Sekunden lang zu (<b>Suche nach dem Gerät...</b>), um zu prüfen, ob der Schlüssel zu einem Handy
+passt, das deine Empfänger hören, und legt dann den Eintrag in Private BLE Device für dich in Home
+Assistant an. <b>Ausführliche Anleitung</b> hat die Schritte für jede Art von Gerät.
+<b>IRKs automatisch finden</b> findet Schlüssel von Geräten, die mit dem eigenen Bluetooth des
+Home-Assistant-Rechners gekoppelt sind.</li>
+</ul>
+<p>Der Schlüssel kann aus 32 Hex-Zeichen bestehen, Base64 sein (er endet auf „=“), durch Doppelpunkte
+getrennt sein oder mit <code>irk:</code> anfangen. So oder so halt das iPhone wach, mit Bluetooth an, in der
+Nähe eines Empfängers: Home Assistant nimmt einen Schlüssel erst an, wenn es das Handy hört, zu dem
+er gehört. Einen Schlüssel einzutragen braucht einen Administrator von Home Assistant. PadSpan lädt
+seine Liste der Schlüssel alle fünf Minuten neu, ein in Home Assistant eingetragener Schlüssel kommt
+also innerhalb von etwa fünf Minuten an.</p>
+<p>Zum Schluss benenne das iPhone in PadSpan: <b>Wer ist wo</b> zeigt es mit einem Knopf <b>Verfolgen</b>
+neben seinem Namen. Oder öffne auf der Karte <b>Objekte</b> der Übersicht (Modus Erweitert)
+<b>Alle Objekte</b>, wähl <b>Benennen</b> in seiner Zeile, gib einen Namen ein und wähl
+<b>Namen speichern</b>.</p>
+<p><b>Einen Schlüssel prüfen</b>, ohne ihn zu speichern: Füg ihn im Weg <b>Ich habe ein iPhone</b> des
+Handy-Assistenten ein und wähl <b>Prüfen</b>. PadSpan sagt, wie viele der wechselnden Adressen, die es
+gerade hört, zu diesem iPhone gehören.</p>
+<h2 id="apple-watch">Apple Watch</h2>
+<p>Eine Apple Watch hat einen eigenen Schlüssel, getrennt von dem ihres iPhones. Hol ihn auf denselben
+zwei Wegen: aus der Schlüsselbundverwaltung oder indem du die Uhr in ihren eigenen
+Bluetooth-Einstellungen mit dem irk-capture-ESP32 koppelst. Trag ihn als eigenen Eintrag in Private
+BLE Device ein und benenne die Uhr in PadSpan auf dieselbe Weise.</p>
+<p>Eine Uhr, die eine feste Bluetooth-Adresse behält (manche Garmins tun das), hat keinen Schlüssel und
+braucht keinen: Benenne sie wie einen Tag (<a href="/manual/tags-and-beacons/de/">Kapitel 7</a>).</p>
+<h2 id="der-handy-assistent">Der Handy-Assistent</h2>
+<p>Der Handy-Schritt der Einrichtung und <b>Bluetooth → IRK-Verwaltung</b> im Modus Erweitert öffnen
+<b>Dein Handy verfolgen</b>, mit drei Wegen hinein: <b>Ich habe ein Android-Handy</b>,
+<b>Ich habe ein iPhone</b> und <b>Ich habe einen IRK-Capture-ESP32</b>. Jeder hat die Schritte von oben,
+im Panel.</p>
+<p>Bei einer Installation von vor 0.38.165 zeigt die Karte <b>Dein Handy verfolgen</b> der Übersicht
+iPhones die Android-Schritte, außer <b>Einstellungen → Funktionen → iPhone Setup Path</b> ist
+eingeschaltet. Neuere Installationen starten mit eingeschaltetem Schalter. <b>Phone Setup Wizard</b>
+auf demselben Reiter schaltet den Assistenten selbst ein oder aus.</p>
+<h2 id="was-du-bekommst">Was du bekommst</h2>
+<ul>
+<li><b>Auf den Bildschirmen</b>: jedes benannte Handy in seinem Raum, und die Karte
+<b>Personen im Gebäude</b> der Übersicht, die zeigt, wer zu Hause ist und in welchem Raum jede Person
+ist.</li>
+<li><b>In Home Assistant</b>: ein Device Tracker, dessen Zustand der Raum ist (oder <code>not_home</code>, sobald es
+fünf Minuten lang nicht gehört wurde, das voreingestellte <b>Abwesenheits-Timeout</b>), ein
+Bereichssensor und Entfernungssensoren. Jede Entität steht in
+<a href="/manual/home-assistant-reference/de/">Kapitel 14</a>.</li>
+<li><b>Der Raum einer Person</b>: Verknüpf den Tracker unter <b>Einstellungen → Personen</b> mit der Person.
+Hat diese Person noch einen anderen Tracker, etwa das GPS der Companion App oder einen vom Router,
+richtet sich Home Assistant nach diesem und zeigt sie als zu Hause, nicht in einem Raum.</li>
+<li><b>Alarme</b>, wenn ein Handy den Raum wechselt, ankommt oder geht: <a href="/manual/alerts/de/">Kapitel 13</a>.</li>
+</ul>
+<p>Private BLE Device allein liefert zu Hause oder abwesend und eine Entfernung zum nächsten Empfänger,
+keinen Raum. PadSpan liefert den Raum dazu.</p>
+<h2 id="handys-die-du-nicht-eingerichtet-hast">Handys, die du nicht eingerichtet hast</h2>
+<p>Ein Handy ohne Schlüssel und ohne Beacon ist namenlos, nicht unsichtbar. <b>Personen im Gebäude</b>
+zählt es als <b>Unbekanntes Handy</b> in seinem Raum, wenn zwei oder mehr Empfänger es hören, ziemlich
+stark, und was es sendet, wie ein Handy oder eine Uhr aussieht. Es bekommt keine Entitäten und
+keinen Namen.</p>
+<ul>
+<li><b>Deins, oder das von jemandem, der bei dir wohnt</b>: Gib ihm seinen Schritt von oben. Dann zählt es
+als diese Person.</li>
+<li><b>Das eines Besuchers</b>: Du musst nichts tun. Es geht, wenn der Besuch geht.</li>
+<li><b>Das eines Nachbarn, durch die Wand</b>: Rück den Empfänger an dieser Wand von ihr weg, oder
+zeichne diese Wand als stärkeres Material (<a href="/manual/walls-and-signal-loss/de/">Kapitel 10</a>).</li>
+</ul>
+<h2 id="wenn-ein-handy-nicht-auftaucht">Wenn ein Handy nicht auftaucht</h2>
+<ul>
+<li><b>„Der bereitgestellte IRK stimmt mit keinem BLE-Gerät überein, das Home Assistant sehen kann.“</b>
+(Die Meldung von Home Assistant.) Weck das Handy auf, bring es in die Nähe eines Empfängers und
+versuch es noch einmal.</li>
+<li><b>Ungültiges IRK-Format</b>: Kopier den ganzen Schlüssel.</li>
+<li><b>Ein Android-Handy wird nur direkt neben einem Empfänger gehört</b>: Sein Transmitter läuft mit den
+schwächsten Einstellungen (Android-Schritt 3).</li>
+<li><b>Ein Android-Handy verschwindet nach einer Weile</b>: Die Akku-Optimierung hat die Companion App
+gestoppt (Android-Schritt 4).</li>
+<li><b>irk-capture bekommt von einer Uhr keinen Schlüssel</b>: Manche Uhren brauchen eine Art Kopplung,
+die es nicht kann, und manche behalten eine feste Adresse und haben keinen Schlüssel (verfolg
+diese wie einen Tag).</li>
+<li><b>Ein Handy erscheint als viele Geräte</b>, oder springt ständig zwischen Räumen:
+<a href="/manual/troubleshooting/de/#ein-handy-wird-nicht-erkannt-oder-erscheint-als-viele-geräte">Kapitel 26</a>.</li>
+</ul>
+<div class="pager"><span><a href="/manual/receivers/de/">← 5. Empfänger: welche, wie viele, wo</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/tags-and-beacons/de/">7. Tags, Beacons, AirTags und Gast-Tags →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

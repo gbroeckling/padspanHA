@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13. Alerts and notifications | PadSpan HA Manual</title>
+<meta name="description" content="Everything PadSpan tells you about, in one place: what it watches, where the message goes, and how to turn it on or off.">
+<link rel="canonical" href="https://padspan.traks.ca/manual/alerts/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/alerts/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/alerts/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/alerts/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="13. Alerts and notifications">
+<meta property="og:description" content="Everything PadSpan tells you about, in one place: what it watches, where the message goes, and how to turn it on or off.">
+<meta property="og:url" content="https://padspan.traks.ca/manual/alerts/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/alerts/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="13-alerts-and-notifications">13. Alerts and notifications</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>Everything PadSpan tells you about, in one place: what it watches, where the message goes, and how
+to turn it on or off.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>What</th><th>Where it shows</th><th>Turn it on</th></tr>
+  <tr><td>A device changes room, arrives home or leaves</td><td>Your phone or email</td><td>Follow → <b>Movement Alerts</b></td></tr>
+  <tr><td>A leak, smoke, gas or carbon monoxide alarm</td><td>A red banner on every PadSpan screen; the room rings red on the Atlas</td><td>Always on</td></tr>
+  <tr><td>A door left open, or a window open in the rain</td><td>The room rings amber on the Atlas; a banner on a wall screen</td><td><b>Settings → Atlas → Atlas — Mapped Light Control → Alert pulse</b></td></tr>
+  <tr><td>Vacation Mode ends or is turned off</td><td>A Home Assistant notification, and your Follow alert targets</td><td>Always, while Vacation Mode is used</td></tr>
+  <tr><td>A guest arrives, leaves, or goes into a room they shouldn't</td><td>Your phone, or a Home Assistant notification</td><td>When you lend a guest tag</td></tr>
+  <tr><td>PadSpan couldn't confirm a save</td><td>Home Assistant's <b>Settings → Repairs</b></td><td>Always on</td></tr>
+  <tr><td>A new stable version</td><td>A Home Assistant notification</td><td>On by default; see <a href="/manual/install-update-uninstall/">chapter 3</a></td></tr>
+  <tr><td>Claude's reads pass your monthly limit</td><td>A Home Assistant notification</td><td><b>Settings → AI</b> (off unless you set it)</td></tr>
+</table>
+</div>
+<p>PadSpan sends to your phone or email through Home Assistant's own <b>notify</b> services. For a
+phone, that is the Home Assistant Companion app. For email, a mail integration such as SMTP. Set
+them up in Home Assistant first, under <b>Settings → Devices &amp; services</b>.</p>
+<h2 id="movement-alerts-follow">Movement alerts (Follow)</h2>
+<p>Tell you when a device moves from room to room, arrives home, or leaves.</p>
+<ol>
+<li>Open <b>Follow</b> and pick the device under <b>Choose a tag to follow</b>.</li>
+<li>Under the device's card, find <b>Movement Alerts</b>.</li>
+<li>Choose where alerts go:
+<ul>
+<li><b>Your phone</b>: pick it under <b>Notify service</b> (the Companion app's notify target). No email
+is needed.</li>
+<li><b>Email</b>: type the address under <b>Email address</b>, and leave <b>Notify service</b> on
+<b>Auto-detect</b>, or pick your mail service.</li>
+</ul></li>
+<li>Tick what you want to hear about. In Basic: <b>Alert me when … moves</b>, <b>… arrives home</b>,
+<b>… leaves</b>. In Advanced: <b>Alert on every room change for "…"</b>, <b>Alert when "…" arrives
+home</b>, <b>Alert when "…" leaves</b>, and <b>Only alert for these rooms (unchecked = all):</b> to watch
+only some rooms (an alert then comes when the device goes into one of them).</li>
+<li>Choose <b>Save</b>. Nothing is active until you save it; the card then shows <b>Active</b>.</li>
+<li><b>Send Test</b> sends one now, to exactly where alerts go, and says plainly if it couldn't reach
+your phone or mail service.</li>
+</ol>
+<p>What the messages say:</p>
+<ul>
+<li><b>PadSpan: Alex's phone moved</b>: "Alex's phone moved from Kitchen to Hall".</li>
+<li><b>PadSpan: Alex's phone arrived</b>: "Alex's phone arrived (Kitchen)".</li>
+<li>When it leaves: "Alex's phone left".</li>
+</ul>
+<p>Some rules:</p>
+<ul>
+<li><b>At most one room-change alert a minute for each device.</b> A move inside that minute isn't lost:
+when the minute is up, one alert says where it went, from the room last reported.</li>
+<li><b>Arrive and leave</b> use the same away timeout as the Away badge, 5 minutes unless you change it
+in <b>Settings → Tracking → Rooms and timing → Home/Away Timeout</b>.</li>
+<li><b>No alert after a restart.</b> A device's first room after Home Assistant starts isn't a move.</li>
+<li><b>A guest tag that is lent</b> sends its stay's notices instead (below), not these.</li>
+</ul>
+<p><b>Manage → Events</b> has the same alerts for every device in one place: <b>Saved Alerts</b> lists each
+one, with a delete button, and <b>Configure Alerts</b> sets up room-change alerts for any tracked
+device, with <b>Test Notification</b>.</p>
+<p>Arrive, leave and room changes also fire Home Assistant events (<code>padspan_device_arrived</code>,
+<code>padspan_device_departed</code>, <code>padspan_room_change</code>), for your own automations: see
+<a href="/manual/home-assistant-reference/">chapter 14</a>.</p>
+<p><b>No alert arrives?</b> Use <b>Send Test</b> first: it says what went wrong. If no notify service is
+listed at all, add the Companion app (for a phone) or a mail integration in Home Assistant. More in
+<a href="/manual/troubleshooting/">chapter 26</a>.</p>
+<h2 id="leak-smoke-gas-and-co-alarms-the-emergency-latch">Leak, smoke, gas and CO alarms: the emergency latch</h2>
+<p>PadSpan watches every Home Assistant binary sensor of the kinds <b>moisture</b> (a water leak),
+<b>smoke</b>, <b>gas</b> and <b>carbon monoxide</b>, placed on the Atlas or not.</p>
+<p>The moment one reports an alarm:</p>
+<ul>
+<li><b>The alarm latches.</b> It stays alarming in PadSpan for <b>2 days, or until someone resets it</b>,
+even if the sensor itself goes quiet again. A short burst of wet is still a real leak.</li>
+<li><b>A red banner</b> (🚨 and how many are active) shows on every PadSpan screen, not just the Atlas,
+with each alarm's name and a <b>Reset</b> button. On a phone it is a small 🚨 pill in the top bar.</li>
+<li><b>On the Atlas</b>, the sensor's room rings red. The sensor says what it found (<b>WET</b>, <b>SMOKE</b>,
+<b>GAS</b>, <b>CO</b>), and <b>ALARM</b> while latched.</li>
+</ul>
+<p><b>Reset</b> asks once more (<b>Yes</b> / <b>No</b>), so a stray tap can't dismiss a real alarm. Resetting
+only clears PadSpan's memory of the alarm; it never touches the sensor's real state. A sensor that
+is still alarming stays red on the Atlas, and the banner comes back the next time it goes into
+alarm.</p>
+<p>While the sample house is showing, the banner still shows your own house's alarms, with <b>Back to my
+house</b> in place of Reset.</p>
+<p><b>PadSpan doesn't send a leak or smoke alarm to your phone.</b> Use a Home Assistant automation on the
+sensor itself for that: it doesn't depend on PadSpan.</p>
+<h2 id="alert-pulse-atlas">Alert pulse (Atlas)</h2>
+<p>Off until you turn it on: <b>Settings → Atlas → Atlas — Mapped Light Control → Alert pulse</b>. It saves
+as soon as you tick it.</p>
+<p>With it on, the Atlas rings a room in amber when:</p>
+<ul>
+<li>a window or cover (a blind, shade, shutter, awning) is <b>open while it rains or snows</b> (from the
+Atlas's own weather; see the <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/ATLAS_GUIDE.md#outdoor-weather">Atlas guide</a>);</li>
+<li>a door, window, garage door, gate or cover the Atlas shows has been <b>left open</b> for more than 6
+hours.</li>
+</ul>
+<p>On a wall screen (<code>?kiosk=1</code>), a banner across the top names the worst alert and where it is
+("Leak · Laundry", "Window open in the rain · Bedroom"), with how many more, until it clears. The
+order, worst first: smoke, gas, CO, a leak, an opening in the rain, a door left open.</p>
+<h2 id="vacation-mode-notices">Vacation Mode notices</h2>
+<p>Vacation Mode (PadSpan Pro) runs your lights while you're away (<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/ATLAS_GUIDE.md">Atlas guide</a>).
+It tells you when it stops:</p>
+<ul>
+<li><b>PadSpan: Vacation Mode ended</b>: it reached the end date set for it.</li>
+<li><b>PadSpan: Vacation Mode turned off</b>: someone turned it off. The message says when, who, and from
+which app or browser: "Vacation Mode was turned off Nov 21, 18:40 by Alex from the iPhone app. If
+nobody meant to, turn it back on in Whole House Presets: within 3 weeks it carries on with the
+routine it was using." A Factory Reset says so too.</li>
+</ul>
+<p>The notice is a Home Assistant notification, and goes as well to the phones and email addresses
+your Follow alerts use (up to five).</p>
+<p><code>binary_sensor.padspan_vacation_mode</code> and the <code>padspan_ha_vacation_mode</code> event are there for your
+own automations.</p>
+<h2 id="guest-notices">Guest notices</h2>
+<p>When you lend a guest tag (<b>Guests → Lend to a guest</b>; guest tags are on in
+<b>Settings → Tracking → Phones and guest tags</b>), the stay has its own notices:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Notice</th><th>When</th></tr>
+  <tr><td><b>PadSpan: Sam arrived</b></td><td>The tag is heard in the house, if <b>Tell me when they arrive</b> is ticked.</td></tr>
+  <tr><td><b>PadSpan: Sam left</b></td><td>The tag is no longer heard, if <b>Tell me when they leave</b> is ticked. A low battery can look the same as leaving.</td></tr>
+  <tr><td><b>PadSpan: Sam in the Office</b></td><td>The guest is in a room you set as off-limits (<b>Rooms they shouldn't go into</b>) for half a minute.</td></tr>
+  <tr><td><b>PadSpan: is Sam's stay over?</b></td><td>The tag hasn't been heard for two days.</td></tr>
+  <tr><td><b>PadSpan: Sam's stay ended</b></td><td>At the stay's planned end, or after a week without the tag being heard.</td></tr>
+</table>
+</div>
+<ul>
+<li><b>Tell me when they arrive</b> and <b>Tell me when they leave</b> start ticked.</li>
+<li><b>Send notices to</b>: a phone or other notify target, or <b>A Home Assistant notification</b> (the
+default).</li>
+<li><b>Quiet hours</b>: no arrive or leave notices then. Off-limits notices still come.</li>
+</ul>
+<p>Every one of these also fires the <code>padspan_ha_guest</code> event. The <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GUEST_TAGS_GUIDE.md">Guest tags guide</a>
+has the rest.</p>
+<h2 id="repairs">Repairs</h2>
+<p>PadSpan raises one kind of Home Assistant repair, under <b>Settings → Repairs</b>:</p>
+<blockquote>
+<p><b>PadSpan could not confirm a save (…)</b>: PadSpan saved its data, but the file on disk does not
+hold what was saved, or could not be read back.</p>
+</blockquote>
+<p>The latest changes may then be only in memory, and lost at the next restart. Check that the disk
+Home Assistant runs on isn't full or read-only, and look for the error in Home Assistant's log. The
+notice goes away by itself the next time a save is confirmed. It is kept over a restart.</p>
+<h2 id="other-home-assistant-notifications">Other Home Assistant notifications</h2>
+<ul>
+<li><b>PadSpan HA update available</b>, once for each new stable version. To turn it off:
+<b>Settings → Tracking → Privacy, updates and feedback → Update Check</b>. See
+<a href="/manual/install-update-uninstall/">chapter 3</a>.</li>
+<li><b>PadSpan: AI credit</b>, once a month, when Claude's reads by PadSpan pass the share you chose of
+the monthly credit you typed in <b>Settings → AI</b> (<b>Your AI: Warn me</b>). Off unless you set both.</li>
+<li><b>padspan_ha.dump_devices</b>: the list of named devices, when you call that service yourself.</li>
+</ul>
+<h2 id="inside-the-panel-only">Inside the panel only</h2>
+<p>These show in PadSpan and send nothing:</p>
+<ul>
+<li><b>The status dot</b> in the top bar, amber or red when something needs a look. See
+<a href="/manual/the-screens/#health">chapter 12</a>.</li>
+<li><b>Health → Problems found</b>: the checks of your whole setup.</li>
+<li><b>Calibration Accuracy Reminders</b> (<b>Settings → Tracking → Positioning and calibration</b>, off by
+default): a reminder in the panel when calibration has gaps or is getting old.</li>
+</ul>
+<div class="pager"><span><a href="/manual/the-screens/">← 12. The screens</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/home-assistant-reference/">14. Home Assistant: entities, services, events, Assist →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

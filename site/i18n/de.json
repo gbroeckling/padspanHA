@@ -7,8 +7,8 @@
    "de": "PadSpan™ HA – raumgenaue Bluetooth-Anwesenheit für Home Assistant"
   },
   {
-   "en": "<span class=\"brand\">PadSpan™ HA</span> <a href=\"#whatsnew\">What's new</a> <a href=\"demo/\">Try the demo</a> <a href=\"#screenshots\">Screenshots</a> <a href=\"#features\">Features</a> <a href=\"#lights\">Lights</a> <a href=\"#bright\">Bright</a> <a href=\"#editions\">Editions</a> <a href=\"#compare\">Compare</a> <a href=\"#install\">Install</a> <a href=\"#pro\">Pro</a> <a href=\"/de/?lang=de\" hreflang=\"de\" lang=\"de\">Deutsch</a>",
-   "de": "<span class=\"brand\">PadSpan™ HA</span> <a href=\"#whatsnew\">Neuigkeiten</a> <a href=\"demo/\">Demo</a> <a href=\"#screenshots\">Screenshots</a> <a href=\"#features\">Funktionen</a> <a href=\"#lights\">Licht</a> <a href=\"#bright\">Bright</a> <a href=\"#editions\">Editionen</a> <a href=\"#compare\">Vergleich</a> <a href=\"#install\">Installation</a> <a href=\"#pro\">Pro</a> <a href=\"/?lang=en\" hreflang=\"en\" lang=\"en\">English</a>"
+   "en": "<span class=\"brand\">PadSpan™ HA</span> <a href=\"#whatsnew\">What's new</a> <a href=\"demo/\">Try the demo</a> <a href=\"/manual/\">Manual</a> <a href=\"#screenshots\">Screenshots</a> <a href=\"#features\">Features</a> <a href=\"#lights\">Lights</a> <a href=\"#bright\">Bright</a> <a href=\"#editions\">Editions</a> <a href=\"#compare\">Compare</a> <a href=\"#install\">Install</a> <a href=\"#pro\">Pro</a> <a href=\"/de/?lang=de\" hreflang=\"de\" lang=\"de\">Deutsch</a>",
+   "de": "<span class=\"brand\">PadSpan™ HA</span> <a href=\"#whatsnew\">Neuigkeiten</a> <a href=\"demo/\">Demo</a> <a href=\"/manual/de/\">Handbuch</a> <a href=\"#screenshots\">Screenshots</a> <a href=\"#features\">Funktionen</a> <a href=\"#lights\">Licht</a> <a href=\"#bright\">Bright</a> <a href=\"#editions\">Editionen</a> <a href=\"#compare\">Vergleich</a> <a href=\"#install\">Installation</a> <a href=\"#pro\">Pro</a> <a href=\"/?lang=en\" hreflang=\"en\" lang=\"en\">English</a>"
   },
   {
    "en": "PadSpan™ HA",

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3. Installieren, aktualisieren, deinstallieren | PadSpan-HA-Handbuch</title>
+<meta name="description" content="PadSpan HA braucht Home Assistant 2024.8 oder neuer und mindestens einen Bluetooth-Empfänger. Was der Rechner und die Empfänger brauchen, steht in Minimum…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/install-update-uninstall/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/install-update-uninstall/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/install-update-uninstall/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/install-update-uninstall/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="3. Installieren, aktualisieren, deinstallieren">
+<meta property="og:description" content="PadSpan HA braucht Home Assistant 2024.8 oder neuer und mindestens einen Bluetooth-Empfänger. Was der Rechner und die Empfänger brauchen, steht in Minimum…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/install-update-uninstall/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/install-update-uninstall/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="3-installieren-aktualisieren-deinstallieren">3. Installieren, aktualisieren, deinstallieren</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>PadSpan HA braucht Home Assistant 2024.8 oder neuer und mindestens einen Bluetooth-Empfänger. Was
+der Rechner und die Empfänger brauchen, steht in <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/MINIMUM_REQUIREMENTS.md">Minimum requirements</a>.</p>
+<h2 id="installieren">Installieren</h2>
+<p><a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="PadSpan in deinem Home Assistant öffnen"></a></p>
+<p>Der Knopf öffnet PadSpan ab Home Assistant 2026.11 im Marketplace und bei älteren Versionen in HACS.</p>
+<h3 id="aus-dem-marketplace-home-assistant-202611-und-neuer">Aus dem Marketplace (Home Assistant 2026.11 und neuer)</h3>
+<ol>
+<li>Öffne <b>Einstellungen → Marketplace</b> und suche nach <b>PadSpan</b>.</li>
+<li>Öffne <b>PadSpan HA</b> und wähle <b>Installieren</b>. Beim ersten Mal bittet dich der Marketplace zu
+bestätigen, dass das, was er auflistet, nicht vom Home-Assistant-Projekt geprüft wird.</li>
+<li>Der Einrichtungsdialog öffnet sich sofort, ohne Neustart. Wähle <b>Absenden</b>.</li>
+<li>Öffne <b>PadSpan HA</b> in der Seitenleiste.</li>
+</ol>
+<h3 id="mit-hacs-home-assistant-202610-und-älter">Mit HACS (Home Assistant 2026.10 und älter)</h3>
+<p>PadSpan ist in der HACS-Standardliste, du musst also kein benutzerdefiniertes Repository hinzufügen.</p>
+<ol>
+<li>Öffne HACS, suche nach <b>PadSpan HA</b> und lade es herunter.</li>
+<li>Starte Home Assistant komplett neu: <b>Einstellungen → System → Neu starten</b>.</li>
+<li>Füge die Integration hinzu: <b>Einstellungen → Geräte &amp; Dienste → Integration hinzufügen</b>, suche
+nach <b>PadSpan HA</b> und wähle <b>Absenden</b>.</li>
+<li>Öffne <b>PadSpan HA</b> in der Seitenleiste.</li>
+</ol>
+<h3 id="von-hand">Von Hand</h3>
+<ol>
+<li>Lade aus dem <a href="https://github.com/gbroeckling/padspanHA/releases/latest">neuesten Release</a>
+<code>padspan_ha.zip</code> herunter.</li>
+<li>Leg im Konfigurationsordner von Home Assistant den Ordner <code>custom_components/padspan_ha</code> an.</li>
+<li>Entpacke <code>padspan_ha.zip</code> in diesen Ordner. Seine Dateien haben keinen eigenen Ordner: Wenn du
+fertig bist, liegt <code>manifest.json</code> unter <code>custom_components/padspan_ha/manifest.json</code>.</li>
+<li>Starte Home Assistant neu und füge dann die Integration hinzu wie in Schritt 3 bei HACS oben.</li>
+</ol>
+<p>Eine Installation von Hand bekommt keine Update-Angebote. Du wiederholst diese Schritte für jede
+neue Version.</p>
+<h3 id="was-du-nach-der-installation-siehst">Was du nach der Installation siehst</h3>
+<p>PadSpan fügt der Seitenleiste zwei Einträge hinzu: <b>PadSpan HA</b> (das Panel) und <b>Atlas</b> (die
+Lichtkarte; sie lässt sich abschalten). Eine neue Installation öffnet sich auf deinem eigenen Haus,
+sobald Home Assistant einen Bluetooth-Empfänger meldet, und zeigt <b>Wer ist wo</b>. Bei einer neuen
+Installation ist außerdem <b>Erweiterte Sicherheit</b> an: Änderungen an PadSpans gemeinsamer
+Einrichtung brauchen einen Administrator von Home Assistant.</p>
+<h2 id="aktualisieren">Aktualisieren</h2>
+<h3 id="stabil-und-beta">Stabil und Beta</h3>
+<p>PadSpan hat zwei Arten von Releases.</p>
+<ul>
+<li><b>Stabil</b> ist, was der Marketplace und HACS ab Werk installieren und anbieten. Die meisten
+Haushalte sollten bei Stabil bleiben.</li>
+<li><b>Betas</b> kommen oft heraus, manchmal mehrere an einem Tag, damit ein Fix die Tester noch an dem
+Tag erreicht, an dem er gemacht wird. Es sind Pre-Releases auf GitHub. HACS bietet eine Beta nur
+denen an, die es um Betas gebeten haben. Die Release Notes einer Beta haben BETA im Titel.</li>
+</ul>
+<p>Betas in HACS 2 bekommst du so: Geh zu <b>Einstellungen → Geräte &amp; Dienste → HACS</b>, öffne das Gerät
+<b>PadSpan HA</b> und schalte seine Entität <b>Pre-release</b> ein. Home Assistant legt diese Entität
+ausgeschaltet und deaktiviert an, also aktiviere sie zuerst (in ihren Einstellungen, <b>Aktiviert</b>).
+Um zurück zu Stabil zu gehen, schalte sie wieder aus; HACS bietet dann die nächste stabile Version
+an.</p>
+<h3 id="schritt-für-schritt">Schritt für Schritt</h3>
+<ol>
+<li>Öffne <b>Einstellungen → System → Aktualisierungen</b>. Ein neues PadSpan HA erscheint dort (in HACS
+erscheint es auch bei <b>PadSpan HA</b>).</li>
+<li>Wähle <b>Installieren</b>. Die Release Notes stehen im selben Dialog.</li>
+<li>Starte Home Assistant neu: <b>Einstellungen → System → Neu starten</b>.</li>
+<li>Lade die PadSpan-Seite in jedem Browser neu, in dem sie offen ist (Strg+F5 am Computer).</li>
+</ol>
+<p>Nach dem Update zeigt PadSpans Übersicht <b>PadSpan HA ist jetzt auf v…</b> mit <b>Was ist neu?</b> (die
+Release Notes, im Panel) und <b>Ausblenden</b>.</p>
+<p>Ein Browser, der noch die alte Version ausführt, sagt das in einer Leiste oben, mit einem Knopf
+<b>Neu laden</b>:</p>
+<ul>
+<li>„PadSpan wurde auf v… aktualisiert. Diese Seite läuft noch mit v….“: Lade die Seite neu.</li>
+<li>„Diese Seite ist v…, aber Home Assistant führt PadSpan v… aus. Wenn du gerade aktualisiert hast,
+starte Home Assistant neu.“: Die neuen Dateien sind da, aber Home Assistant wurde noch nicht neu
+gestartet.</li>
+</ul>
+<p>Ein Wandbildschirm, der mit <code>?kiosk=1</code> geöffnet wurde, lädt sich nach einem Update einmal selbst
+neu, wenn ihn zwei Minuten lang niemand berührt hat, damit er nie alten Code weiterlaufen lässt.</p>
+<h3 id="padspans-eigener-update-hinweis">PadSpans eigener Update-Hinweis</h3>
+<p>Einmal am Tag fragt PadSpan bei <code>padspan.traks.ca</code> nach, ob es eine neuere stabile Version gibt. Die
+Anfrage enthält nur die installierte Versionsnummer. Gibt es eine, zeigt Home Assistant eine
+Benachrichtigung: <b>PadSpan HA update available</b>, „PadSpan HA … is available (you run …)“, mit der
+Stelle, an der du aktualisierst (der Marketplace oder HACS, je nachdem, was diese Kopie verwaltet,
+oder von Hand bei einer von Hand installierten Kopie), und einem Link zu den Release Notes. Sie
+erscheint einmal für jede neue Version (nach einem Neustart von Home Assistant kann die nächste
+tägliche Prüfung sie wieder zeigen, bis du aktualisierst), und nur für stabile Versionen. Die erste
+Prüfung kommt zu einer zufälligen Zeit zwischen 5 Minuten und 6 Stunden nach dem Start von Home
+Assistant, danach einmal am Tag.</p>
+<p>So schaltest du ihn ab: <b>Einstellungen → Ortung → Datenschutz, Updates und Feedback →
+Update-Prüfung</b>, und stell sie auf <b>Deaktiviert</b>. Der Marketplace und HACS bieten Updates
+weiterhin von sich aus an. Ist ein Lizenzschlüssel eingetragen, wird der Schlüssel weiterhin einmal
+am Tag bei <code>traks.ca</code> geprüft.</p>
+<h2 id="deinstallieren">Deinstallieren</h2>
+<h3 id="bevor-du-es-entfernst">Bevor du es entfernst</h3>
+<ul>
+<li><b>Türöffner aus Relais</b> (Geräte → Türöffner) bestehen aus Skripten, Automationen, einem Helfer
+und einer Template-Entität von Home Assistant, alle mit Namen <code>padspanha_…</code>. Wenn du PadSpan
+entfernst, bleiben sie. Um sie zu löschen, wähle zuerst bei jedem in Geräte → Türöffner
+<b>Entfernen</b>.</li>
+<li><b>Ein iPhone-Schlüssel (IRK), den du aus PadSpan hinzugefügt hast</b>, ist ein Eintrag in Private
+BLE Device. Er bleibt, wenn PadSpan weg ist. Lösch ihn unter
+<b>Einstellungen → Geräte &amp; Dienste → Private BLE Device</b>, wenn du ihn nicht mehr willst.</li>
+<li><b>Um dein Haus für später zu behalten</b>, mach jetzt ein Backup von Home Assistant (siehe
+<a href="/manual/backup-restore-moving/de/">Kapitel 22</a>). PadSpans eigene Backups liegen in PadSpans Dateien und
+verschwinden, wenn du die löschst.</li>
+</ul>
+<h3 id="schritt-für-schritt-1">Schritt für Schritt</h3>
+<ol>
+<li>Öffne <b>Einstellungen → Geräte &amp; Dienste → PadSpan HA</b>, öffne das Menü (⋮) und wähle
+<b>Löschen</b>. Home Assistant entfernt PadSpans Entitäten und die Geräte, die nur PadSpan genutzt
+hat. PadSpan gibt jedem WLED-Licht, das es gesteuert hat, seinen WLED-Sync zurück. Ist der
+Nutzungsbericht an, schickt PadSpan einen letzten Bericht, der sagt, dass es entfernt wurde, ohne
+etwas über das Haus.</li>
+<li>Entferne den Code:
+<ul>
+<li>Marketplace: Öffne <b>PadSpan HA</b> unter <b>Einstellungen → Marketplace</b> und entferne es.</li>
+<li>HACS: Öffne <b>PadSpan HA</b> in HACS, öffne das Menü (⋮) und wähle <b>Remove</b>.</li>
+<li>Von Hand: Lösch den Ordner <code>custom_components/padspan_ha</code>.</li>
+</ul></li>
+<li>Starte Home Assistant neu. Die Einträge <b>PadSpan HA</b> und <b>Atlas</b> in der Seitenleiste sind
+weg.</li>
+</ol>
+<h3 id="was-zurückbleibt">Was zurückbleibt</h3>
+<p>Home Assistant löscht die Dateien einer Integration nicht, wenn sie entfernt wird. PadSpans Dateien
+bleiben im Konfigurationsordner von Home Assistant, bis du sie löschst:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Was</th><th>Wo</th><th>Enthält</th></tr>
+  <tr><td>PadSpans Datendateien</td><td><code>.storage/padspan_ha.*</code>, eine Datei für jede Art von Daten</td><td>Einstellungen, Lizenzschlüssel, Karten, Räume, Kalibrierung, Labels, Verlauf, PadSpans eigene Backups und den Rest</td></tr>
+  <tr><td>Zwei Datenordner</td><td><code>.storage/padspan_ha.traceback_segments/</code> und <code>.storage/padspan_ha.capture_sessions/</code></td><td>Den Verlauf von Traceback und RSSI-Aufzeichnungen (nur, wenn du eine gemacht hast)</td></tr>
+  <tr><td>Grundriss-Bilder</td><td><code>padspan_ha/maps/</code></td><td>Die Grundrisse, die du hochgeladen hast</td></tr>
+  <tr><td>WLED-Backups</td><td><code>padspan_ha/wled_backups/</code></td><td>Nur, wenn du ein WLED-Gerät aus PadSpan gesichert hast</td></tr>
+  <tr><td>Eine beiseitegelegte unlesbare Datei</td><td><code>.storage/padspan_ha.&lt;name&gt;.unreadable.&lt;time&gt;</code></td><td>Nur, wenn PadSpan einmal eine Datei gefunden hat, die es nicht lesen konnte</td></tr>
+  <tr><td>Alter Kartenordner</td><td><code>www/padspan_ha/maps/</code></td><td>Nur bei einem Haus, auf dem nie 0.38.143 oder neuer lief: Neuere Versionen verschieben die Bilder daraus</td></tr>
+</table>
+</div>
+<p>So entfernst du sie alle:</p>
+<ol>
+<li>Deinstalliere wie oben und starte Home Assistant neu.</li>
+<li>Lösch mit dem Add-on File editor, Samba share, SSH oder Studio Code Server im
+Konfigurationsordner: jede Datei und jeden Ordner in <code>.storage</code>, deren Name mit <code>padspan_ha.</code>
+anfängt, den Ordner <code>padspan_ha</code> und <code>www/padspan_ha</code>, falls es ihn gibt.</li>
+</ol>
+<p>Lösch sie nur, wenn PadSpan entfernt ist: Solange es läuft, schreibt es sie wieder.</p>
+<p>Außerdem bleibt in Home Assistant, außerhalb von PadSpans Dateien:</p>
+<ul>
+<li><b>Tags</b>: Ist <b>Tag-Ereignisse bei Raumwechsel</b> eingeschaltet (Einstellungen → Ortung → Home
+Assistant und Integrationen → HA-Tags-Integration), hat die Tag-Liste von Home Assistant einen Tag
+namens <code>padspan_…</code> für jedes Gerät, dem du folgst und das den Raum gewechselt hat. Lösch sie unter
+<b>Einstellungen → Tags</b>, wenn du willst.</li>
+<li><b>Verlauf</b>: Die Datenbank von Home Assistant behält die früheren Zustände von PadSpans Entitäten,
+bis ihre eigene Verlaufseinstellung sie löscht (10 Tage, wenn du das nicht geändert hast).</li>
+<li><b>Alles, was du über PadSpans Knöpfe zu einer anderen Integration hinzugefügt hast</b>, wie oben.</li>
+</ul>
+<p><b>Ein Factory Reset ist keine Deinstallation.</b> Verwalten → Factory Reset leert PadSpans Dateien und
+lässt PadSpan installiert. Es behält deinen Lizenzschlüssel. Siehe
+<a href="/manual/backup-restore-moving/de/">Kapitel 22</a>.</p>
+<h3 id="wieder-installieren">Wieder installieren</h3>
+<p>PadSpan findet seine Dateien in <code>.storage</code>, wenn sie noch da sind, und kommt mit dem Haus zurück,
+wie es war. Ein Haus, dessen Dateien gelöscht wurden, startet wie eine neue Installation.</p>
+<div class="pager"><span><a href="/manual/requirements/de/">← 2. Voraussetzungen</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/first-room/de/">4. Dein erster Raum in 15 Minuten →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

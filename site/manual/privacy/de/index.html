@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>24. Datenschutz: was das Haus verlässt | PadSpan-HA-Handbuch</title>
+<meta name="description" content="PadSpan arbeitet in deinem Home Assistant. Wo deine Handys, Tags und Personen sind, deine Räume, deine Grundrisse, die Namen deiner Geräte und ihre…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/privacy/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/privacy/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/privacy/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/privacy/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="24. Datenschutz: was das Haus verlässt">
+<meta property="og:description" content="PadSpan arbeitet in deinem Home Assistant. Wo deine Handys, Tags und Personen sind, deine Räume, deine Grundrisse, die Namen deiner Geräte und ihre…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/privacy/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/privacy/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="24-datenschutz-was-das-haus-verlässt">24. Datenschutz: was das Haus verlässt</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>PadSpan arbeitet in deinem Home Assistant. Wo deine Handys, Tags und Personen sind, deine Räume,
+deine Grundrisse, die Namen deiner Geräte und ihre Bluetooth-Adressen bleiben dort. Dieses Kapitel
+listet jedes Mal auf, wenn etwas hinausgeht, was es enthält und wie du es abstellst. Die vollständige
+Liste, Feld für Feld, steht im README unter <a href="https://github.com/gbroeckling/padspanHA/blob/main/README.md#updates--privacy">Updates &amp; Privacy</a>.</p>
+<h2 id="auf-einen-blick">Auf einen Blick</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Was</th><th>Geht an</th><th>Wann</th><th>Enthält</th><th>Aus</th></tr>
+  <tr><td><b>Update-Prüfung</b></td><td><code>padspan.traks.ca</code></td><td>Einmal am Tag</td><td>Nur deine PadSpan-Version</td><td><b>Einstellungen → Ortung → Update-Prüfung → Deaktiviert</b></td></tr>
+  <tr><td><b>Lizenzprüfung</b></td><td><code>traks.ca</code></td><td>Einmal am Tag, nur mit eingetragenem Lizenzschlüssel</td><td>Den Schlüssel, die Instanz-ID von Home Assistant, das Token dieses Zuhauses, die Version, den Namen des Zuhauses, ob der Nutzungsbericht an ist</td><td>Den Schlüssel entfernen</td></tr>
+  <tr><td><b>Nutzungsbericht</b></td><td><code>padspan.traks.ca</code></td><td>Höchstens einmal am Tag, nur wenn du zustimmst</td><td>Zahlen, Versionen und Flags</td><td>Aus, solange du ihn nicht einschaltest</td></tr>
+  <tr><td><b>Tester-Anmeldung</b></td><td><code>padspan.traks.ca</code></td><td>Nur wenn du <b>Send sign-up</b> drückst</td><td>Was du eintippst, und die Zeilen zur Einrichtung, die du angehakt lässt</td><td>Wird nie gesendet, außer du meldest dich an</td></tr>
+  <tr><td><b>Eine Einladung, die du einlöst</b></td><td><code>traks.ca</code></td><td>Nur wenn du <b>Claim</b> oder <b>No thanks</b> drückst</td><td>Das Token der Einladung, und bei Claim die E-Mail-Adresse, die du eintippst</td><td>Nichts tun</td></tr>
+  <tr><td><b>Gemeinsame Möbelbibliothek</b></td><td><code>padspan.traks.ca</code></td><td>Nur solange sie an ist, wenn jemand sie nutzt</td><td>Suchen, die ID eines Stücks, das Rezept eines geteilten Stücks</td><td>Ab Werk aus</td></tr>
+  <tr><td><b>KI-Lesevorgänge</b></td><td>Die KI hinter deinem eigenen AI Task</td><td>Nur wenn jemand einen startet</td><td>Ein Bild und PadSpans Anweisungen</td><td>Kein AI Task gewählt (die Voreinstellung)</td></tr>
+  <tr><td><b>Alarme</b></td><td>Deine eigenen notify-Dienste (Handy-App, E-Mail)</td><td>Wenn ein Alarm auslöst</td><td>Den Text des Alarms</td><td>Keine Alarme einrichten</td></tr>
+</table>
+</div>
+<p>Wie bei jeder Webanfrage sieht jeder Server deine IP-Adresse.</p>
+<h2 id="die-update-prüfung">Die Update-Prüfung</h2>
+<p>Einmal am Tag fragt PadSpan bei <code>padspan.traks.ca</code> nach, ob es eine neuere Version gibt, und zeigt
+eine Benachrichtigung in Home Assistant, wenn es eine gibt (<a href="/manual/install-update-uninstall/de/">Kapitel 3</a>).
+Die Anfrage enthält nur deine installierte Versionsnummer. Auf deinem System wird keine Kennung
+gespeichert, und die Prüfung allein zählt Anfragen, nicht Installationen. Die Antwort kann außerdem
+PadSpans Angebote für kostenloses Pro (Tester werden, Einladungen) aus- oder einschalten, sodass ein
+beendetes Angebot ohne Update verschwindet; sie enthält nur diese beiden Schalter und kann dem Panel
+nichts hinzufügen.</p>
+<h2 id="die-lizenzprüfung">Die Lizenzprüfung</h2>
+<p>Nur mit einem Lizenzschlüssel (aus einem Testzeitraum oder gekauft): Einmal am Tag, ob die
+Update-Prüfung an ist oder nicht, prüft PadSpan den Schlüssel bei <code>traks.ca</code>, damit ein erstatteter
+oder widerrufener Schlüssel aufhört zu funktionieren. Es schickt im Body der Anfrage den Schlüssel,
+die Instanz-ID von Home Assistant (der Server behält davon nur einen Einweg-Hash), das aktuelle Token
+dieses Zuhauses (einen zufälligen Code, den der Server ihm gegeben hat), die PadSpan-Version, den
+Namen, den du diesem Zuhause gegeben hast (falls es einen hat), und ob der Nutzungsbericht dieses
+Zuhauses an ist. Ohne Schlüssel gibt es keine Lizenzprüfung. Schlüssel und Zuhause:
+<a href="/manual/padspan-pro/de/">Kapitel 25</a>.</p>
+<h2 id="der-nutzungsbericht-freiwillig">Der Nutzungsbericht (freiwillig)</h2>
+<p><b>Einstellungen → Ortung → Hilf, PadSpan besser zu machen</b>, ab Werk aus. Das Panel fragt einmal,
+mit der Vorschau neben der Frage; jede Antwort beendet das Fragen. Ein- oder Ausschalten braucht
+einen Administrator.</p>
+<p>Ist er an, schickt PadSpan höchstens einmal am Tag einen kleinen Bericht (fest begrenzt auf 8 KB)
+aus <b>Zahlen, Versionen und Flags</b>: wie viele Empfänger, Etagen, Räume und platzierte Geräte;
+welche Funktionsschalter an sind; wie oft jeder Bildschirm und jedes Werkzeug benutzt wurde; wie
+stark der Rechner arbeitet; die Klasse des Rechners (Größenklasse des Speichers, Art des Prozessors,
+Board-Familie); Fehler nach PadSpan-Dateiname. Er enthält eine zufällige Installations-ID, damit
+Installationen gezählt werden, nicht Anfragen.</p>
+<p><b>Nie</b>: Bluetooth-Adressen, Handy-Schlüssel oder Lizenzschlüssel, den Namen oder die ID eines
+Geräts, Raums, einer Etage oder Entität, IP-Adressen, Koordinaten oder Zeiten genauer als der Tag.
+Vor jedem Senden prüft PadSpan jeden Wert und verweigert den ganzen Bericht, wenn einer wie eine
+Adresse, ein Schlüssel, eine E-Mail-Adresse oder eine Entitäts-ID aussieht oder ein Text länger als
+64 Zeichen ist.</p>
+<ul>
+<li><b>Vorschau, was gesendet würde</b> zeigt den Bericht genau so, wie er gerade ist, vor oder nach der
+Zustimmung.</li>
+<li><b>Neue anonyme ID</b> ersetzt die Installations-ID, jederzeit.</li>
+<li><b>Wenn du PadSpan löschst</b>, während der Bericht an ist, schickt es einen letzten Bericht, der das
+sagt (die ID, den Tag, die Version), ohne etwas über das Haus.</li>
+<li>Eine freiwillige Frage, wo du von PadSpan gehört hast, kommt einmal, mit <b>Überspringen</b>.</li>
+</ul>
+<p>Der kostenlose Testzeitraum braucht den Bericht an, bis der Testzeitraum endet, und eine Lizenz, die
+in mehr als zwei Zuhause genutzt wird, braucht ihn in jedem davon (<a href="/manual/padspan-pro/de/">Kapitel 25</a>).</p>
+<h2 id="tester-werden">Tester werden</h2>
+<p>Solange der Bericht an ist, bietet seine Karte <b>Become a tester</b> an: PadSpan Pro zwei Jahre
+kostenlos, für Leute, die gern kontaktiert werden, um Neues auszuprobieren. Das ist die einzige
+Stelle, an der PadSpan nach Kontaktdaten fragt, deshalb ist sie in jeder Hinsicht vom anonymen
+Bericht getrennt: ein eigenes Einwilligungskästchen, ein eigener Knopf <b>Send sign-up</b>, eine eigene
+Adresse und eine eigene zufällige ID. Was hinausgeht, ist, was du eintippst (eine E-Mail-Adresse und
+wahlweise einen GitHub-Benutzernamen, einen Namen, Notizen, eine Zeitzone), dazu die Zeilen unter
+<b>About your setup</b>, die du angehakt lässt. <b>Preview what will be sent</b> zeigt es vorher. Deine
+anonymen Berichte werden nur damit verknüpft, wenn du <b>Link my anonymous usage reports</b> anhakst.
+<b>Stop being a tester</b> löscht deine Anmeldung vom Server. Die Anmeldung braucht einen Administrator.</p>
+<h2 id="einladungen">Einladungen</h2>
+<p>Hin und wieder lädt der Entwickler einige Installationen, die den Bericht schicken, ein, etwas
+auszuprobieren, etwa ein Jahr Pro kostenlos. Die Einladung kommt in der Antwort auf den Bericht
+dieser Installation und erscheint als Karte. Nichts wird gesendet, außer du drückst einen Knopf:
+<b>Claim</b> schickt das Token und die E-Mail-Adresse, die du eintippst, damit dir der Schlüssel gemailt
+werden kann; <b>No thanks</b> schickt nur das Token.</p>
+<h2 id="die-gemeinsame-möbelbibliothek">Die gemeinsame Möbelbibliothek</h2>
+<p>Live Aboard (Pro) kann Möbel mit anderen Häusern mit PadSpan tauschen. Ab Werk ist das aus, und nur
+ein Administrator kann es einschalten (<b>Einstellungen → Atlas → Live Aboard → Shared library</b>).
+Solange es an ist, schickt Home Assistant nur dann eine Anfrage, wenn jemand es benutzt: eine Suche
+(die Wörter und Filter), der Blick auf ein Stück (seine Bibliotheks-ID), eine Meldung (das Stück und
+ein Grund), ein Teilen (Form, Maße, Farben und Datenblatt des Stücks) oder das Zurückziehen eines
+geteilten Stücks. Nie ein Foto, einen Grundriss, wo ein Stück steht, seinen Namen in deinem Haus oder
+die ID des Nutzungsberichts. Text, der wie eine E-Mail-Adresse, eine Adresse, eine Telefonnummer oder
+ein Schlüssel aussieht, wird abgelehnt, bevor etwas gesendet wird.</p>
+<h2 id="ki-lesevorgänge">KI-Lesevorgänge</h2>
+<p>PadSpan hat keine eigene KI. Ein paar Pro-Funktionen können den AI Task, den du unter
+<b>Einstellungen → KI</b> gewählt hast, bitten, ein Bild zu lesen: das Foto eines Möbelstücks oder
+einen Grundriss. Ab Werk ist keiner gewählt. Eine lokale KI behält das Bild bei dir zu Hause; eine
+Cloud-KI schickt es an diese Firma. PadSpan fügt keine Namen, Adressen oder Positionen hinzu, aber
+ein Grundriss geht so, wie er ist, mit allem, was darauf steht. Alles darüber:
+<a href="/manual/ai-features/de/">Kapitel 19</a>.</p>
+<h2 id="was-nie-das-haus-verlässt">Was nie das Haus verlässt</h2>
+<ul>
+<li><b>Handy-Schlüssel (IRKs)</b>: nur in deinem Home Assistant.</li>
+<li><b>Positionen, Räume, Verlauf, Grundrisse</b>: nur in deinem Home Assistant.</li>
+<li><b>Hersteller von Geräten</b>: PadSpan nennt den Hersteller eines Geräts aus dem, was das Gerät
+aussendet, und aus Listen, die in PadSpan eingebaut sind. Dafür wird nichts irgendwohin geschickt.</li>
+<li><b>Namen von Gästen</b>: nicht im Nutzungsbericht und nicht in einem PadSpan-Backup.</li>
+<li><b>Die Figuren von Personen</b> in Live Aboard: nur in der 3D-Datei dieses Hauses, nie geteilt.</li>
+<li><b>Diagnose und Export for support</b>: entstehen auf deinem Rechner und gehen nur dorthin, wohin du
+sie schickst (<a href="/manual/getting-help/de/">Kapitel 27</a>).</li>
+</ul>
+<h2 id="wo-padspan-deine-daten-aufbewahrt">Wo PadSpan deine Daten aufbewahrt</h2>
+<p>Im Ordner <code>.storage</code> deines Home Assistant (die Dateien <code>padspan_ha.*</code>) und in <code>&lt;config&gt;/padspan_ha/</code>
+(die Bilder der Grundrisse, außerhalb des Ordners, den Home Assistant ohne Anmeldung ausliefert).
+Umziehen und entfernen: <a href="/manual/backup-restore-moving/de/">Kapitel 22</a> und
+<a href="/manual/install-update-uninstall/de/">Kapitel 3</a>.</p>
+<div class="pager"><span><a href="/manual/performance-and-small-machines/de/">← 23. Leistung und kleine Rechner</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/padspan-pro/de/">25. PadSpan Pro: Testzeitraum, Schlüssel, Zuhause, Tester, Einladungen →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

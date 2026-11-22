@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12. Die Bildschirme | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Wofür jeder Bildschirm von PadSpan da ist, wo er im Menü steht, und die alltäglichen genauer: Übersicht, Live-Tracker, Folgen, Belegung, Traceback, Forensik…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/the-screens/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/the-screens/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/the-screens/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/the-screens/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="12. Die Bildschirme">
+<meta property="og:description" content="Wofür jeder Bildschirm von PadSpan da ist, wo er im Menü steht, und die alltäglichen genauer: Übersicht, Live-Tracker, Folgen, Belegung, Traceback, Forensik…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/the-screens/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/the-screens/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="12-die-bildschirme">12. Die Bildschirme</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Wofür jeder Bildschirm von PadSpan da ist, wo er im Menü steht, und die alltäglichen genauer:
+Übersicht, Live-Tracker, Folgen, Belegung, Traceback, Forensik und Zustand. Die meisten Bildschirme
+und Karten haben neben der Überschrift ihre eigene <b>?</b>-Hilfe, auf Englisch, Deutsch, Französisch
+und Niederländisch.</p>
+<h2 id="zurechtfinden">Zurechtfinden</h2>
+<ul>
+<li><b>Das Menü</b> läuft links an der Seite entlang. Auf einem Handy ist es eine Leiste unten, und
+<b>Mehr</b> öffnet das ganze Menü.</li>
+<li><b>Der Modus-Knopf</b>, oben rechts (auf einem Handy in der Leiste oben), zeigt <b>Einfach</b>,
+<b>Erweitert</b> oder <b>Dev</b>. Jeder Druck wechselt zum nächsten Modus. Dieser Browser merkt sich
+deine Wahl.</li>
+<li><b>Der Knopf Daten</b>, daneben, zeigt <b>Live</b> (dein Haus) oder <b>Beispiel</b> (das Beispielhaus).
+Siehe <a href="#das-beispielhaus">Das Beispielhaus</a>.</li>
+<li><b>Der Statuspunkt</b>, in der Leiste oben, erscheint nur, wenn etwas einen Blick braucht. Siehe
+<a href="#zustand">Zustand</a>.</li>
+</ul>
+<h2 id="einfach-erweitert-und-entwicklung">Einfach, Erweitert und Entwicklung</h2>
+<p>Jeder Bildschirm steht in jedem Modus im Menü. Der Modus entscheidet zweierlei: welche Bildschirme
+in der <b>Hauptliste</b> stehen (der Rest liegt unter <b>Weitere Werkzeuge</b> unten im Menü, zugeklappt,
+bis du es öffnest), und wie viel jeder Bildschirm im Einzelnen zeigt.</p>
+<ul>
+<li><b>Einfach</b>: eine kurze Hauptliste, und jeder Bildschirm bleibt beim Wesentlichen. Für alle im
+Haus, die nur sehen wollen, wo die Dinge sind. Ein Link auf einen Teil eines Experten-Bildschirms
+(den Umriss eines Raums, den Platz eines Empfängers, die Etagenhöhen) öffnet nur diesen Teil, mit
+einem Weg zurück, und der Modus bleibt Einfach.</li>
+<li><b>Erweitert</b>: der Standard. Eine längere Hauptliste, und jedes Werkzeug auf jedem Bildschirm.</li>
+<li><b>Entwicklung</b>: dasselbe Menü wie Erweitert, mit mehr Diagnose-Details in den Bildschirmen. Nimm
+es zur Fehlersuche, oder wenn der Support darum bittet.</li>
+</ul>
+<p>Den Modus zu wechseln löscht nichts. In Erweitert und Entwicklung kann <b>Einstellungen → UI-Struktur</b>
+Geräte, Bluetooth, Anwesenheit, Monitor, QA oder Sandbox aus Weitere Werkzeuge in die Hauptliste
+holen.</p>
+<h2 id="die-menükarte">Die Menükarte</h2>
+<p>Jeder Bildschirm, wo er in jedem Modus steht, und seine Überschrift im Menü. Die Überschriften
+erscheinen mit dem Panel-Stil 2025 (dem Standard, <b>Einstellungen → Darstellung → Panel-Stil</b>); in
+Einfach und mit dem Stil Klassisch hat das Menü keine Überschriften. Eine Installation von PadSpan
+Bright zeigt nur ihre Licht-Bildschirme.</p>
+<p>Die folgende Tabelle ist englisch: Sie entsteht direkt aus PadSpans Code.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Screen</th><th>What it is</th><th>In the menu</th><th>Basic</th><th>Advanced and Development</th><th>Heading</th></tr>
+  <tr><td><b>Overview</b></td><td>Where everyone and everything is now, on a drawing of your house; before any room is drawn, Who's where now.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Live</td></tr>
+  <tr><td><b>Live Tracker</b></td><td>The live map on its own, full screen, for a wall tablet or a second screen.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Live</td></tr>
+  <tr><td><b>Follow</b></td><td>One person or thing: its room now, its movements, Locate (Pro) and alerts when it moves.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Live</td></tr>
+  <tr><td><b>Occupancy</b></td><td>How many people are in the building, and how the number was reached.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Live</td></tr>
+  <tr><td><b>Guests</b></td><td>Guest tags: who is staying now, the tags you lend, and past stays.</td><td>While guest tags are on (Settings → Tracking → Phones and guest tags)</td><td>Main list</td><td>Main list</td><td>Live</td></tr>
+  <tr><td><b>Setup</b></td><td>The steps from a floor plan to a calibrated map, in order.</td><td>Until every step is done, or setup is skipped</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Mapping</b></td><td>Floor plans, their scale, rooms, receivers, floors, and the Atlas builder.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Rooms</b></td><td>Every room's settings in one place: colour, outline, ceiling height, receivers, who is in it.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Receivers</b></td><td>Every receiver in one table: room, floor, height, signal adjustment, status.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Calibration</b></td><td>Teach PadSpan what each spot sounds like, and see how accurate it is.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Training</b></td><td>Animated walkthroughs and the Full Manual, inside the panel.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Manage</b></td><td>Data clean-ups, backups, Home Assistant entities, alerts by email or phone, logs, Factory Reset.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Settings</b></td><td>Every setting, in tabs.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
+  <tr><td><b>Traceback</b></td><td>Replay where devices went, with Insights (time in each room) and Busy Times (Pro).</td><td>Always</td><td>More tools</td><td>Main list</td><td>Diagnose</td></tr>
+  <tr><td><b>Health</b></td><td>Is PadSpan working? Its own checks, receivers' health, and Problems found.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Diagnose</td></tr>
+  <tr><td><b>Forensics</b></td><td>Pro: which Bluetooth devices were near your receivers between two times.</td><td>While Forensics is on (Settings → Features → Forensics)</td><td>Main list</td><td>Main list</td><td>Diagnose</td></tr>
+  <tr><td><b>Monitor</b></td><td>What PadSpan hears, in numbers, and Export for support.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Diagnose</td></tr>
+  <tr><td><b>Devices</b></td><td>Every device PadSpan tracks or hears, in four lists, and the device registry.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Internals</td></tr>
+  <tr><td><b>Bluetooth</b></td><td>What each receiver hears, and the IRK Manager for phones and watches.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Internals</td></tr>
+  <tr><td><b>Presence</b></td><td>For experts: which rooms each device has been seen in, and what each receiver hears.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Internals</td></tr>
+  <tr><td><b>QA</b></td><td>Checks on your setup, backups, and each receiver ranked.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Internals</td></tr>
+  <tr><td><b>Sandbox</b></td><td>A look under the hood at the live data; changes nothing.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Internals</td></tr>
+  <tr><td><b>Install Base</b></td><td>The developer's screen for the opt-in usage reports; asks for a PIN.</td><td>Always</td><td>More tools</td><td>More tools</td><td>Internals</td></tr>
+</table>
+</div>
+<p>On a phone, the bar along the bottom has Follow, Overview, Mapping and Settings in Basic, and Follow, Overview, Mapping and Calibration in Advanced and Development, then More, which opens the whole menu.</p>
+<h2 id="das-beispielhaus">Das Beispielhaus</h2>
+<p>Das Beispielhaus ist ein erfundenes Haus auf drei Etagen, in dem jede Funktion eingerichtet ist,
+damit du siehst, was PadSpan macht, bevor deine eigene Einrichtung fertig ist. Es ist
+schreibgeschützt: Alles, was es ändern würde, wird mit einer Meldung abgelehnt, und nichts, was du
+dort tust, berührt dein eigenes Haus. Nur wie das Panel aussieht (sein Thema und sein Stil) lässt
+sich dort ändern.</p>
+<ul>
+<li>Eine neue Installation startet mit dem Beispielhaus und wechselt von selbst zu deinem, sobald
+PadSpan deinen ersten Empfänger hört.</li>
+<li><b>Ein fertiges Haus ansehen</b>, auf der Karte <b>Wer ist wo</b> der Übersicht, öffnet es.</li>
+<li><b>Der Knopf Daten</b>: Von Live aus macht der erste Druck daraus <b>Demo zeigen?</b>; drück innerhalb
+von 3 Sekunden noch einmal, um das Beispielhaus zu öffnen. Von Beispiel aus geht ein Druck zurück
+zu Live.</li>
+<li><b>Zu meinem Haus</b>, auf dem gelben Banner, geht zurück zu deinem eigenen.</li>
+</ul>
+<p>Live oder Beispiel wählt jeder Browser für sich: Wer sich das Beispielhaus ansieht, schaltet keinen
+Wandbildschirm und keinen anderen Browser um. Steht das Haus selbst noch auf Beispiel und ist die
+erweiterte Sicherheit an, kann nur ein Administrator es zurück auf Live stellen.</p>
+<h2 id="übersicht">Übersicht</h2>
+<p>Die erste Seite: wo alle und alles gerade sind. Im Modus Live aktualisiert sie sich alle 5 Sekunden.</p>
+<p>Was du siehst, hängt davon ab, wie weit die Einrichtung ist:</p>
+<ul>
+<li><b>Noch kein Raum gezeichnet</b>: <b>Wer ist wo</b>, jeder Raum und wer darin ist, aus den
+Home-Assistant-Bereichen deiner Empfänger (<a href="/manual/first-room/de/">Kapitel 4</a>), und eine Karte
+<b>Karte anlegen (optional)</b> mit den Schritten der Einrichtung.</li>
+<li><b>Räume auf der Karte</b>: die Karte, ein 3D-Stapel deiner Etagen. Jeder Raum hat seine eigene
+Farbe. Empfänger sind Ringe mit einem kurzen Namen, grün, wenn sie melden, und grau, wenn sie
+offline sind. Geräte, denen du folgst, sind bernsteinfarbene Markierungen mit ihrem Namen und
+damit, wie sicher PadSpan sich der Stelle ist („Nur Raum“, wenn es den Raum kennt, aber nicht die
+Stelle); sie werden blass und sagen „(weg)“, wenn sie weg sind. Schalte <b>Pins</b> ein, um auch
+deine anderen benannten Geräte zu zeigen.</li>
+</ul>
+<p><b>Einfach</b> hält es kurz: das Häkchen <b>Ruhig</b>, die Zahl der Räume, Objekte, Empfänger und
+Kalibrierpunkte, die Karte <b>Dein Handy verfolgen</b> und unter <b>Dein Zuhause</b> die Karte des Hauses.</p>
+<p><b>Erweitert und Entwicklung</b> fügen <b>Personen im Gebäude</b> hinzu (klick darauf, um zu sehen, wie die
+Zahl zustande kam) und unter der Karte die Karten Räume, Objekte, Bluetooth-Funkempfänger und
+Kalibrierung. Ihre Knöpfe öffnen ganze Listen: <b>Raumliste ansehen</b>, <b>Alle Objekte</b> und
+<b>Unerkannt</b>, <b>Empfängerliste ansehen</b>. Klick eine Zeile an, um ihre Details zu sehen.
+<b>Unerkannte löschen</b> entfernt Geräte, die niemand benannt hat und denen niemand folgt; sie kommen
+wieder, wenn sie wieder gehört werden.</p>
+<p><b>Ruhig</b>, oben rechts, blendet Geräte aus, die niemand benannt hat und denen niemand folgt, hier und
+auf den anderen Bildschirmen. Es ändert, was gezeigt wird, nicht, was verfolgt wird.</p>
+<p>Andere Karten kommen und gehen: <b>Erste Schritte</b>, solange die Einrichtung nicht fertig ist,
+<b>Genauigkeit verbessern</b> mit einem letzten Tipp oder zwei, sobald sie es ist, der Pro-Testzeitraum,
+was sich nach einem Update geändert hat, und <b>Ortungsdiagnose</b> (zugeklappt) für den Support. Mit
+PadSpan Pro setzt <b>Einstellungen → Atlas → Show the Atlas as Overview</b> stattdessen den Atlas
+hierher.</p>
+<h2 id="live-tracker">Live-Tracker</h2>
+<p>Die Live-Karte für sich allein, so groß, wie der Bildschirm es zulässt: gut für ein Wand-Tablet oder
+einen zweiten Bildschirm.</p>
+<ul>
+<li>Zieh, um die Karte zu verschieben; das Mausrad oder zwei Finger zoomen; <b>+</b>, <b>−</b> und <b>⌂</b> in
+der Ecke tun dasselbe, und ⌂ setzt die Ansicht zurück. <b>Search objects, rooms, scanners…</b> findet
+eines und bewegt die Karte dorthin.</li>
+<li>Oben links: die Zahl der Räume, der benannten Geräte (Tracked) und der Empfänger (Radios). Oben
+rechts: deine Empfänger, jeder mit der Zahl der Geräte, die er hört; rot heißt, er scannt nicht.</li>
+<li>Wechselt ein Gerät den Raum, erscheint es kurz auf der Karte und in einer kurzen Liste der letzten
+Wechsel.</li>
+<li>Unter der Karte listet <b>Tracked Devices</b> die Geräte, denen du folgst, und ihre Räume; das
+Zielsymbol zentriert die Karte auf eines. <b>ℹ</b> blendet diese Felder aus oder ein.</li>
+<li><b>Controls</b> öffnet die Einstellungen der Zeichnung (die Etage, den Abstand zwischen den Etagen,
+Wände, Spuren, Pins, Heatmap), wie auf der Karte der Übersicht.</li>
+</ul>
+<p>Für einen Wandbildschirm öffnest du ihn mit <code>?view=purelive&amp;kiosk=1</code> am Ende der Adresse des Panels:
+Die Menüs des Panels sind dann ausgeblendet.</p>
+<h2 id="folgen">Folgen</h2>
+<p>Wo eine Person oder ein Ding gerade ist: ein Handy, ein Schlüsselanhänger, ein Tag, alles mit
+Bluetooth, was PadSpan hört.</p>
+<ol>
+<li>Wähl es unter <b>Tag zum Folgen wählen</b>: Klick in das Suchfeld, oder tipp einen Teil eines
+Namens, eines Raums oder einer Adresse. Die Liste ist nach Signal sortiert, das stärkste zuerst.
+Wählst du eines, kommt es auch zu den Geräten, denen du folgst, und die Übersicht zeichnet es als
+bernsteinfarbene Markierung.</li>
+<li>Die Karte darunter sagt, in welchem Raum es gerade ist, seine Etage, und wann ein Empfänger es
+zuletzt gehört hat. Ein Abzeichen <b>Kalibriert</b> mit einer Prozentzahl erscheint, wenn sein Platz
+aus deinen Kalibrierpunkten kommt.</li>
+<li>Die <b>Ortskarte</b> zeichnet jeden Raum als Kasten und den Tag als pulsierenden Punkt in seinem
+Raum. Sie ist ein Raumschema, nicht dein Grundriss.</li>
+</ol>
+<p><b>Diesen Tag benennen</b> (oder <b>Umbenennen</b>) gibt ihm einen Namen. <b>Details →</b> öffnet alles, was
+PadSpan darüber weiß. In Erweitert und Entwicklung listet die Karte auch die Empfänger, die es hören,
+und eine Karte <b>Bewegungsprotokoll</b> seine letzten Raumwechsel.</p>
+<p>Unter der Karte:</p>
+<ul>
+<li><b>📍 Finden</b> (PadSpan Pro): in welche Richtung du gehen musst, um es zu finden. Wähl unter
+<b>Du trägst:</b> dein eigenes Handy. Im selben Raum zeigt es die Entfernung in Metern, und ob du
+näher kommst oder dich entfernst. In einem anderen Raum sagt es, in welchen Raum du als Nächstes
+gehst, und ob eine Etage hinauf oder hinunter. Kein Kompass, keine Kamera.</li>
+<li><b>Bewegungsalarme</b>: sagen dir, wenn es den Raum wechselt, ankommt oder geht, auf dem Handy oder
+per E-Mail. Siehe <a href="/manual/alerts/de/">Kapitel 13</a>.</li>
+</ul>
+<h2 id="belegung">Belegung</h2>
+<p>Wie viele <b>Personen</b> im Gebäude sind, nie wie viele Geräte.</p>
+<ul>
+<li><b>Bekannte Personen</b> kommen aus deinen Personen-Entitäten in Home Assistant.</li>
+<li><b>Unbekannte Personen</b> kommen von Handys, die niemand für sich beansprucht hat, und aus Räumen,
+deren Belegungs- oder Bewegungsmelder sagen, dass jemand da ist, wenn keine bekannte Person da ist.</li>
+<li><b>Dinge</b> (Schlüssel, Tags) stehen unter <b>Gesehen, keine Personen</b> und werden nie gezählt.</li>
+</ul>
+<p>Oben: die Zahl, eine Spanne, wenn es nicht sicher ist, wie zuversichtlich es ist, und die Zahlen
+dahinter. <b>Gezählt</b> listet jede Person und wie sie gefunden wurde; <b>Räume mit Hinweisen</b> und
+<b>Wie die Zahl zustande kommt</b> zeigen den Rechenweg.</p>
+<ul>
+<li><b>Hybridzählung</b> nutzt auch Personen-Entitäten und Belegungs- und Bewegungsmelder; nimm das
+Häkchen weg, um nur Handys zu zählen.</li>
+<li><b>Handys gruppieren</b>: Handys, die jeder Empfänger fast gleich stark hört, zählen als eine Person
+(ein Handy und seine Uhr). <b>Übernehmen</b> wendet einen neuen Schwellenwert an.</li>
+<li><b>Die echte Zahl festhalten</b>: Tipp ein, wie viele Personen wirklich da sind, und wähl
+<b>Speichern</b>. Die Karte <b>Genauigkeit</b> zeigt dann, wie oft PadSpans Schätzung und die echte Zahl
+übereinstimmen.</li>
+</ul>
+<p>Dieselbe Zahl ist die Karte <b>Personen im Gebäude</b> in der Übersicht.</p>
+<h2 id="traceback">Traceback</h2>
+<p>Eine Wiedergabe, wohin deine Geräte gegangen sind. Etwa alle 10 Sekunden zeichnet PadSpan auf, wo
+jedes Gerät ist, das du benannt hast oder dem du folgst; unbenannte Geräte werden nicht
+aufgezeichnet. Es behält 7 Tage.</p>
+<p>Die Zeile oben wechselt zwischen vier Modi:</p>
+<ul>
+<li><b>Playback</b>: Wähl die <b>Time range</b> (5 Minuten bis 7 Tage, oder einen eigenen Zeitraum) und
+<b>All objects</b> oder ein Gerät. <b>▶</b> spielt den ganzen Zeitraum ab; <b>Run time</b> (1 bis 60
+Minuten) ist, wie lange die Wiedergabe dauert. Geh ein Bild weiter, spring zum Anfang oder Ende,
+oder zieh die Zeitleiste. Jedes Gerät wird da gezeichnet, wo die Live-Ortung es in diesem Moment
+hingesetzt hat, oder in der Mitte seines Raums, wenn es keine Position gab. <b>Export CSV</b> und
+<b>Export JSON</b> speichern die Bilder.
+<ul>
+<li><b>Full house activity</b> (PadSpan Pro) spielt dasselbe auf deinem Atlas ab, und mit
+<b>💡 Devices</b> auch das Haus: Lichter, Schlösser, Bewegung, Türen und Fenster und Messwerte von
+Sensoren, aus dem Recorder von Home Assistant.</li>
+</ul></li>
+<li><b>New Objects</b>: welche Geräte in einem Zeitfenster zum ersten Mal gehört wurden (bis zu 7 Tage
+zurück).</li>
+<li><b>Insights</b>: zwei Tabellen für die letzten 1, 3 oder 7 Tage. <b>Time in Room</b>: wie lange jedes
+Gerät an jedem Tag in jedem Raum war, und wie oft es hineinging. <b>Peak Concurrent Occupancy</b>: die
+meisten verfolgten Geräte auf einmal in einem Raum, an jedem Tag, und wann.</li>
+<li><b>Busy Times</b> (PadSpan Pro): ein Kasten pro Raum, der belebteste zuerst, jeder mit einem
+24-Stunden-Balkendiagramm, wann dort viel los ist.</li>
+</ul>
+<p>Insights und Busy Times funktionieren ohne Grundriss. <b>Verwalten → History → Open History</b> hat die
+gespeicherte Liste der Raumwechsel, jeder mit <b>▶ Traceback</b>, um diesen Moment abzuspielen.</p>
+<h2 id="forensik">Forensik</h2>
+<p>Welche Bluetooth-Geräte zwischen zwei Zeitpunkten in der Nähe deiner Empfänger waren: nach einem
+Einbruch oder einem gestohlenen Paket, oder um einen unbekannten Tracker zu entdecken, der immer
+wiederkommt. Es ist eine Funktion von PadSpan Pro und aus, bis du es einschaltest.</p>
+<p><b>Einschalten</b>: <b>Einstellungen → Funktionen → Forensics → Enable presence-session recording</b>. Es
+bittet dich, das zu bestätigen. Solange es an ist, prüft PadSpan alle 60 Sekunden, welche Geräte es
+hört, und zeichnet <b>Anwesenheitssitzungen</b> auf: Zeitspannen, in denen ein Gerät gehört wurde. Mehr
+als 5 Minuten Stille beenden eine Sitzung. Forensik steht dann in jedem Modus in der Hauptliste.</p>
+<p><b>Suchen</b>: Wähl einen Anfang und ein Ende (Ortszeit), oder <b>Last hour</b>, <b>Last 24 h</b> oder
+<b>Last 7 days</b>, dann <b>Search window</b>.</p>
+<ul>
+<li><b>Recorded — actually present</b>: die Geräte mit einer Sitzung im Zeitfenster, der längste
+Aufenthalt zuerst, mit ihrer Zeit im Fenster (Dwell), dem stärksten Signal und den Empfängern, die
+sie gehört haben.</li>
+<li><b>Hide my labelled devices</b> blendet die aus, die du benannt hast, damit Fremde auffallen.</li>
+<li><b>Possible</b> erscheint nur, wenn das Zeitfenster vor den Beginn der Aufzeichnung zurückreicht.</li>
+<li><b>Export CSV</b> speichert die Ergebnisse.</li>
+</ul>
+<p><b>Eine Bluetooth-Adresse ist keine Person.</b> Handys wechseln ihre Adresse, deshalb zeigen sich die
+meisten Handys als einmalige Adressen; Geräte mit fester Adresse (Ohrhörer, Tracker, Lautsprecher)
+findet es zuverlässig. Adressen lassen sich fälschen. Nimm die Ergebnisse als Spuren, nicht als
+Beweis.</p>
+<p><b>Datenschutz</b>: Es zeichnet jedes Gerät in der Nähe auf, auch die der Nachbarn und der Passanten. Die
+Aufzeichnungen bleiben in deinem Home Assistant und werden nie hochgeladen. Die Karte in den
+Einstellungen behält sie 7, 14 (der Standard), 30, 60 oder 90 Tage, auch nachdem du die Aufzeichnung
+ausgeschaltet hast; <b>Delete all recorded data</b> löscht sie.</p>
+<h2 id="zustand">Zustand</h2>
+<p>Funktioniert PadSpan? Zustand sammelt PadSpans eigene Prüfungen auf einer Seite. Ein Klick auf den
+Statuspunkt öffnet sie in jedem Modus.</p>
+<p><b>Der Statuspunkt</b> erscheint nur, wenn etwas nicht stimmt, mit der Zahl der Probleme; fahr mit der
+Maus darüber, um ihre Namen zu sehen.</p>
+<ul>
+<li><b>Rot</b>: PadSpan antwortet nicht, die Live-Daten sind also stehen geblieben; die letzte
+Aktualisierung der Positionierung ist fehlgeschlagen; oder kein Empfänger meldet.</li>
+<li><b>Bernstein</b>: Ein Empfänger wurde seit über 10 Minuten nicht gehört; ein Empfänger hört viel
+weniger Geräte als sonst; oder das Lernen ist pausiert, die Räume kommen also nur aus den
+Live-Signalen.</li>
+</ul>
+<p>Er wartet ein paar Sekunden, bevor er erscheint, damit ein langsamer Moment ihn nicht blinken lässt.
+Empfänger, die du als verloren markiert, deaktiviert oder ausgeschlossen hast, zählen nicht, und er
+beobachtet nur Live-Daten. Auf einem Wandbildschirm erscheint nur Rot.</p>
+<p>Auf der Seite:</p>
+<ul>
+<li><b>System</b>: die Version, Live oder Beispiel, und wie lange die letzte Aktualisierung gedauert hat.
+<b>Diagnose öffnen</b> ist hier für den Support (<a href="/manual/getting-help/de/">Kapitel 27</a>).</li>
+<li><b>Hört weniger als sonst</b>: ein Empfänger, der über 10 Minuten lang viel weniger
+Bluetooth-Nachrichten hört als normal, während die anderen in Ordnung sind. Räume in seiner Nähe
+können falsch sein; ihn neu zu starten hilft oft.</li>
+<li><b>Zustand der Scanner</b>: für jeden Empfänger, wie oft er dem Raum zustimmt, auf den die anderen
+zeigen (<b>Übereinstimmung</b>), und dasselbe als Zahl von 0,5 bis 1 (<b>Zuverlässigkeit</b>). Die Zahl
+wird nur angezeigt: Eine niedrige lässt diesen Empfänger nicht weniger zählen.</li>
+<li><b>Anordnung von Räumen und Empfängern</b>: PadSpans Modell deines Hauses in Metern, eine Liste von
+Prüfungen, die bestanden oder nicht bestanden sind, und seine Werkzeuge (<b>Scanner neu abgleichen</b>,
+<b>Funkprüfung starten</b>, <b>Raummodell zurücksetzen</b> und mehr).</li>
+<li><b>Gefundene Probleme</b>: automatische Prüfungen der ganzen Einrichtung, die ernstesten zuerst, jede
+markiert mit <b>Beheben</b>, <b>Lohnt sich zu beheben</b> oder <b>Gut zu wissen</b>, mit einer Zeile
+<b>Was tun:</b> und einem Knopf zu dem Bildschirm, auf dem du es behebst. Darunter listet
+<b>Verwechselte Räume</b> die Raumpaare, zwischen denen PadSpan ein Gerät immer wieder hin und her
+schiebt, und <b>Kalibrierqualität der Karten</b> den Kalibrierfehler jedes Plans.</li>
+</ul>
+<p><a href="/manual/troubleshooting/de/">Kapitel 26</a> führt von einem Symptom zu dem Bildschirm, den du ansehen solltest.</p>
+<h2 id="die-anderen-bildschirme">Die anderen Bildschirme</h2>
+<ul>
+<li><b>Einrichtung</b>: <a href="/manual/setup-the-map/de/">Kapitel 9</a>. <b>Karten</b>: <a href="/manual/setup-the-map/de/">Kapitel 9</a>;
+der Atlas-Editor steht in der <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/ATLAS_GUIDE.md">Anleitung zum Atlas</a>.</li>
+<li><b>Kalibrierung</b>: <a href="/manual/calibration/de/">Kapitel 11</a>.</li>
+<li><b>Räume</b>: die Farbe jedes Raums, sein Umriss (mit <b>Edit outline</b>, oder <b>Put it on the map</b> für
+einen Raum, der nur auf einem Plan gezeichnet ist), Deckenhöhe, Halbgeschoss, Empfänger und wer
+gerade darin ist. Räume und Etagen sind deine Bereiche und Etagen in Home Assistant, deshalb
+änderst du ihre Namen in Home Assistant.</li>
+<li><b>Empfänger</b>: jeder Empfänger mit seinem Raum, seiner Etage, Höhe, Signalanpassung und seinem
+Status. Höhe und Signalanpassung änderst du direkt in der Tabelle. <b>Nur Probleme</b> zeigt nur die,
+die Aufmerksamkeit brauchen.</li>
+<li><b>Einstellungen</b>: Jede Einstellung steht in <a href="/manual/settings-reference/de/">Kapitel 20</a>. In Einfach
+haben sie keine Reiter.</li>
+<li><b>Verwalten</b>: <b>Data</b> (Aufräumen, Löschen, Backup &amp; Restore), <b>HA Entities</b>, <b>Beacon
+Characteristics</b>, <b>History</b>, <b>Events</b> (Alarme per E-Mail oder aufs Handy), <b>Logs</b> und
+<b>Factory Reset</b>. Siehe <a href="/manual/backup-restore-moving/de/">Kapitel 22</a> und <a href="/manual/alerts/de/">Kapitel 13</a>.</li>
+<li><b>Training</b>: animierte Anleitungen und das Full Manual im Panel. Ein Teil davon ist noch nur auf
+Englisch.</li>
+<li><b>Gäste</b>: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GUEST_TAGS_GUIDE.md">die Anleitung zu Gast-Tags</a> und <a href="/manual/alerts/de/">Kapitel 13</a>.</li>
+<li><b>Geräte</b>: <b>Alle Geräte</b>, <b>Nach Raum</b> (jedes Gerät mit seinem Raum und Signal; hier benennst
+du Geräte), <b>Register</b> (PadSpans feste ID für jedes Gerät, um Doppelte zusammenzuführen) und
+<b>Türöffner</b>.</li>
+<li><b>Bluetooth</b>: wer was hört (<b>Visualisierung</b>), <b>Aussendungen</b>, <b>Scanner</b> (die
+Signalanpassung, das Ausschließen und das Mindestsignal jedes Empfängers), <b>IRK-Verwaltung</b> (die
+Schlüssel von Handys und Uhren) und <b>ESPHome-Konfigurationen</b> (fertige Einstellungen, um einen
+Empfänger zu bauen).</li>
+<li><b>Monitor</b>: was PadSpan hört, in Zahlen, nach Empfänger und nach Raum, und <b>Export for support</b>.</li>
+<li><b>QA</b>: Prüfungen deiner Einrichtung, Sicherungen, und jeder Empfänger in einer Rangliste.</li>
+<li><b>Anwesenheit</b>, <b>Sandbox</b>: für Experten; sie ändern nichts.</li>
+<li><b>Installationen</b>: der Bildschirm des Entwicklers für die freiwilligen Nutzungsberichte. Er fragt
+nach einer PIN und zeigt nichts über die Häuser anderer Leute.</li>
+</ul>
+<div class="pager"><span><a href="/manual/calibration/de/">← 11. Kalibrierung</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/alerts/de/">13. Alarme und Benachrichtigungen →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. Setup: your house on a map | PadSpan HA Manual</title>
+<meta name="description" content="Setup takes your house from a list of rooms to a map, one step at a time: the floor plan, its scale, the rooms, the floors&#x27; heights, the receivers, your…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/setup-the-map/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/setup-the-map/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/setup-the-map/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/setup-the-map/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="9. Setup: your house on a map">
+<meta property="og:description" content="Setup takes your house from a list of rooms to a map, one step at a time: the floor plan, its scale, the rooms, the floors&#x27; heights, the receivers, your…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/setup-the-map/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/setup-the-map/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="9-setup-your-house-on-a-map">9. Setup: your house on a map</h1>
+<p><a href="/manual/">Contents</a></p>
+<p><b>Setup</b> takes your house from a list of rooms to a map, one step at a time: the floor plan, its
+scale, the rooms, the floors' heights, the receivers, your phone, and calibration. This chapter goes
+through each step, then the ways to a plan when you have none, and lining up two or more floors.</p>
+<p>You don't need a map for rooms: <b>Who's where now</b> works without one (<a href="/manual/first-room/">chapter 4</a>).
+A map adds the drawing of your house, calibration, and, with three or more receivers placed on it,
+positions between receivers.</p>
+<h2 id="before-you-start">Before you start</h2>
+<ul>
+<li><b>Rooms and floors come from Home Assistant.</b> Each room is an area, and each floor a floor, in
+<b>Settings → Areas, labels &amp; zones</b>. Make them there first: PadSpan can't rename them. A house
+with one floor needs no floors in Home Assistant.</li>
+<li><b>You need to be an administrator</b> to upload a plan or change one. Setup says so when you
+aren't.</li>
+<li><b>Work on your own house.</b> While the sample house is showing, Setup's buttons can't be used:
+choose <b>Back to my house</b> first.</li>
+<li><b>Basic or Advanced.</b> Setup is the same in both. In Basic, each step shows only the tool it needs.
+In Advanced, the same steps open with Mapping's other tools beside them.</li>
+</ul>
+<h2 id="opening-setup">Opening Setup</h2>
+<ul>
+<li><b>Setup</b> in the menu, just above Mapping, until every step is done or you skip setup.</li>
+<li><b>Make it a map</b> on the Overview's <b>Who's where now</b> card.</li>
+<li><b>Open Setup</b> on the Overview's <b>Getting started</b> card.</li>
+<li>The <b>Setup</b> button at the top of Mapping, or <b>Start Setup Wizard</b> in an empty Mapping Library.</li>
+</ul>
+<h2 id="the-setup-page">The Setup page</h2>
+<p>Setup lists the steps in order, with a count ("2 of 6 done") and a bar of dots. Each step is
+marked <b>Done</b>, <b>Next</b>, <b>To do</b> or <b>Skipped</b>. Done is read from your house itself, so a step
+you finished somewhere else counts too.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td><b>Start →</b></td><td>Opens the step's tool.</td></tr>
+  <tr><td><b>Continue →</b></td><td>The same, on the step you were last working on.</td></tr>
+  <tr><td><b>Open</b></td><td>Opens a step that isn't next.</td></tr>
+  <tr><td><b>Change</b></td><td>Opens a step that is done (<b>Add a floor</b> on the floor plan step).</td></tr>
+  <tr><td><b>Skip for now</b></td><td>Marks the step Skipped and moves on. Open it again any time.</td></tr>
+</table>
+</div>
+<p>The floor plan step can't be skipped: every later step uses a plan.</p>
+<p>While you work in a step's tool, a bar at the top says which step it is ("Setup · step 3 of 6: Draw
+the rooms") with <b>← Back to Setup</b>. Setup remembers where you were.</p>
+<p>The floor plan steps (upload, scale, rooms, floor heights, receivers) run in Mapping's <b>Setup
+Wizard</b>, one floor plan at a time. Its chips at the top carry Setup's numbers and names; once the
+plan exists, click any chip to jump to it. <b>Exit setup</b> leaves it, keeping what you drew. The
+wizard ends on <b>Finish</b>, which has the one button not to miss: <b>Put it on the map</b>.</p>
+<h2 id="step-1-upload-a-floor-plan">Step 1. Upload a floor plan</h2>
+<p>A picture of one floor. It doesn't need to be perfect: a photo of a paper plan or of your own sketch
+works.</p>
+<ol>
+<li><b>Floor (from HA)</b>: the Home Assistant floor this plan belongs to. <b>Outside (Experimental)</b> is
+for a garden or yard; a house can have one Outside plan.</li>
+<li><b>Map name</b>: optional. Left blank, it takes the file's name.</li>
+<li><b>Max size</b>: the longest side in pixels after conversion, 1600 unless you change it.</li>
+<li>Choose the picture: PNG, JPG, GIF, BMP, WebP or SVG. Drag on the preview to crop it if you like;
+<b>Reset Crop</b> starts again.</li>
+<li>If the picture is your own drawing, tick <b>This is my own sketch, not to scale</b>. PadSpan then
+asks for a length each way.</li>
+<li>Choose <b>Upload &amp; Convert</b>. PadSpan keeps the plan in Home Assistant, where only people signed
+in can see it.</li>
+</ol>
+<p>Upload your most exact, to-scale plan first. The others line up with it later.</p>
+<p>A floor can have more than one plan, such as a wing drawn on its own. For the next floor, use <b>+
+Set up another floor</b> at the end of the wizard, or <b>Add a floor</b> on Setup's first step.</p>
+<p>No picture of the floor at all? See <a href="#no-floor-plan">No floor plan?</a> below.</p>
+<h2 id="step-2-set-the-scale">Step 2. Set the scale</h2>
+<p>PadSpan needs the plan's real size before rooms, receivers or anything in metres can go on it.
+Without a scale nothing can be put on the map, and calibration can't start.</p>
+<p>Right after the upload, <b>Set this plan's scale now</b> opens:</p>
+<ol>
+<li>Click (or tap) both ends of something you know the length of. The longer, the better: the longest
+wall you can, or the whole house. A doorway works, but a small slip on a short length puts the
+whole plan out more.</li>
+<li>Type its length under <b>Its length:</b>. Lengths are in metres. With
+<b>Settings → Appearance → Units: Show lengths in feet and inches</b> on, they show in feet and
+inches, and you can type them that way.</li>
+<li>Optional: <b>Add a length the other way</b>. A second length, running across the first, checks that
+the picture isn't stretched. If the two don't agree, the screen says so. Check both ends first;
+if the picture really is stretched (your own sketch, or a squashed scan), choose <b>This picture
+isn't to scale</b> and each direction gets its own scale.</li>
+<li>Choose <b>Save the scale</b>. The wizard goes on to the rooms.</li>
+</ol>
+<p>A plan you skipped shows <b>No scale yet</b> with a <b>Measure</b> button, in Setup and in Mapping's
+Library. To measure a plan again later, use <b>Mapping → Edit → 📏 Measure</b> in Advanced, or Setup's
+Set the scale step in Basic.</p>
+<h2 id="step-3-draw-the-rooms">Step 3. Draw the rooms</h2>
+<p>Trace each Home Assistant room on its floor plan.</p>
+<ol>
+<li>Above the plan, a box counts the rooms drawn ("2 of 7 rooms drawn") and lists the ones still to
+draw. Press a room's name.</li>
+<li>Click each corner of the room on the plan.</li>
+<li>Double-click the last corner, or choose <b>Finish outline</b> (three corners or more).</li>
+</ol>
+<p>In the Setup Wizard each room is saved as you finish it. A corner near another room's corner or edge
+snaps to it; hold Alt to put it exactly where you want.</p>
+<ul>
+<li><b>A room is missing from the list?</b> Check in <b>Settings → Areas, labels &amp; zones</b> that its area
+is on this floor.</li>
+<li><b>Draw every room your receivers cover.</b> Once rooms are on the map, a device in a room you haven't
+drawn may not show.</li>
+<li><b>A room already drawn on another plan</b> is marked ⚠ with that plan's name: drawing it again makes
+a second copy.</li>
+</ul>
+<p><b>Let Claude draw your rooms (experimental).</b> Where a plan has no rooms yet, Setup and the wizard
+offer <b>Or let Claude draw the rooms from your plan (experimental) →</b>. Claude reads the plan twice,
+finds its rooms and their names, and draws them for you to check. Nothing is saved until you choose
+<b>Save</b>, and it can be undone. It needs Home Assistant's Anthropic integration with an AI Task
+running Claude, and Anthropic charges your account for each read; its first screen says what is sent
+and how many reads it takes. <a href="/guides/claude-ai-task/">Connect Claude for PadSpan's room helper</a>
+has the setup.</p>
+<h2 id="step-4-floors-and-their-heights">Step 4. Floors and their heights</h2>
+<p>Only in a house with two indoor floors or more (Outside doesn't count). It tells PadSpan how tall
+each floor is, so it can tell the floors apart. Until you set them, it uses an ordinary storey
+height, 2.8 m.</p>
+<p>The step opens the <b>Floor Heights</b> card (in Advanced, on <b>Mapping → 3D Stack</b>):</p>
+<ul>
+<li><b>Floor↕ (m)</b>: from one finished floor to the next, ceiling and slab together. Blank means
+2.8 m.</li>
+<li><b>Base elevation (m)</b>: how high the floor starts. Leave it blank unless the stacking is wrong, as
+for a split level or a mezzanine.</li>
+</ul>
+<p>Choose <b>Save Floor Heights</b>. A single tall room, such as a double-height living room, keeps the
+floor's normal height here: give that room its own height on the <b>Rooms</b> page (<b>Ceiling height</b>).</p>
+<h2 id="step-5-place-receivers-and-set-their-heights">Step 5. Place receivers and set their heights</h2>
+<p>Put each Bluetooth receiver where it is really mounted.</p>
+<p><b>By hand.</b> Beside the plan, <b>Live BLE Receivers</b> lists the receivers Home Assistant hears:</p>
+<ol>
+<li>Choose <b>Add</b> beside a receiver. It lands in the middle of the plan, already in its Home
+Assistant room.</li>
+<li>Drag it to where it is mounted.</li>
+<li>Do the same for every receiver on this floor. A placed one shows <b>✓ placed</b>, with <b>Edit</b>.</li>
+</ol>
+<p>Use <b>Add</b> in this list. The step's own text says you can double-click the map, and <b>Add Receiver</b>
+does the same, but those make a blank "Receiver N" tied to no real receiver, and <b>Put it on the
+map</b> leaves it out.</p>
+<p><b>Or let PadSpan do it.</b> <b>Put my receivers in their rooms</b> puts each receiver whose room has an
+outline in the middle of that room, on the map of your house. It says what it placed, what it
+couldn't, and why. <b>Undo the … placed last</b> takes them back. Drag each one to where it is mounted
+later, in Calibration's first step, <b>Check receiver positions</b>.</p>
+<p><b>A receiver with no room.</b> Where a receiver has no Home Assistant area, this step lists it with a
+room list and <b>Set room</b>, the room its name points to already chosen. That gives the receiver's
+device the area in Home Assistant, as the Overview's <b>View radios list → Assign</b> does.</p>
+<p><b>A receiver in the wrong room.</b> Once you have calibration points, this step can say <b>Signals say
+Kitchen Proxy is in Dining Room, not Kitchen: 4 of the 5 calibration points it hears best are
+there.</b> Choose <b>Use Dining Room</b> to change its area, or <b>Keep Kitchen</b> to leave it. See
+<a href="/manual/calibration/#signals-say-this-receiver-is-in-another-room">chapter 11</a>.</p>
+<p><b>Heights.</b> A receiver's height counts once it is on the map of your house (after <b>Put it on the
+map</b>, or <b>Put my receivers in their rooms</b>). Set it in Calibration's <b>Check receiver positions</b>
+(click the marker, <b>Height above floor (m)</b>, <b>Save height</b>), on the <b>Receivers</b> page, or in
+<b>Mapping → Edit</b> in Advanced. It is the same value in each place. It starts at 2.4 m. In a house
+of two floors or more, the step isn't done while every receiver is at the same height: say how high
+each one really is.</p>
+<h2 id="finish-put-it-on-the-map">Finish: Put it on the map</h2>
+<p>The wizard's last screen sums up the plan ("4 rooms drawn, 3 receivers placed") and says what comes
+next.</p>
+<p><b>Until you choose Put it on the map, your rooms and receivers are only on the picture.</b> The
+Overview, the Atlas and positioning all work from the map of your house, not from the picture.
+Choose <b>Put it on the map</b>: it adds the rooms and receivers that the map doesn't have yet. Nothing
+already on it changes. <b>Done</b> alone doesn't do this.</p>
+<p>Once the first room is on the map, your house takes the place of <b>Who's where now</b> on the
+Overview.</p>
+<p>Then:</p>
+<ul>
+<li>the next-step button (<b>Track your phone or watch →</b>, <b>Go to Calibration →</b> and so on) goes
+on;</li>
+<li><b>+ Set up another floor</b> starts the wizard again for the next plan;</li>
+<li><b>Done</b> goes back to Mapping's Library.</li>
+</ul>
+<p><b>Already finished, and the Overview says "Room and receiver layout not built yet"?</b> You don't have
+to start again. Open the Setup Wizard on that plan, go to Finish and choose <b>Put it on the map</b>.
+On the <b>Rooms</b> page, a room drawn on a plan but not on the map has its own <b>Put it on the map</b>.
+In Advanced, <b>Mapping → Layout</b>, with <b>Layout</b> switched to <b>Map placements</b>, has <b>Commit this
+layout</b>.</p>
+<h2 id="step-6-track-your-phone-or-watch">Step 6. Track your phone or watch</h2>
+<p>PadSpan learns the phone or watch you carry, so it can follow you and calibrate with it. The step is
+done once PadSpan follows one phone or watch as someone's: one with its key (IRK) registered, or a
+Companion-app phone you pressed Track for.</p>
+<p>The step opens the phone wizard, <b>Track your phone</b> (in Advanced, on
+<b>Bluetooth → IRK Manager</b>), with three ways in:</p>
+<ul>
+<li><b>I have an Android phone</b>: in the Companion app, open
+<b>Settings → Companion app → Manage sensors → BLE Transmitter</b>, switch it on, set <b>Transmit power</b> to <b>High</b> and <b>Advertise mode</b> to
+<b>Low latency</b>. Then <b>Track it on the Overview →</b> opens the <b>Track Your Phone</b> card: choose
+<b>Track this phone</b> (in Basic, <b>Track</b>).</li>
+<li><b>I have an iPhone</b>: the steps to get its IRK, add it to Home Assistant's Private BLE Device, and
+check it: paste it and choose <b>Check</b>, and PadSpan says how many of the rotating addresses it
+hears now are this iPhone.</li>
+<li><b>I have an IRK Capture ESP32</b>: type the device's name and whose it is, pair the iPhone or Apple
+Watch with the ESP32, and save the key PadSpan finds. Then remove the pairing before the next
+device.</li>
+</ul>
+<p>On an older install with both phone switches off (<b>Phone Setup Wizard</b> and <b>iPhone Setup Path</b>,
+in <b>Settings → Features</b>), the step opens the Overview's <b>Track Your Phone</b> card instead.
+<a href="/guides/phone-room-presence/">Which room is my phone in?</a> has every step,
+with pictures.</p>
+<h2 id="step-7-calibrate">Step 7. Calibrate</h2>
+<p>Walk the house with your phone so PadSpan learns what each spot sounds like. The step is done at
+five calibration points or a computed model.</p>
+<ul>
+<li>Where <b>Walk a room</b> is on, <b>Start →</b> walks each room for 90 seconds, and <b>Point by point</b>
+beside it opens Guided calibration.</li>
+<li>Where it is off, <b>Start →</b> opens Guided calibration, and a line says how to turn Walk a room on,
+with <b>Open that setting</b>.</li>
+</ul>
+<p><a href="/manual/calibration/">Chapter 11</a> explains both.</p>
+<p>When every step is done, Setup says <b>Your house is set up.</b> and leaves the menu. It is still
+there from Mapping's Setup button and the Overview, if you want to change a step.</p>
+<h2 id="no-floor-plan">No floor plan?</h2>
+<p>On the upload step, <b>No floor plan? Ways to get one</b> lists five ways, best first. The further down
+the list, the rougher the plan.</p>
+<ol>
+<li><b>Look for a drawing you already have.</b> The builder's or architect's drawings, the listing, the
+council file, an insurance report, the fire-escape plan on a wall. A photo held straight over the
+page is enough.</li>
+<li><b>Scan the floor with an iPhone or iPad.</b> It needs a Pro model with LiDAR (iPhone 12 Pro or a
+newer Pro, iPad Pro 2020 or newer). Any room-scanning app that uses Apple's RoomPlan can share the
+scan as a USDZ file (some also offer RoomPlan JSON). Scan the whole floor in one go, doors open and
+lights on. Choose its floor, pick the file, and PadSpan draws the plan to scale, with nothing to
+measure. You still say where each room is. <b>Guide me step by step</b> shows the same steps one
+screen at a time, made for the phone, and gives you an address to send to whoever does the scan.</li>
+<li><b>Use your robot vacuum's map.</b> A Valetudo, Dreame or Xiaomi robot that Home Assistant can see.
+Turn on <b>Settings → Features → Experimental Features → Robot Vacuum Import</b>, then use
+<b>Mapping → Layout → 🤖 Import from a robot vacuum</b>, and <b>Add as a new map</b>. It becomes a floor plan with
+its rooms; rooms you already have are kept.</li>
+<li><b>Draw it yourself and photograph it.</b> On plain paper, the outside walls first, then the walls
+between rooms, with a gap for each door. Write the length of one long wall across and one down.
+Photograph it from straight above. <b>I have my sketch: upload it</b> ticks "my own sketch" on the
+form for you, and the scale step takes a length each way.</li>
+<li><b>Start from a blank floor.</b> Type the floor's width and depth (rough is fine), choose its floor
+and <b>Make the blank floor</b>. PadSpan makes an empty floor of that size with a line every metre;
+draw each room on it by its corners, counting the lines.</li>
+</ol>
+<p>Two more ways, in Advanced, on <b>Mapping → Layout</b>:</p>
+<ul>
+<li><b>Rooms in metres, with no picture.</b> Type the area's exact name in <b>New room name</b>, choose <b>+
+Add room</b>, drag it to shape, and <b>Save corrections</b>. Calibration still needs a plan with a
+scale.</li>
+<li><b>Sweet Home 3D.</b> <b>📐 Import floorplan (.sh3d)</b> reads the rooms from a Sweet Home 3D file, as a
+candidate for this floor to check and edit before you commit it. With <b>RoomPlan Import</b> on in
+Settings → Features, the same button reads a room scan.</li>
+</ul>
+<p><a href="/guides/floor-plans/">Which floor plan for Home Assistant?</a> and
+<a href="/guides/robot-vacuum-floor-plan/">Your robot vacuum's map as your floor plan</a>
+go further.</p>
+<h2 id="more-than-one-floor-lining-them-up">More than one floor: lining them up</h2>
+<p>Each plan keeps its own place in metres. With two floors or more, line them up so a stairwell on
+one sits over the stairwell on the other. This is on <b>Mapping → 3D Stack</b> (Advanced):</p>
+<ol>
+<li><b>Floor Heights</b>: as in step 4.</li>
+<li><b>Floor Assignment &amp; Ceiling Heights</b>: one row per plan, with its <b>HA Floor</b> and <b>Stack
+Level</b>. <b>Save</b> on a row keeps it. Untick <b>Show</b> to hide a plan.</li>
+<li><b>Alignment Overlay</b>: choose a <b>Reference</b> (fixed, and measured) and a <b>Target</b> (the plan
+you move). Drag the Target until the stairwells and outside walls line up. <b>Scale +</b> and
+<b>Scale −</b> resize it, <b>−15°</b>, <b>﹢15°</b> and <b>0°</b> turn it, and <b>Opacity</b> helps you see both.
+Nothing is kept until you choose <b>Save Alignment</b>.</li>
+<li>For a closer fit, <b>Point Align</b>: click the same real point on both plans (a stairwell corner),
+three pairs or more, then <b>Compute</b>. It rates the fit Excellent, Fair or Poor, in metres.
+<b>Apply</b> moves the Target on screen; then <b>Save Alignment</b>.</li>
+</ol>
+<p>PadSpan refuses an alignment that would put more than half of a plan's calibration points off the
+map. <b>Compare Maps</b>, in the Library, rates how well your floors line up once you're done.</p>
+<p>Basic mode has no 3D Stack tab: switch the mode button to Advanced to line floors up.</p>
+<h2 id="changing-it-later">Changing it later</h2>
+<ul>
+<li><b>A room's outline</b>: the <b>Rooms</b> page, <b>Edit outline</b>; in Advanced, <b>Mapping → Edit</b>, the
+Rooms tool, or <b>Mapping → Layout</b> for the rooms in metres.</li>
+<li><b>A receiver's place or height</b>: Calibration → <b>Tune</b>, or the <b>Receivers</b> page (<b>Place</b> or
+<b>Move</b>).</li>
+<li><b>The scale</b>: Mapping → Edit → 📏 Measure (Advanced), or Setup's Set the scale step.</li>
+<li><b>A plan you no longer want</b>: Mapping → Library, <b>Delete</b>. Its picture and what was drawn on
+it go; the rooms in metres and calibration points with a position in metres stay.</li>
+</ul>
+<div class="pager"><span><a href="/manual/rooms-and-floors/">← 8. Rooms and floors come from Home Assistant</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/walls-and-signal-loss/">10. Walls and signal loss →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>23. Leistung und kleine Rechner | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Was PadSpan den Home-Assistant-Rechner und die Bildschirme kostet, und was du einschaltest, wenn einer von beiden nicht mitkommt. Die Kurzfassung der…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/performance-and-small-machines/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/performance-and-small-machines/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/performance-and-small-machines/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/performance-and-small-machines/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="23. Leistung und kleine Rechner">
+<meta property="og:description" content="Was PadSpan den Home-Assistant-Rechner und die Bildschirme kostet, und was du einschaltest, wenn einer von beiden nicht mitkommt. Die Kurzfassung der…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/performance-and-small-machines/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/performance-and-small-machines/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="23-leistung-und-kleine-rechner">23. Leistung und kleine Rechner</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Was PadSpan den Home-Assistant-Rechner und die Bildschirme kostet, und was du einschaltest, wenn
+einer von beiden nicht mitkommt. Die Kurzfassung der Voraussetzungen steht in
+<a href="/manual/requirements/de/">Kapitel 2</a>.</p>
+<h2 id="der-home-assistant-rechner">Der Home-Assistant-Rechner</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><td><b>Empfohlen</b></td><td>Mehr als 2 GB Speicher: ein Raspberry Pi 4 oder 5 mit 4 GB oder mehr, ein Home Assistant Green oder ein Mini-PC oder eine virtuelle Maschine mit 4 GB oder mehr.</td></tr>
+  <tr><td><b>Rechner mit 2 GB</b></td><td>Vorerst nicht empfohlen. Hast du einen, schalte den <b>Speichersparmodus</b> ein (unten).</td></tr>
+  <tr><td><b>Datenträger</b></td><td>Eine SSD oder eMMC statt einer SD-Karte. Der Geräteverlauf wird bis zu alle 15 Sekunden gespeichert: In einem Haus mit etwa 2.900 Geräten ist diese Datei etwa 5 MB groß, das sind bis zu etwa 30 GB Schreibvorgänge am Tag.</td></tr>
+</table>
+</div>
+<h2 id="warum-eine-belebte-straße-speicher-kostet">Warum eine belebte Straße Speicher kostet</h2>
+<p>PadSpan behält jedes Gerät, das es hört, eine Weile, nicht nur die, denen du folgst. Drei Dinge
+wachsen mit ihnen:</p>
+<ul>
+<li><b>Der Geräteverlauf</b>: jedes gehörte Gerät, das nicht die wechselnde Adresse eines Handys ist, ab
+Werk einen Tag lang (<b>Einstellungen → Ortung → Was das Panel zeigt → Aufbewahrung des
+Objektverlaufs</b>: 1, 2, 7 oder 14 Tage), höchstens 10.000, die niemand benannt hat. Benannte
+Geräte und Geräte, denen du folgst, bleiben immer.</li>
+<li><b>Der Bluetooth-Cache</b>: der letzte Messwert jedes Empfängers für jede Adresse, behalten für den
+<b>BLE-Advertisement-Timeout</b> (derselbe Abschnitt; 4 Stunden, wenn du ihn nicht änderst).</li>
+<li><b>Das Live-Bild</b>: all das, zu einer Liste zusammengebaut, für jeden offenen PadSpan-Bildschirm,
+alle 5 Sekunden.</li>
+</ul>
+<p>In einem ruhigen Haus sind das ein paar Hundert Geräte. Neben einer belebten Straße oder in einem
+Wohnblock können es Zehntausende sein; ein Haus meldete über 80.000.</p>
+<p><b>Gemessen</b> mit 64-Bit-Python und sechs Empfängern (im echten Betrieb 10 bis 30 % mehr):</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Gehaltene Geräte</th><th>PadSpans Speicher (gehalten / Spitze mit offenem Bildschirm)</th></tr>
+  <tr><td>1.000</td><td>etwa 14 / 20 MB</td></tr>
+  <tr><td>5.000</td><td>etwa 67 / 100 MB</td></tr>
+  <tr><td>25.000</td><td>etwa 340 / 500 MB</td></tr>
+  <tr><td>80.000</td><td>etwa 1,0 / 1,6 GB</td></tr>
+</table>
+</div>
+<p>Einem Raspberry Pi mit 2 GB bleiben etwa 0,4 bis 0,8 GB für PadSpan, sobald Home Assistant OS und
+ein paar Add-ons laufen, und so passen nur etwa 5.000 Geräte hinein.</p>
+<h2 id="speichersparmodus">Speichersparmodus</h2>
+<p><b>Einstellungen → Ortung → Leistung → Speichersparmodus</b>, ab Werk aus. Für einen Rechner mit
+2 GB: Er begrenzt, wie viele vorbeikommende Geräte PadSpan hält.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>Normal</th><th>Mit Speichersparmodus</th></tr>
+  <tr><td>Wie lange der Bluetooth-Cache eine Adresse behält</td><td>Der BLE-Advertisement-Timeout (4 Stunden, wenn du ihn nicht änderst)</td><td>Höchstens 15 Minuten</td></tr>
+  <tr><td>Adressen im Bluetooth-Cache</td><td>Keine Grenze</td><td>2.000</td></tr>
+  <tr><td>Unbenannte Geräte im Geräteverlauf</td><td>10.000, für 1 bis 14 Tage</td><td>2.000, für 1 Tag</td></tr>
+  <tr><td>Advertisements im Live-Bild</td><td>5.000</td><td>2.000</td></tr>
+</table>
+</div>
+<p>Zusammen sind das höchstens etwa 4.000 Geräte. Sonst ändert er nichts: Benannte Geräte, Geräte mit
+Label und Geräte, denen du folgst, fallen nie heraus, und Räume, Positionen, der Atlas und Live
+Aboard funktionieren wie vorher. Vorbeikommende Fremde fallen nur früher aus den Listen. Die Karte
+fragt, bevor sie ihn einschaltet.</p>
+<h2 id="die-anderen-einstellungen-unter-leistung">Die anderen Einstellungen unter Leistung</h2>
+<p>Alle unter <b>Einstellungen → Ortung → Leistung</b>:</p>
+<ul>
+<li><b>Abfrageintervall der Anwesenheit</b> (5 Sekunden): wie oft die Räume berechnet werden. Höher
+schont den Prozessor und folgt dir langsamer.</li>
+<li><b>CPU-Modus</b>: wo diese Arbeit läuft. <b>Geteilt</b> (die Voreinstellung) lässt sie mit Home
+Assistant laufen: am schnellsten, und sie konkurriert mit Home Assistant. <b>Ein Kern</b> hält sie
+auf einem Kern, damit Home Assistant flüssig bleibt. <b>Eigener Kern</b> gibt ihr einen eigenen Kern.
+Das gilt ab der nächsten Aktualisierung, ohne Neustart.</li>
+<li><b>Für viele Bildschirme optimieren</b> (aus): für mehrere Bildschirme auf einmal. Die Übersicht und
+die 3D-Personen bekommen nur, was sie zeichnen (etwa 50 KB pro Bildschirm statt etwa 2 MB in einem
+belebten Haus), Bildschirme, die im selben Moment fragen, teilen sich eine Zusammenstellung, und ein
+ausgeblendeter Bildschirm fragt nach nichts. Einzelheiten in
+<a href="/manual/wall-screens-and-kiosks/de/#mehrere-bildschirme-auf-einmal-für-viele-bildschirme-optimieren">Kapitel 18</a>.</li>
+</ul>
+<p>Unter <b>Einstellungen → Ortung → Empfänger</b> liest ein längeres
+<b>Bluetooth-Aktualisierungsintervall</b> die Empfänger seltener aus (aber bleib bei 5 Sekunden für
+passive wie Shellys: <a href="/manual/receivers/de/">Kapitel 5</a>).</p>
+<h2 id="die-bildschirme">Die Bildschirme</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><td><b>Das Panel und der Atlas</b></td><td>Jeder aktuelle Browser: Chrome, Edge, Safari oder Firefox, auf einem Computer, Tablet oder Handy. Ein Tablet, auf dem die Dashboards von Home Assistant flüssig laufen, schafft den Atlas.</td></tr>
+  <tr><td><b>Live Aboard (das 3D-Haus)</b></td><td>Ein Browser mit WebGL 2. Ohne das, oder mit einem Grafikchip, der zu langsam ist, um mitzukommen, zeigt PadSpan stattdessen den flachen Atlas und sagt das.</td></tr>
+</table>
+</div>
+<p>Für einen langsamen Bildschirm:</p>
+<ul>
+<li>stell die <b>Quality</b> von Live Aboard auf Low (<b>Einstellungen → Atlas → Live Aboard</b>). Auf Auto
+geht sie von selbst herunter, wenn der Bildschirm nicht mitkommt;</li>
+<li><b>Show the frame rate (this browser only)</b>, auf derselben Karte, zeigt, wie oft pro Sekunde das
+Haus gezeichnet wird;</li>
+<li>die flache Atlas-Wand (<code>/padspan-lights?kiosk=1</code>) verlangt Home Assistant am wenigsten ab.</li>
+</ul>
+<p>Wenn sich nichts ändert, zeichnet Live Aboard nichts, also kostet eine Wand im Leerlauf fast nichts.</p>
+<h2 id="wenn-home-assistant-langsam-ist-oder-ihm-der-speicher-ausgeht">Wenn Home Assistant langsam ist oder ihm der Speicher ausgeht</h2>
+<ol>
+<li>Schalte den <b>Speichersparmodus</b> ein.</li>
+<li>Kürze die <b>Aufbewahrung des Objektverlaufs</b> auf 1 Tag, und den <b>BLE-Advertisement-Timeout</b>.</li>
+<li>Mit mehreren Wandbildschirmen schalte <b>Für viele Bildschirme optimieren</b> ein.</li>
+<li>Versuch <b>CPU-Modus → Ein Kern</b>.</li>
+</ol>
+<p>Mehr, nach Symptom: <a href="/manual/troubleshooting/de/#home-assistant-geht-der-speicher-aus-oder-es-ist-langsam">Kapitel 26</a>.</p>
+<h2 id="wie-diese-zahlen-gesammelt-werden">Wie diese Zahlen gesammelt werden</h2>
+<p>Nur von Installationen, die <b>Einstellungen → Ortung → Hilf, PadSpan besser zu machen</b>
+eingeschaltet haben: was PadSpan im Speicher hält, wie schnell neue Geräte dazukommen, wie oft Home
+Assistant neu gestartet ist und wie stark Home Assistant und jeder Bildschirm arbeiten. Nur Zahlen
+und Größenklassen (<a href="/manual/privacy/de/">Kapitel 24</a>). Hinweise für Bildschirme, nach Art des Geräts,
+folgen, sobald es genug davon gibt.</p>
+<div class="pager"><span><a href="/manual/backup-restore-moving/de/">← 22. Sichern, wiederherstellen, auf Werkseinstellungen zurücksetzen, auf ein neues Home Assistant umziehen</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/privacy/de/">24. Datenschutz: was das Haus verlässt →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

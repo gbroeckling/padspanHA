@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8. Rooms and floors come from Home Assistant | PadSpan HA Manual</title>
+<meta name="description" content="PadSpan has no room list of its own. Its rooms are your Home Assistant areas, and its floors are your Home Assistant floors. You add, rename and remove them…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/rooms-and-floors/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/rooms-and-floors/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/rooms-and-floors/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/rooms-and-floors/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="8. Rooms and floors come from Home Assistant">
+<meta property="og:description" content="PadSpan has no room list of its own. Its rooms are your Home Assistant areas, and its floors are your Home Assistant floors. You add, rename and remove them…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/rooms-and-floors/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/rooms-and-floors/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="8-rooms-and-floors-come-from-home-assistant">8. Rooms and floors come from Home Assistant</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>PadSpan has no room list of its own. Its rooms are your Home Assistant <b>areas</b>, and its floors are
+your Home Assistant <b>floors</b>. You add, rename and remove them in Home Assistant, and PadSpan
+follows. What PadSpan keeps for each room is what Home Assistant has no place for: its outline on
+the floor plan, its colour, its ceiling height and the like.</p>
+<h2 id="rooms-are-areas">Rooms are areas</h2>
+<ul>
+<li><b>A receiver's room</b> is the area of its Home Assistant device. A receiver with no area gives no
+room, however well it hears you (<a href="/manual/receivers/#a-receivers-room-place-and-height">chapter 5</a>).</li>
+<li><b>A device's room</b> is the room of the receiver that hears it best, or, with three or more
+receivers on a floor plan, the area whose outline it is in.</li>
+<li><b>The room PadSpan reports</b> to Home Assistant (a tracker's state, an area sensor) is the area's
+name, written as Home Assistant has it: "Kitchen", not "kitchen".</li>
+</ul>
+<p>So for rooms, every room you want told apart needs an area in Home Assistant, and a receiver in it
+with that area. A room you only want on the map (a closet, a hall) needs an area and an outline, but
+no receiver.</p>
+<p><b>Add areas</b> in Home Assistant: <b>Settings → Areas, labels &amp; zones</b>. If Home Assistant has no
+areas yet, the Overview's <b>Who's where now</b> card says so.</p>
+<p><b>Add one from PadSpan.</b> When you draw rooms in <b>Mapping → Edit</b> and the plan's floor has no
+area left to choose, PadSpan says: "There is no room to choose for this floor yet: rooms are Home
+Assistant's areas." Type a name and choose <b>Add to Home Assistant</b>: Home Assistant gets an area of
+that name, on the plan's floor. A name that is already an area is used, never made twice. The room
+helper Claude can draw with (<a href="/manual/ai-features/">chapter 19</a>) has the same offer.</p>
+<h2 id="floors-are-home-assistant-floors">Floors are Home Assistant floors</h2>
+<p>Give each area its floor in Home Assistant (an area's <b>Floor</b>, under
+<b>Settings → Areas, labels &amp; zones</b>). PadSpan reads the floors and stacks them bottom-up:</p>
+<ol>
+<li>by each floor's <b>level</b> in Home Assistant, when it has one;</li>
+<li>otherwise by its name: basement and cellar go below, ground, main and first floor at ground
+level, outdoors at ground level too;</li>
+<li>otherwise above the named ones, in the order they were made.</li>
+</ol>
+<p>Set a level on every floor in Home Assistant and the order is never a guess. The order matters for
+more than the picture: a signal that goes through a floor loses strength, and PadSpan counts the
+floors in between from it.</p>
+<p><b>How far apart the floors are</b> is PadSpan's, not Home Assistant's: Setup's floor heights step
+(<a href="/manual/setup-the-map/#step-4-floors-and-their-heights">chapter 9</a>). A sync from Home Assistant
+never overwrites them.</p>
+<p><b>Outdoors.</b> A floor called Outside, Outdoor, Outdoors, Exterior, Garden or Yard is treated as the
+outdoor floor: at ground level, and drawn in the 3D view. The flat map doesn't show rooms on it.</p>
+<p><b>An area with no floor</b> is offered on every floor plan, and the <b>Rooms</b> screen says
+<b>No floor set in Home Assistant</b>.</p>
+<p>A house with one floor and no floors in Home Assistant works as it is: everything is on one floor.</p>
+<h2 id="the-rooms-screen">The Rooms screen</h2>
+<p><b>Rooms</b>, in the menu, lists every room with what PadSpan keeps for it. The names and floors are
+read only here; <b>Rename in Home Assistant</b> and <b>Add a room in Home Assistant</b> open Home
+Assistant's own pages. Each room's row has its name and floor, its colour (<b>Room colour, on every
+map</b>), and:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Field</th><th>What it is</th></tr>
+  <tr><td><b>Outline</b></td><td><b>Drawn</b> or <b>Not drawn</b>. <b>Draw outline</b> or <b>Edit outline</b> opens it on its plan in Mapping.</td></tr>
+  <tr><td><b>Ceiling height (m)</b></td><td>1.5 to 30 m, or blank for the floor's height. <b>Save height</b>.</td></tr>
+  <tr><td><b>Split level (m up or down)</b></td><td>For a room a few steps up or down: up to 3 m up, 1.5 m down, or blank for level with its floor.</td></tr>
+  <tr><td><b>Kind of space</b></td><td>For a room on a house floor: indoors, or a covered or open deck or patio. <b>Work it out</b> guesses it from the house.</td></tr>
+  <tr><td><b>Surface</b></td><td>For an outdoor room: what the 3D view draws on its floor.</td></tr>
+  <tr><td><b>Receivers</b></td><td>The receivers in it. <b>See receivers</b> opens the Receivers screen.</td></tr>
+  <tr><td><b>In it now</b></td><td>Who is in it now, or <b>Nobody</b>.</td></tr>
+  <tr><td><b>Lights</b></td><td>The lights in it, as the Atlas counts them.</td></tr>
+</table>
+</div>
+<p>Colour, ceiling height and split level save at once. An outline drawn on a plan goes onto the map of
+the house only when you choose <b>Put it on the map</b>
+(<a href="/manual/setup-the-map/#finish-put-it-on-the-map">chapter 9</a>), never by itself.</p>
+<h2 id="renaming-and-removing">Renaming and removing</h2>
+<p>PadSpan knows a room by its name.</p>
+<ul>
+<li><b>A room that isn't an area any more</b>, such as one you renamed or removed in Home Assistant, shows
+on the Rooms screen as <b>PadSpan only, not a Home Assistant area</b>, with its outline kept. After a
+rename, draw the outline again for the new name and remove the old one in <b>Mapping → Edit</b>.</li>
+<li><b>A receiver moved to another room</b>: change its device's area in Home Assistant, or in PadSpan
+with <b>Set room</b> on the Overview's <b>Who's where now</b> card.</li>
+<li><b>An area you don't want</b> can be removed in Home Assistant, or with <b>Delete</b> in PadSpan's
+<b>Manage</b> screen, which asks twice. That deletes it from Home Assistant itself, not just PadSpan:
+every device and entity in it is left with no area.</li>
+</ul>
+<h2 id="what-padspan-reads-and-never-changes">What PadSpan reads and never changes</h2>
+<p>PadSpan reads Home Assistant's areas, floors and device registry. It changes them only when you
+press a button for it, one at a time: <b>Set room</b> or <b>Assign</b> for a receiver, a light's room,
+<b>Add to Home Assistant</b> for a new area, <b>Delete</b> for an area on <b>Manage</b>. The full list is in
+the README's <a href="https://github.com/gbroeckling/padspanHA/blob/main/README.md#what-padspan-never-touches">What PadSpan never touches</a>.</p>
+<div class="pager"><span><a href="/manual/tags-and-beacons/">← 7. Tags, beacons, AirTags and guest tags</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/setup-the-map/">9. Setup: your house on a map →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

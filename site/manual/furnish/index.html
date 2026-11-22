@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17. Furnish | PadSpan HA Manual</title>
+<meta name="description" content="Furnish puts furniture, devices and people into Live Aboard, the 3D house (chapter 16). It needs PadSpan Pro and Live Aboard turned on, and it is in Mapping…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/furnish/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/furnish/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/furnish/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/furnish/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="17. Furnish">
+<meta property="og:description" content="Furnish puts furniture, devices and people into Live Aboard, the 3D house (chapter 16). It needs PadSpan Pro and Live Aboard turned on, and it is in Mapping…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/furnish/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/furnish/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="17-furnish">17. Furnish</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>Furnish puts furniture, devices and people into Live Aboard, the 3D house
+(<a href="/manual/live-aboard/">chapter 16</a>). It needs PadSpan Pro and Live Aboard turned on, and it is in
+<b>Mapping → Furnish</b>: the tab appears next to the Atlas builder once Live Aboard is on, in Advanced
+mode. As in Edit, nothing is stored until you press <b>Save</b>, and <b>Undo</b> steps back through
+everything.</p>
+<h2 id="adding-a-piece">Adding a piece</h2>
+<p><b>Build ▾</b> adds a piece of furniture or a device: a sofa, a bed, a table, a lamp, a TV, stairs and
+more, or a plain <b>Box</b>. Each kind has its own sliders (a sofa's seats and arms, a bed's size, a
+table's shape). They are simple shapes in the Sims' spirit, not scans.</p>
+<p>The other ways in:</p>
+<ul>
+<li><b>From a photo</b>: photograph a real piece and PadSpan builds a matching one. It needs Home
+Assistant 2025.8 or newer with an <b>AI Task</b> that can read images, picked in <b>Settings → AI</b>,
+where <b>Furniture from a photo</b> can also be switched off (<a href="/manual/ai-features/">chapter 19</a>). With a
+cloud AI Task, the photo leaves your house to be read; it is never stored. It asks for one real
+measurement unless something of known size (a door, a tape measure) is in the photo. If the answer
+makes no sense, you get a box, never an error.</li>
+<li><b>Library</b>: furniture other PadSpan houses shared. Turn on <b>Shared library</b> in the Live Aboard
+settings and accept its terms first. Off, Live Aboard never contacts the library.</li>
+<li><b>Import</b>: doors, windows and furniture from a Sweet Home 3D file (<code>.sh3d</code>), or, with RoomPlan
+import on (<b>Settings → Features</b>), from a phone's room scan (<code>.usdz</code> or <code>.json</code>). Each door or
+window goes on the nearest wall; one with no wall near it is left out and counted. You see them
+first and pick what to keep.</li>
+<li><b>People &amp; devices</b>: below.</li>
+</ul>
+<h2 id="kitchens-and-bathrooms">Kitchens and bathrooms</h2>
+<p><b>Build ▾</b> has a <b>Kitchen</b> and a <b>Bathroom</b> heading:</p>
+<ul>
+<li><b>Kitchen</b>: base cabinets (doors, drawers, or a drawer over doors), wall cabinets, tall cabinets
+(with an oven, or an oven and a microwave), a sink with one or two bowls, a hob or a cooker, a
+dishwasher and a fridge. Each base unit has its own worktop, so a row of them reads as one.</li>
+<li><b>Bathroom</b>: a toilet, a basin (on a vanity, a pedestal or the wall), a bath and a shower.</li>
+<li>A sink's or basin's <b>Height</b> goes up to the top of its tap: a 1.2 m sink has its worktop at
+0.9 m, level with the cabinets beside it, and fits under a sill as high as its worktop.</li>
+<li>To put up a wall cabinet, set its <b>Height in room</b> to 1.45 m (the usual height over a 0.9 m
+worktop) and drag it to the wall, or use <b>Hang on wall</b>.</li>
+</ul>
+<h2 id="room-sets">Room sets</h2>
+<p><b>Build ▾ → Room sets</b> furnishes a whole room in one tap: <b>Kitchen, one wall</b>,
+<b>Kitchen, L-shaped</b>, <b>Bathroom</b>, <b>Bedroom</b>, <b>Living room</b>, <b>Dining room</b> or <b>Office</b>.</p>
+<ul>
+<li>Turn the view so the room is in the middle, then pick a set.</li>
+<li>Pieces go along the walls, backs to them, stepping past doors, windows and anything already there,
+and always inside the room. PadSpan tries each wall and keeps the one that fits the most.</li>
+<li>In a kitchen, the wall cabinets hang over the base units, and the sink goes under a window.</li>
+<li>A piece with no room is left out, and the message says how many.</li>
+<li>It is a first go to adjust. One <b>Undo</b> takes the whole set away.</li>
+</ul>
+<h2 id="moving-and-setting-a-piece">Moving and setting a piece</h2>
+<ul>
+<li><b>Drag</b> a piece across the floor. Its back snaps to the walls, and two short lines show how far it
+is from the nearest walls.</li>
+<li><b>Arrow keys</b> nudge it 1 cm (Shift: 10 cm); <b>[</b> and <b>]</b> turn it 15° (Shift: 1°).</li>
+<li>Its panel has its label, size, its builder's settings, colours, <b>Turn</b>, <b>Floor ▲ / ▼</b>,
+<b>Height in room</b>, exact <b>X, Y, Height and Angle</b>, <b>Duplicate</b> and <b>Delete</b>.
+<b>Stand on what's under it</b> puts a lamp on its table; <b>Hang on wall</b> at a height you pick.</li>
+<li>Warnings tell you when a piece doesn't fit (through a wall, off the floor).</li>
+</ul>
+<h2 id="stairs">Stairs</h2>
+<p><b>Build ▾ → House → Stairs</b>: which way they turn and the floor they go up to. Their height is the
+gap up to that floor, and they open a hole in it.</p>
+<ul>
+<li><b>Shape</b>: Straight, L, U, <b>2 landings</b> or <b>3 landings</b> (round an open well).</li>
+<li><b>Style</b>: <b>Closed</b> (solid steps), <b>Open</b> (treads on a board each side), <b>Treads only</b> (as if
+fixed into the wall) or <b>Floating</b> (treads on one steel spine).</li>
+<li><b>Rail</b>: <b>None</b> until you pick <b>Both</b>, <b>Inside</b> or <b>Outside</b>. <b>Rail style</b>:
+<b>Balustrade</b>, <b>Topless</b> or <b>Single bar</b>.</li>
+<li><b>Stairs in stair rooms</b> (shown when there are some): a first guess for each room called Stairs,
+Stairwell or Staircase that has none yet and a floor above, sized to the room.</li>
+<li><b>Read stairs off the plans (AI)</b> (with <b>AI map-building research (experimental)</b> and
+<b>Stairs from your floor plans</b> on in <b>Settings → AI</b>, and an AI Task picked): your AI looks for
+stairs on each floor plan and adds what it finds, unsaved. It is a first guess: check every one.
+A plan is sent to your AI only when you press it.</li>
+<li><b>From a file</b>: Import brings a Sweet Home 3D staircase in as stairs, and a RoomPlan scan's stairs
+too.</li>
+</ul>
+<h2 id="a-piece-thats-a-real-device">A piece that's a real device</h2>
+<p><b>This is a device…</b> links a piece to a Home Assistant entity, and it behaves like it: a lamp glows
+in its light's colour, a TV lights up while playing, a fan's blades turn, a washer shakes while it
+runs, a robot vacuum leaves its dock while working, a radiator glows while heating. If the entity is
+renamed, the piece follows it; if it is deleted, the piece shows <b>Unlinked</b> and stays put.</p>
+<h2 id="people">People</h2>
+<p><b>People &amp; devices</b> shows each Home Assistant person in the house:</p>
+<ul>
+<li><b>A figure</b> made with sliders (height, build, hair, colours), or <b>from a photo</b>. A figure is a
+few simple shapes, never a likeness. The photo path asks first that the person agrees, and sends
+nothing until that is ticked. It recommends a local AI Task.</li>
+<li><b>Carries</b>: which phones and tags each person carries, from what PadSpan tracks. Those place the
+person in Live Aboard and on the Atlas.</li>
+<li>People are never shared: figures live only in this house's 3D file. Deleting a person in Home
+Assistant takes their figure with it.</li>
+</ul>
+<p><b>Show people</b> and <b>Show tags &amp; scanners</b>, in Settings or in Live Aboard's <b>Views ▾</b>, show or
+hide them.</p>
+<h2 id="sharing-a-piece">Sharing a piece</h2>
+<p><b>Share…</b> shares a piece you built to the library: only its shape, sizes, colours and the details you
+fill in, never a photo or anything about your house. A title with an email, phone number, address
+or link is refused. You can withdraw a share later.</p>
+<h2 id="clearing-it-out">Clearing it out</h2>
+<p><b>Settings → Atlas → Live Aboard</b> has <b>Remove all furniture…</b> (administrators). A backup is taken
+first; to bring the furniture back, restore that backup (<a href="/manual/backup-restore-moving/">chapter 22</a>).</p>
+<div class="pager"><span><a href="/manual/live-aboard/">← 16. Live Aboard</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/wall-screens-and-kiosks/">18. Wall screens and kiosks →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

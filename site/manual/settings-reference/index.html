@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>20. Settings reference | PadSpan HA Manual</title>
+<meta name="description" content="Every setting PadSpan keeps: where it is in the panel, its default, what it takes, and what it does. The tables are made from PadSpan&#x27;s code by…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/settings-reference/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/settings-reference/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/settings-reference/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/settings-reference/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="20. Settings reference">
+<meta property="og:description" content="Every setting PadSpan keeps: where it is in the panel, its default, what it takes, and what it does. The tables are made from PadSpan&#x27;s code by…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/settings-reference/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/settings-reference/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1 id="20-settings-reference">20. Settings reference</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>Every setting PadSpan keeps: where it is in the panel, its default, what it takes, and what it does.
+The tables are made from PadSpan's code by <code>scripts/build_manual_reference.py</code> (the defaults from
+<code>settings_store.py</code>, the ranges from <code>ws_settings.py</code>, the labels checked against the panel's own
+screens), and a test fails when they and the code disagree.</p>
+<h2 id="before-you-change-anything">Before you change anything</h2>
+<ul>
+<li><b>Basic mode shows only Appearance.</b> Settings' other tabs (Tracking, Features, AI, Atlas, UI
+Structure) are in Advanced and Development mode. The mode button at the top right switches
+between them.</li>
+<li><b>Most settings save at once</b> and take effect at the next update, with no restart. The ones that
+need more say so on their card (the Atlas's sidebar entry needs a Home Assistant restart; a newly
+ticked kind of entity needs PadSpan to reload).</li>
+<li><b>With Enhanced security on</b> (on for a new install), only a Home Assistant administrator can change
+PadSpan's shared setup. A few settings are an administrator's whatever it says: Enhanced security
+itself, the usage report, Vacation Mode, guest tags, the AI and the shared furniture library, who
+shows in Live Aboard, and ESPresense Companion's address.</li>
+<li><b>Every setting is in PadSpan's backups</b>, and a Factory Reset puts them back to these defaults
+(keeping your licence key). See <a href="/manual/backup-restore-moving/">chapter 22</a>.</li>
+<li><b>Keys</b> are the names PadSpan stores each setting under in <code>.storage/padspan_ha.settings</code>. They
+are given for support and for reading a Diagnostics file; there is no need to edit the file.</li>
+</ul>
+<p>"Range or choices" is what PadSpan keeps the value to: a number outside the range is moved to its
+end, and a word not on the list is refused or replaced. "empty" means nothing is set.</p>
+<h2 id="in-settings">In Settings</h2>
+<p>The tabs, sections and cards are named as the panel names them. Tracking's eight sections are each a
+folding heading on that tab.</p>
+<h3 id="settings--appearance">Settings → Appearance</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Panel Style</td><td><code>2025</code></td><td><code>classic</code>, <code>2025</code></td><td><code>2025</code> restyles the panel's frame (grouped menu with icons); <code>classic</code> is the original.</td><td><code>ui_skin</code></td></tr>
+  <tr><td>Theme</td><td>empty</td><td><code>graphite</code>, <code>ocean</code>, <code>dusk</code>, <code>contrast</code></td><td>The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (<code>contrast</code>). Graphite, Ocean and Dusk come with Pro.</td><td><code>theme_palette</code></td></tr>
+  <tr><td>Theme: Light (inverted)</td><td>off</td><td>on or off</td><td>The panel's colours turned light (inverted).</td><td><code>light_theme</code></td></tr>
+  <tr><td>Theme: Day</td><td>off</td><td>on or off</td><td>Day, PadSpan's designed light look (Pro). It wins over Light.</td><td><code>day_theme</code></td></tr>
+  <tr><td>Theme: Follow the sun</td><td>off</td><td>on or off</td><td>Day (Light without Pro) from sunrise to sunset, the theme you picked at night.</td><td><code>theme_follow_sun</code></td></tr>
+  <tr><td>Units: Show lengths in feet and inches</td><td>off</td><td>on or off</td><td>Mapping's measuring and the rooms helper show feet and inches. Lengths are kept in metres either way.</td><td><code>units_feet</code></td></tr>
+  <tr><td>2D Map Mode: Replace 3D isometric view with flat 2D map</td><td>off</td><td>on or off</td><td>Experimental: the Overview shows the floor plan flat, with zoom and pan.</td><td><code>overview_2d_mode</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--rooms-and-timing">Settings → Tracking → Rooms and timing</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Room Change Delay</td><td>20</td><td>0 to 300</td><td>Seconds a receiver must stay ahead before a device moves to its room. A clear move next door needs half.</td><td><code>room_change_delay_s</code></td></tr>
+  <tr><td>Hold Room Through Short Gaps: Hold last room</td><td>0</td><td>0 (off), or 1 to 600</td><td>Seconds a device's room stays shown through a signal gap. Display only: rooms are decided as before.</td><td><code>hold_last_room_s</code></td></tr>
+  <tr><td>Why This Room (Sensor Attribute): Add a room_reason attribute to each area sensor</td><td>off</td><td>on or off</td><td>Adds <code>room_reason</code> to each area sensor (<a href="/manual/home-assistant-reference/">chapter 14</a>).</td><td><code>room_reason_attribute</code></td></tr>
+  <tr><td>Home/Away Timeout: Away timeout</td><td>5</td><td>1 to 1440</td><td>Minutes a device goes unheard before its tracker and area sensor read <code>not_home</code>.</td><td><code>away_timeout_m</code></td></tr>
+  <tr><td>Home/Away Timeout: Things keep their room</td><td>0</td><td>0 (off), or 0.5 to 48</td><td>Hours a device nobody carries (keys, a tag on a bag) keeps its last room before it reads <code>not_home</code>.</td><td><code>thing_away_timeout_h</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--phones-and-guest-tags">Settings → Tracking → Phones and guest tags</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Guest tags: Use tags as guest tags</td><td>off</td><td>on or off</td><td>Guest tags: the Guests screen, <code>binary_sensor.padspan_guest_home</code> and the guest notices.</td><td><code>guest_tags_enabled</code></td></tr>
+  <tr><td>Guest tags: Keep a finished stay's report (name, times, rooms) for</td><td>30</td><td><code>0</code>, <code>7</code>, <code>30</code>, <code>90</code></td><td>Days a finished stay's report is kept. 0: not kept.</td><td><code>guest_retention_days</code></td></tr>
+  <tr><td>Phone Tracking (Private BLE)</td><td>empty</td><td></td><td>The phones and watches whose key (IRK) you added in PadSpan.</td><td><code>irk_devices</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--what-the-panel-shows">Settings → Tracking → What the panel shows</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Quiet Mode</td><td>off</td><td>on or off</td><td>Hides devices nobody has named from the panel's lists and counts. Switched by the Quiet tick at the top of the Overview.</td><td><code>quiet_mode</code></td></tr>
+  <tr><td>Object History Retention: Keep unlabelled for</td><td>1</td><td><code>1</code>, <code>2</code>, <code>7</code>, <code>14</code></td><td>Days a device nobody named stays in PadSpan's history. Named devices are kept.</td><td><code>object_history_days</code></td></tr>
+  <tr><td>BLE Advertisement Timeout: Max age</td><td>14 400</td><td>30 to 14 400</td><td>Seconds a device stays listed after its last advertisement.</td><td><code>ble_max_age_s</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--positioning-and-calibration">Settings → Tracking → Positioning and calibration</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Positioning Algorithm</td><td><code>knn</code></td><td><code>knn</code>, <code>rf</code></td><td><code>knn</code>: live signals matched to your calibration points. <code>rf</code>: the learned model (experimental).</td><td><code>positioning_algorithm</code></td></tr>
+  <tr><td>Positioning Choices: Pick the better method for this house</td><td>off</td><td>on or off</td><td>Uses whichever placing method did better on calibration spots it had not seen.</td><td><code>positioning_pick_better</code></td></tr>
+  <tr><td>Positioning Choices: Mark a room as unsure when the signal is thin</td><td>off</td><td>on or off</td><td>With fewer than 3 receivers, or no good calibration match, a device keeps its room and is marked unsure.</td><td><code>positioning_unsure</code></td></tr>
+  <tr><td>Positioning Choices: Use motion sensors and usual moves to break ties</td><td>off</td><td>on or off</td><td>Motion and occupancy sensors, and the moves PadSpan has learned, decide between two rooms that read almost the same.</td><td><code>positioning_sensor_fusion</code></td></tr>
+  <tr><td>Walk a Room (Calibration): Add a "Walk a room" tab to Calibration</td><td>off</td><td>on or off</td><td>Adds Walk a room to Calibration.</td><td><code>calibration_room_walk</code></td></tr>
+  <tr><td>Distance Calibration: Reference power</td><td>-59</td><td>-100 to 0</td><td>Signal strength in dBm at 1 metre, for the distance sensors.</td><td><code>ref_power</code></td></tr>
+  <tr><td>Distance Calibration: Path-loss exponent</td><td>2.5</td><td>1 to 4</td><td>How fast the signal falls with distance, for the distance sensors: about 2 in the open, 2.5 to 3.5 indoors.</td><td><code>path_loss_exp</code></td></tr>
+  <tr><td>Signal smoothing: Process noise Q</td><td>3</td><td>0.01 to 10</td><td>How fast the smoothed signal follows a change. Higher follows movement faster.</td><td><code>kalman_q</code></td></tr>
+  <tr><td>Signal smoothing: Measurement noise R</td><td>8</td><td>0.5 to 50</td><td>How little one reading is trusted. Higher smooths more and changes rooms more slowly.</td><td><code>kalman_r</code></td></tr>
+  <tr><td>3D Positioning — Device Height: Device height (m)</td><td>1</td><td>0 to 3</td><td>How high a carried device is above the floor, in metres, for 3D distances.</td><td><code>assumed_device_height_m</code></td></tr>
+  <tr><td>Calibration Accuracy Reminders: Remind me to update calibration when needed for accuracy</td><td>off</td><td>on or off</td><td>A check for gaps and stale readings in calibration, with spots to stand at.</td><td><code>health_reminder_enabled</code></td></tr>
+  <tr><td>Adaptive Learning: Enable adaptive learning</td><td>off</td><td>on or off</td><td>Experimental: learns each room's signal from devices PadSpan is sure of.</td><td><code>adaptive_learning_enabled</code></td></tr>
+  <tr><td>Adaptive Learning: Floor detection enhancement</td><td>off</td><td>on or off</td><td>Experimental: learns how much each floor blocks the signal.</td><td><code>adaptive_floor_detection</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--receivers">Settings → Tracking → Receivers</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Bluetooth refresh interval: Refresh interval</td><td>5</td><td>1 to 60</td><td>Seconds between PadSpan's reads of every receiver's list.</td><td><code>ble_reseed_interval_s</code></td></tr>
+  <tr><td>Bluetooth refresh interval: Refresh every 5 s for passive proxy scanners</td><td>off</td><td>on or off</td><td>Reads every 5 seconds whatever the interval, for Shelly and other passive receivers.</td><td><code>aggressive_ble_reseed</code></td></tr>
+  <tr><td>Receiver signal adjustments</td><td>empty</td><td></td><td>A trim in dB for each receiver's readings.</td><td><code>scanner_offsets</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--performance">Settings → Tracking → Performance</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Presence Poll Interval: Poll interval</td><td>5</td><td>1 to 60</td><td>Seconds between room updates. Lower is quicker and uses more CPU.</td><td><code>presence_poll_interval_s</code></td></tr>
+  <tr><td>CPU Mode</td><td><code>shared</code></td><td><code>shared</code>, <code>single</code>, <code>dedicated</code></td><td>Where the room work runs: with Home Assistant (<code>shared</code>), held to one core (<code>single</code>) or on a core of its own (<code>dedicated</code>).</td><td><code>cpu_mode</code></td></tr>
+  <tr><td>Low-memory mode</td><td>off</td><td>on or off</td><td>Holds less, for a machine with 2 GB of memory.</td><td><code>low_memory_mode</code></td></tr>
+  <tr><td>Optimize for scale</td><td>off</td><td>on or off</td><td>For several wall screens: a lighter feed for the screens and no updates for a hidden page.</td><td><code>optimize_for_scale</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--home-assistant-and-integrations">Settings → Tracking → Home Assistant and integrations</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>GPS Bridge: Origin latitude</td><td>not set</td><td>-90 to 90, or empty</td><td>With the longitude: where the layout's zero point is on Earth, so trackers report a latitude and longitude. Both empty: off.</td><td><code>fabric_origin_lat</code></td></tr>
+  <tr><td>GPS Bridge: Origin longitude</td><td>not set</td><td>-180 to 180, or empty</td><td>See Origin latitude.</td><td><code>fabric_origin_lon</code></td></tr>
+  <tr><td>GPS Bridge: Bearing (°)</td><td>0</td><td>0 to 360</td><td>Which way the layout's up points, in degrees clockwise from true north. Live Aboard's North is the same setting.</td><td><code>fabric_bearing_deg</code></td></tr>
+  <tr><td>Automations</td><td>not set</td><td></td><td>Simple arrive and depart rules that turn a light, switch, scene or script on or off.</td><td><code>padspan_automations</code></td></tr>
+  <tr><td>HA Tags Integration: Room-change tag events</td><td>off</td><td>on or off</td><td>A tag scan and a <code>padspan_room_change</code> event each time a followed device changes room.</td><td><code>tags_room_events_enabled</code></td></tr>
+  <tr><td>HA Tags Integration: NFC tap-to-identify</td><td>off</td><td>on or off</td><td>Scanning an NFC tag names the strongest unnamed Bluetooth signal in that phone's room.</td><td><code>tags_nfc_identify_enabled</code></td></tr>
+  <tr><td>HA Tags Integration: Phone auto-link on NFC scan</td><td>off</td><td>on or off</td><td>A phone that scans any NFC tag is followed by its BLE Transmitter.</td><td><code>tags_phone_autolink_enabled</code></td></tr>
+  <tr><td>Ignore Bermuda: Ignore all Bermuda integration data</td><td>off</td><td>on or off</td><td>Experimental: PadSpan uses nothing from the Bermuda integration.</td><td><code>bermuda_ignore</code></td></tr>
+</table>
+</div>
+<h3 id="settings--tracking--privacy-updates-and-feedback">Settings → Tracking → Privacy, updates and feedback</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Update Check</td><td>on</td><td>on or off</td><td>The daily check for a new version (<a href="/manual/install-update-uninstall/">chapter 3</a>).</td><td><code>update_check_enabled</code></td></tr>
+  <tr><td>Enhanced security</td><td>off</td><td>on or off</td><td>Only an administrator can change PadSpan's shared setup. On for a new install; a home set up before November 2026 keeps what it had.</td><td><code>enhanced_security</code></td></tr>
+  <tr><td>Help improve PadSpan</td><td>off</td><td>on or off</td><td>The opt-in daily usage report. A free licence (trial, tester, free year) keeps it on until the licence ends.</td><td><code>telemetry_enabled</code></td></tr>
+  <tr><td>Help improve PadSpan: Where you heard of PadSpan</td><td>empty</td><td></td><td>Your answer, one word from a fixed list, sent with the report. Empty: not said.</td><td><code>telemetry_heard</code></td></tr>
+</table>
+</div>
+<h3 id="settings--features">Settings → Features</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>PadSpan licence</td><td>empty</td><td></td><td>Your licence key. Kept through a Factory Reset.</td><td><code>forensics_license_key</code></td></tr>
+  <tr><td>PadSpan licence</td><td>empty</td><td></td><td>The name you gave this home among your licence's homes.</td><td><code>license_home_label</code></td></tr>
+  <tr><td>Experimental Features: Walk-to-Identify</td><td>off</td><td>on or off</td><td>Finds which unknown device is yours by walking into a room.</td><td><code>walk_to_identify_enabled</code></td></tr>
+  <tr><td>Experimental Features: Radio Map</td><td>off</td><td>on or off</td><td>A signal-strength overlay on the floor plans, from calibration.</td><td><code>radio_map_enabled</code></td></tr>
+  <tr><td>Experimental Features: Signal distortion map</td><td>off</td><td>on or off</td><td>Shows where calibration and live readings disagree.</td><td><code>distortion_map_enabled</code></td></tr>
+  <tr><td>Experimental Features: RoomPlan Import</td><td>off</td><td>on or off</td><td>Mapping → Layout can import an Apple RoomPlan scan.</td><td><code>roomplan_import_enabled</code></td></tr>
+  <tr><td>Experimental Features: Robot Vacuum Import</td><td>off</td><td>on or off</td><td>Mapping → Layout can import a robot vacuum's map as a floor plan.</td><td><code>vacuum_import_enabled</code></td></tr>
+  <tr><td>Experimental Features: Phone Setup Wizard</td><td>off</td><td>on or off</td><td>A guided phone setup in the IRK Manager.</td><td><code>phone_wizard_enabled</code></td></tr>
+  <tr><td>Experimental Features: iPhone Setup Path</td><td>off</td><td>on or off</td><td>iPhones get the steps for their key (IRK). On for a new install.</td><td><code>iphone_irk_guide</code></td></tr>
+  <tr><td>Experimental Features: MAC Rotation Bridging</td><td>off</td><td>on or off</td><td>Links a device's old and new address when its address changes.</td><td><code>mac_rotation_bridging</code></td></tr>
+  <tr><td>Experimental Features: Apple Device Classification</td><td>off</td><td>on or off</td><td>Says whether an Apple Find My signal is an AirTag, a Find My accessory or an Apple device. Display only.</td><td><code>apple_auto_classify</code></td></tr>
+  <tr><td>Experimental Features: RSSI Vector Capture</td><td>off</td><td>on or off</td><td>A Record button in Health for signal recordings to replay.</td><td><code>rssi_capture_enabled</code></td></tr>
+  <tr><td>Forensics</td><td>off</td><td>on or off</td><td>Pro: records when every Bluetooth device nearby comes and goes, to look back at later.</td><td><code>forensics_enabled</code></td></tr>
+  <tr><td>Forensics: Keep sessions for</td><td>14</td><td><code>7</code>, <code>14</code>, <code>30</code>, <code>60</code>, <code>90</code></td><td>Days Forensics keeps what it recorded.</td><td><code>forensics_retention_days</code></td></tr>
+</table>
+</div>
+<h3 id="settings--ai">Settings → AI</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Your AI: AI Task</td><td>empty</td><td></td><td>The Home Assistant AI Task PadSpan asks to read a photo or a plan. Empty: none, and nothing is read.</td><td><code>atlas_3d_ai_task_entity</code></td></tr>
+  <tr><td>Your AI: Backup AI task</td><td>empty</td><td></td><td>Used when the main AI Task can't be reached.</td><td><code>atlas_3d_ai_task_backup_entity</code></td></tr>
+  <tr><td>Your AI: Your monthly credit, US$</td><td>0</td><td>0 (off), or 0.01 to 100 000</td><td>Your AI's monthly credit, for the use line. 0: none.</td><td><code>ai_credit_month_usd</code></td></tr>
+  <tr><td>Your AI: Warn me</td><td>0</td><td><code>0</code> (off), <code>50</code>, <code>75</code>, <code>90</code></td><td>One notice a month once this share of the credit is used.</td><td><code>ai_credit_warn_pct</code></td></tr>
+  <tr><td>What it does for you: AI map-building research (experimental)</td><td>off</td><td>on or off</td><td>Shows the stair finder and the Plans tool.</td><td><code>ai_plans_enabled</code></td></tr>
+  <tr><td>What it does for you: Stairs from your floor plans</td><td>off</td><td>on or off</td><td>Live Aboard's Furnish can have your AI read the stairs off the plans.</td><td><code>ai_stairs_enabled</code></td></tr>
+  <tr><td>What it does for you: Furniture from a photo</td><td>on</td><td>on or off</td><td>Live Aboard's Furnish can fill in a piece from a photo.</td><td><code>ai_photos_enabled</code></td></tr>
+  <tr><td>What it does for you: Build from plans: advanced plan alignment (Claude, experimental)</td><td>off</td><td>on or off</td><td>Lines up plans and rooms with Claude Opus 5.5 or newer. Needs AI map-building research on.</td><td><code>ai_plan_build_enabled</code></td></tr>
+</table>
+</div>
+<h3 id="settings--atlas">Settings → Atlas</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Atlas — Mapped Light Control: Show the Atlas in the Home Assistant sidebar</td><td>on</td><td>on or off</td><td>The Atlas's own sidebar entry. Takes a Home Assistant restart.</td><td><code>lights_panel_enabled</code></td></tr>
+  <tr><td>Atlas — Mapped Light Control: Show the Test emergency lighting button on the Atlas</td><td>on</td><td>on or off</td><td>The Atlas's Test emergency lighting button.</td><td><code>atlas_emergency_button</code></td></tr>
+  <tr><td>Atlas — Mapped Light Control: Draw lit lights in their own colour on the Atlas</td><td>off</td><td>on or off</td><td>Lit lights in the colour they report. Off: amber.</td><td><code>atlas_live_colours</code></td></tr>
+  <tr><td>Atlas — Mapped Light Control: Alert pulse</td><td>off</td><td>on or off</td><td>Rings an opening left open, or open in the rain, and names the worst alert.</td><td><code>atlas_alert_pulse</code></td></tr>
+  <tr><td>Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂)</td><td>off</td><td>on or off</td><td>A Heatmap chip on the Atlas: rooms coloured by their own sensors.</td><td><code>atlas_heatmap_enabled</code></td></tr>
+  <tr><td>Power teams</td><td>empty</td><td></td><td>Each wall dimmer or switch and the smart bulbs it feeds, as one light (<a href="/manual/home-assistant-reference/">chapter 14</a>).</td><td><code>power_teams</code></td></tr>
+  <tr><td>Outdoor weather: Show rain and snow on the Atlas</td><td>on</td><td>on or off</td><td>Rain or snow around the house while it really rains or snows.</td><td><code>atlas_weather_enabled</code></td></tr>
+  <tr><td>Outdoor weather: Rain sensor</td><td>empty</td><td>an entity: <code>binary_sensor.*</code> or <code>sensor.*</code>, or empty</td><td>A rain sensor that says when it is wet. Empty: the weather entity decides.</td><td><code>atlas_weather_rain_entity</code></td></tr>
+  <tr><td>Outdoor weather: Weather entity</td><td>empty</td><td>an entity: <code>weather.*</code>, or empty</td><td>The weather entity, for rain or snow. Empty: the first one Home Assistant has.</td><td><code>atlas_weather_condition_entity</code></td></tr>
+  <tr><td>Outdoor weather: Weather warnings</td><td>empty</td><td>an entity: <code>binary_sensor.*</code> or <code>sensor.*</code>, or empty</td><td>A weather-warning sensor. Empty: found by itself.</td><td><code>atlas_weather_warning_entity</code></td></tr>
+  <tr><td>Outdoor weather: Strength</td><td>1</td><td>0.5 to 1.5</td><td>How strongly the rain or snow is drawn.</td><td><code>atlas_weather_strength</code></td></tr>
+  <tr><td>Live Aboard: Show Live Aboard on the Atlas</td><td>off</td><td>on or off</td><td>Pro: the 3D house. Off: no 3D, no Furnish, nothing written or read.</td><td><code>atlas_3d_enabled</code></td></tr>
+  <tr><td>Live Aboard: Quality</td><td><code>auto</code></td><td><code>auto</code>, <code>low</code>, <code>high</code></td><td>How much the 3D house draws: picked for the screen, low or high.</td><td><code>atlas_3d_quality</code></td></tr>
+  <tr><td>Live Aboard: Look</td><td><code>atlas</code></td><td><code>atlas</code>, <code>own</code>, <code>studio</code></td><td>The same look as the Atlas, Live Aboard's own colours, or Studio.</td><td><code>atlas_3d_look</code></td></tr>
+  <tr><td>Live Aboard: Back to home view</td><td>60</td><td><code>0</code>, <code>30</code>, <code>60</code>, <code>300</code></td><td>Seconds untouched before the sidebar's Live Aboard goes back to its home view. 0: never.</td><td><code>atlas_3d_home_idle_s</code></td></tr>
+  <tr><td>Live Aboard: Show people</td><td>off</td><td>on or off</td><td>People in the 3D house.</td><td><code>atlas_3d_people</code></td></tr>
+  <tr><td>Live Aboard: Show tags &amp; scanners</td><td>off</td><td>on or off</td><td>Every placed tag and receiver in the 3D house.</td><td><code>atlas_3d_tags</code></td></tr>
+  <tr><td>Live Aboard: Rain and snow</td><td>on</td><td>on or off</td><td>Rain and snow in Live Aboard, while Outdoor weather is on too.</td><td><code>atlas_3d_weather</code></td></tr>
+  <tr><td>Live Aboard: Fly to when it goes off</td><td>empty</td><td></td><td>Doorbells, doors, sensors or alarms the view flies to when they go off.</td><td><code>atlas_3d_director</code></td></tr>
+  <tr><td>Live Aboard: Fly to when they arrive</td><td>empty</td><td></td><td>People and tags the view flies to when they come into a room.</td><td><code>atlas_3d_director_people</code></td></tr>
+  <tr><td>Live Aboard: Use the shared furniture library</td><td>off</td><td>on or off</td><td>Swaps furniture with other PadSpan homes. Off unless an administrator turns it on.</td><td><code>atlas_3d_library</code></td></tr>
+  <tr><td>Wall screens: Screen size</td><td>0</td><td>0 (off), or 10 to 120</td><td>The wall screen's diagonal in inches. 0: sized from the screen's resolution.</td><td><code>wall_screen_in</code></td></tr>
+  <tr><td>Wall screens: Viewing distance</td><td>2.5</td><td>0.3 to 10</td><td>How far away people stand, in metres.</td><td><code>wall_distance_m</code></td></tr>
+  <tr><td>Wall screens: Text size</td><td>20</td><td>14 to 36</td><td>How big text looks from there (minutes of arc).</td><td><code>wall_text_arcmin</code></td></tr>
+  <tr><td>Wall screens: Dim at night</td><td>0</td><td>0 to 0.7</td><td>How much darker after sunset (0 to 0.7).</td><td><code>wall_night_dim</code></td></tr>
+  <tr><td>Wall screens: Protect against burn-in</td><td>off</td><td>on or off</td><td>Moves the picture a few pixels every few minutes (OLED screens).</td><td><code>wall_pixel_shift</code></td></tr>
+  <tr><td>Wall screens: Show each floor</td><td>0</td><td>0 (off), or 10 to 600</td><td>Seconds between floors while nobody touches the wall. 0: off.</td><td><code>wall_floor_cycle_s</code></td></tr>
+  <tr><td>Wall screens: On Fully Kiosk tablets</td><td>off</td><td>on or off</td><td>Dims by the tablet's own brightness, and its motion detection turns the screen on.</td><td><code>wall_fully</code></td></tr>
+  <tr><td>Overview — the Atlas as your main map: Show the Atlas as Overview</td><td>off</td><td>on or off</td><td>Pro: the Overview shows the Atlas; the classic Overview is under Live Tracker.</td><td><code>overview_atlas</code></td></tr>
+</table>
+</div>
+<h3 id="settings--ui-structure">Settings → UI Structure</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>UI Structure</td><td>empty</td><td></td><td>Screens moved from More tools into the main list in Advanced and Development mode.</td><td><code>advanced_extra_tabs</code></td></tr>
+  <tr><td>Edition &amp; tier: Look at this install as tier:</td><td>empty</td><td><code>free</code>, <code>bright</code>, <code>pro</code></td><td>Shows the panel as a lower tier would (<code>free</code>, <code>bright</code>); empty: as it is.</td><td><code>license_tier_override</code></td></tr>
+  <tr><td>Edition &amp; tier: Show the presence tabs too (Overview, Follow, Calibration, …)</td><td>off</td><td>on or off</td><td>PadSpan Bright only: shows the presence screens.</td><td><code>bright_reveal_presence</code></td></tr>
+</table>
+</div>
+<h2 id="on-other-screens">On other screens</h2>
+<p>Settings PadSpan keeps for a control on another screen. Each is saved when you use that control.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Where</th><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
+  <tr><td>Overview</td><td>Preview a finished house</td><td><code>sample</code></td><td><code>sample</code>, <code>live</code></td><td><code>live</code>: your own house. <code>sample</code>: the sample house (<b>Back to my house</b> returns). A new install switches to live as soon as a receiver is heard.</td><td><code>data_mode</code></td></tr>
+  <tr><td>Overview</td><td>Walls</td><td>off</td><td>on or off</td><td>Draws the signal walls over the map.</td><td><code>overview_show_walls</code></td></tr>
+  <tr><td>Overview</td><td>Trails</td><td>off</td><td>on or off</td><td>A fading trail behind each device.</td><td><code>overview_show_trails</code></td></tr>
+  <tr><td>Overview</td><td>Pins</td><td>off</td><td>on or off</td><td>Keeps away devices at their last place on the map.</td><td><code>overview_persistent_pins</code></td></tr>
+  <tr><td>Overview</td><td>Outdoor</td><td>off</td><td>on or off</td><td>Draws sheds, driveways and other outdoor areas, fitted into the house's footprint.</td><td><code>overview_show_outdoor</code></td></tr>
+  <tr><td>Overview</td><td>Heat: Gain</td><td>0</td><td>-20 to 20</td><td>The Radio Map overlay's gain.</td><td><code>heatmap_gain</code></td></tr>
+  <tr><td>Overview</td><td>Heat: Contrast</td><td>0</td><td>-15 to 15</td><td>The Radio Map overlay's contrast.</td><td><code>heatmap_contrast</code></td></tr>
+  <tr><td>Overview</td><td>Warp</td><td>50</td><td>0 to 100</td><td>How strongly the signal distortion map is drawn.</td><td><code>distortion_intensity</code></td></tr>
+  <tr><td>Overview</td><td>Heat: Source</td><td>0</td><td>0 to 100</td><td>Which readings the Radio Map overlay draws from.</td><td><code>heatmap_source</code></td></tr>
+  <tr><td>Follow</td><td>Follow</td><td>empty</td><td></td><td>The devices you follow. Following a device with no name gives it one.</td><td><code>followed_addrs</code></td></tr>
+  <tr><td>Locate</td><td>Locate: You</td><td>empty</td><td></td><td>Pro: which device is you, for directions.</td><td><code>locate_self_key</code></td></tr>
+  <tr><td>Bluetooth</td><td>Scanners: Exclude</td><td>empty</td><td></td><td>Receivers left out of positioning. Nothing they recorded is deleted.</td><td><code>excluded_scanners</code></td></tr>
+  <tr><td>Bluetooth</td><td>Scanners: Min signal: off</td><td>empty</td><td></td><td>For each receiver, readings weaker than this are ignored.</td><td><code>scanner_min_rssi</code></td></tr>
+  <tr><td>Calibration</td><td>Beacon Tune: Auto-Cal</td><td>on</td><td>on or off</td><td>Pinned beacons add calibration points by themselves.</td><td><code>beacon_auto_calibrate</code></td></tr>
+  <tr><td>Devices</td><td>Door Openers</td><td>empty</td><td></td><td>Entities marked as door or window openers.</td><td><code>door_opener_ids</code></td></tr>
+  <tr><td>Devices</td><td>Door Openers</td><td>empty</td><td></td><td>What each opener built from relays made in Home Assistant, so Remove deletes exactly that.</td><td><code>door_composites</code></td></tr>
+  <tr><td>Traceback</td><td>Full house activity</td><td>0</td><td>0 to 64</td><td>The floor Full house activity opens on.</td><td><code>traceback_house_focus</code></td></tr>
+  <tr><td>Traceback</td><td>Mark as stationary reference (known-fixed device for accuracy monitoring)</td><td>not set</td><td>a list</td><td>Devices that never move, used to watch accuracy.</td><td><code>distance_stationary_devices</code></td></tr>
+  <tr><td>Occupancy</td><td>Hybrid counting</td><td>on</td><td>on or off</td><td>Counts people from sensors as well as phones. Off: phones only.</td><td><code>occupancy_hybrid_enabled</code></td></tr>
+  <tr><td>Occupancy</td><td>Phone clustering</td><td>not set</td><td>2 to 30</td><td>How close phones must be to count as one person.</td><td><code>occupancy_cluster_threshold</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Entity Publishing Controls: device_tracker.{label}</td><td>on</td><td>on or off</td><td>A tracker for each named device.</td><td><code>ha_entity_tracker_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Entity Publishing Controls: sensor.{label}_area</td><td>on</td><td>on or off</td><td>An area sensor for each named device.</td><td><code>ha_entity_area_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Entity Publishing Controls: sensor.{label}_distance</td><td>on</td><td>on or off</td><td>A distance sensor for each named device.</td><td><code>ha_entity_distance_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Entity Publishing Controls: sensor.{label}_distance_{scanner}</td><td>on</td><td>on or off</td><td>A distance sensor for each named device and receiver.</td><td><code>ha_entity_scanner_distance_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Entity Publishing Controls: sensor.padspan_occupancy_occupancy</td><td>off</td><td>on or off</td><td>The house's occupancy sensor. Takes a reload.</td><td><code>ha_entity_occupancy_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Entity Publishing Controls: binary_sensor.padspan_{sub-zone}_occupied</td><td>off</td><td>on or off</td><td>Sub-zones: the Sub-zones tool in Mapping → Edit, and two entities for each.</td><td><code>subzones_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>MQTT Publishing: Enable experimental MQTT publishing</td><td>off</td><td>on or off</td><td>Publishes each named device to MQTT (<a href="/manual/home-assistant-reference/">chapter 14</a>).</td><td><code>mqtt_publish_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>ESPresense MQTT: Enable ESPresense MQTT ingestion</td><td>off</td><td>on or off</td><td>Reads ESPresense receivers over MQTT.</td><td><code>espresense_mqtt_enabled</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>ESPresense MQTT: Topic prefix:</td><td><code>espresense</code></td><td></td><td>The MQTT topic ESPresense publishes under.</td><td><code>espresense_topic_prefix</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Import from ESPresense Companion: Companion URL:</td><td>empty</td><td></td><td>ESPresense Companion's address, for importing from it.</td><td><code>espresense_companion_url</code></td></tr>
+  <tr><td>Manage → HA Entities</td><td>Tasmota BLE: Read Tasmota BLE over MQTT</td><td>off</td><td>on or off</td><td>Experimental: Tasmota devices as receivers, over MQTT.</td><td><code>tasmota_ble_enabled</code></td></tr>
+  <tr><td>Manage → Beacon Characteristics</td><td>Beacon Signal Profiles: Beacon profiles</td><td>on</td><td>on or off</td><td>Shows or hides the beacon profiles report.</td><td><code>beacon_profiling_enabled</code></td></tr>
+  <tr><td>Manage → Beacon Characteristics</td><td>Beacon Signal Profiles</td><td>empty</td><td>a list</td><td>Beacons left out of calibration tuning.</td><td><code>beacon_tune_disabled</code></td></tr>
+  <tr><td>Manage → Beacon Characteristics</td><td>Beacon Signal Profiles</td><td>empty</td><td>a mapping</td><td>Beacons moved to another model group.</td><td><code>beacon_group_overrides</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Classic layout</td><td>on</td><td>on or off</td><td>On: the Atlas's new layout (wall screens need it). Off: the classic layout.</td><td><code>atlas_layout_v2</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Showcase</td><td>off</td><td>on or off</td><td>Pro: the Atlas's presentation look.</td><td><code>lights_showcase</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Showcase: Theme</td><td><code>classic</code></td><td><code>classic</code>, <code>cinematic_glass</code>, <code>neo_hud</code>, <code>ambient_premium</code>, <code>dataviz_precision</code>, <code>organic_bioluminescent</code>, <code>material_you</code>, <code>neon_precision</code>, <code>luxury_realestate</code>, <code>wabi_sabi</code>, <code>hygge</code>, <code>aurora</code>, <code>automotive_hud</code>, <code>art_deco</code>, <code>swiss_style</code>, <code>bauhaus</code>, <code>holographic</code>, <code>retro_futurism</code>, <code>obsidian_noir</code>, <code>west_coast_forest</code></td><td>Showcase's theme.</td><td><code>lights_showcase_theme</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Showcase: Fit room</td><td>off</td><td>on or off</td><td>Never draws a light bigger than its room.</td><td><code>lights_fit_rooms</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Showcase: Light spread</td><td>off</td><td>on or off</td><td>Lines of equal light on the floor.</td><td><code>lights_isolux</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Hide untouched</td><td>off</td><td>on or off</td><td>Draws only lights that were set up (sized, turned, coloured or shaped).</td><td><code>lights_hide_untouched</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Hide device codes</td><td>off</td><td>on or off</td><td>Hides each marker's A01-style code.</td><td><code>lights_hide_device_codes</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Show beacons</td><td>off</td><td>on or off</td><td>Shows working, named beacons on the Atlas.</td><td><code>lights_show_beacons</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Automorph</td><td>off</td><td>on or off</td><td>Pro: a glow from each light out into its room.</td><td><code>lights_automorph_enabled</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Automorph</td><td>0</td><td>0 to 100</td><td>How far each glow grows toward its room's shape.</td><td><code>lights_automorph_room_pct</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Automorph: Hardness</td><td>0</td><td>-100 to 100</td><td>Sharper (below 0) or smoother (above 0) glow edges.</td><td><code>lights_automorph_hardness</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Automorph: Style</td><td><code>glow</code></td><td><code>glow</code>, <code>blueprint</code>, <code>nebula</code>, <code>halo</code>, <code>spikecrown</code>, <code>scallop</code>, <code>bloomflower</code>, <code>geode</code>, <code>honeycomb</code>, <code>extrude</code>, <code>shardburst</code>, <code>origami</code>, <code>inkbleed</code>, <code>rosette</code>, <code>lensflare</code>, <code>mycelium</code></td><td>The glow's style.</td><td><code>lights_automorph_style</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Automorph: Subtlety</td><td>0</td><td>0 to 100</td><td>How faint the glow is.</td><td><code>lights_automorph_subtlety</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Presets</td><td>empty</td><td></td><td>Saved looks: theme, Automorph and display choices, by name.</td><td><code>lights_showcase_presets</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Whole house</td><td>empty</td><td></td><td>Saved states of every light and fan, by name.</td><td><code>whole_house_presets</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode</td><td>off</td><td>on or off</td><td>Switches lights as on an ordinary day, learned from Home Assistant's history.</td><td><code>vacation_mode_enabled</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Intensity</td><td>100</td><td>5 to 100</td><td>How much of the usual lighting it switches.</td><td><code>vacation_mode_intensity</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode</td><td><code>last_week</code></td><td><code>last_week</code>, <code>month</code></td><td>Each day's routine: the same day last week, or that weekday's average over the last month.</td><td><code>vacation_mode_source</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Only after dark</td><td>off</td><td>on or off</td><td>Lights only after sunset.</td><td><code>vacation_mode_dark_only</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Only after dark</td><td>0</td><td>-60 to 120</td><td>How long after sunset, in minutes.</td><td><code>vacation_mode_dark_offset_min</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Ends</td><td>0</td><td></td><td>When the trip ends and Vacation Mode turns itself off. 0: no end.</td><td><code>vacation_mode_end_at</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Pause while someone is home</td><td>off</td><td>on or off</td><td>Switches nothing while anyone is home.</td><td><code>vacation_mode_pause_home</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Bedtime</td><td>empty</td><td></td><td>Lights off from this time (HH:MM, 17:00 to 03:00).</td><td><code>vacation_mode_bedtime</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Longest on</td><td>0</td><td>0 (off), or 15 to 720</td><td>Minutes a light it turned on stays on at most.</td><td><code>vacation_mode_max_on_min</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Most lights on at once</td><td>0</td><td>0 (off), or 1 to 50</td><td>Lights on at once, at most.</td><td><code>vacation_mode_max_lights</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Vacation Mode: Evening lights</td><td>empty</td><td></td><td>Up to 10 lights held on through the evenings they were really on.</td><td><code>vacation_mode_anchors</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Atlas builder</td><td>empty</td><td></td><td>Each light's marker shape.</td><td><code>light_shapes</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Atlas builder</td><td>empty</td><td></td><td>Pro: a light forced to be drawn as WLED, a partition or plain.</td><td><code>light_type_overrides</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Atlas builder</td><td>not set</td><td>a list</td><td>Lights hidden from the Atlas.</td><td><code>lights_hidden</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Save view</td><td>150</td><td>60 to 340</td><td>Space between floors on the Overview and the Atlas.</td><td><code>overview_iso_floor_gap</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Save view</td><td>0</td><td>-120 to 120</td><td>Sideways offset between floors.</td><td><code>overview_iso_horiz_gap</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Save view</td><td>not set</td><td></td><td>The one floor shown; empty: all floors.</td><td><code>overview_iso_focus</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Save view</td><td>1</td><td>0.4 to 2.5</td><td>The Atlas's zoom.</td><td><code>overview_iso_zoom</code></td></tr>
+  <tr><td>Mapping → 3D Stack</td><td>3D Isometric Preview</td><td>200</td><td>60 to 340</td><td>Space between floors in the preview.</td><td><code>maps_iso_floor_gap</code></td></tr>
+  <tr><td>Mapping → 3D Stack</td><td>3D Isometric Preview</td><td>0</td><td>-120 to 120</td><td>Sideways offset between floors in the preview.</td><td><code>maps_iso_horiz_gap</code></td></tr>
+  <tr><td>Mapping → 3D Stack</td><td>3D Isometric Preview: All floors</td><td>not set</td><td></td><td>The one floor shown; empty: all floors.</td><td><code>maps_iso_focus</code></td></tr>
+  <tr><td>Mapping → 3D Stack</td><td>Floor Assignment &amp; Ceiling Heights</td><td>empty</td><td>a list</td><td>Floor plans hidden from the 3D stack.</td><td><code>hidden_map_ids</code></td></tr>
+  <tr><td>Live Aboard → Furnish</td><td>People &amp; devices</td><td>empty</td><td></td><td>Who carries which phone or tag. Kept in this home only.</td><td><code>atlas_3d_carries</code></td></tr>
+</table>
+</div>
+<h2 id="not-in-the-panel">Not in the panel</h2>
+<p>Settings with no control in the panel: one a service changes, a few the panel never shows (they
+can only be changed by a command, or are kept for older versions), and the ones PadSpan keeps for
+itself (when it last checked, what it has asked, what it has learned). You never need to set these.</p>
+<h3 id="changed-by-a-service">Changed by a service</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Key</th><th>Default</th><th>Range or choices</th><th>What it is</th></tr>
+  <tr><td><code>room_tag_map</code></td><td>empty</td><td></td><td>The objects that belong in each room: set by <code>padspan_ha.set_room_tag_map</code>.</td></tr>
+</table>
+</div>
+<h3 id="not-shown-in-the-panel">Not shown in the panel</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Key</th><th>Default</th><th>Range or choices</th><th>What it is</th></tr>
+  <tr><td><code>excluded_objects</code></td><td>empty</td><td></td><td>Devices dropped as they arrive, by their lasting key (never a MAC): no cost, no history.</td></tr>
+  <tr><td><code>ingest_rules</code></td><td>empty</td><td></td><td>Rules that drop or keep devices as they arrive, by key, UUID, maker or address.</td></tr>
+  <tr><td><code>espresense_room_map</code></td><td>empty</td><td>a mapping</td><td>ESPresense room names matched to Home Assistant areas.</td></tr>
+  <tr><td><code>atlas_3d_showcase</code></td><td>off</td><td>on or off</td><td>An older Live Aboard look switch, kept so old backups load; Look decides now.</td></tr>
+  <tr><td><code>emergency_entities</code></td><td>empty</td><td></td><td>The lights the Atlas's emergency lighting test switches. Empty: Home Assistant's emergency groups, or PadSpan's own rule.</td></tr>
+  <tr><td><code>auto_offset_mode</code></td><td>not set</td><td><code>off</code>, <code>partial</code>, <code>full</code></td><td>Accepted but nothing reads it: only the manual receiver trims are applied.</td></tr>
+  <tr><td><code>signal_loss_linger_s</code></td><td>not set</td><td>10 to 300</td><td>Retired in 0.20.16: accepted, read by nothing.</td></tr>
+  <tr><td><code>rssi_capture_retention_days</code></td><td>14</td><td><code>1</code>, <code>3</code>, <code>7</code>, <code>14</code>, <code>30</code></td><td>Days RSSI recordings are kept (RSSI Vector Capture).</td></tr>
+</table>
+</div>
+<h3 id="kept-by-padspan-itself">Kept by PadSpan itself</h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Key</th><th>Default</th><th>Range or choices</th><th>What it is</th></tr>
+  <tr><td><code>onboarding_completed</code></td><td>off</td><td>on or off</td><td>The first-run setup was finished.</td></tr>
+  <tr><td><code>setup_progress</code></td><td>not set</td><td></td><td>Where Setup has got to.</td></tr>
+  <tr><td><code>accuracy_tips_hidden</code></td><td>not set</td><td></td><td>The Improve accuracy tips you closed.</td></tr>
+  <tr><td><code>health_reminder_last_ts</code></td><td>not set</td><td></td><td>When the calibration reminder last showed.</td></tr>
+  <tr><td><code>ai_map_wizard</code></td><td>empty</td><td></td><td>Let Claude draw your rooms: whether it was started, put off or finished.</td></tr>
+  <tr><td><code>onboarding</code></td><td>empty</td><td></td><td>A new install's first steps and how long they took.</td></tr>
+  <tr><td><code>telemetry_asked</code></td><td>off</td><td>on or off</td><td>The panel has asked about the usage report once.</td></tr>
+  <tr><td><code>telemetry_heard_ask</code></td><td>empty</td><td></td><td>Whether the where-did-you-hear question is due, or done.</td></tr>
+  <tr><td><code>telemetry_install_id</code></td><td>empty</td><td></td><td>The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it).</td></tr>
+  <tr><td><code>telemetry_last_day</code></td><td>empty</td><td></td><td>The day the last usage report was sent.</td></tr>
+  <tr><td><code>report_locked_key</code></td><td>empty</td><td></td><td>Which free licence keeps the usage report on.</td></tr>
+  <tr><td><code>whatsnew_seen_version</code></td><td>empty</td><td></td><td>The last version whose update card someone saw.</td></tr>
+  <tr><td><code>first_seen_ts</code></td><td>0</td><td></td><td>When PadSpan first ran here.</td></tr>
+  <tr><td><code>calibration_points_seen</code></td><td>0</td><td></td><td>Calibration points at the last report.</td></tr>
+  <tr><td><code>maps_seen</code></td><td>0</td><td></td><td>Floor plans at the last report.</td></tr>
+  <tr><td><code>trial_nudge_done</code></td><td>off</td><td>on or off</td><td>The trial card was answered.</td></tr>
+  <tr><td><code>tester_nudge_done</code></td><td>off</td><td>on or off</td><td>The tester card was shown.</td></tr>
+  <tr><td><code>launch_card_done</code></td><td>off</td><td>on or off</td><td>The launch-price card was shown.</td></tr>
+  <tr><td><code>tester_signup</code></td><td>empty</td><td></td><td>Your tester sign-up, so you can update or withdraw it.</td></tr>
+  <tr><td><code>pro_invite</code></td><td>empty</td><td></td><td>An invite to free Pro, and your answer.</td></tr>
+  <tr><td><code>server_offers</code></td><td>empty</td><td></td><td>Which free-Pro offers the update check last said are on.</td></tr>
+  <tr><td><code>flood_latches</code></td><td>empty</td><td></td><td>Leak alarms the Atlas keeps showing until cleared.</td></tr>
+  <tr><td><code>atlas_weather_rain_wet_since</code></td><td>0</td><td></td><td>When the Outdoor weather rain sensor last turned wet, so one stuck on wet for hours is ignored.</td></tr>
+  <tr><td><code>zigbee_twins_told</code></td><td>empty</td><td></td><td>The Zigbee devices in two integrations you were told about, once each.</td></tr>
+  <tr><td><code>lights_showcase_seen</code></td><td>off</td><td></td><td>Showcase has been on here.</td></tr>
+  <tr><td><code>wled_teams</code></td><td>empty</td><td></td><td>WLED devices that act as one light.</td></tr>
+  <tr><td><code>power_teams_woke</code></td><td>empty</td><td></td><td>Each power team's last wake-up day, so a restart never wakes it twice.</td></tr>
+  <tr><td><code>power_teams_slept</code></td><td>empty</td><td></td><td>Each power team's last bedtime day, so a restart never runs it twice.</td></tr>
+  <tr><td><code>room_speed_v1_applied</code></td><td>off</td><td></td><td>The November 2026 room-speed defaults were applied once.</td></tr>
+  <tr><td><code>atlas_default_v1_applied</code></td><td>off</td><td></td><td>The Atlas's sidebar entry was switched on once, by default.</td></tr>
+  <tr><td><code>server_checked_at</code></td><td>0</td><td></td><td>When the update check and licence check last ran.</td></tr>
+  <tr><td><code>forensics_license_expires</code></td><td>empty</td><td></td><td>When the licence ends, as the licence server last said.</td></tr>
+  <tr><td><code>license_is_trial</code></td><td>off</td><td></td><td>The key is a trial key.</td></tr>
+  <tr><td><code>license_home_token</code></td><td>empty</td><td></td><td>This home's token from the licence server.</td></tr>
+  <tr><td><code>license_home_status</code></td><td>empty</td><td></td><td>The licence server's last word on this home, when it refused it.</td></tr>
+  <tr><td><code>license_homes_used</code></td><td>0</td><td></td><td>How many homes the key is on.</td></tr>
+  <tr><td><code>license_homes_warning</code></td><td>empty</td><td></td><td>A warning about a home whose usage report is off.</td></tr>
+  <tr><td><code>license_install_id</code></td><td>empty</td><td></td><td>This install's own id, where Home Assistant's can't be read.</td></tr>
+  <tr><td><code>vacation_mode_pattern</code></td><td>empty</td><td></td><td>Vacation Mode's learned routine.</td></tr>
+  <tr><td><code>vacation_mode_pattern_built_at</code></td><td>0</td><td></td><td>When the routine was learned.</td></tr>
+  <tr><td><code>vacation_mode_pattern_until</code></td><td>0</td><td></td><td>Where the history it learned from ends.</td></tr>
+  <tr><td><code>vacation_mode_enabled_at</code></td><td>0</td><td></td><td>When this vacation started.</td></tr>
+  <tr><td><code>vacation_mode_periods</code></td><td>empty</td><td></td><td>Earlier vacations, left out of what it learns.</td></tr>
+  <tr><td><code>vacation_mode_tracked_since</code></td><td>0</td><td></td><td>Since when every vacation is recorded.</td></tr>
+  <tr><td><code>vacation_mode_pattern_prev</code></td><td>empty</td><td></td><td>The last routine learned before this vacation.</td></tr>
+  <tr><td><code>vacation_mode_pattern_attempt</code></td><td><code>[0, 0]</code></td><td></td><td>The last try at learning that found nothing.</td></tr>
+  <tr><td><code>vacation_mode_pattern_for</code></td><td>0</td><td></td><td>Which vacation a carried-over routine serves.</td></tr>
+  <tr><td><code>vacation_mode_last_off</code></td><td>empty</td><td></td><td>Who turned Vacation Mode off last, and how.</td></tr>
+  <tr><td><code>vacation_mode_trip_source</code></td><td>empty</td><td></td><td>The routine source this trip started with.</td></tr>
+  <tr><td><code>vacation_mode_pattern_source</code></td><td>empty</td><td></td><td>The source the routine was learned from.</td></tr>
+  <tr><td><code>vacation_mode_pattern_prev_source</code></td><td>empty</td><td></td><td>The source the last routine was learned from.</td></tr>
+  <tr><td><code>vacation_mode_pattern_end</code></td><td>0</td><td></td><td>Where a resumed trip's routine is learned again from.</td></tr>
+</table>
+</div>
+<div class="pager"><span><a href="/manual/ai-features/">← 19. AI features</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/users-and-security/">21. Users and Enhanced security →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

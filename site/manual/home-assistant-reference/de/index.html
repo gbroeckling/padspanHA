@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14. Home Assistant: Entitäten, Dienste, Ereignisse, Assist | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Alles, was PadSpan Home Assistant für Automationen, Skripte, Dashboards und Assist gibt. Die Tabellen entstehen mit scripts/build_manual_reference.py aus…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/home-assistant-reference/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/home-assistant-reference/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/home-assistant-reference/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/home-assistant-reference/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="14. Home Assistant: Entitäten, Dienste, Ereignisse, Assist">
+<meta property="og:description" content="Alles, was PadSpan Home Assistant für Automationen, Skripte, Dashboards und Assist gibt. Die Tabellen entstehen mit scripts/build_manual_reference.py aus…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/home-assistant-reference/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/home-assistant-reference/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="14-home-assistant-entitäten-dienste-ereignisse-assist">14. Home Assistant: Entitäten, Dienste, Ereignisse, Assist</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Alles, was PadSpan Home Assistant für Automationen, Skripte, Dashboards und Assist gibt. Die
+Tabellen entstehen mit <code>scripts/build_manual_reference.py</code> aus PadSpans Code, und ein Test schlägt
+fehl, wenn sie und der Code nicht übereinstimmen. Sie beschreiben also die Version, mit der sie
+ausgeliefert werden.</p>
+<h2 id="wie-entitäten-benannt-werden">Wie Entitäten benannt werden</h2>
+<p>PadSpan legt Entitäten nur für Geräte an, die du in PadSpan <b>benannt</b> hast (ein Name an einer
+Bluetooth-Adresse, ein Handy oder eine Uhr, benannt über seinen Schlüssel, oder ein iBeacon). Die
+Tausenden unbenannten Geräte, die ein Haus hört, bekommen keine.</p>
+<p>Jedes benannte Gerät ist in Home Assistant ein Gerät mit dem Namen, den es in PadSpan hat. Seine
+Entitäten bekommen ihre IDs aus diesem Namen, so wie Home Assistant es immer macht: kleingeschrieben,
+Leerzeichen und Satzzeichen als <code>_</code>. Ein Tag namens „Car keys“ bekommt <code>device_tracker.car_keys</code>,
+<code>sensor.car_keys_area</code> und <code>sensor.car_keys_distance</code>. Ist eine ID schon vergeben, hängt Home
+Assistant <code>_2</code> an. Du kannst eine Entität in Home Assistant umbenennen; PadSpan folgt ihr über ihre
+eindeutige ID, nicht über ihren Namen.</p>
+<p>Welche Arten von Entitäten PadSpan anlegt, stellst du unter
+<b>Verwalten → HA Entities → Entity Publishing Controls</b> ein: Der Tracker, der Bereichssensor, der
+Entfernungssensor und die Entfernungssensoren pro Empfänger sind an, bis du ihr Häkchen wegnimmst;
+der Belegungssensor und die Teilzonen sind aus, bis du sie anhakst. Eine Art ohne Häkchen ist im
+Entitätsregister von Home Assistant deaktiviert, und wieder angehakt kommt sie zurück. PadSpan muss
+neu laden, bevor eine neu angehakte Art für Geräte erscheint, die es schon hat.</p>
+<p>„In HA's history“ in den Tabellen sagt, ob die Datenbank von Home Assistant dieses Attribut behält.
+Die, die sich mit jeder Abfrage ändern (etwa alle 5 Sekunden), wie <code>rssi</code> und <code>age_s</code>, bleiben aus
+der Datenbank heraus, damit sie klein bleibt. Sie stehen trotzdem an der Entität, Automationen und
+Templates können sie also lesen.</p>
+<p><code>&lt;device&gt;</code> steht für den ID-Teil des Geräts, <code>&lt;receiver&gt;</code> für den Empfänger, wie PadSpan ihn nennt,
+und <code>&lt;sub-zone&gt;</code> für den Namen der Teilzone.</p>
+<h2 id="entitäten">Entitäten</h2>
+<p>Die folgenden Tabellen sind englisch: Sie entstehen direkt aus PadSpans Code.</p>
+<h3 id="device_trackerdevice"><code>device_tracker.&lt;device&gt;</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>device_tracker</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_ha__&lt;id&gt;__tracker</code></td></tr>
+  <tr><td>State</td><td>The room it is in, by its Home Assistant name (<code>Kitchen</code>). <code>not_home</code> once it has gone unheard for the away timeout. Before it has a room: Home Assistant's own <code>unknown</code>.</td></tr>
+  <tr><td>There</td><td>For each device you named in PadSpan: a Bluetooth address, a phone or watch named through its key (IRK), or an iBeacon. Attach it to a person in Home Assistant's Settings → People.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>address</code></td><td>The Bluetooth address it was last heard on.</td><td>yes</td></tr>
+  <tr><td><code>padspan_id</code></td><td>PadSpan's own id for the device, the same across address changes.</td><td>yes</td></tr>
+  <tr><td><code>rssi</code></td><td>Its smoothed signal strength in dBm at the receiver that hears it best. Empty while away.</td><td>no</td></tr>
+  <tr><td><code>age_s</code></td><td>Seconds since it was last heard.</td><td>no</td></tr>
+  <tr><td><code>user_label</code></td><td>The name you gave it in PadSpan.</td><td>yes</td></tr>
+  <tr><td><code>home</code></td><td><code>true</code> while it has been heard within the away timeout.</td><td>yes</td></tr>
+  <tr><td><code>last_room</code></td><td>The last room it was placed in. It stays once the state is <code>not_home</code>.</td><td>yes</td></tr>
+  <tr><td><code>guest_session</code></td><td>Only while it is a guest tag lent to someone: the stay's id.</td><td>yes</td></tr>
+  <tr><td><code>guest_name</code></td><td>Only while lent: the guest's name.</td><td>yes</td></tr>
+  <tr><td><code>guest_since</code></td><td>Only while lent: when the stay started (UTC).</td><td>yes</td></tr>
+  <tr><td><code>guest_until</code></td><td>Only while lent: when the stay is planned to end (UTC), or empty.</td><td>yes</td></tr>
+  <tr><td><code>guest_off_limits</code></td><td>Only while lent: the rooms the guest was asked to keep out of.</td><td>yes</td></tr>
+  <tr><td><code>guest_in_off_limits</code></td><td>Only while lent: <code>true</code> while the tag is in one of those rooms.</td><td>yes</td></tr>
+  <tr><td><code>source_type</code></td><td>Home Assistant's own. <code>bluetooth_le</code>.</td><td>yes</td></tr>
+  <tr><td><code>latitude</code>, <code>longitude</code>, <code>gps_accuracy</code></td><td>Home Assistant's own. Only when the house has a GPS origin set (it is off unless set): the device's position turned into latitude and longitude, so Home Assistant's map can draw it.</td><td>yes</td></tr>
+</table>
+</div>
+<h3 id="sensordevice_area"><code>sensor.&lt;device&gt;_area</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_ha__&lt;id&gt;__area</code></td></tr>
+  <tr><td>State</td><td>The room it is in, by its Home Assistant name. <code>not_home</code> once away, <code>unknown</code> while it has no room.</td></tr>
+  <tr><td>There</td><td>For each named device, like the tracker.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>kind</code></td><td><code>ble</code> (a Bluetooth address), <code>private_ble</code> (a phone or watch named through its key) or <code>ibeacon</code>.</td><td>yes</td></tr>
+  <tr><td><code>address</code></td><td>The Bluetooth address it was last heard on.</td><td>yes</td></tr>
+  <tr><td><code>padspan_id</code></td><td>PadSpan's own id for the device, the same across address changes.</td><td>yes</td></tr>
+  <tr><td><code>rssi</code></td><td>Its smoothed signal strength in dBm at the receiver that hears it best. Empty while away.</td><td>no</td></tr>
+  <tr><td><code>age_s</code></td><td>Seconds since it was last heard.</td><td>no</td></tr>
+  <tr><td><code>sources</code></td><td>The receivers hearing it now. Empty while away.</td><td>no</td></tr>
+  <tr><td><code>home</code></td><td><code>true</code> while it has been heard within the away timeout.</td><td>yes</td></tr>
+  <tr><td><code>last_room</code></td><td>The last room it was placed in. It stays once the state is <code>not_home</code>.</td><td>yes</td></tr>
+  <tr><td><code>room_confidence</code></td><td>0 to 1: how much of the recent room vote agrees on this room.</td><td>no</td></tr>
+  <tr><td><code>rssi_margin_confidence</code></td><td>0 to 1: how far the winning room's signal is ahead of the next room's.</td><td>no</td></tr>
+  <tr><td><code>room_unsure</code></td><td>Only with <b>Mark a room as unsure when the signal is thin</b> on, and only while unsure: <code>few_scanners</code> (fewer than 3 receivers hear it) or <code>far_fingerprint</code> (no calibration point matches it well). The room is the one it had.</td><td>no</td></tr>
+  <tr><td><code>ibeacon_uuid</code></td><td>An iBeacon's UUID.</td><td>yes</td></tr>
+  <tr><td><code>ibeacon_major</code></td><td>An iBeacon's major number.</td><td>yes</td></tr>
+  <tr><td><code>ibeacon_minor</code></td><td>An iBeacon's minor number.</td><td>yes</td></tr>
+  <tr><td><code>num_addresses</code></td><td>For a device whose address changes: how many addresses PadSpan has seen it use.</td><td>yes</td></tr>
+  <tr><td><code>all_addresses</code></td><td>For a device whose address changes: the first five of those addresses.</td><td>yes</td></tr>
+  <tr><td><code>room_reason</code></td><td>Only with <b>Why This Room (Sensor Attribute)</b> on: why it is in this room. <code>votes_won</code>, <code>votes_needed</code> and <code>vote_window</code> (the room vote), <code>gate_active</code> (a jump to another room is held back until more polls agree), <code>current_room_bias</code> (the room was kept although another read slightly stronger), <code>source</code> (which step chose the room), <code>positioning</code> (that step's note), <code>top_room_scores</code> (the three best rooms) and <code>room_held</code> (shown through a short gap).</td><td>no</td></tr>
+</table>
+</div>
+<h3 id="sensordevice_distance"><code>sensor.&lt;device&gt;_distance</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_ha__&lt;id&gt;__distance</code></td></tr>
+  <tr><td>Unit</td><td>m</td></tr>
+  <tr><td>State</td><td>Its estimated distance in metres from the receiver that hears it best. Empty while away.</td></tr>
+  <tr><td>There</td><td>For each named device, like the tracker.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>rssi</code></td><td>Its smoothed signal strength in dBm.</td><td>no</td></tr>
+  <tr><td><code>tx_power</code></td><td>The transmit power the device advertises, if it does.</td><td>yes</td></tr>
+  <tr><td><code>age_s</code></td><td>Seconds since it was last heard.</td><td>no</td></tr>
+  <tr><td><code>room</code></td><td>The room it is in.</td><td>yes</td></tr>
+</table>
+</div>
+<h3 id="sensordevice_distance_receiver"><code>sensor.&lt;device&gt;_distance_&lt;receiver&gt;</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_ha__&lt;id&gt;__dist__&lt;receiver&gt;</code></td></tr>
+  <tr><td>Unit</td><td>m</td></tr>
+  <tr><td>State</td><td>Its estimated distance in metres from that one receiver. Empty while away or while that receiver does not hear it.</td></tr>
+  <tr><td>There</td><td>One for each named device and receiver, made the first time that receiver hears it.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>scanner</code></td><td>The receiver.</td><td>yes</td></tr>
+  <tr><td><code>rssi</code></td><td>Its signal strength in dBm at that receiver.</td><td>no</td></tr>
+  <tr><td><code>age_s</code></td><td>Seconds since it was last heard.</td><td>no</td></tr>
+  <tr><td><code>room</code></td><td>The room it is in (decided by all receivers, not this one alone).</td><td>yes</td></tr>
+</table>
+</div>
+<h3 id="sensorpadspan_occupancy_occupancy"><code>sensor.padspan_occupancy_occupancy</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_ha__occupancy_estimate</code></td></tr>
+  <tr><td>State</td><td>How many people PadSpan thinks are in the house, worked out every 30 seconds.</td></tr>
+  <tr><td>There</td><td>Only with <code>sensor.padspan_occupancy_occupancy</code> ticked in Manage → HA Entities → Entity Publishing Controls (off unless ticked), after PadSpan reloads.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>minimum</code></td><td>The fewest people the evidence allows.</td><td>yes</td></tr>
+  <tr><td><code>maximum</code></td><td>The most people the evidence allows.</td><td>yes</td></tr>
+  <tr><td><code>confidence</code></td><td>How sure the estimate is.</td><td>no</td></tr>
+  <tr><td><code>known</code></td><td>People placed by their own named devices.</td><td>yes</td></tr>
+  <tr><td><code>unknown</code></td><td>People counted from phones nobody named and from sensors.</td><td>yes</td></tr>
+  <tr><td><code>people</code></td><td>Each known person: <code>name</code>, <code>room</code> and <code>kind</code>.</td><td>yes</td></tr>
+  <tr><td><code>rooms</code></td><td>Each room's evidence: <code>people</code>, <code>phones</code>, <code>occupancy</code> and <code>motion</code>.</td><td>no</td></tr>
+</table>
+</div>
+<h3 id="sensorpadspan_sub-zone_who"><code>sensor.padspan_&lt;sub-zone&gt;_who</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_ha__subzone__&lt;sub-zone id&gt;__who</code></td></tr>
+  <tr><td>State</td><td>The names of the named devices in the sub-zone, separated by commas, or <code>none</code>.</td></tr>
+  <tr><td>There</td><td>For each sub-zone (a bed, a couch, a desk drawn in Mapping → Edit → Sub-zones), with sub-zones switched on in Manage → HA Entities → Entity Publishing Controls.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>people</code></td><td>The names of the named devices in it.</td><td>yes</td></tr>
+  <tr><td><code>count</code></td><td>How many.</td><td>yes</td></tr>
+  <tr><td><code>room</code></td><td>The room it was drawn in.</td><td>yes</td></tr>
+  <tr><td><code>floor_id</code></td><td>Its floor.</td><td>yes</td></tr>
+  <tr><td><code>subzone_id</code></td><td>PadSpan's id for the sub-zone.</td><td>yes</td></tr>
+</table>
+</div>
+<h3 id="binary_sensorpadspan_sub-zone_occupied"><code>binary_sensor.padspan_&lt;sub-zone&gt;_occupied</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>binary_sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_ha__subzone__&lt;sub-zone id&gt;__occupied</code></td></tr>
+  <tr><td>Device class</td><td><code>occupancy</code></td></tr>
+  <tr><td>State</td><td><code>on</code> while any named device is in the sub-zone.</td></tr>
+  <tr><td>There</td><td>With the sub-zone's <code>who</code> sensor.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>people</code></td><td>The names of the named devices in it.</td><td>yes</td></tr>
+  <tr><td><code>count</code></td><td>How many.</td><td>yes</td></tr>
+  <tr><td><code>room</code></td><td>The room it was drawn in.</td><td>yes</td></tr>
+  <tr><td><code>floor_id</code></td><td>Its floor.</td><td>yes</td></tr>
+  <tr><td><code>subzone_id</code></td><td>PadSpan's id for the sub-zone.</td><td>yes</td></tr>
+</table>
+</div>
+<h3 id="binary_sensorpadspan_vacation_mode"><code>binary_sensor.padspan_vacation_mode</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>binary_sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>&lt;entry id&gt;_vacation_mode</code></td></tr>
+  <tr><td>State</td><td><code>on</code> while Vacation Mode runs.</td></tr>
+  <tr><td>There</td><td>Always.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>since</code></td><td>When this vacation started (UTC). Empty while off.</td><td>yes</td></tr>
+  <tr><td><code>routine</code></td><td>Which routine it switches lights by: <code>own</code> (learned for this trip), <code>resumed</code> (the last trip's, turned back on within three weeks), <code>standin</code> (the last one learned, while this trip's is not built yet) or <code>none</code>. Empty while off.</td><td>yes</td></tr>
+  <tr><td><code>source</code></td><td>Where each day's routine comes from: <code>last_week</code> (the same day last week) or <code>month</code> (that weekday's average over the last month).</td><td>yes</td></tr>
+  <tr><td><code>paused_someone_home</code></td><td><code>true</code> while it waits because someone is home.</td><td>yes</td></tr>
+  <tr><td><code>ends</code></td><td>When the trip ends by itself (UTC), or empty.</td><td>yes</td></tr>
+  <tr><td><code>intensity</code></td><td>5 to 100: how much of the usual lighting it switches.</td><td>yes</td></tr>
+  <tr><td><code>after_dark_only</code></td><td><code>true</code> when lights go on only after sunset.</td><td>yes</td></tr>
+  <tr><td><code>pause_when_home</code></td><td><code>true</code> when it waits while anyone is home.</td><td>yes</td></tr>
+  <tr><td><code>bedtime</code></td><td>The time lights go off (HH:MM), or empty.</td><td>yes</td></tr>
+  <tr><td><code>max_on_minutes</code></td><td>The longest a light it turned on stays on, or empty.</td><td>yes</td></tr>
+  <tr><td><code>max_lights_at_once</code></td><td>The most lights on at once, or empty.</td><td>yes</td></tr>
+  <tr><td><code>anchor_lights</code></td><td>Lights held on through the evening, or empty.</td><td>yes</td></tr>
+  <tr><td><code>last_off</code></td><td>When it was last turned off (UTC).</td><td>yes</td></tr>
+  <tr><td><code>last_off_by</code></td><td>Who or what turned it off last: the person's name, or <code>end_date</code> or <code>reset</code>.</td><td>yes</td></tr>
+</table>
+</div>
+<h3 id="binary_sensorpadspan_guest_home"><code>binary_sensor.padspan_guest_home</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>binary_sensor</code></td></tr>
+  <tr><td>Unique id</td><td><code>&lt;entry id&gt;_guest_home</code></td></tr>
+  <tr><td>State</td><td><code>on</code> while a guest's tag is heard in the house.</td></tr>
+  <tr><td>There</td><td>From the first time guest tags are switched on.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>guests</code></td><td>Each guest staying now: <code>name</code>, <code>tag</code>, <code>home</code> (<code>true</code> while heard) and <code>room</code>.</td><td>yes</td></tr>
+</table>
+</div>
+<h3 id="lightpower-team"><code>light.&lt;power team&gt;</code></h3>
+<div style="overflow-x:auto">
+<table>
+  <tr><td>Platform</td><td><code>light</code></td></tr>
+  <tr><td>Unique id</td><td><code>padspan_power_team_&lt;team id&gt;</code></td></tr>
+  <tr><td>State</td><td><code>on</code> or <code>off</code>: the team's power. Turning it on switches the power on, then sends the bulbs their colour once they answer. Colour temperature 2000 to 6500 K, or a colour, and a fade (<code>transition</code>) of any length.</td></tr>
+  <tr><td>There</td><td>For each power team (a wall dimmer or switch and the smart bulbs it feeds). Effects <code>Adaptive</code> (follows the day) and <code>Sleep</code>, for a team set to follow the day.</td></tr>
+</table>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Attribute</th><th>What it is</th><th>In HA's history</th></tr>
+  <tr><td><code>padspan_power_team</code></td><td>Always <code>true</code>: this light is a PadSpan power team.</td><td>yes</td></tr>
+  <tr><td><code>team_id</code></td><td>PadSpan's id for the team.</td><td>yes</td></tr>
+  <tr><td><code>power</code></td><td>The switch or dimmer that powers the bulbs, or empty for a team of bulbs only.</td><td>yes</td></tr>
+  <tr><td><code>bulbs</code></td><td>The bulbs in the team.</td><td>yes</td></tr>
+  <tr><td><code>phase</code></td><td><code>off</code>, <code>starting</code> (the bulbs are waking), <code>ready</code> or <code>failed</code> (some never answered).</td><td>yes</td></tr>
+  <tr><td><code>missing</code></td><td>The bulbs that did not answer.</td><td>yes</td></tr>
+  <tr><td><code>follows_the_day</code></td><td><code>true</code> while its effect is <code>Adaptive</code>.</td><td>yes</td></tr>
+  <tr><td><code>turns_off</code></td><td><code>power</code> (off cuts the power) or <code>bulbs</code> (off turns the bulbs off and leaves the power on).</td><td>yes</td></tr>
+  <tr><td><code>waking</code></td><td><code>true</code> while the light is the team's wake-up: its slow fade, then its brightness and colour.</td><td>yes</td></tr>
+  <tr><td><code>fading</code></td><td><code>true</code> while a wake-up's slow fade is still running.</td><td>yes</td></tr>
+  <tr><td><code>brightness_follows</code></td><td><code>true</code> while the day leads its brightness (<code>false</code> once a brightness was set by hand, or in Sleep).</td><td>yes</td></tr>
+  <tr><td><code>going_off</code></td><td><code>true</code> while a bedtime (or Sleep in 30 min) is fading it to Sleep and will turn it off at the end.</td><td>yes</td></tr>
+</table>
+</div>
+<h2 id="dienste">Dienste</h2>
+<p>Die folgenden Tabellen sind englisch: Sie entstehen direkt aus PadSpans Code.</p>
+<h3 id="padspan_haset_room_tag_map-set-room-tag-map"><code>padspan_ha.set_room_tag_map</code>: Set Room Tag Map</h3>
+<p>Replace the curated room_tag_map (room name → list of object keys). Persisted across restarts.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Field</th><th>Required</th><th>Takes</th><th>Default</th><th>What it does</th></tr>
+  <tr><td><code>room_tag_map</code></td><td>yes</td><td>a mapping</td><td></td><td>Room name → list of PadSpan object keys. Replaces the whole map.</td></tr>
+</table>
+</div>
+<h3 id="padspan_hadump_devices-dump-devices"><code>padspan_ha.dump_devices</code>: Dump Devices</h3>
+<p>Returns all tracked BLE devices with current room, RSSI, age, and smoothing state. Equivalent to Bermuda BLE Trilateration dump_devices service. Supports response data for use in templates, scripts, and automations. Also creates a persistent notification.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Field</th><th>Required</th><th>Takes</th><th>Default</th><th>What it does</th></tr>
+  <tr><td><code>notify</code></td><td>no</td><td>true or false</td><td>true</td><td>Create a persistent notification summary in HA (default true).</td></tr>
+</table>
+</div>
+<h3 id="padspan_hawled_on-wled-on-with-its-look"><code>padspan_ha.wled_on</code>: WLED on with its look</h3>
+<p>Turns WLED lights on with the look PadSpan remembered for them (every part, colour, white, effect and brightness), exactly and with no flash. A light PadSpan doesn't run is turned on by Home Assistant as usual.</p>
+<p>Target: <code>light</code> entities of the <code>wled</code> integration.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Field</th><th>Required</th><th>Takes</th><th>Default</th><th>What it does</th></tr>
+  <tr><td><code>brightness_pct</code></td><td>no</td><td>number, 1 to 100 %</td><td></td><td>Brightness in percent. Leave empty for the remembered brightness.</td></tr>
+  <tr><td><code>transition</code></td><td>no</td><td>number, 0 to 300 s</td><td></td><td>Fade time in seconds. Leave empty for the remembered fade.</td></tr>
+</table>
+</div>
+<h3 id="padspan_hawled_off-wled-off"><code>padspan_ha.wled_off</code>: WLED off</h3>
+<p>Turns WLED lights off the way PadSpan does: only the light as a whole goes off, so its remembered look is there the next time it comes on.</p>
+<p>Target: <code>light</code> entities of the <code>wled</code> integration.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Field</th><th>Required</th><th>Takes</th><th>Default</th><th>What it does</th></tr>
+  <tr><td><code>transition</code></td><td>no</td><td>number, 0 to 300 s</td><td></td><td>Fade time in seconds. Leave empty for the remembered fade.</td></tr>
+</table>
+</div>
+<p><code>padspan_ha.dump_devices</code> kann seine Liste an den Aufrufer zurückgeben: Gib der Aktion in einem
+Skript eine <code>response_variable</code> und lies daraus <code>devices</code> (die Daten jedes Geräts, unter PadSpans
+Schlüssel dafür), <code>count</code>, <code>version</code> und <code>timestamp</code>. Mit <code>notify: false</code> gibt er nur die Liste
+zurück.</p>
+<p><code>padspan_ha.set_room_tag_map</code> speichert eine Liste, welche PadSpan-Objekte in welchen Raum gehören.
+PadSpan vergleicht sie mit dem, was es gerade hört, und zeigt die fehlenden. Die meisten Haushalte
+brauchen das nie.</p>
+<h2 id="ereignisse">Ereignisse</h2>
+<p>Jedes davon kann eine Automation auslösen (Auslöser <b>Ereignis</b>, mit dem Ereignistyp unten). Sie
+kommen nur für Geräte, die du benannt hast.</p>
+<p>Die folgenden Tabellen sind englisch: Sie entstehen direkt aus PadSpans Code.</p>
+<h3 id="padspan_device_arrived"><code>padspan_device_arrived</code></h3>
+<p>A named device is heard again after being away (not on the first poll after Home Assistant starts).</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Data</th><th>What it is</th></tr>
+  <tr><td><code>device_key</code></td><td>PadSpan's key for the device.</td></tr>
+  <tr><td><code>label</code></td><td>Its name.</td></tr>
+  <tr><td><code>room</code></td><td>The room it arrived in, if known.</td></tr>
+</table>
+</div>
+<h3 id="padspan_device_departed"><code>padspan_device_departed</code></h3>
+<p>A named device has gone unheard for the away timeout.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Data</th><th>What it is</th></tr>
+  <tr><td><code>device_key</code></td><td>PadSpan's key for the device.</td></tr>
+  <tr><td><code>label</code></td><td>Its name.</td></tr>
+</table>
+</div>
+<h3 id="padspan_room_change"><code>padspan_room_change</code></h3>
+<p>A followed device moves to another room, with <b>Room-change tag events</b> on (Settings → Tracking → Home Assistant and integrations → HA Tags Integration; off unless switched on). At most one every 30 seconds per device: a move inside that time is sent when it ends, if the device is still elsewhere.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Data</th><th>What it is</th></tr>
+  <tr><td><code>object_key</code></td><td>PadSpan's key for the device.</td></tr>
+  <tr><td><code>label</code></td><td>Its name.</td></tr>
+  <tr><td><code>from_room</code></td><td>The room it left.</td></tr>
+  <tr><td><code>to_room</code></td><td>The room it is in now.</td></tr>
+  <tr><td><code>tag_id</code></td><td>The Home Assistant tag id sent with it (<code>padspan_…</code>).</td></tr>
+  <tr><td><code>timestamp</code></td><td>When, in seconds since 1970 (UTC).</td></tr>
+</table>
+</div>
+<h3 id="padspan_nfc_identify_result"><code>padspan_nfc_identify_result</code></h3>
+<p>With <b>NFC tap-to-identify</b> on: after a phone scans an NFC tag, whether PadSpan named the strongest unnamed Bluetooth signal in that phone's room.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Data</th><th>What it is</th></tr>
+  <tr><td><code>success</code></td><td><code>true</code> when it named one.</td></tr>
+  <tr><td><code>object_key</code></td><td>PadSpan's key for the device it named.</td></tr>
+  <tr><td><code>label</code></td><td>The name it gave.</td></tr>
+  <tr><td><code>room</code></td><td>The phone's room.</td></tr>
+  <tr><td><code>rssi</code></td><td>That device's signal strength in dBm.</td></tr>
+  <tr><td><code>tag_id</code></td><td>The NFC tag scanned.</td></tr>
+  <tr><td><code>reason</code></td><td>Why not: <code>no_candidates</code>.</td></tr>
+</table>
+</div>
+<h3 id="padspan_phone_autolinked"><code>padspan_phone_autolinked</code></h3>
+<p>With <b>Phone auto-link on NFC scan</b> on: a phone that scanned an NFC tag is now followed by its BLE Transmitter.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Data</th><th>What it is</th></tr>
+  <tr><td><code>device_id</code></td><td>The phone's Home Assistant device id.</td></tr>
+  <tr><td><code>device_name</code></td><td>Its name.</td></tr>
+  <tr><td><code>ibeacon_key</code></td><td>PadSpan's key for its BLE Transmitter.</td></tr>
+</table>
+</div>
+<h3 id="padspan_ha_guest"><code>padspan_ha_guest</code></h3>
+<p>With guest tags on: a stay starts or ends, the guest arrives or leaves, stays in a room they were asked to keep out of, or has not been heard for a while.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Data</th><th>What it is</th></tr>
+  <tr><td><code>type</code></td><td><code>started</code>, <code>arrived</code>, <code>left</code>, <code>off_limits</code>, <code>reminder</code> or <code>ended</code>.</td></tr>
+  <tr><td><code>session</code></td><td>The stay's id.</td></tr>
+  <tr><td><code>guest</code></td><td>The guest's name.</td></tr>
+  <tr><td><code>tag</code></td><td>The tag's name.</td></tr>
+  <tr><td><code>room</code></td><td>For <code>arrived</code>, <code>left</code> and <code>off_limits</code>: the room.</td></tr>
+  <tr><td><code>how</code></td><td>For <code>ended</code>: <code>manual</code>, <code>scheduled</code> or <code>stale</code> (not heard for long enough).</td></tr>
+</table>
+</div>
+<h3 id="padspan_ha_vacation_mode"><code>padspan_ha_vacation_mode</code></h3>
+<p>Vacation Mode is turned on or off, or pauses because someone is home.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Data</th><th>What it is</th></tr>
+  <tr><td><code>on</code></td><td><code>true</code> while it runs.</td></tr>
+  <tr><td><code>how</code></td><td><code>panel</code> (switched in PadSpan), <code>resumed</code> (turned back on, carrying on the last trip), <code>end_date</code>, <code>reset</code> (a Factory Reset), <code>paused_home</code> or <code>unpaused</code>.</td></tr>
+</table>
+</div>
+<p>Ist <b>Tag-Ereignisse bei Raumwechsel</b> an, kommt jedes <code>padspan_room_change</code> auch als eigener
+Auslöser <b>Tag</b> von Home Assistant: PadSpan meldet einen Tag-Scan mit der Tag-ID <code>padspan_…</code> für
+dieses Gerät. Die IDs stehen auf der Karte dazu unter Einstellungen → Ortung → Home Assistant und
+Integrationen, bei HA-Tags-Integration. Home Assistant nimmt jeden solchen Tag in seine Liste der
+Tags auf.</p>
+<h2 id="assist-in-welchem-raum-ist-alex">Assist: „In welchem Raum ist Alex?“</h2>
+<p>Das eigene Assist von Home Assistant beantwortet „Wo ist Alex?“ für eine Person, und eine Person
+übernimmt den Raum von einem PadSpan-Tracker nur, wenn kein anderer Tracker dieser Person mehr sagt:
+Das GPS eines Handys oder das „zu Hause“ eines Routers gewinnt. Für eine Antwort, die immer den Raum
+nennt, bringt PadSpan einen eigenen Intent mit. Er tut nichts, bis du Sätze dafür hinzufügst.
+Speichere das hier als <code>config/custom_sentences/en/padspan.yaml</code> und starte Home Assistant neu (oder
+lade es auf der Debug-Seite von Assist neu):</p>
+<pre><code>language: "en"
+intents:
+  PadSpanWhereIs:
+    data:
+      - sentences:
+          - "which room is {padspan_person} in"
+          - "what room is {padspan_person} in"
+          - "where in the house is {padspan_person}"
+lists:
+  padspan_person:
+    wildcard: true</code></pre>
+<p>Das Folgende ist englisch: Es entsteht direkt aus PadSpans Code.</p>
+<p>Intent: <code>PadSpanWhereIs</code>. Slots: <code>padspan_person</code>, <code>name</code>.</p>
+<p>What it answers, in English:</p>
+<ul>
+<li>"I don't know anyone called &lt;name&gt;."</li>
+<li>"&lt;name&gt; is away."</li>
+<li>"I don't know which room &lt;name&gt; is in right now."</li>
+<li>"&lt;name&gt; is probably in the &lt;room&gt;."</li>
+<li>"&lt;name&gt; is in the &lt;room&gt;."</li>
+</ul>
+<p>"probably" when the room's <code>room_confidence</code> is under 0.5.</p>
+<p>Der Name ist der PadSpan-Name des Geräts („Alex“). Er passt auch zu einem Namen, der damit anfängt
+(„Alex's Phone“, „Alex Watch“); passen mehrere, nimmt er das Gerät, das zuletzt gehört wurde. Du
+musst Assist nichts freigeben. Der Intent liest nur PadSpans aktuellen Raum und ändert nichts. Die
+Antworten sind auf Englisch. Mehr dazu, was die eigenen Sätze von Home Assistant tun: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md#ask-assist-where-someone-is">Assist
+fragen, wo jemand ist</a>.</p>
+<h2 id="mqtt-experimentell">MQTT (experimentell)</h2>
+<p>Ist <b>Enable experimental MQTT publishing</b> angehakt (Verwalten → HA Entities → MQTT Publishing;
+aus, bis du es anhakst) und die MQTT-Integration von Home Assistant eingerichtet, veröffentlicht
+PadSpan außerdem jedes benannte Gerät nach jeder Abfrage, mit Retain. Hier ist <code>&lt;device&gt;</code> der Name,
+kleingeschrieben, mit Leerzeichen als <code>_</code>. Die Topics können sich in einer späteren Version ändern.</p>
+<p>Die folgende Tabelle ist englisch: Sie entsteht direkt aus PadSpans Code.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Topic</th><th>Holds</th></tr>
+  <tr><td><code>padspan/devices/&lt;device&gt;/state</code></td><td>JSON: <code>room</code>, <code>rssi</code>, <code>age_s</code>, <code>home</code>, <code>room_confidence</code></td></tr>
+  <tr><td><code>padspan/devices/&lt;device&gt;/area</code></td><td>The room, <code>not_home</code> or <code>unknown</code>, as on the area sensor.</td></tr>
+  <tr><td><code>padspan/devices/&lt;device&gt;/distance</code></td><td>The distance in metres. Not sent while away.</td></tr>
+</table>
+</div>
+<h2 id="drei-automationen">Drei Automationen</h2>
+<p>Jede ist eine ganze Automation: Füg sie in einer neuen Automation unter <b>In YAML bearbeiten</b> ein.
+Die Namen sind Beispiele; nimm deine eigenen Entitäts-IDs.</p>
+<p><b>Ein Licht an, wenn Alex in die Küche kommt</b>, nur wenn PadSpan sich des Raums ziemlich sicher ist:</p>
+<pre><code>alias: Kitchen light for Alex
+trigger:
+  - platform: state
+    entity_id: sensor.alex_phone_area
+    to: Kitchen
+condition:
+  - condition: numeric_state
+    entity_id: sensor.alex_phone_area
+    attribute: room_confidence
+    above: 0.6
+action:
+  - action: light.turn_on
+    target:
+      entity_id: light.kitchen</code></pre>
+<p>Der Zustand ist der Name des Raums, wie Home Assistant ihn hat, mit seinen Großbuchstaben.</p>
+<p><b>Ein Hinweis, wenn die Autoschlüssel das Haus verlassen</b>:</p>
+<pre><code>alias: Car keys left
+trigger:
+  - platform: event
+    event_type: padspan_device_departed
+    event_data:
+      label: Car keys
+action:
+  - action: notify.notify
+    data:
+      message: "The car keys have left the house."</code></pre>
+<p>Das Ereignis kommt, sobald die Schlüssel so lange wie das Abwesenheits-Timeout nicht gehört wurden
+(5 Minuten, wenn du es nicht unter Einstellungen → Ortung → Räume und Zeiten →
+Zuhause/Abwesend-Timeout geändert hast).</p>
+<p><b>Die Alarmanlage scharf schalten, solange der Urlaubsmodus (Vacation Mode) läuft</b>:</p>
+<pre><code>alias: Alarm with Vacation Mode
+trigger:
+  - platform: state
+    entity_id: binary_sensor.padspan_vacation_mode
+    to: "on"
+action:
+  - action: alarm_control_panel.alarm_arm_away
+    target:
+      entity_id: alarm_control_panel.house</code></pre>
+<p>Mehr Rezepte: <a href="/guides/room-presence-automations/de/">Was kann Home Assistant, wenn es den Raum kennt?</a></p>
+<div class="pager"><span><a href="/manual/alerts/de/">← 13. Alarme und Benachrichtigungen</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/the-atlas/de/">15. Der Atlas →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>
