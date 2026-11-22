@@ -5,7 +5,7 @@
 "To track this iPhone:": "Zo volg je deze iPhone:",
 "iPhone · tracked by its IRK, press Setup": "iPhone · gevolgd via zijn IRK, druk op “Instellen”",
 "No phones detected. Android: enable the HA Companion App with BLE Transmitter. iPhone: add its IRK instead (Bluetooth → IRK Manager).": "Geen telefoons gevonden. Android: zet in de HA Companion App de BLE Transmitter aan. iPhone: voeg in plaats daarvan zijn IRK toe (“Bluetooth → IRK-beheer”).",
-"Not seeing your phone? Android: open Companion App → Settings → Companion App → Manage Sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).": "Zie je je telefoon niet? Android: open Companion App → Instellingen → Companion App → Sensoren beheren → BLE Transmitter → Inschakelen. iPhone: die instelling bestaat niet; voeg zijn IRK toe (“Bluetooth → IRK-beheer”).",
+"Not seeing your phone? Android: open the Companion app → Settings → Companion app → Manage sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).": "Zie je je telefoon niet? Android: open Companion App → Instellingen → Companion App → Sensoren beheren → BLE Transmitter → Inschakelen. iPhone: die instelling bestaat niet; voeg zijn IRK toe (“Bluetooth → IRK-beheer”).",
 "Transmit power to High": "“Transmit power” op “High”",
 "Advertise mode to Low latency": "“Advertise mode” op “Low latency”",
 "Sends too weakly for receivers to hear it well. In the Companion app, open Settings → Companion app → Manage sensors → BLE Transmitter and set {what}.": "Zendt te zwak om goed door de ontvangers gehoord te worden. Open in de Companion App Instellingen → Companion App → Sensoren beheren → BLE Transmitter en zet {what}.",

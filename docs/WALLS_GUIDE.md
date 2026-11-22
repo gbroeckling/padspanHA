@@ -15,7 +15,7 @@ Each material is one number, in dB (more dB = more signal lost going through it)
 | Custom | 6 dB, or what you set | Anything else. **This is PadSpan's "don't know" wall**; a wall with no material is treated as Custom 6 dB |
 | Concrete | 8 dB | Poured concrete, foundation walls |
 | Metal | 12 dB | Steel doors, metal studs, foil-backed insulation, wire-mesh plaster |
-| Enclose (3 dB walls) button | 3 dB | Thin interior walls, drawn round a room in one go |
+| Enclose (3dB walls) button | 3 dB | Thin interior walls, drawn round a room in one go |
 
 These are **round starting numbers, not measurements of your house**. They're deliberately on the
 gentle side: Bluetooth gets round a lot of walls through doorways, gaps and ceilings, so the loss

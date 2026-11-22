@@ -20,7 +20,7 @@ The tag keeps its own name. The guest's name belongs to the stay, so `device_tra
 
 On the tag, press **Lend to a guest**:
 
-- **Who has it:** the guest's name.
+- **Guest's name:** who has the tag.
 - **Until (optional):** the stay ends by itself then, and you are told.
 - **Rooms they shouldn't go into:** you are told when they have been in one for half a minute (passing a doorway does not count).
 - **Tell me when they arrive / leave.**

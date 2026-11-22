@@ -248,8 +248,9 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     return out
 
 
-# ── Enhanced security (Settings → Users & access) ──────────────────────────
-# One switch, `enhanced_security`, off by default. While it is on, a command
+# ── Enhanced security (Settings → Tracking → Privacy, updates and feedback) ─
+# One switch, `enhanced_security`: on for a new install, an existing home keeps
+# what it had (settings_store.py). While it is on, a command
 # that changes this home's shared setup or state answers a non-admin with
 # ENHANCED_SECURITY_MESSAGE instead of doing it; household members can still
 # view and use PadSpan. Every protection that belongs to the switch goes
