@@ -174,6 +174,35 @@
 "Full history on padspan.traks.ca": "Ganzer Verlauf auf padspan.traks.ca",
 "💡 Suggest an idea": "💡 Idee vorschlagen",
 "Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca": "Poste eine Idee, über die andere abstimmen können (mit GitHub-Konto), oder schreib an hello@traks.ca",
+"Not in use": "Nicht in Gebrauch",
+"Marked lost, disabled or excluded, so the status dot leaves it out": "Als verloren, deaktiviert oder ausgeschlossen markiert, daher zählt der Statuspunkt ihn nicht",
+"Silent {n} min": "Seit {n} Min. still",
+"Not heard from in {n} minutes (over 10 minutes counts as silent)": "Seit {n} Minuten nichts gehört (über 10 Minuten gilt als still)",
+"Hearing less": "Hört weniger",
+"Hearing far fewer devices than usual for over 10 minutes, while the others are normal": "Hört seit über 10 Minuten viel weniger Geräte als sonst, während die anderen normal sind",
+"Not heard yet": "Noch nicht gehört",
+"Nothing heard from it since PadSpan started": "Seit dem Start von PadSpan nichts von ihm gehört",
+"Online": "Online",
+"Reporting normally": "Meldet sich normal",
+"PadSpan isn't answering, so the live data has stopped updating": "PadSpan antwortet nicht, daher werden die Live-Daten nicht mehr aktualisiert",
+"Positioning has stopped: its last update failed": "Die Ortung ist stehen geblieben: Ihre letzte Aktualisierung ist fehlgeschlagen",
+"No Bluetooth receivers are reporting": "Kein Bluetooth-Empfänger meldet sich",
+"Learning is paused for now: rooms come from the live signals alone": "Das Lernen ist gerade pausiert: Die Räume kommen nur aus den Live-Signalen",
+"Something is broken": "Etwas ist kaputt",
+"Something needs attention": "Etwas braucht Aufmerksamkeit",
+"Open Health.": "Zustand öffnen.",
+"{n} receivers haven't been heard from in over 10 minutes": {
+"one": "{n} Empfänger seit über 10 Minuten nicht gehört",
+"other": "{n} Empfänger seit über 10 Minuten nicht gehört"
+},
+"{n} receivers are hearing far fewer devices than usual": {
+"one": "{n} Empfänger hört viel weniger Geräte als sonst",
+"other": "{n} Empfänger hören viel weniger Geräte als sonst"
+},
+"{n} issues": {
+"one": "1 Problem",
+"other": "{n} Probleme"
+},
 "The connection to Home Assistant was lost. Wait a moment and try again.": "Die Verbindung zu Home Assistant ist abgebrochen. Warte einen Moment und versuch es noch einmal.",
 "PadSpan couldn't be reached over the network. Check the connection and try again.": "PadSpan war über das Netzwerk nicht erreichbar. Prüfe die Verbindung und versuch es noch einmal.",
 "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.": "Diese Seite und das PadSpan in Home Assistant passen nicht zusammen. Lade die Seite neu; hilft das nicht, starte Home Assistant neu.",

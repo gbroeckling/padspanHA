@@ -13,6 +13,9 @@
 const { _isMine, hideIrks } = await import(`./monitor.js${new URL(import.meta.url).search}`);
 // Where the report goes: hello@traks.ca, or a GitHub issue.
 const { SUPPORT_MAIL, ISSUES_NEW_URL } = await import(`./editions.js${new URL(import.meta.url).search}`);
+// The screen's words in the panel's language (views/i18n.js; English is the
+// key). The report itself stays as it is: it goes to support.
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // Errors PadSpan handled quietly (quiet_errors.py), asked for at most every 30 s.
 let _quietCache = null;
@@ -111,13 +114,13 @@ export function render(ctx){
     ta.select();
   };
 
-  const btnSelect = el("button",{class:"btn"}, "Select All");
+  const btnSelect = el("button",{class:"btn"}, t("Select All"));
   btnSelect.addEventListener("click", ()=>{
     selectAll();
-    ctx.toast("Selected. Press Ctrl/Cmd+C to copy.");
+    ctx.toast(t("Selected. Press Ctrl/Cmd+C to copy."));
   });
 
-  const btnDownload = el("button",{class:"btn"}, "Download Report");
+  const btnDownload = el("button",{class:"btn"}, t("Download Report"));
   btnDownload.addEventListener("click", ()=>{
     const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
     const blob = new Blob([text], {type:"application/json"});
@@ -129,7 +132,7 @@ export function render(ctx){
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    ctx.toast("Downloaded diagnostic report.");
+    ctx.toast(t("Downloaded diagnostic report."));
   });
 
   // The report onto the clipboard: true if it got there.
@@ -156,12 +159,12 @@ export function render(ctx){
     return false;
   };
 
-  const btnCopy = el("button",{class:"btn"}, "Copy");
+  const btnCopy = el("button",{class:"btn"}, t("Copy"));
   btnCopy.addEventListener("click", async ()=>{
-    if (await copyReport()) { ctx.toast("Copied diagnostics."); return; }
+    if (await copyReport()) { ctx.toast(t("Copied diagnostics.")); return; }
     // Last resort: select in the visible textarea
     selectAll();
-    ctx.toast("Auto-copy blocked. Text selected — press Ctrl+C.", true);
+    ctx.toast(t("Auto-copy blocked. Text selected — press Ctrl+C."), true);
   });
 
   // "Email support" and "Open an issue" (2026-11-21): the same report, copied
@@ -171,12 +174,12 @@ export function render(ctx){
     const a = el("a",{class:"btn","data-diag-send":attr,href,target:"_blank",rel:"noopener noreferrer",style:"text-decoration:none"}, label);
     a.addEventListener("click", async ()=>{
       if (await copyReport()) ctx.toast(pasted);
-      else { selectAll(); ctx.toast("Auto-copy blocked. The report is selected: press Ctrl+C, then paste it.", true); }
+      else { selectAll(); ctx.toast(t("Auto-copy blocked. The report is selected: press Ctrl+C, then paste it."), true); }
     });
     return a;
   };
-  const btnMail = sendTo("Email support", SUPPORT_MAIL, "Report copied: paste it into the email.", "mail");
-  const btnIssue = sendTo("Open an issue", ISSUES_NEW_URL, "Report copied: paste it into the issue, and remove personal details first: issues are public.", "issue");
+  const btnMail = sendTo(t("Email support"), SUPPORT_MAIL, t("Report copied: paste it into the email."), "mail");
+  const btnIssue = sendTo(t("Open an issue"), ISSUES_NEW_URL, t("Report copied: paste it into the issue, and remove personal details first: issues are public."), "issue");
 
   const sizeKb = Math.round(text.length / 1024);
   root.appendChild(el("div",{class:"grid grid-wide"},[
@@ -184,12 +187,12 @@ export function render(ctx){
       el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
         el("div",{},[
           el("div",{style:"display:flex;align-items:center;gap:8px"},[
-            el("div",{style:"font-weight:700"}, "Diagnostics"),
+            el("div",{style:"font-weight:700"}, t("Diagnostics")),
             ctx.helpers.helpBtn("diagnostics"),
           ]),
-          el("div",{class:"muted"}, `${includedDevices} devices · ${sizeKb} KB — when something breaks, email it to hello@traks.ca or attach it to a GitHub issue (issues are public: remove personal details first)`),
+          el("div",{class:"muted"}, t("{n} devices · {kb} KB — when something breaks, email it to hello@traks.ca or attach it to a GitHub issue (issues are public: remove personal details first)", { n: includedDevices, kb: sizeKb })),
           el("div",{class:"muted","data-diag-privacy":"",style:"margin-top:4px"},
-            "It names your rooms, floor plans and devices, with their Bluetooth addresses, so look it over before you send it. Phones' identity keys (IRKs) are left out."),
+            t("It names your rooms, floor plans and devices, with their Bluetooth addresses, so look it over before you send it. Phones' identity keys (IRKs) are left out.")),
         ]),
         el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},[ btnSelect, btnCopy, btnDownload, btnMail, btnIssue ])
       ]),
@@ -197,11 +200,11 @@ export function render(ctx){
     ]),
 
     el("div",{class:"card"},[
-      el("div",{style:"font-weight:700"}, "Install Verification"),
-      el("div",{class:"muted"}, "If UI/Backend versions differ, HA is serving an older install or cached JS."),
-      el("div",{class:"mono"}, `UI: v${ctx.state.version} • build ${ctx.state.buildId}`),
-      el("div",{class:"mono"}, `Backend: ${ctx.state.versionInfo ? JSON.stringify(ctx.state.versionInfo) : "unknown"}`),
-      el("div",{class:"muted", style:"margin-top:8px"}, "If backend version differs from UI, you likely have multiple installs (HACS + manual, or multiple custom_components copies). Remove duplicates and restart HA."),
+      el("div",{style:"font-weight:700"}, t("Install Verification")),
+      el("div",{class:"muted"}, t("If UI/Backend versions differ, HA is serving an older install or cached JS.")),
+      el("div",{class:"mono"}, t("UI: v{version} • build {build}", { version: ctx.state.version, build: ctx.state.buildId })),
+      el("div",{class:"mono"}, t("Backend: {info}", { info: ctx.state.versionInfo ? JSON.stringify(ctx.state.versionInfo) : t("unknown") })),
+      el("div",{class:"muted", style:"margin-top:8px"}, t("If backend version differs from UI, you likely have multiple installs (HACS + manual, or multiple custom_components copies). Remove duplicates and restart HA.")),
     ]),
   ]));
 
@@ -220,7 +223,7 @@ export function render(ctx){
 async function _fetchAndRenderQuiet(ctx, card) {
   // Sample mode shows a sample house; these are the real one's, so they are not asked for
   // (the website demo is its own house: panel.js _sampleGateOn).
-  if (ctx.state.dataMode === "sample" && !(ctx.hass && ctx.hass.padspan_demo === true)) { _renderQuiet(ctx, card, null, "Not shown in Sample mode. Switch to Live to see your own."); return; }
+  if (ctx.state.dataMode === "sample" && !(ctx.hass && ctx.hass.padspan_demo === true)) { _renderQuiet(ctx, card, null, t("Not shown in Sample mode. Switch to Live to see your own.")); return; }
   if (_quietCache && (Date.now() - _quietFetchTs) < _QUIET_TTL_MS) { _renderQuiet(ctx, card, _quietCache); return; }
   _renderQuiet(ctx, card, null);
   try {
@@ -229,7 +232,7 @@ async function _fetchAndRenderQuiet(ctx, card) {
     _quietFetchTs = Date.now();
     _renderQuiet(ctx, card, _quietCache);
   } catch (err) {
-    _renderQuiet(ctx, card, null, `Could not read them: ${err.message || err}`);
+    _renderQuiet(ctx, card, null, t("Could not read them: {why}", { why: ctx.helpers.errorText ? ctx.helpers.errorText(err) : String((err && err.message) || err) }));
   }
 }
 
@@ -238,29 +241,29 @@ async function _fetchAndRenderQuiet(ctx, card) {
 function _renderQuiet(ctx, card, sites, failed) {
   const { el } = ctx.helpers;
   card.innerHTML = "";
-  card.appendChild(el("div",{style:"font-weight:700"}, "Errors PadSpan handled quietly"));
+  card.appendChild(el("div",{style:"font-weight:700"}, t("Errors PadSpan handled quietly")));
   card.appendChild(el("div",{class:"muted"},
-    "When one part of PadSpan fails, the rest carries on and nothing is written to the log. Each line is a place in the code where that has happened since Home Assistant started: how many times, and the last error. Many are harmless, such as a feature that is not set up. Only administrators see this, and it is not in the report above, because an error can name your rooms and devices."));
+    t("When one part of PadSpan fails, the rest carries on and nothing is written to the log. Each line is a place in the code where that has happened since Home Assistant started: how many times, and the last error. Many are harmless, such as a feature that is not set up. Only administrators see this, and it is not in the report above, because an error can name your rooms and devices.")));
   if (failed || !sites) {
-    card.appendChild(el("div",{class:"muted",style:"margin-top:8px"}, failed || "Loading…"));
+    card.appendChild(el("div",{class:"muted",style:"margin-top:8px"}, failed || t("Loading…")));
     return;
   }
   if (!sites.length) {
-    card.appendChild(el("div",{style:"margin-top:8px"}, "None since Home Assistant started."));
+    card.appendChild(el("div",{style:"margin-top:8px"}, t("None since Home Assistant started.")));
   } else {
     const tbl = el("div",{style:"display:grid;grid-template-columns:auto auto 1fr auto;gap:4px 10px;font-size:11px;align-items:start;margin-top:8px"});
-    for (const h of ["Where","Count","Last error","When"]) {
+    for (const h of [t("Where"),t("Count"),t("Last error"),t("When")]) {
       tbl.appendChild(el("div",{style:"font-weight:600;color:#94a3b8;font-size:10px;text-transform:uppercase"}, h));
     }
     for (const s of sites) {
       tbl.appendChild(el("div",{style:"font-family:monospace"}, String(s.site)));
       tbl.appendChild(el("div",{style:"text-align:right"}, String(s.count)));
-      tbl.appendChild(el("div",{style:"overflow-wrap:anywhere"}, s.type ? `${s.type}: ${s.text}` : "counted only"));
+      tbl.appendChild(el("div",{style:"overflow-wrap:anywhere"}, s.type ? `${s.type}: ${s.text}` : t("counted only")));
       tbl.appendChild(el("div",{class:"muted"}, s.at ? new Date(s.at * 1000).toLocaleString() : "—"));
     }
     card.appendChild(tbl);
   }
-  const again = el("button",{class:"btn",style:"margin-top:12px;width:auto;padding:6px 16px"}, "Check again");
+  const again = el("button",{class:"btn",style:"margin-top:12px;width:auto;padding:6px 16px"}, t("Check again"));
   again.addEventListener("click", () => { _quietCache = null; _fetchAndRenderQuiet(ctx, card); });
   card.appendChild(again);
 }

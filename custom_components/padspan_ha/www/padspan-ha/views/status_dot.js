@@ -32,6 +32,9 @@
 // "No receivers reporting" waits out the first two minutes after the panel
 // loads or PadSpan answers again (warmup): receivers report in after a start.
 
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+
 export const PERSIST = 2;
 export const RED_PERSIST = 3;
 export const WARMUP_MS = 120000;
@@ -74,26 +77,25 @@ export const isHearingLess = (r) => !!r && r.adv_rate_low === true;
  *  opts: { heard: heardSources(snapshot), masked: maskedSources(settings) } */
 export function receiverStatus(r, heardNow = 0, { heard, masked } = {}) {
   if (r && !inUse(r, masked)) {
-    return { id: "not_used", level: "ok", label: "Not in use",
-      title: "Marked lost, disabled or excluded, so the status dot leaves it out" };
+    return { id: "not_used", level: "ok", label: t("Not in use"),
+      title: t("Marked lost, disabled or excluded, so the status dot leaves it out") };
   }
   if (!(heardNow > 0) && isSilent(r, heard)) {
     const min = Math.floor(r.last_heard_s / 60);
-    return { id: "silent", level: "amber", label: `Silent ${min} min`,
-      title: `Not heard from in ${min} minutes (over 10 minutes counts as silent)` };
+    return { id: "silent", level: "amber", label: t("Silent {n} min", { n: min }),
+      title: t("Not heard from in {n} minutes (over 10 minutes counts as silent)", { n: min }) };
   }
   if (isHearingLess(r)) {
-    return { id: "hearing_less", level: "amber", label: "Hearing less",
-      title: "Hearing far fewer devices than usual for over 10 minutes, while the others are normal" };
+    return { id: "hearing_less", level: "amber", label: t("Hearing less"),
+      title: t("Hearing far fewer devices than usual for over 10 minutes, while the others are normal") };
   }
   if (!r || (typeof r.last_heard_s !== "number" && !(heardNow > 0))) {
-    return { id: "not_heard", level: "ok", label: "Not heard yet",
-      title: "Nothing heard from it since PadSpan started" };
+    return { id: "not_heard", level: "ok", label: t("Not heard yet"),
+      title: t("Nothing heard from it since PadSpan started") };
   }
-  return { id: "online", level: "ok", label: "Online", title: "Reporting normally" };
+  return { id: "online", level: "ok", label: t("Online"), title: t("Reporting normally") };
 }
 
-const _n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 
 /** What is wrong right now, worst first: [{id, level: "red"|"amber", text, go}].
  *  go: the screen where it is looked into or fixed, for Health's list of what
@@ -106,12 +108,12 @@ const _n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
  *  are not its faults) } */
 export function statusIssues({ live, failed, snapshot, excluded, warmup = false, receivers = true } = {}) {
   if (!live) return [];
-  if (failed) return [{ id: "no_answer", level: "red", text: "PadSpan isn't answering, so the live data has stopped updating", go: { to: "diagnostics" } }];
+  if (failed) return [{ id: "no_answer", level: "red", text: t("PadSpan isn't answering, so the live data has stopped updating"), go: { to: "diagnostics" } }];
   const snap = snapshot && typeof snapshot === "object" ? snapshot : null;
   if (!snap) return [];
   const out = [];
   if (snap.positioning_failed === true) {
-    out.push({ id: "positioning_failed", level: "red", text: "Positioning has stopped: its last update failed", go: { to: "diagnostics" } });
+    out.push({ id: "positioning_failed", level: "red", text: t("Positioning has stopped: its last update failed"), go: { to: "diagnostics" } });
   }
   const masked = new Set([...(excluded || [])].map(String));
   const radios = receivers && Array.isArray(snap.ble && snap.ble.radios)
@@ -121,21 +123,21 @@ export function statusIssues({ live, failed, snapshot, excluded, warmup = false,
     const heard = heardSources(snap);
     const silent = radios.filter(r => isSilent(r, heard));
     if (!radios.length || silent.length === radios.length) {
-      if (!warmup) out.push({ id: "no_receivers", level: "red", text: "No Bluetooth receivers are reporting", go: { to: "receivers" } });
+      if (!warmup) out.push({ id: "no_receivers", level: "red", text: t("No Bluetooth receivers are reporting"), go: { to: "receivers" } });
     } else {
       if (silent.length) {
         out.push({ id: "receivers_silent", level: "amber",
-          text: `${_n(silent.length, "receiver hasn't", "receivers haven't")} been heard from in over 10 minutes`, go: { to: "receivers", problems: true } });
+          text: tn(silent.length, "{n} receiver hasn't been heard from in over 10 minutes", "{n} receivers haven't been heard from in over 10 minutes"), go: { to: "receivers", problems: true } });
       }
       const deaf = radios.filter(isHearingLess);
       if (deaf.length) {
         out.push({ id: "hearing_less", level: "amber",
-          text: `${_n(deaf.length, "receiver is", "receivers are")} hearing far fewer devices than usual`, go: { to: "receivers", problems: true } });
+          text: tn(deaf.length, "{n} receiver is hearing far fewer devices than usual", "{n} receivers are hearing far fewer devices than usual"), go: { to: "receivers", problems: true } });
       }
     }
   }
   if (snap.suspended === true) {
-    out.push({ id: "learning_suspended", level: "amber", text: "Learning is paused for now: rooms come from the live signals alone", go: { to: "overview" } });
+    out.push({ id: "learning_suspended", level: "amber", text: t("Learning is paused for now: rooms come from the live signals alone"), go: { to: "overview" } });
   }
   return out;
 }
@@ -168,8 +170,8 @@ export function dotView(active, { wall = false } = {}) {
   const list = (active || []).filter(i => !wall || i.level === "red");
   if (!list.length) return null;
   const level = list.some(i => i.level === "red") ? "red" : "amber";
-  const head = level === "red" ? "Something is broken" : "Something needs attention";
+  const head = level === "red" ? t("Something is broken") : t("Something needs attention");
   const count = list.length;
-  const label = `${head}: ${count === 1 ? "1 issue" : count + " issues"}. ${list.map(i => i.text).join(". ")}. Open Health.`;
+  const label = `${head}: ${tn(count, "1 issue", "{n} issues")}. ${list.map(i => i.text).join(". ")}. ${t("Open Health.")}`;
   return { level, count, label };
 }

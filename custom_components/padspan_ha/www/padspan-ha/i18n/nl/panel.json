@@ -174,6 +174,35 @@
 "Full history on padspan.traks.ca": "Volledige geschiedenis op padspan.traks.ca",
 "💡 Suggest an idea": "💡 Idee voorstellen",
 "Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca": "Plaats een idee waarop anderen kunnen stemmen (GitHub-account), of mail hello@traks.ca",
+"Not in use": "Niet in gebruik",
+"Marked lost, disabled or excluded, so the status dot leaves it out": "Gemarkeerd als kwijt, uitgeschakeld of uitgesloten, dus de statusstip telt hem niet mee",
+"Silent {n} min": "{n} min stil",
+"Not heard from in {n} minutes (over 10 minutes counts as silent)": "Al {n} minuten niets gehoord (meer dan 10 minuten telt als stil)",
+"Hearing less": "Hoort minder",
+"Hearing far fewer devices than usual for over 10 minutes, while the others are normal": "Hoort al meer dan 10 minuten veel minder apparaten dan normaal, terwijl de andere normaal zijn",
+"Not heard yet": "Nog niet gehoord",
+"Nothing heard from it since PadSpan started": "Niets van gehoord sinds PadSpan is gestart",
+"Online": "Online",
+"Reporting normally": "Meldt normaal",
+"PadSpan isn't answering, so the live data has stopped updating": "PadSpan antwoordt niet, dus de live-gegevens worden niet meer bijgewerkt",
+"Positioning has stopped: its last update failed": "De plaatsbepaling is gestopt: de laatste update is mislukt",
+"No Bluetooth receivers are reporting": "Geen enkele Bluetooth-ontvanger meldt zich",
+"Learning is paused for now: rooms come from the live signals alone": "Leren is nu gepauzeerd: de kamers komen alleen uit de live-signalen",
+"Something is broken": "Er is iets kapot",
+"Something needs attention": "Er vraagt iets aandacht",
+"Open Health.": "Open Gezondheid.",
+"{n} receivers haven't been heard from in over 10 minutes": {
+"one": "{n} ontvanger al meer dan 10 minuten niet gehoord",
+"other": "{n} ontvangers al meer dan 10 minuten niet gehoord"
+},
+"{n} receivers are hearing far fewer devices than usual": {
+"one": "{n} ontvanger hoort veel minder apparaten dan normaal",
+"other": "{n} ontvangers horen veel minder apparaten dan normaal"
+},
+"{n} issues": {
+"one": "1 probleem",
+"other": "{n} problemen"
+},
 "The connection to Home Assistant was lost. Wait a moment and try again.": "De verbinding met Home Assistant is verbroken. Wacht even en probeer het opnieuw.",
 "PadSpan couldn't be reached over the network. Check the connection and try again.": "PadSpan was via het netwerk niet bereikbaar. Controleer de verbinding en probeer het opnieuw.",
 "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.": "Deze pagina en de PadSpan in Home Assistant passen niet bij elkaar. Vernieuw de pagina; helpt dat niet, herstart dan Home Assistant.",

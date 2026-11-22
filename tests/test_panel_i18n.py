@@ -381,6 +381,12 @@ def test_the_server_group_is_the_backends_sentences() -> None:
     assert "Only an admin can change this while Enhanced security is on" in keys
     assert any(k.startswith("PadSpan hasn't finished loading.") for k in keys)   # NOT_LOADED_MESSAGE, by name
     _check_group(cov, "server", keys)
+    # One mechanism: errorText and Health's System Critics both look them up through serverText.
+    ui = (_WWW / "views" / "ui_error.js").read_text(encoding="utf-8")
+    assert "return serverText(msg) || ERROR_WORDS.other;" in ui and "export function serverText(s)" in ui
+    health = (_WWW / "views" / "health.js").read_text(encoding="utf-8")
+    for field in ("title", "message", "action"):
+        assert f"_escHtml(serverText(critic.{field}))" in health, field
     for lang in _SHIPPED:
         data = json.loads((_LANG_DIR / lang / "server.json").read_text(encoding="utf-8"))
         assert not _problems(f"{lang}/server.json", data, {k: set() for k in keys})
