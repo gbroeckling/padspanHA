@@ -299,7 +299,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       const locked = PRO_LOOKS.includes(val) && !proOk;
       if (locked && hideLocked) return null;
       const b = el("button",{class:"btn inline"+(now===val?" on":""), ...(locked ? { disabled:"", style:"opacity:.45;cursor:default",
-        title:"PadSpan Pro: " + t(LICENCE_PATH) } : {})}, label);
+        title:"PadSpan Pro: " + t("Settings → Features → PadSpan licence") } : {})}, label);
       b.addEventListener("click", async()=>{
         if (now === val || locked) return;
         try {
@@ -328,7 +328,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night",t("Night")), mkTheme("graphite",t("Graphite")), mkTheme("ocean",t("Ocean")),
         mkTheme("dusk",t("Dusk")), mkTheme("contrast",t("High contrast")), mkTheme("light",t("Light (inverted)")), mkTheme("day",t("Day")) ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
-        t("Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.", { path: t(LICENCE_PATH) }))]),
+        t("Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.", { path: t("Settings → Features → PadSpan licence") }))]),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:12px"},[
         sunToggle,
         el("label",{for:"themeFollowSunToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, t("Follow the sun")),
@@ -852,15 +852,16 @@ function _toHex(c){
 // folds to its heading; a folded one is remembered in this browser
 // (padspan_settings_fold_<key> = "0"), and every section is open until
 // someone folds it.
+// i18n part: tracking
 export const PRESENCE_SECTIONS = [
-  ["rooms",        "Rooms and timing"],
-  ["phones",       "Phones and guest tags"],
-  ["shown",        "What the panel shows"],
-  ["positioning",  "Positioning and calibration"],
-  ["receivers",    "Receivers"],
-  ["performance",  "Performance"],
-  ["integrations", "Home Assistant and integrations"],
-  ["privacy",      "Privacy, updates and feedback"],
+  ["rooms",        () => t("Rooms and timing")],
+  ["phones",       () => t("Phones and guest tags")],
+  ["shown",        () => t("What the panel shows")],
+  ["positioning",  () => t("Positioning and calibration")],
+  ["receivers",    () => t("Receivers")],
+  ["performance",  () => t("Performance")],
+  ["integrations", () => t("Home Assistant and integrations")],
+  ["privacy",      () => t("Privacy, updates and feedback")],
 ];
 const _FOLD = "padspan_settings_fold_";
 const _foldClosed = (key) => { try { return localStorage.getItem(_FOLD + key) === "0"; } catch (_) { return false; } };
@@ -885,7 +886,7 @@ function _presenceSections(ctx, el, bins){
     const det = el("details", { "data-presence-section": key }, [
       el("summary", { style: "cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #1b3526;user-select:none" }, [
         chev,
-        el("span", { style: "font-weight:700;font-size:14px;color:#52b788" }, title),
+        el("span", { style: "font-weight:700;font-size:14px;color:#52b788" }, title()),
         help,
       ]),
       el("div", { style: "display:flex;flex-direction:column;gap:12px;margin-top:12px" }, cards),
@@ -907,7 +908,7 @@ function _settingsPresence(ctx, el){
   const bins = {};
   const put = (key, node) => { (bins[key] = bins[key] || []).push(node); };
   wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
-    el("div",{style:"font-weight:700;font-size:15px;color:#52b788"},"Tracking Settings"),
+    el("div",{style:"font-weight:700;font-size:15px;color:#52b788"},t("Tracking Settings")),
     helpBtn("settings_presence"),
   ]));
 
@@ -919,7 +920,7 @@ function _settingsPresence(ctx, el){
   {
     const quietOn = settings.quiet_mode === true;
     const atlasHome = settings.overview_atlas === true && tierAtLeast(settings.tier, "pro");
-    const quietGo = el("button",{class:"btn inline","data-goto":"overview-quiet"}, atlasHome ? "Open the classic Overview" : "Open the Overview");
+    const quietGo = el("button",{class:"btn inline","data-goto":"overview-quiet"}, atlasHome ? t("Open the classic Overview") : t("Open the Overview"));
     quietGo.addEventListener("click", ()=>{
       if (atlasHome) { ctx.state.view = "purelive"; ctx.state._liveClassic = true; }
       else ctx.state.view = "overview";
@@ -928,20 +929,16 @@ function _settingsPresence(ctx, el){
     });
     put("shown", el("div",{class:"card",style:"border-color:" + (quietOn ? "#52b788" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
-        el("div",{class:"h2",style:"margin:0;color:#52b788"}, "Quiet Mode"),
+        el("div",{class:"h2",style:"margin:0;color:#52b788"}, t("Quiet Mode")),
       ]),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"},[
         el("span",{style:"font-size:13px;color:#e2e8f0;font-weight:600"},
           quietOn ? "On: only identified & followed objects are shown." : "Off: all objects are shown."),
-        el("span",{class:"muted",style:"font-size:12px"}, "Switch it with the Quiet tick at the top of the Overview."),
+        el("span",{class:"muted",style:"font-size:12px"}, t("Switch it with the Quiet tick at the top of the Overview.")),
         quietGo,
       ]),
       el("div",{class:"muted",style:"font-size:12px"},
-        "Hides all unidentified BLE devices from Devices → By Room, overview counts, and dropdowns. " +
-        "Scanning continues in the background so tracked objects still work. " +
-        "It only changes what this panel shows, not how much work Home Assistant or PadSpan does. " +
-        "Ideal for busy environments (condos, offices) where you only care about your own devices. " +
-        "Turn off when you need to discover and tag new objects."),
+        t("Hides all unidentified BLE devices from Devices → By Room, overview counts, and dropdowns. Scanning continues in the background so tracked objects still work. It only changes what this panel shows, not how much work Home Assistant or PadSpan does. Ideal for busy environments (condos, offices) where you only care about your own devices. Turn off when you need to discover and tag new objects.")),
     ]));
   }
 
@@ -951,33 +948,31 @@ function _settingsPresence(ctx, el){
     const gToggle = el("input",{type:"checkbox",style:"width:16px;height:16px;accent-color:#fbbf24;cursor:pointer"});
     gToggle.checked = gOn;
     gToggle.addEventListener("change", async()=>{
-      if (gToggle.checked && !confirm("Turn on guest tags?\n\nA tag you lend to a guest (a house-sitter, a visitor, a cleaner) is followed room by room while they have it, and you can be told when they arrive, leave or go into a room you choose.\n\nTell your guests the tag is tracked.")) { gToggle.checked = false; return; }
+      if (gToggle.checked && !confirm(t("Turn on guest tags?\n\nA tag you lend to a guest (a house-sitter, a visitor, a cleaner) is followed room by room while they have it, and you can be told when they arrive, leave or go into a room you choose.\n\nTell your guests the tag is tracked."))) { gToggle.checked = false; return; }
       try {
         await ctx.actions.settingsSet({ guest_tags_enabled: gToggle.checked });
-        ctx.toast(gToggle.checked ? "Guest tags on — see the Guests tab" : "Guest tags off");
+        ctx.toast(gToggle.checked ? t("Guest tags on — see the Guests tab") : t("Guest tags off"));
         ctx.actions.renderRooms();
-      } catch(e){ gToggle.checked = !gToggle.checked; ctx.toast("Failed to save: " + ctx.helpers.errorText(e), true); }
+      } catch(e){ gToggle.checked = !gToggle.checked; ctx.toast(t("Failed to save: {error}", { error: ctx.helpers.errorText(e) }), true); }
     });
     const keep = el("select",{class:"select",style:"width:auto"});
-    for (const [v, t] of [[0,"not kept"],[7,"7 days"],[30,"30 days"],[90,"90 days"]]) keep.appendChild(el("option",{value:String(v)}, t));
+    for (const [v, lab] of [[0,t("not kept")],[7,t("7 days")],[30,t("30 days")],[90,t("90 days")]]) keep.appendChild(el("option",{value:String(v)}, lab));
     keep.value = String(settings.guest_retention_days ?? 30);
     keep.addEventListener("change", async()=>{
-      try { await ctx.actions.settingsSet({ guest_retention_days: parseInt(keep.value, 10) }); ctx.toast("Saved"); }
-      catch(e){ ctx.toast("Failed to save: " + ctx.helpers.errorText(e), true); }
+      try { await ctx.actions.settingsSet({ guest_retention_days: parseInt(keep.value, 10) }); ctx.toast(t("Saved")); }
+      catch(e){ ctx.toast(t("Failed to save: {error}", { error: ctx.helpers.errorText(e) }), true); }
     });
     put("phones", el("div",{class:"card","data-focus-part":"guest_tags",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
-        el("div",{class:"h2",style:"margin:0;color:#fbbf24"}, "Guest tags"),
+        el("div",{class:"h2",style:"margin:0;color:#fbbf24"}, t("Guest tags")),
         helpBtn("guest_tags"),
       ]),
-      el("div",{style:rowStyle},[ gToggle, el("span",{style:"font-size:13px;color:#e2e8f0"}, "Use tags as guest tags") ]),
+      el("div",{style:rowStyle},[ gToggle, el("span",{style:"font-size:13px;color:#e2e8f0"}, t("Use tags as guest tags")) ]),
       el("div",{class:"muted",style:"font-size:12px;margin:4px 0 8px;line-height:1.5"},
-        "Lend a tag PadSpan already knows (a beacon, a Find My tag, a spare phone) to a guest. While they have it, the Guests tab shows where they are, " +
-        "when they arrived and left, and how long they spent in each room, and you can be told when they arrive, leave, or go into a room you set as off-limits. " +
-        "A house-sitter can count as someone home for Vacation Mode. Off: nothing is tracked or kept, and the Guests tab is hidden."),
-      el("div",{style:rowStyle},[ el("span",{style:"font-size:12px;color:#94a3b8"},"Keep a finished stay's report (name, times, rooms) for"), keep ]),
+        t("Lend a tag PadSpan already knows (a beacon, a Find My tag, a spare phone) to a guest. While they have it, the Guests tab shows where they are, when they arrived and left, and how long they spent in each room, and you can be told when they arrive, leave, or go into a room you set as off-limits. A house-sitter can count as someone home for Vacation Mode. Off: nothing is tracked or kept, and the Guests tab is hidden.")),
+      el("div",{style:rowStyle},[ el("span",{style:"font-size:12px;color:#94a3b8"},t("Keep a finished stay's report (name, times, rooms) for")), keep ]),
       el("div",{class:"muted",style:"font-size:11px"},
-        "Guests' names stay in this Home Assistant: never in the usage report, never in a backup. Only an administrator can lend a tag or end a stay."),
+        t("Guests' names stay in this Home Assistant: never in the usage report, never in a backup. Only an administrator can lend a tag or end a stay.")),
     ]));
   }
 
@@ -989,8 +984,8 @@ function _settingsPresence(ctx, el){
     const sel = el("select", {
       style: "width:220px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
     });
-    for (const [v, label] of [["auto", "Follow Home Assistant areas"],
-                              ["manual", "Standalone — use the saved layout"]]) {
+    for (const [v, label] of [["auto", t("Follow Home Assistant areas")],
+                              ["manual", t("Standalone — use the saved layout")]]) {
       const o = el("option", { value: v }, label);
       if (cur === v) o.selected = true;
       sel.appendChild(o);
@@ -999,16 +994,16 @@ function _settingsPresence(ctx, el){
       try {
         await ctx.actions.callWS({ type: "padspan_ha/fabric_sync_mode_set", mode: sel.value });
         ctx.toast(sel.value === "manual"
-          ? "Standalone — rooms and scanners come from the saved layout only"
-          : "Following Home Assistant areas");
+          ? t("Standalone — rooms and scanners come from the saved layout only")
+          : t("Following Home Assistant areas"));
         await ctx.actions.modelRefresh();
-      } catch(e) { ctx.toast("Failed to save", true); }
+      } catch(e) { ctx.toast(t("Failed to save"), true); }
     });
     put("integrations", el("div", { class: "card" }, [
-      el("div", { class: "h2", style: "color:#52b788" }, "Room and receiver layout source"),
+      el("div", { class: "h2", style: "color:#52b788" }, t("Room and receiver layout source")),
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [sel]),
       el("div", { class: "muted", style: "font-size:12px" },
-        "Standalone lets PadSpan run with rooms you created here and no Home Assistant areas at all."),
+        t("Standalone lets PadSpan run with rooms you created here and no Home Assistant areas at all.")),
     ]));
   }
 
@@ -1024,8 +1019,8 @@ function _settingsPresence(ctx, el){
     const algoSel = el("select", {
       style: "width:180px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
     });
-    const optKnn = el("option", { value: "knn", title: "k-NN (k-nearest neighbours)" }, "Matched to calibration points (default)");
-    const optRf = el("option", { value: "rf", title: "Random Forest" }, "Learned model (experimental)" + (rfReady || rfUnused ? "" : " — not trained"));
+    const optKnn = el("option", { value: "knn", title: t("k-NN (k-nearest neighbours)") }, t("Matched to calibration points (default)"));
+    const optRf = el("option", { value: "rf", title: "Random Forest" }, (rfReady || rfUnused ? t("Learned model (experimental)") : t("Learned model (experimental) — not trained")));
     if (curAlgo === "knn") optKnn.selected = true;
     else optRf.selected = true;
     algoSel.appendChild(optKnn);
@@ -1033,22 +1028,20 @@ function _settingsPresence(ctx, el){
     algoSel.addEventListener("change", async () => {
       try {
         await ctx.actions.settingsSet({ positioning_algorithm: algoSel.value });
-        ctx.toast(`Positioning algorithm: ${algoSel.value === "rf" ? "Learned model" : "Matched to calibration points"}`);
+        ctx.toast(t("Positioning algorithm: {name}", { name: algoSel.value === "rf" ? t("Learned model") : t("Matched to calibration points") }));
         ctx.actions.renderRooms();
-      } catch(e) { ctx.toast("Failed to save", true); }
+      } catch(e) { ctx.toast(t("Failed to save"), true); }
     });
     put("positioning", el("div", { class: "card" }, [
-      el("div", { class: "h2", style: "color:#52b788" }, "Positioning Algorithm"),
+      el("div", { class: "h2", style: "color:#52b788" }, t("Positioning Algorithm")),
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
         algoSel,
         el("span", { class: "muted", style: "font-size:12px" },
-          curAlgo === "rf" ? (rfReady ? "Active" : rfTraining ? "Training — matching calibration points until it is ready"
-            : "Falling back to matching calibration points") : ""),
+          curAlgo === "rf" ? (rfReady ? t("Active") : rfTraining ? t("Training — matching calibration points until it is ready")
+            : t("Falling back to matching calibration points")) : ""),
       ]),
       el("div", { class: "muted", style: "font-size:12px;line-height:1.6" },
-        "Matched to calibration points compares live signals to the nearest calibration points — works well even with sparse scanner coverage. " +
-        "The learned model (experimental) trains a decision-tree model — needs dense multi-scanner overlap per object to do better than matching. " +
-        "Both use the same calibration dataset — switching is instant and safe."),
+        t("Matched to calibration points compares live signals to the nearest calibration points — works well even with sparse scanner coverage. The learned model (experimental) trains a decision-tree model — needs dense multi-scanner overlap per object to do better than matching. Both use the same calibration dataset — switching is instant and safe.")),
     ]));
   }
 
@@ -1059,30 +1052,28 @@ function _settingsPresence(ctx, el){
   const delayInp = el("input", {
     type: "number", min: "0", max: "300", step: "5", value: String(currentDelay), style: inpStyle,
   });
-  const delaySaveBtn = el("button", { class: "btn" }, "Save");
+  const delaySaveBtn = el("button", { class: "btn" }, t("Save"));
   delaySaveBtn.addEventListener("click", async () => {
     const v = Math.max(0, Math.min(300, parseFloat(delayInp.value) || 0));
     try {
       await ctx.actions.settingsSet({ room_change_delay_s: v });
-      ctx.toast(`Room change delay set to ${v}s`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("Room change delay set to {v}s", { v }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("rooms", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Room Change Delay"),
+    el("div", { class: "h2" }, t("Room Change Delay")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "How long a scanner must consistently dominate before PadSpan switches a device to a new room. " +
-      "Higher values prevent flickering when a device sits on the boundary between two scanners. " +
-      "A clear move into a next-door room (its scanner well ahead) needs half of it, at least two polls."
+      t("How long a scanner must consistently dominate before PadSpan switches a device to a new room. Higher values prevent flickering when a device sits on the boundary between two scanners. A clear move into a next-door room (its scanner well ahead) needs half of it, at least two polls.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Room change delay"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Room change delay")),
       delayInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("seconds")),
       delaySaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentDelay}s → requires ~${polls} consecutive ${_pollInt}s poll${polls !== 1 ? "s" : ""} agreement. ` +
-      `Set to 0 to switch on the first poll that agrees (indoor↔outdoor and far-apart rooms still need the stricter checks).`
+      tn(polls, "Current: {delay}s → requires ~{n} consecutive {poll}s poll agreement.", "Current: {delay}s → requires ~{n} consecutive {poll}s polls agreement.", { delay: currentDelay, poll: _pollInt }) +
+      " " + t("Set to 0 to switch on the first poll that agrees (indoor↔outdoor and far-apart rooms still need the stricter checks).")
     ),
   ]));
 
@@ -1091,29 +1082,27 @@ function _settingsPresence(ctx, el){
   const holdInp = el("input", {
     type: "number", min: "0", max: "600", step: "10", value: String(currentHold), style: inpStyle,
   });
-  const holdSaveBtn = el("button", { class: "btn" }, "Save");
+  const holdSaveBtn = el("button", { class: "btn" }, t("Save"));
   holdSaveBtn.addEventListener("click", async () => {
     const v = Math.max(0, Math.min(600, parseFloat(holdInp.value) || 0));
     try {
       await ctx.actions.settingsSet({ hold_last_room_s: v });
-      ctx.toast(v > 0 ? `Room held through gaps up to ${v}s` : "Room hold off");
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(v > 0 ? t("Room held through gaps up to {v}s", { v }) : t("Room hold off"));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("rooms", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Hold Room Through Short Gaps"),
+    el("div", { class: "h2" }, t("Hold Room Through Short Gaps")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "When a device goes quiet for a minute and comes back, PadSpan forgets its room until the room vote agrees again, " +
-      "so it can show no room for a few polls. With this on, the panel keeps showing the room it was in before the gap, " +
-      "for up to this many seconds. Display only: how rooms are decided does not change."
+      t("When a device goes quiet for a minute and comes back, PadSpan forgets its room until the room vote agrees again, so it can show no room for a few polls. With this on, the panel keeps showing the room it was in before the gap, for up to this many seconds. Display only: how rooms are decided does not change.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Hold last room"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Hold last room")),
       holdInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("seconds")),
       holdSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentHold > 0 ? currentHold + "s" : "off"}. 0 = off (default). Range: 0–600s.`
+      t("Current: {hold}. 0 = off (default). Range: 0–600s.", { hold: currentHold > 0 ? currentHold + "s" : t("off") })
     ),
   ]));
 
@@ -1125,40 +1114,32 @@ function _settingsPresence(ctx, el){
     reasonToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ room_reason_attribute: reasonToggle.checked });
-        ctx.toast(reasonToggle.checked ? "Room reason attribute on" : "Room reason attribute off");
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(reasonToggle.checked ? t("Room reason attribute on") : t("Room reason attribute off"));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     put("rooms", el("div",{class:"card"},[
-      el("div",{class:"h2"}, "Why This Room (Sensor Attribute)"),
+      el("div",{class:"h2"}, t("Why This Room (Sensor Attribute)")),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
         reasonToggle,
         el("label",{for:"roomReasonToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-          "Add a room_reason attribute to each area sensor"),
+          t("Add a room_reason attribute to each area sensor")),
       ]),
       el("div",{class:"muted",style:"font-size:12px"},
-        "Shows in Home Assistant why a device is in its room: how many recent polls voted for it and how many it needs, " +
-        "whether a jump to a far room is being held back, whether the current room was kept although another read slightly stronger, " +
-        "the positioning step's note, the top room scores, and whether the room is being held through a gap. " +
-        "Useful for fixing flapping rooms. Off by default; it adds to what the recorder stores."),
+        t("Shows in Home Assistant why a device is in its room: how many recent polls voted for it and how many it needs, whether a jump to a far room is being held back, whether the current room was kept although another read slightly stronger, the positioning step's note, the top room scores, and whether the room is being held through a gap. Useful for fixing flapping rooms. Off by default; it adds to what the recorder stores.")),
     ]));
   }
 
   // ── Honest accuracy: three positioning choices, all off by default ─────────
   {
     const rows = [
-      ["positioning_pick_better", "Pick the better method for this house",
-       "PadSpan places devices two ways: from the radios' positions (spatial) and from your calibration points (fingerprints). " +
-       "With this on, it uses whichever one did better on calibration spots it had not seen (Calibration → Model shows both). " +
-       "It only switches on a clear win, so it does not flip back and forth. Needs calibration points."],
-      ["positioning_unsure", "Mark a room as unsure when the signal is thin",
-       "When fewer than 3 scanners hear a device, or no calibration point matches it well, the device keeps the room it had " +
-       "and is marked unsure (a room_unsure attribute) instead of being moved on weak evidence."],
-      ["positioning_sensor_fusion", "Use motion sensors and usual moves to break ties",
-       "When two rooms read almost the same, a motion, occupancy or presence sensor in one of them, and the room-to-room moves " +
-       "PadSpan has learned, decide between them. It never picks a room no scanner hears. In a busy house a motion sensor may " +
-       "be someone else, so this is off by default."],
+      ["positioning_pick_better", t("Pick the better method for this house"),
+       t("PadSpan places devices two ways: from the radios' positions (spatial) and from your calibration points (fingerprints). With this on, it uses whichever one did better on calibration spots it had not seen (Calibration → Model shows both). It only switches on a clear win, so it does not flip back and forth. Needs calibration points.")],
+      ["positioning_unsure", t("Mark a room as unsure when the signal is thin"),
+       t("When fewer than 3 scanners hear a device, or no calibration point matches it well, the device keeps the room it had and is marked unsure (a room_unsure attribute) instead of being moved on weak evidence.")],
+      ["positioning_sensor_fusion", t("Use motion sensors and usual moves to break ties"),
+       t("When two rooms read almost the same, a motion, occupancy or presence sensor in one of them, and the room-to-room moves PadSpan has learned, decide between them. It never picks a room no scanner hears. In a busy house a motion sensor may be someone else, so this is off by default.")],
     ];
-    const card = el("div", { class: "card" }, [el("div", { class: "h2" }, "Positioning Choices")]);
+    const card = el("div", { class: "card" }, [el("div", { class: "h2" }, t("Positioning Choices"))]);
     for (const [key, label, help] of rows) {
       const id = "hacc_" + key;
       const tg = el("input", { type: "checkbox", id, style: "width:16px;height:16px;accent-color:#52b788;cursor:pointer" });
@@ -1166,8 +1147,8 @@ function _settingsPresence(ctx, el){
       tg.addEventListener("change", async () => {
         try {
           await ctx.actions.settingsSet({ [key]: tg.checked });
-          ctx.toast(`${label}: ${tg.checked ? "on" : "off"}`);
-        } catch (e) { ctx.toast("Failed to save", true); }
+          ctx.toast(`${label}: ${tg.checked ? t("on") : t("off")}`);
+        } catch (e) { ctx.toast(t("Failed to save"), true); }
       });
       card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin:10px 0 4px" }, [
         tg,
@@ -1176,7 +1157,7 @@ function _settingsPresence(ctx, el){
       card.appendChild(el("div", { class: "muted", style: "font-size:12px" }, help));
     }
     card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:10px" },
-      "All off by default. Off, rooms and positions are worked out exactly as before."));
+      t("All off by default. Off, rooms and positions are worked out exactly as before.")));
     put("positioning", card);
   }
 
@@ -3253,6 +3234,7 @@ function _settingsPresence(ctx, el){
 // in docs/GETTING_STARTED.md. The same sentences here, word for word (held
 // equal by tests/test_plain_problems.py), with examples in the name of one of
 // this house's own devices, the answers, and a Copy button.
+// i18n part: -
 export const VOICE_SENTENCES_PATH = "config/custom_sentences/en/padspan.yaml";
 export const VOICE_SENTENCES_YAML = [
   'language: "en"',

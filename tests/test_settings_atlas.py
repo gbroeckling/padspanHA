@@ -91,7 +91,7 @@ def test_old_tab_ids_still_open_their_tabs(drawn):
     assert len(drawn["presence"]["cards"]) > 20
     assert 'id === "presence" ? _settingsPresence(ctx, el) :' in SETTINGS_JS and 'id === "atlas" ? _settingsAtlas(ctx, el) :' in SETTINGS_JS
     assert "root.appendChild(_tabBody(activeTab));" in SETTINGS_JS
-    assert '["presence", "Tracking",' in SETTINGS_JS and '["atlas", "Atlas",' in SETTINGS_JS
+    assert '["presence", t("Tracking"),' in SETTINGS_JS and '["atlas", t("Atlas"),' in SETTINGS_JS
 
 
 def test_links_to_atlas_settings_point_at_the_new_tab():
@@ -154,7 +154,7 @@ def test_renamed_and_the_old_words_gone(new):
 
 
 def test_the_technical_names_stay_in_the_hover_help():
-    assert 'title: "k-NN (k-nearest neighbours)"' in SETTINGS_JS
+    assert 'title: t("k-NN (k-nearest neighbours)")' in SETTINGS_JS
     assert 'title: "Random Forest"' in SETTINGS_JS
 
 

@@ -51,7 +51,7 @@ def _presence_src() -> str:
 def _section_keys() -> list[str]:
     block = SETTINGS_JS[SETTINGS_JS.index("export const PRESENCE_SECTIONS = ["):]
     block = block[:block.index("];")]
-    return re.findall(r'\["([a-z]+)",\s*"[^"]+"\]', block)
+    return re.findall(r'\["([a-z]+)",\s*(?:\(\) => t\()?"[^"]+"\)?\]', block)   # the title in a t() getter or not
 
 
 @pytest.fixture(scope="module")

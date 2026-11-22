@@ -104,7 +104,7 @@ def _tab_defs() -> list[tuple[str, str]]:
     src = _settings_src()
     block = src[src.index("const _tabDefs = ["):]
     block = block[:block.index("\n  ];")]
-    return re.findall(r'^\s*\["([a-z]+)",\s*"([^"]+)",', block, re.M)
+    return re.findall(r'^\s*\["([a-z]+)",\s*(?:t\()?"([^"]+)"\)?,', block, re.M)   # the English, in t() or not
 
 
 def _settings_tabs() -> list[str]:
@@ -115,11 +115,11 @@ def _tracking_sections() -> list[str]:
     src = _settings_src()
     block = src[src.index("export const PRESENCE_SECTIONS = ["):]
     block = block[:block.index("];")]
-    return re.findall(r'\["[a-z]+",\s*"([^"]+)"\]', block)
+    return re.findall(r'\["[a-z]+",\s*(?:\(\) => t\()?"([^"]+)"\)?\]', block)   # the English, in a t() getter or not
 
 
 def _basic_buttons() -> list[str]:
-    return [b.rstrip(" →") for b in re.findall(r'"data-settings-open":"[a-z_]+"[^}]*\}\s*,\s*"([^"]+)"', _settings_src())]
+    return [b.rstrip(" →") for b in re.findall(r'"data-settings-open":"[a-z_]+"[^}]*\}\s*,\s*(?:t\()?"([^"]+)"', _settings_src())]
 
 
 def _top_functions(src: str) -> dict[str, str]:

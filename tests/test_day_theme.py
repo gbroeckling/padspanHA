@@ -203,7 +203,7 @@ def test_seven_theme_choices_and_light_is_still_the_inversion():
     settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
     for val, label in (("night", "Night"), ("graphite", "Graphite"), ("ocean", "Ocean"), ("dusk", "Dusk"),
                        ("contrast", "High contrast"), ("light", "Light (inverted)"), ("day", "Day")):
-        assert f'mkTheme("{val}","{label}")' in settings, val
+        assert f'mkTheme("{val}",t("{label}"))' in settings, val
     assert 'settingsSet({ light_theme: val === "light", day_theme: val === "day", theme_palette: palette })' in settings
 
 
