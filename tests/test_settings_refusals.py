@@ -363,5 +363,5 @@ def test_the_panel_sends_only_known_choices() -> None:
     assert set(re.findall(r'data_mode: "(\w*)"', js)) == {"live"}
     assert set(re.findall(r'ui_skin: (?:"(\w*)"|val\b)', js)) <= {"", "2025", "classic"}
     assert 'value: "knn"' in js and 'value: "rf"' in js
-    assert '[["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]' in js
+    assert '[["",t("(no override)")],["free",t("free")],["bright","bright"],["pro","pro"]]' in js
     assert not re.search(r"auto_offset_mode\s*:\s*[\"'\w]", js.replace("read auto_offset_mode: positioning", ""))

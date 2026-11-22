@@ -1,0 +1,110 @@
+{
+"Saves as soon as you change it.": "Enregistré dès que vous le modifiez.",
+"Saved.": "Enregistré.",
+"Could not save: {why}": "Non enregistré : {why}",
+"AI power features": "Fonctions d’IA",
+"PadSpan can use an AI you have set up in Home Assistant (an AI Task) to fill things in for you. It only reads what you give it, when you ask, and keeps nothing. A cloud AI (OpenAI, Google, Anthropic, Home Assistant Cloud) sends it out of the house; a local one (like Ollama) keeps it home.": "PadSpan peut utiliser une IA que vous avez configurée dans Home Assistant (une tâche IA) pour remplir des choses à votre place. Elle ne lit que ce que vous lui donnez, quand vous le demandez, et ne garde rien. Une IA dans le cloud (OpenAI, Google, Anthropic, Home Assistant Cloud) l’envoie hors de la maison ; une IA locale (comme Ollama) le garde chez vous.",
+"Your AI": "Votre IA",
+"None": "Aucune",
+"AI Task": "Tâche IA",
+"Pick one whose model can read pictures (a vision model). Needs Home Assistant 2025.8 or newer.": "Choisissez-en une dont le modèle sait lire les images (un modèle de vision). Nécessite Home Assistant 2025.8 ou plus récent.",
+"No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama, or a cloud one), then pick its AI Task here. Needs Home Assistant 2025.8 or newer.": "Pas encore de tâche IA dans Home Assistant. Ajoutez une intégration d’IA avec un modèle de vision (comme Ollama, ou une dans le cloud), puis choisissez sa tâche IA ici. Nécessite Home Assistant 2025.8 ou plus récent.",
+"Backup AI task": "Tâche IA de secours",
+"Used when the main one can't be reached, e.g. a computer that's away.": "Utilisée quand la principale est injoignable, par exemple un ordinateur absent.",
+"What it does for you": "Ce qu’elle fait pour vous",
+"COMING SOON": "BIENTÔT",
+"EXPERIMENTAL": "EXPÉRIMENTAL",
+"AI map-building research (experimental)": "Recherche sur la création de plans par IA (expérimental)",
+"Research feature. The AI suggests; you check every item, and nothing is saved until you accept it. It never changes your calibration or signal walls. What it can save, each with a backup first and an undo: Line up plans moves a plan's picture; Rooms from plans saves rooms. Turning it off hides it; it does not undo what you kept. Let Claude draw your rooms doesn't need it.": "Fonction de recherche. L’IA propose ; vous vérifiez chaque élément, et rien n’est enregistré avant que vous l’acceptiez. Elle ne modifie jamais votre étalonnage ni vos murs de signal. Ce qu’elle peut enregistrer, chaque fois avec une sauvegarde préalable et une annulation : Line up plans déplace l’image d’un plan ; Rooms from plans enregistre des pièces. La désactiver la masque ; cela n’annule pas ce que vous avez gardé. Let Claude draw your rooms n’en a pas besoin.",
+"Stairs from your floor plans": "Escaliers à partir de vos plans",
+"Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then drag, turn or delete it. A small AI on your own computer finds most staircases but often gets their shape and which way is up wrong; a cloud AI reads plans better. The plans are sent to your AI only when you press it. Off until you turn it on.": "Ajoute Read stairs off the plans (AI) à Furnish → Build ▾ → House dans Live Aboard. Votre IA cherche les escaliers sur chaque plan d’étage que vous avez placé et ajoute ce qu’elle trouve comme première estimation : vérifiez où chacun se trouve et dans quel sens il monte, puis faites-le glisser, tournez-le ou supprimez-le. Une petite IA sur votre propre ordinateur trouve la plupart des escaliers mais se trompe souvent sur leur forme et le sens de la montée ; une IA dans le cloud lit mieux les plans. Les plans ne sont envoyés à votre IA que quand vous appuyez. Désactivé tant que vous ne l’activez pas.",
+"Add data via plans": "Ajouter des données via les plans",
+"In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists what it finds for you to check, item by item. What you keep goes into your 3D house when you press Save, and one undo takes a whole session back.": "Dans la barre Edit de Live Aboard, l’outil Plans : votre IA lit les plans d’étage que vous avez placés pour y trouver escaliers et garde-corps, et liste ce qu’elle trouve pour que vous le vérifiiez, élément par élément. Ce que vous gardez entre dans votre maison en 3D quand vous appuyez sur Save, et une seule annulation reprend toute une session.",
+"Furniture from a photo": "Meubles à partir d’une photo",
+"In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.": "Dans Furnish de Live Aboard, prenez en photo un canapé, un lit ou une lampe et l’IA remplit son type, son style, ses couleurs et ses dimensions. Les balises, les récepteurs et les silhouettes des personnes aussi. Elle nomme l’objet elle-même, puis lit les détails de ce type ; lui dire d’abord ce qu’est l’objet va plus vite. Elle vous demande une vraie mesure, sauf si quelque chose sur la photo montre l’échelle.",
+"Ask your voice assistant where someone is": "Demandez à votre assistant vocal où se trouve quelqu’un",
+"Lets an AI voice assistant in Home Assistant ask PadSpan which room someone is in, in your own words.": "Permet à un assistant vocal IA de Home Assistant de demander à PadSpan, avec vos propres mots, dans quelle pièce se trouve quelqu’un.",
+"e.g. 200": "p. ex. 200",
+"Off": "Désactivé",
+"at 50 %": "à 50 %",
+"at 75 %": "à 75 %",
+"at 90 %": "à 90 %",
+"Your monthly credit, US$": "Votre crédit mensuel, en $ US",
+"Warn me": "M’avertir",
+"Claude reads this month: {count}": "Lectures de Claude ce mois-ci : {count}",
+"(no price known for this model)": "(aucun prix connu pour ce modèle)",
+"about {cost} of your ${credit} monthly credit": "environ {cost} sur votre crédit mensuel de {credit} $",
+"about {cost}": "environ {cost}",
+"AI reads this month: {count}": "Lectures de l’IA ce mois-ci : {count}",
+"An estimate from each picture's size and each question's length: Home Assistant doesn't pass on what Claude counted. Exact numbers: ": "Une estimation d’après la taille de chaque image et la longueur de chaque question : Home Assistant ne transmet pas ce que Claude a compté. Chiffres exacts : ",
+"(filter by the key Home Assistant uses).": "(filtrez par la clé qu’utilise Home Assistant).",
+"This month's warning has been shown.": "L’avertissement de ce mois-ci a été affiché.",
+"Every read PadSpan sent to your AI this month. A cost is estimated for Claude only.": "Chaque lecture que PadSpan a envoyée à votre IA ce mois-ci. Un coût n’est estimé que pour Claude.",
+"Claude reads a floor plan and draws its rooms for you to check; it is offered in Setup's Draw the rooms step. It needs none of the switches above.": "Claude lit un plan d’étage et dessine ses pièces pour que vous les vérifiiez ; c’est proposé à l’étape « Dessiner les pièces » de Configuration. Aucun des interrupteurs ci-dessus n’est nécessaire.",
+"Build from plans (experimental) isn't offered here.": "Build from plans (expérimental) n’est pas proposé ici.",
+"Choose it as your AI Task above.": "Choisissez-le comme tâche IA ci-dessus.",
+"It needs {model} through Home Assistant's Anthropic integration.": "Il nécessite {model} via l’intégration Anthropic de Home Assistant.",
+"How to connect Claude ↗": "Comment connecter Claude ↗",
+"Build from plans: advanced plan alignment (Claude, experimental)": "Build from plans : alignement avancé des plans (Claude, expérimental)",
+"Claude reads your floor plans and lines them up to each other and to your house. You check every change on a map before anything is saved; a backup is taken before each save and one undo takes a session back. Lining plans up never changes calibration or anything placed in metres. Needs Claude Opus 5.5 or newer as your AI Task. In Live Aboard: Edit → Plans → Line up plans; then, on a lined-up floor, Rooms from plans reads its rooms, doors, windows and stairs, saved together with one backup and one undo.": "Claude lit vos plans d’étage et les aligne entre eux et sur votre maison. Vous vérifiez chaque changement sur un plan avant tout enregistrement ; une sauvegarde est faite avant chaque enregistrement et une seule annulation reprend une session. Aligner les plans ne modifie jamais l’étalonnage ni rien de placé en mètres. Nécessite Claude Opus 5.5 ou plus récent comme tâche IA. Dans Live Aboard : Edit → Plans → Line up plans ; puis, sur un étage aligné, Rooms from plans lit ses pièces, portes, fenêtres et escaliers, enregistrés ensemble avec une sauvegarde et une annulation.",
+"Reads with {model}. The plans leave the house for Anthropic.": "Lit avec {model}. Les plans quittent la maison pour Anthropic.",
+"Line-up stops this month (experimental): {list}": "Arrêts d’alignement ce mois-ci (expérimental) : {list}",
+"Undo this line-up session (experimental)": "Annuler cette session d’alignement (expérimental)",
+"{tool} (experimental): ": "{tool} (expérimental) : ",
+"a floor": "un étage",
+"Undo puts every one back where it was; a backup is taken first, and a plan you moved by hand since is left as it is.": "Annuler remet chacun là où il était ; une sauvegarde est faite d’abord, et un plan que vous avez déplacé à la main depuis reste tel quel.",
+"Put every plan this session saved back where it was?": "Remettre chaque plan enregistré par cette session là où il était ?",
+"Undo this rooms session (experimental)": "Annuler cette session de pièces (expérimental)",
+"Undo puts every one back as it was; a backup is taken first, and anything you changed since is left as it is.": "Annuler remet chacun comme il était ; une sauvegarde est faite d’abord, et tout ce que vous avez modifié depuis reste tel quel.",
+"Put every room, door, window and stair this session saved back as it was?": "Remettre chaque pièce, porte, fenêtre et escalier enregistrés par cette session comme ils étaient ?",
+"{n} put back": "{n} remis",
+"{tool} is hidden while your AI Task isn't Claude Opus 5.5 or newer; this undo stays here.": "{tool} est masqué tant que votre tâche IA n’est pas Claude Opus 5.5 ou plus récent ; cette annulation reste ici.",
+"Undo it (experimental)": "Annuler (expérimental)",
+"Cancel": "Annuler",
+"Put those items back in your 3D house?": "Remettre ces éléments dans votre maison en 3D ?",
+"Take what this session kept out of your 3D house? Anything you changed since is left as it is.": "Retirer de votre maison en 3D ce que cette session a gardé ? Tout ce que vous avez modifié depuis reste tel quel.",
+"Working…": "En cours…",
+"Put back: {done} of {of}": "Remis : {done} sur {of}",
+"Undone: {done} of {of}": "Annulé : {done} sur {of}",
+"Could not undo: {why}": "Impossible d’annuler : {why}",
+"Put back": "Remettre",
+"Undo": "Annuler",
+"Put back…": "Remettre…",
+"Undo this session…": "Annuler cette session…",
+"{n} reads stopped: {what}": {
+"one": "{n} lecture arrêtée : {what}",
+"other": "{n} lectures arrêtées : {what}"
+},
+"The last plan line-up saved on {floor}{when}: {n} plans moved or refiled.": {
+"one": "Le dernier alignement de plans enregistré sur {floor}{when} : {n} plan déplacé ou reclassé.",
+"other": "Le dernier alignement de plans enregistré sur {floor}{when} : {n} plans déplacés ou reclassés."
+},
+"{n} plans put back where they were": {
+"one": "{n} plan remis là où il était",
+"other": "{n} plans remis là où ils étaient"
+},
+"{n} moved by hand since left as they are": {
+"one": "{n} déplacé à la main depuis laissé tel quel",
+"other": "{n} déplacés à la main depuis laissés tels quels"
+},
+"The last rooms from plans saved on {floor}{when}: {n} items (rooms, doors, windows, stairs).": {
+"one": "Les dernières pièces issues des plans enregistrées sur {floor}{when} : {n} élément (pièces, portes, fenêtres, escaliers).",
+"other": "Les dernières pièces issues des plans enregistrées sur {floor}{when} : {n} éléments (pièces, portes, fenêtres, escaliers)."
+},
+"{n} changed since left as they are": {
+"one": "{n} modifié depuis laissé tel quel",
+"other": "{n} modifiés depuis laissés tels quels"
+},
+"The last undo: {n} items, {day}": {
+"one": "La dernière annulation : {n} élément, {day}",
+"other": "La dernière annulation : {n} éléments, {day}"
+},
+"Last plan session: {n} items kept, {day}": {
+"one": "Dernière session de plans : {n} élément gardé, {day}",
+"other": "Dernière session de plans : {n} éléments gardés, {day}"
+},
+"{n} were changed since and left as they are": {
+"one": "{n} a été modifié depuis et laissé tel quel",
+"other": "{n} ont été modifiés depuis et laissés tels quels"
+}
+}

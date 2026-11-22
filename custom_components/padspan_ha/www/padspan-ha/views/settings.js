@@ -16,7 +16,7 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
+const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
@@ -3182,10 +3182,11 @@ function _voiceQuestionsCard(ctx, el) {
 // all-informational step sequence instead, launched from the licence card
 // rather than auto-opened (nobody needs an unsolicited tier pitch).
 // ctx.state._tiersWizard = { step } while open; falsy means closed.
+// i18n part: features
 const TIERS_WIZARD_STEPS = [
-  { n: 1, id: "free",    label: "What's always free" },
-  { n: 2, id: "ladder",  label: "The tiers" },
-  { n: 3, id: "upgrade", label: "Upgrading" },
+  { n: 1, id: "free",    label: () => t("What's always free") },
+  { n: 2, id: "ladder",  label: () => t("The tiers") },
+  { n: 3, id: "upgrade", label: () => t("Upgrading") },
 ];
 
 function _tiersWizardFooter(ctx, w, opts){
@@ -3194,12 +3195,12 @@ function _tiersWizardFooter(ctx, w, opts){
   const bar = el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px"});
   const left = el("div",{});
   if (w.step > 1) {
-    const b = el("button",{class:"btn inline"}, "← Back");
+    const b = el("button",{class:"btn inline"}, t("← Back"));
     b.addEventListener("click", ()=>{ w.step -= 1; ctx.actions.renderRooms(); });
     left.appendChild(b);
   }
   bar.appendChild(left);
-  const nx = el("button",{class:"btn primary"}, opts.nextLabel || "Next →");
+  const nx = el("button",{class:"btn primary"}, opts.nextLabel || t("Next →"));
   nx.addEventListener("click", ()=>{
     if (opts.onNext) opts.onNext();
     else { w.step += 1; ctx.actions.renderRooms(); }
@@ -3213,13 +3214,13 @@ function _tiersWizardFree(ctx, w, isBright){
   const wrap = el("div",{});
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
     isBright
-      ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."
-      : "This install is PadSpan HA. Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
+      ? t("This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below.")
+      : t("This install is PadSpan HA. Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration, mapping and everything else here is free, no key, forever.")));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.6"},
     (isBright
-      ? "A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more."
-      : "A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D house (Live Aboard), the wall screen, Locate, Busy Times and more.")
-    + " The free tier above is not a trial of anything — it stays free whether or not you ever add a key. To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy."));
+      ? t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more.")
+      : t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D house (Live Aboard), the wall screen, Locate, Busy Times and more."))
+    + " " + t("The free tier above is not a trial of anything — it stays free whether or not you ever add a key. To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy.")));
   wrap.appendChild(_tiersWizardFooter(ctx, w));
   return wrap;
 }
@@ -3235,19 +3236,19 @@ function _tiersWizardLadder(ctx, w, isBright){
     el("div",{style:"font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.5"}, desc),
   ]);
   if (isBright) {
-    wrap.appendChild(row("PadSpan Bright (free)", null,
-      "Place lights on a map, control them. No key, no time limit."));
+    wrap.appendChild(row(t("PadSpan Bright (free)"), null,
+      t("Place lights on a map, control them. No key, no time limit.")));
     wrap.appendChild(row("PadSpan Bright Pro", BRIGHT_PRICE,
-      "Fixture shapes and sizes, WLED, Showcase, Fit room — light placement exactly where it hangs. Forensics needs presence tracking to report on, so it isn't part of this edition."));
+      t("Fixture shapes and sizes, WLED, Showcase, Fit room — light placement exactly where it hangs. Forensics needs presence tracking to report on, so it isn't part of this edition.")));
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:6px;line-height:1.5"},
-      "Want presence tracking too? That's a separate, full download — PadSpan HA — not an upgrade of this one."));
+      t("Want presence tracking too? That's a separate, full download — PadSpan HA — not an upgrade of this one.")));
   } else {
-    wrap.appendChild(row("PadSpan HA (free)", null,
-      "Presence tracking and everything else in this app except the paid features below. No key, no time limit."));
+    wrap.appendChild(row(t("PadSpan HA (free)"), null,
+      t("Presence tracking and everything else in this app except the paid features below. No key, no time limit.")));
     wrap.appendChild(row("PadSpan Pro", PRO_PRICE,
-      "Adds light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house, the wall screen, Forensics, Locate and Busy Times to this install."));
+      t("Adds light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house, the wall screen, Forensics, Locate and Busy Times to this install.")));
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:6px;line-height:1.5"},
-      "Only want lighting, not presence tracking? PadSpan Bright is a lighter, separate download built for exactly that."));
+      t("Only want lighting, not presence tracking? PadSpan Bright is a lighter, separate download built for exactly that.")));
   }
   wrap.appendChild(_tiersWizardFooter(ctx, w));
   return wrap;
@@ -3257,17 +3258,17 @@ function _tiersWizardUpgrade(ctx, w, isBright){
   const { el } = ctx.helpers;
   const wrap = el("div",{});
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
-    `A licence key is entered once, right on this install, at ${LICENCE_PATH} — the same card shows this install's edition and tier, and how long a key has left.`));
+    t("A licence key is entered once, right on this install, at {path} — the same card shows this install's edition and tier, and how long a key has left.", { path: t("Settings → Features → PadSpan licence") })));
   const row = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px"});
   row.appendChild(el("a",{class:"btn inline", href: isBright ? EDITIONS_URL : BUY_URL, target:"_blank", rel:"noopener",
     style:"border-color:#52b788;color:#a7f3d0;text-decoration:none"},
-    isBright ? `Buy PadSpan Bright Pro — ${BRIGHT_PRICE}` : `Buy PadSpan Pro — ${PRO_PRICE}`));
+    isBright ? t("Buy PadSpan Bright Pro — {price}", { price: BRIGHT_PRICE }) : t("Buy PadSpan Pro — {price}", { price: PRO_PRICE })));
   wrap.appendChild(row);
   if (isBright) {
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;line-height:1.5"},
-      `Already have a Bright key and want the full app's Pro tier instead? The changeover is ${BRIGHT_UPGRADE_PRICE} — same key, same expiry, Forensics unlocks once you're on the full download.`));
+      t("Already have a Bright key and want the full app's Pro tier instead? The changeover is {price} — same key, same expiry, Forensics unlocks once you're on the full download.", { price: BRIGHT_UPGRADE_PRICE })));
   }
-  wrap.appendChild(_tiersWizardFooter(ctx, w, { nextLabel: "Done", onNext: () => {
+  wrap.appendChild(_tiersWizardFooter(ctx, w, { nextLabel: t("Done"), onNext: () => {
     if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_tiers_completed");
     ctx.state._tiersWizard = null;
     ctx.actions.renderRooms();
@@ -3296,10 +3297,10 @@ function _tiersWizard(ctx){
   const head = el("div",{class:"card", style:"margin-bottom:12px;border:1px solid #2d5a3d;background:#0f1a12"});
   const hrow = el("div",{style:"display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"});
   const titleRow = el("div",{style:"display:flex;align-items:center;gap:8px"},
-    [el("div",{style:"font-weight:700;font-size:15px;color:#52b788"}, "Free, Bright, Bright Pro, Pro")]);
+    [el("div",{style:"font-weight:700;font-size:15px;color:#52b788"}, t("Free, Bright, Bright Pro, Pro"))]);
   if (ctx.helpers.helpBtn) titleRow.appendChild(ctx.helpers.helpBtn("settings_tiers"));
   hrow.appendChild(titleRow);
-  const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, "Exit");
+  const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, t("Exit"));
   closeBtn.addEventListener("click", ()=>{
     if (w.step < 3 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_tiers_exited_early");
     ctx.state._tiersWizard = null;
@@ -3313,7 +3314,7 @@ function _tiersWizard(ctx){
     const isCurrent = s.n === w.step;
     dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${s.n < w.step ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}`}));
     const chip = el("button",{class: "btn inline" + (isCurrent ? " primary" : ""), style:"font-size:11px;padding:3px 10px"},
-      `${s.n}. ${s.label}`);
+      `${s.n}. ${s.label()}`);
     chip.addEventListener("click", ()=>{ w.step = s.n; ctx.actions.renderRooms(); });
     stepList.appendChild(chip);
   }
@@ -3338,11 +3339,11 @@ function _tiersWizard(ctx){
 // One key, up to five homes (licence_homes.py; the licence server counts
 // them). Loaded on request: opening Settings never calls the server.
 const HOME_REFUSED = {
-  activation_limit: "This home isn't counted: the key is already on all its homes. Remove one below (from any home) and this one joins at its next daily check.",
-  activation_rate: "This home isn't counted: the key joined many new homes this month. It joins once the month is over.",
-  homes_frozen: "This home isn't counted: the key is paused for new homes. Reply to your licence email to sort it out.",
-  removed: "This home isn't counted: it was removed from the key. Remove another home below (from any home) or reply to your licence email to use it here.",
-  needs_report: "This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Tracking \u2192 Help improve PadSpan).",
+  activation_limit: () => t("This home isn't counted: the key is already on all its homes. Remove one below (from any home) and this one joins at its next daily check."),
+  activation_rate: () => t("This home isn't counted: the key joined many new homes this month. It joins once the month is over."),
+  homes_frozen: () => t("This home isn't counted: the key is paused for new homes. Reply to your licence email to sort it out."),
+  removed: () => t("This home isn't counted: it was removed from the key. Remove another home below (from any home) or reply to your licence email to use it here."),
+  needs_report: () => t("This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Tracking \u2192 Help improve PadSpan)."),
 };
 // A key on more than two homes needs every home's usage report on (0.38.163).
 // The licence server decides and names the homes; these only say it.
@@ -3355,18 +3356,21 @@ export function homesWarningText(s){
   const labels = Array.isArray(w.off_labels) ? w.off_labels.filter(x => typeof x === "string" && x).join(", ") : "";
   if (s.license_home_status === "needs_all_reports") {
     if (s.telemetry_enabled === false) {
-      return "This home stopped using Pro because its own usage report is off, and every home on a key with more than 2 must keep it on. " +
-        "Turn it back on here (Settings \u2192 Tracking \u2192 Help improve PadSpan) and this home picks up again at its next check.";
+      return t("This home stopped using Pro because its own usage report is off, and every home on a key with more than 2 must keep it on. Turn it back on here (Settings → Tracking → Help improve PadSpan) and this home picks up again at its next check.");
     }
-    return "This home stopped using Pro because the usage report is off on another home on this key" + (labels ? " (" + labels + ")" : "") +
-      ". Turn it back on there and this home picks up again at its next check.";
+    return labels
+      ? t("This home stopped using Pro because the usage report is off on another home on this key ({homes}). Turn it back on there and this home picks up again at its next check.", { homes: labels })
+      : t("This home stopped using Pro because the usage report is off on another home on this key. Turn it back on there and this home picks up again at its next check.");
   }
   if (w.warning !== "reports_off") return "";
   const n = Number(s.license_homes_used) || 0;
-  return `This key is on ${n > 2 ? n : "more than 2"} homes. Every home on a key with more than 2 must keep the usage report on. ` +
+  return (n > 2 ? t("This key is on {count} homes.", { count: n }) : t("This key is on more than 2 homes.")) + " " +
+    t("Every home on a key with more than 2 must keep the usage report on.") + " " +
     // A home on PadSpan before 0.38.160 can't say its report is on: the server names it "(update PadSpan)".
-    (/\(update PadSpan\)/.test(labels) ? "The report is off on, or PadSpan needs updating on: " : "The report is off on: ") +
-    `${labels || "one of them"}. Unless it's turned back on by ${_homesDate(w.grace_until)}, the homes beyond your first two stop using Pro.`;
+    (/\(update PadSpan\)/.test(labels)
+      ? t("The report is off on, or PadSpan needs updating on: {homes}.", { homes: labels })
+      : t("The report is off on: {homes}.", { homes: labels || t("one of them") })) + " " +
+    t("Unless it's turned back on by {date}, the homes beyond your first two stop using Pro.", { date: _homesDate(w.grace_until) });
 }
 // Asked before the usage report goes off on a home whose key is on more than two homes; "" = no question.
 export function reportOffConfirmText(s){
@@ -3381,13 +3385,11 @@ export function reportOffConfirmText(s){
 }
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
-  box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, "Homes"));
+  box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, t("Homes")));
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
-    "One licence covers up to five homes (five Home Assistants). The first two always count. With more than two, every home must keep its usage report on " +
-    "(Settings \u2192 Tracking \u2192 Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. " +
-    "A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself."));
+    t("One licence covers up to five homes (five Home Assistants). The first two always count. With more than two, every home must keep its usage report on (Settings → Tracking → Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself.")));
   if (HOME_REFUSED[s.license_home_status]) {
-    box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]));
+    box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]()));
   }
   const homesWarn = homesWarningText(s);
   const warnBox = homesWarn
@@ -3395,43 +3397,45 @@ function _licenceHomes(ctx, el, s){
     : null;
   const list = el("div", {});
   const load = async (op, extra) => {
-    list.textContent = "Asking the licence server\u2026";
+    list.textContent = t("Asking the licence server\u2026");
     let r;
     try { r = await ctx.actions.wsCall("padspan_ha/licence_homes", { op, ...(extra || {}) }); }
-    catch (e) { list.textContent = "Couldn't reach the licence server: " + String((e && e.message) || e); return; }
+    catch (e) { list.textContent = t("Couldn't reach the licence server: {why}", { why: String((e && e.message) || e) }); return; }
     list.textContent = "";
     // The licence they share, said the same way in each of its homes.
     const L = r.licence || {};
     // Down to the first two homes (one just removed): the reports warning no longer applies.
     if (warnBox && r.homes.length <= (L.homes_free || 2)) warnBox.remove();
     list.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:6px;line-height:1.5" },
-      `One licence${L.key_end ? " (key ending " + L.key_end + ")" : ""}${L.owner ? " for " + L.owner : ""}: ` +
-      `${r.homes.length} of ${r.homes_max} homes` + (r.frozen ? " \u00B7 paused for new homes" : "")));
+      t("One licence{key}{owner}: {used} of {max} homes", { key: L.key_end ? " " + t("(key ending {end})", { end: L.key_end }) : "",
+        owner: L.owner ? " " + t("for {owner}", { owner: L.owner }) : "", used: r.homes.length, max: r.homes_max }) +
+      (r.frozen ? " \u00B7 " + t("paused for new homes") : "")));
     r.homes.forEach((h, i) => { h._place = i + 1; });
     for (const h of r.homes) {
-      const name = h.label || (h.this ? "This home" : "A home");
+      const name = h.label || (h.this ? t("This home") : t("A home"));
       const line = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px solid #16271d;font-size:12px" });
-      line.appendChild(el("span", { style: "color:#e2e8f0;font-weight:600;min-width:120px" }, name + (h.this ? " (this one)" : "")));
+      line.appendChild(el("span", { style: "color:#e2e8f0;font-weight:600;min-width:120px" }, name + (h.this ? " " + t("(this one)") : "")));
       line.appendChild(el("span", { style: "color:#94a3b8" },
-        `Home ${h._place} \u00B7 ` + (h.last_seen ? "last check " + h.last_seen : "not checked in yet") + (h.version ? " \u00B7 " + h.version : "") +
-        (r.homes.length > (L.homes_free || 2) ? (h.reporting ? " \u00B7 usage report on" : " \u00B7 usage report off") : "")));
+        t("Home {place}", { place: h._place }) + " \u00B7 " + (h.last_seen ? t("last check {when}", { when: h.last_seen }) : t("not checked in yet")) +
+        (h.version ? " \u00B7 " + h.version : "") +
+        (r.homes.length > (L.homes_free || 2) ? " \u00B7 " + (h.reporting ? t("usage report on") : t("usage report off")) : "")));
       if (h.this) {
         line.appendChild(el("button", { class: "btn inline", type: "button", style: "font-size:11px", onclick: () => {
-          const v = prompt("A name for this home (your other homes show it):", h.label || "");
+          const v = prompt(t("A name for this home (your other homes show it):"), h.label || "");
           if (v !== null) load("label", { label: v.trim().slice(0, 60) });
-        } }, "Rename"));
+        } }, t("Rename")));
       }
       line.appendChild(el("button", { class: "btn inline", type: "button", style: "font-size:11px;margin-left:auto", onclick: () => {
         const what = h.this
-          ? "this home? It stops being counted, and comes back at its next daily check if a place is free."
-          : `"${name}"? It stops being counted at its next check unless a place is free.`;
-        if (confirm("Remove " + what)) load("remove", { home_id: h.id });
-      } }, "Remove"));
+          ? t("Remove this home? It stops being counted, and comes back at its next daily check if a place is free.")
+          : t("Remove \"{name}\"? It stops being counted at its next check unless a place is free.", { name });
+        if (confirm(what)) load("remove", { home_id: h.id });
+      } }, t("Remove")));
       list.appendChild(line);
     }
   };
   const show = el("button", { class: "btn inline", type: "button", style: "font-size:12px",
-    onclick: () => { show.remove(); load("list"); } }, "Show this key's homes");
+    onclick: () => { show.remove(); load("list"); } }, t("Show this key's homes"));
   box.appendChild(show);
   box.appendChild(list);
   return box;
@@ -3451,45 +3455,50 @@ function _settingsLicence(ctx, el){
 
   const card = el("div", { class: "card", style: "margin-bottom:14px;border:1px solid #2d5a3d;background:#0f1a12" });
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
-    el("div", { style: "font-weight:700;font-size:14px;color:#52b788" }, "PadSpan licence"),
+    el("div", { style: "font-weight:700;font-size:14px;color:#52b788" }, t("PadSpan licence")),
     el("span", { style: "font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(82,183,136,.14);color:#a7f3d0;font-weight:700;text-transform:uppercase" },
-      edition + " \u00B7 " + tier),
+      edition + " \u00B7 " + (tier === "free" ? t("free") : tier)),
   ]));
 
   // Status — the backend's own answer, never re-derived here.
   let line, colour;
   if (!hasKey) {
-    line = "No licence key on this install. " + (edition === "PadSpan Bright"
-             ? "Light placement, the 3D house and the wall screen are locked. "
-             : "The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. ") +
-           "Everything else is free and stays free.";
+    line = edition === "PadSpan Bright"
+      ? t("No licence key on this install. Light placement, the 3D house and the wall screen are locked. Everything else is free and stays free.")
+      : t("No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. Everything else is free and stays free.");
     colour = "#94a3b8";
   } else if (lapsed) {
-    line = "\u26A0 " + (isTrial ? "Your 90-day trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
+    const what = isTrial ? t("Your 90-day trial") : t("The {name} licence", { name: keyProd });
+    line = "\u26A0 " + (exp ? t("{what} expired on {date}", { what, date: exp }) : t("{what} expired", { what })) + " \u2014 " +
            (edition === "PadSpan Bright"
-             ? " \u2014 light placement is read-only and the 3D house and the wall screen"
-             : " \u2014 light placement is read-only, Forensics has stopped recording, and the 3D house, the wall screen, Locate and Busy Times") +
-           " are off. Nothing you set up is deleted: it all comes back as you left it when you " + (isTrial ? "buy." : "renew.");
+             ? t("light placement is read-only and the 3D house and the wall screen are off.")
+             : t("light placement is read-only, Forensics has stopped recording, and the 3D house, the wall screen, Locate and Busy Times are off.")) +
+           " " + (isTrial ? t("Nothing you set up is deleted: it all comes back as you left it when you buy.")
+                          : t("Nothing you set up is deleted: it all comes back as you left it when you renew."));
     colour = "#fbbf24";
   } else if (typeof daysLeft === "number" && daysLeft < 0) {
     // Expired but inside the grace period: still working, not for long.
     const graceLeft = Math.max(1, 14 + daysLeft);   // days_left rounds down; the last day is still a day
-    line = "\u26A0 " + (isTrial ? "Your trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
+    const what = isTrial ? t("Your trial") : t("The {name} licence", { name: keyProd });
+    line = "\u26A0 " + (exp ? t("{what} expired on {date}", { what, date: exp }) : t("{what} expired", { what })) + " \u2014 " +
            (edition === "PadSpan Bright"
-             ? " \u2014 light placement goes read-only and the 3D house and the wall screen switch off in "
-             : " \u2014 light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in ") + graceLeft + " day" + (graceLeft === 1 ? "" : "s") + ".";
+             ? tn(graceLeft, "light placement goes read-only and the 3D house and the wall screen switch off in {n} day.",
+               "light placement goes read-only and the 3D house and the wall screen switch off in {n} days.")
+             : tn(graceLeft, "light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in {n} day.",
+               "light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in {n} days."));
     colour = "#fbbf24";
   } else if (isTrial) {
-    line = "\u2713 Trial active \u00B7 " + daysLeft + " day" + (daysLeft === 1 ? "" : "s") + " left" +
-           (exp ? " (" + exp + ")" : "") + ". Buy any time to keep Pro after it ends \u2014 nothing you set up is lost either way.";
+    line = "\u2713 " + t("Trial active") + " \u00B7 " + tn(daysLeft, "{n} day left", "{n} days left") +
+           (exp ? " (" + exp + ")" : "") + ". " + t("Buy any time to keep Pro after it ends \u2014 nothing you set up is lost either way.");
     colour = expiringSoon ? "#fbbf24" : "#8ee5b4";
   } else if (expiringSoon) {
-    line = "\u2713 " + keyProd + " licensed \u00B7 renews in " + daysLeft +
-           " day" + (daysLeft === 1 ? "" : "s") + (exp ? " (" + exp + ")" : "");
+    line = "\u2713 " + t("{name} licensed", { name: keyProd }) + " \u00B7 " + tn(daysLeft, "renews in {n} day", "renews in {n} days") +
+           (exp ? " (" + exp + ")" : "");
     colour = "#fbbf24";
   } else {
     // A lifetime key (the launch offer) is stored as expiring 2099-12-31.
-    line = "\u2713 " + keyProd + " licensed" + (exp >= "2090" ? " \u00B7 lifetime" : exp ? " \u00B7 valid until " + exp : "");
+    line = "\u2713 " + t("{name} licensed", { name: keyProd }) +
+      (exp >= "2090" ? " \u00B7 " + t("lifetime") : exp ? " \u00B7 " + t("valid until {date}", { date: exp }) : "");
     colour = "#a7f3d0";
   }
   card.appendChild(el("div", { style: "font-size:12px;margin:8px 0 10px;line-height:1.5;color:" + colour }, line));
@@ -3498,30 +3507,30 @@ function _settingsLicence(ctx, el){
 
   const enterBtn = el("button", { class: "btn inline", style: "font-size:12px",
     onclick: async () => {
-      const key = prompt("Enter your PadSpan licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):");
+      const key = prompt(t("Enter your PadSpan licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):"));
       if (!key || !key.trim()) return;
       enterBtn.disabled = true;
       try {
         const r = await ctx.actions.wsCall("padspan_ha/forensics_license_activate", { key: key.trim() });
         if (r && r.ok) {
           if (r.settings) ctx.state.settings = r.settings;
-          ctx.toast("Licence activated");
+          ctx.toast(t("Licence activated"));
           ctx.actions.renderNav && ctx.actions.renderNav();
           ctx.actions.renderRooms();
         } else {
-          ctx.toast((r && r.message) || "That key was not accepted", true);
+          ctx.toast((r && r.message) || t("That key was not accepted"), true);
         }
       } catch (e) {
-        ctx.toast("Licence check failed: " + ctx.helpers.errorText(e), true);
+        ctx.toast(t("Licence check failed: {why}", { why: ctx.helpers.errorText(e) }), true);
       } finally { enterBtn.disabled = false; }
-    } }, hasKey ? "Replace licence key" : "Enter licence key");
+    } }, hasKey ? t("Replace licence key") : t("Enter licence key"));
   row.appendChild(enterBtn);
 
   const canBuy = !hasKey || lapsed || isTrial;
   if (canBuy) {
     row.appendChild(el("a", { class: "btn inline", href: BUY_URL, target: "_blank", rel: "noopener",
       style: "font-size:12px;border-color:#52b788;color:#a7f3d0;text-decoration:none" },
-      (lapsed ? "Renew" : "Buy") + " PadSpan Pro \u2014 " + PRO_PRICE));
+      (lapsed ? t("Renew PadSpan Pro — {price}", { price: PRO_PRICE }) : t("Buy PadSpan Pro — {price}", { price: PRO_PRICE }))));
   }
 
   if (hasKey) {
@@ -3529,14 +3538,14 @@ function _settingsLicence(ctx, el){
       onclick: async () => {
         try {
           const r = await ctx.actions.wsCall("padspan_ha/forensics_license_reveal", {});
-          revealBtn.replaceWith(el("div", { style: "font-size:11px;font-family:monospace;color:#a7f3d0" }, (r && r.key) || "(none)"));
-        } catch (e) { ctx.toast("Only a Home Assistant admin can reveal the licence key", true); }
-      } }, "Show licence key");
+          revealBtn.replaceWith(el("div", { style: "font-size:11px;font-family:monospace;color:#a7f3d0" }, (r && r.key) || t("(none)")));
+        } catch (e) { ctx.toast(t("Only a Home Assistant admin can reveal the licence key"), true); }
+      } }, t("Show licence key"));
     row.appendChild(revealBtn);
   }
   const tourBtn = el("button", { class: "btn inline", style: "font-size:12px",
     onclick: () => { ctx.state._tiersWizard = { step: 1 }; ctx.actions.renderRooms(); } },
-    "What does each tier unlock?");
+    t("What does each tier unlock?"));
   row.appendChild(tourBtn);
   card.appendChild(row);
   if (hasKey) card.appendChild(_licenceHomes(ctx, el, s));
@@ -3545,7 +3554,7 @@ function _settingsLicence(ctx, el){
   if (canBuy && proLifetimeOpen()) {
     card.appendChild(el("div", { style: "font-size:12px;margin-top:8px" },
       el("a", { href: BUY_URL, target: "_blank", rel: "noopener", style: "color:#a7f3d0;text-decoration:underline" },
-        "Or PadSpan Pro for life — " + proLifetimeWords() + ".")));
+        t("Or PadSpan Pro for life — {price}.", { price: proLifetimeWords() }))));
   }
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
   // offers, shown here while there is no key at all. Its own Buy link is off —
@@ -3563,7 +3572,7 @@ function _settingsLicence(ctx, el){
     if (invite) card.appendChild(invite);
     if (!hasKey && s.tester_signed_up !== true && edition !== "PadSpan Bright" && PRO.testerOfferOn(s)) {
       const go = el("button", { class: "btn inline", "data-licence": "tester",
-        style: "font-size:12px;margin-left:6px" }, "Become a tester");
+        style: "font-size:12px;margin-left:6px" }, t("Become a tester"));
       go.addEventListener("click", () => {
         ctx.state._testerFocus = true;
         ctx.state._testerScrolled = null;
@@ -3577,12 +3586,9 @@ function _settingsLicence(ctx, el){
   }
 
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5" },
-    "A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, " +
-    "WLED, Showcase, Fit room), " + (edition === "PadSpan Bright"
-      ? "the 3D house and the wall screen. "
-      : "Forensics, the 3D house, the wall screen, Locate and Busy Times. ") +
-    "A PadSpan Bright Pro key unlocks light placement only. A lapsed licence never deletes anything: " +
-    "what you set up comes back as you left it when you renew."));
+    edition === "PadSpan Bright"
+      ? t("A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house and the wall screen. A PadSpan Bright Pro key unlocks light placement only. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew.")
+      : t("A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D house, the wall screen, Locate and Busy Times. A PadSpan Bright Pro key unlocks light placement only. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew.")));
   return card;
 }
 
@@ -3596,12 +3602,11 @@ function _settingsFeatures(ctx, el){
   const helpBtn = ctx.helpers.helpBtn;
   const headerCard = el("div",{class:"card",style:"border:1px solid #1a4228;background:#0f1a12;margin-bottom:14px"});
   headerCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
-    el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"}, "Experimental Features"),
+    el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"}, t("Experimental Features")),
     helpBtn("settings_features"),
   ]));
   headerCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5"},
-    "These features are under active development. Enable them to preview and help test. " +
-    "They may change or be removed in future releases. Feedback welcome."));
+    t("These features are under active development. Enable them to preview and help test. They may change or be removed in future releases. Feedback welcome.")));
   wrap.appendChild(headerCard);
 
   // Trackability Rating, Compass Ring Calibration and Replay Timeline used to
@@ -3613,66 +3618,53 @@ function _settingsFeatures(ctx, el){
   const features = [
     {
       key: "walk_to_identify_enabled",
-      label: "Walk-to-Identify",
-      desc: "Discover unknown BLE devices by walking into a room. PadSpan correlates signal strength changes with your " +
-            "reported location to isolate which device belongs to which person — no MAC addresses needed.",
+      label: t("Walk-to-Identify"),
+      desc: t("Discover unknown BLE devices by walking into a room. PadSpan correlates signal strength changes with your reported location to isolate which device belongs to which person — no MAC addresses needed."),
     },
     {
       key: "radio_map_enabled",
-      label: "Radio Map",
-      desc: "RSSI heatmap overlay on floor plan maps. Visualizes signal coverage from calibration data so you can see " +
-            "dead zones, strong corridors, and receiver reach at a glance.",
+      label: t("Radio Map"),
+      desc: t("RSSI heatmap overlay on floor plan maps. Visualizes signal coverage from calibration data so you can see dead zones, strong corridors, and receiver reach at a glance."),
     },
     {
       key: "distortion_map_enabled",
-      label: "Signal distortion map",
-      desc: "Shows where calibration predictions disagree with reality. Renders disagreement vectors on the map to reveal " +
-            "areas where walls, furniture, or interference cause positioning errors.",
+      label: t("Signal distortion map"),
+      desc: t("Shows where calibration predictions disagree with reality. Renders disagreement vectors on the map to reveal areas where walls, furniture, or interference cause positioning errors."),
     },
     {
       key: "roomplan_import_enabled",
-      label: "RoomPlan Import",
-      desc: "Lets Mapping → Layout import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
-            "beside Sweet Home 3D files. Rooms come in as a candidate to review before anything is saved.",
+      label: t("RoomPlan Import"),
+      desc: t("Lets Mapping → Layout import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), beside Sweet Home 3D files. Rooms come in as a candidate to review before anything is saved."),
     },
     {
       key: "vacuum_import_enabled",
-      label: "Robot Vacuum Import",
-      desc: "Lets Mapping → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
-            "on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off.",
+      label: t("Robot Vacuum Import"),
+      desc: t("Lets Mapping → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off."),
     },
     {
       key: "phone_wizard_enabled",
-      label: "Phone Setup Wizard",
-      desc: "Shows a guided setup flow in the IRK Manager for adding phones and watches. Detects IRK Capture devices and walks through the pairing process.",
+      label: t("Phone Setup Wizard"),
+      desc: t("Shows a guided setup flow in the IRK Manager for adding phones and watches. Detects IRK Capture devices and walks through the pairing process."),
     },
     {
       key: "iphone_irk_guide",
-      label: "iPhone Setup Path",
-      desc: "iPhones have no BLE Transmitter (that sensor is in the Android Companion App only). With this on, an iPhone in " +
-            "Overview's phone list and the IRK Manager's phone wizard (shown while this is on) walk through getting its IRK, adding it with " +
-            "Private BLE Device and checking it resolves. Android phones see the same steps as before.",
+      label: t("iPhone Setup Path"),
+      desc: t("iPhones have no BLE Transmitter (that sensor is in the Android Companion App only). With this on, an iPhone in Overview's phone list and the IRK Manager's phone wizard (shown while this is on) walk through getting its IRK, adding it with Private BLE Device and checking it resolves. Android phones see the same steps as before."),
     },
     {
       key: "mac_rotation_bridging",
-      label: "MAC Rotation Bridging",
-      desc: "When a device's Bluetooth address rotates, links the old and new addresses. Apple Find My tags (AirTags and \"works with Find My\" tags) you've named or followed are linked only when it's clear: the same kind of tag, the old address has stopped, and the scanners hear the new one in the same place. Other rotating devices are matched by what they advertise (company, services, Apple message type) — probabilistic, and may occasionally link the wrong device.",
+      label: t("MAC Rotation Bridging"),
+      desc: t("When a device's Bluetooth address rotates, links the old and new addresses. Apple Find My tags (AirTags and \"works with Find My\" tags) you've named or followed are linked only when it's clear: the same kind of tag, the old address has stopped, and the scanners hear the new one in the same place. Other rotating devices are matched by what they advertise (company, services, Apple message type) — probabilistic, and may occasionally link the wrong device."),
     },
     {
       key: "apple_auto_classify",
-      label: "Apple Device Classification",
-      desc: "Shows what sent an Apple Find My signal — an AirTag, a \"Find My accessory\" (another brand's tag, or AirPods), " +
-            "or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Devices, Bluetooth → Advertisements " +
-            "and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says " +
-            "which. Display-only — does not affect tracking or identity.",
+      label: t("Apple Device Classification"),
+      desc: t("Shows what sent an Apple Find My signal — an AirTag, a \"Find My accessory\" (another brand's tag, or AirPods), or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Devices, Bluetooth → Advertisements and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says which. Display-only — does not affect tracking or identity."),
     },
     {
       key: "rssi_capture_enabled",
-      label: "RSSI Vector Capture",
-      desc: "Record the signal strength every scanner heard for every tracked device, poll by poll, alongside the " +
-            "room PadSpan chose — then export it and replay the same walk offline against changed settings. " +
-            "Adds a Record button to Health → Quick actions. Nothing is recorded until you start a session, and a " +
-            "session stops itself at 60 minutes or 25 MB.",
+      label: t("RSSI Vector Capture"),
+      desc: t("Record the signal strength every scanner heard for every tracked device, poll by poll, alongside the room PadSpan chose — then export it and replay the same walk offline against changed settings. Adds a Record button to Health → Quick actions. Nothing is recorded until you start a session, and a session stops itself at 60 minutes or 25 MB."),
     },
   ];
 
@@ -3683,7 +3675,7 @@ function _settingsFeatures(ctx, el){
     const left = el("div",{style:"flex:1"});
     left.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"}, [
       el("span",{style:"font-weight:700;font-size:13px"}, f.label),
-      el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600;text-transform:uppercase"}, "experimental"),
+      el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600;text-transform:uppercase"}, t("experimental")),
     ]));
     left.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.4"}, f.desc));
     const toggle = el("input",{type:"checkbox",style:"width:18px;height:18px;accent-color:#52b788;cursor:pointer;flex-shrink:0"});
@@ -3691,8 +3683,8 @@ function _settingsFeatures(ctx, el){
     toggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ [f.key]: toggle.checked });
-        ctx.toast(`${f.label}: ${toggle.checked ? "enabled" : "disabled"}`);
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(toggle.checked ? t("{name}: enabled", { name: f.label }) : t("{name}: disabled", { name: f.label }));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     row.appendChild(left);
     row.appendChild(toggle);
@@ -3706,14 +3698,12 @@ function _settingsFeatures(ctx, el){
     const card = el("div",{class:"card",style:"margin-top:14px;border-color:" + (forensicsOn ? "#b91c1c" : "#2d4a38")});
 
     card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"},[
-      el("div",{class:"h2",style:"margin:0;color:#f87171"},"Forensics"),
-      el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(248,113,113,.15);color:#f87171;font-weight:600;text-transform:uppercase"}, "privacy-sensitive"),
+      el("div",{class:"h2",style:"margin:0;color:#f87171"},t("Forensics")),
+      el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(248,113,113,.15);color:#f87171;font-weight:600;text-transform:uppercase"}, t("privacy-sensitive")),
       helpBtn("forensics"),
     ]));
     card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-      "Records presence sessions for every Bluetooth device your scanners hear, so you can later ask " +
-      "\"which devices were near my home between X and Y?\" — e.g. after a break-in, or to spot an unknown " +
-      "tracker that keeps returning. Adds a Forensics tab while enabled. Samples every 60 seconds in Live mode."));
+      t("Records presence sessions for every Bluetooth device your scanners hear, so you can later ask \"which devices were near my home between X and Y?\" — e.g. after a break-in, or to spot an unknown tracker that keeps returning. Adds a Forensics tab while enabled. Samples every 60 seconds in Live mode.")));
 
     // Always-visible privacy warning
     card.appendChild(el("div",{style:
@@ -3722,13 +3712,9 @@ function _settingsFeatures(ctx, el){
     },[
       el("span",{style:"font-size:18px"}, "⚠️"),
       el("div",{style:"flex:1"},[
-        el("div",{style:"color:#fca5a5;font-weight:700;font-size:13px"},"Privacy notice"),
+        el("div",{style:"color:#fca5a5;font-weight:700;font-size:13px"},t("Privacy notice")),
         el("div",{style:"color:#fecaca;font-size:12px;margin-top:2px;line-height:1.5"},
-          "This continuously records which Bluetooth devices are near your scanners — including devices " +
-          "belonging to neighbours, visitors, and passers-by. Recordings stay on this Home Assistant " +
-          "instance and are never uploaded. Laws on collecting wireless identifiers vary by jurisdiction; " +
-          "you are responsible for using this lawfully. Results are investigative leads, not proof — " +
-          "a Bluetooth address is not a person, and most phones rotate their addresses."),
+          t("This continuously records which Bluetooth devices are near your scanners — including devices belonging to neighbours, visitors, and passers-by. Recordings stay on this Home Assistant instance and are never uploaded. Laws on collecting wireless identifiers vary by jurisdiction; you are responsible for using this lawfully. Results are investigative leads, not proof — a Bluetooth address is not a person, and most phones rotate their addresses.")),
       ]),
     ]));
 
@@ -3740,18 +3726,18 @@ function _settingsFeatures(ctx, el){
       // a valid key too, but not for this. Backend-owned answer, not the key.
       const hasKey = String(settings.tier || "") === "pro";
       if(toggle.checked){
-        let msg = "Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.";
-        if(!live) msg += "\n\nNote: data mode is currently Sample — nothing will be recorded until you switch data mode to Live.";
+        let msg = t("Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.");
+        if(!live) msg += "\n\n" + t("Note: data mode is currently Sample — nothing will be recorded until you switch data mode to Live.");
         if(!confirm(msg)){
           toggle.checked = false;
           return;
         }
         if(!hasKey){
           // Forensics is a PadSpan Pro feature — ask for the licence key.
-          const key = prompt("Forensics is a PadSpan Pro feature.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):");
+          const key = prompt(t("Forensics is a PadSpan Pro feature.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):"));
           if(!key || !key.trim()){
             toggle.checked = false;
-            ctx.toast("A PadSpan Pro licence key is required for Forensics", true);
+            ctx.toast(t("A PadSpan Pro licence key is required for Forensics"), true);
             return;
           }
           toggle.disabled = true;
@@ -3760,17 +3746,17 @@ function _settingsFeatures(ctx, el){
             if(r?.ok){
               if(r.settings) ctx.state.settings = r.settings;
               ctx.toast(live
-                ? "PadSpan Pro activated — Forensics recording enabled"
-                : "PadSpan Pro activated — recording starts once data mode is Live");
+                ? t("PadSpan Pro activated — Forensics recording enabled")
+                : t("PadSpan Pro activated — recording starts once data mode is Live"));
               ctx.actions.renderNav && ctx.actions.renderNav();
               ctx.actions.renderRooms();
             } else {
               toggle.checked = false;
-              ctx.toast(r?.message || "Key not valid for PadSpan Pro", true);
+              ctx.toast(r?.message || t("Key not valid for PadSpan Pro"), true);
             }
           } catch(e){
             toggle.checked = false;
-            ctx.toast("Licence check failed: " + ctx.helpers.errorText(e), true);
+            ctx.toast(t("Licence check failed: {why}", { why: ctx.helpers.errorText(e) }), true);
           } finally { toggle.disabled = false; }
           return;
         }
@@ -3779,16 +3765,16 @@ function _settingsFeatures(ctx, el){
         await ctx.actions.settingsSet({ forensics_enabled: toggle.checked });
         ctx.toast(toggle.checked
           ? (live
-              ? "Forensics recording enabled — the Forensics tab is now in the sidebar"
-              : "Forensics enabled — recording starts once data mode is Live; the Forensics tab is now in the sidebar")
-          : "Forensics recording disabled (recorded data kept — delete it below if wanted)");
+              ? t("Forensics recording enabled — the Forensics tab is now in the sidebar")
+              : t("Forensics enabled — recording starts once data mode is Live; the Forensics tab is now in the sidebar"))
+          : t("Forensics recording disabled (recorded data kept — delete it below if wanted)"));
         ctx.actions.renderRooms();
-      } catch(e){ ctx.toast("Failed to save", true); }
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
       toggle,
       el("label",{for:"forensicsToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-        "Enable presence-session recording"),
+        t("Enable presence-session recording")),
       el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.15);color:#c4b5fd;font-weight:600;text-transform:uppercase"}, "pro"),
     ]));
 
@@ -3806,11 +3792,13 @@ function _settingsFeatures(ctx, el){
         // Name the product the key is for: a Bright Pro key licenses the
         // lighting product, and this card should not call it PadSpan Pro.
         const _prod = String(settings.license_tier || "").toLowerCase() === "bright" ? "PadSpan Bright Pro" : "PadSpan Pro";
+        const what = t("The {name} licence", { name: _prod });
         const line = lapsed
-          ? `⚠ ${_prod} licence expired${licExp ? ` on ${licExp}` : ""} — Forensics has stopped recording. What it recorded stays searchable for its retention period, and recording starts again when you renew.`
+          ? "⚠ " + (licExp ? t("{what} expired on {date}", { what, date: licExp }) : t("{what} expired", { what })) + " — " +
+            t("Forensics has stopped recording. What it recorded stays searchable for its retention period, and recording starts again when you renew.")
           : expiringSoon
-          ? `✓ ${_prod} licensed · renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${licExp ? ` (${licExp})` : ""}`
-          : `✓ ${_prod} licensed` + (licExp >= "2090" ? " · lifetime" : licExp ? ` · valid until ${licExp}` : "");
+          ? "✓ " + t("{name} licensed", { name: _prod }) + " · " + tn(daysLeft, "renews in {n} day", "renews in {n} days") + (licExp ? ` (${licExp})` : "")
+          : "✓ " + t("{name} licensed", { name: _prod }) + (licExp >= "2090" ? " · " + t("lifetime") : licExp ? " · " + t("valid until {date}", { date: licExp }) : "");
         card.appendChild(el("div",{class:"muted",
           style:`font-size:11px;margin-bottom:6px;color:${lapsed ? "#fbbf24" : expiringSoon ? "#fbbf24" : "#a7f3d0"}`}, line));
         const revealBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;margin-bottom:10px",
@@ -3818,14 +3806,13 @@ function _settingsFeatures(ctx, el){
             try{
               const r = await ctx.actions.wsCall("padspan_ha/forensics_license_reveal", {});
               revealBtn.replaceWith(el("div",{class:"muted",
-                style:"font-size:11px;margin-bottom:10px;font-family:monospace;color:#a7f3d0"}, r?.key || "(none)"));
-            }catch(e){ ctx.toast("Only a Home Assistant admin can reveal the licence key", true); }
-          }}, "Show licence key");
+                style:"font-size:11px;margin-bottom:10px;font-family:monospace;color:#a7f3d0"}, r?.key || t("(none)")));
+            }catch(e){ ctx.toast(t("Only a Home Assistant admin can reveal the licence key"), true); }
+          }}, t("Show licence key"));
         card.appendChild(revealBtn);
       } else {
         card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
-          "Requires a PadSpan Pro licence key. Enter one in PadSpan licence at the top of this tab, "
-          + "or you will be asked for it when enabling."));
+          t("Requires a PadSpan Pro licence key. Enter one in PadSpan licence at the top of this tab, or you will be asked for it when enabling.")));
       }
     }
 
@@ -3835,7 +3822,7 @@ function _settingsFeatures(ctx, el){
       ? Number(settings.forensics_retention_days) : 14;
     const retSel = el("select",{style:"width:160px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px"});
     for(const d of RETENTION_CHOICES){
-      const o = el("option",{value:String(d)}, d === 14 ? "14 days (default)" : `${d} days`);
+      const o = el("option",{value:String(d)}, d === 14 ? t("14 days (default)") : tn(d, "{n} day", "{n} days"));
       if(d === curRet) o.selected = true;
       retSel.appendChild(o);
     }
@@ -3844,37 +3831,39 @@ function _settingsFeatures(ctx, el){
       if(!RETENTION_CHOICES.includes(v)) return;
       try {
         await ctx.actions.settingsSet({ forensics_retention_days: v });
-        ctx.toast(`Forensics retention set to ${v} days`);
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(tn(v, "Forensics retention set to {n} day", "Forensics retention set to {n} days"));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"},[
-      el("div",{style:"font-size:13px;color:#a7f3d0;min-width:130px"},"Keep sessions for"),
+      el("div",{style:"font-size:13px;color:#a7f3d0;min-width:130px"},t("Keep sessions for")),
       retSel,
     ]));
 
     // Stats line + delete button
-    const statsDiv = el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px"},"Loading stats…");
+    const statsDiv = el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px"},t("Loading stats…"));
     (async()=>{
       try {
         const s = await ctx.actions.wsCall("padspan_ha/forensics_stats");
         const oldest = s?.oldest_ts ? new Date(s.oldest_ts * 1000).toLocaleDateString() : null;
-        statsDiv.textContent = (s?.addr_count || 0) + " addresses · " + (s?.session_count || 0) +
-          " sessions recorded" + (oldest ? ` · oldest ${oldest}` : "");
+        const addrs = s?.addr_count || 0, sessions = s?.session_count || 0;
+        statsDiv.textContent = tn(addrs, "{n} address", "{n} addresses") + " · " + tn(sessions, "{n} session recorded", "{n} sessions recorded") +
+          (oldest ? " · " + t("oldest {date}", { date: oldest }) : "");
       } catch(e){ statsDiv.textContent = ""; }
     })();
     card.appendChild(statsDiv);
 
-    const delBtn = el("button",{class:"btn",style:"background:#991b1b;border-color:#991b1b"},"Delete all recorded data");
+    const delBtn = el("button",{class:"btn",style:"background:#991b1b;border-color:#991b1b"},t("Delete all recorded data"));
     delBtn.addEventListener("click", async()=>{
-      if(!confirm("Delete ALL recorded forensics sessions? This cannot be undone.\n\nNote: the 'Possible' tier in the Forensics tab comes from the device first/last-seen history (Devices → By Room) and is not affected by this delete.")) return;
-      if(!confirm("Are you sure? Every recorded presence session will be permanently deleted.")) return;
-      delBtn.disabled = true; delBtn.textContent = "Deleting…";
+      if(!confirm(t("Delete ALL recorded forensics sessions? This cannot be undone.\n\nNote: the 'Possible' tier in the Forensics tab comes from the device first/last-seen history (Devices → By Room) and is not affected by this delete."))) return;
+      if(!confirm(t("Are you sure? Every recorded presence session will be permanently deleted."))) return;
+      delBtn.disabled = true; delBtn.textContent = t("Deleting…");
       try {
         const r = await ctx.actions.wsCall("padspan_ha/forensics_clear");
-        ctx.toast(`Deleted forensics data for ${r?.removed ?? 0} addresses`);
-        statsDiv.textContent = "0 addresses · 0 sessions recorded";
-      } catch(e){ ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true); }
-      finally { delBtn.disabled = false; delBtn.textContent = "Delete all recorded data"; }
+        const removed = r?.removed ?? 0;
+        ctx.toast(tn(removed, "Deleted forensics data for {n} address", "Deleted forensics data for {n} addresses"));
+        statsDiv.textContent = tn(0, "{n} address", "{n} addresses") + " · " + tn(0, "{n} session recorded", "{n} sessions recorded");
+      } catch(e){ ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+      finally { delBtn.disabled = false; delBtn.textContent = t("Delete all recorded data"); }
     });
     card.appendChild(delBtn);
 
@@ -3883,29 +3872,28 @@ function _settingsFeatures(ctx, el){
 
   return wrap;
 }
+// i18n part: -
 
 // ── The Atlas's outdoor weather (views/atlas_weather.js) ─────────────────────
 // Rain or snow around the house on the Atlas. Every control saves on its own
 // the moment it changes, straight to the wire like the emergency button
 // (settingsSet would re-render the page and drop unsaved edits elsewhere);
 // the Atlas picks it up at its next settings refresh.
+// i18n part: atlas
 function _atlasWeatherSection(ctx, el, settings){
   const box = el("div",{"data-focus-part":"atlas_weather",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
-  box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🌧️ Outdoor weather"));
+  box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},t("🌧️ Outdoor weather")));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
-    "Rain or snow drawn around the house on the Atlas, never over a room or between floors, only while it is actually raining or snowing. " +
-    "A rain sensor alone shows light rain, and none while the weather entity says the sky is clear (dew wets a rain sensor too); " +
-    "heavy rain needs a rainfall warning or the weather entity saying “pouring”, heavy snow a snowfall warning. " +
-    "PadSpan Pro animates it; the free map shows it still."));
-  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
+    t("Rain or snow drawn around the house on the Atlas, never over a room or between floors, only while it is actually raining or snowing. A rain sensor alone shows light rain, and none while the weather entity says the sky is clear (dew wets a rain sensor too); heavy rain needs a rainfall warning or the weather entity saying “pouring”, heavy snow a snowfall warning. PadSpan Pro animates it; the free map shows it still.")));
+  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, t("Saves as soon as you change it. No restart needed."));
   const save = async (key, value, undo) => {
     try {
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: value });
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      note.textContent = "Saved — the Atlas shows it at its next refresh.";
+      note.textContent = t("Saved — the Atlas shows it at its next refresh.");
     } catch (e) {
       if (undo) undo();
-      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
   };
 
@@ -3913,7 +3901,7 @@ function _atlasWeatherSection(ctx, el, settings){
   const onCb = el("input",{type:"checkbox"});
   onCb.checked = settings.atlas_weather_enabled !== false;
   onRow.appendChild(onCb);
-  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show rain and snow on the Atlas"));
+  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Show rain and snow on the Atlas")));
   onCb.addEventListener("change", ()=>{ const want = onCb.checked; save("atlas_weather_enabled", want, ()=>{ onCb.checked = !want; }); });
   box.appendChild(onRow);
 
@@ -3941,30 +3929,29 @@ function _atlasWeatherSection(ctx, el, settings){
   // The detected ones first, then anything else that calls itself a warning
   // or an alert — never one of the house's alarms (atlas_weather.js warningPickerIds).
   const warnList = WX ? WX.warningPickerIds(states, entities) : [];
-  picker("Rain sensor", "atlas_weather_rain_entity", "None — use the weather entity", rainIds);
+  picker(t("Rain sensor"), "atlas_weather_rain_entity", t("None — use the weather entity"), rainIds);
   // One that has stopped reporting counts as no reading (atlas_weather.js).
   const rainSince = WX ? WX.rainSensorStaleSince(String(settings.atlas_weather_rain_entity || ""), states, entities, Date.now()) : null;
   if (rainSince !== null) {
     box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
-      `This sensor hasn't reported since ${new Date(rainSince).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}. Using the weather forecast instead.`));
+      t("This sensor hasn't reported since {date}. Using the weather forecast instead.", { date: new Date(rainSince).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) })));
   }
   // One that has said wet for hours under a dry forecast is stuck (atlas_weather.js).
   const stuck = WX && rainSince === null ? WX.rainSensorStuckSince(WX.weatherSettingsFrom(settings), states, entities, Date.now()) : null;
   if (stuck !== null) {
     box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
-      `The rain sensor has said wet for over ${WX.STUCK_H} hours while the forecast says dry, so it is ignored until it dries. It may need cleaning.`));
+      t("The rain sensor has said wet for over {hours} hours while the forecast says dry, so it is ignored until it dries. It may need cleaning.", { hours: WX.STUCK_H })));
   }
-  picker("Weather entity", "atlas_weather_condition_entity",
-    firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));
-  picker("Weather warnings", "atlas_weather_warning_entity",
-    warnIds.length ? `Automatic — ${warnIds.length} found` : "Automatic — none found", warnList);
+  picker(t("Weather entity"), "atlas_weather_condition_entity",
+    firstWx ? t("Automatic — {name}", { name: nameOf(firstWx) }) : t("Automatic — none found (no weather shows)"), ids.filter(eid => eid.startsWith("weather.")));
+  picker(t("Weather warnings"), "atlas_weather_warning_entity",
+    warnIds.length ? t("Automatic — {count} found", { count: warnIds.length }) : t("Automatic — none found"), warnList);
   // An alarm picked before the list left it out is still stored: the Atlas
   // ignores it and finds warnings itself (atlas_weather.js chosenWarning).
   const curWarn = String(settings.atlas_weather_warning_entity || "");
   if (WX && curWarn && WX.isHouseAlarm(curWarn, states)) {
     box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
-      `${nameOf(curWarn)} is an alarm (a leak, smoke, gas or CO detector), not a weather warning, so the Atlas ignores it and finds warnings on its own. ` +
-      "Pick a warning above, or Automatic."));
+      t("{name} is an alarm (a leak, smoke, gas or CO detector), not a weather warning, so the Atlas ignores it and finds warnings on its own. Pick a warning above, or Automatic.", { name: nameOf(curWarn) })));
   }
 
   const k = Number(settings.atlas_weather_strength);
@@ -3975,7 +3962,7 @@ function _atlasWeatherSection(ctx, el, settings){
   range.addEventListener("input", ()=>{ val.textContent = `${Number(range.value).toFixed(1)}×`; });
   range.addEventListener("change", ()=>{ save("atlas_weather_strength", Number(range.value), ()=>{ range.value = String(start); val.textContent = `${start.toFixed(1)}×`; }); });
   box.appendChild(el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px"},[
-    el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, "Strength"), range, val,
+    el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, t("Strength")), range, val,
   ]));
   box.appendChild(note);
   return box;
@@ -3987,14 +3974,14 @@ function _atlasWeatherSection(ctx, el, settings){
 // snow (on by default; it follows Outdoor weather) and the Showcase look (off
 // by default). Each saves on its own the moment it changes, like the weather
 // box above; the Atlas picks it up at its next settings refresh.
-const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", "Low — for wall tablets and phones"],
-                           ["high", "High — sun shadows and more lamps"]];
+const _ATLAS_3D_QUALITY = [["auto", () => t("Auto — picked for this screen")], ["low", () => t("Low — for wall tablets and phones")],
+                           ["high", () => t("High — sun shadows and more lamps")]];
 // Live Aboard's look (atlas_3d_look): the Atlas's colours, rooms and floor
 // numbers (its Showcase theme, or the plain Atlas), its own dark look, or
 // Studio: its own colours under soft light, a sky from the sun and a stage.
-const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own"], ["studio", "Studio — soft light and sky"]];
+const _ATLAS_3D_LOOK = [["atlas", () => t("Same as the Atlas")], ["own", () => t("Live Aboard's own")], ["studio", () => t("Studio — soft light and sky")]];
 // How long the sidebar's Live Aboard waits untouched before it goes back to its home view.
-const _ATLAS_3D_IDLE = [[0, "Off"], [30, "After 30 s"], [60, "After 1 min"], [300, "After 5 min"]];
+const _ATLAS_3D_IDLE = [[0, () => t("Off")], [30, () => t("After 30 s")], [60, () => t("After 1 min")], [300, () => t("After 5 min")]];
 // What may fly the sidebar's Live Aboard (ws_settings.DIRECTOR_DOMAINS, DIRECTOR_MAX).
 const _DIRECTOR_DOMAINS = ["event", "binary_sensor", "alarm_control_panel"];
 const _DIRECTOR_MAX = 12;
@@ -4009,23 +3996,23 @@ function _atlas3dDirector(ctx, el, settings, save, row){
   const pickT = document.createElement("select");
   const pickC = document.createElement("select");
   for (const sel of [pickT, pickC]) { sel.className = "select"; sel.style.width = "auto"; sel.style.maxWidth = "100%"; sel.disabled = !admin; }
-  pickT.appendChild(el("option",{value:""}, "Pick a doorbell, door, sensor or alarm…"));
+  pickT.appendChild(el("option",{value:""}, t("Pick a doorbell, door, sensor or alarm…")));
   for (const eid of Object.keys(states).filter(e => _DIRECTOR_DOMAINS.includes(e.split(".")[0])).sort()) pickT.appendChild(el("option",{value:eid}, nameOf(eid)));
-  pickC.appendChild(el("option",{value:""}, "No camera"));
+  pickC.appendChild(el("option",{value:""}, t("No camera")));
   for (const eid of Object.keys(states).filter(e => e.startsWith("camera.")).sort()) pickC.appendChild(el("option",{value:eid}, nameOf(eid)));
-  const add = el("button",{class:"btn inline"}, "Add");
+  const add = el("button",{class:"btn inline"}, t("Add"));
   add.disabled = !admin;
-  if (!admin) add.title = "Only an administrator can change this";
+  if (!admin) add.title = t("Only an administrator can change this");
   const keep = (next) => { const was = list; list = next; paint(); save("atlas_3d_director", next, ()=>{ list = was; paint(); }); };
   function paint(){
     while (rows.firstChild) rows.removeChild(rows.firstChild);
-    if (!list.length) rows.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-top:6px"}, "Off: nothing picked."));
-    for (const t of list) {
-      const x = el("button",{class:"btn inline",title:"Remove"}, "✕");
+    if (!list.length) rows.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-top:6px"}, t("Off: nothing picked.")));
+    for (const trig of list) {
+      const x = el("button",{class:"btn inline",title:t("Remove")}, "✕");
       x.disabled = !admin;
-      x.addEventListener("click", ()=> keep(list.filter(o => o.entity !== t.entity)));
+      x.addEventListener("click", ()=> keep(list.filter(o => o.entity !== trig.entity)));
       rows.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:#e2e8f0"},
-        [el("span",{}, nameOf(t.entity) + (t.camera ? ` → 📷 ${nameOf(t.camera)}` : "")), x]));
+        [el("span",{}, nameOf(trig.entity) + (trig.camera ? ` → 📷 ${nameOf(trig.camera)}` : "")), x]));
     }
     add.disabled = !admin || list.length >= _DIRECTOR_MAX;
   }
@@ -4036,10 +4023,10 @@ function _atlas3dDirector(ctx, el, settings, save, row){
     pickT.value = ""; pickC.value = "";
   });
   paint();
-  wrap.appendChild(row("Fly to when it goes off", [pickT, pickC, add]));
+  wrap.appendChild(row(t("Fly to when it goes off"), [pickT, pickC, add]));
   wrap.appendChild(rows);
   wrap.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
-    "On the sidebar, Live Aboard flies to a doorbell that rings, a door that opens, a sensor that goes off or an alarm that is triggered, shows a card (with the camera's snapshot if you picked one), then goes back to its home view after 20 s. If someone touched the screen in the last 20 s, or a card, Edit or Furnish is open, only the card shows."));
+    t("On the sidebar, Live Aboard flies to a doorbell that rings, a door that opens, a sensor that goes off or an alarm that is triggered, shows a card (with the camera's snapshot if you picked one), then goes back to its home view after 20 s. If someone touched the screen in the last 20 s, or a card, Edit or Furnish is open, only the card shows.")));
   // People and tags (settings.atlas_3d_director_people): who, and the rooms
   // that count ([] = any room, or a person arriving home).
   const snapObjs = (((ctx.state && ctx.state.live && ctx.state.live.snapshot) || {}).objects || {}).list;
@@ -4048,31 +4035,31 @@ function _atlas3dDirector(ctx, el, settings, save, row){
     const k = o && String(o.key || o.address || "");
     if (k && ["ble", "private_ble", "ibeacon"].includes(o.kind) && (o.user_label || o.identified)) tagName.set("beacon:" + k, String(o.user_label || o.private_ble_name || o.name || k));
   }
-  const whoOf = (k) => (k.startsWith("person.") ? nameOf(k) : `${tagName.get(k) || k.slice("beacon:".length)} (tag)`);
+  const whoOf = (k) => (k.startsWith("person.") ? nameOf(k) : t("{name} (tag)", { name: tagName.get(k) || k.slice("beacon:".length) }));
   let people = (Array.isArray(settings.atlas_3d_director_people) ? settings.atlas_3d_director_people : [])
     .filter(w => w && typeof w.key === "string").map(w => ({ key: w.key, rooms: Array.isArray(w.rooms) ? w.rooms.filter(r => typeof r === "string") : [] }));
   const prows = el("div",{"data-la3d-director-people":""});
   const pickP = document.createElement("select");
   const pickR = document.createElement("select");
   for (const sel of [pickP, pickR]) { sel.className = "select"; sel.style.width = "auto"; sel.style.maxWidth = "100%"; sel.disabled = !admin; }
-  pickP.appendChild(el("option",{value:""}, "Pick a person or tag…"));
+  pickP.appendChild(el("option",{value:""}, t("Pick a person or tag…")));
   for (const eid of Object.keys(states).filter(e => e.startsWith("person.")).sort()) pickP.appendChild(el("option",{value:eid}, nameOf(eid)));
-  for (const [k, n] of [...tagName].sort((a, b) => a[1].localeCompare(b[1]))) pickP.appendChild(el("option",{value:k}, `${n} (tag)`));
-  pickR.appendChild(el("option",{value:""}, "Any room, or arriving home"));
+  for (const [k, n] of [...tagName].sort((a, b) => a[1].localeCompare(b[1]))) pickP.appendChild(el("option",{value:k}, t("{name} (tag)", { name: n })));
+  pickR.appendChild(el("option",{value:""}, t("Any room, or arriving home")));
   for (const r of Object.keys((ctx.state && ctx.state.model && ctx.state.model.room_geometry_m) || {}).sort()) pickR.appendChild(el("option",{value:r}, r));
-  const addP = el("button",{class:"btn inline"}, "Add");
+  const addP = el("button",{class:"btn inline"}, t("Add"));
   addP.disabled = !admin;
-  if (!admin) addP.title = "Only an administrator can change this";
+  if (!admin) addP.title = t("Only an administrator can change this");
   const keepP = (next) => { const was = people; people = next; paintP(); save("atlas_3d_director_people", next, ()=>{ people = was; paintP(); }); };
   function paintP(){
     while (prows.firstChild) prows.removeChild(prows.firstChild);
-    if (!people.length) prows.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-top:6px"}, "Off: nobody picked."));
+    if (!people.length) prows.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-top:6px"}, t("Off: nobody picked.")));
     for (const w of people) {
-      const x = el("button",{class:"btn inline",title:"Remove"}, "✕");
+      const x = el("button",{class:"btn inline",title:t("Remove")}, "✕");
       x.disabled = !admin;
       x.addEventListener("click", ()=> keepP(people.filter(o => o.key !== w.key)));
       prows.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:#e2e8f0"},
-        [el("span",{}, `${whoOf(w.key)} → ${w.rooms.length ? w.rooms.join(", ") : "any room, or arriving home"}`), x]));
+        [el("span",{}, `${whoOf(w.key)} → ${w.rooms.length ? w.rooms.join(", ") : t("any room, or arriving home")}`), x]));
     }
     addP.disabled = !admin || (people.length >= _DIRECTOR_MAX && !people.some(o => o.key === pickP.value));
   }
@@ -4087,46 +4074,45 @@ function _atlas3dDirector(ctx, el, settings, save, row){
     pickP.value = ""; pickR.value = "";
   });
   paintP();
-  wrap.appendChild(row("Fly to when they arrive", [pickP, pickR, addP]));
+  wrap.appendChild(row(t("Fly to when they arrive"), [pickP, pickR, addP]));
   wrap.appendChild(prows);
   wrap.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
-    "It can also fly to a person or tag you pick when they go into a room you pick (or, with no room picked, any room, or a person arriving home), with the same card and the same rules, at most once every 2 minutes each. Only people and tags Live Aboard shows (Views → Show people, Show tags & scanners) are flown to. Nobody picked: off."));
+    t("It can also fly to a person or tag you pick when they go into a room you pick (or, with no room picked, any room, or a person arriving home), with the same card and the same rules, at most once every 2 minutes each. Only people and tags Live Aboard shows (Views → Show people, Show tags & scanners) are flown to. Nobody picked: off.")));
   return wrap;
 }
 /** Settings → AI (2026-10-27: "group AI power features into a section
  *  called AI"): the AI Task that reads for PadSpan, the switches for what it
  *  reads, and what is coming. An administrator's settings (ws_settings: a
  *  cloud AI sends what it reads out of the house). */
+// i18n part: ai
 function _settingsAI(ctx, el){
   const settings = ctx.state.settings || {};
   const wrap = el("div",{});
-  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:8px 0 0"}, "Saves as soon as you change it.");
+  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:8px 0 0"}, t("Saves as soon as you change it."));
   const save = async (key, value, undo) => {
     try {
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: value });
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      note.textContent = "Saved.";
+      note.textContent = t("Saved.");
       return true;
     } catch (e) {
       if (undo) undo();
-      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
       return false;
     }
   };
   const head = el("div",{class:"card",style:"border:1px solid #1a4228;background:#0f1a12;margin-bottom:14px"});
   head.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
-    el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"}, "AI power features"),
+    el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"}, t("AI power features")),
     ctx.helpers.helpBtn ? ctx.helpers.helpBtn("settings_ai") : null,
   ]));
   head.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5"},
-    "PadSpan can use an AI you have set up in Home Assistant (an AI Task) to fill things in for you. It only reads what you " +
-    "give it, when you ask, and keeps nothing. A cloud AI (OpenAI, Google, Anthropic, Home Assistant Cloud) sends it out " +
-    "of the house; a local one (like Ollama) keeps it home."));
+    t("PadSpan can use an AI you have set up in Home Assistant (an AI Task) to fill things in for you. It only reads what you give it, when you ask, and keeps nothing. A cloud AI (OpenAI, Google, Anthropic, Home Assistant Cloud) sends it out of the house; a local one (like Ollama) keeps it home.")));
   wrap.appendChild(head);
 
   // The AI Task (ws_house3d_photo.py reads it): one for everything here.
   const card = el("div",{class:"card","data-focus-part":"ai_task",style:"margin-bottom:14px"});
-  card.appendChild(el("div",{class:"h2"}, "Your AI"));
+  card.appendChild(el("div",{class:"h2"}, t("Your AI")));
   const aiStates = (ctx.hass && ctx.hass.states) || {};
   const aiCur = String(settings.atlas_3d_ai_task_entity || "");
   const aiIds = Object.keys(aiStates).filter(e => e.startsWith("ai_task.")).sort();
@@ -4134,7 +4120,7 @@ function _settingsAI(ctx, el){
   aiSel.className = "select";
   aiSel.style.width = "auto";
   aiSel.style.maxWidth = "100%";
-  aiSel.appendChild(el("option",{value:""}, "None"));
+  aiSel.appendChild(el("option",{value:""}, t("None")));
   for (const eid of (aiCur && !aiIds.includes(aiCur) ? [aiCur, ...aiIds] : aiIds)) {
     const n = aiStates[eid] && aiStates[eid].attributes && aiStates[eid].attributes.friendly_name;
     aiSel.appendChild(el("option",{value:eid}, n ? `${n} (${eid})` : eid));
@@ -4144,10 +4130,10 @@ function _settingsAI(ctx, el){
   let pbRefresh = null;            // Build from plans: the row asks the server again when the AI Task changes
   aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) { aiLast = want; syncBackup(); if (pbRefresh) pbRefresh(); } }); });
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},
-    [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, "AI Task"), aiSel]));
+    [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, t("AI Task")), aiSel]));
   card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:6px"}, aiIds.length
-    ? "Pick one whose model can read pictures (a vision model). Needs Home Assistant 2025.8 or newer."
-    : "No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama, or a cloud one), then pick its AI Task here. Needs Home Assistant 2025.8 or newer."));
+    ? t("Pick one whose model can read pictures (a vision model). Needs Home Assistant 2025.8 or newer.")
+    : t("No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama, or a cloud one), then pick its AI Task here. Needs Home Assistant 2025.8 or newer.")));
   // The backup AI Task (ws_house3d_photo.ask_ai): the same list, the main one hidden; none until chosen.
   const bkCur = String(settings.atlas_3d_ai_task_backup_entity || "");
   const bkSel = document.createElement("select");
@@ -4155,7 +4141,7 @@ function _settingsAI(ctx, el){
   bkSel.style.width = "auto";
   bkSel.style.maxWidth = "100%";
   bkSel.setAttribute("data-ai-backup", "");
-  bkSel.appendChild(el("option",{value:""}, "None"));
+  bkSel.appendChild(el("option",{value:""}, t("None")));
   for (const eid of (bkCur && !aiIds.includes(bkCur) ? [bkCur, ...aiIds] : aiIds)) {
     const n = aiStates[eid] && aiStates[eid].attributes && aiStates[eid].attributes.friendly_name;
     bkSel.appendChild(el("option",{value:eid}, n ? `${n} (${eid})` : eid));
@@ -4167,16 +4153,16 @@ function _settingsAI(ctx, el){
   bkSel.addEventListener("change", ()=>{ const want = bkSel.value; save("atlas_3d_ai_task_backup_entity", want, ()=>{ bkSel.value = bkLast; }).then(ok=>{ if (ok) bkLast = want; }); });
   syncBackup();
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px"},
-    [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, "Backup AI task"), bkSel]));
+    [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, t("Backup AI task")), bkSel]));
   card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:6px"},
-    "Used when the main one can't be reached, e.g. a computer that's away."));
+    t("Used when the main one can't be reached, e.g. a computer that's away.")));
   // This month's AI reads (ai_usage.py, experimental): asked only by an administrator, as the command is.
   if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) card.appendChild(_aiUsageRow(ctx, el, save));
   wrap.appendChild(card);
 
   // What it reads: a switch each; what is not built yet says so.
   const feats = el("div",{class:"card",style:"margin-bottom:14px"});
-  feats.appendChild(el("div",{class:"h2"}, "What it does for you"));
+  feats.appendChild(el("div",{class:"h2"}, t("What it does for you")));
   const sw = (key, label, desc, on, soon) => {
     const r = el("label",{style:`display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid #1e3a2a;cursor:${soon ? "default" : "pointer"}`});
     const cb = el("input",{type:"checkbox", style:"margin-top:3px"});
@@ -4185,40 +4171,34 @@ function _settingsAI(ctx, el){
     r.appendChild(cb);
     r.appendChild(el("div",{},[
       el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, [label,
-        soon ? el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "COMING SOON") : null]),
+        soon ? el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, t("COMING SOON")) : null]),
       el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"}, desc),
     ]));
     return r;
   };
   // The master switch over every AI map-building feature (2026-11, experimental, off by default): today's
   // stair finder and the Plans tool in Live Aboard's Edit bar. Off hides them all; its two rows show only while on.
-  const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
+  const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, t("EXPERIMENTAL"));
   const master = el("label",{"data-ai-plans":"",style:"display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid #1e3a2a;cursor:pointer"});
   const masterCb = el("input",{type:"checkbox", style:"margin-top:3px"});
   masterCb.checked = settings.ai_plans_enabled === true;
   master.appendChild(masterCb);
   master.appendChild(el("div",{},[
-    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["AI map-building research (experimental)", chip]),
+    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, [t("AI map-building research (experimental)"), chip]),
     el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
-      "Research feature. The AI suggests; you check every item, and nothing is saved until you accept it. It never changes your calibration or signal walls. " +
-      "What it can save, each with a backup first and an undo: Line up plans moves a plan's picture; Rooms from plans saves rooms. " +
-      "Turning it off hides it; it does not undo what you kept. Let Claude draw your rooms doesn't need it."),
+      t("Research feature. The AI suggests; you check every item, and nothing is saved until you accept it. It never changes your calibration or signal walls. What it can save, each with a backup first and an undo: Line up plans moves a plan's picture; Rooms from plans saves rooms. Turning it off hides it; it does not undo what you kept. Let Claude draw your rooms doesn't need it.")),
   ]));
   feats.appendChild(master);
   const under = el("div",{"data-ai-plans-under":"",style:`margin-left:22px;display:${settings.ai_plans_enabled === true ? "" : "none"}`});
   masterCb.addEventListener("change", ()=>{ const want = masterCb.checked; under.style.display = want ? "" : "none";
     save("ai_plans_enabled", want, ()=>{ masterCb.checked = !want; under.style.display = !want ? "" : "none"; }).then(ok=>{ if (ok && want && pbRefresh) pbRefresh(); }); });
-  under.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
-    "Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor " +
-    "plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then " +
-    "drag, turn or delete it. A small AI on your own computer finds most staircases but often gets their shape and which " +
-    "way is up wrong; a cloud AI reads plans better. The plans are sent to your AI only when you press it. Off until you turn it on.",
+  under.appendChild(sw("ai_stairs_enabled", t("Stairs from your floor plans"),
+    t("Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then drag, turn or delete it. A small AI on your own computer finds most staircases but often gets their shape and which way is up wrong; a cloud AI reads plans better. The plans are sent to your AI only when you press it. Off until you turn it on."),
     settings.ai_stairs_enabled === true, false));
   under.appendChild(el("div",{style:"padding:8px 0;border-top:1px solid #1e3a2a"},[
-    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, "Add data via plans"),
+    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, t("Add data via plans")),
     el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
-      "In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists " +
-      "what it finds for you to check, item by item. What you keep goes into your 3D house when you press Save, and one undo takes a whole session back."),
+      t("In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists what it finds for you to check, item by item. What you keep goes into your 3D house when you press Save, and one undo takes a whole session back.")),
   ]));
   // Build from plans (experimental; replaces "Rooms and walls… coming soon"): drawn only when the server says
   // Claude Opus 5.5 or newer is the AI Task (padspan_ha/plan_build_info); the panel never decides that itself.
@@ -4230,44 +4210,45 @@ function _settingsAI(ctx, el){
   // Let Claude draw your rooms under its own name, outside the research switch it doesn't need (owner, 2026-11-12):
   // shown only once it has saved rooms that can be taken back.
   if (helperRow) feats.appendChild(helperRow);
-  feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
-    "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
-    "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
+  feats.appendChild(sw("ai_photos_enabled", t("Furniture from a photo"),
+    t("In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale."),
     settings.ai_photos_enabled !== false, false));
-  feats.appendChild(sw("", "Ask your voice assistant where someone is",
-    "Lets an AI voice assistant in Home Assistant ask PadSpan which room someone is in, in your own words.", false, true));
+  feats.appendChild(sw("", t("Ask your voice assistant where someone is"),
+    t("Lets an AI voice assistant in Home Assistant ask PadSpan which room someone is in, in your own words."), false, true));
   feats.appendChild(note);
   wrap.appendChild(feats);
   return wrap;
 }
+// i18n part: -
 
+// i18n part: atlas
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{"data-focus-part":"la3d",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
   // Experimental for now (2026-10-05: label it so in the stable release).
   box.appendChild(el("div",{"data-la3d-experimental":"",style:"display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:1px 8px;margin:0 0 6px"},
-    "EXPERIMENTAL — still changing; tell us what you find"));
+    t("EXPERIMENTAL — still changing; tell us what you find")));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
-    "Adds a Map / Live Aboard switch to the Atlas: walk around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default."));
+    t("Adds a Map / Live Aboard switch to the Atlas: walk around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default.")));
   // The setup wizard (views/aboard_wizard.js): every step from scratch,
   // with the optional extras below exposed along the way.
-  const wizBtn = el("button",{class:"btn inline",style:"margin:0 0 8px;background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"},"✨ Set it up step by step");
+  const wizBtn = el("button",{class:"btn inline",style:"margin:0 0 8px;background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"},t("✨ Set it up step by step"));
   wizBtn.addEventListener("click", ()=>{
     import(`./aboard_wizard.js${new URL(import.meta.url).search}`)
       .then(m => m.openLiveAboardWizard(ctx))
-      .catch(e => ctx.toast("Could not open the wizard: " + ctx.helpers.errorText(e), true));
+      .catch(e => ctx.toast(t("Could not open the wizard: {why}", { why: ctx.helpers.errorText(e) }), true));
   });
   box.appendChild(wizBtn);
-  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
+  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, t("Saves as soon as you change it. No restart needed."));
   const save = async (key, value, undo) => {
     try {
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: value });
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      note.textContent = "Saved — the Atlas shows it at its next refresh.";
+      note.textContent = t("Saved — the Atlas shows it at its next refresh.");
       return true;
     } catch (e) {
       if (undo) undo();
-      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
       return false;
     }
   };
@@ -4276,7 +4257,7 @@ function _atlas3dSection(ctx, el, settings){
   const onCb = el("input",{type:"checkbox"});
   onCb.checked = settings.atlas_3d_enabled === true;
   onRow.appendChild(onCb);
-  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show Live Aboard on the Atlas"));
+  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Show Live Aboard on the Atlas")));
   box.appendChild(onRow);
   // What shows once the switch is on.
   const more = el("div",{"data-la3d-more":""});
@@ -4291,11 +4272,11 @@ function _atlas3dSection(ctx, el, settings){
   sel.className = "select";
   sel.style.width = "auto";
   sel.style.maxWidth = "100%";
-  for (const [v, label] of _ATLAS_3D_QUALITY) sel.appendChild(el("option",{value:v}, label));
+  for (const [v, label] of _ATLAS_3D_QUALITY) sel.appendChild(el("option",{value:v}, label()));
   sel.value = cur;
   let last = cur;
   sel.addEventListener("change", ()=>{ const want = sel.value; save("atlas_3d_quality", want, ()=>{ sel.value = last; }).then(ok=>{ if (ok) last = want; }); });
-  more.appendChild(row("Quality", [sel]));
+  more.appendChild(row(t("Quality"), [sel]));
 
   // Look: the same as the Atlas unless Live Aboard's own or Studio is chosen.
   const lookCur = settings.atlas_3d_look === "own" || settings.atlas_3d_look === "studio" ? settings.atlas_3d_look : "atlas";
@@ -4304,11 +4285,11 @@ function _atlas3dSection(ctx, el, settings){
   lookSel.style.width = "auto";
   lookSel.style.maxWidth = "100%";
   lookSel.setAttribute("data-la3d-key", "atlas_3d_look");
-  for (const [v, label] of _ATLAS_3D_LOOK) lookSel.appendChild(el("option",{value:v}, label));
+  for (const [v, label] of _ATLAS_3D_LOOK) lookSel.appendChild(el("option",{value:v}, label()));
   lookSel.value = lookCur;
   let lookLast = lookCur;
   lookSel.addEventListener("change", ()=>{ const want = lookSel.value; save("atlas_3d_look", want, ()=>{ lookSel.value = lookLast; }).then(ok=>{ if (ok) lookLast = want; }); });
-  more.appendChild(row("Look", [lookSel]));
+  more.appendChild(row(t("Look"), [lookSel]));
 
   // The wall panel (live_aboard_panel.js): the sidebar's Live Aboard goes
   // back to its home view after this long untouched.
@@ -4318,13 +4299,13 @@ function _atlas3dSection(ctx, el, settings){
   idleSel.style.width = "auto";
   idleSel.style.maxWidth = "100%";
   idleSel.setAttribute("data-la3d-key", "atlas_3d_home_idle_s");
-  for (const [v, label] of _ATLAS_3D_IDLE) idleSel.appendChild(el("option",{value:String(v)}, label));
+  for (const [v, label] of _ATLAS_3D_IDLE) idleSel.appendChild(el("option",{value:String(v)}, label()));
   idleSel.value = String(idleCur);
   let idleLast = idleCur;
   idleSel.addEventListener("change", ()=>{ const want = Number(idleSel.value); save("atlas_3d_home_idle_s", want, ()=>{ idleSel.value = String(idleLast); }).then(ok=>{ if (ok) idleLast = want; }); });
-  more.appendChild(row("Back to home view", [idleSel]));
+  more.appendChild(row(t("Back to home view"), [idleSel]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
-    "On the sidebar, Live Aboard flies back to its home view when nobody has touched it for this long. Set the home view in Views ▾ → Set as home. It waits while Edit or Furnish is open, a card is open, or you made it full screen."));
+    t("On the sidebar, Live Aboard flies back to its home view when nobody has touched it for this long. Set the home view in Views ▾ → Set as home. It waits while Edit or Furnish is open, a card is open, or you made it full screen.")));
 
   // The frame-rate readout (live_aboard_fps.js): this browser only, kept
   // where Live Aboard keeps its own per-screen choices (lights_map.js
@@ -4334,13 +4315,13 @@ function _atlas3dSection(ctx, el, settings){
   try { fpsCb.checked = localStorage.getItem("padspan_la3d_fps") === "1"; } catch (_) { fpsCb.checked = false; }
   fpsCb.addEventListener("change", ()=>{
     try { localStorage.setItem("padspan_la3d_fps", fpsCb.checked ? "1" : "0"); } catch (_) {}
-    note.textContent = "Saved for this browser — Live Aboard shows it at its next refresh.";
+    note.textContent = t("Saved for this browser — Live Aboard shows it at its next refresh.");
   });
   fpsRow.appendChild(fpsCb);
-  fpsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Show the frame rate (this browser only)"));
+  fpsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, t("Show the frame rate (this browser only)")));
   more.appendChild(fpsRow);
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 26px;line-height:1.5"},
-    "A small readout in the corner of Live Aboard: how many times a second the house is drawn, and \"0 fps at rest\" when nothing is moving. A wall screen shows it only if it is turned on there."));
+    t("A small readout in the corner of Live Aboard: how many times a second the house is drawn, and \"0 fps at rest\" when nothing is moving. A wall screen shows it only if it is turned on there.")));
 
   // The director (live_aboard_director.js): what the sidebar's Live Aboard
   // flies to when it goes off, each with a camera's snapshot or none. An
@@ -4349,7 +4330,7 @@ function _atlas3dSection(ctx, el, settings){
 
   // The AI Task that reads photos lives in Settings → AI (with its switches).
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:8px"},
-    "Furniture from a photo, and the AI Task that reads it, are in Settings → AI."));
+    t("Furniture from a photo, and the AI Task that reads it, are in Settings → AI.")));
 
   // North: the GPS Bridge's own bearing (settings.fabric_bearing_deg), kept
   // to 0–359 the same way; a blank is refused rather than saved as 0, since
@@ -4397,7 +4378,7 @@ function _atlas3dSection(ctx, el, settings){
     "font-size": "10", "font-weight": "700", fill: "#f3f6f4", "font-family": "system-ui,sans-serif", visibility: "hidden" });
   nLabel.textContent = "N";
   plan.appendChild(nLabel);
-  const preview = el("span",{title:"North on your plan", style:`display:inline-flex;width:${W}px;height:${H}px`}, [plan]);
+  const preview = el("span",{title:t("North on your plan"), style:`display:inline-flex;width:${W}px;height:${H}px`}, [plan]);
   let arrowDeg = null, compassP = null;
   const turn = (b) => {
     if (!arrowDeg || b === null) return;
@@ -4414,13 +4395,13 @@ function _atlas3dSection(ctx, el, settings){
   nInp.addEventListener("input", ()=> turn(norm(nInp.value)));
   nInp.addEventListener("change", ()=>{
     const b = norm(nInp.value), was = bearing;
-    if (b === null) { nInp.value = String(was); turn(was); ctx.toast("Enter a bearing from 0 to 359", true); return; }
+    if (b === null) { nInp.value = String(was); turn(was); ctx.toast(t("Enter a bearing from 0 to 359"), true); return; }
     nInp.value = String(b); turn(b); bearing = b;
     save("fabric_bearing_deg", b, ()=>{ bearing = was; nInp.value = String(was); turn(was); });
   });
-  more.appendChild(row("North", [nInp, el("span",{style:"color:#94a3b8;font-size:12px"},"°"), preview]));
+  more.appendChild(row(t("North"), [nInp, el("span",{style:"color:#94a3b8;font-size:12px"},"°"), preview]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
-    "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
+    t("The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan.")));
   // Rain and snow, people, tags: each its own switch, saved alone.
   // Show people and Show tags & scanners are switched in ONE place
   // (2026-10-30): Live Aboard's Views ▾ while Live Aboard is on, where they
@@ -4431,7 +4412,7 @@ function _atlas3dSection(ctx, el, settings){
   const laOn = settings.atlas_3d_enabled === true;
   const tick = (key, label, checked, hint, into = more) => {
     if (laOn && _LA_SWITCHED[key]) {
-      const go = el("button",{class:"btn inline","data-goto":"live-aboard-views"},"Open Live Aboard");
+      const go = el("button",{class:"btn inline","data-goto":"live-aboard-views"},t("Open Live Aboard"));
       go.addEventListener("click", ()=>{
         try { localStorage.setItem("padspan_lv_3d_builder", "1"); } catch (_) { /* private mode */ }
         ctx.state.view = "maps";
@@ -4440,7 +4421,7 @@ function _atlas3dSection(ctx, el, settings){
       });
       into.appendChild(el("div",{"data-la3d-state":key,style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px"},[
         el("span",{style:"color:#e2e8f0;font-size:13px"}, `${label}: ${checked ? "On" : "Off"}`),
-        el("span",{style:"color:#94a3b8;font-size:12px"}, `Switch it in Live Aboard: Views \u25be \u2192 ${_LA_SWITCHED[key]}.`),
+        el("span",{style:"color:#94a3b8;font-size:12px"}, t("Switch it in Live Aboard: Views ▾ → {name}.", { name: _LA_SWITCHED[key] })),
         // Mapping → Atlas builder is an expert screen: not from Basic.
         FOCUS.expertLinks(ctx.state) ? go : null,
       ]));
@@ -4460,20 +4441,20 @@ function _atlas3dSection(ctx, el, settings){
   // People and tags show on the Atlas's flat map too, with Live Aboard on or
   // off: their two switches stand outside the Live Aboard rows, always shown.
   const both = el("div",{"data-la3d-both":"", style:"margin-top:12px;padding-top:8px;border-top:1px dashed #1e3a2a"});
-  both.appendChild(el("div",{style:"font-size:12px;color:#cbd5e1;font-weight:600"}, "On the Atlas's map and in Live Aboard"));
-  tick("atlas_3d_weather", "Rain and snow", settings.atlas_3d_weather !== false,
-    "Follows Outdoor weather above, and shows only while that is on too.");
-  tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,
-    "Each person where their phone or tag is now: on the map, a round marker with their initial; in Live Aboard, their figure (or a soft marker), walking there. Tap one for where they are and since when. Uses the same live positions as Overview.", both);
+  both.appendChild(el("div",{style:"font-size:12px;color:#cbd5e1;font-weight:600"}, t("On the Atlas's map and in Live Aboard")));
+  tick("atlas_3d_weather", t("Rain and snow"), settings.atlas_3d_weather !== false,
+    t("Follows Outdoor weather above, and shows only while that is on too."));
+  tick("atlas_3d_people", t("Show people"), settings.atlas_3d_people === true,
+    t("Each person where their phone or tag is now: on the map, a round marker with their initial; in Live Aboard, their figure (or a soft marker), walking there. Tap one for where they are and since when. Uses the same live positions as Overview."), both);
   // Who shows in the house is an administrator's (ws_settings holds the same
   // rule; Live Aboard's Views menu shows these on or off to anyone else).
   const whoShows = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
-  tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,
-    "Every tag the Atlas can place, with its name, and every scanner (in Live Aboard, every scanner at its height). The faint ring under a tag is wider the less sure its spot is. Tap a tag for its room, when it was last seen and which scanners hear it. Uses the same live positions as Overview.", both);
+  tick("atlas_3d_tags", t("Show tags & scanners"), settings.atlas_3d_tags === true,
+    t("Every tag the Atlas can place, with its name, and every scanner (in Live Aboard, every scanner at its height). The faint ring under a tag is wider the less sure its spot is. Tap a tag for its room, when it was last seen and which scanners hear it. Uses the same live positions as Overview."), both);
   if (!whoShows) {
     for (const cb of both.querySelectorAll("input[data-la3d-key]")) {
       if (cb.getAttribute("data-la3d-key") === "atlas_3d_people" || cb.getAttribute("data-la3d-key") === "atlas_3d_tags") {
-        cb.disabled = true; cb.title = "Only an administrator can change this";
+        cb.disabled = true; cb.title = t("Only an administrator can change this");
       }
     }
   }
@@ -4486,26 +4467,26 @@ function _atlas3dSection(ctx, el, settings){
       rmWrap.innerHTML = "";
       rmWrap.appendChild(el("button",{class:"btn inline", style:"color:#f87171;border-color:#f8717140", onclick: ()=>{
         rmWrap.innerHTML = "";
-        rmWrap.appendChild(el("span",{style:"font-size:12px;color:#fca5a5"}, "Remove every piece of furniture? A backup is taken first."));
+        rmWrap.appendChild(el("span",{style:"font-size:12px;color:#fca5a5"}, t("Remove every piece of furniture? A backup is taken first.")));
         rmWrap.appendChild(el("button",{class:"btn inline", style:"background:#7f1d1d;border-color:#dc2626;color:#fca5a5", onclick: async ()=>{
           rmWrap.innerHTML = "";
-          rmWrap.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"}, "Removing…"));
+          rmWrap.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"}, t("Removing…")));
           try {
             const r = await ctx.actions.wsCall("padspan_ha/house3d_clear", { only: "pieces" });
-            ctx.toast(r && r.backup_id ? "All furniture removed. To bring it back, restore the backup taken just now (Backup & Restore)."
-              : "There was no furniture to remove.");
+            ctx.toast(r && r.backup_id ? t("All furniture removed. To bring it back, restore the backup taken just now (Backup & Restore).")
+              : t("There was no furniture to remove."));
             // Every Live Aboard open in this page reads its file again.
             try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
           } catch (e) {
-            ctx.toast("Could not remove the furniture: " + ctx.helpers.errorText(e), true);
+            ctx.toast(t("Could not remove the furniture: {why}", { why: ctx.helpers.errorText(e) }), true);
           }
           rmBtn();
-        }}, "Remove all"));
-        rmWrap.appendChild(el("button",{class:"btn inline", style:"color:#94a3b8;border-color:#94a3b840", onclick: rmBtn}, "Cancel"));
-      }}, "Remove all furniture…"));
+        }}, t("Remove all")));
+        rmWrap.appendChild(el("button",{class:"btn inline", style:"color:#94a3b8;border-color:#94a3b840", onclick: rmBtn}, t("Cancel")));
+      }}, t("Remove all furniture…")));
     };
     rmBtn();
-    more.appendChild(row("Furniture", [rmWrap]));
+    more.appendChild(row(t("Furniture"), [rmWrap]));
   }
   if (onCb.checked) loadCompass();
   // The shared library's rows, built once the switch is on (below).
@@ -4536,29 +4517,30 @@ function _atlas3dSection(ctx, el, settings){
 /** The AI credit tracker (ai_usage.py, experimental, 2026-11-09): this month's AI reads under
  *  the AI Task picker. For a Claude AI Task, the estimate, "of your monthly credit" once an amount is
  *  typed in, and the warning (off until chosen); any other AI, reads only. The stops by reason. */
+// i18n part: ai
 function _aiUsageRow(ctx, el, save){
   const settings = ctx.state.settings || {};
   const box = el("div",{"data-ai-usage":"",style:"display:none;margin-top:10px;padding:8px 10px;border:1px solid #1e3a2a;border-radius:8px"});
-  const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
+  const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, t("EXPERIMENTAL"));
   const line = el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"});
   const stops = el("div",{"data-ai-usage-stops":"",style:"display:none;font-size:12px;color:#fca5a5;margin-top:4px"});
   const how = el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:4px"});
   const controls = el("div",{style:"display:none;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px"});
   const money = (v) => `$${Number(v).toFixed(2)}`;
   let credit = Number(settings.ai_credit_month_usd) > 0 ? Number(settings.ai_credit_month_usd) : 0;
-  const inp = el("input",{type:"number", min:"0", step:"any", placeholder:"e.g. 200", "data-ai-credit":"", class:"input", style:"width:90px;box-sizing:content-box"});
+  const inp = el("input",{type:"number", min:"0", step:"any", placeholder:t("e.g. 200"), "data-ai-credit":"", class:"input", style:"width:90px;box-sizing:content-box"});
   inp.value = credit > 0 ? String(credit) : "";
   inp.addEventListener("change", ()=>{ const was = credit, want = inp.value.trim() === "" ? 0 : Math.max(0, Number(inp.value) || 0);
     save("ai_credit_month_usd", want, ()=>{ inp.value = was > 0 ? String(was) : ""; }).then(ok=>{ if (ok) { credit = want; load(); } }); });
   const warn = document.createElement("select");
   warn.className = "select";
   warn.setAttribute("data-ai-credit-warn", "");
-  for (const [v, n] of [["0", "Off"], ["50", "at 50 %"], ["75", "at 75 %"], ["90", "at 90 %"]]) warn.appendChild(el("option",{value:v}, n));
+  for (const [v, n] of [["0", t("Off")], ["50", t("at 50 %")], ["75", t("at 75 %")], ["90", t("at 90 %")]]) warn.appendChild(el("option",{value:v}, n));
   warn.value = String([50, 75, 90].includes(Number(settings.ai_credit_warn_pct)) ? Number(settings.ai_credit_warn_pct) : 0);
   let warnLast = warn.value;
   warn.addEventListener("change", ()=>{ const want = warn.value; save("ai_credit_warn_pct", Number(want), ()=>{ warn.value = warnLast; }).then(ok=>{ if (ok) warnLast = want; }); });
-  controls.appendChild(el("label",{style:"display:flex;align-items:center;gap:6px;font-size:12px;color:#a7f3d0;white-space:nowrap"}, ["Your monthly credit, US$", inp]));
-  controls.appendChild(el("label",{style:"display:flex;align-items:center;gap:6px;font-size:12px;color:#a7f3d0;white-space:nowrap"}, ["Warn me", warn]));
+  controls.appendChild(el("label",{style:"display:flex;align-items:center;gap:6px;font-size:12px;color:#a7f3d0;white-space:nowrap"}, [t("Your monthly credit, US$"), inp]));
+  controls.appendChild(el("label",{style:"display:flex;align-items:center;gap:6px;font-size:12px;color:#a7f3d0;white-space:nowrap"}, [t("Warn me"), warn]));
   box.appendChild(line);
   box.appendChild(stops);
   box.appendChild(how);
@@ -4569,12 +4551,13 @@ function _aiUsageRow(ctx, el, save){
     const claude = u.main_maker === "claude";
     let text;
     if (claude) {
-      text = `Claude reads this month: ${u.claude_reads}`;
+      text = t("Claude reads this month: {count}", { count: u.claude_reads });
       // A priced model with nothing priced yet this month (the 1st, or only failed reads) is $0.00, not "no price known".
-      if (u.claude_usd == null && !u.main_priced) text += " (no price known for this model)";
-      else text += `, about ${money(u.claude_usd || 0)}` + (credit > 0 ? ` of your $${credit} monthly credit` : "");
+      if (u.claude_usd == null && !u.main_priced) text += " " + t("(no price known for this model)");
+      else text += ", " + (credit > 0 ? t("about {cost} of your ${credit} monthly credit", { cost: money(u.claude_usd || 0), credit })
+        : t("about {cost}", { cost: money(u.claude_usd || 0) }));
     } else {
-      text = `AI reads this month: ${u.reads}`;
+      text = t("AI reads this month: {count}", { count: u.reads });
     }
     line.innerHTML = "";
     line.appendChild(document.createTextNode(text));
@@ -4582,15 +4565,15 @@ function _aiUsageRow(ctx, el, save){
     const list = u.stops || [];
     const n = list.reduce((s, x) => s + (x.n || 0), 0);
     stops.style.display = n ? "" : "none";
-    stops.textContent = !n ? "" : `${n} read${n === 1 ? "" : "s"} stopped: ` +
-      (list.length === 1 ? list[0].words : list.map(x => `${x.n} ${x.words}`).join(", "));
+    stops.textContent = !n ? "" : tn(n, "{n} read stopped: {what}", "{n} reads stopped: {what}",
+      { what: list.length === 1 ? list[0].words : list.map(x => `${x.n} ${x.words}`).join(", ") });
     how.innerHTML = "";
     if (claude) {
-      how.appendChild(document.createTextNode("An estimate from each picture's size and each question's length: Home Assistant doesn't pass on what Claude counted. Exact numbers: "));
+      how.appendChild(document.createTextNode(t("An estimate from each picture's size and each question's length: Home Assistant doesn't pass on what Claude counted. Exact numbers: ")));
       how.appendChild(el("a",{href:"https://platform.claude.com/usage", target:"_blank", rel:"noopener noreferrer", style:"color:#52b788"}, "Anthropic Console → Usage"));
-      how.appendChild(document.createTextNode(" (filter by the key Home Assistant uses)." + (u.warned ? " This month's warning has been shown." : "")));
+      how.appendChild(document.createTextNode(" " + t("(filter by the key Home Assistant uses).") + (u.warned ? " " + t("This month's warning has been shown.") : "")));
     } else {
-      how.textContent = "Every read PadSpan sent to your AI this month. A cost is estimated for Claude only.";
+      how.textContent = t("Every read PadSpan sent to your AI this month. A cost is estimated for Claude only.");
     }
     controls.style.display = claude ? "flex" : "none";
   }
@@ -4609,7 +4592,7 @@ function _planBuildRow(ctx, el, save, settings){
   const hbox = el("div",{"data-ai-helper":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
   box._helper = hbox;
   let on = settings.ai_plan_build_enabled === true;
-  const chip = () => el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
+  const chip = () => el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, t("EXPERIMENTAL"));
   const show = (info) => {
     box.innerHTML = "";
     hbox.innerHTML = "";
@@ -4623,7 +4606,7 @@ function _planBuildRow(ctx, el, save, settings){
     if (hundo) {
       hbox.appendChild(el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["Let Claude draw your rooms", chip()]));
       hbox.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:2px 0 6px"},
-        "Claude reads a floor plan and draws its rooms for you to check; it is offered in Setup's Draw the rooms step. It needs none of the switches above."));
+        t("Claude reads a floor plan and draws its rooms for you to check; it is offered in Setup's Draw the rooms step. It needs none of the switches above.")));
       hbox.appendChild(undoRow(hundo, true, true));
     }
     // AI map-building research on and Claude not usable: why the row isn't here, in the rooms helper's words (one copy:
@@ -4634,8 +4617,9 @@ function _planBuildRow(ctx, el, save, settings){
     if (!ok) {
       if (why) {
         const line = el("div",{"data-ai-plan-build-why":"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px 0"},
-          `Build from plans (experimental) isn't offered here. ${why} ${cs.why === "available_unchosen" ? "Choose it as your AI Task above." : `It needs ${AIWO.MODEL_WORDS} through Home Assistant's Anthropic integration.`} `);
-        if (newTabOk(ctx.state.kioskMode)) line.appendChild(el("a",{href:AIWO.GUIDE_URL, target:"_blank", rel:"noopener", style:"color:#8ee5b4"}, "How to connect Claude ↗"));
+          t("Build from plans (experimental) isn't offered here.") + " " + why + " " + (cs.why === "available_unchosen" ? t("Choose it as your AI Task above.")
+            : t("It needs {model} through Home Assistant's Anthropic integration.", { model: AIWO.MODEL_WORDS })) + " ");
+        if (newTabOk(ctx.state.kioskMode)) line.appendChild(el("a",{href:AIWO.GUIDE_URL, target:"_blank", rel:"noopener", style:"color:#8ee5b4"}, t("How to connect Claude ↗")));
         box.appendChild(line);
       }
       if (undo) box.appendChild(undoRow(undo, false)); if (rundo) box.appendChild(undoRow(rundo, false, true)); return;
@@ -4646,42 +4630,42 @@ function _planBuildRow(ctx, el, save, settings){
     cb.addEventListener("change", ()=>{ const want = cb.checked; save("ai_plan_build_enabled", want, ()=>{ cb.checked = !want; }).then(ok2=>{ if (ok2) on = want; }); });
     label.appendChild(cb);
     label.appendChild(el("div",{},[
-      el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["Build from plans: advanced plan alignment (Claude, experimental)", chip()]),
+      el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, [t("Build from plans: advanced plan alignment (Claude, experimental)"), chip()]),
       el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
-        "Claude reads your floor plans and lines them up to each other and to your house. You check every change on a map before anything is saved; " +
-        "a backup is taken before each save and one undo takes a session back. Lining plans up never changes calibration or anything placed in metres. " +
-        "Needs Claude Opus 5.5 or newer as your AI Task. In Live Aboard: Edit → Plans → Line up plans; then, on a lined-up floor, Rooms from plans " +
-        "reads its rooms, doors, windows and stairs, saved together with one backup and one undo."),
-      el("div",{style:"font-size:11px;color:#a7f3d0;margin-top:2px"}, `Reads with ${info.unlock.display || "Claude"}. The plans leave the house for Anthropic.`),
+        t("Claude reads your floor plans and lines them up to each other and to your house. You check every change on a map before anything is saved; a backup is taken before each save and one undo takes a session back. Lining plans up never changes calibration or anything placed in metres. Needs Claude Opus 5.5 or newer as your AI Task. In Live Aboard: Edit → Plans → Line up plans; then, on a lined-up floor, Rooms from plans reads its rooms, doors, windows and stairs, saved together with one backup and one undo.")),
+      el("div",{style:"font-size:11px;color:#a7f3d0;margin-top:2px"}, t("Reads with {model}. The plans leave the house for Anthropic.", { model: info.unlock.display || "Claude" })),
     ]));
     box.appendChild(label);
     // The stall watch (design 14): this house's own stops, said here, not only in the usage report.
     const month = (info.stall && info.stall.month) || {}, words = (info.stall && info.stall.words) || {};
     const keys = Object.keys(month).filter(k => month[k] > 0).sort((a, b) => month[b] - month[a]);
     if (keys.length) box.appendChild(el("div",{"data-ai-plan-build-stops":"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:4px 0 0 24px"},
-      "Line-up stops this month (experimental): " + keys.slice(0, 4).map(k => `${String(words[k] || k).replace(/\.$/, "")} (×${month[k]})`).join(" · ")));
+      t("Line-up stops this month (experimental): {list}", { list: keys.slice(0, 4).map(k => `${String(words[k] || k).replace(/\.$/, "")} (×${month[k]})`).join(" · ") })));
     if (undo) { const r = undoRow(undo, true); r.style.margin = "6px 0 0 24px"; box.appendChild(r); }
     if (rundo) { const r = undoRow(rundo, true, true); r.style.margin = "6px 0 0 24px"; box.appendChild(r); }
   };
   // Undo this line-up session (experimental): asked once, then the whole session; said in plain words either way.
   // `rooms`: the same for Rooms from plans (Stage 2): its own words, session and command (UNDO_OF).
   const UNDO_OF = {
-    lineup: { title: "Undo this line-up session (experimental)", cmd: "padspan_ha/plan_build_undo", prefix: "Line up plans (experimental): ", tool: "Line up plans",
-      what: (u) => `The last plan line-up saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} plan${u.items === 1 ? "" : "s"} moved or refiled. ` +
-        "Undo puts every one back where it was; a backup is taken first, and a plan you moved by hand since is left as it is.",
-      sure: "Put every plan this session saved back where it was?",
-      done: (n, k) => `${n} plan${n === 1 ? "" : "s"} put back where ${n === 1 ? "it was" : "they were"}${k ? `; ${k} moved by hand since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
-    rooms: { title: "Undo this rooms session (experimental)", cmd: "padspan_ha/plan_build_rooms_undo", prefix: "Rooms from plans (experimental): ", tool: "Rooms from plans",
-      what: (u) => `The last rooms from plans saved on ${u.floor_name || "a floor"}${u.when}: ${u.items} item${u.items === 1 ? "" : "s"} (rooms, doors, windows, stairs). ` +
-        "Undo puts every one back as it was; a backup is taken first, and anything you changed since is left as it is.",
-      sure: "Put every room, door, window and stair this session saved back as it was?",
-      done: (n, k) => `${n} put back${k ? `; ${k} changed since left as ${k === 1 ? "it is" : "they are"}` : ""}.` },
+    lineup: { title: t("Undo this line-up session (experimental)"), cmd: "padspan_ha/plan_build_undo", prefix: t("{tool} (experimental): ", { tool: "Line up plans" }), tool: "Line up plans",
+      what: (u) => tn(u.items, "The last plan line-up saved on {floor}{when}: {n} plan moved or refiled.", "The last plan line-up saved on {floor}{when}: {n} plans moved or refiled.",
+        { floor: u.floor_name || t("a floor"), when: u.when }) + " " +
+        t("Undo puts every one back where it was; a backup is taken first, and a plan you moved by hand since is left as it is."),
+      sure: t("Put every plan this session saved back where it was?"),
+      done: (n, k) => tn(n, "{n} plan put back where it was", "{n} plans put back where they were") +
+        (k ? "; " + tn(k, "{n} moved by hand since left as it is", "{n} moved by hand since left as they are") : "") + "." },
+    rooms: { title: t("Undo this rooms session (experimental)"), cmd: "padspan_ha/plan_build_rooms_undo", prefix: t("{tool} (experimental): ", { tool: "Rooms from plans" }), tool: "Rooms from plans",
+      what: (u) => tn(u.items, "The last rooms from plans saved on {floor}{when}: {n} item (rooms, doors, windows, stairs).",
+        "The last rooms from plans saved on {floor}{when}: {n} items (rooms, doors, windows, stairs).", { floor: u.floor_name || t("a floor"), when: u.when }) + " " +
+        t("Undo puts every one back as it was; a backup is taken first, and anything you changed since is left as it is."),
+      sure: t("Put every room, door, window and stair this session saved back as it was?"),
+      done: (n, k) => t("{n} put back", { n }) + (k ? "; " + tn(k, "{n} changed since left as it is", "{n} changed since left as they are") : "") + "." },
     // The same undo for rooms the rooms helper saved (plan_ai.rooms_undo_info's `helper`), said in the helper's name, sent as
     // the helper's (via "wizard": it isn't offered on the Overview again, and is counted). Then, as the Done screen's Undo, the
     // plan's scale the helper set, when the server says it goes (u.scale, by scale_undo's own rule; owner, 2026-11-11: warned
     // first; a scale measured again by hand is the person's and is neither warned about nor removed).
     // Its words and its run are the helper's own (views/ai_wizard_offer.js: one copy for the Done screen, Setup and here).
-    helper: { title: AIWO ? AIWO.UNDO_TITLE : "", cmd: "padspan_ha/plan_build_rooms_undo", via: "wizard", prefix: "Let Claude draw your rooms (experimental): ",
+    helper: { title: AIWO ? AIWO.UNDO_TITLE : "", cmd: "padspan_ha/plan_build_rooms_undo", via: "wizard", prefix: t("{tool} (experimental): ", { tool: "Let Claude draw your rooms" }),
       tool: "Let Claude draw your rooms", what: (u) => (AIWO ? AIWO.undoWhat(u) : ""), sure: (u) => (AIWO ? AIWO.undoSure(u) : "") },
   };
   const asking = { lineup: false, rooms: false, helper: false }, said = { lineup: "", rooms: "", helper: "" };
@@ -4690,15 +4674,15 @@ function _planBuildRow(ctx, el, save, settings){
     const row = el("div",{[rooms ? "data-ai-plan-build-rooms-undo" : "data-ai-plan-build-undo"]:"", style:"font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px 0"});
     const when = u.at ? ` (${new Date(u.at * 1000).toLocaleDateString()})` : "";
     row.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;font-weight:600"}, [K.title, chip()]));
-    row.appendChild(el("div",{}, K.what({ ...u, when }) + (unlocked ? "" : ` ${K.tool} is hidden while your AI Task isn't Claude Opus 5.5 or newer; this undo stays here.`)));
+    row.appendChild(el("div",{}, K.what({ ...u, when }) + (unlocked ? "" : " " + t("{tool} is hidden while your AI Task isn't Claude Opus 5.5 or newer; this undo stays here.", { tool: K.tool }))));
     const bs = { style:"margin:4px 6px 0 0;padding:4px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#e2e8f0;font-size:11px;cursor:pointer" };
     if (!asking[kind]) {
       const b = el("button",{...bs, type:"button", "data-ai-plan-build-undo-ask":""}, K.title);
       b.addEventListener("click", ()=>{ asking[kind] = true; said[kind] = ""; ask(); });
       row.appendChild(b);
     } else {
-      const yes = el("button",{...bs, type:"button", "data-ai-plan-build-undo-go":"", style: bs.style + ";background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"}, "Undo it (experimental)");
-      const no = el("button",{...bs, type:"button"}, "Cancel");
+      const yes = el("button",{...bs, type:"button", "data-ai-plan-build-undo-go":"", style: bs.style + ";background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"}, t("Undo it (experimental)"));
+      const no = el("button",{...bs, type:"button"}, t("Cancel"));
       yes.addEventListener("click", ()=>{
         yes.disabled = true;
         // The helper's: its own run (the rooms, then the scale where it goes); the others: their one command.
@@ -4735,30 +4719,31 @@ function _planAiLastRow(ctx, el){
     const day = when ? `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}-${String(when.getDate()).padStart(2, "0")}` : "";
     const n = u.items || 0;
     const back = u.puts_back === true;
-    box.appendChild(el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, back ? `The last undo: ${n} item${n === 1 ? "" : "s"}, ${day}` : `Last plan session: ${n} item${n === 1 ? "" : "s"} kept, ${day}`));
+    box.appendChild(el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, back ? tn(n, "The last undo: {n} item, {day}", "The last undo: {n} items, {day}", { day }) : tn(n, "Last plan session: {n} item kept, {day}", "Last plan session: {n} items kept, {day}", { day })));
     const acts = el("span",{style:"display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px"});
     const ask = () => {
       acts.innerHTML = "";
       acts.appendChild(el("button",{class:"btn inline", type:"button", "data-ai-plans-undo":"", onclick: ()=>{
         acts.innerHTML = "";
-        acts.appendChild(el("span",{style:"font-size:12px;color:#fca5a5"}, back ? "Put those items back in your 3D house?" : "Take what this session kept out of your 3D house? Anything you changed since is left as it is."));
+        acts.appendChild(el("span",{style:"font-size:12px;color:#fca5a5"}, back ? t("Put those items back in your 3D house?") : t("Take what this session kept out of your 3D house? Anything you changed since is left as it is.")));
         acts.appendChild(el("button",{class:"btn inline", type:"button", "data-ai-plans-undo-yes":"", style:"background:#7f1d1d;border-color:#dc2626;color:#fca5a5", onclick: async ()=>{
           acts.innerHTML = "";
-          acts.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"}, "Working…"));
+          acts.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"}, t("Working…")));
           try {
             const r = await ctx.actions.wsCall("padspan_ha/plan_ai_undo", { batch_id: u.id });
             const left = (r && r.skipped ? r.skipped.length : 0);
-            ctx.toast(`${back ? "Put back" : "Undone"}: ${r.undone} of ${r.of}${left ? `. ${left} ${left === 1 ? "was" : "were"} changed since and left as ${left === 1 ? "it is" : "they are"}` : ""}.`);
+            ctx.toast((back ? t("Put back: {done} of {of}", { done: r.undone, of: r.of }) : t("Undone: {done} of {of}", { done: r.undone, of: r.of })) +
+              (left ? ". " + tn(left, "{n} was changed since and left as it is", "{n} were changed since and left as they are") : "") + ".");
             // Every Live Aboard open in this page reads its file again.
             try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
             show(r && r.undo);
           } catch (e) {
-            ctx.toast("Could not undo: " + ctx.helpers.errorText(e), true);
+            ctx.toast(t("Could not undo: {why}", { why: ctx.helpers.errorText(e) }), true);
             ask();
           }
-        }}, back ? "Put back" : "Undo"));
-        acts.appendChild(el("button",{class:"btn inline", type:"button", style:"color:#94a3b8;border-color:#94a3b840", onclick: ask}, "Cancel"));
-      }}, back ? "Put back…" : "Undo this session…"));
+        }}, back ? t("Put back") : t("Undo")));
+        acts.appendChild(el("button",{class:"btn inline", type:"button", style:"color:#94a3b8;border-color:#94a3b840", onclick: ask}, t("Cancel")));
+      }}, back ? t("Put back…") : t("Undo this session…")));
     };
     ask();
     box.appendChild(el("div",{}, [acts]));
@@ -4766,6 +4751,7 @@ function _planAiLastRow(ctx, el){
   ctx.actions.wsCall("padspan_ha/plan_ai_sessions_get").then((r) => show(r && r.undo)).catch(() => show(null));
   return box;
 }
+// i18n part: atlas
 function _atlas3dLibraryRows(ctx, el, settings, more, row, save){
   const spot = el("div",{});
   more.appendChild(spot);
@@ -4776,15 +4762,15 @@ function _atlas3dLibraryRows(ctx, el, settings, more, row, save){
 function _atlas3dLibraryRowsShown(ctx, el, settings, more, row, save){
   const cb = el("input",{type:"checkbox"});
   cb.checked = settings.atlas_3d_library === true;
-  more.appendChild(row("Shared library", [el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"},
-    [cb, el("span",{style:"color:#e2e8f0;font-size:13px"},"Use the shared furniture library")])]));
+  more.appendChild(row(t("Shared library"), [el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"},
+    [cb, el("span",{style:"color:#e2e8f0;font-size:13px"},t("Use the shared furniture library"))])]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
-    "Find furniture other PadSpan houses made, and share yours once you accept the library's terms. Only a piece's shape, sizes, colours and details are shared. Off: Live Aboard never contacts the library."));
-  const wd = el("button",{class:"btn", type:"button", "data-la3d-withdraw":""},"Withdraw my shared furniture");
-  const yes = el("button",{class:"btn", type:"button", "data-la3d-withdraw-yes":""},"Withdraw them");
-  const no = el("button",{class:"btn", type:"button"},"Cancel");
+    t("Find furniture other PadSpan houses made, and share yours once you accept the library's terms. Only a piece's shape, sizes, colours and details are shared. Off: Live Aboard never contacts the library.")));
+  const wd = el("button",{class:"btn", type:"button", "data-la3d-withdraw":""},t("Withdraw my shared furniture"));
+  const yes = el("button",{class:"btn", type:"button", "data-la3d-withdraw-yes":""},t("Withdraw them"));
+  const no = el("button",{class:"btn", type:"button"},t("Cancel"));
   const ask = el("div",{style:"margin-top:6px;padding:8px 10px;border-radius:8px;background:#1f1a0a;border:1px solid #5c4a14;color:#fde68a;font-size:12px;line-height:1.5"},[
-    el("div",{},"Take every piece this house shared out of the library? Copies already placed in other houses stay there."),
+    el("div",{},t("Take every piece this house shared out of the library? Copies already placed in other houses stay there.")),
     el("div",{style:"display:flex;gap:8px;margin-top:6px"},[yes, no])]);
   ask.style.display = "none";
   const wdRow = row("", [wd]);
@@ -4803,33 +4789,36 @@ function _atlas3dLibraryRowsShown(ctx, el, settings, more, row, save){
     try {
       const r = await ctx.actions.wsCall("padspan_ha/house3d_library_withdraw", {});
       const n = Number(r && r.withdrawn) || 0, left = Number(r && r.left) || 0;
-      ctx.toast(`${n === 1 ? "1 piece" : `${n} pieces`} taken out of the library.${left ? ` ${left} could not be reached yet: try again later.` : ""}`);
+      ctx.toast(tn(n, "{n} piece taken out of the library.", "{n} pieces taken out of the library.") +
+        (left ? " " + t("{count} could not be reached yet: try again later.", { count: left }) : ""));
     } catch (e) {
-      ctx.toast("Could not withdraw: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not withdraw: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
     yes.disabled = false;
     ask.style.display = "none";
     wd.disabled = false;
   });
 }
+// i18n part: -
 
 // ── UI Structure tab ──────────────────────────────────────────────────────────
 const _DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox"];
-const _TAB_LABELS = {devices:"Devices",bluetooth:"Bluetooth",presence:"Presence",monitor:"Monitor",qa:"QA",sandbox:"Sandbox"};
+const _TAB_LABELS = {devices: () => t("Devices"), bluetooth: () => t("Bluetooth"), presence: () => t("Presence"), monitor: () => t("Monitor"),
+  qa: () => t("QA"), sandbox: () => t("Sandbox")};
 
 function _settingsUI(ctx, el){
   const wrap = el("div",{});
   const settings = ctx.state.settings || {};
   const extras = settings.advanced_extra_tabs || [];
 
-  wrap.appendChild(el("h3",{style:"color:#52b788;margin-bottom:8px"},"UI Structure"));
+  wrap.appendChild(el("h3",{style:"color:#52b788;margin-bottom:8px"},t("UI Structure")));
   wrap.appendChild(el("p",{style:"color:#94a3b8;font-size:13px;margin-bottom:16px"},
-    "Every tab is in the menu in every mode; the ones not in the main list are under More tools. Tick a tab to list it in the main menu in Advanced and Development mode. Basic keeps its short list."));
+    t("Every tab is in the menu in every mode; the ones not in the main list are under More tools. Tick a tab to list it in the main menu in Advanced and Development mode. Basic keeps its short list.")));
 
   const card = el("div",{class:"card",style:"padding:16px"});
   const checks = [];
   for(const tabId of _DEV_ONLY_TABS){
-    const label = _TAB_LABELS[tabId] || tabId;
+    const label = _TAB_LABELS[tabId] ? _TAB_LABELS[tabId]() : tabId;
     const checked = extras.includes(tabId);
     const row = el("label",{style:"display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer"});
     const cb = el("input",{type:"checkbox"});
@@ -4842,12 +4831,12 @@ function _settingsUI(ctx, el){
   }
   wrap.appendChild(card);
 
-  const saveBtn = el("button",{class:"btn",style:"margin-top:12px"},"Save");
+  const saveBtn = el("button",{class:"btn",style:"margin-top:12px"},t("Save"));
   const status = el("span",{style:"margin-left:10px;color:#94a3b8;font-size:13px"});
   saveBtn.addEventListener("click", async ()=>{
     const selected = checks.filter(c => c.checked).map(c => c.dataset.tab);
     await ctx.actions.settingsSet({ advanced_extra_tabs: selected });
-    status.textContent = "Saved!";
+    status.textContent = t("Saved!");
     ctx.actions.renderNav();
     setTimeout(()=>{ status.textContent = ""; }, 2000);
   });
@@ -4855,10 +4844,10 @@ function _settingsUI(ctx, el){
 
   // The Atlas and Live Aboard settings have their own tab (Settings → Atlas)
   // since 2026-10-30; this says where they went, for anyone who looks here.
-  const atlasGo = el("button",{class:"btn inline","data-goto":"settings-atlas"},"Open Settings \u2192 Atlas");
+  const atlasGo = el("button",{class:"btn inline","data-goto":"settings-atlas"},t("Open Settings \u2192 Atlas"));
   atlasGo.addEventListener("click", ()=>{ ctx.state._settingsTab = "atlas"; ctx.actions.renderRooms(); });
   wrap.appendChild(el("div",{class:"card","data-atlas-moved":"",style:"padding:12px 16px;margin-top:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
-    el("span",{style:"color:#94a3b8;font-size:13px"}, "The Atlas, Live Aboard, wall screens and the Atlas as Overview are on the Atlas tab."),
+    el("span",{style:"color:#94a3b8;font-size:13px"}, t("The Atlas, Live Aboard, wall screens and the Atlas as Overview are on the Atlas tab.")),
     atlasGo,
   ]));
 
@@ -4871,12 +4860,12 @@ function _settingsUI(ctx, el){
   const edCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
   const _ed = String(settings.edition || "full"), _tier = String(settings.tier || "free");
   edCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
-    el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"),
+    el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},t("Edition & tier")),
     ctx.helpers.helpBtn ? ctx.helpers.helpBtn("settings_ui") : null,
   ]));
   edCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    `This build: ${_ed === "bright" ? "PadSpan Bright" : "PadSpan HA"} · running at tier "${_tier}"` +
-    (settings.license_tier_override ? ` (override: ${settings.license_tier_override})` : "") + `.`));
+    t("This build: {edition} · running at tier \"{tier}\"", { edition: _ed === "bright" ? "PadSpan Bright" : "PadSpan HA", tier: _tier }) +
+    (settings.license_tier_override ? " " + t("(override: {tier})", { tier: settings.license_tier_override }) : "") + "."));
   if(_ed === "bright"){
     const revRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"});
     const revCb = el("input",{type:"checkbox"});
@@ -4886,24 +4875,24 @@ function _settingsUI(ctx, el){
       ctx.actions.renderNav();
     });
     revRow.appendChild(revCb);
-    revRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the presence tabs too (Overview, Follow, Calibration, …)"));
+    revRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Show the presence tabs too (Overview, Follow, Calibration, …)")));
     edCard.appendChild(revRow);
   }
   if(ctx.state.complexity === "development"){
     const ovRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
-    ovRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Look at this install as tier:"));
+    ovRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, t("Look at this install as tier:")));
     const ovSel = document.createElement("select"); ovSel.className = "select";
-    for(const [v,l] of [["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]){
+    for(const [v,l] of [["",t("(no override)")],["free",t("free")],["bright","bright"],["pro","pro"]]){
       const o = document.createElement("option"); o.value = v; o.textContent = l; ovSel.appendChild(o);
     }
     ovSel.value = String(settings.license_tier_override || "");
     ovSel.addEventListener("change", async ()=>{
       await ctx.actions.settingsSet({ license_tier_override: ovSel.value });
-      ctx.toast(ovSel.value ? `Viewing as tier ${ovSel.value} (lower only)` : "Tier override cleared");
+      ctx.toast(ovSel.value ? t("Viewing as tier {tier} (lower only)", { tier: ovSel.value }) : t("Tier override cleared"));
       ctx.actions.renderRooms();
     });
     ovRow.appendChild(ovSel);
-    ovRow.appendChild(el("span",{class:"muted",style:"font-size:11px"}, "lowers only — the licence still decides upward"));
+    ovRow.appendChild(el("span",{class:"muted",style:"font-size:11px"}, t("lowers only — the licence still decides upward")));
     edCard.appendChild(ovRow);
   }
   wrap.appendChild(edCard);
@@ -4914,14 +4903,15 @@ function _settingsUI(ctx, el){
 // Scenes (2026-11-07, views/scene_row.js): the row under the Atlas is made of
 // Home Assistant's scenes and the one-floor Whole house presets; a new scene
 // is made in Home Assistant's own editor, which is an administrator's.
+// i18n part: atlas
 function _atlasScenesLine(ctx, el){
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   const box = el("div",{"data-focus-part":"scenes",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
-  box.appendChild(el("div",{style:"color:#e2e8f0;font-size:14px"},"Scenes"));
+  box.appendChild(el("div",{style:"color:#e2e8f0;font-size:14px"},t("Scenes")));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 8px;line-height:1.5"},
-    "The row of small maps under the Atlas (and in Live Aboard) shows Home Assistant's scenes that set a placed light, and the Whole house presets that light one floor. Tap one to run it, tap it again to turn its lights off. A screen can hide the row in Live Aboard's \u22ef list."));
+    t("The row of small maps under the Atlas (and in Live Aboard) shows Home Assistant's scenes that set a placed light, and the Whole house presets that light one floor. Tap one to run it, tap it again to turn its lights off. A screen can hide the row in Live Aboard's \u22ef list.")));
   if (!admin) {
-    box.appendChild(el("div",{style:"font-size:12px;color:#94a3b8"},"An administrator makes scenes in Home Assistant."));
+    box.appendChild(el("div",{style:"font-size:12px;color:#94a3b8"},t("An administrator makes scenes in Home Assistant.")));
     return box;
   }
   // Home Assistant's own page, as the panel opens one (rooms.js): its router, else a plain load.
@@ -4930,9 +4920,9 @@ function _atlasScenesLine(ctx, el){
     try { history.pushState(null, "", path); window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } })); }
     catch (_) { try { window.location.assign(path); } catch (__) { /* stays here */ } }
   };
-  const mk = el("button",{class:"btn inline","data-scene-new":"settings"},"+ New scene in Home Assistant \u203a");
+  const mk = el("button",{class:"btn inline","data-scene-new":"settings"},t("+ New scene in Home Assistant \u203a"));
   mk.addEventListener("click", ()=>open("/config/scene/edit/new", "house3d_show:scene_new:settings"));
-  const all = el("button",{class:"btn inline"},"All scenes \u203a");
+  const all = el("button",{class:"btn inline"},t("All scenes \u203a"));
   all.addEventListener("click", ()=>open("/config/scene/dashboard", null));
   box.appendChild(el("div",{style:"display:flex;align-items:center;flex-wrap:wrap;gap:6px"},[mk, all]));
   return box;
@@ -4945,11 +4935,11 @@ function _settingsAtlas(ctx, el){
   const wrap = el("div",{});
   const settings = ctx.state.settings || {};
   wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
-    el("h3",{style:"color:#52b788;margin-bottom:8px"},"Atlas"),
+    el("h3",{style:"color:#52b788;margin-bottom:8px"},t("Atlas")),
     ctx.helpers.helpBtn ? ctx.helpers.helpBtn("settings_atlas") : null,
   ]));
   wrap.appendChild(el("p",{style:"color:#94a3b8;font-size:13px;margin-bottom:0"},
-    "The Atlas (the house map for everyday light control) and Live Aboard, its 3D view."));
+    t("The Atlas (the house map for everyday light control) and Live Aboard, its 3D view.")));
 
   // ── The Atlas (was "Mapped Light Control Goodie") ──
   // The Atlas is on by default now (settings_store.py). Two switches that
@@ -4957,24 +4947,24 @@ function _settingsAtlas(ctx, el){
   // setup (panel.py) and takes a restart after Save; the emergency button is
   // read by the Atlas on its next refresh, so it saves the moment it changes.
   const lightsCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
-  lightsCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#fbbf24;margin-bottom:6px"},"\uD83D\uDCA1 Atlas \u2014 Mapped Light Control"));
+  lightsCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#fbbf24;margin-bottom:6px"},t("\uD83D\uDCA1 Atlas \u2014 Mapped Light Control")));
   lightsCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    "The house map for everyday light control, as its own entry in the Home Assistant sidebar. On by default."));
+    t("The house map for everyday light control, as its own entry in the Home Assistant sidebar. On by default.")));
   const lightsRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
   const lightsCb = el("input",{type:"checkbox"});
   lightsCb.checked = !!(settings.lights_panel_enabled);
   lightsRow.appendChild(lightsCb);
-  lightsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the Atlas in the Home Assistant sidebar"));
+  lightsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Show the Atlas in the Home Assistant sidebar")));
   lightsCard.appendChild(lightsRow);
   lightsCard.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
-    "Save, then restart Home Assistant for this one to take effect."));
-  const lightsSaveBtn = el("button",{class:"btn inline",style:"margin-top:10px"},"Save");
+    t("Save, then restart Home Assistant for this one to take effect.")));
+  const lightsSaveBtn = el("button",{class:"btn inline",style:"margin-top:10px"},t("Save"));
   const lightsStatus = el("span",{style:"margin-left:10px;color:#94a3b8;font-size:13px"});
   lightsSaveBtn.addEventListener("click", async ()=>{
     await ctx.actions.settingsSet({ lights_panel_enabled: lightsCb.checked });
     lightsStatus.textContent = lightsCb.checked
-      ? "Saved \u2014 restart Home Assistant to see the Atlas in the sidebar."
-      : "Saved \u2014 restart Home Assistant to remove the Atlas from the sidebar.";
+      ? t("Saved \u2014 restart Home Assistant to see the Atlas in the sidebar.")
+      : t("Saved \u2014 restart Home Assistant to remove the Atlas from the sidebar.");
     lightsStatus.style.color = "#fbbf24";
   });
   lightsCard.appendChild(el("div",{style:"display:flex;align-items:center;flex-wrap:wrap"}, [lightsSaveBtn, lightsStatus]));
@@ -4985,10 +4975,10 @@ function _settingsAtlas(ctx, el){
   const emergCb = el("input",{type:"checkbox"});
   emergCb.checked = settings.atlas_emergency_button !== false;
   emergRow.appendChild(emergCb);
-  emergRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the Test emergency lighting button on the Atlas"));
+  emergRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Show the Test emergency lighting button on the Atlas")));
   lightsCard.appendChild(emergRow);
   const emergNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
-    "Saves as soon as you tick or untick it. No restart needed.");
+    t("Saves as soon as you tick or untick it. No restart needed."));
   lightsCard.appendChild(emergNote);
   emergCb.addEventListener("change", async ()=>{
     const want = emergCb.checked;
@@ -4998,11 +4988,11 @@ function _settingsAtlas(ctx, el){
       // this page that hasn't been saved yet (and this note with it).
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_emergency_button: want });
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      emergNote.textContent = want ? "Saved \u2014 the button comes back on the Atlas at its next refresh."
-        : "Saved \u2014 the button leaves the Atlas at its next refresh.";
+      emergNote.textContent = want ? t("Saved \u2014 the button comes back on the Atlas at its next refresh.")
+        : t("Saved \u2014 the button leaves the Atlas at its next refresh.");
     } catch (e) {
       emergCb.checked = !want;
-      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
   });
   // Lights in their own colours on the working Atlas (Showcase always does).
@@ -5011,19 +5001,19 @@ function _settingsAtlas(ctx, el){
   const colCb = el("input",{type:"checkbox"});
   colCb.checked = settings.atlas_live_colours === true;
   colRow.appendChild(colCb);
-  colRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Draw lit lights in their own colour on the Atlas (a colour bulb's colour, a white bulb's warm or cool)"));
+  colRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Draw lit lights in their own colour on the Atlas (a colour bulb's colour, a white bulb's warm or cool)")));
   lightsCard.appendChild(colRow);
-  const colNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, "Off: lit lights are amber, as always. Showcase always uses their colours.");
+  const colNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, t("Off: lit lights are amber, as always. Showcase always uses their colours."));
   lightsCard.appendChild(colNote);
   colCb.addEventListener("change", async ()=>{
     const want = colCb.checked;
     try {
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_live_colours: want });
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      colNote.textContent = "Saved \u2014 the Atlas changes at its next refresh.";
+      colNote.textContent = t("Saved \u2014 the Atlas changes at its next refresh.");
     } catch (e) {
       colCb.checked = !want;
-      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
   });
   // Alert pulse, normally off: a door, window, gate or cover left open for more
@@ -5034,10 +5024,10 @@ function _settingsAtlas(ctx, el){
   const pulseCb = el("input",{type:"checkbox"});
   pulseCb.checked = settings.atlas_alert_pulse === true;
   pulseRow.appendChild(pulseCb);
-  pulseRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Alert pulse"));
+  pulseRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Alert pulse")));
   lightsCard.appendChild(pulseRow);
   const pulseNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
-    "A door, window, gate or cover left open for more than 6 hours, or a window or cover open while it rains or snows, rings its room in amber. On a wall screen (?kiosk=1) a banner across the top names the worst alert and where it is (“Leak · Laundry”) until it clears. Saves as soon as you tick or untick it.");
+    t("A door, window, gate or cover left open for more than 6 hours, or a window or cover open while it rains or snows, rings its room in amber. On a wall screen (?kiosk=1) a banner across the top names the worst alert and where it is (“Leak · Laundry”) until it clears. Saves as soon as you tick or untick it."));
   lightsCard.appendChild(pulseNote);
   pulseCb.addEventListener("change", async ()=>{
     const want = pulseCb.checked;
@@ -5045,11 +5035,11 @@ function _settingsAtlas(ctx, el){
       // Straight to the wire, as the emergency button's box above.
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_alert_pulse: want });
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      pulseNote.textContent = want ? "Saved — the Atlas shows alerts from its next refresh."
-        : "Saved — the Atlas stops showing alerts at its next refresh.";
+      pulseNote.textContent = want ? t("Saved — the Atlas shows alerts from its next refresh.")
+        : t("Saved — the Atlas stops showing alerts at its next refresh.");
     } catch (e) {
       pulseCb.checked = !want;
-      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
   });
   // The ♨ Heatmap chip, normally off: with it on, the Atlas's layer bar offers
@@ -5061,20 +5051,20 @@ function _settingsAtlas(ctx, el){
   const heatCb = el("input",{type:"checkbox"});
   heatCb.checked = settings.atlas_heatmap_enabled === true;
   heatRow.appendChild(heatCb);
-  heatRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Heatmap chip on the Atlas (temperature, humidity, CO\u2082)"));
+  heatRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Heatmap chip on the Atlas (temperature, humidity, CO\u2082)")));
   lightsCard.appendChild(heatRow);
   const heatNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
-    "Adds a \u2668 chip to the Atlas's layer bar; each room takes its colour from its own sensors only. Off: no chip.");
+    t("Adds a \u2668 chip to the Atlas's layer bar; each room takes its colour from its own sensors only. Off: no chip."));
   lightsCard.appendChild(heatNote);
   heatCb.addEventListener("change", async ()=>{
     const want = heatCb.checked;
     try {
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_heatmap_enabled: want });
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      heatNote.textContent = "Saved \u2014 the Atlas changes at its next refresh.";
+      heatNote.textContent = t("Saved \u2014 the Atlas changes at its next refresh.");
     } catch (e) {
       heatCb.checked = !want;
-      ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
   });
   }
@@ -5100,30 +5090,30 @@ function _settingsAtlas(ctx, el){
   const ovShown = surfacesForEdition(["overview"], settings).length > 0;
   const ovPro = tierAtLeast(settings.tier, "pro");
   const ovCard = el("div",{class:"card","data-focus-part":"atlas_overview",style:"padding:16px;margin-top:20px"});
-  ovCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"},"\uD83D\uDDFA\uFE0F Overview \u2014 the Atlas as your main map"));
+  ovCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"},t("\uD83D\uDDFA\uFE0F Overview \u2014 the Atlas as your main map")));
   ovCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    "Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Live Tracker, which gets a switch between the two."));
+    t("Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Live Tracker, which gets a switch between the two.")));
   const ovRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:" + (ovPro ? "pointer" : "not-allowed")});
   const ovCb = el("input",{type:"checkbox"});
   ovCb.checked = ovPro && settings.overview_atlas === true;
   ovCb.disabled = !ovPro;
   ovRow.appendChild(ovCb);
-  ovRow.appendChild(el("span",{style:"color:" + (ovPro ? "#e2e8f0" : "#64748b") + ";font-size:14px"}, "Show the Atlas as Overview"));
+  ovRow.appendChild(el("span",{style:"color:" + (ovPro ? "#e2e8f0" : "#64748b") + ";font-size:14px"}, t("Show the Atlas as Overview")));
   ovCard.appendChild(ovRow);
   const ovNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
-    ovPro ? "Saves right away." : "PadSpan Pro (Settings \u2192 PadSpan licence).");
+    ovPro ? t("Saves right away.") : t("PadSpan Pro (Settings \u2192 PadSpan licence)."));
   ovCard.appendChild(ovNote);
   ovCb.addEventListener("change", async ()=>{
     try {
       await ctx.actions.settingsSet({ overview_atlas: ovCb.checked });
       ctx.state._liveClassic = false;
       ovNote.textContent = ovCb.checked
-        ? "Saved \u2014 Overview now shows the Atlas; the classic Overview is under Live Tracker."
-        : "Saved \u2014 Overview is back to the classic map.";
+        ? t("Saved \u2014 Overview now shows the Atlas; the classic Overview is under Live Tracker.")
+        : t("Saved \u2014 Overview is back to the classic map.");
       ovNote.style.color = "#52b788";
     } catch (e) {
       ovCb.checked = !ovCb.checked;
-      ovNote.textContent = "Could not save: " + String(e && e.message || e);
+      ovNote.textContent = t("Could not save: {why}", { why: String(e && e.message || e) });
       ovNote.style.color = "#f87171";
     }
   });

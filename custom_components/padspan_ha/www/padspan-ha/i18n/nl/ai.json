@@ -1,0 +1,110 @@
+{
+"Saves as soon as you change it.": "Wordt opgeslagen zodra je het wijzigt.",
+"Saved.": "Opgeslagen.",
+"Could not save: {why}": "Niet opgeslagen: {why}",
+"AI power features": "AI-functies",
+"PadSpan can use an AI you have set up in Home Assistant (an AI Task) to fill things in for you. It only reads what you give it, when you ask, and keeps nothing. A cloud AI (OpenAI, Google, Anthropic, Home Assistant Cloud) sends it out of the house; a local one (like Ollama) keeps it home.": "PadSpan kan een AI gebruiken die je in Home Assistant hebt ingesteld (een AI-taak) om dingen voor je in te vullen. Hij leest alleen wat je hem geeft, wanneer je het vraagt, en bewaart niets. Een cloud-AI (OpenAI, Google, Anthropic, Home Assistant Cloud) stuurt het het huis uit; een lokale (zoals Ollama) houdt het thuis.",
+"Your AI": "Je AI",
+"None": "Geen",
+"AI Task": "AI-taak",
+"Pick one whose model can read pictures (a vision model). Needs Home Assistant 2025.8 or newer.": "Kies er een waarvan het model afbeeldingen kan lezen (een vision-model). Vraagt Home Assistant 2025.8 of nieuwer.",
+"No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama, or a cloud one), then pick its AI Task here. Needs Home Assistant 2025.8 or newer.": "Nog geen AI-taak in Home Assistant. Voeg een AI-integratie met een vision-model toe (zoals Ollama, of een uit de cloud) en kies dan hier de AI-taak ervan. Vraagt Home Assistant 2025.8 of nieuwer.",
+"Backup AI task": "Reserve-AI-taak",
+"Used when the main one can't be reached, e.g. a computer that's away.": "Wordt gebruikt als de hoofd-AI niet bereikbaar is, bijv. een computer die weg is.",
+"What it does for you": "Wat hij voor je doet",
+"COMING SOON": "BINNENKORT",
+"EXPERIMENTAL": "EXPERIMENTEEL",
+"AI map-building research (experimental)": "AI-onderzoek voor het bouwen van kaarten (experimenteel)",
+"Research feature. The AI suggests; you check every item, and nothing is saved until you accept it. It never changes your calibration or signal walls. What it can save, each with a backup first and an undo: Line up plans moves a plan's picture; Rooms from plans saves rooms. Turning it off hides it; it does not undo what you kept. Let Claude draw your rooms doesn't need it.": "Onderzoeksfunctie. De AI doet voorstellen; jij controleert elk item, en niets wordt opgeslagen voordat je het accepteert. Hij wijzigt nooit je kalibratie of signaalmuren. Wat hij kan opslaan, telkens met eerst een back-up en een ongedaan maken: Line up plans verplaatst de afbeelding van een plattegrond; Rooms from plans slaat kamers op. Uitzetten verbergt het; het maakt niet ongedaan wat je hebt gehouden. Let Claude draw your rooms heeft het niet nodig.",
+"Stairs from your floor plans": "Trappen uit je plattegronden",
+"Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then drag, turn or delete it. A small AI on your own computer finds most staircases but often gets their shape and which way is up wrong; a cloud AI reads plans better. The plans are sent to your AI only when you press it. Off until you turn it on.": "Voegt Read stairs off the plans (AI) toe aan Furnish → Build ▾ → House in Live Aboard. Je AI zoekt op elke plattegrond die je hebt geplaatst naar de trappen en zet wat hij vindt erin als eerste schatting: controleer waar elke trap staat en welke kant op omhoog is, en sleep, draai of verwijder hem dan. Een kleine AI op je eigen computer vindt de meeste trappen maar heeft hun vorm en de richting omhoog vaak fout; een cloud-AI leest plattegronden beter. De plattegronden gaan alleen naar je AI als je erop drukt. Uit tot je het aanzet.",
+"Add data via plans": "Gegevens toevoegen via plattegronden",
+"In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists what it finds for you to check, item by item. What you keep goes into your 3D house when you press Save, and one undo takes a whole session back.": "In de Edit-balk van Live Aboard, het hulpmiddel Plans: je AI leest de plattegronden die je hebt geplaatst op trappen en relingen en zet wat hij vindt voor je op een lijst om te controleren, item voor item. Wat je houdt gaat je 3D-huis in als je op Save drukt, en één keer ongedaan maken neemt een hele sessie terug.",
+"Furniture from a photo": "Meubels uit een foto",
+"In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.": "Maak in Furnish van Live Aboard een foto van een bank, een bed of een lamp en de AI vult soort, stijl, kleuren en maten in. Ook tags, ontvangers en figuren van mensen. Hij benoemt het stuk zelf en leest dan de details van die soort; hem eerst zeggen wat het stuk is gaat sneller. Hij vraagt je om één echte maat, tenzij iets op de foto de schaal laat zien.",
+"Ask your voice assistant where someone is": "Vraag je spraakassistent waar iemand is",
+"Lets an AI voice assistant in Home Assistant ask PadSpan which room someone is in, in your own words.": "Laat een AI-spraakassistent in Home Assistant PadSpan in je eigen woorden vragen in welke kamer iemand is.",
+"e.g. 200": "bijv. 200",
+"Off": "Uit",
+"at 50 %": "bij 50%",
+"at 75 %": "bij 75%",
+"at 90 %": "bij 90%",
+"Your monthly credit, US$": "Je maandtegoed, US$",
+"Warn me": "Waarschuw me",
+"Claude reads this month: {count}": "Leesbeurten van Claude deze maand: {count}",
+"(no price known for this model)": "(geen prijs bekend voor dit model)",
+"about {cost} of your ${credit} monthly credit": "ongeveer {cost} van je maandtegoed van ${credit}",
+"about {cost}": "ongeveer {cost}",
+"AI reads this month: {count}": "AI-leesbeurten deze maand: {count}",
+"An estimate from each picture's size and each question's length: Home Assistant doesn't pass on what Claude counted. Exact numbers: ": "Een schatting op basis van de grootte van elke afbeelding en de lengte van elke vraag: Home Assistant geeft niet door wat Claude telde. Exacte cijfers: ",
+"(filter by the key Home Assistant uses).": "(filter op de sleutel die Home Assistant gebruikt).",
+"This month's warning has been shown.": "De waarschuwing van deze maand is getoond.",
+"Every read PadSpan sent to your AI this month. A cost is estimated for Claude only.": "Elke leesbeurt die PadSpan deze maand naar je AI stuurde. Alleen voor Claude wordt een prijs geschat.",
+"Claude reads a floor plan and draws its rooms for you to check; it is offered in Setup's Draw the rooms step. It needs none of the switches above.": "Claude leest een plattegrond en tekent de kamers zodat jij ze controleert; het wordt aangeboden in de stap “Kamers tekenen” van Instellen. Het heeft geen van de schakelaars hierboven nodig.",
+"Build from plans (experimental) isn't offered here.": "Build from plans (experimenteel) wordt hier niet aangeboden.",
+"Choose it as your AI Task above.": "Kies het hierboven als je AI-taak.",
+"It needs {model} through Home Assistant's Anthropic integration.": "Het vraagt {model} via de Anthropic-integratie van Home Assistant.",
+"How to connect Claude ↗": "Zo koppel je Claude ↗",
+"Build from plans: advanced plan alignment (Claude, experimental)": "Build from plans: geavanceerde uitlijning van plattegronden (Claude, experimenteel)",
+"Claude reads your floor plans and lines them up to each other and to your house. You check every change on a map before anything is saved; a backup is taken before each save and one undo takes a session back. Lining plans up never changes calibration or anything placed in metres. Needs Claude Opus 5.5 or newer as your AI Task. In Live Aboard: Edit → Plans → Line up plans; then, on a lined-up floor, Rooms from plans reads its rooms, doors, windows and stairs, saved together with one backup and one undo.": "Claude leest je plattegronden en lijnt ze uit ten opzichte van elkaar en van je huis. Je controleert elke wijziging op een kaart voordat er iets wordt opgeslagen; voor elke opslag wordt een back-up gemaakt en één keer ongedaan maken neemt een sessie terug. Plattegronden uitlijnen wijzigt nooit de kalibratie of iets dat in meters is geplaatst. Vraagt Claude Opus 5.5 of nieuwer als je AI-taak. In Live Aboard: Edit → Plans → Line up plans; daarna leest Rooms from plans op een uitgelijnde verdieping de kamers, deuren, ramen en trappen, samen opgeslagen met één back-up en één ongedaan maken.",
+"Reads with {model}. The plans leave the house for Anthropic.": "Leest met {model}. De plattegronden verlaten het huis naar Anthropic.",
+"Line-up stops this month (experimental): {list}": "Uitlijnstops deze maand (experimenteel): {list}",
+"Undo this line-up session (experimental)": "Deze uitlijnsessie ongedaan maken (experimenteel)",
+"{tool} (experimental): ": "{tool} (experimenteel): ",
+"a floor": "een verdieping",
+"Undo puts every one back where it was; a backup is taken first, and a plan you moved by hand since is left as it is.": "Ongedaan maken zet elke plattegrond terug waar hij was; eerst wordt een back-up gemaakt, en een plattegrond die je sindsdien met de hand hebt verplaatst blijft zoals hij is.",
+"Put every plan this session saved back where it was?": "Elke plattegrond die deze sessie opsloeg terugzetten waar hij was?",
+"Undo this rooms session (experimental)": "Deze kamersessie ongedaan maken (experimenteel)",
+"Undo puts every one back as it was; a backup is taken first, and anything you changed since is left as it is.": "Ongedaan maken zet elk item terug zoals het was; eerst wordt een back-up gemaakt, en alles wat je sindsdien hebt gewijzigd blijft zoals het is.",
+"Put every room, door, window and stair this session saved back as it was?": "Elke kamer, deur, raam en trap die deze sessie opsloeg terugzetten zoals ze waren?",
+"{n} put back": "{n} teruggezet",
+"{tool} is hidden while your AI Task isn't Claude Opus 5.5 or newer; this undo stays here.": "{tool} is verborgen zolang je AI-taak niet Claude Opus 5.5 of nieuwer is; dit ongedaan maken blijft hier.",
+"Undo it (experimental)": "Ongedaan maken (experimenteel)",
+"Cancel": "Annuleren",
+"Put those items back in your 3D house?": "Die items terugzetten in je 3D-huis?",
+"Take what this session kept out of your 3D house? Anything you changed since is left as it is.": "Wat deze sessie hield uit je 3D-huis halen? Alles wat je sindsdien hebt gewijzigd blijft zoals het is.",
+"Working…": "Bezig…",
+"Put back: {done} of {of}": "Teruggezet: {done} van {of}",
+"Undone: {done} of {of}": "Ongedaan gemaakt: {done} van {of}",
+"Could not undo: {why}": "Ongedaan maken mislukt: {why}",
+"Put back": "Terugzetten",
+"Undo": "Ongedaan maken",
+"Put back…": "Terugzetten…",
+"Undo this session…": "Deze sessie ongedaan maken…",
+"{n} reads stopped: {what}": {
+"one": "{n} leesbeurt gestopt: {what}",
+"other": "{n} leesbeurten gestopt: {what}"
+},
+"The last plan line-up saved on {floor}{when}: {n} plans moved or refiled.": {
+"one": "De laatste uitlijning van plattegronden, opgeslagen op {floor}{when}: {n} plattegrond verplaatst of opnieuw ingedeeld.",
+"other": "De laatste uitlijning van plattegronden, opgeslagen op {floor}{when}: {n} plattegronden verplaatst of opnieuw ingedeeld."
+},
+"{n} plans put back where they were": {
+"one": "{n} plattegrond teruggezet waar hij was",
+"other": "{n} plattegronden teruggezet waar ze waren"
+},
+"{n} moved by hand since left as they are": {
+"one": "{n} sindsdien met de hand verplaatst blijft zoals hij is",
+"other": "{n} sindsdien met de hand verplaatst blijven zoals ze zijn"
+},
+"The last rooms from plans saved on {floor}{when}: {n} items (rooms, doors, windows, stairs).": {
+"one": "De laatste kamers uit plattegronden, opgeslagen op {floor}{when}: {n} item (kamers, deuren, ramen, trappen).",
+"other": "De laatste kamers uit plattegronden, opgeslagen op {floor}{when}: {n} items (kamers, deuren, ramen, trappen)."
+},
+"{n} changed since left as they are": {
+"one": "{n} sindsdien gewijzigd blijft zoals het is",
+"other": "{n} sindsdien gewijzigd blijven zoals ze zijn"
+},
+"The last undo: {n} items, {day}": {
+"one": "De laatste keer ongedaan maken: {n} item, {day}",
+"other": "De laatste keer ongedaan maken: {n} items, {day}"
+},
+"Last plan session: {n} items kept, {day}": {
+"one": "Laatste plattegrondsessie: {n} item gehouden, {day}",
+"other": "Laatste plattegrondsessie: {n} items gehouden, {day}"
+},
+"{n} were changed since and left as they are": {
+"one": "{n} is sindsdien gewijzigd en blijft zoals het is",
+"other": "{n} zijn sindsdien gewijzigd en blijven zoals ze zijn"
+}
+}

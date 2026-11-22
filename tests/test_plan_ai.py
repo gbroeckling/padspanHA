@@ -289,9 +289,9 @@ def test_the_track_record_counts_a_person_s_decisions_only():
 
 def test_the_settings_row_is_first_chipped_and_its_rows_hide_while_off():
     src = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
-    body = src[src.index('feats.appendChild(el("div",{class:"h2"}, "What it does for you"))'):]
-    assert body.index("AI map-building research (experimental)") < body.index('"ai_photos_enabled", "Furniture from a photo"')
-    assert body.index('"data-ai-plans-under":""') < body.index('"ai_stairs_enabled", "Stairs from your floor plans"') < body.index('"ai_photos_enabled", "Furniture from a photo"')
+    body = src[src.index('feats.appendChild(el("div",{class:"h2"}, t("What it does for you")))'):]
+    assert body.index("AI map-building research (experimental)") < body.index('"ai_photos_enabled", t("Furniture from a photo")')
+    assert body.index('"data-ai-plans-under":""') < body.index('"ai_stairs_enabled", t("Stairs from your floor plans")') < body.index('"ai_photos_enabled", t("Furniture from a photo")')
     assert '"EXPERIMENTAL"' in body and 'display:${settings.ai_plans_enabled === true ? "" : "none"}' in body
     assert "Turning it off hides it; it does not undo what you kept." in body
 

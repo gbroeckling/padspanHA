@@ -135,7 +135,7 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     # backs up first), P4's library rows and P3's AI Task (their own tests), P6's
     # Show people.
     assert '"Remove all furniture…"' in sec and 'wsCall("padspan_ha/house3d_clear", { only: "pieces" })' in sec
-    assert 'tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,' in sec
+    assert 'tick("atlas_3d_people", t("Show people"), settings.atlas_3d_people === true,' in sec
     for later in ():
         assert later not in sec, later
     # P3: the AI Task that reads photos, saved alone, from Home Assistant's ai_task.* entities.
