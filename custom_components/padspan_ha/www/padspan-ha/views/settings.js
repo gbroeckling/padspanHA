@@ -46,6 +46,10 @@ const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
 const POWER_TEAMS = await import(`./power_teams.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: power_teams failed to load", err); return null; });
 
+// Its words in the panel's language (views/i18n.js; English is the key). So far the frame, Appearance, Scanner Map
+// and Tracking; the other tabs are still English.
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+
 export function render(ctx){
   const { el, esc, roomColor, helpBtn } = ctx.helpers;
   const isBasic = ctx.state.complexity === "basic";
@@ -82,15 +86,15 @@ export function render(ctx){
     if(f){
       root.appendChild(FOCUS.focusBar(ctx, f));
       const part = FOCUS.pickPart(_tabBody(f.tab), f.part);
-      root.appendChild(!part ? el("div",{class:"card muted","data-focus-missing":f.part},"This isn't available on this install.")
+      root.appendChild(!part ? el("div",{class:"card muted","data-focus-missing":f.part},t("This isn't available on this install."))
         : part.classList.contains("card") ? part : el("div",{class:"card"},[part]));
       return root;
     }
     root.appendChild(_settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, true));
     root.appendChild(el("div",{class:"card",style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px"},[
-      el("span",{class:"muted"},"The usage report and guest tags have their own settings."),
-      el("button",{class:"btn inline","data-settings-open":"usage_report",onclick:()=>FOCUS.openFocus(ctx, PART.usageReport)},"Usage report →"),
-      el("button",{class:"btn inline","data-settings-open":"guest_tags",onclick:()=>FOCUS.openFocus(ctx, PART.guestTags)},"Guest tags →"),
+      el("span",{class:"muted"},t("The usage report and guest tags have their own settings.")),
+      el("button",{class:"btn inline","data-settings-open":"usage_report",onclick:()=>FOCUS.openFocus(ctx, PART.usageReport)},t("Usage report →")),
+      el("button",{class:"btn inline","data-settings-open":"guest_tags",onclick:()=>FOCUS.openFocus(ctx, PART.guestTags)},t("Guest tags →")),
     ]));
     return root;
   }
@@ -103,37 +107,20 @@ export function render(ctx){
 
   // Tab definitions with help descriptions
   const _tabDefs = [
-    ["appearance", "Appearance",
-      "How PadSpan looks: room colours that carry across the Overview map, the Follow tracker and every other drawing, " +
-      "Panel Style (Classic or 2025), Theme (with Follow the sun) and 2D Map Mode. Floors and rooms come from Home Assistant (HA Settings → Areas, labels & zones)."],
-    ["scannermap", "Scanner Map",
-      "Shows where PadSpan thinks each of your Bluetooth scanners is physically located on the floor plan. " +
-      "The numbered dots are estimated positions based on your calibration data — when you collected fingerprints " +
-      "at known spots, each scanner recorded signal strength. Louder signal = scanner is closer to that spot. " +
-      "PadSpan combines all these readings to triangulate where the scanner must be sitting. " +
-      "The percentage is confidence (more calibration points = more accurate). " +
-      "If a dot is in the wrong place, collect more calibration points near that scanner to fix it. " +
-      "This tab also has Replace Scanner (swap calibration data when hardware is replaced) and " +
-      "Relearn Radio (adjust readings after antenna upgrade/downgrade)."],
-    ["presence", "Tracking",
-      "How PadSpan decides which room a device is in and when it's away, in eight sections: rooms and timing, phones and guest tags, " +
-      "what the panel shows, positioning and calibration, receivers, performance, Home Assistant and integrations, and privacy. " +
-      "Each section's heading has a ? that explains it."],
-    ["features", "Features",
-      "Your PadSpan licence (edition, tier and key), then the experimental switches: Walk-to-Identify, Radio Map, " +
-      "Signal distortion map, RoomPlan and robot vacuum import, the phone setup helpers, MAC Rotation Bridging, " +
-      "Apple Device Classification and RSSI Vector Capture. The Forensics card is at the bottom."],
-    ["ai", "AI",
-      "AI power features: PadSpan can use an AI you have set up in Home Assistant (an AI Task) to read furniture photos " +
-      "and the stairs on your floor plans, with an optional backup AI Task. Nothing here runs unless you pick an AI Task. A cloud AI sends what it " +
-      "reads out of the house; a local one (like Ollama) keeps it home."],
-    ["atlas", "Atlas",
-      "The Atlas, PadSpan's house map for everyday light control, and Live Aboard, its 3D view: whether the Atlas is in the " +
-      "Home Assistant sidebar, what it draws, its outdoor weather, wall screens, and the Atlas as your Overview."],
-    ["ui", "UI Structure",
-      "Every tab is in the sidebar in every mode; the ones not in the main list are under More tools. " +
-      "Tick a tab here to move it into the main list in Advanced and Development mode (Basic keeps its short list). " +
-      "For example, tick Devices and Bluetooth for installers. The Edition & tier card shows which download this is and the tier its licence gives."],
+    ["appearance", t("Appearance"),
+      t("How PadSpan looks: room colours that carry across the Overview map, the Follow tracker and every other drawing, Panel Style (Classic or 2025), Theme (with Follow the sun) and 2D Map Mode. Floors and rooms come from Home Assistant (HA Settings → Areas, labels & zones).")],
+    ["scannermap", t("Scanner Map"),
+      t("Shows where PadSpan thinks each of your Bluetooth scanners is physically located on the floor plan. The numbered dots are estimated positions based on your calibration data — when you collected fingerprints at known spots, each scanner recorded signal strength. Louder signal = scanner is closer to that spot. PadSpan combines all these readings to triangulate where the scanner must be sitting. The percentage is confidence (more calibration points = more accurate). If a dot is in the wrong place, collect more calibration points near that scanner to fix it. This tab also has Replace Scanner (swap calibration data when hardware is replaced) and Relearn Radio (adjust readings after antenna upgrade/downgrade).")],
+    ["presence", t("Tracking"),
+      t("How PadSpan decides which room a device is in and when it's away, in eight sections: rooms and timing, phones and guest tags, what the panel shows, positioning and calibration, receivers, performance, Home Assistant and integrations, and privacy. Each section's heading has a ? that explains it.")],
+    ["features", t("Features"),
+      t("Your PadSpan licence (edition, tier and key), then the experimental switches: Walk-to-Identify, Radio Map, Signal distortion map, RoomPlan and robot vacuum import, the phone setup helpers, MAC Rotation Bridging, Apple Device Classification and RSSI Vector Capture. The Forensics card is at the bottom.")],
+    ["ai", t("AI"),
+      t("AI power features: PadSpan can use an AI you have set up in Home Assistant (an AI Task) to read furniture photos and the stairs on your floor plans, with an optional backup AI Task. Nothing here runs unless you pick an AI Task. A cloud AI sends what it reads out of the house; a local one (like Ollama) keeps it home.")],
+    ["atlas", t("Atlas"),
+      t("The Atlas, PadSpan's house map for everyday light control, and Live Aboard, its 3D view: whether the Atlas is in the Home Assistant sidebar, what it draws, its outdoor weather, wall screens, and the Atlas as your Overview.")],
+    ["ui", t("UI Structure"),
+      t("Every tab is in the sidebar in every mode; the ones not in the main list are under More tools. Tick a tab here to move it into the main list in Advanced and Development mode (Basic keeps its short list). For example, tick Devices and Bluetooth for installers. The Edition & tier card shows which download this is and the tier its licence gives.")],
   ];
 
   const tabBar = el("div",{class:"tabs", style:"margin-bottom:14px;flex-wrap:wrap;gap:4px;align-items:center"});
@@ -158,7 +145,7 @@ export function render(ctx){
         el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px"}, label),
         el("div",{style:"font-size:13px;color:#cbd5e1;line-height:1.6"}, helpText),
       ]);
-      ctx.actions.openModal(`Settings: ${label}`, body, "Help");
+      ctx.actions.openModal(t("Settings: {label}", { label }), body, t("Help"));
     });
     tabWrap.appendChild(helpDot);
     tabBar.appendChild(tabWrap);
@@ -187,15 +174,15 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   // Floors card (hidden in basic)
   if(!isBasic){
     const floorsCard = el("div",{class:"card"});
-    floorsCard.appendChild(el("div",{style:"font-weight:700"},"Floors"));
+    floorsCard.appendChild(el("div",{style:"font-weight:700"},t("Floors")));
     floorsCard.appendChild(el("div",{class:"muted", style:"font-size:12px;margin-top:4px"},
-      "Floors are read from HA. Manage them in HA Settings → Areas, labels & zones."
+      t("Floors are read from HA. Manage them in HA Settings → Areas, labels & zones.")
     ));
     const floorPills = el("div",{style:"display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"});
     if(haFloors.length){
       for(const f of haFloors) floorPills.appendChild(el("span",{class:"pill"}, f.name || f.id));
     } else {
-      floorPills.appendChild(el("span",{class:"muted", style:"font-size:12px"}, "No floors found in HA."));
+      floorPills.appendChild(el("span",{class:"muted", style:"font-size:12px"}, t("No floors found in HA.")));
     }
     floorsCard.appendChild(floorPills);
     wrap.appendChild(floorsCard);
@@ -204,16 +191,16 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   // Rooms color card
   const roomsCard = el("div",{class:"card", style:"margin-top:12px"});
   roomsCard.appendChild(el("div",{class:"card-head"},[
-    el("div",{style:"font-weight:700"}, isBasic ? "Room colours" : "Rooms"),
+    el("div",{style:"font-weight:700"}, isBasic ? t("Room colours") : t("Rooms")),
     el("div",{style:"display:flex;gap:6px;align-items:center"},[
-      (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"settings", title:"Every room's settings on one page", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
+      (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"settings", title:t("Every room's settings on one page"), onclick:()=>ctx.actions.openRooms()}, t("All rooms")) : null,
       helpBtn("settings_colors"),
     ]),
   ]));
   roomsCard.appendChild(el("div",{class:"muted", style:"font-size:12px;margin-top:6px"},
     isBasic
-      ? "Pick a colour for each room — this colour shows up on the Follow map and Overview."
-      : "Assign each room to a floor and pick a color for sidebar + map overlays."
+      ? t("Pick a colour for each room — this colour shows up on the Follow map and Overview.")
+      : t("Assign each room to a floor and pick a color for sidebar + map overlays.")
   ));
 
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
@@ -248,7 +235,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       el("div",{style:"font-weight:600;min-width:0"}, room),
     ]));
     row.appendChild(el("div",{style:"display:flex;flex-direction:column;gap:2px"},[
-      el("div",{class:"muted", style:"font-size:10px"}, "Floor (HA)"),
+      el("div",{class:"muted", style:"font-size:10px"}, t("Floor (HA)")),
       el("div",{style:"font-size:12px;font-weight:600;color:#94a3b8"}, floorLabel),
     ]));
     const col = document.createElement("input");
@@ -264,9 +251,9 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   const saveCard = el("div",{class:"card", style:"margin-top:12px"});
   const saveBtn = el("button",{class:"btn primary", onclick:async()=>{
     await ctx.actions.modelUpdate({floors: draft.floors || [], room_meta: draft.room_meta || {}});
-    alert("Saved ✔");
-  }}, "Save floors & room settings");
-  saveCard.appendChild(el("div",{class:"muted"},"These settings are stored locally in Home Assistant storage."));
+    alert(t("Saved ✔"));
+  }}, t("Save floors & room settings"));
+  saveCard.appendChild(el("div",{class:"muted"},t("These settings are stored locally in Home Assistant storage.")));
   saveCard.appendChild(el("div",{style:"margin-top:10px"}, saveBtn));
   wrap.appendChild(saveCard);
 
@@ -280,19 +267,16 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         if (skinNow === val) return;
         try {
           await ctx.actions.settingsSet({ ui_skin: val });
-          ctx.toast(val === "2025" ? "2025 style on" : "Classic style restored");
-        } catch(e){ ctx.toast("Failed to save", true); }
+          ctx.toast(val === "2025" ? t("2025 style on") : t("Classic style restored"));
+        } catch(e){ ctx.toast(t("Failed to save"), true); }
       });
       return b;
     };
     wrap.appendChild(el("div",{class:"card",style:"border-color:" + (skinNow === "2025" ? "#52b788" : "#2d4a38")},[
-      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Panel Style"),
+      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, t("Panel Style")),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        "Classic is the original panel, unchanged. 2025 restyles the chrome only — grouped " +
-        "sidebar with icons, a 60px collapsed rail, underlined sub-tabs, flatter buttons and " +
-        "cards. It takes effect immediately and alters nothing but appearance, so switching " +
-        "back is this same control."),
-      el("div",{class:"row"},[ mkSkin("classic","Classic"), mkSkin("2025","2025") ]),
+        t("Classic is the original panel, unchanged. 2025 restyles the chrome only — grouped sidebar with icons, a 60px collapsed rail, underlined sub-tabs, flatter buttons and cards. It takes effect immediately and alters nothing but appearance, so switching back is this same control.")),
+      el("div",{class:"row"},[ mkSkin("classic",t("Classic")), mkSkin("2025","2025") ]),
     ]));
   }
 
@@ -310,7 +294,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     const hideLocked = String(settings.edition || "").toLowerCase() === "bright" && !proOk;
     const now = proOk && settings.day_theme === true ? "day" : settings.light_theme === true ? "light"
       : PAL.includes(settings.theme_palette) && (proOk || !PRO_LOOKS.includes(settings.theme_palette)) ? settings.theme_palette : "night";
-    const NAMES = { night: "Night", graphite: "Graphite", ocean: "Ocean", dusk: "Dusk", contrast: "High contrast", light: "Light", day: "Day" };
+    const NAMES = { night: t("Night"), graphite: t("Graphite"), ocean: t("Ocean"), dusk: t("Dusk"), contrast: t("High contrast"), light: t("Light"), day: t("Day") };
     const mkTheme = (val, label) => {
       const locked = PRO_LOOKS.includes(val) && !proOk;
       if (locked && hideLocked) return null;
@@ -321,8 +305,8 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         try {
           const palette = PAL.includes(val) ? val : "";
           await ctx.actions.settingsSet({ light_theme: val === "light", day_theme: val === "day", theme_palette: palette });
-          ctx.toast(NAMES[val] + " theme on");
-        } catch(e){ ctx.toast("Failed to save", true); }
+          ctx.toast(t("{name} theme on", { name: NAMES[val] }));
+        } catch(e){ ctx.toast(t("Failed to save"), true); }
       });
       return b;
     };
@@ -333,34 +317,26 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     sunToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ theme_follow_sun: sunToggle.checked });
-        ctx.toast(sunToggle.checked ? "Theme follows the sun" : "Theme stays as picked");
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(sunToggle.checked ? t("Theme follows the sun") : t("Theme stays as picked"));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     const hasSun = !!(ctx.hass && ctx.hass.states && ctx.hass.states["sun.sun"]);
     wrap.appendChild(el("div",{class:"card",style:"margin-top:12px;border-color:" + (now !== "night" ? "#52b788" : "#2d4a38")},[
-      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Theme"),
+      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, t("Theme")),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        "Night is PadSpan's dark forest green. Graphite, Ocean and Dusk are Night in charcoal, " +
-        "navy or plum. High contrast is black with white text and solid edges, for eyes that need " +
-        "it. Light inverts every colour in the panel (white becomes black, black becomes white) for " +
-        "anyone who can't use a dark screen; photos and map images are turned back so they still " +
-        "look normal. Day is the panel redrawn in light colours. Every one keeps the green accent " +
-        "and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D " +
-        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser. " +
-        "The sidebar Atlas page is the exception: it stays dark with every theme, and Light doesn't change " +
-        "it either, so Light won't help there if you can't use a dark screen."),
-      el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
-        mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
+        t("Night is PadSpan's dark forest green. Graphite, Ocean and Dusk are Night in charcoal, navy or plum. High contrast is black with white text and solid edges, for eyes that need it. Light inverts every colour in the panel (white becomes black, black becomes white) for anyone who can't use a dark screen; photos and map images are turned back so they still look normal. Day is the panel redrawn in light colours. Every one keeps the green accent and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D house and Live Tracker keep their night colours. It takes effect immediately, in every browser. The sidebar Atlas page is the exception: it stays dark with every theme, and Light doesn't change it either, so Light won't help there if you can't use a dark screen.")),
+      el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night",t("Night")), mkTheme("graphite",t("Graphite")), mkTheme("ocean",t("Ocean")),
+        mkTheme("dusk",t("Dusk")), mkTheme("contrast",t("High contrast")), mkTheme("light",t("Light (inverted)")), mkTheme("day",t("Day")) ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
-        "Graphite, Ocean, Dusk and Day come with PadSpan Pro (" + LICENCE_PATH + "). Night, Light and High contrast are in every edition.")]),
+        t("Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.", { path: LICENCE_PATH }))]),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:12px"},[
         sunToggle,
-        el("label",{for:"themeFollowSunToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, "Follow the sun"),
+        el("label",{for:"themeFollowSunToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, t("Follow the sun")),
       ]),
       el("div",{class:"muted",style:"font-size:12px;margin-top:4px"},
-        (proOk ? "Day from sunrise to sunset" : "Light (inverted) from sunrise to sunset") +
-        ", then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun)." +
-        (hasSun ? "" : " This Home Assistant doesn't have it (Settings → Devices & services → Sun), so the theme stays as picked.")),
+        (proOk ? t("Day from sunrise to sunset, then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun).")
+          : t("Light (inverted) from sunrise to sunset, then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun).")) +
+        (hasSun ? "" : " " + t("This Home Assistant doesn't have it (Settings → Devices & services → Sun), so the theme stays as picked."))),
     ]));
   }
 
@@ -372,19 +348,17 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     feetToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ units_feet: feetToggle.checked });
-        ctx.toast(feetToggle.checked ? "Lengths shown in feet and inches" : "Lengths shown in metres");
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(feetToggle.checked ? t("Lengths shown in feet and inches") : t("Lengths shown in metres"));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     wrap.appendChild(el("div",{class:"card",style:"margin-top:12px","data-units-feet":"card"},[
-      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Units"),
+      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, t("Units")),
       el("div",{style:"display:flex;align-items:center;gap:8px"},[
         feetToggle,
-        el("label",{for:"unitsFeetToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, "Show lengths in feet and inches"),
+        el("label",{for:"unitsFeetToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, t("Show lengths in feet and inches")),
       ]),
       el("div",{class:"muted",style:"font-size:12px;margin-top:4px"},
-        "Changes what is shown where you measure or check a floor plan in Mapping and in the room helper: lengths in feet " +
-        "and inches, room sizes in square feet, and a number typed without a unit is read as feet. Everything is still " +
-        "stored in metres, and other screens stay in metres."),
+        t("Changes what is shown where you measure or check a floor plan in Mapping and in the room helper: lengths in feet and inches, room sizes in square feet, and a number typed without a unit is read as feet. Everything is still stored in metres, and other screens stay in metres.")),
     ]));
   }
 
@@ -397,25 +371,22 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     mode2dToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ overview_2d_mode: mode2dToggle.checked });
-        ctx.toast(mode2dToggle.checked ? "2D map mode enabled (experimental)" : "3D isometric map restored");
+        ctx.toast(mode2dToggle.checked ? t("2D map mode enabled (experimental)") : t("3D isometric map restored"));
         ctx.actions.renderRooms();
-      } catch(e){ ctx.toast("Failed to save", true); }
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     wrap.appendChild(el("div",{class:"card",style:"margin-top:12px;border-color:" + (mode2dOn ? "#f59e0b" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
-        el("div",{class:"h2",style:"margin:0;color:#f59e0b"}, "2D Map Mode"),
-        el("span",{style:"font-size:10px;padding:1px 6px;border-radius:4px;background:#422006;color:#fbbf24;border:1px solid #92400e;font-weight:700"}, "EXPERIMENTAL"),
+        el("div",{class:"h2",style:"margin:0;color:#f59e0b"}, t("2D Map Mode")),
+        el("span",{style:"font-size:10px;padding:1px 6px;border-radius:4px;background:#422006;color:#fbbf24;border:1px solid #92400e;font-weight:700"}, t("EXPERIMENTAL")),
       ]),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
         mode2dToggle,
         el("label",{for:"mode2dToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-          "Replace 3D isometric view with flat 2D map"),
+          t("Replace 3D isometric view with flat 2D map")),
       ]),
       el("div",{class:"muted",style:"font-size:12px"},
-        "Shows your floor plan image as a flat 2D map with zoom/pan (mouse wheel + drag). " +
-        "Includes toggle filters for scanners, tagged objects, unknown devices, and room boundaries. " +
-        "The map fills more screen space and hides multi-floor controls when only one map is uploaded. " +
-        "This is experimental — the 3D view is still available by toggling this off."),
+        t("Shows your floor plan image as a flat 2D map with zoom/pan (mouse wheel + drag). Includes toggle filters for scanners, tagged objects, unknown devices, and room boundaries. The map fills more screen space and hides multi-floor controls when only one map is uploaded. This is experimental — the 3D view is still available by toggling this off.")),
     ]));
   }
 
@@ -437,7 +408,7 @@ function _scannerMap(ctx, el, haFloors){
       .then(d => { ctx.state.calibration = d; ctx.actions.renderRooms(); })
       .catch(() => { ctx.state.calibration = { points:[], model:{} }; ctx.actions.renderRooms(); });
     wrap.appendChild(el("div",{class:"card"},[
-      el("div",{class:"muted",style:"font-size:11px"},"Loading calibration data…"),
+      el("div",{class:"muted",style:"font-size:11px"},t("Loading calibration data…")),
     ]));
     return wrap;
   }
@@ -447,21 +418,15 @@ function _scannerMap(ctx, el, haFloors){
 
   // Intro card
   wrap.appendChild(el("div",{class:"card",style:"border-color:#52b788;padding:10px"},[
-    el("div",{style:"font-weight:700;font-size:13px;margin-bottom:4px;color:#52b788"},"Where PadSpan Thinks Your Scanners Are"),
+    el("div",{style:"font-weight:700;font-size:13px;margin-bottom:4px;color:#52b788"},t("Where PadSpan Thinks Your Scanners Are")),
     el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.6"},
-      "Each numbered dot shows where PadSpan estimates a Bluetooth scanner is physically located on your floor plan. " +
-      "These positions are calculated from your calibration data \u2014 when you collected fingerprints at known locations, " +
-      "each scanner recorded how strong the signal was. Scanners that heard a calibration point loudly are estimated to be " +
-      "closer to it; scanners that heard it faintly are estimated to be further away. " +
-      "The percentage next to each scanner is the confidence in that estimate (more calibration points = higher confidence). " +
-      "If a scanner appears in the wrong place, it means the calibration data is giving conflicting signals \u2014 " +
-      "collecting more calibration points near that scanner will improve accuracy."),
+      t("Each numbered dot shows where PadSpan estimates a Bluetooth scanner is physically located on your floor plan. These positions are calculated from your calibration data — when you collected fingerprints at known locations, each scanner recorded how strong the signal was. Scanners that heard a calibration point loudly are estimated to be closer to it; scanners that heard it faintly are estimated to be further away. The percentage next to each scanner is the confidence in that estimate (more calibration points = higher confidence). If a scanner appears in the wrong place, it means the calibration data is giving conflicting signals — collecting more calibration points near that scanner will improve accuracy.")),
   ]));
 
   if(!calData.points || calData.points.length === 0){
     wrap.appendChild(el("div",{class:"card"},[
-      el("div",{style:"font-weight:700;font-size:13px;color:#f59e0b;margin-bottom:4px"},"⚠ No calibration data"),
-      el("div",{class:"muted",style:"font-size:11px"},"Collect calibration fingerprints in the PadSpan™ Calib panel first."),
+      el("div",{style:"font-weight:700;font-size:13px;color:#f59e0b;margin-bottom:4px"},t("⚠ No calibration data")),
+      el("div",{class:"muted",style:"font-size:11px"},t("Collect calibration fingerprints in the PadSpan™ Calib panel first.")),
     ]));
     return wrap;
   }
@@ -476,7 +441,7 @@ function _scannerMap(ctx, el, haFloors){
   const mapIds = Object.keys(byMap);
   if(!mapIds.length){
     wrap.appendChild(el("div",{class:"card"},[
-      el("div",{class:"muted",style:"font-size:11px"},"Could not estimate positions from the available calibration data."),
+      el("div",{class:"muted",style:"font-size:11px"},t("Could not estimate positions from the available calibration data.")),
     ]));
   }
 
@@ -495,11 +460,12 @@ function _scannerMap(ctx, el, haFloors){
 
     // Card header
     const floorName = _floorNameForMap(mapData, haFloors);
+    const nScan = mapRadios.length;
     mapCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:6px;margin-bottom:8px"},[
       el("div",{style:"font-weight:700;font-size:13px"}, mapData?.name || mapId),
       floorName ? el("span",{class:"badge",style:"font-size:10px"},floorName) : null,
       el("span",{class:"badge",style:"margin-left:auto;font-size:10px"},
-        `${mapRadios.length} scanner${mapRadios.length!==1?"s":""}`),
+        tn(nScan, "{n} scanner", "{n} scanners")),
     ].filter(Boolean)));
 
     // SVG map with markers
@@ -573,37 +539,37 @@ function _scannerMap(ctx, el, haFloors){
     const makeClearBtn = () => {
       clearBtnWrap.innerHTML = "";
       const cb = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;color:#f87171;border-color:#f8717140",
-        title:`Remove all ${pointCount} calibration point(s) collected on this map`,
+        title:tn(pointCount, "Remove the {n} calibration point collected on this map", "Remove all {n} calibration points collected on this map"),
         onclick: (ev) => {
           ev.stopPropagation();
           clearBtnWrap.innerHTML = "";
-          clearBtnWrap.appendChild(el("span",{style:"font-size:10px;color:#fca5a5"},`Clear ${pointCount} point(s)? `));
+          clearBtnWrap.appendChild(el("span",{style:"font-size:10px;color:#fca5a5"},tn(pointCount, "Clear {n} point?", "Clear {n} points?") + " "));
           clearBtnWrap.appendChild(el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;background:#7f1d1d;border-color:#dc2626;color:#fca5a5",
             onclick: async (ev2) => {
               ev2.stopPropagation();
               clearBtnWrap.innerHTML = "";
-              clearBtnWrap.appendChild(el("span",{style:"font-size:10px;color:#94a3b8"},"Clearing…"));
+              clearBtnWrap.appendChild(el("span",{style:"font-size:10px;color:#94a3b8"},t("Clearing…")));
               try {
                 const res = await ctx.actions.calibrationClearMap(mapId);
                 const n = res?.deleted ?? 0;
-                ctx.toast(`Cleared ${n} calibration point(s) from ${mapData?.name || mapId}`);
+                ctx.toast(tn(n, "Cleared {n} calibration point from {map}", "Cleared {n} calibration points from {map}", { map: mapData?.name || mapId }));
                 ctx.state.calibration = null;
                 ctx.actions.renderRooms();
               } catch(e) {
-                ctx.toast("Clear failed: " + ctx.helpers.errorText(e), true);
+                ctx.toast(t("Clear failed: {error}", { error: ctx.helpers.errorText(e) }), true);
                 makeClearBtn();
               }
             }
-          },"Yes"));
+          },t("Yes")));
           clearBtnWrap.appendChild(el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;color:#94a3b8;border-color:#94a3b840",
             onclick: (ev2) => { ev2.stopPropagation(); makeClearBtn(); }
-          },"No"));
+          },t("No")));
         }
-      },`Clear (${pointCount})`);
+      },t("Clear ({n})", { n: pointCount }));
       clearBtnWrap.appendChild(cb);
     };
     makeClearBtn();
-    clearRow.appendChild(el("span",{class:"muted",style:"font-size:10px"},"Calibration:"));
+    clearRow.appendChild(el("span",{class:"muted",style:"font-size:10px"},t("Calibration:")));
     clearRow.appendChild(clearBtnWrap);
     clearRow.appendChild(clearStatusEl);
     mapCard.appendChild(clearRow);
@@ -615,7 +581,7 @@ function _scannerMap(ctx, el, haFloors){
   if(unplacedRadios.length){
     const unplacedCard = el("div",{class:"card",style:"border-color:#f59e0b;padding:10px"});
     unplacedCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:6px;margin-bottom:6px"},[
-      el("div",{style:"font-weight:700;font-size:12px;color:#f59e0b"},"⚠ Not yet in calibration data"),
+      el("div",{style:"font-weight:700;font-size:12px;color:#f59e0b"},t("⚠ Not yet in calibration data")),
       el("span",{class:"badge warn",style:"font-size:10px;margin-left:auto"},unplacedRadios.length),
     ]));
     for(const r of unplacedRadios){
@@ -625,7 +591,7 @@ function _scannerMap(ctx, el, haFloors){
       },[
         el("div",{style:"font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, (ctx.helpers.radioShortId ? ctx.helpers.radioShortId(r.source||"")+" " : "") + name),
         el("div",{style:"font-size:10px;color:#4a6670;font-family:monospace;white-space:nowrap"}, r.source.slice(-8)),
-        (()=>{ const _ss = ctx.helpers.scannerStatus; if(!_ss){ return r.scanning ? el("span",{class:"badge",style:"font-size:10px"},"scanning") : el("span",{class:"badge warn",style:"font-size:10px"},"idle"); } const ss = _ss(r, snap?.ble?.advertisements); const b = el("span",{class:ss.cls,style:"font-size:10px",title:ss.title},ss.label); if(ss.style) b.style.cssText+="font-size:10px;"+ss.style; return b; })(),
+        (()=>{ const _ss = ctx.helpers.scannerStatus; if(!_ss){ return r.scanning ? el("span",{class:"badge",style:"font-size:10px"},t("scanning")) : el("span",{class:"badge warn",style:"font-size:10px"},t("idle")); } const ss = _ss(r, snap?.ble?.advertisements); const b = el("span",{class:ss.cls,style:"font-size:10px",title:ss.title},ss.label); if(ss.style) b.style.cssText+="font-size:10px;"+ss.style; return b; })(),
       ]));
     }
     wrap.appendChild(unplacedCard);
@@ -641,9 +607,9 @@ function _scannerMap(ctx, el, haFloors){
 
   if(calSources.size >= 2){
     const swapCard = el("div",{class:"card",style:"padding:10px"});
-    swapCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;margin-bottom:4px"},"Replace Scanner"));
+    swapCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;margin-bottom:4px"},t("Replace Scanner")));
     swapCard.appendChild(el("div",{style:"font-size:10px;color:#78909c;margin-bottom:8px;line-height:1.5"},
-      "Reassign all calibration data from one scanner to another — useful when a physical device is swapped out."));
+      t("Reassign all calibration data from one scanner to another — useful when a physical device is swapped out.")));
 
     // Helper: build an option element
     const mkOpt = (val, label) => {
@@ -660,14 +626,14 @@ function _scannerMap(ctx, el, haFloors){
 
     const oldSel = document.createElement("select");
     oldSel.style.cssText = "font-size:11px;width:100%";
-    oldSel.appendChild(mkOpt("","— old radio —"));
+    oldSel.appendChild(mkOpt("",t("— old radio —")));
     for(const src of sortedSources) oldSel.appendChild(mkOpt(src, radioName(src)));
 
     const arrowEl = el("div",{style:"font-size:14px;color:#78909c;text-align:center"},"→");
 
     const newSel = document.createElement("select");
     newSel.style.cssText = "font-size:11px;width:100%";
-    newSel.appendChild(mkOpt("","— new radio —"));
+    newSel.appendChild(mkOpt("",t("— new radio —")));
     for(const src of sortedSources) newSel.appendChild(mkOpt(src, radioName(src)));
 
     rowEl.appendChild(oldSel);
@@ -685,7 +651,7 @@ function _scannerMap(ctx, el, haFloors){
       const pts = (calData.points||[]).filter(pt =>
         (pt.scanner_readings||[]).some(sr=>sr.source===oldSel.value)
       ).length;
-      summaryEl.textContent = `Will update ${pts} calibration point${pts!==1?"s":""}. This cannot be undone.`;
+      summaryEl.textContent = tn(pts, "Will update {n} calibration point. This cannot be undone.", "Will update {n} calibration points. This cannot be undone.");
       summaryEl.style.color = pts > 0 ? "#f59e0b" : "#78909c";
     };
     oldSel.addEventListener("change", updateSummary);
@@ -695,20 +661,22 @@ function _scannerMap(ctx, el, haFloors){
     // Swap button
     const swapBtnWrap = el("div");
     const makeSwapBtn = () => {
-      const btn = el("button",{class:"btn inline",style:"font-size:11px;width:100%"},"Swap Readings");
+      const btn = el("button",{class:"btn inline",style:"font-size:11px;width:100%"},t("Swap Readings"));
       btn.addEventListener("click", async () => {
         const old_source = oldSel.value;
         const new_source = newSel.value;
-        if(!old_source || !new_source){ ctx.toast("Select both radios first.", true); return; }
-        if(old_source === new_source){ ctx.toast("Old and new radio must be different.", true); return; }
-        btn.disabled = true; btn.textContent = "Swapping…";
+        if(!old_source || !new_source){ ctx.toast(t("Select both radios first."), true); return; }
+        if(old_source === new_source){ ctx.toast(t("Old and new radio must be different."), true); return; }
+        btn.disabled = true; btn.textContent = t("Swapping…");
         try {
           const res = await ctx.actions.calibrationSwapRadio(old_source, new_source);
           ctx.state.calibration = null;  // force reload
-          ctx.toast(`Swapped ${res.updated_readings} reading${res.updated_readings!==1?"s":""} from ${radioName(old_source)} → ${radioName(new_source)}.` + (res.dropped_readings ? ` ${res.dropped_readings} point(s) already had ${radioName(new_source)}'s own reading, kept instead.` : ""));
+          const nUp = res.updated_readings, nDrop = res.dropped_readings, names = { from: radioName(old_source), to: radioName(new_source) };
+          ctx.toast(tn(nUp, "Swapped {n} reading from {from} → {to}.", "Swapped {n} readings from {from} → {to}.", names)
+            + (nDrop ? " " + tn(nDrop, "{n} point already had {to}'s own reading, kept instead.", "{n} points already had {to}'s own reading, kept instead.", names) : ""));
           ctx.actions.renderRooms();
         } catch(e){
-          ctx.toast("Swap failed: " + ctx.helpers.errorText(e), true);
+          ctx.toast(t("Swap failed: {error}", { error: ctx.helpers.errorText(e) }), true);
           swapBtnWrap.innerHTML = "";
           swapBtnWrap.appendChild(makeSwapBtn());
         }
@@ -725,9 +693,9 @@ function _scannerMap(ctx, el, haFloors){
   // RSSI readings for a scanner by a user-provided dB gain.
   if(calSources.size >= 1){
     const relearnCard = el("div",{class:"card",style:"padding:10px"});
-    relearnCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;margin-bottom:4px"},"Relearn Radio"));
+    relearnCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;margin-bottom:4px"},t("Relearn Radio")));
     relearnCard.appendChild(el("div",{style:"font-size:10px;color:#78909c;margin-bottom:8px;line-height:1.5"},
-      "Adjust calibration after an antenna upgrade or downgrade. Shifts all stored RSSI readings for the selected scanner by the dB gain you specify."));
+      t("Adjust calibration after an antenna upgrade or downgrade. Shifts all stored RSSI readings for the selected scanner by the dB gain you specify.")));
 
     const radioName = (src) => {
       const r = radios.find(r=>r.source===src);
@@ -738,7 +706,7 @@ function _scannerMap(ctx, el, haFloors){
     const rlRow = el("div",{style:"display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;margin-bottom:8px"});
     const rlSel = document.createElement("select");
     rlSel.style.cssText = "font-size:11px;width:100%";
-    rlSel.appendChild((() => { const o = document.createElement("option"); o.value=""; o.textContent="— select scanner —"; return o; })());
+    rlSel.appendChild((() => { const o = document.createElement("option"); o.value=""; o.textContent=t("— select scanner —"); return o; })());
     for(const src of rlSorted){
       const o = document.createElement("option"); o.value=src; o.textContent=radioName(src); rlSel.appendChild(o);
     }
@@ -747,7 +715,7 @@ function _scannerMap(ctx, el, haFloors){
     const rlGainInput = document.createElement("input");
     rlGainInput.type = "number"; rlGainInput.min = "-30"; rlGainInput.max = "30"; rlGainInput.step = "1"; rlGainInput.value = "3";
     rlGainInput.style.cssText = "width:48px;text-align:center;background:#0a150e;border:1px solid #2d5a3d;border-radius:4px;color:#e2e8f0;padding:2px 4px;font-size:11px";
-    rlGainInput.title = "Positive = antenna upgrade (stronger signal); Negative = downgrade (weaker)";
+    rlGainInput.title = t("Positive = antenna upgrade (stronger signal); Negative = downgrade (weaker)");
     rlGainWrap.appendChild(rlGainInput);
     rlGainWrap.appendChild(el("span",{style:"font-size:10px;color:#78909c"},"dB"));
 
@@ -756,7 +724,7 @@ function _scannerMap(ctx, el, haFloors){
     relearnCard.appendChild(rlRow);
 
     const rlHint = el("div",{style:"font-size:10px;color:#94a3b8;margin-bottom:8px"},
-      "Positive = upgrade (e.g. +3 dB for better antenna). Negative = downgrade.");
+      t("Positive = upgrade (e.g. +3 dB for better antenna). Negative = downgrade."));
 
     // Summary line
     const rlSummary = el("div",{style:"font-size:10px;color:#78909c;margin-bottom:8px;min-height:14px"});
@@ -767,8 +735,8 @@ function _scannerMap(ctx, el, haFloors){
       ).length;
       const g = parseFloat(rlGainInput.value) || 0;
       rlSummary.textContent = pts > 0
-        ? `Will shift ${pts} calibration point${pts!==1?"s":""} by ${g > 0 ? "+" : ""}${g} dB. Model will be recomputed.`
-        : `No calibration data found for this scanner.`;
+        ? tn(pts, "Will shift {n} calibration point by {db} dB. Model will be recomputed.", "Will shift {n} calibration points by {db} dB. Model will be recomputed.", { db: (g > 0 ? "+" : "") + g })
+        : t("No calibration data found for this scanner.");
       rlSummary.style.color = pts > 0 ? "#38bdf8" : "#78909c";
     };
     rlSel.addEventListener("change", updateRlSummary);
@@ -779,20 +747,21 @@ function _scannerMap(ctx, el, haFloors){
     // Apply button
     const rlBtnWrap = el("div");
     const makeRlBtn = () => {
-      const btn = el("button",{class:"btn inline",style:"font-size:11px;width:100%"},"Relearn");
+      const btn = el("button",{class:"btn inline",style:"font-size:11px;width:100%"},t("Relearn"));
       btn.addEventListener("click", async () => {
         const source = rlSel.value;
         const gain = Math.max(-30, Math.min(30, parseFloat(rlGainInput.value) || 0));
-        if(!source){ ctx.toast("Select a scanner first.", true); return; }
-        if(gain === 0){ ctx.toast("Gain must be non-zero.", true); return; }
-        btn.disabled = true; btn.textContent = "Relearning…";
+        if(!source){ ctx.toast(t("Select a scanner first."), true); return; }
+        if(gain === 0){ ctx.toast(t("Gain must be non-zero."), true); return; }
+        btn.disabled = true; btn.textContent = t("Relearning…");
         try {
           const res = await ctx.actions.calibrationRelearnRadio(source, gain);
           ctx.state.calibration = null;
-          ctx.toast(`Relearned ${radioName(source)}: ${gain > 0 ? "+" : ""}${gain} dB — ${res.updated_points} point${res.updated_points!==1?"s":""} updated.`);
+          const nPts = res.updated_points;
+          ctx.toast(tn(nPts, "Relearned {name}: {db} dB — {n} point updated.", "Relearned {name}: {db} dB — {n} points updated.", { name: radioName(source), db: (gain > 0 ? "+" : "") + gain }));
           ctx.actions.renderRooms();
         } catch(e){
-          ctx.toast("Relearn failed: " + ctx.helpers.errorText(e), true);
+          ctx.toast(t("Relearn failed: {error}", { error: ctx.helpers.errorText(e) }), true);
           rlBtnWrap.innerHTML = "";
           rlBtnWrap.appendChild(makeRlBtn());
         }
@@ -808,7 +777,7 @@ function _scannerMap(ctx, el, haFloors){
   wrap.appendChild(el("div",{style:"text-align:center"},[
     el("button",{class:"btn inline",style:"font-size:11px",
       onclick:()=>{ ctx.state.calibration=null; ctx.actions.renderRooms(); }},
-      "Reload calibration data"),
+      t("Reload calibration data")),
   ]));
 
   return wrap;
