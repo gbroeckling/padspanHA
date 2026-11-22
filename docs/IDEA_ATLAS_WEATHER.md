@@ -37,6 +37,7 @@ it shows at a glance what the weather is doing outside.
 | Rain sensor set, reading dry | Off (2.5 s fade-out) |
 | On/off rain sensor wet, weather entity sunny / clear-night / partlycloudy | Off: dew or frost (0.38.142). A rain rate or gauge is never overruled |
 | Rain sensor stopped reporting: its device's last-seen sensor is more than 3 h old | As no rain sensor: the weather condition decides (2026-11-02). A sensor with no last-seen sensor is read as usual |
+| On/off rain sensor wet for more than 3 h (by rain_wet.py's clock, kept across restarts), weather entity read and not wet (and not a clear sky, which overrules it already) | Off: stuck (2026-11-21, a solar rain sensor on for 30 h). No weather entity, or the weather entity wet: the sensor is believed. A rate, a gauge or a helper's on/off sensor is never called stuck |
 | No rain sensor set | Wet = weather condition in {rainy, pouring, snowy, snowy-rainy, hail, lightning-rainy} |
 | Wet, alone | Light rain |
 | Wet + rainfall warning, or condition `pouring` | Heavy rain |

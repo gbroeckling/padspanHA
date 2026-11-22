@@ -638,7 +638,9 @@ OFFER_EVENTS: frozenset[str] = frozenset(
 #                            clear sky (dew or frost, not rain); warning_ignored
 #                            — the chosen warning entity is a leak detector;
 #                            sensor_stale — a rain sensor whose device has
-#                            stopped reporting.
+#                            stopped reporting; sensor_stuck — an on/off rain
+#                            sensor wet for over 3 hours while the weather
+#                            entity says it is not wet.
 # Words only: never an entity id, never alert text.
 WEATHER_WARNING_PLATFORMS: tuple[str, ...] = ("env_canada", "meteoalarm", "dwd_weather_warnings", "nina",
                                               "meteo_france", "weatheralerts", "nws_alerts")
@@ -646,7 +648,7 @@ WEATHER_ERROR_KINDS: tuple[str, ...] = ("mask_build", "mask_unsupported", "tiles
 WEATHER_SHOWN_STATES: tuple[str, ...] = ("light_rain", "heavy_rain", "light_snow", "heavy_snow", "still")
 WEATHER_SOURCES: tuple[str, ...] = ("rain_sensor", "condition", "none",
                                     *(f"warning:{p}" for p in WEATHER_WARNING_PLATFORMS), "warning:other")
-WEATHER_NOTE_KINDS: tuple[str, ...] = ("sensor_overruled", "warning_ignored", "sensor_stale")
+WEATHER_NOTE_KINDS: tuple[str, ...] = ("sensor_overruled", "warning_ignored", "sensor_stale", "sensor_stuck")
 WEATHER_EVENTS: frozenset[str] = frozenset(
     {f"weather_error:{k}" for k in WEATHER_ERROR_KINDS}
     | {f"weather_shown:{k}" for k in WEATHER_SHOWN_STATES}
