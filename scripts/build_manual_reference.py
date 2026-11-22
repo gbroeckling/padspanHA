@@ -56,6 +56,7 @@ MANUAL = ROOT / "docs" / "manual"
 HA_REFERENCE = MANUAL / "14-home-assistant-reference.md"
 SETTINGS_REFERENCE = MANUAL / "20-settings-reference.md"
 SCREENS_CHAPTER = MANUAL / "12-the-screens.md"
+DEVELOPERS_APPENDIX = MANUAL / "D-for-developers.md"
 SCRIPT = "scripts/build_manual_reference.py"
 
 
@@ -793,6 +794,92 @@ def _menu_block() -> str:
     return "\n".join(lines) + "\n"
 
 
+# ── websocket commands (appendix D): every command the integration registers ──
+
+def _decorator_names(fn) -> set[str]:
+    out = set()
+    for d in fn.decorator_list:
+        d = d.func if isinstance(d, ast.Call) else d
+        out.add(d.attr if isinstance(d, ast.Attribute) else getattr(d, "id", ""))
+    return out
+
+
+def _command_schema(fn) -> ast.Dict | None:
+    for d in fn.decorator_list:
+        if not isinstance(d, ast.Call):
+            continue
+        name = d.func.attr if isinstance(d.func, ast.Attribute) else getattr(d.func, "id", "")
+        if name == "websocket_command" and d.args and isinstance(d.args[0], ast.Dict):
+            return d.args[0]
+    return None
+
+
+def _first_sentence(doc: str | None) -> str:
+    text = " ".join((doc or "").split("\n\n")[0].split())
+    m = re.match(r"(.+?[.!?])(\s|$)", text)
+    text = m.group(1) if m else text
+    if len(text) > 140:
+        text = text[:139].rstrip() + "…"
+    return text.replace("|", "\\|")
+
+
+def ws_commands_in_code() -> list[dict]:
+    """Each websocket command: a handler that carries @websocket_command and that the package
+    refers to by name somewhere (a registration call, or a tuple of commands a loop registers)."""
+    trees = {p.name: ast.parse(p.read_text(encoding="utf-8")) for p in sorted(PKG.glob("*.py"))}
+    referred: set[str] = set()
+    for tree in trees.values():
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                referred.add(node.id)
+            elif isinstance(node, ast.Attribute):
+                referred.add(node.attr)
+            elif isinstance(node, ast.alias):
+                referred.add(node.asname or node.name)
+    out = []
+    for module, tree in trees.items():
+        for fn in ast.walk(tree):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) or fn.name not in referred:
+                continue
+            schema = _command_schema(fn)
+            if schema is None:
+                continue
+            ctype, fields = None, []
+            for k, v in zip(schema.keys, schema.values):
+                if isinstance(k, ast.Constant) and k.value == "type":
+                    ctype = v.value if isinstance(v, ast.Constant) else None
+                elif isinstance(k, ast.Constant) and isinstance(k.value, str):
+                    fields.append(f"`{k.value}`")
+                elif isinstance(k, ast.Call) and k.args and isinstance(k.args[0], ast.Constant):
+                    kind = k.func.attr if isinstance(k.func, ast.Attribute) else getattr(k.func, "id", "")
+                    fields.append(f"`{k.args[0].value}`" + ("" if kind == "Required" else " (optional)"))
+            if not ctype:
+                raise ReferenceError_(f"{module}:{fn.lineno} {fn.name}: a command whose type is not a plain string")
+            decs = _decorator_names(fn)
+            calls = {getattr(c.func, "id", getattr(c.func, "attr", "")) for c in ast.walk(fn) if isinstance(c, ast.Call)}
+            admin = ("always" if "require_admin" in decs else
+                     "with Enhanced security" if "admin_if_enhanced_security" in decs or "require_admin_if_enhanced" in calls
+                     else "")
+            out.append({"type": ctype, "fields": fields, "admin": admin, "module": module,
+                        "what": _first_sentence(ast.get_docstring(fn))})
+    seen: dict[str, str] = {}
+    for c in out:
+        if c["type"] in seen:
+            raise ReferenceError_(f"{c['type']} is declared twice ({seen[c['type']]}, {c['module']})")
+        seen[c["type"]] = c["module"]
+    return sorted(out, key=lambda c: c["type"])
+
+
+def _ws_block() -> str:
+    cmds = ws_commands_in_code()
+    lines = [f"{len(cmds)} commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.", "",
+             "| Command | Fields | Administrator | Module | What it does (its handler's first sentence) |",
+             "|---|---|---|---|---|"]
+    for c in cmds:
+        lines.append(f"| `{c['type']}` | {', '.join(c['fields']) or '–'} | {c['admin'] or '–'} | `{c['module']}` | {c['what']} |")
+    return "\n".join(lines) + "\n"
+
+
 # ── the blocks, and writing them ────────────────────────────────────────────
 
 def blocks() -> dict[Path, dict[str, str]]:
@@ -803,6 +890,7 @@ def blocks() -> dict[Path, dict[str, str]]:
     if from_settings:
         out[SETTINGS_REFERENCE] = from_settings
     out[SCREENS_CHAPTER] = {"menu": _menu_block()}
+    out[DEVELOPERS_APPENDIX] = {"websocket": _ws_block()}
     return out
 
 
