@@ -142,9 +142,10 @@ learning from it while it sits there.
 3. Leave the beacon where it is for the 60-second capture that follows. It is saved as a calibration
    point.
 
-A beacon you place is pinned: PadSpan shows it in its pinned room instead of working its room out.
-A device PadSpan knows moves (a phone with its key, a tag you follow) is never pinned; it gets the
-one capture, then goes back to live tracking.
+A beacon you place is pinned only when you tick **Pin here: it never moves** on its row. A pinned
+beacon is shown in its pinned room instead of having its room worked out, so pin only one that never
+moves. A device PadSpan knows moves (a phone with its key, a tag you follow) is never pinned, even
+ticked. Every beacon you place gets the one capture, then goes back to live tracking.
 
 With **Auto-Cal: ON** (the default), a pinned beacon that sits still adds a fresh calibration point
 now and then, at most once every 10 minutes and 50 points a beacon; they are marked [auto] on the
