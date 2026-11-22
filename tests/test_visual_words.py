@@ -73,7 +73,7 @@ def test_settings_says_saved_layout_not_fabric() -> None:
     found = [s[:80] for s in _literals(WWW / "views" / "settings.js") if re.search(r"\b[Ff]abric('s)?\s", s)]
     assert not found, found
     src = _read("views/settings.js")
-    assert '["manual", "Standalone — use the saved layout"]' in src
+    assert '["manual", t("Standalone — use the saved layout")]' in src
     # What's stored and sent is unchanged.
     assert "padspan_ha/fabric_sync_mode_set" in src and "fabric_origin_lat" in src and "fabric_bearing_deg" in src
 
