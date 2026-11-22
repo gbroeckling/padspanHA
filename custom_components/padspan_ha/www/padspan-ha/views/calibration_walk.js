@@ -10,6 +10,11 @@
 // Listen uses). The summary and the save are room_walk.py's; rooms come
 // from the fabric (model room_geometry_m), never the photo. Nothing is
 // stored until the person presses Save; Discard throws the walk away.
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (a test copies this file
+// alone), the English with its {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 
 export const WALK_S = 90;
 const POLL_MS = 1000;
@@ -36,10 +41,10 @@ export function ringSvg(frac, label) {
 }
 
 const LOOKS = {
-  distinct: (s) => `Stands out from ${s.nearest_room} (${s.gap_db} dB apart), the closest room.`,
-  fair: (s) => `Somewhat like ${s.nearest_room} (${s.gap_db} dB apart). Fine, but a second walk can help.`,
-  similar: (s) => `Reads much like ${s.nearest_room} (${s.gap_db} dB apart). The two may be hard to tell apart; walk closer to the walls and corners.`,
-  unknown: () => "No other room has calibration yet to compare with.",
+  distinct: (s) => t("Stands out from {room} ({db} dB apart), the closest room.", { room: s.nearest_room, db: s.gap_db }),
+  fair: (s) => t("Somewhat like {room} ({db} dB apart). Fine, but a second walk can help.", { room: s.nearest_room, db: s.gap_db }),
+  similar: (s) => t("Reads much like {room} ({db} dB apart). The two may be hard to tell apart; walk closer to the walls and corners.", { room: s.nearest_room, db: s.gap_db }),
+  unknown: () => t("No other room has calibration yet to compare with."),
 };
 
 // Rooms of the fabric on this floor (any floor when the plan has none set).
@@ -63,7 +68,8 @@ export function walkLeft(ctx, cs) {
 }
 
 export function summaryText(s) {
-  return `${s.samples} samples from ${s.scanners} receiver${s.scanners !== 1 ? "s" : ""} over ${s.polls} polls. ` +
+  const nRx = s.scanners;
+  return tn(nRx, "{samples} samples from 1 receiver over {polls} polls.", "{samples} samples from {n} receivers over {polls} polls.", { samples: s.samples, polls: s.polls }) + " " +
     (LOOKS[s.looks] || LOOKS.unknown)(s);
 }
 
@@ -73,11 +79,11 @@ export function renderWalk(ctx, el, cs, calData, h) {
 
   if (!cs.deviceId || !cs.mapId) {
     wrap.appendChild(el("div", { class: "card", style: "border-color:#f59e0b" }, [
-      el("div", { style: "font-size:13px;color:#f59e0b;font-weight:700" }, "Setup required"),
+      el("div", { style: "font-size:13px;color:#f59e0b;font-weight:700" }, t("Setup required")),
       el("div", { class: "muted", style: "font-size:12px;margin-top:4px" },
-        "Pick the phone or tag you will carry, and the floor, in the Beacon and floor tab first."),
+        t("Pick the phone or tag you will carry, and the floor, in the Beacon and floor tab first.")),
       el("button", { class: "btn", style: "margin-top:10px", onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); } },
-        "Go to Beacon and floor"),
+        t("Go to Beacon and floor")),
     ]));
     return wrap;
   }
@@ -87,10 +93,10 @@ export function renderWalk(ctx, el, cs, calData, h) {
   const walked = (room) => pts.filter(p => p.source === "room_walk" && p.room === room).length;
   const card = el("div", { class: "card" });
   wrap.appendChild(card);
-  card.appendChild(el("div", { class: "h2" }, ["Walk a room ", ctx.helpers.helpBtn("calibration_walk")]));
+  card.appendChild(el("div", { class: "h2" }, [t("Walk a room") + " ", ctx.helpers.helpBtn("calibration_walk")]));
 
   if (w.phase === "walking") {
-    card.appendChild(el("div", { style: "font-size:13px;color:#e2e8f0;text-align:center;font-weight:600" }, `Walking ${w.room}`));
+    card.appendChild(el("div", { style: "font-size:13px;color:#e2e8f0;text-align:center;font-weight:600" }, t("Walking {room}", { room: w.room })));
     const ring = el("div", { style: "display:flex;justify-content:center;margin:8px 0" });
     ring.innerHTML = ringSvg(0, String(WALK_S));
     w._ringEl = ring;
@@ -99,11 +105,11 @@ export function renderWalk(ctx, el, cs, calData, h) {
     w._countEl = count;
     card.appendChild(count);
     card.appendChild(el("ul", { style: "font-size:12px;color:#94a3b8;line-height:1.6;margin:10px 0 0 18px;padding:0" }, [
-      el("li", {}, "Carry the phone as you usually do: in a pocket or bag, screen off."),
-      el("li", {}, "Walk slowly along the walls and into each corner, then through the middle."),
-      el("li", {}, "Stay in this room until the ring is full."),
+      el("li", {}, t("Carry the phone as you usually do: in a pocket or bag, screen off.")),
+      el("li", {}, t("Walk slowly along the walls and into each corner, then through the middle.")),
+      el("li", {}, t("Stay in this room until the ring is full.")),
     ]));
-    const stop = el("button", { class: "btn inline", style: "margin-top:12px;width:100%" }, "Cancel & discard");
+    const stop = el("button", { class: "btn inline", style: "margin-top:12px;width:100%" }, t("Cancel & discard"));
     stop.addEventListener("click", () => { w.stop = true; cs._walk = { phase: "idle", room: w.room, polls: [] }; ctx.actions.renderRooms(); });
     card.appendChild(stop);
     return wrap;
@@ -111,26 +117,26 @@ export function renderWalk(ctx, el, cs, calData, h) {
 
   if (w.phase === "summary" && w.summary) {
     const s = w.summary;
-    card.appendChild(el("div", { style: "font-size:13px;color:#e2e8f0;font-weight:600" }, `${w.room}: walk complete`));
+    card.appendChild(el("div", { style: "font-size:13px;color:#e2e8f0;font-weight:600" }, t("{room}: walk complete", { room: w.room })));
     card.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5" }, summaryText(s)));
     const ho = h.heldoutLine(el, calData.heldout);
     if (ho) card.appendChild(ho);
     if (!s.enough) {
       card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-top:8px" },
-        "Too little was heard to save. Check the device is on and near the receivers, then walk again."));
+        t("Too little was heard to save. Check the device is on and near the receivers, then walk again.")));
     }
     if (s.previous_walk_points) {
       card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-top:8px" },
-        `${w.room} already has a walk. Saving replaces that walk only; other calibration points stay as they are.`));
+        t("{room} already has a walk. Saving replaces that walk only; other calibration points stay as they are.", { room: w.room })));
     }
     const row = el("div", { style: "display:flex;gap:8px;margin-top:12px" });
     if (s.enough) {
-      const save = el("button", { class: "btn save-pulse", style: "flex:1" }, "Save this walk?");
+      const save = el("button", { class: "btn save-pulse", style: "flex:1" }, t("Save this walk?"));
       save.addEventListener("click", async () => {
         const replace = !!s.previous_walk_points;
-        if (replace && !confirm(`Replace the earlier walk of ${w.room}?`)) return;
+        if (replace && !confirm(t("Replace the earlier walk of {room}?", { room: w.room }))) return;
         save.disabled = true;
-        save.textContent = "Saving and re-testing…";
+        save.textContent = t("Saving and re-testing…");
         try {
           const r = await ctx.actions.wsCall("padspan_ha/calibration_room_walk_save", {
             room: w.room, map_id: cs.mapId, device_id: cs.deviceId || "", duration_s: WALK_S,
@@ -138,19 +144,19 @@ export function renderWalk(ctx, el, cs, calData, h) {
           });
           ctx.state.calibration = await ctx.actions.calibrationGet();
           cs._walk = { phase: "saved", room: w.room, polls: [], result: r };
-          ctx.toast(`Walk saved: ${r.added} points for ${w.room}.`);
+          ctx.toast(t("Walk saved: {n} points for {room}.", { n: r.added, room: w.room }));
           _awaitAfter(ctx, cs._walk);
         } catch (e) {
-          ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
+          ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }), true);
           save.disabled = false;
-          save.textContent = "Save this walk?";
+          save.textContent = t("Save this walk?");
           return;
         }
         ctx.actions.renderRooms();
       });
       row.appendChild(save);
     }
-    const discard = el("button", { class: "btn inline", style: "flex:1" }, "Discard");
+    const discard = el("button", { class: "btn inline", style: "flex:1" }, t("Discard"));
     discard.addEventListener("click", () => { cs._walk = { phase: "idle", room: w.room, polls: [] }; ctx.actions.renderRooms(); });
     row.appendChild(discard);
     card.appendChild(row);
@@ -160,56 +166,56 @@ export function renderWalk(ctx, el, cs, calData, h) {
   if (w.phase === "saved" && w.result) {
     const r = w.result;
     card.appendChild(el("div", { style: "font-size:13px;color:#52b788;font-weight:700" },
-      `✓ ${w.room}: ${r.added} points saved` + (r.replaced ? ` (replaced ${r.replaced} from the earlier walk)` : "")));
+      t("✓ {room}: {n} points saved", { room: w.room, n: r.added }) + (r.replaced ? " " + t("(replaced {n} from the earlier walk)", { n: r.replaced }) : "")));
     const b = h.heldoutLine(el, r.heldout_before), a = h.heldoutLine(el, w.after);
-    if (b) { b.textContent = "Before: " + b.textContent; card.appendChild(b); }
-    if (a) { a.textContent = "After: " + a.textContent; card.appendChild(a); }
+    if (b) { b.textContent = t("Before: {line}", { line: b.textContent }); card.appendChild(b); }
+    if (a) { a.textContent = t("After: {line}", { line: a.textContent }); card.appendChild(a); }
     else card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:10px" },
-      w.afterGaveUp ? "Still working on the new score. Calibration → Model shows it once it is ready."
-        : "Re-testing with the walk in…"));
+      w.afterGaveUp ? t("Still working on the new score. Calibration → Model shows it once it is ready.")
+        : t("Re-testing with the walk in…")));
     const chg = changeWord(r.heldout_before, w.after);
     if (chg) {
       card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:6px" },
-        chg === "up" ? "Fingerprints got more rooms right." : chg === "down"
-          ? "Fingerprints got fewer rooms right. Walk the room again, or remove the walk." : "About the same as before."));
+        chg === "up" ? t("Fingerprints got more rooms right.") : chg === "down"
+          ? t("Fingerprints got fewer rooms right. Walk the room again, or remove the walk.") : t("About the same as before.")));
     }
     card.appendChild(el("button", { class: "btn", style: "margin-top:12px",
-      onclick: () => { cs._walk = { phase: "idle", room: "", polls: [] }; ctx.actions.renderRooms(); } }, "Walk another room"));
+      onclick: () => { cs._walk = { phase: "idle", room: "", polls: [] }; ctx.actions.renderRooms(); } }, t("Walk another room")));
     return wrap;
   }
 
   // Idle: pick the room and start.
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.5;margin-bottom:10px" },
-    `Carrying ${cs.deviceLabel || cs.deviceId}. Pick a room, press Start and walk slowly around it for ${WALK_S} seconds. ` +
-    "PadSpan listens to every receiver while you walk, then shows what it heard before anything is saved."));
+    t("Carrying {device}. Pick a room, press Start and walk slowly around it for {s} seconds.", { device: cs.deviceLabel || cs.deviceId, s: WALK_S }) + " " +
+      t("PadSpan listens to every receiver while you walk, then shows what it heard before anything is saved.")));
   // The carry and moved-receiver tips (calibration_results.js calTips).
   if (h.tips) card.appendChild(h.tips(el));
   if (!rooms.length) {
-    card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b" }, "This floor has no rooms drawn yet. Draw them in Mapping first."));
+    card.appendChild(el("div", { style: "font-size:12px;color:#f59e0b" }, t("This floor has no rooms drawn yet. Draw them in Mapping first.")));
     return wrap;
   }
   const sel = el("select", { style: "width:100%;margin-bottom:10px" });
-  sel.appendChild(el("option", { value: "" }, "Choose a room…"));
+  sel.appendChild(el("option", { value: "" }, t("Choose a room…")));
   for (const r of rooms) {
-    const o = el("option", { value: r }, walked(r) ? `${r} (walked)` : r);
+    const o = el("option", { value: r }, walked(r) ? t("{room} (walked)", { room: r }) : r);
     if (r === w.room) o.selected = true;
     sel.appendChild(o);
   }
   sel.addEventListener("change", () => { w.room = sel.value; ctx.actions.renderRooms(); });
   card.appendChild(sel);
-  const start = el("button", { class: "btn", style: "width:100%" }, "Start walking");
+  const start = el("button", { class: "btn", style: "width:100%" }, t("Start walking"));
   start.disabled = !w.room;
   start.addEventListener("click", () => _start(ctx, cs, h));
   card.appendChild(start);
   if (w.room && walked(w.room)) {
-    const rm = el("button", { class: "btn inline", style: "width:100%;margin-top:8px" }, `Remove the walk of ${w.room}`);
+    const rm = el("button", { class: "btn inline", style: "width:100%;margin-top:8px" }, t("Remove the walk of {room}", { room: w.room }));
     rm.addEventListener("click", async () => {
-      if (!confirm(`Remove the walk of ${w.room}? Only its walk points go; other calibration points stay.`)) return;
+      if (!confirm(t("Remove the walk of {room}? Only its walk points go; other calibration points stay.", { room: w.room }))) return;
       try {
         const r = await ctx.actions.wsCall("padspan_ha/calibration_room_walk_remove", { room: w.room });
         ctx.state.calibration = await ctx.actions.calibrationGet();
-        ctx.toast(`Removed ${r.removed} walk points from ${w.room}.`);
-      } catch (e) { ctx.toast("Remove failed: " + ctx.helpers.errorText(e), true); }
+        ctx.toast(t("Removed {n} walk points from {room}.", { n: r.removed, room: w.room }));
+      } catch (e) { ctx.toast(t("Remove failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
       ctx.actions.renderRooms();
     });
     card.appendChild(rm);
@@ -246,7 +252,7 @@ function _awaitAfter(ctx, w) {
 
 function _start(ctx, cs, h) {
   if (h.phase(ctx.state) !== "live") {
-    ctx.toast("Switch to Live mode, with live data from Home Assistant, to walk a room.", true);
+    ctx.toast(t("Switch to Live mode, with live data from Home Assistant, to walk a room."), true);
     return;
   }
   const w = cs._walk;
@@ -263,13 +269,13 @@ function _start(ctx, cs, h) {
     if (Object.keys(row).length) w.polls.push(row);
     const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
     if (w._ringEl) w._ringEl.innerHTML = ringSvg(1 - left / WALK_S, String(left));
-    if (w._countEl) w._countEl.textContent = `Poll #${w.ticks} · ${w.polls.length} with fresh readings`;
+    if (w._countEl) w._countEl.textContent = t("Poll #{n} · {fresh} with fresh readings", { n: w.ticks, fresh: w.polls.length });
     if (Date.now() < endAt) { setTimeout(loop, Math.min(POLL_MS, endAt - Date.now())); return; }
     try {
       w.summary = await ctx.actions.wsCall("padspan_ha/calibration_room_walk_preview", { room: w.room, polls: w.polls });
       w.phase = "summary";
     } catch (e) {
-      ctx.toast("Could not read the walk: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not read the walk: {why}", { why: ctx.helpers.errorText(e) }), true);
       w.phase = "idle";
     }
     ctx.actions.renderRooms();

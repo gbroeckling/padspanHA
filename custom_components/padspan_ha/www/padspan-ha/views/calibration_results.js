@@ -20,6 +20,8 @@
 // yet, the old estimate (loo_accuracy) is shown and labelled as such.
 // Basic's focused views (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 export function houseAccuracy(calData) {
   const ho = calData && calData.heldout;
@@ -42,12 +44,12 @@ export function houseAccuracy(calData) {
 // pocket, which is how it is carried the rest of the day; and moving a
 // receiver changes what the rooms around it hear, while the calibration of
 // those rooms stays as it was.
-export const CARRY_TIP = "Carry the phone or tag the way you usually do (a phone in a pocket, screen off), " +
-  "and press the buttons here on another phone, tablet or computer.";
-export const MOVED_TIP = "Moved a receiver? Calibrate the rooms next to it again.";
+// The two tips in the panel's language: functions, read when drawn.
+export const CARRY_TIP = () => t("Carry the phone or tag the way you usually do (a phone in a pocket, screen off), and press the buttons here on another phone, tablet or computer.");
+export const MOVED_TIP = () => t("Moved a receiver? Calibrate the rooms next to it again.");
 export function calTips(el) {
   return el("ul", { "data-cal-tips": "", class: "muted", style: "font-size:12px;line-height:1.5;margin:8px 0 0 18px;padding:0" },
-    [el("li", {}, CARRY_TIP), el("li", {}, MOVED_TIP)]);
+    [el("li", {}, CARRY_TIP()), el("li", {}, MOVED_TIP())]);
 }
 
 // A room with fewer points than this is listed as needing work, and below
@@ -132,25 +134,25 @@ export const ACTION_KINDS = ["scale", "start", "receiver_heights", "floor_height
 // What each action says and its button.
 function _words(a) {
   switch (a.kind) {
-    case "scale": return ["Measure one distance on a floor plan",
-      "A floor plan has no real-world scale yet, so calibration points on it can't be saved.", "Measure →"];
-    case "start": return ["Calibrate the house",
-      "There are no calibration points yet.", "Guided calibration →"];
-    case "receiver_heights": return ["Say how high each receiver is mounted",
-      "They're all at one height, which makes it harder to tell which floor someone is on.", "Open Tune →"];
-    case "floor_heights": return ["Give your floors their real heights",
-      "Every floor is at the default height, so PadSpan tells floors apart less well than it could.", "Floor heights →"];
-    case "compute": return ["Work out the accuracy again",
-      "There are calibration points the numbers above don't include yet.", "Open Model →"];
-    case "room_empty": return [`Add calibration points in ${a.room}`,
-      `${a.room} has none yet, so PadSpan has nothing to check it against.`, "Open Pin & Listen →"];
-    case "room_weak": return [`Add a few points in ${a.room}`,
-      a.confusedWith ? `It's the room PadSpan gets wrong most often, mostly mixing it up with ${a.confusedWith}. About ${a.suggested} more point${a.suggested === 1 ? "" : "s"} should help.`
-        : `It has only a few points. About ${a.suggested} more point${a.suggested === 1 ? "" : "s"} should help.`, "Open Pin & Listen →"];
-    case "stale": return ["Walk the house again",
-      `The newest calibration point is ${a.days} days old. Furniture and receivers move; a fresh walk keeps it accurate.`, "Guided calibration →"];
-    default: return ["Nothing urgent",
-      "Every room has points and none stands out. Accuracy by spot shows where readings disagree, if a room still feels off.", "Open Accuracy by spot →"];
+    case "scale": return [t("Measure one distance on a floor plan"),
+      t("A floor plan has no real-world scale yet, so calibration points on it can't be saved."), t("Measure →")];
+    case "start": return [t("Calibrate the house"),
+      t("There are no calibration points yet."), t("Guided calibration →")];
+    case "receiver_heights": return [t("Say how high each receiver is mounted"),
+      t("They're all at one height, which makes it harder to tell which floor someone is on."), t("Open Tune →")];
+    case "floor_heights": return [t("Give your floors their real heights"),
+      t("Every floor is at the default height, so PadSpan tells floors apart less well than it could."), t("Floor heights →")];
+    case "compute": return [t("Work out the accuracy again"),
+      t("There are calibration points the numbers above don't include yet."), t("Open Model →")];
+    case "room_empty": return [t("Add calibration points in {room}", { room: a.room }),
+      t("{room} has none yet, so PadSpan has nothing to check it against.", { room: a.room }), t("Open Pin & Listen →")];
+    case "room_weak": return [t("Add a few points in {room}", { room: a.room }),
+      a.confusedWith ? tn(a.suggested, "It's the room PadSpan gets wrong most often, mostly mixing it up with {other}. About 1 more point should help.", "It's the room PadSpan gets wrong most often, mostly mixing it up with {other}. About {n} more points should help.", { other: a.confusedWith })
+        : tn(a.suggested, "It has only a few points. About 1 more point should help.", "It has only a few points. About {n} more points should help."), t("Open Pin & Listen →")];
+    case "stale": return [t("Walk the house again"),
+      t("The newest calibration point is {n} days old. Furniture and receivers move; a fresh walk keeps it accurate.", { n: a.days }), t("Guided calibration →")];
+    default: return [t("Nothing urgent"),
+      t("Every room has points and none stands out. Accuracy by spot shows where readings disagree, if a room still feels off."), t("Open Accuracy by spot →")];
   }
 }
 
@@ -235,7 +237,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
   const wrap = el("div", { "data-cal-results": "tab", style: "display:flex;flex-direction:column;gap:12px" });
   if (sample) {
     wrap.appendChild(el("div", { "data-cal-results": "sample", class: "muted", style: "font-size:12px" },
-      "Sample house: these are made-up results. Switch to Live to see your own."));
+      t("Sample house: these are made-up results. Switch to Live to see your own.")));
   }
 
   const go = (kind) => {
@@ -261,7 +263,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
   };
 
   const guidedBtn = (primary) => {
-    const b = el("button", { class: primary ? "btn inline primary" : "btn inline", "data-cal-results": "guided" }, "🧭 Guided calibration");
+    const b = el("button", { class: primary ? "btn inline primary" : "btn inline", "data-cal-results": "guided" }, t("🧭 Guided calibration"));
     b.addEventListener("click", () => go("guided"));
     return b;
   };
@@ -269,7 +271,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
   const actionCard = () => {
     const [title, why, label] = _words(action);
     const card = el("div", { class: "card", "data-cal-results": "next", "data-kind": action.kind, style: "border-color:#52b788" });
-    card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px" }, "The next best thing to do"));
+    card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px" }, t("The next best thing to do")));
     card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0;margin-bottom:4px" }, title));
     card.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.5;margin-bottom:10px" }, why));
     const b = el("button", { class: "btn inline", "data-cal-results": "go" }, label);
@@ -283,12 +285,11 @@ export function renderResults(ctx, el, cs, calData, deps) {
     if (action.kind !== "start") wrap.appendChild(actionCard());
     wrap.appendChild(el("div", { class: "card", "data-cal-results": "empty" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
-        el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, "No calibration yet"),
+        el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, t("No calibration yet")),
         ctx.helpers.helpBtn("calibration_results"),
       ]),
       el("div", { class: "muted", style: "font-size:13px;line-height:1.6;margin-bottom:12px" },
-        "Until you calibrate, PadSpan places people from the receivers alone. " +
-        "Walk the house once with your phone and this page shows how accurate it is, room by room."),
+        t("Until you calibrate, PadSpan places people from the receivers alone. Walk the house once with your phone and this page shows how accurate it is, room by room.")),
       guidedBtn(true),
     ]));
     return wrap;
@@ -303,7 +304,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
   // sat alone at the far edge with an empty gap before it.
   accCard.appendChild(el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px" }, [
     el("div", { style: "display:flex;align-items:center;gap:10px" }, [
-      el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, "How accurate it is now"),
+      el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, t("How accurate it is now")),
       ctx.helpers.helpBtn("calibration_results"),
     ]),
     el("div", {}, [guidedBtn(true)]),
@@ -314,26 +315,26 @@ export function renderResults(ctx, el, cs, calData, deps) {
   ]);
   const stats = el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" });
   if (acc.kind === "heldout") {
-    if (acc.rooms_right_pc != null) stats.appendChild(big(`${acc.rooms_right_pc}%`, "rooms right", _pcColor(acc.rooms_right_pc)));
-    if (acc.median_m != null) stats.appendChild(big(`${acc.median_m} m`, "typical distance off", acc.median_m < 2 ? "#52b788" : "#f59e0b"));
-    stats.appendChild(big(String(pts.length), "calibration points", "#a7f3d0"));
+    if (acc.rooms_right_pc != null) stats.appendChild(big(`${acc.rooms_right_pc}%`, t("rooms right"), _pcColor(acc.rooms_right_pc)));
+    if (acc.median_m != null) stats.appendChild(big(`${acc.median_m} m`, t("typical distance off"), acc.median_m < 2 ? "#52b788" : "#f59e0b"));
+    stats.appendChild(big(String(pts.length), t("calibration points"), "#a7f3d0"));
     accCard.appendChild(stats);
     // The Model tab's own line says both methods; this one only if it can't.
     const line = deps.heldoutLine ? deps.heldoutLine(el, data.heldout) : null;
     if (line) { line.setAttribute("data-cal-results", "how"); accCard.appendChild(line); }
     else accCard.appendChild(el("div", { class: "muted", "data-cal-results": "how", style: "font-size:12px;line-height:1.5;margin-top:8px" },
-      `Tested on spots it hasn't seen, using ${acc.method === "spatial" ? "receiver positions (spatial)" : "your calibration points (fingerprints)"}.`));
+      acc.method === "spatial" ? t("Tested on spots it hasn't seen, using receiver positions (spatial).") : t("Tested on spots it hasn't seen, using your calibration points (fingerprints).")));
   } else if (acc.kind === "estimate") {
-    stats.appendChild(big(`~${acc.mean_m} m`, "estimated distance off", acc.mean_m < 2 ? "#52b788" : "#f59e0b"));
-    stats.appendChild(big(String(pts.length), "calibration points", "#a7f3d0"));
+    stats.appendChild(big(`~${acc.mean_m} m`, t("estimated distance off"), acc.mean_m < 2 ? "#52b788" : "#f59e0b"));
+    stats.appendChild(big(String(pts.length), t("calibration points"), "#a7f3d0"));
     accCard.appendChild(stats);
     accCard.appendChild(el("div", { class: "muted", "data-cal-results": "how", style: "font-size:12px;line-height:1.5;margin-top:8px" },
-      "An estimate, tested with nearby points still in, so it reads better than what you see. The test on unseen spots appears here once it has run."));
+      t("An estimate, tested with nearby points still in, so it reads better than what you see. The test on unseen spots appears here once it has run.")));
   } else {
-    stats.appendChild(big(String(pts.length), "calibration points", "#a7f3d0"));
+    stats.appendChild(big(String(pts.length), t("calibration points"), "#a7f3d0"));
     accCard.appendChild(stats);
     accCard.appendChild(el("div", { class: "muted", "data-cal-results": "how", style: "font-size:12px;line-height:1.5;margin-top:8px" },
-      pts.length >= 4 ? "Not worked out yet: Compute Model on the Model tab does it." : "A few more points (4 or more) and PadSpan can work out how accurate it is."));
+      pts.length >= 4 ? t("Not worked out yet: Compute Model on the Model tab does it.") : t("A few more points (4 or more) and PadSpan can work out how accurate it is.")));
   }
   wrap.appendChild(accCard);
 
@@ -343,18 +344,19 @@ export function renderResults(ctx, el, cs, calData, deps) {
   const rows = roomRows(data, roomNames);
   if (rows.length) {
     const card = el("div", { class: "card", "data-cal-results": "rooms" });
-    card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0;margin-bottom:4px" }, "Room by room"));
+    card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0;margin-bottom:4px" }, t("Room by room")));
     card.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.5;margin-bottom:10px" },
-      "Rooms that need work first. Rooms right is from the calibration score, which keeps nearby points in, so it reads higher than the figure above."));
+      t("Rooms that need work first. Rooms right is from the calibration score, which keeps nearby points in, so it reads higher than the figure above.")));
     const list = el("div", { style: "display:flex;flex-direction:column;gap:6px" });
     // Rooms that look fine fold away under one line, so a big house's list
     // starts with the work.
     const fine = rows.filter(r => !r.needsWork).length;
     const fineList = el("div", { style: "display:flex;flex-direction:column;gap:6px;margin-top:6px" });
     for (const r of rows) {
-      const note = r.points === 0 ? "no points yet"
-        : r.confusedWith ? `mixed up with ${r.confusedWith}`
-        : r.points < FEW_POINTS ? "few points" : "";
+      const note = r.points === 0 ? t("no points yet")
+        : r.confusedWith ? t("mixed up with {room}", { room: r.confusedWith })
+        : r.points < FEW_POINTS ? t("few points") : "";
+      const nPts = r.points;
       (r.needsWork ? list : fineList).appendChild(el("div", { "data-cal-room": r.name, "data-needs-work": String(r.needsWork), style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
         el("span", { style: `font-size:12px;color:${r.needsWork ? "#f59e0b" : "#52b788"};width:14px;flex-shrink:0` }, r.needsWork ? "!" : "✓"),
         el("div", { style: "flex:1 1 120px;min-width:0;font-size:12px;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, r.name),
@@ -362,7 +364,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
           el("div", { style: `width:${r.pc ?? 0}%;height:100%;background:${_pcColor(r.pc)}` }),
         ]),
         el("div", { style: `font-size:11px;color:${_pcColor(r.pc)};width:36px;text-align:right;flex-shrink:0` }, r.pc == null ? "–" : `${r.pc}%`),
-        el("div", { class: "muted", style: "font-size:11px;width:60px;text-align:right;flex-shrink:0" }, `${r.points} pt${r.points === 1 ? "" : "s"}`),
+        el("div", { class: "muted", style: "font-size:11px;width:60px;text-align:right;flex-shrink:0" }, tn(nPts, "1 pt", "{n} pts")),
         note ? el("div", { class: "muted", style: "font-size:11px;flex-basis:100%;padding-left:22px" }, note) : null,
       ]));
     }
@@ -370,7 +372,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
     if (fine && fine === rows.length) card.appendChild(fineList);
     else if (fine) {
       const det = el("details", { "data-cal-results": "fine", style: "margin-top:8px" }, [
-        el("summary", { style: "cursor:pointer;font-size:12px;color:#94a3b8" }, `${fine} room${fine === 1 ? "" : "s"} look${fine === 1 ? "s" : ""} fine`),
+        el("summary", { style: "cursor:pointer;font-size:12px;color:#94a3b8" }, tn(fine, "1 room looks fine", "{n} rooms look fine")),
         fineList,
       ]);
       card.appendChild(det);
@@ -380,6 +382,6 @@ export function renderResults(ctx, el, cs, calData, deps) {
 
   wrap.appendChild(calTips(el));
   wrap.appendChild(el("div", { class: "muted", "data-cal-results": "more", style: "font-size:12px;line-height:1.5" },
-    "More tools are in the tabs above: Tune and Beacon Tune place receivers and beacons, Pin & Listen and Roam collect points, Model and Accuracy by spot show the details."));
+    t("More tools are in the tabs above: Tune and Beacon Tune place receivers and beacons, Pin & Listen and Roam collect points, Model and Accuracy by spot show the details.")));
   return wrap;
 }

@@ -6,6 +6,8 @@ const { deviceName, pickName } = await import(`./device_name.js${new URL(import.
 const { estimateDistanceM, formatDistanceM } = await import(`./path_loss.js${new URL(import.meta.url).search}`);
 const { buildCalibrationMatrix, errorColor } = await import(`./calibration_matrix.js${new URL(import.meta.url).search}`);
 const { attachPanZoom } = await import(`./pan_zoom.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // A tall plan fits the window instead of filling the card. Only the box's size
 // changes: its shape stays the plan's, and a point is a fraction of the plan's
@@ -99,7 +101,7 @@ const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 function _noLiveDataText(ctx, sampleText, liveText) {
   const phase = tuneLivePhase(ctx.state);
   if (phase === "sample") return sampleText;
-  if (phase === "waiting") return "Waiting for live data from Home Assistant…";
+  if (phase === "waiting") return t("Waiting for live data from Home Assistant…");
   return liveText;
 }
 
@@ -162,10 +164,10 @@ export function render(ctx) {
   }
 
   // Tabs
-  const TABS = [["results","Results"],["tune","Tune"],["beacon","Beacon Tune"],["setup","Beacon and floor"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Accuracy by spot"]];
+  const TABS = [["results",t("Results")],["tune",t("Tune")],["beacon",t("Beacon Tune")],["setup",t("Beacon and floor")],["pin",t("Pin & Listen")],["roam",t("Roam")],["model",t("Model")],["matrix",t("Accuracy by spot")]];
   // Walk a room (calibration_room_walk, off by default): its tab exists only while on.
   const _walkOn = ctx.state.settings?.calibration_room_walk === true;
-  if (_walkOn) TABS.push(["walk", "Walk a room"]);
+  if (_walkOn) TABS.push(["walk", t("Walk a room")]);
   else if (cs.tab === "walk") cs.tab = "tune";
   // A tab asked for from elsewhere (?view=calibration&tab=…, the Overview's
   // accuracy tip, Mapping's "Go to Calibration"), whether or not Calibration
@@ -180,16 +182,16 @@ export function render(ctx) {
   // header's is left out there (one button, not two).
   root.appendChild(el("div", { style: "margin-bottom:10px" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
-      el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "BLE Location Calibration"),
+      el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, t("BLE Location Calibration")),
       ctx.helpers.helpBtn("calibration_overview"),
       cs.tab === "results" ? null : (() => {
-        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto", "data-calib-guided": "header" }, "🧭 Guided calibration");
+        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto", "data-calib-guided": "header" }, t("🧭 Guided calibration"));
         b.addEventListener("click", () => { ctx.state._calibWizard = { step: 1 }; ctx.actions.renderRooms(); });
         return b;
       })(),
     ]),
     el("div", { style: "font-size:12px;color:#78909c;margin-top:2px" },
-      "Build a fingerprint database so PadSpan™ can pinpoint every beacon in 3D space."),
+      t("Build a fingerprint database so PadSpan™ can pinpoint every beacon in 3D space.")),
   ]));
 
   // Tab bar
@@ -234,8 +236,8 @@ function _walkTab(ctx, el, cs, calData) {
   if (!_WALK) {
     import(`./calibration_walk.js${new URL(import.meta.url).search}`)
       .then(m => { _WALK = m; ctx.actions.renderRooms(); })
-      .catch(e => ctx.toast("Could not load Walk a room: " + ctx.helpers.errorText(e), true));
-    return el("div", { class: "muted" }, "Loading…");
+      .catch(e => ctx.toast(t("Could not load Walk a room: {why}", { why: ctx.helpers.errorText(e) }), true));
+    return el("div", { class: "muted" }, t("Loading…"));
   }
   return _WALK.renderWalk(ctx, el, cs, calData, {
     findAds: _findBeaconAds, accept: _acceptCalSample, snap: _recordableSnap, phase: tuneLivePhase, heldoutLine: _heldoutLine,
@@ -279,10 +281,10 @@ function _noScaleCard(ctx, el, cs) {
     ctx.actions.telemetryEvent("calib_floor_unmeasured");
   }
   return el("div", { class: "card", style: "border-color:#f59e0b" }, [
-    el("div", { style: "font-weight:700;font-size:14px;color:#f59e0b;margin-bottom:6px" }, "This floor needs a measurement first"),
+    el("div", { style: "font-weight:700;font-size:14px;color:#f59e0b;margin-bottom:6px" }, t("This floor needs a measurement first")),
     el("div", { style: "font-size:13px;line-height:1.6;color:#b0c4b1" },
-      "A calibration point is a spot on the floor in metres, and this floor plan has no metre scale yet, so a point placed on it can't be saved. " +
-      "Measure one distance you know on it (a wall, a doorway), then come back here."),
+      t("A calibration point is a spot on the floor in metres, and this floor plan has no metre scale yet, so a point placed on it can't be saved.") + " " +
+      t("Measure one distance you know on it (a wall, a doorway), then come back here.")),
     el("button", {
       class: "btn", style: "margin-top:10px",
       onclick: () => {
@@ -292,16 +294,17 @@ function _noScaleCard(ctx, el, cs) {
         if (ctx.actions.renderNav) ctx.actions.renderNav();
         ctx.actions.renderRooms();
       },
-    }, "Measure this floor →"),
+    }, t("Measure this floor →")),
   ]);
 }
 
-const CALIB_WIZARD_STEPS = [
-  { n: 1, id: "tune",  label: "Check receiver positions" },
-  { n: 2, id: "setup", label: "Choose your device" },
-  { n: 3, id: "roam",  label: "Walk your home" },
-  { n: 4, id: "model", label: "Compute your model" },
-  { n: 5, id: "finish", label: "Finish" },
+// The steps' names in the panel's language: a function, read when drawn.
+const CALIB_WIZARD_STEPS = () => [
+  { n: 1, id: "tune",  label: t("Check receiver positions") },
+  { n: 2, id: "setup", label: t("Choose your device") },
+  { n: 3, id: "roam",  label: t("Walk your home") },
+  { n: 4, id: "model", label: t("Compute your model") },
+  { n: 5, id: "finish", label: t("Finish") },
 ];
 const CALIB_TAB_BY_STEP = { 1: "tune", 2: "setup", 3: "roam", 4: "model" };
 
@@ -310,19 +313,19 @@ function _calibWizardFooter(ctx, el, w, opts) {
   const bar = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap" });
   const left = el("div", {});
   if (w.step > 1) {
-    const b = el("button", { class: "btn inline" }, "← Back");
+    const b = el("button", { class: "btn inline" }, t("← Back"));
     b.addEventListener("click", () => { w.step -= 1; ctx.actions.renderRooms(); });
     left.appendChild(b);
   }
   bar.appendChild(left);
   const right = el("div", { style: "display:flex;gap:8px" });
   if (opts.skip) {
-    const sk = el("button", { class: "btn inline", style: "color:#94a3b8" }, opts.skipLabel || "Skip for now");
+    const sk = el("button", { class: "btn inline", style: "color:#94a3b8" }, opts.skipLabel || t("Skip for now"));
     sk.addEventListener("click", () => { w.step += 1; ctx.actions.renderRooms(); });
     right.appendChild(sk);
   }
   if (opts.next !== false) {
-    const nx = el("button", { class: "btn primary" }, opts.nextLabel || "Next →");
+    const nx = el("button", { class: "btn primary" }, opts.nextLabel || t("Next →"));
     nx.addEventListener("click", () => { w.step += 1; ctx.actions.renderRooms(); });
     right.appendChild(nx);
   }
@@ -333,9 +336,9 @@ function _calibWizardFooter(ctx, el, w, opts) {
 function _calibWizardTune(ctx, el, cs, calData, w) {
   const wrap = el("div", {});
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
-    "Optional, but worth a look before you start walking: drag any receiver marker that isn't quite where the real device is mounted. This step is about receiver positions, not signal samples — nothing here is collected or timed."));
+    t("Optional, but worth a look before you start walking: drag any receiver marker that isn't quite where the real device is mounted. This step is about receiver positions, not signal samples — nothing here is collected or timed.")));
   wrap.appendChild(_tuneTab(ctx, el, cs, calData));
-  wrap.appendChild(_calibWizardFooter(ctx, el, w, { skip: true, skipLabel: "Skip — positions look fine" }));
+  wrap.appendChild(_calibWizardFooter(ctx, el, w, { skip: true, skipLabel: t("Skip — positions look fine") }));
   return wrap;
 }
 
@@ -343,12 +346,12 @@ function _calibWizardSetup(ctx, el, cs, calData, w) {
   const wrap = el("div", {});
   const ready = !!(cs.deviceId && cs.mapId && _floorScaled(ctx, cs.mapId));
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
-    "Pick the phone or tag you'll carry while you walk, and which floor you're calibrating. Both are needed before the next step — Roam has nothing to show without them."));
+    t("Pick the phone or tag you'll carry while you walk, and which floor you're calibrating. Both are needed before the next step — Roam has nothing to show without them.")));
   wrap.appendChild(_setup(ctx, el, cs, calData));
-  wrap.appendChild(_calibWizardFooter(ctx, el, w, { next: ready, nextLabel: "Next →" }));
+  wrap.appendChild(_calibWizardFooter(ctx, el, w, { next: ready, nextLabel: t("Next →") }));
   if (!ready) {
     wrap.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:6px;text-align:right" },
-      cs.deviceId && cs.mapId ? "Measure this floor (above) to continue." : "Choose a device and a floor above to continue."));
+      cs.deviceId && cs.mapId ? t("Measure this floor (above) to continue.") : t("Choose a device and a floor above to continue.")));
   }
   return wrap;
 }
@@ -357,11 +360,11 @@ function _calibWizardRoam(ctx, el, cs, calData, w) {
   const wrap = el("div", {});
   const pts = (calData.points || []).filter(p => p.map_id === cs.mapId);
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
-    "Walk to the blue crosshair, stand still, and press collect — the map tells you where to go next, and fills in as you cover the floor. " +
-    "There's no fixed number of points; more is always better, but the coverage bar below is a fair guide. Prefer tapping the map yourself instead of being guided? Click ✕ Exit guide above, then the Pin & Listen tab — it does the same collection without the guidance."));
+    t("Walk to the blue crosshair, stand still, and press collect — the map tells you where to go next, and fills in as you cover the floor.") + " " +
+    t("There's no fixed number of points; more is always better, but the coverage bar below is a fair guide. Prefer tapping the map yourself instead of being guided? Click ✕ Exit guide above, then the Pin & Listen tab — it does the same collection without the guidance.")));
   wrap.appendChild(_roam(ctx, el, cs, calData));
   wrap.appendChild(_calibWizardFooter(ctx, el, w, {
-    skip: pts.length === 0, skipLabel: "Skip — I'll collect points later",
+    skip: pts.length === 0, skipLabel: t("Skip — I'll collect points later"),
   }));
   return wrap;
 }
@@ -369,9 +372,9 @@ function _calibWizardRoam(ctx, el, cs, calData, w) {
 function _calibWizardModel(ctx, el, cs, calData, w) {
   const wrap = el("div", {});
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
-    "Click Compute Model to fit the path-loss curves and run cross-validation against the points you just collected. The Est. Accuracy figure is how far off the model's guess was, on average, when tested against points it wasn't shown."));
+    t("Click Compute Model to fit the path-loss curves and run cross-validation against the points you just collected. The Est. Accuracy figure is how far off the model's guess was, on average, when tested against points it wasn't shown.")));
   wrap.appendChild(_modelTab(ctx, el, cs, calData));
-  wrap.appendChild(_calibWizardFooter(ctx, el, w, { nextLabel: "Finish →" }));
+  wrap.appendChild(_calibWizardFooter(ctx, el, w, { nextLabel: t("Finish →") }));
   return wrap;
 }
 
@@ -383,13 +386,13 @@ function _calibWizardFinish(ctx, el, cs, calData) {
   const loo = model.loo_accuracy;
   const accM = loo && typeof loo.mean_error_m === "number" ? loo.mean_error_m.toFixed(1) : null;
 
-  wrap.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:8px" }, "Calibration is underway"));
+  wrap.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:8px" }, t("Calibration is underway")));
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:14px;line-height:1.6" },
-    `${mapPts.length} point${mapPts.length === 1 ? "" : "s"} on this floor, ${pts.length} total across the house` +
-    (accM ? `. Estimated accuracy: ~${accM}m.` : ". Compute a model once you have a handful of points to see an accuracy estimate.") +
-    " Calibration isn't a one-time thing — walk more of the house, or redo a room that reads oddly, any time from the ordinary Calibration tabs."));
+    tn(mapPts.length, "1 point on this floor, {total} total across the house.", "{n} points on this floor, {total} total across the house.", { total: pts.length }) + " " +
+    (accM ? t("Estimated accuracy: ~{m}m.", { m: accM }) : t("Compute a model once you have a handful of points to see an accuracy estimate.")) + " " +
+    t("Calibration isn't a one-time thing — walk more of the house, or redo a room that reads oddly, any time from the ordinary Calibration tabs.")));
   const row = el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" });
-  const qaBtn = el("button", { class: "btn primary" }, "See detailed quality report →");
+  const qaBtn = el("button", { class: "btn primary" }, t("See detailed quality report →"));
   qaBtn.addEventListener("click", () => {
     ctx.state._calibWizard = null;
     ctx.state.view = "qa";
@@ -398,14 +401,14 @@ function _calibWizardFinish(ctx, el, cs, calData) {
   // QA is a More tools screen for installers: not a step out of Basic
   // (views/focus.js expertLinks). The tabs here are the same in every mode.
   if (FOCUS.expertLinks(ctx.state)) row.appendChild(qaBtn);
-  const anotherBtn = el("button", { class: "btn inline" }, "+ Calibrate another floor");
+  const anotherBtn = el("button", { class: "btn inline" }, t("+ Calibrate another floor"));
   anotherBtn.addEventListener("click", () => {
     cs.mapId = null;
     ctx.state._calibWizard = { step: 2, from: ctx.state._calibWizard && ctx.state._calibWizard.from };
     ctx.actions.renderRooms();
   });
   row.appendChild(anotherBtn);
-  const doneBtn = el("button", { class: "btn inline" }, "Done");
+  const doneBtn = el("button", { class: "btn inline" }, t("Done"));
   doneBtn.addEventListener("click", () => {
     cs.tab = (ctx.state._calibWizard && ctx.state._calibWizard.from) || "model";
     ctx.state._calibWizard = null;
@@ -451,7 +454,7 @@ function _calibWizard(ctx, el, cs, calData) {
   const head = el("div", { class: "card", style: "margin-bottom:12px" });
   const hrow = el("div", { style: "display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px" });
   hrow.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-    el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"),
+    el("div", { style: "font-weight:700;font-size:16px" }, t("Guided calibration")),
     ctx.helpers.helpBtn("calibration_guided"),
   ]));
   // Label/title spell out what this does, not just its name: the wizard
@@ -461,8 +464,8 @@ function _calibWizard(ctx, el, cs, calData) {
   // the door out.
   const closeBtn = el("button", {
     class: "btn inline", style: "font-size:12px",
-    title: "Close the wizard and return to the full Calibration tabs (Tune, Beacon Tune, Pin & Listen, Roam, Model)",
-  }, "✕ Exit guide → full tabs");
+    title: t("Close the wizard and return to the full Calibration tabs (Tune, Beacon Tune, Pin & Listen, Roam, Model)"),
+  }, t("✕ Exit guide → full tabs"));
   closeBtn.addEventListener("click", () => {
     if (w.step < 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_calib_exited_early");
     if (w.from) cs.tab = w.from;   // opened from Results: back there
@@ -474,7 +477,7 @@ function _calibWizard(ctx, el, cs, calData) {
 
   const dots = el("div", { style: "display:flex;gap:6px;margin-top:12px" });
   const stepList = el("div", { style: "display:flex;flex-wrap:wrap;gap:4px;margin-top:8px" });
-  for (const s of CALIB_WIZARD_STEPS) {
+  for (const s of CALIB_WIZARD_STEPS()) {
     const isCurrent = s.n === w.step;
     const reachable = s.n <= 2 || ready;
     dots.appendChild(el("div", { style: `flex:1;height:4px;border-radius:2px;background:${s.n < w.step ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}` }));
@@ -515,9 +518,9 @@ function _calibSearchSelect(opts) {
   const items = opts.items || [];
   const currentId = opts.currentId || "";
   const currentUpper = String(currentId || "").toUpperCase();
-  const placeholder = opts.placeholder || "Search…";
-  const emptyText = opts.emptyText || "No matches";
-  const noItemsText = opts.noItemsText || "No options available";
+  const placeholder = opts.placeholder || t("Search…");
+  const emptyText = opts.emptyText || t("No matches");
+  const noItemsText = opts.noItemsText || t("No options available");
   const onPick = opts.onPick;
   const onClear = opts.onClear;
   const showClear = opts.showClear !== false && !!currentId;
@@ -544,13 +547,13 @@ function _calibSearchSelect(opts) {
   input.setAttribute("aria-expanded", "false");
   input.setAttribute("aria-controls", listId);
   input.setAttribute("aria-autocomplete", "list");
-  input.setAttribute("aria-label", "Beacon device");
+  input.setAttribute("aria-label", t("Beacon device"));
 
   const clearBtn = document.createElement("button");
   clearBtn.textContent = "×";
-  clearBtn.title = "Clear selection";
+  clearBtn.title = t("Clear selection");
   clearBtn.type = "button";
-  clearBtn.setAttribute("aria-label", "Clear selection");
+  clearBtn.setAttribute("aria-label", t("Clear selection"));
   clearBtn.style.cssText = "position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:2px 6px;display:" + (showClear ? "block" : "none");
   if (showClear && onClear) {
     clearBtn.addEventListener("click", (ev) => { ev.stopPropagation(); onClear(); });
@@ -560,7 +563,7 @@ function _calibSearchSelect(opts) {
   list.style.cssText = "position:absolute;left:0;right:0;top:100%;max-height:280px;overflow-y:auto;background:#1b3526;border:1px solid #2d4a38;border-radius:0 0 8px 8px;z-index:100;display:none";
   list.id = listId;
   list.setAttribute("role", "listbox");
-  list.setAttribute("aria-label", "Matching devices");
+  list.setAttribute("aria-label", t("Matching devices"));
 
   // Selectable rows currently rendered (headers/empty notes excluded), in order.
   let visibleRows = [];
@@ -661,7 +664,7 @@ function _calibSearchSelect(opts) {
       const raw = filtered.filter((i) => i.group === "raw").slice(0, 50);
       for (const it of tracked) _addRow(it);
       if (raw.length) {
-        list.appendChild(_row("── Raw BLE advertisements ──", true));
+        list.appendChild(_row(t("── Raw BLE advertisements ──"), true));
         for (const it of raw) _addRow(it);
       }
     } else {
@@ -796,14 +799,14 @@ function _setup(ctx, el, cs, calData) {
   // How-it-works explainer
   wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788" }, [
     el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#52b788" },
-      "Phone-Based Calibration (Beacon and floor)"),
+      t("Phone-Based Calibration (Beacon and floor)")),
     el("div", { style: "font-size:13px;line-height:1.7;color:#b0c4b1" }, [
-      el("div", {}, "This tab configures phone-based calibration (Pin & Listen / Roam)."),
-      el("div", { style: "margin-top:4px" }, "1. Your phone broadcasts BLE. The house receivers hear it."),
-      el("div", { style: "margin-top:4px" }, "2. You stand at a known spot on the map and tap it."),
-      el("div", { style: "margin-top:4px" }, "3. PadSpan records the RSSI fingerprint — which receivers saw you and how strongly."),
-      el("div", { style: "margin-top:4px" }, "4. Repeat at 10–20 locations spread across each floor."),
-      el("div", { style: "margin-top:4px" }, "All calibration methods (Tune, Beacon Tune, Pin & Listen, Roam) feed the same model."),
+      el("div", {}, t("This tab configures phone-based calibration (Pin & Listen / Roam).")),
+      el("div", { style: "margin-top:4px" }, t("1. Your phone broadcasts BLE. The house receivers hear it.")),
+      el("div", { style: "margin-top:4px" }, t("2. You stand at a known spot on the map and tap it.")),
+      el("div", { style: "margin-top:4px" }, t("3. PadSpan records the RSSI fingerprint — which receivers saw you and how strongly.")),
+      el("div", { style: "margin-top:4px" }, t("4. Repeat at 10–20 locations spread across each floor.")),
+      el("div", { style: "margin-top:4px" }, t("All calibration methods (Tune, Beacon Tune, Pin & Listen, Roam) feed the same model.")),
     ]),
   ]));
 
@@ -811,9 +814,9 @@ function _setup(ctx, el, cs, calData) {
   const allDevices = bleObjs.length + adOnlyDevices.length;
 
   const deviceCard = el("div", { class: "card" });
-  deviceCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, "Beacon Device"));
+  deviceCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, t("Beacon Device")));
   deviceCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Select the phone or tag that will act as your calibration beacon. It must be visible to your receivers (Bluetooth on, HA companion app running)."));
+    t("Select the phone or tag that will act as your calibration beacon. It must be visible to your receivers (Bluetooth on, HA companion app running).")));
 
   if (allDevices) {
     const deviceItems = [];
@@ -839,27 +842,27 @@ function _setup(ctx, el, cs, calData) {
     deviceCard.appendChild(_calibSearchSelect({
       items: deviceItems,
       currentId: cs.deviceId || "",
-      placeholder: cs.deviceId ? "" : "Search devices…",
-      emptyText: "No matches",
-      noItemsText: "No devices available",
+      placeholder: cs.deviceId ? "" : t("Search devices…"),
+      emptyText: t("No matches"),
+      noItemsText: t("No devices available"),
       onPick: pickDevice,
       onClear: () => pickDevice(""),
     }));
   } else {
     deviceCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:10px" },
       _noLiveDataText(ctx,
-        "No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone.",
-        "Home Assistant isn't reporting any BLE devices yet. Make sure Bluetooth is active on your phone and your receivers are online.")));
+        t("No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone."),
+        t("Home Assistant isn't reporting any BLE devices yet. Make sure Bluetooth is active on your phone and your receivers are online."))));
   }
 
   // Manual MAC entry
   const manualRow = el("div", { style: "display:flex;gap:8px;align-items:center;margin-bottom:6px" });
   const macInput = document.createElement("input");
   macInput.type = "text";
-  macInput.placeholder = "Or enter MAC / entity_id manually…";
+  macInput.placeholder = t("Or enter MAC / entity_id manually…");
   macInput.style.cssText = "flex:1;font-family:monospace;font-size:12px;";
   macInput.value = cs.deviceId || "";
-  const applyBtn = el("button", { class: "btn inline" }, "Use");
+  const applyBtn = el("button", { class: "btn inline" }, t("Use"));
   applyBtn.addEventListener("click", () => {
     if (macInput.value.trim()) {
       cs.deviceId = macInput.value.trim();
@@ -900,9 +903,9 @@ function _setup(ctx, el, cs, calData) {
     if (radioCount > 0) {
       const box = el("div", { style: "background:#0a150e;border:1px solid #1b3526;border-radius:8px;padding:10px;margin-top:6px" });
       box.appendChild(el("div", { style: "font-weight:600;font-size:13px;color:#52b788;margin-bottom:6px" },
-        `✓ ${obj ? pickName(obj, cs.deviceId) : cs.deviceId} — seen by ${radioCount} radio${radioCount > 1 ? "s" : ""}`));
-      if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, `Room: ${obj.room}`));
-      box.appendChild(el("div", { style: "font-size:11px;color:#78909c;margin-bottom:4px" }, "Per-radio RSSI:"));
+        tn(radioCount, "✓ {name} — seen by 1 radio", "✓ {name} — seen by {n} radios", { name: obj ? pickName(obj, cs.deviceId) : cs.deviceId })));
+      if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, t("Room: {room}", { room: obj.room })));
+      box.appendChild(el("div", { style: "font-size:11px;color:#78909c;margin-bottom:4px" }, t("Per-radio RSSI:")));
       const sorted = Object.entries(perRadio).sort((a, b) => (b[1].rssi || -200) - (a[1].rssi || -200));
       const _setupTxPower = obj?.tx_power ?? null;
       for (const [src, info] of sorted) {
@@ -917,21 +920,20 @@ function _setup(ctx, el, cs, calData) {
       if (entityRssi || entityScanner) {
         const box = el("div", { style: "background:#0a150e;border:1px solid #3d2d0a;border-radius:8px;padding:10px;margin-top:6px" });
         box.appendChild(el("div", { style: "font-weight:600;font-size:13px;color:#fbbf24;margin-bottom:6px" },
-          `⚠ ${obj ? pickName(obj, cs.deviceId) : cs.deviceId} — entity data only (no direct BLE advertisements)`));
-        if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, `Room: ${obj.room}`));
-        if (entityRssi) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `RSSI: ${entityRssi} dBm (from entity attributes)`));
-        if (entityScanner) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `Nearest receiver: ${entityScanner}`));
+          t("⚠ {name} — entity data only (no direct BLE advertisements)", { name: obj ? pickName(obj, cs.deviceId) : cs.deviceId })));
+        if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, t("Room: {room}", { room: obj.room })));
+        if (entityRssi) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, t("RSSI: {dbm} dBm (from entity attributes)", { dbm: entityRssi })));
+        if (entityScanner) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, t("Nearest receiver: {name}", { name: entityScanner })));
         box.appendChild(el("div", { style: "font-size:11px;color:#78909c;margin-top:8px;line-height:1.5" },
-          "This device uses private BLE (rotating MAC). To get per-radio RSSI, set up the Private BLE Device integration in HA " +
-          "(Settings → Devices & Services → Add → Private BLE Device), or enable iBeacon transmitter in the HA Companion App."));
+          t("This device uses private BLE (rotating MAC). To get per-radio RSSI, set up the Private BLE Device integration in HA (Settings → Devices & Services → Add → Private BLE Device), or enable iBeacon transmitter in the HA Companion App.")));
         deviceCard.appendChild(box);
       } else {
         const warnBox = el("div", { style: "font-size:12px;color:#f59e0b;margin-top:6px;padding:10px;background:#0a150e;border-radius:6px;line-height:1.6" });
-        warnBox.appendChild(el("div", { style: "font-weight:600;margin-bottom:4px" }, `⚠ "${cs.deviceId}" not seen in any radio advertisement.`));
-        warnBox.appendChild(el("div", {}, "If this is a phone or watch (rotating MAC), you need one of:"));
-        warnBox.appendChild(el("div", { style: "padding-left:12px;margin-top:4px" }, "• Private BLE Device integration (Settings → Devices & Services → Add Integration)"));
-        warnBox.appendChild(el("div", { style: "padding-left:12px" }, "• HA Companion App with iBeacon transmitter enabled"));
-        warnBox.appendChild(el("div", { style: "margin-top:4px" }, "For other devices: make sure Bluetooth is on and the device is near a receiver."));
+        warnBox.appendChild(el("div", { style: "font-weight:600;margin-bottom:4px" }, t("⚠ \"{id}\" not seen in any radio advertisement.", { id: cs.deviceId })));
+        warnBox.appendChild(el("div", {}, t("If this is a phone or watch (rotating MAC), you need one of:")));
+        warnBox.appendChild(el("div", { style: "padding-left:12px;margin-top:4px" }, t("• Private BLE Device integration (Settings → Devices & Services → Add Integration)")));
+        warnBox.appendChild(el("div", { style: "padding-left:12px" }, t("• HA Companion App with iBeacon transmitter enabled")));
+        warnBox.appendChild(el("div", { style: "margin-top:4px" }, t("For other devices: make sure Bluetooth is on and the device is near a receiver.")));
         deviceCard.appendChild(warnBox);
       }
     }
@@ -941,15 +943,15 @@ function _setup(ctx, el, cs, calData) {
   // Floor selector (primary — maps are background visual aids)
   const maps = ctx.state.maps?.list || [];
   const mapCard = el("div", { class: "card" });
-  mapCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, "Floor"));
+  mapCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, t("Floor")));
   mapCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Select which floor you're calibrating. Maps are used as visual reference only."));
+    t("Select which floor you're calibrating. Maps are used as visual reference only.")));
   if (maps.length) {
     const mapSel = document.createElement("select");
     mapSel.style.width = "100%";
     const mp0 = document.createElement("option");
     mp0.value = "";
-    mp0.textContent = cs.mapId ? "" : "\u2014 choose a floor \u2014";
+    mp0.textContent = cs.mapId ? "" : t("— choose a floor —");
     mapSel.appendChild(mp0);
 
     // Build floor_id → maps lookup
@@ -967,7 +969,7 @@ function _setup(ctx, el, cs, calData) {
       if (!fMaps.length) continue;
       const opt = document.createElement("option");
       opt.value = `__floor__${f.id}`;
-      opt.textContent = `${f.name || f.id} (${fMaps.length} map${fMaps.length > 1 ? "s" : ""})`;
+      opt.textContent = `${f.name || f.id} (${tn(fMaps.length, "1 map", "{n} maps")})`;
       if (cs.mapId && fMaps.some(m => m.id === cs.mapId)) opt.selected = true;
       mapSel.appendChild(opt);
     }
@@ -976,7 +978,7 @@ function _setup(ctx, el, cs, calData) {
       if (_fl.some(f => f.id === fid)) continue;
       const opt = document.createElement("option");
       opt.value = `__floor__${fid}`;
-      opt.textContent = `${fid} (${fMaps.length} map${fMaps.length > 1 ? "s" : ""})`;
+      opt.textContent = `${fid} (${tn(fMaps.length, "1 map", "{n} maps")})`;
       if (cs.mapId && fMaps.some(m => m.id === cs.mapId)) opt.selected = true;
       mapSel.appendChild(opt);
     }
@@ -1001,7 +1003,7 @@ function _setup(ctx, el, cs, calData) {
     mapCard.appendChild(mapSel);
   } else {
     mapCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b" },
-      "No maps uploaded yet. Upload a floor plan in Mapping first."));
+      t("No maps uploaded yet. Upload a floor plan in Mapping first.")));
   }
   wrap.appendChild(mapCard);
   // Right under the floor it is about, not below the fold.
@@ -1009,9 +1011,9 @@ function _setup(ctx, el, cs, calData) {
 
   // Duration setting
   const durCard = el("div", { class: "card" });
-  durCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, "Collection Duration"));
+  durCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, t("Collection Duration")));
   durCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "How long to sample RSSI at each calibration point. Sampled every 1s — 30s gives ~30 samples, 60s gives ~60. 60s recommended for best accuracy."));
+    t("How long to sample RSSI at each calibration point. Sampled every 1s — 30s gives ~30 samples, 60s gives ~60. 60s recommended for best accuracy.")));
   const durRow = el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" });
   for (const d of [15, 30, 60, 90]) {
     const btn = el("button", {
@@ -1028,7 +1030,7 @@ function _setup(ctx, el, cs, calData) {
   if (snap) {
     const radios = snap?.ble?.radios || [];
     const radioCard = el("div", { class: "card" });
-    radioCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Radio Status"));
+    radioCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, t("Radio Status")));
     if (radios.length) {
       const ads = snap?.ble?.advertisements || [];
       for (const r of radios) {
@@ -1044,22 +1046,22 @@ function _setup(ctx, el, cs, calData) {
         ]);
         const row = el("div", { style: "display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid #0d1f12;flex-wrap:wrap" }, [
           nameEl,
-          (()=>{ const ss = scannerStatus ? scannerStatus(r, ads) : {label:r.scanning?"scanning":"idle",cls:r.scanning?"badge":"badge warn",title:""}; const b = el("span",{class:ss.cls,style:"font-size:10px",title:ss.title},ss.label); if(ss.style) b.style.cssText+="font-size:10px;"+ss.style; return b; })(),
-          el("span", { class: "muted", style: "font-size:11px;white-space:nowrap" }, `${seen} device${seen !== 1 ? "s" : ""}`),
-          beaconHere ? el("span", { style: "font-size:10px;color:#52b788;white-space:nowrap" }, "✓ beacon") : null,
+          (()=>{ const ss = scannerStatus ? scannerStatus(r, ads) : {label:r.scanning?t("scanning"):t("idle"),cls:r.scanning?"badge":"badge warn",title:""}; const b = el("span",{class:ss.cls,style:"font-size:10px",title:ss.title},ss.label); if(ss.style) b.style.cssText+="font-size:10px;"+ss.style; return b; })(),
+          el("span", { class: "muted", style: "font-size:11px;white-space:nowrap" }, tn(seen, "1 device", "{n} devices")),
+          beaconHere ? el("span", { style: "font-size:10px;color:#52b788;white-space:nowrap" }, t("✓ beacon")) : null,
         ].filter(Boolean));
         radioCard.appendChild(row);
       }
     } else {
       radioCard.appendChild(el("div", { class: "muted", style: "font-size:12px" },
         _noLiveDataText(ctx,
-          "No radios in snapshot. Switch to Live mode.",
-          "Home Assistant isn't reporting any Bluetooth receivers yet.")));
+          t("No radios in snapshot. Switch to Live mode."),
+          t("Home Assistant isn't reporting any Bluetooth receivers yet."))));
     }
     // Total advertisement count
     const totalAds = (snap?.ble?.advertisements || []).length;
     radioCard.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
-      `${totalAds} total BLE advertisement${totalAds !== 1 ? "s" : ""} in snapshot`));
+      tn(totalAds, "1 BLE advertisement in snapshot", "{n} total BLE advertisements in snapshot")));
     wrap.appendChild(radioCard);
   }
 
@@ -1068,22 +1070,22 @@ function _setup(ctx, el, cs, calData) {
   const ready = cs.deviceId && cs.mapId && scaled;
   const readyCard = el("div", { class: "card", style: `border-color:${ready ? "#52b788" : "#f59e0b"}` }, [
     el("div", { style: `font-weight:700;font-size:14px;margin-bottom:6px;color:${ready ? "#52b788" : "#f59e0b"}` },
-      ready ? "✓ Ready to calibrate" : "⚠ Setup incomplete"),
+      ready ? t("✓ Ready to calibrate") : t("⚠ Setup incomplete")),
     el("div", { style: "font-size:12px;color:#94a3b8" }, [
       el("span", { style: `color:${cs.deviceId ? "#52b788" : "#f59e0b"}` },
-        (cs.deviceId ? "✓" : "✗") + " Beacon device selected"),
+        (cs.deviceId ? "✓" : "✗") + " " + t("Beacon device selected")),
       el("br"),
       el("span", { style: `color:${cs.mapId ? "#52b788" : "#f59e0b"}` },
-        (cs.mapId ? "\u2713" : "\u2717") + " Floor selected"),
+        (cs.mapId ? "\u2713" : "\u2717") + " " + t("Floor selected")),
       ...(cs.mapId ? [el("br"), el("span", { style: `color:${scaled ? "#52b788" : "#f59e0b"}` },
-        (scaled ? "\u2713" : "\u2717") + " Floor measured (metre scale)")] : []),
+        (scaled ? "\u2713" : "\u2717") + " " + t("Floor measured (metre scale)"))] : []),
     ]),
     ...(ready ? [
       el("button", {
         class: "btn",
         style: "margin-top:10px;width:100%",
         onclick: () => { cs.tab = "pin"; ctx.actions.renderRooms(); },
-      }, "Start Calibrating →"),
+      }, t("Start Calibrating →")),
     ] : []),
   ]);
   wrap.appendChild(readyCard);
@@ -1093,14 +1095,14 @@ function _setup(ctx, el, cs, calData) {
   if (pts.length) {
     const mapIds = [...new Set(pts.map(p => p.map_id))];
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Calibration Progress"),
+      el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, t("Calibration Progress")),
       el("div", { style: "font-size:13px;color:#94a3b8" },
-        `${pts.length} point${pts.length > 1 ? "s" : ""} collected across ${mapIds.length} map${mapIds.length > 1 ? "s" : ""}.`),
+        tn(pts.length, "1 point collected", "{n} points collected") + " " + tn(mapIds.length, "across 1 map.", "across {n} maps.")),
       el("button", {
         class: "btn inline",
         style: "margin-top:8px",
         onclick: () => { cs.tab = "model"; ctx.actions.renderRooms(); },
-      }, "View Model →"),
+      }, t("View Model →")),
     ]));
   }
 
@@ -1113,13 +1115,13 @@ function _pinAndListen(ctx, el, cs, calData) {
 
   if (!cs.deviceId || !cs.mapId) {
     wrap.appendChild(el("div", { class: "card", style: "border-color:#f59e0b" }, [
-      el("div", { style: "font-size:13px;color:#f59e0b;font-weight:700" }, "Setup required"),
+      el("div", { style: "font-size:13px;color:#f59e0b;font-weight:700" }, t("Setup required")),
       el("div", { class: "muted", style: "font-size:12px;margin-top:4px" },
-        "Go back to the Beacon and floor tab and pick your beacon device and floor."),
+        t("Go back to the Beacon and floor tab and pick your beacon device and floor.")),
       el("button", {
         class: "btn", style: "margin-top:10px",
         onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); },
-      }, "Go to Beacon and floor"),
+      }, t("Go to Beacon and floor")),
     ]));
     return wrap;
   }
@@ -1133,7 +1135,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   const mapData = maps.find(m => m.id === cs.mapId);
   if (!mapData?.image?.filename) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "Selected map has no image. Upload a floor plan in Mapping."),
+      el("div", { class: "muted" }, t("Selected map has no image. Upload a floor plan in Mapping.")),
     ]));
     return wrap;
   }
@@ -1143,7 +1145,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   const mapPts = pts.filter(p => p.map_id === cs.mapId);
   if (!mapPts.length) {
     wrap.appendChild(el("div", { style: "font-size:12px;color:#78909c;padding:8px 4px;line-height:1.6" },
-      "Tap anywhere on the map to place a calibration pin, then press Start Collecting. Stand still at that exact spot for the full duration."));
+      t("Tap anywhere on the map to place a calibration pin, then press Start Collecting. Stand still at that exact spot for the full duration.")));
   }
 
   // ── Interactive map ──────────────────────────────────────────────────────
@@ -1175,7 +1177,7 @@ function _pinAndListen(ctx, el, cs, calData) {
     const py = p.y_frac * vbH;
     const sc = (p.scanner_readings || []).length;
     return `<circle cx="${px}" cy="${py}" r="3.5" fill="#52b788" stroke="white" stroke-width="1" opacity="0.85"/>
-            <title>${ctx.helpers.esc(p.room || p.label || "")} (${sc} receiver${sc === 1 ? "" : "s"})</title>`;
+            <title>${ctx.helpers.esc(p.room || p.label || "")} (${ctx.helpers.esc(tn(sc, "1 receiver", "{n} receivers"))})</title>`;
   }).join("");
 
   // Current pin
@@ -1222,7 +1224,7 @@ function _pinAndListen(ctx, el, cs, calData) {
 
   // Map legend
   wrap.appendChild(el("div", { style: "font-size:11px;color:#78909c;text-align:center" },
-    `${mapPts.length} point${mapPts.length !== 1 ? "s" : ""} on this map · tap to place pin`));
+    tn(mapPts.length, "1 point on this map · tap to place pin", "{n} points on this map · tap to place pin")));
 
   // ── Pin info panel ────────────────────────────────────────────────────────
   if (cs.pinX !== null) {
@@ -1239,7 +1241,7 @@ function _pinAndListen(ctx, el, cs, calData) {
       // Ready to collect
       pinPanel.appendChild(el("div", { style: "margin-bottom:10px" }, [
         el("div", { style: "font-weight:700;font-size:14px;margin-bottom:4px" },
-          `Pin at: ${cs.pinRoom || "Unknown room"}`),
+          t("Pin at: {room}", { room: cs.pinRoom || t("Unknown room") })),
         el("div", { style: "font-size:12px;color:#94a3b8" },
           `Position: ${(cs.pinX * 100).toFixed(1)}% × ${(cs.pinY * 100).toFixed(1)}%`),
       ]));
@@ -1248,7 +1250,7 @@ function _pinAndListen(ctx, el, cs, calData) {
       const lblRow = el("div", { style: "margin-bottom:10px" });
       const lblInput = document.createElement("input");
       lblInput.type = "text";
-      lblInput.placeholder = `Label (optional, e.g. "Kitchen center")`;
+      lblInput.placeholder = t("Label (optional, e.g. \"Kitchen center\")");
       lblInput.style.width = "100%";
       lblInput.style.boxSizing = "border-box";
       lblInput.value = cs.pinLabel || "";
@@ -1267,16 +1269,16 @@ function _pinAndListen(ctx, el, cs, calData) {
       const signalBox = el("div", { style: `padding:8px 10px;border-radius:8px;margin-bottom:10px;background:#071008;border:1px solid ${pinRadioCount > 0 ? "#1b3526" : "#7d5c2b"}` });
       if (pinRadioCount > 0) {
         signalBox.appendChild(el("div", { style: "font-size:12px;color:#52b788;font-weight:600;margin-bottom:4px" },
-          `✓ Beacon visible on ${pinRadioCount} radio${pinRadioCount > 1 ? "s" : ""}`));
+          tn(pinRadioCount, "✓ Beacon visible on 1 radio", "✓ Beacon visible on {n} radios")));
         const sorted = Object.entries(pinPerRadio).sort((a, b) => (b[1].rssi || -200) - (a[1].rssi || -200));
         for (const [src, info] of sorted) {
           signalBox.appendChild(_rssiRow(el, _rxLine(ctx, src, info.name), info.rssi, null, info.age_s, _pinTxPower, _plOpts(ctx, src)));
         }
       } else {
         signalBox.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;font-weight:600" },
-          "⚠ Beacon not currently detected by any radio"));
+          t("⚠ Beacon not currently detected by any radio")));
         signalBox.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:3px" },
-          "Collection will start but may capture no data. Verify beacon is broadcasting."));
+          t("Collection will start but may capture no data. Verify beacon is broadcasting.")));
       }
       pinPanel.appendChild(signalBox);
       pinPanel.appendChild(calTips(el));
@@ -1285,7 +1287,7 @@ function _pinAndListen(ctx, el, cs, calData) {
       const startBtn = el("button", {
         class: "btn",
         style: "width:100%;font-size:15px;padding:12px",
-      }, `▶  Start Collecting (${cs.duration}s)`);
+      }, t("▶  Start Collecting ({s}s)", { s: cs.duration }));
       startBtn.addEventListener("click", () => _startCollection(ctx, cs, snap, mapData));
       pinPanel.appendChild(startBtn);
     }
@@ -1300,7 +1302,7 @@ function _pinAndListen(ctx, el, cs, calData) {
 function _buildCollectionUI(ctx, el, cs) {
   const wrap = el("div", { id: "collect-ui" });
   wrap.appendChild(el("div", { style: "font-weight:700;font-size:15px;text-align:center;margin-bottom:10px" },
-    "Collecting — hold still!"));
+    t("Collecting — hold still!")));
 
   // Countdown — updated by collection loop via direct DOM ref stored on cs
   const timerDiv = el("div", {
@@ -1311,14 +1313,15 @@ function _buildCollectionUI(ctx, el, cs) {
   wrap.appendChild(timerDiv);
 
   // Poll counter — proves the loop is running
+  const samplesNow = _totalSamples(cs);
   const pollDiv = el("div", {
     style: "font-size:11px;text-align:center;color:#78909c;margin-bottom:12px;font-family:monospace",
-  }, `Poll #${cs._pollCount || 0}  ·  ${_totalSamples(cs)} sample${_totalSamples(cs) !== 1 ? "s" : ""} collected`);
+  }, t("Poll #{n}", { n: cs._pollCount || 0 }) + "  ·  " + tn(samplesNow, "1 sample collected", "{n} samples collected"));
   cs._pollCountEl = pollDiv;
   wrap.appendChild(pollDiv);
 
   wrap.appendChild(el("div", { style: "font-size:12px;color:#78909c;text-align:center;margin-bottom:8px" },
-    "Per-radio RSSI (updating live):"));
+    t("Per-radio RSSI (updating live):")));
 
   // Scanner RSSI container — updated by collection loop
   const scanDiv = el("div", { id: "collect-scanners", style: "display:flex;flex-direction:column;gap:6px" });
@@ -1335,7 +1338,7 @@ function _buildCollectionUI(ctx, el, cs) {
   const stopBtn = el("button", {
     class: "btn inline",
     style: "margin-top:14px;width:100%",
-  }, "Stop & Discard");
+  }, t("Stop & Discard"));
   stopBtn.addEventListener("click", () => {
     cs.stopFlag = true;
     cs.collecting = false;
@@ -1354,8 +1357,8 @@ function _startCollection(ctx, cs, _snap, _mapData) {
   const _phase = tuneLivePhase(ctx.state);
   if (_phase !== "live") {
     ctx.toast(_phase === "sample"
-      ? "Sample mode shows demo radios — switch to Live mode to collect calibration points."
-      : "Waiting for live data from Home Assistant — try again in a moment.", true);
+      ? t("Sample mode shows demo radios — switch to Live mode to collect calibration points.")
+      : t("Waiting for live data from Home Assistant — try again in a moment."), true);
     return;
   }
   cs.collecting  = true;
@@ -1408,7 +1411,7 @@ function _startCollection(ctx, cs, _snap, _mapData) {
     // Update DOM directly via refs stored on cs (works in shadow DOM)
     if (cs._timerEl) cs._timerEl.textContent = remaining + "s";
     if (cs._pollCountEl) cs._pollCountEl.textContent =
-      `Poll #${cs._pollCount}  ·  ${total} sample${total !== 1 ? "s" : ""} collected`;
+      t("Poll #{n}", { n: cs._pollCount }) + "  ·  " + tn(total, "1 sample collected", "{n} samples collected");
     if (cs._scanEl) {
       cs._scanEl.innerHTML = "";
       const sorted = Object.entries(cs.readings).sort((a, b) => {
@@ -1423,7 +1426,7 @@ function _startCollection(ctx, cs, _snap, _mapData) {
         }
       } else {
         cs._scanEl.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;text-align:center;padding:8px" },
-          "Beacon not detected yet. Make sure Bluetooth is on and device is near a receiver."));
+          t("Beacon not detected yet. Make sure Bluetooth is on and device is near a receiver.")));
       }
     }
 
@@ -1448,9 +1451,9 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
   const totalSamples = readingsEntries.reduce((s, [, r]) => s + r.samples.length, 0);
 
   wrap.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#52b788" },
-    "✓ Collection complete"));
+    t("✓ Collection complete")));
   wrap.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:10px" },
-    `${readingsEntries.length} receiver${readingsEntries.length !== 1 ? "s" : ""} · ${totalSamples} total samples · ${cs.pinRoom || "unknown room"}`));
+    tn(readingsEntries.length, "1 receiver", "{n} receivers") + " · " + t("{n} total samples", { n: totalSamples }) + " · " + (cs.pinRoom || t("unknown room"))));
 
   // Per-scanner summary
   if (readingsEntries.length) {
@@ -1460,17 +1463,17 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
     }
   } else {
     wrap.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:8px" },
-      "No receiver data captured. The device was not visible during collection."));
+      t("No receiver data captured. The device was not visible during collection.")));
   }
 
   // Buttons
   const btnRow = el("div", { style: "display:flex;gap:8px;margin-top:12px" });
 
   if (readingsEntries.length > 0) {
-    const saveBtn = el("button", { class: "btn save-pulse", style: "flex:1" }, "\ud83d\udcbe Save Point");
+    const saveBtn = el("button", { class: "btn save-pulse", style: "flex:1" }, t("\ud83d\udcbe Save Point"));
     saveBtn.addEventListener("click", async () => {
       saveBtn.disabled = true;
-      saveBtn.textContent = "Saving…";
+      saveBtn.textContent = t("Saving…");
       try {
         // Build point payload
         const scannerReadings = readingsEntries.map(([source, rd]) => ({
@@ -1498,21 +1501,21 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
         cs.pinRoom    = null;
         cs.pinLabel   = "";
         cs.savedThisSession++;
-        ctx.toast(`Point saved (${cs.savedThisSession} this session).`);
+        ctx.toast(t("Point saved ({n} this session).", { n: cs.savedThisSession }));
         ctx.actions.renderRooms();
       } catch (e) {
         saveBtn.disabled = false;
-        saveBtn.textContent = "Save Point";
+        saveBtn.textContent = t("Save Point");
         // HA websocket errors are objects; String() gives "[object Object]"
         // and hides the one thing the user needs — e.g. that this map has no
         // metre scale yet and the point was refused for having no position.
-        ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
+        ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }), true);
       }
     });
     btnRow.appendChild(saveBtn);
   }
 
-  const discardBtn = el("button", { class: "btn inline", style: "flex:1" }, "Discard");
+  const discardBtn = el("button", { class: "btn inline", style: "flex:1" }, t("Discard"));
   discardBtn.addEventListener("click", () => {
     cs.readings = null;
     cs.pinX     = null;
@@ -1532,11 +1535,11 @@ function _roam(ctx, el, cs, calData) {
 
   if (!cs.deviceId || !cs.mapId) {
     wrap.appendChild(el("div", { class: "card", style: "border-color:#f59e0b" }, [
-      el("div", { style: "color:#f59e0b;font-weight:700" }, "Setup required"),
+      el("div", { style: "color:#f59e0b;font-weight:700" }, t("Setup required")),
       el("button", {
         class: "btn", style: "margin-top:10px",
         onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); },
-      }, "Go to Beacon and floor"),
+      }, t("Go to Beacon and floor")),
     ]));
     return wrap;
   }
@@ -1550,7 +1553,7 @@ function _roam(ctx, el, cs, calData) {
   const mapData = maps.find(m => m.id === cs.mapId);
   if (!mapData?.image?.filename) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "No map image available."),
+      el("div", { class: "muted" }, t("No map image available.")),
     ]));
     return wrap;
   }
@@ -1567,8 +1570,8 @@ function _roam(ctx, el, cs, calData) {
   // Coverage progress bar
   const progCard = el("div", { class: "card" });
   progCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
-    el("div", { style: "font-weight:700;font-size:14px" }, "Coverage"),
-    el("span", { class: "badge", style: "margin-left:auto" }, `${mapPts.length} points`),
+    el("div", { style: "font-weight:700;font-size:14px" }, t("Coverage")),
+    el("span", { class: "badge", style: "margin-left:auto" }, tn(mapPts.length, "1 point", "{n} points")),
     el("span", { class: pct >= 70 ? "badge" : "badge warn" }, `${pct}%`),
   ]));
   const barOuter = el("div", { style: "height:10px;background:#1b3526;border-radius:5px;overflow:hidden" });
@@ -1577,10 +1580,10 @@ function _roam(ctx, el, cs, calData) {
   progCard.appendChild(barOuter);
   progCard.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
     pct >= 80
-      ? "✓ Excellent coverage — model should be highly accurate."
+      ? t("✓ Excellent coverage — model should be highly accurate.")
       : pct >= 50
-      ? "Good progress. Keep adding points to improve accuracy."
-      : "Keep going — more points needed for a reliable model."));
+      ? t("Good progress. Keep adding points to improve accuracy.")
+      : t("Keep going — more points needed for a reliable model.")));
   wrap.appendChild(progCard);
 
   // Directed collect-more guidance (gap #12, best-in-class roadmap): the
@@ -1593,12 +1596,12 @@ function _roam(ctx, el, cs, calData) {
   if (weakRoom) {
     const wCard = el("div", { class: "card", style: "border-color:#f59e0b" });
     wCard.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#f59e0b;margin-bottom:4px" },
-      `Priority: ${weakRoom.name}`));
+      t("Priority: {room}", { room: weakRoom.name })));
     wCard.appendChild(el("div", { style: "font-size:12px;margin-bottom:4px" },
-      `Only ${Math.round(weakRoom.accuracy * 100)}% of held-out points in ${weakRoom.name} are recognized correctly` +
-      (weakRoom.confusedWith ? ` — most often mistaken for ${weakRoom.confusedWith}.` : ".")));
+      (weakRoom.confusedWith ? t("Only {pct}% of held-out points in {room} are recognized correctly — most often mistaken for {other}.", { pct: Math.round(weakRoom.accuracy * 100), room: weakRoom.name, other: weakRoom.confusedWith })
+        : t("Only {pct}% of held-out points in {room} are recognized correctly.", { pct: Math.round(weakRoom.accuracy * 100), room: weakRoom.name }))));
     wCard.appendChild(el("div", { class: "muted", style: "font-size:12px" },
-      `Collect ${weakRoom.suggested} more point${weakRoom.suggested === 1 ? "" : "s"} in ${weakRoom.name} to sharpen the model.`));
+      tn(weakRoom.suggested, "Collect 1 more point in {room} to sharpen the model.", "Collect {n} more points in {room} to sharpen the model.", { room: weakRoom.name })));
     wrap.appendChild(wCard);
   }
 
@@ -1660,10 +1663,10 @@ function _roam(ctx, el, cs, calData) {
 
   // Legend
   wrap.appendChild(el("div", { style: "display:flex;gap:14px;font-size:11px;color:#78909c;padding:0 4px" }, [
-    el("span", {}, [el("span", { style: "color:#52b788" }, "■ "), "Covered"]),
-    el("span", {}, [el("span", { style: "color:#f59e0b" }, "■ "), "Partial"]),
-    el("span", {}, [el("span", { style: "color:#dc2626" }, "■ "), "Uncovered"]),
-    el("span", {}, [el("span", { style: "color:#60a5fa" }, "⊕ "), "Target"]),
+    el("span", {}, [el("span", { style: "color:#52b788" }, "■ "), t("Covered")]),
+    el("span", {}, [el("span", { style: "color:#f59e0b" }, "■ "), t("Partial")]),
+    el("span", {}, [el("span", { style: "color:#dc2626" }, "■ "), t("Uncovered")]),
+    el("span", {}, [el("span", { style: "color:#60a5fa" }, "⊕ "), t("Target")]),
   ]));
 
   // Next target card
@@ -1671,11 +1674,11 @@ function _roam(ctx, el, cs, calData) {
     const tgtRoom = _detectRoom(target.x_frac, target.y_frac, mapData);
     const tgtCard = el("div", { class: "card", style: "border-color:#60a5fa" });
     tgtCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#60a5fa;margin-bottom:6px" },
-      "Next Target"));
+      t("Next Target")));
     tgtCard.appendChild(el("div", { style: "font-size:13px;margin-bottom:4px" },
-      tgtRoom ? `Go to: ${tgtRoom}` : `Position: ${(target.x_frac * 100).toFixed(0)}% × ${(target.y_frac * 100).toFixed(0)}%`));
+      tgtRoom ? t("Go to: {room}", { room: tgtRoom }) : t("Position: {x}% × {y}%", { x: (target.x_frac * 100).toFixed(0), y: (target.y_frac * 100).toFixed(0) })));
     tgtCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:12px" },
-      "Walk to the blue crosshair location on the map. Stand still, then press the button below."));
+      t("Walk to the blue crosshair location on the map. Stand still, then press the button below.")));
     tgtCard.appendChild(calTips(el));
 
     if (cs.collecting) {
@@ -1686,7 +1689,7 @@ function _roam(ctx, el, cs, calData) {
       const collectBtn = el("button", {
         class: "btn",
         style: "width:100%;font-size:15px;padding:12px",
-      }, `▶  I'm Here — Collect (${cs.duration}s)`);
+      }, t("▶  I'm Here — Collect ({s}s)", { s: cs.duration }));
       collectBtn.addEventListener("click", () => {
         // Auto-set pin to target location
         cs.pinX     = target.x_frac;
@@ -1702,13 +1705,13 @@ function _roam(ctx, el, cs, calData) {
   } else {
     wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788;text-align:center" }, [
       el("div", { style: "font-size:28px;margin-bottom:8px" }, "🎉"),
-      el("div", { style: "font-weight:700;font-size:15px;color:#52b788;margin-bottom:6px" }, "Full Coverage!"),
+      el("div", { style: "font-weight:700;font-size:15px;color:#52b788;margin-bottom:6px" }, t("Full Coverage!")),
       el("div", { class: "muted", style: "font-size:12px" },
-        "Every zone has calibration data. Check the Model tab to see accuracy estimates."),
+        t("Every zone has calibration data. Check the Model tab to see accuracy estimates.")),
       el("button", {
         class: "btn", style: "margin-top:12px",
         onclick: () => { cs.tab = "model"; ctx.actions.renderRooms(); },
-      }, "View Model →"),
+      }, t("View Model →")),
     ]));
   }
 
@@ -1723,14 +1726,14 @@ function _heldoutLine(el, ho) {
   if (!ho || !ho.knn) return null;
   const part = (name, m) => {
     if (!m || m.rooms_right_pc == null) return null;
-    const med = m.median_error_m != null ? `, median ${m.median_error_m} m` : "";
-    return `${name}: ${m.rooms_right_pc}% rooms right${med}`;
+    const med = m.median_error_m != null ? t(", median {m} m", { m: m.median_error_m }) : "";
+    return t("{method}: {pct}% rooms right", { method: name, pct: m.rooms_right_pc }) + med;
   };
-  const parts = [part("fingerprints", ho.knn), part("spatial", ho.spatial)].filter(Boolean);
+  const parts = [part(t("fingerprints"), ho.knn), part(t("spatial"), ho.spatial)].filter(Boolean);
   if (!parts.length) return null;
-  const better = ho.better === "knn" ? " Fingerprints did better here." : ho.better === "spatial" ? " Spatial did better here." : "";
+  const better = ho.better === "knn" ? " " + t("Fingerprints did better here.") : ho.better === "spatial" ? " " + t("Spatial did better here.") : "";
   return el("div", { class: "muted", style: "font-size:12px;margin-top:10px;line-height:1.5" },
-    `Tested on spots it hasn't seen: ${parts.join("; ")}.${better}`);
+    t("Tested on spots it hasn't seen: {results}.", { results: parts.join("; ") }) + better);
 }
 
 function _modelTab(ctx, el, cs, calData) {
@@ -1741,22 +1744,22 @@ function _modelTab(ctx, el, cs, calData) {
 
   // Compute button
   const computeCard = el("div", { class: "card" });
-  computeCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Model Computation"));
+  computeCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, t("Model Computation")));
   computeCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Fit path-loss curves and run cross-validation after adding new calibration points."));
+    t("Fit path-loss curves and run cross-validation after adding new calibration points.")));
   const computeWrap = el("div", { style: "display:flex;gap:8px;align-items:center" });
   const makeComputeBtn = () => {
-    const b = el("button", { class: "btn" }, "Compute Model");
+    const b = el("button", { class: "btn" }, t("Compute Model"));
     b.addEventListener("click", async () => {
       computeWrap.innerHTML = "";
-      computeWrap.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Computing…"));
+      computeWrap.appendChild(el("span", { class: "muted", style: "font-size:12px" }, t("Computing…")));
       try {
         const result = await ctx.actions.calibrationComputeModel();
         ctx.state.calibration = await ctx.actions.calibrationGet();
-        ctx.toast("Model computed.");
+        ctx.toast(t("Model computed."));
         ctx.actions.renderRooms();
       } catch (e) {
-        ctx.toast("Compute failed: " + ctx.helpers.errorText(e), true);
+        ctx.toast(t("Compute failed: {why}", { why: ctx.helpers.errorText(e) }), true);
         computeWrap.innerHTML = "";
         computeWrap.appendChild(makeComputeBtn());
       }
@@ -1770,7 +1773,7 @@ function _modelTab(ctx, el, cs, calData) {
     computeCard.appendChild(el("div", {
       class: "muted",
       style: "font-size:11px;margin-top:8px",
-    }, `Last computed: ${model.last_computed}`));
+    }, t("Last computed: {when}", { when: model.last_computed })));
   }
   wrap.appendChild(computeCard);
 
@@ -1778,10 +1781,10 @@ function _modelTab(ctx, el, cs, calData) {
   // return too: with no points is exactly when Import is needed.
   const _actionsCard = () => {
     const actCard = el("div", { class: "card" });
-    actCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Actions"));
+    actCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, t("Actions")));
 
     // Export JSON
-    const expBtn = el("button", { class: "btn inline" }, "Export JSON");
+    const expBtn = el("button", { class: "btn inline" }, t("Export JSON"));
     expBtn.addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(calData, null, 2)], { type: "application/json" });
       const url  = URL.createObjectURL(blob);
@@ -1805,54 +1808,57 @@ function _modelTab(ctx, el, cs, calData) {
     // from the restored points is the right move, not re-injecting a stale
     // serialized one.
     const impWrap = el("div", { style: "margin-top:14px;border-top:1px solid #1b3526;padding-top:12px" });
-    impWrap.appendChild(el("div", { style: "font-weight:600;font-size:13px;margin-bottom:4px" }, "Import"));
+    impWrap.appendChild(el("div", { style: "font-weight:600;font-size:13px;margin-bottom:4px" }, t("Import")));
     impWrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px" },
-      "Choose a padspan_calibration.json file exported above. Points that already exist (same map, position and collection time) are skipped."));
+      t("Choose a padspan_calibration.json file exported above. Points that already exist (same map, position and collection time) are skipped.")));
 
     const impInput = document.createElement("input");
     impInput.type = "file"; impInput.accept = ".json,application/json"; impInput.style.display = "none";
     const impPreview = el("div", { style: "font-size:12px;color:#94a3b8;min-height:18px;margin-top:6px" });
     const impStatus = el("div", { class: "muted", style: "font-size:12px;min-height:18px;margin-top:4px" });
-    const impBtn = el("button", { class: "btn inline", style: "display:none" }, "Import Points");
+    const impBtn = el("button", { class: "btn inline", style: "display:none" }, t("Import Points"));
     let _importData = null;
 
     const _dedupeKey = (p) => `${p.map_id}|${Number(p.x_frac).toFixed(4)}|${Number(p.y_frac).toFixed(4)}|${p.collected_at || ""}`;
 
     impInput.addEventListener("change", async () => {
       const file = impInput.files?.[0]; if (!file) return;
-      impPreview.textContent = "Reading…"; impBtn.style.display = "none"; _importData = null;
+      impPreview.textContent = t("Reading…"); impBtn.style.display = "none"; _importData = null;
       try {
         const parsed = JSON.parse(await file.text());
         if (!Array.isArray(parsed.points)) {
-          impPreview.textContent = "❌ Not a valid PadSpan calibration export."; return;
+          impPreview.textContent = t("❌ Not a valid PadSpan calibration export."); return;
         }
         const existingKeys = new Set(pts.map(_dedupeKey));
         const toImport = parsed.points.filter(p => !existingKeys.has(_dedupeKey(p)));
         const skipCount = parsed.points.length - toImport.length;
-        impPreview.textContent = `${parsed.points.length} point${parsed.points.length !== 1 ? "s" : ""} in file: ${toImport.length} to import${skipCount ? `, ${skipCount} already present (skipped)` : ""}.`;
+        const filePts = parsed.points.length;
+        impPreview.textContent = tn(filePts, "1 point in file:", "{n} points in file:") + " " + (skipCount ? t("{n} to import, {skip} already present (skipped).", { n: toImport.length, skip: skipCount }) : t("{n} to import.", { n: toImport.length }));
         if (toImport.length) { _importData = toImport; impBtn.style.display = ""; }
-      } catch (e) { impPreview.textContent = "❌ Parse error: " + String(e); }
+      } catch (e) { impPreview.textContent = t("❌ Parse error: {why}", { why: String(e) }); }
     });
 
     impBtn.addEventListener("click", async () => {
       if (!_importData?.length) return;
-      if (!confirm(`Import ${_importData.length} calibration point(s)?`)) return;
+      const importN = _importData.length;
+      if (!confirm(tn(importN, "Import 1 calibration point?", "Import {n} calibration points?"))) return;
       impBtn.disabled = true; let ok = 0, fail = 0;
       for (let i = 0; i < _importData.length; i++) {
         const p = _importData[i];
-        impStatus.textContent = `Importing ${i + 1}/${_importData.length}…`;
+        impStatus.textContent = t("Importing {i}/{n}…", { i: i + 1, n: _importData.length });
         try {
           await ctx.actions.calibrationSavePoint(p);
           ok++;
         } catch (e) { fail++; console.error("Calibration import failed for point", i, e); }
       }
-      impStatus.textContent = `Imported ${ok} point${ok !== 1 ? "s" : ""}${fail ? ` (${fail} failed)` : ""} ✓ — recompute the model to include them.`;
+      impStatus.textContent = (fail ? tn(ok, "Imported 1 point ({bad} failed) ✓ — recompute the model to include them.", "Imported {n} points ({bad} failed) ✓ — recompute the model to include them.", { bad: fail })
+        : tn(ok, "Imported 1 point ✓ — recompute the model to include them.", "Imported {n} points ✓ — recompute the model to include them."));
       impBtn.disabled = false; _importData = null; impBtn.style.display = "none";
       ctx.state.calibration = await ctx.actions.calibrationGet();
       ctx.actions.renderRooms();
     });
 
-    const impChooseBtn = el("button", { class: "btn inline", onclick: () => impInput.click() }, "Choose File…");
+    const impChooseBtn = el("button", { class: "btn inline", onclick: () => impInput.click() }, t("Choose File…"));
     impWrap.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [impChooseBtn, impBtn]));
     impWrap.appendChild(impInput);
     impWrap.appendChild(impPreview);
@@ -1863,21 +1869,21 @@ function _modelTab(ctx, el, cs, calData) {
     const clearWrap = el("div", { style: "margin-top:10px;display:flex;gap:8px;align-items:center" });
     const makeClearBtn = () => {
       const b = el("button", { class: "btn inline", style: "border-color:#dc2626;color:#fca5a5" },
-        `Clear All (${pts.length})`);
+        t("Clear All ({n})", { n: pts.length }));
       b.addEventListener("click", () => {
         clearWrap.innerHTML = "";
         const yes = el("button", { class: "btn", style: "background:#7f1d1d;border-color:#dc2626" },
-          `Yes, delete all ${pts.length} points`);
-        const no  = el("button", { class: "btn inline" }, "Cancel");
+          t("Yes, delete all {n} points", { n: pts.length }));
+        const no  = el("button", { class: "btn inline" }, t("Cancel"));
         yes.addEventListener("click", async () => {
           clearWrap.innerHTML = "";
           try {
             await ctx.actions.calibrationClear();
             ctx.state.calibration = { points: [], model: {} };
-            ctx.toast("All calibration data cleared.");
+            ctx.toast(t("All calibration data cleared."));
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Failed: " + ctx.helpers.errorText(e), true);
+            ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true);
             clearWrap.appendChild(makeClearBtn());
           }
         });
@@ -1893,7 +1899,7 @@ function _modelTab(ctx, el, cs, calData) {
 
   if (!pts.length) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "No calibration points yet. Use Tune, Beacon Tune, Pin & Listen, or Roam to collect data."),
+      el("div", { class: "muted" }, t("No calibration points yet. Use Tune, Beacon Tune, Pin & Listen, or Roam to collect data.")),
     ]));
     wrap.appendChild(_actionsCard());
     return wrap;
@@ -1906,22 +1912,22 @@ function _modelTab(ctx, el, cs, calData) {
   pts.forEach(p => p.scanner_readings?.forEach(r => scanners.add(r.source)));
 
   const summCard = el("div", { class: "card" });
-  summCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:12px" }, "Summary"));
+  summCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:12px" }, t("Summary")));
   const statGrid = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:10px" });
   const stat = (label, value, color) => el("div", { style: "background:#0a150e;border:1px solid #1b3526;border-radius:8px;padding:10px;text-align:center" }, [
     el("div", { style: `font-size:22px;font-weight:900;color:${color || "#52b788"}` }, String(value)),
     el("div", { style: "font-size:11px;color:#78909c;margin-top:2px" }, label),
   ]);
-  statGrid.appendChild(stat("Calibration Points", pts.length));
-  statGrid.appendChild(stat("Receivers Seen", scanners.size));
-  statGrid.appendChild(stat("Floors Calibrated", floorIds.length || 1));
+  statGrid.appendChild(stat(t("Calibration Points"), pts.length));
+  statGrid.appendChild(stat(t("Receivers Seen"), scanners.size));
+  statGrid.appendChild(stat(t("Floors Calibrated"), floorIds.length || 1));
 
   const loo = model.loo_accuracy;
   if (loo) {
     const accM = loo.mean_error_m;
-    statGrid.appendChild(stat("Est. Accuracy", `~${accM}m`, accM < 2 ? "#52b788" : "#f59e0b"));
+    statGrid.appendChild(stat(t("Est. Accuracy"), `~${accM}m`, accM < 2 ? "#52b788" : "#f59e0b"));
   } else {
-    statGrid.appendChild(stat("Accuracy", pts.length >= 4 ? "Compute →" : "Need ≥4 pts", "#78909c"));
+    statGrid.appendChild(stat(t("Accuracy"), pts.length >= 4 ? t("Compute →") : t("Need ≥4 pts"), "#78909c"));
   }
   summCard.appendChild(statGrid);
   const heldLine = _heldoutLine(el, calData.heldout);
@@ -1941,7 +1947,7 @@ function _modelTab(ctx, el, cs, calData) {
   // Per-floor coverage — selector to choose which map to display
   const floorName = (fid) => {
     const f = floors.find(fl => fl.id === fid);
-    return f ? f.name : fid || "Default Floor";
+    return f ? f.name : fid || t("Default Floor");
   };
   const effectiveFloors = floorIds.length ? floorIds : [""];
   for (const fid of effectiveFloors) {
@@ -1959,7 +1965,7 @@ function _modelTab(ctx, el, cs, calData) {
     // Floor header with total points
     floorCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
       el("div", { style: "font-weight:700;font-size:14px" }, floorName(fid)),
-      el("span", { class: "badge", style: "margin-left:auto" }, `${floorPtCount} pts`),
+      el("span", { class: "badge", style: "margin-left:auto" }, t("{n} pts", { n: floorPtCount })),
     ]));
 
     // Container for the selected map's coverage viz
@@ -1977,8 +1983,8 @@ function _modelTab(ctx, el, cs, calData) {
 
       // Stats row
       mapVizContainer.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
-        el("span", { class: "badge", style: "font-size:10px" }, `${mapPts.length} pts on this map`),
-        el("span", { class: pct >= 70 ? "badge" : "badge warn", style: "font-size:10px" }, `${pct}% coverage`),
+        el("span", { class: "badge", style: "font-size:10px" }, t("{n} pts on this map", { n: mapPts.length })),
+        el("span", { class: pct >= 70 ? "badge" : "badge warn", style: "font-size:10px" }, t("{pct}% coverage", { pct })),
       ]));
 
       if (mapData?.image?.filename) {
@@ -2011,13 +2017,13 @@ function _modelTab(ctx, el, cs, calData) {
         mapVizContainer.appendChild(miniDiv);
         if (confSvg) {
           mapVizContainer.appendChild(el("div", { style: "font-size:10px;color:#78909c;margin-bottom:6px" },
-            [el("span", { style: "color:#dc2626" }, "┄ "), "Room confusion (thicker = more often mixed up)"]));
+            [el("span", { style: "color:#dc2626" }, "┄ "), t("Room confusion (thicker = more often mixed up)")]));
         }
       }
 
       if (mapLoo) {
         mapVizContainer.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:4px" },
-          `Cross-validation accuracy: ~${mapLoo.mean_error_m}m mean · ${mapLoo.max_error_m}m max`));
+          t("Cross-validation accuracy: ~{mean}m mean · {max}m max", { mean: mapLoo.mean_error_m, max: mapLoo.max_error_m })));
       }
     };
 
@@ -2047,9 +2053,9 @@ function _modelTab(ctx, el, cs, calData) {
   // Per-scanner path-loss stats
   if (model.path_loss && Object.keys(model.path_loss).length) {
     const plCard = el("div", { class: "card" });
-    plCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Signal vs distance"));
+    plCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, t("Signal vs distance")));
     plCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-      "RSSI = RSSI_1m − 10 · n · log₁₀(d). n > 3 = heavy attenuation (walls/floors). R² > 0.7 = reliable fit."));
+      t("RSSI = RSSI_1m − 10 · n · log₁₀(d). n > 3 = heavy attenuation (walls/floors). R² > 0.7 = reliable fit.")));
     const tbody = el("tbody");
     for (const [src, fit] of Object.entries(model.path_loss)) {
       const rSqColor = fit.r_squared >= 0.7 ? "#52b788" : fit.r_squared >= 0.4 ? "#f59e0b" : "#dc2626";
@@ -2064,7 +2070,7 @@ function _modelTab(ctx, el, cs, calData) {
     }
     plCard.appendChild(el("table", { class: "table" }, [
       el("thead", {}, el("tr", {}, [
-        el("th", {}, "Receiver"), el("th", {}, "n"), el("th", {}, "RSSI@1m"), el("th", {}, "R²"), el("th", {}, "Pts"),
+        el("th", {}, t("Receiver")), el("th", {}, "n"), el("th", {}, "RSSI@1m"), el("th", {}, "R²"), el("th", {}, t("Pts")),
       ])),
       tbody,
     ]));
@@ -2074,7 +2080,7 @@ function _modelTab(ctx, el, cs, calData) {
   // Per-scanner general stats
   if (model.scanner_stats && Object.keys(model.scanner_stats).length) {
     const ssCard = el("div", { class: "card" });
-    ssCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Receiver Coverage"));
+    ssCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, t("Receiver Coverage")));
     const tbody = el("tbody");
     for (const [src, st] of Object.entries(model.scanner_stats)) {
       tbody.appendChild(el("tr", {}, [
@@ -2087,7 +2093,7 @@ function _modelTab(ctx, el, cs, calData) {
     }
     ssCard.appendChild(el("table", { class: "table" }, [
       el("thead", {}, el("tr", {}, [
-        el("th", {}, "Receiver"), el("th", {}, "Mean RSSI"), el("th", {}, "Std"), el("th", {}, "Pts"),
+        el("th", {}, t("Receiver")), el("th", {}, t("Mean RSSI")), el("th", {}, t("Std")), el("th", {}, t("Pts")),
       ])),
       tbody,
     ]));
@@ -2097,7 +2103,7 @@ function _modelTab(ctx, el, cs, calData) {
   // Calibration points list
   const ptsCard = el("div", { class: "card" });
   ptsCard.appendChild(el("div", { class: "row", style: "margin-bottom:10px" }, [
-    el("div", { style: "font-weight:700;font-size:14px" }, "Calibration Points"),
+    el("div", { style: "font-weight:700;font-size:14px" }, t("Calibration Points")),
     el("span", { class: "badge", style: "margin-left:8px" }, pts.length),
   ]));
   const ptsList = el("div", { style: "display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto" });
@@ -2108,17 +2114,17 @@ function _modelTab(ctx, el, cs, calData) {
       style: "display:flex;align-items:center;gap:8px;padding:6px 8px;background:#0a150e;border:1px solid #1b3526;border-radius:8px"
     });
     rowWrap.appendChild(el("div", { style: "flex:1;min-width:0" }, [
-      el("div", { style: "font-size:12px;font-weight:600" }, pt.label || pt.room || "Unlabeled"),
+      el("div", { style: "font-size:12px;font-weight:600" }, pt.label || pt.room || t("Unlabeled")),
       el("div", { style: "font-size:11px;color:#78909c" },
-        `${mapName} · ${sc} receiver${sc !== 1 ? "s" : ""} · ${pt.collected_at?.slice(0, 10) || ""}`),
+        `${mapName} · ${tn(sc, "1 receiver", "{n} receivers")} · ${pt.collected_at?.slice(0, 10) || ""}`),
     ]));
     const delWrap = el("div");
     const makeDelBtn = () => {
-      const b = el("button", { class: "btn tiny" }, "Delete");
+      const b = el("button", { class: "btn tiny" }, t("Delete"));
       b.addEventListener("click", () => {
         delWrap.innerHTML = "";
-        const yes = el("button", { class: "btn tiny", style: "background:#7f1d1d;border-color:#dc2626" }, "Yes");
-        const no  = el("button", { class: "btn tiny" }, "No");
+        const yes = el("button", { class: "btn tiny", style: "background:#7f1d1d;border-color:#dc2626" }, t("Yes"));
+        const no  = el("button", { class: "btn tiny" }, t("No"));
         yes.addEventListener("click", async () => {
           delWrap.innerHTML = "";
           try {
@@ -2126,7 +2132,7 @@ function _modelTab(ctx, el, cs, calData) {
             ctx.state.calibration = await ctx.actions.calibrationGet();
             ctx.actions.renderRooms();
           } catch (e) {
-            ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true);
+            ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(e) }), true);
             delWrap.appendChild(makeDelBtn());
           }
         });
@@ -2154,9 +2160,9 @@ function _modelTab(ctx, el, cs, calData) {
 // the Hallway 3 times" — actionable instead of a single blended number.
 function _roomAccuracyCard(ctx, el, roomConf) {
   const card = el("div", { class: "card" });
-  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:4px" }, "Per-Room Accuracy"));
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:4px" }, t("Per-Room Accuracy")));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Leave-one-out room prediction, grouped by the room each point was actually collected in."));
+    t("Leave-one-out room prediction, grouped by the room each point was actually collected in.")));
 
   const rooms = Object.entries(roomConf.rooms).sort((a, b) => a[1].accuracy - b[1].accuracy);
   const rows = el("div", { style: "display:flex;flex-direction:column;gap:6px;margin-bottom:12px" });
@@ -2175,7 +2181,7 @@ function _roomAccuracyCard(ctx, el, roomConf) {
   card.appendChild(rows);
 
   if (roomConf.confusion_pairs.length) {
-    card.appendChild(el("div", { style: "font-weight:600;font-size:12px;color:#94a3b8;margin-bottom:6px" }, "Confused With"));
+    card.appendChild(el("div", { style: "font-weight:600;font-size:12px;color:#94a3b8;margin-bottom:6px" }, t("Confused With")));
     const confList = el("div", { style: "display:flex;flex-direction:column;gap:4px" });
     for (const p of roomConf.confusion_pairs.slice(0, 8)) {
       confList.appendChild(el("div", { style: "font-size:11px;color:#cbd5e1;display:flex;align-items:center;gap:6px" }, [
@@ -2240,14 +2246,14 @@ function _matrixTab(ctx, el, cs, calData) {
   }));
 
   const infoCard = el("div", { class: "card" });
-  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, ["Accuracy by spot ", ctx.helpers.helpBtn("calibration_matrix")]));
+  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, [t("Accuracy by spot") + " ", ctx.helpers.helpBtn("calibration_matrix")]));
   infoCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Each cell compares a point's known distance to a receiver (from the room and receiver layout) against the distance that receiver's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that receiver never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
+    t("Each cell compares a point's known distance to a receiver (from the room and receiver layout) against the distance that receiver's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that receiver never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk.")));
 
   if (anchors.length) {
     const driftColor = { ok: "#52b788", warn: "#f59e0b", bad: "#f87171", unknown: "#4a6052" };
     const driftCard = el("div", { class: "card" });
-    driftCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, "📍 Anchored Beacon Drift"));
+    driftCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, t("📍 Anchored Beacon Drift")));
     const tbody = el("tbody");
     for (const o of anchors) {
       const sev = o.anchor_drift_severity || "unknown";
@@ -2255,28 +2261,28 @@ function _matrixTab(ctx, el, cs, calData) {
         el("td", { style: "font-size:11px" }, deviceName(o, o.key)),
         el("td", { class: "muted", style: "font-size:11px" }, o.room || "—"),
         el("td", { style: "font-family:monospace;font-size:11px" }, o.anchor_drift_m != null ? `${o.anchor_drift_m}m` : "—"),
-        el("td", { style: `font-size:11px;font-weight:700;color:${driftColor[sev]}` }, sev.toUpperCase()),
+        el("td", { style: `font-size:11px;font-weight:700;color:${driftColor[sev]}` }, ({ ok: t("OK"), warn: t("WARN"), bad: t("BAD"), unknown: t("UNKNOWN") })[sev] || sev.toUpperCase()),
       ]));
     }
     driftCard.appendChild(el("table", { class: "table" }, [
-      el("thead", {}, el("tr", {}, [el("th", {}, "Beacon"), el("th", {}, "Room"), el("th", {}, "Drift"), el("th", {}, "Status")])),
+      el("thead", {}, el("tr", {}, [el("th", {}, t("Beacon")), el("th", {}, t("Room")), el("th", {}, t("Drift")), el("th", {}, t("Status"))])),
       tbody,
     ]));
     wrap.appendChild(driftCard);
   }
   const recomputeWrap = el("div");
   const makeRecomputeBtn = () => {
-    const b = el("button", { class: "btn" }, "Relearn (recompute model)");
+    const b = el("button", { class: "btn" }, t("Relearn (recompute model)"));
     b.addEventListener("click", async () => {
       recomputeWrap.innerHTML = "";
-      recomputeWrap.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Recomputing…"));
+      recomputeWrap.appendChild(el("span", { class: "muted", style: "font-size:12px" }, t("Recomputing…")));
       try {
         await ctx.actions.calibrationComputeModel();
         ctx.state.calibration = await ctx.actions.calibrationGet();
-        ctx.toast("Model recomputed.");
+        ctx.toast(t("Model recomputed."));
         ctx.actions.renderRooms();
       } catch (e) {
-        ctx.toast("Recompute failed: " + ctx.helpers.errorText(e), true);
+        ctx.toast(t("Recompute failed: {why}", { why: ctx.helpers.errorText(e) }), true);
         recomputeWrap.innerHTML = "";
         recomputeWrap.appendChild(makeRecomputeBtn());
       }
@@ -2290,7 +2296,7 @@ function _matrixTab(ctx, el, cs, calData) {
   const pathLoss = model.path_loss || {};
   if (!Object.keys(pathLoss).length) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "No path-loss fits yet — collect calibration points and Compute Model on the Model tab first."),
+      el("div", { class: "muted" }, t("No path-loss fits yet — collect calibration points and Compute Model on the Model tab first.")),
     ]));
     return wrap;
   }
@@ -2305,16 +2311,16 @@ function _matrixTab(ctx, el, cs, calData) {
 
   if (!matrix.rows.length || !matrix.scanners.length) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "No metre-space calibration points (or anchored beacons) against a positioned, metre-fitted receiver yet."),
+      el("div", { class: "muted" }, t("No metre-space calibration points (or anchored beacons) against a positioned, metre-fitted receiver yet.")),
     ]));
     return wrap;
   }
 
   const gridCard = el("div", { class: "card" });
-  gridCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Point × Receiver error (metres)"));
+  gridCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, t("Point × Receiver error (metres)")));
   const tableWrap = el("div", { style: "overflow-x:auto" });
   const thead = el("thead", {}, el("tr", {}, [
-    el("th", {}, "Point"),
+    el("th", {}, t("Point")),
     ...matrix.scanners.map(src => el("th",
       { style: "font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
       _rxShown(ctx, src, pathLoss[src].scanner_name))),
@@ -2328,13 +2334,13 @@ function _matrixTab(ctx, el, cs, calData) {
       const sign = c.error_m > 0 ? "+" : "";
       return el("td", {
         style: `background:${color};text-align:center;font-size:10px;font-weight:600;color:#071008;cursor:default`,
-        title: `Expected ${c.expected_m}m · Measured ${c.measured_m}m · Error ${sign}${c.error_m}m · RSSI ${c.rssi}dBm`,
+        title: t("Expected {exp}m · Measured {meas}m · Error {err}m · RSSI {rssi}dBm", { exp: c.expected_m, meas: c.measured_m, err: `${sign}${c.error_m}`, rssi: c.rssi }),
       }, `${sign}${c.error_m}`);
     });
     const isAnchor = row.pointId.startsWith("anchor:");
     tbody.appendChild(el("tr", {}, [
       el("td", { style: "font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
-        (isAnchor ? "📍 " : "") + (row.label || row.room || "Unlabeled")),
+        (isAnchor ? "📍 " : "") + (row.label || row.room || t("Unlabeled"))),
       ...cellEls,
     ]));
   }
@@ -2507,7 +2513,7 @@ function _rssiRow(el, name, rssi, samples, age_s, txPower, opts) {
   // Age label
   let ageStr = null;
   if (age_s != null && isFinite(age_s)) {
-    ageStr = age_s < 60 ? `${Math.round(age_s)}s ago` : `${Math.floor(age_s / 60)}m ago`;
+    ageStr = age_s < 60 ? t("{n}s ago", { n: Math.round(age_s) }) : t("{n}m ago", { n: Math.floor(age_s / 60) });
   }
   return el("div", {
     style: "display:flex;align-items:center;gap:8px;padding:4px 0"
@@ -2605,18 +2611,18 @@ function _tuneTab(ctx, el, cs, calData) {
 
   if (!maps_list.length) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "No Maps Uploaded"),
+      el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, t("No Maps Uploaded")),
       el("div", { style: "font-size:12px;color:#94a3b8" },
-        "Upload floor plan images in Mapping first, then return here to fine-tune receiver positions."),
+        t("Upload floor plan images in Mapping first, then return here to fine-tune receiver positions.")),
     ]));
     return wrap;
   }
 
   // Explainer card
   wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788" }, [
-    el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "Receiver Position Tuning"),
+    el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, t("Receiver Position Tuning")),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
-      "Drag BLE receiver markers to match their real-world positions. The 3D view matches the Overview map. Saves go to the room and receiver layout."),
+      t("Drag BLE receiver markers to match their real-world positions. The 3D view matches the Overview map. Saves go to the room and receiver layout.")),
   ]));
 
   // ── Constants & state ─────────────────────────────────────────────────────
@@ -2704,7 +2710,7 @@ function _tuneTab(ctx, el, cs, calData) {
   const _getFocusZ = idx => _isoPos[Math.max(0, Math.min(idx, _isoPos.length - 1))];
   const _getFocusLbl = idx => {
     const pos = _getFocusZ(idx);
-    if (pos === null) return "All floors";
+    if (pos === null) return t("All floors");
     const fl = ctx.state.model?.floors || [];
     const zArr = Array.isArray(pos) ? pos : [pos];
     return zArr.map(z => { const f = fl.find(x => x.level === z); return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
@@ -2757,7 +2763,7 @@ function _tuneTab(ctx, el, cs, calData) {
     s += `</defs>`;
 
     if (!sorted.length) {
-      s += `<text x="${W / 2}" y="${BASE_H / 2}" text-anchor="middle" fill="#4a6052" font-size="13">All layers hidden</text>`;
+      s += `<text x="${W / 2}" y="${BASE_H / 2}" text-anchor="middle" fill="#4a6052" font-size="13">${_esc(t("All layers hidden"))}</text>`;
       s += `</svg>`; return s;
     }
 
@@ -2917,11 +2923,11 @@ function _tuneTab(ctx, el, cs, calData) {
     _refreshInfo();
 
     const draft = ts.draftReceivers[mapId];
-    if (!draft) { ctx.toast("Cannot drag: map data not loaded. Try Reset.", true); isoDiv.style.cursor = ""; return; }
+    if (!draft) { ctx.toast(t("Cannot drag: map data not loaded. Try Reset."), true); isoDiv.style.cursor = ""; return; }
     // Match by id first, then fallback to source or label (handles legacy receivers)
     let rxObj = draft.find(r => r.id === rxId);
     if (!rxObj) rxObj = draft.find(r => (r.source || "") === rxId || (r.label || "") === rxId);
-    if (!rxObj) { ctx.toast("Cannot drag: receiver data out of sync. Try Reset.", true); isoDiv.style.cursor = ""; return; }
+    if (!rxObj) { ctx.toast(t("Cannot drag: receiver data out of sync. Try Reset."), true); isoDiv.style.cursor = ""; return; }
     const xf = mapXforms[mapId];
     if (!xf) { console.warn("[PadSpan] drag: no xform for map", mapId); isoDiv.style.cursor = ""; return; }
     const [origWx, origWy] = xf.mapPt(rxObj.x, rxObj.y);
@@ -3055,7 +3061,7 @@ function _tuneTab(ctx, el, cs, calData) {
 
     const title = document.createElement("div");
     title.style.cssText = "font-size:12px;font-weight:700;color:#52b788;margin-bottom:8px";
-    title.textContent = "Place on which map?";
+    title.textContent = t("Place on which map?");
     popup.appendChild(title);
 
     // Group candidates by floor for floor-level shortcuts
@@ -3071,7 +3077,7 @@ function _tuneTab(ctx, el, cs, calData) {
     if (floorZs.length > 1 || (floorZs.length === 1 && candByFloor.get(floorZs[0]).length > 1)) {
       for (const z of floorZs) {
         const floorObj = fl.find(f => f.level === z);
-        const floorName = floorObj ? (floorObj.name || `Floor ${z}`) : `Floor ${z}`;
+        const floorName = floorObj ? (floorObj.name || t("Floor {n}", { n: z })) : t("Floor {n}", { n: z });
         const floorCands = candByFloor.get(z);
         const btn = document.createElement("button");
         btn.className = "btn inline";
@@ -3095,7 +3101,7 @@ function _tuneTab(ctx, el, cs, calData) {
       popup.appendChild(sep);
       const subTitle = document.createElement("div");
       subTitle.style.cssText = "font-size:10px;color:#94a3b8;margin-bottom:4px";
-      subTitle.textContent = "Or pick a specific map:";
+      subTitle.textContent = t("Or pick a specific map:");
       popup.appendChild(subTitle);
     }
 
@@ -3116,7 +3122,7 @@ function _tuneTab(ctx, el, cs, calData) {
     const cancelBtn = document.createElement("button");
     cancelBtn.className = "btn inline";
     cancelBtn.style.cssText = "display:block;width:100%;text-align:center;padding:4px 10px;font-size:11px;color:#94a3b8;border-color:#94a3b840;margin-top:4px;cursor:pointer";
-    cancelBtn.textContent = "Cancel";
+    cancelBtn.textContent = t("Cancel");
     cancelBtn.addEventListener("click", () => {
       ts._confirming = false;
       if (isoWrap.contains(popup)) isoWrap.removeChild(popup);
@@ -3155,7 +3161,7 @@ function _tuneTab(ctx, el, cs, calData) {
 
   const floorLbl = document.createElement("span");
   floorLbl.style.cssText = "font-size:12px;color:#94a3b8";
-  floorLbl.textContent = "Floor:";
+  floorLbl.textContent = t("Floor:");
   ctrlRow.appendChild(floorLbl);
   ctrlRow.appendChild(focusSlider);
   ctrlRow.appendChild(focusLbl);
@@ -3176,7 +3182,7 @@ function _tuneTab(ctx, el, cs, calData) {
   });
   const spacingLbl = document.createElement("span");
   spacingLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:8px";
-  spacingLbl.textContent = "Spacing:";
+  spacingLbl.textContent = t("Spacing:");
   ctrlRow.appendChild(spacingLbl);
   ctrlRow.appendChild(gapSlider);
   ctrlRow.appendChild(gapLbl);
@@ -3208,8 +3214,8 @@ function _tuneTab(ctx, el, cs, calData) {
   const saveBtn = document.createElement("button");
   saveBtn.className = "btn inline" + (hasDirty ? " save-pulse" : "");
   saveBtn.style.cssText = "padding:2px 10px;font-size:12px";
-  saveBtn.textContent = hasDirty ? "\ud83d\udcbe Save" : "Save";
-  saveBtn.title = "Save updated receiver positions to all modified maps";
+  saveBtn.textContent = hasDirty ? t("💾 Save") : t("Save");
+  saveBtn.title = t("Save updated receiver positions to all modified maps");
   saveBtn.addEventListener("click", async () => {
     // Only live data from the server may be written (#88): Sample mode's
     // demo radios must never become scanners in the real model.
@@ -3220,11 +3226,11 @@ function _tuneTab(ctx, el, cs, calData) {
     // unconditionally. A busy session toasts and changes nothing — there
     // is deliberately no queue.
     if (!tuneTryAcquire(ts)) {
-      ctx.toast("A save is in progress — try again in a moment", true);
+      ctx.toast(t("A save is in progress — try again in a moment"), true);
       return;
     }
     saveBtn.disabled = true;
-    statusLbl.textContent = "Saving...";
+    statusLbl.textContent = t("Saving...");
     // Draft edits landing while this save is in flight bump ts._tuneRev;
     // the save below never clears what it did not itself write.
     const _revAtStart = ts._tuneRev || 0;
@@ -3243,7 +3249,7 @@ function _tuneTab(ctx, el, cs, calData) {
       }
       const dirtyIds = Object.keys(ts.dirtyMaps).filter(id => ts.dirtyMaps[id]);
       if (!dirtyIds.length) {
-        statusLbl.textContent = "No changes";
+        statusLbl.textContent = t("No changes");
         setTimeout(() => { statusLbl.textContent = ""; }, 2000);
         return;
       }
@@ -3349,18 +3355,18 @@ function _tuneTab(ctx, el, cs, calData) {
         // Concurrent edit landed mid-save: report, keep every dirty flag
         // the save did not itself clear, and let the newer state win —
         // a retry sends the newer edit (its baseline still differs).
-        statusLbl.textContent = `Saved ${_ok} — map changed during save, review`;
-        ctx.toast(`Saved ${_ok}; edits changed during save — review before re-saving`, true);
+        statusLbl.textContent = t("Saved {ok} — map changed during save, review", { ok: _ok });
+        ctx.toast(t("Saved {ok}; edits changed during save — review before re-saving", { ok: _ok }), true);
         saveBtn.disabled = false;
       } else if (_failCount) {
         ts.dirtyMaps = _failedMaps;
-        statusLbl.textContent = `Saved ${_ok}, failed ${_failCount} map(s)`;
-        ctx.toast(`Saved ${_ok} receiver(s), ${_failCount} map(s) failed — kept unsaved`, true);
+        statusLbl.textContent = tn(_failCount, "Saved {ok}, failed 1 map", "Saved {ok}, failed {n} maps", { ok: _ok });
+        ctx.toast(tn(_failCount, "Saved {ok} receiver(s), 1 map failed — kept unsaved", "Saved {ok} receiver(s), {n} maps failed — kept unsaved", { ok: _ok }), true);
         saveBtn.disabled = false;
       } else {
         ts.dirtyMaps = {};
         ts.selectedRx = null;
-        ctx.toast("Receiver positions saved");
+        ctx.toast(t("Receiver positions saved"));
       }
       // mapsRefresh alone does not refresh the model the height input reads
       // (scanner_positions_m) — refresh both so new entries expose Save Z.
@@ -3387,8 +3393,8 @@ function _tuneTab(ctx, el, cs, calData) {
         }
       } catch (e) { /* reconcile is best-effort; the save already landed */ }
     } catch (e) {
-      ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
-      statusLbl.textContent = "Error saving";
+      ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }), true);
+      statusLbl.textContent = t("Error saving");
       saveBtn.disabled = false;
     } finally {
       tuneRelease(ts);
@@ -3400,13 +3406,13 @@ function _tuneTab(ctx, el, cs, calData) {
   const resetBtn = document.createElement("button");
   resetBtn.className = "btn inline";
   resetBtn.style.cssText = "padding:2px 10px;font-size:12px";
-  resetBtn.textContent = "Reset";
-  resetBtn.title = "Discard unsaved changes and reload receiver positions";
+  resetBtn.textContent = t("Reset");
+  resetBtn.title = t("Discard unsaved changes and reload receiver positions");
   resetBtn.addEventListener("click", () => {
     // Guard first: a Reset landing mid-save must not tear down the
     // drafts the in-flight save is reading. Busy returns unchanged.
     if (!tuneTryAcquire(ts)) {
-      ctx.toast("A save is in progress — try again in a moment", true);
+      ctx.toast(t("A save is in progress — try again in a moment"), true);
       return;
     }
     try {
@@ -3433,8 +3439,8 @@ function _tuneTab(ctx, el, cs, calData) {
     _fg = ts.fg; _hg = ts.hg;
     gapSlider.value = String(ts.fg); gapLbl.textContent = String(ts.fg);
     hgSlider.value = String(ts.hg); hgLbl.textContent = String(ts.hg);
-    focusSlider.value = "0"; focusLbl.textContent = "All floors";
-    statusLbl.textContent = "Reset \u2713";
+    focusSlider.value = "0"; focusLbl.textContent = t("All floors");
+    statusLbl.textContent = t("Reset ✓");
     setTimeout(() => { statusLbl.textContent = ""; }, 2000);
     _refreshSVG();
     _refreshInfo();
@@ -3452,9 +3458,9 @@ function _tuneTab(ctx, el, cs, calData) {
   dirtyLbl.style.cssText = "font-size:11px;color:#f59e0b;font-weight:600;margin-left:auto";
   function _refreshDirtyLabel() {
     const n = Object.keys(ts.dirtyMaps).filter(id => ts.dirtyMaps[id]).length;
-    dirtyLbl.textContent = n ? `${n} map${n > 1 ? "s" : ""} unsaved` : "";
-    if (n) { saveBtn.classList.add("save-pulse"); saveBtn.textContent = "\ud83d\udcbe Save"; }
-    else { saveBtn.classList.remove("save-pulse"); saveBtn.textContent = "Save"; }
+    dirtyLbl.textContent = n ? tn(n, "1 map unsaved", "{n} maps unsaved") : "";
+    if (n) { saveBtn.classList.add("save-pulse"); saveBtn.textContent = t("💾 Save"); }
+    else { saveBtn.classList.remove("save-pulse"); saveBtn.textContent = t("Save"); }
   }
   _refreshDirtyLabel();
   ctrlRow.appendChild(dirtyLbl);
@@ -3464,12 +3470,12 @@ function _tuneTab(ctx, el, cs, calData) {
   infoCard.style.cssText = "background:#0d1f14;border:1px solid #1b3526;border-radius:8px;padding:10px 14px;font-size:12px;color:#a7f3d0;min-height:24px";
   function _refreshInfo() {
     if (!ts.selectedRx) {
-      infoCard.textContent = "Click a receiver marker to select it, then drag to reposition.";
+      infoCard.textContent = t("Click a receiver marker to select it, then drag to reposition.");
       return;
     }
     const draft = ts.draftReceivers[ts.selectedRx.mapId] || [];
     const rx = draft.find(r => r.id === ts.selectedRx.rxId);
-    if (!rx) { infoCard.textContent = "Receiver not found."; return; }
+    if (!rx) { infoCard.textContent = t("Receiver not found."); return; }
     const mapObj = maps_list.find(m => m.id === ts.selectedRx.mapId);
     infoCard.innerHTML = "";
     // Show floor + metres from fabric when available
@@ -3482,9 +3488,9 @@ function _tuneTab(ctx, el, cs, calData) {
     const _posStr = _fabPos ? `${_fabPos.x_m?.toFixed(1)}m, ${_fabPos.y_m?.toFixed(1)}m` : `${(rx.x * 100).toFixed(1)}%, ${(rx.y * 100).toFixed(1)}%`;
     const lines = [
       `<b style="color:#52b788">${_esc(_rxShown(ctx, rx.source, rx.label || rx.id))}</b>`,
-      `Floor: ${_esc(_floorName)}`,
-      `Room: ${_esc(rx.room || "\u2014")}`,
-      `Position: ${_posStr}`,
+      _esc(t("Floor: {floor}", { floor: _floorName })),
+      _esc(t("Room: {room}", { room: rx.room || "\u2014" })),
+      _esc(t("Position: {pos}", { pos: _posStr })),
     ];
     const infoLine = document.createElement("div");
     infoLine.innerHTML = lines.join(" &nbsp;·&nbsp; ");
@@ -3495,7 +3501,7 @@ function _tuneTab(ctx, el, cs, calData) {
       zRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:6px";
       const zLbl = document.createElement("span");
       zLbl.style.cssText = "font-size:11px;color:#94a3b8";
-      zLbl.textContent = "Height above floor (m):";
+      zLbl.textContent = t("Height above floor (m):");
       const zInp = document.createElement("input");
       zInp.type = "number"; zInp.min = "0"; zInp.max = "100"; zInp.step = "0.1";
       zInp.value = String(_fabPos.z_m != null ? _fabPos.z_m : 2.4);
@@ -3503,12 +3509,12 @@ function _tuneTab(ctx, el, cs, calData) {
       const zBtn = document.createElement("button");
       zBtn.className = "btn inline";
       zBtn.style.cssText = "font-size:10px;padding:2px 10px";
-      zBtn.textContent = "Save height";
-      zBtn.title = "Mounting height above this receiver's own floor. Used for 3D distance; survives map syncs.";
+      zBtn.textContent = t("Save height");
+      zBtn.title = t("Mounting height above this receiver's own floor. Used for 3D distance; survives map syncs.");
       zBtn.addEventListener("click", async () => {
         const v = parseFloat(zInp.value);
         if (!Number.isFinite(v) || v < 0 || v > 100) {
-          ctx.toast("Height must be 0–100 m", true);
+          ctx.toast(t("Height must be 0–100 m"), true);
           return;
         }
         // The lock is owned by this ENTIRE callback: acquired before the
@@ -3516,7 +3522,7 @@ function _tuneTab(ctx, el, cs, calData) {
         // awaited refresh, released unconditionally. A concurrent
         // position save or removal is refused while held, and vice versa.
         if (!tuneTryAcquire(ts)) {
-          ctx.toast("A save is in progress — try again in a moment", true);
+          ctx.toast(t("A save is in progress — try again in a moment"), true);
           return;
         }
         try {
@@ -3525,7 +3531,7 @@ function _tuneTab(ctx, el, cs, calData) {
             source: rx.source, z_m: v,
           });
           if (_hres && _hres.ok === false) {
-            ctx.toast("Save failed: height not stored", true);
+            ctx.toast(t("Save failed: height not stored"), true);
             return;
           }
           // Publish the ACKNOWLEDGED height locally before refreshing:
@@ -3541,11 +3547,11 @@ function _tuneTab(ctx, el, cs, calData) {
               z_m: Math.round(Math.max(0, Math.min(100, v)) * 100) / 100,
             };
           } catch (_e) { /* publication is best-effort */ }
-          ctx.toast(`${((ctx.state.live?.snapshot?.ble?.radios || []).find(x => x.source === rx.source)?.display_name) || rx.label || rx.source}: height set to ${v} m`);
+          ctx.toast(t("{name}: height set to {m} m", { name: ((ctx.state.live?.snapshot?.ble?.radios || []).find(x => x.source === rx.source)?.display_name) || rx.label || rx.source, m: v }));
           ts._tuneRev = (ts._tuneRev || 0) + 1;
           if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
         } catch (e) {
-          ctx.toast("Save failed: height not stored", true);
+          ctx.toast(t("Save failed: height not stored"), true);
         } finally {
           tuneRelease(ts);
         }
@@ -3559,14 +3565,14 @@ function _tuneTab(ctx, el, cs, calData) {
     const removeBtn = document.createElement("button");
     removeBtn.className = "btn inline";
     removeBtn.style.cssText = "font-size:10px;padding:2px 10px;color:#f87171;border-color:#f8717140;margin-top:6px";
-    removeBtn.textContent = "Remove from floor";
-    removeBtn.title = "Remove this receiver from " + _floorName;
+    removeBtn.textContent = t("Remove from floor");
+    removeBtn.title = t("Remove this receiver from {floor}", { floor: _floorName });
     removeBtn.addEventListener("click", async () => {
       // The lock is acquired BEFORE any mutation: a busy session returns
       // with everything unchanged. The request is pessimistic — the draft
       // row is removed only after the backend acknowledges.
       if (!tuneTryAcquire(ts)) {
-        ctx.toast("A save is in progress — try again in a moment", true);
+        ctx.toast(t("A save is in progress — try again in a moment"), true);
         return;
       }
       try {
@@ -3576,7 +3582,7 @@ function _tuneTab(ctx, el, cs, calData) {
         if (!_rmSrc) return;
         const origMap = maps_list.find(m => m.id === _selMapId);
         if (!origMap) {
-          ctx.toast("Remove failed: map not found", true);
+          ctx.toast(t("Remove failed: map not found"), true);
           return;
         }
         // Drop it from the backend FIRST. NOTE (pre-existing backend
@@ -3592,7 +3598,7 @@ function _tuneTab(ctx, el, cs, calData) {
           _rres = { ok: false };
         }
         if (_rres && _rres.ok === false) {
-          ctx.toast("Remove failed: receiver not removed", true);
+          ctx.toast(t("Remove failed: receiver not removed"), true);
           return;
         }
         // After ack: targeted cleanup ONLY. Unrelated edits — including
@@ -3612,11 +3618,11 @@ function _tuneTab(ctx, el, cs, calData) {
             delete _mdl.scanners[_rmSrc];
           }
         } catch (_e) { /* publication is best-effort */ }
-        ctx.toast("Receiver removed");
+        ctx.toast(t("Receiver removed"));
         await ctx.actions.mapsRefresh();
         if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
       } catch (e) {
-        ctx.toast("Remove failed: " + ctx.helpers.errorText(e), true);
+        ctx.toast(t("Remove failed: {why}", { why: ctx.helpers.errorText(e) }), true);
       } finally {
         tuneRelease(ts);
       }
@@ -3630,8 +3636,8 @@ function _tuneTab(ctx, el, cs, calData) {
   placeBanner.style.cssText = "display:none;background:#1a2e0e;border:2px solid #52b788;border-radius:8px;padding:8px 14px;font-size:12px;color:#a7f3d0;text-align:center";
   function _refreshPlaceBanner() {
     if (ts.pendingPlace) {
-      const nm = ts.pendingPlace.shown || ts.pendingPlace.name || ts.pendingPlace.source || "radio";
-      placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
+      const nm = ts.pendingPlace.shown || ts.pendingPlace.name || ts.pendingPlace.source || t("radio");
+      placeBanner.innerHTML = `<b style="color:#52b788">${_esc(t("Double-click"))}</b> ${_esc(t("on the 3D map to place {name}")).replace("{name}", `<b style="color:#fbbf24">${_esc(nm)}</b>`)} &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">${_esc(t("Cancel"))}</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelPlace");
       if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
@@ -3655,22 +3661,22 @@ function _tuneTab(ctx, el, cs, calData) {
     // Header
     const hdr = document.createElement("div");
     hdr.style.cssText = "font-weight:700;font-size:13px;margin-bottom:8px;color:#52b788";
-    hdr.textContent = `Live Radios (${_liveRadios.length})`;
+    hdr.textContent = t("Live Radios ({n})", { n: _liveRadios.length });
     radiosCard.appendChild(hdr);
 
     if (!_liveRadios.length) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:12px;color:#94a3b8";
       msg.textContent = _noLiveDataText(ctx,
-        "No live receivers detected. Switch to Live mode and ensure Bluetooth receivers are active.",
-        "Home Assistant isn't reporting any Bluetooth receivers yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart.");
+        t("No live receivers detected. Switch to Live mode and ensure Bluetooth receivers are active."),
+        t("Home Assistant isn't reporting any Bluetooth receivers yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart."));
       radiosCard.appendChild(msg);
       return;
     }
 
     const hint = document.createElement("div");
     hint.style.cssText = "font-size:11px;color:#94a3b8;margin-bottom:8px";
-    hint.textContent = "Click an unplaced radio, then double-click on the 3D map to place it. Click a placed radio to select it in the 3D view.";
+    hint.textContent = t("Click an unplaced radio, then double-click on the 3D map to place it. Click a placed radio to select it in the 3D view.");
     radiosCard.appendChild(hint);
 
     // Build lookup: which map(s) each radio is placed on
@@ -3743,7 +3749,7 @@ function _tuneTab(ctx, el, cs, calData) {
 
         const placeTag = document.createElement("span");
         placeTag.style.cssText = `font-size:10px;padding:1px 6px;border-radius:4px;white-space:nowrap;${isPending ? "color:#fbbf24;background:#fbbf2418;font-weight:600" : "color:#94a3b8;background:#94a3b818"}`;
-        placeTag.textContent = isPending ? "Double-click map…" : "Not placed";
+        placeTag.textContent = isPending ? t("Double-click map…") : t("Not placed");
         row.appendChild(placeTag);
 
         // Click row to enter pending-placement mode (select this radio, then dblclick map)
@@ -3766,8 +3772,8 @@ function _tuneTab(ctx, el, cs, calData) {
         const db = document.createElement("button");
         db.className = "btn inline";
         db.style.cssText = "font-size:10px;padding:2px 8px;color:#f87171;border-color:#f8717140";
-        db.textContent = "Delete";
-        db.title = "Remove this radio from all maps and clear all its stored data";
+        db.textContent = t("Delete");
+        db.title = t("Remove this radio from all maps and clear all its stored data");
         db.addEventListener("click", (ev) => {
           ev.stopPropagation();
           // Block 5s poll from destroying the confirmation dialog
@@ -3775,22 +3781,22 @@ function _tuneTab(ctx, el, cs, calData) {
           actWrap.innerHTML = "";
           const prompt = document.createElement("span");
           prompt.style.cssText = "font-size:10px;color:#fca5a5";
-          prompt.textContent = "Delete all data? ";
+          prompt.textContent = t("Delete all data? ");
           const yesBtn = document.createElement("button");
           yesBtn.className = "btn inline";
           yesBtn.style.cssText = "font-size:10px;padding:2px 8px;background:#7f1d1d;border-color:#dc2626;color:#fca5a5";
-          yesBtn.textContent = "Yes";
+          yesBtn.textContent = t("Yes");
           const noBtn = document.createElement("button");
           noBtn.className = "btn inline";
           noBtn.style.cssText = "font-size:10px;padding:2px 8px;color:#94a3b8;border-color:#94a3b840";
-          noBtn.textContent = "No";
+          noBtn.textContent = t("No");
           yesBtn.addEventListener("click", async (ev2) => {
             ev2.stopPropagation();
             ts._confirming = false;
             actWrap.innerHTML = "";
             const spin = document.createElement("span");
             spin.style.cssText = "font-size:10px;color:#94a3b8";
-            spin.textContent = "Deleting…";
+            spin.textContent = t("Deleting…");
             actWrap.appendChild(spin);
             try {
               // 1. Remove from local drafts (match by source — the stable key)
@@ -3817,16 +3823,15 @@ function _tuneTab(ctx, el, cs, calData) {
               ts._tuneRev = (ts._tuneRev || 0) + 1;
               const sm = res?.summary || {};
               const parts = [];
-              if (removedMaps.length) parts.push(`${removedMaps.length} map(s)`);
-              if (sm.calibration?.readings_removed) parts.push(`${sm.calibration.readings_removed} cal reading(s)`);
-              if (sm.adaptive?.room_pairs_removed) parts.push(`${sm.adaptive.room_pairs_removed} fingerprint(s)`);
-              const detail = parts.length ? " — removed " + parts.join(", ") : "";
-              ctx.toast(`Radio deleted${detail}`);
+              if (removedMaps.length) parts.push(t("{n} map(s)", { n: removedMaps.length }));
+              if (sm.calibration?.readings_removed) parts.push(t("{n} cal reading(s)", { n: sm.calibration.readings_removed }));
+              if (sm.adaptive?.room_pairs_removed) parts.push(t("{n} fingerprint(s)", { n: sm.adaptive.room_pairs_removed }));
+              ctx.toast(parts.length ? t("Radio deleted — removed {what}", { what: parts.join(", ") }) : t("Radio deleted"));
               // 5. Refresh maps data + re-render once (rebuilds entire Tune tab cleanly)
               await ctx.actions.mapsRefresh();
             } catch (e) {
               ts._confirming = false;
-              ctx.toast("Delete failed: " + ctx.helpers.errorText(e), true);
+              ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(e) }), true);
               _refreshRadiosList();
             }
           });
@@ -3861,82 +3866,52 @@ function _tuneTab(ctx, el, cs, calData) {
   return wrap;
 }
 
+// i18n part: beacon   (Beacon Tune's words: i18n/<lang>/beacon.json, scripts/i18n_coverage.py)
 function _showPosHelp(ctx) {
   const body = document.createElement("div");
   body.style.cssText = "font-size:13px;line-height:1.7;color:#d1d5db;max-width:520px";
+  const E = (k) => String(k).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   body.innerHTML = `
-    <p style="margin:0 0 12px"><b style="color:#5eead4">Position Percentages (x%, y%)</b></p>
-    <p style="margin:0 0 10px">
-      The two percentages represent this beacon's location on the floor plan image
-      as a fraction of the image's width and height:
+    <p style="margin:0 0 12px"><b style="color:#5eead4">${E(t("Position Percentages (x%, y%)"))}</b></p>
+    <p style="margin:0 0 10px">${E(t("The two percentages represent this beacon's location on the floor plan image as a fraction of the image's width and height:"))}</p>
+    <ul style="margin:0 0 12px;padding-left:20px">
+      <li><b style="color:#a7f3d0">x %</b> &mdash; ${E(t("how far across the image from the left edge. 0% is the left edge, 100% is the right edge."))}</li>
+      <li><b style="color:#a7f3d0">y %</b> &mdash; ${E(t("how far down the image from the top edge. 0% is the top edge, 100% is the bottom edge."))}</li>
+    </ul>
+    <p style="margin:0 0 10px">${E(t("For example, x 50.0%, y 25.0% means the beacon is centered horizontally and one-quarter of the way down from the top of the map image."))}</p>
+    <p style="margin:0 0 12px;border-top:1px solid #1b3526;padding-top:10px">
+      <b style="color:#f59e0b">${E(t("Why this matters:"))}</b>
     </p>
     <ul style="margin:0 0 12px;padding-left:20px">
-      <li><b style="color:#a7f3d0">x %</b> &mdash; how far across the image from the <b>left edge</b>.
-        0% is the left edge, 100% is the right edge.</li>
-      <li><b style="color:#a7f3d0">y %</b> &mdash; how far down the image from the <b>top edge</b>.
-        0% is the top edge, 100% is the bottom edge.</li>
-    </ul>
-    <p style="margin:0 0 10px">
-      For example, <span style="color:#5eead4">x 50.0%, y 25.0%</span> means the beacon is
-      centered horizontally and one-quarter of the way down from the top of the map image.
-    </p>
-    <p style="margin:0 0 12px;border-top:1px solid #1b3526;padding-top:10px">
-      <b style="color:#f59e0b">Why this matters:</b>
-    </p>
-    <ul style="margin:0 0 12px;padding-left:20px">
-      <li><b>Calibration reference</b> &mdash; PadSpan records which Bluetooth scanners can see this
-        beacon at this position, and how strong the signal is. Over time, this builds a
-        <em>radio fingerprint database</em> that maps signal strengths to physical locations.</li>
-      <li><b>Matching to calibration points</b> &mdash; When PadSpan sees a device with similar signal readings
-        to a known calibration point, it estimates the device's position using k-Nearest Neighbors
-        (k-NN). More pinned beacons at accurate positions = better positioning accuracy.</li>
-      <li><b>Sub-room tracking</b> &mdash; Unlike room-level presence which only knows "Kitchen" or
-        "Living Room", these positions enable <em>within-room</em> tracking on the 3D map &mdash;
-        showing exactly where in the room a device is, not just which room.</li>
+      <li><b>${E(t("Calibration reference"))}</b> &mdash; ${E(t("PadSpan records which Bluetooth scanners can see this beacon at this position, and how strong the signal is. Over time, this builds a radio fingerprint database that maps signal strengths to physical locations."))}</li>
+      <li><b>${E(t("Matching to calibration points"))}</b> &mdash; ${E(t("When PadSpan sees a device with similar signal readings to a known calibration point, it estimates the device's position using k-Nearest Neighbors (k-NN). More pinned beacons at accurate positions = better positioning accuracy."))}</li>
+      <li><b>${E(t("Sub-room tracking"))}</b> &mdash; ${E(t("Unlike room-level presence which only knows \"Kitchen\" or \"Living Room\", these positions enable within-room tracking on the 3D map — showing exactly where in the room a device is, not just which room."))}</li>
     </ul>
     <p style="margin:0 0 12px;border-top:1px solid #1b3526;padding-top:10px">
-      <b style="color:#60a5fa">How to set accurate positions:</b>
+      <b style="color:#60a5fa">${E(t("How to set accurate positions:"))}</b>
     </p>
     <ol style="margin:0 0 12px;padding-left:20px">
-      <li><b>Drag the beacon diamond</b> on the 3D map to where the physical device
-        actually is in your home.</li>
-      <li><b>Use room boundaries</b> as visual guides &mdash; the detected room updates
-        in real time as you drag.</li>
-      <li><b>Multiple beacons</b> spread across different rooms and positions give PadSpan
-        more reference points, dramatically improving positioning accuracy.</li>
-      <li>After placing, PadSpan <b>automatically collects calibration data</b> every 10 minutes
-        by recording RSSI readings at the pinned position.</li>
+      <li>${E(t("Drag the beacon diamond on the 3D map to where the physical device actually is in your home."))}</li>
+      <li>${E(t("Use room boundaries as visual guides — the detected room updates in real time as you drag."))}</li>
+      <li>${E(t("Multiple beacons spread across different rooms and positions give PadSpan more reference points, dramatically improving positioning accuracy."))}</li>
+      <li>${E(t("After placing, PadSpan automatically collects calibration data every 10 minutes by recording RSSI readings at the pinned position."))}</li>
     </ol>
     <p style="margin:0 0 12px;border-top:1px solid #1b3526;padding-top:10px">
-      <b style="color:#a78bfa">RSSI (Received Signal Strength Indicator)</b>
+      <b style="color:#a78bfa">${E(t("RSSI (Received Signal Strength Indicator)"))}</b>
     </p>
-    <p style="margin:0 0 10px">
-      RSSI is measured in <b>dBm</b> (decibel-milliwatts) and is always a negative number.
-      It tells you how strong the Bluetooth signal is when it reaches a scanner.
-    </p>
+    <p style="margin:0 0 10px">${E(t("RSSI is measured in dBm (decibel-milliwatts) and is always a negative number. It tells you how strong the Bluetooth signal is when it reaches a scanner."))}</p>
     <ul style="margin:0 0 10px;padding-left:20px">
-      <li><b style="color:#52b788">&minus;50 dBm</b> &mdash; strong signal, device is close to the scanner. <b>This is good.</b></li>
-      <li><b style="color:#f59e0b">&minus;75 dBm</b> &mdash; moderate signal, typical for a device one or two rooms away.</li>
-      <li><b style="color:#f87171">&minus;95 dBm</b> &mdash; weak signal, device is far away or obstructed by walls/floors.</li>
+      <li><b style="color:#52b788">&minus;50 dBm</b> &mdash; ${E(t("strong signal, device is close to the scanner. This is good."))}</li>
+      <li><b style="color:#f59e0b">&minus;75 dBm</b> &mdash; ${E(t("moderate signal, typical for a device one or two rooms away."))}</li>
+      <li><b style="color:#f87171">&minus;95 dBm</b> &mdash; ${E(t("weak signal, device is far away or obstructed by walls/floors."))}</li>
     </ul>
-    <p style="margin:0 0 10px">
-      <b>Lower numbers (closer to zero) = stronger signal = better.</b>
-      Think of it as a score where &minus;40 is excellent and &minus;100 is barely detectable.
-    </p>
-    <p style="margin:0 0 10px">
-      PadSpan uses RSSI from multiple scanners simultaneously to triangulate a device's position.
-      The pattern of strong vs. weak signals across your scanners creates a unique
-      <em>radio fingerprint</em> for each location in your home. This is why calibration data
-      from accurately placed beacons is so valuable &mdash; it teaches the system what those
-      fingerprints look like at known positions.
-    </p>
-    <p style="margin:0;color:#94a3b8;font-size:11px">
-      Tip: Place at least 2&ndash;3 beacons per room for best results.
-      Beacons near walls or corners are especially useful for triangulation.
-    </p>
+    <p style="margin:0 0 10px"><b>${E(t("Lower numbers (closer to zero) = stronger signal = better."))}</b>
+      ${E(t("Think of it as a score where −40 is excellent and −100 is barely detectable."))}</p>
+    <p style="margin:0 0 10px">${E(t("PadSpan uses RSSI from multiple scanners simultaneously to triangulate a device's position. The pattern of strong vs. weak signals across your scanners creates a unique radio fingerprint for each location in your home. This is why calibration data from accurately placed beacons is so valuable — it teaches the system what those fingerprints look like at known positions."))}</p>
+    <p style="margin:0;color:#94a3b8;font-size:11px">${E(t("Tip: Place at least 2–3 beacons per room for best results. Beacons near walls or corners are especially useful for triangulation."))}</p>
   `;
   if (ctx?.actions?.openModal) {
-    ctx.actions.openModal("Position Percentages", body, "Beacon Tune \u00b7 Place Beacons");
+    ctx.actions.openModal(t("Position Percentages"), body, t("Beacon Tune · Place Beacons"));
   }
 }
 
@@ -4010,9 +3985,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
   if (!maps_list.length) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "No Maps Uploaded"),
+      el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, t("No Maps Uploaded")),
       el("div", { style: "font-size:12px;color:#94a3b8" },
-        "Upload floor plan images in Mapping first, then return here to mark beacon reference positions."),
+        t("Upload floor plan images in Mapping first, then return here to mark beacon reference positions.")),
     ]));
     return wrap;
   }
@@ -4020,12 +3995,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   // ── Experimental badge + explainer ────────────────────────────────────
   wrap.appendChild(el("div", { class: "card", style: "border-color:#f59e0b" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
-      el("span", { style: "background:#f59e0b;color:#000;font-weight:700;font-size:11px;padding:2px 8px;border-radius:4px" }, "EXPERIMENTAL"),
-      el("span", { style: "font-weight:700;font-size:14px;color:#f59e0b" }, "Beacon Tune"),
+      el("span", { style: "background:#f59e0b;color:#000;font-weight:700;font-size:11px;padding:2px 8px;border-radius:4px" }, t("EXPERIMENTAL")),
+      el("span", { style: "font-weight:700;font-size:14px;color:#f59e0b" }, t("Beacon Tune")),
       ctx.helpers.helpBtn("calibration_beacon"),
     ]),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
-      "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second capture of what the receivers hear starts automatically. After the timer finishes, calibration data is saved. A beacon you place from the list is pinned there as a fixed beacon, unless PadSpan knows it moves (a phone with its IRK, a Find My tag it has followed across an address change, anything you follow): that one goes back to live tracking after the capture, as does a labelled device shown at its room's centre. Moving a beacon that is already pinned moves its pin. Follow a tag that moves before placing it. Green circles show scanner positions for reference."),
+      t("Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second capture of what the receivers hear starts automatically. After the timer finishes, calibration data is saved. A beacon you place from the list is pinned there as a fixed beacon, unless PadSpan knows it moves (a phone with its IRK, a Find My tag it has followed across an address change, anything you follow): that one goes back to live tracking after the capture, as does a labelled device shown at its room's centre. Moving a beacon that is already pinned moves its pin. Follow a tag that moves before placing it. Green circles show scanner positions for reference.")),
   ]));
 
   // ── Constants & state ─────────────────────────────────────────────────────
@@ -4256,7 +4231,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const _getFocusZ = idx => _isoPos[Math.max(0, Math.min(idx, _isoPos.length - 1))];
   const _getFocusLbl = idx => {
     const pos = _getFocusZ(idx);
-    if (pos === null) return "All floors";
+    if (pos === null) return t("All floors");
     const fl = ctx.state.model?.floors || [];
     const zArr = Array.isArray(pos) ? pos : [pos];
     return zArr.map(z => { const f = fl.find(x => x.level === z); return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
@@ -4309,7 +4284,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     s += `</defs>`;
 
     if (!sorted.length) {
-      s += `<text x="${W / 2}" y="${BASE_H / 2}" text-anchor="middle" fill="#4a6052" font-size="13">All layers hidden</text>`;
+      s += `<text x="${W / 2}" y="${BASE_H / 2}" text-anchor="middle" fill="#4a6052" font-size="13">${_esc(t("All layers hidden"))}</text>`;
       s += `</svg>`; return s;
     }
 
@@ -4402,9 +4377,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const detectedRoom = isLive && liveObj?.room ? liveObj.room : _detectRoom(useX, useY, m);
           const fillColor = isLive && !isTimerActive ? "#52b788" : "#5eead4";
           const confidence = liveObj?.knn_confidence;
-          const tipParts = [liveObj ? deviceName(liveObj, "Beacon") : (bk.label || bk.key || "Beacon")];
-          if (detectedRoom) tipParts.push("Room: " + detectedRoom);
-          tipParts.push(`Pinned: x ${(useX * 100).toFixed(1)}% y ${(useY * 100).toFixed(1)}%`);
+          const tipParts = [liveObj ? deviceName(liveObj, t("Beacon")) : (bk.label || bk.key || t("Beacon"))];
+          if (detectedRoom) tipParts.push(t("Room: {room}", { room: detectedRoom }));
+          tipParts.push(t("Pinned: x {x}% y {y}%", { x: (useX * 100).toFixed(1), y: (useY * 100).toFixed(1) }));
           // Show server estimate in tooltip if available
           // The server answers in metres. Turning that into a spot on this
           // photo is drawing, and it happens here, at the last moment.
@@ -4412,10 +4387,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const _srv = _metresToFrac(liveObj, m);
           if (_srv) {
             serverX = _srv[0]; serverY = _srv[1];
-            tipParts.push(`Server: ${liveObj.x_m.toFixed(2)}, ${liveObj.y_m.toFixed(2)} m`);
+            tipParts.push(t("Server: {x}, {y} m", { x: liveObj.x_m.toFixed(2), y: liveObj.y_m.toFixed(2) }));
           }
-          if (isLive && confidence != null) tipParts.push(`Confidence: ${(confidence * 100).toFixed(0)}%`);
-          if (isLive) tipParts.push("LIVE");
+          if (isLive && confidence != null) tipParts.push(t("Confidence: {pct}%", { pct: (confidence * 100).toFixed(0) }));
+          if (isLive) tipParts.push(t("LIVE"));
           const tip = tipParts.join(" | ");
 
           s += `<g data-bk-id="${_esc(bk.id)}" data-map-id="${_esc(m.id)}" data-z="${z}" data-tip="${_esc(tip)}" style="cursor:grab">`;
@@ -4431,7 +4406,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           s += `<circle cx="${bx}" cy="${by}" r="3" fill="#071008" opacity="0.7"/>`;
           // Label + LIVE badge
           if (isLive && !isTimerActive) {
-            const liveLbl = lbl + " LIVE";
+            const liveLbl = lbl + " " + t("LIVE");
             const lblW = Math.min(liveLbl.length * 7 + 8, 90);
             s += `<rect x="${bx - lblW / 2}" y="${by + 18}" width="${lblW}" height="13" rx="3" fill="#071008" opacity="0.8"/>`;
             s += `<text x="${bx}" y="${by + 28}" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600">${_esc(liveLbl)}</text>`;
@@ -4463,7 +4438,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
                 s += `<line x1="${bx}" y1="${by}" x2="${gx}" y2="${gy}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>`;
                 // Small ghost diamond at server position
                 s += `<rect x="${gx - 5}" y="${gy - 5}" width="10" height="10" rx="1" transform="rotate(45 ${gx} ${gy})" fill="none" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>`;
-                s += `<text x="${gx}" y="${gy + 16}" text-anchor="middle" fill="#f59e0b" font-size="7" opacity="0.6">server</text>`;
+                s += `<text x="${gx}" y="${gy + 16}" text-anchor="middle" fill="#f59e0b" font-size="7" opacity="0.6">${_esc(t("server"))}</text>`;
               }
             }
           }
@@ -4537,7 +4512,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   bkSel.style.cssText = "flex:1;min-width:160px;";
   const ph = document.createElement("option");
   ph.value = "";
-  ph.textContent = availObjs.length ? "\u2014 select beacon to add \u2014" : "\u2014 no available beacons \u2014";
+  ph.textContent = availObjs.length ? t("— select beacon to add —") : t("— no available beacons —");
   bkSel.appendChild(ph);
   for (const o of availObjs) {
     const opt = document.createElement("option");
@@ -4547,7 +4522,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     bkSel.appendChild(opt);
   }
 
-  const addBtn = el("button", { class: "btn inline" }, "Add to map");
+  const addBtn = el("button", { class: "btn inline" }, t("Add to map"));
   addBtn.addEventListener("click", () => {
     const selKey = bkSel.value;
     if (!selKey) return;
@@ -4584,7 +4559,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     _refreshBeaconList();
   });
 
-  pickerRow.appendChild(el("span", { style: "font-weight:600;font-size:13px" }, "Beacon:"));
+  pickerRow.appendChild(el("span", { style: "font-weight:600;font-size:13px" }, t("Beacon:")));
   pickerRow.appendChild(bkSel);
   pickerRow.appendChild(el("span", { style: "font-size:12px;color:#94a3b8" }, "on"));
   pickerRow.appendChild(bkMapSel);
@@ -4598,43 +4573,43 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const ids = Object.keys(bs._liveTimers);
     if (!ids.length) return;
     for (const bkId of ids) {
-      const t = bs._liveTimers[bkId];
-      const rem = Math.max(0, Math.ceil((t.endTime - Date.now()) / 1000));
+      const tm = bs._liveTimers[bkId];
+      const rem = Math.max(0, Math.ceil((tm.endTime - Date.now()) / 1000));
       const row = document.createElement("div");
       row.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap";
       const span = document.createElement("span");
       if (rem > 0) {
-        const sc = Object.keys(t.readings).length;
-        const sm = Object.values(t.readings).reduce((tot, r) => tot + r.samples.length, 0);
-        const rd = (bs._calibRounds[t.bk.key] || 0) + 1;
+        const sc = Object.keys(tm.readings).length;
+        const sm = Object.values(tm.readings).reduce((tot, r) => tot + r.samples.length, 0);
+        const rd = (bs._calibRounds[tm.bk.key] || 0) + 1;
         span.style.cssText = "font-size:12px;color:#f59e0b;font-weight:600;white-space:nowrap";
-        span.textContent = `${t.bk.label || t.bk.key} \u2014 live in ${rem}s`;
-        if (sm > 0) span.textContent += ` (${sc} receivers, ${sm} samples)`;
-        if (rd > 1) span.textContent += ` [round ${rd}]`;
+        span.textContent = t("{name} — live in {s}s", { name: tm.bk.label || tm.bk.key, s: rem });
+        if (sm > 0) span.textContent += " " + t("({rx} receivers, {n} samples)", { rx: sc, n: sm });
+        if (rd > 1) span.textContent += " " + t("[round {n}]", { n: rd });
       } else {
         span.style.cssText = "font-size:12px;color:#52b788;font-weight:600;white-space:nowrap";
-        span.textContent = `\u2713 ${t.bk.label || t.bk.key} live`;
+        span.textContent = t("✓ {name} live", { name: tm.bk.label || tm.bk.key });
       }
       row.appendChild(span);
       // Inline warning
-      if (t.warning && rem > 0) {
+      if (tm.warning && rem > 0) {
         const warn = document.createElement("span");
         warn.style.cssText = "font-size:11px;color:#f87171;white-space:nowrap";
-        warn.textContent = t.warning;
+        warn.textContent = tm.warning;
         row.appendChild(warn);
       }
       // Delete button — removes beacon from draft + stops timer
       const delBtn = document.createElement("button");
       delBtn.className = "btn inline";
       delBtn.style.cssText = "padding:1px 6px;font-size:10px;color:#f87171;border-color:#f87171;margin-left:4px";
-      delBtn.textContent = "\u2716 Delete";
-      delBtn.title = "Remove this beacon from all maps";
+      delBtn.textContent = t("✖ Delete");
+      delBtn.title = t("Remove this beacon from all maps");
       delBtn.addEventListener("click", async () => {
         // Stop timer
-        if (t.timer) clearTimeout(t.timer);
-        if (t.pollTimer) clearTimeout(t.pollTimer);
+        if (tm.timer) clearTimeout(tm.timer);
+        if (tm.pollTimer) clearTimeout(tm.pollTimer);
         delete bs._liveTimers[bkId];
-        bs._liveBeaconKeys.delete(t.bk.key);
+        bs._liveBeaconKeys.delete(tm.bk.key);
         // Remove beacon from all maps' draftBeacons
         for (const mid of Object.keys(bs.draftBeacons)) {
           const before = bs.draftBeacons[mid].length;
@@ -4643,9 +4618,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         }
         // Un-pin from the fabric first — a batch save never deletes.
         try {
-          if (t.bk.key) await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: t.bk.key });
+          if (tm.bk.key) await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: tm.bk.key });
           // No longer an existing pin: placed again, it is judged as new (a phone is held back).
-          if (t.bk.key && ctx.state.model && ctx.state.model.beacon_positions_m) delete ctx.state.model.beacon_positions_m[t.bk.key];
+          if (tm.bk.key && ctx.state.model && ctx.state.model.beacon_positions_m) delete ctx.state.model.beacon_positions_m[tm.bk.key];
         } catch(_) {}
         // The fabric_beacon_remove above is the only write; the dirty flags
         // are cleared as they always were here.
@@ -4654,7 +4629,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         }
         _refreshTimerRow();
         _refreshSVG();
-        ctx.toast("Beacon removed");
+        ctx.toast(t("Beacon removed"));
       });
       row.appendChild(delBtn);
       timerArea.appendChild(row);
@@ -4684,7 +4659,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
   const floorLbl = document.createElement("span");
   floorLbl.style.cssText = "font-size:12px;color:#94a3b8";
-  floorLbl.textContent = "Floor:";
+  floorLbl.textContent = t("Floor:");
   ctrlRow.appendChild(floorLbl);
   ctrlRow.appendChild(focusSlider);
   ctrlRow.appendChild(focusLbl);
@@ -4705,7 +4680,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   });
   const spacingLbl = document.createElement("span");
   spacingLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:8px";
-  spacingLbl.textContent = "Spacing:";
+  spacingLbl.textContent = t("Spacing:");
   ctrlRow.appendChild(spacingLbl);
   ctrlRow.appendChild(gapSlider);
   ctrlRow.appendChild(gapLbl);
@@ -4801,24 +4776,25 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const saveBtn = document.createElement("button");
   saveBtn.className = "btn inline" + (_bsDirty ? " save-pulse" : "");
   saveBtn.style.cssText = "padding:2px 10px;font-size:12px";
-  saveBtn.textContent = _bsDirty ? "\ud83d\udcbe Save" : "Save";
-  saveBtn.title = "Save beacon reference positions";
+  saveBtn.textContent = _bsDirty ? t("💾 Save") : t("Save");
+  saveBtn.title = t("Save beacon reference positions");
   saveBtn.addEventListener("click", async () => {
     const dirtyIds = Object.keys(bs.dirtyMaps).filter(id => bs.dirtyMaps[id]);
-    if (!dirtyIds.length) { statusLbl.textContent = "No changes"; setTimeout(() => { statusLbl.textContent = ""; }, 2000); return; }
+    if (!dirtyIds.length) { statusLbl.textContent = t("No changes"); setTimeout(() => { statusLbl.textContent = ""; }, 2000); return; }
     saveBtn.disabled = true;
-    statusLbl.textContent = "Saving...";
+    statusLbl.textContent = t("Saving...");
     try {
       const res = await _saveBeacons(dirtyIds);
       if (res.busy) {
-        statusLbl.textContent = "Already saving";
+        statusLbl.textContent = t("Already saving");
         saveBtn.disabled = false;
         return;
       }
-      if (res.failed.length) {
-        statusLbl.textContent = `Saved ${res.ok}, ${res.failed.length} map(s) failed`;
-        ctx.toast(`Saved ${res.ok} beacon(s); ${res.failed.length} map(s) could not be saved — kept unsaved` +
-          (res.refused.length ? ". A map that isn't placed in metres yet must be placed in Mapping first." : "") +
+      const failN = res.failed.length;
+      if (failN) {
+        statusLbl.textContent = tn(failN, "Saved {ok}, failed 1 map", "Saved {ok}, failed {n} maps", { ok: res.ok });
+        ctx.toast(tn(failN, "Saved {ok} beacon(s); 1 map could not be saved — kept unsaved", "Saved {ok} beacon(s); {n} maps could not be saved — kept unsaved", { ok: res.ok }) +
+          (res.refused.length ? ". " + t("A map that isn't placed in metres yet must be placed in Mapping first.") : "") +
           (res.held.length ? `. ${tuneBeaconHeldText(res.held, false)}` : ""), true);
         _refreshDirtyLabel();
         saveBtn.disabled = false;
@@ -4828,13 +4804,13 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       await ctx.actions.mapsRefresh();
       if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
       const heldText = tuneBeaconHeldText(res.held, false);
-      ctx.toast(res.ok ? `Saved ${res.ok} beacon position(s)` + (heldText ? `. ${heldText}` : "")
-        : (heldText || "No beacon positions changed"));
+      ctx.toast(res.ok ? t("Saved {n} beacon position(s)", { n: res.ok }) + (heldText ? `. ${heldText}` : "")
+        : (heldText || t("No beacon positions changed")));
       saveBtn.disabled = false;
       statusLbl.textContent = "";
     } catch (e) {
-      ctx.toast("Save failed: " + ctx.helpers.errorText(e), true);
-      statusLbl.textContent = "Error saving";
+      ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }), true);
+      statusLbl.textContent = t("Error saving");
       saveBtn.disabled = false;
     }
   });
@@ -4843,8 +4819,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const resetBtn = document.createElement("button");
   resetBtn.className = "btn inline";
   resetBtn.style.cssText = "padding:2px 10px;font-size:12px";
-  resetBtn.textContent = "Reset";
-  resetBtn.title = "Discard changes and reload beacon reference positions";
+  resetBtn.textContent = t("Reset");
+  resetBtn.title = t("Discard changes and reload beacon reference positions");
   resetBtn.addEventListener("click", () => {
     // Stop all live timers
     for (const bkId of Object.keys(bs._liveTimers)) {
@@ -4901,8 +4877,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     _fg = bs.fg; _hg = bs.hg;
     gapSlider.value = String(bs.fg); gapLbl.textContent = String(bs.fg);
     hgSlider.value = String(bs.hg); hgLbl.textContent = String(bs.hg);
-    focusSlider.value = "0"; focusLbl.textContent = "All floors";
-    statusLbl.textContent = "Reset \u2713";
+    focusSlider.value = "0"; focusLbl.textContent = t("All floors");
+    statusLbl.textContent = t("Reset ✓");
     setTimeout(() => { statusLbl.textContent = ""; }, 2000);
     _refreshSVG();
     _refreshInfo();
@@ -4917,11 +4893,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const autoCal = ctx.state.settings?.beacon_auto_calibrate !== false;
   const toggleLbl = document.createElement("span");
   toggleLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:4px";
-  toggleLbl.textContent = "Auto-Cal:";
+  toggleLbl.textContent = t("Auto-Cal:");
   const toggleBtn = document.createElement("button");
   toggleBtn.className = "btn inline";
   toggleBtn.style.cssText = `font-size:11px;padding:2px 10px;${autoCal ? "background:#5eead4;color:#071008;border-color:#5eead4;" : ""}`;
-  toggleBtn.textContent = autoCal ? "ON" : "OFF";
+  toggleBtn.textContent = autoCal ? t("ON") : t("OFF");
   toggleBtn.addEventListener("click", () => {
     ctx.actions.settingsSet({ beacon_auto_calibrate: !autoCal });
   });
@@ -4935,9 +4911,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   dirtyLbl.style.cssText = "font-size:11px;color:#f59e0b;font-weight:600;margin-left:auto";
   function _refreshDirtyLabel() {
     const n = Object.keys(bs.dirtyMaps).filter(id => bs.dirtyMaps[id]).length;
-    dirtyLbl.textContent = n ? `${n} map${n > 1 ? "s" : ""} unsaved` : "";
-    if (n) { saveBtn.classList.add("save-pulse"); saveBtn.textContent = "\ud83d\udcbe Save"; }
-    else { saveBtn.classList.remove("save-pulse"); saveBtn.textContent = "Save"; }
+    dirtyLbl.textContent = n ? tn(n, "1 map unsaved", "{n} maps unsaved") : "";
+    if (n) { saveBtn.classList.add("save-pulse"); saveBtn.textContent = t("💾 Save"); }
+    else { saveBtn.classList.remove("save-pulse"); saveBtn.textContent = t("Save"); }
   }
   _refreshDirtyLabel();
   ctrlRow.appendChild(dirtyLbl);
@@ -4962,7 +4938,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   _bkViewReset.className = "btn inline";
   _bkViewReset.style.cssText = "position:absolute;top:8px;right:8px;z-index:4;padding:2px 8px;font-size:12px";
   _bkViewReset.textContent = "⟲";
-  _bkViewReset.title = "Reset zoom (or press 0). Scroll to zoom, drag the map to pan.";
+  _bkViewReset.title = t("Reset zoom (or press 0). Scroll to zoom, drag the map to pan.");
   _bkViewReset.addEventListener("click", () => _bkPanZoom.reset());
 
   // Hover tooltip
@@ -5072,7 +5048,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const offMap = _didDrag && !tuneBeaconInBounds(bkObj.x, bkObj.y);
       if (offMap) {
         bkObj.x = origX; bkObj.y = origY; bs.dirtyMaps[mapId] = origDirty;
-        ctx.toast(`${bkObj.label || bkObj.key || "Beacon"} was dropped outside the map - put back where it was`, true);
+        ctx.toast(t("{name} was dropped outside the map - put back where it was", { name: bkObj.label || bkObj.key || t("Beacon") }), true);
       }
       if (_didDrag && !offMap) {
         const mapObj = maps_list.find(m => m.id === mapId);
@@ -5209,7 +5185,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     popup.style.top = Math.min(e.clientY - rect.top + 8, rect.height - 100) + "px";
     const title2 = document.createElement("div");
     title2.style.cssText = "font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:8px";
-    title2.textContent = "Which map is it on right now?";
+    title2.textContent = t("Which map is it on right now?");
     popup.appendChild(title2);
 
     // Group candidates by floor for floor-level shortcuts
@@ -5223,7 +5199,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (floorZs2.length > 1 || (floorZs2.length === 1 && candByFloor2.get(floorZs2[0]).length > 1)) {
       for (const z of floorZs2) {
         const floorObj = fl2.find(f => f.level === z);
-        const floorName = floorObj ? (floorObj.name || `Floor ${z}`) : `Floor ${z}`;
+        const floorName = floorObj ? (floorObj.name || t("Floor {n}", { n: z })) : t("Floor {n}", { n: z });
         const floorCands = candByFloor2.get(z);
         const btn = document.createElement("button");
         btn.className = "btn inline";
@@ -5245,7 +5221,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       popup.appendChild(sep2);
       const subTitle2 = document.createElement("div");
       subTitle2.style.cssText = "font-size:10px;color:#94a3b8;margin-bottom:4px";
-      subTitle2.textContent = "Or pick a specific map:";
+      subTitle2.textContent = t("Or pick a specific map:");
       popup.appendChild(subTitle2);
     }
 
@@ -5265,7 +5241,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const cancelBtn2 = document.createElement("button");
     cancelBtn2.className = "btn inline";
     cancelBtn2.style.cssText = "display:block;width:100%;text-align:center;padding:4px 10px;font-size:11px;color:#94a3b8;border-color:#94a3b840;margin-top:4px;cursor:pointer";
-    cancelBtn2.textContent = "Cancel";
+    cancelBtn2.textContent = t("Cancel");
     cancelBtn2.addEventListener("click", () => {
       bs._confirming = false;
       if (isoWrap.contains(popup)) isoWrap.removeChild(popup);
@@ -5294,10 +5270,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       }
       // This one known to move, and not pinned: say so, not nothing.
       const mine = res.busy ? [] : res.held.filter(h => h.key === bkObj.key);
-      if (res.busy) ctx.toast("Beacon position not saved yet - press Save", true);
+      if (res.busy) ctx.toast(t("Beacon position not saved yet - press Save"), true);
       else if (mine.length) ctx.toast(tuneBeaconHeldText(mine, ctx.state.settings?.beacon_auto_calibrate !== false));
-      else if (res.refused.length) ctx.toast("Beacon position not saved: this map isn't placed in metres yet. Place it in Mapping first.", true);
-      else if (res.failed.length) ctx.toast("Beacon position not saved — press Save to retry", true);
+      else if (res.refused.length) ctx.toast(t("Beacon position not saved: this map isn't placed in metres yet. Place it in Mapping first."), true);
+      else if (res.failed.length) ctx.toast(t("Beacon position not saved — press Save to retry"), true);
       _refreshDirtyLabel();
     } catch (e) {
       console.warn("[PadSpan] auto-save failed:", e);
@@ -5397,9 +5373,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const elapsed = Date.now() - entry.startTime;
       const scannerCount = Object.keys(entry.readings).length;
       if (scannerCount === 0 && elapsed > 10000) {
-        entry.warning = "\u26a0 No signal \u2014 beacon invisible to all receivers";
+        entry.warning = t("⚠ No signal — beacon invisible to all receivers");
       } else if (scannerCount === 1 && elapsed > 15000) {
-        entry.warning = "\u26a0 Single receiver \u2014 only 1 receiver detecting this beacon";
+        entry.warning = t("⚠ Single receiver — only 1 receiver detecting this beacon");
       } else if (scannerCount > 0) {
         const allWeak = Object.values(entry.readings).every(r => {
           if (!r.samples.length) return true;
@@ -5407,7 +5383,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           return mean < -90;
         });
         if (allWeak && elapsed > 5000) {
-          entry.warning = "\u26a0 Weak signal \u2014 all receivers below -90 dBm";
+          entry.warning = t("⚠ Weak signal — all receivers below -90 dBm");
         } else {
           // Check for wild variance on any scanner
           let highVar = "";
@@ -5417,7 +5393,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
             const variance = rd.samples.reduce((a, v) => a + (v - mean) ** 2, 0) / rd.samples.length;
             if (Math.sqrt(variance) > 15) { highVar = _rxLine(ctx, src, rd.name); break; }
           }
-          entry.warning = highVar ? `\u26a0 High variance on ${highVar}` : "";
+          entry.warning = highVar ? t("⚠ High variance on {name}", { name: highVar }) : "";
         }
       } else {
         entry.warning = "";
@@ -5440,7 +5416,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       // Save calibration point — weight increases with each round
       const readingCount = Object.keys(entry.readings).length;
       if (readingCount === 0) {
-        ctx.toast(`No signal: ${entry.bk.label || entry.bk.key} — no receivers detected this beacon during 60s capture`, "warning");
+        ctx.toast(t("No signal: {name} — no receivers detected this beacon during 60s capture", { name: entry.bk.label || entry.bk.key }), "warning");
       }
       if (readingCount > 0) {
         const bkKey = entry.bk.key;
@@ -5485,13 +5461,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
         if (doRelocation) {
           const confirmPurge = confirm(
-            `This is the 3rd consecutive calibration for "${entry.bk.label || bkKey}" within a few minutes.\n\n` +
-            `OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. ` +
-            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) and Calibration Guide points are kept, ` +
-            `except Guide points saved by 0.38.209 to 0.38.217, which count as Beacon Tune points. ` +
-            `If it keeps showing at the old spot, delete the kept points by hand on the Model tab.\n\n` +
-            `Choose OK to replace them (hard relocation).\n` +
-            `Choose Cancel to keep them and just add this as another data point.`
+            t("This is the 3rd consecutive calibration for \"{name}\" within a few minutes.", { name: entry.bk.label || bkKey }) + "\n\n" +
+            t("OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. Points you collected by carrying it (Pin & Listen, Roam, Walk a room) and Calibration Guide points are kept, except Guide points saved by 0.38.209 to 0.38.217, which count as Beacon Tune points. If it keeps showing at the old spot, delete the kept points by hand on the Model tab.") + "\n\n" +
+            t("Choose OK to replace them (hard relocation).") + "\n" +
+            t("Choose Cancel to keep them and just add this as another data point.")
           );
           if (!confirmPurge) doRelocation = false;
         }
@@ -5552,24 +5525,24 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           }
           if (doRelocation) await _purgeOldPoints(new Set(bs._relocSavedIds[bkKey]));
           const _bkName = entry.bk.label || entry.bk.key;
-          const _scanInfo = `${_tActiveRadios.length} receiver(s), ${_tTotalSamples} samples`;
-          const _roomInfo = room ? `, room: ${room}` : ", room: (undetected)";
+          const _scanInfo = t("{rx} receiver(s), {n} samples", { rx: _tActiveRadios.length, n: _tTotalSamples });
+          const _roomInfo = ", " + (room ? t("room: {room}", { room }) : t("room: (undetected)"));
           const _warns = [];
-          if (_tActiveRadios.length === 1) _warns.push("1 receiver only");
-          if (_tTotalSamples < 10) _warns.push("low samples");
-          if (!room) _warns.push("no room detected");
+          if (_tActiveRadios.length === 1) _warns.push(t("1 receiver only"));
+          if (_tTotalSamples < 10) _warns.push(t("low samples"));
+          if (!room) _warns.push(t("no room detected"));
           const _warnStr = _warns.length ? " | " + _warns.join(", ") : "";
           if (doRelocation) {
-            ctx.toast(`HARD RELOCATION: ${_bkName} — earlier Beacon Tune points replaced. ${_scanInfo}${_roomInfo}${_warnStr}`);
+            ctx.toast(t("HARD RELOCATION: {name} — earlier Beacon Tune points replaced.", { name: _bkName }) + ` ${_scanInfo}${_roomInfo}${_warnStr}`);
           } else {
-            const weightLabel = round > 1 ? ` (round ${round}, ${weight.toFixed(1)}x)` : "";
-            ctx.toast(`Saved: ${_bkName}${weightLabel} — ${_scanInfo}${_roomInfo}${_warnStr}`);
+            const weightLabel = round > 1 ? " " + t("(round {n}, {w}x)", { n: round, w: weight.toFixed(1) }) : "";
+            ctx.toast(t("Saved: {name}", { name: _bkName }) + `${weightLabel} — ${_scanInfo}${_roomInfo}${_warnStr}`);
           }
         } catch (e) {
           const _errMsg = (e && e.message) || String(e);
-          const _kept = doRelocation ? " (old data kept)" : "";
+          const _kept = doRelocation ? " " + t("(old data kept)") : "";
           doRelocation = false;
-          ctx.toast(`SAVE FAILED: ${entry.bk.label || entry.bk.key} — ${_errMsg}${_kept}`, "error");
+          ctx.toast(t("SAVE FAILED: {name} — {why}", { name: entry.bk.label || entry.bk.key, why: _errMsg }) + _kept, "error");
           console.error("[PadSpan] live timer save failed:", e);
         }
         if (doRelocation) {
@@ -5619,9 +5592,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   placeBanner.style.cssText = "display:none;background:#1a200e;border:2px solid #f59e0b;border-radius:8px;padding:8px 14px;font-size:12px;color:#fef3c7;text-align:center";
   function _refreshPlaceBanner() {
     if (bs.pendingPlace) {
-      const nm = bs.pendingPlace.label || bs.pendingPlace.key || "beacon";
-      const verb = bs._relocating ? "relocate" : "mark the current location of";
-      placeBanner.innerHTML = `<b style="color:#f59e0b">Double-click</b> on the 3D map to ${verb} <b style="color:#5eead4">${_esc(nm)}</b> &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">Cancel</span>`;
+      const nm = bs.pendingPlace.label || bs.pendingPlace.key || t("beacon");
+      const say = bs._relocating ? t("on the 3D map to relocate {name}") : t("on the 3D map to mark the current location of {name}");
+      placeBanner.innerHTML = `<b style="color:#f59e0b">${_esc(t("Double-click"))}</b> ${_esc(say).replace("{name}", `<b style="color:#5eead4">${_esc(nm)}</b>`)} &nbsp; <span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelBkPlace">${_esc(t("Cancel"))}</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelBkPlace");
       if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);
@@ -5667,12 +5640,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   infoCard.style.cssText = "background:#0d1f14;border:1px solid #1b3526;border-radius:8px;padding:10px 14px;font-size:12px;color:#a7f3d0;min-height:24px";
   function _refreshInfo() {
     if (!bs.selectedBk) {
-      infoCard.textContent = "Click a teal diamond to select it, then drag to mark its current location.";
+      infoCard.textContent = t("Click a teal diamond to select it, then drag to mark its current location.");
       return;
     }
     const draft = bs.draftBeacons[bs.selectedBk.mapId] || [];
     const bk = draft.find(b => b.id === bs.selectedBk.bkId);
-    if (!bk) { infoCard.textContent = "Beacon not found."; return; }
+    if (!bk) { infoCard.textContent = t("Beacon not found."); return; }
     const mapObj = maps_list.find(m => m.id === bs.selectedBk.mapId);
     const detectedRoom = mapObj ? _detectRoom(bk.x, bk.y, mapObj) : "";
     const obj = (snap?.objects?.list || []).find(o => o.key === bk.key);
@@ -5696,7 +5669,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const posHelp = document.createElement("button");
     posHelp.style.cssText = "background:none;border:1px solid #4a6052;color:#94a3b8;cursor:pointer;font-size:11px;font-weight:700;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-left:6px;padding:0;flex-shrink:0;line-height:1";
     posHelp.textContent = "?";
-    posHelp.title = "What do these percentages mean?";
+    posHelp.title = t("What do these percentages mean?");
     posHelp.addEventListener("click", (ev) => {
       ev.stopPropagation();
       _showPosHelp(ctx);
@@ -5710,13 +5683,13 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (typeof obj.x_frac === "number" && typeof obj.y_frac === "number") {
         srvParts.push(`x ${(obj.x_frac * 100).toFixed(1)}%, y ${(obj.y_frac * 100).toFixed(1)}%`);
 
-        if (obj.knn_confidence != null) srvParts.push(`${(obj.knn_confidence * 100).toFixed(0)}% conf`);
+        if (obj.knn_confidence != null) srvParts.push(t("{pct}% conf", { pct: (obj.knn_confidence * 100).toFixed(0) }));
         if (obj.room) srvParts.push(`room: ${obj.room}`);
       }
       if (srvParts.length) {
         const srvLine = document.createElement("div");
         srvLine.style.cssText = "font-size:11px;color:#f59e0b;margin-top:4px";
-        srvLine.textContent = `Server estimate: ${srvParts.join(" · ")}`;
+        srvLine.textContent = t("Server estimate: {what}", { what: srvParts.join(" · ") });
         infoCard.appendChild(srvLine);
       }
     }
@@ -5727,12 +5700,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       moveRow.style.cssText = "margin-top:8px;display:flex;align-items:center;gap:8px";
       const moveLbl = document.createElement("span");
       moveLbl.style.cssText = "font-size:11px;color:#94a3b8";
-      moveLbl.textContent = "Move to:";
+      moveLbl.textContent = t("Move to:");
       moveRow.appendChild(moveLbl);
       const moveSel = document.createElement("select");
       moveSel.style.cssText = "font-size:11px;padding:2px 6px;border-radius:4px;background:#071008;color:#a7f3d0;border:1px solid #2d6a4f";
       const defOpt = document.createElement("option");
-      defOpt.value = ""; defOpt.textContent = "\u2014 select map \u2014";
+      defOpt.value = ""; defOpt.textContent = t("— select map —");
       moveSel.appendChild(defOpt);
       for (const m of otherMaps) {
         const fl = ctx.state.model?.floors || [];
@@ -5756,8 +5729,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (elapsed < 300000) {  // show for 5 minutes
         const relocBanner = document.createElement("div");
         relocBanner.style.cssText = "margin-top:8px;background:#3b1219;border:2px solid #f87171;border-radius:8px;padding:8px 12px;font-size:12px;color:#fecaca";
-        const ago = elapsed < 60000 ? "just now" : `${Math.floor(elapsed / 60000)}m ago`;
-        relocBanner.innerHTML = `<b style="color:#f87171">HARD RELOCATION</b> &mdash; The earlier Beacon Tune points for <b style="color:#5eead4">${_esc(bs._lastRelocation.label)}</b> were deleted (${ago}); points collected by carrying it were kept. The new position is locked at 5.0\u00d7 weight. If the beacon still appears in the wrong location, wait 10\u201315 seconds for the server to recalculate.`;
+        const ago = elapsed < 60000 ? t("just now") : t("{n}m ago", { n: Math.floor(elapsed / 60000) });
+        relocBanner.innerHTML = `<b style="color:#f87171">${_esc(t("HARD RELOCATION"))}</b> &mdash; ${_esc(t("The earlier Beacon Tune points for {name} were deleted ({ago}); points collected by carrying it were kept. The new position is locked at 5.0× weight. If the beacon still appears in the wrong location, wait 10–15 seconds for the server to recalculate.", { ago })).replace("{name}", `<b style="color:#5eead4">${_esc(bs._lastRelocation.label)}</b>`)}`;
         infoCard.appendChild(relocBanner);
       }
     }
@@ -5767,8 +5740,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const delBtn = document.createElement("button");
     delBtn.className = "btn";
     delBtn.style.cssText = "font-size:11px;padding:3px 10px;background:#3b1219;border-color:#f87171;color:#f87171";
-    delBtn.textContent = "Delete";
-    delBtn.title = "Remove this beacon from the map";
+    delBtn.textContent = t("Delete");
+    delBtn.title = t("Remove this beacon from the map");
     delBtn.addEventListener("click", async () => {
       const mapId = bs.selectedBk.mapId;
       const bkId = bs.selectedBk.bkId;
@@ -5807,7 +5780,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     delRow.appendChild(delBtn);
     const delHint = document.createElement("span");
     delHint.style.cssText = "font-size:11px;color:#94a3b8";
-    delHint.textContent = "Remove this beacon placement from the map";
+    delHint.textContent = t("Remove this beacon placement from the map");
     delRow.appendChild(delHint);
     infoCard.appendChild(delRow);
   }
@@ -5870,22 +5843,22 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     hdrRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px";
     const hdr0 = document.createElement("div");
     hdr0.style.cssText = "font-weight:700;font-size:13px;flex:1;color:#f59e0b";
-    hdr0.textContent = `BLE Objects for Calibration (${visibleObjs.length})`;
+    hdr0.textContent = t("BLE Objects for Calibration ({n})", { n: visibleObjs.length });
     hdrRow.appendChild(hdr0);
     if (filteredN > 0) {
       const filterNote = document.createElement("span");
       filterNote.style.cssText = "font-size:10px;color:#64748b";
       const parts = [];
-      if (entityOnlyN) parts.push(`${entityOnlyN} entity-only`);
-      if (hiddenN) parts.push(`${hiddenN} hidden`);
-      filterNote.textContent = `${parts.join(", ")} filtered`;
+      if (entityOnlyN) parts.push(t("{n} entity-only", { n: entityOnlyN }));
+      if (hiddenN) parts.push(t("{n} hidden", { n: hiddenN }));
+      filterNote.textContent = t("{what} filtered", { what: parts.join(", ") });
       hdrRow.appendChild(filterNote);
     }
     if (hiddenN > 0) {
       const showAllBtn = document.createElement("button");
       showAllBtn.className = "btn inline";
       showAllBtn.style.cssText = "font-size:10px;padding:1px 6px";
-      showAllBtn.textContent = "Show hidden";
+      showAllBtn.textContent = t("Show hidden");
       showAllBtn.addEventListener("click", (ev) => {
         ev.stopPropagation();
         bs._hiddenObjKeys.clear();
@@ -5898,14 +5871,14 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (!visibleObjs.length) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:12px;color:#94a3b8";
-      msg.textContent = "No BLE objects available. Name them in Devices → By Room or follow them on Follow.";
+      msg.textContent = t("No BLE objects available. Name them in Devices → By Room or follow them on Follow.");
       availCard.appendChild(msg);
       return;
     }
 
     const hint0 = document.createElement("div");
     hint0.style.cssText = "font-size:11px;color:#94a3b8;margin-bottom:8px";
-    hint0.textContent = "Click to select for placement, then double-click on the 3D map. Hide irrelevant objects with \u00d7.";
+    hint0.textContent = t("Click to select for placement, then double-click on the 3D map. Hide irrelevant objects with ×.");
     availCard.appendChild(hint0);
 
     // Build lookup: which objects are already pinned
@@ -5942,10 +5915,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const detailParts = [];
       const kindLabel = obj.kind === "ibeacon" ? "iBeacon" : obj.kind === "private_ble" ? "Private BLE" : obj.kind === "entity" ? "Entity+BLE" : "BLE";
       detailParts.push(kindLabel);
+      const nSrc = (obj.sources || []).length;
       if (obj.rssi != null) detailParts.push(`${obj.rssi} dBm`);
       if (obj.room) detailParts.push(obj.room);
-      if (obj.sources?.length) detailParts.push(`${obj.sources.length} radio${obj.sources.length > 1 ? "s" : ""}`);
-      if (obj.age_s != null) detailParts.push(`${Math.round(obj.age_s)}s ago`);
+      if (obj.sources?.length) detailParts.push(tn(nSrc, "1 radio", "{n} radios"));
+      if (obj.age_s != null) detailParts.push(t("{n}s ago", { n: Math.round(obj.age_s) }));
       const detailEl = document.createElement("span");
       detailEl.style.cssText = "font-size:10px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
       detailEl.textContent = detailParts.join(" \u00b7 ");
@@ -5956,14 +5930,14 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (isPinned) {
         const tag = document.createElement("span");
         tag.style.cssText = "font-size:10px;color:#5eead4;background:#5eead418;padding:1px 6px;border-radius:4px;white-space:nowrap";
-        tag.textContent = "Placed";
+        tag.textContent = t("Placed");
         row.appendChild(tag);
         // Relocate button — re-place at a new position via double-click
         const relocBtn = document.createElement("button");
         relocBtn.className = "btn inline";
         relocBtn.style.cssText = "font-size:10px;padding:1px 6px;color:#f59e0b;border-color:#92400e;flex-shrink:0";
-        relocBtn.textContent = "Relocate";
-        relocBtn.title = "Move this beacon to a new spot and re-calibrate";
+        relocBtn.textContent = t("Relocate");
+        relocBtn.title = t("Move this beacon to a new spot and re-calibrate");
         relocBtn.addEventListener("click", (ev) => {
           ev.stopPropagation();
           // Find the draft beacon entry for this object
@@ -5984,7 +5958,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       } else {
         const tag = document.createElement("span");
         tag.style.cssText = `font-size:10px;padding:1px 6px;border-radius:4px;white-space:nowrap;${isPending ? "color:#fbbf24;background:#fbbf2418;font-weight:600" : "color:#94a3b8;background:#94a3b818"}`;
-        tag.textContent = isPending ? "Double-click map\u2026" : "Not placed";
+        tag.textContent = isPending ? t("Double-click map…") : t("Not placed");
         row.appendChild(tag);
       }
 
@@ -5992,7 +5966,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const detailBtn = document.createElement("button");
       detailBtn.className = "btn inline";
       detailBtn.style.cssText = "font-size:10px;padding:1px 6px;color:#94a3b8;border-color:#94a3b840;flex-shrink:0";
-      detailBtn.textContent = "Details";
+      detailBtn.textContent = t("Details");
       detailBtn.addEventListener("click", (ev) => {
         ev.stopPropagation();
         ctx.actions.showObjectDetail(obj);
@@ -6004,7 +5978,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const hideBtn = document.createElement("button");
         hideBtn.style.cssText = "background:none;border:none;color:#64748b;cursor:pointer;font-size:14px;padding:0 4px;line-height:1;flex-shrink:0";
         hideBtn.textContent = "\u00d7";
-        hideBtn.title = "Hide from this list";
+        hideBtn.title = t("Hide from this list");
         hideBtn.addEventListener("click", (ev) => {
           ev.stopPropagation();
           bs._hiddenObjKeys.add(obj.key);
@@ -6054,7 +6028,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     beaconListCard.style.display = "";
     const hdr = document.createElement("div");
     hdr.style.cssText = "font-weight:700;font-size:13px;margin-bottom:8px";
-    hdr.textContent = `Placed Beacons (${totalCount})`;
+    hdr.textContent = t("Placed Beacons ({n})", { n: totalCount });
     beaconListCard.appendChild(hdr);
 
     const snap2 = (ctx.state.live && ctx.state.live.snapshot) || null;
@@ -6107,7 +6081,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const rmBtn = document.createElement("button");
       rmBtn.className = "btn inline";
       rmBtn.style.cssText = "font-size:10px;padding:1px 6px;color:#f87171;border-color:#7f1d1d";
-      rmBtn.textContent = "Remove";
+      rmBtn.textContent = t("Remove");
       rmBtn.addEventListener("click", async (ev) => {
         ev.stopPropagation();
         bs.draftBeacons[map.id] = (bs.draftBeacons[map.id] || []).filter(b => b.id !== bk.id);
@@ -6137,7 +6111,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const moveSel2 = document.createElement("select");
         moveSel2.style.cssText = "font-size:10px;padding:1px 4px;border-radius:4px;background:#071008;color:#60a5fa;border:1px solid #2d4a6f;cursor:pointer;max-width:70px";
         const def2 = document.createElement("option");
-        def2.value = ""; def2.textContent = "Move\u2026";
+        def2.value = ""; def2.textContent = t("Move…");
         moveSel2.appendChild(def2);
         for (const m2 of otherMaps2) {
           const o2 = document.createElement("option");
@@ -6157,14 +6131,14 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const purgeBtn = document.createElement("button");
       purgeBtn.className = "btn inline";
       purgeBtn.style.cssText = "font-size:10px;padding:1px 6px;color:#f87171;border-color:#7f1d1d";
-      purgeBtn.textContent = "Purge Data";
-      purgeBtn.title = "Delete all calibration data points for this beacon";
+      purgeBtn.textContent = t("Purge Data");
+      purgeBtn.title = t("Delete all calibration data points for this beacon");
       purgeBtn.addEventListener("click", async (ev) => {
         ev.stopPropagation();
         const bkLabel = obj?.user_label || obj?.name || bk.label || bk.key;
-        if (!confirm(`Delete ALL calibration data for "${bkLabel}"?\n\nThis removes every data point collected for this beacon across all maps. The beacon marker stays on the map — only the RSSI training data is erased.\n\nThis cannot be undone.`)) return;
+        if (!confirm(t("Delete ALL calibration data for \"{name}\"?", { name: bkLabel }) + "\n\n" + t("This removes every data point collected for this beacon across all maps. The beacon marker stays on the map — only the RSSI training data is erased.") + "\n\n" + t("This cannot be undone."))) return;
         purgeBtn.disabled = true;
-        purgeBtn.textContent = "Purging...";
+        purgeBtn.textContent = t("Purging...");
         try {
           const calData = await ctx.actions.calibrationGet();
           const allPts = calData?.points || [];
@@ -6186,16 +6160,16 @@ function _beaconTuneTab(ctx, el, cs, calData) {
               purged++;
             } catch (_) { /**/ }
           }
-          ctx.toast(`Purged ${purged} calibration point${purged !== 1 ? "s" : ""} for ${bkLabel}`);
+          ctx.toast(tn(purged, "Purged 1 calibration point for {name}", "Purged {n} calibration points for {name}", { name: bkLabel }));
           // Refresh calibration data
           try { ctx.state.calibration = await ctx.actions.calibrationGet(); } catch(_) {}
-          purgeBtn.textContent = `${purged} purged`;
+          purgeBtn.textContent = t("{n} purged", { n: purged });
           purgeBtn.style.color = "#52b788";
           bs._calibRounds[bk.key] = 0;
         } catch (e) {
-          purgeBtn.textContent = "Error";
+          purgeBtn.textContent = t("Error");
           purgeBtn.disabled = false;
-          ctx.toast("Purge failed: " + ctx.helpers.errorText(e), true);
+          ctx.toast(t("Purge failed: {why}", { why: ctx.helpers.errorText(e) }), true);
         }
       });
       actRow.appendChild(purgeBtn);
@@ -6230,19 +6204,19 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const rem = Math.max(0, Math.ceil((timerEntry.endTime - Date.now()) / 1000));
         const tmBadge = document.createElement("span");
         tmBadge.style.cssText = "font-size:10px;padding:1px 6px;border-radius:3px;background:#f59e0b18;color:#f59e0b;border:1px solid #f59e0b40;font-weight:600";
-        tmBadge.textContent = `Calibrating ${rem}s`;
+        tmBadge.textContent = t("Calibrating {s}s", { s: rem });
         badgeRow.appendChild(tmBadge);
       } else if (isLive) {
         const liveBadge = document.createElement("span");
         liveBadge.style.cssText = "font-size:10px;padding:1px 6px;border-radius:3px;background:#52b78818;color:#52b788;border:1px solid #52b78840;font-weight:600";
-        liveBadge.textContent = "LIVE";
+        liveBadge.textContent = t("LIVE");
         badgeRow.appendChild(liveBadge);
       }
       // Cal rounds badge
       if (calRounds > 0) {
         const calBadge = document.createElement("span");
         calBadge.style.cssText = "font-size:10px;padding:1px 6px;border-radius:3px;background:#60a5fa18;color:#60a5fa;border:1px solid #60a5fa40";
-        calBadge.textContent = `${calRounds} cal round${calRounds > 1 ? "s" : ""}`;
+        calBadge.textContent = tn(calRounds, "1 cal round", "{n} cal rounds");
         badgeRow.appendChild(calBadge);
       }
       rightCol.appendChild(badgeRow);
@@ -6259,18 +6233,18 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       // Position metric with help button
       const posMetric = document.createElement("span");
       posMetric.style.cssText = "white-space:nowrap;display:inline-flex;align-items:center;gap:3px";
-      posMetric.innerHTML = `<span style="color:#64748b">Pos:</span> <span style="color:#d1d5db">${_esc(`${(bk.x*100).toFixed(1)}%, ${(bk.y*100).toFixed(1)}%`)}</span>`;
+      posMetric.innerHTML = `<span style="color:#64748b">${_esc(t("Pos:"))}</span> <span style="color:#d1d5db">${_esc(`${(bk.x*100).toFixed(1)}%, ${(bk.y*100).toFixed(1)}%`)}</span>`;
       const posHelp2 = document.createElement("button");
       posHelp2.style.cssText = "background:none;border:1px solid #4a6052;color:#94a3b8;cursor:pointer;font-size:10px;font-weight:700;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;line-height:1";
       posHelp2.textContent = "?";
-      posHelp2.title = "What do these percentages mean?";
+      posHelp2.title = t("What do these percentages mean?");
       posHelp2.addEventListener("click", (ev) => { ev.stopPropagation(); _showPosHelp(ctx); });
       posMetric.appendChild(posHelp2);
       metricsRow.appendChild(posMetric);
-      if (obj?.rssi != null) addMetric("RSSI:", `${obj.rssi} dBm`, obj.rssi > -70 ? "#52b788" : obj.rssi > -85 ? "#f59e0b" : "#f87171");
-      if (obj?.age_s != null) addMetric("Seen:", `${Math.round(obj.age_s)}s ago`, obj.age_s < 30 ? "#52b788" : obj.age_s < 120 ? "#f59e0b" : "#f87171");
-      if (obj?.knn_confidence != null) addMetric("Conf:", `${(obj.knn_confidence*100).toFixed(0)}%`, obj.knn_confidence > 0.7 ? "#52b788" : "#f59e0b");
-      if (obj?.sources?.length) addMetric("Radios:", String(obj.sources.length));
+      if (obj?.rssi != null) addMetric(t("RSSI:"), `${obj.rssi} dBm`, obj.rssi > -70 ? "#52b788" : obj.rssi > -85 ? "#f59e0b" : "#f87171");
+      if (obj?.age_s != null) addMetric(t("Seen:"), t("{n}s ago", { n: Math.round(obj.age_s) }), obj.age_s < 30 ? "#52b788" : obj.age_s < 120 ? "#f59e0b" : "#f87171");
+      if (obj?.knn_confidence != null) addMetric(t("Conf:"), `${(obj.knn_confidence*100).toFixed(0)}%`, obj.knn_confidence > 0.7 ? "#52b788" : "#f59e0b");
+      if (obj?.sources?.length) addMetric(t("Radios:"), String(obj.sources.length));
       rightCol.appendChild(metricsRow);
 
       // Per-radio RSSI breakdown (compact)
@@ -6289,14 +6263,14 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         if (radioEntries.length > 6) {
           const more = document.createElement("span");
           more.style.cssText = "color:#64748b;font-size:10px;padding:1px 4px";
-          more.textContent = `+${radioEntries.length - 6} more`;
+          more.textContent = t("+{n} more", { n: radioEntries.length - 6 });
           radioRow.appendChild(more);
         }
         rightCol.appendChild(radioRow);
       } else {
         const noRadio = document.createElement("div");
         noRadio.style.cssText = "font-size:10px;color:#64748b;font-style:italic";
-        noRadio.textContent = "No radio data available";
+        noRadio.textContent = t("No radio data available");
         rightCol.appendChild(noRadio);
       }
 
@@ -6406,16 +6380,16 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       row.appendChild(icon);
       const lbl = document.createElement("span");
       lbl.style.cssText = "font-weight:700;font-size:13px;color:#3b82f6";
-      lbl.textContent = "Calibration Guide";
+      lbl.textContent = t("Calibration Guide");
       row.appendChild(lbl);
       const desc = document.createElement("span");
       desc.style.cssText = "font-size:11px;color:#94a3b8;flex:1";
-      desc.textContent = "Guided beacon placement for maximum accuracy.";
+      desc.textContent = t("Guided beacon placement for maximum accuracy.");
       row.appendChild(desc);
       const startBtn = document.createElement("button");
       startBtn.className = "btn inline";
       startBtn.style.cssText = "color:#3b82f6;border-color:#3b82f6;font-weight:700;font-size:12px;padding:3px 12px";
-      startBtn.textContent = "Start Guide";
+      startBtn.textContent = t("Start Guide");
       startBtn.addEventListener("click", () => {
         bs._guideActive = true;
         bs._guideSkipped = [];
@@ -6435,7 +6409,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     hdr.appendChild(icon);
     const title = document.createElement("span");
     title.style.cssText = "font-weight:700;font-size:13px;color:#3b82f6;white-space:nowrap";
-    title.textContent = "Guide";
+    title.textContent = t("Guide");
     hdr.appendChild(title);
     // Beacon selector inline in header
     const guideSel = document.createElement("select");
@@ -6446,7 +6420,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       for (const bk of bks) allBks.push({ ...bk, mapId });
     }
     const ph2 = document.createElement("option");
-    ph2.value = ""; ph2.textContent = allBks.length ? "\u2014 select beacon \u2014" : "\u2014 no beacons placed \u2014";
+    ph2.value = ""; ph2.textContent = allBks.length ? t("— select beacon —") : t("— no beacons placed —");
     guideSel.appendChild(ph2);
     const seenKeys = new Set();
     for (const bk of allBks) {
@@ -6469,7 +6443,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const closeBtn = document.createElement("button");
     closeBtn.className = "btn inline";
     closeBtn.style.cssText = "margin-left:auto;font-size:10px;color:#94a3b8;padding:2px 8px";
-    closeBtn.textContent = "Close";
+    closeBtn.textContent = t("Close");
     closeBtn.addEventListener("click", () => {
       bs._guideActive = false;
       bs._guideTarget = null;
@@ -6486,7 +6460,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (!bs._guideBkKey) {
       const hint = document.createElement("div");
       hint.style.cssText = "font-size:11px;color:#64748b";
-      hint.textContent = "Select a beacon to start guided calibration.";
+      hint.textContent = t("Select a beacon to start guided calibration.");
       guideCard.appendChild(hint);
       return;
     }
@@ -6502,12 +6476,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const prog = document.createElement("div");
       prog.style.cssText = "text-align:center;padding:4px;font-size:12px;color:#3b82f6;font-weight:700";
       const scannerCount = Object.keys(bs._guideReadings).length;
-      prog.textContent = `Capturing... ${rem}s \u2022 ${scannerCount} receiver${scannerCount !== 1 ? "s" : ""}`;
+      prog.textContent = t("Capturing... {s}s", { s: rem }) + " • " + tn(scannerCount, "1 receiver", "{n} receivers");
       guideCard.appendChild(prog);
       const stopBtn = document.createElement("button");
       stopBtn.className = "btn inline";
       stopBtn.style.cssText = "display:block;margin:4px auto 0;color:#f87171;border-color:#f87171;font-size:11px;padding:2px 10px";
-      stopBtn.textContent = "Cancel Capture";
+      stopBtn.textContent = t("Cancel Capture");
       stopBtn.addEventListener("click", () => {
         if (bs._guideTimerId) { clearTimeout(bs._guideTimerId); bs._guideTimerId = null; }
         if (bs._guidePollId) { clearTimeout(bs._guidePollId); bs._guidePollId = null; }
@@ -6535,7 +6509,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const lines = bs._guideReport.split("\n");
         saved.innerHTML += ` <span style="color:#e2e8f0">${_esc(lines[0])}</span>`;
         for (let i = 1; i < lines.length; i++) {
-          const isError = lines[i].includes("SAVE FAILED");
+          const isError = lines[i].includes(t("SAVE FAILED"));
           saved.innerHTML += `<br><span style="color:${isError ? "#f87171" : "#f59e0b"};font-size:10px">${_esc(lines[i])}</span>`;
         }
       }
@@ -6549,12 +6523,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (!bs._guideTarget) {
       const done = document.createElement("div");
       done.style.cssText = "text-align:center;padding:4px;font-size:12px;color:#52b788";
-      done.innerHTML = "<b>All areas covered!</b> Reset skipped spots or close.";
+      done.innerHTML = `<b>${_esc(t("All areas covered!"))}</b> ${_esc(t("Reset skipped spots or close."))}`;
       guideCard.appendChild(done);
       const resetBtn = document.createElement("button");
       resetBtn.className = "btn inline";
       resetBtn.style.cssText = "display:block;margin:4px auto 0;color:#3b82f6;border-color:#3b82f6;font-size:11px;padding:2px 10px";
-      resetBtn.textContent = "Reset Skipped";
+      resetBtn.textContent = t("Reset Skipped");
       resetBtn.addEventListener("click", () => {
         bs._guideSkipped = [];
         bs._guideTarget = _computeBestTarget(bs._guideBkKey);
@@ -6570,16 +6544,16 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const tgtMap = sorted.find(m => m.id === tgt.mapId);
     const fl = ctx.state.model?.floors || [];
     const flObj = fl.find(f => f.level === (tgtMap?.stack?.z_level ?? 0));
-    const flName = flObj ? (flObj.name || `Floor ${tgtMap?.stack?.z_level ?? 0}`) : "";
+    const flName = flObj ? (flObj.name || t("Floor {n}", { n: tgtMap?.stack?.z_level ?? 0 })) : "";
 
     const suggest = document.createElement("div");
     suggest.style.cssText = "background:rgba(59,130,246,.1);border-radius:6px;padding:6px 10px;margin-bottom:6px;font-size:11px;line-height:1.5";
-    suggest.innerHTML = `<span style="font-weight:700;color:#3b82f6">Next:</span> `
+    suggest.innerHTML = `<span style="font-weight:700;color:#3b82f6">${_esc(t("Next:"))}</span> `
       + `<b style="color:#5eead4">${_esc(tgt.room)}</b>`
       + (flName ? ` \u2022 ${_esc(flName)}` : "")
       + ` \u2022 ${tgtMap ? _esc(tgtMap.name || tgtMap.id) : "?"}`
-      + ` <span style="color:#94a3b8">(${tgt.radioCount} receiver${tgt.radioCount !== 1 ? "s" : ""}, ${bs._guideSkipped.length} skipped)</span>`
-      + `<br><span style="color:#60a5fa">Place beacon at the <b>blue spiral</b> on the map, then Start.</span>`;
+      + ` <span style="color:#94a3b8">(${_esc(tn(tgt.radioCount, "1 receiver", "{n} receivers"))}, ${_esc(t("{n} skipped", { n: bs._guideSkipped.length }))})</span>`
+      + `<br><span style="color:#60a5fa">${_esc(t("Place beacon at the blue spiral on the map, then Start."))}</span>`;
     guideCard.appendChild(suggest);
 
     const btnRow = document.createElement("div");
@@ -6587,14 +6561,14 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const goBtn = document.createElement("button");
     goBtn.className = "btn";
     goBtn.style.cssText = "background:#1e3a5f;border-color:#3b82f6;color:#93c5fd;font-weight:700;padding:4px 14px;font-size:12px";
-    goBtn.textContent = "Start (60s)";
+    goBtn.textContent = t("Start (60s)");
     goBtn.addEventListener("click", () => _startGuideCapture());
     btnRow.appendChild(goBtn);
     const skipBtn = document.createElement("button");
     skipBtn.className = "btn inline";
     skipBtn.style.cssText = "color:#94a3b8;font-size:11px;padding:4px 10px";
-    skipBtn.textContent = "Skip \u2192";
-    skipBtn.title = "Skip this location and suggest the next best spot";
+    skipBtn.textContent = t("Skip →");
+    skipBtn.title = t("Skip this location and suggest the next best spot");
     skipBtn.addEventListener("click", () => {
       bs._guideSkipped.push({ mapId: tgt.mapId, x: tgt.x, y: tgt.y });
       bs._guideTarget = _computeBestTarget(bs._guideBkKey);
@@ -6691,7 +6665,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
       if (!_activeRadios.length) {
         bs._guideSaved = "no_signal";
-        bs._guideReport = "No receivers detected this beacon during 60s capture. Move closer to a receiver or check that the beacon is broadcasting.";
+        bs._guideReport = t("No receivers detected this beacon during 60s capture. Move closer to a receiver or check that the beacon is broadcasting.");
         bs._guideReadings = {};
         ctx.actions.renderRooms();
         setTimeout(() => {
@@ -6715,15 +6689,15 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
       // Build report lines
       const _reportLines = [];
-      _reportLines.push(`${_activeRadios.length} receiver(s), ${_totalSamples} RSSI samples`);
-      if (room) _reportLines.push(`Room: ${room}`);
-      else _reportLines.push("Room: (not detected — position outside room boundaries)");
-      _reportLines.push(`Weight: ${weight.toFixed(1)}x (round ${rounds})`);
+      _reportLines.push(t("{rx} receiver(s), {n} RSSI samples", { rx: _activeRadios.length, n: _totalSamples }));
+      if (room) _reportLines.push(t("Room: {room}", { room }));
+      else _reportLines.push(t("Room: (not detected — position outside room boundaries)"));
+      _reportLines.push(t("Weight: {w}x (round {n})", { w: weight.toFixed(1), n: rounds }));
       const _warnings = [];
-      if (_activeRadios.length === 1) _warnings.push("Only 1 receiver heard — accuracy will be limited");
-      if (_totalSamples < 10) _warnings.push("Very few samples collected — signal may be weak");
+      if (_activeRadios.length === 1) _warnings.push(t("Only 1 receiver heard — accuracy will be limited"));
+      if (_totalSamples < 10) _warnings.push(t("Very few samples collected — signal may be weak"));
       const _emptyRadios = scannerReadings.length - _activeRadios.length;
-      if (_emptyRadios > 0) _warnings.push(`${_emptyRadios} receiver(s) had no usable samples`);
+      if (_emptyRadios > 0) _warnings.push(t("{n} receiver(s) had no usable samples", { n: _emptyRadios }));
 
       let _saveOk = false;
       let _saveError = "";
@@ -6741,7 +6715,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         _saveOk = true;
       } catch (e) {
         _saveError = (e && e.message) || String(e);
-        _warnings.push(`SAVE FAILED: ${_saveError}`);
+        _warnings.push(`${t("SAVE FAILED")}: ${_saveError}`);
       }
 
       // Store report for display
@@ -6802,16 +6776,16 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const lines = [];
     for (const r of rc.receivers) {
       const med = rc.results[r.source];
-      if (med == null) { lines.push(`${r.name}: skipped (no usable samples)`); continue; }
+      if (med == null) { lines.push(t("{name}: skipped (no usable samples)", { name: r.name })); continue; }
       const off = Math.round((refPower - med) * 10) / 10;
       try {
         await ctx.actions.scannerOffsetSet(r.source, off);
-        lines.push(`${r.name}: median ${med} dBm → offset ${off > 0 ? "+" : ""}${off} dB saved`);
+        lines.push(t("{name}: median {med} dBm → offset {off} dB saved", { name: r.name, med, off: `${off > 0 ? "+" : ""}${off}` }));
       } catch (e) {
-        lines.push(`${r.name}: SAVE FAILED (${(e && e.message) || e})`);
+        lines.push(`${r.name}: ${t("SAVE FAILED")} (${(e && e.message) || e})`);
       }
     }
-    rc.status = lines.join("\n") || "No receivers.";
+    rc.status = lines.join("\n") || t("No receivers.");
     _refreshRefCard();
   }
 
@@ -6878,9 +6852,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const row = document.createElement("div");
       row.style.cssText = "display:flex;align-items:center;gap:8px";
       row.innerHTML = `<span style="font-size:14px">📏</span>`
-        + `<span style="font-weight:700;font-size:13px;color:#f59e0b">1 m Reference</span>`
-        + `<span style="font-size:11px;color:#94a3b8;flex:1">Hold a known tag 1 m from each receiver to auto-set per-receiver RSSI offsets.</span>`;
-      row.appendChild(mkBtn("Start", "color:#f59e0b;border-color:#f59e0b;font-weight:700;font-size:12px;padding:3px 12px", () => {
+        + `<span style="font-weight:700;font-size:13px;color:#f59e0b">${_esc(t("1 m Reference"))}</span>`
+        + `<span style="font-size:11px;color:#94a3b8;flex:1">${_esc(t("Hold a known tag 1 m from each receiver to auto-set per-receiver RSSI offsets."))}</span>`;
+      row.appendChild(mkBtn(t("Start"), "color:#f59e0b;border-color:#f59e0b;font-weight:700;font-size:12px;padding:3px 12px", () => {
         Object.assign(rc, { active: true, idx: 0, receivers: _refReceivers(), results: {}, sampling: false, samples: [], done: false, status: "" });
         _refreshRefCard();
       }));
@@ -6900,7 +6874,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (seenK2.has(bk.key)) continue; seenK2.add(bk.key); allBks2.push(bk);
     }
     const ph3 = document.createElement("option");
-    ph3.value = ""; ph3.textContent = allBks2.length ? "— select tag —" : "— no tags placed —";
+    ph3.value = ""; ph3.textContent = allBks2.length ? t("— select tag —") : t("— no tags placed —");
     sel.appendChild(ph3);
     for (const bk of allBks2) {
       const opt = document.createElement("option");
@@ -6910,7 +6884,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     }
     sel.addEventListener("change", () => { rc.bkKey = sel.value || null; _refreshRefCard(); });
     hdr.appendChild(sel);
-    hdr.appendChild(mkBtn("Close", "margin-left:auto;font-size:10px;color:#94a3b8;padding:2px 8px", () => {
+    hdr.appendChild(mkBtn(t("Close"), "margin-left:auto;font-size:10px;color:#94a3b8;padding:2px 8px", () => {
       _refStopSampling();
       Object.assign(rc, { active: false, idx: 0, results: {}, done: false, status: "" });
       _refreshRefCard();
@@ -6919,29 +6893,29 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const body = document.createElement("div");
     body.style.cssText = "font-size:11px;line-height:1.5";
     if (rc.done) {
-      body.innerHTML = `<span style="color:#52b788;font-weight:700">&#10003; Done</span><br>`
-        + rc.status.split("\n").map(l => `<span style="color:${l.includes("FAILED") ? "#f87171" : "#e2e8f0"}">${_esc(l)}</span>`).join("<br>");
+      body.innerHTML = `<span style="color:#52b788;font-weight:700">&#10003; ${_esc(t("Done"))}</span><br>`
+        + rc.status.split("\n").map(l => `<span style="color:${l.includes(t("SAVE FAILED")) ? "#f87171" : "#e2e8f0"}">${_esc(l)}</span>`).join("<br>");
     } else if (!rc.bkKey) {
-      body.innerHTML = `<span style="color:#64748b">Select a known tag to begin.</span>`;
+      body.innerHTML = `<span style="color:#64748b">${_esc(t("Select a known tag to begin."))}</span>`;
     } else if (!rc.receivers.length) {
-      body.innerHTML = `<span style="color:#f59e0b">No positioned receivers found — place receivers in the Tune tab first.</span>`;
+      body.innerHTML = `<span style="color:#f59e0b">${_esc(t("No positioned receivers found — place receivers in the Tune tab first."))}</span>`;
     } else {
       const r = rc.receivers[rc.idx];
-      body.innerHTML = `<span style="color:#94a3b8">Step ${rc.idx + 1}/${rc.receivers.length}:</span> `
-        + `hold the tag <b style="color:#fef3c7">1 m</b> from <b style="color:#5eead4">${_esc(r.name)}</b>`;
+      body.innerHTML = `<span style="color:#94a3b8">${_esc(t("Step {i}/{n}:", { i: rc.idx + 1, n: rc.receivers.length }))}</span> `
+        + _esc(t("hold the tag 1 m from {name}")).replace("{name}", `<b style="color:#5eead4">${_esc(r.name)}</b>`);
       if (rc.sampling) {
-        const rem = Math.max(0, Math.ceil((rc.endTime - Date.now()) / 1000));
-        body.innerHTML += `<br><span style="color:#f59e0b;font-weight:700">Sampling… ${rem}s • ${rc.samples.length} sample${rc.samples.length !== 1 ? "s" : ""}</span>`;
+        const rem = Math.max(0, Math.ceil((rc.endTime - Date.now()) / 1000)), nSamples = rc.samples.length;
+        body.innerHTML += `<br><span style="color:#f59e0b;font-weight:700">${_esc(t("Sampling… {s}s", { s: rem }) + " • " + tn(nSamples, "1 sample", "{n} samples"))}</span>`;
       }
       const bRow = document.createElement("div");
       bRow.style.cssText = "display:flex;gap:6px;margin-top:6px";
       if (rc.sampling) {
-        bRow.appendChild(mkBtn("Cancel Sample", "color:#f87171;border-color:#f87171;font-size:11px;padding:2px 10px", () => {
+        bRow.appendChild(mkBtn(t("Cancel Sample"), "color:#f87171;border-color:#f87171;font-size:11px;padding:2px 10px", () => {
           _refStopSampling(); _refreshRefCard();
         }));
       } else {
-        bRow.appendChild(mkBtn("Sample (15 s)", "background:#3a2a0a;border-color:#f59e0b;color:#fbbf24;font-weight:700;font-size:12px;padding:3px 12px", () => _refStartSample()));
-        bRow.appendChild(mkBtn("Skip →", "color:#94a3b8;font-size:11px;padding:3px 10px", () => _refAdvance(null)));
+        bRow.appendChild(mkBtn(t("Sample (15 s)"), "background:#3a2a0a;border-color:#f59e0b;color:#fbbf24;font-weight:700;font-size:12px;padding:3px 12px", () => _refStartSample()));
+        bRow.appendChild(mkBtn(t("Skip →"), "color:#94a3b8;font-size:11px;padding:3px 10px", () => _refAdvance(null)));
       }
       body.appendChild(bRow);
     }
@@ -6968,7 +6942,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           + `<circle cx="${tx}" cy="${ty}" r="18" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-dasharray="6,4" opacity="0.9"><animateTransform attributeName="transform" type="rotate" from="0 ${tx} ${ty}" to="360 ${tx} ${ty}" dur="2.5s" repeatCount="indefinite"/></circle>`
           + `<circle cx="${tx}" cy="${ty}" r="10" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.7"><animateTransform attributeName="transform" type="rotate" from="360 ${tx} ${ty}" to="0 ${tx} ${ty}" dur="1.8s" repeatCount="indefinite"/></circle>`
           + `<circle cx="${tx}" cy="${ty}" r="4" fill="#3b82f6" opacity="0.9"/>`
-          + `<text x="${tx}" y="${ty + 42}" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700">PLACE HERE</text>`
+          + `<text x="${tx}" y="${ty + 42}" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700">${_esc(t("PLACE HERE"))}</text>`
           + `</g></svg>`
         );
       }
@@ -6988,7 +6962,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           + `<animateTransform attributeName="transform" type="rotate" from="0 ${tx} ${ty}" to="360 ${tx} ${ty}" dur="3s" repeatCount="indefinite"/>`
           + `</circle>`
           + `<circle cx="${tx}" cy="${ty}" r="5" fill="#3b82f6" opacity="0.9"/>`
-          + `<text x="${tx}" y="${ty + 42}" text-anchor="middle" fill="#3b82f6" font-size="10" font-weight="700">${rem}s \u2022 ${scanners} receiver${scanners !== 1 ? "s" : ""}</text>`
+          + `<text x="${tx}" y="${ty + 42}" text-anchor="middle" fill="#3b82f6" font-size="10" font-weight="700">${_esc(`${rem}s • ${tn(scanners, "1 receiver", "{n} receivers")}`)}</text>`
           + `</svg>`
         );
       }

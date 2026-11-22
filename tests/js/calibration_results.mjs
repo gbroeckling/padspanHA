@@ -272,7 +272,7 @@ for (const [req, want] of [["tune", "tune"], ["matrix", "matrix"], ["model", "mo
     Object.assign(st._calib, { tab: "roam", deviceId: "ibeacon:x:1:2", mapId: "m1" });
     check("tips: Roam gives both in the Next Target card", tipsIn(s.render()));
   }
-  check("tips: one text for all of them", typeof R.CARRY_TIP === "string" && typeof R.MOVED_TIP === "string" && typeof R.calTips === "function");
+  check("tips: one text for all of them", typeof R.CARRY_TIP === "function" && typeof R.MOVED_TIP === "function" && typeof R.calTips === "function");
 }
 
 console.log(JSON.stringify({ cases, failures }));
