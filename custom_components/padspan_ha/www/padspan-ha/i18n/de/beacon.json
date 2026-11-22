@@ -234,5 +234,8 @@
 "{n} samples": {
 "one": "1 Probe",
 "other": "{n} Proben"
-}
+},
+"Pinned: it never moves": "Gepinnt: bewegt sich nie",
+"Pin here: it never moves": "Hier pinnen: bewegt sich nie",
+"A pinned beacon keeps this room and adds calibration points here. Pin only a beacon that never moves.": "Ein gepinntes Beacon behält diesen Raum und fügt hier Kalibrierpunkte hinzu. Pinne nur ein Beacon, das sich nie bewegt."
 }

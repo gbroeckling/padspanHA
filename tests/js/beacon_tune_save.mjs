@@ -106,6 +106,11 @@ function tab({ maps, objects = [], pins = {}, follows = [] }) {
       await fns._autoSaveAndStartTimer(bk, "m1");
     },
     save: async () => { await saveBtn._fn(); },
+    // Its row's "Pin here: it never moves" ticked (calibration.js _refreshBeaconList).
+    tick: (key) => {
+      const bk = bs.draftBeacons.m1.find(b => b.key === key);
+      bk._pin = true; bs.dirtyMaps.m1 = true;
+    },
     report: () => ({ calls: calls.map(c => c.key), toasts: toasts.slice(), captures: captures.slice(),
       rows: (bs.draftBeacons.m1 || []).map(b => ({ key: b.key, tracked: !!b._tracked })) }),
   };
@@ -131,6 +136,10 @@ const out = {};
   const autoPinned = T.report().rows.length;
   for (const [i, o] of objects.entries()) await T.place(o, 0.1 + i * 0.1, 0.2);
   out.fabricOnly = { ...T.report(), autoPinned };
+  // Placing pins nothing; ticking the two fixed beacons and saving pins them.
+  T.tick("ibeacon:door"); T.tick("entity:device_tracker.fob");
+  await T.save();
+  out.fabricOnlyTicked = T.report();
 }
 
 // Side A's other half (b): a photo polygon, so the auto-pin shows a

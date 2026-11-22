@@ -4721,7 +4721,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     try {
       const tfs = (ctx.state.model && ctx.state.model.map_transforms) || {};
       // A beacon with a fabric pin is moved whatever it is; one without is
-      // pinned unless it is known to move (tuneBeaconHeld), and that is said.
+      // pinned only when its row is ticked "Pin here" and it is not known to
+      // move (tuneBeaconHeld); every other one is held back, and that is said.
       const guard = { pinned: (ctx.state.model && ctx.state.model.beacon_positions_m) || {},
         objs: new Map((snap?.objects?.list || []).map(o => [o.key, o])),
         followedHas: ctx.actions.followedHas };
@@ -6074,6 +6075,33 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       mapLbl.style.cssText = "font-size:10px;color:#94a3b8;padding-left:16px";
       mapLbl.textContent = map.name || map.id;
       leftCol.appendChild(mapLbl);
+
+      // Pinned only when ticked (tune_save_plan.js tuneBeaconWrites): placing or
+      // dragging a beacon never pins it. A beacon already pinned says so.
+      const pinnedNow = !!(((ctx.state.model && ctx.state.model.beacon_positions_m) || {})[bk.key]);
+      if (pinnedNow) {
+        const pinNote = document.createElement("div");
+        pinNote.style.cssText = "font-size:10px;color:#5eead4;padding-left:16px";
+        pinNote.textContent = t("Pinned: it never moves");
+        leftCol.appendChild(pinNote);
+      } else if (bk.key && !bk._tracked) {
+        const pinLab = document.createElement("label");
+        pinLab.style.cssText = "display:flex;align-items:center;gap:4px;font-size:10px;color:#cbd5e1;padding-left:16px;cursor:pointer";
+        pinLab.title = t("A pinned beacon keeps this room and adds calibration points here. Pin only a beacon that never moves.");
+        const pinCb = document.createElement("input");
+        pinCb.type = "checkbox";
+        pinCb.checked = bk._pin === true;
+        pinCb.setAttribute("data-beacon-pin", bk.key);
+        pinLab.addEventListener("click", (e) => e.stopPropagation());
+        pinCb.addEventListener("change", () => {
+          bk._pin = pinCb.checked;
+          bs.dirtyMaps[map.id] = true;
+          _refreshDirtyLabel();
+        });
+        pinLab.appendChild(pinCb);
+        pinLab.appendChild(document.createTextNode(t("Pin here: it never moves")));
+        leftCol.appendChild(pinLab);
+      }
 
       // Actions row
       const actRow = document.createElement("div");
