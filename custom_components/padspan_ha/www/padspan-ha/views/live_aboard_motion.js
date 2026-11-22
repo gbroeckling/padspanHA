@@ -69,9 +69,11 @@ export const STEP_K = [1, 0.8, 0.66, 0.55, 0.46, 0.38, 0.32];
 /** The floor's glow, by day and by night: its fill, its soft edge band; a
  *  presence hold's flat fill and solid line; a stuck sensor's hatch. The fill
  *  is a tint over the room's own colour, not a flood (2026-10-14: the
- *  motion looked ridiculous); the edge band carries the colour. */
+ *  motion looked ridiculous); the edge band carries the colour. bareFill:
+ *  how much fainter the fill is on a bare floor (live_aboard_house.js
+ *  bareness: nothing standing in the room), where it read as a carpet. */
 export const GLOW = { fill: [0.34, 0.42], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 1, stuck: 0.5,
-                      bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2, near: 0.6 };
+                      bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2, near: 0.6, bareFill: 0.5 };
 /** The marker's size on screen (px): motion now (the largest), an earlier
  *  step, quiet. Its tap target is the view's own (PICK_R, 44 px across). */
 export const MARK_PX = { lit: 30, recent: 22, quiet: 20 };
@@ -664,7 +666,10 @@ export function createMotionLayer(ctx){
     const n = Math.min(1, Math.max(0, night));
     const fill0 = GLOW.fill[0] + (GLOW.fill[1] - GLOW.fill[0]) * n, band0 = GLOW.band[0] + (GLOW.band[1] - GLOW.band[0]) * n;
     const k = g && parts.room ? g.k * dk : 0;
-    const fill = !g ? 0 : g.steady ? fill0 * GLOW.steadyFill * k : fill0 * k;
+    // A bare room (ctx.bare: 1, nothing stands in it): its fill fainter, a
+    // tint rather than a carpet; the band carries the colour as before.
+    const calm = 1 - GLOW.bareFill * (P.room && ctx.bare ? ctx.bare(P.F, P.room) : 0);
+    const fill = (!g ? 0 : g.steady ? fill0 * GLOW.steadyFill * k : fill0 * k) * calm;
     const band = !g ? 0 : g.steady ? band0 * GLOW.steadyBand * k : band0 * k;
     const line = g && g.steady ? GLOW.line * k : 0;
     const key = JSON.stringify([g ? [g.color, g.steady, g.stuck] : null, fill, band, line, P.ground, parts.room]);

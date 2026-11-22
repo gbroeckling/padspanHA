@@ -357,4 +357,67 @@ await tryCase("corner: the ring's list notch sits inside the ring's band, never 
     && d + r <= R + 0.5 && d - r >= R - inset - 1.5, { D, B, L, T, W, H, inset, d, r });
 });
 
+// ── calm: a bare room's floor ───────────────────────────────────────────────
+// The Living room furnished (a rug and a sofa: over a quarter of it), the Den
+// bare, motion in both. In every look the bare floor keeps its room's hue,
+// faintly, its tint under a set strength (on the real house the bare floors'
+// flat colour read as carpets, 2026-11-21), the furnished one more of it; the
+// bare room's motion glow a fainter fill, its band as strong.
+const sat = (h) => { const p = parseInt(h.slice(1), 16), c = [p >> 16 & 255, p >> 8 & 255, p & 255], mx = Math.max(...c);
+                     return mx ? (mx - Math.min(...c)) / mx : 0; };
+const hueOf = (h) => { const p = parseInt(h.slice(1), 16), [r, g, b] = [p >> 16 & 255, p >> 8 & 255, p & 255].map(v => v / 255);
+                       const mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
+                       if (!d) return null;
+                       const x = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+                       return (x * 60 + 360) % 360; };
+const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+const BARE_SAT = 0.2;                                      // a bare floor's tint, at most (HSV saturation of its top)
+const PIECE = (id, kind, w, d, x, y, fid = "main") => ({ id, recipe: { kind, width_m: w, depth_m: d }, floor_id: fid, x_m: x, y_m: y, z_m: 0,
+                                                        rotation: 0, origin: "build" });
+const FURNISHED = { schema: 1, lights: {}, openings: {}, devices: {}, figures: {},
+                    pieces: { fur_0000000a: PIECE("fur_0000000a", "rug", 3, 2, 2.2, 2.5), fur_0000000b: PIECE("fur_0000000b", "sofa", 2.2, 0.9, 2.2, 4.2) } };
+const MOTION_ON = { "binary_sensor.den_motion": { x_m: 8.5, y_m: 4.5, floor_id: "main" }, "binary_sensor.living_motion": { x_m: 0.5, y_m: 4.5, floor_id: "main" } };
+const motionRec = (eid, name) => ({ entity_id: eid, friendly_name: name, isMotion: true, device_class: "motion", state: "on", last_changed: ago(30e3) });
+const CALM_P = () => ({ model: { ...MODEL, light_positions_m: { ...MODEL.light_positions_m, ...MOTION_ON } },
+  lightsByEid: { ...LBE, "binary_sensor.den_motion": motionRec("binary_sensor.den_motion", "Den motion"),
+                 "binary_sensor.living_motion": motionRec("binary_sensor.living_motion", "Living room motion") },
+  load: async () => ({ data: JSON.parse(JSON.stringify(FURNISHED)) }) });
+await tryCase("calm: how much furniture covers a room: stairs and other floors' pieces left out", async () => {
+  const sq = [{ name: "A", pts: [[0, 0], [4, 0], [4, 4], [0, 4]] }, { name: "B", pts: [[4, 0], [8, 0], [8, 4], [4, 4]] }];
+  const pcs = { a: PIECE("a", "rug", 2, 2, 1, 1), b: { ...PIECE("b", "stairs", 1, 3, 3, 3) }, c: PIECE("c", "sofa", 2, 2, 1, 3, "upper"),
+                d: PIECE("d", "bed", 4, 4, 2, 2, "loft") };
+  const got = HOUSE.roomCovers(sq, "main", pcs, (f) => (f === "loft" ? "main" : f), (p) => p.recipe.kind === "stairs");
+  const k = [0, 0.1, 0.25, 1].map(c => HOUSE.floorCalm(c)), b = [0, 0.1, 0.25, 1].map(c => HOUSE.bareness(c));
+  check("calm: how much furniture covers a room: stairs and other floors' pieces left out",
+    got.length === 2 && Math.abs(got[0] - 1) < 1e-9 && got[1] === 0
+    && Math.abs(HOUSE.roomCovers(sq, "main", { a: pcs.a, b: pcs.b }, null, (p) => p.recipe.kind === "stairs")[0] - 0.25) < 1e-9
+    && k[0] === HOUSE.FLOOR_CALM.bare && k[2] === HOUSE.FLOOR_CALM.furnished && k[3] === HOUSE.FLOOR_CALM.furnished && k[1] < k[0] && k[1] > k[2]
+    && b[0] === 1 && b[2] === 0 && b[1] > 0 && b[1] < 1, { got, k, b });
+});
+for (const [name, over] of [["classic", { look3d: "own" }], ["atlas", { look3d: "atlas", atlasLook: AT("classic", false) }],
+                            ["forest", { look3d: "atlas", atlasLook: AT("west_coast_forest"), showcase: SC("west_coast_forest") }]]) {
+  await tryCase(`calm: ${name}: a bare room's floor is calm, still its room's colour`, async () => {
+    const slot = await view(`ol-calm-${name}`, { ...over, ...CALM_P() });
+    await settle(30);
+    const st = S(slot), tops = st.floorTops || [], den = tops.find(t => t.room === "Den"), liv = tops.find(t => t.room === "Living room");
+    const pat = (room) => ((st.motionLayer && st.motionLayer.patches) || []).find(p => p.room === room) || null;
+    const pd = pat("Den"), pl = pat("Living room");
+    const MO = await import(url("views", "live_aboard_motion.js"));
+    const want = hueOf(hexOf(roomColor("Den"))), h = den && den.top ? hueOf(den.top) : null;
+    check(`calm: ${name}: a bare room's floor is calm, still its room's colour`,
+      den && liv && den.top && liv.top && den.calm === HOUSE.FLOOR_CALM.bare && liv.calm === HOUSE.FLOOR_CALM.furnished
+      // Its hue leans toward the look's own floor (Classic's beige) but stays its room's side of the wheel.
+      && sat(den.top) <= BARE_SAT && sat(den.top) > 0.02 && h !== null && hueGap(h, want) <= 45
+      // The furnished room keeps more of its colour (sat of its own colour, against the Den's).
+      && sat(liv.top) / sat(hexOf(roomColor("Living room"))) > sat(den.top) / sat(hexOf(roomColor("Den")))
+      // Motion in both: the bare room's glow a fainter fill, its band as strong.
+      && pd && pl && pl.fill > 0 && Math.abs(pd.fill - pl.fill * (1 - MO.GLOW.bareFill)) < 1e-6
+      && pd.band && pl.band && pd.band.soft > 0 && pd.band.soft === pl.band.soft,
+      { den, liv, sat: den && den.top ? [sat(den.top), liv && liv.top ? sat(liv.top) : null] : null, hue: [h, want],
+        motion: [pd && { fill: pd.fill, band: pd.band }, pl && { fill: pl.fill, band: pl.band }] });
+    LA.releaseLiveAboardSlot(`ol-calm-${name}`);
+    await settle();
+  });
+}
+
 process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

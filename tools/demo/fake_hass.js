@@ -120,6 +120,9 @@ export async function startDemo(page){
   const figures = Object.fromEntries(WALKERS.filter(w => w.figure).map(w => [w.person, { params: clone(w.figure), origin: "build" }]));
   // The estate comes furnished, with its stairs (Furnish's own pieces).
   let house3d = { schema: 1, pieces: clone((house.HOUSE3D && house.HOUSE3D.pieces) || {}), lights: {}, openings: {}, devices: {}, figures, library: {} };
+  // ?bare=1: the same house with its furniture taken out (the stairs stay), as
+  // most houses are before Furnish: how its bare rooms look.
+  if (q.get("bare") === "1") for (const [k, v] of Object.entries(house3d.pieces)) if (!(v.recipe && v.recipe.kind === "stairs")) delete house3d.pieces[k];
 
   // ?at=: start everyone that many seconds along their walk (a picture of a given moment).
   const t0 = Date.now() - 1000 * Math.max(0, Number(q.get("at")) || 0);
