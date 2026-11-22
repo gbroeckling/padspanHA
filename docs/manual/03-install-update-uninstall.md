@@ -89,7 +89,9 @@ for two minutes, so it never keeps running old code.
 
 Once a day PadSpan asks `padspan.traks.ca` whether a newer stable version exists. The request carries
 only the installed version number. When there is one, Home Assistant shows a notification: **PadSpan
-HA update available**, "PadSpan HA … is available (you run …)", with a link to the release notes. It
+HA update available**, "PadSpan HA … is available (you run …)", with where to update it (the
+Marketplace or HACS, whichever keeps this copy, or by hand for a copy installed by hand) and a link to
+the release notes. It
 is shown once for each new version (after a Home Assistant restart, the next daily check can show it
 again until you update), and only for stable releases. The first check comes at a random time between 5 minutes and
 6 hours after Home Assistant starts, then once a day.

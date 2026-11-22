@@ -157,6 +157,31 @@ async def test_other_refusals_still_expire_now(monkeypatch, status):
     assert abs((datetime.now(timezone.utc) - written).total_seconds()) < 60
 
 
+# ── The update notice names the store that keeps this copy ────────────────────
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("store,says", [
+    ("marketplace", "Update via the Marketplace."),
+    ("hacs", "Update via HACS."),
+    ("manual", "installed by hand: update it with padspan_ha.zip from the release."),
+    ("unknown", "Update via the Marketplace or HACS."),
+])
+async def test_the_update_notice_names_the_store_that_keeps_this_copy(monkeypatch, store, says):
+    """It said "Update via HACS" on a Marketplace install too. The store is the
+    usage report's (report_context.install_store), read from Home Assistant
+    alone: no network, and when it can't be read, words that fit both."""
+    from custom_components.padspan_ha import report_context, server_http, update_check
+    monkeypatch.setattr(server_http, "request", AsyncMock(return_value=(200, json.dumps({"latest_stable": "999.0.0"}))))
+    monkeypatch.setattr(report_context, "install_store", lambda hass: store)
+    shown = []
+    pn = types.ModuleType("homeassistant.components.persistent_notification")
+    pn.async_create = lambda hass, message, **kw: shown.append(message)
+    monkeypatch.setitem(sys.modules, "homeassistant.components.persistent_notification", pn)
+    await update_check._check(_hass_with({}))
+    assert len(shown) == 1 and says in shown[0]
+    assert store == "hacs" or "HACS." not in shown[0].replace("Marketplace or HACS.", "")
+
+
 @pytest.mark.asyncio
 async def test_a_removed_home_is_said_in_settings_and_expires_as_before(monkeypatch):
     from datetime import datetime, timezone

@@ -998,7 +998,7 @@ function _haEntityControls(ctx, el, settings){
     {key:"ha_entity_distance_enabled", label:"sensor.{label}_distance", desc:"Distance to nearest scanner (metres)"},
     {key:"ha_entity_scanner_distance_enabled", label:"sensor.{label}_distance_{scanner}", desc:"Per-scanner distance for hyper-local triggers"},
     {key:"ha_entity_occupancy_enabled", label:"sensor.padspan_occupancy_occupancy", desc:"Building occupancy estimate (min/estimate/max) — requires integration reload"},
-    {key:"subzones_enabled", label:"binary_sensor.padspan_{sub-zone}_occupied", desc:"Sub-zones: a bed, couch or desk drawn with Mapping → Sub-zones; each gets an occupied and a who sensor (off: they go unavailable)"},
+    {key:"subzones_enabled", label:"binary_sensor.padspan_{sub-zone}_occupied", desc:"Sub-zones: a bed, couch or desk drawn with the Sub-zones tool in Mapping → Edit; each gets an occupied and a who sensor (off: they go unavailable)"},
   ];
 
   for(const t of types){
@@ -1247,25 +1247,29 @@ function _haEntityLibrary(ctx, el){
     id: "device_tracker.{label}",
     badge: "Person-linkable",
     badgeColor: "#8b5cf6",
-    state: "Room name when home (e.g. \"kitchen\"), \"not_home\" when away beyond timeout.",
+    state: "The Home Assistant room (area) name when home (e.g. \"Kitchen\"), \"not_home\" when away beyond timeout.",
     attrs: [
       ["address", "BLE MAC or iBeacon UUID"],
+      ["padspan_id", "PadSpan's own ID for the device; it stays the same when the Bluetooth address changes"],
       ["rssi", "Latest smoothed RSSI (dBm), null when away"],
       ["age_s", "Seconds since last advertisement"],
       ["user_label", "Friendly name assigned in PadSpan"],
       ["home", "Boolean — true when seen within away timeout"],
+      ["last_room", "The room it was last placed in; still there once the state is not_home"],
     ],
     examples: [
       {
         title: "Link to a Person entity",
-        desc: "Go to HA Settings → People → select person → under \"Track devices\", add device_tracker.{label}. HA will use PadSpan's room assignment for that person's location.",
+        desc: "Go to HA Settings → People → select person → under \"Track devices\", add device_tracker.{label}. The person shows PadSpan's room only when no other tracker on that person says more: a phone's GPS (the Companion app) or a router's \"home\" wins over a room.",
         yaml: `# No YAML needed — this is configured in the HA UI:
 # Settings → People → [person] → Track devices
 # Add: device_tracker.alice_phone
 #
-# Once linked, person.alice will show the room name
-# reported by PadSpan (e.g. "kitchen", "bedroom").
-# Works alongside GPS trackers — HA merges both.`,
+# Once linked, person.alice shows the room name
+# reported by PadSpan (e.g. "Kitchen", "Bedroom"),
+# unless a GPS tracker (the Companion app) or a
+# router saying "home" is also on the person:
+# those win over a room.`,
       },
     ],
   }));

@@ -52,7 +52,7 @@
 "wizard": "assistent",
 "I have an IRK Capture ESP32": "Ik heb een IRK Capture ESP32",
 "I have an Android phone": "Ik heb een Android-telefoon",
-"The easiest way to track an Android phone: Install the HA Companion App → Settings → Manage Sensors → BLE Transmitter → Enable.": "De makkelijkste manier om een Android-telefoon te volgen: installeer de HA Companion App → Instellingen → Sensoren beheren → BLE Transmitter → Inschakelen.",
+"The easiest way to track an Android phone: Install the HA Companion App → Settings → Companion app → Manage sensors → BLE Transmitter → Enable.": "De makkelijkste manier om een Android-telefoon te volgen: installeer de HA Companion App → Instellingen → Companion App → Sensoren beheren → BLE Transmitter → Inschakelen.",
 "Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed.": "Je telefoon zendt dan een iBeacon-signaal uit dat PadSpan automatisch volgt. Geen IRK nodig.",
 "In the same place, set Transmit power to High and Advertise mode to Low latency: out of the box it sends too weakly to be heard well.": "Zet op dezelfde plek “Transmit power” op “High” en “Advertise mode” op “Low latency”: standaard zendt hij te zwak om goed gehoord te worden.",
 "Then press Track beside it on the Overview's Track Your Phone card, so PadSpan knows it is yours.": "Druk daarna in “Overzicht” op de kaart “Je telefoon volgen” op “Volgen” ernaast, zodat PadSpan weet dat hij van jou is.",

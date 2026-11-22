@@ -48,7 +48,7 @@ Forgot to end a stay? After two days without the tag being heard, PadSpan asks w
 
 - `binary_sensor.padspan_guest_home` is on while a guest's tag is heard in the house. Its `guests` attribute lists who, with which tag and room. The entity appears the first time guest tags are turned on.
 - The guest tag's own `device_tracker` gains `guest_name`, `guest_since`, `guest_until`, `guest_off_limits` and `guest_in_off_limits` while it is lent.
-- The `padspan_ha_guest` event fires with `type` set to `started`, `arrived`, `left`, `off_limits`, `reminder` or `ended`, plus `guest`, `tag` and `room`.
+- The `padspan_ha_guest` event fires with `type` set to `started`, `arrived`, `left`, `off_limits`, `reminder` or `ended`, plus `session` (the stay's id), `guest` and `tag`. `arrived`, `left` and `off_limits` also send `room`; `ended` also sends `how`: `manual` (Tag returned), `scheduled` (its planned end) or `stale` (a week unheard).
 - While a tag is lent, its Follow alerts stay quiet so you are not told twice. The stay sends its own.
 
 ## Privacy

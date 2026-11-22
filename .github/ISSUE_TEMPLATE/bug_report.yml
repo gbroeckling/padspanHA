@@ -6,8 +6,8 @@ body:
     id: padspan_version
     attributes:
       label: PadSpan HA version
-      description: "The version of PadSpan HA you are running (e.g. 0.5.49)."
-      placeholder: "0.5.49"
+      description: "The version of PadSpan HA you are running (e.g. 0.38.275)."
+      placeholder: "0.38.275"
     validations:
       required: true
 
@@ -16,20 +16,34 @@ body:
     attributes:
       label: Home Assistant version
       description: "The version of Home Assistant Core you are running."
-      placeholder: "2025.2.0"
+      placeholder: "2026.11.0"
     validations:
       required: true
 
   - type: dropdown
     id: ble_scanner
     attributes:
-      label: BLE scanner type
-      description: "Which BLE scanner integration are you using?"
+      label: Bluetooth receivers
+      description: "Which kinds of Bluetooth receiver does PadSpan hear through? Pick every kind you have."
+      multiple: true
       options:
+        - ESPHome Bluetooth proxy
+        - Shelly
+        - Home Assistant's own Bluetooth adapter
         - ESPresense
-        - Bermuda
-        - HA Bluetooth Proxy
+        - Tasmota
         - Other
+    validations:
+      required: false
+
+  - type: dropdown
+    id: bermuda
+    attributes:
+      label: Is Bermuda installed too?
+      description: "Whether the Bermuda integration is also installed on this Home Assistant. PadSpan can run next to it, and it changes where some devices' rooms come from."
+      options:
+        - "No"
+        - "Yes"
     validations:
       required: false
 
