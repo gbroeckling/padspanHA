@@ -59,6 +59,7 @@ GATED = {
     "ws_objects": "object_label_set object_label_delete findmy_unlink label_link_answer label_link_undo label_link_hint_off objects_clear_history",
     "ws_occupancy": "occupancy_train",
     "ws_radios": "scanner_offset_set radio_lost_set radio_disabled_set",
+    "zigbee_twins": "zigbee_twin_use",   # moves a duplicate copy's placements, links and settings to the kept one
 }
 # settings_set is gated per key (every key but _EVERYONE_KEYS), tested below.
 PER_KEY = {"settings_set"}
