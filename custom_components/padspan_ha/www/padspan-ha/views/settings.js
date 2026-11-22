@@ -933,7 +933,7 @@ function _settingsPresence(ctx, el){
       ]),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"},[
         el("span",{style:"font-size:13px;color:#e2e8f0;font-weight:600"},
-          quietOn ? "On: only identified & followed objects are shown." : "Off: all objects are shown."),
+          quietOn ? t("On: only identified & followed objects are shown.") : t("Off: all objects are shown.")),
         el("span",{class:"muted",style:"font-size:12px"}, t("Switch it with the Quiet tick at the top of the Overview.")),
         quietGo,
       ]),
@@ -1372,7 +1372,7 @@ function _settingsPresence(ctx, el){
     } catch(e) { ctx.toast(t("Failed to save setting: {error}", { error: ctx.helpers.errorText(e) }), true); }
   });
   const secCovers = [
-    "Devices: merging, deleting, renaming and labelling them",
+    t("Devices: merging, deleting, renaming and labelling them"),
     t("Calibration points and the calibration model"),
     t("The house layout: rooms, scanners, lights, beacons, walls, floor heights and map details"),
     t("Scanner offsets and turning radios off or marking them lost"),
@@ -2281,37 +2281,33 @@ function _settingsPresence(ctx, el){
   const plInp = el("input", {
     type: "number", min: "1", max: "4", step: "0.1", value: String(currentPathLoss), style: inpStyle,
   });
-  const distSaveBtn = el("button", { class: "btn" }, "Save");
+  const distSaveBtn = el("button", { class: "btn" }, t("Save"));
   distSaveBtn.addEventListener("click", async () => {
     const ref = Math.max(-100, Math.min(0, parseFloat(refInp.value) || -59));
     const pl  = Math.max(1.0,  Math.min(4.0,  parseFloat(plInp.value)  || 2.5));
     try {
       await ctx.actions.settingsSet({ ref_power: ref, path_loss_exp: pl });
-      ctx.toast(`Distance params saved: ref=${ref} dBm, n=${pl}`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("Distance params saved: ref={ref} dBm, n={exp}", { ref, exp: pl }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("positioning", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Distance Calibration"),
+    el("div", { class: "h2" }, t("Distance Calibration")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Parameters for the log-distance path-loss formula used by the sensor.{device}_distance HA entity. " +
-      "Distance (m) = 10 ^ ((ref_power − RSSI) / (10 × n)). " +
-      "Measure ref_power by holding a phone 1 m from a scanner and reading its RSSI. " +
-      "Increase n for cluttered environments (walls, furniture); lower it for open spaces."
+      t("Parameters for the log-distance path-loss formula used by the sensor.{device}_distance HA entity. Distance (m) = 10 ^ ((ref_power − RSSI) / (10 × n)). Measure ref_power by holding a phone 1 m from a scanner and reading its RSSI. Increase n for cluttered environments (walls, furniture); lower it for open spaces.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Reference power"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Reference power")),
       refInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "dBm at 1 m (default −59)"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("dBm at 1 m (default −59)")),
     ]),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Path-loss exponent"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Path-loss exponent")),
       plInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "n  (default 2.5, range 1–4)"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("n  (default 2.5, range 1–4)")),
     ]),
     el("div", { style: "margin-top:8px" }, distSaveBtn),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ref=${currentRefPower} dBm, n=${currentPathLoss}. ` +
-      "Free-space ≈ n=2.0. Typical indoor ≈ n=2.5–3.5."
+      t("Current: ref={ref} dBm, n={exp}. Free-space ≈ n=2.0. Typical indoor ≈ n=2.5–3.5.", { ref: currentRefPower, exp: currentPathLoss })
     ),
   ]));
 
@@ -2324,38 +2320,33 @@ function _settingsPresence(ctx, el){
   const krInp = el("input", {
     type: "number", min: "0.5", max: "50", step: "0.5", value: String(currentKalmanR), style: inpStyle,
   });
-  const kalmanSaveBtn = el("button", { class: "btn inline" }, "Save");
+  const kalmanSaveBtn = el("button", { class: "btn inline" }, t("Save"));
   kalmanSaveBtn.addEventListener("click", async () => {
     const q = Math.max(0.01, Math.min(10.0, parseFloat(kqInp.value) || 3.0));
     const r = Math.max(0.5, Math.min(50.0, parseFloat(krInp.value) || 8.0));
     try {
       await ctx.actions.settingsSet({ kalman_q: q, kalman_r: r });
-      ctx.toast(`Signal smoothing saved: Q=${q}, R=${r}`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("Signal smoothing saved: Q={q}, R={r}", { q, r }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("positioning", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Signal smoothing"),
+    el("div", { class: "h2" }, t("Signal smoothing")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Kalman filter parameters for per-scanner RSSI smoothing. " +
-      "Q (process noise) controls how quickly the filter responds to real movement — lower = more smoothing, slower response. " +
-      "R (measurement noise) controls how much individual RSSI readings are trusted — higher = more smoothing. " +
-      "Defaults: Q=3, R=8 (Q is per update, every 5 s; ESPresense's 0.125 is per advert, many a second)."
+      t("Kalman filter parameters for per-scanner RSSI smoothing. Q (process noise) controls how quickly the filter responds to real movement — lower = more smoothing, slower response. R (measurement noise) controls how much individual RSSI readings are trusted — higher = more smoothing. Defaults: Q=3, R=8 (Q is per update, every 5 s; ESPresense's 0.125 is per advert, many a second).")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Process noise Q"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Process noise Q")),
       kqInp,
       el("div", { class: "muted", style: "font-size:12px" }, "0.01–10 (default 3)"),
     ]),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Measurement noise R"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Measurement noise R")),
       krInp,
       el("div", { class: "muted", style: "font-size:12px" }, "0.5–50 (default 8.0)"),
     ]),
     el("div", { style: "margin-top:8px" }, kalmanSaveBtn),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: Q=${currentKalmanQ}, R=${currentKalmanR}. ` +
-      "Increase R to suppress noise at the cost of slower room detection. " +
-      "Increase Q for faster response to movement."
+      t("Current: Q={q}, R={r}. Increase R to suppress noise at the cost of slower room detection. Increase Q for faster response to movement.", { q: currentKalmanQ, r: currentKalmanR })
     ),
   ]));
 
@@ -2365,27 +2356,22 @@ function _settingsPresence(ctx, el){
   const devHInp = el("input", {
     type: "number", min: "0", max: "3", step: "0.1", value: String(currentDevH), style: inpStyle,
   });
-  const devHSaveBtn = el("button", { class: "btn inline" }, "Save");
+  const devHSaveBtn = el("button", { class: "btn inline" }, t("Save"));
   devHSaveBtn.addEventListener("click", async () => {
     const v = Math.max(0.0, Math.min(3.0, parseFloat(devHInp.value)));
-    if (!isFinite(v)) { ctx.toast("Enter a height in metres", true); return; }
+    if (!isFinite(v)) { ctx.toast(t("Enter a height in metres"), true); return; }
     try {
       await ctx.actions.settingsSet({ assumed_device_height_m: v });
-      ctx.toast(`Device height set to ${v} m`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("Device height set to {m} m", { m: v }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("positioning", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "3D Positioning — Device Height"),
+    el("div", { class: "h2" }, t("3D Positioning — Device Height")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "RSSI measures the straight-line (slant) distance to a scanner, but positioning solves on the " +
-      "floor plane. PadSpan deducts the vertical offset between each scanner's mounted height and the " +
-      "device's assumed carry height above the floor. 1.0 m suits a pocketed phone or a wrist; " +
-      "lower it for floor-level tags (robot vacuum, pet collar). " +
-      "Scanner heights come from the saved layout (default: the map's ceiling height); floor stacking from " +
-      "the per-floor heights."
+      t("RSSI measures the straight-line (slant) distance to a scanner, but positioning solves on the floor plane. PadSpan deducts the vertical offset between each scanner's mounted height and the device's assumed carry height above the floor. 1.0 m suits a pocketed phone or a wrist; lower it for floor-level tags (robot vacuum, pet collar). Scanner heights come from the saved layout (default: the map's ceiling height); floor stacking from the per-floor heights.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Device height (m)"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Device height (m)")),
       devHInp,
       el("div", { class: "muted", style: "font-size:12px" }, "0–3 m (default 1.0)"),
     ]),
@@ -2411,16 +2397,16 @@ function _settingsPresence(ctx, el){
     value: String(settings.fabric_bearing_deg ?? 0),
     style: inpStyle,
   });
-  const gpsSaveBtn = el("button", { class: "btn inline" }, "Save");
+  const gpsSaveBtn = el("button", { class: "btn inline" }, t("Save"));
   gpsSaveBtn.addEventListener("click", async () => {
     const latStr = gpsLatInp.value.trim(), lonStr = gpsLonInp.value.trim();
     const lat = latStr === "" ? null : parseFloat(latStr);
     const lon = lonStr === "" ? null : parseFloat(lonStr);
     if ((lat != null && !isFinite(lat)) || (lon != null && !isFinite(lon))) {
-      ctx.toast("Enter valid coordinates, or leave both blank to disable", true); return;
+      ctx.toast(t("Enter valid coordinates, or leave both blank to disable"), true); return;
     }
     if ((lat == null) !== (lon == null)) {
-      ctx.toast("Set both latitude and longitude, or clear both", true); return;
+      ctx.toast(t("Set both latitude and longitude, or clear both"), true); return;
     }
     const rawBearing = ((parseFloat(gpsBearingInp.value) % 360) + 360) % 360;
     const safeBearing = isFinite(rawBearing) ? rawBearing : 0;
@@ -2429,29 +2415,24 @@ function _settingsPresence(ctx, el){
         fabric_origin_lat: lat, fabric_origin_lon: lon,
         fabric_bearing_deg: safeBearing,
       });
-      ctx.toast(lat == null ? "GPS bridge disabled" : "GPS origin saved");
-    } catch (e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(lat == null ? t("GPS bridge disabled") : t("GPS origin saved"));
+    } catch (e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("integrations", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "GPS Bridge"),
+    el("div", { class: "h2" }, t("GPS Bridge")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Anchor the saved layout to a real-world location so tracked objects' device_tracker entities report a " +
-      "real latitude/longitude and plot on Home Assistant's built-in map — in addition to, not instead " +
-      "of, their room-name state. Leave latitude/longitude blank to disable (no GPS is reported, never a " +
-      "guess at (0, 0)). Bearing is the compass direction, clockwise from true north, that the layout's " +
-      "own +Y axis points toward. +Y runs down your floorplan as it is drawn, so a plan drawn north-up " +
-      "is 180."
+      t("Anchor the saved layout to a real-world location so tracked objects' device_tracker entities report a real latitude/longitude and plot on Home Assistant's built-in map — in addition to, not instead of, their room-name state. Leave latitude/longitude blank to disable (no GPS is reported, never a guess at (0, 0)). Bearing is the compass direction, clockwise from true north, that the layout's own +Y axis points toward. +Y runs down your floorplan as it is drawn, so a plan drawn north-up is 180.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Origin latitude"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Origin latitude")),
       gpsLatInp,
     ]),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Origin longitude"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Origin longitude")),
       gpsLonInp,
     ]),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Bearing (°)"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Bearing (°)")),
       gpsBearingInp,
       el("div", { class: "muted", style: "font-size:12px" }, "0–359, clockwise from true north"),
     ]),
@@ -2506,7 +2487,7 @@ function _settingsPresence(ctx, el){
       const friendlyName = radio.name && radio.name !== src ? radio.name : "";
 
       const offInp = el("input",{type:"number",min:"-20",max:"20",step:"0.5",value:String(manualOffset),style:inpStyle});
-      const offSaveBtn = el("button",{class:"btn inline"},"Save");
+      const offSaveBtn = el("button",{class:"btn inline"},t("Save"));
       offSaveBtn.addEventListener("click", async()=>{
         // Only a newly typed value is held to ±20. A stored offset outside it
         // (1 m Reference Calibration saves what it measures; the server takes
@@ -2516,15 +2497,15 @@ function _settingsPresence(ctx, el){
         const v = typed === manualOffset ? typed : Math.max(-20, Math.min(20, typed));
         try {
           await ctx.actions.scannerOffsetSet(src, v);
-          ctx.toast(`${friendlyName || src}: manual offset set to ${v>0?"+":""}${v} dB`);
-        } catch(e){ ctx.toast("Failed to save offset", true); }
+          ctx.toast(t("{name}: manual offset set to {db} dB", { name: friendlyName || src, db: `${v>0?"+":""}${v}` }));
+        } catch(e){ ctx.toast(t("Failed to save offset"), true); }
       });
 
       const autoLabel = autoOff !== 0
-        ? el("span",{style:`font-size:10px;color:${autoOff > 0 ? "#52b788" : "#f59e0b"}`, title:"Not applied. Type it into the box and Save to use it."}, `suggested: ${autoOff > 0?"+":""}${autoOff.toFixed(1)}`)
-        : el("span",{style:"font-size:10px;color:#64748b"}, "suggested: 0");
+        ? el("span",{style:`font-size:10px;color:${autoOff > 0 ? "#52b788" : "#f59e0b"}`, title:t("Not applied. Type it into the box and Save to use it.")}, t("suggested: {db}", { db: `${autoOff > 0?"+":""}${autoOff.toFixed(1)}` }))
+        : el("span",{style:"font-size:10px;color:#64748b"}, t("suggested: {db}", { db: 0 }));
       const medLabel = scanMed != null
-        ? el("span",{style:"font-size:10px;color:#64748b"}, `med: ${scanMed}dBm`)
+        ? el("span",{style:"font-size:10px;color:#64748b"}, t("med: {dbm}dBm", { dbm: scanMed }))
         : null;
 
       offsetRows.appendChild(el("div",{style:rowStyle},[
@@ -2541,19 +2522,15 @@ function _settingsPresence(ctx, el){
     }
     put("receivers", el("div",{class:"card"},[
       el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"},[
-        el("div",{class:"h2",style:"margin:0"},"Receiver signal adjustments"),
-        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline","data-all-receivers":"settings",style:"font-size:11px;padding:2px 10px;margin:0",onclick:()=>ctx.actions.openReceivers()},"All receivers") : null,
+        el("div",{class:"h2",style:"margin:0"},t("Receiver signal adjustments")),
+        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline","data-all-receivers":"settings",style:"font-size:11px;padding:2px 10px;margin:0",onclick:()=>ctx.actions.openReceivers()},t("All receivers")) : null,
       ].filter(Boolean)),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        "Only the manual offset you save is applied. The suggestion beside it is half the gap between this " +
-        "scanner's median signal and the fleet median, from live data — a starting point for hardware " +
-        "differences; type it in and Save to use it. A remote scanner reads weaker because of distance, " +
-        "not hardware, so don't copy its suggestion blindly."
+        t("Only the manual offset you save is applied. The suggestion beside it is half the gap between this scanner's median signal and the fleet median, from live data — a starting point for hardware differences; type it in and Save to use it. A remote scanner reads weaker because of distance, not hardware, so don't copy its suggestion blindly.")
       ),
       offsetRows,
       el("div",{class:"muted",style:"font-size:11px;margin-top:8px"},
-        `Fleet median: ${fleetMedian} dBm \u2022 Manual range: \u221220 to +20 dB \u2022 ` +
-        "Only the manual offset is applied."
+        t("Fleet median: {dbm} dBm • Manual range: −20 to +20 dB • Only the manual offset is applied.", { dbm: fleetMedian })
       ),
     ]));
   }
