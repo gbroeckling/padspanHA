@@ -129,10 +129,10 @@ def test_monitor_tabs_keep_their_ids():
 
 def test_calibration_tabs_keep_their_ids():
     src = _src("calibration.js")
-    assert '["setup","Beacon and floor"]' in src
-    assert '["matrix","Accuracy by spot"]' in src
+    assert '["setup",t("Beacon and floor")]' in src
+    assert '["matrix",t("Accuracy by spot")]' in src
     # Tune and Beacon Tune keep their names.
-    assert '["tune","Tune"],["beacon","Beacon Tune"]' in src
+    assert '["tune",t("Tune")],["beacon",t("Beacon Tune")]' in src
 
 
 def test_manage_entities_tips_heading():

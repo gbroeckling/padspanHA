@@ -2831,7 +2831,7 @@ function _tuneTab(ctx, el, cs, calData) {
           const rx = Math.round(px), ry = Math.round(py);
           const _full = _rxShown(ctx, r.source, r.label || r.id) || "R";
           const lbl = _full.length > 20 ? _full.substring(0, 19) + "…" : _full;
-          const tip = `${_rxShown(ctx, r.source, r.label || r.id) || "Receiver"}${r.room ? " | Room: " + r.room : ""} | x: ${(r.x * 100).toFixed(1)}% y: ${(r.y * 100).toFixed(1)}%`;
+          const tip = `${_rxShown(ctx, r.source, r.label || r.id) || t("Receiver")}${r.room ? " | " + t("Room: {room}", { room: r.room }) : ""} | x: ${(r.x * 100).toFixed(1)}% y: ${(r.y * 100).toFixed(1)}%`;
 
           s += `<g data-rx-id="${_esc(r.id)}" data-map-id="${_esc(m.id)}" data-z="${z}" data-tip="${_esc(tip)}" style="cursor:grab">`;
           // Transparent hit area for easier clicking/dragging
@@ -3723,7 +3723,7 @@ function _tuneTab(ctx, el, cs, calData) {
       const lbl = document.createElement("span");
       lbl.style.cssText = `flex:1;font-size:12px;color:${isPlaced ? "#d1d5db" : "#e2e8f0;font-weight:600"}`;
       const area = rd.area_name ? ` (${rd.area_name})` : "";
-      lbl.textContent = `${rd.display_name || nm || src || "Unknown"}${area}`;
+      lbl.textContent = `${rd.display_name || nm || src || t("Unknown")}${area}`;
       row.appendChild(lbl);
 
       if (isPlaced) {
@@ -4342,7 +4342,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const rx = Math.round(px), ry = Math.round(py);
           const _full = _rxShown(ctx, r.source, r.label || r.id) || "R";
           const lbl = _full.length > 20 ? _full.substring(0, 19) + "…" : _full;
-          const tip = `Receiver: ${_rxShown(ctx, r.source, r.label || r.id) || "Receiver"}${r.room ? " | Room: " + r.room : ""}${!_isLive ? " (offline)" : ""}`;
+          const tip = `${t("Receiver: {name}", { name: _rxShown(ctx, r.source, r.label || r.id) || t("Receiver") })}${r.room ? " | " + t("Room: {room}", { room: r.room }) : ""}${!_isLive ? " " + t("(offline)") : ""}`;
           const _rxCol = _isLive ? "#52b788" : "#4a6052";
           s += `<g data-tip="${_esc(tip)}" style="cursor:default;opacity:${_isLive ? 0.6 : 0.3}">`;
           s += `<circle cx="${rx}" cy="${ry}" r="10" fill="none" stroke="${_rxCol}" stroke-width="1.2" opacity="0.5"/>`;
@@ -5659,11 +5659,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const _bkRoom = _bkFab?.room || detectedRoom;
     const lines = [
       `<b style="color:#5eead4">${_esc(bk.label || bk.key)}</b>`,
-      `Floor: ${_esc(_bkFloor)}`,
-      `Room: ${_esc(_bkRoom || "\u2014")}`,
-      `Position: ${_bkPos}`,
+      _esc(t("Floor: {floor}", { floor: _bkFloor })),
+      _esc(t("Room: {room}", { room: _bkRoom || "\u2014" })),
+      _esc(t("Position: {pos}", { pos: _bkPos })),
       `RSSI: ${_esc(lastRssi)}`,
-      `Kind: ${_esc(bk.kind || "ble")}`,
+      _esc(t("Kind: {kind}", { kind: bk.kind || "ble" })),
     ];
     infoLine.innerHTML = `<span>${lines.join(" &nbsp;\u00b7&nbsp; ")}</span>`;
     const posHelp = document.createElement("button");

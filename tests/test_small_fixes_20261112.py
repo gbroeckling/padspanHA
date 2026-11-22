@@ -31,6 +31,6 @@ def test_the_builder_guide_is_seen_once_it_has_opened_itself() -> None:
 
 
 def test_one_receiver_is_not_receivers() -> None:
-    assert '(${sc} receiver${sc === 1 ? "" : "s"})</title>' in (_VIEWS / "calibration.js").read_text(encoding="utf-8")
+    assert 'tn(sc, "1 receiver", "{n} receivers")' in (_VIEWS / "calibration.js").read_text(encoding="utf-8")
     tr = (_VIEWS / "training.js").read_text(encoding="utf-8")
     assert ">Radios</text>" not in tr and "Edit → Radios" not in tr

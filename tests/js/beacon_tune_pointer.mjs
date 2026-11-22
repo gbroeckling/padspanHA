@@ -12,6 +12,11 @@
 import fs from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { panelT } from "./panel_t.mjs";
+// The lifted code says its words through the view's t()/tn() (views/i18n.js); here panel.js's own, which give
+// the English source with its {placeholders} filled, as globals the compiled code reaches. (The repo's panel.js:
+// a test may hand over a copied views folder.)
+Object.assign(globalThis, panelT(fs.readFileSync(new URL("../../custom_components/padspan_ha/www/padspan-ha/panel.js", import.meta.url), "utf8")));
 
 const VIEWS = process.argv[2];
 const SRC = fs.readFileSync(join(VIEWS, "calibration.js"), "utf8").replace(/\r\n/g, "\n");

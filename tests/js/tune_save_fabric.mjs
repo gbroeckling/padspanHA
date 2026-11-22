@@ -25,8 +25,13 @@
 import fs from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { panelT } from "./panel_t.mjs";
 
 const VIEWS = process.argv[2];
+// The lifted code says its words through the view's t()/tn() (views/i18n.js); here panel.js's own, which give
+// the English source with its {placeholders} filled, as globals the compiled handlers reach. (The repo's panel.js:
+// a test may hand over a copied views folder.)
+Object.assign(globalThis, panelT(fs.readFileSync(new URL("../../custom_components/padspan_ha/www/padspan-ha/panel.js", import.meta.url), "utf8")));
 const SCENARIO = process.argv[3] || "moved";
 // Normalized to LF regardless of the checkout's own line-ending convention —
 // every anchor string below is LF-only, and a Windows checkout with

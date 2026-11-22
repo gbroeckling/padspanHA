@@ -324,7 +324,7 @@ def test_off_by_default():
 def test_the_tab_and_the_module_only_load_when_on():
     src = (_WWW / "views" / "calibration.js").read_text(encoding="utf-8")
     assert "const _walkOn = ctx.state.settings?.calibration_room_walk === true;" in src
-    assert 'if (_walkOn) TABS.push(["walk", "Walk a room"]);' in src
+    assert 'if (_walkOn) TABS.push(["walk", t("Walk a room")]);' in src
     assert 'if (cs.tab === "walk" && _walkOn)' in src
     assert 'import(`./calibration_walk.js${' in src and 'from "./calibration_walk.js' not in src
 

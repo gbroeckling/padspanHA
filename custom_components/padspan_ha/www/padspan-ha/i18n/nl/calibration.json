@@ -277,6 +277,7 @@
 "No live receivers detected. Switch to Live mode and ensure Bluetooth receivers are active.": "Geen live ontvangers gevonden. Schakel over naar “Live” en controleer of de Bluetooth-ontvangers actief zijn.",
 "Home Assistant isn't reporting any Bluetooth receivers yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart.": "Home Assistant meldt nog geen Bluetooth-ontvangers. Controleer of je Bluetooth-proxy's online zijn — ze kunnen na een herstart een minuut nodig hebben om opnieuw te verbinden.",
 "Click an unplaced radio, then double-click on the 3D map to place it. Click a placed radio to select it in the 3D view.": "Klik op een niet-geplaatste ontvanger en dubbelklik dan op de 3D-kaart om hem te plaatsen. Klik op een geplaatste ontvanger om hem in de 3D-weergave te kiezen.",
+"Unknown": "Onbekend",
 "Double-click map…": "Dubbelklik op de kaart…",
 "Not placed": "Niet geplaatst",
 "Remove this radio from all maps and clear all its stored data": "Deze ontvanger van alle kaarten halen en al zijn opgeslagen gegevens wissen",

@@ -78,7 +78,7 @@ def test_calibrations_cancel_links_are_buttons_too() -> None:
     """Radios → place and Beacon Tune → place: "Cancel" in the banner, written as markup."""
     cal = _src("views/calibration.js")
     for ident in ("_cancelPlace", "_cancelBkPlace"):
-        assert f'<span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="{ident}">Cancel</span>' in cal
+        assert f'<span role="button" tabindex="0" style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="{ident}">${{_esc(t("Cancel"))}}</span>' in cal
         i = cal.index(f'const cancelEl = placeBanner.querySelector("#{ident}");')
         nxt = cal[i:i + 400]
         assert 'if (cancelEl) cancelEl.addEventListener("keydown", ctx.helpers.asButton.onkeydown);' in nxt

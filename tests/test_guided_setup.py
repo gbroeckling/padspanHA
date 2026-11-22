@@ -151,9 +151,9 @@ def test_entry_points() -> None:
     assert "this.state._setupReturn = null;   // a menu pick" in panel
     # Mapping: a Setup button beside Refresh, the tab bar as it was.
     maps = _read("views/maps.js")
-    assert '"data-setup-link":"maps"' in maps and 'onclick:()=>ctx.actions.showView("setup")}, "Setup")' in maps
+    assert '"data-setup-link":"maps"' in maps and 'onclick:()=>ctx.actions.showView("setup")}, t("Setup"))' in maps
     # 2026-11-13, D7: Mapping's Atlas tab reads "Atlas builder" (its id stays "lights").
-    assert '[["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Layout"],["lights","Atlas builder"],["export","Export"],["help","Help"]]' in maps
+    assert '[["library",t("Library")],["upload",t("Upload")],["edit",t("Edit")],["stack",t("3D Stack")],["rooms",t("Layout")],["lights",t("Atlas builder")],["export",t("Export")],["help",t("Help")]]' in maps
     # A new install's Who's where: Make it a map lands in Setup.
     assert 'mapBtn.addEventListener("click", () => ctx.actions.showView("setup"));' in _read("views/whos_where.js")
     # No floor plans yet: one way in, not two. The empty state's Start Setup

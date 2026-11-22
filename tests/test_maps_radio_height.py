@@ -64,6 +64,6 @@ def test_both_places_read_the_same_value_with_the_same_limits() -> None:
 
 def test_both_places_say_save_height() -> None:
     # 2026-10-30: "Save Z" became "Save height" in Calibration too
-    assert 'zBtn.textContent = "Save height";' in _read("calibration.js")
+    assert 'zBtn.textContent = t("Save height");' in _read("calibration.js")
     assert '"Save Z"' not in _read("calibration.js")
     assert '"Save height")' in _read("maps.js")

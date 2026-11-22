@@ -332,7 +332,7 @@ def test_the_door_button_is_withheld_once_a_wall_is_already_a_door():
     — marking a second door out of an already-carved section is confusing,
     not harmful, so the button is hidden rather than merely discouraged."""
     src = _MAPS.read_text(encoding="utf-8", errors="replace")
-    idx = src.index('doorBtn.title = "Mark a door/window on this wall"')
+    idx = src.index('doorBtn.title = t("Mark a door/window on this wall")')
     gate = src[:idx][-400:]
     assert "if(!bar.linked_entity_id){" in gate, gate
 
@@ -344,7 +344,7 @@ def test_the_invert_button_only_offers_itself_for_a_linked_non_lock_barrier():
     be meaningless; the toggle must only appear for a linked door/window
     contact sensor."""
     src = _MAPS.read_text(encoding="utf-8", errors="replace")
-    idx = src.index('invertBtn.title = "This sensor reports backwards')
+    idx = src.index('invertBtn.title = t("This sensor reports backwards')
     gate = src[:idx][-400:]
     assert 'if(bar.linked_entity_id && !bar.linked_entity_id.startsWith("lock.")){' in gate, gate
 

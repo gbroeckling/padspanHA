@@ -228,7 +228,7 @@ def test_the_settings_card_offers_them_and_says_they_are_off():
 
 def test_the_held_out_line_sits_beside_the_existing_score():
     cal = (_WWW / "views" / "calibration.js").read_text(encoding="utf-8")
-    assert 'statGrid.appendChild(stat("Est. Accuracy"' in cal          # unchanged
+    assert 'statGrid.appendChild(stat(t("Est. Accuracy")' in cal          # unchanged
     assert "Tested on spots it hasn't seen" in cal
     qa = (_WWW / "views" / "qa.js").read_text(encoding="utf-8")
     assert '_propBar("Distance Accuracy"' in qa and "Tested on spots it hasn't seen" in qa

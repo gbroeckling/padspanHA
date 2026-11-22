@@ -13,6 +13,10 @@
 // Prints one JSON line: { cases, failures }.
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { panelT } from "./panel_t.mjs";
+// The lifted code says its words through the view's t()/tn() (views/i18n.js); here panel.js's own, which give
+// the English source with its {placeholders} filled, as globals the compiled code reaches.
+Object.assign(globalThis, panelT(readFileSync(new URL("../../custom_components/padspan_ha/www/padspan-ha/panel.js", import.meta.url), "utf8")));
 
 const ROOT = process.argv[2];
 const { install } = await import(pathToFileURL(ROOT + "/tests/js/dom_shim.mjs").href);
@@ -113,8 +117,8 @@ const place = { origin_x_m: 3, origin_y_m: 4, scale_x_m: 20, scale_y_m: 10, rota
 
 // Apply's and Bake's messages give the same metres.
 check("the Aligned and Baked messages give the residual in metres",
-  src.includes('ctx.toast("Aligned (" + pairs + " pairs, residual " + resText + ")")')
-  && src.includes('ctx.toast("Baked (" + pairs + " pairs, residual " + resText + ")")')
-  && !/residual " \+ resPct/.test(src), null);
+  src.includes('ctx.toast(t("Aligned ({n} pairs, residual {res})", { n: pairs, res: resText }))')
+  && src.includes('ctx.toast(t("Baked ({n} pairs, residual {res})", { n: pairs, res: resText }))')
+  && !/residual " \+ resPct/.test(src) && !/res: resPct/.test(src), null);
 
 console.log(JSON.stringify({ cases, failures }));

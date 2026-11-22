@@ -72,10 +72,10 @@ def test_calibration_opens_on_results_and_keeps_every_tab() -> None:
     cal = _read("views/calibration.js")
     assert 'tab:        "results",' in cal
     tabs = re.search(r"const TABS = \[(.+?)\];\n", cal).group(1)
-    assert re.findall(r'\["([a-z]+)","([^"]+)"\]', tabs) == [
+    assert re.findall(r'\["([a-z]+)",\s*t\("([^"]+)"\)\]', tabs) == [
         ("results", "Results"), ("tune", "Tune"), ("beacon", "Beacon Tune"), ("setup", "Beacon and floor"),
         ("pin", "Pin & Listen"), ("roam", "Roam"), ("model", "Model"), ("matrix", "Accuracy by spot")]
-    assert 'TABS.push(["walk", "Walk a room"])' in cal
+    assert 'TABS.push(["walk", t("Walk a room")])' in cal
 
 
 def test_links_and_fixes_ask_for_their_tab() -> None:

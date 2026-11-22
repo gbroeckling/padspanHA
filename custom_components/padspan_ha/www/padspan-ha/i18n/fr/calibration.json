@@ -277,6 +277,7 @@
 "No live receivers detected. Switch to Live mode and ensure Bluetooth receivers are active.": "Aucun récepteur en direct détecté. Passez en mode « En direct » et vérifiez que les récepteurs Bluetooth sont actifs.",
 "Home Assistant isn't reporting any Bluetooth receivers yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart.": "Home Assistant ne signale encore aucun récepteur Bluetooth. Vérifiez que vos proxys Bluetooth sont en ligne — ils peuvent mettre une minute à se reconnecter après un redémarrage.",
 "Click an unplaced radio, then double-click on the 3D map to place it. Click a placed radio to select it in the 3D view.": "Cliquez sur un récepteur non placé, puis double-cliquez sur le plan 3D pour le placer. Cliquez sur un récepteur placé pour le choisir dans la vue 3D.",
+"Unknown": "Inconnu",
 "Double-click map…": "Double-cliquez sur le plan…",
 "Not placed": "Non placé",
 "Remove this radio from all maps and clear all its stored data": "Retirer ce récepteur de tous les plans et effacer toutes ses données enregistrées",

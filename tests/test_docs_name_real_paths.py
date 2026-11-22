@@ -161,8 +161,8 @@ def _tab_texts() -> dict[str, str]:
 
 def _mapping_tabs() -> list[str]:
     src = MAPS_JS.read_text(encoding="utf-8")
-    line = next(ln for ln in src.splitlines() if ln.strip().startswith(': [["library","Library"]'))
-    return re.findall(r'\["[a-z0-9]+","([^"]+)"\]', line) + ["Furnish"]
+    line = next(ln for ln in src.splitlines() if ln.strip().startswith(': [["library",t("Library")]'))
+    return re.findall(r'\["[a-z0-9]+",t\("([^"]+)"\)\]', line) + ["Furnish"]
 
 
 def _labels_ok(rest: str, labels) -> bool:

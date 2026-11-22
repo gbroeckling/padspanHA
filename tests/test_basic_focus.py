@@ -98,7 +98,7 @@ def test_the_sources_use_the_one_mechanism() -> None:
 
 def test_expert_links_are_hidden_in_basic() -> None:
     cal = _read("views/calibration.js")
-    fin = cal[cal.index('const qaBtn = el("button", { class: "btn primary" }, "See detailed quality report →");'):]
+    fin = cal[cal.index('const qaBtn = el("button", { class: "btn primary" }, t("See detailed quality report →"));'):]
     fin = fin[:fin.index('const anotherBtn')]
     assert "if (FOCUS.expertLinks(ctx.state)) row.appendChild(qaBtn);" in fin
     # Calibration's tabs themselves stay the same in every mode (test_basic_calibration).

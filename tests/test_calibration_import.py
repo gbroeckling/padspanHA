@@ -71,7 +71,7 @@ def test_import_never_pushes_the_stale_serialized_model():
     data — importing a stale one instead of recomputing would silently
     disagree with the points that were just restored."""
     block = _model_tab_block()
-    imp_section = block[block.index('el("div", { style: "font-weight:600;font-size:13px;margin-bottom:4px" }, "Import")'):]
+    imp_section = block[block.index('el("div", { style: "font-weight:600;font-size:13px;margin-bottom:4px" }, t("Import"))'):]
     assert "calibrationComputeModel" not in imp_section
     assert ".model" not in imp_section.split("impBtn.addEventListener")[1].split("const impChooseBtn")[0]
 

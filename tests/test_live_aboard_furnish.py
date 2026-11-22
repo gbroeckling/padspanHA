@@ -116,11 +116,11 @@ def test_the_furnish_tab_shows_only_while_live_aboard_does() -> None:
     maps = _js(_VIEWS / "maps.js")
     assert ('const furnishTab = !isBasic && ctx.state.settings?.atlas_3d_enabled === true '
             '&& _tierAtLeast(ctx.state.settings?.tier, "pro");') in maps
-    assert 'if (furnishTab) tabDefs.splice(tabDefs.findIndex(([id]) => id === "lights") + 1, 0, ["furnish", "Furnish"]);' in maps
+    assert 'if (furnishTab) tabDefs.splice(tabDefs.findIndex(([id]) => id === "lights") + 1, 0, ["furnish", t("Furnish")]);' in maps
     assert 'else if (tab === "furnish") ctx.state.mapsTab = "lights";' in maps
     assert 'activeTab==="furnish" ? _lightsTab(ctx, maps, active) :' in maps
     assert 'const furnish = ctx.state.mapsTab === "furnish";' in maps
-    line = next(ln for ln in maps.splitlines() if '["library","Library"],["upload","Upload"],["edit"' in ln)
+    line = next(ln for ln in maps.splitlines() if '["library",t("Library")],["upload",t("Upload")],["edit"' in ln)
     assert "furnish" not in line
     assert "live_aboard" not in _code(_VIEWS / "maps.js"), "Mapping never names the 3D modules itself"
 

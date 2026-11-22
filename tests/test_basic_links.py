@@ -40,7 +40,7 @@ def _between(src: str, start: str, end: str) -> str:
 
 def test_basic_mapping_tabs_are_library_and_upload_only() -> None:
     maps = _read("views/maps.js")
-    assert '? [["library","Library"],["upload","Upload"]]' in maps
+    assert '? [["library",t("Library")],["upload",t("Upload")]]' in maps
     assert 'if(isBasic && tab !== "library" && tab !== "upload"){' in maps
     # A link's part (the focus) and the wizard are drawn before that, in every mode.
     assert maps.index('const focus = FOCUS.focusFor(ctx.state, "maps");') < maps.index("if (ctx.state._mapsWizard) {")
