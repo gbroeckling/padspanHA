@@ -78,8 +78,8 @@ PadSpan is in the HACS default list, so there's no custom repository to add.
 3. **Restart Home Assistant completely** (Settings → System → Restart)
 
 ### Manual
-1. Download the [latest release ZIP](https://github.com/gbroeckling/padspanHA/releases/latest)
-2. Extract `custom_components/padspan_ha/` into your HA `config/custom_components/` directory
+1. Download `padspan_ha.zip` from the [latest release](https://github.com/gbroeckling/padspanHA/releases/latest)
+2. In your HA config folder, make the folder `custom_components/padspan_ha` and unzip `padspan_ha.zip` into it. The zip's files have no folder of their own: when you are done, `manifest.json` is at `custom_components/padspan_ha/manifest.json`
 3. Restart Home Assistant
 
 ## Step 2: Add the Integration
