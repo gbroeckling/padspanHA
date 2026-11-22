@@ -722,6 +722,7 @@ function createSlot(slotKey){
   // ☰ brought the bars back (zooming further in hides them again).
   let keepOff = null;                                       // full screen: the page's cards kept in sight
   let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
+  let dialOn = false;                                     // the emergency dial is in the panel (coverCss puts it in the cover's corner)
   // The view about to show afresh (made, or back after Map): on the sidebar
   // (not a wall, not Furnish) its first frame steps the bars aside (openBare).
   let freshShow = true;
@@ -1052,7 +1053,8 @@ function createSlot(slotKey){
     Object.assign(root.style, { left: `${c.left}px`, top: `${c.top}px`, width: `${c.width}px`, height: `${c.height}px` });
     const rn = root.getRootNode ? root.getRootNode() : null, scope = rn && rn.querySelector ? rn : document;
     const vac = menuOpen() ? scope.querySelector(".lv-mapcard > .lv-vacation") : null;
-    if (coverStyle) coverStyle.textContent = coverCss(c, !!scope.querySelector(".lv-emerg"), vac ? cutOut(vac, root.querySelectorAll(".la3d-show, .la3d-menu")) : null);
+    dialOn = !!scope.querySelector(".lv-emerg");
+    if (coverStyle) coverStyle.textContent = coverCss(c, dialOn, vac ? cutOut(vac, root.querySelectorAll(".la3d-show, .la3d-menu")) : null);
   }
   /** `el`'s clip-path with each of `over`'s boxes cut out of it (even-odd), or null when none overlaps it. */
   function cutOut(el, over){
@@ -3875,9 +3877,13 @@ function createSlot(slotKey){
     }
     placed.sort((a, b) => b.elev - a.elev);
     const top = bare ? 12 : 66;
+    // Over the map alone the corner is ☰'s and, over it, the emergency dial's (coverCss): a tag there goes below them.
+    const dialHere = cover && dialOn, cornerW = dialHere ? 14 + 72 : bare ? 12 + 40 : 0;
+    const cornerH = Math.max(bare ? (dialHere ? DIAL_CLEAR : 12) + 40 : 0, dialHere ? 14 + 72 : 0);
     for (let i = 0; i < placed.length; i++) {
       const p = placed[i], above = placed[i - 1];
       p.y = Math.max(p.y, top + p.T.h / 2);
+      if (cornerW && p.x + p.T.w > W - cornerW - 6) p.y = Math.max(p.y, cornerH + 6 + p.T.h / 2);
       if (above) p.y = Math.max(p.y, above.y + (above.T.h + p.T.h) / 2 + 6);
       const at = `translate(${Math.round(p.x)}px, ${Math.round(p.y - p.T.h / 2)}px)`;
       if (at !== p.T.at) { p.T.at = at; p.T.el.style.transform = at; }
