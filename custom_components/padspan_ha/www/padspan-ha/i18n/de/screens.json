@@ -155,7 +155,7 @@
 "Phone clustering": "Handys gruppieren",
 "Phones heard with nearly the same signal at every scanner are one person (a phone and its watch, or a phone across an address rotation). Lower = stricter grouping, higher = looser.": "Handys, die an jedem Scanner mit fast gleichem Signal gehört werden, sind eine Person (ein Handy und seine Uhr, oder ein Handy über einen Adresswechsel). Niedriger = strenger gruppiert, höher = lockerer.",
 "Threshold: {db} dBm": "Schwelle: {db} dBm",
-"Save & Refresh": "Speichern & aktualisieren",
+"Save & Refresh": "Übernehmen",
 "Cluster threshold set to {db} dBm": "Gruppierschwelle auf {db} dBm gesetzt",
 "Accuracy": "Genauigkeit",
 "Exact match": "Genau richtig",
