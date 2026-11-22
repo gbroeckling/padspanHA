@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15. Der Atlas | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Der Atlas ist PadSpans Gerätekarte: deine Etagen und Räume als Plan gezeichnet, mit Lichtern, Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/the-atlas/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/the-atlas/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/the-atlas/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/the-atlas/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="15. Der Atlas">
+<meta property="og:description" content="Der Atlas ist PadSpans Gerätekarte: deine Etagen und Räume als Plan gezeichnet, mit Lichtern, Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/the-atlas/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/the-atlas/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="15-der-atlas">15. Der Atlas</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Der Atlas ist PadSpans Gerätekarte: deine Etagen und Räume als Plan gezeichnet, mit Lichtern,
+Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo sie wirklich sind, und jedes davon mit
+einem Tippen schaltbar. Er hieß „Lights“, bis er über die Beleuchtung hinauswuchs; der Filter-Chip
+für Leuchten heißt immer noch <b>Lights</b>.</p>
+<h2 id="kostenlos-und-pro">Kostenlos und Pro</h2>
+<ul>
+<li><b>Kostenlos</b>: Etagen, Räume und eine Markierung pro Licht. Tipp auf eine Markierung oder ihre
+Zeile, um es zu schalten.</li>
+<li><b>PadSpan Pro</b>: echte Platzierung, Formen und Größen, Sensoren, Automorph, Showcase, die
+Advanced-Steuerung für WLED, Whole House Presets, Vacation Mode und Öffner aus Relais.</li>
+</ul>
+<p><b>Einstellungen → Funktionen → PadSpan licence</b> hat einen einmaligen kostenlosen Testzeitraum von
+90 Tagen (<a href="/manual/padspan-pro/de/">Kapitel 25</a>). PadSpan Bright ist derselbe Atlas für sich allein, ohne
+Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel.</p>
+<h2 id="so-kommst-du-hin">So kommst du hin</h2>
+<ul>
+<li><b>Karten → Atlas-Editor</b>: wo du Geräte platzierst und bearbeitest.</li>
+<li><b>Die Seite Atlas in der Seitenleiste von Home Assistant</b>: eine leichtere Ansicht derselben Karte,
+ohne den Rest von PadSpan. Sie ist ab Werk an; <b>Einstellungen → Atlas → Show the Atlas in the Home
+Assistant sidebar</b> schaltet sie aus.</li>
+<li><b>Auf einem Wandbildschirm</b>: <a href="/manual/wall-screens-and-kiosks/de/">Kapitel 18</a>.</li>
+</ul>
+<p>Die Karte braucht zuerst deine Grundrisse und Räume: <a href="/manual/setup-the-map/de/">Kapitel 9</a>.</p>
+<h2 id="geräte-platzieren-pro">Geräte platzieren (Pro)</h2>
+<ol>
+<li>Such das Gerät in <b>Karten → Atlas-Editor</b> in der Zeilenliste. <b>Queue all unplaced</b> reiht
+mehrere auf einmal ein.</li>
+<li>Zieh seinen pulsierenden Pin auf die Etage, oder wähl <b>+ Place</b> und tipp auf die Stelle der
+Karte, an die es gehört.</li>
+<li>Stell im Inspektor seine Form, Größe und seinen Winkel ein: Ein Licht kann eine Pendelleuchte,
+eine Wandleuchte, ein Streifen oder ein Kronleuchter sein, in echten Zentimetern.</li>
+</ol>
+<p>Lichter, Ventilatoren, Schlösser sowie Bewegungs-, Temperatur-, Feuchtigkeits-, Luftqualitäts- und
+Wassermelder werden alle auf dieselbe Art platziert.</p>
+<ul>
+<li>Eine <b>Temperatur</b>-Markierung ist nach ihrem Messwert getönt: blau unter 20°, rot ab 20°,
+leuchtend orange über 34°. Ein <b>Feuchtigkeits</b>-Messwert erscheint als Prozentzahl.</li>
+<li><b>Bewegung</b> sieht bei jedem Sensor gleich aus: ein kurzes Aufblitzen, dann ein Verblassen, je
+länger es ruhig war. Nach einem Neustart von Home Assistant bleibt Bewegung ein paar Minuten ruhig.</li>
+<li><b>Geräte draußen</b> (alles, dessen Bereich auf einer Outside-Etage liegt: ein Schuppen, der Garten,
+die Einfahrt) haben auf der flachen Karte keine eigene Etage. Platzier sie auf einer Etagenplatte,
+außerhalb des Raums, neben dem sie stehen.</li>
+</ul>
+<p><b>Höhen.</b> Jedes platzierte Gerät hat eine Höhe über seiner Etage, die das 3D-Haus nutzt. Wähl ein
+Gerät und nimm seine Zeile <b>Height</b>: eine der Stellen, die für seine Art angeboten werden (ein
+Bewegungsmelder: Corner, Ceiling, High on the wall; ein Wassermelder: Floor), Zentimeter, oder
+<b>Default</b>. Die Liste <b>Heights</b> zeigt jedes platzierte Gerät; hak mehrere an, um sie auf einmal
+einzustellen.</p>
+<h2 id="die-karte-benutzen">Die Karte benutzen</h2>
+<ul>
+<li><b>Ein Tippen schaltet</b> ein Gerät. <b>Halten</b> (ein goldener Ring füllt sich, während du hältst),
+oder Shift oder Alt mit einem Klick, <b>wählt</b> es zum Bearbeiten <b>aus</b>. Ziehen verschiebt es.</li>
+<li><b>Geräte übereinander</b>: Fahr mit der Maus darüber, oder halte den Finger darauf, und das Feld oben
+links nennt alles, was dort übereinanderliegt. <b>Alt+Klick</b> geht sie der Reihe nach durch.</li>
+<li><b>Das Blatt eines Raums</b>: Tipp auf den Namen des Raums für jedes Gerät darin, <b>All lights on /
+off</b>, seine Ventilatoren und einen Knopf für jede Szene und jedes Skript des Raums in Home
+Assistant (bis zu sechs). Tipp auf das Abzeichen einer Etage für das Blatt der Etage.</li>
+<li><b>Find active</b> scrollt zum ersten Gerät, das gerade etwas tut (ein Licht an, Bewegung), und zeigt
+darauf.</li>
+<li>Auf einem Touchscreen zoomen zwei Finger die Karte, und ein Verschieben übersteht das
+Aktualisieren der Karte.</li>
+</ul>
+<h2 id="türen-fenster-und-schlösser">Türen, Fenster und Schlösser</h2>
+<p>Eine Tür oder ein Fenster, auf einer Wand markiert
+(<a href="/manual/walls-and-signal-loss/de/#türen-und-fenster-die-aufgehen">Kapitel 10</a>), zeigt nach seinem Sensor
+offen oder zu. <b>Umkehren</b>, neben <b>Löschen</b> in der Wandliste, dreht einen Sensor um, der verkehrt
+herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte
+schließt mit einem Tippen ab und auf und zeigt seinen Zustand.</p>
+<h2 id="alarme-und-das-notfall-banner">Alarme und das Notfall-Banner</h2>
+<p>Wasser-, Rauch-, Gas- und Kohlenmonoxidmelder werden als Pfütze oder als runder Melder gezeichnet
+und zeigen <b>WET</b>, <b>SMOKE</b>, <b>GAS</b> oder <b>CO</b>, <b>ALARM</b>, solange der Alarm gehalten wird, und
+<b>DRY</b> oder <b>CLEAR</b>, wenn sie ruhig sind. Geht einer los, läuft ein roter Ring durch seinen Raum,
+und er bleibt 2 Tage lang im Alarm oder bis ihn jemand zurücksetzt, auch wenn der Sensor ruhig wird.
+Ein Banner zeigt ihn auf jedem Bildschirm von PadSpan, mit eigenem <b>Zurücksetzen</b>. Zurücksetzen
+löscht PadSpans Erinnerung an den Alarm, nicht den Sensor. Mehr in <a href="/manual/alerts/de/">Kapitel 13</a>.</p>
+<h2 id="power-teams">Power-Teams</h2>
+<p>Smarte Farbbirnen in Fassungen, die an einem Wanddimmer oder Wandschalter hängen (zum Beispiel
+Zigbee-Birnen an einem Control4-Dimmer), werden dunkel, wenn jemand an der Wand ausschaltet, und
+kommen in der falschen Farbe zurück. Ein Power-Team macht den Dimmer und seine Birnen in Home
+Assistant zu einem Licht.</p>
+<p><b>Eins anlegen</b>: <b>Einstellungen → Atlas → Power teams</b>, <b>+ Add a team</b>. Gib ihm einen Namen
+(„Schlafzimmerlicht“), wähl <b>Power from</b> (den Wanddimmer oder Wandschalter, oder <b>None: these
+lights always have power</b> für Farblichter mit eigener Stromversorgung, etwa LED-Lichterketten), hak
+<b>Its bulbs</b> an und wähl <b>Save</b>. Ein Administrator legt Teams an und ändert sie. Jedes Team ist
+dann ein Licht in Home Assistant unter seinem Namen (<code>light.&lt;team&gt;</code>,
+<a href="/manual/home-assistant-reference/de/">Kapitel 14</a>): Gib ihm dort seinen Raum und platzier es dann auf
+der Karte.</p>
+<p><b>Was es tut</b></p>
+<ul>
+<li><b>Einschalten</b> schaltet den Strom voll ein, schickt den Birnen ihre Helligkeit und Farbe noch
+einmal, während sie starten, und sagt, welche Birne nie geantwortet hat.</li>
+<li><b>Ausschalten</b> tut, was du für das Team gewählt hast: <b>Turns the bulbs off, power stays on</b>
+(sie kommen sofort wieder, in der richtigen Farbe; neue Teams starten damit) oder
+<b>Cuts the power</b>.</li>
+<li><b>Der Schalter an der Wand funktioniert weiter.</b> PadSpan sieht den Strom kommen und stellt die
+Birnen ein. Ein Dimmer, der an der Wand niedrig gehalten wird, legt fest, wie hell die Birnen
+werden, während der Dimmer selbst zurück auf voll geht: Smarte Birnen brauchen die ganze Welle.</li>
+<li><b>Follow the day</b>: kühl und hell am Mittag, warm bei Sonnenaufgang und Sonnenuntergang, gedimmt
+und wärmer durch die Nacht, jede Minute mit einem langsamen Übergang nachgeführt. Wählst du selbst
+eine Farbe oder Helligkeit, hört es auf, bis das Team das nächste Mal eingeschaltet wird oder bis du
+wieder <b>Follow the day</b> wählst. <b>Sleep</b> ist eine gedimmte, warme Einstellung. Die Zahlen der
+Kurve (<b>Brightest, by day</b>, <b>Dimmest, at midnight</b>, <b>Coolest, at noon</b>,
+<b>Warmest, at sunrise and sunset</b>, <b>Sleep: brightness</b>, <b>Sleep: colour</b>) kannst du ändern.</li>
+<li><b>Ein langsames Überblenden</b> von bis zu 100 Minuten, aus einer Automation: Solange es läuft,
+verändert der Tag das Licht nicht.</li>
+</ul>
+<p><b>Auf der Karte</b> ist ein Power-Team ein einziges Ding: Platzier den Dimmer, eine seiner Birnen oder
+das Licht des Teams. Ein Tippen schaltet das Team, Ziehen dimmt es, und Halten öffnet seine Karte.
+Ein Dimmer, der an ist, während seine Birnen aus sind, erscheint dunkel, so wie der Raum es ist.
+<b>Show power teams</b> auf der Karte in den Einstellungen zeigt sie in der Liste.</p>
+<p><b>Die Karte des Teams</b> sagt, was das Team gerade tut (zum Beispiel <b>Off · the power is on, so it
+comes on at once</b>, <b>Power on: the bulbs are starting</b>, <b>On · set by hand</b>, <b>Waking up: fading
+in</b>), mit:</p>
+<ul>
+<li><b>Follow the day</b> und <b>Sleep</b>;</li>
+<li>dem <b>Power</b> des Wanddimmers, mit <b>Cut power</b> und <b>Power on</b>;</li>
+<li>jeder Birne, mit <b>Try again</b> für eine, die nicht geantwortet hat;</li>
+<li><b>A tap's off</b>: was ein Tippen auf der Karte tut, wenn das Team an ist;</li>
+<li><b>The day's light</b>: wann der Tag dieses Lichts beginnt und endet: <b>Sunrise moved by</b> und
+<b>Sunset moved by</b> einige Minuten, oder <b>Day starts at a fixed time</b> und <b>Day ends at a fixed
+time</b> (ein Schlafzimmer, dessen Tag das ganze Jahr um 6:30 beginnt);</li>
+<li>einem Wecken (<b>wake-up</b>): An den Tagen und zu der Uhrzeit, die du wählst (<b>Full light at</b>,
+<b>Fading in over</b>), geht ein Team, das aus ist, auf seiner dunkelsten und wärmsten Stufe an und
+wird bis dahin voll hell. Ein Team, das schon an ist, bleibt, wie es ist. <b>Save the wake-up</b>;</li>
+<li><b>Advanced: the day's curve</b>.</li>
+</ul>
+<p>Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adaptive Lighting
+übernommen.</p>
+<h2 id="showcase-automorph-und-presets-pro">Showcase, Automorph und Presets (Pro)</h2>
+<ul>
+<li><b>Showcase</b>: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
+zusammen). Wähl eines in der Werkzeugleiste des Atlas unter <b>Presentation</b>.</li>
+<li><b>Automorph</b>: ein weicher Schein von einer Leuchte hinaus in ihren Raum, in verschiedenen Stilen
+zur Wahl (Werkzeugleiste → Automorph).</li>
+<li><b>Die Presets-Leiste</b> speichert einen ganzen Look (Thema, Automorph-Stil, und wenn du willst
+Etage, Abstand und Anordnung) unter einem Namen, und <b>Apply</b> holt ihn zurück.</li>
+<li><b>Whole House Presets</b> merkt sich das Haus selbst: <b>Set</b> hält den Zustand jedes Lichts und
+Ventilators fest (an oder aus, Helligkeit, Farbe, Effekt, Ventilatorstufe), und <b>Apply</b> stellt
+das ganze Haus wieder so her, nachdem es gefragt hat. Schlösser sind nie dabei.</li>
+</ul>
+<h2 id="vacation-mode-pro">Vacation Mode (Pro)</h2>
+<p>Der erste Eintrag in der Liste Whole House Presets. Er lernt den Tagesablauf deines Hauses aus dem
+Verlauf von Home Assistant (jedes Licht, jeder Wochentag) und schaltet weiter Lichter passend dazu,
+mit etwas Zufall, damit es nicht nach einer Zeitschaltuhr aussieht, bis du ihn ausschaltest. Solange
+er läuft, sitzt ein Banner in der Mitte des Atlas, mit einem Schieber <b>Energy saving</b> (100 % folgt
+dem ganzen Tagesablauf; weniger schaltet weniger Lichter auf einmal ein). Ihn ein- oder
+auszuschalten braucht einen Administrator.</p>
+<ul>
+<li><b>Das Ausschalten fragt zuerst.</b> Home Assistant zeigt dann, wer ihn ausgeschaltet hat, wann und
+von wo, und dieselbe Nachricht geht an die Ziele deiner Alarme in Folgen.</li>
+<li><b>Innerhalb von 3 Wochen nach einer Reise wieder eingeschaltet</b>, macht er mit dem Tagesablauf
+dieser Reise weiter, statt aus den Tagen zu lernen, an denen das Haus leer stand.</li>
+<li><b>Optionen</b>, jede aus, bis du sie einstellst: <b>Only after dark</b>, <b>Ends</b> (ein Datum und eine
+Uhrzeit; er schaltet sich selbst aus und sagt es dir), <b>Pause while someone is home</b>,
+<b>Bedtime</b> (Lichter gehen ab etwa dieser Zeit bis 5 Uhr morgens aus, jede Nacht um bis zu 20
+Minuten verschoben), <b>Longest on</b>.</li>
+<li><code>binary_sensor.padspan_vacation_mode</code> und das Ereignis <code>padspan_ha_vacation_mode</code> stehen in
+<a href="/manual/home-assistant-reference/de/">Kapitel 14</a>. Eine PadSpan-Sicherung wiederherzustellen lässt ihn,
+wie er ist.</li>
+</ul>
+<h2 id="wetter-draußen">Wetter draußen</h2>
+<p>Wenn es regnet oder schneit, fällt auf dem Atlas zarter Regen oder Schnee rund um das Haus, nie über
+einem Raum. Pro animiert das Wetter; die kostenlose Karte zeigt es unbewegt. Richte es ein unter
+<b>Einstellungen → Atlas → Atlas — Mapped Light Control → Outdoor weather</b> (Modus Erweitert): der
+Schalter (ab Werk an), ein Regensensor (freiwillig), die Wetter-Entität, der Warnungssensor (wird
+von selbst gefunden) und <b>Strength</b> (0,5× bis 1,5×).</p>
+<ul>
+<li><b>Leichter Regen</b>, wenn es nass ist: Ein Regensensor entscheidet, wenn du einen gewählt hast,
+sonst die Wetter-Entität.</li>
+<li><b>Nichts</b>, wenn ein Ein/Aus-Regensensor nass meldet, die Wetter-Entität aber sonnig, klare Nacht
+oder teilweise bewölkt sagt: Tau und Reif machen einen Regensensor an klaren Morgen nass.</li>
+<li><b>Die Antwort der Wetter-Entität</b>, wenn der Regensensor seit über 3 Stunden nichts gemeldet hat.</li>
+<li><b>Starker Regen</b> nur bei einer Regenwarnung, oder wenn die Wetter-Entität Starkregen sagt.</li>
+<li><b>Schnee</b>, wenn die Wetter-Entität Schnee sagt, oder bei 1 °C oder kälter. <b>Starker Schnee</b> nur
+bei einer Schneefallwarnung.</li>
+</ul>
+<p>Warnungen werden von selbst gefunden, von Environment Canada, MeteoAlarm, DWD und NINA sowie
+Météo-France. In den USA fügen die Custom-Integrationen weatheralerts oder nws_alerts sie hinzu.</p>
+<h2 id="test-der-notbeleuchtung">Test der Notbeleuchtung</h2>
+<p>Ein runder roter Knopf <b>Test emergency lighting</b> oben rechts auf der Karte, nur da, wenn PadSpan
+Notlichter findet: eine Home-Assistant-Gruppe mit „emergency“ im Namen (auch verschachtelte
+Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen.</p>
+<ul>
+<li><b>Tipp auf die rote Mitte</b>: Jedes Notlicht geht an, und es zeigt <b>Test on — tap to end</b>.
+Lichter, die schon an waren, bleiben an, wenn er endet.</li>
+<li><b>Tipp auf den Ring</b> für die Liste der Notlichter.</li>
+<li><b>Force off</b> schaltet jedes Notlicht aus, auch die, die vorher an waren; es verlangt ein zweites
+Tippen.</li>
+<li>Solange eine Home-Assistant-Automation mit „emergency“ im Namen läuft (ein echter Notfall),
+schaltet der Test diese Lichter nicht unter ihr aus.</li>
+<li>Um den Knopf auf einem Bildschirm auszublenden, den jeder antippen kann:
+<b>Einstellungen → Atlas → Atlas — Mapped Light Control → Show the Test emergency lighting button on
+the Atlas</b>.</li>
+</ul>
+<h2 id="wled-advanced-und-exact-look-pro">WLED: Advanced und Exact look (Pro)</h2>
+<p>Die Karte eines WLED-Lichts hat <b>Controls | Advanced</b>. Advanced ist eine ganze WLED-Werkbank in
+Reitern: <b>Layout</b>, <b>Effect</b>, <b>Presets &amp; playlists</b>, <b>LEDs</b>, <b>Sync &amp; team</b>, <b>Exact look</b>,
+<b>Settings</b>, <b>Backup</b> und <b>Info</b>.</p>
+<p><b>Exact look</b> sorgt dafür, dass ein WLED-Licht jedes Mal gleich aussieht, wenn es angeht:</p>
+<ol>
+<li>Stell das Licht ein, wie du es magst, und wähl dann auf <b>Exact look</b> <b>Remember this look</b>
+(oder <b>Remember team look</b> für jedes Licht in seinem WLED-Sync-Team).</li>
+<li>Wähl auf <b>Sync &amp; team</b> unter <b>Who gives this light its instructions</b>
+<b>PadSpan (exact look)</b> statt <b>WLED sync</b>. WLEDs eigener Sync wird auf diesem Gerät
+abgeschaltet und wieder eingeschaltet, wenn du zurückwechselst.</li>
+</ol>
+<p>Nur ein Administrator kann ändern, wer ein Licht steuert.</p>
+<h2 id="öffner-schlösser-und-lichter-aus-relais-pro">Öffner, Schlösser und Lichter aus Relais (Pro)</h2>
+<p>Ein Garagentor, ein Fensteröffner, ein Türöffner oder ein Licht an einfachen Relais?
+<b>Öffner, Schloss oder Licht aus Relais bauen</b> (<b>+ Build an opener, lock, or light from relays</b>
+in der Liste des Atlas-Editors) macht daraus eine richtige Abdeckung, ein Schloss oder ein Licht in
+Home Assistant.</p>
+<ul>
+<li><b>Öffner</b>: die Relais für Öffnen und Schließen (zwei verschiedene), die Laufzeit für ganz auf
+oder ganz zu, und ein Stellungssensor, wenn du einen hast (<b>Sensor umkehren</b>, wenn er verkehrt
+herum meldet). Ohne Sensor wird die Stellung aus den Befehlen gemerkt.</li>
+<li><b>Schloss</b>: das Relais, der Entriegel-Impuls und die Zeit bis zum automatischen
+Wiederverriegeln, in Sekunden.</li>
+<li><b>Licht</b>: das Relais und sein Impuls.</li>
+</ul>
+<p><b>Aufbauen</b> legt das Skript, die Automation und die Entität an; <b>Entfernen</b> nimmt sie wieder weg.</p>
+<div class="pager"><span><a href="/manual/home-assistant-reference/de/">← 14. Home Assistant: Entitäten, Dienste, Ereignisse, Assist</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/live-aboard/de/">16. Live Aboard →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

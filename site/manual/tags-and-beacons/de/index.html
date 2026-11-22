@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7. Tags, Beacons, AirTags und Gast-Tags | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Damit du weißt, in welchem Raum deine Schlüssel, ein Hund oder ein Gast sind, muss Home Assistant ihren Tag jedes Mal wiedererkennen, wenn ein Empfänger ihn…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/tags-and-beacons/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/tags-and-beacons/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/tags-and-beacons/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/tags-and-beacons/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="7. Tags, Beacons, AirTags und Gast-Tags">
+<meta property="og:description" content="Damit du weißt, in welchem Raum deine Schlüssel, ein Hund oder ein Gast sind, muss Home Assistant ihren Tag jedes Mal wiedererkennen, wenn ein Empfänger ihn…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/tags-and-beacons/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/tags-and-beacons/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="7-tags-beacons-airtags-und-gast-tags">7. Tags, Beacons, AirTags und Gast-Tags</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Damit du weißt, in welchem Raum deine Schlüssel, ein Hund oder ein Gast sind, muss Home Assistant
+ihren Tag jedes Mal wiedererkennen, wenn ein Empfänger ihn hört. Ein einfacher Beacon mit fester
+Kennung kann das. Die bekanntesten Tags sind gebaut, genau das nicht zu können: Ein AirTag wechselt
+ständig seine Bluetooth-Adresse, damit ihm niemand folgen kann.</p>
+<h2 id="welcher-tag-funktioniert">Welcher Tag funktioniert</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Tag</th><th>Was er sendet</th><th>Raum für Raum?</th></tr>
+  <tr><td>Ein Beacon mit fester iBeacon-Kennung (Feasycom, Blue Charm, Minew und andere)</td><td>Jedes Mal dieselbe Kennung; bei vielen stellst du ein, wie oft</td><td>Ja. Kauf diese Art.</td></tr>
+  <tr><td>Alles mit einer festen Adresse (günstige Schlüsselfinder, Shelly BLU und andere BTHome-Geräte, Xiaomi-Thermometer, RuuviTag, einfache Uhren)</td><td>Jedes Mal dieselbe Bluetooth-Adresse</td><td>Ja, wenn es alle paar Sekunden sendet. Ein Sensor, der nur bei einem Ereignis sendet, hält keinen Raum.</td></tr>
+  <tr><td>Tile</td><td>Ältere behalten eine Adresse; neuere wechseln sie, wie berichtet wird</td><td>Vielleicht. Teste deinen, und kauf keinen dafür.</td></tr>
+  <tr><td>AirTag und andere Find-My-Tags</td><td>Etwa alle 15 Minuten eine neue Adresse in der Nähe des iPhones des Besitzers</td><td>Nicht zuverlässig. PadSpan kann einen benannten weiterführen, solange er in Reichweite bleibt (experimentell, unten).</td></tr>
+  <tr><td>Samsung SmartTag, Tags für Google Find Hub</td><td>Alle 15 bis 17 Minuten eine neue Kennung</td><td>Nein.</td></tr>
+  <tr><td>Ein Handy oder eine Smartwatch</td><td>Eine wechselnde Adresse, aber ein Schlüssel oder sein eigener Beacon verrät, wer es ist</td><td>Ja, nach einem Schritt pro Gerät: <a href="/manual/phones-and-watches/de/">Kapitel 6</a>.</td></tr>
+</table>
+</div>
+<p>Ein Beacon sendet jedes Mal dieselbe Kennung (eine UUID, Major und Minor) und wird deshalb auch dann
+erkannt, wenn seine Adresse wechselt. Die Kehrseite: Jeder mit einem Bluetooth-Scanner kann diese
+Kennung ebenfalls erkennen. Beim Hund ist das egal, aber denk darüber nach bei etwas, das du durch
+die Stadt trägst.</p>
+<h2 id="worauf-du-achten-solltest">Worauf du achten solltest</h2>
+<ul>
+<li><b>Für Schlüssel</b>: ein kleiner Beacon mit einem Loch für den Schlüsselring, einer Knopfzelle, die
+du wechseln kannst, und einem Intervall, das du einstellen kannst. IP66 oder besser, wenn er in
+einer Hosentasche lebt.</li>
+<li><b>Fürs Halsband</b>: wasserdicht (IPX7 oder IP67), leicht genug für das Tier und mit einem
+Batteriedeckel, der verschraubt oder versiegelt ist (eine verschluckte Knopfzelle kann einem
+Haustier schaden).</li>
+<li><b>Für Gäste</b>: ein paar Beacons für den Schlüsselring, in einer Schublade. Mehrfachpacks können mit
+einer gemeinsamen Kennung kommen, also gib jedem in der App des Herstellers sein eigenes Minor.</li>
+</ul>
+<p><b>Wie oft er sendet.</b> Etwa einmal pro Sekunde ist ein guter Anfang. PadSpan nutzt keinen Messwert,
+der älter als etwa 15 Sekunden ist, um einen Tag zu platzieren, also hält einer, der nur ab und zu
+sendet, seinen Raum nicht. Ein schnelleres Intervall kostet Batterie: Die Angaben der Hersteller
+für eine Knopfzelle reichen von unter einem Jahr bei 0,1 Sekunden bis zu mehreren Jahren bei einer
+Sekunde.</p>
+<h2 id="teste-einen-tag-bevor-du-dich-auf-ihn-verlässt">Teste einen Tag, bevor du dich auf ihn verlässt</h2>
+<p>Die Hersteller sagen selten, was ein Tag sendet, also sieh selbst nach.</p>
+<ol>
+<li>Lass das Handy des Tags in der Nähe, falls er eins hat, mit dem Tag in seiner App eingerichtet.
+Ein Find-My-Tag fern von seinem Besitzer kann einen ganzen Tag lang eine Adresse behalten und
+dich täuschen.</li>
+<li>Öffne den Bluetooth-Advertisement-Monitor von Home Assistant oder nRF Connect auf einem
+Android-Handy.</li>
+<li>Halte den Tag neben einen Empfänger, um ihn an seinem Signal zu erkennen. Schreib seine Adresse
+auf (und bei einem Beacon seine UUID, Major und Minor).</li>
+<li>Sieh nach einer Stunde noch einmal nach, und noch einmal nach einem Tag.</li>
+</ol>
+<p>Dieselbe Adresse oder dieselbe Beacon-Kennung: Er lässt sich erkennen. Weg, solange sein Handy
+verbunden ist: Er hört während einer Verbindung auf zu senden, also trenne ihn von seiner App oder
+nimm einen anderen. Jedes Mal eine neue Adresse und keine feste Kennung: Nichts kann ihn erkennen.</p>
+<h2 id="in-padspan-benennen">In PadSpan benennen</h2>
+<ol>
+<li>Halte den Tag neben einen Empfänger.</li>
+<li>Öffne <b>Folgen</b> und <b>Tag zum Folgen wählen</b>. Die Liste beginnt mit dem stärksten Signal, dein
+Tag steht also weit oben, markiert mit <b>[Unerkannt]</b>.</li>
+<li>Wähle ihn und dann <b>Diesen Tag benennen</b>. Halte den Namen kurz, etwa „Keys“.</li>
+</ol>
+<p>Oder öffne auf der Karte <b>Objekte</b> der Übersicht (Modus Erweitert) <b>Alle Objekte</b>, wähle
+<b>Benennen</b> in seiner Zeile, gib einen Namen ein und wähle <b>Namen speichern</b>. In der Nähe einer
+belebten Straße ist diese Liste lang: Stell <b>Alle Zustände</b> auf <b>Erkannt</b> oder such.</p>
+<p>Erst der Name gibt dem Tag seine Entitäten in Home Assistant. Für einen Tag namens Keys:</p>
+<ul>
+<li><code>device_tracker.keys</code>: der Raum, <code>not_home</code>, sobald er so lange wie das <b>Abwesenheits-Timeout</b>
+nicht gehört wurde (in der Voreinstellung fünf Minuten), oder <code>unknown</code>, solange er keinen Raum
+hat.</li>
+<li><code>sensor.keys_area</code>: der Raum, dazu Entfernungssensoren.</li>
+</ul>
+<p>Jede Entität und jedes Attribut steht in <a href="/manual/home-assistant-reference/de/">Kapitel 14</a>.</p>
+<p><b>Dinge, die niemand trägt.</b> Schlüssel auf dem Tisch im Flur, ein Tag an einer Tasche: In der
+Voreinstellung gehen sie wie alles andere auf <code>not_home</code>, wenn sie nicht mehr gehört werden.
+<b>Einstellungen → Ortung → Räume und Zeiten → Zuhause/Abwesend-Timeout → Dinge behalten ihren Raum</b>
+behält stattdessen bis zu 48 Stunden lang ihren letzten Raum.</p>
+<p><b>Ein benannter Tag ist keine Person.</b> PadSpans Personenzählung lässt Schlüssel, Beacons, Kisten und
+Fahrzeuge aus, damit Schlüssel zu Hause ein leeres Haus nicht bewohnt aussehen lassen.</p>
+<p><b>Was es nicht kann</b>: einen Tag klingeln lassen oder seine Batterie auslesen. Ein Tag mit leerer
+Batterie sieht genauso aus wie einer, der das Haus verlassen hat.</p>
+<p><b>Folgen</b> hat auch für einen Tag <b>Bewegungsalarme</b> (<a href="/manual/alerts/de/">Kapitel 13</a>), und
+<b>Traceback</b> behält seinen Verlauf.</p>
+<h2 id="eine-erste-automation-schlüssel-vergessen">Eine erste Automation: Schlüssel vergessen</h2>
+<p>Für den Fall, dass du gehst und deine Schlüssel nicht. Die Person braucht einen Tracker, der weiß,
+dass sie weg ist, etwa den der Companion App:</p>
+<pre><code>alias: Keys left behind
+triggers:
+  - trigger: state
+    entity_id: person.alex
+    to: not_home
+    for: "00:06:00"
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: device_tracker.keys
+        state: not_home
+actions:
+  - action: notify.mobile_app_alex_phone
+    data:
+      message: "Your keys are still at home: {{ states('device_tracker.keys') }}"</code></pre>
+<p>Die sechs Minuten sind länger als das <b>Abwesenheits-Timeout</b> von fünf Minuten, also stehen
+Schlüssel in deiner Tasche auf <code>not_home</code>, wenn die Automation prüft. Hast du das Timeout erhöht,
+erhöh auch diesen Wert.</p>
+<h2 id="airtags-die-du-schon-hast">AirTags, die du schon hast</h2>
+<ul>
+<li><b>Zu Hause oder weg</b>: Find My weiß, wo sie sind, und manche bringen das auf anderen Wegen nach
+Home Assistant. Das ergibt Zonen, keine Räume.</li>
+<li><b>In PadSpan (experimentell)</b>: Schalte <b>Einstellungen → Funktionen → MAC Rotation Bridging</b> ein
+(ab Werk aus) und benenne den Tag. Wechselt der Tag seine Adresse, übernimmt PadSpan Namen, Raum
+und Verlauf, wenn klar ist, welcher es ist: dieselbe Art Tag, die alte Adresse ist verstummt, die
+neue tauchte genau in dem Moment auf und wird am selben Ort gehört. Zwei Tags, die zusammen liegen
+und gleichzeitig wechseln, bleiben getrennt, und ein Tag, der außer Reichweite gewechselt hat,
+kommt als neues Gerät zurück, das du noch einmal benennst. Derselbe Schalter verknüpft andere
+Geräte mit wechselnder Adresse anhand dessen, was sie senden, und das kann gelegentlich das
+falsche verknüpfen.</li>
+<li>Es passt also zu einem Tag, der zu Hause bleibt, an einer Fernbedienung oder in einer Tasche,
+nicht zu Schlüsseln, die du aus dem Haus trägst.</li>
+<li><b>Nichts für Gäste oder Haustiere.</b> Ein Gast mit deinem AirTag bekommt Apples Warnung, dass sich
+ein AirTag mit ihm bewegt, und ein AirTag fern von seinem Besitzer spielt einen Ton ab. Nimm für
+einen Gast einen Beacon.</li>
+</ul>
+<h2 id="gast-tags">Gast-Tags</h2>
+<p>Leih einem Gast einen Tag (einer Haushüterin, einem Verwandten, einer Reinigungskraft, einem
+Handwerker), und PadSpan folgt ihm Raum für Raum, solange der Gast ihn hat. Gibt er ihn zurück,
+kommt der Tag wieder in die Schublade, und der Bericht des Aufenthalts wird so lange aufbewahrt,
+wie du wählst. Gast-Tags sind kostenlos und aus, bis du sie einschaltest. Nur ein Administrator kann
+sie einschalten, einen Tag verleihen oder einen Aufenthalt beenden.</p>
+<h3 id="einschalten">Einschalten</h3>
+<p><b>Einstellungen → Ortung → Handys und Gast-Tags → Gast-Tags → Tags als Gast-Tags nutzen.</b> Hier
+wählst du auch, wie lange der Bericht eines beendeten Aufenthalts aufbewahrt wird: gar nicht, 7, 30
+(die Voreinstellung) oder 90 Tage. Im Menü erscheint der Bildschirm <b>Gäste</b>.</p>
+<h3 id="einen-tag-zum-gast-tag-machen">Einen Tag zum Gast-Tag machen</h3>
+<p>Benenne zuerst einen freien Tag (oben), etwa „Guest tag 1“. Wähle ihn in <b>Gäste</b> unter
+<b>Use as a guest tag</b> und dann <b>Add</b>.</p>
+<p>Der Tag behält seinen eigenen Namen; der Name des Gastes gehört zum Aufenthalt. So bleibt
+<code>device_tracker.guest_tag_1</code> von einem Gast zum nächsten dieselbe Entität, und deine Automationen
+funktionieren weiter.</p>
+<h3 id="verleihen">Verleihen</h3>
+<p>Wähle am Tag <b>Lend to a guest</b>:</p>
+<ul>
+<li><b>Guest's name</b>.</li>
+<li><b>Until (optional — the stay ends by itself then)</b>.</li>
+<li><b>Rooms they shouldn't go into</b>: Du bekommst Bescheid, wenn der Gast eine halbe Minute in einem
+davon war. Durch eine Tür gehen zählt nicht.</li>
+<li><b>Tell me when they arrive</b>, <b>Tell me when they leave</b>.</li>
+<li><b>Staying here (a house-sitter)</b>: zählt für den Urlaubsmodus als jemand zu Hause.</li>
+<li><b>Send notices to</b>: ein Handy oder ein anderes notify-Ziel, oder <b>A Home Assistant notification</b>.</li>
+<li><b>Quiet hours</b>: dann keine Hinweise zu Ankunft oder Abschied. Hinweise zu gesperrten Räumen
+kommen trotzdem.</li>
+</ul>
+<p>Sag deinem Gast, dass der Tag geortet wird, und verleih ihn nur, wenn er einverstanden ist. Ein
+Beacon warnt niemanden so, wie es ein AirTag tut, also liegt es an dir, es ihm zu sagen. In vielen
+Ländern ist es verboten, eine Person ohne ihre Einwilligung zu orten.</p>
+<h3 id="während-des-aufenthalts">Während des Aufenthalts</h3>
+<p><b>Gäste → Staying now</b> zeigt, wo der Gast ist (oder dass der Tag nicht gehört wird), seit wann, bis
+wann und die bisherige Zeit in jedem Raum. <b>Change</b> bearbeitet den Aufenthalt. <b>Traceback</b> öffnet
+den Verlauf des Tags für den Aufenthalt. In der Übersicht, im Atlas und in Live Aboard zeigt der Tag
+den Namen des Gastes mit einem Abzeichen <b>Gast</b>. Solange ein Tag verliehen ist, bleiben seine
+eigenen Alarme aus Folgen still; der Aufenthalt schickt seine eigenen.</p>
+<h3 id="wenn-er-ihn-zurückgibt">Wenn er ihn zurückgibt</h3>
+<p>Wähle <b>Tag returned</b>. Der Aufenthalt wandert mit seinem Bericht zu <b>Past stays</b>: wann der Gast
+zuerst kam und zuletzt ging, wann er hinausging und wiederkam, die Zeit in jedem Raum, Besuche in
+gesperrten Räumen und die gesendeten Hinweise. <b>Forget</b> löscht einen Aufenthalt sofort, mitsamt
+Namen.</p>
+<p>Vergessen, einen zu beenden? Wurde der Tag zwei Tage lang nicht gehört, fragt PadSpan, ob der
+Aufenthalt vorbei ist. Nach einer Woche ohne Signal endet er von selbst.</p>
+<h3 id="für-automationen">Für Automationen</h3>
+<p><code>binary_sensor.padspan_guest_home</code>, die Gast-Attribute am Tracker des Tags und das Ereignis
+<code>padspan_ha_guest</code> stehen in <a href="/manual/home-assistant-reference/de/">Kapitel 14</a>. Die Hinweise stehen in
+<a href="/manual/alerts/de/">Kapitel 13</a>.</p>
+<h3 id="datenschutz-der-gäste">Datenschutz der Gäste</h3>
+<p>Die Namen der Gäste bleiben in deinem Home Assistant. Sie stehen weder im Nutzungsbericht noch in
+einem PadSpan-Backup. Ein beendeter Aufenthalt wird nach den Tagen gelöscht, die du eingestellt
+hast, und ein Zurücksetzen auf Werkseinstellungen löscht alle Gast-Tags und Aufenthalte.</p>
+<h2 id="wenn-ein-tag-nicht-auftaucht">Wenn ein Tag nicht auftaucht</h2>
+<ul>
+<li><b>Er steht gar nicht in der Liste.</b> Manche Tags schlafen, bis sie einmal gekoppelt wurden oder
+ein Knopf gedrückt wurde. Andere verstummen, solange sie mit ihrer App verbunden sind.</li>
+<li><b>Sein Name verschwindet immer wieder.</b> Er wechselt seine Adresse: Mach den Test von oben.</li>
+<li><b>Er wird gehört, bekommt aber nie einen Raum.</b> Seine Empfänger brauchen Bereiche in Home
+Assistant: <b>Zustand → Scanner → Raum</b> listet den Raum jedes Empfängers.</li>
+<li><b>Er springt zwischen Räumen</b>: <a href="/manual/troubleshooting/de/#ein-gerät-zeigt-den-falschen-raum-oder-springt-zwischen-räumen">Kapitel 26</a>.
+Tief am Halsband hat es ein Tag schwerer: Ein Haustier, das auf seinem Tag liegt, blockiert das
+Signal.</li>
+</ul>
+<div class="pager"><span><a href="/manual/phones-and-watches/de/">← 6. Handys und Uhren</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/rooms-and-floors/de/">8. Räume und Etagen kommen aus Home Assistant →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

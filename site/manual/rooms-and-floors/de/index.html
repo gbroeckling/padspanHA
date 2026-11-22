@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8. Räume und Etagen kommen aus Home Assistant | PadSpan-HA-Handbuch</title>
+<meta name="description" content="PadSpan hat keine eigene Raumliste. Seine Räume sind deine Bereiche in Home Assistant, und seine Etagen sind deine Etagen in Home Assistant. Du legst sie in…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/rooms-and-floors/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/rooms-and-floors/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/rooms-and-floors/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/rooms-and-floors/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="8. Räume und Etagen kommen aus Home Assistant">
+<meta property="og:description" content="PadSpan hat keine eigene Raumliste. Seine Räume sind deine Bereiche in Home Assistant, und seine Etagen sind deine Etagen in Home Assistant. Du legst sie in…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/rooms-and-floors/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/rooms-and-floors/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="8-räume-und-etagen-kommen-aus-home-assistant">8. Räume und Etagen kommen aus Home Assistant</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>PadSpan hat keine eigene Raumliste. Seine Räume sind deine <b>Bereiche</b> in Home Assistant, und seine
+Etagen sind deine <b>Etagen</b> in Home Assistant. Du legst sie in Home Assistant an, benennst sie um
+und entfernst sie dort, und PadSpan folgt. Was PadSpan für jeden Raum speichert, ist das, wofür Home
+Assistant keinen Platz hat: seinen Umriss auf dem Grundriss, seine Farbe, seine Deckenhöhe und
+dergleichen.</p>
+<h2 id="räume-sind-bereiche">Räume sind Bereiche</h2>
+<ul>
+<li><b>Der Raum eines Empfängers</b> ist der Bereich seines Geräts in Home Assistant. Ein Empfänger ohne
+Bereich ergibt keinen Raum, egal wie gut er dich hört
+(<a href="/manual/receivers/de/#raum-platz-und-höhe-eines-empfängers">Kapitel 5</a>).</li>
+<li><b>Der Raum eines Geräts</b> ist der Raum des Empfängers, der es am besten hört, oder, mit drei oder
+mehr Empfängern auf einem Grundriss, der Bereich, in dessen Umriss es ist.</li>
+<li><b>Der Raum, den PadSpan an Home Assistant meldet</b> (der Zustand eines Trackers, ein
+Bereichssensor), ist der Name des Bereichs, so geschrieben, wie Home Assistant ihn hat: „Küche“,
+nicht „küche“.</li>
+</ul>
+<p>Für Räume braucht also jeder Raum, den du unterscheiden willst, einen Bereich in Home Assistant und
+darin einen Empfänger mit diesem Bereich. Ein Raum, den du nur auf der Karte haben willst (ein
+Abstellraum, ein Flur), braucht einen Bereich und einen Umriss, aber keinen Empfänger.</p>
+<p><b>Bereiche anlegen</b> in Home Assistant: <b>Einstellungen → Bereiche, Labels &amp; Zonen</b>. Hat Home
+Assistant noch keine Bereiche, sagt die Karte <b>Wer ist wo</b> in der Übersicht das.</p>
+<p><b>Einen aus PadSpan anlegen.</b> Zeichnest du Räume in <b>Karten → Bearbeiten</b> und hat die Etage des
+Grundrisses keinen Bereich mehr zur Auswahl, sagt PadSpan: „Für diese Etage gibt es noch keinen Raum
+zur Auswahl: Räume sind die Bereiche von Home Assistant.“ Gib einen Namen ein und wähle
+<b>Zu Home Assistant hinzufügen</b>: Home Assistant bekommt einen Bereich mit diesem Namen, auf der
+Etage des Grundrisses. Ein Name, der schon ein Bereich ist, wird verwendet, nie doppelt angelegt.
+Der Raum-Helfer, mit dem Claude zeichnen kann (<a href="/manual/ai-features/de/">Kapitel 19</a>), bietet dasselbe an.</p>
+<h2 id="etagen-sind-etagen-in-home-assistant">Etagen sind Etagen in Home Assistant</h2>
+<p>Gib jedem Bereich in Home Assistant seine Etage (das Feld <b>Etage</b> eines Bereichs, unter
+<b>Einstellungen → Bereiche, Labels &amp; Zonen</b>). PadSpan liest die Etagen und stapelt sie von unten
+nach oben:</p>
+<ol>
+<li>nach der <b>Ebene</b> jeder Etage in Home Assistant, wenn sie eine hat;</li>
+<li>sonst nach ihrem Namen: „basement“ und „cellar“ kommen nach unten, „ground“, „main“ und „first
+floor“ auf Bodenhöhe, „outdoors“ ebenfalls auf Bodenhöhe;</li>
+<li>sonst über die benannten, in der Reihenfolge, in der sie angelegt wurden.</li>
+</ol>
+<p>Setz in Home Assistant auf jeder Etage eine Ebene, und die Reihenfolge ist nie geraten. Die
+Reihenfolge zählt nicht nur fürs Bild: Ein Signal, das durch eine Decke geht, verliert an Stärke,
+und PadSpan zählt die Etagen dazwischen anhand dieser Reihenfolge.</p>
+<p><b>Wie weit die Etagen auseinanderliegen</b>, gehört PadSpan, nicht Home Assistant: der Schritt
+<b>Etagen und ihre Höhen</b> der Einrichtung (<a href="/manual/setup-the-map/de/#schritt-4-etagen-und-ihre-höhen">Kapitel 9</a>). Ein
+Abgleich mit Home Assistant überschreibt sie nie.</p>
+<p><b>Draußen.</b> Eine Etage namens Outside, Outdoor, Outdoors, Exterior, Garden oder Yard gilt als
+Außenetage: auf Bodenhöhe und in der 3D-Ansicht gezeichnet. Die flache Karte zeigt keine Räume
+darauf.</p>
+<p><b>Ein Bereich ohne Etage</b> wird auf jedem Grundriss angeboten, und der Bildschirm <b>Räume</b> sagt
+<b>No floor set in Home Assistant</b>.</p>
+<p>Ein Haus mit einer Etage und ohne Etagen in Home Assistant funktioniert so, wie es ist: Alles ist auf
+einer Etage.</p>
+<h2 id="der-bildschirm-räume">Der Bildschirm Räume</h2>
+<p><b>Räume</b> im Menü listet jeden Raum mit dem, was PadSpan für ihn speichert. Die Namen und Etagen
+sind hier nur zu lesen; <b>Rename in Home Assistant</b> und <b>Add a room in Home Assistant</b> öffnen die
+eigenen Seiten von Home Assistant. Die Zeile jedes Raums hat seinen Namen und seine Etage, seine
+Farbe (<b>Room colour, on every map</b>) und:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Feld</th><th>Was es ist</th></tr>
+  <tr><td><b>Outline</b></td><td><b>Drawn</b> oder <b>Not drawn</b>. <b>Draw outline</b> oder <b>Edit outline</b> öffnet den Umriss auf seinem Grundriss in Karten.</td></tr>
+  <tr><td><b>Ceiling height (m)</b></td><td>1,5 bis 30 m, oder leer für die Höhe der Etage. <b>Save height</b>.</td></tr>
+  <tr><td><b>Split level (m up or down)</b></td><td>Für einen Raum ein paar Stufen höher oder tiefer: bis 3 m höher, 1,5 m tiefer, oder leer für gleiche Höhe mit seiner Etage.</td></tr>
+  <tr><td><b>Kind of space</b></td><td>Für einen Raum auf einer Etage des Hauses: drinnen, oder eine überdachte oder offene Terrasse. <b>Work it out</b> errät es aus dem Haus.</td></tr>
+  <tr><td><b>Surface</b></td><td>Für einen Raum draußen: was die 3D-Ansicht auf seinem Boden zeichnet.</td></tr>
+  <tr><td><b>Receivers</b></td><td>Die Empfänger darin. <b>See receivers</b> öffnet den Bildschirm Empfänger.</td></tr>
+  <tr><td><b>In it now</b></td><td>Wer gerade darin ist, oder <b>Nobody</b>.</td></tr>
+  <tr><td><b>Lights</b></td><td>Die Lichter darin, so wie der Atlas sie zählt.</td></tr>
+</table>
+</div>
+<p>Farbe, Deckenhöhe und Split level werden sofort gespeichert. Ein auf einem Grundriss gezeichneter
+Umriss kommt erst dann auf die Karte des Hauses, wenn du <b>Auf die Karte setzen</b> wählst
+(<a href="/manual/setup-the-map/de/#abschluss-auf-die-karte-setzen">Kapitel 9</a>), nie von selbst.</p>
+<h2 id="umbenennen-und-entfernen">Umbenennen und entfernen</h2>
+<p>PadSpan kennt einen Raum an seinem Namen.</p>
+<ul>
+<li><b>Ein Raum, der kein Bereich mehr ist</b>, etwa einer, den du in Home Assistant umbenannt oder
+entfernt hast, erscheint auf dem Bildschirm Räume als <b>PadSpan only, not a Home Assistant area</b>,
+und sein Umriss bleibt erhalten. Zeichne nach einem Umbenennen den Umriss für den neuen Namen noch
+einmal und entferne den alten in <b>Karten → Bearbeiten</b>.</li>
+<li><b>Ein Empfänger, der in einen anderen Raum gekommen ist</b>: Ändere den Bereich seines Geräts in
+Home Assistant, oder in PadSpan mit <b>Raum festlegen</b> auf der Karte <b>Wer ist wo</b> der Übersicht.</li>
+<li><b>Einen Bereich, den du nicht willst</b>, kannst du in Home Assistant entfernen, oder mit <b>Delete</b>
+auf PadSpans Bildschirm <b>Verwalten</b>, der zweimal nachfragt. Das löscht ihn aus Home Assistant
+selbst, nicht nur aus PadSpan: Jedes Gerät und jede Entität darin steht danach ohne Bereich da.</li>
+</ul>
+<h2 id="was-padspan-liest-und-nie-ändert">Was PadSpan liest und nie ändert</h2>
+<p>PadSpan liest die Bereiche, die Etagen und das Geräteverzeichnis von Home Assistant. Es ändert sie
+nur, wenn du dafür einen Knopf drückst, einen nach dem anderen: <b>Raum festlegen</b> oder <b>Zuweisen</b>
+für einen Empfänger, den Raum eines Lichts, <b>Zu Home Assistant hinzufügen</b> für einen neuen
+Bereich, <b>Delete</b> für einen Bereich unter <b>Verwalten</b>. Die vollständige Liste steht im README
+unter <a href="https://github.com/gbroeckling/padspanHA/blob/main/README.md#what-padspan-never-touches">What PadSpan never touches</a>.</p>
+<div class="pager"><span><a href="/manual/tags-and-beacons/de/">← 7. Tags, Beacons, AirTags und Gast-Tags</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/setup-the-map/de/">9. Einrichtung: dein Haus auf einer Karte →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

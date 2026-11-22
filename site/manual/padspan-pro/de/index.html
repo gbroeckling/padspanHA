@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>25. PadSpan Pro: Testzeitraum, Schlüssel, Zuhause, Tester, Einladungen | PadSpan-HA-Handbuch</title>
+<meta name="description" content="PadSpan HA ist kostenlos, und die Anwesenheitserkennung bleibt kostenlos: Räume, Grundrisse, Kalibrierung, der Verlauf, die Sensoren in Home Assistant und…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/padspan-pro/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/padspan-pro/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/padspan-pro/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/padspan-pro/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="25. PadSpan Pro: Testzeitraum, Schlüssel, Zuhause, Tester, Einladungen">
+<meta property="og:description" content="PadSpan HA ist kostenlos, und die Anwesenheitserkennung bleibt kostenlos: Räume, Grundrisse, Kalibrierung, der Verlauf, die Sensoren in Home Assistant und…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/padspan-pro/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/padspan-pro/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="25-padspan-pro-testzeitraum-schlüssel-zuhause-tester-einladungen">25. PadSpan Pro: Testzeitraum, Schlüssel, Zuhause, Tester, Einladungen</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>PadSpan HA ist kostenlos, und die Anwesenheitserkennung bleibt kostenlos: Räume, Grundrisse,
+Kalibrierung, der Verlauf, die Sensoren in Home Assistant und die Alarme. <b>PadSpan Pro</b> ist ein
+freiwilliger Schlüssel, der die kostenpflichtigen Teile auf derselben Installation freischaltet, ohne
+dass du etwas neu installierst:</p>
+<ul>
+<li>genaues Platzieren im Atlas: Formen, Größen, Winkel, die Advanced-Steuerung von WLED, Automorph und
+Showcase (<a href="/manual/the-atlas/de/">Kapitel 15</a>);</li>
+<li>Live Aboard, das 3D-Haus, mit Furnish (<a href="/manual/live-aboard/de/">Kapitel 16</a>,
+<a href="/manual/furnish/de/">Kapitel 17</a>);</li>
+<li>der Wandmodus (<a href="/manual/wall-screens-and-kiosks/de/">Kapitel 18</a>);</li>
+<li>Whole House Presets und der Urlaubsmodus;</li>
+<li>Forensik, Busy Times und Finden (<a href="/manual/the-screens/de/">Kapitel 12</a>);</li>
+<li>die KI-Funktionen (<a href="/manual/ai-features/de/">Kapitel 19</a>);</li>
+<li>alles, was später hinter Pro kommt.</li>
+</ul>
+<p>Ein PadSpan-Pro-Schlüssel schaltet auch die Werkzeuge von PadSpan Bright frei. Preise und wo du
+einen Schlüssel kaufst: <a href="https://padspan.traks.ca">padspan.traks.ca</a>.</p>
+<p>Alles unten steht unter <b>Einstellungen → Funktionen → PadSpan licence</b>, wenn nichts anderes
+dasteht. Einen Testzeitraum starten, einen Schlüssel eintragen und sich als Tester anmelden braucht
+einen Administrator von Home Assistant.</p>
+<h2 id="90-tage-kostenlos-testen">90 Tage kostenlos testen</h2>
+<p><b>Start 90-day free trial</b> (auf der Lizenzkarte und auf der Karte zum Testzeitraum, die die
+Übersicht zeigt, sobald PadSpan in deinem Haus arbeitet) gibt dir ganz Pro für 90 Tage. Keine
+Kreditkarte, ein Testzeitraum pro Zuhause, und deine E-Mail-Adresse wird nur benutzt, um dir deinen
+Schlüssel zu schicken.</p>
+<p>Der Testzeitraum braucht den <b>Nutzungsbericht</b> an (<b>Einstellungen → Ortung → Hilf, PadSpan
+besser zu machen</b>: anonyme Zahlen dazu, was benutzt wird und was kaputtgeht,
+<a href="/manual/privacy/de/">Kapitel 24</a>). Ist er aus, bittet dich die Karte zum Testzeitraum, ihn im selben
+Schritt einzuschalten. <b>Der Nutzungsbericht bleibt den ganzen Testzeitraum an</b> und lässt sich
+nicht ausschalten, bis der Testzeitraum endet oder du einen gekauften Schlüssel einträgst.</p>
+<p>Wenn der Testzeitraum endet, wird nichts gelöscht, was du eingerichtet hast. Wenn du kaufst, kommt
+alles so zurück, wie du es verlassen hast.</p>
+<h2 id="einen-schlüssel-eintragen">Einen Schlüssel eintragen</h2>
+<p>Wähle <b>Enter licence key</b> und füg ihn ein (<code>PSPAN-XXXX-XXXX-XXXX-XXXX</code>). Die Karte sagt
+<b>Licence activated</b>. <b>Replace licence key</b> tauscht ihn aus; <b>Show licence key</b> zeigt ihn (nur
+für Administratoren). Einmal am Tag prüft PadSpan den Schlüssel, damit ein erstatteter oder
+widerrufener Schlüssel aufhört zu funktionieren; was diese Prüfung schickt, steht in
+<a href="/manual/privacy/de/#die-lizenzprüfung">Kapitel 24</a>.</p>
+<h2 id="ein-schlüssel-fünf-zuhause">Ein Schlüssel, fünf Zuhause</h2>
+<p>Ein Schlüssel gilt für bis zu fünf Home Assistants (eine Hütte, das Haus der Eltern, eine
+Testinstallation):</p>
+<ul>
+<li><b>Zuhause 1 und 2</b> zählen immer.</li>
+<li><b>Mit mehr als zwei Zuhause</b> muss jedes Zuhause auf dem Schlüssel seinen Nutzungsbericht anlassen,
+die ersten zwei eingeschlossen. Ein drittes Zuhause kann nur dazukommen, wenn jedes Zuhause, auch
+das neue, den Bericht an hat.</li>
+<li>Schaltet eines davon den Bericht aus, fällt der Schlüssel nach 14 Tagen auf seine ersten zwei
+Zuhause zurück. Die ersten zwei behalten Pro; die anderen machen bei ihrer nächsten Prüfung weiter,
+sobald der Bericht wieder an ist. Die 14 Tage summieren sich: Den Bericht kurz wieder einzuschalten
+setzt sie nicht zurück, und sie fangen erst wieder von vorn an, wenn jedes Zuhause den Bericht
+30 Tage lang an hatte. Die Lizenzkarte sagt, welches Zuhause ihn aus hat und bis wann, und auf
+einem solchen Schlüssel fragt das Ausschalten des Berichts erst nach.</li>
+<li>Ein Zuhause mit PadSpan vor 0.38.160 kann den Bericht nicht schicken und zählt deshalb als aus,
+bis es aktualisiert ist; die Lizenzkarte nennt es.</li>
+<li>Ein Zuhause, das sich 45 Tage nicht gemeldet hat, gibt seinen Platz frei, und ein neues oder neu
+installiertes Home Assistant kann den Platz eines Zuhauses einnehmen, das 14 Tage nicht gesehen
+wurde.</li>
+</ul>
+<p><b>Show this key's homes</b> listet sie auf, lässt dich dieses Zuhause benennen und eines entfernen,
+das du nicht mehr nutzt. Wird ein Zuhause nicht gezählt, sagt die Lizenzkarte, warum.</p>
+<h2 id="pro-kostenlos-bekommen-indem-du-es-testest">Pro kostenlos bekommen, indem du es testest</h2>
+<p><b>Become a tester</b> (auf der Lizenzkarte oder unter <b>Einstellungen → Ortung → Hilf, PadSpan besser
+zu machen</b>) gibt dir zwei Jahre PadSpan Pro kostenlos, für Leute, die gern kontaktiert werden, um
+Neues auszuprobieren, bevor es erscheint. Der Nutzungsbericht bleibt diese zwei Jahre an: Er lässt
+sich nicht ausschalten, solange der Schlüssel läuft. Du gibst eine E-Mail-Adresse an und kannst
+sagen, was du gern testen würdest; du siehst genau, was hinausgeht, bevor etwas gesendet wird, und
+<b>Stop being a tester</b> zieht deine Anmeldung jederzeit zurück. Was gesendet und aufbewahrt wird:
+<a href="/manual/privacy/de/#tester-werden">Kapitel 24</a>.</p>
+<h2 id="einladungen">Einladungen</h2>
+<p>Hin und wieder wird eine Installation, die den Nutzungsbericht schickt, zu <b>einem kostenlosen Jahr
+PadSpan Pro</b> eingeladen. Die Einladung erscheint in der Übersicht und auf der Lizenzkarte, nur für
+Administratoren. Der Bericht bleibt während des kostenlosen Jahres an.</p>
+<ul>
+<li><b>Claim my free year</b>: Gib eine E-Mail-Adresse ein, und der Schlüssel kommt dort an. Keine
+Kreditkarte, nichts verlängert sich.</li>
+<li><b>Later</b>: fragt in einer Woche wieder.</li>
+<li><b>No thanks</b>: endgültig; die Einladung kommt nicht wieder.</li>
+</ul>
+<p>Nichts wird gesendet, außer du drückst einen dieser Knöpfe.</p>
+<h2 id="wandbildschirme">Wandbildschirme</h2>
+<p>Ein Bildschirm, der mit <code>?kiosk=1</code> geöffnet ist, zeigt nie Angebote für einen Testzeitraum oder
+eine Einladung (<a href="/manual/wall-screens-and-kiosks/de/">Kapitel 18</a>).</p>
+<div class="pager"><span><a href="/manual/privacy/de/">← 24. Datenschutz: was das Haus verlässt</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/troubleshooting/de/">26. Fehlersuche nach Symptom →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

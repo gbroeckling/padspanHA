@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10. Wände und Signalverlust | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Eine Wand schluckt einen Teil des Bluetooth-Signals auf seinem Weg von einem Handy oder Tag zu einem Empfänger. Wände, die du auf der Karte zeichnest, sagen…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/walls-and-signal-loss/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/walls-and-signal-loss/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/walls-and-signal-loss/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/walls-and-signal-loss/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="10. Wände und Signalverlust">
+<meta property="og:description" content="Eine Wand schluckt einen Teil des Bluetooth-Signals auf seinem Weg von einem Handy oder Tag zu einem Empfänger. Wände, die du auf der Karte zeichnest, sagen…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/walls-and-signal-loss/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/walls-and-signal-loss/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="10-wände-und-signalverlust">10. Wände und Signalverlust</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Eine Wand schluckt einen Teil des Bluetooth-Signals auf seinem Weg von einem Handy oder Tag zu einem
+Empfänger. Wände, die du auf der Karte zeichnest, sagen PadSpan, wie viel. Das verhindert, dass ein
+Handy in der Küche im Raum hinter der Küchenwand gezählt wird, und hält die Handys der Nachbarn aus
+deinem Wohnzimmer.</p>
+<p>Du brauchst nicht jede Wand. Zeichne die zwischen Räumen, die verwechselt werden, und die
+Außenwände, wenn Handys der Nachbarn drinnen auftauchen. Wände brauchen eine Karte mit Maßstab
+(<a href="/manual/setup-the-map/de/">Kapitel 9</a>), weil sie in Metern gespeichert werden.</p>
+<h2 id="eine-wand-zeichnen">Eine Wand zeichnen</h2>
+<ol>
+<li>Öffne <b>Karten → Bearbeiten</b> und wähle das Werkzeug <b>Signalwände</b>.</li>
+<li>Wähle das <b>Material</b> (unten). Gib der nächsten Wand einen Namen, wenn du willst.</li>
+<li>Klick auf die Karte, um die Wand zu beginnen, klick an jeder Ecke und schließ sie ab. Sie wird in
+dem Moment gespeichert, in dem du fertig bist. <b>Punkt zurück</b> nimmt den letzten Klick zurück;
+<b>Zeichnen abbrechen</b> verwirft sie.</li>
+</ol>
+<p>Jede Wand, die du zeichnest, bekommt das gewählte Material, bis du es änderst. Die Liste beginnt mit
+<b>Metall</b>, dem stärksten, also wähle zuerst das Material.</p>
+<p><b>Umschließen (3-dB-Wände)</b> zeichnet in einem Zug dünne 3-dB-Wände rund um den gewählten Raum: gut
+für gewöhnliche Innenwände.</p>
+<h2 id="die-materialien">Die Materialien</h2>
+<p>Jedes Material ist eine Zahl, in dB: mehr dB, mehr Signal geht beim Durchgang verloren.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Material</th><th>Verlust</th><th>Wofür</th></tr>
+  <tr><td><b>Offen (Galerie) — keine Wand</b></td><td>0 dB</td><td>Keine Wand: eine Öffnung zur Etage darüber oder darunter, oder eine Raumkante, an der keine Wand ist.</td></tr>
+  <tr><td><b>Ziegel</b></td><td>4 dB</td><td>Eine einschalige Wand aus Ziegeln oder Mauersteinen.</td></tr>
+  <tr><td><b>Eigene</b></td><td>6 dB, oder was du einstellst</td><td>Alles andere. Eine Wand ohne Material zählt als Eigene mit 6 dB.</td></tr>
+  <tr><td><b>Beton</b></td><td>8 dB</td><td>Gegossener Beton, Fundamentwände.</td></tr>
+  <tr><td><b>Metall</b></td><td>12 dB</td><td>Stahltüren, Metallständer, alukaschierte Dämmung, Putz auf Drahtgeflecht.</td></tr>
+</table>
+</div>
+<p>Wähle <b>Eigene</b>, und ein Feld <b>Dämpfung</b> erscheint (0 bis 30 dB). Stell es ein, bevor du
+zeichnest.</p>
+<p>Das sind runde Startwerte, keine Messungen deines Hauses. Sie sind absichtlich eher sanft: Bluetooth
+kommt durch Türöffnungen, Spalten und Decken um viele Wände herum, also ist der Verlust, den PadSpan
+sieht, meist kleiner, als die Wand allein kosten würde.</p>
+<p><b>Etagen sind anders.</b> Jede Etage zwischen zwei Orten beginnt mit 10 dB, und PadSpan lernt den
+echten Wert für jedes Etagenpaar aus deinen eigenen Daten, sobald es genug davon hat. Wände werden
+nicht gelernt: Es gilt die Zahl, die du wählst.</p>
+<h2 id="kommt-mein-haus-da-ungefähr-hin">Kommt mein Haus da ungefähr hin?</h2>
+<p>Werte, die oft für die WLAN-Planung bei 2,4 GHz genannt werden, dem Band, das Bluetooth nutzt, geben
+ein Gefühl dafür. Sie schwanken stark mit der Dicke, der Feuchtigkeit und dem, was in der Wand
+steckt.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Echte Wand</th><th>Etwa</th></tr>
+  <tr><td>Gipskarton auf Holzständern</td><td>2–4 dB</td></tr>
+  <tr><td>Holztür, gewöhnliches Fenster</td><td>2–4 dB</td></tr>
+  <tr><td>Ziegel, einschalig</td><td>6–10 dB</td></tr>
+  <tr><td>Betonstein</td><td>6–12 dB</td></tr>
+  <tr><td>Gegossener Beton, Naturstein</td><td>10–20 dB oder mehr</td></tr>
+  <tr><td>Alter Putz auf Putzträger aus Draht (Metall)</td><td>10–20 dB, manchmal viel mehr</td></tr>
+  <tr><td>Low-E- oder beschichtetes Fensterglas</td><td>10–30 dB</td></tr>
+  <tr><td>Metall: Stahltüren, Alu-Dämmung, ein Kühlschrank, Lüftungskanäle</td><td>15–30 dB oder mehr</td></tr>
+</table>
+</div>
+<p>Alte Häuser erwischen einen gleich zweimal:</p>
+<ul>
+<li><b>Putz auf Latten.</b> Holzlatten machen wenig aus. Streckmetall als Putzträger (verbreitet ab den
+1920er-Jahren, und bei Reparaturen) wirkt wie ein Schirm. Steht eine solche Wand zwischen zwei
+Räumen, die immer wieder Geräte tauschen, zeichne sie als <b>Metall</b> oder als <b>Eigene</b> mit 12
+bis 20 dB.</li>
+<li><b>Dickes Mauerwerk.</b> Eine massive Stein- oder doppelte Ziegelwand liegt näher an <b>Beton</b> oder
+Eigene mit 10 bis 15 als an Ziegel.</li>
+</ul>
+<h2 id="offene-kanten-räume-ohne-wand-dazwischen">Offene Kanten: Räume ohne Wand dazwischen</h2>
+<p>Eine Galerie, oder Küche und Wohnzimmer als ein offener Raum: Das Signal geht schon dort durch, wo
+keine Wand gezeichnet ist, aber wenn du die Kante als offen markierst, steht das auf der Karte, und
+das 3D-Haus lässt dort die Wand weg.</p>
+<ul>
+<li><b>Offene Kante: Raumkante antippen</b>: Tipp auf der Karte die Kante eines Raums an. Nur das Stück,
+das er mit dem Nachbarraum teilt, wird geöffnet; eine Kante ohne Nachbarn öffnet sich ganz.</li>
+<li><b>Alle Kanten öffnen</b> gibt jeder Kante des gewählten Raums eine Wand Offen (0 dB). Es fragt
+vorher.</li>
+<li><b>Offene Kanten entfernen</b> nimmt die offenen Kanten zurück, die dieses Werkzeug entlang des Raums
+markiert hat.</li>
+</ul>
+<p>Die Kanten eines Raums lassen sich markieren, sobald sein Umriss gespeichert ist. In Live Aboard
+kann eine offene Kante ein Glasgeländer haben oder keins: der Knopf <b>Geländer</b> in ihrer Zeile
+(<a href="/manual/live-aboard/de/">Kapitel 16</a>).</p>
+<h2 id="türen-und-fenster-die-aufgehen">Türen und Fenster, die aufgehen</h2>
+<p>Eine Stahltür blockiert das Signal, wenn sie zu ist, und gar nicht, wenn sie offen ist. PadSpan kann
+dem mit dem eigenen Sensor der Tür folgen.</p>
+<ol>
+<li>Wähle in der Zeile einer Wand <b>Tür</b> (<b>Tür/Fenster auf dieser Wand markieren</b>).</li>
+<li>Klick die beiden Enden der Tür auf der Wand an. <b>Neu wählen</b> fängt von vorn an.</li>
+<li>Wähle unter <b>Verknüpfter Sensor</b> einen Tür- oder Fenstersensor aus Home Assistant und unter
+<b>Material von Tür/Fenster</b> ihr Material (am Anfang das der Wand).</li>
+<li>Wähle <b>Tür/Fenster anlegen</b>.</li>
+</ol>
+<p>Eine Tür oder ein Fenster aus <b>Metall</b> verliert die 12 dB, solange der Sensor offen meldet, und
+bekommt sie zurück, wenn er zu meldet. PadSpan wartet zwei Messungen hintereinander ab, bevor es
+wechselt, damit ein flackernder Sensor keine Räume springen lässt. Eine Tür aus einem anderen
+Material wird auf den Karten offen oder zu gezeigt und ändert nichts am Signal: Gewöhnliche Türen und
+Glas blockieren Bluetooth so oder so kaum.</p>
+<h2 id="ein-empfänger-der-die-nachbarn-hört">Ein Empfänger, der die Nachbarn hört</h2>
+<p>Wände helfen nur, wenn sie zwischen dem Handy und dem Empfänger sind. Ein Empfänger an einer
+Außenwand oder auf einer Etage über einem Laden oder einer Wohnung hört auch die Straße und die
+Leute unten. Für diesen einen Empfänger ignoriert <b>Bluetooth → Scanner → Mindestsignal</b>
+(<b>Mindestsignal: aus</b>, wenn du nichts einstellst) alles, was er schwächer hört als die Stufe, die
+du wählst, etwa <b>Ignorieren unter -90</b> an einer Außenwand oder <b>Ignorieren unter -80</b> neben
+einer Haustür.</p>
+<ul>
+<li>Die Ortung und die Handyzählung von <b>Belegung</b> nutzen diese schwachen Messwerte von diesem
+Empfänger nicht mehr.</li>
+<li>Alles andere sieht sie weiter: die Listen der Empfänger und Advertisements, Forensik, Traceback
+und die Kalibrierung.</li>
+<li>Ein Handy im Raum misst bei seinem nächsten Empfänger weit stärker, also geht es nicht verloren.</li>
+</ul>
+<h2 id="woran-du-erkennst-dass-eine-wand-falsch-ist">Woran du erkennst, dass eine Wand falsch ist</h2>
+<ul>
+<li><b>Ein Handy oder Tag klebt am Raum auf der anderen Seite einer Wand</b>: Die Wand ist auf der Karte
+schwächer als in Wirklichkeit. Geh eine Stufe hoch (Ziegel, dann Beton, dann Metall), oder nimm
+Eigene mit einer größeren Zahl.</li>
+<li><b>Ein Gerät in einem Raum scheint den Empfänger direkt daneben nicht zu hören</b>: Vielleicht ist
+zwischen ihnen eine Wand gezeichnet, die dort nicht hingehört, oder eine viel zu starke.</li>
+<li><b>Die Kalibrierung hilft in beiden Fällen.</b> Sie passt an, wie schnell das Signal in deinem Haus
+nachlässt, und fängt damit viel von dem auf, was die Wände nicht richtig treffen:
+<a href="/manual/calibration/de/">Kapitel 11</a>.</li>
+</ul>
+<div class="pager"><span><a href="/manual/setup-the-map/de/">← 9. Einrichtung: dein Haus auf einer Karte</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/calibration/de/">11. Kalibrierung →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

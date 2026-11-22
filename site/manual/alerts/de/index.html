@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13. Alarme und Benachrichtigungen | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Alles, worüber PadSpan dich informiert, an einem Ort: was es beobachtet, wohin die Nachricht geht und wie du es ein- oder ausschaltest.">
+<link rel="canonical" href="https://padspan.traks.ca/manual/alerts/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/alerts/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/alerts/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/alerts/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="13. Alarme und Benachrichtigungen">
+<meta property="og:description" content="Alles, worüber PadSpan dich informiert, an einem Ort: was es beobachtet, wohin die Nachricht geht und wie du es ein- oder ausschaltest.">
+<meta property="og:url" content="https://padspan.traks.ca/manual/alerts/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/alerts/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="13-alarme-und-benachrichtigungen">13. Alarme und Benachrichtigungen</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Alles, worüber PadSpan dich informiert, an einem Ort: was es beobachtet, wohin die Nachricht geht und
+wie du es ein- oder ausschaltest.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Was</th><th>Wo es erscheint</th><th>Einschalten</th></tr>
+  <tr><td>Ein Gerät wechselt den Raum, kommt nach Hause oder geht</td><td>Dein Handy oder deine E-Mail</td><td>Folgen → <b>Bewegungsalarme</b></td></tr>
+  <tr><td>Ein Alarm wegen eines Wasserlecks, Rauch, Gas oder Kohlenmonoxid</td><td>Ein rotes Banner auf jedem PadSpan-Bildschirm; der Raum bekommt im Atlas einen roten Ring</td><td>Immer an</td></tr>
+  <tr><td>Eine offen gelassene Tür, oder ein offenes Fenster im Regen</td><td>Der Raum bekommt im Atlas einen gelben Ring; ein Banner auf einem Wandbildschirm</td><td><b>Einstellungen → Atlas → Atlas — Mapped Light Control → Alert pulse</b></td></tr>
+  <tr><td>Der Urlaubsmodus endet oder wird ausgeschaltet</td><td>Eine Home-Assistant-Benachrichtigung, und die Alarmziele aus Folgen</td><td>Immer, solange der Urlaubsmodus genutzt wird</td></tr>
+  <tr><td>Ein Gast kommt, geht oder betritt einen Raum, den er nicht betreten soll</td><td>Dein Handy oder eine Home-Assistant-Benachrichtigung</td><td>Wenn du einen Gast-Tag verleihst</td></tr>
+  <tr><td>PadSpan konnte ein Speichern nicht bestätigen</td><td><b>Einstellungen → Reparaturen</b> von Home Assistant</td><td>Immer an</td></tr>
+  <tr><td>Eine neue stabile Version</td><td>Eine Home-Assistant-Benachrichtigung</td><td>Ab Werk an; siehe <a href="/manual/install-update-uninstall/de/">Kapitel 3</a></td></tr>
+  <tr><td>Claudes Lesevorgänge überschreiten dein Monatslimit</td><td>Eine Home-Assistant-Benachrichtigung</td><td><b>Einstellungen → KI</b> (aus, solange du es nicht einstellst)</td></tr>
+</table>
+</div>
+<p>PadSpan sendet an dein Handy oder deine E-Mail über die eigenen <b>notify</b>-Dienste von Home
+Assistant. Für ein Handy ist das die Home Assistant Companion App. Für E-Mail eine Mail-Integration
+wie SMTP. Richte sie zuerst in Home Assistant ein, unter <b>Einstellungen → Geräte &amp; Dienste</b>.</p>
+<h2 id="bewegungsalarme-folgen">Bewegungsalarme (Folgen)</h2>
+<p>Sie sagen dir, wenn ein Gerät von Raum zu Raum geht, nach Hause kommt oder geht.</p>
+<ol>
+<li>Öffne <b>Folgen</b> und wähle das Gerät unter <b>Tag zum Folgen wählen</b>.</li>
+<li>Unter der Karte des Geräts findest du <b>Bewegungsalarme</b>.</li>
+<li>Wähle, wohin die Alarme gehen:
+<ul>
+<li><b>Dein Handy</b>: Wähle es unter <b>Benachrichtigungsdienst</b> (das notify-Ziel der Companion
+App). Eine E-Mail ist nicht nötig.</li>
+<li><b>E-Mail</b>: Gib die Adresse unter <b>E-Mail-Adresse</b> ein und lass <b>Benachrichtigungsdienst</b> auf
+<b>Automatisch</b>, oder wähle deinen Maildienst.</li>
+</ul></li>
+<li>Hak an, worüber du informiert werden willst. In Einfach: <b>Melde mir, wenn … sich bewegt</b>,
+<b>… nach Hause kommt</b>, <b>… geht</b>. In Erweitert: <b>Bei jedem Raumwechsel von „…“ melden</b>,
+<b>Melden, wenn „…“ nach Hause kommt</b>, <b>Melden, wenn „…“ geht</b>, und
+<b>Nur für diese Räume melden (nichts angehakt = alle):</b>, um nur einige Räume zu beobachten (ein
+Alarm kommt dann, wenn das Gerät einen davon betritt).</li>
+<li>Wähle <b>Speichern</b>. Nichts ist aktiv, bevor du speicherst; die Karte zeigt dann <b>Aktiv</b>.</li>
+<li><b>Test senden</b> schickt sofort einen, genau dorthin, wohin die Alarme gehen, und sagt klar, wenn
+es dein Handy oder deinen Maildienst nicht erreichen konnte.</li>
+</ol>
+<p>Was die Nachrichten sagen:</p>
+<ul>
+<li><b>PadSpan: Alex's phone moved</b>: „Alex's phone moved from Kitchen to Hall“.</li>
+<li><b>PadSpan: Alex's phone arrived</b>: „Alex's phone arrived (Kitchen)“.</li>
+<li>Wenn es geht: „Alex's phone left“.</li>
+</ul>
+<p>Ein paar Regeln:</p>
+<ul>
+<li><b>Höchstens ein Raumwechsel-Alarm pro Minute für jedes Gerät.</b> Ein Wechsel innerhalb dieser
+Minute geht nicht verloren: Wenn die Minute um ist, sagt ein Alarm, wohin es gegangen ist,
+ausgehend vom zuletzt gemeldeten Raum.</li>
+<li><b>Kommen und Gehen</b> nutzen dasselbe Abwesenheits-Timeout wie das Abzeichen <b>Weg</b>, 5 Minuten,
+wenn du es nicht unter <b>Einstellungen → Ortung → Räume und Zeiten → Zuhause/Abwesend-Timeout</b>
+änderst.</li>
+<li><b>Kein Alarm nach einem Neustart.</b> Der erste Raum eines Geräts nach dem Start von Home Assistant
+ist kein Wechsel.</li>
+<li><b>Ein verliehener Gast-Tag</b> schickt stattdessen die Hinweise seines Aufenthalts (unten), nicht
+diese.</li>
+</ul>
+<p><b>Verwalten → Ereignisse</b> hat dieselben Alarme für alle Geräte an einem Ort: <b>Saved Alerts</b> listet
+jeden, mit einem Löschknopf, und <b>Configure Alerts</b> richtet Raumwechsel-Alarme für jedes verfolgte
+Gerät ein, mit <b>Test Notification</b>.</p>
+<p>Kommen, Gehen und Raumwechsel lösen auch Ereignisse in Home Assistant aus (<code>padspan_device_arrived</code>,
+<code>padspan_device_departed</code>, <code>padspan_room_change</code>), für deine eigenen Automationen: siehe
+<a href="/manual/home-assistant-reference/de/">Kapitel 14</a>.</p>
+<p><b>Kommt kein Alarm an?</b> Nimm zuerst <b>Test senden</b>: Es sagt, was schiefgegangen ist. Steht gar kein
+notify-Dienst in der Liste, füg in Home Assistant die Companion App (für ein Handy) oder eine
+Mail-Integration hinzu. Mehr in <a href="/manual/troubleshooting/de/">Kapitel 26</a>.</p>
+<h2 id="wasser--rauch--gas--und-co-alarme-der-alarm-bleibt-stehen">Wasser-, Rauch-, Gas- und CO-Alarme: der Alarm bleibt stehen</h2>
+<p>PadSpan beobachtet jeden binären Sensor von Home Assistant der Arten <b>moisture</b> (ein Wasserleck),
+<b>smoke</b>, <b>gas</b> und <b>carbon monoxide</b>, ob er im Atlas platziert ist oder nicht.</p>
+<p>Sobald einer einen Alarm meldet:</p>
+<ul>
+<li><b>Der Alarm bleibt stehen.</b> Er bleibt in PadSpan <b>2 Tage lang oder bis jemand ihn zurücksetzt</b>
+im Alarm, auch wenn der Sensor selbst wieder still wird. Ein kurzer Moment Nässe ist trotzdem ein
+echtes Leck.</li>
+<li><b>Ein rotes Banner</b> (🚨 und wie viele aktiv sind) erscheint auf jedem PadSpan-Bildschirm, nicht
+nur im Atlas, mit dem Namen jedes Alarms und einem Knopf <b>Zurücksetzen</b>. Auf einem Handy ist es
+eine kleine 🚨-Pille in der oberen Leiste.</li>
+<li><b>Im Atlas</b> bekommt der Raum des Sensors einen roten Ring. Der Sensor sagt, was er gefunden hat
+(<b>WET</b>, <b>SMOKE</b>, <b>GAS</b>, <b>CO</b>), und <b>ALARM</b>, solange der Alarm steht.</li>
+</ul>
+<p><b>Zurücksetzen</b> fragt noch einmal (<b>Ja</b> / <b>Nein</b>), damit ein versehentliches Tippen keinen
+echten Alarm wegwischt. Das Zurücksetzen löscht nur PadSpans Erinnerung an den Alarm; den echten
+Zustand des Sensors fasst es nie an. Ein Sensor, der noch Alarm meldet, bleibt im Atlas rot, und das
+Banner kommt wieder, wenn er das nächste Mal in Alarm geht.</p>
+<p>Solange das Beispielhaus zu sehen ist, zeigt das Banner trotzdem die Alarme deines eigenen Hauses,
+mit <b>Zu meinem Haus</b> statt Zurücksetzen.</p>
+<p><b>PadSpan schickt einen Wasser- oder Rauchalarm nicht an dein Handy.</b> Nimm dafür eine
+Home-Assistant-Automation direkt auf dem Sensor: Sie hängt nicht von PadSpan ab.</p>
+<h2 id="alert-pulse-atlas">Alert pulse (Atlas)</h2>
+<p>Aus, bis du es einschaltest: <b>Einstellungen → Atlas → Atlas — Mapped Light Control → Alert pulse</b>.
+Es wird gespeichert, sobald du es anhakst.</p>
+<p>Ist es an, bekommt ein Raum im Atlas einen gelben Ring, wenn:</p>
+<ul>
+<li>ein Fenster oder eine Abdeckung (ein Rollo, eine Jalousie, ein Fensterladen, eine Markise)
+<b>offen ist, während es regnet oder schneit</b> (nach dem eigenen Wetter des Atlas; siehe die
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/ATLAS_GUIDE.md#outdoor-weather">Atlas-Anleitung</a>);</li>
+<li>eine Tür, ein Fenster, ein Garagentor, ein Tor oder eine Abdeckung, die der Atlas zeigt, länger
+als 6 Stunden <b>offen gelassen</b> wurde.</li>
+</ul>
+<p>Auf einem Wandbildschirm (<code>?kiosk=1</code>) nennt ein Banner oben den schlimmsten Alarm und wo er ist
+(„Leak · Laundry“, „Window open in the rain · Bedroom“), dazu wie viele es noch gibt, bis er vorbei
+ist. Die Reihenfolge, der schlimmste zuerst: Rauch, Gas, CO, ein Leck, eine Öffnung im Regen, eine
+offen gelassene Tür.</p>
+<h2 id="hinweise-des-urlaubsmodus">Hinweise des Urlaubsmodus</h2>
+<p>Der Urlaubsmodus (PadSpan Pro) steuert deine Lichter, während du weg bist
+(<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/ATLAS_GUIDE.md">Atlas-Anleitung</a>). Er sagt dir, wenn er aufhört:</p>
+<ul>
+<li><b>PadSpan: Vacation Mode ended</b>: Er hat das für ihn festgelegte Enddatum erreicht.</li>
+<li><b>PadSpan: Vacation Mode turned off</b>: Jemand hat ihn ausgeschaltet. Die Nachricht sagt, wann, wer
+und aus welcher App oder welchem Browser: „Vacation Mode was turned off Nov 21, 18:40 by Alex from
+the iPhone app. If nobody meant to, turn it back on in Whole House Presets: within 3 weeks it
+carries on with the routine it was using.“ Ein Zurücksetzen auf Werkseinstellungen sagt das
+ebenfalls.</li>
+</ul>
+<p>Der Hinweis ist eine Home-Assistant-Benachrichtigung und geht außerdem an die Handys und
+E-Mail-Adressen, die deine Alarme aus Folgen nutzen (bis zu fünf).</p>
+<p><code>binary_sensor.padspan_vacation_mode</code> und das Ereignis <code>padspan_ha_vacation_mode</code> gibt es für deine
+eigenen Automationen.</p>
+<h2 id="hinweise-zu-gästen">Hinweise zu Gästen</h2>
+<p>Wenn du einen Gast-Tag verleihst (<b>Gäste → Lend to a guest</b>; Gast-Tags werden unter
+<b>Einstellungen → Ortung → Handys und Gast-Tags</b> eingeschaltet), hat der Aufenthalt eigene
+Hinweise:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Hinweis</th><th>Wann</th></tr>
+  <tr><td><b>PadSpan: Sam arrived</b></td><td>Der Tag wird im Haus gehört, wenn <b>Tell me when they arrive</b> angehakt ist.</td></tr>
+  <tr><td><b>PadSpan: Sam left</b></td><td>Der Tag wird nicht mehr gehört, wenn <b>Tell me when they leave</b> angehakt ist. Eine schwache Batterie kann genauso aussehen wie Gehen.</td></tr>
+  <tr><td><b>PadSpan: Sam in the Office</b></td><td>Der Gast ist eine halbe Minute lang in einem Raum, den du gesperrt hast (<b>Rooms they shouldn't go into</b>).</td></tr>
+  <tr><td><b>PadSpan: is Sam's stay over?</b></td><td>Der Tag wurde zwei Tage lang nicht gehört.</td></tr>
+  <tr><td><b>PadSpan: Sam's stay ended</b></td><td>Zum geplanten Ende des Aufenthalts, oder nach einer Woche, in der der Tag nicht gehört wurde.</td></tr>
+</table>
+</div>
+<ul>
+<li><b>Tell me when they arrive</b> und <b>Tell me when they leave</b> sind am Anfang angehakt.</li>
+<li><b>Send notices to</b>: ein Handy oder ein anderes notify-Ziel, oder
+<b>A Home Assistant notification</b> (die Voreinstellung).</li>
+<li><b>Quiet hours</b>: dann keine Hinweise zu Ankunft oder Abschied. Hinweise zu gesperrten Räumen
+kommen trotzdem.</li>
+</ul>
+<p>Jeder dieser Hinweise löst auch das Ereignis <code>padspan_ha_guest</code> aus. Die
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GUEST_TAGS_GUIDE.md">Anleitung zu Gast-Tags</a> hat den Rest.</p>
+<h2 id="reparaturen">Reparaturen</h2>
+<p>PadSpan meldet eine Art von Reparatur in Home Assistant, unter <b>Einstellungen → Reparaturen</b>:</p>
+<blockquote>
+<p><b>PadSpan konnte ein Speichern nicht bestätigen (…)</b>: PadSpan hat seine Daten gespeichert, aber
+die Datei auf dem Datenträger enthält nicht das Gespeicherte oder ließ sich nicht wieder lesen.</p>
+</blockquote>
+<p>Die letzten Änderungen sind dann vielleicht nur im Arbeitsspeicher und gehen beim nächsten Neustart
+verloren. Prüf, ob der Datenträger, auf dem Home Assistant läuft, voll oder schreibgeschützt ist, und
+such im Protokoll von Home Assistant nach dem Fehler. Der Hinweis verschwindet von selbst, sobald ein
+Speichern das nächste Mal bestätigt wird. Er bleibt über einen Neustart erhalten.</p>
+<h2 id="andere-home-assistant-benachrichtigungen">Andere Home-Assistant-Benachrichtigungen</h2>
+<ul>
+<li><b>PadSpan HA update available</b>, einmal für jede neue stabile Version. Zum Ausschalten:
+<b>Einstellungen → Ortung → Datenschutz, Updates und Feedback → Update-Prüfung</b>. Siehe
+<a href="/manual/install-update-uninstall/de/">Kapitel 3</a>.</li>
+<li><b>PadSpan: AI credit</b>, einmal im Monat, wenn Claudes Lesevorgänge durch PadSpan den Anteil
+überschreiten, den du für das Monatsguthaben gewählt hast, das du unter <b>Einstellungen → KI</b>
+eingetragen hast (<b>Your AI: Warn me</b>). Aus, solange du nicht beides einstellst.</li>
+<li><b>padspan_ha.dump_devices</b>: die Liste der benannten Geräte, wenn du diesen Dienst selbst aufrufst.</li>
+</ul>
+<h2 id="nur-im-panel">Nur im Panel</h2>
+<p>Diese erscheinen in PadSpan und senden nichts:</p>
+<ul>
+<li><b>Der Statuspunkt</b> in der oberen Leiste, gelb oder rot, wenn etwas einen Blick braucht. Siehe
+<a href="/manual/the-screens/de/#zustand">Kapitel 12</a>.</li>
+<li><b>Zustand → Gefundene Probleme</b>: die Prüfungen deiner ganzen Einrichtung.</li>
+<li><b>Erinnerungen zur Kalibriergenauigkeit</b> (<b>Einstellungen → Ortung → Positionierung und
+Kalibrierung</b>, ab Werk aus): eine Erinnerung im Panel, wenn die Kalibrierung Lücken hat oder alt
+wird.</li>
+</ul>
+<div class="pager"><span><a href="/manual/the-screens/de/">← 12. Die Bildschirme</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/home-assistant-reference/de/">14. Home Assistant: Entitäten, Dienste, Ereignisse, Assist →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

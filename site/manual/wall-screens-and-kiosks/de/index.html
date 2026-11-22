@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18. Wandbildschirme und Kiosks | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Wie du PadSpan auf ein Tablet oder einen Bildschirm an der Wand bringst und dort lässt.">
+<link rel="canonical" href="https://padspan.traks.ca/manual/wall-screens-and-kiosks/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/wall-screens-and-kiosks/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/wall-screens-and-kiosks/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/wall-screens-and-kiosks/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="18. Wandbildschirme und Kiosks">
+<meta property="og:description" content="Wie du PadSpan auf ein Tablet oder einen Bildschirm an der Wand bringst und dort lässt.">
+<meta property="og:url" content="https://padspan.traks.ca/manual/wall-screens-and-kiosks/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/wall-screens-and-kiosks/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="18-wandbildschirme-und-kiosks">18. Wandbildschirme und Kiosks</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Wie du PadSpan auf ein Tablet oder einen Bildschirm an der Wand bringst und dort lässt.</p>
+<h2 id="der-bildschirm">Der Bildschirm</h2>
+<p>PadSpan läuft in Home Assistant, also muss ein Bildschirm nur Home Assistant im Vollbild in einem
+aktuellen Browser zeigen und Berührungen annehmen. Das 3D-Haus braucht WebGL 2. Drei verbreitete
+Wege:</p>
+<ul>
+<li><b>Ein Android-All-in-One</b>: ein Kiosk-Browser wie Fully Kiosk Browser, oder die Home Assistant
+Companion App als Startbildschirm-App. Ein Gerät, ein Kabel.</li>
+<li><b>Ein Touch-Monitor und ein kleiner Computer</b> (ein Mini-PC oder ein Raspberry Pi), auf dem ein
+Browser im Kiosk-Modus läuft. Das Flexibelste.</li>
+<li><b>Ein Fernseher mit Infrarot-Touch-Rahmen</b>, per USB an einen kleinen Computer angeschlossen.</li>
+</ul>
+<p>1080p reicht für die meisten Wände; 4K ist aus der Nähe schärfer. Quer und hochkant gehen beide.
+Mehr zur Wahl: <a href="/guides/wall-screens/de/">Welcher Touchscreen für ein PadSpan-Wanddisplay?</a>
+und <a href="/guides/large-homes/de/">Wo sind alle? Das ganze Haus live an einer Wand</a>.</p>
+<h2 id="welche-seite-du-zeigst">Welche Seite du zeigst</h2>
+<p>PadSpan hat zwei Seiten in der Seitenleiste von Home Assistant:</p>
+<ul>
+<li><b>PadSpan HA</b> (<code>/padspan-ha</code>): alles, mit seinem Menü.</li>
+<li><b>Atlas</b> (<code>/padspan-lights</code>): die Gerätekarte allein, gemacht für einen Bildschirm. Sie ist ab
+Werk an; <b>Einstellungen → Atlas → Show the Atlas in the Home Assistant sidebar</b> schaltet sie aus
+oder ein (starte Home Assistant danach neu).</li>
+</ul>
+<p>Für eine Wand ist meist die Atlas-Seite die richtige: Die Karte füllt den Bildschirm, und die
+Bedienelemente klappen sich in eine schmale Leiste am linken Rand (☰ Etagen und Gerätearten,
+★ Voreinstellungen, ⚙ Zoom und Ansicht, 🏠 Live Aboard, ‹ blendet die Leiste aus). Der Atlas selbst
+steht in <a href="/manual/the-atlas/de/">Kapitel 15</a>.</p>
+<h2 id="kiosk-links-für-die-hauptseite">Kiosk-Links für die Hauptseite</h2>
+<p>Häng diese an die Adresse der Seite PadSpan HA an:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Adresse</th><th>Was sie tut</th></tr>
+  <tr><td><code>/padspan-ha?kiosk=1</code></td><td>Blendet PadSpans eigenes Menü und seine Leisten aus und zeigt nie Angebote für den Testzeitraum oder Einladungen</td></tr>
+  <tr><td><code>/padspan-ha?view=follow</code></td><td>Öffnet einen bestimmten Bildschirm (<code>overview</code>, <code>follow</code>, <code>traceback</code>, <code>maps</code>…), egal, welchen der Browser zuletzt benutzt hat</td></tr>
+  <tr><td><code>/padspan-ha?view=maps&amp;tab=lights&amp;light=light.kitchen</code></td><td>Öffnet Karten → Atlas-Editor mit einem gewählten Licht</td></tr>
+</table>
+</div>
+<p>Sie lassen sich kombinieren: <code>/padspan-ha?view=follow&amp;kiosk=1</code>. Um auch die Kopfzeile und die
+Seitenleiste von Home Assistant selbst auszublenden, nimm ein Kiosk-Add-on (etwa kiosk-mode aus
+HACS) oder den Kiosk-Browser des Tablets.</p>
+<p><b>Nach einem Update</b> lädt sich ein Bildschirm, der mit <code>?kiosk=1</code> geöffnet wurde, einmal selbst
+neu, damit er nie alten Code ausführt. Jeder andere Browser zeigt stattdessen eine Leiste mit einem
+Knopf <b>Neu laden</b>.</p>
+<h2 id="wandmodus-padspan-lightskiosk1">Wandmodus: <code>/padspan-lights?kiosk=1</code></h2>
+<p>Öffne die Atlas-Seite mit <code>?kiosk=1</code>, und sie wird zur Wand:</p>
+<ul>
+<li>das ganze Haus passt auf den Bildschirm, jede Etage von oben nach unten, und die Kopfzeile
+verschwindet;</li>
+<li>die Leiste, die Legenden, die Werkzeugleisten und Raumnamen der 3D-Ansicht und der Regen wachsen
+mit dem Bildschirm: ihre übliche Größe bei 1080p, doppelt so groß bei 4K, damit man sie quer
+durch den Raum lesen kann;</li>
+<li>der Bildschirm bleibt wach, solange die Seite offen ist, wenn Home Assistant über HTTPS erreicht
+wird (oder über <code>localhost</code> des Bildschirms selbst); sonst nimm die eigene Ruhezustand-Einstellung
+des Bildschirms;</li>
+<li>die Seitenleiste von Home Assistant ist in diesem Browser ausgeblendet. <b>Show HA</b> auf der
+Atlas-Seite, ohne <code>?kiosk=1</code> geöffnet, holt sie zurück;</li>
+<li>die Bedienelemente über der Karte blenden sich 30 Sekunden nach der letzten Berührung aus und
+kommen mit der nächsten zurück.</li>
+</ul>
+<p>Der Wandmodus braucht das neue Layout des Atlas, das mit der Leiste (PadSpan Pro:
+<b>Karten → Atlas-Editor → ▦ New layout</b>). Mit dem klassischen Layout lässt <code>?kiosk=1</code> nur die
+Kopfzeile weg.</p>
+<p><b>Die Karte den Bildschirm füllen lassen</b>: <b>⛶</b> (unten rechts) schaltet sie auf Vollbild. Zoom
+weiter hinein als das ganze Haus, und die Leisten gehen zur Seite; <b>☰</b> oder <b>Escape</b> holt sie
+zurück. Tipp doppelt auf einen Raum, um auf ihn zu zoomen.</p>
+<h2 id="eine-wand-für-ihren-raum-bemessen">Eine Wand für ihren Raum bemessen</h2>
+<p><b>Einstellungen → Atlas → Wall screens</b> legt fest, wie groß eine Wand die Dinge zeichnet:</p>
+<ul>
+<li><b>Size from the screen</b> (die Voreinstellung): Ein 4K-Bildschirm zeichnet doppelt so groß wie einer
+mit 1080p.</li>
+<li><b>Size for my room</b>: Gib die Größe des Bildschirms an und wie weit weg die Leute meist stehen,
+oder tipp auf eine Vorgabe (Schreibtischmonitor, Küchentablet, Bildschirm im Flur, Fernseher im
+Wohnzimmer, großer Fernseher). Die Schrift wird danach bemessen, wie groß sie von dort aussieht,
+also bekommt ein 55-Zoll-Fernseher quer durch den Raum viel größere Schrift als ein 27-Zoll-Monitor
+auf einem Schreibtisch, obwohl beide 4K haben.</li>
+<li><b>Text size</b> (Small, Comfortable, Large) verschiebt beides nach oben oder unten.</li>
+<li><b>Dim at night</b> dunkelt die Wand zwischen Sonnenuntergang und Sonnenaufgang ab (dafür braucht es
+die Sonne von Home Assistant).</li>
+<li><b>Protect against burn-in</b> verschiebt das Bild alle paar Minuten um ein, zwei Pixel, für
+OLED-Bildschirme.</li>
+<li><b>Show each floor</b> (aus, bis du es einstellst): Alle 15 s bis 5 min zeigt die Wand die nächste
+Etage. Sie wartet, solange jemand die Wand bedient.</li>
+<li><b>On Fully Kiosk tablets</b> (aus, bis du es einstellst): In Fully Kiosk Browser dreht die
+Nachtdimmung die Helligkeit des Bildschirms selbst herunter, und mit Fullys <b>Motion Detection</b>
+weckt jemand, der herantritt, einen schlafenden Bildschirm. Dafür braucht es
+<b>Enable JavaScript Interface</b> in Fullys Advanced Web Settings.</li>
+</ul>
+<p>Die Vorschau der Karte zeigt einen 4K-Bildschirm maßstabsgetreu, mit der Höhe der Schrift in
+Zentimetern. Wände übernehmen eine Änderung innerhalb einer halben Minute.</p>
+<p><b>Ein Bildschirm, seine eigene Größe</b>: Die Karte baut einen Link für einen einzelnen Bildschirm,
+zum Beispiel <code>/padspan-lights?kiosk=1&amp;wall_in=55&amp;wall_m=2.5</code> (55 Zoll, die Leute 2,5 m entfernt);
+häng <code>&amp;wall_text=24</code> für größere Schrift an. Ein Bildschirm, der mit seinem eigenen Link geöffnet
+wurde, ignoriert die Einstellung des Hauses.</p>
+<h2 id="hochkant-wände">Hochkant-Wände</h2>
+<p>Ein Bildschirm, der hochkant hängt, funktioniert so gut wie ein breiter, und er wird in beiden Lagen
+gleich bemessen.</p>
+<ul>
+<li>Dreht der Fernseher oder Stick sein Bild, wenn sich der Bildschirm dreht, musst du nichts
+einstellen.</li>
+<li>Die meisten Fernseher und Sticks können das nicht. Häng ihn auf die Seite gedreht auf und nimm
+<b>Einstellungen → Atlas → Wall screens → Screen orientation → Portrait: turn the picture clockwise</b>
+(oder anticlockwise, gegen den Uhrzeigersinn). Das hängt <code>&amp;wall_rotate=90</code> (oder <code>270</code>) an den
+Link dieses Bildschirms an. Steht die Karte auf dem Kopf, nimm die andere Richtung.</li>
+</ul>
+<h2 id="live-aboard-an-einer-wand">Live Aboard an einer Wand</h2>
+<ul>
+<li>Stell die Ansicht ein, die du willst, und wähl <b>Views ▾ → Set as home</b>.</li>
+<li>Stell unter <b>Einstellungen → Atlas → Live Aboard</b> <b>Back to home view</b> ein (30 s, 1 min, 5 min
+oder aus). Der Bildschirm fliegt zurück zu dieser Ansicht, wenn ihn so lange niemand berührt hat,
+nie während jemand bearbeitet, eine Karte offen hat oder ihn von Hand auf Vollbild gestellt hat.</li>
+<li>Wenn sich nichts bewegt, zeichnet Live Aboard nichts, also kostet ein ruhender Bildschirm fast
+nichts.</li>
+<li>Bei der Qualität <b>Auto</b> oder <b>High</b> zeichnet eine Wand mit jedem Pixel, das der Bildschirm
+hat. Ein Grafikchip, der dafür zu langsam ist, zeichnet ein weicheres Bild, während sich die
+Kamera bewegt, dann etwa so viel wie bei 1440p, dann fällt Auto auf Low und High auf den flachen
+Atlas. <b>Low</b> bleibt auf jedem Bildschirm Low.</li>
+</ul>
+<p>Mehr in <a href="/manual/live-aboard/de/">Kapitel 16</a>.</p>
+<h2 id="mehrere-bildschirme-auf-einmal-für-viele-bildschirme-optimieren">Mehrere Bildschirme auf einmal: Für viele Bildschirme optimieren</h2>
+<p>Jeder Bildschirm, der die Übersicht zeigt oder die 3D-Ansicht mit Personen, fragt Home Assistant alle
+5 Sekunden nach dem ganzen Live-Bild: in einem belebten Haus jedes vorbeikommende Bluetooth-Gerät,
+etwa 2 MB pro Bildschirm. Vier Bildschirme bewegen dann den ganzen Tag etwa 14 Mbit/s. Die flache
+Atlas-Wand (<code>?kiosk=1</code>) fragt nicht danach.</p>
+<p><b>Einstellungen → Ortung → Leistung → Für viele Bildschirme optimieren</b> (ab Werk aus) senkt das:</p>
+<ul>
+<li><b>Ein schlankes Update</b>: Die Übersicht und die 3D-Personen fragen nur nach dem, was sie zeichnen
+(Personen, Tags, benannte Geräte und solche, denen du folgst, alles, was in einem Raum platziert
+ist), plus die Zahlen: etwa 50 KB statt 2,2 MB in einem echten Haus.</li>
+<li><b>Eine Zusammenstellung für alle Bildschirme</b>: Bildschirme, die innerhalb von 4,5 Sekunden
+voneinander fragen, teilen sich eine.</li>
+<li><b>Nichts, solange ein Bildschirm aus ist</b>: Eine ausgeblendete Seite fragt nach nichts, bis sie
+wieder gezeigt wird.</li>
+</ul>
+<p>Jeder andere Bildschirm bekommt weiter alles. Ist es an, zeigt die Liste hinter der Objektzahl der
+Übersicht nur, was das schlanke Update mitbringt. Mehr in
+<a href="/manual/performance-and-small-machines/de/">Kapitel 23</a>.</p>
+<h2 id="tipps">Tipps</h2>
+<ul>
+<li>Lass Live Aboard auf einem alten oder langsamen Tablet auf der Qualität <b>Low</b>.</li>
+<li>Der Knopf <b>Test emergency lighting</b> sitzt oben rechts im Atlas. Auf einem Bildschirm, den jeder
+antippen kann, blendest du ihn aus (<a href="/manual/the-atlas/de/#test-der-notbeleuchtung">Kapitel 15</a>).</li>
+<li>Wer an einem gemeinsamen Bildschirm was ändern darf: <a href="/manual/users-and-security/de/">Kapitel 21</a>.</li>
+</ul>
+<div class="pager"><span><a href="/manual/furnish/de/">← 17. Furnish</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/ai-features/de/">19. KI-Funktionen →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>

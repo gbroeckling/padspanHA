@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16. Live Aboard | PadSpan-HA-Handbuch</title>
+<meta name="description" content="Live Aboard ist der Atlas in 3D: deine Etagen, Räume, Wände, Türen, Fenster, Lichter und Sensoren als kleines Haus, das du drehen, zoomen und antippen…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/live-aboard/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/live-aboard/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/live-aboard/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/live-aboard/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="16. Live Aboard">
+<meta property="og:description" content="Live Aboard ist der Atlas in 3D: deine Etagen, Räume, Wände, Türen, Fenster, Lichter und Sensoren als kleines Haus, das du drehen, zoomen und antippen…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/live-aboard/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/manual/de/">Handbuch</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/live-aboard/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1 id="16-live-aboard">16. Live Aboard</h1>
+<p><a href="/manual/de/">Inhalt</a></p>
+<p>Live Aboard ist der Atlas in 3D: deine Etagen, Räume, Wände, Türen, Fenster, Lichter und Sensoren als
+kleines Haus, das du drehen, zoomen und antippen kannst, so wie man bei The Sims in ein Haus schaut.
+Es wird aus der Karte gebaut, die du schon gezeichnet hast, deshalb gibt es nichts Neues
+einzurichten, bevor du es siehst. Es gehört zu PadSpan Pro und ist <b>experimentell</b>: Wenn in deinem
+Haus etwas falsch aussieht, sag es bitte (<a href="/manual/getting-help/de/">Kapitel 27</a>).</p>
+<h2 id="einschalten">Einschalten</h2>
+<ol>
+<li>Öffne <b>Einstellungen → Atlas</b> und such <b>Atlas — Mapped Light Control</b>.</li>
+<li>Schalte unter <b>Live Aboard</b> <b>Show Live Aboard on the Atlas</b> ein. Es speichert sofort.</li>
+<li>Öffne den Atlas. Im Atlas der Seitenleiste tippst du auf <b>🏠</b> in der Leiste links, um zwischen
+der flachen Karte und Live Aboard zu wechseln. In <b>Karten → Atlas-Editor</b> nimmst du den
+Schalter <b>Map | Live Aboard</b> neben dem Zoom.</li>
+</ol>
+<p>Dieselbe Karte hat:</p>
+<ul>
+<li><b>Rain and snow</b>: fällt draußen um das Haus, wenn das Wetter des Atlas es sagt.</li>
+<li><b>Look</b>: die Farben des Atlas, die eigenen von Live Aboard, oder <b>Studio</b> (seine eigenen Farben
+auf einer Bühne unter einem Himmel, der der Sonne folgt, mit weichem Licht und Schatten).</li>
+<li><b>Back to home view</b>: wie lange der Atlas der Seitenleiste unberührt wartet, bevor er zu seiner
+Startansicht zurückfliegt (Off, 30 s, 1 min, 5 min).</li>
+<li><b>Show people</b> und <b>Show tags &amp; scanners</b>, auf der Karte und in Live Aboard.</li>
+</ul>
+<p><b>Set it up step by step</b> auf dieser Karte (oder <b>Set up Live Aboard</b> oben im Atlas-Editor)
+öffnet einen Assistenten, der das Haus mit dir baut: Etagenhöhen, Räume, Geräte, Höhen, Türen und
+Fenster, LED-Streifen, Möbel, die Extras, und es zu deinem Bildschirm machen (<b>Show the Atlas as
+Overview</b>). Jeder Schritt sagt, was er gefunden hat und was noch fehlt.</p>
+<p>Ist 🏠 ausgegraut, steht der Grund daneben (zum Beispiel ein Browser ohne WebGL). Tipp darauf, um es
+noch einmal zu versuchen.</p>
+<h2 id="im-haus-bewegen">Im Haus bewegen</h2>
+<p>In der Seitenleiste öffnet Live Aboard mit allen Etagen, auseinandergezogen (<b>⇕ Explode</b>), und die
+Leisten der Seite sind aus dem Weg. <b>☰</b> (oben rechts) holt die Leisten zurück.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Was</th><th>Wie</th></tr>
+  <tr><td>Das Haus drehen</td><td>Mit einem Finger oder der linken Maustaste ziehen</td></tr>
+  <tr><td>Es verschieben</td><td>Zwei Finger, oder die rechte Maustaste</td></tr>
+  <tr><td>Zoomen</td><td>Zwei Finger zusammenziehen oder spreizen, oder das Mausrad</td></tr>
+  <tr><td>Zu einem Raum gehen</td><td>Doppelt darauf tippen, oder ihn in <b>Rooms ▾</b> wählen</td></tr>
+  <tr><td>Gerade nach unten schauen / zurück zum üblichen Winkel</td><td><b>Top</b> / <b>Iso</b></td></tr>
+  <tr><td>Eine Vierteldrehung</td><td><b>⟳ 90°</b></td></tr>
+  <tr><td>Alles sehen</td><td><b>Fit</b>, oder <b>Views ▾ → Whole house</b></td></tr>
+  <tr><td>Norden oben</td><td>Auf den Kompass tippen</td></tr>
+</table>
+</div>
+<p><b>Walls</b> (unten links): <b>Cut</b> senkt die Wände vor dir; <b>Up</b> stellt jede Wand in voller Höhe auf
+(am besten von außen, und nachts); <b>Down</b> legt sie alle niedrig; <b>Glass</b> macht die Wände vor dir
+durchsichtig, sodass die Räume ihre Höhe behalten; <b>Roof</b> zeigt das Dach von außen, oder nie.</p>
+<p><b>Floors</b>: <b>▲ / ▼</b> gehen eine Etage hinauf oder hinunter und blenden die Etagen darüber aus;
+<b>All</b> zeigt jede Etage; <b>⇕ Explode</b> (mit All) zieht sie auseinander. Auf einer Tastatur wechseln
+<b>PgUp / PgDn</b> (Bild↑ / Bild↓) die Etage, und <b>Home</b> (Pos1) zeigt alle. Tipp auf den Namen einer
+Etage für ihr Blatt.</p>
+<p><b>Views ▾</b> hat jede Etage, <b>Whole house</b> und Ansichten, die du mit <b>Save this view</b> behältst.
+<b>Set as home</b> macht die aktuelle Ansicht zu der, mit der die Seitenleiste öffnet und zu der sie
+zurückgeht. <b>Views ▾ → Look</b> wählt die Farben dieses Bildschirms: <b>Same as Settings</b>,
+<b>Classic</b>, <b>Studio</b> oder ein Showcase-Thema. Hak <b>By the sun</b> an für einen Look am Tag und
+einen anderen nach Sonnenuntergang.</p>
+<p><b>Rooms ▾</b> listet jeden Raum unter seiner Etage. Wähl einen: Die Ansicht fliegt zu ihm, und sein
+Feld öffnet sich, mit den Geräten und Knöpfen des Raums (jeder Schalter mit <b>Undo</b>), seinen Szenen
+und <b>More devices of the area</b>: was Home Assistant in diesem Bereich hat, das die Karte nicht
+zeigt. Auf einem breiten Bildschirm setzt <b>Room chips along the top</b> in <b>⋯</b> die Raumnamen
+stattdessen in eine Reihe.</p>
+<h2 id="das-haus-lesen">Das Haus lesen</h2>
+<p>Was du siehst, hängt davon ab, wie nah du bist:</p>
+<ul>
+<li><b>Das ganze Haus</b>: ein Schild neben jeder Etage mit dem, was dort los ist („Main · 3 lights on ·
+1 open · 2 people“). Tipp darauf, um nur diese Etage zu sehen.</li>
+<li><b>Eine Etage</b>: Raumnamen, Messwerte und Sensormarkierungen.</li>
+<li><b>Ein Raum</b> (doppelt tippen oder hineinzoomen): die Gerätekürzel in diesem Raum; die anderen
+treten zurück.</li>
+</ul>
+<p>Alarme (Wasser, Rauch, Gas, CO) erscheinen immer: Ringe über den Boden des Raums und ein rotes Wort
+über allem (<b>WET</b>, <b>SMOKE</b>, <b>GAS</b>, <b>CO</b>, oder <b>ALARM</b>, solange der Alarm gehalten wird),
+bis er über das Banner zurückgesetzt wird.</p>
+<ul>
+<li><b>Lichter</b> leuchten in ihrer eigenen Farbe und Helligkeit. Ein Licht, das aus ist, ist eine
+kleine dunkle Leuchte.</li>
+<li><b>Raum-Messwerte</b> (Temperatur, Feuchtigkeit, Luftqualität) stehen unter dem Namen. Einer, der
+seit über einer Stunde nicht gekommen ist, zeigt einen Strich („–°“), damit du nie einen alten
+Wert als aktuellen liest.</li>
+<li><b>Bewegung</b>: Ein Sensor, der gerade auslöst, ist ein leuchtend blaues Abzeichen und tönt seinen
+Raum. Einer, der früher ausgelöst hat, ist in der Farbe seines Alters umrandet, von Blau (gerade
+eben) bis Rot (etwa 2 Stunden). Eine gestrichelte Linie führt von jedem Abzeichen hinunter dorthin,
+wo der Sensor wirklich ist. Der <b>Motion chip</b> oben nennt die neuesten Räume („Kitchen now ·
+Hall 12 min“).</li>
+<li><b>Wärmekarte</b>: ☰ → <b>Temps</b> färbt jeden Raum mit einem Thermometer: blau, wenn es kühl ist,
+grün um 21°, rot ab 26°.</li>
+<li><b>Fenster offen im Regen</b>: Ein offenes Fenster leuchtet blau, und eine Zeile unter dem Motion
+chip nennt es. Dafür muss das Fenster mit verknüpftem Sensor gezeichnet und das Wetter des Atlas
+eingerichtet sein.</li>
+<li><b>Nachts</b> wird das Haus mit der echten Sonne dunkel, und bei aufgestellten Wänden leuchten die
+Fenster beleuchteter Räume.</li>
+<li><b>Türen und Fenster</b>, die mit Sensoren verknüpft sind, öffnen und schließen sich wie sie. Ein
+Schloss, das mit einer Tür verknüpft ist, leuchtet rot, solange es offen ist.</li>
+</ul>
+<p><b>Mezzanine und Galerien</b>: Mach eine davon in Home Assistant zu einer eigenen Etage. Gib in
+<b>Karten → 3D-Stapel → Etagenhöhen</b> der Halle darunter ihre volle Höhe und dem Mezzanin seine echte
+Grundhöhe; Live Aboard zeichnet es dann in der Halle. Markier eine offene Kante in
+<b>Karten → Bearbeiten → Signalwände</b> (<b>Offene Kante: Raumkante antippen</b>) und drück <b>Geländer</b>
+in ihrer Zeile für ein Geländer
+(<a href="/manual/walls-and-signal-loss/de/#offene-kanten-räume-ohne-wand-dazwischen">Kapitel 10</a>).</p>
+<h2 id="benutzen">Benutzen</h2>
+<ul>
+<li><b>Tipp auf ein Licht</b>, um es zu schalten; <b>halte</b> es für Helligkeit, Farbe und Effekte.</li>
+<li><b>Tipp auf einen Sensor oder einen Messwert</b> für seine Karte; die Karte eines Bewegungsmelders
+öffnet seinen Aktivitätskalender.</li>
+<li><b>Tipp auf den Namen eines Raums</b> für sein Blatt: jedes Gerät, <b>All lights on / off</b>,
+Ventilatoren und die eigenen Szenen und Skripte des Raums.</li>
+</ul>
+<h2 id="bauen-türen-fenster-höhen-und-streifen">Bauen: Türen, Fenster, Höhen und Streifen</h2>
+<p>Gebaut wird in <b>Karten → Atlas-Editor</b>, in Live Aboard, mit <b>Edit</b>. Nichts wird gespeichert, bis
+du <b>Save</b> drückst. <b>Undo</b>, <b>Redo</b> und <b>Discard</b> gehen durch deine Änderungen; <b>Done</b>
+verlässt Edit und fragt zuerst, wenn etwas nicht gespeichert ist. Tasten: <b>Strg+Z</b> macht
+rückgängig, <b>Strg+Y</b> wiederholt, <b>Esc</b> lässt los, <b>Entf</b> entfernt die gewählte Tür oder das
+gewählte Fenster.</p>
+<p><b>Türen, Fenster und Durchgänge</b></p>
+<ol>
+<li><b>Edit</b>, dann <b>Door</b>, <b>Window</b> oder <b>Doorway</b>. Die Ansicht schaut gerade nach unten.</li>
+<li>Drück auf eine Wand und zieh an ihr entlang, oder tipp ihre beiden Enden an. Die Länge wird
+angezeigt, in Schritten von 5 cm.</li>
+<li>Lass los: Das Blatt der Öffnung geht auf. Eine Tür hat eine Höhe, einen <b>Type</b> (Drehtür,
+Doppeltür, Schiebetür, Scheunentor, Taschentür, Falttür, Garagentor, Tor und andere), Anschlag
+und Öffnungsrichtung, und <b>Follows</b>: einen Tür- oder Garagensensor oder eine Abdeckung, sodass
+sie sich öffnet und schließt wie diese. Ein Fenster hat die Höhen <b>Sill</b> und <b>Head</b>.</li>
+</ol>
+<p>Verschieb oder verändere einen Raum in <b>Karten → Aufteilung</b>, und seine Türen und Fenster gehen
+mit, wenn du <b>Korrekturen speichern</b> drückst. Die, bei denen das nicht geht, bleiben, wo sie
+waren, und die Meldung sagt, wie viele.</p>
+<p><b>Höhen</b>: <b>Edit → Heights</b>, tipp ein Gerät an und nimm den Schieber oder eine Stelle, die für
+seine Art angeboten wird (<b>Ceiling</b>, <b>Corner</b>, <b>High on the wall</b>, <b>Switch height</b>,
+<b>Table</b>, <b>Floor</b>…). <b>Reset to default</b> stellt es zurück; bei einem Licht sagt
+<b>What is this?</b>, was es ist (ein Einbaustrahler, eine Pendelleuchte, eine Lampe). Das sind
+dieselben Höhen wie in der Zeile <b>Height</b> des Atlas-Editors.</p>
+<p><b>Streifen</b> (LED-Streifen, Lichtblenden, Lichtvouten, Lichterketten): <b>Edit → Strip</b>, tipp das
+Licht an oder wähl es aus <b>Lights to lay out</b>, dann <b>Round this room</b> (mit
+<b>Leave gaps at doors</b> und Fenstern), <b>Under</b>, <b>Behind</b> oder <b>Top edge</b> eines Möbelstücks,
+<b>Along a rail</b> oder <b>Draw</b>. Stell seine Höhe ein (Toe-kick, Counter, Under cabinets, Valance,
+Cove, Ceiling edge, oder Zentimeter) und in welche Richtung es leuchtet. <b>Remove run</b> setzt es auf
+PadSpans Schätzung zurück.</p>
+<p><b>Möbel</b>: <b>Karten → Einrichten</b>, <a href="/manual/furnish/de/">Kapitel 17</a>.</p>
+<h2 id="aus-deinen-plänen-bauen-mit-einer-ki-experimentell">Aus deinen Plänen bauen, mit einer KI (experimentell)</h2>
+<p>Drei Reiter unter <b>Edit → Plans</b> lesen deine Grundrisse mit einer KI. Jeder ist ein Experiment:
+Die KI macht Fehler, also prüf jeden Punkt. Sie brauchen PadSpan Pro und Schalter in
+<b>Einstellungen → KI</b> (<a href="/manual/ai-features/de/">Kapitel 19</a>). Eine Cloud-KI bekommt eine Kopie der Pläne,
+die sie liest.</p>
+<ul>
+<li><b>Plans</b> (braucht <b>AI map-building research (experimental)</b> und einen AI Task): Die KI markiert
+Treppen, und wenn du <b>Lights</b> anhakst, Lichtsymbole, als nummerierte Pins über deinem Plan. Geh
+sie einzeln durch (<b>New</b>, <b>Correction</b>, <b>Failure</b>, <b>Looks right</b>, <b>Later</b>); es gibt kein
+Alles-übernehmen. Mit einer kleinen lokalen KI sind etwa 2 von 10 Treppenvorschlägen falsch. Sie
+platziert oder verschiebt nie ein Licht und schreibt immer nur in dein 3D-Haus.</li>
+<li><b>Line up plans</b> (braucht <b>Build from plans</b> und Claude Opus 5.5 oder neuer über die
+Anthropic-Integration von Home Assistant): richtet mehrere Pläne einer Etage aneinander aus (einen
+vermessenen, ein Blatt vom Architekten, einen Scan). Nur das Bild eines Plans bewegt sich;
+Kalibrierpunkte, Räume, Empfänger und der Plan, der den Maßstab gesetzt hat, bleiben, wo sie sind.
+Vor jedem Speichern legt es zuerst eine Sicherung an.</li>
+<li><b>Rooms from plans</b> (derselbe Schalter): Claude liest jeden Plan zweimal und schlägt Umrisse für
+die Räume vor, die du schon hast, zugeordnet danach, wo sie liegen, nie nach Namen. Räume, bei
+denen beide Lesungen übereinstimmen, sind angehakt; <b>Look closely</b> zeigt, wo sie sich
+unterscheiden, und <b>Read again</b> macht eine dritte Lesung. <b>Accept all for this floor</b> speichert
+nach einer Sicherung; <b>Undo this rooms session</b> nimmt es zurück.</li>
+</ul>
+<h2 id="auf-einem-wandbildschirm">Auf einem Wandbildschirm</h2>
+<ul>
+<li>Setz mit <b>Set as home</b> die Ansicht, auf der der Bildschirm ruhen soll, und wähl
+<b>Back to home view</b>. Er fliegt nach so langer Zeit ohne Berührung zurück, nie während du
+bearbeitest oder eine Karte offen hast.</li>
+<li>Der Knopf in der Ecke macht es bildschirmfüllend.</li>
+<li>Wenn sich nichts ändert, zeichnet Live Aboard nichts, ein ruhiges Haus kostet den Bildschirm also
+nichts.</li>
+</ul>
+<p>Mehr in <a href="/manual/wall-screens-and-kiosks/de/">Kapitel 18</a>.</p>
+<h2 id="wenn-etwas-nicht-stimmt">Wenn etwas nicht stimmt</h2>
+<ul>
+<li><b>Es zeigt stattdessen die flache Karte</b>: Der Browser konnte die 3D-Ansicht nicht ausführen (kein
+WebGL, zu langsam, oder seine Grafik ist neu gestartet). Der Knopf 🏠 sagt, warum; tipp darauf, um
+es noch einmal zu versuchen. Mehr in <a href="/manual/troubleshooting/de/#das-3d-haus-startet-nicht">Kapitel 26</a>.</li>
+<li><b>Die Temperatur eines Raums zeigt „–°“</b>: Sein Sensor hat seit über einer Stunde nichts
+gemeldet.</li>
+<li><b>Ein Gerät schwebt an der falschen Stelle</b>: Stell seine Höhe in <b>Edit → Heights</b> ein, oder
+verschieb es auf der Karte.</li>
+<li><b>Eine Tür oder ein Fenster fehlt</b>: Zeichne sie in Edit, oder auf der Karte mit verknüpftem
+Sensor.</li>
+</ul>
+<div class="pager"><span><a href="/manual/the-atlas/de/">← 15. Der Atlas</a></span><span><a href="/manual/de/">Inhalt</a></span><span><a href="/manual/furnish/de/">17. Furnish →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">Diese Seite entsteht aus dem Handbuch im Repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual/de">docs/manual/de</a>. Etwas veraltet? <a href="https://github.com/gbroeckling/padspanHA/issues">Melde es auf GitHub</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · iPhone, Apple Watch und AirTag sind Marken der Apple Inc.; Android der Google LLC; Shelly der Shelly Group; Raspberry Pi der Raspberry Pi Ltd. PadSpan ist mit keinem dieser Unternehmen verbunden.</p>
+</div></footer>
+</body>
+</html>
