@@ -354,16 +354,17 @@ function createLiveLayer(slot){
   // that is free again. Its tap box goes with it.
   function clearNames(){
     if (!svg || typeof svg.querySelectorAll !== "function" || !d || !(d.names instanceof Map)) return;
-    const over = [];                          // [z, x0, y0, x1, y1]: what is drawn on top of the names, as it stands now
+    // [z, x0, y0, x1, y1]: what is drawn on top of the names, as it stands now, with a little room around it.
+    const over = [];
     for (const it of items.values()) {
       if (!it.at || it.g.style.display === "none") continue;
       const [x, y] = it.at, z = it.m[2];
-      if (it.kind === "person") over.push([z, x - 9.5, y - 9.5, x + 9.5, y + 9.5]);
-      else if (it.kind === "scanner") over.push([z, x - 4.5, y - 4.5, x + 4.5, y + 4.5]);
+      if (it.kind === "person") over.push([z, x - 11, y - 11, x + 11, y + 11]);
+      else if (it.kind === "scanner") over.push([z, x - 6, y - 6, x + 6, y + 6]);
       else {
-        over.push([z, x - 5, y - 5, x + 5, y + 5]);
+        over.push([z, x - 6.5, y - 6.5, x + 6.5, y + 6.5]);
         const n = it.parts.name ? it.parts.name.textContent.length : 0;
-        if (n) over.push([z, x - n * 2.6 - 1.5, y - 15.5, x + n * 2.6 + 1.5, y - 5]);   // 9 px type, its baseline 8 above the dot
+        if (n) over.push([z, x - n * 2.6 - 2.5, y - 16.5, x + n * 2.6 + 2.5, y - 4]);   // 9 px type, its baseline 8 above the dot
       }
     }
     // A name drawn over its room's markers (g.lroom-name: no spot in the room was clear) goes with its tap box.

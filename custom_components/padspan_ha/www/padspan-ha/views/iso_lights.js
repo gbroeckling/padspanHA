@@ -2086,7 +2086,7 @@ export function pointInPolygon(pts, x, y){
 // and the middle third of the name is always inside the room (only a room
 // too small for that takes a spot whose middle is inside). Each is scored by
 // its cover, then how much of the name hangs past the room's edge, then how
-// far it is from `at`. The best `max`, none on top of another, best first,
+// far it is from `at`. The best `max`, each a half name or more from the others, best first,
 // each [x, y, its cover]: the first is where the name goes, the rest where
 // it can go when someone walks over it.
 export const LABEL_TEXT=1000, LABEL_LIT=150, LABEL_DIM=30;
@@ -2108,7 +2108,7 @@ export function labelSpots(poly, hw, hh, at, cover, max=1, also=[]){
   const best=[];
   for(const p of (mid.length ? mid : edge).sort((a,b)=>a[3]-b[3])){
     if(best.length>=max) break;
-    if(best.every(q=>Math.abs(q[0]-p[0])>=2*hw || Math.abs(q[1]-p[1])>=2*hh)) best.push([+p[0].toFixed(1), +p[1].toFixed(1), p[2]]);
+    if(best.every(q=>Math.abs(q[0]-p[0])>=hw || Math.abs(q[1]-p[1])>=hh)) best.push([+p[0].toFixed(1), +p[1].toFixed(1), p[2]]);
   }
   return best;
 }
@@ -5943,14 +5943,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const cover=(x,y)=>coverOf(x,y,nhw,nhh,nearC,nearB)+(placedLabels.some(p=>Math.abs(p.x-x)<(p.w+rw)/2 && Math.abs(p.y-y)<(p.h+rh)/2)?LABEL_TEXT:0);
         nameCover=cover(lix,liy);
         if(nameCover>0 || NAME_SPOTS){
-          const best=labelSpots(ipts, nhw, nhh, [ccx+(topIx[0]-ccx)*TOP_BLEND, ccy+(topIx[1]-ccy)*TOP_BLEND], cover, NAME_SPOTS?7:1, [[lix,liy]]);
+          const best=labelSpots(ipts, nhw, nhh, [ccx+(topIx[0]-ccx)*TOP_BLEND, ccy+(topIx[1]-ccy)*TOP_BLEND], cover, NAME_SPOTS?11:1, [[lix,liy]]);
           if(nameCover>0 && best.length) [lix,liy,nameCover]=best[0];
           // Where the people layer may move it: its spot first, then the others it reads at (drawn over the
           // markers, below, a name reads anywhere but under text; under them, nowhere under a lit fixture).
           if(NAME_SPOTS){
             const reads=nameCover>0 ? LABEL_TEXT : LABEL_LIT;
             NAME_SPOTS.set(`${z}|${r.room}`, { ink:[nhw, nhh], spots:[[+lix.toFixed(1), +liy.toFixed(1)],
-              ...best.filter(([x,y,c])=>c<reads && (Math.abs(x-lix)>=2*nhw || Math.abs(y-liy)>=2*nhh)).map(([x,y])=>[x,y])].slice(0,6) });
+              ...best.filter(([x,y,c])=>c<reads && (Math.abs(x-lix)>=nhw || Math.abs(y-liy)>=nhh)).map(([x,y])=>[x,y])].slice(0,10) });
           }
         }
         placedLabels.push({x:lix, y:liy, w:rw, h:rh});
