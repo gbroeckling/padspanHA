@@ -1435,9 +1435,10 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    above the rail's drawers. A red round centre (start/end the test) inside
    a ring that is its own button (the card of every emergency light — the owner:
    "a breakout button as a ring around the emergency button"), a list notch
-   on the ring so the two never read as one. The label opens on hover and
-   stays while a test runs, the ring pulsing, Force off beside it. Laid out
-   right to left: dial, label, Force off. */
+   set in the ring's band at its top, so the two never read as one (it sat
+   over the ring's corner until 2026-11-21, crowding ☰ under the dial). The
+   label opens on hover and stays while a test runs, the ring pulsing, Force
+   off beside it. Laid out right to left: dial, label, Force off. */
 .lv-emerg-anchor{position:relative;height:0;container-type:inline-size}
 /* Top-right corner of the map: its top is on screen when the Atlas opens
    (the bottom of a tall house map often is not). Above an open drawer
@@ -1461,8 +1462,8 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   background:repeating-conic-gradient(rgba(254,202,202,.16) 0 12deg,rgba(40,8,8,.94) 12deg 30deg);
   border:2px solid rgba(254,202,202,.6);box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .lv-emerg-ring:hover{border-color:#fff}
-.lv-emerg-notch{position:absolute;left:-3px;top:-3px;width:20px;height:20px;border-radius:50%;box-sizing:border-box;
-  display:flex;align-items:center;justify-content:center;color:#fff;background:#140b0b;border:2px solid rgba(254,202,202,.8)}
+.lv-emerg-notch{position:absolute;left:27px;top:-1px;width:14px;height:14px;border-radius:50%;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;color:#fff;background:#140b0b;border:1.5px solid rgba(254,202,202,.8)}
 .lv-emerg-btn{all:unset;box-sizing:border-box;position:absolute;inset:16px;border-radius:50%;cursor:pointer;
   display:flex;align-items:center;justify-content:center;color:#fff;
   background:radial-gradient(circle at 40% 35%,#ef4444,#b91c1c 60%,#7f1d1d);border:2px solid #fecaca;

@@ -148,7 +148,8 @@ def test_the_floor_colours_are_the_atlas_s_own_list() -> None:
 
 # ── the drawing (tests/js/live_aboard_one_look.mjs) ──────────────────────────
 
-@pytest.mark.parametrize("prefix", ["choice:", "rules:", "rooms: plain", "rooms: hygge", "rooms: neo_hud", "floors:", "readouts:", "safety:"])
+@pytest.mark.parametrize("prefix", ["choice:", "rules:", "rooms: plain", "rooms: hygge", "rooms: neo_hud", "floors:", "readouts:", "safety:",
+                                    "corner:"])
 def test_each_part_of_the_look(look, prefix) -> None:
     """choice: no choice or own is today's look, atlas follows the Atlas, own
     again is today's; rules: the plain Atlas's room rules are the flat
@@ -156,7 +157,8 @@ def test_each_part_of_the_look(look, prefix) -> None:
     outline, name and off fixtures; floors: each floor's number in its
     plate's colour, each plate its line; readouts: the Atlas's words and
     colours; safety: the Vacation banner and the emergency dial above the
-    cover."""
+    cover; corner: the dial's list notch inside its ring, ☰ a clear gap under
+    the dial."""
     _case(look, prefix)
 
 

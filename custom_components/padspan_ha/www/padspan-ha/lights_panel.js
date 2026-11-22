@@ -622,8 +622,8 @@ class PadSpanLightsApp extends HTMLElement {
       + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18v-5a5 5 0 0 1 10 0v5"/>'
       + '<path d="M5 18h14v3H5z"/><path d="M12 2v2M4.9 5.4l1.4 1.4M19.1 5.4l-1.4 1.4M2 12h2M20 12h2"/></svg>';
     const notch = el("span",{class:"lv-emerg-notch"});
-    notch.innerHTML = '<svg viewBox="0 0 10 10" width="10" height="10" stroke="currentColor" stroke-width="1.6" '
-      + 'stroke-linecap="round" aria-hidden="true"><path d="M2 2.5h6M2 5h6M2 7.5h6"/></svg>';
+    notch.innerHTML = '<svg viewBox="0 0 8 8" width="8" height="8" stroke="currentColor" stroke-width="1" '
+      + 'stroke-linecap="round" aria-hidden="true"><path d="M1.5 1.5h5M1.5 4h5M1.5 6.5h5"/></svg>';
     const ring = el("button",{
       class: "lv-emerg-ring", title: "Emergency lights — list and controls", "aria-label": "Emergency lights: list and controls",
       // The card is rebuilt every poll: keep the pulse's phase continuous.

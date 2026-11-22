@@ -434,7 +434,8 @@ const CSS_SHOWING = `.lv-legend{display:none}.psc-atlas{display:none}`;
 const COVER_TOP_Z = COVER_Z + 1;
 // With the dial in the corner, ☰ (bring the bars back) sits under it, never
 // beneath it: a tap meant for ☰ must not open, or start, the emergency test.
-const DIAL_CLEAR = 14 + 72 + 12;
+// A clear gap below the dial (12 px crowded it, 2026-11-21), ☰ centred under it.
+const DIAL_CLEAR = 14 + 72 + 20, DIAL_UNDER = 14 + (72 - 40) / 2;
 // A list or menu open over the cover: the banner stays over the map, but not
 // over the list (the list is in the cover's own layer, so the banner can't be
 // put between them): where they overlap, the list's box is cut out of it,
@@ -443,7 +444,7 @@ const coverCss = (c, dial, cut) => `.lv-vacation{z-index:${COVER_TOP_Z}}
 :host([data-la3d-menu]) .lv-mapcard > .lv-vacation.lv-vacation{z-index:${COVER_TOP_Z}${cut ? `;clip-path:${cut}` : ""}}
 .lv-emerg{position:fixed;z-index:${COVER_TOP_Z};top:${Math.round(c.top + 14)}px;right:${Math.round(Math.max(0, (window.innerWidth || 0) - c.left - c.width) + 14)}px}${
   dial ? `
-.la3d .la3d-solo{top:${DIAL_CLEAR}px}` : ""}`;
+.la3d .la3d-solo{top:${DIAL_CLEAR}px;right:${DIAL_UNDER}px}` : ""}`;
 const CSS_PANEL = `.lv-hero > .lv-hint{display:none}
 @media (max-width:600px){.lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
   .lv-emerg-label.on .lv-emerg-label-tx{display:none}.lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}}`;

@@ -178,8 +178,15 @@ export async function startDemo(page){
   // the snapshot places, the tag seen and not counted, motion where they are.
   const occupancy = () => occupancyOf(snapshot().objects.list, WALKERS, states, MOTION);
 
+  // ?emergency=1: the Atlas's Test emergency lighting button (emergency_test.py's
+  // status), a few of the house's lights as the emergency lights, no test running.
+  const EMERGENCY = q.get("emergency") === "1" ? Object.keys(states).filter(e => e.startsWith("light.")).slice(0, 3) : [];
   const route = async (m) => {
     switch (m.type) {
+      case "padspan_ha/emergency_status":
+        return { available: EMERGENCY.length > 0, source: "settings", groups: [], pending_off: [], emergency_ran: [],
+                 members: EMERGENCY.map(e => ({ entity_id: e, name: states[e].attributes.friendly_name || e, state: states[e].state })),
+                 test: { active: false, started_at: null, kept_on: [], manual: [] } };
       case "padspan_ha/settings_get": return { settings: clone(settings), cpu_pinning_supported: false };
       case "padspan_ha/settings_set": { const { type, id, ...rest } = m; Object.assign(settings, rest); return { settings: clone(settings) }; }
       case "padspan_ha/version": return built.version;

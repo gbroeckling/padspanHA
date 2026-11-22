@@ -60,6 +60,7 @@ const LM = await import(url("views", "lights_map.js"));
 const LC = await import(url("views", "light_codes.js"));
 const HOUSE = await import(url("views", "live_aboard_house.js"));
 const { roomColor } = await import(url("views", "room_color.js"));
+const CSS = readFileSync(join(WWW, "styles.css"), "utf8").replace(/\r\n/g, "\n");
 
 const failures = [];
 const cases = {};
@@ -322,14 +323,38 @@ await tryCase("safety: with the emergency dial in the cover's corner, ☰ sits u
     stopPropagation() {}, preventDefault() {}, composedPath: () => [], ...extra });
   for (let i = 0; i < 3; i++) cv.dispatchEvent(ev("wheel", 400, 300, { deltaY: -160 }));
   await settle();
-  const during = cssOf(), solo = /\.la3d \.la3d-solo\{top:(\d+)px\}/.exec(during), emerg = /\.lv-emerg\{position:fixed;z-index:\d+;top:(\d+)px/.exec(during);
+  const during = cssOf(), solo = /\.la3d \.la3d-solo\{top:(\d+)px;right:(\d+)px\}/.exec(during);
+  const emerg = /\.lv-emerg\{position:fixed;z-index:\d+;top:(\d+)px;right:(\d+)px\}/.exec(during);
+  // The dial is placed from the window's right, ☰ from the cover's: the gap between them.
+  const rs = slot.element.style, gapR = Math.max(0, (globalThis.innerWidth || 0) - parseFloat(rs.left) - parseFloat(rs.width));
   for (const fn of [...(lists.window.keydown || [])]) fn({ type: "keydown", key: "Escape" });
   await settle();
   dial.remove();
   check("safety: with the emergency dial in the cover's corner, ☰ sits under it, never beneath it",
     S(slot).screen && solo && emerg && Number(solo[1]) >= Number(emerg[1]) + 72, { solo: solo && solo[0], emerg: emerg && emerg[0] });
+  // ...with a clear gap (12 px crowded it, 2026-11-21) and centred under it: ☰ is 40 px, the dial
+  // (styles.css .lv-emerg-dial) as wide as it is tall.
+  const D = Number((/\.lv-emerg-dial\{position:relative;width:(\d+)px;height:\1px/.exec(CSS) || [])[1]);
+  check("corner: ☰ keeps a clear gap below the dial, centred under it",
+    solo && emerg && D > 0 && Number.isFinite(gapR) && Number(solo[1]) >= Number(emerg[1]) + D + 16
+    && Math.abs((Number(solo[2]) + 20) - (Number(emerg[2]) - gapR + D / 2)) <= 2, { solo: solo && solo[0], emerg: emerg && emerg[0], D, gapR });
   LA.releaseLiveAboardSlot("ol-dial");
   await settle();
+});
+
+// ── corner: the dial's list notch, inside its ring ──────────────────────────
+await tryCase("corner: the ring's list notch sits inside the ring's band, never over its edge", async () => {
+  // styles.css: the dial (a square), the ring (inset 0, its border) and the notch placed in the ring's padding box.
+  const px = (rule, prop) => { const m = new RegExp(`(?:^|\\n)${rule.replace(/\./g, "\\.")}\\{(?:[^}]*?[;\\s])?${prop}:(-?[\\d.]+)px`).exec(CSS);
+                               return m ? Number(m[1]) : NaN; };
+  const D = px(".lv-emerg-dial", "width"), B = Number((/\.lv-emerg-ring\{[^}]*border:([\d.]+)px solid/.exec(CSS) || [])[1]);
+  const L = px(".lv-emerg-notch", "left") + B, T = px(".lv-emerg-notch", "top") + B, W = px(".lv-emerg-notch", "width"), H = px(".lv-emerg-notch", "height");
+  const inset = px(".lv-emerg-btn", "inset");
+  // Its centre and radius, from the dial's centre: inside the ring's outer edge, outside the red centre.
+  const R = D / 2, cx = L + W / 2 - R, cy = T + H / 2 - R, d = Math.hypot(cx, cy), r = Math.max(W, H) / 2;
+  check("corner: the ring's list notch sits inside the ring's band, never over its edge",
+    [D, B, L, T, W, H, inset].every(Number.isFinite) && L >= 0 && T >= 0 && L + W <= D && T + H <= D
+    && d + r <= R + 0.5 && d - r >= R - inset - 1.5, { D, B, L, T, W, H, inset, d, r });
 });
 
 process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

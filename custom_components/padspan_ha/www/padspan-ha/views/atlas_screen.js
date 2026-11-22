@@ -131,12 +131,12 @@ const FLAT_CSS = `
 .lv-alone-anchor > button:hover,.lv-alone-anchor > button:focus-visible{opacity:1;border-color:rgba(120,190,155,.5)}
 .lv-mapcard.lv-alone > .lv-alone-anchor{position:fixed;left:var(--lv-al-l);top:var(--lv-al-t);width:var(--lv-al-w);height:var(--lv-al-h);z-index:${COVER_Z + 1}}
 .lv-mapcard.lv-alone > .lv-alone-anchor > .lv-alone-solo{display:flex}
-.lv-mapcard.lv-alone:has(.lv-emerg) > .lv-alone-anchor > .lv-alone-solo{top:98px}
+.lv-mapcard.lv-alone:has(.lv-emerg) > .lv-alone-anchor > .lv-alone-solo{top:106px;right:30px}
 .lv-mapcard.lv-alone > .lv-emerg-anchor{position:fixed;left:var(--lv-al-l);top:var(--lv-al-t);width:var(--lv-al-w);z-index:${COVER_Z + 2}}
 .lv-mapcard.lv-alone > .lv-vacation{z-index:${COVER_Z + 3}}
 .lv-mapcard.lv-alone > .lv-stage > svg{max-width:none}
 .lv-mapcard.lv-alone > .lv-stage > .lv-wx{--wxcap:100000%}
-.lv-mapcard.lv-alone.lv-has-emerg > .lv-alone-anchor > .lv-alone-solo{top:98px}`;
+.lv-mapcard.lv-alone.lv-has-emerg > .lv-alone-anchor > .lv-alone-solo{top:106px;right:30px}`;
 // The stage's own cover, inline (it must win over the layout's own widths).
 const COVER_KEYS = ["position", "left", "top", "width", "height", "margin", "maxWidth", "borderRadius", "border", "zIndex", "boxSizing"];
 
