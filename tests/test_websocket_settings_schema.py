@@ -58,6 +58,7 @@ _BACKEND_ONLY = {
     "vacation_mode_pattern_end",       # vacation_mode.switch_fields — a resumed trip's window to learn again
     "atlas_default_v1_applied",        # settings_store.py — the one-time Atlas-on switch, stamped on load
     "room_speed_v1_applied",           # settings_store.py — the one-time move to the faster defaults, stamped on load
+    "room_walk_default_v1_applied",    # settings_store.py — the one-time Walk-a-room-on, stamped once calibration loads
     "first_seen_ts",                   # settings_store.py — stamped once on load (trial milestone card)
     "onboarding",                      # settings_store.py + onboarding.py — a new install's first steps, stamped by the backend
     "wled_teams",                      # padspan_ha/wled_teams_set (ws_wled.py), validated there

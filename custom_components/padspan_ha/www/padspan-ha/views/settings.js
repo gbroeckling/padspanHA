@@ -1161,7 +1161,7 @@ function _settingsPresence(ctx, el){
     put("positioning", card);
   }
 
-  // ── Walk a room (calibration_room_walk, off by default) ─────────────────────
+  // ── Walk a room (calibration_room_walk, on by default) ──────────────────────
   {
     const id = "calib_room_walk";
     const tg = el("input", { type: "checkbox", id, style: "width:16px;height:16px;accent-color:#52b788;cursor:pointer" });

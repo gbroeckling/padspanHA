@@ -378,6 +378,7 @@ setup:feeds_tasmota
 setup:flush_forensics
 setup:flush_traceback
 setup:init_model
+setup:room_walk_default
 setup:unload_bluetooth
 setup:unload_capture
 setup:unload_device_registry

@@ -79,7 +79,7 @@ folding heading on that tab.
 | Positioning Choices: Pick the better method for this house | off | on or off | Uses whichever placing method did better on calibration spots it had not seen. | `positioning_pick_better` |
 | Positioning Choices: Mark a room as unsure when the signal is thin | off | on or off | With fewer than 3 receivers, or no good calibration match, a device keeps its room and is marked unsure. | `positioning_unsure` |
 | Positioning Choices: Use motion sensors and usual moves to break ties | off | on or off | Motion and occupancy sensors, and the moves PadSpan has learned, decide between two rooms that read almost the same. | `positioning_sensor_fusion` |
-| Walk a Room (Calibration): Add a "Walk a room" tab to Calibration | off | on or off | Adds Walk a room to Calibration. | `calibration_room_walk` |
+| Walk a Room (Calibration): Add a "Walk a room" tab to Calibration | on | on or off | Adds Walk a room to Calibration. | `calibration_room_walk` |
 | Distance Calibration: Reference power | -59 | -100 to 0 | Signal strength in dBm at 1 metre, for the distance sensors. | `ref_power` |
 | Distance Calibration: Path-loss exponent | 2.5 | 1 to 4 | How fast the signal falls with distance, for the distance sensors: about 2 in the open, 2.5 to 3.5 indoors. | `path_loss_exp` |
 | Signal smoothing: Process noise Q | 3 | 0.01 to 10 | How fast the smoothed signal follows a change. Higher follows movement faster. | `kalman_q` |
@@ -341,6 +341,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `power_teams_woke` | empty |  | Each power team's last wake-up day, so a restart never wakes it twice. |
 | `room_speed_v1_applied` | off |  | The November 2026 room-speed defaults were applied once. |
 | `atlas_default_v1_applied` | off |  | The Atlas's sidebar entry was switched on once, by default. |
+| `room_walk_default_v1_applied` | off |  | Walk a room was switched on once, by default, unless a walk was saved. |
 | `server_checked_at` | 0 |  | When the update check and licence check last ran. |
 | `forensics_license_expires` | empty |  | When the licence ends, as the licence server last said. |
 | `license_is_trial` | off |  | The key is a trial key. |

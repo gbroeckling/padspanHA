@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
-"""Walk a room (setting calibration_room_walk, off by default).
+"""Walk a room (setting calibration_room_walk, on by default since 2026-11-22).
 
 The person carries one phone or tag slowly around one room for about 90 s
 while the panel samples that device's RSSI from every scanner each poll.

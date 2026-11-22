@@ -157,10 +157,9 @@ receiver hears at known spots in your house. It needs a floor plan with a scale.
 
 Setup's **Calibrate** step opens one of two ways:
 
-- **Walk a room**, where it is switched on: walk each room for 90 seconds with your phone. It is off
-  on a new install. Turn it on in
-  **Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)**; Setup has an
-  **Open that setting** button.
+- **Walk a room**, first: walk each room for 90 seconds with your phone. It is on by default. If
+  someone turned it off, Setup says so and has an **Open that setting** button to
+  **Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)**.
 - **Guided calibration**, point by point: choose your phone and the floor, stand at a spot, mark it
   on the plan and let PadSpan listen. Aim for 10 to 20 spots on each floor, spread out.
 

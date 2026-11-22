@@ -1,4 +1,4 @@
-"""Walk a room (room_walk.py, setting calibration_room_walk, off by default).
+"""Walk a room (room_walk.py, setting calibration_room_walk, on by default since 2026-11-22).
 
 The walk only ever adds points the user confirmed, marked source="room_walk";
 replacing a walk touches only that room's room_walk points; every other
@@ -315,10 +315,51 @@ def test_the_report_vocabulary_is_closed():
     assert T._FEATURE_ON_ONLY["calibration_room_walk"] == "room_walk"
 
 
-# ── Off by default; the panel shows nothing new until it is on ──────────────
+# ── On by default (2026-11-22), once for an install from before ─────────────
 
-def test_off_by_default():
-    assert DEFAULT_SETTINGS["calibration_room_walk"] is False
+def test_on_by_default():
+    assert DEFAULT_SETTINGS["calibration_room_walk"] is True
+    assert DEFAULT_SETTINGS["room_walk_default_v1_applied"] is False
+
+
+_WALK_PT = {"source": RW.SOURCE, "room": "Lounge"}
+
+
+@pytest.mark.parametrize("stored, points, want", [
+    (False, [], True),                                  # off only because it was the default
+    (False, [{"source": "manual", "room": "Lounge"}], True),
+    (False, [_WALK_PT], False),                         # a walk saved: it was on, someone turned it off
+    (True, [_WALK_PT], True),
+    (True, [], True),
+])
+def test_the_one_time_default_keeps_a_chosen_off(stored, points, want):
+    from custom_components.padspan_ha.settings_store import room_walk_default_stamp
+    data = {**DEFAULT_SETTINGS, "calibration_room_walk": stored}
+    assert room_walk_default_stamp(data, points) is True
+    assert data["calibration_room_walk"] is want and data["room_walk_default_v1_applied"] is True
+    # Once: an off chosen after it stays off, walks or not.
+    data["calibration_room_walk"] = False
+    assert room_walk_default_stamp(data, []) is False and data["calibration_room_walk"] is False
+
+
+async def test_the_one_time_default_is_saved_once_calibration_loads():
+    from custom_components.padspan_ha.settings_store import SettingsStore
+    saved: list = []
+    st = SettingsStore.__new__(SettingsStore)
+    st.data = {**DEFAULT_SETTINGS, "calibration_room_walk": False}
+    st.store = SimpleNamespace(async_save=AsyncMock(side_effect=lambda d: saved.append(dict(d))))
+    await st.async_room_walk_default_once([])
+    await st.async_room_walk_default_once([])
+    assert len(saved) == 1 and saved[0]["calibration_room_walk"] is True and saved[0]["room_walk_default_v1_applied"]
+    init = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "__init__.py").read_text(encoding="utf-8")
+    at = init.index("async def _init_calibration")
+    assert "async_room_walk_default_once(cal_store.data" in init[at:init.index("return (DATA_CALIBRATION", at)]
+
+
+def test_restore_and_bright_import_keep_the_stamp():
+    cc = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    for name in ("ws_backup.py", "bright_import.py"):
+        assert 'data["room_walk_default_v1_applied"] = True' in (cc / name).read_text(encoding="utf-8"), name
 
 
 def test_the_tab_and_the_module_only_load_when_on():

@@ -1421,7 +1421,7 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     # 0.38.165's positioning settings, all off by default.
     "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
     "positioning_sensor_fusion": "fusion",
-    # 0.38.167: Calibration's Walk a room tab, off by default.
+    # 0.38.167: Calibration's Walk a room tab (on by default since 2026-11-22).
     "calibration_room_walk": "room_walk",
     # Themes (0.38.157): Light for everyone, Day on Pro; the stored switch,
     # so a lapsed Pro still says day_theme. theme_palette is in the ENUMS.

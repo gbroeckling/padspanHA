@@ -47,7 +47,7 @@ export const PARTS = {
   roomOutline: { view: "maps", tab: "edit", part: "rooms", title: "Draw the room's outline" },
   receiverPlace: { view: "maps", tab: "edit", part: "receivers", title: "Place the receiver" },
   floorHeights: { view: "maps", tab: "stack", part: "floor_heights", title: "Floor heights" },
-  // Setup's calibration step: the Walk a room switch (calibration_room_walk), off by default.
+  // Setup's calibration step: the Walk a room switch (calibration_room_walk), on by default.
   roomWalk:    { view: "settings", tab: "presence", part: "room_walk", title: "Walk a Room (Calibration)", cardSaysTitle: true },
   // Setup's "Track your phone or watch": the phone wizard on Bluetooth → IRK Manager (views/bluetooth.js).
   phoneWizard: { view: "bluetooth", tab: "irk_panel", part: "phone_wizard", title: "Track your phone", cardSaysTitle: true },

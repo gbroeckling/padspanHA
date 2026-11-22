@@ -1499,6 +1499,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "power_teams_woke": (None, "kept", "", "Each power team's last wake-up day, so a restart never wakes it twice."),
     "room_speed_v1_applied": (None, "kept", "", "The November 2026 room-speed defaults were applied once."),
     "atlas_default_v1_applied": (None, "kept", "", "The Atlas's sidebar entry was switched on once, by default."),
+    "room_walk_default_v1_applied": (None, "kept", "", "Walk a room was switched on once, by default, unless a walk was saved."),
     "server_checked_at": (None, "kept", "", "When the update check and licence check last ran."),
     "forensics_license_expires": (None, "kept", "", "When the licence ends, as the licence server last said."),
     "license_is_trial": (None, "kept", "", "The key is a trial key."),
