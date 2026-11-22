@@ -284,6 +284,7 @@ plan_ai_write:invalidate
 plan_carry:carry_apply
 power_team:call
 power_team:power_teams_set
+power_team:team_tick
 power_team:tick
 presence:beacon_cal_add_point
 presence:beacon_cal_settings
