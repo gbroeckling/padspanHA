@@ -150,7 +150,7 @@ function _save(ctx, p) {
 // ── opening a step: the tool that already does it ───────────────────────────
 
 
-/** Whether Calibration has its Walk a room tab (calibration_room_walk: off by default, and the server refuses a walk
+/** Whether Calibration has its Walk a room tab (calibration_room_walk: on by default, and the server refuses a walk
  *  while it is off). Where it is on, Setup's calibration step offers the walk first. */
 export const walkFirst = (s) => !!s && s.calibration_room_walk === true;
 
@@ -429,10 +429,10 @@ function _helperUndo(ctx, u) {
 }
 
 // ── calibrating: the quick way first (2026-11-21) ───────────────────────────
-// Walk a room (views/calibration_walk.js) is a 90-second walk per room; it is off by default (calibration_room_walk,
-// settings_store.py), and turning it on for every install is the owner's call, so this does not. Where it is on, the
-// step's Start walks the rooms and "Point by point" opens the guided calibration; where it is off, one line says how to
-// turn it on, with a button to that setting.
+// Walk a room (views/calibration_walk.js) is a 90-second walk per room; it is on by default (calibration_room_walk,
+// settings_store.py; the owner's call, 2026-11-22). Where it is on, the step's Start walks the rooms and "Point by
+// point" opens the guided calibration; where someone turned it off, one line says how to turn it on, with a button to
+// that setting.
 function _walkLine(ctx) {
   const { el } = ctx.helpers, st = ctx.state;
   const box = el("div", { "data-setup": "calibration-walk", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px" });

@@ -71,10 +71,13 @@ room still reads oddly.
 
 Walk a room calibrates a whole room in one 90-second walk.
 
-**Turn it on.** It is off by default. In Advanced, open
-**Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)** and tick **Add a
-"Walk a room" tab to Calibration**. From Setup's Calibrate step, **Open that setting** takes you
-there in either mode. A **Walk a room** tab then appears in Calibration. It needs Live mode.
+**On by default.** A new install has it on. An install from before this default has it turned on once
+by the update that brings it, unless a walk was saved there (then it was on, and someone turned it off, so it
+stays off). To turn it off or on again, in Advanced open
+**Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)** and use **Add a
+"Walk a room" tab to Calibration**. Where it is off, Setup's Calibrate step has **Open that
+setting**, which takes you there in either mode. While it is on, Calibration has a **Walk a room**
+tab. It needs Live mode.
 
 **Walk a room:**
 

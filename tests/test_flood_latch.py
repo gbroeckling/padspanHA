@@ -366,3 +366,175 @@ def test_smoke_gas_and_co_alarms_latch_like_a_leak() -> None:
     hass = _hass(st)
     _on_state_changed(hass, _state_event("binary_sensor.hall_problem", "on", device_class="problem"))
     assert not hass.async_create_task.called
+
+
+# ---------------------------------------------------------------------------
+# The phone notification (emergency_notify, on by default, 2026-11-22)
+# ---------------------------------------------------------------------------
+
+import sys  # noqa: E402
+import types  # noqa: E402
+
+import pytest  # noqa: E402
+
+from custom_components.padspan_ha import alert_store as AS  # noqa: E402
+from custom_components.padspan_ha import flood_latch as FL  # noqa: E402
+from custom_components.padspan_ha import presence_coordinator as PC  # noqa: E402
+from custom_components.padspan_ha import ws_occupancy as WO  # noqa: E402
+
+_EID = "binary_sensor.sink_leak"
+
+
+def _live_store(on=True, latches=None):
+    st = SimpleNamespace(data={"emergency_notify": on, "flood_latches": dict(latches or {})})
+
+    async def _set(**kw):
+        st.data = {**st.data, **kw}
+    st.async_set = AsyncMock(side_effect=_set)
+    return st
+
+
+def _hass_live(st):
+    hass = _hass(st)
+    attrs = {"device_class": "moisture", "friendly_name": "Sink leak sensor"}
+    hass.states = SimpleNamespace(get=lambda eid: SimpleNamespace(attributes=attrs))
+    return hass
+
+
+@pytest.fixture
+def notices(monkeypatch):
+    """Every notice sent, as (target, email, title, message), to the Follow
+    targets in notices.targets; the area is the Kitchen; the 2-day timer is
+    recorded in notices.later, never run."""
+    out: list = []
+    out_targets = [("notify.mobile_app_phone", ""), ("", "me@example.com")]
+
+    async def _send(hass, preferred, email, title, message, context=None):
+        out.append((preferred, email, title, message))
+        return preferred or "notify.auto"
+    monkeypatch.setattr(PC, "async_send_follow_notify", _send)
+    monkeypatch.setattr(AS, "follow_alert_targets", lambda hass, limit=5: list(out_targets))
+    monkeypatch.setattr(WO, "_entity_area_name", lambda hass, eid: "Kitchen")
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ev.async_call_later = MagicMock(side_effect=lambda hass, delay, cb: MagicMock())
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    return SimpleNamespace(sent=out, targets=out_targets, later=ev.async_call_later)
+
+
+def test_on_by_default_and_settable() -> None:
+    from pathlib import Path
+
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+    assert DEFAULT_SETTINGS["emergency_notify"] is True
+    ws = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
+    assert 'vol.Optional("emergency_notify"): bool' in ws and '"emergency_notify", "atlas_heatmap_enabled"' in ws
+
+
+async def test_a_latch_sends_one_notice_to_each_follow_target_and_never_repeats(notices) -> None:
+    st = _live_store()
+    hass = _hass_live(st)
+    await FL._async_latch(hass, _EID)
+    assert [(p, e) for p, e, _, _ in notices.sent] == notices.targets
+    title, message = notices.sent[0][2], notices.sent[0][3]
+    assert title == "PadSpan: Leak alarm"
+    assert message.startswith("Leak alarm: Sink leak sensor in the Kitchen, at ") and "You get this once" in message
+    rec = st.data["flood_latches"][_EID]
+    assert rec["notified"] is True and "end_said" not in rec
+    delay = notices.later.call_args.args[1]
+    assert abs(delay - ACTIVE_WINDOW_S) < 5, "the clear is scheduled for when the 2 days are up"
+    # The sensor chatters on and off: still latched, nothing more is sent.
+    for _ in range(3):
+        await FL._async_latch(hass, _EID)
+    assert len(notices.sent) == 2 and st.async_set.await_count == 1
+
+
+async def test_with_no_follow_target_it_auto_picks_once(notices) -> None:
+    notices.targets.clear()
+    await FL._async_latch(_hass_live(_live_store()), _EID)
+    assert [(p, e) for p, e, _, _ in notices.sent] == [("", "")], (
+        "none set: the auto-pick a Follow alert with no target uses, once")
+
+
+async def test_nothing_in_home_assistant_sends_nothing_and_the_latch_still_holds(notices, monkeypatch, caplog) -> None:
+    async def _send(hass, preferred, email, title, message, context=None):
+        raise PC.FollowNotifyNotSent("no_notify", "no notify services available in HA")
+    monkeypatch.setattr(PC, "async_send_follow_notify", _send)
+    notices.targets.clear()
+    st = _live_store()
+    await FL._async_latch(_hass_live(st), _EID)
+    assert is_active(st.data["flood_latches"][_EID])
+    assert "Emergency alarm notice not sent via auto-detect" in caplog.text
+
+
+async def test_off_sends_nothing_and_marks_nothing(notices) -> None:
+    st = _live_store(on=False)
+    hass = _hass_live(st)
+    await FL._async_latch(hass, _EID)
+    assert "notified" not in st.data["flood_latches"][_EID]
+    await FL.async_reset_latch(hass, _EID)
+    assert notices.sent == [] and not notices.later.called
+
+
+async def test_a_reset_says_the_clear_once_and_a_deleted_sensor_says_nothing(notices) -> None:
+    notices.targets[:] = [("notify.mobile_app_phone", "")]
+    now = time.time()
+    rec = {"triggered_at": now - 60, "expires_at": now + 3600, "notified": True}
+    st = _live_store(latches={_EID: rec, "binary_sensor.gone": dict(rec)})
+    hass = _hass_live(st)
+    cancel = MagicMock()
+    hass.data[DOMAIN][FL._DATA_TIMERS] = {_EID: cancel}
+    assert await FL.async_reset_latch(hass, _EID) is True
+    assert [t for _, _, t, _ in notices.sent] == ["PadSpan: Leak alarm cleared"]
+    cancel.assert_called_once()
+    assert await FL.async_reset_latch(hass, _EID) is False and len(notices.sent) == 1
+    _on_entity_registry_updated(hass, SimpleNamespace(data={"action": "remove", "entity_id": "binary_sensor.gone"}))
+    await hass.tasks[-1]
+    assert "binary_sensor.gone" not in st.data["flood_latches"] and len(notices.sent) == 1
+
+
+async def test_the_two_days_ending_says_the_clear_once(notices) -> None:
+    notices.targets[:] = [("notify.mobile_app_phone", "")]
+    now = time.time()
+    rec = {"triggered_at": now - ACTIVE_WINDOW_S - 5, "expires_at": now - 5, "notified": True}
+    st = _live_store(latches={_EID: rec})
+    hass = _hass_live(st)
+    await FL._async_ended(hass, _EID, rec["triggered_at"])
+    assert [t for _, _, t, _ in notices.sent] == ["PadSpan: Leak alarm ended"]
+    assert "after 2 days without a reset" in notices.sent[0][3]
+    assert st.data["flood_latches"][_EID]["end_said"] is True
+    await FL._async_ended(hass, _EID, rec["triggered_at"])
+    await FL.async_reset_latch(hass, _EID)
+    assert len(notices.sent) == 1, "said once: not again, nor on a reset after it"
+
+
+async def test_a_restart_schedules_only_the_clears_still_to_say(notices) -> None:
+    now = time.time()
+    st = _live_store(latches={
+        "binary_sensor.a": {"triggered_at": now - 10, "expires_at": now + 100, "notified": True},
+        "binary_sensor.b": {"triggered_at": now - 10, "expires_at": now + 100},                     # from before
+        "binary_sensor.c": {"triggered_at": now - 10, "expires_at": now - 1, "notified": True},      # due while off
+        "binary_sensor.d": {"triggered_at": now - 10, "expires_at": now - 1, "notified": True, "end_said": True},
+    })
+    hass = _hass_live(st)
+    async_setup_flood_latch(hass)
+    assert sorted(hass.data[DOMAIN][FL._DATA_TIMERS]) == ["binary_sensor.a", "binary_sensor.c"]
+    delays = sorted(c.args[1] for c in notices.later.call_args_list)
+    assert delays[0] == 0.0 and 90 < delays[1] <= 100
+    async_stop_flood_latch(hass)
+    assert FL._DATA_TIMERS not in hass.data[DOMAIN]
+
+
+def test_vacation_mode_and_alarms_read_follow_targets_one_way() -> None:
+    from pathlib import Path
+    cc = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    for name in ("vacation_mode.py", "flood_latch.py"):
+        assert "follow_alert_targets" in (cc / name).read_text(encoding="utf-8"), name
+    store = SimpleNamespace(all=lambda: {
+        "a": {"notify_service": "notify.mobile_app_phone", "email": ""},
+        "b": {"notify_service": "notify.mobile_app_phone", "email": ""},
+        "c": {"notify_service": "", "email": ""},
+        "d": {"notify_service": "", "email": "me@example.com"},
+    })
+    from custom_components.padspan_ha.const import DATA_ALERTS
+    hass = SimpleNamespace(data={DOMAIN: {DATA_ALERTS: store}})
+    assert AS.follow_alert_targets(hass) == [("notify.mobile_app_phone", ""), ("", "me@example.com")]

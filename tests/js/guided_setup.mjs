@@ -270,11 +270,11 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("phone: done names what is tracked", drow && drow.getAttribute("data-setup-status") === "done" && drow.textContent.includes("Tracked: Sam's phone, Kim's watch."), drow && drow.textContent);
 }
 
-// 2026-11-21: the quick first calibration. Walk a room (calibration_room_walk) is off by default and stays so (the
-// owner's call): off, Start opens the guided calibration as before and one line says how to turn the walk on, with a
-// button to that setting; on, Start opens Calibration's Walk a room tab and "Point by point" the guided calibration.
+// 2026-11-21: the quick first calibration. Walk a room (calibration_room_walk) is on by default since 2026-11-22 (the
+// owner's call): on, Start opens Calibration's Walk a room tab and "Point by point" the guided calibration; turned off,
+// Start opens the guided calibration as before and one line says how to turn the walk on, with a button to that setting.
 {
-  const st = house(6, { calibration: { points: [], model: {} }, complexity: "basic" });
+  const st = house(6, { calibration: { points: [], model: {} }, settings: { calibration_room_walk: false }, complexity: "basic" });
   const { ctx } = mkCtx(st);
   let root = S.render(ctx);
   const line = root.querySelector('[data-setup="calibration-walk"]');

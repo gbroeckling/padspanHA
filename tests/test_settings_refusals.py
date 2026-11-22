@@ -311,7 +311,6 @@ def test_the_command_checks_every_value_for_one_before_it_reads_any_key():
 _CHOICES = {
     "data_mode": (("live", "sample"), "sample", "live"),
     "positioning_algorithm": (("knn", "rf"), "rf", "knn"),
-    "auto_offset_mode": (("off", "partial", "full"), "off", "full"),
     "license_tier_override": (("", "free", "bright", "pro"), "bright", "free"),
 }
 
@@ -334,7 +333,7 @@ def test_an_unknown_choice_is_refused_in_words_and_the_old_one_stays(key: str, t
     assert got["data"][key] == start
 
 
-@pytest.mark.parametrize("key", ["data_mode", "positioning_algorithm", "auto_offset_mode"])
+@pytest.mark.parametrize("key", ["data_mode", "positioning_algorithm"])
 def test_no_choice_at_all_is_refused_too(key: str) -> None:
     _choices, start, _other = _CHOICES[key]
     got = send({key: "  "}, start={key: start})
@@ -365,3 +364,29 @@ def test_the_panel_sends_only_known_choices() -> None:
     assert 'value: "knn"' in js and 'value: "rf"' in js
     assert '[["",t("(no override)")],["free",t("free")],["bright","bright"],["pro","pro"]]' in js
     assert not re.search(r"auto_offset_mode\s*:\s*[\"'\w]", js.replace("read auto_offset_mode: positioning", ""))
+
+
+# 2026-11-22: settings the command took and nothing reads are no longer
+# taken (auto_offset_mode, signal_loss_linger_s); a value already stored is
+# left in the file as it is. Two the command handled but its schema refused
+# (occupancy_multiplier, occupancy_dwell_min) are taken, within their ranges.
+
+@pytest.mark.parametrize("key, value", [("auto_offset_mode", "full"), ("signal_loss_linger_s", 60)])
+def test_settings_nothing_reads_are_refused_and_a_stored_one_is_kept(key: str, value: Any) -> None:
+    ok, _ = gs._through_schema({key: value})
+    assert not ok, f"{key} is still taken by settings_set"
+    from pathlib import Path
+    assert f'"{key}" in msg' not in Path(WS.__file__).read_text(encoding="utf-8")
+    from custom_components.padspan_ha.settings_store import RETIRED_SETTINGS
+    assert key not in RETIRED_SETTINGS, "a stored value is left alone, not dropped on load"
+    got = send({"light_theme": True}, start={key: value})
+    assert got["error"] is None and got["data"][key] == value
+
+
+@pytest.mark.parametrize("key, sent, kept", [
+    ("occupancy_multiplier", 2.5, 2.5), ("occupancy_multiplier", 99, 10.0), ("occupancy_multiplier", 0, 0.5),
+    ("occupancy_dwell_min", 5, 5.0), ("occupancy_dwell_min", 600, 60.0), ("occupancy_dwell_min", -3, 0.0),
+])
+def test_the_occupancy_pair_is_taken_within_its_range(key: str, sent: float, kept: float) -> None:
+    got = send({key: sent})
+    assert got["error"] is None and got["data"][key] == kept, got["error"]

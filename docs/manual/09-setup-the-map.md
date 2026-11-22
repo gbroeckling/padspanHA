@@ -234,10 +234,10 @@ with pictures.
 Walk the house with your phone so PadSpan learns what each spot sounds like. The step is done at
 five calibration points or a computed model.
 
-- Where **Walk a room** is on, **Start →** walks each room for 90 seconds, and **Point by point**
-  beside it opens Guided calibration.
-- Where it is off, **Start →** opens Guided calibration, and a line says how to turn Walk a room on,
-  with **Open that setting**.
+- Where **Walk a room** is on (the default), **Start →** walks each room for 90 seconds, and
+  **Point by point** beside it opens Guided calibration.
+- Where someone turned it off, **Start →** opens Guided calibration, and a line says how to turn
+  Walk a room on, with **Open that setting**.
 
 [Chapter 11](11-calibration.md) explains both.
 

@@ -14,10 +14,14 @@ versions.
 
 ### From the Marketplace (Home Assistant 2026.11 and newer)
 
+The Marketplace is Home Assistant's own place for HACS's list (HACS became part of Home Assistant
+in 2026.11), and only an administrator sees it.
+
 1. Open **Settings → Marketplace** and search for **PadSpan**.
 2. Open **PadSpan HA** and choose **Install**. The first time, the Marketplace asks you to confirm
-   that what it lists isn't reviewed by the Home Assistant project.
-3. The setup dialog opens right away, with no restart. Choose **Submit**.
+   that what it lists isn't reviewed or supported by the Home Assistant project.
+3. The setup dialog opens right away, with no restart. Choose **Submit**. (Some integrations, such
+   as ones set up in YAML, need a restart first; PadSpan isn't one of them.)
 4. Open **PadSpan HA** in the sidebar.
 
 ### With HACS (Home Assistant 2026.10 and older)
@@ -57,18 +61,23 @@ PadSpan has two kinds of release.
 - **Stable** is what the Marketplace and HACS install and offer by default. Most homes should stay on
   stable.
 - **Betas** come out often, sometimes several in a day, so a fix reaches testers the day it is made.
-  They are GitHub pre-releases. HACS offers a beta only to those who asked it for betas. A beta's
-  release notes say BETA in their title.
+  They are GitHub pre-releases. The Marketplace and HACS offer a beta only to those who asked for
+  betas. A beta's release notes say BETA in their title.
 
-To get betas in HACS 2: go to **Settings → Devices & services → HACS**, open the **PadSpan HA**
-device, and switch on its **Pre-release** entity. Home Assistant creates that entity switched off and
-disabled, so enable it first (its settings, **Enabled**). To go back to stable, switch it off again;
-HACS then offers the next stable.
+To get betas, switch on PadSpan's **Pre-release** switch:
+
+- **Marketplace** (Home Assistant 2026.11 and newer): **Settings → Devices & services →
+  Marketplace**, open the **PadSpan HA** device.
+- **HACS 2** (Home Assistant 2026.10 and older): **Settings → Devices & services → HACS**, open the
+  **PadSpan HA** device.
+
+The **Pre-release** entity is disabled at first, so enable it (its settings, **Enabled**), then
+switch it on. To go back to stable, switch it off again; you are then offered the next stable.
 
 ### Step by step
 
-1. Open **Settings → System → Updates**. A new PadSpan HA shows there (in HACS, it also shows on
-   **PadSpan HA**).
+1. Open **Settings → Updates** (**Settings → System → Updates** before Home Assistant 2026.11). A
+   new PadSpan HA shows there (in HACS, it also shows on **PadSpan HA**).
 2. Choose **Install**. The release notes are in the same dialog.
 3. Restart Home Assistant: **Settings → System → Restart**.
 4. Reload the PadSpan page in each browser that has it open (Ctrl+F5 on a computer).
@@ -121,7 +130,9 @@ the key is still checked with `traks.ca` once a day.
    WLED light it was running its WLED sync back. With the usage report on, PadSpan sends one last
    report that says it was removed, with nothing about the house.
 2. Remove the code:
-   - Marketplace: open **PadSpan HA** in **Settings → Marketplace** and remove it.
+   - Marketplace: open **PadSpan HA** in **Settings → Marketplace**, open the menu (⋮) and choose
+     **Uninstall**. It can't be uninstalled while it is still set up, so do step 1 first (or choose
+     **Delete and uninstall** when the Marketplace offers it).
    - HACS: open **PadSpan HA** in HACS, open the menu (⋮) and choose **Remove**.
    - By hand: delete the folder `custom_components/padspan_ha`.
 3. Restart Home Assistant. The **PadSpan HA** and **Atlas** sidebar entries are gone.

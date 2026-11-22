@@ -62,7 +62,8 @@ FIXED_FIRST_RUN = [
     Fixed({"type": "padspan_ha/settings_set", "data_mode": "zz_missing_data_mode"}, True, "an unknown data mode"),
     Fixed({"type": "padspan_ha/settings_set", "positioning_algorithm": "zz"}, True, "an unknown positioning method"),
     Fixed({"type": "padspan_ha/settings_set", "license_tier_override": "zz"}, True, "an unknown tier"),
-    Fixed({"type": "padspan_ha/settings_set", "auto_offset_mode": "zz"}, True, "an unknown offset mode"),
+    # auto_offset_mode is no longer taken at all (2026-11-22: nothing read it).
+    Fixed({"type": "padspan_ha/settings_set", "auto_offset_mode": "zz"}, True, "a setting no longer taken"),
     # Sizes: 100,000 characters, a NUL, 1e308 metres, 10,000 entries, 200 levels, a wall's extra key.
     Fixed({"type": "padspan_ha/object_label_set", "address": "AA:BB:CC:DD:EE:01", "label": "x" * 100_000}, True,
           "a label of 100,000 characters"),

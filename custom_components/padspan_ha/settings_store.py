@@ -90,7 +90,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
     "hidden_map_ids":  [],     # map IDs hidden from 3D stack view
     "locate_self_key": "",     # which tracked object's position is "you", for the Locate tab's wayfinding
-    "flood_latches": {},       # {binary_sensor entity_id: {triggered_at, expires_at}} — flood_latch.py owns writes
+    "flood_latches": {},       # {binary_sensor entity_id: {triggered_at, expires_at[, notified, end_said]}} — flood_latch.py owns writes
+    # A leak, smoke, gas or CO alarm that latches sends one notification, and
+    # one when it clears, where Follow alerts go (flood_latch.py). On by
+    # default (2026-11-22, owner). Settings → Atlas → Atlas — Mapped Light Control.
+    "emergency_notify": True,
     "scanner_offsets": {},     # {source_name: offset_dBm} — manual per-scanner RSSI trim
     # Sources masked out of positioning (issue #59). A MASK, never a delete:
     # stored calibration samples, positions and registry entries are untouched,
@@ -138,9 +142,17 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "positioning_pick_better": False,
     "positioning_unsure": False,
     "positioning_sensor_fusion": False,
-    # Walk a room (0.38.167), OFF by default: a "Walk a room" tab on
-    # Calibration (room_walk.py). Off, Calibration is exactly what it was.
-    "calibration_room_walk": False,
+    # Walk a room (0.38.167): a "Walk a room" tab on Calibration
+    # (room_walk.py), and Setup's calibration step offers the walk first.
+    # On by default from 2026-11-22 (owner). Off, Calibration is exactly what
+    # it was before the walk.
+    "calibration_room_walk": True,
+    # One-time (2026-11-22): the settings file stores every key, so an install
+    # from before has calibration_room_walk False whether anyone chose it or
+    # not. room_walk_default_stamp turns it on once, unless a walk is saved
+    # (it was on here and someone turned it off), records that here, and
+    # never touches it again.
+    "room_walk_default_v1_applied": False,
     "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)
     # GPS bridge (gap #5, best-in-class roadmap): the fabric's own metre
     # plane has no inherent relationship to true north or a real-world
@@ -471,6 +483,21 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
     return out
 
 
+def room_walk_default_stamp(data: dict, points: Any) -> bool:
+    """Walk a room on by default, once (see room_walk_default_v1_applied).
+    `points` are the calibration store's points: a saved walk among them
+    means the walk was on here and someone turned it off, so that off stays.
+    Changes `data`; True when it did."""
+    if data.get("room_walk_default_v1_applied"):
+        return False
+    if data.get("calibration_room_walk") is not True:
+        from .room_walk import SOURCE  # noqa: PLC0415
+        if not any(isinstance(p, dict) and p.get("source") == SOURCE for p in (points or [])):
+            data["calibration_room_walk"] = True
+    data["room_walk_default_v1_applied"] = True
+    return True
+
+
 def ai_plans_stamp(data: dict, loaded: Any) -> bool:
     """The AI map-building switch (ai_plans_enabled, 2026-11) on an upgrade:
     a home that had turned the stair finder on comes up with the master
@@ -623,6 +650,12 @@ class SettingsStore:
         except Exception:  # noqa: BLE001 - unsure: an existing install
             _quiet_error("settings_store:first_run")
             return False
+
+    async def async_room_walk_default_once(self, points: Any) -> None:
+        """Run room_walk_default_stamp once the calibration store has loaded
+        (it loads after this one), and save when it changed anything."""
+        if room_walk_default_stamp(self.data, points):
+            await self.store.async_save(self.data)
 
     async def async_set(self, **kwargs: Any) -> dict[str, Any]:
         self.data = {**self.data, **kwargs}

@@ -165,7 +165,7 @@ export function render(ctx) {
 
   // Tabs
   const TABS = [["results",t("Results")],["tune",t("Tune")],["beacon",t("Beacon Tune")],["setup",t("Beacon and floor")],["pin",t("Pin & Listen")],["roam",t("Roam")],["model",t("Model")],["matrix",t("Accuracy by spot")]];
-  // Walk a room (calibration_room_walk, off by default): its tab exists only while on.
+  // Walk a room (calibration_room_walk, on by default): its tab exists only while on.
   const _walkOn = ctx.state.settings?.calibration_room_walk === true;
   if (_walkOn) TABS.push(["walk", t("Walk a room")]);
   else if (cs.tab === "walk") cs.tab = "tune";

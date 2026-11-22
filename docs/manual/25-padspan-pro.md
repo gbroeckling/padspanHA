@@ -3,7 +3,8 @@
 [Contents](README.md)
 
 PadSpan HA is free, and the presence tracking stays free: rooms, floor plans, calibration, the
-history, the Home Assistant sensors and the alerts. **PadSpan Pro** is an optional key that unlocks
+history, the Home Assistant sensors and the alerts. So are power teams
+([chapter 15](15-the-atlas.md)). **PadSpan Pro** is an optional key that unlocks
 the paid parts on the same install, with nothing to reinstall:
 
 - exact placement on the Atlas: shapes, sizes, angles, WLED's Advanced controls, Automorph and

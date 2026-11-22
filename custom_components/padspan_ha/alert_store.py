@@ -65,3 +65,21 @@ class AlertStore:
 
     def all(self) -> dict[str, Any]:
         return dict(self.data)
+
+
+def follow_alert_targets(hass: HomeAssistant, limit: int = 5) -> list[tuple[str, str]]:
+    """The phones and mail Follow alerts are set to send to: each distinct
+    (notify target, email) pair, in order, at most `limit`. A Follow alert with
+    neither set auto-picks when it sends, so it adds none. What the notices
+    that are not about one device (Vacation Mode turned off, an emergency
+    alarm) send to, through presence_coordinator.async_send_follow_notify."""
+    from .const import DATA_ALERTS, DOMAIN  # noqa: PLC0415
+    store = (hass.data.get(DOMAIN) or {}).get(DATA_ALERTS)
+    targets: list[tuple[str, str]] = []
+    for cfg in ((store.all() if store else None) or {}).values():
+        if not isinstance(cfg, dict):
+            continue
+        t = (str(cfg.get("notify_service") or "").strip(), str(cfg.get("email") or "").strip())
+        if any(t) and t not in targets:
+            targets.append(t)
+    return targets[:limit]

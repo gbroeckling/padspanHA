@@ -194,6 +194,23 @@ def test_the_websocket_table_is_every_registered_command() -> None:
     assert any(c["admin"] == "with Enhanced security" for c in cmds)
 
 
+def test_the_websocket_table_reads_as_words_for_people() -> None:
+    """A handler whose first sentence is a note to a developer gets a line written for the table
+    (WS_WHAT); one for a command that is gone stops the build; no row is dated or names the owner."""
+    cmds = {c["type"]: c for c in B.ws_commands_in_code()}
+    for ctype, words in B.WS_WHAT.items():
+        assert cmds[ctype]["what"] == words
+    assert not [t for t, c in cmds.items() if re.search(r"\b20\d\d-\d\d|\bowner\b|\bPhase \d", c["what"])]
+    saved = dict(B.WS_WHAT)
+    try:
+        B.WS_WHAT["padspan_ha/no_such_command"] = "Gone."
+        with pytest.raises(B.ReferenceError_):
+            B.ws_commands_in_code()
+    finally:
+        B.WS_WHAT.clear()
+        B.WS_WHAT.update(saved)
+
+
 # ── links ───────────────────────────────────────────────────────────────────
 
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")

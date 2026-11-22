@@ -510,9 +510,10 @@ _NUMBER_KEYS = (
     "wall_floor_cycle_s", "ai_credit_month_usd", "ai_credit_warn_pct", "atlas_3d_home_idle_s",
     "lights_automorph_room_pct", "lights_automorph_hardness", "lights_automorph_subtlety",
     "traceback_house_focus", "vacation_mode_intensity", "vacation_mode_dark_offset_min",
-    "vacation_mode_max_on_min", "vacation_mode_max_lights", "signal_loss_linger_s",
+    "vacation_mode_max_on_min", "vacation_mode_max_lights",
     "presence_poll_interval_s", "ble_reseed_interval_s", "object_history_days", "guest_retention_days",
     "forensics_retention_days", "rssi_capture_retention_days", "ble_max_age_s", "occupancy_cluster_threshold",
+    "occupancy_multiplier", "occupancy_dwell_min",
     "heatmap_gain", "heatmap_contrast", "distortion_intensity", "heatmap_source",
 )
 
@@ -670,6 +671,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("overview_atlas"): bool,
         vol.Optional("emergency_entities"): _LIST,             # emergency_test.py — [] = find them
         vol.Optional("atlas_alert_pulse"): bool,
+        vol.Optional("emergency_notify"): bool,                # flood_latch.py — a notification when an alarm latches
         vol.Optional("atlas_heatmap_enabled"): bool,
         vol.Optional("atlas_weather_enabled"): bool,
         vol.Optional("atlas_weather_rain_entity"): vol.Any(str, None),
@@ -733,7 +735,6 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("vacation_mode_source"): str,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
-        vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
         vol.Optional("advanced_extra_tabs"): _LIST,
         vol.Optional("ha_entity_tracker_enabled"): bool,
         vol.Optional("ha_entity_area_enabled"): bool,
@@ -805,6 +806,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("ble_max_age_s"): vol.Coerce(int),
         vol.Optional("occupancy_hybrid_enabled"): bool,
         vol.Optional("occupancy_cluster_threshold"): vol.Coerce(float),
+        vol.Optional("occupancy_multiplier"): vol.Coerce(float),   # 0.5-10 (clamped below)
+        vol.Optional("occupancy_dwell_min"): vol.Coerce(float),    # 0-60 min (clamped below)
         vol.Optional("distance_stationary_devices"): _LIST,
         vol.Optional("onboarding_completed"): bool,
         # The Overview's accuracy tips hidden (setup_checks.TIPS), or "all": the card off.
@@ -816,7 +819,6 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("heatmap_contrast"): vol.Coerce(int),    # -15 to +15
         vol.Optional("distortion_intensity"): vol.Coerce(int),  # 0-100 %
         vol.Optional("heatmap_source"): vol.Coerce(int),      # 0-100 % (calibration vs adaptive blend)
-        vol.Optional("auto_offset_mode"): str,                # "off"|"partial"|"full"
         vol.Optional("padspan_automations"): _LIST,              # [{trigger, device_key, device_label, action, entity_id, enabled}]
     }
 )
@@ -1192,15 +1194,6 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["distortion_intensity"] = max(0, min(100, int(msg["distortion_intensity"])))
         if "heatmap_source" in msg:
             payload["heatmap_source"] = max(0, min(100, int(msg["heatmap_source"])))
-        if "auto_offset_mode" in msg:
-            # "off" = manual offsets only, "partial" = auto-adjust weak scanners,
-            # "full" = auto-adjust all scanners to minimize prediction error
-            mode = str(msg["auto_offset_mode"]).strip().lower()
-            if mode not in ("off", "partial", "full"):
-                connection.send_error(msg["id"], "invalid_format",
-                                      'The automatic offset mode is "off", "partial" or "full"')
-                return
-            payload["auto_offset_mode"] = mode
         if "scanner_offsets" in msg:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
@@ -1458,8 +1451,6 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["adaptive_learning_enabled"] = bool(msg["adaptive_learning_enabled"])
         if "adaptive_floor_detection" in msg:
             payload["adaptive_floor_detection"] = bool(msg["adaptive_floor_detection"])
-        if "signal_loss_linger_s" in msg:
-            payload["signal_loss_linger_s"] = max(10, min(300, int(msg["signal_loss_linger_s"])))
         if "advanced_extra_tabs" in msg:
             valid = {"devices","bluetooth","presence","monitor","qa","sandbox"}
             if not all(isinstance(t, str) for t in msg["advanced_extra_tabs"]):
@@ -1480,7 +1471,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "tasmota_ble_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled", "subzones_enabled",
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
-                    "atlas_weather_enabled", "atlas_alert_pulse", "atlas_heatmap_enabled",
+                    "atlas_weather_enabled", "atlas_alert_pulse", "emergency_notify", "atlas_heatmap_enabled",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
                     "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled", "ai_plan_build_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
@@ -1582,16 +1573,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "espresense_room_map" in msg:
             payload["espresense_room_map"] = _text_map(msg["espresense_room_map"])
         # ── Occupancy estimation controls ──────────────────────────────────
-        # occupancy_multiplier/occupancy_dwell_min appear to be unreachable
-        # as written: unlike occupancy_hybrid_enabled/occupancy_cluster_threshold
-        # just below, neither key is declared in this handler's
-        # @websocket_command vol.Schema above, and nothing in the frontend
-        # (grepped the whole www/ tree) ever sends either one — only
-        # ws_fabric.py reads occupancy_multiplier back out, always via
-        # `.get(..., 1.5)`, i.e. always the default. Left as-is (no
-        # behavior change in scope here); worth confirming whether these
-        # are dead legacy code or a still-planned control missing its
-        # schema entry and its frontend UI.
+        # occupancy_multiplier/occupancy_dwell_min: in the schema since
+        # 2026-11-22 (they were handled here but refused by it). The panel
+        # sends neither; Health's fabric check shows occupancy_multiplier
+        # (ws_fabric.py) and nothing reads occupancy_dwell_min yet.
         if "occupancy_multiplier" in msg:
             payload["occupancy_multiplier"] = max(0.5, min(10.0, float(msg["occupancy_multiplier"])))
         if "occupancy_dwell_min" in msg:

@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 
-// Calibration → Walk a room (setting calibration_room_walk, off by default;
+// Calibration → Walk a room (setting calibration_room_walk, on by default;
 // calibration.js only loads this file while it is on). Carry the device
 // picked in Setup slowly around one room for WALK_S seconds; each poll keeps
 // the device's fresh RSSI from every scanner (the same capture helpers Pin &

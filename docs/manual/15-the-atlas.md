@@ -83,7 +83,8 @@ resets it, even if the sensor goes quiet. A banner shows it on every PadSpan scr
 
 Smart colour bulbs in sockets fed by a wall dimmer or switch (Zigbee bulbs on a Control4 dimmer, say)
 go dark when someone turns the wall off, and come back in the wrong colour. A power team makes the
-dimmer and its bulbs one light in Home Assistant.
+dimmer and its bulbs one light in Home Assistant. Power teams are in the free edition: they need no
+PadSpan Pro key (PadSpan Bright has none, since it gives Home Assistant no entities).
 
 **Make one**: **Settings → Atlas → Power teams**, **+ Add a team**. Name it ("Bedroom lights"), pick
 **Power from** (the wall dimmer or switch, or **None: these lights always have power** for colour

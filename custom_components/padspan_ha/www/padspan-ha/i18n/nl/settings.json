@@ -167,5 +167,10 @@
 "Relearned {name}: {db} dB — {n} points updated.": {
 "one": "{name} opnieuw geleerd: {db} dB — {n} punt bijgewerkt.",
 "other": "{name} opnieuw geleerd: {db} dB — {n} punten bijgewerkt."
-}
+},
+"Notify when a leak, smoke, gas or CO alarm goes off": "Een melding sturen als een lek-, rook-, gas- of CO-alarm afgaat",
+"One notification when the alarm goes off and one when it clears (reset in the Atlas, or after 2 days), never more while it stays on. It goes where your Follow alerts go. With none set, it goes to the first notification service Home Assistant has, a mail one first; with none in Home Assistant, nothing is sent.": "Eén melding als het alarm afgaat en één als het voorbij is (gereset in de Atlas, of na 2 dagen), nooit meer zolang het aanhoudt. Hij gaat naar waar je Follow-meldingen heen gaan. Is er niets ingesteld, dan gaat hij naar de eerste meldingsdienst die Home Assistant heeft, een voor e-mail eerst; heeft Home Assistant er geen, dan wordt er niets verstuurd.",
+"Saved: alarms send a notification from now on.": "Opgeslagen: alarmen sturen vanaf nu een melding.",
+"Saved: alarms send no notification from now on.": "Opgeslagen: alarmen sturen vanaf nu geen melding.",
+"Could not save: {why}": "Niet opgeslagen: {why}"
 }

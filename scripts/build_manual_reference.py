@@ -817,6 +817,50 @@ def _command_schema(fn) -> ast.Dict | None:
     return None
 
 
+# Appendix D's "What it does" for the commands whose handler's first sentence
+# reads as a note to a developer (a date, a design reference, "owner"), or is
+# missing. Every other command keeps its first sentence. A line here for a
+# command that no longer exists stops the build.
+WS_WHAT: dict[str, str] = {
+    "padspan_ha/ai_wizard_check_claude": "Checks that PadSpan's AI Task can answer (an account with credit) before an AI map-building run starts.",
+    "padspan_ha/area_add": "Creates a Home Assistant area of this name, on this floor, for a room drawn in Mapping → Edit.",
+    "padspan_ha/bright_import_status": "Whether a PadSpan Bright house is on this Home Assistant, whether it was imported, and whether it can be.",
+    "padspan_ha/capture_replay": "Replays a finished recording through the room smoothing and scores the rooms it gives.",
+    "padspan_ha/fabric_health": "Runs the checks on the house layout (floors, rooms, receivers, calibration).",
+    "padspan_ha/fabric_reset_spatial": "Clears receiver and beacon positions and walls, after an automatic backup; rooms are kept.",
+    "padspan_ha/fabric_rf_barrier_rails_stamp": "Gives older open wall edges the railing they were drawn with.",
+    "padspan_ha/fabric_rooms_merge": "Merges rooms into one: the kept room's outline goes round the others, which are then deleted.",
+    "padspan_ha/plan_build_rooms_read_again": "Reads the plans once more for a room the reads disagreed on; two reads out of three decide it.",
+    "padspan_ha/plan_build_scale_undo": "Takes back the helper's scale, while nothing measured in metres has been added since.",
+    "padspan_ha/radio_reset": "Clears everything PadSpan holds about one receiver, for a receiver replaced or moved.",
+    "padspan_ha/rooms_overlap": "Which rooms are drawn over each other, for Mapping's Edit and Layout.",
+    "padspan_ha/system_critics": "Health's list of problems, most serious first, with how often rooms are mistaken for each other.",
+    "padspan_ha/tester_preview": "What a tester sign-up would send, shown before it is sent.",
+    "padspan_ha/trial_start": "Starts the one-time PadSpan Pro trial.",
+    "padspan_ha/vacation_log_get": "What Vacation Mode switched between two times, and when it was on.",
+    # Handlers with no docstring at all, where the command's name and code say what it does.
+    "padspan_ha/emergency_force_off": "Turns every emergency light off.",
+    "padspan_ha/emergency_member": "Switches one emergency light by hand, from the test button's card.",
+    "padspan_ha/emergency_status": "The emergency lighting test: whether it is on, and its lights.",
+    "padspan_ha/emergency_test": "Starts (`on`) or ends the Atlas's emergency lighting test.",
+    "padspan_ha/flood_reset": "Resets one leak, smoke, gas or CO alarm (the banner's Reset).",
+    "padspan_ha/guest_session_update": "Changes a guest stay: its name, its end, its options.",
+    "padspan_ha/power_teams_get": "The power teams.",
+    "padspan_ha/power_teams_set": "Saves the power teams.",
+    "padspan_ha/settings_get": "PadSpan's settings, as the panel reads them.",
+    "padspan_ha/subzone_add": "Adds a sub-zone.",
+    "padspan_ha/subzone_remove": "Removes a sub-zone.",
+    "padspan_ha/subzones_list": "Every sub-zone.",
+    "padspan_ha/telemetry_reset_id": "Gives the usage report a new install id.",
+    "padspan_ha/telemetry_send_now": "Sends the usage report now.",
+    "padspan_ha/tester_signup": "Signs up as a tester, or changes the sign-up.",
+    "padspan_ha/tester_status": "The tester sign-up, if there is one.",
+    "padspan_ha/tester_withdraw": "Withdraws the tester sign-up.",
+    "padspan_ha/wled_teams_get": "The WLED teams (devices that act as one light).",
+    "padspan_ha/wled_teams_set": "Saves the WLED teams.",
+}
+
+
 def _first_sentence(doc: str | None) -> str:
     text = " ".join((doc or "").split("\n\n")[0].split())
     m = re.match(r"(.+?[.!?])(\s|$)", text)
@@ -864,19 +908,22 @@ def ws_commands_in_code() -> list[dict]:
                      "with Enhanced security" if "admin_if_enhanced_security" in decs or "require_admin_if_enhanced" in calls
                      else "")
             out.append({"type": ctype, "fields": fields, "admin": admin, "module": module,
-                        "what": _first_sentence(ast.get_docstring(fn))})
+                        "what": WS_WHAT.get(ctype) or _first_sentence(ast.get_docstring(fn))})
     seen: dict[str, str] = {}
     for c in out:
         if c["type"] in seen:
             raise ReferenceError_(f"{c['type']} is declared twice ({seen[c['type']]}, {c['module']})")
         seen[c["type"]] = c["module"]
+    gone = sorted(set(WS_WHAT) - set(seen))
+    if gone:
+        raise ReferenceError_(f"WS_WHAT has words for commands that no longer exist: {', '.join(gone)}")
     return sorted(out, key=lambda c: c["type"])
 
 
 def _ws_block() -> str:
     cmds = ws_commands_in_code()
     lines = [f"{len(cmds)} commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.", "",
-             "| Command | Fields | Administrator | Module | What it does (its handler's first sentence) |",
+             "| Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |",
              "|---|---|---|---|---|"]
     for c in cmds:
         lines.append(f"| `{c['type']}` | {', '.join(c['fields']) or '–'} | {c['admin'] or '–'} | `{c['module']}` | {c['what']} |")
@@ -1362,6 +1409,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "atlas_emergency_button": ("Settings → Atlas", "Atlas — Mapped Light Control", "Show the Test emergency lighting button on the Atlas", "The Atlas's Test emergency lighting button."),
     "atlas_live_colours": ("Settings → Atlas", "Atlas — Mapped Light Control", "Draw lit lights in their own colour on the Atlas", "Lit lights in the colour they report. Off: amber."),
     "atlas_alert_pulse": ("Settings → Atlas", "Atlas — Mapped Light Control", "Alert pulse", "Rings an opening left open, or open in the rain, and names the worst alert."),
+    "emergency_notify": ("Settings → Atlas", "Atlas — Mapped Light Control", "Notify when a leak, smoke, gas or CO alarm goes off", "Sends one notification when the alarm latches and one when it clears, where Follow alerts go."),
     "atlas_heatmap_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Heatmap chip on the Atlas (temperature, humidity, CO₂)", "A Heatmap chip on the Atlas: rooms coloured by their own sensors."),
     "power_teams": ("Settings → Atlas", "Power teams", "", "Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md))."),
     "atlas_weather_enabled": ("Settings → Atlas", "Outdoor weather", "Show rain and snow on the Atlas", "Rain or snow around the house while it really rains or snows."),
@@ -1471,8 +1519,8 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "espresense_room_map": (None, "command", "", "ESPresense room names matched to Home Assistant areas."),
     "atlas_3d_showcase": (None, "command", "", "An older Live Aboard look switch, kept so old backups load; Look decides now."),
     "emergency_entities": (None, "command", "", "The lights the Atlas's emergency lighting test switches. Empty: Home Assistant's emergency groups, or PadSpan's own rule."),
-    "auto_offset_mode": (None, "command", "", "Accepted but nothing reads it: only the manual receiver trims are applied."),
-    "signal_loss_linger_s": (None, "command", "", "Retired in 0.20.16: accepted, read by nothing."),
+    "occupancy_multiplier": (None, "command", "", "Devices per person for the occupancy estimate, as Health's fabric check shows it; nothing else reads it yet."),
+    "occupancy_dwell_min": (None, "command", "", "Minutes for the occupancy estimate's dwell; nothing reads it yet."),
     "rssi_capture_retention_days": (None, "command", "", "Days RSSI recordings are kept (RSSI Vector Capture)."),
     "onboarding_completed": (None, "kept", "", "The first-run setup was finished."),
     "setup_progress": (None, "kept", "", "Where Setup has got to."),
@@ -1503,6 +1551,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "power_teams_slept": (None, "kept", "", "Each power team's last bedtime day, so a restart never runs it twice."),
     "room_speed_v1_applied": (None, "kept", "", "The November 2026 room-speed defaults were applied once."),
     "atlas_default_v1_applied": (None, "kept", "", "The Atlas's sidebar entry was switched on once, by default."),
+    "room_walk_default_v1_applied": (None, "kept", "", "Walk a room was switched on once, by default, unless a walk was saved."),
     "server_checked_at": (None, "kept", "", "When the update check and licence check last ran."),
     "forensics_license_expires": (None, "kept", "", "When the licence ends, as the licence server last said."),
     "license_is_trial": (None, "kept", "", "The key is a trial key."),

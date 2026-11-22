@@ -201,6 +201,14 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
             cal_store.set_model_store(_mdl)
         # Load data but defer RF training to background
         await cal_store.async_setup_fast()
+        # Walk a room on by default, once, now that the saved walks can be
+        # seen (settings_store.room_walk_default_stamp).
+        _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        if _st is not None:
+            try:   # a failed settings save must not keep calibration from loading; it runs again next start
+                await _st.async_room_walk_default_once(cal_store.data.get("points", []))
+            except Exception:  # noqa: BLE001
+                _quiet_error("setup:room_walk_default")
         _pt_count = len(cal_store.data.get("points", []))
         return (DATA_CALIBRATION, cal_store, f"CalibrationStore ready ({_pt_count} points)")
 
@@ -710,6 +718,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _quiet_error("setup:entry_forensics")
         _LOGGER.debug("Forensics setup failed: %s", err)
 
+    # A Home Assistant area renamed renames its PadSpan room (area_rename.py).
+    try:
+        from .area_rename import async_setup_area_rename
+        async_setup_area_rename(hass)
+    except Exception as err:
+        _quiet_error("setup:entry_area_rename")
+        _LOGGER.debug("Area rename listener setup failed: %s", err)
+
     # Flood/water-leak alarm latching — event-driven, not a poller (a real
     # leak can flap on/off well under a second; see flood_latch.py).
     try:
@@ -902,6 +918,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _quiet_error("setup:unload_forensics")
         _LOGGER.debug("Forensics teardown error: %s", err)
+
+    try:
+        from .area_rename import async_stop_area_rename
+        async_stop_area_rename(hass)
+    except Exception as err:
+        _quiet_error("setup:unload_area_rename")
+        _LOGGER.debug("Area rename listener teardown error: %s", err)
 
     # Stop the flood-latch event listener
     try:

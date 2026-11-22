@@ -79,7 +79,7 @@ folding heading on that tab.
 | Positioning Choices: Pick the better method for this house | off | on or off | Uses whichever placing method did better on calibration spots it had not seen. | `positioning_pick_better` |
 | Positioning Choices: Mark a room as unsure when the signal is thin | off | on or off | With fewer than 3 receivers, or no good calibration match, a device keeps its room and is marked unsure. | `positioning_unsure` |
 | Positioning Choices: Use motion sensors and usual moves to break ties | off | on or off | Motion and occupancy sensors, and the moves PadSpan has learned, decide between two rooms that read almost the same. | `positioning_sensor_fusion` |
-| Walk a Room (Calibration): Add a "Walk a room" tab to Calibration | off | on or off | Adds Walk a room to Calibration. | `calibration_room_walk` |
+| Walk a Room (Calibration): Add a "Walk a room" tab to Calibration | on | on or off | Adds Walk a room to Calibration. | `calibration_room_walk` |
 | Distance Calibration: Reference power | -59 | -100 to 0 | Signal strength in dBm at 1 metre, for the distance sensors. | `ref_power` |
 | Distance Calibration: Path-loss exponent | 2.5 | 1 to 4 | How fast the signal falls with distance, for the distance sensors: about 2 in the open, 2.5 to 3.5 indoors. | `path_loss_exp` |
 | Signal smoothing: Process noise Q | 3 | 0.01 to 10 | How fast the smoothed signal follows a change. Higher follows movement faster. | `kalman_q` |
@@ -168,6 +168,7 @@ folding heading on that tab.
 | Atlas — Mapped Light Control: Show the Test emergency lighting button on the Atlas | on | on or off | The Atlas's Test emergency lighting button. | `atlas_emergency_button` |
 | Atlas — Mapped Light Control: Draw lit lights in their own colour on the Atlas | off | on or off | Lit lights in the colour they report. Off: amber. | `atlas_live_colours` |
 | Atlas — Mapped Light Control: Alert pulse | off | on or off | Rings an opening left open, or open in the rain, and names the worst alert. | `atlas_alert_pulse` |
+| Atlas — Mapped Light Control: Notify when a leak, smoke, gas or CO alarm goes off | on | on or off | Sends one notification when the alarm latches and one when it clears, where Follow alerts go. | `emergency_notify` |
 | Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂) | off | on or off | A Heatmap chip on the Atlas: rooms coloured by their own sensors. | `atlas_heatmap_enabled` |
 | Power teams | empty |  | Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md)). | `power_teams` |
 | Outdoor weather: Show rain and snow on the Atlas | on | on or off | Rain or snow around the house while it really rains or snows. | `atlas_weather_enabled` |
@@ -306,8 +307,8 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `espresense_room_map` | empty | a mapping | ESPresense room names matched to Home Assistant areas. |
 | `atlas_3d_showcase` | off | on or off | An older Live Aboard look switch, kept so old backups load; Look decides now. |
 | `emergency_entities` | empty |  | The lights the Atlas's emergency lighting test switches. Empty: Home Assistant's emergency groups, or PadSpan's own rule. |
-| `auto_offset_mode` | not set | `off`, `partial`, `full` | Accepted but nothing reads it: only the manual receiver trims are applied. |
-| `signal_loss_linger_s` | not set | 10 to 300 | Retired in 0.20.16: accepted, read by nothing. |
+| `occupancy_multiplier` | 1.5 | 0.5 to 10 | Devices per person for the occupancy estimate, as Health's fabric check shows it; nothing else reads it yet. |
+| `occupancy_dwell_min` | not set | 0 to 60 | Minutes for the occupancy estimate's dwell; nothing reads it yet. |
 | `rssi_capture_retention_days` | 14 | `1`, `3`, `7`, `14`, `30` | Days RSSI recordings are kept (RSSI Vector Capture). |
 
 ### Kept by PadSpan itself
@@ -343,6 +344,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `power_teams_slept` | empty |  | Each power team's last bedtime day, so a restart never runs it twice. |
 | `room_speed_v1_applied` | off |  | The November 2026 room-speed defaults were applied once. |
 | `atlas_default_v1_applied` | off |  | The Atlas's sidebar entry was switched on once, by default. |
+| `room_walk_default_v1_applied` | off |  | Walk a room was switched on once, by default, unless a walk was saved. |
 | `server_checked_at` | 0 |  | When the update check and licence check last ran. |
 | `forensics_license_expires` | empty |  | When the licence ends, as the licence server last said. |
 | `license_is_trial` | off |  | The key is a trial key. |

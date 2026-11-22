@@ -250,6 +250,8 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
             data.update(carried_over(live_settings))
             if live_settings.get("atlas_default_v1_applied"):
                 data["atlas_default_v1_applied"] = True
+            if live_settings.get("room_walk_default_v1_applied"):
+                data["room_walk_default_v1_applied"] = True
             # The trial milestone's answer and first sighting, from either
             # side (settings_store.trial_state_kept).
             from .settings_store import live_first_kept, trial_state_kept  # noqa: PLC0415
